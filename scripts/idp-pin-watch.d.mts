@@ -99,6 +99,8 @@ export interface Net {
   /** A HEAD of `url`: its `Docker-Content-Digest`, or '' when it names none. */
   digest(url: string, headers?: Record<string, string>): Promise<string>;
   lsRemote(url: string): Promise<string>;
+  /** `git ls-remote <url> HEAD`: the repository's newest commit on its default branch. */
+  head(url: string): Promise<string>;
   npm(args: string[]): Promise<string>;
   /** `trigger-version.sh probe <pin>`: the tags above it both images carry, newest first. */
   probe(pin: string): Promise<string>;
@@ -177,3 +179,7 @@ export declare function watch(repo: Repo, net: Net): Promise<Report>;
 export declare function table(report: Report): string;
 export declare function realNet(root: string): Net;
 export declare function repoReader(root: string): Repo;
+export declare const NODE_RELEASE_KEYS_FILE: string;
+export declare const NODE_RELEASE_KEYS_NOTE: string;
+export declare function releaseKeysPin(text: string | null): { repo: string; commit: string; path: string; blob: string };
+export declare function gitBlobId(bytes: Uint8Array): string;

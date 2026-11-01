@@ -14,7 +14,13 @@
  *   `docs/release.md` §3: a scan re-run on a release that already had its
  *   body; one is deleted from the body by hand.
  * - **The SBOM** is CycloneDX and names the version.
- * - **The zip:** its own `SHA256SUMS.txt` holds for every file it names.
+ * - **The zip:** its own `SHA256SUMS.txt` holds for every file it names,
+ *   and its `node.exe` hashes to the sum the tagged commit pins for it
+ *   (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, for the Node
+ *   `apps/selfhost/Dockerfile` names, both read at COMMIT through the API,
+ *   since this job checks out the ref it was dispatched on). The zip's own
+ *   list could be swapped with the binary; the commit cannot (#1780's review).
+ *   A tag from before those sums were committed (2026-11-01) gets a note.
  * - **The images** `ghcr.io/robbes/ownpace-{api,web,selfhost}` at `X.Y.Z`:
  *   an index with linux/amd64 and linux/arm64, its revision label the
  *   commit, `sha-<commit>` the same index, `latest` withheld from a
@@ -41,6 +47,7 @@ import { join, dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, report, short } from './release-github.mjs';
+import { nodeRuntimeVersion } from './package-appliance.mjs';
 
 export const IMAGES = ['api', 'web', 'selfhost'];
 export const REGISTRY = 'ghcr.io/robbes';
@@ -121,6 +128,37 @@ export function verifySums(sums, hashOf) {
   return bad.length === 0
     ? pass('zip-sums', `SHA256SUMS.txt holds for all ${entries.length} files`)
     : refuse('zip-sums', bad.slice(0, 5).join('; ') + (bad.length > 5 ? `, and ${bad.length - 5} more` : ''));
+}
+
+/** The `NODE_RUNTIME_SHA256` literal in `scripts/package-appliance.mjs`'s text. */
+const RUNTIME_PINS = /^export const NODE_RUNTIME_SHA256 = \{$([\s\S]*?)^\};$/m;
+
+/**
+ * The SHA-256 the packager's text pins for one runtime: the `NODE_RUNTIME_SHA256`
+ * entry of `scripts/package-appliance.mjs` as read at a commit, for `version`
+ * and `platform`. null when the text has no NODE_RUNTIME_SHA256 at all (a
+ * commit from before 2026-11-01); throws when it has one without that sum.
+ * Text, not an import: the file is the tagged commit's, not this checkout's.
+ */
+export function pinnedRuntimeIn(packagerText, version, platform) {
+  const block = RUNTIME_PINS.exec(packagerText ?? '');
+  if (!block) return null;
+  const literal = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const entry = new RegExp(`^  '${literal(version)}': \\{$([\\s\\S]*?)^  \\},?$`, 'm').exec(block[1]);
+  const sum = entry && new RegExp(`^    '${literal(platform)}': '([0-9a-f]{64})',?$`, 'm').exec(entry[1]);
+  if (!sum) throw new Error(`scripts/package-appliance.mjs at the tag pins no ${platform} sum for Node ${version} in NODE_RUNTIME_SHA256`);
+  return sum[1];
+}
+
+/** The zip's `node.exe` (its sha256, or null when absent) is the one the tagged commit pins. */
+export function checkRuntime(seen, pinned, nodeVersion) {
+  if (pinned === null) {
+    return note('zip-node', "the tagged commit pins no node.exe sum (NODE_RUNTIME_SHA256 came on 2026-11-01): node.exe is held only to the zip's own SHA256SUMS.txt");
+  }
+  if (seen === null) return refuse('zip-node', `the zip holds no node.exe, and the tagged commit pins Node ${nodeVersion} win-x64`);
+  return seen === pinned
+    ? pass('zip-node', `node.exe is Node ${nodeVersion} win-x64 as the tagged commit pins it (sha256 ${short(pinned)}…)`)
+    : refuse('zip-node', `node.exe's sha256 is ${seen}, and the tagged commit pins ${pinned} for Node ${nodeVersion} win-x64`);
 }
 
 /** A multi-arch index with both platforms. */
@@ -222,7 +260,30 @@ function walk(dir, base = dir) {
   });
 }
 
-async function checkAssets(release, version) {
+/** A file's text at a commit, through the contents API; null when the commit has no such file. */
+function atCommit(client, commit) {
+  return async (path) => {
+    const file = await client.get(`contents/${path}?ref=${commit}`, { allow404: true });
+    if (file === null) return null;
+    if (file?.encoding !== 'base64') throw new Error(`the API gave ${path} at ${short(commit)} as ${file?.encoding ?? 'nothing'}, not base64`);
+    return Buffer.from(file.content, 'base64').toString('utf8');
+  };
+}
+
+/** The `zip-node` line: the zip's node.exe against the sum the tagged commit pins. */
+async function runtimeLine(hashOf, readAt) {
+  try {
+    const packager = await readAt('scripts/package-appliance.mjs');
+    if (packager === null) throw new Error('the tagged commit has no scripts/package-appliance.mjs');
+    if (!RUNTIME_PINS.test(packager)) return checkRuntime(hashOf('node.exe'), null, null);
+    const nodeVersion = nodeRuntimeVersion((await readAt('apps/selfhost/Dockerfile')) ?? '');
+    return checkRuntime(hashOf('node.exe'), pinnedRuntimeIn(packager, nodeVersion, 'win-x64'), nodeVersion);
+  } catch (err) {
+    return refuse('zip-node', `the sum the tagged commit pins for node.exe could not be read: ${String(err?.message ?? err).split('\n')[0]}`);
+  }
+}
+
+async function checkAssets(release, version, readAt) {
   const lines = [];
   const asset = (name) => (release?.assets ?? []).find((a) => a.name === name && a.state === 'uploaded');
   const bom = asset('bom.json');
@@ -245,6 +306,7 @@ async function checkAssets(release, version) {
         const hashOf = (file) =>
           existsSync(join(root, file)) ? createHash('sha256').update(readFileSync(join(root, file))).digest('hex') : null;
         lines.push(verifySums(readFileSync(join(dir, 'out', sums), 'utf8'), hashOf));
+        lines.push(await runtimeLine(hashOf, readAt));
       }
     } finally {
       rmSync(dir, { recursive: true, force: true });
@@ -340,7 +402,7 @@ async function main() {
   }
   const client = github();
   const release = await client.get(`releases/tags/${encodeURIComponent(version)}`, { allow404: true });
-  const lines = [...checkRelease(release, version), ...(await checkAssets(release, version))];
+  const lines = [...checkRelease(release, version), ...(await checkAssets(release, version, atCommit(client, commit)))];
   const images = await checkImages({ version, commit });
   lines.push(...images.lines);
   lines.push(await checkVersion({ version, commit }));

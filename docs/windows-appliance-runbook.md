@@ -115,10 +115,68 @@ on 2026-10-31 (workplan 0119 §2.4), and with it `node.exe`: 100,097,864 bytes
 not yet run on Windows here when it moved, and the Windows 11 check of the first
 zip built on it is the owner's.
 
-The download is **checksum-verified** against the release's own
-`SHASUMS256.txt`, and a mismatch stops the build. We would be shipping somebody
-else's binary to customers; an unverified download is a supply-chain hole with a
-progress bar.
+The download is **checked against a SHA-256 committed in this repository**, and
+a mismatch stops the build. We would be shipping somebody else's binary to
+customers; an unverified download is a supply-chain hole with a progress bar.
+Until 2026-11-01 the sum came from the release's `SHASUMS256.txt`, fetched from
+the same `nodejs.org` directory as `node.exe`, so whatever could change the one
+could change the other (workplan 0119 §2.5). Now `scripts/package-appliance.mjs`
+holds the sum of each platform's `node.exe` for the one version the Dockerfile
+names (`NODE_RUNTIME_SHA256`), and reads it before it fetches anything. Beside
+it, `scripts/node-release/` holds that release's own `SHASUMS256.txt` and its
+signature `SHASUMS256.txt.sig`, and the Node.js release keyring, byte for byte
+`gpg-only-active-keys/pubring.kbx` of
+[nodejs/release-keys](https://github.com/nodejs/release-keys) at the commit the
+script names. Before the download, `gpgv` must find a good signature on the list
+with that keyring alone, and the list must give the committed sum; the host is
+then asked for `node.exe` and nothing else. So staging a payload with
+`--with-node`, and `pnpm test`, need `gpgv` on the machine (GnuPG; Debian and
+Ubuntu install it with apt, and the hosted CI runner has it).
+`a-runtime-only-its-own-host-vouched-for` checks the same on every pull
+request, and the release's `verify` job holds the published zip's `node.exe`
+to the sum the tagged commit pins.
+
+A releaser's key that has expired since it signed does not break the check:
+four of the eight keys in the pinned keyring carry an expiry date, and once it
+passes `gpgv` reports their signatures as `EXPKEYSIG`, not `GOODSIG`. A list
+signed before the expiry is taken; one signed after it, or by a revoked key, is
+refused with a message that says which.
+
+**Moving Node, and the sum with it.** Dependabot's image pull request for
+`apps/selfhost/Dockerfile` moves the version and cannot move the sums, so that
+guard fails it until somebody does, in the same pull request, from the
+repository root:
+
+```bash
+v=v26.14.0   # the version the Dockerfile's FROM line now names
+curl -fsSLo scripts/node-release/SHASUMS256.txt "https://nodejs.org/dist/$v/SHASUMS256.txt"
+curl -fsSLo scripts/node-release/SHASUMS256.txt.sig "https://nodejs.org/dist/$v/SHASUMS256.txt.sig"
+gpgv --status-fd 1 --keyring "$PWD/scripts/node-release/release-keys.kbx" \
+  scripts/node-release/SHASUMS256.txt.sig scripts/node-release/SHASUMS256.txt
+grep -E ' win-(x64|arm64)/node\.exe$' scripts/node-release/SHASUMS256.txt
+```
+
+`gpgv`'s status lines must hold `[GNUPG:] GOODSIG`. Its `Good signature` text is
+not enough on its own: it prints that for a revoked key and an expired one too,
+and the guard reads the status lines. Then replace the `NODE_RUNTIME_SHA256`
+entry with `$v` and those two sums, and push. If `gpgv` says it has no public
+key for the signer, a new releaser signed the release: take `pubring.kbx` from a
+newer commit of nodejs/release-keys, and move the commit and the blob id in
+`NODE_RELEASE_KEYS` with it (the guard compares the blob id).
+
+Read the sums from a second place too, the release's announcement in
+[nodejs/nodejs.org](https://github.com/nodejs/nodejs.org)
+(`apps/site/pages/en/blog/release/<version>.md`, which carries the same list
+clear-signed), and say in the pull request that they agree.
+
+**Moving the keyring.** Upstream also retires keys, revokes them and moves
+their expiry dates in that file. The weekly pin watch (`idp-pin-watch.yml`)
+compares it at nodejs/release-keys' newest commit with the blob id recorded,
+and its summary issue, *Pins Dependabot cannot see are behind*, names that
+commit when the two differ. Then read what the commit changed, take its
+`gpg-only-active-keys/pubring.kbx` into `scripts/node-release/release-keys.kbx`,
+move `NODE_RELEASE_KEYS`' commit and blob id, and push: the guard checks the
+committed list with the new keyring on that pull request.
 
 **No Docker, no WSL, no Postgres, no Visual Studio, no build toolchain.** If any
 phase turns out to need one, that is a finding worth reporting.

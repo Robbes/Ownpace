@@ -57,6 +57,37 @@ notices.
 
 ### Security
 
+- **The Windows payload's `node.exe` is checked against a SHA-256 committed in
+  this repository, and that sum is the one the Node.js release was signed
+  with** (workplan 0119 §2.5): the build fetched `node.exe` and the
+  `SHASUMS256.txt` it compared it with from the same `nodejs.org` directory, so
+  whatever could change the binary could change the list, and the check passed.
+  `scripts/package-appliance.mjs` now holds the sum of each platform's
+  `node.exe` for the Node version `apps/selfhost/Dockerfile` names (v26.13.0:
+  win-x64 `14319838…`, win-arm64 `4c9baa04…`) and reads it before it fetches
+  anything. The release's own `SHASUMS256.txt` and `.sig` are committed in
+  `scripts/node-release/` beside the Node.js release keyring, byte for byte
+  `gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`;
+  `gpgv` must find a good signature there with that keyring alone, and the list
+  must give the committed sum. The host is asked for `node.exe` and nothing
+  else. A version with no committed sum, a sum the signed list does not give,
+  or bytes that do not hash to it each stop the build, and the new guard
+  `a-runtime-only-its-own-host-vouched-for` fails a pull request that moves
+  the Dockerfile's Node without the sums, so Dependabot's next Node pull
+  request needs the new list and sums pushed to it (the runbook gives the
+  commands). `pnpm test` and staging a payload with `--with-node` now need
+  GnuPG's `gpgv` on the machine (README and CONTRIBUTING list it). A list
+  signed by a releaser key that has expired since is still good when it was
+  signed before that expiry, since four of the keyring's eight keys carry
+  one and refusing it would turn every pull request red on that date; one
+  signed after its key expired, or by a revoked key, is refused, saying so.
+  The release's `verify` job now also holds the published zip's `node.exe` to
+  the sum the tagged commit pins, read at that commit, where it checked the
+  zip only against its own `SHA256SUMS.txt`. And the weekly pin watch compares
+  the pinned keyring with the same file at nodejs/release-keys' newest commit,
+  so a key retired, revoked or given a new expiry upstream is listed in its
+  summary issue.
+
 - **CI's other floating downloads are named releases, checked by their
   SHA-256 or digest: stalwart-cli, the dev database Atlas lints against, and
   the emulator and BuildKit images the image build runs** (workplan 0119):
@@ -85,6 +116,7 @@ notices.
   The second-Nextcloud-major CI fixture moves to upstream's rebuild
   of `nextcloud:34.0.5-apache` (2026-10-28), with libbrotli's fix for the
   critical CVE-2026-111497.
+
 - **CI's migration lint runs Atlas v1.3.6, checked by its SHA-256 before it
   runs, not a canary fetched by its `-latest` name** (workplan 0119): the
   `migration-lint` job downloaded `atlas-community-linux-<arch>-latest` with no

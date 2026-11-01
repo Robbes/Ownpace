@@ -21,7 +21,12 @@
  *   tag; and `bom.json` and `ownpace-appliance-win-x64-<tag>.zip` are both
  *   uploaded and not empty.
  * - **The SBOM** is CycloneDX and names the version.
- * - **The zip's own `SHA256SUMS.txt`** holds for every file it names.
+ * - **The zip's own `SHA256SUMS.txt`** holds for every file it names, and
+ *   its `node.exe` hashes to the sum the TAGGED COMMIT pins
+ *   (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, for the Node
+ *   `apps/selfhost/Dockerfile` names, both read at the commit), so a zip whose
+ *   `node.exe` and `SHA256SUMS.txt` were swapped together after the build is
+ *   refused (#1780's review). A tag from before 2026-11-01 gets a note.
  * - **The images:** each of `ownpace-{api,web,selfhost}` at `X.Y.Z` is an
  *   index with `linux/amd64` and `linux/arm64`, whose revision label is the
  *   commit; `sha-<commit>` is the same index; `latest` is withheld from a
@@ -62,8 +67,11 @@ import {
   latestWithheld,
   cosignCalls,
   versionAnswer,
+  pinnedRuntimeIn,
+  checkRuntime,
 } from './release-verify.mjs';
 import type { Release } from './release-verify.mjs';
+import { NODE_RUNTIMES, NODE_RUNTIME_SHA256, nodeRuntimeVersion } from './package-appliance.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string) => readFileSync(join(ROOT, path), 'utf8');
@@ -164,6 +172,34 @@ describe('the SBOM and the zip', () => {
     expect(verifySums(sums.replace('b'.repeat(64), 'c'.repeat(64)), (f) => hashes[f] ?? null).kind).toBe('refuse');
     expect(verifySums(sums, (f) => (f === 'start.mjs' ? hashes[f]! : null)).sentence).toMatch(/ui\/index\.html is missing/);
     expect(verifySums('', () => null).kind).toBe('refuse');
+  });
+
+  it("holds the zip's node.exe to the sum the tagged commit pins, read from that commit's text", () => {
+    const packager = read('scripts/package-appliance.mjs');
+    const nodeVersion = nodeRuntimeVersion(read('apps/selfhost/Dockerfile'));
+    // The text reader gives what the module exports: a literal reshaped so it cannot read it fails here, not at a tag.
+    for (const platform of Object.keys(NODE_RUNTIMES)) {
+      expect(pinnedRuntimeIn(packager, nodeVersion, platform)).toBe(NODE_RUNTIME_SHA256[nodeVersion]![platform]);
+    }
+    const pinned = pinnedRuntimeIn(packager, nodeVersion, 'win-x64')!;
+    expect(checkRuntime(pinned, pinned, nodeVersion)).toMatchObject({ kind: 'pass', check: 'zip-node' });
+    // A node.exe swapped together with the zip's own list: those sums hold, the pinned one does not.
+    expect(checkRuntime('0'.repeat(64), pinned, nodeVersion).sentence).toMatch(/^node\.exe's sha256 is 0{64}, and the tagged commit pins [0-9a-f]{64}/);
+    expect(checkRuntime(null, pinned, nodeVersion)).toMatchObject({ kind: 'refuse', check: 'zip-node' });
+    // A version the commit pins nothing for throws, which the job reports as a refusal, never a pass.
+    expect(() => pinnedRuntimeIn(packager, 'v26.99.0', 'win-x64')).toThrow(/pins no win-x64 sum for Node v26\.99\.0/);
+    expect(() => pinnedRuntimeIn(packager, nodeVersion.replaceAll('.', 'x'), 'win-x64')).toThrow(/pins no win-x64 sum/);
+    expect(() => pinnedRuntimeIn(packager, nodeVersion, 'win-x86')).toThrow(/pins no win-x86 sum/);
+    // A tag from before the sums were committed: a note, never a pass.
+    const before = packager.replace(/^export const NODE_RUNTIME_SHA256 = \{$[\s\S]*?^\};$/m, '');
+    expect(before).not.toBe(packager);
+    expect(pinnedRuntimeIn(before, nodeVersion, 'win-x64')).toBeNull();
+    expect(checkRuntime(pinned, null, null).kind).toBe('note');
+    // And the job asks it, for the zip it unpacked, with the files read at COMMIT.
+    const verify = read('scripts/release-verify.mjs');
+    expect(verify).toContain('lines.push(await runtimeLine(hashOf, readAt));');
+    expect(verify).toContain('checkAssets(release, version, atCommit(client, commit))');
+    expect(verify).toContain('client.get(`contents/${path}?ref=${commit}`, { allow404: true })');
   });
 
   it('names the zip as windows-payload.yml does', () => {

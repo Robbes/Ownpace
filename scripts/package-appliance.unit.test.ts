@@ -700,7 +700,10 @@ describe('the shipped Windows payload carries its own Node', () => {
    * it on every push. What is exercised is the half that can be wrong quietly:
    * checksum selection and mismatch handling. We would be shipping somebody
    * else's binary to customers, and an unverified download is a supply-chain
-   * hole with a progress bar.
+   * hole with a progress bar. Where the sum comes from (committed, and the one
+   * the release's signed list gives, never a list from the host that serves
+   * the binary) is `a-runtime-only-its-own-host-vouched-for`'s, since
+   * 2026-11-01.
    */
   const SHASUMS = [
     'aa'.repeat(32) + '  node-v24.19.0-linux-x64.tar.gz',

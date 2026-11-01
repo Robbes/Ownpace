@@ -1,6 +1,6 @@
 # ADR-0027: The Windows appliance ships as a service with a shortcut, not a native shell
 
-- **Status:** Accepted 2026-07-30; updated three times — amended 2026-08-06 (bundled Node) and 2026-08-07 (scheduled task), measured on real Windows 2026-08-09 — plus a build correction (2026-07-31); consolidated 2026-10-03 (ADR-0051); amended 2026-10-21 (the payload's Node follows the self-host image). **Despite the title, it is a scheduled task, not a Windows Service.**
+- **Status:** Accepted 2026-07-30; updated three times — amended 2026-08-06 (bundled Node) and 2026-08-07 (scheduled task), measured on real Windows 2026-08-09 — plus a build correction (2026-07-31); consolidated 2026-10-03 (ADR-0051); amended 2026-10-21 and 2026-11-01 (the payload's Node; *Amendment log*). **Despite the title, it is a scheduled task, not a Windows Service.**
 - **Date:** 2026-07-30; consolidated 2026-10-03
 - **Supersedes:** the "optional Tauri tray variant (planned)" in [ADR-0019](./0019-packaging-runtime-targets.md) §2, as the *first* packaging target. Tauri is not rejected — it is deferred, with a named revisit condition below.
 - **Relates to:** [ADR-0023](./0023-persistence-postgres-only.md) (Postgres everywhere), [ADR-0026](./0026-one-operating-ui-one-contract.md) (one operating UI), [ADR-0028](./0028-pglite-appliance-persistence.md) (PGlite for the appliance), workplans [0015](../workplans/0015-native-windows-installer.md) T2–T4 and [0016](../workplans/0016-pglite-adoption.md), the [Windows runbook](../windows-appliance-runbook.md).
@@ -13,7 +13,7 @@
      node scripts/adr-operative.mjs --write -->
 
 - The Windows appliance is a **Task Scheduler task** (At-Startup, `NT AUTHORITY\LocalService`), **not a Windows Service** whatever the title says, plus a Start-menu shortcut to the operating UI. No native shell, no wrapper binary (WinSW, nssm rejected). Held by `scripts/windows/install-task.ps1`; reasons in *Decision*.
-- The Windows payload carries its **own pinned Node runtime**, the exact version `apps/selfhost/Dockerfile`'s `FROM node:` line names, staged by the opt-in `--with-node` flag and verified against the release's `SHASUMS256.txt` — a mismatch stops the build. Held by `scripts/package-appliance.mjs` and its unit test; `install-task.ps1` refuses a payload without `node.exe`.
+- The Windows payload carries its **own pinned Node runtime**, the exact version `apps/selfhost/Dockerfile`'s `FROM node:` line names, staged by the opt-in `--with-node` flag and checked against a SHA-256 committed in `scripts/package-appliance.mjs`, which the release's signed `SHASUMS256.txt` in `scripts/node-release/` must give. A mismatch, or no committed sum, stops the build; held by `a-runtime-only-its-own-host-vouched-for`. `install-task.ps1` refuses a payload without `node.exe`.
 - **The no-wrapper decision rests on a hard kill being safe**: PGlite and the migration ledger survive `Stop-Process -Force` (measured on real Windows 2026-08-07 and 2026-08-09, *Decision*). Anything that breaks that reopens it.
 - `install-task.ps1` **must set `ExecutionTimeLimit` to zero** (no test checks it): the three-day default would stop a healthy appliance, the likeliest quiet failure.
 - Writable state lives in **`C:\ProgramData\OpenMigrate`**, outside the payload; `uninstall-task.ps1` **keeps it** (the migration ledger, hard rule 2) unless `-IncludeData` is passed.
@@ -222,6 +222,16 @@ Do **not** revisit on size alone. The Node runtime, not the shell, is the bulk.
   HIGH) was the first to need both.
   Still pinned, verified and opt-in; the reviewed edit the Decision names is now Dependabot's
   image PR, which moves both. Record: *Operative rules*; this entry.
+- **2026-11-01** — the payload's `node.exe` is checked against a SHA-256 committed in
+  `scripts/package-appliance.mjs` (`NODE_RUNTIME_SHA256`), not against a `SHASUMS256.txt`
+  fetched from the same `nodejs.org` directory as the binary, which whatever could change the
+  one could change too (workplan 0119 §2.5). That sum must be the one the release's own
+  `SHASUMS256.txt` gives, committed with its `.sig` in `scripts/node-release/` and verified
+  by `gpgv` against the Node.js release keyring committed beside it (nodejs/release-keys at
+  `481637f8`). A Node move now carries the new list and sums in the same pull request;
+  `a-runtime-only-its-own-host-vouched-for` fails one that does not. The `SHASUMS256.txt
+  verified` of 2026-08-06 above is this, made independent of the host. Record: *Operative
+  rules*; this entry.
 
 The full record, word for word as it read before this consolidation:
 [history/0027-windows-packaging-shell.md](./history/0027-windows-packaging-shell.md).

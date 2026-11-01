@@ -12,7 +12,9 @@
 # migration-lint downloads by URL and checks by its sha256, the stalwart-cli
 # release ci.yml, e2e.yml and e2e-managed.yml install the same way, and the
 # binfmt and BuildKit images images.yml's build job names in its actions'
-# inputs.
+# inputs, and the Node.js release keyring the Windows payload's node.exe check
+# reads (NODE_RELEASE_KEYS in scripts/package-appliance.mjs), against that file
+# at nodejs/release-keys' newest commit.
 #
 # Once a week, and on demand, scripts/idp-pin-watch.mjs reads each pin from the
 # checkout and compares it with its upstream, without a token: git ls-remote,

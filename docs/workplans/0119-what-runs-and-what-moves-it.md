@@ -4,6 +4,111 @@
 
 ## Status — 2026-11-01 (update this block at the end of every session)
 
+**2026-11-01: the Windows payload's `node.exe` is checked against a sum committed here, and that
+sum is the one the release was signed with (alpha.4, supply chain; §2.5's follow-up)**, on the
+branch `claude/ownpace-public-readiness-y7orc6-windows-node-verified`, a draft. Until this,
+`scripts/package-appliance.mjs` fetched `SHASUMS256.txt` and `node.exe` from the same
+`nodejs.org` release directory and compared the one with the other, so whatever could change the
+binary could change the list. Now `NODE_RUNTIME_SHA256` in that script holds the SHA-256 of each
+platform's `node.exe` for the one version `apps/selfhost/Dockerfile` names, read before anything
+is fetched; the release's own `SHASUMS256.txt` and `.sig` are committed in `scripts/node-release/`
+beside the Node.js release keyring, byte for byte `gpg-only-active-keys/pubring.kbx` of
+nodejs/release-keys at `481637f8` (2026-09-01; git blob `bae91a9c…`, the eight active releasers'
+keys); `gpgv`, under an empty GNUPGHOME, must find exactly one good signature on the list with that
+keyring, the list must be the Dockerfile's version's, and it must give the committed sum; and the
+host is then asked for `node.exe` alone, whose bytes must hash to that sum. A cached copy is
+hashed again before use. **The sums, v26.13.0:** win-x64 `14319838b3f355e0…` (the sum #1767
+recorded is this one, of `node.exe`; the release's zip is `dcc60d59…`), win-arm64 `4c9baa04…`.
+Read from three places: the release's `SHASUMS256.txt`, whose `.sig` `gpgv` verified with the
+pinned keyring (good, by primary key `C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C`, made 2026-10-28
+13:00:50 UTC); the clear-signed list in the release announcement,
+`apps/site/pages/en/blog/release/v26.13.0.md` in nodejs/nodejs.org (good, by the same key, and the
+same 34 lines); and each `node.exe` downloaded and hashed (100,097,864 and 88,331,080 bytes). The
+first two are one releaser's signature over one list, reached through two hosts; the third shows
+the bytes `nodejs.org` serves are the ones signed for, and is no more independent of that host
+than the list it came beside.
+**New guard** `a-runtime-only-its-own-host-vouched-for` (10 tests): the Dockerfile's version has a
+sum for every platform, no other version is pinned, and the committed list is that version's,
+signed, and gives the same sums, with the real `gpgv`; its checker fails ten mutations of its own
+(a moved Dockerfile, a missing platform, a short or capitalised sum, a win-x64 or win-arm64 sum
+not the signed one, the zip's sum in place of `node.exe`'s, a stale second version, one sum for
+both, an unknown platform); against a stubbed host, a tampered `node.exe` served with a list
+naming it (which the old check passes, asserted) is refused and the host's list is never asked
+for, and a missing sum, a sum the signed list does not give, a list of another version and a list
+whose signature fails are refused before the host is asked for anything; the signature is
+refused with a byte changed, an empty keyring, two signatures and no `gpgv`; and the keyring's git
+blob id is the one recorded. **Mutation-checked by hand on the real files:** win-x64's sum
+`14319838…` made `04319838…` fails 2 of 10 (*"The signed SHASUMS256.txt of Node v26.13.0 lists
+14319838… for win-x64/node.exe, and scripts/package-appliance.mjs pins 04319838…"*), and the
+packager run with it stops before the bundle with the same words; win-arm64's sum changed fails 1;
+the Dockerfile's `FROM node:26.13.0-` made `26.14.0-` fails 2 (*"No SHA-256 is committed for Node
+v26.14.0 win-x64 …"*, and v26.13.0 pinned beside it); one byte of the committed list changed fails
+3 (`gpgv` exit 1, `BADSIG`); release-keys' full keyring, retired keys included, in place of the
+active one fails the blob id; restored, 10 of 10 pass. Locally, `--with-node win-x64` staged
+`node.exe` at `14319838…`; a second run took it from the cache after hashing it; a cached copy with
+one byte changed was discarded and fetched again. **On GitHub:** windows-payload run 41284860225 on
+`5331809c` (dispatched on the branch, `build win-x64` green 07:27:38 to 07:28:13 UTC) logged
+`Node v26.13.0 win-x64/node.exe: pinned sha256 14319838…, as the committed SHASUMS256.txt lists
+it, signed by C82FA3AE1CBEDC6BE46B9360C43CEC45C17AB93C (scripts/node-release/release-keys.kbx).`
+and then `100097864 bytes, sha256 14319838…, as pinned.`, and uploaded
+`ownpace-appliance-win-x64-5331809c…` (51,294,626 bytes zipped). **How Node moves now:**
+Dependabot's image pull request for `apps/selfhost/Dockerfile` fails the guard until the release's
+list, its `.sig` and the two sums are pushed to it; `.github/dependabot.yml`, the comment above
+`NODE_RUNTIME_SHA256` and `docs/windows-appliance-runbook.md` give the commands; a release signed
+by a key not in the keyring is refused until the keyring moves to a newer commit of
+nodejs/release-keys. ADR-0027's operative bullet says the same (amended in place). `pnpm test`
+and staging with `--with-node` now need `gpgv` (the hosted runner has it; the review entry below
+says what is owed for the self-hosted one). **Not done here:** the tarball the
+host steps of `docs/managed-bring-up.md` install is still checked against a list from its own
+host (§2.5); the owner's Windows 11 check of a zip on 26.13.0 is still owed.
+
+**2026-11-01: #1780's review, seven findings, all held (five distinct), all fixed on the same
+branch.** (1, 5) **An expired releaser key.** `verifyNodeReleaseSignature` took only `GOODSIG`.
+Four of the eight keys in the pinned keyring carry an expiry date (`8BEAB4DF…` 2027-06-04,
+`1F10027A…` 2028-06-01 with its signing subkey 2027-07-18, `E4A7D232…` 2028-06-28, `27F5E38D…`
+2034-03-26), and once one passes `gpgv` reports a list it signed while valid as `EXPKEYSIG`, exit 0
+with a VALIDSIG. Shown with a throwaway key made with `gpg --faked-system-time` (created
+2024-01-01, expired 2025-01-31, signed 2024-06-01): `gpgv` printed `KEYEXPIRED 1738324800`,
+`EXPKEYSIG`, `Good signature` and VALIDSIG, exit 0, and the function threw *"does not verify …
+(gpgv exit 0) … anything else is a list nobody signed"*. Now a signature made before every expiry
+`gpgv` names for it passes; one made at or after it is refused (*"signature was made
+2025-03-01T00:00:00.000Z by 04A25DAD…, whose key … expired 2025-01-31T12:00:00.000Z: not before
+its expiry"*), and so is a revoked key (*"signed by a key … holds as revoked"*); the generic
+refusal no longer calls the list unsigned and names NO_PUBKEY, BADSIG and EXPSIG apart. The guard
+carries the throwaway keys (secret halves discarded) and three signatures as data: 11 tests,
+from 10; its BADSIG and NO_PUBKEY checks now match `gpgv`'s status lines, not the advice text. The
+comment above `NODE_RUNTIME_SHA256` and the runbook ask for `[GNUPG:] GOODSIG` in `--status-fd 1`
+output, not the `Good signature` text, which `gpgv` prints for revoked and expired keys too.
+(2, 6) **`pnpm test` needs `gpgv`.** With no `gpgv` on the PATH the guard fails 4 of 10 (*"Could
+not run gpgv … spawnSync gpgv ENOENT"*). README's Prerequisites and CONTRIBUTING now list it;
+the CHANGELOG and the runbook say `pnpm test` as well as `--with-node`. **Owed, not provable from
+here:** `main`'s push runs unit-tests on the self-hosted runner, a host install with no
+passwordless sudo, so nothing in the workflow can install it there, and no log of it shows
+whether `gpgv` is on it: the owner checks with `command -v gpgv` on that host before this
+merges. (3) **The release's `verify` job** checked the published zip only
+against its own `SHA256SUMS.txt`. `scripts/release-verify.mjs` now also hashes its `node.exe` and
+holds it to the `NODE_RUNTIME_SHA256` entry of `scripts/package-appliance.mjs` for the Node
+`apps/selfhost/Dockerfile` names, both read at COMMIT through the contents API (the job checks
+out the ref it was dispatched on); a tag from before 2026-11-01 gets a note. `docs/release.md`'s
+row says so. Its guard `a-release-page-with-no-sbom` (18 tests, from 17) holds the text reader to
+the module's own export for both platforms. (4) **The keyring had no pin-watch row.**
+`scripts/idp-pin-watch.mjs` now has `Node.js release keys` in the routine summary issue: the
+file at nodejs/release-keys' newest commit (`git ls-remote … HEAD`, then that commit's file from
+raw.githubusercontent.com) against the blob id `NODE_RELEASE_KEYS` records; behind when they
+differ, with the newer commit and the route. Run against the real network on 2026-11-01: current,
+`481637f8…` holding `bae91a9ce595` (23 rows, no error). Its guard `a-pin-that-knows-it-is-behind`
+(94 tests, from 90) holds the row to the module's pin and the committed file, behind on a changed
+upstream file or a recorded blob that is not it, and an error, never current, on a missing or
+malformed pin or an unreadable answer. §2.5's row now says the keyring moves when that issue lists
+a newer commit. (7) **A dated comment.** The provenance paragraph above `NODE_RUNTIME_SHA256` is
+now version-free; v26.13.0's readings stay in the entry above. **Mutation-checked:** refusing every
+`EXPKEYSIG` fails 1 of 11, taking one made after its expiry fails 1, dropping the revoked branch or
+treating `REVKEYSIG` like `EXPKEYSIG` fails 1 each; in `release-verify.mjs` passing any `node.exe`,
+not asking the line, reading at the checkout and not the commit, a pre-2026-11-01 tag passing, and
+reading the first platform's sum each fail 1 of 18; in the pin watch, a row always current fails 2
+of 94, reading at the pinned commit and not upstream's newest fails 1, no row fails 3, and a
+malformed commit accepted fails 1.
+
 **2026-11-01, later: CI's remaining floating downloads are named releases, checked by their
 SHA-256 or digest (alpha.4, supply chain, CI only)**, on the branch
 `claude/ownpace-public-readiness-y7orc6-ci-floating-pins`, #1777, the follow-ups §2.5 listed
@@ -2045,7 +2150,8 @@ which for a current SHA is never. T2 sets the three labels to the truth.
 Node 26 everywhere it matters, since 2026-10-31 (24 until then; the Status entry of that
 day): `engines` says `>=26`, CI installs `26`, the images run 26.13.0 (24.20.0 at the
 audit, 24.22.1 from 2026-10-21), the API's distroless runtime carries the same binary, the
-tasks deploy as `node-26`, and the Windows payload ships the self-host image's version.
+tasks deploy as `node-26`, and the Windows payload ships the self-host image's version, its
+`node.exe` checked against sums committed beside it (§2.5, since 2026-11-01).
 The major moves by hand, all of it in one pull request, when the next LTS line is current
 (§3 item 7); `a-gate-on-a-version-nothing-ships` fails a pull request that leaves one pin
 behind, `engines` among them (a case of its own since 2026-11-01: until then nothing read
@@ -2091,7 +2197,7 @@ it updates itself when GitHub asks it to: watched, nothing owed.
 | Tool | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on the self-hosted arm64 runner for a push to `main` | v1.3.6 from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `bb6e8167…`, arm64 `723e4cac…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.6-community@sha256:66a344bf…`, read through the registry's digests (2026-11-01). Before it `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC that day) | v1.3.6 (Docker Hub, 2026-10-27 13:03 UTC): Ariga's official build (`-tags=official`, version v1.3.6), whose Go build information names upstream commit `ed994a77898e` of 2026-10-21, clean for amd64 while arm64 reports `vcs.modified=true`. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
-
+| `node.exe`, the Windows payload's Node (win-x64; win-arm64 by dispatch) | `scripts/package-appliance.mjs` `--with-node`, run by `windows-payload.yml` on a dispatch and on every release tag, whose zip the release attaches | since 2026-11-01, the version `apps/selfhost/Dockerfile` names, v26.13.0, from `nodejs.org` by name, its bytes checked against the SHA-256 committed in `NODE_RUNTIME_SHA256` (win-x64 `14319838…`, 100,097,864 bytes; win-arm64 `4c9baa04…`, 88,331,080), sums of `node.exe` itself and not of the release's `.zip`. Before anything is fetched, `gpgv` checks the release's own `SHASUMS256.txt`, committed with its `.sig` in `scripts/node-release/`, against the Node.js release keyring committed beside it (`gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`, 2026-09-01, blob `bae91a9c…`): good, by primary key `C82FA3AE…`, and giving the same two sums. Read twice more: the release announcement's clear-signed list in nodejs/nodejs.org (good, by the same key, the same 34 lines) and each `node.exe` downloaded and hashed (2026-11-01). Until then: checked only against a `SHASUMS256.txt` fetched from the same directory as the binary, with no signature read | v26.13.0 (the Dockerfile's; the image's version is the `node` row's in §2.1) | current | Dependabot's image pull request moves the Dockerfile's version and cannot move the sums: `a-runtime-only-its-own-host-vouched-for` fails it until the release's `SHASUMS256.txt` and `.sig` and the two sums are pushed to it (the commands are above `NODE_RUNTIME_SHA256` and in `docs/windows-appliance-runbook.md`). The keyring moves by hand, with the commit and blob id in `NODE_RELEASE_KEYS`, when the pin watch's summary issue lists a newer nodejs/release-keys commit whose `gpg-only-active-keys/pubring.kbx` differs (its `Node.js release keys` row, weekly, since #1780's review: a key retired, revoked, added or given a new expiry), or when a release is signed by a key not in it (the build says so). A key that expired after it signed does not stop the build; one revoked, or expired before it signed, does | shipped to every Windows install, and held to the tagged commit's sum by the release's `verify` job (since #1780's review); `pnpm test` needs `gpgv`; the owner's Windows 11 check of a zip on 26.13.0 is owed (Status, 2026-10-31) |
 | stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, the self-hosted arm64 runner for a push), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
 | Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`: the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest (2026-11-01). Atlas's docker driver (`FromURL` at v1.3.6's commit) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed` | CI only; the major is the deployments' (that guard's older rule) |
 | binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
@@ -2106,12 +2212,15 @@ says `latest`, every `docker://` dev database carries a digest, every image an a
 input is a release tag and its digest, and every `npx` is `--yes=false`, which runs the lockfile's
 copy or fails (the SBOM step's `cyclonedx-npm`, `npx -y` until #1777's review).
 
-Checked, but only against its own host: the `node.exe` the Windows appliance payload ships
-(`scripts/package-appliance.mjs`, `windows-payload.yml`) is the version `apps/selfhost/Dockerfile`
-names, compared with the `SHASUMS256.txt` fetched from the same `nodejs.org` release directory at
-build time, with no signature checked and no sum committed. The follow-up: check
-`SHASUMS256.txt.sig` against the Node release keys, or commit each platform's sum beside the
-version so the two move together.
+Checked only against its own host until 2026-11-01, and no longer: the `node.exe` the Windows
+appliance payload ships was compared with the `SHASUMS256.txt` fetched from the same `nodejs.org`
+release directory at build time, with no signature checked and no sum committed. Both follow-ups
+named here for it, the release's `SHASUMS256.txt.sig` checked against the Node release keys and
+each platform's sum committed beside the version, are built (its row above; the Status entry of
+2026-11-01). Still
+checked only against its own host: the Node tarball `docs/managed-bring-up.md` has a host install
+by hand (*The Node in the shell you deploy from*), whose `SHASUMS256.txt` comes from the same
+directory; the same `gpgv` line with this repository's keyring would close it.
 
 ## 3. The owner's decisions
 

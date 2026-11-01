@@ -44,3 +44,5 @@ export declare function latestWithheld(options: {
 }): Line;
 export declare function cosignCalls(options: { image: string; digest: string; version: string }): string[][];
 export declare function versionAnswer(answer: unknown, options: { version: string; commit: string }): Line;
+export declare function pinnedRuntimeIn(packagerText: string | null, version: string, platform: string): string | null;
+export declare function checkRuntime(seen: string | null, pinned: string | null, nodeVersion: string | null): Line;
