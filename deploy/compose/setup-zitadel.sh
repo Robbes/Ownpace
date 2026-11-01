@@ -125,6 +125,61 @@ esac
 
 [ -f "$ENV_FILE" ] || die ".env not found — run ./deploy/compose/bootstrap-managed.sh --only env first"
 
+# EMAIL AND PASSWORD ONLY ON LIVE (privacy §4.4, §7 and §8; the owner's
+# ops-social-signin (a), workplan 0139 T0 fact 4, 0140 T10). The providers'
+# section below adds Google, Microsoft, GitHub or Apple to the sign-in page
+# whenever that provider's keys hold a value, and deletes none, since a person
+# may be linked to one: a button it adds on live stays there for every tester
+# until every key is empty and this has run again. stand-up-live.sh and
+# deploy-live.sh refuse live's .env while any of those keys holds a value. This
+# script run by hand, or by bootstrap-managed.sh run by hand, was not checked
+# (0140, Status 2026-10-21, *Still open*). So it refuses the same keys itself,
+# with the reader the other two use (live_sign_in_keys_set, stack-kind.sh),
+# before it generates a secret or starts anything.
+#
+# A REFUSAL, NOT A SKIP. A run that left the providers out and carried on would
+# exit 0 on a .env whose keys ask for a button, and the next deploy refuses that
+# .env anyway. This stops where the other two stop, names each key and never
+# its value, and gives the line that empties them.
+#
+# On a .env that may be live's (stack_may_be_live: a refusal errs towards live),
+# and only in the runs that reach the providers: the default run and
+# --offer-one. --print shows what is configured, and the two timer modes stop
+# before the providers. --token-only is the provisioning token's clock, which
+# box-duties.sh runs on live daily and which must keep running whatever else is
+# wrong: past the token's deadline no successor can be minted (0132 T7). None of
+# the three is refused.
+case "${1:-}" in
+  ''|--offer-one)
+    if stack_may_be_live "$ENV_FILE"; then
+      sign_in_named='' sign_in_empty=''
+      while IFS= read -r sign_in_key; do
+        [ -n "$sign_in_key" ] || continue
+        sign_in_named+="
+  - ${sign_in_key}: set."
+        sign_in_empty+=" ${sign_in_key}="
+      done <<<"$(live_sign_in_keys_set "$ENV_FILE")"
+      [ -z "$sign_in_empty" ] || die "refused: ${ENV_FILE} has a ${STACK_KIND_KEY} line, live's marker (${STACK_KIND_KEY}=${STACK_KIND_LIVE}) or something that could be a slip of it, and a sign-in provider's key that holds a value. No value is printed:
+${sign_in_named}
+
+Live's sign-in page offers email and password only (privacy §4.4, §7 and §8;
+ops-social-signin (a)). With a provider's keys set, this run adds its button
+there, for every tester. This script has changed nothing: it generated no
+secret, started nothing and asked the identity provider nothing. Leave every
+one of them empty, as stand-up-live.sh and deploy-live.sh refuse them too, then
+run this again:
+
+    ${UPSERT} ${ENV_FILE}${sign_in_empty}
+
+A provider added before stays configured at the identity provider; with every
+one of these keys empty, this script's next run turns 'External IDP allowed'
+off, which takes every provider's button off the sign-in page
+(docs/managed-bring-up.md, §8b, *Emptying a pair removes less than it looks
+like*). --token-only and --count-organisations add no provider and are not
+refused."
+    fi ;;
+esac
+
 if [ -z "$ONLY" ]; then
   say "generating any missing secrets"
   "${SCRIPT_DIR}/ensure-env-secrets.sh" >/dev/null

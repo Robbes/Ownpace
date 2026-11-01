@@ -23,7 +23,7 @@
     "workplans:index": "node scripts/workplan-index.mjs --write"
   },
   "dependencies": {
-    "@azure/msal-node": "^7.1.1",
+    "@azure/msal-node": "^7.1.2",
     "@trigger.dev/core": "4.8.3",
     "@trigger.dev/sdk": "4.8.3",
     "croner": "^11.0.0",
@@ -32,7 +32,7 @@
   "devDependencies": {
     "@cyclonedx/cyclonedx-npm": "^6.0.1",
     "@eslint/js": "10.0.1",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "@types/pg": "catalog:",
     "@types/supertest": "^7.2.1",
     "@typescript-eslint/eslint-plugin": "^8.72.1",

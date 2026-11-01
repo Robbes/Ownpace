@@ -123,6 +123,12 @@
 #                        streamed, buffered, or refused. Seeded by `--fresh`
 #                        only, from /dev/urandom inside the container, and
 #                        never written into this repository.
+#   SEED_DAV_ORGANISER_USER / SEED_DAV_ORGANISER_PASSWORD
+#                        the account whose OWN address organises fresh event
+#                        3, the organiser canary (workplan 0141 T9 (b)). The
+#                        smoke names the demo TARGET account here. Unset, a
+#                        `--fresh` set has no event 3. Read with `--fresh`
+#                        only; see THE ORGANISER CANARY below.
 #
 # Every request runs INSIDE the Nextcloud container against http://localhost,
 # which is always a trusted domain — so this needs no published port, no
@@ -246,6 +252,18 @@ esac
 BIG_FILE_NAME=""
 [ -n "$TAG" ] && BIG_FILE_NAME="openmig-demo-bigfile-${SUFFIX}1.bin"
 
+# The account whose own address organises fresh event 3 (0141 T9 (b)). Only a
+# fresh SEED reads it: `--remove` takes event 3 back whether or not the set had
+# one, and the fixed fixture never carries a canary.
+ORGANISER_USER=""
+ORGANISER_PASS=""
+if [ -n "$TAG" ] && [ "$REMOVE_ONLY" = "0" ] && [ "$BIG_SHA_ONLY" = "0" ]; then
+  ORGANISER_USER="${SEED_DAV_ORGANISER_USER:-}"
+  ORGANISER_PASS="${SEED_DAV_ORGANISER_PASSWORD:-}"
+  [ -z "$ORGANISER_USER" ] || [ -n "$ORGANISER_PASS" ] \
+    || fail "SEED_DAV_ORGANISER_USER is set and SEED_DAV_ORGANISER_PASSWORD is not"
+fi
+
 dav() {
   local method="$1" path="$2" ctype="${3:-}" body="${4:-}"
   local args=(-sS -o /dev/null -w '%{http_code}' -X "$method" -u "${DAVUSER}:${PASS}")
@@ -307,6 +325,28 @@ ocs() {
   local field
   for field in "$@"; do args+=(--data-urlencode "$field"); done
   docker exec "$NC" curl "${args[@]}" "http://localhost/ocs/v2.php/apps/files_sharing/api/v1/${path}?format=json"
+}
+
+# own_addresses <user> <password> — the addresses Nextcloud matches an
+# ORGANIZER against for that account, one per line, lower-cased and without
+# `mailto:` (0141 T9 (b)). They are the mailto: entries of the account's
+# calendar-user-address-set (RFC 6638 §2.4.1), the property Sabre's scheduling
+# reads, and Nextcloud fills it from the account's email address. So an
+# account with no email answers no line. A PROPFIND that fails returns
+# non-zero, so a server that did not answer is never read as an account with
+# no address.
+own_addresses() {
+  local body
+  body="$(docker exec -i "$NC" curl -sS --fail -X PROPFIND -H 'Depth: 0' \
+    -H 'Content-Type: application/xml; charset=utf-8' -u "$1:$2" --data-binary @- \
+    "http://localhost/remote.php/dav/principals/users/$1/" <<'XML'
+<?xml version="1.0" encoding="utf-8"?>
+<d:propfind xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:prop><c:calendar-user-address-set/></d:prop></d:propfind>
+XML
+)" || return 1
+  # grep answers 1 when the set holds no mailto: entry, which is an answer
+  # here (an account without an email), not a failure; curl's is caught above.
+  grep -o 'mailto:[^<"]*' <<<"$body" | sed 's/^mailto://' | tr '[:upper:]' '[:lower:]' || true
 }
 
 # Nextcloud's own layout is not symmetric — calendars live under
@@ -431,7 +471,15 @@ if [ "$REMOVE_ONLY" = "1" ]; then
     # OCS verb, exactly as the single-file share above needs none.
     dir_spec=""
     [ "$n" = "1" ] && dir_spec="${FILES}openmig-shared-${TAG}"
+    # The organiser canary, event 3 (0141 T9 (b)), seeded once per set like
+    # the big file. Always asked for: a set seeded without an organiser has no
+    # event 3, and its DELETE answers 404, which is success here. On the
+    # TARGET a bare DELETE of it would CANCEL to its attendee, because there
+    # the account organises it; dav() sends Schedule-Reply: F, which stops it.
+    own_spec=""
+    [ "$n" = "1" ] && own_spec="${CAL}openmig-demo-event-${SUFFIX}3.ics"
     for spec in "${CAL}openmig-demo-event-${SUFFIX}${n}.ics" \
+                ${own_spec:+"$own_spec"} \
                 ${dir_spec:+"$dir_spec"} \
                 ${task_spec:+"$task_spec"} \
                 "${ABK}openmig-demo-contact-${SUFFIX}${n}.vcf" \
@@ -483,6 +531,8 @@ fi
 # does not mail; what the smoke then asserts is that syncing and taking it
 # back did not either, and that the copy on the target carries
 # SCHEDULE-AGENT=CLIENT — the writer's neutralising, observed on real bytes.
+# Its other half, an event the target account organises itself, is event 3
+# below (0141 T9 (b)).
 # Fixed-fixture mode (no tag) stays canary-free: those two events belong to
 # the demo UI, not to this gate.
 SCHED_PROPS=""
@@ -490,6 +540,53 @@ if [ -n "$TAG" ]; then
   SCHED_PROPS="ORGANIZER;CN=Someone Else:mailto:openmig-organizer-${TAG}@example.invalid
 ATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${TAG}@example.invalid
 "
+fi
+
+# THE ORGANISER CANARY (workplan 0141 T9 (b); 0103 T3). Fresh event 3 is
+# organised by the TARGET account's own address, with the same tag-addressed
+# attendee as event 1. A person moving their own domain keeps their address,
+# so on the target most of their own meetings are organised by the account that
+# holds them, and that is the case in which RFC 6638 makes the target's server
+# the sender: a server that ignored SCHEDULE-AGENT=CLIENT would invite the
+# attendee on the sync's PUT. Event 1's organiser is a third party, which no
+# server schedules for, so until event 3 the gate's silence held whether or
+# not the writer neutralised. The take-back's DELETE is not re-proved by it:
+# dav() sends Schedule-Reply: F, and that header alone keeps Nextcloud from
+# sending a CANCEL (0103 T5), so silence after it belongs to the header.
+#
+# Two conditions decide whether this proves anything, and both are checked
+# here, from the server's own answer, before the first write:
+#   - the organising account HAS an address. Nextcloud matches an ORGANIZER
+#     against the account's calendar-user-address-set, which its email fills.
+#     Without one the server has nothing to match and the canary is silent by
+#     inability (setup-managed-demo.sh gives the demo target its address).
+#   - THIS account does not have that address. The source holds event 3 too,
+#     and an account that matched its organiser would schedule here, at seed
+#     time, from bytes that carry no SCHEDULE-AGENT on purpose: what the writer
+#     must add is not added for it.
+# And a third, by its date: Nextcloud sends no invitation for an event whose
+# last occurrence is past (IMipPlugin::schedule, "don't send out mails for
+# events that already took place", at v35.0.2), and events 1 and 2 are dated
+# January 2026. So event 3 is dated in January of NEXT year, always ahead of
+# the run that copies it.
+OWN_ORGANISER=""
+if [ -n "$ORGANISER_USER" ]; then
+  organiser_addrs="$(own_addresses "$ORGANISER_USER" "$ORGANISER_PASS")" \
+    || fail "could not read ${ORGANISER_USER}'s calendar-user-address-set (PROPFIND principals/users/${ORGANISER_USER}/)"
+  OWN_ORGANISER="${organiser_addrs%%$'\n'*}"
+  [ -n "$OWN_ORGANISER" ] \
+    || fail "${ORGANISER_USER} has no address of its own (no mailto: in its calendar-user-address-set).
+    Nextcloud matches an event's ORGANIZER against that set, so an organiser canary
+    for this account would have nothing to match and would prove nothing. Give the
+    account an email: deploy/compose/setup-managed-demo.sh does it for the demo target."
+  my_addrs="$(own_addresses "$DAVUSER" "$PASS")" \
+    || fail "could not read ${DAVUSER}'s calendar-user-address-set (PROPFIND principals/users/${DAVUSER}/)"
+  if grep -qxF "$OWN_ORGANISER" <<<"$my_addrs"; then
+    fail "${DAVUSER} carries ${OWN_ORGANISER}, ${ORGANISER_USER}'s own address. Event 3 would be
+    organised by ${DAVUSER} here, and Nextcloud would invite its attendee at seed time.
+    Nothing was written. Take that address off ${DAVUSER}."
+  fi
+  OWN_YEAR=$(( $(date -u +%Y) + 1 ))
 fi
 
 if [ "$VERIFY_ONLY" = "0" ]; then
@@ -678,6 +775,31 @@ END:VCARD")
       echo "[seed-dav] folder share ${share_dir} (+1 file inside) -> ${folder_addr} (by mail, read-only)"
     fi
   done
+
+  # THE ORGANISER CANARY'S EVENT (0141 T9 (b)), checked above before anything
+  # was written. No SCHEDULE-AGENT in these bytes, as a source's own meeting
+  # carries none: adding it is the writer's job, and the smoke reads the copy
+  # to see that it did.
+  if [ -n "$OWN_ORGANISER" ]; then
+    code=$(dav PUT "${CAL}openmig-demo-event-${SUFFIX}3.ics" 'text/calendar; charset=utf-8' \
+"BEGIN:VCALENDAR
+VERSION:2.0
+PRODID:-//OpenMigrate//demo//EN
+BEGIN:VEVENT
+UID:openmig-demo-event-${SUFFIX}3
+DTSTAMP:20260101T000000Z
+DTSTART:${OWN_YEAR}0106T100000Z
+DTEND:${OWN_YEAR}0106T110000Z
+SUMMARY:Ownpace demo event ${SUFFIX}3
+DESCRIPTION:Seeded by seed-demo-dav-content.sh: organised by the target account's own address.
+STATUS:CONFIRMED
+ORGANIZER;CN=Demo Target:mailto:${OWN_ORGANISER}
+ATTENDEE;CN=Migration Canary;PARTSTAT=NEEDS-ACTION:mailto:openmig-attendee-${TAG}@example.invalid
+END:VEVENT
+END:VCALENDAR")
+    echo "[seed-dav] event ${SUFFIX}3: HTTP ${code} (organised by ${ORGANISER_USER}'s own address ${OWN_ORGANISER}, on ${OWN_YEAR}-01-06)"
+    case "$code" in 201|204) ;; *) fail "calendar PUT ${SUFFIX}3 (the organiser canary) returned ${code}" ;; esac
+  fi
 fi
 
 # ---------- verify, because "the PUTs returned 201" is not "the data is there" ----------
@@ -716,6 +838,13 @@ if [ -n "$BIG_FILE_NAME" ]; then
     || fail "the ${BIG_FILE_MB} MB fixture is not in the source (0120 T6).
     Without it every file this set copies is under the 8 MB streaming threshold,
     so the gate would run green having exercised only the buffered branch."
+fi
+# Only when this run seeded the organiser canary: the other events answer for
+# `events:` above, and a set whose event 3 did not land would otherwise read
+# as complete while the one event a server would schedule for was missing.
+if [ -n "$OWN_ORGANISER" ]; then
+  [ "$(count "$CAL" "openmig-demo-event-${SUFFIX}3")" -ge 1 ] \
+    || fail "the organiser canary, event ${SUFFIX}3, is not in the source (0141 T9 (b))"
 fi
 
 # The heredoc below stays QUOTED. It contains `$POSTGRES_USER`, `$POSTGRES_DB`

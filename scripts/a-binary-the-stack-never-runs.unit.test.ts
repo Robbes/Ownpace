@@ -19,6 +19,13 @@
  * 10.33.2 only the bundled node-gyp requires it, to unpack Node's headers for
  * a native build, and these containers run scripts and install nothing. The
  * one risk is a `pnpm install` there that builds a native add-on.
+ * On 2026-10-31 two more trees went from both images under that same risk,
+ * because the scan of the images built here (run 41130684117) read twelve
+ * fixable highs in them: npm 11.19.1, which Node 24.22.1 bundles and nothing
+ * here runs (six), and the rest of node-gyp's tree, all of the kept copy's
+ * dist/node_modules with dist/node-gyp-bin (six). Each copy's pnpm names three
+ * packages of that tree, each in a try (node-gyp's bin, picomatch,
+ * v8-compile-cache), and both builds refuse a copy that names any other.
  * So `deploy/compose/trigger.dev/Dockerfile` and
  * `deploy/compose/supervisor/Dockerfile` build on upstream's images by tag and
  * index digest, and their headers say why each file is safe to delete.
@@ -70,10 +77,13 @@
  *    only (the name hashes the instruction lines, and the image's
  *    configuration stays upstream's); no `rm -f`, `rm -rf` or `|| true`; and
  *    the proofs in the image (the two packages load without their binary; as
- *    the service's user pnpm starts offline and, without its tar, runs a
- *    command in the package the service's own pnpm runs; as the other user
- *    it does not start), and the check that node-gyp's lib/install.js is the
- *    one file of the copy that requires tar;
+ *    the service's user pnpm starts offline and, without node-gyp's tree, runs
+ *    a command in the package the service's own pnpm runs; as the other user
+ *    it does not start; corepack 0.36.0 is still there), and the checks
+ *    before any removal: that no file of the kept copy outside its
+ *    dist/node_modules names a package inside it but the three read, that
+ *    npm is Node's 11.19.1 with no npmrc and only Node's two links into it,
+ *    and that corepack is 0.36.0;
  *  - READ AT ONE RELEASE: each removing RUN names the release its reasons
  *    were read in (`read_at`), which must be the FROM's tag, and refuses an
  *    image of another version; and it pins the entrypoint read there by its
@@ -165,15 +175,21 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       evidence: 'esbuild 0.23.0 install.js (maybeOptimizePackage); trivy v0.76.1 pkg/fanal/walker/tar.go',
     },
     {
-      path: '/root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar',
-      why: "tar 7.5.13 in the copy of pnpm trigger-api runs: only pnpm's bundled node-gyp requires it (to unpack Node's headers for a native build), and the entrypoint's pnpm runs three migration scripts and installs nothing (the owner, 2026-10-27)",
-      evidence: 'pnpm 10.33.2 dist: require(\'tar\') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; docker/scripts/entrypoint.sh at v4.8.1 and v4.8.3; corepack 0.36.0 installVersion reads .corepack only',
+      path: '/root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules',
+      why: "node-gyp 11.5.0 and the packages it brings, installed flat in the copy of pnpm trigger-api runs: tar 7.5.13 first (the owner, 2026-10-27), and since 2026-10-31 the rest, brace-expansion 2.1.0 and ip-address 10.1.0 among them (6 fixable highs). pnpm resolves node-gyp's bin in a try, only to hand a package script its path, and the entrypoint's pnpm runs three migration scripts that call no node-gyp and install nothing",
+      evidence: "pnpm 10.33.2 as npm published it: pnpm.cjs and worker.js bundle what pnpm runs, and outside dist/node_modules only pnpm.cjs's resolveFrom(__dirname, 'node-gyp/bin/node-gyp') and require.resolve('picomatch') (fdir's, for a glob() nothing calls) and bin/pnpm.cjs's require('v8-compile-cache') (only when module.enableCompileCache() answers nothing) name it, each in a try; pnpm run and exec of those files without it, on Node 22.22.0; docker/scripts/entrypoint.sh at v4.8.1 and v4.8.3; Trivy 0.76.1 over the copy",
+    },
+    {
+      path: '/root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node-gyp-bin',
+      why: "the shim pnpm puts on a package script's PATH so that a script can call node-gyp, which went with dist/node_modules; no script the entrypoint's pnpm runs calls node-gyp, and a PATH entry that is not there is passed over",
+      evidence: "pnpm 10.33.2 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); the migration scripts at v4.8.1 and v4.8.3: prisma migrate deploy, node scripts/migrate.mjs deploy, node migrate.mjs",
     },
     {
       path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2',
       why: "node's copy of pnpm, with tar 7.5.13 in it: trigger-api runs as root (managed.yml), so every pnpm of the entrypoint runs root's copy",
       evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1 and v4.8.3; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
     },
+    ...npmRemovals('trigger-api', 'the entrypoint runs pnpm (through corepack), goose and node, the migrations prisma and node, the healthcheck `node -e`, and the bring-up execs only `test` and `chown` into it'),
   ],
   supervisor: [
     {
@@ -182,12 +198,31 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       evidence: "apps/supervisor/Containerfile and entrypoint.sh at v4.8.1 and v4.8.3; managed.yml (no `user:`); corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
     },
     {
-      path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar',
-      why: "tar 7.5.13 in the copy of pnpm the supervisor runs: only pnpm's bundled node-gyp requires it (to unpack Node's headers for a native build), and the CMD runs `node dist/index.js` through pnpm and installs nothing (the owner, 2026-10-27)",
-      evidence: "pnpm 10.33.2 dist: require('tar') only in node_modules/node-gyp/lib/install.js, none in pnpm.cjs or worker.js; apps/supervisor/package.json's start at v4.8.1 and v4.8.3; corepack 0.36.0 installVersion reads .corepack only",
+      path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules',
+      why: "node-gyp 11.5.0 and the packages it brings, installed flat in the copy of pnpm the supervisor runs: tar 7.5.13 first (the owner, 2026-10-27), and since 2026-10-31 the rest, brace-expansion 2.1.0 and ip-address 10.1.0 among them (6 fixable highs). The CMD's `pnpm run` runs `node dist/index.js`, which calls no node-gyp and installs nothing",
+      evidence: "pnpm 10.33.2 as npm published it (the webapp's entry); apps/supervisor/package.json's start at v4.8.1 and v4.8.3; Trivy 0.76.1 over the copy",
     },
+    {
+      path: '/home/node/.cache/node/corepack/v1/pnpm/10.33.2/dist/node-gyp-bin',
+      why: "the shim pnpm puts on a package script's PATH so that a script can call node-gyp, which went with dist/node_modules; the supervisor's start script calls no node-gyp",
+      evidence: "pnpm 10.33.2 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); apps/supervisor/package.json's start at v4.8.1 and v4.8.3",
+    },
+    ...npmRemovals('trigger-supervisor', 'the CMD runs pnpm (through corepack), the entrypoint dumb-init, the healthcheck `node -e`, nothing execs into it, and the supervisor spawns nothing'),
   ],
 };
+
+/** npm, which Node 24.22.1 bundles, and Node's two links to it: the same three removals in both images. */
+function npmRemovals(service: string, runs: string): Removal[] {
+  const why = (what: string) =>
+    `${what}: no process of ${service} runs npm or npx (${runs}); pnpm looks for npm only to read its builtin npmrc, in a try, and Node's npm carries none. npm's bundled brace-expansion 5.0.9 and undici 6.28.0 were 6 fixable highs`;
+  const evidence =
+    'node:24.22.1-bookworm-slim and node:24.22.1-alpine by digest (Trivy 0.76.1) and Node 24.22.1\'s tarball (bin/npm, bin/npx); pnpm 10.33.2 pnpm.cjs (@pnpm/npm-conf: require.resolve("npm") from the global folder, failedToLoadBuiltInConfig read only by pnpm doctor)';
+  return [
+    { path: '/usr/local/lib/node_modules/npm', why: why('npm 11.19.1, which Node 24.22.1 bundles'), evidence },
+    { path: '/usr/local/bin/npm', why: why("Node's link to npm's bin/npm-cli.js"), evidence },
+    { path: '/usr/local/bin/npx', why: why("Node's link to npm's bin/npx-cli.js"), evidence },
+  ];
+}
 
 interface Replacement {
   /** The package's directory in the image, under pnpm's name for the old version, which it keeps. */
@@ -299,6 +334,17 @@ function rmTargets(run: string): string[] {
   return targets;
 }
 
+/**
+ * The three packages of the kept copy's dist/node_modules that a file of the
+ * copy outside it names, each in a try, as pnpm 10.33.2 was read: and the
+ * removing RUN's check that they are all. One more, or one fewer, is a pnpm
+ * read for something else.
+ */
+const NAMED_THREE = ['bin/pnpm.cjs:require(v8-compile-cache', 'dist/pnpm.cjs:require.resolve(picomatch', 'dist/pnpm.cjs:resolveFrom(__dirname, node-gyp/bin/node-gyp'] as const;
+const NAMED_CHECK = new RegExp(`\\[ "\\$named" = "${NAMED_THREE.map((n) => `\\$kept/${n.replace(/[.()]/g, '\\$&')} `).join('')}" \\] \\|\\| fail `);
+/** corepack 0.36.0, Node 24.22.1's, which runs every pnpm here: checked before the removals and proved after. */
+const COREPACK_CHECK = /\[ "\$\(node -p "require\('\$corepack_dir\/package\.json'\)\.version"\)" = 0\.36\.0 \] \|\| fail /;
+
 /** What is wrong with a Dockerfile's shape, in words; empty when it holds. */
 function shapeProblems(name: Name, text: string): string[] {
   const problems: string[] = [];
@@ -370,10 +416,24 @@ function shapeProblems(name: Name, text: string): string[] {
   /** pnpm, without its tar, runs a command in the package the service's own pnpm runs, offline. */
   const runsWithoutTar = (body: string, filter: string) =>
     new RegExp(`\\(cd \\S+ && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter ${filter.replace(/[.@/]/g, '\\$&')} exec node -e 0\\) \\|\\|`).test(body);
-  if (!/users="\$\(find "\$kept\/dist" -path "\$kept_tar" -prune/.test(removing?.args ?? '') || !/\[ "\$users" = "\$kept\/dist\/node_modules\/node-gyp\/lib\/install\.js" \] \|\| fail /.test(removing?.args ?? '')) {
-    problems.push("no check that node-gyp's lib/install.js is the one file of the kept copy that requires tar");
+  // What the removing RUN checks before its first `rm`: a check after it checks nothing in time.
+  const firstRm = removingArgs.search(/(^|[;\s])rm\s/);
+  const checkedBefore = (re: RegExp, what: string) => {
+    const i = removingArgs.search(re);
+    if (i < 0 || (firstRm >= 0 && i > firstRm)) problems.push(`no check, before anything is removed, ${what}`);
+  };
+  for (const re of [/named="\$\(find "\$kept" -path "\$kept_modules" -prune -o -type f -name '\*js' -exec grep -HoE /, NAMED_CHECK]) {
+    checkedBefore(re, 'that no file of the kept copy outside its dist/node_modules names a package inside it but the three read');
   }
+  checkedBefore(/\[ "\$\(node -p "require\('\$npm_dir\/package\.json'\)\.version"\)" = 11\.19\.1 \] \|\| fail /, "that npm is Node 24.22.1's 11.19.1");
+  checkedBefore(/\[ ! -e "\$npm_dir\/npmrc" \] \|\| fail /, 'that npm carries no npmrc, which pnpm would read as its builtin configuration');
+  for (const [link, cli] of [['npm_link', 'npm-cli'], ['npx_link', 'npx-cli']] as const) {
+    checkedBefore(new RegExp(`\\[ "\\$\\(readlink "\\$${link}"\\)" = \\.\\./lib/node_modules/npm/bin/${cli}\\.js \\] \\|\\| fail `), `that $${link} is Node's link to npm's bin/${cli}.js`);
+  }
+  checkedBefore(/\[ "\$into" = "\$npm_link \$npx_link " \] \|\| fail /, "that Node's two links are the only ones into npm's directory");
+  checkedBefore(COREPACK_CHECK, 'that corepack is 0.36.0, which runs every pnpm here');
   const refused = (body: string) => /if \(cd \S+ && COREPACK_ENABLE_NETWORK=0 pnpm --version\) >\/dev\/null 2>&1; then/.test(body);
+  if (!COREPACK_CHECK.test(root)) problems.push('no proof, after the removal, that corepack 0.36.0 is still there');
   if (name === 'trigger.dev') {
     if (!asUser(root)) problems.push('no proof that pnpm starts offline as root, the user trigger-api runs as');
     if (!runsWithoutTar(root, '@trigger.dev/database')) problems.push('no proof that, without its tar, pnpm runs a command in @trigger.dev/database offline as root, the user trigger-api runs as');
@@ -596,14 +656,51 @@ function dompurifyTree(): Pick<Tree, 'files' | 'links' | 'registry' | 'standIn'>
   };
 }
 
+/** Where Node 24.22.1 puts npm and corepack, and its links to them. */
+const NPM_DIR = '/usr/local/lib/node_modules/npm';
+const COREPACK_DIR = '/usr/local/lib/node_modules/corepack';
+const NODE_LINKS: ReadonlyArray<{ path: string; target: string }> = [
+  { path: '/usr/local/bin/npm', target: '../lib/node_modules/npm/bin/npm-cli.js' },
+  { path: '/usr/local/bin/npx', target: '../lib/node_modules/npm/bin/npx-cli.js' },
+  { path: '/usr/local/bin/corepack', target: '../lib/node_modules/corepack/dist/corepack.js' },
+  // `corepack enable` in upstream's runner stage.
+  { path: '/usr/local/bin/pnpm', target: '../lib/node_modules/corepack/dist/pnpm.js' },
+];
+
+/** Node 24.22.1's npm and corepack, as its image carries them, with one of npm's bundled packages. */
+const NODE_GLOBALS: Readonly<Record<string, string>> = {
+  [`${NPM_DIR}/package.json`]: '{"name":"npm","version":"11.19.1"}\n',
+  [`${NPM_DIR}/bin/npm-cli.js`]: "#!/usr/bin/env node\nrequire('../lib/cli.js')(process)\n",
+  [`${NPM_DIR}/bin/npx-cli.js`]: "#!/usr/bin/env node\nrequire('../lib/cli.js')(process)\n",
+  [`${NPM_DIR}/node_modules/undici/package.json`]: '{"name":"undici","version":"6.28.0"}\n',
+  [`${COREPACK_DIR}/package.json`]: '{"name":"corepack","version":"0.36.0"}\n',
+  [`${COREPACK_DIR}/dist/corepack.js`]: "#!/usr/bin/env node\nrequire('./lib/corepack.cjs').runMain(process.argv.slice(2));\n",
+  [`${COREPACK_DIR}/dist/pnpm.js`]: "#!/usr/bin/env node\nrequire('./lib/corepack.cjs').runMain(['pnpm', ...process.argv.slice(2)]);\n",
+};
+
 function treeOf(name: Name, plat: string): Tree {
   const corepack = (home: string): Record<string, string> => ({
     [`${COPY(home)}/.corepack`]: '{"locator":{"name":"pnpm","reference":"10.33.2"}}\n',
+    // node-gyp's tree, flat, as pnpm 10.33.2 ships it: tar among it, and a scoped package.
     [`${COPY(home)}/dist/node_modules/tar/package.json`]: '{"name":"tar","version":"7.5.13"}\n',
     [`${COPY(home)}/dist/node_modules/tar/index.js`]: "module.exports = require('tar/lib');\n",
-    // pnpm 10.33.2's one require('tar'), and its bundle, which names tar-stream and no tar.
     [`${COPY(home)}/dist/node_modules/node-gyp/lib/install.js`]: "'use strict'\n\nconst fs = require('graceful-fs')\nconst tar = require('tar')\n",
-    [`${COPY(home)}/dist/pnpm.cjs`]: 'var extract = require("tar-stream").extract;\n',
+    [`${COPY(home)}/dist/node_modules/node-gyp/bin/node-gyp.js`]: "#!/usr/bin/env node\nrequire('../lib/node-gyp.js')\n",
+    [`${COPY(home)}/dist/node_modules/brace-expansion/package.json`]: '{"name":"brace-expansion","version":"2.1.0"}\n',
+    [`${COPY(home)}/dist/node_modules/picomatch/package.json`]: '{"name":"picomatch","version":"4.0.4"}\n',
+    [`${COPY(home)}/dist/node_modules/v8-compile-cache/package.json`]: '{"name":"v8-compile-cache","version":"2.4.0"}\n',
+    [`${COPY(home)}/dist/node_modules/@npmcli/agent/package.json`]: '{"name":"@npmcli/agent","version":"3.0.0"}\n',
+    [`${COPY(home)}/dist/node-gyp-bin/node-gyp`]: '#!/bin/sh\nexec node "$npm_config_node_gyp" "$@"\n',
+    // What pnpm 10.33.2's own files name of that tree, each in a try, and its bundle's tar-stream, which is no tar.
+    [`${COPY(home)}/bin/pnpm.cjs`]: "try {\n  if(!require('module')?.enableCompileCache?.())\n    require('v8-compile-cache');\n} catch {}\nrequire('../dist/pnpm.cjs')\n",
+    [`${COPY(home)}/dist/pnpm.cjs`]: [
+      'var extract = require("tar-stream").extract;',
+      'try { require.resolve("picomatch"); pm = require_picomatch4(); } catch {}',
+      'try { DEFAULT_NODE_GYP_PATH = resolveFrom(__dirname, "node-gyp/bin/node-gyp"); } catch (err) {}',
+      'env[PATH] = extendPath(wd, env[PATH], path2.join(__dirname, "node-gyp-bin"), opts);',
+      '',
+    ].join('\n'),
+    [`${COPY(home)}/dist/worker.js`]: 'var reflink = require("@reflink/reflink-linux-x64-gnu");\n',
   });
   if (name === 'supervisor') {
     return {
@@ -613,14 +710,17 @@ function treeOf(name: Name, plat: string): Tree {
         [ENTRYPOINT.supervisor]: STAND_IN_ENTRYPOINT,
         ...corepack('/root'),
         ...corepack('/home/node'),
+        ...NODE_GLOBALS,
       },
       binaries: [],
+      links: NODE_LINKS,
     };
   }
   const pkg = (dir: string): Record<string, string> => ({ [`${dir}/package.json`]: '{"main":"lib/main.js"}\n', [`${dir}/lib/main.js`]: 'module.exports = {};\n' });
   const dompurify = dompurifyTree();
   return {
     ...dompurify,
+    links: [...(dompurify.links ?? []), ...NODE_LINKS],
     files: {
       '/triggerdotdev/package.json': '{"packageManager":"pnpm@10.33.2"}\n',
       '/triggerdotdev/packages/core/package.json': '{"version":"4.8.3"}\n',
@@ -631,6 +731,7 @@ function treeOf(name: Name, plat: string): Tree {
       [`${PNPM}/node_modules/.bin/esbuild`]: '#!/bin/sh\nexec node "$@"\n',
       ...corepack('/root'),
       ...corepack('/home/node'),
+      ...NODE_GLOBALS,
       ...dompurify.files,
     },
     binaries: [
@@ -733,7 +834,7 @@ function sandbox(tree: Tree): Sandbox {
 
 /** A RUN's script with the image's absolute paths moved under the stand-in's root. */
 const rooted = (script: string, fs: string) =>
-  script.replace(/(?<=[\s'"=(])\/(triggerdotdev|root|home\/node|app)(?=[/\s'")]|$)/g, `${fs}/$1`);
+  script.replace(/(?<=[\s'"=(])\/(triggerdotdev|root|home\/node|app|usr\/local)(?=[/\s'")]|$)/g, `${fs}/$1`);
 
 interface Options {
   readonly plat?: string;
@@ -843,7 +944,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       'no proof that as node pnpm refuses to start offline',
     ]);
     expect(swap(/rm -r "\$unused"/, 'rm -rf "$unused"')).toEqual([expect.stringContaining('`rm -f` or `rm -rf`')]);
-    expect(swap(/rm -r "\$unused" "\$kept_tar";/, 'rm -r "$unused" "$kept_tar" || true;')).toEqual([expect.stringContaining('`|| true`')]);
+    expect(swap(/rm -r "\$unused" "\$kept_modules" "\$kept_gyp_bin" "\$npm_dir";/, 'rm -r "$unused" "$kept_modules" "$kept_gyp_bin" "$npm_dir" || true;')).toEqual([expect.stringContaining('`|| true`')]);
     expect(swap(/\s+node -e "require[^\n]*\n/, '\n')).toEqual(['no proof that @depot/cli and esbuild still load without their binary']);
     for (const line of ['ENV COREPACK_HOME=/tmp/corepack', 'COPY pnpm /usr/local/bin/', 'WORKDIR /tmp', 'LABEL x=y', 'CMD ["sh"]']) {
       const text = real.replace(/^(USER root)$/m, `${line}\n$1`);
@@ -860,8 +961,24 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     ]);
     expect(swap(/^ {4}entrypoint_sha256=[0-9a-f]{64}; \\\n/m, '')).toEqual([expect.stringContaining('does not pin /triggerdotdev/scripts/entrypoint.sh by its SHA-256')]);
     expect(swap(/^ {4}\[ "\$\(sha256sum [^\n]*\n/m, '')).toEqual(['the removing RUN names the entrypoint and its hash, and never compares them']);
-    // Tar out of the copy that runs: the check of who requires it, and the proof as root.
-    expect(swap(/^ {4}\[ "\$users" = [^\n]*\n/m, '')).toEqual(["no check that node-gyp's lib/install.js is the one file of the kept copy that requires tar"]);
+    // node-gyp's tree out of the copy that runs, and npm: each check before the first `rm`, and the proofs after the last.
+    const named = 'no check, before anything is removed, that no file of the kept copy outside its dist/node_modules names a package inside it but the three read';
+    expect(swap(/^ {4}\[ "\$named" = [^\n]*\n/m, '')).toEqual([named]);
+    expect(swap(/^ {4}named="\$\(find [^\n]*\n/m, '')).toEqual([named]);
+    expect(swap(/^ {4}\[ "\$\(node -p "require\('\$npm_dir\/package\.json'\)\.version"\)" = 11\.19\.1 \][^\n]*\n/m, '')).toEqual(["no check, before anything is removed, that npm is Node 24.22.1's 11.19.1"]);
+    expect(swap(/^ {4}\[ ! -e "\$npm_dir\/npmrc" \][^\n]*\n/m, '')).toEqual(['no check, before anything is removed, that npm carries no npmrc, which pnpm would read as its builtin configuration']);
+    expect(swap(/^ {4}\[ "\$\(readlink "\$npx_link"\)"[^\n]*\n/m, '')).toEqual(["no check, before anything is removed, that $npx_link is Node's link to npm's bin/npx-cli.js"]);
+    expect(swap(/^ {4}\[ "\$into" = [^\n]*\n/m, '')).toEqual(["no check, before anything is removed, that Node's two links are the only ones into npm's directory"]);
+    const corepack = /^ {4}\[ "\$\(node -p "require\('\$corepack_dir\/package\.json'\)\.version"\)" = 0\.36\.0 \] \|\| fail [^\n]*\n/m;
+    expect(swap(corepack, '')).toEqual(['no check, before anything is removed, that corepack is 0.36.0, which runs every pnpm here']);
+    const afterRm = real.replace(/(^ {4}\[ "\$\(node -p "require\('\$corepack_dir\/package\.json'\)\.version"\)" = 0\.36\.0 \] \|\| fail "corepack 0\.36\.0 went with npm\."; \\\n)/m, '');
+    expect(afterRm).not.toBe(real);
+    expect(shapeProblems('trigger.dev', afterRm)).toEqual(['no proof, after the removal, that corepack 0.36.0 is still there']);
+    // A check moved after the first `rm` checks nothing in time.
+    const npmrc = /^ {4}\[ ! -e "\$npm_dir\/npmrc" \][^\n]*\n/m;
+    const late = real.replace(npmrc, '').replace(/^( {4}rm -r "\$unused" [^\n]*\n)/m, `$1${npmrc.exec(real)![0]}`);
+    expect(late).not.toBe(real);
+    expect(shapeProblems('trigger.dev', late)).toEqual(['no check, before anything is removed, that npm carries no npmrc, which pnpm would read as its builtin configuration']);
     const proof = /^ {4}\(cd \/triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter @trigger\.dev\/database exec node -e 0\) \|\| fail [^\n]*\n/m;
     const noProof = ['no proof that, without its tar, pnpm runs a command in @trigger.dev/database offline as root, the user trigger-api runs as'];
     expect(swap(proof, '')).toEqual(noProof);
@@ -873,7 +990,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     // A proof moved above the removal, in the same RUN, proves nothing.
     const proofs = /^ {4}\[ "\$\(cd \/triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version\)" = 10\.33\.2 \] [^\n]*\n {4}\(cd \/triggerdotdev [^\n]*\n/m;
     const both = proofs.exec(real)![0];
-    const early = real.replace(proofs, '').replace(/^( {4}rm -r "\$unused" "\$kept_tar"; \\\n)/m, `${both}$1`);
+    const early = real.replace(proofs, '').replace(/^( {4}rm -r "\$unused" "\$kept_modules" "\$kept_gyp_bin" "\$npm_dir"; \\\n)/m, `${both}$1`);
     expect(early).not.toBe(real);
     expect(shapeProblems('trigger.dev', early)).toEqual([
       'no proof that pnpm starts offline as root, the user trigger-api runs as',
@@ -911,8 +1028,13 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
           const home = name === 'trigger.dev' ? '/root' : '/home/node';
           const kept = COPY(home);
           expect(run.left).toContain(`${kept}/.corepack`);
-          // The copy that runs, without its tar, ran a command offline as the service's user.
-          expect(run.left).toContain(`${kept}/dist/node_modules/node-gyp/lib/install.js`);
+          // The copy that runs keeps what pnpm runs, without node-gyp's tree, and ran a command offline as the service's user.
+          expect(run.left).toEqual(expect.arrayContaining([`${kept}/bin/pnpm.cjs`, `${kept}/dist/pnpm.cjs`, `${kept}/dist/worker.js`]));
+          expect(run.left.filter((p) => p.startsWith(`${kept}/dist/node_modules`) || p.startsWith(`${kept}/dist/node-gyp-bin`))).toEqual([]);
+          // npm and its links are gone; corepack and its shims stay.
+          expect(run.left.filter((p) => p.startsWith(NPM_DIR) || p === '/usr/local/bin/npm' || p === '/usr/local/bin/npx')).toEqual([]);
+          expect(run.left).toEqual(expect.arrayContaining([`${COREPACK_DIR}/package.json`, `${COREPACK_DIR}/dist/pnpm.js`, '/usr/local/bin/corepack', '/usr/local/bin/pnpm']));
+          expect(run.out).toContain('corepack 0.36.0 stays');
           const filter = name === 'trigger.dev' ? '@trigger.dev/database' : 'supervisor';
           expect(run.pnpm).toContainEqual({ home, network: '0', args: `--fail-if-no-match --filter ${filter} exec node -e 0` });
           if (name === 'trigger.dev') {
@@ -968,6 +1090,17 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
 
   it('every path it removes or keeps that is not there fails the build by name, before anything is removed', () => {
     const plat = 'linux-arm64';
+    /** What the build reads of node-gyp's tree in the kept copy, of npm and of corepack, and what each failure names. */
+    const nodeGypAndNpm = (home: string): Array<[string, string]> => [
+      [`${COPY(home)}/dist/node_modules/node-gyp/bin/node-gyp.js`, `${COPY(home)}/dist/node_modules/node-gyp/bin/node-gyp.js`],
+      [`${COPY(home)}/dist/node-gyp-bin`, `${COPY(home)}/dist/node-gyp-bin`],
+      // What pnpm names of the tree: one of the three gone is a pnpm read for something else.
+      [`${COPY(home)}/dist/pnpm.cjs`, `${COPY(home)}/dist/node_modules, these name a package inside it: `],
+      [`${NPM_DIR}/package.json`, `${NPM_DIR} is not there`],
+      ['/usr/local/bin/npm', "/usr/local/bin/npm is not Node's link"],
+      ['/usr/local/bin/npx', "/usr/local/bin/npx is not Node's link"],
+      [`${COREPACK_DIR}/package.json`, `${COREPACK_DIR} is not corepack 0.36.0`],
+    ];
     /** Each file of the stand-in the build reads, and what its failure names. */
     const NEEDED: Readonly<Record<Name, ReadonlyArray<[string, string]>>> = {
       'trigger.dev': [
@@ -978,8 +1111,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         [`${COPY('/home/node')}/.corepack`, `${COPY('/home/node')}/.corepack`],
         [`${COPY('/home/node')}/dist/node_modules/tar`, `${COPY('/home/node')}/dist/node_modules/tar`],
         [`${COPY('/root')}/.corepack`, `${COPY('/root')}/.corepack`],
-        [`${COPY('/root')}/dist/node_modules/tar`, `${COPY('/root')}/dist/node_modules/tar`],
-        [`${COPY('/root')}/dist/node_modules/node-gyp/lib/install.js`, `${COPY('/root')}/dist, tar is required by: nothing`],
+        ...nodeGypAndNpm('/root'),
       ],
       supervisor: [
         ['/app/package.json', '/app/package.json'],
@@ -988,17 +1120,17 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         [`${COPY('/root')}/.corepack`, `${COPY('/root')}/.corepack`],
         [`${COPY('/root')}/dist/node_modules/tar`, `${COPY('/root')}/dist/node_modules/tar`],
         [`${COPY('/home/node')}/.corepack`, `${COPY('/home/node')}/.corepack`],
-        [`${COPY('/home/node')}/dist/node_modules/tar`, `${COPY('/home/node')}/dist/node_modules/tar`],
-        [`${COPY('/home/node')}/dist/node_modules/node-gyp/lib/install.js`, `${COPY('/home/node')}/dist, tar is required by: nothing`],
+        ...nodeGypAndNpm('/home/node'),
       ],
     };
     for (const name of NAMES) {
       const tree = treeOf(name, plat);
       for (const [path, named] of NEEDED[name]) {
         const without: Tree = {
-          // A file, or a directory with all that is in it.
+          // A file, or a directory with all that is in it, or a link.
           files: Object.fromEntries(Object.entries(tree.files).filter(([p]) => p !== path && !p.startsWith(`${path}/`))),
           binaries: tree.binaries.filter((b) => b.path !== path).map((b) => (b.link === path ? { path: b.path } : b)),
+          links: (tree.links ?? []).filter((l) => l.path !== path),
         };
         expect(JSON.stringify(without), `${path} is not in the stand-in`).not.toBe(JSON.stringify(tree));
         withSandbox(without, (box) => {
@@ -1050,17 +1182,57 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     });
   });
 
-  it("tar required by another file of the copy that runs than node-gyp's install.js fails it, before anything is removed", () => {
+  it("a file of the copy that runs, outside its dist/node_modules, naming another package of it, or not the three read, fails it, before anything is removed", () => {
     for (const name of NAMES) {
       const tree = treeOf(name, 'linux-arm64');
-      const worker = `${COPY(name === 'trigger.dev' ? '/root' : '/home/node')}/dist/worker.js`;
-      withSandbox({ ...tree, files: { ...tree.files, [worker]: 'const tar = require("tar");\n' } }, (box) => {
-        const run = build(dockerfiles[name], box, { tag: 'v4.8.3' });
-        expect(run.status, name).not.toBe(0);
-        expect(run.out).toContain(`${box.fs}${worker}`);
-        expect(run.out).toContain("not by node-gyp's lib/install.js alone");
-        expect(removedBy(box, run), name).toEqual([]);
-      });
+      const copy = COPY(name === 'trigger.dev' ? '/root' : '/home/node');
+      const pnpmCjs = tree.files[`${copy}/dist/pnpm.cjs`]!;
+      /** Each change to the copy's own files, and what the failure names of it (after the stand-in's root). */
+      const cases: ReadonlyArray<[string, Record<string, string>, string]> = [
+        ['worker.js requires tar', { [`${copy}/dist/worker.js`]: 'const tar = require("tar");\n' }, `${copy}/dist/worker.js:require(tar `],
+        ['pnpm.cjs imports a file of a scoped package', { [`${copy}/dist/pnpm.cjs`]: `${pnpmCjs}import('@npmcli/agent/lib/index.js');\n` }, `${copy}/dist/pnpm.cjs:import(@npmcli/agent/lib/index.js `],
+        ['bin/pnpx.cjs resolves brace-expansion', { [`${copy}/bin/pnpx.cjs`]: "require.resolve('brace-expansion')\n" }, `${copy}/bin/pnpx.cjs:require.resolve(brace-expansion `],
+        ['pnpm.cjs resolves picomatch no more', { [`${copy}/dist/pnpm.cjs`]: pnpmCjs.replace(/^try \{ require\.resolve\("picomatch"\);[^\n]*\n/m, '') }, `${copy}/dist/pnpm.cjs:resolveFrom(__dirname, node-gyp/bin/node-gyp ; this file was read for three`],
+      ];
+      for (const [what, files, named] of cases) {
+        expect(JSON.stringify({ ...tree.files, ...files }), what).not.toBe(JSON.stringify(tree.files));
+        withSandbox({ ...tree, files: { ...tree.files, ...files } }, (box) => {
+          const run = build(dockerfiles[name], box, { tag: 'v4.8.3' });
+          expect(run.status, `${name}, ${what}`).not.toBe(0);
+          expect(run.out, `${name}, ${what}`).toContain(`these name a package inside it: ${box.fs}${copy}/bin/pnpm.cjs:require(v8-compile-cache `);
+          expect(run.out, `${name}, ${what}`).toContain(`${box.fs}${named}`);
+          expect(removedBy(box, run), `${name}, ${what}`).toEqual([]);
+        });
+      }
+      // A name that only begins like a package of the tree is no package of it: the stand-in's tar-stream builds.
+      expect(pnpmCjs).toContain('require("tar-stream")');
+    }
+  });
+
+  it("npm that is not Node's 11.19.1, an npmrc in it, a link that is not Node's, a third link into it, or another corepack fails it, before anything is removed", () => {
+    for (const name of NAMES) {
+      const tree = treeOf(name, 'linux-x64');
+      const relink = (path: string, target: string): Tree => ({ ...tree, links: tree.links!.map((l) => (l.path === path ? { path, target } : l)) });
+      const cases: ReadonlyArray<[string, Tree, (fs: string) => string]> = [
+        ['another npm', { ...tree, files: { ...tree.files, [`${NPM_DIR}/package.json`]: '{"name":"npm","version":"11.20.0"}\n' } }, (fs) => `${fs}${NPM_DIR} is not npm 11.19.1`],
+        ['an npmrc in npm', { ...tree, files: { ...tree.files, [`${NPM_DIR}/npmrc`]: 'update-notifier=false\n' } }, (fs) => `${fs}${NPM_DIR}/npmrc is there: pnpm reads it`],
+        ["npm's link made by corepack", relink('/usr/local/bin/npm', '../lib/node_modules/corepack/dist/npm.js'), (fs) => `${fs}/usr/local/bin/npm is not Node's link to npm's bin/npm-cli.js.`],
+        ["npx's link to npm's cli", relink('/usr/local/bin/npx', '../lib/node_modules/npm/bin/npm-cli.js'), (fs) => `${fs}/usr/local/bin/npx is not Node's link to npm's bin/npx-cli.js.`],
+        [
+          'a third link into npm',
+          { ...tree, links: [...tree.links!, { path: '/usr/local/bin/node-gyp', target: '../lib/node_modules/npm/bin/npm-cli.js' }] },
+          (fs) => `these link into ${fs}${NPM_DIR}: ${fs}/usr/local/bin/node-gyp ${fs}/usr/local/bin/npm ${fs}/usr/local/bin/npx , not npm and npx alone.`,
+        ],
+        ['another corepack', { ...tree, files: { ...tree.files, [`${COREPACK_DIR}/package.json`]: '{"name":"corepack","version":"0.34.0"}\n' } }, (fs) => `${fs}${COREPACK_DIR} is not corepack 0.36.0`],
+      ];
+      for (const [what, changed, said] of cases) {
+        withSandbox(changed, (box) => {
+          const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag: 'v4.8.3' });
+          expect(run.status, `${name}, ${what}`).not.toBe(0);
+          expect(run.out, `${name}, ${what}`).toContain(said(box.fs));
+          expect(removedBy(box, run), `${name}, ${what}`).toEqual([]);
+        });
+      }
     }
   });
 

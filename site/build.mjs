@@ -55,6 +55,7 @@ import { DATA_TYPES, DESTINATIONS, PROTOCOL_NAMES } from './destinations.mjs';
 import { SPRITE, icon } from './icons.mjs';
 import { LEAVING, DOMAIN_OF, EXPORT_TARGETS, leavingPages } from './sources.mjs';
 import { PROOF_LINKS } from './proof.mjs';
+import { MAINTAINED_DOCS, docUrl } from './maintained-docs.mjs';
 import { heroMove } from './hero.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -1899,24 +1900,27 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
  * shape llmstxt.org gives it: a `#` title, a `>` summary, and `##` sections of
  * `- [title](url): description` lines.
  *
- * Nothing in it is written for it. The title is the name the header shows, the
- * summary is the home page's description in `DEFAULT_LOCALE`, and each line is
- * one page with an address (every page but the 404) in one language, by its
- * own `<title>` and `<meta name="description">`, at the address its canonical
- * link names. A section per language, headed by the language's own name
- * (`langName` in `copy.mjs`): each language's page has its own title and
- * description in its own words, so a line holding both would have to choose
- * one language's words for the other's page.
+ * Nothing in it is written for it but the documentation's topic names. The
+ * title is the name the header shows, the summary is the home page's
+ * description in `DEFAULT_LOCALE`, and each line is one page with an address
+ * (every page but the 404) in one language, by its own `<title>` and
+ * `<meta name="description">`, at the address its canonical link names. A
+ * section per language, headed by the language's own name (`langName` in
+ * `copy.mjs`): each language's page has its own title and description in its
+ * own words, so a line holding both would have to choose one language's words
+ * for the other's page.
  *
  * Built from what this build rendered, less `UNLISTED`'s pages: the Alpha's
  * conditions and its guide, which no page a visitor reaches from the home page
  * links. So it lists what a visitor can reach, and nothing else.
  *
- * NOT YET HERE: ADR-0029 says `llms.txt` is curated as links to the maintained
- * documentation (the ADRs, workplans and runbooks). This lists the site's own
- * pages, workplan 0152 T5 (c)'s "a line each"; the documentation's lines are
- * still owed, and which documents is the selection that ADR leaves to whoever
- * curates them.
+ * Then the maintained documentation, which ADR-0029 says `llms.txt` is curated
+ * from (2026-10-31): a section per topic of `MAINTAINED_DOCS`
+ * (`maintained-docs.mjs`, which says what was chosen and why it links `main`),
+ * one line per document, `- [its own first heading](its Markdown on main)`,
+ * with no notes: listed, not restated. Read from that list alone, never from
+ * the documents, so the build still needs nothing outside `site/`;
+ * `node scripts/llms-docs.mjs --check` holds each line to the document.
  */
 function llmsTxt(pages) {
   const addressed = pages.filter((p) => p.address && !UNLISTED.includes(p.key));
@@ -1933,6 +1937,12 @@ function llmsTxt(pages) {
       ...addressed
         .filter((p) => p.locale === locale)
         .map((p) => `- [${p.title}](${p.address}): ${p.description}`),
+      '',
+    ]),
+    ...MAINTAINED_DOCS.flatMap(({ topic, docs }) => [
+      `## ${topic}`,
+      '',
+      ...docs.map((d) => `- [${d.title}](${docUrl(d.path)})`),
       '',
     ]),
   ].join('\n');

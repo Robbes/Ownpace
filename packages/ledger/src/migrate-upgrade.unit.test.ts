@@ -49,6 +49,14 @@
  * NO DOCKER, NO REGISTRY, NO RUNNER. The released schema is in git, so this
  * runs in the unit project and gates every PR — unlike the container-level
  * upgrade drill, which needs the published image and the Spark runner.
+ *
+ * FROM WHICH RELEASES (workplan 0146 T4). Every leg above runs once per
+ * starting point `scripts/release-line.json` names: this chain's oldest
+ * supported release (rc.1) and the newest release, §22.1's "from N-1 (and at
+ * least one older) to N". Until 2026-10-31 a pull request proved rc.1 alone,
+ * and only Release's preflight, which sets `UPGRADE_FROM_REF` to the release
+ * before, proved N-1, on the day of the tag. With `UPGRADE_FROM_REF` set, it
+ * is the only one.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
@@ -60,6 +68,7 @@ import { fileURLToPath } from 'node:url';
 import { pgliteDriver } from './pglite-driver.ts';
 import { runMigrations } from './migrate.ts';
 import type { LedgerDriver } from './driver.ts';
+import { readReleaseLine, rootVersion, startingPoints } from './__tests__/release-line.ts';
 
 /**
  * Temp directories this file makes, and the removal that used to be missing.
@@ -90,15 +99,6 @@ const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..', '..'
 const MIGRATIONS_PATH = 'packages/ledger/migrations';
 const HEAD_MIGRATIONS = join(REPO_ROOT, 'packages', 'ledger', 'migrations');
 
-/**
- * The release to upgrade FROM.
- *
- * Overridable so the gate can be pointed at whatever the previous release is
- * once there is more than one, without editing this file — and so a developer
- * can check an upgrade from any older point by exporting one variable.
- */
-const FROM_REF = process.env.UPGRADE_FROM_REF || 'v0.1.0-rc.1';
-
 function git(...args: string[]): string {
   return execFileSync('git', args, {
     cwd: REPO_ROOT,
@@ -118,9 +118,24 @@ function refExists(ref: string): boolean {
   }
 }
 
-/** The migration filenames the released tree carried, in order. */
-function releasedFilenames(): string[] {
-  return git('ls-tree', '--name-only', FROM_REF, `${MIGRATIONS_PATH}/`)
+/**
+ * The releases to upgrade FROM (workplan 0146 T4).
+ *
+ * `scripts/release-line.json` names them: the shared chain's oldest supported
+ * release (rc.1) and the newest release, so every pull request proves both
+ * §22.1's N-1 -> N and an older start. `UPGRADE_FROM_REF` names one instead,
+ * which is how the Release preflight runs this file from the release before
+ * alone, and how a developer checks an upgrade from any other point.
+ */
+const FROM_REFS = startingPoints(readReleaseLine(REPO_ROOT), 'ledger', {
+  fromRef: process.env.UPGRADE_FROM_REF,
+  version: rootVersion(REPO_ROOT),
+  isTagged: refExists,
+});
+
+/** The migration filenames a released tree carried, in order. */
+function releasedFilenamesAt(ref: string): string[] {
+  return git('ls-tree', '--name-only', ref, `${MIGRATIONS_PATH}/`)
     .split('\n')
     .map((p) => p.trim())
     .filter((p) => p.endsWith('.sql'))
@@ -143,11 +158,11 @@ function headFilenames(): string[] {
  * second implementation that could agree with the test and disagree with
  * production.
  */
-function materialiseReleasedMigrations(): string {
+function materialiseReleasedMigrations(ref: string): string {
   const dir = join(tempDir('ownpace-upgrade-'), 'migrations');
   mkdirSync(dir, { recursive: true });
-  for (const name of releasedFilenames()) {
-    writeFileSync(join(dir, name), git('show', `${FROM_REF}:${MIGRATIONS_PATH}/${name}`));
+  for (const name of releasedFilenamesAt(ref)) {
+    writeFileSync(join(dir, name), git('show', `${ref}:${MIGRATIONS_PATH}/${name}`));
   }
   return dir;
 }
@@ -241,9 +256,11 @@ const MOVED_TO_MANAGED_CHAIN: Readonly<Record<string, string>> = {
   tenant_member: 'ADR-0036 — managed chain. Accounts; the appliance has no login.',
 };
 
-/** Does this fingerprint line belong to a table the break left behind? */
-function isDeclaredLeftover(line: string): boolean {
-  if (!RELEASE_PREDATES_SPLIT) return false;
+/**
+ * Does this fingerprint line belong to a table the break left behind? Only
+ * asked of a release that predates the split (`isDeclaredLeftover` below).
+ */
+function isLeftoverOfTheSplit(line: string): boolean {
   const table = line.split('.')[0]!;
   if (table in MOVED_TO_MANAGED_CHAIN) return true;
   // Index lines are `indexname:indexdef`; the definition names its table.
@@ -252,187 +269,201 @@ function isDeclaredLeftover(line: string): boolean {
   );
 }
 
-const HAVE_REF = refExists(FROM_REF);
-
 /**
- * Does the release predate the managed chain (ADR-0036)? It does when it has
- * no `packages/managed/migrations`, which is what the split created.
+ * One leg of the gate: everything below, from one release. A database the
+ * release built is upgraded to the working tree and compared with a fresh one.
  */
-const RELEASE_PREDATES_SPLIT =
-  HAVE_REF && git('ls-tree', '--name-only', FROM_REF, 'packages/managed/migrations/').trim() === '';
-let releasedDir: string;
-let upgraded: LedgerDriver;
-let fresh: LedgerDriver;
+function upgradeGateFrom(FROM_REF: string): void {
+  const HAVE_REF = refExists(FROM_REF);
 
-beforeAll(async () => {
-  if (!HAVE_REF) return;
-  releasedDir = materialiseReleasedMigrations();
-  upgraded = pgliteDriver();
-  fresh = pgliteDriver();
-}, 180_000);
+  /**
+   * Does the release predate the managed chain (ADR-0036)? It does when it has
+   * no `packages/managed/migrations`, which is what the split created.
+   */
+  const RELEASE_PREDATES_SPLIT =
+    HAVE_REF && git('ls-tree', '--name-only', FROM_REF, 'packages/managed/migrations/').trim() === '';
+  const releasedFilenames = (): string[] => releasedFilenamesAt(FROM_REF);
+  const isDeclaredLeftover = (line: string): boolean =>
+    RELEASE_PREDATES_SPLIT && isLeftoverOfTheSplit(line);
 
-afterAll(async () => {
-  await upgraded?.end();
-  await fresh?.end();
-});
+  describe(`upgrading from ${FROM_REF} (§22.1 N-1 -> N gate)`, () => {
+    // Inside the describe, so each release's two databases exist only while
+    // its own cases run, and not all of them at once.
+    let releasedDir: string;
+    let upgraded: LedgerDriver;
+    let fresh: LedgerDriver;
 
-describe(`upgrading from ${FROM_REF} (§22.1 N-1 -> N gate)`, () => {
-  it('can actually reach the release it upgrades from', () => {
-    // The skip below is the gate's own vacuous-pass hole, and this is the
-    // plug. A depth-1 checkout has no tags, so every assertion here would be
-    // skipped and the job would go green having proved nothing — which is
-    // exactly the failure this file was written to refuse. Locally a shallow
-    // or tagless clone is ordinary and gets a warning; in CI it is a broken
-    // gate and says so (ci.yml checks out with fetch-depth: 0 for this).
-    if (!HAVE_REF && process.env.CI) {
-      throw new Error(
-        `${FROM_REF} is not reachable, so the upgrade gate cannot run. CI must ` +
-          `check out with tags (fetch-depth: 0). Set UPGRADE_FROM_REF to override.`,
-      );
-    }
-    if (!HAVE_REF) {
-      console.warn(`[upgrade-gate] ${FROM_REF} not reachable locally — gate skipped.`);
-    }
-    expect(true).toBe(true);
-  });
+    beforeAll(async () => {
+      if (!HAVE_REF) return;
+      releasedDir = materialiseReleasedMigrations(FROM_REF);
+      upgraded = pgliteDriver();
+      fresh = pgliteDriver();
+    }, 180_000);
 
-  it.skipIf(!HAVE_REF)('knows whether there is an upgrade to test at all', () => {
-    const from = releasedFilenames();
-    const to = headFilenames();
-    expect(from.length).toBeGreaterThan(0);
+    afterAll(async () => {
+      await upgraded?.end();
+      await fresh?.end();
+    });
 
-    // NOT an assertion that they differ — they legitimately do not, between a
-    // release and the next schema change. It is a REPORT, so a green run
-    // cannot be mistaken for proof that a migration was exercised. The moment
-    // a 0007 lands, every assertion below starts doing real work.
-    const added = to.filter((f) => !from.includes(f));
-    if (added.length === 0) {
-      console.warn(
-        `[upgrade-gate] ${FROM_REF} and the working tree carry the SAME ${from.length} ` +
-          `migrations. This run proves the mechanics — the released schema applies, the ` +
-          `upgrade is a no-op, and the downgrade guard behaves — but it exercises NO ` +
-          `migration. It gains teeth when the next migration lands.`,
-      );
-    }
-    // What must never happen: a file present in the release and gone from the
-    // tree. Migrations are append-only; an operator's database has already run
-    // it, so deleting it makes the release's schema unreproducible.
-    expect(from.filter((f) => !to.includes(f))).toEqual([]);
-  });
-
-  it.skipIf(!HAVE_REF)(
-    'applies the RELEASED schema, then every migration added since',
-    { timeout: 120_000 },
-    async () => {
-      const first = await runMigrations({
-        driver: upgraded,
-        migrationsDir: releasedDir,
-        logger: () => {},
-      });
-      expect([...first.applied].sort()).toEqual(releasedFilenames().sort());
-
-      // The upgrade itself: the working tree's set, over the released database.
-      const second = await runMigrations({ driver: upgraded, logger: () => {} });
-      const added = headFilenames().filter((f) => !releasedFilenames().includes(f));
-      expect([...second.applied].sort()).toEqual(added.sort());
-    },
-  );
-
-  it.skipIf(!HAVE_REF)(
-    'lands on a schema a fresh install at HEAD can account for',
-    { timeout: 120_000 },
-    async () => {
-      await runMigrations({ driver: fresh, logger: () => {} });
-
-      for (const [what, take] of [
-        ['columns', schemaFingerprint],
-        ['indexes', indexFingerprint],
-      ] as const) {
-        const up = (await take(upgraded)).split('\n').filter(Boolean);
-        const at = new Set((await take(fresh)).split('\n').filter(Boolean));
-
-        // THE ASSERTION THIS GATE EXISTS FOR, and it is absolute. Editing the
-        // baseline instead of writing a new migration passes every other test
-        // in the repo and leaves upgraded installs — the oldest, most valuable
-        // ones — missing the change. Nothing but this comparison notices.
-        const missing = [...at].filter((line) => !up.includes(line));
-        expect(
-          missing,
-          `a fresh install at HEAD has ${what} an upgraded one does not. This is ` +
-            'the drift this gate exists for: something was added by editing an ' +
-            'already-released migration instead of writing a new one.\n' +
-            missing.map((m) => `  - ${m}`).join('\n'),
-        ).toEqual([]);
-
-        // The other direction is where a DECLARED pre-release break is allowed
-        // to show, and only there. Anything undeclared fails.
-        const undeclared = up.filter((line) => !at.has(line) && !isDeclaredLeftover(line));
-        expect(
-          undeclared,
-          `an upgraded database carries ${what} a fresh install does not, and ` +
-            'nothing declares them. Either the working tree stopped creating ' +
-            'something a released migration made, or MOVED_TO_MANAGED_CHAIN ' +
-            'needs the new entry and the reason for it.\n' +
-            undeclared.map((m) => `  - ${m}`).join('\n'),
-        ).toEqual([]);
+    it('can actually reach the release it upgrades from', () => {
+      // The skip below is the gate's own vacuous-pass hole, and this is the
+      // plug. A depth-1 checkout has no tags, so every assertion here would be
+      // skipped and the job would go green having proved nothing — which is
+      // exactly the failure this file was written to refuse. Locally a shallow
+      // or tagless clone is ordinary and gets a warning; in CI it is a broken
+      // gate and says so (ci.yml checks out with fetch-depth: 0 for this).
+      if (!HAVE_REF && process.env.CI) {
+        throw new Error(
+          `${FROM_REF} is not reachable, so the upgrade gate cannot run. CI must ` +
+            `check out with tags (fetch-depth: 0). Set UPGRADE_FROM_REF to override.`,
+        );
       }
-    },
-  );
+      if (!HAVE_REF) {
+        console.warn(`[upgrade-gate] ${FROM_REF} not reachable locally — gate skipped.`);
+      }
+      expect(true).toBe(true);
+    });
 
-  it.skipIf(!HAVE_REF)(
-    'still finds every leftover it declares, and only from a release that left them',
-    { timeout: 60_000 },
-    async () => {
-      // An allow-list that has stopped covering anything reads to the next
-      // person as a rule that still applies — and quietly widens what the
-      // check above will forgive. The moment `v0.1.0-rc.1` stops being the
-      // reference, every one of these should disappear with it.
-      const up = (await schemaFingerprint(upgraded)).split('\n');
-      for (const table of Object.keys(MOVED_TO_MANAGED_CHAIN)) {
-        const present = up.some((line) => line.startsWith(`${table}.`));
-        if (RELEASE_PREDATES_SPLIT) {
+    it.skipIf(!HAVE_REF)('knows whether there is an upgrade to test at all', () => {
+      const from = releasedFilenames();
+      const to = headFilenames();
+      expect(from.length).toBeGreaterThan(0);
+
+      // NOT an assertion that they differ — they legitimately do not, between a
+      // release and the next schema change. It is a REPORT, so a green run
+      // cannot be mistaken for proof that a migration was exercised. The moment
+      // a 0007 lands, every assertion below starts doing real work.
+      const added = to.filter((f) => !from.includes(f));
+      if (added.length === 0) {
+        console.warn(
+          `[upgrade-gate] ${FROM_REF} and the working tree carry the SAME ${from.length} ` +
+            `migrations. This run proves the mechanics — the released schema applies, the ` +
+            `upgrade is a no-op, and the downgrade guard behaves — but it exercises NO ` +
+            `migration. It gains teeth when the next migration lands.`,
+        );
+      }
+      // What must never happen: a file present in the release and gone from the
+      // tree. Migrations are append-only; an operator's database has already run
+      // it, so deleting it makes the release's schema unreproducible.
+      expect(from.filter((f) => !to.includes(f))).toEqual([]);
+    });
+
+    it.skipIf(!HAVE_REF)(
+      'applies the RELEASED schema, then every migration added since',
+      { timeout: 120_000 },
+      async () => {
+        const first = await runMigrations({
+          driver: upgraded,
+          migrationsDir: releasedDir,
+          logger: () => {},
+        });
+        expect([...first.applied].sort()).toEqual(releasedFilenames().sort());
+
+        // The upgrade itself: the working tree's set, over the released database.
+        const second = await runMigrations({ driver: upgraded, logger: () => {} });
+        const added = headFilenames().filter((f) => !releasedFilenames().includes(f));
+        expect([...second.applied].sort()).toEqual(added.sort());
+      },
+    );
+
+    it.skipIf(!HAVE_REF)(
+      'lands on a schema a fresh install at HEAD can account for',
+      { timeout: 120_000 },
+      async () => {
+        await runMigrations({ driver: fresh, logger: () => {} });
+
+        for (const [what, take] of [
+          ['columns', schemaFingerprint],
+          ['indexes', indexFingerprint],
+        ] as const) {
+          const up = (await take(upgraded)).split('\n').filter(Boolean);
+          const at = new Set((await take(fresh)).split('\n').filter(Boolean));
+
+          // THE ASSERTION THIS GATE EXISTS FOR, and it is absolute. Editing the
+          // baseline instead of writing a new migration passes every other test
+          // in the repo and leaves upgraded installs — the oldest, most valuable
+          // ones — missing the change. Nothing but this comparison notices.
+          const missing = [...at].filter((line) => !up.includes(line));
           expect(
-            present,
-            `${table}: declared as left behind by ${FROM_REF}, but an upgraded ` +
-              'database does not have it — remove the MOVED_TO_MANAGED_CHAIN entry',
-          ).toBe(true);
-        } else {
-          // A release with a managed chain never put these on the shared
-          // chain, so an appliance upgraded from it has none of them.
+            missing,
+            `a fresh install at HEAD has ${what} an upgraded one does not. This is ` +
+              'the drift this gate exists for: something was added by editing an ' +
+              'already-released migration instead of writing a new one.\n' +
+              missing.map((m) => `  - ${m}`).join('\n'),
+          ).toEqual([]);
+
+          // The other direction is where a DECLARED pre-release break is allowed
+          // to show, and only there. Anything undeclared fails.
+          const undeclared = up.filter((line) => !at.has(line) && !isDeclaredLeftover(line));
           expect(
-            present,
-            `${table}: ${FROM_REF} has a managed chain, so its shared chain never ` +
-              'created this table, and yet an upgraded appliance has it',
-          ).toBe(false);
+            undeclared,
+            `an upgraded database carries ${what} a fresh install does not, and ` +
+              'nothing declares them. Either the working tree stopped creating ' +
+              'something a released migration made, or MOVED_TO_MANAGED_CHAIN ' +
+              'needs the new entry and the reason for it.\n' +
+              undeclared.map((m) => `  - ${m}`).join('\n'),
+          ).toEqual([]);
         }
+      },
+    );
+
+    it.skipIf(!HAVE_REF)(
+      'still finds every leftover it declares, and only from a release that left them',
+      { timeout: 60_000 },
+      async () => {
+        // An allow-list that has stopped covering anything reads to the next
+        // person as a rule that still applies — and quietly widens what the
+        // check above will forgive. The moment `v0.1.0-rc.1` stops being the
+        // reference, every one of these should disappear with it.
+        const up = (await schemaFingerprint(upgraded)).split('\n');
+        for (const table of Object.keys(MOVED_TO_MANAGED_CHAIN)) {
+          const present = up.some((line) => line.startsWith(`${table}.`));
+          if (RELEASE_PREDATES_SPLIT) {
+            expect(
+              present,
+              `${table}: declared as left behind by ${FROM_REF}, but an upgraded ` +
+                'database does not have it — remove the MOVED_TO_MANAGED_CHAIN entry',
+            ).toBe(true);
+          } else {
+            // A release with a managed chain never put these on the shared
+            // chain, so an appliance upgraded from it has none of them.
+            expect(
+              present,
+              `${table}: ${FROM_REF} has a managed chain, so its shared chain never ` +
+                'created this table, and yet an upgraded appliance has it',
+            ).toBe(false);
+          }
+        }
+      },
+    );
+
+    it.skipIf(!HAVE_REF)('is idempotent after the upgrade', { timeout: 60_000 }, async () => {
+      // Restarting an appliance re-runs migrations; an upgrade must not turn
+      // every subsequent boot into a re-application.
+      const again = await runMigrations({ driver: upgraded, logger: () => {} });
+      expect(again.applied).toEqual([]);
+    });
+
+    it.skipIf(!HAVE_REF)('REFUSES to let the released build start against the upgraded database', async () => {
+      // §22.1: "refuses to start if the DB schema is newer than it understands".
+      // Rolling an image back is exactly what an operator does when an upgrade
+      // goes wrong, and it is the moment an old build writing into a new schema
+      // does its damage. `migrate.ts` implements the guard; nothing exercised it.
+      const added = headFilenames().filter((f) => !releasedFilenames().includes(f));
+      if (added.length === 0) {
+        // Honest skip: with no new migration the old build is not behind, so
+        // there is nothing for the guard to refuse. Asserting a refusal here
+        // would be asserting a bug.
+        return;
       }
-    },
-  );
-
-  it.skipIf(!HAVE_REF)('is idempotent after the upgrade', { timeout: 60_000 }, async () => {
-    // Restarting an appliance re-runs migrations; an upgrade must not turn
-    // every subsequent boot into a re-application.
-    const again = await runMigrations({ driver: upgraded, logger: () => {} });
-    expect(again.applied).toEqual([]);
+      await expect(
+        runMigrations({ driver: upgraded, migrationsDir: releasedDir, logger: () => {} }),
+      ).rejects.toThrow(/newer than this build understands/);
+    });
   });
+}
 
-  it.skipIf(!HAVE_REF)('REFUSES to let the released build start against the upgraded database', async () => {
-    // §22.1: "refuses to start if the DB schema is newer than it understands".
-    // Rolling an image back is exactly what an operator does when an upgrade
-    // goes wrong, and it is the moment an old build writing into a new schema
-    // does its damage. `migrate.ts` implements the guard; nothing exercised it.
-    const added = headFilenames().filter((f) => !releasedFilenames().includes(f));
-    if (added.length === 0) {
-      // Honest skip: with no new migration the old build is not behind, so
-      // there is nothing for the guard to refuse. Asserting a refusal here
-      // would be asserting a bug.
-      return;
-    }
-    await expect(
-      runMigrations({ driver: upgraded, migrationsDir: releasedDir, logger: () => {} }),
-    ).rejects.toThrow(/newer than this build understands/);
-  });
-});
+for (const FROM_REF of FROM_REFS) upgradeGateFrom(FROM_REF);
 
 describe('the downgrade refusal never advises a drop (workplan 0134 T3)', () => {
   it('names the backup, and never "nothing irreplaceable", on every checkout', async () => {
@@ -463,6 +494,12 @@ describe('the downgrade refusal never advises a drop (workplan 0134 T3)', () => 
       expect(refusal).toMatch(/restored from a backup, never dropped/);
       expect(refusal).not.toMatch(/nothing irreplaceable/i);
       expect(refusal).not.toMatch(/drop and recreate/i);
+      // Nor does it name a squash as a cause: pre-release ended with the
+      // first alpha tag and the squash script refuses (workplan 0146 T3). It
+      // names the two causes that remain, and what each one asks for.
+      expect(refusal).not.toMatch(/squash/i);
+      expect(refusal).toMatch(/deploy the release the database was last migrated by/);
+      expect(refusal).toMatch(/renamed or removed after it shipped: that is a defect/);
     } finally {
       await driver.end();
     }
