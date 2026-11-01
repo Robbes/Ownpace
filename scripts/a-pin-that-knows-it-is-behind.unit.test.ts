@@ -68,7 +68,11 @@
  * `intended` and opens nothing while both hold, and compares again, naming the
  * record, the moment either moves. This holds that the record names
  * managed.yml's own pin, that managed.yml's comment names it, and each of
- * those three cases.
+ * those three cases. On review the same day: once upstream moved, the issue
+ * said "then follow it" even when upstream's new pin was OLDER than the
+ * stack's, a re-pushed 26.2.19.43 (26.2 cannot read 26.3's parts) or an older
+ * 26.3 patch (without CVE-2026-116366's fix). A stack tag newer than
+ * upstream's is `ahead` now, and its issue says it is never followed.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -672,8 +676,35 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
     expect(row.state).toBe('behind');
     expect(row.shown).toBeUndefined();
     expect(row.body).toContain(`recorded against Trigger.dev's **${intended.theirs}**`);
-    expect(row.body).toContain(`Trigger.dev now pins ${moved}, so the record no longer holds`);
+    expect(row.body).toContain(`Trigger.dev now pins ${moved}, so the record no longer holds: read what upstream moved to, then follow it`);
   });
+
+  // Upstream moved, but to a tag OLDER than the stack's: following would take ClickHouse back.
+  const theirTag = intended.theirs.split('@')[0]!;
+  for (const [what, older, says] of [
+    ['re-pushes its 26.2 tag under a new digest', `${theirTag}@sha256:${'4'.repeat(64)}`, /on an older line, 26\.2, than the stack's 26\.3, so it is never followed: 26\.2 cannot read the parts 26\.3 wrote[\s\S]*only way back/],
+    ['moves to an older 26.3 patch', `26.3.59.10@sha256:${'5'.repeat(64)}`, /an older patch of the stack's line, 26\.3, so it is not followed: it lacks fixes the stack's pin carries, the one the record names among them/],
+  ] as const) {
+    it(`is ahead, never told to follow, when Trigger.dev ${what}`, async () => {
+      const net = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:${older}`), [/SECURITY\.md$/, security]] });
+      const row = await clickhouseRow(REAL, net, trigger);
+      // Behind keeps the issue open (the record no longer holds; someone decides), shown as ahead.
+      expect(row.state).toBe('behind');
+      expect(row.shown).toBe('ahead');
+      expect(row.body).toContain(`recorded against Trigger.dev's **${intended.theirs}**`);
+      expect(row.body).toContain(`Trigger.dev now pins ${older}, so the record no longer holds.`);
+      expect(row.body).toMatch(says);
+      expect(row.body).toContain('Record the pair again (`CLICKHOUSE_INTENDED`');
+      expect(row.body).toContain('or move forward only');
+      expect(row.body).not.toMatch(/follow it/);
+      expect(row.body).toContain("an upstream pin older than the stack's is never followed");
+      const { gh, calls } = fakeGh([]);
+      expect(keepIssue(row, gh, TITLES.clickhouse)).toBe('opened');
+      expect(calls[0]!.slice(0, 2)).toEqual(['issue', 'create']);
+      const shown = table({ issues: [{ ...row, key: 'clickhouse', name: 'ClickHouse' }], routine: [], status: [] });
+      expect(shown).toMatch(/^ClickHouse\s+26\.3\.62\.3@sha256:de3e47c6…\s+\S+\s+ahead$/m);
+    });
+  }
 
   it('holds for the recorded pin alone: another stack pin against the same upstream is behind, with no word of a record', async () => {
     const other = `26.3.99.9@sha256:${'3'.repeat(64)}`;
@@ -681,8 +712,11 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
     expect(yml).not.toBe(MANAGED);
     const row = await clickhouseRow(withFiles({ [COMPOSE]: yml }), recordedPair, trigger);
     expect(row.state).toBe('behind');
-    expect(row.shown).toBeUndefined();
+    // Ahead of upstream's 26.2 all the same, so never told to follow it.
+    expect(row.shown).toBe('ahead');
     expect(row.body).not.toContain('recorded against');
+    expect(row.body).toContain('so it is never followed');
+    expect(row.body).not.toMatch(/follow it/);
   });
 
   it('reads nothing when the Trigger.dev row named no tag', async () => {

@@ -66,11 +66,11 @@ notices.
   `clickhouse/clickhouse-server:26.3.62.3` by its index digest (amd64 and
   arm64), ahead of Trigger.dev's pin on purpose. Read before the move: every
   backward-incompatible change of 26.3 and its patches against Trigger.dev's
-  56 migrations, its queries and the settings it passes, and the three files
-  mounted into `config.d`; none reaches them. The move is one way (26.3 writes
-  parts 26.2 cannot read), so each stack copies ClickHouse's volume first
-  (`docs/managed-bring-up.md`, *Moving ClickHouse*), live by hand: the copy
-  before an update holds no volume.
+  55 migrations (numbered to 056), its queries and the settings it passes, and
+  the three files mounted into `config.d`; none reaches them. The move is one
+  way (26.3 writes parts 26.2 cannot read), so each stack copies ClickHouse's
+  volume first (`docs/managed-bring-up.md`, *Moving ClickHouse*), live by
+  hand: the copy before an update holds no volume.
 
 - **The Windows payload's `node.exe` is checked against a SHA-256 committed in
   this repository, and that sum is the one the Node.js release was signed
@@ -234,7 +234,9 @@ notices.
   intended**, for one exact pair of tag and digest (`CLICKHOUSE_INTENDED`):
   its row then reads `intended`, with the reason, and keeps no issue open,
   until either side moves. It kept an issue open for any difference, a
-  deliberate one included.
+  deliberate one included. A stack pin newer than Trigger.dev's reads
+  `ahead`, and its issue says an older upstream pin is never followed:
+  ClickHouse's data moves forward only.
 - **`deploy-live.sh` calls a tag that moves the ClickHouse pin one-way**, names
   the move, and says the copy before the update holds no ClickHouse volume. It
   called such a tag reversible, and going back to it would have started the

@@ -548,13 +548,13 @@ services:
   # 26.2.19.43, a line ClickHouse no longer
   # supports, and CVE-2026-116366 (critical: code execution with no password)
   # has no 26.2 fix. 26.3.62.3 is the nearest supported line that carries it.
-  # Read against v4.8.3's 56 migrations, its queries and the settings it
-  # passes before the move (docs/managed-bring-up.md, "Moving ClickHouse"): no
-  # incompatibility reaches them. The data moves ONE WAY: 26.3 writes parts
-  # 26.2 cannot read (Trigger.dev's JSON and Array columns), so the way back
-  # is the volume copy taken first. The pin watch records the difference
-  # (CLICKHOUSE_INTENDED in scripts/idp-pin-watch.mjs) and says so again when
-  # either side moves.
+  # Read against v4.8.3's 55 migrations (numbered to 056), its queries and
+  # the settings it passes before the move (docs/managed-bring-up.md,
+  # "Moving ClickHouse"): no incompatibility reaches them. The data moves
+  # ONE WAY: 26.3 writes parts 26.2 cannot read (Trigger.dev's JSON and Array
+  # columns), so the way back is the volume copy taken first. The pin watch
+  # records the difference (CLICKHOUSE_INTENDED in scripts/idp-pin-watch.mjs)
+  # and says so again when either side moves.
   clickhouse:
     image: clickhouse/clickhouse-server:26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse

@@ -72,7 +72,7 @@ export interface Row {
   pin?: string;
   newest?: string;
   state: State;
-  /** What the table shows instead of the state, when the state reads wrong (the TypeScript split). */
+  /** What the table shows instead of the state, when the state reads wrong (the TypeScript split; ClickHouse `intended`, or `ahead` of Trigger.dev's pin). */
   shown?: string;
   notes?: string[];
   error?: string;

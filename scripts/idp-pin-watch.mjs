@@ -45,7 +45,10 @@
  *                      difference is recorded as intended for that exact pair
  *                      (`CLICKHOUSE_INTENDED`, 0119 §3 item 9): then it is
  *                      `intended` in the table, with the reason, and opens
- *                      nothing until either side moves.
+ *                      nothing until either side moves. A stack pin newer
+ *                      than upstream's is `ahead` in the table, and its issue
+ *                      never says to follow: ClickHouse's data moves forward
+ *                      only.
  *   the tasks' Node    the Node in the base image the pinned Trigger.dev CLI
  *                      names, against Node's newest security release, while
  *                      `trigger.config.ts` does not build the tasks on the
@@ -1050,7 +1053,9 @@ const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''
  * (no issue, `intended` in the table, the reason as a note) only while
  * managed.yml pins `ours` AND Trigger.dev's compose pins `theirs`, tag and
  * digest. When Trigger.dev moves, the row compares again and opens its issue,
- * saying the record was for the old pin; when the stack moves, this moves in
+ * saying the record was for the old pin, and, when upstream's tag is older
+ * than the stack's (a re-pushed 26.2.19.43, an older 26.3 patch), that it is
+ * never followed; when the stack moves, this moves in
  * the same change (`a-pin-that-knows-it-is-behind` fails until it does).
  * `null` when the stack follows Trigger.dev's pin again.
  */
@@ -1092,6 +1097,17 @@ export async function clickhouseRow(repo, net, trigger) {
   }
   // A record that names the stack's pin but not Trigger.dev's: upstream moved under it.
   const recorded = intended && pin === intended.ours ? intended.theirs : undefined;
+  // The stack's tag newer than upstream's, a digest-only re-push of an older
+  // tag included: following would take ClickHouse back, and its data moves
+  // forward only. So the issue opens (something must be decided), and never
+  // says to follow.
+  const ahead = compareParts(ours[0].tag, theirs[0].tag) > 0;
+  const lineOfTag = (tag) => partsOf(tag).slice(0, 2).join('.');
+  const [ourLine, theirLine] = [lineOfTag(ours[0].tag), lineOfTag(theirs[0].tag)];
+  const notFollowed =
+    ourLine === theirLine
+      ? `Trigger.dev's ${want} is an older patch of the stack's line, ${ourLine}, so it is not followed: it lacks fixes the stack's pin carries${recorded ? ', the one the record names among them' : ''}.`
+      : `Trigger.dev's ${want} is on an older line, ${theirLine}, than the stack's ${ourLine}, so it is never followed: ${theirLine} cannot read the parts ${ourLine} wrote, and the copy of the volume taken before the move (*Moving ClickHouse* in docs/managed-bring-up.md) is the only way back.`;
   const body = [
     `The stack runs ClickHouse **${pin}** (\`${COMPOSE}\`), and Trigger.dev **${trigger.newest}**'s own \`docker/docker-compose.yml\` pins **${want}**.`,
     '',
@@ -1099,11 +1115,17 @@ export async function clickhouseRow(repo, net, trigger) {
     ...(recorded
       ? [
           '',
-          `The stack differs from Trigger.dev's pin ${intended.why}. That was recorded against Trigger.dev's **${recorded}**, and Trigger.dev now pins ${want}, so the record no longer holds: read what upstream moved to, then follow it, or record the difference again (\`CLICKHOUSE_INTENDED\` in \`scripts/idp-pin-watch.mjs\`, and workplan 0119 §3 item 9).`,
+          `The stack differs from Trigger.dev's pin ${intended.why}. That was recorded against Trigger.dev's **${recorded}**, and Trigger.dev now pins ${want}, so the record no longer holds${ahead ? '.' : ': read what upstream moved to, then follow it, or record the difference again (`CLICKHOUSE_INTENDED` in `scripts/idp-pin-watch.mjs`, and workplan 0119 §3 item 9).'}`,
+        ]
+      : []),
+    ...(ahead
+      ? [
+          '',
+          `${notFollowed} Record the pair again (\`CLICKHOUSE_INTENDED\` in \`scripts/idp-pin-watch.mjs\`, and workplan 0119 §3 item 9), or move forward only.`,
         ]
       : []),
     '',
-    "Trigger.dev's ClickHouse migrations are written against the ClickHouse its own compose file pins, and the v4.5.12 upgrade crash-looped on one it did not expect (docs/managed-bring-up.md, *Upgrading Trigger.dev*). So this pin follows upstream's, tag and digest, with the Trigger.dev move or in a pull request of its own, proven by E2E (managed) on its branch, and live takes it from a release tag. ClickHouse's data moves forward only: *Moving ClickHouse* in docs/managed-bring-up.md copies the volume first.",
+    "Trigger.dev's ClickHouse migrations are written against the ClickHouse its own compose file pins, and the v4.5.12 upgrade crash-looped on one it did not expect (docs/managed-bring-up.md, *Upgrading Trigger.dev*). So this pin follows upstream's, tag and digest, with the Trigger.dev move or in a pull request of its own, proven by E2E (managed) on its branch, and live takes it from a release tag. ClickHouse's data moves forward only, so an upstream pin older than the stack's is never followed: *Moving ClickHouse* in docs/managed-bring-up.md copies the volume first.",
     '',
     'This issue stays open while the two differ, unless the difference is recorded as intended for this exact pair (`CLICKHOUSE_INTENDED`, with its decision in workplan 0119 §3). It is kept by `.github/workflows/idp-pin-watch.yml`.',
   ].join('\n');
@@ -1111,6 +1133,7 @@ export async function clickhouseRow(repo, net, trigger) {
     pin,
     newest: want,
     state: pin === want ? 'current' : 'behind',
+    ...(ahead ? { shown: 'ahead' } : {}),
     where: COMPOSE,
     notes: [support],
     body,

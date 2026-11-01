@@ -6279,14 +6279,17 @@ where Trigger.dev v4.8.3 still pins 26.2.19.43. ClickHouse no longer supports
 26.2, and CVE-2026-116366 (critical: code execution with no password, for
 anybody who reaches the server) has no 26.2 fix; 26.3 is the nearest supported
 line that carries it. Before the move, 26.3's backward-incompatible changes,
-every 26.3 patch's included, were read against Trigger.dev v4.8.3's 56
-migrations, the queries its ClickHouse package and its query language print,
-the settings it passes, and the three files `managed.yml` mounts into
-`config.d`; none reaches them (0119 §3 item 9 has the list). The pin watch
+every 26.3 patch's included, were read against Trigger.dev v4.8.3's 55
+migrations (numbered to 056), the queries its ClickHouse package and its
+query language print, the settings it passes, and the three files
+`managed.yml` mounts into `config.d`; none reaches them (0119 §3 item 9 has
+the list). The pin watch
 records the difference for this exact pair (`CLICKHOUSE_INTENDED` in
 `scripts/idp-pin-watch.mjs`) and opens its issue again the week either side
 moves. A Trigger.dev move then still reads upstream's ClickHouse line (above),
-and an upstream pin older than this one is never a reason to go back.
+and an upstream pin older than this one is never a reason to go back: the
+watch's table then reads `ahead`, and its issue says the older pin is not
+followed.
 
 **It is one way.** ClickHouse's own 26.3 notes: *"Upgrade is safe, but downgrade
 is not — if you need to roll back after upgrading to 26.3, data written by 26.3
@@ -6296,13 +6299,27 @@ in columns with nested types will be unreadable!"*
 `error` (JSON) and `tags` (`Array(String)`), and `metrics_v1`'s `attributes`
 (JSON). So the way back is a copy of the volume taken first, as for the
 Trigger.dev v4.8.3 move (#1755), and it is the only one: the copy before an
-update on live holds three databases and never this volume (below).
+update on live holds three databases and never this volume (below). The
+setting has a documented off switch: with
+`<merge_tree><propagate_types_serialization_versions_to_nested_types>0</propagate_types_serialization_versions_to_nested_types></merge_tree>`
+in a `config.d` file, 26.3 writes nested String columns as 26.2 does (26.3's
+two other downgrade-only changes, long skip-index file names and projection
+metadata, do not reach this schema: its index names are short, and no
+migration uses `PROJECTION`). It is not set here, and no 26.3 to 26.2
+downgrade was run to prove it would keep a way back. It is an option for the
+owner (0119 §3 item 9); until it is taken and such a downgrade is proven, the
+move is treated as one way, and the copy is the way back.
 
 **On the OTA stack, in the owner's window.** Before: the pull request's CI
-green. Outside the nightly (GitHub starts it between about 08:10 and 09:10
-UTC), and no other E2E (managed) in the window: once 26.3 has written to the
+green, and nothing queued or in progress in Actions → E2E (managed), looked at
+before step 3 and again right before the run is dispatched (GitHub has started
+the scheduled nightly between about 09:50 and 10:45 UTC lately: a hint, not a
+window). No other E2E (managed) in the window: once 26.3 has written to the
 volume, a tree that still pins 26.2, `main` before the merge included, starts
-26.2 on parts it cannot read. So the merge follows the run within the hour.
+26.2 on parts it cannot read. A nightly takes `main`'s commit when GitHub
+creates it, and queues behind the branch's run (the workflow never cancels),
+so one that shows up queued before the merge is cancelled before it starts.
+So the merge follows the run within the hour.
 Run from `~/ownpace-managed`; nothing below prints a secret or an address.
 
 1. **Hold and drain.** Start the hold on the OTA stack's support screen, then
@@ -6318,7 +6335,10 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    disk floor after one more copy (`ALERT_DISK_FREE_GB` in live's `.env`, 15 GB
    without it), with a few GB to spare. A copy left from an earlier move, such
    as `<project>_clickhouse_data_v2_before_v4_8_3` once its own move has held,
-   goes first, by the block that move gave.
+   goes first, by the block that move gave in #1755's description (*Once the
+   move has held*): the one below, with
+   `docker volume rm "${project}_clickhouse_data_v2_before_v4_8_3"` in place
+   of its last two lines.
 
    ```bash
    cd ~/ownpace-managed && (
@@ -6361,12 +6381,44 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    own size, which differs between a directory and its copy. The plane stays
    stopped: the run brings it up.
 
+   If the block stops before that line (an error, or `STOP`), it is not run
+   again as it is: it refuses the copy it left, and the plane and ClickHouse
+   stay stopped. While ClickHouse has never run 26.3 (before step 4's run;
+   on live, before `deploy-live.sh` has started anything from the tag), this
+   puts the stack back as it was: it removes the copy, if there is one, and
+   starts the three services again (`start` keeps their containers, so
+   ClickHouse is still 26.2.19.43). Then the hold can be lifted until the next
+   try, the cause is put right (for a full disk, space freed and step 2
+   checked again), and the steps start again at step 1. After the run has
+   started, the copy is the way back: leave it. Live's step 2 below uses the
+   same block.
+
+   ```bash
+   cd ~/ownpace-managed && (
+     set -eu
+     project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+     : "${project:?the compose project could not be read}"
+     copy="${project}_clickhouse_data_v2_before_26_3"
+     if docker volume inspect "$copy" >/dev/null 2>&1; then
+       docker volume rm "$copy"
+     fi
+     docker compose -f deploy/compose/managed.yml start clickhouse trigger-api trigger-supervisor
+     docker compose -f deploy/compose/managed.yml ps clickhouse trigger-api trigger-supervisor
+   )
+   ```
+
 4. **E2E (managed) on the branch** (the main session dispatches it; the run is
    the move: the bring-up starts 26.3.62.3 on the volume, and `trigger-api`'s
    goose migrations find nothing to apply), then the merge within the hour.
-   The hold can be lifted after the run is green. What runs now (prints
-   `26.3.62.3`; `clickhouse-client` takes the container's own user and
-   password):
+   **Lift the hold first**, once step 3 has printed `the way back is taken`
+   and before the run is dispatched: the plane is stopped, so nothing can
+   start, and while the hold is on the run's own checks are refused (`409
+   platform_held`), as #1755's first run was (0119's Status records it). A run
+   that fails only on `platform_held` is no reason to go back to 26.2: lift
+   the hold and dispatch it again. Right before the dispatch, Actions → E2E
+   (managed) shows nothing queued or in progress (above). What runs now
+   (prints `26.3.62.3`; `clickhouse-client` takes the container's own user
+   and password):
 
    ```bash
    docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT version()"
@@ -6400,16 +6452,21 @@ The bring-up from `main` starts 26.2.19.43 on it (or leave it to `main`'s next
 nightly).
 
 **Once the move has held** (merged, and `main`'s next nightly green), remove the
-copy. It refuses while the server is anything but 26.3.62.3, so a move that was
-rolled back keeps its way back:
+copy. It refuses while the server is anything but the version `want` names,
+so a move that was rolled back keeps its way back until the rollback has held
+too. After *Back to 26.2*, once ClickHouse runs 26.2.19.43 again and `main`'s
+next nightly is green on it, the same block removes the copy with
+`want=26.2.19.43`; a retry of the move then takes a fresh one (step 3 refuses
+while this one is there):
 
 ```bash
 cd ~/ownpace-managed && (
   set -eu
+  want=26.3.62.3 # 26.2.19.43 once a rollback to 26.2 has held
   project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
   : "${project:?the compose project could not be read}"
   running="$(docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT version()")"
-  [ "$running" = 26.3.62.3 ] || { echo "STOP: ClickHouse runs ${running:-nothing}, not 26.3.62.3" >&2; exit 1; }
+  [ "$running" = "$want" ] || { echo "STOP: ClickHouse runs ${running:-nothing}, not $want" >&2; exit 1; }
   docker volume rm "${project}_clickhouse_data_v2_before_26_3"
 )
 ```
@@ -6430,9 +6487,15 @@ before anything moves). From `~/ownpace-live`:
    `./deploy/compose/deploy-live.sh --dry-run <tag>`: it says `one-way`,
    `moves the ClickHouse pin in managed.yml: …26.2.19.43… -> …26.3.62.3…`, and
    that the copy holds no ClickHouse volume.
-2. **Step 3 above**, with `cd ~/ownpace-live` in place of its first `cd` (the
-   project it reads is then live's), and then the plane started again, so
-   that `deploy-live.sh` starts from the stack it always does:
+2. **Steps 2 and 3 above**, each with `cd ~/ownpace-live` in place of its
+   first `cd` (the project it reads is then live's). The room is live's own:
+   the disk keeps more than its floor after the copy **and** after the
+   deploy's pulls and builds of the tag's images, which take room on the same
+   disk. A step 3 that stops partway takes the way out above, with the same
+   `cd`, as does a deploy that `deploy-live.sh` refuses before it starts
+   anything from the tag, so that the next try's step 3 finds no copy. Then
+   the plane started again, so that `deploy-live.sh` starts from the stack it
+   always does:
 
    ```bash
    docker compose -f deploy/compose/managed.yml start clickhouse trigger-api trigger-supervisor
@@ -6450,7 +6513,10 @@ before anything moves). From `~/ownpace-live`:
    (`copy-before-update.sh delete`, or the box checks' `delete-if-proven`),
    and never later than its day 6. It is a copy of live's data like that one,
    and goes by the same rule. The removal block above, with `cd ~/ownpace-live`
-   in place of its first `cd`.
+   in place of its first `cd`. After a rollback (step 4), it goes at the
+   rollback's step 11, with the copy before the update, once that step has
+   proven the rollback and still by day 6: the same block with
+   `want=26.2.19.43`.
 
 ### Changing the database passwords
 

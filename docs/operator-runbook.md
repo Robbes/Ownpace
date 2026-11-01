@@ -844,7 +844,9 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
 11. **Lift the hold, watch a pass complete** (`./deploy/compose/live-pass-check.sh` starts one),
     then `./deploy/compose/copy-before-update.sh delete`: the rollback is the update the copy now
     proves. The box checks leave this copy to you: the since-the-copy file beside it is not in
-    its note.
+    its note. When step 8 restored ClickHouse's volume, its copy goes now too, still by day 6:
+    nothing deletes it on its own. The removal block of `docs/managed-bring-up.md`, *Moving
+    ClickHouse*, with `cd ~/ownpace-live` in place of its first `cd` and `want=26.2.19.43`.
 
 Step 5's command was rehearsed on 2026-09-28 against Postgres 16 with both migration chains
 applied, after a simulated update (a column, a table and a row added): with a session still

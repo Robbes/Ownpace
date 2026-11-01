@@ -21,7 +21,8 @@ what was read for option 1, are in §3 item 9; the decision there is still the o
   purpose. `CLICKHOUSE_INTENDED` records it for the one pair, the stack's 26.3.62.3 against
   Trigger.dev's 26.2.19.43, tag and digest: `intended` in the table with the reason, no issue,
   and an issue again, naming the record, when either moves. `a-pin-that-knows-it-is-behind`
-  holds the record to `managed.yml`'s pin and to this plan, and the three cases (4 new tests).
+  holds the record to `managed.yml`'s pin and to the comment above it, and the three cases (4
+  new tests).
 - **Live's deploy:** `deploy-live.sh` called a tag that moves only the ClickHouse pin
   *reversible*; going back from it starts 26.2 on parts 26.3 wrote. It is one-way now, names the
   move, and says that the copy before the update holds no ClickHouse volume (that copy is three
@@ -30,6 +31,19 @@ what was read for option 1, are in §3 item 9; the decision there is still the o
   `docs/operator-runbook.md`'s rollback restores the volume before its step 9.
 - **Corrected:** §3 item 9 said 26.2 lacks 26.3.10's lower HTTP header limits; 26.2.17.31
   backported them, and 26.2.19.43 has them.
+- **Corrected on review, the same day.** Once Trigger.dev moved, the pin watch's issue said to
+  follow upstream's new pin even when it was older than the stack's: a re-pushed 26.2.19.43,
+  which cannot read 26.3's parts, or an older 26.3 patch without the fix. A stack tag newer than
+  upstream's is now `ahead` in the table, and its issue says the older pin is not followed (2
+  new cases; the case of another stack pin reads `ahead` too). In *Moving ClickHouse*: no clock
+  window, but nothing queued or in progress in E2E (managed) before the copy and before the
+  dispatch (the nightlies started between 09:51 and 10:41 UTC, 2026-10-28 to 2026-11-01); the
+  hold lifted before the dispatch, since a run under it fails on `platform_held` as #1755's
+  first did; a way out of a step 3 that stops partway; live's steps take the room check too, the
+  deploy's own pulls and builds counted; and the copy's removal after a rollback, here and in
+  the runbook's step 11, where it is otherwise never deleted. Trigger.dev v4.8.3 has 55
+  ClickHouse migrations, numbered to 056 (029 does not exist), not 56; and §3 item 9 now names
+  the release that has no note, and the setting that would keep 26.2's format.
 **2026-11-01: the Windows payload's `node.exe` is checked against a sum committed here, and that
 sum is the one the release was signed with (alpha.4, supply chain; §2.5's follow-up)**, on the
 branch `claude/ownpace-public-readiness-y7orc6-windows-node-verified`, a draft. Until this,
@@ -2752,7 +2766,7 @@ is beside each; none is urgent tonight.
      on-disk one below. `hypothesis` skip indexes, `detectProgrammingLanguage`,
      `mergeTreeAnalyzeIndexes`, MySQL type mapping and TLS host checks, named-collection
      overrides, dynamic disks, `File` renames and `CREATE TABLE AS` credentials: Trigger.dev's
-     56 migrations and its ClickHouse package use none. `NOT`'s precedence: the package's one
+     55 migrations (numbered to 056) and its ClickHouse package use none. `NOT`'s precedence: the package's one
      `NOT` is `NOT has(…)` with nothing after it, and its query language prints `not(…)`,
      `isNull(…)`, `like(…)`, `plus(…)` and the like as calls, its one infix form being
      `x [NOT] BETWEEN a AND b`. Async inserts on by default: already so in 26.2.19.43
@@ -2762,7 +2776,12 @@ is beside each; none is urgent tonight.
      `index_granularity`, `non_replicated_deduplication_window`,
      `materialize_ttl_recalculate_only`, `exclude_materialize_skip_indexes_on_merge`) exists at
      `v26.3.60.2-lts`, so a fresh volume migrates; live, still on v4.8.1 until alpha.4, runs
-     055 and 056 under 26.3 if both land in one tag.
+     055 and 056 under 26.3 if both land in one tag. **26.3.14.49 has no published release
+     note** (no `docs/changelogs` file on master, and no note compares against 26.3.13.31), so
+     its 112 commits were read by their titles instead: bug and security fixes, library bumps
+     (mariadb, libxml2, postgres, krb5, curl), and #99085's setting for a function applied to a
+     `Variant` or `Dynamic` value of the wrong type (throw, the default); none changes a format
+     or the syntax, or removes anything this stack uses.
    - **The three files mounted into `config.d`:** every name (`logger.level`,
      `mark_cache_size`, `concurrent_threads_soft_limit_num`, the four profile settings, the
      eleven system logs) is declared with the same meaning at `v26.3.60.2-lts`, the set of
@@ -2773,7 +2792,12 @@ is beside each; none is urgent tonight.
    - **On disk:** 26.2 to 26.3 upgrades in place ("Upgrade is safe"); back is not ("downgrade
      is not", `propagate_types_serialization_versions_to_nested_types`, and Trigger.dev's
      JSON and `Array(String)` columns are nested types). It is treated as one way: the volume
-     copy taken first is the way back (`managed-bring-up.md`, *Moving ClickHouse*).
+     copy taken first is the way back (`managed-bring-up.md`, *Moving ClickHouse*). The setting
+     has an off switch, `propagate_types_serialization_versions_to_nested_types` set to 0 under
+     `merge_tree` in a `config.d` file, with which 26.3 writes nested types as 26.2 does; the
+     two other downgrade-only changes do not reach this schema. Not set, and no downgrade run to
+     prove it: **an option for the owner**, and until it is taken and a 26.3 to 26.2 downgrade is
+     proven with it, the move stays one way.
    - **Corrected:** "Also not in 26.2: 26.3.10's lower limits on HTTP headers before
      authentication", above, is wrong. 26.2.17.31 backported them, and 26.2.19.43 carries
      `http_max_fields` 1000, `http_max_field_name_size` 4096, `http_max_request_header_size`
