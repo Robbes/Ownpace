@@ -1,6 +1,6 @@
 # Ownpace
 
-Low-maintenance, open-source stack to migrate families and small/medium businesses off US cloud (Microsoft 365, Google, Dropbox) to EU sovereign platforms — starting with **O365 → Soverin / Nextcloud** (Proton later).
+Low-maintenance, open-source stack to migrate families and small/medium businesses off US cloud (Microsoft 365, Google, iCloud, Dropbox, Box, or another mail provider) to EU sovereign platforms: **Soverin**, **Nextcloud**, a **JMAP** server such as Stalwart, or any IMAP / CalDAV / CardDAV / WebDAV service. Proton is deferred (ADR-0025).
 
 - **Idempotent** transfers (re-run safely; no duplicates).
 - **Shadow-run** old and new in parallel for as long as you want, then cut over on your schedule.
@@ -11,20 +11,23 @@ Low-maintenance, open-source stack to migrate families and small/medium business
 
 Published builds — no toolchain needed:
 
-- **Self-host (Docker Compose):** signed multi-arch images on GHCR —
-  `docker pull ghcr.io/robbes/open-migrate-selfhost:0.1.0-rc.1` — the old
-  image name is deliberate: rc.1 was published before the rename (ADR-0040)
-  and that tag exists only at that path. Releases from v0.1.0 on are
-  `ghcr.io/robbes/ownpace-selfhost`. (also
-  `-api` and `-web` for the managed stack; `edge` is the per-merge rolling
-  build). Install guide: [`docs/selfhost-quickstart.md`](./docs/selfhost-quickstart.md);
+- **Self-host (Docker Compose):** signed multi-arch images on GHCR, one per
+  release, tagged with its version without the `v`:
+  `docker pull ghcr.io/robbes/ownpace-selfhost:0.2.0-alpha.3` is
+  v0.2.0-alpha.3's, and the
+  [releases page](https://github.com/Robbes/Ownpace/releases) lists every
+  release (also `-api` and `-web` for the managed stack; `edge` is the
+  per-merge rolling build). The first release, `0.1.0-rc.1`, was published
+  before the rename (ADR-0040) and exists only at
+  `ghcr.io/robbes/open-migrate-selfhost`. Install guide: [`docs/selfhost-quickstart.md`](./docs/selfhost-quickstart.md);
   channels + signature verification: [`deploy/selfhost/README.md`](./deploy/selfhost/README.md).
 - **Windows, no Docker:** the appliance payload zip on the
   [releases page](https://github.com/Robbes/Ownpace/releases) (from
-  `v0.1.0` on; unsigned for now, so SmartScreen prompts once). Runbook:
+  `v0.2.0-alpha.1` on; unsigned for now, so SmartScreen prompts once). Runbook:
   [`docs/windows-appliance-runbook.md`](./docs/windows-appliance-runbook.md).
-- Every release carries a CycloneDX SBOM; images are cosign-signed by digest.
-  Release procedure: [`docs/release.md`](./docs/release.md).
+- Every release carries a CycloneDX SBOM (`bom.json`) but v0.2.0-alpha.1,
+  whose tag's Security Scan failed before the SBOM step; images are
+  cosign-signed by digest. Release procedure: [`docs/release.md`](./docs/release.md).
 
 ## Quickstart (from source)
 
@@ -100,8 +103,10 @@ Everything lives in [`docs/`](./docs/). Start with the source of truth: [`docs/a
 - **Decision Records**: [`docs/adr/`](./docs/adr/)
 
 ## Status
-Active development, pre-release. License: Apache-2.0 (see `LICENSE`). "Ownpace" is a
-trademark of Archico B.V. — the code is free, the name is not; see [`TRADEMARK.md`](./TRADEMARK.md).
+In alpha since `v0.2.0-alpha.1` (2026-10-06): a free test by invitation. Pre-release has ended,
+so a migration a release shipped is never rewritten (ADR-0045). License: Apache-2.0 (see
+`LICENSE`). "Ownpace" is a trademark of Archico B.V. — the code is free, the name is not; see
+[`TRADEMARK.md`](./TRADEMARK.md).
 
 The **migration core** is done and property-tested for idempotency: O365 → JMAP/IMAP-DAV mail,
 plus calendar/contacts/files/tasks domains (`runAllDomains` in `packages/orchestration`) and the

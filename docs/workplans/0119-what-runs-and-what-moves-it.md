@@ -4,6 +4,92 @@
 
 ## Status — 2026-10-31 (update this block at the end of every session)
 
+**2026-10-31, later: npm and node-gyp's tree out of both Trigger.dev builds (0146 T16, for
+alpha.4), built as draft #1763**, now on v4.8.3 (0146's Status entry of the same name has the
+detail). The image scan of `e1b21aac` (Security Scan run 41130684117, Trivy 0.76.1, linux/arm64,
+2026-10-30) read the webapp built here at 1 critical, 137 high, 81 with a fix, and the
+supervisor at 0, 25, 25; #1755's, at v4.8.3 (run 41159641513, 2026-10-31), at 1, 136, 80 and 0,
+25, 25. Read in their parts with the same Trivy, twelve of the fixable highs in each image are
+in two trees no process of the stack runs: npm 11.19.1, which
+`node:24.22.1-bookworm-slim@sha256:55fb5f5a…` and `node:24.22.1-alpine@sha256:06d7adf3…` bundle
+(brace-expansion 5.0.9 and undici 6.28.0, six highs, the same in both images), and node-gyp's
+tree in the copy of pnpm 10.33.2 each service runs (brace-expansion 2.1.0 and ip-address 10.1.0,
+six highs, read with `trivy rootfs` over pnpm 10.33.2 as npm published it, tar taken out).
+v4.8.3 builds on the same two Node images, by the same digests, and the same pnpm. Both
+Dockerfiles now remove npm with Node's `npm` and `npx` links, and the kept copy's
+`dist/node_modules` and `dist/node-gyp-bin`, under the one risk the owner accepted for tar on
+2026-10-27. No upstream release or digest is taken: the FROMs are `main`'s v4.8.3 index digests,
+so neither the floor nor the v4.8.3 waiver is in question. The inventory's Trigger.dev row says
+so. `managed.yml`'s names move to `-0df1cbbe547c` and `-d56a201c0e1f`, so the next bring-up
+rebuilds both. Measured on the branch, by the image scan dispatched there: at v4.8.1 (run
+41164463793 on `b0ba6280`, 2026-10-31 03:27 UTC) the webapp at 1, 126, 70 and the supervisor at
+0, 13, 13 (the webapp 11 fewer against a scan of the day before, with an older database); at
+v4.8.3 (run 41233177801 on `ee023057`, 19:13 UTC, the same day as #1755's) the webapp at 1, 124,
+68 and the supervisor at 0, 13, 13: twelve fewer high and twelve fewer fixable in each, the one
+critical (zlib1g, which Debian has not fixed) unchanged. Each image in that run is the build
+that checks every path before its `rm`, so it proved them all at v4.8.3 on linux/arm64. What is
+left is code that runs (pnpm 10.33.2 itself, 11 highs in each, goose, the webapp's own
+packages), which stays the owner's question. On `9e5c270e`, Images run 41233684732 passed
+`build (trigger, amd64)` and `build (trigger, arm64)`, and E2E (managed) run 41236579127 was
+green (2026-10-31, 20:29–20:39 UTC), with `trigger-api` and `trigger-supervisor` up and healthy
+from the two new names. The branch has since merged `main` up to `db9e5c82`, which touches
+neither Dockerfile nor their lines in `managed.yml`.
+
+**2026-10-31: MinIO's digest moves to Chainguard's build of 2026-10-29, before its three-day
+floor, under the floor's security-fix exception, for CVE-2026-116587 (alpha.4; 0146 T7)**, on
+the branch `claude/ownpace-public-readiness-y7orc6-minio-3b6e40c3`.
+- **The move.** `chainguard/minio:latest` by the index digest `3b6e40c3…` (linux/amd64 and
+  linux/arm64), built 2026-10-29 14:33 UTC (both configs) and pushed as `latest` on 2026-10-30
+  at 01:13 UTC (Docker Hub's `tag_last_pushed`), still `latest` on 2026-10-31 at 19:00 UTC. Its
+  floor ends 2026-11-02 01:13 UTC. `managed.yml`'s `minio` and `minio-init` and the phone-home
+  guard's pin move together.
+- **Why the exception.** The image scan of 2026-10-31 (Security Scan run 41164463793, 03:28
+  UTC, Trivy 0.76.1, linux/arm64) read the pin `268d68a2…` at 0 critical, 1 high, 1 with a fix;
+  on 2026-10-28 it had read no finding (the entry of that date). Its server, Wolfi's `minio`
+  0.20261023.200651-r0, links go-jose 4.1.4 (the binary's own build information, read here).
+  Wolfi's `minio.yaml` took the package to -r1 with `epoch: 1 # CVE-2026-116587`, and its other
+  fixes for that CVE name it GHSA-mgcc-cww5-fp2q, fixed by go-jose 4.1.6; go-jose's v4.1.6
+  merges *"Bound RSA parameters when parsing"*, because degenerate RSA parameters in a JWK could
+  make it use excessive CPU. The high is not read here by its identifier: the scan's JSON
+  artifact and code scanning are outside this session's access. The move is the floor's one
+  exception, a security fix (CONTRIBUTING.md), as Redis 7.4.12, the demo's Nextcloud rebuild
+  and Gatus v5.38.0 were (the entries of 2026-10-30), and merges with E2E (managed) green on
+  its branch.
+- **No build with the fix is three days old.** Read from each index's arm64 image: `e70b2b1e…`
+  (built 2026-10-27) is still -r0; `0dab2f9f…` (built 2026-10-28 20:49 UTC, `latest` from about
+  03:00 UTC on 2026-10-29), the first with -r1, passes its floor about 2026-11-01 03:00 UTC;
+  `3b6e40c3…` is -r2. So the move takes the newest `latest`, as the pin watch asks.
+- **What is inside.** Wolfi's `minio` 0.20261023.200651-r2 and `mc` 0.20250813.083541-r27, on
+  both architectures (their apk databases). The same fork release, RELEASE.2026-10-23T20-06-51Z,
+  at the same commit (`vcs.revision` 76c06ff1 in both binaries, Go 1.27.3); Wolfi's two
+  rebuilds move Go modules and patch no source: -r1 go-jose 4.1.4 → 4.1.6, and -r2 (Wolfi's
+  `feea395`, 2026-10-29, for CVE-2026-78661 in golang.org/x/net) x/net 0.60.0 → 0.62.0 and
+  x/crypto 0.57.0 → 0.58.0, with x/sys, x/term, x/text and x/sync moved for them. No line under
+  `cmd/` or `internal/` changed, so the release check and call-home that
+  `a-service-that-phones-home` holds off are the code read at RELEASE.2026-09-22T19-25-18Z.
+  Nothing a stack sets changes: the same server release, uid 65532 and `/data` on
+  `minio_data_v2`, so the volume carries over and the way back is the old digest.
+- **The pin watch** (issue #1671) listed this image alone behind on 2026-10-30, with
+  `3b6e40c3…` as the newest. Read again on the branch on 2026-10-31 (`idp-pin-watch.mjs`
+  without `--issue`), `chainguard/minio` is current and one row is behind: `axllent/mailpit`
+  v1.33.0, pushed 2026-10-31 02:30 UTC, whose floor ends 2026-11-03 02:30 UTC. So the issue
+  stays open after this move, for Mailpit.
+- **Proved on the branch.** The image scan, Security Scan run 41233436294, dispatched with
+  `image_scans` on `5fbcaec8` (Trivy 0.76.1, linux/arm64), reads `minio`
+  (`chainguard/minio:latest@sha256:3b6e40c30ecd…`, wolfi) at 0 critical, 0 high, 0 with a fix,
+  where run 41164463793 read `268d68a2…` at 0, 1 and 1. The guards that read these files pass
+  (`a-service-that-phones-home`, `an-object-store-with-a-maintainer`,
+  `a-pin-that-knows-it-is-behind`, `an-image-nobody-scanned`, `a-float-nothing-ever-pulled`), and
+  the first two are red with the old digest left in the guard's pin, or the new one's prefix cut
+  from the comment. E2E (managed) run 41240747301, dispatched on the branch at `ca44caca` before
+  `main` was merged in, was green from 20:50 to 20:59 UTC on the OTA stack, on Trigger.dev v4.8.3:
+  the bring-up pulled `3b6e40c3…` and recreated `minio` and `minio-init` on the volume the stack
+  already had (it created none), `minio` healthy within six seconds and `minio-init` exiting once
+  `store/packets` was there; the smoke's verdict *verify: done apply: applied*; and its last
+  listing shows `trigger-minio` on `chainguard/minio:latest@sha256:3b6e40c30ecd…` and
+  `trigger-api` on `localhost/trigger.dev:v4.8.3-b0cce1eaa578`, each *Up 7 minutes (healthy)*,
+  with no container unhealthy.
+
 **2026-10-31: the dashboard's TLS front is Caddy 2.11.7 built here without curl, which clears its
 critical (alpha.4).** `trigger-tls` runs `caddy:2.11.7-alpine` by index digest `eb4d35b7…`, the pin
 of 2026-10-22. The image scan of `e1b21aac` (Security Scan run 41130684117, dispatched on
@@ -1508,17 +1594,17 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1 | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, draft #1763) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (24-bookworm-build) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `34a3f455…`, trigger.dev 4.8.1's `BUILD_IMAGE['node-24']` (pushed 2026-10-22) | what the pinned CLI names | none while they agree | by hand, with each Trigger.dev move, read from the new CLI's `deploy/buildImage.js` (the Status entry of 2026-10-26) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
-| `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `268d68a2…` (built 2026-10-25, pushed as `latest` 14:29 UTC, taken 2026-10-28: the fork's RELEASE.2026-10-23T20-06-51Z; `d88920d6…`, its RELEASE.2026-09-22T19-25-18Z, from #1692) | `latest` `e70b2b1e…` (pushed 2026-10-27) | three rebuilds since (pushed 2026-10-26 17:11, 2026-10-27 01:51 and 21:51 UTC), none yet three days old | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
+| `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31) | current | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
 | `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded); 1 critical, 9 high and 9 fixable as pulled (Security Scan run 41130684117), 0, 7 and 6 built (Security Scan run 41161126144, linux/arm64; the Status entry of 2026-10-31) | 2.11.7 | current | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.19.2 (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.19.2 | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.32.0 (2026-10-22), digest `0790692b…` | current | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
+| `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.0 (2026-10-31, pushed 02:30 UTC), digest `9b3a463b…` | one minor, inside its three-day floor until 2026-11-03 02:30 UTC (Status, 2026-10-31) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `1f9212ad…` (PHP 8.5.12) since 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
@@ -1859,8 +1945,9 @@ is beside each; none is urgent tonight.
    Live has had no testers on alpha.1, so what it loses is nothing a tester sent.
 
    **Built 2026-10-24, on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`;
-   merged 2026-10-25 as #1692, in alpha.2; the digest moved to `268d68a2…` on 2026-10-28
-   (Status).** What it does, each point read off the image or upstream rather than assumed:
+   merged 2026-10-25 as #1692, in alpha.2; the digest moved to `268d68a2…` on 2026-10-28,
+   and to `3b6e40c3…` on 2026-10-31, for CVE-2026-116587 (Status).** What it does, each point
+   read off the image or upstream rather than assumed:
    - `chainguard/minio:latest` by an index digest read from Docker Hub's API and its registry
      on 2026-10-24: `d88920d6a50b…`, built 2026-10-22 09:59 UTC and pushed as `latest` at
      11:25 UTC that day (its attestation's push time; the tag moved on at 2026-10-23 18:05

@@ -4,8 +4,77 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+**Since `v0.1.0-rc.1`, for a reader new to the Alpha** (workplan 0146 T1). The
+sections of alpha.1 to alpha.3 below list what each one changed, and alpha.1's
+stops at mid-August 2026. This is what the Alpha is, grouped by what a tester
+notices.
+
+- **The Alpha.** The managed edition, run by the owner, free and by invitation,
+  for 10 to 20 people over a few weeks, in Dutch. It takes no backups. What each
+  source and target can migrate is in the [feature matrix](docs/feature-matrix.md),
+  with its open gaps in one table; testers have the Dutch tester guide.
+- **Sources**, proven or experimental as the screen labels them
+  (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`, read on 2026-10-31;
+  the fold reads it again):
+  - proven: Gmail, Google Calendar, Google Contacts and Google Drive, and the
+    Google account's calendars, contacts and files, on the owner's own account;
+    an IMAP server, on one this project runs;
+  - experimental, built, and not yet proven by a recorded run against a real
+    account of its kind: the Google account's mail and Tasks, and Google's
+    whole-domain option; Microsoft 365 over IMAP and over Graph, the Microsoft
+    365 account's mail, calendars, contacts, OneDrive and To Do, and a shared
+    mailbox; Apple (iCloud); Dropbox; Box; and an export archive (Google Photos
+    Takeout, or Apple's Data and Privacy export), offered and labelled on
+    managed too.
+- **Targets:** a Soverin account (mail, calendars, contacts, tasks), a
+  Nextcloud account (calendars, contacts, files, tasks), JMAP (mail, contacts,
+  files; its calendars are parked), and plain IMAP, CalDAV, CardDAV and WebDAV.
+- **Signing in** goes through an identity provider, and Ownpace keeps no
+  sign-in password (ADR-0042). The owner lets each tester in from the access
+  queue: a tester asks with *Request access* on the sign-in page, and the mail
+  that follows says where to sign in and carries no token (workplan 0131). A
+  tester can send each person they migrate a grant link, which the tester
+  hands out and Ownpace never does (ADR-0035, ADR-0050).
+- **A migration is silent:** nothing it writes may make a target send mail or
+  a notification (ADR-0043).
+- **Billing:** invoices are numbered and written by the accounting system,
+  never by this product (ADR-0044), and nothing is charged during the Alpha
+  (workplan 0131 T3).
+- **For whoever runs it:** a Log page over the audit log and the app's errors
+  and warnings (workplan 0129), and a problem report a tester sends from the
+  app, which reaches a person and names the build it came from (workplans 0130
+  and 0146 T2).
+
+**What is not in it:**
+
+- No backups during the Alpha (workplan 0134): a database lost is lost.
+- Every source marked experimental above: built and tested, and not yet
+  proven by a recorded run against a real account of its kind.
+- A signed Windows payload: the zip is unsigned, as rc.1's was, and Windows
+  warns before it runs (workplan 0025 T6, deferred to `v0.1.0`).
+- An appliance tester: the appliance at this tag is the same code, and the
+  Alpha tests the managed edition.
+
 ### Security
 
+- **The Trigger.dev webapp and supervisor built here lose npm and pnpm's
+  node-gyp, which nothing here runs** (workplan 0146 T16): twelve fixable high
+  findings in each image were in two trees no process of the stack runs. npm
+  11.19.1, which Node 24.22.1 bundles, carried brace-expansion 5.0.9 and undici
+  6.28.0 (six highs); the node-gyp that the copy of pnpm each service runs
+  ships beside it carried brace-expansion 2.1.0 and ip-address 10.1.0 (six
+  more). Both builds now remove npm with its `npm` and `npx` links, and
+  node-gyp's whole tree with its shim (tar, taken out on 2026-10-27, was part
+  of it). Before removing anything they check that pnpm's own files name only
+  the three packages of that tree that were read, each loaded only in a try,
+  that npm is Node's own and carries no configuration pnpm would read, and that
+  corepack, which starts every pnpm here, stays. On Trigger.dev v4.8.3 the
+  image scan reads the webapp at 1 critical, 124 high and 68 fixable (136 and
+  80 before) and the supervisor at 0, 13 and 13 (25 and 25 before). The one
+  risk is the one accepted for tar: a package script that calls node-gyp, or a
+  `pnpm install` that builds a native add-on, inside these containers would
+  fail. Neither container has `npm` or `npx` any more. Nothing a stack sets
+  changes; the next bring-up builds both images again under their new names.
 - **The Trigger.dev dashboard's TLS front is built here without curl**
   (workplan 0119): `caddy:2.11.7-alpine`, Caddy's newest release, carries
   curl, which its upstream adds and nothing on this stack runs, and curl's
@@ -34,9 +103,28 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   longer build this release's database: the build then says so, and tells an
   appliance's operator to update Ownpace to its newest release (the
   self-host quickstart's Troubleshooting).
+- **Trigger.dev's object store runs Chainguard's MinIO build of 2026-10-29,
+  taken before its three-day floor as a security fix** (workplan 0119, 0146
+  T7): the image scan of 2026-10-31 found a high in the build before it,
+  whose server links go-jose 4.1.4, and Wolfi's rebuild moves go-jose to 4.1.6
+  for CVE-2026-116587 (GHSA-mgcc-cww5-fp2q), where a JWK with degenerate RSA
+  parameters could make parsing use excessive CPU. It is the same MinIO
+  release at the same commit, with Go modules moved and no source changed,
+  golang.org/x/net 0.62.0 among them. Nothing a stack sets changes; the next
+  bring-up pulls it, and the data volume carries over.
 
 ### Changed
 
+- **Pre-release has ended, and no migration a release shipped changes again**
+  (workplan 0146 T3, ADR-0045): pre-release ended with `v0.2.0-alpha.1`, the
+  first tag `ownpace-live` ran. `scripts/squash-migrations.sh` refuses before
+  it reads anything, naming ADR-0045 and the tag; ADR-0045's operative rule,
+  `pnpm db:generate`'s refusal, the README and `docs/release.md` say both
+  chains only grow; and the runner's downgrade refusal no longer names a squash
+  as a cause. `scripts/a-chain-that-only-grows.unit.test.ts` holds every file
+  either chain shipped in a release from alpha.1 on, byte for byte as the
+  newest such release shipped it. `scripts/release-line.json` names the tag
+  and lists every release; the fold adds each new one.
 - **Trigger.dev is v4.8.3, taken before its three-day floor on the owner's
   waiver** (workplan 0119, issue #1738): *"I waive the wait for v4.8.3, just
   go with it"* (2026-10-31). It skips v4.8.2. The webapp and the supervisor
@@ -49,6 +137,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `--no-browser`, as the bring-up and `deploy-tasks.sh` now print it: without
   it, CLI 4.8.3 on a machine that can open a browser takes the approval on its
   own `127.0.0.1`, which a browser on another machine cannot reach.
+- **The identity provider's setup refuses a sign-in provider's key on live
+  too** (workplan 0140 T10): like the stand-up and the deploy,
+  `setup-zitadel.sh` stops on live's settings while a Google, Microsoft,
+  GitHub or Apple sign-in key holds a value, so live's sign-in page stays
+  email and password only. It stops before it generates a secret, starts
+  anything or asks the identity provider anything; a bring-up run by hand
+  reaches it only in its `app` phase, after the phases before it have run
+  and the identity provider has started. The provisioning token's daily
+  clock and the organisation count still run.
 - **Live's deploy refuses a host on its reachable-hosts list, and Mollie's key
   during the Alpha** (workplans 0136 T2 and 0131 §3 T3, #1752): `deploy-live.sh`
   refuses live's settings, in the deploy and its dry run, while
@@ -72,6 +169,44 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   repository variable makes it a note. The smoke asks the same page on the OTA
   instance every night and never runs on live, so a Zitadel upgrade or a
   setting that served the form again on live went unseen until now.
+- **The public site's `llms.txt` links the maintained documentation** (ADR-0029;
+  workplan 0152 T5 (c)): after the site's pages, five sections, *What it is*,
+  *How data moves*, *Security and privacy*, *Self-hosting* and *The Alpha*,
+  with fourteen documents between them, among them the solution architecture,
+  the feature matrix, `SECURITY.md`, the self-host quickstart and the Alpha's
+  workplans. Each is linked by its own first heading, with no notes, at its
+  Markdown on `main` on `raw.githubusercontent.com`, which an assistant reads
+  without running GitHub's page script. The list is `MAINTAINED_DOCS` in
+  `site/maintained-docs.mjs`, and the build reads nothing outside `site/`, as
+  live's deploy needs. `node scripts/llms-docs.mjs --check`, a new step of
+  CI's `docs-hygiene`, which runs on every change, fails a document renamed,
+  removed or retitled without the list, so the pull request breaks rather than
+  the link. `scripts/a-doc-an-assistant-is-sent-to.unit.test.ts` holds it.
+
+### Added
+
+- **The nightly managed gate proves that copying a meeting the target account
+  organises itself invites nobody** (workplan 0141 T9 (b), the organiser
+  canary): each fresh set now carries an event 3 organised by the demo target
+  account's own address, dated next January, with the canary attendee. There
+  the target's server is the organiser's, so without `SCHEDULE-AGENT=CLIENT`
+  the sync's PUT would invite the attendee; event 1's silence held whatever the
+  writer did, because its organiser is a third party. The take-back is not
+  re-proved by it: its DELETE sends `Schedule-Reply: F`, which alone keeps
+  Nextcloud from sending a CANCEL (0103 T5). The demo bring-up gives
+  `tenant-b-target` an address, the seeder refuses before writing when the
+  target has none, when the source shares it, or when either account's
+  addresses cannot be read, and the smoke reads the copy and asks the target's
+  server whether it matches its organiser.
+- **Every pull request proves the upgrade from the release live runs, on both
+  chains, and on Postgres too** (workplan 0146 T4): each upgrade gate starts
+  from its chain's oldest supported release and from the newest release in
+  `scripts/release-line.json`, where a pull request proved rc.1 and alpha.1
+  alone and only Release's preflight proved the release before. The managed
+  chain's proof also runs in the integration suite on Postgres 18, which the
+  managed edition runs, and the integration job checks out with tags for it.
+  `scripts/every-release-is-a-starting-point.unit.test.ts` fails every pull
+  request once a release tag exists that the list leaves out.
 
 ### Fixed
 
@@ -83,6 +218,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   one copy sits under the web app's axios, whose browser build leaves it out
   of the bundle; the advisory gate had refused `main` and every pull request
   on it since 2026-10-31.
+- **The billing screen's integration test no longer fails for the first ten
+  hours of every month** (workplan 0121): it seeded a ten-hour pass that began
+  ten hours before the test ran. The route meters the current UTC month by
+  when a pass was created, so for those ten hours the pass fell in the month
+  before, the test read 0 hours, and integration tests failed on every pull
+  request from 00:10 UTC on 2026-11-01. The seeded pass now starts at the top
+  of the current month. The route was right, and is unchanged.
 
 ## [0.2.0-alpha.3] - 2026-10-30
 
