@@ -813,13 +813,20 @@ answers its health check, and `trigger-api` starts only after it has exited 0
 `internal`: it has no route off the machine, and nothing else on the stack can
 resolve the name `clickhouse`. The server runs 26.2, which has no fix for
 CVE-2026-116366 (unauthenticated code execution for anybody who can reach it),
-so the network is the protection until the owner moves the version.
+so the network is what protects it until the owner moves the version.
 `trigger-api` reaches it there for its migrations and its `CLICKHOUSE_URL`, and
 keeps `ownpace-network` for everything else. To ask ClickHouse something, run
 `clickhouse-client` inside its container with `docker compose exec`, as
 `rotate-db-passwords.sh` does; a container started on
-`<project>_ownpace-network` cannot reach it, by design. The smoke asks from both
-sides (*clickhouse, and who can reach it*).
+`<project>_ownpace-network` has no name or route to it, by design. That stops
+a plain request, or one forged through the web app, the API, Zitadel or
+Nextcloud. It does not stop code running in a container on `ownpace-network`, a
+task run included, from attaching itself or a new container to
+`trigger-event-store` through `trigger-docker-proxy`, which lets `POST`,
+`NETWORKS` and `CONTAINERS` through with no authentication (workplan 0136 §1,
+*What shares the network*); 0136 T4, which takes the proxy off every network a
+tenant-facing process joins, closes that. The smoke asks from both sides
+(*clickhouse, and who can reach it*).
 
 `trigger-db` comes up first, on its own. Then the phase sets its role
 `trigger` to `.env`'s `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when the

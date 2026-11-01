@@ -122,10 +122,16 @@ notices.
   every container of the stack could reach it: the web app, the API, the
   identity provider, the demo Nextcloud and every task run. ClickHouse is now
   on `trigger-event-store`, an internal network with no route off the machine,
-  shared with `trigger-api` alone, the one service that talks to it. The next
-  bring-up creates the network and recreates `clickhouse` and `trigger-api`;
-  no volume or data is touched. `a-store-every-container-could-reach` holds
-  the members, and the smoke asks ClickHouse from both sides.
+  shared with `trigger-api` alone, the one service that talks to it. That
+  takes the name and the route away from every other container, so a plain
+  request, or one forged through the web app, the API, Zitadel or Nextcloud,
+  cannot reach it. It does not stop code in a container on `ownpace-network`,
+  a task run included, from attaching itself or a new container to the
+  network through the Docker socket proxy, which workplan 0136 T4 closes.
+  The next bring-up creates the network and recreates `clickhouse` and
+  `trigger-api`; no volume or data is touched. `a-store-every-container-could-reach` holds
+  the members, a service in a member's network namespace among them, and the
+  smoke asks ClickHouse from both sides.
 
 ### Changed
 

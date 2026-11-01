@@ -5,7 +5,7 @@
 ## Status — 2026-11-01 (update this block at the end of every session)
 
 **2026-11-01: ClickHouse on a network only its one client shares (alpha.4, security; §3 item
-9's revisit trigger fired)**, draft PR on `claude/ownpace-public-readiness-y7orc6-clickhouse-network`.
+9's revisit trigger fired)**, built as draft #1774 (E2E (managed) owed).
 CVE-2026-116366 (GHSA-qhgw-ghp3-xh36, critical, CWE-190, published 2026-10-30): unauthenticated
 code execution for anybody with network access to a ClickHouse server, fixed only in
 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The stack runs 26.2.19.43,
@@ -23,11 +23,25 @@ as Gatus does beside `status-probe`. Nothing ClickHouse needs goes out: crash re
 (`clickhouse-no-crash-reports.xml`), and the schema Trigger.dev migrates at v4.8.3 names no URL,
 S3, remote or dictionary source; `a-service-that-phones-home`'s ClickHouse row now gives the
 network as its second ground and keeps the switch. New guard
-`a-store-every-container-could-reach` (14 tests, ten mutations of its own); by hand on the real
-file, ClickHouse back on `ownpace-network`, `api` added to the network, and `internal: true`
-dropped each fail it (1 failed, 13 passed) and it passes restored (14 passed). The smoke asks
+`a-store-every-container-could-reach` (19 tests: fifteen mutations of its own, and twelve cases its
+scan of scripts, workflows and other compose files must or must not find). A service whose
+`network_mode` is `service:` a member counts as a member, `container:` and `host` fail outright,
+and the scan finds `--net` and `--net=` as well as `--network`, `docker network connect` with
+options before the name, and `container:` naming ClickHouse's or `trigger-api`'s container (the
+review of #1774: before it, a `probe` in `trigger-api`'s namespace passed). By hand on the real
+file, ClickHouse back on `ownpace-network`, `api` added to the network, `internal: true` dropped,
+and a service with `network_mode: "service:trigger-api"`, `"service:clickhouse"` or
+`"container:ownpace-managed-trigger-api"` each fail it (1 failed, 13 passed before the review; 1
+failed, 18 passed after), as does a script that joins by `--net`, by `network connect --alias` and
+by `--network=container:`; it passes restored (19 passed). The smoke asks
 `http://clickhouse:8123/ping` from `trigger-api` (`clickhouse HTTP 200 Ok.`) and from the API
-container (must be `ENOTFOUND`); `stand-up-live.sh` checks live's third network. Neither stack
+container (must be `ENOTFOUND`); `stand-up-live.sh` checks live's third network. **What it does
+not stop:** `trigger-docker-proxy` is on `ownpace-network` with `POST`, `NETWORKS` and
+`CONTAINERS` and no authentication, so code running in any container there, every task run
+included, can still attach itself or a new container to `trigger-event-store` through the Docker
+API (0136 §1, *What shares the network*), until 0136 T4 is built; 0136 T4 now says ClickHouse
+stays off any network the proxy or the supervisor shares. The network stops a plain request, or
+one forged through the web app, the API, Zitadel or Nextcloud. Neither stack
 needs a step: the next `up` creates the network and recreates `clickhouse` and `trigger-api`,
 no volume is touched, and no network here is external or made by hand. Owed before merge: CI,
 then E2E (managed) on the branch. The version move stays the owner's (§3 item 9).
@@ -1624,7 +1638,7 @@ is who moves it after T1.
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, draft #1763) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (24-bookworm-build) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `34a3f455…`, trigger.dev 4.8.1's `BUILD_IMAGE['node-24']` (pushed 2026-10-22) | what the pinned CLI names | none while they agree | by hand, with each Trigger.dev move, read from the new CLI's `deploy/buildImage.js` (the Status entry of 2026-10-26) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds |
-| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9). Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (§3 item 9; the version move is the owner's) |
+| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest | — | — | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8) | stays: pinned to what Trigger.dev's own compose pins, on purpose (`managed-bring-up.md`); 26.2 is out of ClickHouse's support, **accepted for the Alpha** (§3 item 9). Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (draft #1774, §3 item 9; a container on `ownpace-network` can still join it through the socket proxy until 0136 T4; the version move is the owner's) |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31) | current | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
@@ -2139,17 +2153,24 @@ is beside each; none is urgent tonight.
    2026-11-01). The exposure above was understated: "the compose network only" was every
    container of the stack, the internet-facing ones (the web app, the API, Zitadel, the demo
    Nextcloud) included, and every task run (`DOCKER_RUNNER_NETWORKS`). **The reversible half
-   is done (alpha.4, draft PR, branch `claude/ownpace-public-readiness-y7orc6-clickhouse-network`):**
-   ClickHouse is on `trigger-event-store`, an `internal` network shared with `trigger-api`
-   alone, its one network client, and off `ownpace-network`; nothing else reaches it, and it
-   has no route off the machine. `scripts/a-store-every-container-could-reach.unit.test.ts`
-   holds the members, the flag and the one network; the smoke asks ClickHouse from
-   `trigger-api` and finds no such name from the API container. It closes the
-   unauthenticated path from every other container; it does not close it from `trigger-api`
-   or from the host, and the authenticated items above stand. **The version move stays the
-   owner's:** (b) 26.8 LTS at its fixed release, or 26.3's, one way, under Trigger.dev's
-   migrations at v4.8.3, whose compose and test containers pin 26.2 (above); or stay isolated
-   on 26.2 until upstream moves.
+   is built as draft #1774 (alpha.4; E2E (managed) owed):** ClickHouse is on
+   `trigger-event-store`, an `internal` network shared with `trigger-api` alone, its one
+   network client, and off `ownpace-network`; no other service has its name or a route to it,
+   and it has no route off the machine. `scripts/a-store-every-container-could-reach.unit.test.ts`
+   holds the members (a service in a member's network namespace among them), the flag and the
+   one network; the smoke asks ClickHouse from `trigger-api` and finds no such name from the API
+   container. That stops a plain request, or one forged through the web app, the API, Zitadel or
+   Nextcloud. **It does not stop the Docker API:** `trigger-docker-proxy` is on
+   `ownpace-network` with `POST`, `NETWORKS` and `CONTAINERS` and no authentication, so code
+   running in any container there, every task run included, can still attach itself or a new
+   container to `trigger-event-store` (0136 §1, *What shares the network*: creating a container
+   through it is, in effect, control of the host), until 0136 T4 is built. Nor does it close
+   the path from `trigger-api` or from the host, and the authenticated items above stand. **The
+   version move stays the owner's:** (b) 26.8 LTS at its fixed release, or 26.3's, one way,
+   under Trigger.dev's migrations at v4.8.3, whose compose and test containers pin 26.2
+   (above); or stay isolated on 26.2 until upstream moves, which leaves a server with no fix
+   that any container on `ownpace-network` can still reach by that Docker API route until
+   0136 T4 is built.
 
 
 10. **Hardened images (Docker Hardened Images, Chainguard, distroless) — NOT NOW, 2026-10-26.**
@@ -2210,7 +2231,8 @@ is beside each; none is urgent tonight.
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
   its revisit triggers (§3 item 9). One fired on 2026-11-01 (CVE-2026-116366): the server is on
-  a network only `trigger-api` shares, and the version move waits for the owner.
+  a network only `trigger-api` shares (draft #1774), which a container on `ownpace-network` can
+  still join through the socket proxy until 0136 T4, and the version move waits for the owner.
 - **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;
   those two lines are ignored by name, so the answer does not matter for them.
 - **The three actions behind by a patch or a minor** are left to Monday's group rather than

@@ -38,14 +38,30 @@
  *  - its members are `clickhouse` and `CLIENTS`, and every service that names
  *    ClickHouse as a host in its environment, or waits for it in `depends_on`,
  *    is in `CLIENTS`: a new client fails here until it is named, and a member
- *    that is not a client fails until it leaves;
+ *    that is not a client fails until it leaves. A service whose
+ *    `network_mode` is `service:` a member shares that member's network
+ *    namespace, so it counts as a member; one whose `network_mode` is
+ *    `container:` or `host` fails outright, since Compose cannot say whose
+ *    namespace that is;
  *  - the supervisor's task runs do not join it;
- *  - nothing else joins it by name: no other compose file declares it, and no
- *    script or workflow runs `docker run --network` or `docker network
- *    connect` with it.
+ *  - nothing else joins it by name: no other compose file declares it or takes
+ *    a member's namespace, and no script or workflow runs `docker run
+ *    --net`/`--network` or `docker network connect` with it, or `--net`
+ *    `container:` naming ClickHouse's or trigger-api's container.
  *
  * Each rule is also broken on purpose below, on a copy of the file, and must
- * fail.
+ * fail: fifteen mutations of the file, and twelve cases a scan must or must
+ * not find.
+ *
+ * WHAT THIS DOES NOT HOLD: the Docker socket proxy. `trigger-docker-proxy` is
+ * on ownpace-network with `POST`, `NETWORKS` and `CONTAINERS` and no
+ * authentication, so code running in any container there, every task run
+ * included, can still attach itself or a new container to this network
+ * through the Docker API. Workplan 0136 §1 (*What shares the network*) says
+ * so, and its T4, which takes the proxy off every network a tenant-facing
+ * process joins, is what closes it. Until then this network takes away the
+ * name and the route: a plain request, or a forged one from the web app, the
+ * API, Zitadel or Nextcloud, cannot reach ClickHouse.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -137,14 +153,36 @@ export function storeNetworkProblems(compose: Compose): string[] {
     if (store.ports?.length) problems.push(`${STORE} publishes a port, so the host and whoever reaches it can ask the server`);
   }
 
-  const members = Object.entries(services)
-    .filter(([, svc]) => netsOf(svc).includes(NETWORK))
-    .map(([name]) => name)
-    .sort();
+  // A member is on the network by `networks:`, or by sharing a member's
+  // network namespace (`network_mode: service:<member>`), to any depth.
+  const how = new Map<string, string>();
+  for (const [name, svc] of Object.entries(services)) {
+    if (netsOf(svc).includes(NETWORK)) how.set(name, `is on ${NETWORK}`);
+  }
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [name, svc] of Object.entries(services)) {
+      const shared = /^service:(.+)$/.exec(svc?.network_mode ?? '')?.[1];
+      if (shared && how.has(shared) && !how.has(name)) {
+        how.set(name, `shares ${shared}'s network namespace (network_mode: service:${shared}), so it is on ${NETWORK}`);
+        grew = true;
+      }
+    }
+  }
+  for (const [name, svc] of Object.entries(services)) {
+    const mode = svc?.network_mode;
+    if (name !== STORE && mode !== undefined && (mode === 'host' || mode.startsWith('container:'))) {
+      problems.push(
+        `${name} has network_mode: ${mode}, a namespace Compose cannot name, so nothing here can say it is not ` +
+          `ClickHouse's or trigger-api's: give it networks: instead`,
+      );
+    }
+  }
+  const members = [...how.keys()].sort();
   const expected = [STORE, ...CLIENTS].sort();
   for (const m of members) {
     if (!expected.includes(m)) {
-      problems.push(`${m} is on ${NETWORK}, and is not one of ClickHouse's clients (${CLIENTS.join(', ')}): take it off`);
+      problems.push(`${m} ${how.get(m)}, and is not one of ClickHouse's clients (${CLIENTS.join(', ')}): take it off`);
     }
   }
   for (const c of CLIENTS) {
@@ -195,10 +233,18 @@ export function joinsByName(path: string, text: string): string[] {
   if (/\.ya?ml$/.test(path) && !path.startsWith('.github/') && bare.includes(NETWORK)) {
     return [`${path} names ${NETWORK}: a compose file that declares it joins it`];
   }
-  const re = new RegExp(String.raw`(--network[= ]\S*|network\s+connect\s+\S*)${NETWORK}`);
+  const joins = [
+    // `docker run --net`/`--network`, with `=` or a space, and the network's name.
+    new RegExp(String.raw`--net(?:work)?[= ]\S*${NETWORK}`),
+    // `docker network connect`, whatever options come before the name.
+    new RegExp(String.raw`\bnetwork\s+connect\b.*${NETWORK}`),
+    // A member's own namespace: `--net container:<project>-trigger-api`, or a
+    // compose file's `network_mode: service:clickhouse`.
+    new RegExp(String.raw`(?:--net(?:work)?[= ]|network_mode:\s*)["']?(?:container:\S*|service:)(?:${[STORE, ...CLIENTS].join('|')})\b`),
+  ];
   return bare
     .split('\n')
-    .filter((l) => re.test(l))
+    .filter((l) => joins.some((re) => re.test(l)))
     .map((l) => `${path}: ${l.trim()}`);
 }
 
@@ -287,6 +333,42 @@ describe('each rule fails when it is broken', () => {
       /publishes a port/,
     ],
     [
+      'a service in trigger-api\'s network namespace',
+      (c) => {
+        c.services!['probe'] = { network_mode: 'service:trigger-api' };
+      },
+      /probe shares trigger-api's network namespace \(network_mode: service:trigger-api\), so it is on trigger-event-store, and is not one of ClickHouse's clients/,
+    ],
+    [
+      'a service in ClickHouse\'s network namespace',
+      (c) => {
+        c.services!['sidecar'] = { network_mode: 'service:clickhouse' };
+      },
+      /sidecar shares clickhouse's network namespace/,
+    ],
+    [
+      'a service in the namespace of one that is in a member\'s',
+      (c) => {
+        c.services!['probe'] = { network_mode: 'service:trigger-api' };
+        c.services!['probe2'] = { network_mode: 'service:probe' };
+      },
+      /probe2 shares probe's network namespace/,
+    ],
+    [
+      'a service in a container\'s namespace',
+      (c) => {
+        c.services!['probe'] = { network_mode: 'container:ownpace-managed-trigger-api' };
+      },
+      /probe has network_mode: container:ownpace-managed-trigger-api/,
+    ],
+    [
+      'a service on the host\'s network',
+      (c) => {
+        c.services!['probe'] = { network_mode: 'host' };
+      },
+      /probe has network_mode: host/,
+    ],
+    [
       'task runs joined to it',
       (c) => {
         c.services!['trigger-supervisor']!.environment = {
@@ -308,6 +390,13 @@ describe('each rule fails when it is broken', () => {
   it('a script that joins it by hand is found, and a check that only lists it is not', () => {
     expect(joinsByName('deploy/compose/x.sh', 'docker run --rm --network "${P}_trigger-event-store" img')).toHaveLength(1);
     expect(joinsByName('deploy/compose/x.sh', 'docker network connect "${P}_trigger-event-store" c')).toHaveLength(1);
+    expect(joinsByName('deploy/compose/x.sh', 'docker run --rm --net "${P}_trigger-event-store" img')).toHaveLength(1);
+    expect(joinsByName('deploy/compose/x.sh', 'docker run --rm --net=${P}_trigger-event-store img')).toHaveLength(1);
+    expect(joinsByName('deploy/compose/x.sh', 'docker network connect --alias x "${P}_trigger-event-store" c')).toHaveLength(1);
+    expect(joinsByName('deploy/compose/x.sh', 'docker run --network=container:${P}-trigger-api img')).toHaveLength(1);
+    expect(joinsByName('deploy/compose/x.sh', 'docker run --net container:"${P}-clickhouse" img')).toHaveLength(1);
+    expect(joinsByName('deploy/compose/x.yml', 'services:\n  probe:\n    network_mode: "service:trigger-api"')).toHaveLength(1);
+    expect(joinsByName('deploy/compose/x.sh', 'docker run --network=container:${P}-gatus img')).toEqual([]);
     expect(joinsByName('deploy/compose/x.sh', 'for n in ownpace-network status-probe trigger-event-store; do')).toEqual([]);
     expect(joinsByName('deploy/compose/www.yml', 'networks:\n  trigger-event-store:\n    external: true')).toHaveLength(1);
     expect(joinsByName(MANAGED, managedYml)).toEqual([]);

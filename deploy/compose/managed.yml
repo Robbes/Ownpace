@@ -2183,6 +2183,16 @@ networks:
   # beside status-probe. `scripts/a-store-every-container-could-reach.unit.test.ts`
   # holds the members, the flag and ClickHouse's one network; the smoke asks
   # ClickHouse from trigger-api, and finds no such name from the API container.
+  #
+  # What this stops: a plain request to ClickHouse from any other container,
+  # or one forged through the web app, the API, Zitadel or Nextcloud (an
+  # SSRF). They have no name and no route to it. What it does not stop:
+  # trigger-docker-proxy, above, is on ownpace-network with POST, NETWORKS and
+  # CONTAINERS and no authentication, so code running in any container there,
+  # every task run included, can still attach itself or a new container to
+  # this network through the Docker API (workplan 0136 §1, "What shares the
+  # network"). 0136 T4, which takes the proxy off every network a
+  # tenant-facing process joins, closes that.
   trigger-event-store:
     driver: bridge
     internal: true
