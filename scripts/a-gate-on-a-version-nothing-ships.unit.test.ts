@@ -49,6 +49,16 @@
  * and the site build on the host's own Node, and pnpm compares that Node with
  * `engines`.
  *
+ * deploy-live.sh and stand-up-live.sh read that `engines.node` themselves, to
+ * refuse a host Node below it (`release_tag_node` in
+ * `deploy/compose/release-tag.sh`), and read it without node, since node may
+ * be what is wrong. Such a read can disagree with JSON.parse: #1767's third
+ * review found an `engines` nested under another key, or an object inside
+ * `engines`, read as asking for no node. The script refuses those shapes as
+ * unread now; this file holds the root `package.json` to one it reads, and
+ * runs the script's own read on it to say the same `engines.node` as
+ * JSON.parse, so the two cannot drift apart without failing here.
+ *
  * ## Node: and the newest release of that major, on a runner that keeps its cache
  *
  * The right major was not enough. With `check-latest` left at its default,
@@ -177,7 +187,9 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { existsSync, readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { createHash, X509Certificate } from 'node:crypto';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -342,6 +354,42 @@ describe('every gate runs the Node major the images ship', () => {
       engines?.node,
       `the images run Node ${images[0]!.major}; package.json's engines.node must be ">=${images[0]!.major}"`,
     ).toBe(`>=${images[0]!.major}`);
+  });
+
+  it("the deploy's own read of the root package.json, without node, finds the engines.node JSON.parse does", () => {
+    const text = read('package.json');
+    const { engines } = JSON.parse(text) as { engines?: Record<string, unknown> };
+    expect(text.match(/"engines"\s*:/g), 'one "engines" key in the file, the root one').toHaveLength(1);
+    expect(
+      Object.entries(engines ?? {}).filter(([, v]) => typeof v !== 'string'),
+      'every engines value a plain string',
+    ).toEqual([]);
+    // release_tag_node on a commit of this package.json, with a node on the
+    // PATH that says the images' major: it must pass and name what JSON.parse reads.
+    const root = mkdtempSync(join(tmpdir(), 'engines-read-'));
+    try {
+      const repo = join(root, 'repo');
+      const bin = join(root, 'bin');
+      mkdirSync(repo);
+      mkdirSync(bin);
+      writeFileSync(join(bin, 'node'), `#!/usr/bin/env bash\necho 'v${images[0]!.major}.0.0'\n`);
+      chmodSync(join(bin, 'node'), 0o755);
+      writeFileSync(join(repo, 'package.json'), text);
+      const gitEnv = { ...process.env, GIT_CONFIG_GLOBAL: '/dev/null', GIT_CONFIG_NOSYSTEM: '1', GIT_AUTHOR_NAME: 't', GIT_AUTHOR_EMAIL: 't@example.invalid', GIT_COMMITTER_NAME: 't', GIT_COMMITTER_EMAIL: 't@example.invalid' };
+      for (const args of [['init', '-q'], ['add', 'package.json'], ['commit', '-q', '-m', 'package.json']]) {
+        const g = spawnSync('git', args, { cwd: repo, encoding: 'utf8', env: gitEnv });
+        expect(g.status, `git ${args.join(' ')}: ${g.stderr}`).toBe(0);
+      }
+      const r = spawnSync(
+        'bash',
+        ['-c', '. "$1"; if release_tag_node "$2" v0 HEAD; then printf "%s\\n" "$RELEASE_TAG_NODE"; else printf "%s\\n" "${RELEASE_TAG_WHY[@]}"; exit 1; fi', 'read', join(REPO_ROOT, 'deploy/compose/release-tag.sh'), repo],
+        { encoding: 'utf8', env: { ...gitEnv, PATH: `${bin}:${process.env.PATH ?? ''}` } },
+      );
+      expect(r.status, `${r.stdout}${r.stderr}`).toBe(0);
+      expect(r.stdout).toContain(`v0 asks for ${String(engines?.node)} (engines in its package.json)`);
+    } finally {
+      rmSync(root, { recursive: true, force: true });
+    }
   });
 
   it('no job runs Node before a setup-node step has named it', () => {

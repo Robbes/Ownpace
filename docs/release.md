@@ -357,8 +357,9 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       as yourself, in `~/ownpace-live`: `command -v node` names the node the
       deploy runs on and `node -v` says `v26.x`; `pnpm -v` says the version
       `package.json`'s `packageManager` names (any pnpm that runs it there is
-      enough; Node 26 ships no corepack); `dpkg -s libatomic1` says it is
-      installed. A system Node another service on the host runs on stays as
+      enough; Node 26 ships no corepack);
+      `dpkg-query -W -f='${Status} ${Version}\n' libatomic1` says
+      `install ok installed`. A system Node another service on the host runs on stays as
       it is: a Node 26 of your own (nvm, fnm, or the tarball in a directory
       you own) goes first on your `PATH`, and pnpm installs into it without
       `sudo`. Run the deploy in that shell, as yourself, not under `sudo`,

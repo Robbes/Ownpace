@@ -76,7 +76,13 @@
  *   anything moves, in a dry run too, in release-tag.sh's words: a node on
  *   the PATH below it (">=N" and ">=N.N.N" read whole), no node at all, a
  *   `node -v` that fails, and an `engines.node` in a form it cannot read.
- *   A tag that asks for none is not checked.
+ *   A tag that asks for none is not checked. A read without node takes the
+ *   first `"engines"` key and stops at the first `}`, so until #1767's third
+ *   review an `engines` nested under another key before the root one, or an
+ *   object inside `engines` before `node`, read as asking for no node, and a
+ *   Node 24 went through where JSON.parse reads ">=26"; and of `node` given
+ *   twice it took the first, where JSON keeps the last. Each is refused as
+ *   unread now, with nothing moved.
  *
  *   It says a deploy took when it did not. After the bring-up it asks the app
  *   at the origin in `WEB_URL`: `/api/version` must name the tag's commit AND
@@ -578,6 +584,8 @@ interface Release {
   script?: string;
   /** The root package.json's engines.node at this commit (default: no engines at all). */
   engines?: unknown;
+  /** The root package.json's whole text at this commit, given its version, in place of the one `version` and `engines` make. */
+  packageText?: (version: string) => string;
 }
 
 interface Stage {
@@ -774,7 +782,8 @@ function stage(opts: StageOptions = {}): Stage {
   git(root, work, 'push', '-q', 'origin', 'main', `refs/tags/${RUNNING.tag}`);
 
   for (const r of opts.releases ?? []) {
-    writeFileSync(join(work, 'package.json'), packageJson(r.version ?? r.tag.replace(/^v/, ''), r.engines));
+    const version = r.version ?? r.tag.replace(/^v/, '');
+    writeFileSync(join(work, 'package.json'), r.packageText ? r.packageText(version) : packageJson(version, r.engines));
     if (r.ledger) writeFileSync(join(work, 'packages', 'ledger', 'migrations', r.ledger), 'SELECT 2;\n');
     if (r.managed) writeFileSync(join(work, 'packages', 'managed', 'migrations', r.managed), 'SELECT 2;\n');
     let yml = readFileSync(join(r.builtTrigger ? COMPOSE_DIR : compose, 'managed.yml'), 'utf8');
@@ -1621,6 +1630,67 @@ describe("the node on this shell's PATH: what the tag's package.json asks for, o
         expect(r.out).toContain('Write engines.node as ">=N" in the root package.json on main');
         expectNothingChanged(s, r.out);
       }
+    },
+    CASE_MS,
+  );
+
+  // A package.json whose root engines.node JSON.parse reads as ">=26", in
+  // shapes a read without node could take for less: each refused as unread,
+  // never let through (#1767's third review).
+  const unreadEngines = (v: string, rest: string): string => `{"name":"ownpace","version":"${v}","private":true,${rest}}\n`;
+  it.each([
+    [
+      'an engines nested under another key before the root one, without node',
+      (v: string) => unreadEngines(v, '"pnpm":{"packageExtensions":{"foo":{"engines":{"pnpm":">=1"}}}},"engines":{"node":">=26"}'),
+      'more than one "engines" key, and a read without node cannot tell which is the root one',
+    ],
+    [
+      'an engines nested under another key before the root one, asking for less',
+      (v: string) => unreadEngines(v, '"pnpm":{"packageExtensions":{"foo":{"engines":{"node":">=10"}}}},"engines":{"node":">=26"}'),
+      'more than one "engines" key, and a read without node cannot tell which is the root one',
+    ],
+    [
+      'an engines nested under another key after the root one',
+      (v: string) => unreadEngines(v, '"engines":{"node":">=26"},"pnpm":{"packageExtensions":{"foo":{"engines":{"node":">=10"}}}}'),
+      'more than one "engines" key, and a read without node cannot tell which is the root one',
+    ],
+    [
+      'an object inside engines before node',
+      (v: string) => unreadEngines(v, '"engines":{"vscode":{"a":"1"},"node":">=26"}'),
+      'not an object of plain strings',
+    ],
+    ['an engines that is not an object', (v: string) => unreadEngines(v, '"engines":">=26"'), 'not an object of plain strings'],
+    ['node given twice, where JSON keeps the last', (v: string) => unreadEngines(v, '"engines":{"node":">=20","node":">=26"}'), 'engines.node more than once'],
+  ] as const)(
+    'an engines it cannot read whole (%s): refused as unread, never let through, with nothing moved',
+    (_label, packageText, why) => {
+      const s = stage({ releases: [{ ...NEXT, packageText }] });
+      const old = nodeSaying(s, 'v24.11.1');
+      for (const args of [[NEXT.tag], ['--dry-run', NEXT.tag]]) {
+        const r = run(s, args, { PATH: `${old.dir}:${s.env.PATH}` });
+        expect(r.status, `${args.join(' ')}:\n${r.out}`).toBe(1);
+        expect(r.out).toContain(`[deploy-live] refused: ${NEXT.tag}'s package.json has an engines this script cannot read (${why}), so it cannot say which Node the release asks for, and it does not guess.`);
+        expect(r.out).toContain('Keep one engines in the root package.json on main, of plain strings, with engines.node written once as ">=N"');
+        expect(r.out).not.toContain('asks for none');
+        expectNothingChanged(s, r.out);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a "node" key in scripts and dependencies before engines does not confuse the read: engines.node is what it reads',
+    () => {
+      const packageText = (v: string) => unreadEngines(v, '"scripts":{"node":"node x.mjs"},"dependencies":{"node":"1.0.0"},"engines":{"node":">=26"}');
+      const s = stage({ releases: [{ ...NEXT, packageText }] });
+      const old = nodeSaying(s, 'v24.11.1');
+      const below = run(s, ['--dry-run', NEXT.tag], { PATH: `${old.dir}:${s.env.PATH}` });
+      expect(below.status, below.out).toBe(1);
+      expect(below.out).toContain(`[deploy-live] refused: the node first on this shell's PATH is v24.11.1 (${old.node}), and ${NEXT.tag} asks for Node >=26 (engines in its package.json).`);
+      const fine = nodeSaying(s, 'v26.13.0');
+      const at = run(s, ['--dry-run', NEXT.tag], { PATH: `${fine.dir}:${s.env.PATH}` });
+      expect(at.status, at.out).toBe(0);
+      expect(at.out).toContain(`[deploy-live] Node: ${fine.node} is v26.13.0, and ${NEXT.tag} asks for >=26 (engines in its package.json)`);
     },
     CASE_MS,
   );

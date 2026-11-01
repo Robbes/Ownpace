@@ -17,8 +17,9 @@ another service runs on the system's Node would move that service too, and is no
 `command -v node` and `node -v` name a Node 26 (one of their own, put first on their `PATH`
 with nvm, fnm or a tarball in a directory they own, when the system's is 24); (b) `pnpm -v`
 says `packageManager`'s version, `pnpm@11.28.9` at alpha.4 (any pnpm that runs it there is
-enough; installing it into their own Node 26 needs no `sudo`); (c) `dpkg -s libatomic1` says
-installed (Node 26's binaries need it). **For the alpha.4 deploy that reading is the check:**
+enough; installing it into their own Node 26 needs no `sudo`); (c)
+`dpkg-query -W -f='${Status} ${Version}\n' libatomic1` says `install ok installed` (Node 26's
+binaries need it). **For the alpha.4 deploy that reading is the check:**
 the deploy runs alpha.3's `deploy-live.sh`, the copy in the checkout before it moves, which
 reads no Node. From the deploy after alpha.4 the script refuses a node below the tag's
 `engines` itself, naming its path and version. The steps are in `managed-bring-up.md`, *The

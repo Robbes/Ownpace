@@ -70,7 +70,9 @@
 #       version check instead), or asks for ">=N" or ">=N.N.N" and the node
 #       first on PATH (`command -v node`, `node -v`) is that version or later.
 #       Refuses an engines.node in any other form, which it cannot read and
-#       does not guess at; no node on PATH; a `node -v` that fails (a Node 25
+#       does not guess at; an engines it cannot read whole (more than one
+#       "engines" key in the file, an object inside engines, or node named
+#       twice); no node on PATH; a `node -v` that fails (a Node 25
 #       or later binary without libatomic1 does) or says no version; and a
 #       node below what the tag asks for, naming the node's path and version
 #       and the tag's engines. It reads package.json without node, which may
@@ -176,7 +178,7 @@ release_tag_carries() {
 
 # release_tag_node <repo-root> <tag> <commit>
 release_tag_node() {
-  local root="$1" tag="$2" commit="$3" text block want node_path said rc=0 major
+  local root="$1" tag="$2" commit="$3" text block='' unread want node_path said rc=0 major
   local re_engines='"engines"[[:space:]]*:'
   local re_block='"engines"[[:space:]]*:[[:space:]]*\{([^}]*)\}'
   local re_key='"node"[[:space:]]*:'
@@ -196,12 +198,27 @@ release_tag_node() {
     RELEASE_TAG_NODE="Node: ${tag} asks for none (no engines in its package.json), so the node on this shell's PATH is not checked"
     return 0
   fi
-  if ! [[ "$text" =~ $re_block ]]; then
-    RELEASE_TAG_WHY=("${tag}'s package.json has an engines this script cannot read (not an object of plain strings), so it cannot say which Node the release asks for, and it does not guess."
-      "Write engines.node as \">=N\" in the root package.json on main (scripts/a-gate-on-a-version-nothing-ships.unit.test.ts holds it so) and cut a new release (docs/release.md §2).")
+  # The read below takes the first "engines" key and stops at the first }, so
+  # it holds only for one engines, of plain strings, naming node once. Any
+  # other shape (an engines nested under another key, an object inside
+  # engines, node given twice, where JSON keeps the last) could be read as
+  # asking for no node or the wrong one, so it is refused as unread instead.
+  unread=''
+  if [[ "${text#*"${BASH_REMATCH[0]}"}" =~ $re_engines ]]; then
+    unread='more than one "engines" key, and a read without node cannot tell which is the root one'
+  elif ! [[ "$text" =~ $re_block ]] || [[ "${BASH_REMATCH[1]}" == *'{'* ]]; then
+    unread='not an object of plain strings'
+  else
+    block="${BASH_REMATCH[1]}"
+    if [[ "$block" =~ $re_key ]] && [[ "${block#*"${BASH_REMATCH[0]}"}" =~ $re_key ]]; then
+      unread='engines.node more than once'
+    fi
+  fi
+  if [ -n "$unread" ]; then
+    RELEASE_TAG_WHY=("${tag}'s package.json has an engines this script cannot read (${unread}), so it cannot say which Node the release asks for, and it does not guess."
+      "Keep one engines in the root package.json on main, of plain strings, with engines.node written once as \">=N\" (scripts/a-gate-on-a-version-nothing-ships.unit.test.ts holds it so), and cut a new release (docs/release.md §2).")
     return 1
   fi
-  block="${BASH_REMATCH[1]}"
   if ! [[ "$block" =~ $re_key ]]; then
     RELEASE_TAG_NODE="Node: ${tag} asks for none (no engines.node in its package.json), so the node on this shell's PATH is not checked"
     return 0

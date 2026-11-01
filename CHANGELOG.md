@@ -92,9 +92,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   deploy runs as that user, not under `sudo`, whose `secure_path` finds the
   system's node. `deploy-live.sh` and `stand-up-live.sh` now refuse, before
   anything moves, a node on that `PATH` below what the tag's `package.json`
-  asks for (`engines.node`), none at all, or an `engines.node` they cannot
-  read, naming the node's path and version (`release_tag_node` in
-  `release-tag.sh`). The deploy to this release runs alpha.3's
+  asks for (`engines.node`), none at all, or an `engines` they cannot read
+  (an `engines.node` other than `>=N` or `>=N.N.N`, more than one `engines`
+  key in the file, an object inside it, or `node` given twice), naming the
+  node's path and version (`release_tag_node` in `release-tag.sh`). The deploy to this release runs alpha.3's
   `deploy-live.sh`, which has no such check, so for it the reading in the
   deploy shell (`command -v node`, `node -v`) is the check; the refusal guards
   the deploys after it. The steps are in `managed-bring-up.md`, *The Node in

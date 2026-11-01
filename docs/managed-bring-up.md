@@ -123,11 +123,12 @@ are **not** product-named and keep their names; nothing above touches them.
   since 2026-10-31 (workplan 0119 §2.4): `engines` asks for `>=26`, and every
   gate runs the host steps on 26. The official Linux binaries of Node 25 and
   later are linked against `libatomic.so.1`, which a host may not have, and
-  Node 25 and later ship **no corepack**, so pnpm comes from npm, at the
-  version `package.json`'s `packageManager` names (from the checkout:
-  `npm install -g "$(node -p "require('./package.json').packageManager")"`),
-  not a bare `pnpm@11`, which takes whatever was published last, inside the
-  repository's three-day floor or not. What has to be 26 is the `node` first on
+  Node 25 and later ship **no corepack**, so any `pnpm` that runs the version
+  `package.json`'s `packageManager` names will do, whatever installed it: a
+  standalone pnpm, or `npm install -g` of that version into a Node 26 of your
+  own, without `sudo` (step 4 of the section below), never a bare `pnpm@11`,
+  which takes whatever was published last, inside the repository's three-day
+  floor or not. What has to be 26 is the `node` first on
   the `PATH` of the shell you run the scripts from (`command -v node`, `node
   -v`); a system Node another service on the host runs on stays as it is. See
   [*The Node in the shell you deploy from*](#the-node-in-the-shell-you-deploy-from).
@@ -5420,7 +5421,9 @@ on from that install to the bring-up, which redeploys the tasks and rebuilds the
 images. **From the deploy after alpha.4, `deploy-live.sh` refuses it itself**,
 before anything moves and in `--dry-run` too: after its fetch it reads
 `engines.node` from the tag's own `package.json` (`>=N`, or `>=N.N.N`; a tag
-without one is not checked, and one in any other form is refused as unread),
+without one is not checked, and one in any other form is refused as unread, as
+is an `engines` it cannot read whole: two `"engines"` keys in the file, an
+object inside it, or `node` named twice),
 and refuses a `node` on the `PATH` below it, no `node` at all, or one whose
 `node -v` fails (a Node 26 binary without `libatomic1` does), naming the path
 `command -v node` gave, the version `node -v` said and what the tag asks for.
@@ -5440,7 +5443,7 @@ command -v node        # the node the deploy runs on: the first on this shell's 
 node -v                # v26.x is what alpha.4 asks for
 pnpm -v                # in ~/ownpace-live: the version pnpm runs here
 node -p "require('./package.json').packageManager"   # what pnpm -v should say, pnpm@11.28.9 at alpha.4
-dpkg -s libatomic1     # Status: install ok installed
+dpkg-query -W -f='${Status} ${Version}\n' libatomic1   # install ok installed, then its version
 uname -m               # aarch64 or x86_64, for the tarball in step 3
 ```
 
@@ -5456,7 +5459,7 @@ runner is one of them. It stays installed whichever way your Node 26 comes, and
 installing it changes no other service's Node:
 
 ```bash
-sudo apt-get update && sudo apt-get install -y libatomic1   # only when dpkg -s says it is not installed
+sudo apt-get update && sudo apt-get install -y libatomic1   # only when dpkg-query does not say install ok installed
 ```
 
 **3. A Node 26 first on your own `PATH`**, without touching the system's. Any

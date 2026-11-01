@@ -31,11 +31,34 @@ measured: a `PATH` with another node first lost it under `sudo`).
   before anything moves (and before the version read that needs node itself): it reads
   `engines.node` from the tag's `package.json` without node, after `deploy-live.sh`'s fetch;
   takes `>=N` and `>=N.N.N`, compared whole; skips a tag without one; refuses any other form as
-  unread, no `node` on the `PATH`, a `node -v` that fails (a Node 26 binary without
+  unread, and an `engines` it cannot read whole (below), no `node` on the `PATH`, a `node -v` that fails (a Node 26 binary without
   `libatomic1` does), and a node below it, naming `command -v node`'s path, `node -v`'s
   version and the tag's `engines`, that pnpm only warns, and what to do. `deploy-live.sh`
   refuses in `--dry-run` too; `stand-up-live.sh` runs the bring-up's install and task deploy
   on the same node, so it refuses the same, in the same words.
+- **An `engines` read without node, held to what JSON.parse reads (#1767's third review).**
+  The read takes the first `"engines"` key and stops at the first `}`. Until this, an `engines`
+  nested under another key before the root one (a `pnpm.packageExtensions` entry), or an
+  object inside `engines` before `node`, read as asking for no node, and a Node 24 went
+  through where JSON.parse reads `>=26`; a nested one that names `node` was compared instead of
+  the root's, and of `node` given twice it took the first, where JSON keeps the last. Today's
+  `package.json` has one flat `engines`, so no release was misread. Now more than one
+  `"engines"` key in the file, a `{` inside the block, or `node` named twice is refused as
+  unread, before anything moves; and `a-gate-on-a-version-nothing-ships` runs
+  `release_tag_node` on the root `package.json` and holds it to the `engines.node` JSON.parse
+  reads, with one `"engines"` key and only strings in it, so the two cannot drift apart
+  without failing there. Measured with a node that says `v24.18.0`: each of the shapes above
+  was let through before, and is refused now; a `"node"` key in `scripts` or `dependencies`
+  before `engines` still reads `>=26`. Mutation-checked on Node 26.13.0 (`--maxWorkers=2`):
+  without the second-key check, its 3 cases fail; without the `{` check, 1; without the
+  `node`-twice check, 1; a nested `engines` or an object inside it added to `package.json`
+  fails the gate's case, as does a read that says `>=24`. Also in that review: the
+  *Before you start* bullet in `managed-bring-up.md` no longer says pnpm comes from npm (any
+  pnpm that runs `packageManager`'s version, as step 4 says), and the owner's libatomic1
+  reading is `dpkg-query -W -f='${Status} ${Version}\n' libatomic1`, which prints the status
+  and version only, where `dpkg -s` prints maintainers' email addresses too (step 1,
+  `release.md` §5, 0131). main's #1763 (`a94dd5b3`) was merged in; 0119's image table kept
+  main's Trigger.dev row and this branch's `triggerdotdev/node` row.
 - **Not for the alpha.4 deploy itself.** `deploy-live.sh`'s whole run is one function bash reads
   before the checkout replaces the file with the tag's copy, so the deploy to alpha.4 runs
   alpha.3's copy, which reads no Node. For that deploy the owner's reading in the deploy shell
