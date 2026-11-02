@@ -10,7 +10,8 @@ queued for want of the runner label `spark`. It was cancelled on 2026-11-02 at 0
 a runner; the owner added the label at about 07:40 UTC, and the lane's first run on a runner,
 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not
 set as repository secrets. Setting them is the owner's, 0141 T13 (a) (0141's Status of the same
-day). The cell says so now.
+day). The cell says so now, and so does a dated note on the entry of 2026-11-01, later, below,
+which said the same.
 
 **2026-11-01, later, records: five *Today* cells of T5 brought up to date (0135, 0136, 0139,
 0141, 0146).**
@@ -36,7 +37,9 @@ Read from GitHub on 2026-11-01; times are UTC.
   runner does not carry it, so a third run, 41273625023 (for #1767), has been queued since 04:34,
   while E2E (managed), which asks for the other three labels only, ran on that runner at 10:41.
   The step is the owner's, 0141 T13 (a): add `spark` to the runner, or drop it from `runs-on`,
-  the choice #1137 left to the owner.
+  the choice #1137 left to the owner. *(2026-11-02: run 41273625023 was cancelled at 02:00 UTC
+  without a runner; the owner added the label at about 07:40 UTC, and the lane's first run on a
+  runner, 41418432093, stopped at its secrets check: the entry of 2026-11-02, records, above.)*
 - **0146.** alpha.4's first preflight, Release run 41300769431 on `82d0c945`, refused 8 checks,
   each one the fold, `main`'s CI then queued, or the nights (0146's Status of the same day).
   Whether the first invitation waits for alpha.4 stays the owner's choice (the entry of

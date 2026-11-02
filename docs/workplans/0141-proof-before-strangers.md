@@ -1200,9 +1200,9 @@ can run there.
 from `runs-on` (`e2e-o365.yml`:85). #1137 left this choice to the owner. Also check in the
 repository settings that the `O365_*` secrets exist for the flow the owner wants. *2026-11-02:
 the owner added the label (about 07:40 UTC). The first run to get the runner, 41418432093 on
-`main`, failed at* Validate required secrets*: `O365_CLIENT_ID` and `O365_TENANT_ID` are not set
-as repository secrets. Setting them, as `docs/test-tenant.md` lists them, is what is left of
-(a) (Status, 2026-11-02).*
+`main`, failed at its step "Validate required secrets": `O365_CLIENT_ID` and `O365_TENANT_ID`
+are not set as repository secrets. Setting them, as `docs/test-tenant.md` lists them, is what is
+left of (a) (Status, 2026-11-02).*
 
 **(b) The scenario drives the product (proposed).**
 

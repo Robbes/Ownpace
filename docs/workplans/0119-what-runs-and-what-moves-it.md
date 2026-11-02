@@ -40,7 +40,7 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   `trigger-api` or `trigger-supervisor`, the other stack's supervisor through its own proxy, and
   the host. Live keeps its old exposure until a tag carries #1774 and #1784 (alpha.4).
 - **#1786 merged** at 09:09 (`bce0fcfd`; head `cdeb28b2`), Dependabot's npm minor-and-patch
-  group, after E2E (managed) run 41413423420 on `cdeb28b2`, 08:29 to 08:59, was green: imapflow
+  group, after E2E (managed) run 41413423420 on `cdeb28b2`, 08:29 to 08:58, was green: imapflow
   2.9.1 → 2.10.0, which adds a `decodeText` option to `download()`; nodemailer 10.3.0 → 10.3.1,
   which applies the `otp` option in `MailComposer` too; jose 6.2.13 → 6.2.14; lucide-react
   1.64.0 → 1.65.0. Nothing here calls imapflow's `download()` or sets `otp` (`grep` over `apps/`
@@ -71,13 +71,16 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   (`docs/test-tenant.md`) is the owner's.
 - **`pnpm audit` on `main`: 2 moderate, both under developer tools only**, the two the entry of
   2026-10-31 (follow-redirects) left: minimatch below 11.0.1 (GHSA-g3hv-75wg-m249, through eslint
-  and through testcontainers' archiver) and glob 9.0.0 to 14.0.1 (GHSA-3g3m-2fjr-6pw4, through
-  testcontainers' archiver-utils). Each is fixed only on a new major, minimatch 11.0.1 and glob
-  14.0.2 (both 2026-10-27), with no backport to the lines in the tree (minimatch 10.2.6, 9.0.9
-  and 5.1.9; glob 10.5.0), and `pnpm-workspace.yaml`'s overrides are scoped below each fix
-  within a major, never across one. Not overridden: accepted as developer-only until eslint and
-  testcontainers move, since nothing shipped reaches either; a comment in the overrides says so
-  now. The audit's state lives in these Status entries, the newest first, and in that comment.
+  and typescript-eslint, and through testcontainers' archiver) and glob 9.0.0 to 14.0.1
+  (GHSA-3g3m-2fjr-6pw4, through testcontainers' archiver-utils). Each is fixed only on a new
+  major, minimatch 11.0.1 and glob 14.0.2 (both 2026-10-27), with no backport to the lines in the
+  tree (minimatch 10.2.6, 9.0.9 and 5.1.9; glob 10.5.0), and `pnpm-workspace.yaml`'s overrides
+  are scoped below each fix within a major, never across one, so there is no override to add.
+  Whether to keep them or mitigate them, for instance by waiting for eslint, typescript-eslint
+  and testcontainers to take the new majors, is the owner's call, and it is open: the owner's
+  rule is that a vulnerability is not more acceptable for living in dev tooling (the esbuild
+  entry in the overrides). A comment at the end of the overrides says so now. The audit's state
+  lives in these Status entries, the newest first, and in that comment.
 - **The Windows payload on `main`:** windows-payload run 41375291612 on `733294a5` (01:59),
   artifact `ownpace-appliance-win-x64-733294a5…`, `node.exe` 26.13.0. The owner's Windows 11
   check of a zip on 26.13.0 is still owed; it can take this zip, or #1767's from branch run
@@ -2839,7 +2842,7 @@ is beside each; none is urgent tonight.
    the gate never ran to its end; it asks for the runner label `spark`, which the self-hosted
    runner does not carry; the step is the owner's, 0141 T13 (a): add the label to the runner, or
    drop it from `runs-on`; see T3.)* *(2026-11-02: the owner added the label; the gate's first
-   run on a runner, 41418432093 on `main`, failed at* Validate required secrets*:
+   run on a runner, 41418432093 on `main`, failed at its step "Validate required secrets":
    `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets, and setting them
    (`docs/test-tenant.md`) is the owner's; see T3.)*
    **`nodemailer` 9 → 10** — taken 2026-09-06 (#823). Read first: one breaking change,
@@ -2970,29 +2973,29 @@ is beside each; none is urgent tonight.
    holds the members (a service in a member's network namespace among them), the flag and the
    one network; the smoke asks ClickHouse from `trigger-api` and finds no such name from the API
    container. That stops a plain request, or one forged through the web app, the API, Zitadel or
-   Nextcloud. **It does not stop the Docker API on its own:** on `main`, `trigger-docker-proxy` is
-   on `ownpace-network` with `POST`, `NETWORKS` and `CONTAINERS` and no authentication, so code
-   running in any container there, every task run included, can still attach itself or a
-   new container to `trigger-event-store` (0136 §1, *What shares the network*: creating a
-   container through it is, in effect, control of the host). **0136 T4's first bullet closes
-   that route**, merged as #1784 on 2026-11-02 (`2cae9602`), after E2E (managed) run
-   41408096908 was green on its head (Status, 2026-11-02): the proxy on `trigger-docker-socket`,
-   an `internal` network only `trigger-supervisor` shares. Since it landed, what is left is code
-   that already runs inside
-   `trigger-supervisor`, which can still ask the proxy, or inside `trigger-api`, which shares
-   ClickHouse's network, or inside the other stack's `trigger-supervisor`, which can ask its
-   own proxy to attach a container to this stack's `trigger-event-store` (one Docker daemon
-   serves both stacks: 0136 §1, *Two stacks on one machine*, which 0136 D6 accepts), and the
-   host; the authenticated items above stand. **Live is covered only once it runs a tag that
-   carries both changes.** It runs `v0.2.0-alpha.3` (0132's Status, 2026-10-30/31), which has
-   neither: live's ClickHouse is still on live's `ownpace-network`, where every container of
-   live reaches it directly, and live's proxy, there too, lets any of them attach a container
-   to the OTA stack's `trigger-event-store`. #1774 and #1784 are merged for alpha.4. **The version move stayed the owner's** (taken on 2026-11-02, below): (b) 26.8 LTS at its fixed release, or 26.3's, one way,
-   under Trigger.dev's migrations at v4.8.3, whose compose and test containers pin 26.2
-   (above); or stay isolated on 26.2 until upstream moves, which leaves a server with no fix
-   that any container on `ownpace-network` can still reach by that Docker API route until the
-   branch above lands, and that `trigger-api`, the supervisor, the other stack's supervisor and
-   the host can reach after it.
+   Nextcloud. **It does not stop the Docker API on its own:** until #1784 (2026-11-02, `2cae9602`),
+   `trigger-docker-proxy` was on `ownpace-network` with `POST`, `NETWORKS` and `CONTAINERS` and no
+   authentication, so code running in any container there, every task run included, could attach
+   itself or a new container to `trigger-event-store` (0136 §1, *What shares the network*: creating
+   a container through it is, in effect, control of the host). **0136 T4's first bullet closes that
+   route**, merged as #1784 on 2026-11-02 (`2cae9602`), after E2E (managed) run 41408096908 was
+   green on its head (Status, 2026-11-02): the proxy on `trigger-docker-socket`, an `internal`
+   network only `trigger-supervisor` shares. Since it landed, what is left is code that already
+   runs inside `trigger-supervisor`, which can still ask the proxy, or inside `trigger-api`, which
+   shares ClickHouse's network, or inside the other stack's `trigger-supervisor`, which can ask its
+   own proxy to attach a container to this stack's `trigger-event-store` (one Docker daemon serves
+   both stacks: 0136 §1, *Two stacks on one machine*, which 0136 D6 accepts), and the host; the
+   authenticated items above stand. **Live is covered only once it runs a tag that carries both
+   changes.** It runs `v0.2.0-alpha.3` (0132's Status, 2026-10-30/31), which has neither: live's
+   ClickHouse is still on live's `ownpace-network`, where every container of live reaches it
+   directly, and live's proxy, there too, lets any of them attach a container to the OTA stack's
+   `trigger-event-store`. #1774 and #1784 are merged for alpha.4. **The version move stayed the
+   owner's** (taken on 2026-11-02, below): (b) 26.8 LTS at its fixed release, or 26.3's, one way,
+   under Trigger.dev's migrations at v4.8.3, whose compose and test containers pin 26.2 (above); or
+   stay isolated on 26.2 until upstream moves, which leaves a server with no fix that any container
+   on `ownpace-network` could still reach by that Docker API route until 0136 T4's first bullet
+   (#1784, merged 2026-11-02), and that `trigger-api`, the supervisor, the other stack's supervisor
+   and the host can reach after it.
 
    **The options as put to the owner, 2026-11-01:** (1) 26.3.62.3-lts, the nearest supported
    line that carries the fix, **recommended**; (2) 26.8.36.3-lts; (3) wait for Trigger.dev to
