@@ -539,11 +539,28 @@ services:
   #
   # `bitnamilegacy` is what its name says: Bitnami stopped publishing there,
   # and its newest ClickHouse is 25.7.5. It can never reach what upstream
-  # needs, so this follows THEIR pin exactly — same image, same digest, as
+  # needs, so this followed THEIR pin exactly — same image, same digest, as
   # read from trigger.dev's own docker/docker-compose.yml at v4.5.12. What
   # they test against is the only version this stack has evidence about.
+  #
+  # AHEAD OF THEIR PIN ON PURPOSE: option 2 of workplan 0119 §3 item 9, the
+  # owner's decision of 2026-11-02. Trigger.dev v4.8.3 still pins 26.2.19.43,
+  # a line ClickHouse no longer supports, and CVE-2026-116366 (critical: code
+  # execution with no password) has no 26.2 fix. 26.8.36.3-lts carries it.
+  # Read release by release from 26.3 to 26.8, and every 26.8 patch note to
+  # 26.8.34.13, against v4.8.3's 55 migrations (numbered to 056), its queries
+  # and the settings it passes (docs/managed-bring-up.md, "Moving
+  # ClickHouse"): one change stops a schema on an EMPTY volume (from 26.7 an
+  # AggregatingMergeTree refuses migration 022's errors_v1 at CREATE), and
+  # clickhouse-merge-tree.xml, below, restores 26.2's rule. The data moves
+  # ONE WAY: 26.3 and later write parts 26.2 cannot read (Trigger.dev's JSON
+  # and Array columns), and once 26.7 or later has rotated a system log table
+  # a server older than 26.3 does not start on the volume at all, so the way
+  # back is the volume copy taken first. The pin watch records the difference
+  # (CLICKHOUSE_INTENDED in scripts/idp-pin-watch.mjs) and says so again when
+  # either side moves.
   clickhouse:
-    image: clickhouse/clickhouse-server:26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd
+    image: clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
     restart: unless-stopped
     logging: *logging
@@ -581,6 +598,17 @@ services:
       # the config.xml this image ships turns them ON, and this file turns
       # them off again. Its header has the detail.
       - ./clickhouse-no-crash-reports.xml:/etc/clickhouse-server/config.d/no-crash-reports.xml:ro
+      # 26.2's MergeTree rules where 26.8 changed them (0119 §3 item 9, 2026-11-02):
+      # an AggregatingMergeTree with a column outside its ORDER BY is accepted
+      # again, without which migration 022 stops trigger-api on an empty volume,
+      # and no automatic column statistics are written. It travels with the pin:
+      # a 26.2 or 26.3 server does not start with it. Its header has the sources;
+      # a-clickhouse-without-the-files-its-pin-needs holds both files to the pin.
+      - ./clickhouse-merge-tree.xml:/etc/clickhouse-server/config.d/merge-tree.xml:ro
+      # 26.2's date parsing on insert, in the default profile (the same item).
+      # One file into users.d, never the directory: the image's entrypoint
+      # writes users.d/default-user.xml at every start. Its header has why.
+      - ./clickhouse-users-profile.xml:/etc/clickhouse-server/users.d/profile.xml:ro
     healthcheck:
       test: ["CMD", "clickhouse-client", "--host", "localhost", "--port", "9000", "--user", "${CLICKHOUSE_USER:-default}", "--password", "${CLICKHOUSE_PASSWORD:-password}", "--query", "SELECT 1"]
       interval: 5s
@@ -2174,9 +2202,10 @@ networks:
   # critical, CWE-190, published 2026-10-30) lets "an unauthenticated user with
   # network access" run code on a ClickHouse server, and it is fixed only in
   # 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The
-  # clickhouse service above runs 26.2, which ClickHouse's SECURITY.md lists as
+  # clickhouse service above ran 26.2, which ClickHouse's SECURITY.md lists as
   # unsupported, so no fix will come for it, and Trigger.dev still pins it at
-  # v4.8.3. Moving the version is the owner's decision (§3 item 9). Who can
+  # v4.8.3. The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
+  # (§3 item 9, option 2), and this network stays as it is. Who can
   # reach the server is this file's, and until this network it was everybody:
   # every service on ownpace-network, the internet-facing ones included (the
   # web app, the API, the identity provider, the demo Nextcloud), and every

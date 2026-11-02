@@ -57,6 +57,31 @@ notices.
 
 ### Security
 
+- **ClickHouse 26.8.36.3-lts, the LTS release with the fix for CVE-2026-116366**
+  (critical: code execution on the server for anybody who reaches it, with no
+  password; workplan 0119 §3 item 9, option 2, the owner's decision of
+  2026-11-02). The managed stacks ran 26.2.19.43, the ClickHouse Trigger.dev
+  v4.8.3 pins, on a line ClickHouse no longer supports and which gets no fix.
+  `managed.yml` pins `clickhouse/clickhouse-server:26.8.36.3` by its index
+  digest (amd64 and arm64), ahead of Trigger.dev's pin on purpose. Read before
+  the move, release by release from 26.3 to 26.8 and every 26.8 patch note to
+  26.8.34.13, against Trigger.dev's 55 migrations (numbered to 056), its
+  queries and the settings it passes, and the files mounted into `config.d`.
+  One change stops the schema, on an empty volume only: from 26.7 ClickHouse
+  refuses migration 022, so a new file in `config.d`,
+  `clickhouse-merge-tree.xml`, restores the old rule. Two more would store data
+  differently on every volume, automatic column statistics (26.4) and date
+  parsing on insert (26.5 and 26.8): the same file keeps the statistics off,
+  and a profile in `users.d`, `clickhouse-users-profile.xml`, keeps 26.2's date
+  parsing. Both files move with the pin, and a new guard holds them to it: a
+  26.2 or 26.3 server does not start with the first. The move is one way
+  (26.3 and later write parts 26.2 cannot read, and an older server may not
+  start at all on the volume), so each stack copies ClickHouse's volume first
+  (`docs/managed-bring-up.md`, *Moving ClickHouse*, which also checks an
+  x86_64 host for AVX2, which 26.8's amd64 build needs, and after the move
+  that every Trigger.dev table loads), live by hand: the copy before an update
+  holds no volume.
+
 - **The Windows payload's `node.exe` is checked against a SHA-256 committed in
   this repository, and that sum is the one the Node.js release was signed
   with** (workplan 0119 §2.5): the build fetched `node.exe` and the
@@ -233,6 +258,19 @@ notices.
   no such name from the API container.
 
 ### Changed
+
+- **The pin watch can record a difference from Trigger.dev's ClickHouse pin as
+  intended**, for one exact pair of tag and digest (`CLICKHOUSE_INTENDED`):
+  its row then reads `intended`, with the reason, and keeps no issue open,
+  until either side moves. It kept an issue open for any difference, a
+  deliberate one included. A stack pin newer than Trigger.dev's reads
+  `ahead`, and its issue says an older upstream pin is never followed:
+  ClickHouse's data moves forward only.
+- **`deploy-live.sh` calls a tag that moves the ClickHouse pin one-way**, names
+  the move, and says the copy before the update holds no ClickHouse volume. It
+  called such a tag reversible, and going back to it would have started the
+  older ClickHouse on parts it cannot read. The operator runbook's rollback
+  restores the volume first.
 
 - **Everything runs Node 26, the LTS line since 2026-10-28** (workplan 0119,
   the owner's decision of 2026-10-31; supersedes #1754 and Dependabot's

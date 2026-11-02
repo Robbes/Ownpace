@@ -1196,6 +1196,7 @@ reading a file drops off its entry by itself.
 - [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 - [a-build-that-reached-for-the-lan](../scripts/a-build-that-reached-for-the-lan.unit.test.ts) — A BUILD THAT REACHED FOR THE LAN (workplan 0132 T3 (a); E2E (managed) #201).
 - [a-ceiling-the-screen-could-not-see](../scripts/a-ceiling-the-screen-could-not-see.unit.test.ts) — A DECLARATION THE SERVER HONOURED AND THE SCREEN COULD NOT SEE.
+- [a-clickhouse-without-the-files-its-pin-needs](../scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts) — A CLICKHOUSE WITHOUT THE FILES ITS PIN NEEDS (workplan 0119 §3 item 9, option 2; the review of 2026-11-02).
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-database-that-counts-its-queries](../scripts/a-database-that-counts-its-queries.unit.test.ts) — A DATABASE THAT COUNTS ITS QUERIES (workplan 0143 T8).
@@ -1878,6 +1879,7 @@ reading a file drops off its entry by itself.
 
 ### `docs/managed-bring-up.md`
 
+- [a-clickhouse-without-the-files-its-pin-needs](../scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts) — A CLICKHOUSE WITHOUT THE FILES ITS PIN NEEDS (workplan 0119 §3 item 9, option 2; the review of 2026-11-02).
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
@@ -3503,6 +3505,15 @@ Reads:
 
 - `packages/orchestration/src/source-face-builders.ts`
 - `packages/shared/src/google-native-coverage.ts`
+
+### [a-clickhouse-without-the-files-its-pin-needs](../scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts)
+
+A CLICKHOUSE WITHOUT THE FILES ITS PIN NEEDS (workplan 0119 §3 item 9, option 2; the review of 2026-11-02).
+
+Reads:
+
+- `deploy/compose/managed.yml`
+- `docs/managed-bring-up.md`
 
 ### [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts)
 
