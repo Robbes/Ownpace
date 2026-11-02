@@ -41,8 +41,8 @@ times are UTC.
   entry's route.
 - **The host's Docker, within alpha.4.** The upgrade, 29.2.1 to 29.6.2 (§2.4), happens before
   the counted nights, the first of which is Thursday 2026-11-05 (0146), in the window §2.4
-  describes. The slot is not set when this is written. §2.4 and the end-of-day line below carry
-  a dated note.
+  describes. The owner set the slot later that evening: Tuesday 2026-11-03, 11:00 to 13:00.
+  §2.4 and the end-of-day line below carry a dated note.
 - **Not answered:** the removal of the copy before 26.8,
   `<project>_clickhouse_data_v2_before_26_8`, sent at about 11:55: **sent, not confirmed**.
 
@@ -255,8 +255,9 @@ times are UTC.
   set from the machine vendor's apt repository, in a window with live's hold and the OTA
   stack's both on (§2.4); and the call on Stalwart's critical (the entry above). *(Answered at
   about 22:10: the O365 lane waived for alpha.4; the host's Docker within alpha.4, before the
-  counted nights, its slot not set; Stalwart's critical accepted; the copy's removal not
-  answered, sent, not confirmed. The entry of 2026-11-02, records, latest, above.)*
+  counted nights, in the slot set later that evening, 2026-11-03 11:00 to 13:00 UTC; Stalwart's
+  critical accepted; the copy's removal not answered, sent, not confirmed. The entry of
+  2026-11-02, records, latest, above.)*
 
 **2026-11-02: the deploy CLI comes from the lockfile, not from `npx` (#1755's follow-up).** On
 the branch `claude/ownpace-public-readiness-y7orc6-trigger-cli-lockfile`, merged as #1790 on
@@ -2915,8 +2916,9 @@ daemon's restart restarts every container on the machine, live's and the OTA sta
 with a way back kept on the machine, Docker's own 29.2.1 packages, their checksums verified. A
 newer kernel line is offered there too, and is left for after alpha.4's tag. *(2026-11-02, about
 22:10 UTC, the owner: within alpha.4, so before the counted nights of 2026-11-05 and
-2026-11-06; the slot is not set yet. Status, 2026-11-02, records, latest.)* Nothing in this
-repository pins or watches the host's Docker; it moves by the owner's hand only. The host's
+2026-11-06; the slot, set later that evening, is Tuesday 2026-11-03, 11:00 to 13:00 UTC.
+Status, 2026-11-02, records, latest.)* Nothing in this repository pins or watches the host's
+Docker; it moves by the owner's hand only. The host's
 readings live in this paragraph; 0132's Status entries of 2026-11-01 (recorded) and 2026-11-02
 point here.
 **The self-hosted runner** reads 2.338.0 in its job logs (E2E (managed) run 41264284343,

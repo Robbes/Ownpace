@@ -28,8 +28,8 @@ name has the detail. Read from GitHub on 2026-11-02; times are UTC.
   `scripts/release*` names the lane), so what is left for the tag is as the entries below list
   it, without the lane.
 - **The host's Docker, 29.2.1 to 29.6.2, within alpha.4:** before the counted nights, Thursday
-  2026-11-05 and Friday 2026-11-06, in the window 0119 §2.4 describes. The slot is not set when
-  this is written.
+  2026-11-05 and Friday 2026-11-06, in the window 0119 §2.4 describes. The owner set the slot
+  later that evening: Tuesday 2026-11-03, 11:00 to 13:00.
 - **Not answered:** the removal of ClickHouse's copy before 26.8, sent at about 11:55: sent, not
   confirmed (0119, 0132).
 
@@ -140,7 +140,9 @@ are UTC.
   `spark` at about 07:40 (0141 T13 (a)), and the lane's first run on a runner, 41418432093 on
   `main` at `bce0fcfd` (09:10 to 09:11), failed at *Validate required secrets*:
   `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets, so the suite cannot
-  run. Setting them (`docs/test-tenant.md`) is the owner's.
+  run. Setting them (`docs/test-tenant.md`) is the owner's. *(Later 2026-11-02, about 22:10:
+  the lane waived for alpha.4 by the owner, owed for a later alpha; the entry of 2026-11-02,
+  records, latest, above.)*
 - **The owner's Windows 11 check of a zip on Node 26.13.0** is still open. `main`'s zip is
   windows-payload run 41375291612 on `733294a5` (01:59), artifact
   `ownpace-appliance-win-x64-733294a5…`, beside #1767's from branch run 41250312341. *(Later
