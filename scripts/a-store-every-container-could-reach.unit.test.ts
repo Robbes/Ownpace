@@ -6,8 +6,9 @@
  *
  * Trigger.dev's ClickHouse, the `clickhouse` service of
  * `deploy/compose/managed.yml`, ran 26.2.19.43, the image Trigger.dev pins at
- * v4.8.3 (26.8.36.3 since option 2 of §3 item 9, the owner's decision of
- * 2026-11-02, which moves the version and leaves all of the below as it is).
+ * v4.8.3 (the pin is 26.8.36.3 from option 2 of §3 item 9, the owner's
+ * decision of 2026-11-02, which moves the version and leaves all of the below
+ * as it is; a stack runs it from its own move).
  * ClickHouse's `SECURITY.md` lists 26.2 as unsupported, and CVE-2026-116366
  * (GHSA-qhgw-ghp3-xh36, critical, CWE-190, published 2026-10-30) lets "an unauthenticated user with network access" run code on
  * the server. It is fixed only in 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable

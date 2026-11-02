@@ -1047,7 +1047,7 @@ const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''
  * A DIFFERENCE FROM TRIGGER.DEV'S CLICKHOUSE PIN THAT IS ON PURPOSE, recorded
  * in workplan 0119 §3 item 9 (option 2, the owner's decision of 2026-11-02).
  * Trigger.dev v4.8.3 pins 26.2.19.43, which ClickHouse no longer supports, and
- * CVE-2026-116366 has no 26.2 fix; the stack runs 26.8.36.3-lts, the LTS
+ * CVE-2026-116366 has no 26.2 fix; the stack's pin is 26.8.36.3-lts, the LTS
  * release that carries it.
  *
  * It holds for this exact pair and nothing else: the row reads it as current

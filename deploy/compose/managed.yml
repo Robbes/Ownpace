@@ -602,7 +602,8 @@ services:
       # an AggregatingMergeTree with a column outside its ORDER BY is accepted
       # again, without which migration 022 stops trigger-api on an empty volume,
       # and no automatic column statistics are written. It travels with the pin:
-      # a 26.2 or 26.3 server does not start with it. Its header has the sources.
+      # a 26.2 or 26.3 server does not start with it. Its header has the sources;
+      # a-clickhouse-without-the-files-its-pin-needs holds both files to the pin.
       - ./clickhouse-merge-tree.xml:/etc/clickhouse-server/config.d/merge-tree.xml:ro
       # 26.2's date parsing on insert, in the default profile (the same item).
       # One file into users.d, never the directory: the image's entrypoint
@@ -2184,8 +2185,8 @@ networks:
   # 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The
   # clickhouse service above ran 26.2, which ClickHouse's SECURITY.md lists as
   # unsupported, so no fix will come for it, and Trigger.dev still pins it at
-  # v4.8.3. Since the owner's decision of 2026-11-02 (§3 item 9, option 2) it
-  # runs 26.8.36.3-lts, and this network stays as it is. Who can
+  # v4.8.3. The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
+  # (§3 item 9, option 2), and this network stays as it is. Who can
   # reach the server is this file's, and until this network it was everybody:
   # every service on ownpace-network, the internet-facing ones included (the
   # web app, the API, the identity provider, the demo Nextcloud), and every

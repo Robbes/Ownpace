@@ -67,16 +67,20 @@ notices.
   the move, release by release from 26.3 to 26.8 and every 26.8 patch note to
   26.8.34.13, against Trigger.dev's 55 migrations (numbered to 056), its
   queries and the settings it passes, and the files mounted into `config.d`.
-  One change reaches them: from 26.7 ClickHouse refuses migration 022 on an
-  empty volume, so a new file in `config.d`, `clickhouse-merge-tree.xml`,
-  restores the old rule; the same file keeps automatic column statistics off,
+  One change stops the schema, on an empty volume only: from 26.7 ClickHouse
+  refuses migration 022, so a new file in `config.d`,
+  `clickhouse-merge-tree.xml`, restores the old rule. Two more would store data
+  differently on every volume, automatic column statistics (26.4) and date
+  parsing on insert (26.5 and 26.8): the same file keeps the statistics off,
   and a profile in `users.d`, `clickhouse-users-profile.xml`, keeps 26.2's date
-  parsing on insert. Both files move with the pin: a 26.2 or 26.3 server does
-  not start with the first. The move is one way (26.3 and later write parts
-  26.2 cannot read, and an older server may not start at all on the volume),
-  so each stack copies ClickHouse's volume first (`docs/managed-bring-up.md`,
-  *Moving ClickHouse*, which also checks an x86_64 host for AVX2, which 26.8's
-  amd64 build needs), live by hand: the copy before an update holds no volume.
+  parsing. Both files move with the pin, and a new guard holds them to it: a
+  26.2 or 26.3 server does not start with the first. The move is one way
+  (26.3 and later write parts 26.2 cannot read, and an older server may not
+  start at all on the volume), so each stack copies ClickHouse's volume first
+  (`docs/managed-bring-up.md`, *Moving ClickHouse*, which also checks an
+  x86_64 host for AVX2, which 26.8's amd64 build needs, and after the move
+  that every Trigger.dev table loads), live by hand: the copy before an update
+  holds no volume.
 
 - **The Windows payload's `node.exe` is checked against a SHA-256 committed in
   this repository, and that sum is the one the Node.js release was signed

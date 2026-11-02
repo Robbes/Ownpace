@@ -826,9 +826,11 @@ answers its health check, and `trigger-api` starts only after it has exited 0
 `internal`: it has no route off the machine, and nothing else on the stack can
 resolve the name `clickhouse`. The server ran 26.2, which has no fix for
 CVE-2026-116366 (unauthenticated code execution for anybody who can reach it),
-so the network was what protected it until the owner moved the version: it
-runs 26.8.36.3-lts, which carries the fix, since the owner's decision of
-2026-11-02 (*Moving ClickHouse*, below), and the network stays.
+so the network was what protected it. The pin is 26.8.36.3-lts, which carries
+the fix, from the owner's decision of 2026-11-02; a stack runs it from its own
+move (the OTA stack's E2E (managed) run in the owner's window; live's deploy of
+the first release tag that carries it: *Moving ClickHouse*, below), and the
+network stays.
 `trigger-api` reaches it there for its migrations and its `CLICKHOUSE_URL`, and
 keeps `ownpace-network` for everything else. To ask ClickHouse something, run
 `clickhouse-client` inside its container with `docker compose exec`, as
@@ -6127,9 +6129,10 @@ never reads as "nothing newer", nor as an older newest.
 > The migration failed closed and the rollback to v4.5.9 was clean — no restore
 > needed — which is the one part that went right.
 >
-> ClickHouse is now `clickhouse/clickhouse-server:26.2.19.43`, pinned **by
-> digest**, which is what upstream's own compose file runs for this release and
-> therefore the only ClickHouse the migration has been proved against.
+> ClickHouse was then `clickhouse/clickhouse-server:26.2.19.43`, pinned **by
+> digest**, which is what upstream's own compose file ran for that release and
+> therefore the only ClickHouse the migration had been proved against (the pin
+> is 26.8.36.3 since workplan 0119 §3 item 9, option 2, below).
 > `bootstrap-managed.unit.test.ts` refuses any `latest` in `managed.yml` from
 > here on, so this cannot happen quietly a second time.
 >
@@ -6145,9 +6148,10 @@ never reads as "nothing newer", nor as an older newest.
 > (2026-05-21); the owner accepted that for the Alpha on 2026-10-23, with the
 > exposure and the revisit triggers in workplan 0119 §3 item 9. One fired on
 > 2026-11-01 (CVE-2026-116366, no 26.2 fix), and with option 2 there (the
-> owner's decision, 2026-11-02) the stack runs 26.8.36.3, ahead of upstream's
-> 26.2 on purpose: *Moving ClickHouse*, below, has what was read, the two files
-> that travel with the pin, the copy first and the way back.
+> owner's decision, 2026-11-02) the pin is 26.8.36.3, ahead of upstream's 26.2
+> on purpose; a stack runs it from its own move: *Moving ClickHouse*, below, has
+> what was read, the two files that travel with the pin, the copy first and the
+> way back.
 >
 > **The first bring-up after that change starts ClickHouse EMPTY, on purpose.**
 > Bitnami kept its data under `/bitnami/clickhouse` and the official image reads
@@ -6275,7 +6279,7 @@ on every run (phase 5 above).
 
 ### Moving ClickHouse
 
-**ClickHouse runs ahead of Trigger.dev's pin, on purpose** (workplan 0119 §3
+**ClickHouse's pin is ahead of Trigger.dev's, on purpose** (workplan 0119 §3
 item 9, option 2, the owner's decision of 2026-11-02): 26.8.36.3-lts,
 `clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…` (Docker's tag has no
 `-lts`), amd64 and arm64, where Trigger.dev v4.8.3 still pins 26.2.19.43.
@@ -6287,17 +6291,21 @@ change of 26.3 (read for option 1 on 2026-11-01, and crossed on the way),
 read against Trigger.dev v4.8.3's 55 migrations (numbered to 056), the queries
 its ClickHouse package and its query language print, the settings it passes,
 goose's and the Node client's use of HTTP, and the files `managed.yml` mounts
-into `config.d` (0119 §3 item 9 has the list). One change reaches them, on an
-empty volume only: from 26.7 an `AggregatingMergeTree` is refused at `CREATE`
-when a column is neither in its `ORDER BY` nor an aggregate state, and
+into `config.d` (0119 §3 item 9 has the list). One change stops the schema, on
+an empty volume only: from 26.7 an `AggregatingMergeTree` is refused at
+`CREATE` when a column is neither in its `ORDER BY` nor an aggregate state, and
 migration 022's `errors_v1` has three. goose stops there, and `trigger-api`,
 whose entrypoint runs it under `set -e`, crash-loops: the v4.5.12 failure
 (*Upgrading Trigger.dev*, above) from the other side. A table already on a
 volume is attached, not created, and is not checked, so the OTA stack and live
 never meet it; a new install, `stand-up-live.sh` on a new host and ending the
 alpha's reset do, and `clickhouse-merge-tree.xml` (below) is what lets them
-through. Upstream has not run 26.8: it pins 26.2.19.43,
-and its Helm values state only a floor ("requires ClickHouse >= 25.8"). The
+through (read in the source; a run is owed before the merge, 0119 §3 item 9).
+Two more would store data differently on every volume, the OTA stack's and
+live's included: automatic column statistics (26.4) and date parsing on insert
+(26.5 and 26.8); the two files below keep 26.2's behaviour for both. Upstream
+has not run 26.8: it pins 26.2.19.43, and its Helm values state only a floor
+("requires ClickHouse >= 25.8"). The
 pin watch records the difference for this exact pair (`CLICKHOUSE_INTENDED` in
 `scripts/idp-pin-watch.mjs`) and opens its issue again the week either side
 moves. A Trigger.dev move then still reads upstream's ClickHouse line (above),
@@ -6322,7 +6330,9 @@ run replication sends milliseconds; replication is off here, so that one guards
 a switch). Each file's header has its sources. **A 26.2 or 26.3 server does not
 start with `clickhouse-merge-tree.xml` mounted** (an unknown key under
 `<merge_tree>` stops it), so neither file moves without the pin, and a checkout
-that pins 26.2, `main` before the merge included, mounts neither. Never set
+that pins 26.2, `main` before the merge included, mounts neither.
+`scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts` holds the
+files to the pin's line both ways. Never set
 `insert_deduplication_version` in a `config.d` file: 26.8 refuses to start on
 any value but `new_unified_hash`, its default; nothing here sets it.
 
@@ -6347,14 +6357,19 @@ on the volume that an older server cannot take:
   server older than 26.3 does not know: it does not start at all until those
   tables are dropped. `query_log` is kept here and gains columns at 26.8, so
   the first start of 26.8 will likely make one.
-- **`clickhouse-merge-tree.xml` itself**, above.
 
-26.3's off switch for the first of these
+Besides the volume, the mounted `clickhouse-merge-tree.xml` stops a 26.2 or
+26.3 server (above), so a way back is also a checkout that mounts neither
+file. 26.3's off switch for the first of the four
 (`propagate_types_serialization_versions_to_nested_types` at 0) would undo only
 that one, so it is not taken.
 
 **On the OTA stack, in the owner's window.** Before: the pull request's CI
-green, and nothing queued or in progress in Actions → E2E (managed), looked at
+green; the two runs 0119 §3 item 9 owes before the merge done, and as
+expected: the migration from an empty volume through 056 on 26.8.36.3 (with
+both files mounted; and without `clickhouse-merge-tree.xml`, where it stops at
+022 with `BAD_ARGUMENTS`), and the Errors page's query on 26.8.36.3; and
+nothing queued or in progress in Actions → E2E (managed), looked at
 before step 3 and again right before the run is dispatched (GitHub has started
 the scheduled nightly between about 09:50 and 10:45 UTC lately: a hint, not a
 window). No other E2E (managed) in the window: once 26.8 has written to the
@@ -6373,7 +6388,9 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"
    ```
 
-2. **The CPU, and room for one more copy** (this changes nothing). From 26.6
+2. **The CPU, room for one more copy, and what loads today** (this changes
+   nothing on the stack; the last part writes two files in the home
+   directory). From 26.6
    ClickHouse's amd64 build needs a CPU with AVX2; the arm64 image has no such
    change. On an x86_64 host without it, 26.8 does not start, so this stops
    the move before anything is copied:
@@ -6401,6 +6418,32 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
      df -h "$(docker info -f '{{.DockerRootDir}}')"
    )
    ```
+
+   Then what loads today, for step 4 to compare with: the names of
+   Trigger.dev's tables and views, and the parts already detached, each into a
+   file in the home directory named after the project
+   (`<project>_clickhouse_before_26_8.tables` and `.detached`). It refuses a
+   server that is not 26.2.19.43, so it never takes 26.8's answer as the one
+   from before, and run again it writes both files afresh:
+
+   ```bash
+   cd ~/ownpace-managed && (
+     set -euo pipefail
+     export LC_ALL=C
+     project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+     : "${project:?the compose project could not be read}"
+     ch() { docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "$1" </dev/null; }
+     running="$(ch "SELECT version()")"
+     [ "$running" = 26.2.19.43 ] || { echo "STOP: ClickHouse runs ${running:-nothing}, not 26.2.19.43" >&2; exit 1; }
+     before=~/"${project}_clickhouse_before_26_8"
+     ch "SELECT name FROM system.tables WHERE database = 'trigger_dev'" | sort > "$before.tables"
+     ch "SELECT table, name FROM system.detached_parts WHERE database = 'trigger_dev'" | sort > "$before.detached"
+     [ -s "$before.tables" ] || { echo "STOP: ClickHouse lists no table in trigger_dev" >&2; exit 1; }
+     echo "$(wc -l < "$before.tables") tables and views; $(wc -l < "$before.detached") parts already detached"
+   )
+   ```
+
+   It is done when its last line counts the tables and views.
 
 3. **The way back.** Stops the plane and ClickHouse so the copy is of a store
    nothing writes to, copies the volume beside it, and compares the two: the
@@ -6461,9 +6504,11 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
 
 4. **E2E (managed) on the branch** (the main session dispatches it; the run is
    the move: the bring-up starts 26.8.36.3 on the volume with the two files
-   above, and `trigger-api`'s goose migrations find nothing to apply), then the
-   merge within the hour. **Lift the hold first**, once step 3 has printed
-   `the way back is taken` and before the run is dispatched: the plane is
+   above, and `trigger-api`'s goose migrations find nothing to apply). Once it
+   is green **and the checks below read as shown**, the merge within the hour;
+   a run that fails, or a check that does not read as shown, means *Back to
+   26.2*, below, before anything merges. **Lift the hold first**, once step 3
+   has printed `the way back is taken` and before the run is dispatched: the plane is
    stopped, so nothing can start, and while the hold is on the run's own
    checks are refused (`409 platform_held`), as #1755's first run was (0119's
    Status records it). A run that fails only on `platform_held` is no reason
@@ -6479,20 +6524,50 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    #   allow_dimensions_outside_sorting_key 1 1, and auto_statistics_types with an empty value, 1
    docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT name, value, changed FROM system.settings WHERE name IN ('date_time_input_format','cast_string_to_date_time_mode','input_format_read_datetime_number_as_raw_value') ORDER BY name"
    #   cast_string_to_date_time_mode basic 1, date_time_input_format basic 1, input_format_read_datetime_number_as_raw_value 1 1
-   docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT database, table, name, reason FROM system.detached_parts WHERE database = 'trigger_dev'"
-   #   nothing
    ```
 
-   The last matters because 26.8 checks each part's list of substreams against
-   its columns when it loads it, and a part that fails to load is detached: its
-   rows leave the tables without an error anywhere else. A part listed there, or
-   `CORRUPTED_DATA` in ClickHouse's log, means *Back to 26.2*, below.
+   Then the load check: whether everything step 2 listed loaded. The image's
+   `config.xml` turns on `async_load_databases`, under which a table the server
+   cannot attach leaves it up, healthy and answering for every other table,
+   and the error reaches only a query that names that table; a part it cannot
+   load is moved to `detached/`, and its rows leave the table without an error
+   anywhere else. The health check (`SELECT 1`), the smoke (ClickHouse's
+   `/ping`) and goose (`goose_db_version` alone) name none of Trigger.dev's
+   tables, so the run's green says nothing of them. This names each:
+   `DESCRIBE` waits for that table to load and fails with its error, and the
+   detached parts are compared with step 2's. No reading of 26.8 expects a
+   failure here; this is what shows there was none:
 
-**Back to 26.2**, when the run fails and the branch will not merge, from a
-checkout of `main`, which mounts neither of the two files (a 26.2 server needs
-that). ClickHouse keeps its own migrations' record (`goose_db_version`) in the
-same volume, so the copy brings that back too; the Trigger.dev version and
-`triggerdb` did not move, so nothing else is restored. Without the copy, see
+   ```bash
+   cd ~/ownpace-managed && (
+     set -euo pipefail
+     export LC_ALL=C
+     project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+     : "${project:?the compose project could not be read}"
+     ch() { docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "$1" </dev/null; }
+     before=~/"${project}_clickhouse_before_26_8"
+     [ -s "$before.tables" ] || { echo "STOP: step 2's list is not at $before.tables" >&2; exit 1; }
+     while read -r t; do
+       ch "DESCRIBE TABLE trigger_dev.\`$t\`" >/dev/null || { echo "STOP: trigger_dev.$t does not load" >&2; exit 1; }
+     done < "$before.tables"
+     new="$(ch "SELECT table, name FROM system.detached_parts WHERE database = 'trigger_dev'" | sort | comm -13 "$before.detached" -)"
+     [ -z "$new" ] || { printf 'STOP: detached since step 2:\n%s\n' "$new" >&2; exit 1; }
+     echo "every table loads, and no part was detached since step 2"
+   )
+   ```
+
+   It passes when the last line is `every table loads, and no part was
+   detached since step 2`; a `STOP`, or an error from `clickhouse-client`,
+   means *Back to 26.2*, below.
+
+**Back to 26.2**, when the run fails or a check in step 4 does not read as
+shown, before the branch merges, from a checkout of `main`, which mounts
+neither of the two files (a 26.2 server needs that). After the merge `main`
+pins 26.8 and mounts both, so the merge is reverted on `main` first, and the
+checkout is of that revert. ClickHouse keeps its own migrations' record
+(`goose_db_version`) in the same volume, so the copy brings that back too; the
+Trigger.dev version and `triggerdb` did not move, so nothing else is restored.
+Without the copy, see
 *The first bring-up after that change starts ClickHouse EMPTY*, above, for
 what an empty store costs.
 
@@ -6519,20 +6594,33 @@ nightly).
 **Once the move has held** (merged, and `main`'s next nightly green), remove the
 copy. It refuses while the server is anything but the version `want` names,
 so a move that was rolled back keeps its way back until the rollback has held
-too. After *Back to 26.2*, once ClickHouse runs 26.2.19.43 again and `main`'s
-next nightly is green on it, the same block removes the copy with
+too, and it runs step 4's load check again first: a table that does not load,
+or a part detached since step 2, keeps the copy (a table a Trigger.dev move
+has dropped since step 2 stops it too; read that move's migrations before
+going on). After *Back to 26.2*, once ClickHouse runs 26.2.19.43 again and
+`main`'s next nightly is green on it, the same block removes the copy with
 `want=26.2.19.43`; a retry of the move then takes a fresh one (step 3 refuses
-while this one is there):
+while this one is there). Step 2's two files go with the copy:
 
 ```bash
 cd ~/ownpace-managed && (
-  set -eu
+  set -euo pipefail
+  export LC_ALL=C
   want=26.8.36.3 # 26.2.19.43 once a rollback to 26.2 has held
   project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
   : "${project:?the compose project could not be read}"
-  running="$(docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT version()")"
+  ch() { docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "$1" </dev/null; }
+  running="$(ch "SELECT version()")"
   [ "$running" = "$want" ] || { echo "STOP: ClickHouse runs ${running:-nothing}, not $want" >&2; exit 1; }
+  before=~/"${project}_clickhouse_before_26_8"
+  [ -s "$before.tables" ] || { echo "STOP: step 2's list is not at $before.tables" >&2; exit 1; }
+  while read -r t; do
+    ch "DESCRIBE TABLE trigger_dev.\`$t\`" >/dev/null || { echo "STOP: trigger_dev.$t does not load" >&2; exit 1; }
+  done < "$before.tables"
+  new="$(ch "SELECT table, name FROM system.detached_parts WHERE database = 'trigger_dev'" | sort | comm -13 "$before.detached" -)"
+  [ -z "$new" ] || { printf 'STOP: detached since step 2:\n%s\n' "$new" >&2; exit 1; }
   docker volume rm "${project}_clickhouse_data_v2_before_26_8"
+  rm "$before.tables" "$before.detached"
 )
 ```
 
@@ -6547,8 +6635,8 @@ docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-clien
 and each one it names goes with
 `docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "DROP TABLE system.<name>"`.
 
-**On live, from the release tag that carries it** (alpha.4, which carries it
-since the owner took option 2 on 2026-11-02). `deploy-live.sh`'s copy before
+**On live, from the release tag that carries it** (alpha.4, when this change
+merges before alpha.4's fold). `deploy-live.sh`'s copy before
 the update (`copy-before-update.sh take`) holds the app's database
 (`pg_dump`), the sign-in service's database and the server's roles
 (`dump-idp.sh`), and, with `--trigger`, which it passes when the tag moves the
@@ -6563,9 +6651,9 @@ one-way, names the move, and says the copy holds no ClickHouse volume
    `./deploy/compose/deploy-live.sh --dry-run <tag>`: it says `one-way`,
    `moves the ClickHouse pin in managed.yml: …26.2.19.43… -> …26.8.36.3…`, and
    that the copy holds no ClickHouse volume.
-2. **Steps 2 and 3 above**, each with `cd ~/ownpace-live` in place of its
-   first `cd` (the project it reads is then live's), and step 2's CPU check
-   first. The room is live's own:
+2. **Steps 2 and 3 above**, each block with `cd ~/ownpace-live` in place of
+   its first `cd` (the project it reads is then live's, and so are the names
+   of step 2's two files), and step 2's CPU check first. The room is live's own:
    the disk keeps more than its floor after the copy **and** after the
    deploy's pulls and builds of the tag's images, which take room on the same
    disk. A step 3 that stops partway takes the way out above, with the same
@@ -6581,8 +6669,10 @@ one-way, names the move, and says the copy holds no ClickHouse volume
    What ClickHouse writes between this and the deploy (task metrics, with the
    hold on and nothing in flight) is not in the copy, and a rollback loses it.
 3. **`./deploy/compose/deploy-live.sh <tag>`**, as `docs/operator-runbook.md`
-   says. Then step 4's checks: the version prints `26.8.36.3`, the settings
-   read as there, and no part is detached.
+   says. Then step 4's checks, before the hold is lifted: the version prints
+   `26.8.36.3`, the settings read as there, and the load check, with
+   `cd ~/ownpace-live` in place of its first `cd`, ends `every table loads,
+   and no part was detached since step 2`. One that does not is step 4 below.
 4. **The way back** is *Rolling back from it* in `docs/operator-runbook.md`, with
    ClickHouse's volume restored before its step 9 (step 8 says so): the
    *Back to 26.2* block above, with `cd ~/ownpace-live` in place of its first

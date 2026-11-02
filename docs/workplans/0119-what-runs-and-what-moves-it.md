@@ -38,14 +38,25 @@ stack's ClickHouse one way, so it runs only in the owner's window, after the vol
   prints both lines, so it names 26.2.19.43 to 26.8.36.3 as it would have 26.3.62.3; only its
   comment changed. The runbook's rollback restores `ownpace-live_clickhouse_data_v2_before_26_8`.
 - ***Moving ClickHouse***: 26.8.36.3 throughout and the copy `<project>_clickhouse_data_v2_before_26_8`;
-  a check, before the copy, that an x86_64 host has AVX2 (26.6's amd64 build needs it); checks
-  after the move that both files are in force and no part was detached; the one-way list for
-  26.8, without 26.3's off switch, which would undo one of its four items; and the rotated
-  system log tables dropped once the move has held.
+  a check, before the copy, that an x86_64 host has AVX2 (26.6's amd64 build needs it); a list,
+  taken on 26.2 before the copy, of Trigger.dev's tables and the parts already detached; checks
+  after the move that both files are in force and, against that list, that every table loads
+  and no part was detached since (run again before the copy is removed, which it refuses
+  otherwise); the merge only once those read as shown; the one-way list for 26.8, without
+  26.3's off switch, which would undo one of its four items; and the rotated system log tables
+  dropped once the move has held.
+- **The files held to the pin:** `scripts/a-clickhouse-without-the-files-its-pin-needs.unit.test.ts`
+  (new, from the review of 2026-11-02, which deleted both mounts and found every ClickHouse
+  test still passing) reads the pin's line from `managed.yml` and the files it mounts: from
+  26.4 and 26.7 the two `<merge_tree>` values, from 26.5 and 26.8 the three profile values,
+  each set by exactly one file; before 26.7 and 26.8 the two keys those lines introduced
+  absent. Seventeen cases, among them the pin moved back to 26.2.19.43 or 26.3.62.3 with the
+  files still mounted.
 - **Owed before the merge:** a migration from an empty volume through 056 on 26.8.36.3 with the
   files mounted, and the same without `clickhouse-merge-tree.xml`, which must stop at 022; and
   the Errors page's query run on 26.8.36.3 (§3 item 9). Then E2E (managed) on the branch in
-  the owner's window, which is the move.
+  the owner's window, which is the move, and *Moving ClickHouse*'s step-4 checks, the load
+  check among them, read as shown before the merge.
 
 **2026-11-01, later: #1780 and #1779 merged, the first scheduled night on v4.8.3, Node 26 and
 ClickHouse's own network, and the O365 gate is held by a runner label (T3).** Docs only, on the
@@ -2766,8 +2777,8 @@ is beside each; none is urgent tonight.
    `scripts/a-gate-that-was-never-switched-on.unit.test.ts` now fails when one does not, and
    also when the list exists without the setting, when the value is under a day, and when an
    entry is a bare package name — which pnpm treats as "exempt this package for ever".
-9. **ClickHouse 26.2, out of support since 2026-05-21 — ACCEPTED FOR THE ALPHA, 2026-10-23; MOVED TO
-   26.8.36.3-LTS, THE OWNER'S DECISION OF 2026-11-02 (option 2, below).**
+9. **ClickHouse 26.2, out of support since 2026-05-21 — ACCEPTED FOR THE ALPHA, 2026-10-23; TO MOVE
+   TO 26.8.36.3-LTS, THE OWNER'S DECISION OF 2026-11-02 (option 2, below; not merged).**
    ClickHouse's `SECURITY.md` (read 2026-10-23) supports 26.9, 26.8, 26.7 and 26.3, and not
    26.2; 26.2.19.43 (2026-05-21) is that line's last patch. Trigger.dev pins exactly that, by
    the same digest, in `docker/docker-compose.yml` at v4.7.2, v4.7.6, v4.7.7 and v4.8.1 (`26.2` in
@@ -2901,8 +2912,10 @@ is beside each; none is urgent tonight.
      would revert six releases' query and MergeTree defaults at once, and whether the security
      release's fix is itself a recorded default cannot be read.
    - **Left at 26.8's defaults, read and reaching no result here:** the planner's new
-     optimisations, the query condition cache for `ORDER BY … LIMIT` (three wrong-result fixes
-     for it are in 26.10 only), the analyzer's identifier cache (its one open wrong-result case,
+     optimisations, the query condition cache for `ORDER BY … LIMIT` (one wrong-result fix for
+     it, in two pull requests, ClickHouse/ClickHouse#122538 and ClickHouse/ClickHouse#122617,
+     is in 26.10 only, and needs `SAMPLE`, on-the-fly mutations or patch parts, none of which
+     occurs here), the analyzer's identifier cache (its one open wrong-result case,
      fixed in 26.10, needs a quoted alias with a dot, which Trigger.dev's queries do not write;
      the Errors page's query, `getErrorGroups`, is owed a run on 26.8.36.3, not run yet),
      `max_insert_threads` `auto`, the gzip reader every insert now passes through, and on the
@@ -2920,10 +2933,22 @@ is beside each; none is urgent tonight.
      code; the shipped `config.xml` turns on 26.2.19.43's 23 system logs and no other, and
      names 26.2.19.43's eight distinct URLs outside comments (one of them again, for a new
      `gcs` scheme). The four profile settings in `clickhouse-override.xml` still do nothing
-     from `config.d` (the server logs so at every start), as on 26.2; unchanged here. On load
-     26.8 checks each part's list of substreams against its columns (`CORRUPTED_DATA` when they
-     disagree), and a part that fails to load is detached: *Moving ClickHouse* looks at
-     `system.detached_parts` after the move.
+     from `config.d` (the server logs so at every start), as on 26.2; unchanged here.
+   - **On a volume that has the tables, at attach** (review of 2026-11-02): the image's
+     `config.xml` turns on `async_load_databases`, under which a table the server cannot attach
+     leaves it up and healthy, its error reaching only a query that names it, and a part it
+     cannot load is detached. What 26.8 checks at attach passes: the stored table `SETTINGS`
+     (`index_granularity`, `materialize_ttl_recalculate_only`,
+     `non_replicated_deduplication_window`, `ttl_only_drop_parts`) are all known, and
+     `enable_json_type` is obsolete but accepted; the text indexes of `task_events_search_v2`
+     (040's `ngrams` with `lowerUTF8`, 050's `splitByNonAlpha`) pass the validator, which runs
+     the same at attach; the `AggregatingMergeTree` rule runs at `CREATE` only. The substream
+     check on part load is already in 26.3 and only warns for a Wide part; no Trigger.dev
+     migration renames a column. Nothing in the run would show a failure all the same (the
+     health check is `SELECT 1`, the smoke pings, goose reads `goose_db_version`), so *Moving
+     ClickHouse* lists Trigger.dev's tables and detached parts before the copy, and after the
+     move, and before the copy is removed, names each table (`DESCRIBE` waits for its load and
+     fails with its error) and compares the detached parts.
    - **Hardware:** from 26.6 the amd64 build needs a CPU with AVX2; *Moving ClickHouse* checks
      an x86_64 host before the copy. The arm64 image has no such change, and E2E (managed) runs
      on arm64.
