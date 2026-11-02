@@ -57,6 +57,27 @@ notices.
 
 ### Security
 
+- **The Trigger.dev deploy CLI comes from the lockfile, not from `npx` at run
+  time** (workplan 0119). `deploy-tasks.sh`, the bring-up's login check and the
+  login lines the scripts print ran `npx -y trigger.dev@<sdk version>`, which
+  fetched the CLI and its whole dependency tree from the registry on every
+  deploy: the version was pinned and nothing under it was, outside the
+  lockfile, the three-day floor on new releases, the overrides and the build
+  approvals in `pnpm-workspace.yaml`. `trigger.dev` 4.8.3 is now a
+  devDependency of `apps/worker` at exactly the `@trigger.dev/sdk` version
+  beside it, run as `pnpm -C apps/worker exec trigger …`, and a guard holds the
+  two equal and fails any script that fetches the CLI with `npx` again. Inside
+  the audit's reach, its tree carried two HIGH advisories, both now overridden:
+  zod 4.5.4, which the CLI pins (GHSA-mrhx-c7xc-m3w5), to 4.6.7, and
+  deepmerge-ts 7.1.5 under `@trigger.dev/build`'s `@prisma/config`
+  (GHSA-ggr8-5vv4-36mx), fixed only in 8.x, to 8.0.2, a major the one function
+  `@prisma/config` takes survives. `@depot/cli`'s postinstall, which fetches a
+  binary from the registry when its platform package is missing, is denied: a
+  deploy to a self-hosted instance builds locally and never runs depot. One
+  moderate comes back, on one path: the CLI imports `makeRe`, which minimatch
+  11 no longer has, so the CLI alone keeps minimatch 10.2.6 and `pnpm audit`
+  names GHSA-g3hv-75wg-m249 there again. The two `minimumReleaseAgeExclude`
+  entries the v4.8.3 waiver added are gone, its floor having passed.
 - **`pnpm audit` reads no advisory again: minimatch 11.0.3 and glob 14.0.3 under
   the developer tools** (GHSA-g3hv-75wg-m249 and GHSA-3g3m-2fjr-6pw4, both
   moderate). Both reached the tree only through eslint, typescript-eslint and
@@ -268,6 +289,15 @@ notices.
 
 ### Changed
 
+- **The deploy CLI's login line is `pnpm -C apps/worker exec trigger login …`,
+  run from the checkout's root**, where it was `npx -y trigger.dev@<version>
+  login …`; the bring-up, `deploy-tasks.sh`, `stand-up-live.sh` and the docs
+  print it. The bring-up's `login` phase runs `pnpm install --frozen-lockfile`
+  before it asks the CLI anything, as `deploy-tasks.sh` does, so a checkout
+  pulled without an install still logs in, and both refuse an installed CLI
+  that is not the SDK's version. The tasks are now bundled by the tree's
+  esbuild 0.25.12, the copy drizzle-kit's loader already takes, where `npx`
+  gave the CLI its own 0.23.
 - **The pin watch can record a difference from Trigger.dev's ClickHouse pin as
   intended**, for one exact pair of tag and digest (`CLICKHOUSE_INTENDED`):
   its row then reads `intended`, with the reason, and keeps no issue open,

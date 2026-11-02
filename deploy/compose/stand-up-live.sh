@@ -1369,11 +1369,12 @@ your_turn_login() {
 [stand-up-live] Your turn: log the deploy CLI in to live's plane, under live's own
   profile (TRIGGER_CLI_PROFILE; workplan 0132 T1c). bootstrap-managed.sh stopped for it.
 
-  Run the `npx -y trigger.dev@… login …` line it printed above, in a shell on
-  this machine. It prints an address to open in a browser, here or on another
-  machine (Chromium worked where Firefox did not), and waits for the code the
-  page shows. The address in the line is live's plain http API on loopback,
-  not the dashboard.
+  Run the `pnpm -C apps/worker exec trigger login …` line it printed above, in
+  a shell on this machine, from this checkout's root (the CLI is the lockfile's,
+  and the bring-up installed it). It prints an address to open in a browser,
+  here or on another machine (Chromium worked where Firefox did not), and waits
+  for the code the page shows. The address in the line is live's plain http API
+  on loopback, not the dashboard.
 
   Then run this again, with --resume:
     ./deploy/compose/stand-up-live.sh --resume

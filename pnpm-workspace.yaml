@@ -9,6 +9,16 @@ verifyDepsBeforeRun: false
 autoInstallPeers: true
 strictPeerDependencies: false
 allowBuilds:
+  # DENIED (2026-11-02, workplan 0119). @depot/cli arrives with the deploy CLI, trigger.dev,
+  # apps/worker's devDependency from that day (it was fetched by `npx -y` at run time before).
+  # Its postinstall, `node install.js`, checks and hard-links the native binary from the
+  # optional @depot/cli-<os>-<arch> package pnpm already installed, and when that is missing it
+  # runs `npm install` itself or downloads a tarball from the registry: outside the lockfile,
+  # which is the thing moving the CLI into the lockfile was for. Nothing here runs depot. The
+  # CLI resolves the binary only inside depot() (lib/main.js, depotBinaryPath), which it calls
+  # for a REMOTE build; a deploy to a self-hosted instance has no external build data and builds
+  # locally with buildx (trigger.dev 4.8.3, commands/deploy.js: isLocalBuild).
+  "@depot/cli": false
   better-sqlite3: true
   # DENIED, and the failure it silences is a real one that never mattered.
   # Every install printed:
@@ -56,6 +66,18 @@ overrides:
   # container all passed on them. Drop both once eslint, typescript-eslint and archiver ask for
   # the fixed majors themselves. Workplan 0119, Status of 2026-11-02.
   "minimatch@<11.0.1": ^11.0.3
+  # ONE EXCEPTION, AND IT IS THE DEPLOY CLI (2026-11-02, the day it moved from `npx` into the
+  # lockfile). trigger.dev 4.8.3 imports `makeRe` from minimatch (dist/esm/build/externals.js,
+  # line 1, on every command's import path) and calls it on each name its deploy is told to keep
+  # external. minimatch 11 builds no regular expressions at all and exports no makeRe, so on the
+  # entry above the CLI does not start: "The requested module 'minimatch' does not provide an
+  # export named 'makeRe'", for whoami, login and deploy alike. A pnpm patch would have to
+  # rewrite how the CLI builds those expressions. So the CLI keeps 10.2.6, the newest 10.x, and
+  # pnpm audit names GHSA-g3hv-75wg-m249 (moderate) again, on this one path. What reaches makeRe
+  # there is the list of externals the self-hosted instance returns, or the CLI's own built-in
+  # list, never anybody's input. pnpm applies a parent-scoped entry before a general one, so
+  # every other consumer stays on 11. Drop this when a trigger.dev release takes minimatch 11.
+  "trigger.dev>minimatch": ^10.2.6
   "glob@>=9.0.0 <14.0.2": ^14.0.3
   "semver@<5.7.2": ^5.7.2
   "semver@>=6.0.0 <6.3.1": ^6.3.1
@@ -219,6 +241,13 @@ overrides:
   # nobody is allowed to fix. Note it is `npx` and not `pnpm db:generate`: that script now refuses
   # (scripts/how-migrations-are-authored.mjs), because generating into the real migration chain is
   # what it used to do.
+  #
+  # 2026-11-02. This entry now holds a second consumer, and the one with more at stake: the deploy
+  # CLI (trigger.dev 4.8.3, apps/worker's devDependency) asks for `esbuild: ^0.23.0` and gets
+  # 0.25.12 through it, past the 0.24 and 0.25 minors. That esbuild bundles the task code that
+  # ships in the deployed task image, so its proof is an E2E (managed) deploy, not a unit test.
+  # Dropping or narrowing this entry (say, once drizzle-kit is fixed) sends the CLI back to 0.23.x,
+  # which is under GHSA-67mh-4wv8-2f99.
   esbuild@<0.25.0: ^0.25.0
   #
   # 2026-10-03. Six HIGH and three MODERATE, every one DEV-ONLY, published after the gate last
@@ -259,6 +288,27 @@ overrides:
   # 1.16.2 changes one check, `instanceof Array` to `Array.isArray`. Published 2026-10-25 21:32
   # UTC, past the cooldown below since 2026-10-28, so again no minimumReleaseAgeExclude entry.
   "follow-redirects@<1.16.2": ^1.16.2
+  #
+  # 2026-11-02. Two HIGH advisories, both DEV-ONLY and both arriving with the deploy CLI
+  # (trigger.dev 4.8.3), which moved that day from `npx -y` into the lockfile and so into this
+  # file's reach and the audit's. Under npx both were installed at every deploy, unread.
+  #   zod GHSA-mrhx-c7xc-m3w5: validating an oversized constrained collection can exhaust
+  #     memory; every version below 4.6.6. The CLI pins 4.5.4 exactly; everything else here
+  #     already takes 4.6.7 (apps/worker asks for ^4.6.7). Scoped to the 4.x line, so a 3.x,
+  #     which nothing in the tree takes today, is not forced across a major. 4.6.7 was
+  #     published 2026-10-12, outside the cooldown below.
+  "zod@>=4.0.0 <4.6.6": ^4.6.7
+  #   deepmerge-ts GHSA-ggr8-5vv4-36mx: merging a recursive object graph exhausts the stack;
+  #     every version below 8.0.0, fixed only in the new major (8.0.2, 2026-08-21), with no 7.x
+  #     backport. Reached through trigger.dev -> @trigger.dev/build 4.8.3 -> @prisma/config
+  #     6.19.3, which pins 7.1.5 exactly. So this entry crosses a major, like minimatch's and
+  #     glob's at the top. It holds because @prisma/config takes one export, `deepmerge`, which
+  #     8.x keeps with the same call (8.0.0's breaking changes are deepmergeInto's and type
+  #     names), and imports it lazily, inside loadConfigTsOrJs, which only @trigger.dev/build's
+  #     prisma extension reaches; apps/worker's trigger.config.ts imports @trigger.dev/sdk
+  #     alone. @prisma/config 7.10.1 itself takes 8.0.2. Drop it when @trigger.dev/build asks
+  #     for a @prisma/config that does.
+  "deepmerge-ts@<8.0.0": ^8.0.2
   #
   # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
   # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it
@@ -322,13 +372,3 @@ minimumReleaseAgeExclude:
   - socket.io-parser@4.2.7
   - js-yaml@4.3.2
   - esbuild@0.25.12
-  # 2026-10-31. Trigger.dev v4.8.3, taken before its three-day floor on the owner's waiver of
-  # that day: "I waive the wait for v4.8.3, just go with it." It covers v4.8.3 and nothing
-  # else, so these name the two v4.8.3 packages the lockfile installs and no transitive one
-  # (every package v4.8.3 newly requires is older than the floor). npm published core at
-  # 12:24:49 UTC and sdk at 12:25:21 UTC on 2026-10-30, and the deploy CLI, which npx fetches
-  # outside this floor, at 12:25:49 UTC, so the floor passes 2026-11-02 12:26 UTC: after it
-  # both entries may be removed. The next Trigger.dev move must remove them: the guard
-  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
-  - "@trigger.dev/core@4.8.3"
-  - "@trigger.dev/sdk@4.8.3"

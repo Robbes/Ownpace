@@ -123,6 +123,62 @@ trigger_cli_profile_origin() {
   fi
 }
 
+# THE DEPLOY CLI IS THE LOCKFILE'S (workplan 0119, 2026-11-02).
+#
+# It is `trigger.dev`, a devDependency of apps/worker at exactly the
+# @trigger.dev/sdk version beside it, and it runs from apps/worker's own
+# node_modules: `pnpm -C apps/worker exec trigger …`. Until 2026-11-02 every
+# script here ran `npx -y trigger.dev@<sdk version>`, which fetched the CLI and
+# its whole dependency tree from the registry at run time — outside the
+# lockfile, outside pnpm-workspace.yaml's three-day floor on new releases and
+# its overrides, and outside the build approvals (the CLI's tree carries a
+# package with a postinstall that downloads a binary). The version was pinned;
+# nothing under it was.
+#
+# apps/worker, not the root: trigger.config.ts lives there, deploy-tasks.sh
+# runs the deploy from there, and the CLI reads that directory's package.json
+# to compare itself with the @trigger.dev/* packages (commands/update.js), so
+# the CLI and the SDK it must equal sit in one manifest.
+# bootstrap-managed.unit.test.ts holds them equal, and equal to the image tag.
+#
+# `-C` and not `--filter`: the CLI runs in apps/worker from any directory, so
+# `deploy` finds ./trigger.config.ts, and a failure prints no absolute path to
+# a public log, where `--filter` prints the package's.
+#
+# The directory is worked out when asked, not when this file is sourced: some
+# callers are copies of this file in a test's scratch tree.
+trigger_cli_worker_dir() {
+  printf '%s/apps/worker' "$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+}
+
+# What an operator types, from the checkout's root. Printed, never run here.
+TRIGGER_CLI_SHOWN="pnpm -C apps/worker exec trigger"
+
+# trigger_cli_installed <version> — the installed CLI is <version>, or say why.
+#
+# A `pnpm exec` in a checkout pulled without an install finds no `trigger`
+# (ERR_PNPM_RECURSIVE_EXEC_FIRST_FAIL), and `whoami` would report that as "not
+# logged in" — after which the login line it prints fails the same way. An
+# install that holds another version runs a CLI that does not match the SDK it
+# bundles. Both are refused here, by name, and both callers install first.
+trigger_cli_installed() {
+  local want="$1" manifest have
+  manifest="$(trigger_cli_worker_dir)/node_modules/trigger.dev/package.json"
+  have="$(node -p "require(process.argv[1]).version" "$manifest" 2>/dev/null || true)"
+  if [ -z "$have" ]; then
+    echo "[trigger] the deploy CLI (trigger.dev) is not installed in apps/worker." >&2
+    echo "[trigger] It comes from the lockfile; install it from the checkout's root:" >&2
+    echo "[trigger]   pnpm install --frozen-lockfile" >&2
+    return 1
+  fi
+  if [ "$have" != "$want" ]; then
+    echo "[trigger] apps/worker's node_modules holds the deploy CLI ${have}, and" >&2
+    echo "[trigger] apps/worker/package.json pins @trigger.dev/sdk ${want}. Install the" >&2
+    echo "[trigger] lockfile's:  pnpm install --frozen-lockfile" >&2
+    return 1
+  fi
+}
+
 # `trigger.dev whoami` cannot be trusted by exit code.
 #
 # Read from the installed CLI's own source (dist/esm/commands/whoami.js +
@@ -171,7 +227,16 @@ trigger_cli_logged_in() { # trigger_cli_logged_in <cli_version> <profile>
   # by hand, before it is ever stored as a CI secret.
   [ -n "${TRIGGER_ACCESS_TOKEN:-}" ] && return 0
 
-  local cmd="${TRIGGER_CLI_WHOAMI_CMD:-npx -y trigger.dev@${cli_version} whoami --profile ${profile}}"
+  # The lockfile's CLI, run from apps/worker (trigger_cli_worker_dir), and
+  # only once it is there at the SDK's version: a missing or different one is
+  # not an answer about the login, and trigger_cli_installed says so instead.
+  local cmd
+  if [ -n "${TRIGGER_CLI_WHOAMI_CMD:-}" ]; then
+    cmd="$TRIGGER_CLI_WHOAMI_CMD"
+  else
+    trigger_cli_installed "$cli_version" || return 1
+    cmd="pnpm -C $(printf '%q' "$(trigger_cli_worker_dir)") exec trigger whoami --profile $(printf '%q' "$profile")"
+  fi
 
   # WHY THIS IS NOT `grep -q "^User ID:"`, which is what it used to be.
   #

@@ -199,7 +199,8 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
 
    It reads the new project's ref and key into live's `.env` and stops once more (exit 2) for the
    deploy CLI's login under live's own profile: the old login went with the old database. Run the
-   `npx -y trigger.dev@… login … --profile …` line it prints, then:
+   `pnpm -C apps/worker exec trigger login … --profile …` line it prints, from the checkout's root
+   (the CLI is the lockfile's, and the login phase installs it first), then:
 
    ```bash
    ./deploy/compose/bootstrap-managed.sh --from login

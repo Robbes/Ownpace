@@ -749,6 +749,7 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
+- [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `apps/worker/src/cli/index.ts`
 
@@ -1000,6 +1001,7 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
+- [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
 ### `deploy/compose/dev.ci.yml`
@@ -6041,6 +6043,7 @@ Reads:
 
 - `apps/worker/package.json`
 - `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-tasks.sh`
 - `deploy/compose/ensure-env-secrets.sh`
 - `deploy/compose/env-upsert.sh`
 - `deploy/compose/managed.env.example`
@@ -6836,6 +6839,7 @@ The Trigger.dev control plane's backup, and the version it is a backup FOR.
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
+- `apps/worker/package.json`
 - `deploy/compose/env-read.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`

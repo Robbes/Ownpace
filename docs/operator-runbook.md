@@ -41,8 +41,9 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   revoking a link finds nothing to change there. See
   [Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches).
 - Docker + Docker Compose v2 on the host.
-- `pnpm install` run in the repo (the seed, the deploy CLI wrapper and the env-var/smoke
-  scripts use workspace `node_modules`).
+- `pnpm install` run in the repo (the seed, the deploy CLI and the env-var/smoke scripts
+  use workspace `node_modules`; the deploy CLI is `apps/worker`'s devDependency, run as
+  `pnpm -C apps/worker exec trigger …` from the checkout's root).
 - A filled-in env file, with every required secret present. The compose file has **no
   defaults for secrets** (0020 T2) — a missing value fails the `up`, loudly:
   ```
@@ -369,7 +370,9 @@ workplan 0018.
 ./deploy/compose/deploy-tasks.sh
 ```
 
-Idempotent; pins the CLI to the SDK version; preflights reachability, project ref and login.
+Idempotent; installs the lockfile first, and with it the deploy CLI, which is `apps/worker`'s
+devDependency at exactly the SDK version (it was fetched with `npx` until 2026-11-02);
+preflights reachability, project ref and login.
 On a non-amd64 host set `DEPLOY_IMAGE_PLATFORM` in `.env` (e.g. `linux/arm64`) — the platform
 is decided server-side and handed to the CLI, and a mismatch produces runners that die at
 exec in under a second with `AutoRemove` destroying the evidence.

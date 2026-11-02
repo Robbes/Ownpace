@@ -495,6 +495,131 @@ describe('trigger_cli_logged_in (trigger-cli-lib.sh)', () => {
 });
 
 /**
+ * THE DEPLOY CLI IS THE LOCKFILE'S (workplan 0119, 2026-11-02).
+ *
+ * Every script here ran `npx -y trigger.dev@<sdk version>`: deploy-tasks.sh's
+ * deploy, trigger-cli-lib.sh's `whoami`, and the login lines the bring-up,
+ * deploy-tasks.sh and stand-up-live.sh print. npx fetched the CLI and its
+ * whole dependency tree from the registry at run time, so the version was
+ * pinned and nothing under it was: not the lockfile, not pnpm-workspace.yaml's
+ * three-day floor on new releases or its overrides, not its build approvals.
+ * Read on that day, the tree npx installed carried two HIGH advisories (zod,
+ * deepmerge-ts) and a postinstall that downloads a binary (@depot/cli).
+ *
+ * Now `trigger.dev` is apps/worker's devDependency, and the scripts run it as
+ * `pnpm -C apps/worker exec trigger`. These hold the three things that keep
+ * it so: the CLI's version is the SDK's, exactly; no script fetches it with
+ * npx again; and the `whoami` the bring-up trusts runs the installed CLI, and
+ * only once it is the SDK's version.
+ */
+describe("the deploy CLI is the lockfile's", () => {
+  const worker = JSON.parse(readFileSync(join(REPO_ROOT, 'apps/worker/package.json'), 'utf8')) as {
+    dependencies: Record<string, string>;
+    devDependencies: Record<string, string>;
+  };
+  const LIB = join(REPO_ROOT, 'deploy/compose/trigger-cli-lib.sh');
+
+  it('apps/worker declares it as a devDependency at exactly the SDK version beside it', () => {
+    const sdk = worker.dependencies['@trigger.dev/sdk'];
+    const cli = worker.devDependencies['trigger.dev'];
+    expect(sdk, 'apps/worker no longer pins @trigger.dev/sdk').toMatch(/^\d+\.\d+\.\d+$/);
+    // Exact, not a range: `^4.8.3` would let the lockfile move the CLI alone.
+    expect(cli, 'the deploy CLI is not an exact version').toMatch(/^\d+\.\d+\.\d+$/);
+    expect(cli, 'the deploy CLI and the SDK it bundles disagree').toBe(sdk);
+    // A runtime dependency would put the CLI's tree into what the worker ships.
+    expect(worker.dependencies['trigger.dev']).toBeUndefined();
+  });
+
+  it('nothing under deploy/ or scripts/, and no workflow, fetches it with npx or dlx', () => {
+    // Comment lines may say why it is gone; anything else that runs or prints
+    // a fetch of the CLI is the thing this replaced. The guards themselves
+    // (*.test.ts) quote the old line to test against it, and are left out.
+    const FETCH = /\b(?:npx|pnpx|pnpm\s+dlx|npm\s+exec)\b[^\n]*\btrigger\.dev(?:@|\s|$)/;
+    const files = [
+      ...globSync('deploy/**/*', { cwd: REPO_ROOT }),
+      ...globSync('scripts/**/*', { cwd: REPO_ROOT }),
+      ...globSync('.github/workflows/*.yml', { cwd: REPO_ROOT }),
+    ].filter((rel) => !rel.includes('node_modules') && !/\.test\.ts$/.test(rel));
+    const read = files.flatMap((rel) => {
+      try {
+        return [{ rel, text: readFileSync(join(REPO_ROOT, rel), 'utf8') }];
+      } catch {
+        return []; // a directory
+      }
+    });
+    expect(read.some((f) => f.rel === 'deploy/compose/deploy-tasks.sh'), 'the scan read nothing it should').toBe(true);
+    const comment = (line: string) => /^\s*(?:#|\/\/|\*|\/\*)/.test(line);
+    const found = read.flatMap(({ rel, text }) =>
+      text
+        .split('\n')
+        .map((line, i) => ({ line, at: `${rel}:${i + 1}` }))
+        .filter(({ line }) => !comment(line) && FETCH.test(line))
+        .map(({ line, at }) => `${at}: ${line.trim()}`),
+    );
+    expect(found).toEqual([]);
+    // The pattern is not vacuous: it catches each shape this replaced.
+    for (const old of [
+      'npx -y "trigger.dev@${CLI_VERSION}" deploy --profile x',
+      '  local cmd="${TRIGGER_CLI_WHOAMI_CMD:-npx -y trigger.dev@${cli_version} whoami --profile ${profile}}"',
+      '      npx -y trigger.dev@${cli_version} login -a ${url} --profile ${profile} --no-browser',
+      'pnpm dlx trigger.dev@4.8.3 whoami',
+    ]) {
+      expect(FETCH.test(old), old).toBe(true);
+    }
+  });
+
+  it('every printed login line is the one the docs name, run from the checkout root', () => {
+    const lib = readFileSync(LIB, 'utf8');
+    expect(lib).toMatch(/^TRIGGER_CLI_SHOWN="pnpm -C apps\/worker exec trigger"$/m);
+    for (const rel of ['deploy/compose/deploy-tasks.sh', 'deploy/compose/bootstrap-managed.sh']) {
+      const text = readFileSync(join(REPO_ROOT, rel), 'utf8');
+      expect(text, `${rel} prints no login line from TRIGGER_CLI_SHOWN`).toContain('${TRIGGER_CLI_SHOWN} login -a ');
+    }
+  });
+
+  /** A `pnpm` that writes down where and how it was called, and answers as whoami would. */
+  function pnpmStub(answer: string): string {
+    const bin = join(dir, 'bin');
+    mkdirSync(bin, { recursive: true });
+    writeFileSync(
+      join(bin, 'pnpm'),
+      `#!/usr/bin/env bash\nprintf '%s\\n' "$*" >>"${join(dir, 'pnpm.log')}"\necho ${JSON.stringify(answer)}\n`,
+    );
+    chmodSync(join(bin, 'pnpm'), 0o755);
+    return bin;
+  }
+
+  function whoami(version: string, answer: string) {
+    const bin = pnpmStub(answer);
+    const env: NodeJS.ProcessEnv = { ...process.env, PATH: `${bin}:${process.env.PATH ?? ''}` };
+    delete env.TRIGGER_ACCESS_TOKEN;
+    delete env.TRIGGER_CLI_WHOAMI_CMD;
+    const r = spawnSync('bash', ['-c', `set -euo pipefail; . "${LIB}"; trigger_cli_logged_in "$1" openmig`, '_', version], {
+      encoding: 'utf8',
+      env,
+      cwd: dir,
+    });
+    const calls = existsSync(join(dir, 'pnpm.log')) ? readFileSync(join(dir, 'pnpm.log'), 'utf8').split('\n').filter(Boolean) : [];
+    return { status: r.status, stderr: r.stderr, calls };
+  }
+
+  it("asks the installed CLI, from apps/worker, whatever directory it is called from", () => {
+    const sdk = worker.dependencies['@trigger.dev/sdk']!;
+    const r = whoami(sdk, 'User ID: user_abc123');
+    expect(r.status, r.stderr).toBe(0);
+    expect(r.calls).toEqual([`-C ${join(REPO_ROOT, 'apps/worker')} exec trigger whoami --profile openmig`]);
+  });
+
+  it('refuses, without running anything, when the installed CLI is not the version asked for', () => {
+    const r = whoami('0.0.1', 'User ID: user_abc123');
+    expect(r.status).toBe(1);
+    expect(r.calls, 'it ran a CLI that is not the SDK version').toEqual([]);
+    expect(r.stderr).toContain('pnpm install --frozen-lockfile');
+    expect(r.stderr).toContain('apps/worker/package.json pins @trigger.dev/sdk 0.0.1');
+  });
+});
+
+/**
  * Every bring-up that WAITS has to be able to say why it failed.
  *
  * The header above says `bootstrap-managed.sh` cannot usefully be tested
@@ -871,7 +996,9 @@ describe('the Trigger.dev images and the SDK that builds the tasks agree', () =>
       .map((rel) => ({ rel, pkg: JSON.parse(readFileSync(join(REPO_ROOT, rel), 'utf8')) }))
       .flatMap(({ rel, pkg }) =>
         Object.entries({ ...pkg.dependencies, ...pkg.devDependencies })
-          .filter(([name]) => name.startsWith('@trigger.dev/'))
+          // The deploy CLI is one of them since 2026-11-02 (`trigger.dev`, from
+          // the lockfile rather than `npx`), under an unscoped name.
+          .filter(([name]) => name.startsWith('@trigger.dev/') || name === 'trigger.dev')
           .map(([name, version]) => ({ rel, name, version: String(version) })),
       );
 

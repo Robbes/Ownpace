@@ -591,11 +591,16 @@ webapp and the supervisor run ONE tag, so a half-published version is not usable
   # apps/worker's SDK alone and left the root package.json (sdk AND core) and
   # packages/scheduler behind, which bootstrap-managed.unit.test.ts then failed.
   # Same glob and same names as that test, so a package that takes a
-  # Trigger.dev dependency is moved by existing.
+  # Trigger.dev dependency is moved by existing. The deploy CLI, `trigger.dev`
+  # (apps/worker's devDependency since 2026-11-02, from the lockfile rather
+  # than `npx`), is one of those names: it equals the SDK, and moves with it.
   local manifest
   for manifest in "${REPO_ROOT}/package.json" "${REPO_ROOT}"/apps/*/package.json "${REPO_ROOT}"/packages/*/package.json; do
-    [ -f "$manifest" ] && grep -q '"@trigger\.dev/' "$manifest" || continue
-    sed -i -E "s|(\"@trigger\.dev/[a-z0-9-]+\": \")[0-9]+\.[0-9]+\.[0-9]+(\")|\1${bare}\2|g" "$manifest"
+    [ -f "$manifest" ] && grep -qE '"(@trigger\.dev/[a-z0-9-]+|trigger\.dev)":' "$manifest" || continue
+    sed -i -E \
+      -e "s|(\"@trigger\.dev/[a-z0-9-]+\": \")[0-9]+\.[0-9]+\.[0-9]+(\")|\1${bare}\2|g" \
+      -e "s|(\"trigger\.dev\": \")[0-9]+\.[0-9]+\.[0-9]+(\")|\1${bare}\2|g" \
+      "$manifest"
   done
 
   cat <<EOF
@@ -605,7 +610,8 @@ files, nothing running. What remains, in this order:
 
   1. pnpm install                      # the lockfile has to follow the SDK
   2. git diff                          # managed.yml x2, managed.env.example,
-                                       # every @trigger.dev/* manifest line, and
+                                       # every @trigger.dev/* manifest line and
+                                       # the deploy CLI's (trigger.dev), and
                                        # the FROM of trigger.dev/ and supervisor/'s
                                        # Dockerfile with the hash in their names
   3. Read the headers of those two Dockerfiles again at ${want}: why each

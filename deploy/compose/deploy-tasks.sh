@@ -21,13 +21,15 @@ set -euo pipefail
 #                                         this is what the API uses to enqueue)
 #      Then restart the api so it picks the key up:
 #        docker compose -f deploy/compose/managed.yml up -d api
-#   4. CLI login, ONCE — and once means once, since the token is remembered:
-#        npx -y trigger.dev@<version> logout --profile <name>     # if a stale one exists
-#        npx -y trigger.dev@<version> login -a http://localhost:${TRIGGER_PORT:-3090} --profile <name> --no-browser
+#   4. CLI login, ONCE — and once means once, since the token is remembered.
+#      From the checkout's root, after `pnpm install --frozen-lockfile` (the
+#      CLI is apps/worker's devDependency, from the lockfile):
+#        pnpm -C apps/worker exec trigger logout --profile <name>     # if a stale one exists
+#        pnpm -C apps/worker exec trigger login -a http://localhost:${TRIGGER_PORT:-3090} --profile <name> --no-browser
 #      where <name> is TRIGGER_CLI_PROFILE (default openmig) — a SETTING, not
 #      a constant, and one that cannot move a login that already exists under
-#      another name. This script prints the exact pinned commands, with the
-#      name filled in, if you are not logged in. --no-browser because from CLI
+#      another name. This script prints the exact commands, with the name
+#      filled in, if you are not logged in. --no-browser because from CLI
 #      4.8.3 only such a login shows a code to paste, which works wherever the
 #      browser runs (docs/managed-bring-up.md, step 7).
 #
@@ -81,8 +83,14 @@ set -euo pipefail
 # its environment exists runs once against no database and fails in a way that
 # reads like a broken task.
 #
-# The CLI version is pinned to the SDK version in apps/worker/package.json by
-# construction — one number, read from the one place it already lives.
+# THE CLI IS THE LOCKFILE'S, AT THE SDK'S VERSION (workplan 0119, 2026-11-02).
+# `trigger.dev` is a devDependency of apps/worker at exactly the
+# @trigger.dev/sdk version beside it (bootstrap-managed.unit.test.ts holds the
+# two equal), and it runs from apps/worker's node_modules, which the install
+# below puts there. It was `npx -y trigger.dev@<sdk version>` until then, which
+# fetched the CLI and everything under it at run time, outside the lockfile,
+# the three-day floor on new releases and the build approvals
+# (trigger-cli-lib.sh says more).
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # One reader for this file, shared with every other script here: what
@@ -153,7 +161,7 @@ echo "[deploy-tasks] installing this checkout's packages (pnpm install --frozen-
 # Spark, 2026-08-18: package.json pinned 4.5.11, node_modules still held 4.5.9
 # from before the bump, and a scripted deploy turned into an interactive one.
 #
-# That is the same class of failure as the `npx -y` lesson below — a prompt
+# That is the same class of failure as npx's install prompt (below) — a prompt
 # nobody is there to answer — and it is worse in CI, where there is no terminal
 # to answer it from and the nightly would sit on it.
 #
@@ -175,6 +183,8 @@ if [ "$INSTALLED_SDK" != "$CLI_VERSION" ]; then
   echo "                 pnpm install --frozen-lockfile" >&2
   exit 1
 fi
+# And the CLI itself, the same way: the lockfile's, at that same version.
+trigger_cli_installed "${CLI_VERSION}" || exit 1
 
 if ! curl -fsS -o /dev/null "${TRIGGER_URL}"; then
   echo "[deploy-tasks] ERROR: ${TRIGGER_URL} is not reachable — is the stack up?" >&2
@@ -182,11 +192,13 @@ if ! curl -fsS -o /dev/null "${TRIGGER_URL}"; then
   exit 1
 fi
 
-# `npx -y` everywhere: without it, the first run after a CLI version bump
-# stops at npx's "Ok to proceed?" install prompt — which the `whoami` line
-# below sends to /dev/null along with everything else, so the script just
-# sits at the version banner looking hung (observed live, 2026-08-11, on the
-# 4.5.7 -> 4.5.9 bump: 30+ minutes at the banner, twice).
+# No `npx` any more, and so no npx prompt either: until 2026-11-02 this ran
+# `npx -y`, because without `-y` the first run after a CLI version bump stopped
+# at npx's "Ok to proceed?" install prompt — which the `whoami` line below
+# sends to /dev/null along with everything else, so the script just sat at the
+# version banner looking hung (observed live, 2026-08-11, on the 4.5.7 ->
+# 4.5.9 bump: 30+ minutes at the banner, twice). The lockfile's CLI is
+# installed above and asks nothing.
 # NOT an exit-code check — `whoami` exits 0 whether or not the token actually
 # works (see trigger-cli-lib.sh). A stale profile from a wiped instance passes
 # a naive check and fails later, inside `deploy`, with an error that looks
@@ -204,8 +216,9 @@ if ! trigger_cli_logged_in "${CLI_VERSION}" "${PROFILE}"; then
   # `logout` clears it. This message used to print `login` alone, which is
   # exactly the loop; the failure table has carried the remedy since 2026-08-31
   # and nothing pointed an operator at it from here.
-  echo "               npx -y trigger.dev@${CLI_VERSION} logout --profile ${PROFILE}" >&2
-  echo "               npx -y trigger.dev@${CLI_VERSION} login -a ${TRIGGER_URL} --profile ${PROFILE} --no-browser" >&2
+  echo "               ${TRIGGER_CLI_SHOWN} logout --profile ${PROFILE}" >&2
+  echo "               ${TRIGGER_CLI_SHOWN} login -a ${TRIGGER_URL} --profile ${PROFILE} --no-browser" >&2
+  echo "[deploy-tasks] (from the checkout's root: the CLI is apps/worker's, from the lockfile.)" >&2
   echo "[deploy-tasks] (logout FIRST: login short-circuits on a stale token and reports success.)" >&2
   echo "[deploy-tasks] Then this script remembers the token, and no browser is needed again:" >&2
   echo "               ./deploy/compose/trigger-remember-token.sh" >&2
@@ -385,7 +398,7 @@ TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
   TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://127.0.0.1:${TRIGGER_PORT:-3090}}" \
   TRIGGER_DEPLOYMENT_LINK_OUTPUT_DISABLED=1 \
   env -u GITHUB_ENV -u GITHUB_OUTPUT \
-  npx -y "trigger.dev@${CLI_VERSION}" deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}" --network host --plain
+  pnpm -C "${REPO_ROOT}/apps/worker" exec trigger deploy --profile "${PROFILE}" --env "${TRIGGER_ENV}" --network host --plain
 
 # THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
 #

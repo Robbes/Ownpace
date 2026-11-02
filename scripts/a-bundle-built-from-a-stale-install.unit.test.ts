@@ -13,8 +13,9 @@
  * `Could not resolve "undici/lib/dispatcher/agent.js"`. The api and web were
  * on the new code, and every pass stayed on the old bundle.
  *
- * What this holds, running the real script with `pnpm`, `curl` and `npx`
- * replaced by stubs that write down what they were asked:
+ * What this holds, running the real script with `pnpm` and `curl` replaced by
+ * stubs that write down what they were asked (the deploy CLI is the
+ * lockfile's since 2026-11-02, run through `pnpm` too, where it was `npx`):
  *
  *  1. It installs, at the repository's root, with `--frozen-lockfile`, before
  *     it reaches for the instance or the CLI.
@@ -87,7 +88,6 @@ beforeEach(() => {
   // Unreachable: the script stops at its instance check, after the install,
   // and never reaches the CLI.
   stub('curl', 'CURL_EXIT', 7);
-  stub('npx', 'NPX_EXIT', 0);
 });
 
 afterEach(() => {
@@ -96,7 +96,7 @@ afterEach(() => {
 
 /**
  * The PATH the script runs with. With `pnpm`, the stubs come first and shadow
- * the real `pnpm`, `curl` and `npx`, and the rest of this machine's PATH
+ * the real `pnpm` and `curl`, and the rest of this machine's PATH
  * follows. Without it, the stubs alone: before its install the script needs
  * only `dirname` and `node`, which are there, and no directory of this
  * machine's, where a real `pnpm` could be found.
