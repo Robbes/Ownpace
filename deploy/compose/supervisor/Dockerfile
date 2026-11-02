@@ -17,7 +17,8 @@
 # --filter supervisor start`, runs node's copy. Root's copy, left by the base
 # stage's `corepack prepare` (apps/supervisor/Containerfile), runs nowhere: the
 # entrypoint only sets NODE_OPTIONS and execs dumb-init, the healthcheck is
-# `node -e fetch`, and nothing execs into the container. Node's copy keeps
+# `node -e fetch`, and nothing execs into the container but the smoke's own
+# `node -e` fetch of DOCKER_HOST (since 2026-11-02). Node's copy keeps
 # running without its tar, as the webapp's header says of root's copy there:
 # only pnpm's bundled node-gyp requires tar (lib/install.js, for Node's
 # headers in a native build), and the CMD runs one script, `node
@@ -36,8 +37,9 @@
 #     /usr/local/bin/npx: brace-expansion 5.0.9 (2 highs) and undici 6.28.0 (4).
 #     The CMD runs pnpm, through corepack 0.36.0's shim, which stays; the
 #     script it runs is `node dist/index.js`; the entrypoint runs dumb-init; the
-#     healthcheck is `node -e` fetch; nothing execs into the container, and
-#     the supervisor's source spawns nothing.
+#     healthcheck is `node -e` fetch; nothing execs into the container but
+#     the smoke's `node -e` fetch of DOCKER_HOST, and the supervisor's source
+#     spawns nothing.
 #   - node-gyp's tree in node's copy of pnpm, the one that runs:
 #     /home/node/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules (tar
 #     went first) and dist/node-gyp-bin: brace-expansion 2.1.0 (5 highs) and

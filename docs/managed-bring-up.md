@@ -507,7 +507,7 @@ Docker daemon are kept apart by names, so every name follows the project:
 |---|---|---|
 | Containers | `<project>-db`, `<project>-api`, `<project>-idp`, `<project>-trigger-api`, … | `ownpace-managed-db` |
 | Volumes | `<project>_<volume>` | `ownpace-managed_zitadel_machinekey` |
-| Networks, the task runs' included | `<project>_ownpace-network`, `<project>_status-probe`, `<project>_trigger-event-store` | `ownpace-managed_ownpace-network` |
+| Networks, the task runs' included | `<project>_ownpace-network`, `<project>_status-probe`, `<project>_trigger-event-store`, `<project>_trigger-docker-socket` | `ownpace-managed_ownpace-network` |
 | The persisted `.env` and the Trigger.dev dumps | `~/.persistent/<project>/` | `~/.persistent/ownpace-managed/` |
 
 So a command reaches a stack in one of two ways, and never by a fixed name:
@@ -837,13 +837,33 @@ keeps `ownpace-network` for everything else. To ask ClickHouse something, run
 `rotate-db-passwords.sh` does; a container started on
 `<project>_ownpace-network` has no name or route to it, by design. That stops
 a plain request, or one forged through the web app, the API, Zitadel or
-Nextcloud. It does not stop code running in a container on `ownpace-network`, a
-task run included, from attaching itself or a new container to
-`trigger-event-store` through `trigger-docker-proxy`, which lets `POST`,
-`NETWORKS` and `CONTAINERS` through with no authentication (workplan 0136 §1,
-*What shares the network*); 0136 T4, which takes the proxy off every network a
-tenant-facing process joins, closes that. The smoke asks from both sides
+Nextcloud. The other way in was the Docker API: `trigger-docker-proxy` lets
+`POST`, `NETWORKS` and `CONTAINERS` through with no authentication, so while it
+was on `ownpace-network` code running in any container there, a task run
+included, could attach itself or a new container to `trigger-event-store`
+through it (workplan 0136 §1, *What shares the network*). Since 2026-11-02 the
+proxy is on a network of its own, below. The smoke asks from both sides
 (*clickhouse, and who can reach it*).
+
+**The Docker socket proxy is on a network of its own, which only the
+supervisor shares** (2026-11-02, workplan 0136 T4's first bullet).
+`<project>_trigger-docker-socket` is `internal`, and its only members are
+`trigger-docker-proxy` and `trigger-supervisor`, whose `DOCKER_HOST` names the
+proxy. Nothing else on the stack can resolve the name `trigger-docker-proxy`:
+not the API, the web app, Zitadel or Nextcloud, and not a task run, which the
+supervisor starts on `ownpace-network` and which never gets `DOCKER_HOST`. The
+supervisor keeps `ownpace-network`, where the runners reach its workload API on
+port 8020 and it reaches `trigger-api`. The proxy publishes no port, and needs
+no route off the machine: it only talks to the Docker socket it mounts, and the
+daemon, not the proxy, pulls a run's image. That stops any other container from
+asking the Docker API to start a container, on `trigger-event-store` or with the
+host's files. It does not stop code that already runs inside
+`trigger-supervisor`, and each stack's proxy can still start a container on the
+other stack's networks (*Which stack a command reaches*, above).
+`scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds the file to it, and
+the smoke asks from both sides (*trigger-registry and trigger-docker-proxy*):
+Docker answers from the supervisor, and the name is unknown in the API
+container.
 
 `trigger-db` comes up first, on its own. Then the phase sets its role
 `trigger` to `.env`'s `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when the
@@ -4159,7 +4179,7 @@ port, because its fix lists it), and a production name that does not resolve.
 7. The checks: `/api/version` at `app.ownpace.eu` names the tag's commit and
    version, `/api/ready` answers 200, `/api/auth/mode` answers `managed`,
    `NODE_ENV` is `production` in the api container, `id.ownpace.eu` names
-   itself as the issuer, live's three networks exist and share no container with
+   itself as the issuer, live's four networks exist and share no container with
    the OTA stack's, and `exposure-check.sh` passes. Run it in daytime: the
    appliance nightly's dev Nextcloud publishes on every interface while it
    runs.
@@ -4670,6 +4690,24 @@ networks changed. No volume is touched: ClickHouse starts again on
 `trigger_shared`. No network is external or made by hand, so nothing has to be
 removed first. As at any recreation of `clickhouse`, `trigger-api` cannot reach
 it for the seconds between the two, within the same `up`.
+
+**The socket proxy's network changes once, with no step of yours either**
+(2026-11-02, workplan 0136 T4's first bullet). The first `up` from a checkout
+that carries it creates `<project>_trigger-docker-socket`, moves
+`trigger-docker-proxy` onto it and off `ownpace-network`, adds
+`trigger-supervisor` to it, and recreates both, because their networks changed.
+No volume is touched, and no `.env` key, port or `DOCKER_HOST` changes. The
+bring-up's trigger phase recreates the proxy before the supervisor, so the old
+supervisor cannot reach Docker for the seconds between the two. A run it
+dequeues then gets no container: the supervisor logs the failure and, with this
+stack's settings, does not hand the run back, so it is left to Trigger.dev's
+handling of a run that never started. On live the deploy's hold keeps passes
+from starting; a scheduled job that fires in those seconds is the one exposed.
+A rollback to a checkout without it puts the proxy back on
+`ownpace-network` and leaves `<project>_trigger-docker-socket` empty and in
+place: Compose removes no network its file does not declare. It is harmless, is
+reused by the next move forward, and can be removed by hand once empty with
+`docker network rm <project>_trigger-docker-socket`.
 
 **The stores' and the fronts' images move with the checkout, never with a
 `docker pull`** (workplan 0119 §4, 2026-10-22). Both databases, Trigger.dev's

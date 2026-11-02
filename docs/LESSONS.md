@@ -1217,6 +1217,7 @@ reading a file drops off its entry by itself.
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-limit-the-api-was-never-handed](../scripts/a-limit-the-api-was-never-handed.unit.test.ts) — A LIMIT THE API WAS NEVER HANDED.
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
+- [a-network-the-tenant-cannot-see](../scripts/a-network-the-tenant-cannot-see.unit.test.ts) — A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first bullet, the socket proxy, on 2026-11-02): until then every container of the stack, every task run included, could ask the Docker API to start a container.
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 - [a-notice-before-a-password](../scripts/a-notice-before-a-password.unit.test.ts) — A NOTICE BEFORE A PASSWORD (workplan 0135 T5, for 0139 T4).
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
@@ -1649,6 +1650,7 @@ reading a file drops off its entry by itself.
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
 - [a-mount-that-went-blind](../scripts/a-mount-that-went-blind.unit.test.ts) — THE REPUBLISH THAT MADE THE SITE DISAPPEAR.
+- [a-network-the-tenant-cannot-see](../scripts/a-network-the-tenant-cannot-see.unit.test.ts) — A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first bullet, the socket proxy, on 2026-11-02): until then every container of the stack, every task run included, could ask the Docker API to start a container.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -4528,6 +4530,15 @@ Reads:
 - `docs/testing.md`
 - `docs/windows-appliance-runbook.md`
 - `test/e2e/selfhost-backup-restore.e2e.test.ts`
+
+### [a-network-the-tenant-cannot-see](../scripts/a-network-the-tenant-cannot-see.unit.test.ts)
+
+A NETWORK THE TENANT CANNOT SEE (workplan 0136 T4's guard, built for its first bullet, the socket proxy, on 2026-11-02): until then every container of the stack, every task run included, could ask the Docker API to start a container.
+
+Reads:
+
+- `deploy/compose/managed.yml`
+- `deploy/compose/www.yml`
 
 ### [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts)
 

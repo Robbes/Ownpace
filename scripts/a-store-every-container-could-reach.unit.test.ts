@@ -54,15 +54,21 @@
  * fail: fifteen mutations of the file, and twelve cases a scan must or must
  * not find.
  *
- * WHAT THIS DOES NOT HOLD: the Docker socket proxy. `trigger-docker-proxy` is
- * on ownpace-network with `POST`, `NETWORKS` and `CONTAINERS` and no
- * authentication, so code running in any container there, every task run
- * included, can still attach itself or a new container to this network
- * through the Docker API. Workplan 0136 §1 (*What shares the network*) says
- * so, and its T4, which takes the proxy off every network a tenant-facing
- * process joins, is what closes it. Until then this network takes away the
- * name and the route: a plain request, or a forged one from the web app, the
- * API, Zitadel or Nextcloud, cannot reach ClickHouse.
+ * WHAT THIS DOES NOT HOLD: the Docker socket proxy. `trigger-docker-proxy` has
+ * `POST`, `NETWORKS` and `CONTAINERS` and no authentication, so whoever reaches
+ * it can attach a container to this network through the Docker API. Until
+ * 2026-11-02 that was every container on ownpace-network, every task run
+ * included (workplan 0136 §1, *What shares the network*). Since then the
+ * proxy is on `trigger-docker-socket`, with the supervisor alone, which
+ * `a-network-the-tenant-cannot-see` holds (0136 T4's first bullet). What is
+ * left is code that already runs inside the supervisor, or `trigger-api`, or
+ * on the host, or inside the other stack's supervisor, which can ask its own
+ * proxy to attach a container here, since one Docker daemon serves both
+ * stacks (0132 §1; accepted by 0136 D6). While the other stack runs a
+ * checkout from before 2026-11-02, its proxy is still on its own
+ * ownpace-network, and every container there can do the same. This network
+ * takes away the name and the route: a plain request, or a forged one from
+ * the web app, the API, Zitadel or Nextcloud, cannot reach ClickHouse.
  */
 
 import { describe, it, expect } from 'vitest';

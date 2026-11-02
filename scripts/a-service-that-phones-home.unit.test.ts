@@ -739,7 +739,8 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
     why:
       'HAProxy in front of the Docker socket: it answers the supervisor and calls nothing; built here since 2026-10-30 from ' +
       "tecnativa/docker-socket-proxy v0.5.0's Dockerfile, haproxy.cfg and entrypoint on a current official haproxy image, " +
-      "and every server its haproxy.cfg names is the socket (SOCKET_PATH), with no resolver, mailer, peer or log host",
+      "and every server its haproxy.cfg names is the socket (SOCKET_PATH), with no resolver, mailer, peer or log host; " +
+      'since 2026-11-02 on an internal network with the supervisor alone (a-network-the-tenant-cannot-see)',
     holds: (svc, entry) => {
       const { from, problems } = builtFrom(svc, entry);
       if (from !== undefined && repositoryOf(from) !== 'haproxy') problems.push(`built FROM ${from}, not the official haproxy image: read what it sends by default`);
