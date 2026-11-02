@@ -6300,7 +6300,8 @@ whose entrypoint runs it under `set -e`, crash-loops: the v4.5.12 failure
 volume is attached, not created, and is not checked, so the OTA stack and live
 never meet it; a new install, `stand-up-live.sh` on a new host and ending the
 alpha's reset do, and `clickhouse-merge-tree.xml` (below) is what lets them
-through (read in the source; a run is owed before the merge, 0119 §3 item 9).
+through (read in the source, and run on 26.8.36.3 from an empty volume on
+2026-11-02: all 55 migrations with it, 022 refused without it; 0119 §3 item 9).
 Two more would store data differently on every volume, the OTA stack's and
 live's included: automatic column statistics (26.4) and date parsing on insert
 (26.5 and 26.8); the two files below keep 26.2's behaviour for both. Upstream
@@ -6365,10 +6366,11 @@ file. 26.3's off switch for the first of the four
 that one, so it is not taken.
 
 **On the OTA stack, in the owner's window.** Before: the pull request's CI
-green; the two runs 0119 §3 item 9 owes before the merge done, and as
-expected: the migration from an empty volume through 056 on 26.8.36.3 (with
-both files mounted; and without `clickhouse-merge-tree.xml`, where it stops at
-022 with `BAD_ARGUMENTS`), and the Errors page's query on 26.8.36.3; and
+green; the two runs 0119 §3 item 9 names before the merge done, and as
+expected (they were, 2026-11-02): the migration from an empty volume through
+056 on 26.8.36.3 (with both files mounted; and without
+`clickhouse-merge-tree.xml`, where it stops at 022 with `BAD_ARGUMENTS`), and
+the Errors page's query on 26.8.36.3; and
 nothing queued or in progress in Actions → E2E (managed), looked at
 before step 3 and again right before the run is dispatched (GitHub has started
 the scheduled nightly between about 09:50 and 10:45 UTC lately: a hint, not a

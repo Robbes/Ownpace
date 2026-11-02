@@ -52,11 +52,14 @@ stack's ClickHouse one way, so it runs only in the owner's window, after the vol
   each set by exactly one file; before 26.7 and 26.8 the two keys those lines introduced
   absent. Seventeen cases, among them the pin moved back to 26.2.19.43 or 26.3.62.3 with the
   files still mounted.
-- **Owed before the merge:** a migration from an empty volume through 056 on 26.8.36.3 with the
-  files mounted, and the same without `clickhouse-merge-tree.xml`, which must stop at 022; and
-  the Errors page's query run on 26.8.36.3 (§3 item 9). Then E2E (managed) on the branch in
-  the owner's window, which is the move, and *Moving ClickHouse*'s step-4 checks, the load
-  check among them, read as shown before the merge.
+- **Run before the merge, 2026-11-02, 04:44 to 04:46 UTC, as expected** (§3 item 9 says
+  how): a migration from an empty volume through 056 on 26.8.36.3 with both files mounted, all
+  55 applied, to version 56; the same without `clickhouse-merge-tree.xml`, 21 applied and 022
+  refused with `Code: 36` (`BAD_ARGUMENTS`); the Errors page's query on 26.8.36.3, no error;
+  and a millisecond integer into `DateTime64(3)` read as milliseconds under the profile, as
+  seconds without it. **Still owed before the merge:** E2E (managed) on the branch in the
+  owner's window, which is the move, and *Moving ClickHouse*'s step-4 checks, the load check
+  among them, read as shown.
 
 **2026-11-01, later: #1780 and #1779 merged, the first scheduled night on v4.8.3, Node 26 and
 ClickHouse's own network, and the O365 gate is held by a runner label (T3).** Docs only, on the
@@ -2886,13 +2889,21 @@ is beside each; none is urgent tonight.
      other side. A table already on a volume is attached, not created, and is not checked, so
      the OTA stack, live and E2E (managed) never meet it; a new install, `stand-up-live.sh` on a
      new host and ending-the-alpha's reset do. `clickhouse-merge-tree.xml`, mounted into
-     `config.d`, sets it back to `1`, 26.2's rule. **Owed before the merge:** a migration from
-     an empty volume through 056 on 26.8.36.3 by digest, with every mounted file, run by the
-     stack's own `trigger-api` image's goose against a throwaway server, volume and network,
-     and the same run without `clickhouse-merge-tree.xml`, which must stop at 022 with
-     `BAD_ARGUMENTS`. Not run when this was written (2026-11-02); it touches no volume of the
-     stack. It also runs 055 and 056 under 26.8, as live will in the alpha.4 deploy (live is
-     on v4.8.1 until then).
+     `config.d`, sets it back to `1`, 26.2's rule. **Run before the merge, 2026-11-02, 04:44 to
+     04:46 UTC:** a migration from an empty volume through 056. The server: 26.8.36.3 by the
+     index digest above (linux/amd64, read from mirror.gcr.io), with the three `config.d`
+     files the stack mounts today, `clickhouse-merge-tree.xml` and the `users.d` profile, on a
+     throwaway volume, in a session outside both stacks; it touched no volume of either. The
+     migrations: Trigger.dev v4.8.3's 55 (`internal-packages/clickhouse/schema`), run by goose
+     v3.27.1, `GOOSE_DRIVER=clickhouse` over HTTP, built from source at the version the
+     `trigger.dev` image's Dockerfile installs (the image's own binary could not be pulled
+     into that session). With both files: all 55 applied, to version 56, 055 and 056 among
+     them, as live will run them in the alpha.4 deploy (live is on v4.8.1 until then).
+     Without `clickhouse-merge-tree.xml`: 21 applied, and 022 refused with `Code: 36`
+     (`BAD_ARGUMENTS`), *"Column(s) error_type, error_message, sample_stack_trace of the
+     AggregatingMergeTree table are neither part of the sorting key nor aggregate measures"*.
+     The server ran without the `nofile` limit `managed.yml` sets, which that session
+     refuses; no migration reaches it.
    - **Kept as 26.2 has it, where 26.8 would store data differently from what Trigger.dev
      v4.8.3 runs on.** Automatic column statistics, on by default from 26.4 (`basic, uniq_v2`
      at 26.8, applied when a table loads as well as when it is created):
@@ -2906,6 +2917,10 @@ is beside each; none is urgent tonight.
      millisecond integers Trigger.dev's run, session and webhook replication send into
      `DateTime64(3)` columns are read as seconds). Replication is off here
      (`RUN_REPLICATION_ENABLED` is not set), so the last guards a switch, not a running write.
+     Read on the same server, 2026-11-02: `{"d":1730000000000}` into `DateTime64(3)` is
+     `2024-10-27 03:33:20.000` under the profile, and `9999-12-31 23:59:59.000` with that
+     setting at 26.8's default; `system.settings` and `system.merge_tree_settings` show all
+     five values in force, and no column in `trigger_dev` has statistics.
      Both files move with the pin: a 26.2 or 26.3 server does not start with
      `clickhouse-merge-tree.xml` mounted (an unknown key under `<merge_tree>`), and a 26.8 one
      cannot create the schema without it. A blanket `compatibility` profile was not taken: it
@@ -2917,7 +2932,8 @@ is beside each; none is urgent tonight.
      is in 26.10 only, and needs `SAMPLE`, on-the-fly mutations or patch parts, none of which
      occurs here), the analyzer's identifier cache (its one open wrong-result case,
      fixed in 26.10, needs a quoted alias with a dot, which Trigger.dev's queries do not write;
-     the Errors page's query, `getErrorGroups`, is owed a run on 26.8.36.3, not run yet),
+     the Errors page's query, `getErrorGroups`, ran on 26.8.36.3 against the schema above
+     without an error, 2026-11-02),
      `max_insert_threads` `auto`, the gzip reader every insert now passes through, and on the
      Query page only, `RANK` and `DENSE_RANK` refusing an argument, `toTime`'s type and
      `arrayIntersect`'s counting. `quantilesMerge` over states stored with other levels is
