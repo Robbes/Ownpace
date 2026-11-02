@@ -236,8 +236,10 @@ describe('pin moves every place the CI guard compares', () => {
   const pin = /cmd_pin\(\) \{[\s\S]*?\n\}/.exec(script)?.[0] ?? '';
   const rewrite = pin.slice(pin.indexOf('  bare="${want#v}"'), pin.indexOf('  cat <<EOF'));
   const manifests = globSync('{,apps/*/,packages/*/}package.json', { cwd: REPO_ROOT });
-  const TRIGGER_DEP = /("@trigger\.dev\/[a-z0-9-]+": ")[0-9]+\.[0-9]+\.[0-9]+(")/g;
-  const declaresTrigger = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8').includes('"@trigger.dev/');
+  // The deploy CLI, `trigger.dev`, is one of these names since 2026-11-02:
+  // apps/worker's devDependency at the SDK's version, from the lockfile.
+  const TRIGGER_DEP = /("(?:@trigger\.dev\/[a-z0-9-]+|trigger\.dev)": ")[0-9]+\.[0-9]+\.[0-9]+(")/g;
+  const declaresTrigger = (rel: string) => /"(?:@trigger\.dev\/[a-z0-9-]+|trigger\.dev)":/.test(readFileSync(join(REPO_ROOT, rel), 'utf8'));
 
   it('read the real function', () => {
     expect(rewrite.startsWith('  bare='), 'cmd_pin no longer sets bare= the way this expects').toBe(true);
@@ -273,6 +275,13 @@ describe('pin moves every place the CI guard compares', () => {
         before.replace(TRIGGER_DEP, (_all, head: string, tail: string) => `${head}9.8.7${tail}`),
       );
     }
+    // The deploy CLI moved with the SDK beside it, not left at the old version.
+    const worker = JSON.parse(readFileSync(join(dir, 'apps/worker/package.json'), 'utf8')) as {
+      dependencies: Record<string, string>;
+      devDependencies: Record<string, string>;
+    };
+    expect(worker.devDependencies['trigger.dev'], 'the deploy CLI stayed behind the SDK').toBe('9.8.7');
+    expect(worker.dependencies['@trigger.dev/sdk']).toBe('9.8.7');
     const compose = readFileSync(join(dir, 'deploy/compose/managed.yml'), 'utf8');
     const defaults = [...compose.matchAll(/\$\{TRIGGER_IMAGE_TAG:-(v[^}]+)\}/g)].map((m) => m[1]);
     expect(defaults).toEqual(['v9.8.7', 'v9.8.7']);

@@ -3080,6 +3080,10 @@ chain from the released tag (lines 140–152).
   `deploy-tasks.sh` reads the SDK's version (line 88) and runs
   `npx -y "trigger.dev@${CLI_VERSION}" deploy` (line 300). In its own words, *"The CLI version is
   pinned to the SDK version … by construction"* (lines 66–67).
+  *(Since 2026-11-02 the CLI is no longer fetched by `npx`: it is `trigger.dev`, apps/worker's
+  devDependency at exactly the SDK's version, from the lockfile, and the deploy runs it as
+  `pnpm -C "${REPO_ROOT}/apps/worker" exec trigger deploy`; workplan 0119's Status of that
+  day. The line numbers above are those of the day this was read.)*
 
 **What the pinned CLI does with that.** This plan read the CLI's published package,
 `trigger.dev@4.5.16` from npm, and the installed `@trigger.dev/core@4.5.16`:

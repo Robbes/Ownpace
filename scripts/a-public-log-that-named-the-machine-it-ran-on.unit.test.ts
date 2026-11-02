@@ -329,8 +329,14 @@ describe('what the gate prints about the stack', () => {
     const text = code(read('deploy/compose/deploy-tasks.sh'));
     const from = text.indexOf('TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}"');
     const invocation = text.slice(from, text.indexOf('\n', text.indexOf('deploy --profile', from)));
-    expect(invocation, 'the deploy invocation is no longer recognisable').toContain('npx -y "trigger.dev@');
-    const cli = invocation.indexOf('npx -y');
+    // The lockfile's CLI, run from apps/worker with `-C` (2026-11-02; it was
+    // `npx -y "trigger.dev@…"` until then). `-C` and not `--filter`, which
+    // prints the package's absolute path when the command fails.
+    expect(invocation, 'the deploy invocation is no longer recognisable').toContain(
+      'pnpm -C "${REPO_ROOT}/apps/worker" exec trigger deploy',
+    );
+    expect(invocation).not.toContain('--filter');
+    const cli = invocation.indexOf('pnpm -C');
     const unset = invocation.indexOf('env -u GITHUB_ENV -u GITHUB_OUTPUT');
     expect(unset, 'the CLI still sees $GITHUB_ENV and $GITHUB_OUTPUT').toBeGreaterThan(-1);
     expect(unset).toBeLessThan(cli);

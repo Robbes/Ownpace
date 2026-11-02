@@ -57,6 +57,11 @@ updates:
       # died at the bring-up.
       # deploy/compose/trigger-version.sh moves every one of them. Workplan 0119 T1.
       - dependency-name: "@trigger.dev/*"
+      # The deploy CLI is that same version under an unscoped name (apps/worker's
+      # devDependency since 2026-11-02, from the lockfile rather than `npx`), so
+      # the pattern above does not match it, and the weekly group would move it
+      # alone. trigger-version.sh moves it with the rest.
+      - dependency-name: "trigger.dev"
     groups:
       # One PR/week for routine minor+patch bumps across dev + prod deps.
       minor-and-patch:

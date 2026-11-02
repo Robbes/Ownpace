@@ -251,7 +251,9 @@ describe('the switch empties the history, under the hold', () => {
       expect(found, `the switch does not run "${command}" after the reset, as the scripts say`).toBeGreaterThan(at);
       at = found;
     }
-    expect(sw, 'the step does not say to run the login line the bring-up prints').toMatch(/`npx -y trigger\.dev@… login/);
+    expect(sw, 'the step does not say to run the login line the bring-up prints').toMatch(/`pnpm -C apps\/worker exec trigger login … --profile …`/);
+    // And the phase prints that same command, the lockfile's CLI, not npx's.
+    expect(login.slice(0, login.indexOf('\n}\n'))).toContain('${TRIGGER_CLI_SHOWN} login -a');
   });
 
   it("removes every other store's container and volume, after the reset and before its Next", () => {

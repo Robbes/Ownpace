@@ -1861,6 +1861,26 @@ phase_login() {
   # that disagree.
   origin="$(trigger_cli_profile_origin)"
 
+  # THE CLI IS THE LOCKFILE'S, SO IT IS INSTALLED BEFORE IT IS ASKED ANYTHING
+  # (workplan 0119, 2026-11-02). It is apps/worker's devDependency, run with
+  # `pnpm -C apps/worker exec trigger` (trigger-cli-lib.sh), where it used to
+  # be fetched by `npx -y` at run time. In a checkout pulled without an install
+  # there is no `trigger` to run: `whoami` would read as "not logged in", and
+  # the login line below would fail the same way. Preflight only checks that
+  # node_modules exists, and does not run with --from, which is how live's
+  # stand-up and every resume reach this phase. So this phase installs, the
+  # way deploy-tasks.sh does in the tasks phase; with nothing changed it takes
+  # seconds. Not with TRIGGER_ACCESS_TOKEN set: nothing here runs the CLI then.
+  if [ -z "${TRIGGER_ACCESS_TOKEN:-}" ]; then
+    command -v pnpm >/dev/null 2>&1 ||
+      die "pnpm is not on PATH, and the deploy CLI is installed with it: npm install -g $(node -p "require('${REPO_ROOT}/package.json').packageManager")"
+    note "installing this checkout's packages, the deploy CLI among them (pnpm install --frozen-lockfile)"
+    (cd "${REPO_ROOT}" && pnpm install --frozen-lockfile) ||
+      die "pnpm install --frozen-lockfile failed; the log above says why."
+    trigger_cli_installed "$cli_version" ||
+      die "the deploy CLI in apps/worker is not ${cli_version}, the @trigger.dev/sdk version apps/worker pins."
+  fi
+
   if trigger_cli_logged_in "$cli_version" "$profile"; then
     # SAY WHICH ANSWER THIS IS. `trigger_cli_logged_in` short-circuits on
     # TRIGGER_ACCESS_TOKEN without validating it — deliberately, since `whoami`
@@ -1891,11 +1911,14 @@ phase_login() {
   cat <<EOF
 
     The deploy CLI is not logged in on this machine under the profile
-    '${profile}'. Run this yourself — it prints an address to open in a
-    browser, on this machine or another, and waits for the code the page
-    shows, which is why the script does not run it for you:
+    '${profile}'. Run this yourself, from the checkout's root — it prints an
+    address to open in a browser, on this machine or another, and waits for
+    the code the page shows, which is why the script does not run it for you:
 
-      npx -y trigger.dev@${cli_version} login -a ${url} --profile ${profile} --no-browser
+      ${TRIGGER_CLI_SHOWN} login -a ${url} --profile ${profile} --no-browser
+
+    The CLI is apps/worker's, ${cli_version}, from the lockfile: this phase
+    installed it just now.
 
     Note the address is the PLAIN http api origin, not the https front. The
     CLI follows the server-advertised API origin and must not meet a
