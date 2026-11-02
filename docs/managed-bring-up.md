@@ -3202,9 +3202,10 @@ refuses a `COMPOSE_FILE` in the shell.
 | `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6, and again at v1.32.0 |
 | `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`, and again at `v35.0.2` when the demo moved to 35 (workplan 0119 T5); `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` and `stable35` |
 
-The entrypoint's other children do not call out: pnpm 10.33.2 checks for its
-own update only on `install` and `add`, goose v3.27.1 has no network use of its
-own, and the dashboard agent's migration is plain drizzle-orm. Nor does
+The entrypoint's other children do not call out: pnpm 10.34.9 (the builds'
+since 2026-11-02, in place of upstream's 10.33.2, which did the same) checks
+for its own update only on `install` and `add`, goose v3.27.1 has no network use
+of its own, and the dashboard agent's migration is plain drizzle-orm. Nor does
 corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
 `COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
 the copy of pnpm the other user would run, and tar from the copy theirs runs
@@ -6007,8 +6008,17 @@ root's copy of pnpm in the supervisor, and, the owner's decision of
 node-gyp requires it, to build a native add-on, and these containers install
 nothing). Since 2026-10-31 the rest of node-gyp's tree goes from that copy
 too, and npm, which Node bundles and nothing here runs, from both images:
-twelve fixable high findings in each, under the same one risk. The webapp's
-build also replaces dompurify 3.4.13's files with
+twelve fixable high findings in each, under the same one risk. Since
+2026-11-02 the copy each service runs is pnpm 10.34.9 in place of upstream's
+10.33.2: each build installs it with `corepack install -g` by the sha512 npm
+published, before it removes anything, then removes 10.33.2 and rewrites the
+root `package.json`'s `packageManager` to `pnpm@10.34.9`, which is how corepack
+chooses the copy. npm lists 18 advisories against 10.33.2 and none against
+10.34.9; none of the 18 is reachable here (each needs an install, a patch
+command, a registry request or workspace files an attacker wrote), so it is
+hygiene, not a security fix, and it goes when upstream's `packageManager` moves
+past 10.33.2 (the build then refuses, *upstream moved pnpm: drop the swap*). The
+webapp's build also replaces dompurify 3.4.13's files with
 3.4.17's, the release that fixes the critical GHSA-cg2g-xh64-v4q7: it fetches
 the tarball from the npm registry when it builds, refuses it unless its sha512
 is the one npm published, and proves nothing else in the image changed
