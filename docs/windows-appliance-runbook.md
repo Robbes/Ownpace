@@ -1,6 +1,6 @@
 # Running the self-host appliance on Windows — a runbook for the owner
 
-**Status:** written 2026-08-06 by someone who has never run any of it.
+**Status:** written 2026-08-06 by someone who had never run any of it; what has been run since, by the owner and (Phases 1 and 2, from 2026-11-02) by CI, is below.
 **Owns:** workplan [0015](./workplans/0015-native-windows-installer.md) T3.
 **Read first:** [ADR-0027](./adr/0027-windows-packaging-shell.md) — and its
 **second update**, which replaces the Windows Service with a scheduled task, [ADR-0019](./adr/0019-packaging-runtime-targets.md).
@@ -29,11 +29,42 @@ So the remaining unknown is the installer itself, plus whatever a clean VM says
 about a machine that has never had a developer toolchain on it. Everything
 above it has an evidence file behind it, not a prediction.
 
-**You still need a Windows machine for every phase.** There is no Windows in CI
-and none in the agent environment, so nothing here is covered by a gate — a
-change to `scripts/windows/` can only be verified by somebody running it. Where
-a phase has not been run, this document says so rather than sounding confident;
-where it has, the date and the result are stated so the difference is visible.
+**Phases 1 and 2 have a CI job since 2026-11-02; the rest still need a Windows
+machine.** The owner, that day: "I wont do windows...". So the by-hand check of
+each new zip (owed for Node 26.13.0) became `smoke`, a job of
+`.github/workflows/windows-payload.yml` that runs on a GitHub-hosted
+`windows-2025` runner (Windows Server 2025, x64) after `build`, against the very
+upload `build` made, for win-x64. On a release tag the zip is attached by a
+`release` job that needs `smoke`, so a zip that failed it is never attached.
+What it runs is under each phase below (*In CI*). **It is proven only once it
+has run green**: when this was written it had not run at all, and its first
+run is a dispatch of the workflow on its branch. Before a release, Release's
+preflight refuses the commit unless a dispatched run on that commit had
+`smoke` green (`docs/release.md` §1).
+
+**What a run on `windows-2025` stands in for.** It is Windows Server 2025,
+build 26100, the build Windows 11 24H2 shares (the runner image reports OS
+10.0.26100). A green `smoke` shows that this payload's `node.exe`, PGlite,
+migrations and UI run on that Windows build, under an administrator account.
+It does not show a Windows 11 client edition, a standard user, a zip
+downloaded in a browser and extracted in Explorer (Mark of the Web, which is
+what brings SmartScreen up), or an upgrade over a database an earlier
+release's payload made (the 2026-08-13 row of the table above). And it runs
+the payload as `build` uploaded it, not the zip a tag attaches: `release`
+makes that zip afterwards on Linux, checks it against `SHA256SUMS.txt` there,
+and nothing extracts or starts the zip itself on Windows.
+
+What it does not run, and stays with a person on a Windows machine: Phase 2's
+refusal under `C:\Program Files\` (the runner's account is an administrator, so
+the write succeeds and, as Phase 2 says, the test then says nothing); a clean
+`Ctrl+C` (the job stops the appliance with `Kill()`, a hard stop); every script
+in `scripts/windows/` (`run-appliance`, `install-task` and the rest are not
+started by the job, so a change to them is still verified only by somebody
+running it); Phases 3 and 4; SmartScreen; Windows 11 itself; and win-arm64,
+which `build` stages on a dispatch and the job skips (GitHub does host Windows
+on arm64, `windows-11-arm`, so it could be added). Where a phase has not been
+run, this document says so rather than sounding confident; where it has, the
+date and the result are stated so the difference is visible.
 
 ---
 
@@ -215,11 +246,16 @@ machine went on running the previous payload. A copy that silently moved nothing
 looks exactly like a copy that worked, and this line is the only thing that
 tells them apart.
 
-`SHA256SUMS.txt` inside the payload covers every file:
+`SHA256SUMS.txt` inside the payload covers every file. Windows has no
+`sha256sum`; from the payload directory:
 
 ```powershell
-# from the payload directory, if you have a sha256sum to hand
-sha256sum -c SHA256SUMS.txt
+$bad = 0
+Get-Content .\SHA256SUMS.txt | ForEach-Object {
+  $hash, $path = $_ -split '  ', 2
+  if ((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $hash) { "MISMATCH: $path"; $bad++ }
+}
+if ($bad -eq 0) { 'SHA256SUMS.txt: all files verified' }
 ```
 
 Then, **from a writable folder**:
@@ -233,8 +269,11 @@ Under `C:\Program Files\` this REFUSES instead — see Phase 2. Use
 `run-appliance.cmd` there.
 
 Expected: a first line reading `[appliance] build <version> (<commit>)` — which
-should match the commit in the run summary — then the staging log, ending with
-`Run it with:  .\node.exe start.mjs   (nothing to install)`.
+should match the commit in the run summary — then `[pglite] ready`, the
+migration lines (below), and `[appliance] listening on http://127.0.0.1:8080`.
+(`Run it with:  .\node.exe start.mjs   (nothing to install)` is the last line of
+the *packager's* output when it stages the payload, not something `start.mjs`
+prints; this paragraph said otherwise until 2026-11-02.)
 
 **This is still the right test, not merely the convenient one.** An MSI hands a
 Windows machine a directory built somewhere else, so building on a Linux runner
@@ -281,11 +320,52 @@ cd dist\appliance
 
 ### What to expect either way
 
-It migrates itself on first start and prints
-`[appliance] listening on http://127.0.0.1:8080`. Open <http://127.0.0.1:8080/ui>
-and you should get the operating UI. Press `Ctrl+C` to stop; run it again and it
-should come back **without** re-migrating — that second start is the one that
-proves the database was written and closed properly, so do not skip it.
+It migrates itself on first start — `[migrate] applying <file>` for each
+migration the payload ships, then `[migrate] applied <n> migration(s); now at
+<last file>` — and prints `[appliance] listening on http://127.0.0.1:8080`. Open
+<http://127.0.0.1:8080/ui> and you should get the operating UI. Press `Ctrl+C` to
+stop; run it again and it should come back **without** re-migrating
+(`[migrate] schema up to date at <last file>`, no `applying` line) — that second
+start is the one that proves the database was written and closed properly, so do
+not skip it.
+
+### In CI (since 2026-11-02)
+
+`windows-payload.yml`'s `smoke` job runs this phase on `windows-2025`, against
+the artefact `build` uploaded, downloaded by name into a folder of its own with
+nothing checked out beside it. Its step summary has a row for each check, and
+each check fails the job:
+
+- **As downloaded:** `start.mjs`, `appliance.mjs`, `node.exe`, `package.json` and
+  `SHA256SUMS.txt` at the top (the double-zipped artefact above would fail
+  here), no `data\` yet; the `const BUILD =` stamp naming the run's commit (its
+  first twelve characters, as `start.mjs` prints it) and the root
+  `package.json`'s version; `.\node.exe --version`, called by its path because
+  the runner has a Node of its own on `PATH`, equal to the version the build
+  read from `apps/selfhost/Dockerfile`; and `SHA256SUMS.txt` holding for every
+  file it lists with `Get-FileHash`, with no file outside it.
+- **First start**, `.\node.exe start.mjs` from the payload directory with a
+  `PORT` the job sets: the first line is `[appliance] build <version>
+  (<commit>)`; one `[migrate] applying` line per `.sql` file in `migrations\`
+  and `[migrate] applied <n> migration(s); now at <last file>`;
+  `data\pglite\PG_VERSION` and `data\config` made inside the payload;
+  `[appliance] listening on http://127.0.0.1:<port>`; `GET /ui` (the 302 to
+  `/ui/` followed) answering with the UI's HTML, the `/ui/assets/*.js` bundle it
+  names answering, `GET /status` answering `"status":"ok"`, and `GET /version`
+  naming the same version and commit.
+- **Second start**, after the job stopped the first: the same first line,
+  `[migrate] schema up to date at <last file>`, no `applying` line, listening
+  again on another port, the same four answers.
+
+**The stop is a hard one.** The job stops the process it started, by its own
+handle, with `Kill()`, which is `TerminateProcess`: `start.mjs`'s
+`SIGINT`/`SIGTERM` handler does not run. So the second start proves the database
+survives a hard stop (as `Stop-Process -Force` showed on 2026-08-07, Phase 3),
+not that `Ctrl+C` closed it cleanly. Each wait is bounded (180 s for a first
+start, 120 s for the second, 15 s for each request; a first start took 5 s on
+Linux), the step that starts it is bounded at 18 minutes and the job at 30,
+and when a check fails or a step runs out of time, the job keeps every start's
+output as an `appliance-logs-…` artefact.
 
 ### Where I expect this to break, and what each break means
 
@@ -563,6 +643,29 @@ That script sets both variables to `C:\ProgramData\OpenMigrate\...`, creates the
 directories, and starts the appliance. If Phase 1 passed and this passes, the
 installer's requirements are settled and I can write that part with confidence.
 
+### In CI (since 2026-11-02)
+
+The same `smoke` job runs the half of this phase an administrator can run, and
+leaves the Program Files half here:
+
+- **A directory it cannot make:** `SELFHOST_PGLITE_DIR` beneath a regular file.
+  It must exit non-zero within 60 s without listening, its error reading `The
+  appliance cannot write its database directory:` with the directory on the next
+  line and `SELFHOST_PGLITE_DIR was not set`: the message above, reached for a
+  reason any account has (a file where a directory would have to be), not for a
+  permission.
+- **The data directory outside the payload:** `SELFHOST_PGLITE_DIR` and
+  `CONFIG_DIR` set to two directories under the runner's temporary directory
+  that do not exist yet. `start.mjs` must make them, print `[selfhost]
+  persistence: pglite (<that directory>)` and `[selfhost] loaded 0 mapping(s)
+  from <that directory>`, migrate a database of its own there (every migration
+  again, so not the payload's), and serve `/ui`, `/status` and `/version`.
+
+It sets the two variables itself, the way `run-appliance.ps1` does; it does not
+run `run-appliance.cmd`, and it cannot show the refusal under `C:\Program
+Files\`: the runner's account is an administrator, so that write succeeds, and
+as said above, a pass there says nothing.
+
 ---
 
 ## Phase 3 — start it on boot, with Task Scheduler
@@ -788,10 +891,12 @@ verified. Nothing in the installer needs to detect, prompt for or bundle Node.
 
 ## A note on what I have and have not done
 
-I wrote every command here by reading the code. **None of it has been run.** The
-`.ps1` files are untested on Windows for the same reason — no Windows in CI, none
-in my environment. They are short and readable on purpose, so you can see what
-they do before running them.
+I wrote every command here by reading the code, before any of it had been run;
+the table at the top says what the owner has run since, and on what date. The
+`.ps1` files were written the same way, with no Windows in my environment. They
+are short and readable on purpose, so you can see what they do before running
+them. Since 2026-11-02 CI has a Windows runner for Phases 1 and 2 (*In CI*,
+under each), which starts `.\node.exe start.mjs` and none of the `.ps1` files.
 
 The one thing I am confident about without a Windows machine is the Phase 2 data
 directory defect, because it follows from reading `start.mjs` against the fact

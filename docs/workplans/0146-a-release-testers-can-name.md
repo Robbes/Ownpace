@@ -4,6 +4,28 @@
 
 ## Status — 2026-11-02 (update this block at the end of every session)
 
+**2026-11-02: alpha.4's Windows gate is a CI job, not the owner's check (T2).** The owner,
+2026-11-02: "I wont do windows...". So the Windows 11 check of a zip on Node 26.13.0, one of
+the gates the entry of 2026-11-01, later, below lists for the tag, is replaced: on the branch
+`claude/ownpace-public-readiness-y7orc6-windows-smoke`, not merged, `windows-payload.yml` runs
+Phases 1 and 2 of `docs/windows-appliance-runbook.md` on a GitHub-hosted `windows-2025` runner
+in a `smoke` job, against the upload its `build` made, and attaches the zip from a `release`
+job that needs `smoke`, so a tag Release cuts never carries a zip that failed on Windows.
+`release` runs the names check straight after its checkout, as T2 asks of every job that
+publishes; `a-release-that-names-itself` names it in place of `build`. 0119's Status entry of
+the same day has the checks, the guard, what stays by hand and the review. **The gate now
+reads:** that job green on a dispatch of the branch, then merged; after the fold, a dispatch of
+`windows-payload.yml` on `main` at C (platform win-x64) with `smoke` green, before the owner
+approves, which Release's preflight now refuses C without (`windows-smoke-green`, from the
+review of the same day: Release's own run of it is on the tag, after Security Scan made the
+release page and beside the images, so it alone would show a Windows failure only with the
+release half-published, `docs/release.md` §3); and green again inside Release's
+`publish-payload` on the tag (whose 60 minutes cover the run; the job is bounded at 30). A
+green `smoke` is Windows Server 2025, build 26100, the build Windows 11 24H2 shares, under an
+administrator account, running the payload `build` uploaded; not a Windows 11 client edition,
+a standard user, a browser download of the attached zip (made on Linux afterwards), or an
+upgrade over an earlier release's database. It had not run when this was written.
+
 **2026-11-02, records: T11 (c) merged and on the OTA stack, and alpha.4's open gates as they
 stand (T2, T11).** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`; 0119's Status entry of the same day
@@ -27,7 +49,8 @@ are UTC.
   run. Setting them (`docs/test-tenant.md`) is the owner's.
 - **The owner's Windows 11 check of a zip on Node 26.13.0** is still open. `main`'s zip is
   windows-payload run 41375291612 on `733294a5` (01:59), artifact
-  `ownpace-appliance-win-x64-733294a5…`, beside #1767's from branch run 41250312341.
+  `ownpace-appliance-win-x64-733294a5…`, beside #1767's from branch run 41250312341. *(Later
+  2026-11-02: replaced by `windows-payload.yml`'s `smoke` job, the entry above.)*
 - **E2E (self-hosted), scheduled, on `main`:** run 41378982336 on `733294a5` (02:40) and run
   41410768898 on `0b16a82e` (08:07), both green. `main`'s scheduled E2E (managed) of 2026-11-02
   had not run when this was written.
@@ -84,7 +107,8 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
   runner, or drop it from `runs-on`), and the owner's Windows 11
   check of a zip on Node 26.13.0 are still open. *(2026-11-02: the label is on the runner, and
   the lane now waits for its two secrets; the Windows check can take `main`'s zip: the entry of
-  2026-11-02, records, above.)*
+  2026-11-02, records, above. Later that day the Windows check became `windows-payload.yml`'s
+  `smoke` job, the first entry of this block.)*
 
 **2026-11-01: T11 (c), ClickHouse 26.3, built as a draft that waits for the owner; superseded
 2026-11-02 by the owner's choice of 26.8.36.3-lts (the entry above)** (0119 §3 item

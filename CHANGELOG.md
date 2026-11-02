@@ -377,6 +377,29 @@ notices.
 
 ### Added
 
+- **The Windows payload is started on Windows before a release attaches its
+  zip** (workplans 0119, 0146). Until now the only check that a payload ran on
+  Windows was the owner's, by hand, on a Windows 11 laptop, last on
+  2026-08-13, and the check of the zip on Node 26.13.0 was owed for this
+  release. The owner, 2026-11-02: "I wont do windows...". So
+  `windows-payload.yml` runs Phases 1 and 2 of the Windows runbook on a
+  GitHub-hosted Windows Server 2025 runner, on the very payload its build
+  uploaded: the payload at the top of the download, its build stamp, the
+  version of its `node.exe`, `SHA256SUMS.txt`, a first start that migrates a
+  new database and serves the operating UI and `/status`, a second start that
+  finds nothing to migrate, a refusal that names the directory and the
+  variable to set, and the database and settings outside the payload. On a
+  release tag the zip is attached by a job that needs that one, so a payload
+  that failed it is not attached, and Release's preflight refuses a commit
+  that has no green run of it, so a failure shows before the tag rather than
+  after the release page and the images. Windows Server 2025 shares its build
+  with Windows 11 24H2; the job runs as an administrator, on the payload
+  before it is zipped. Still checked by hand, or not at all: the refusal under
+  `C:\Program Files\`, a clean `Ctrl+C`, the scripts in `scripts\` and the
+  start-on-boot task, SmartScreen and a zip downloaded in a browser, a
+  standard user's account, an upgrade over an earlier release's database,
+  Windows 11 itself, and the arm64 payload.
+
 - **The outside probe asks whether anybody can found an organisation at live's
   sign-in service** (workplan 0135 T1, the ask 0132 T3 records): every dispatch
   of *Exposure probe* asks `https://id.ownpace.eu/ui/login/register/org`

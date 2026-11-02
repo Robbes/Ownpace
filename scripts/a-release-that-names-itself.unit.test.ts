@@ -654,11 +654,17 @@ describe('the rules this test reads the workflows by', () => {
   });
 });
 
-/** The jobs that publish on a tag, as 0146 T2 names them: file and job id. */
+/**
+ * The jobs that publish on a tag, as 0146 T2 names them: file and job id.
+ * windows-payload.yml's attach moved from `build` to `release` on 2026-11-02,
+ * so that it runs only after `smoke` has run the payload on Windows
+ * (a-zip-no-windows-had-started); `build` still runs the check, and publishes
+ * nothing.
+ */
 const PUBLISHERS: ReadonlyArray<readonly [string, string]> = [
   ['images.yml', 'build'],
   ['security-scan.yml', 'security-scan'],
-  ['windows-payload.yml', 'build'],
+  ['windows-payload.yml', 'release'],
 ];
 
 describe('every workflow that publishes on a tag runs the check first', () => {

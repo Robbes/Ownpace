@@ -184,7 +184,8 @@ jobs:
         run: node scripts/release-preflight.mjs names --candidate candidate
 
       # The tag, the API contract's version, the changelog folded, CI and the
-      # scan on main for C, the nights, and the notes.
+      # scan on main for C, a windows-payload run on C whose smoke passed
+      # (since 2026-11-02), the nights, and the notes.
       - name: What the candidate says, and what the record says about it
         id: check
         if: steps.resolve.outputs.candidate == 'true' && inputs.mode != 'verify'

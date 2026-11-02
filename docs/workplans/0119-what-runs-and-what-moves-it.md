@@ -4,6 +4,92 @@
 
 ## Status — 2026-11-02 (update this block at the end of every session)
 
+**2026-11-02: the Windows zip is run on Windows by CI before a tag attaches it, in place of the
+owner's Windows 11 check, which the owner dropped.** The owner, 2026-11-02: "I wont do
+windows...". On the branch `claude/ownpace-public-readiness-y7orc6-windows-smoke`, not merged.
+The check had been owed for every zip since Node 26.13.0 reached it (the entries of 2026-11-01
+and 2026-11-02, records, below), and was one of alpha.4's gates (0146's Status).
+- **`smoke`, a new job of `windows-payload.yml`,** runs on a GitHub-hosted `windows-2025`
+  runner (Windows Server 2025, x64; a pinned label, not `windows-latest`) after `build`, for
+  win-x64, against the artefact `build` uploaded, downloaded by name with nothing checked out.
+  It runs Phases 1 and 2 of `docs/windows-appliance-runbook.md` (its *In CI* sections list each
+  check): `start.mjs` and `node.exe` at the top of the download (the double-zipped artefact of
+  2026-08-07 would fail there); the `const BUILD =` stamp naming the run's commit (twelve
+  characters) and the root `package.json`'s version; `.\node.exe --version`, called by its path
+  (the runner has Node 22 on `PATH`), equal to the version `build` now reads with the
+  packager's own `nodeRuntimeVersion()` from `apps/selfhost/Dockerfile` and passes on as an
+  output (v26.13.0 today); `SHA256SUMS.txt` holding for every file with `Get-FileHash`, and no
+  file outside it. Then four starts of `.\node.exe start.mjs` from the payload directory, each
+  with a `PORT` of its own: a first that prints the build line first, applies one migration per
+  `.sql` file the payload ships and ends `now at` the last of them, makes `data\pglite` and
+  `data\config` inside the payload, and answers `/ui` (the UI's HTML, then the bundle it
+  names), `/status` (`"status":"ok"`) and `/version` (the stamp); a second, after the first was
+  stopped with `Kill()`, that prints `[migrate] schema up to date at` the same file and applies
+  nothing; one with `SELFHOST_PGLITE_DIR` beneath a regular file, which must exit non-zero
+  within 60 s without listening and say `The appliance cannot write its database directory:`,
+  the directory and `SELFHOST_PGLITE_DIR was not set`; and one with `SELFHOST_PGLITE_DIR` and
+  `CONFIG_DIR` in a directory outside the payload that did not exist, which must make both,
+  name them in `[selfhost] persistence: pglite (…)` and `[selfhost] loaded 0 mapping(s) from …`,
+  migrate a database of its own there and serve. The job stops only the processes it started,
+  by their own handles; every wait is bounded (180 s, 120 s, 60 s, 15 s a request; 6 and 18
+  minutes for its two PowerShell steps, 30 the job); the logs of every start are an artefact
+  when it fails.
+- **The attach is a job of its own, `release`,** which needs `smoke`, so a tag never attaches a
+  zip that failed on Windows (or was never run there: a win-arm64 dispatch skips both). It runs
+  the names check again straight after its checkout, downloads the same upload, checks it
+  against its own `SHA256SUMS.txt` and zips it as before (one top-level
+  `ownpace-appliance-win-x64/`, the same zip name). The workflow's token is now `contents: read`
+  and `release` alone asks for `write`, so `build`, which runs `pnpm install`, no longer holds
+  it. `a-release-that-names-itself` names `windows-payload.yml › release` as the publisher; the
+  new guard `a-zip-no-windows-had-started` holds the rest (ten mutations of the workflow each
+  fail it: `release` without `smoke` in `needs`, `windows-latest`, a `taskkill`, `if: always()`
+  on `release`, a `WaitForExit()` with no timeout, a request without `-TimeoutSec`, a polling
+  loop without its deadline, another artefact's name, a step without `shell: pwsh`, no
+  `Set-StrictMode`).
+- **What was run before the push:** the job's PowerShell has no interpreter here, so it was
+  parsed with tree-sitter-powershell (no error node in either step; a mutated copy shows
+  them); every assertion's words were read off a payload staged from `bce0fcfd` with the real
+  UI and run on Linux with Node 26.13.0: the first line, 65 `applying` lines and `applied 65
+  migration(s); now at 0067_a_cutover_ledger_per_data_type.sql` (65 `.sql` files), `PG_VERSION`
+  in `data/pglite`, `/ui` 302 to `/ui/` 200 `text/html` with `<div id="root"></div>` and its
+  `/ui/assets/index-*.js` 200, `/status` and `/version` 200; after `SIGKILL`, `schema up to
+  date at` the same file and no `applying`; beneath a file, exit 1 and the message; outside, the
+  two lines naming the directories and 65 migrations again. Every test file under `scripts/`
+  passes (283, the 51 that read the workflows among them).
+- **Owed:** the job has never run. It is proven only once a run of it is green, the first a
+  dispatch of the workflow on this branch, before the merge. What it leaves to a person, as the runbook
+  says: the refusal under `C:\Program Files\` (the runner's account is an administrator), a
+  clean `Ctrl+C` (`Kill()` is a hard stop, so the second start proves the database survives
+  one), the scripts in `scripts/windows/`, Phases 3 and 4, SmartScreen, Windows 11 itself, and
+  win-arm64. GitHub hosts Windows on arm64 (`windows-11-arm`), so that one could be a second
+  leg; it is not one here. **What `windows-2025` stands in for:** Windows Server 2025, build
+  26100, the build Windows 11 24H2 shares (the image reports OS 10.0.26100). A green `smoke`
+  shows this payload's `node.exe`, PGlite, migrations and UI running on that build under an
+  administrator account; not a Windows 11 client edition, a standard user, a browser download
+  extracted in Explorer (Mark of the Web, SmartScreen), or an upgrade over a database an earlier
+  release made. It runs the upload, not the attached zip, which `release` makes on Linux
+  afterwards and checks only there.
+- **The review of the same day, seven findings (six distinct), all held, all fixed on the
+  branch.** (1, 7) **A slow run lost its logs.** The waits added up to about 17.5 minutes
+  inside a job bounded at 15, and a job's limit cancels it, so `failure()` was false and the
+  log upload was skipped: the listening waits are now 180, 120 and 180 s (a first start took
+  5 s on Linux), each PowerShell step has its own limit (6 and 18 minutes) above its waits, and
+  the job's is 30, above both; a step's limit fails the step, so the upload runs. (2) The
+  comment said a pinned label changes only by a reviewed edit; GitHub updates the image about
+  weekly, and only the major version is pinned. (3) **The Windows run came after the tag.**
+  The workflow runs on a dispatch or a tag, and Release dispatches it on the tag after Security
+  Scan made the release page and beside the images, so a payload that failed on Windows would
+  first show with the release half-published, later than the owner's check before the tag it
+  replaces. Release's preflight now refuses C without a dispatched windows-payload run on C
+  whose `smoke` passed (`windows-smoke-green` in `scripts/release-preflight.mjs`; a win-arm64
+  run, green with `smoke` skipped, is refused), `docs/release.md` §1 lists the dispatch among
+  the owner's steps after the fold, and §3 says what a red `smoke` on the tag leaves. (4) A
+  win-arm64 run ends green with `smoke` skipped and said nothing: `build`'s summary now says
+  that payload was not started on Windows. (5) What a Windows Server run stands in for, the
+  paragraph above, in the runbook, 0146 and the CHANGELOG, whose entry now says the payload,
+  not the zip. (6) The CHANGELOG entry said the job had not run "when this was written"; the
+  status is the workplans'.
+
 **2026-11-02, records: #1785, #1784 and #1786 merged, the owner's ClickHouse window and readings,
 the host's Docker from the machine vendor's apt repository, and the O365 lane's missing
 secrets.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`.
@@ -92,7 +178,8 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
 - **The Windows payload on `main`:** windows-payload run 41375291612 on `733294a5` (01:59),
   artifact `ownpace-appliance-win-x64-733294a5…`, `node.exe` 26.13.0. The owner's Windows 11
   check of a zip on 26.13.0 is still owed; it can take this zip, or #1767's from branch run
-  41250312341.
+  41250312341. *(Later 2026-11-02: dropped by the owner and replaced by `windows-payload.yml`'s
+  `smoke` job, the entry above; proven once it runs green.)*
 - **E2E (self-hosted), scheduled, on `main`:** run 41378982336 on `733294a5` (02:40) and run
   41410768898 on `0b16a82e` (08:07), both green.
 
@@ -320,7 +407,8 @@ says what is owed for the self-hosted one). **Not done here:** the tarball the
 host steps of `docs/managed-bring-up.md` install is still checked against a list from its own
 host (§2.5); the owner's Windows 11 check of a zip on 26.13.0 is still owed (`main`'s zip since
 2026-11-02: windows-payload run 41375291612 on `733294a5`; the entry of 2026-11-02, records,
-above).
+above). *(Later 2026-11-02: that check is `windows-payload.yml`'s `smoke` job now, the first
+entry of this block.)*
 
 **2026-11-01: #1780's review, seven findings, all held (five distinct), all fixed on the same
 branch.** (1, 5) **An expired releaser key.** `verifyNodeReleaseSignature` took only `GOODSIG`.
@@ -723,7 +811,9 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   #1767's head before its merge (the entry of 2026-11-01, records, above); the o365 lane's first
   run on a runner stopped at its secrets check, and the Windows 11 check, of this zip or of
   `main`'s from windows-payload run 41375291612, is still the owner's: the entry of 2026-11-02,
-  records, above.)*
+  records, above. Later that day the owner dropped the Windows 11 check ("I wont do
+  windows..."), and `windows-payload.yml`'s `smoke` job, on `windows-2025`, replaces it: the
+  first entry of this block.)*
 
 **2026-11-01: the Atlas CLI that CI's migration lint runs is release v1.3.6, checked by its
 SHA-256 for both architectures before anything runs it (alpha.4, supply chain)**, on the branch
@@ -2421,7 +2511,9 @@ Node 26 everywhere it matters, since 2026-10-31 (24 until then; the Status entry
 day): `engines` says `>=26`, CI installs `26`, the images run 26.13.0 (24.20.0 at the
 audit, 24.22.1 from 2026-10-21), the API's distroless runtime carries the same binary, the
 tasks deploy as `node-26`, and the Windows payload ships the self-host image's version, its
-`node.exe` checked against sums committed beside it (§2.5, since 2026-11-01).
+`node.exe` checked against sums committed beside it (§2.5, since 2026-11-01), and run on
+Windows Server 2025 by `windows-payload.yml`'s `smoke` job before a tag attaches it (since
+2026-11-02, the Status entry of that day; proven once it runs green).
 The major moves by hand, all of it in one pull request, when the next LTS line is current
 (§3 item 7); `a-gate-on-a-version-nothing-ships` fails a pull request that leaves one pin
 behind, `engines` among them (a case of its own since 2026-11-01: until then nothing read
@@ -2480,7 +2572,7 @@ it updates itself when GitHub asks it to: watched, nothing owed.
 | Tool | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on the self-hosted arm64 runner for a push to `main` | v1.3.6 from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `bb6e8167…`, arm64 `723e4cac…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.6-community@sha256:66a344bf…`, read through the registry's digests (2026-11-01). Before it `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC that day) | v1.3.6 (Docker Hub, 2026-10-27 13:03 UTC): Ariga's official build (`-tags=official`, version v1.3.6), whose Go build information names upstream commit `ed994a77898e` of 2026-10-21, clean for amd64 while arm64 reports `vcs.modified=true`. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
-| `node.exe`, the Windows payload's Node (win-x64; win-arm64 by dispatch) | `scripts/package-appliance.mjs` `--with-node`, run by `windows-payload.yml` on a dispatch and on every release tag, whose zip the release attaches | since 2026-11-01, the version `apps/selfhost/Dockerfile` names, v26.13.0, from `nodejs.org` by name, its bytes checked against the SHA-256 committed in `NODE_RUNTIME_SHA256` (win-x64 `14319838…`, 100,097,864 bytes; win-arm64 `4c9baa04…`, 88,331,080), sums of `node.exe` itself and not of the release's `.zip`. Before anything is fetched, `gpgv` checks the release's own `SHASUMS256.txt`, committed with its `.sig` in `scripts/node-release/`, against the Node.js release keyring committed beside it (`gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`, 2026-09-01, blob `bae91a9c…`): good, by primary key `C82FA3AE…`, and giving the same two sums. Read twice more: the release announcement's clear-signed list in nodejs/nodejs.org (good, by the same key, the same 34 lines) and each `node.exe` downloaded and hashed (2026-11-01). Until then: checked only against a `SHASUMS256.txt` fetched from the same directory as the binary, with no signature read | v26.13.0 (the Dockerfile's; the image's version is the `node` row's in §2.1) | current | Dependabot's image pull request moves the Dockerfile's version and cannot move the sums: `a-runtime-only-its-own-host-vouched-for` fails it until the release's `SHASUMS256.txt` and `.sig` and the two sums are pushed to it (the commands are above `NODE_RUNTIME_SHA256` and in `docs/windows-appliance-runbook.md`). The keyring moves by hand, with the commit and blob id in `NODE_RELEASE_KEYS`, when the pin watch's summary issue lists a newer nodejs/release-keys commit whose `gpg-only-active-keys/pubring.kbx` differs (its `Node.js release keys` row, weekly, since #1780's review: a key retired, revoked, added or given a new expiry), or when a release is signed by a key not in it (the build says so). A key that expired after it signed does not stop the build; one revoked, or expired before it signed, does | shipped to every Windows install, and held to the tagged commit's sum by the release's `verify` job (since #1780's review); `pnpm test` needs `gpgv`; the owner's Windows 11 check of a zip on 26.13.0 is owed (Status, 2026-10-31), `main`'s zip since 2026-11-02 being windows-payload run 41375291612 on `733294a5` (Status, 2026-11-02, records) |
+| `node.exe`, the Windows payload's Node (win-x64; win-arm64 by dispatch) | `scripts/package-appliance.mjs` `--with-node`, run by `windows-payload.yml` on a dispatch and on every release tag, whose zip the release attaches | since 2026-11-01, the version `apps/selfhost/Dockerfile` names, v26.13.0, from `nodejs.org` by name, its bytes checked against the SHA-256 committed in `NODE_RUNTIME_SHA256` (win-x64 `14319838…`, 100,097,864 bytes; win-arm64 `4c9baa04…`, 88,331,080), sums of `node.exe` itself and not of the release's `.zip`. Before anything is fetched, `gpgv` checks the release's own `SHASUMS256.txt`, committed with its `.sig` in `scripts/node-release/`, against the Node.js release keyring committed beside it (`gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`, 2026-09-01, blob `bae91a9c…`): good, by primary key `C82FA3AE…`, and giving the same two sums. Read twice more: the release announcement's clear-signed list in nodejs/nodejs.org (good, by the same key, the same 34 lines) and each `node.exe` downloaded and hashed (2026-11-01). Until then: checked only against a `SHASUMS256.txt` fetched from the same directory as the binary, with no signature read | v26.13.0 (the Dockerfile's; the image's version is the `node` row's in §2.1) | current | Dependabot's image pull request moves the Dockerfile's version and cannot move the sums: `a-runtime-only-its-own-host-vouched-for` fails it until the release's `SHASUMS256.txt` and `.sig` and the two sums are pushed to it (the commands are above `NODE_RUNTIME_SHA256` and in `docs/windows-appliance-runbook.md`). The keyring moves by hand, with the commit and blob id in `NODE_RELEASE_KEYS`, when the pin watch's summary issue lists a newer nodejs/release-keys commit whose `gpg-only-active-keys/pubring.kbx` differs (its `Node.js release keys` row, weekly, since #1780's review: a key retired, revoked, added or given a new expiry), or when a release is signed by a key not in it (the build says so). A key that expired after it signed does not stop the build; one revoked, or expired before it signed, does | shipped to every Windows install, and held to the tagged commit's sum by the release's `verify` job (since #1780's review); `pnpm test` needs `gpgv`; the owner's Windows 11 check of a zip on 26.13.0, owed since 2026-10-31, was dropped by the owner on 2026-11-02 and replaced by `windows-payload.yml`'s `smoke` job, Phases 1 and 2 of the Windows runbook on `windows-2025`, which the release attach needs (Status, 2026-11-02; proven once it runs green) |
 | stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, the self-hosted arm64 runner for a push), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
 | Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`: the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest (2026-11-01). Atlas's docker driver (`FromURL` at v1.3.6's commit) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed` | CI only; the major is the deployments' (that guard's older rule) |
 | binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
