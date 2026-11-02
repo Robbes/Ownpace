@@ -207,7 +207,7 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       why: "the shim pnpm puts on a package script's PATH so that a script can call node-gyp, which went with dist/node_modules; the supervisor's start script calls no node-gyp",
       evidence: "pnpm 10.33.2 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); apps/supervisor/package.json's start at v4.8.1 and v4.8.3",
     },
-    ...npmRemovals('trigger-supervisor', 'the CMD runs pnpm (through corepack), the entrypoint dumb-init, the healthcheck `node -e`, nothing execs into it, and the supervisor spawns nothing'),
+    ...npmRemovals('trigger-supervisor', 'the CMD runs pnpm (through corepack), the entrypoint dumb-init, the healthcheck `node -e`, nothing execs into it but the smoke, by `node -e` too (since 2026-11-02), and the supervisor spawns nothing'),
   ],
 };
 

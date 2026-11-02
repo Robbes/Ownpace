@@ -633,6 +633,13 @@ services:
   # needs (create/manage containers, pull images, attach networks) and nothing
   # more — no exec into other containers, no volume deletion, no swarm.
   #
+  # Only the supervisor reaches it (2026-11-02, workplan 0136 T4's first
+  # bullet). It publishes no port and has no authentication, and with POST,
+  # CONTAINERS and NETWORKS whoever reaches it can start a container on any
+  # network of the machine, so it is on one network, which the supervisor
+  # alone shares: see its networks below, and `trigger-docker-socket` at the
+  # bottom of this file.
+  #
   # Built here since 2026-10-30 (workplan 0119): Tecnativa's docker-socket-proxy
   # at its release v0.5.0, its Dockerfile, haproxy.cfg and entrypoint as they
   # are at that tag, on the newest HAProxy of the same line, 3.4.7, instead of
@@ -657,13 +664,17 @@ services:
       POST: 1
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock:ro
+    # ON ONE NETWORK, WHICH ONLY ITS ONE CLIENT SHARES (2026-11-02, workplan
+    # 0136 T4). Not ownpace-network: see `trigger-docker-socket` at the bottom
+    # of this file for why, and what reaches it now.
     networks:
-      - ownpace-network
+      - trigger-docker-socket
 
   # The component that actually EXECUTES deployed tasks (0018 T0/T3): it
   # authenticates to trigger-api with the bootstrap worker token the webapp
   # writes to the shared volume (TRIGGER_BOOTSTRAP_* above), dequeues runs,
-  # and starts one container per run via the docker proxy. Without it, a
+  # and starts one container per run via the docker proxy, the one service
+  # that shares the proxy's network (`trigger-docker-socket`). Without it, a
   # deployed task is dequeued by nobody — which is exactly what this stack
   # was before 0018: bootstrap env vars with no consumer.
   trigger-supervisor:
@@ -687,6 +698,8 @@ services:
       MANAGED_WORKER_SECRET: ${TRIGGER_MANAGED_WORKER_SECRET:?generate with openssl rand -hex 16 and set in .env}
       TRIGGER_WORKLOAD_API_DOMAIN: trigger-supervisor
       TRIGGER_WORKLOAD_API_PORT_EXTERNAL: 8020
+      # A name that resolves only on `trigger-docker-socket`, which this
+      # service shares with the proxy and nothing else does.
       DOCKER_HOST: tcp://trigger-docker-proxy:2375
       # Run containers join THIS network, so tasks reach postgres, stalwart
       # and nextcloud by the same names the worker container uses. The value
@@ -722,7 +735,13 @@ services:
       retries: 10
       start_period: 60s
     networks:
+      # The runners reach the workload API above here, as trigger-supervisor,
+      # and this service reaches trigger-api and the world here.
       - ownpace-network
+      # The socket proxy's one network, which only this service shares with
+      # it: see `trigger-docker-socket` at the bottom of this file. DOCKER_HOST
+      # above goes over it, and nothing else does.
+      - trigger-docker-socket
 
   # Object store for large task payloads/outputs. trigger-api has pointed at
   # http://minio:9000 since the stack was written — the service just never
@@ -2186,14 +2205,59 @@ networks:
   #
   # What this stops: a plain request to ClickHouse from any other container,
   # or one forged through the web app, the API, Zitadel or Nextcloud (an
-  # SSRF). They have no name and no route to it. What it does not stop:
-  # trigger-docker-proxy, above, is on ownpace-network with POST, NETWORKS and
-  # CONTAINERS and no authentication, so code running in any container there,
-  # every task run included, can still attach itself or a new container to
-  # this network through the Docker API (workplan 0136 §1, "What shares the
-  # network"). 0136 T4, which takes the proxy off every network a
-  # tenant-facing process joins, closes that.
+  # SSRF). They have no name and no route to it. The other way in was the
+  # Docker API: trigger-docker-proxy has POST, NETWORKS and CONTAINERS and no
+  # authentication, and until 2026-11-02 it was on ownpace-network, so code
+  # running in any container there, every task run included, could attach
+  # itself or a new container to this network through it (workplan 0136 §1,
+  # "What shares the network"). Since then the proxy is on
+  # `trigger-docker-socket`, below, with the supervisor alone. What this
+  # still does not stop is code that already runs inside trigger-supervisor
+  # or trigger-api, or on the host.
   trigger-event-store:
+    driver: bridge
+    internal: true
+  # TWO MEMBERS, AND NO WAY OUT: the Docker socket proxy and its one client,
+  # trigger-supervisor (2026-11-02, workplan 0136 T4's first bullet, built
+  # ahead of the rest of T4 for CVE-2026-116366). The proxy holds the host's
+  # Docker socket and lets through, with no authentication, what the
+  # supervisor needs to start a task run: create and start containers, pull
+  # images, attach networks (its environment, above). Whoever can reach it can
+  # therefore start a container on any network of the machine, or one that
+  # mounts the host's files, which is control of the host. Until this network
+  # that was everybody on ownpace-network: the web app, the API, the identity
+  # provider and the demo Nextcloud, which answer the internet, and every task
+  # run, which the supervisor starts there (DOCKER_RUNNER_NETWORKS). One of
+  # those routes led to ClickHouse, which an attached container could then
+  # reach on trigger-event-store above.
+  #
+  # Now a name that resolves only here. The supervisor is the one service that
+  # talks to the Docker API: its DOCKER_HOST names the proxy, and nothing else
+  # in this file does. Its task runs never get DOCKER_HOST: the supervisor of
+  # Trigger.dev v4.8.3 hands a run its own workload API (8020) and
+  # trigger-api's /otel, and nothing about Docker (apps/supervisor,
+  # workloadManager/docker.ts); trigger-api runs no Docker client. The
+  # supervisor keeps ownpace-network, where the runners reach its workload API
+  # and it reaches trigger-api and the world; DOCKER_RUNNER_NETWORKS does not
+  # name this network, so no task run joins it.
+  #
+  # `internal`: no route off the machine either. The proxy needs none: every
+  # server its haproxy.cfg names is the socket it mounts, with no resolver,
+  # mailer or log host, and the daemon behind the socket, not the proxy, pulls
+  # the images a run needs. The proxy publishes no port.
+  # `scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds the members,
+  # the flag and the proxy's one network; the smoke asks the proxy from the
+  # supervisor, and finds no such name from the API container.
+  #
+  # What this stops: a request to the Docker API from any other container,
+  # whether made by code a task runs or forged through the web app, the API,
+  # Zitadel or Nextcloud. What it does not stop: code that already runs inside
+  # trigger-supervisor can still ask the proxy anything its environment
+  # allows, and each stack's proxy can still start a container on the other
+  # stack's networks (workplan 0132 §1, which D6 accepts). The rest of 0136
+  # T4, Trigger.dev's plane on a network of its own and the host's firewall
+  # rule, is still to come.
+  trigger-docker-socket:
     driver: bridge
     internal: true
 

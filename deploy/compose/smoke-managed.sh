@@ -1212,30 +1212,57 @@ else
   fail_at
 fi
 
-# THE DOCKER PROXY publishes no port; it is reachable only on the stack network,
-# so this goes through the API container exactly as the minio assertion does —
-# node, by the path the preflights found (`$API_NODE`).
+# THE DOCKER PROXY publishes no port, and since 2026-11-02 it is on one network,
+# `trigger-docker-socket`, which only the supervisor shares (managed.yml, at the
+# bottom; workplan 0136 T4). `a-network-the-tenant-cannot-see` holds the file to
+# that. So it is asked from both sides, as ClickHouse is below, and each side
+# prints what it saw.
 #
-# `tcp://trigger-docker-proxy:2375` is the address managed.yml gives the
-# supervisor as DOCKER_HOST, and `/_ping` is the Docker API's own liveness
-# endpoint. `fetch` resolving is the assertion: it settles on ANY HTTP response
-# and rejects only when nothing is listening.
+# FROM THE SUPERVISOR, its one client: `tcp://trigger-docker-proxy:2375` is the
+# address managed.yml gives it as DOCKER_HOST, and `/_ping` is the Docker API's
+# own liveness endpoint. The pass is HTTP 200 with the Api-Version header Docker
+# sets on every answer, so that HAProxy's own 403, or its 503 when the socket
+# does not answer, never reads as Docker's (images.yml asks the proxy the same
+# way). node, because the supervisor's own health check runs it there, as the
+# image's user and without its entrypoint, which is how this runs too.
 #
 # This is the service whose failure mode workplan 0018 spent itself on: the
 # supervisor creates every runner container through this proxy, so when it is
 # down an enqueue never becomes a runner — and that is invisible in a green CI,
 # which is the entire reason this script exists.
-if docker exec "$API_CONTAINER" "$API_NODE" -e \
-  "fetch('http://trigger-docker-proxy:2375/_ping').then(r=>{console.log('trigger-docker-proxy HTTP '+r.status);process.exit(0)}).catch(e=>{console.log('trigger-docker-proxy unreachable: '+e.message);process.exit(1)})"
+#
+# FROM THE API CONTAINER, on ownpace-network with every other service and every
+# task run, by the path the preflights found (`$API_NODE`): the name must not
+# resolve at all. Anything else, an answer, a refused connection or a timeout,
+# means a network it is on knows the name, and fails. Only the status and the
+# error's code are printed: the message of a refused connection carries the
+# address, and this log is public.
+SUPERVISOR_CONTAINER="${COMPOSE_PROJECT}-trigger-supervisor"
+if docker exec "$SUPERVISOR_CONTAINER" node -e \
+  "fetch('http://trigger-docker-proxy:2375/_ping').then(r=>{const v=r.headers.get('api-version');console.log('trigger-docker-proxy HTTP '+r.status+(v?' Api-Version '+v:' without Api-Version'));process.exit(r.status===200&&v?0:1)}).catch(e=>{console.log('trigger-docker-proxy unreachable: '+((e.cause&&e.cause.code)||e.name));process.exit(1)})"
 then
-  echo "trigger-docker-proxy: reachable from the API container on the stack network"
+  echo "trigger-docker-proxy: Docker answers the supervisor's DOCKER_HOST, on trigger-docker-socket"
 else
-  echo "FAIL: the supervisor's DOCKER_HOST (tcp://trigger-docker-proxy:2375) answers nothing."
+  echo "FAIL: Docker did not answer the supervisor's DOCKER_HOST (tcp://trigger-docker-proxy:2375) from trigger-supervisor."
   echo "      Every runner container is created through this proxy, so an enqueue will"
   echo "      never become a runner — the exact failure 0018 T5 spent itself finding,"
-  echo "      and the one a green CI hides."
+  echo "      and the one a green CI hides. Are trigger-supervisor and"
+  echo "      trigger-docker-proxy both on trigger-docker-socket, and is the proxy running?"
   fail_at
 fi
+px_from_api="$(docker exec "$API_CONTAINER" "$API_NODE" -e \
+  "fetch('http://trigger-docker-proxy:2375/_ping').then(r=>{console.log('answered HTTP '+r.status);process.exit(0)}).catch(e=>{console.log((e.cause&&e.cause.code)||e.name);process.exit(1)})" 2>&1)" && px_rc=0 || px_rc=$?
+case "$px_rc:$px_from_api" in
+  1:ENOTFOUND|1:EAI_AGAIN)
+    echo "trigger-docker-proxy: no such name from the API container (${px_from_api}), so nothing on ownpace-network reaches the Docker API" ;;
+  *)
+    echo "FAIL: the API container asked trigger-docker-proxy:2375 and got '${px_from_api}' (exit ${px_rc}), not an unknown name."
+    echo "      Every service on ownpace-network and every task run can then ask the"
+    echo "      Docker API, with no authentication, to start a container on any network"
+    echo "      of the machine or with the host's files mounted: the proxy must be on"
+    echo "      trigger-docker-socket, with trigger-supervisor alone."
+    fail_at ;;
+esac
 
 # ---------- ClickHouse: its one client reaches it, and nothing else does ----------
 #
