@@ -289,6 +289,20 @@ notices.
 
 ### Changed
 
+- **The Trigger.dev webapp and supervisor built here run pnpm 10.34.9 in place of
+  upstream's 10.33.2** (workplan 0146 T16). Hygiene, not a security fix: npm lists 18
+  advisories against 10.33.2 (11 high, 7 moderate) and none against 10.34.9, npm's
+  `latest-10`, and none of the 18 is reachable here, since each needs an install, a
+  patch command, a registry request or workspace files an attacker wrote, and these
+  containers only run package scripts. Each build installs 10.34.9 with corepack by the
+  sha512 npm published before it removes anything, removes 10.33.2, rewrites the root
+  `package.json`'s `packageManager` to `pnpm@10.34.9`, which is how corepack chooses the
+  copy, reads it back, and proves 10.34.9 starts offline as the service's user. It
+  refuses an upstream that moved `packageManager` (*upstream moved pnpm: drop the
+  swap*). Expected, not measured: the image scan's highs from 100 to about 89 in the
+  webapp and from 13 to about 2 in the supervisor. Nothing a stack sets changes; the
+  next bring-up builds both images again under their new names, and fetches pnpm from
+  the npm registry while it does.
 - **The deploy CLI's login line is `pnpm -C apps/worker exec trigger login …`,
   run from the checkout's root**, where it was `npx -y trigger.dev@<version>
   login …`; the bring-up, `deploy-tasks.sh`, `stand-up-live.sh` and the docs
