@@ -321,7 +321,8 @@ describe('the checks prove it, before the hold lifts', () => {
     const query = `docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "SELECT count(), min(bucket_start) FROM trigger_dev.metrics_v1"`;
     expect(before).toContain(query);
     // clickhouse-client reads CLICKHOUSE_USER and CLICKHOUSE_PASSWORD from its
-    // environment (programs/client/Client.cpp at the pinned 26.2), and the
+    // environment (programs/client/Client.cpp at 26.2, and unchanged at
+    // v26.8.34.13-lts, read for the pinned 26.8.36.3, which has no tag), and the
     // container has both. A password on a command line is one in `ps`.
     const line = before.slice(before.indexOf('clickhouse-client'), before.indexOf('\n', before.indexOf('clickhouse-client')));
     expect(line, 'the ClickHouse check puts a password on a command line').not.toMatch(/--password|--user/);

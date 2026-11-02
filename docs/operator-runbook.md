@@ -804,10 +804,10 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
    **ClickHouse's volume, only when the update moved the ClickHouse pin** (`deploy-live.sh`
    named that move, and said the copy holds no ClickHouse volume): the copy is not in `$C`,
    because the copy before an update never takes a volume. It is the one taken by hand before
-   the deploy, `ownpace-live_clickhouse_data_v2_before_26_3` for the move to 26.3: restore it
+   the deploy, `ownpace-live_clickhouse_data_v2_before_26_8` for the move to 26.8: restore it
    now with the *Back to 26.2* block of `docs/managed-bring-up.md`, *Moving ClickHouse*, with
    `cd ~/ownpace-live` in place of its first `cd` and without its last line. Without it, step
-   9 starts the older ClickHouse on parts it cannot read.
+   9 starts the older ClickHouse on parts it cannot read, if it starts at all.
 
 9. **Deploy the release that ran before**, the note's `from=`, the hold still on. When the copy
    held the task runner's database (step 8 ran), first set live's `TRIGGER_IMAGE_TAG` back to

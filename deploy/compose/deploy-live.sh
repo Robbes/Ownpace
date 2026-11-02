@@ -216,7 +216,11 @@
 # identity-provider or ClickHouse image pin in managed.yml moved: the API
 # refuses an older build against a migrated schema (migrate.ts), both planes
 # migrate their own schemas one way (0119, 0135), and ClickHouse writes parts
-# its older release cannot read (26.3 over 26.2, 0119 §3 item 9). When the
+# its older release cannot read (26.3 and later over 26.2, 26.8 since the
+# owner's decision of 2026-11-02; once 26.7 or later has rotated a system log
+# table, a server older than 26.3 does not start on the volume at all: 0119 §3
+# item 9). Any move of that image line is called one-way, whichever release
+# it names, and the line is printed as it is. When the
 # ClickHouse pin moves it also says that the copy below holds no ClickHouse
 # volume, which is copied by hand first (docs/managed-bring-up.md, "Moving
 # ClickHouse"). Otherwise it is REVERSIBLE. A commit this clone does not have

@@ -1240,7 +1240,8 @@ fi
 # ---------- ClickHouse: its one client reaches it, and nothing else does ----------
 #
 # CVE-2026-116366 (critical: "an unauthenticated user with network access" runs
-# code on the server) has no fix for the 26.2 this stack runs, so since
+# code on the server) has no fix for the 26.2 this stack ran (26.8.36.3-lts
+# since the owner's decision of 2026-11-02, which carries it), so since
 # 2026-11-01 ClickHouse is on one network, `trigger-event-store`, which only
 # trigger-api shares (managed.yml, at the bottom; workplan 0119 §3 item 9).
 # `a-store-every-container-could-reach` holds the file to that. These two ask the

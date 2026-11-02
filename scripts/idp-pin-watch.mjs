@@ -1045,24 +1045,25 @@ const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''
 
 /**
  * A DIFFERENCE FROM TRIGGER.DEV'S CLICKHOUSE PIN THAT IS ON PURPOSE, recorded
- * in workplan 0119 §3 item 9 (option 1, 2026-11-01). Trigger.dev v4.8.3 pins
- * 26.2.19.43, which ClickHouse no longer supports, and CVE-2026-116366 has no
- * 26.2 fix; the stack runs the nearest supported line that carries it.
+ * in workplan 0119 §3 item 9 (option 2, the owner's decision of 2026-11-02).
+ * Trigger.dev v4.8.3 pins 26.2.19.43, which ClickHouse no longer supports, and
+ * CVE-2026-116366 has no 26.2 fix; the stack runs 26.8.36.3-lts, the LTS
+ * release that carries it.
  *
  * It holds for this exact pair and nothing else: the row reads it as current
  * (no issue, `intended` in the table, the reason as a note) only while
  * managed.yml pins `ours` AND Trigger.dev's compose pins `theirs`, tag and
  * digest. When Trigger.dev moves, the row compares again and opens its issue,
  * saying the record was for the old pin, and, when upstream's tag is older
- * than the stack's (a re-pushed 26.2.19.43, an older 26.3 patch), that it is
+ * than the stack's (a re-pushed 26.2.19.43, an older 26.8 patch), that it is
  * never followed; when the stack moves, this moves in
  * the same change (`a-pin-that-knows-it-is-behind` fails until it does).
  * `null` when the stack follows Trigger.dev's pin again.
  */
 export const CLICKHOUSE_INTENDED = {
-  ours: '26.3.62.3@sha256:de3e47c64078aa196dae2349e048fc98ba81947f651f5c20e06e46baea8ae40a',
+  ours: '26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7',
   theirs: '26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd',
-  why: "on purpose (workplan 0119 §3 item 9): Trigger.dev's 26.2 is out of ClickHouse's support and has no fix for CVE-2026-116366, and 26.3.62.3 is the nearest supported line that does",
+  why: "on purpose (workplan 0119 §3 item 9): Trigger.dev's 26.2 is out of ClickHouse's support and has no fix for CVE-2026-116366, and 26.8.36.3 is the LTS release that carries it, the owner's choice of 2026-11-02",
 };
 
 export async function clickhouseRow(repo, net, trigger) {

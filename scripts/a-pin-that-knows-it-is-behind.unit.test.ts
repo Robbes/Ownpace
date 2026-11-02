@@ -59,19 +59,20 @@
  * to the committed file, and to never reading a pin or an answer it cannot
  * parse as current.
  *
- * A CLICKHOUSE AHEAD OF TRIGGER.DEV'S ON PURPOSE (workplan 0119 §3 item 9,
- * option 1, 2026-11-01). The ClickHouse row kept an issue open "also when the
- * stack differs on purpose", so moving to 26.3.62.3 for CVE-2026-116366, while
- * Trigger.dev still pins 26.2.19.43, would have kept a nag open that nobody
- * could act on, until it read as noise. `CLICKHOUSE_INTENDED` records the
+ * A CLICKHOUSE AHEAD OF TRIGGER.DEV'S ON PURPOSE (workplan 0119 §3 item 9;
+ * built 2026-11-01 for option 1, 26.3.62.3, and since the owner's decision of
+ * 2026-11-02 option 2, 26.8.36.3). The ClickHouse row kept an issue open "also
+ * when the stack differs on purpose", so moving ahead for CVE-2026-116366,
+ * while Trigger.dev still pins 26.2.19.43, would have kept a nag open that
+ * nobody could act on, until it read as noise. `CLICKHOUSE_INTENDED` records the
  * difference for one exact pair, tag and digest on both sides: the row reads
  * `intended` and opens nothing while both hold, and compares again, naming the
  * record, the moment either moves. This holds that the record names
  * managed.yml's own pin, that managed.yml's comment names it, and each of
  * those three cases. On review the same day: once upstream moved, the issue
  * said "then follow it" even when upstream's new pin was OLDER than the
- * stack's, a re-pushed 26.2.19.43 (26.2 cannot read 26.3's parts) or an older
- * 26.3 patch (without CVE-2026-116366's fix). A stack tag newer than
+ * stack's, a re-pushed 26.2.19.43 (26.2 cannot read 26.8's parts) or an older
+ * 26.8 patch (without CVE-2026-116366's fix). A stack tag newer than
  * upstream's is `ahead` now, and its issue says it is never followed.
  */
 
@@ -625,16 +626,16 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
   });
 
   it('differs when upstream moved, and says the support line and the route in the issue', async () => {
-    const net = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:26.8.1.1@sha256:${'1'.repeat(64)}`), [/SECURITY\.md$/, security]] });
+    const net = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:26.9.1.1@sha256:${'1'.repeat(64)}`), [/SECURITY\.md$/, security]] });
     const row = await clickhouseRow(REAL, net, trigger);
     expect(row.state).toBe('behind');
-    expect(row.body).toContain(`pins **26.8.1.1@sha256:${'1'.repeat(64)}**`);
+    expect(row.body).toContain(`pins **26.9.1.1@sha256:${'1'.repeat(64)}**`);
     expect(row.body).toContain(`ClickHouse ${ours.tag.split('.').slice(0, 2).join('.')} is supported`);
     expect(row.body).toMatch(/E2E \(managed\) on its branch/);
     expect(row.body).toContain('*Moving ClickHouse*');
   });
 
-  // 0119 §3 item 9, option 1 (2026-11-01): ahead of Trigger.dev's 26.2 on purpose.
+  // 0119 §3 item 9, option 2 (the owner's decision, 2026-11-02): ahead of Trigger.dev's 26.2 on purpose.
   const intended = CLICKHOUSE_INTENDED!;
   const recordedPair = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:${intended.theirs}`), [/SECURITY\.md$/, security]] });
 
@@ -652,7 +653,7 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
     const row = await clickhouseRow(REAL, recordedPair, trigger);
     expect(row.state).toBe('current');
     expect(row.shown).toBe('intended');
-    expect(row.notes?.[0]).toMatch(/^ClickHouse 26\.3 is supported/);
+    expect(row.notes?.[0]).toMatch(/^ClickHouse 26\.8 is supported/);
     expect(row.notes?.[1]).toMatch(/differs from Trigger\.dev's pin on purpose \(workplan 0119 §3 item 9\)/);
     // An issue left open from before the record is closed, saying why; none is opened.
     const { gh, calls } = fakeGh([{ number: 41, title: TITLES.clickhouse, body: 'old', state: 'open' }]);
@@ -665,12 +666,12 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
     expect(none.calls).toEqual([]);
     // The table says intended, never current, with the reason under it.
     const shown = table({ issues: [{ ...row, key: 'clickhouse', name: 'ClickHouse' }], routine: [], status: [] });
-    expect(shown).toMatch(/^ClickHouse\s+26\.3\.62\.3@sha256:de3e47c6…\s+26\.2\.19\.43@sha256:c2f26055…\s+intended$/m);
+    expect(shown).toMatch(/^ClickHouse\s+26\.8\.36\.3@sha256:d426d2f6…\s+26\.2\.19\.43@sha256:c2f26055…\s+intended$/m);
     expect(shown).toMatch(/differs from Trigger\.dev's pin on purpose/);
   });
 
   it('compares again when Trigger.dev moves under the record, and says the record was for its old pin', async () => {
-    const moved = `26.3.70.1@sha256:${'2'.repeat(64)}`;
+    const moved = `26.9.1.1@sha256:${'2'.repeat(64)}`;
     const net = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:${moved}`), [/SECURITY\.md$/, security]] });
     const row = await clickhouseRow(REAL, net, trigger);
     expect(row.state).toBe('behind');
@@ -682,8 +683,9 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
   // Upstream moved, but to a tag OLDER than the stack's: following would take ClickHouse back.
   const theirTag = intended.theirs.split('@')[0]!;
   for (const [what, older, says] of [
-    ['re-pushes its 26.2 tag under a new digest', `${theirTag}@sha256:${'4'.repeat(64)}`, /on an older line, 26\.2, than the stack's 26\.3, so it is never followed: 26\.2 cannot read the parts 26\.3 wrote[\s\S]*only way back/],
-    ['moves to an older 26.3 patch', `26.3.59.10@sha256:${'5'.repeat(64)}`, /an older patch of the stack's line, 26\.3, so it is not followed: it lacks fixes the stack's pin carries, the one the record names among them/],
+    ['re-pushes its 26.2 tag under a new digest', `${theirTag}@sha256:${'4'.repeat(64)}`, /on an older line, 26\.2, than the stack's 26\.8, so it is never followed: 26\.2 cannot read the parts 26\.8 wrote[\s\S]*only way back/],
+    ['moves to 26.3, the line option 1 would have taken', `26.3.62.3@sha256:${'6'.repeat(64)}`, /on an older line, 26\.3, than the stack's 26\.8, so it is never followed: 26\.3 cannot read the parts 26\.8 wrote[\s\S]*only way back/],
+    ['moves to an older 26.8 patch', `26.8.34.13@sha256:${'5'.repeat(64)}`, /an older patch of the stack's line, 26\.8, so it is not followed: it lacks fixes the stack's pin carries, the one the record names among them/],
   ] as const) {
     it(`is ahead, never told to follow, when Trigger.dev ${what}`, async () => {
       const net = fakeNet({ text: [upstream(`clickhouse/clickhouse-server:${older}`), [/SECURITY\.md$/, security]] });
@@ -702,12 +704,12 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
       expect(keepIssue(row, gh, TITLES.clickhouse)).toBe('opened');
       expect(calls[0]!.slice(0, 2)).toEqual(['issue', 'create']);
       const shown = table({ issues: [{ ...row, key: 'clickhouse', name: 'ClickHouse' }], routine: [], status: [] });
-      expect(shown).toMatch(/^ClickHouse\s+26\.3\.62\.3@sha256:de3e47c6…\s+\S+\s+ahead$/m);
+      expect(shown).toMatch(/^ClickHouse\s+26\.8\.36\.3@sha256:d426d2f6…\s+\S+\s+ahead$/m);
     });
   }
 
   it('holds for the recorded pin alone: another stack pin against the same upstream is behind, with no word of a record', async () => {
-    const other = `26.3.99.9@sha256:${'3'.repeat(64)}`;
+    const other = `26.8.99.9@sha256:${'3'.repeat(64)}`;
     const yml = MANAGED.replace(`clickhouse/clickhouse-server:${intended.ours}`, `clickhouse/clickhouse-server:${other}`);
     expect(yml).not.toBe(MANAGED);
     const row = await clickhouseRow(withFiles({ [COMPOSE]: yml }), recordedPair, trigger);

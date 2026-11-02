@@ -99,7 +99,8 @@
  *   chain, or a Trigger.dev, identity-provider or ClickHouse pin moved in
  *   `managed.yml`, since the tag that is running, makes it one-way; none makes
  *   it reversible (0146 T5). ClickHouse joined on 2026-11-01 (0119 §3 item 9):
- *   26.3 writes parts 26.2 cannot read, the verdict called a tag that moved
+ *   26.3 and later write parts 26.2 cannot read (the stack's pin is 26.8 since
+ *   the owner's decision of 2026-11-02), the verdict called a tag that moved
  *   only that pin reversible, and the copy before the update holds no
  *   ClickHouse volume, which it now says when that pin moves. "The tag that is running" is the last deploy the
  *   log says took. It is not the only thing compared: a deploy that did not

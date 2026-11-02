@@ -1,0 +1,42 @@
+<!-- ClickHouse's date parsing on insert kept as 26.2 has it, in the default
+     profile (workplan 0119 §3 item 9, option 2, the owner's decision of
+     2026-11-02: 26.8.36.3-lts, ahead of the 26.2.19.43 Trigger.dev v4.8.3
+     pins). Read at v26.8.34.13-lts (src/Core/SettingsChangesHistory.cpp).
+
+     date_time_input_format and cast_string_to_date_time_mode = basic. Both
+     are best_effort from 26.5. Under it a JSON string such as
+     2024-11-06T20:37:00.123Z, in a path of a JSON column that declares no
+     type, is inferred and stored as a DateTime64(9), where 26.2 stores a
+     String (tryInferDateTime64 in src/Formats/SchemaInferenceUtils.cpp
+     follows date_time_input_format). Here that reaches metrics_v1.attributes
+     (Trigger.dev v4.8.3's migration 019), where task metrics are written.
+
+     input_format_read_datetime_number_as_raw_value = 1. From 26.8 it is
+     false, under which a bare number fed to a DateTime64 column in JSON is
+     read as seconds. Trigger.dev's run, session and webhook replication sends
+     milliseconds into DateTime64(3) columns (internal-packages/clickhouse/
+     src/taskRuns.ts at v4.8.3). Replication is off here
+     (RUN_REPLICATION_ENABLED unset), so this guards a switch, not a running
+     write. The setting does not exist at 26.2: this file travels with the
+     pin too.
+
+     In users.d, since profile settings in config.d are not read as profile
+     settings. Mounted as this one file, never the directory: the image's
+     entrypoint writes users.d/default-user.xml at every start, under
+     `set -e`, and Trigger.dev's own compose mounts one file there the same
+     way (hosting/docker/webapp/docker-compose.yml at v4.8.3). Nothing else
+     belongs here: the four profile settings in clickhouse-override.xml do
+     nothing from config.d, as on 26.2, and moving them would switch them on,
+     a change of its own.
+
+     docs/managed-bring-up.md, "Moving ClickHouse", has the check that all
+     three are in force. -->
+<clickhouse>
+    <profiles>
+        <default>
+            <date_time_input_format>basic</date_time_input_format>
+            <cast_string_to_date_time_mode>basic</cast_string_to_date_time_mode>
+            <input_format_read_datetime_number_as_raw_value>1</input_format_read_datetime_number_as_raw_value>
+        </default>
+    </profiles>
+</clickhouse>
