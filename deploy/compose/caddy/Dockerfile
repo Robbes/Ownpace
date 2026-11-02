@@ -77,7 +77,7 @@
 #     with trigger-tls.Caddyfile and asks it for TLS on 3443; then dispatch E2E
 #     (managed) on the branch, whose smoke asks the same front.
 #   - Another major: the owner's call, and Dependabot is told to leave it.
-FROM caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+FROM caddy:2.11.7-alpine@sha256:e70b164da81ef698b3ad19af799ea6086ce6d9e48ed4079eb9fe26f6fbf14ee5
 
 # Not upstream's: curl out, and what only curl needed (the header).
 RUN set -eu; \
