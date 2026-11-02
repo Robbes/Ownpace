@@ -44,6 +44,19 @@ overrides:
   # semver CVE-2022-25883 (ReDoS), fixed on three lines: 5.7.2, 6.3.1 and 7.5.2. One entry per
   # line, like brace-expansion's: pnpm applies an entry to a range that intersects it, so the 7.x
   # entry alone would leave a 5.x or 6.x below its fix where it is.
+  # minimatch GHSA-g3hv-75wg-m249 and glob GHSA-3g3m-2fjr-6pw4 (2026-11-02, both moderate), reached
+  # only through developer tools: eslint and typescript-eslint, and testcontainers' archiver. Each
+  # is fixed only on a new major, minimatch 11.0.1 and glob 14.0.2 (2026-10-27), with no backport
+  # to the lines in the tree (minimatch 10.2.6, 9.0.9, 5.1.9; glob 10.5.0), so these two entries
+  # cross a major, unlike every other one here (the first comment above says why the rest do not).
+  # They hold because every consumer takes only what both majors still export, read in the
+  # installed sources: readdir-glob `{ Minimatch }`, @eslint/config-array `minimatch.Minimatch`,
+  # typescript-estree `minimatch.minimatch`, archiver-utils `glob.sync`; and eslint on the whole
+  # repository, the unit project, and testcontainers copying content and a directory into a
+  # container all passed on them. Drop both once eslint, typescript-eslint and archiver ask for
+  # the fixed majors themselves. Workplan 0119, Status of 2026-11-02.
+  "minimatch@<11.0.1": ^11.0.3
+  "glob@>=9.0.0 <14.0.2": ^14.0.3
   "semver@<5.7.2": ^5.7.2
   "semver@>=6.0.0 <6.3.1": ^6.3.1
   "semver@>=7.0.0 <7.5.2": ^7.5.2
@@ -259,18 +272,6 @@ overrides:
   # it (`allowBuilds`, above). An XML SBOM would need it back: take this line out with that switch,
   # and approve the build again.
   libxmljs2: "-"
-  #
-  # NOT overridden, 2026-11-02, and this note belongs to no entry above: the two MODERATE
-  # advisories `pnpm audit` reads on main, both reached only through developer tools.
-  # minimatch GHSA-g3hv-75wg-m249 (<11.0.1; via eslint and typescript-eslint, and via
-  # testcontainers' archiver) and glob GHSA-3g3m-2fjr-6pw4 (9.0.0 to 14.0.1; via testcontainers'
-  # archiver-utils) are each fixed only on a new major, minimatch 11.0.1 and glob 14.0.2 (both
-  # 2026-10-27), with no backport to the lines in the tree (minimatch 10.2.6, 9.0.9, 5.1.9;
-  # glob 10.5.0). An entry here stays below its fix within a major and never crosses one (the
-  # first comment under overrides says why), so there is nothing to pin. Whether to keep them
-  # or mitigate them, for instance by waiting for eslint, typescript-eslint and testcontainers
-  # to take the new majors, is the owner's call, and it is open; dev tooling is no reason on its
-  # own (the esbuild entry above). Workplan 0119, Status of 2026-11-02.
 # A COOLDOWN ON BRAND-NEW RELEASES. Owner's decision, 2026-09-09: three days.
 #
 # THE UNIT IS MINUTES, NOT DAYS. 4320 = 3 days. Writing `3` here means three MINUTES and
