@@ -5496,10 +5496,11 @@ that one is what has to be 26. Nothing else on the machine has to move for it:
   setup-node installs (it needs `libatomic1` too, step 2); a command you run by
   hand in `~/ownpace-managed` runs on your shell's, as a deploy does.
 
-**What stops a Node below 26.** pnpm does not: pnpm 11.28.9 does not stop an
+**What stops a Node below 26.** pnpm does not: pnpm 11.28.10 does not stop an
 install whose `engines` the running Node falls outside. It prints `WARN
 Unsupported engine: wanted: {"node":">=26"}` and installs, exit 0 (measured
-2026-10-31 and again 2026-11-01 on a stand-in project; the repository sets no
+2026-10-31 and again 2026-11-01, and on 2026-11-02 under 11.28.9 and 11.28.10
+on Node 24.22.1, each on a stand-in project; the repository sets no
 `engineStrict`, which is the owner's to decide), and the deploy goes straight
 on from that install to the bring-up, which redeploys the tasks and rebuilds the
 images. **From the deploy after alpha.4, `deploy-live.sh` refuses it itself**,
@@ -5526,7 +5527,7 @@ these prints a secret or an address:
 command -v node        # the node the deploy runs on: the first on this shell's PATH
 node -v                # v26.x is what alpha.4 asks for
 pnpm -v                # in ~/ownpace-live: the version pnpm runs here
-node -p "require('./package.json').packageManager"   # what pnpm -v should say, pnpm@11.28.9 at alpha.4
+node -p "require('./package.json').packageManager"   # what pnpm -v should say, pnpm@11.28.10 at alpha.4
 dpkg-query -W -f='${Status} ${Version}\n' libatomic1   # install ok installed, then its version
 uname -m               # aarch64 or x86_64, for the tarball in step 3
 ```
@@ -5625,7 +5626,7 @@ tarball above) this needs no `sudo`:
 
 ```bash
 cd ~/ownpace-live
-PNPM="$(node -p "require('./package.json').packageManager")" && echo "$PNPM"   # pnpm@11.28.9 at alpha.4
+PNPM="$(node -p "require('./package.json').packageManager")" && echo "$PNPM"   # pnpm@11.28.10 at alpha.4
 npm install -g "$PNPM"
 ```
 
@@ -5639,7 +5640,7 @@ yourself:
 ```bash
 command -v node                           # your Node 26, not the system's
 node -v                                   # v26.13.0, or a later 26.x
-pnpm -v                                   # the packageManager version, 11.28.9 at alpha.4
+pnpm -v                                   # the packageManager version, 11.28.10 at alpha.4
 ldd "$(command -v node)" | grep libatomic # resolves to a file, not "not found"
 ```
 
