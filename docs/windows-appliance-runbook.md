@@ -38,7 +38,9 @@ upload `build` made, for win-x64. On a release tag the zip is attached by a
 `release` job that needs `smoke`, so a zip that failed it is never attached.
 What it runs is under each phase below (*In CI*). **It is proven only once it
 has run green**: when this was written it had not run at all, and its first
-run is a dispatch of the workflow on its branch. Before a release, Release's
+run is a dispatch of the workflow on its branch. *(2026-11-02: that first run,
+windows-payload run 41434382108, was green, and the job reached `main` the
+same day in #1789; workplan 0119's Status of that day.)* Before a release, Release's
 preflight refuses the commit unless a dispatched run on that commit had
 `smoke` green (`docs/release.md` §1).
 
@@ -144,7 +146,9 @@ on 2026-10-31 (workplan 0119 §2.4), and with it `node.exe`: 100,097,864 bytes
 (95.5 MiB) at 26.13.0 against 93,915,464 at 24.22.1, so the payload grows by about
 6 MB. Node 26 keeps Windows x64 at Tier 1 (its `BUILDING.md`); its `node.exe` had
 not yet run on Windows here when it moved, and the Windows 11 check of the first
-zip built on it is the owner's.
+zip built on it is the owner's. *(2026-11-02: the owner dropped that check, and
+`smoke`, above, started 26.13.0's `node.exe` on Windows Server 2025 in its stead,
+in windows-payload run 41434382108.)*
 
 The download is **checked against a SHA-256 committed in this repository**, and
 a mismatch stops the build. We would be shipping somebody else's binary to
