@@ -4,12 +4,58 @@
 
 ## Status — 2026-11-02 (update this block at the end of every session)
 
-**2026-11-02: pnpm 10.34.9 in place of 10.33.2 in both Trigger.dev builds (0146 T16), a
-draft.** On the branch `claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`, from `main`
-at `ece5866c`, with `main` at `f515d4a9` (#1793, the scan entry below) merged in; not merged.
-When it lands is the owner's call (hygiene, not a security fix, below); before it does it needs
-`build (trigger, amd64)` and `build (trigger, arm64)` (`images.yml`, which builds both images,
-the supervisor's too) green on the branch, and one E2E (managed) there. Times are UTC.
+**2026-11-02, records, latest: the owner's answer, "Accept all, within alpha 4": Stalwart's
+critical accepted, the O365 lane waived for alpha.4, #1794 merged for alpha.4, and the host's
+Docker before the counted nights.** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-records-2026-11-02-c`. Read from GitHub on 2026-11-02;
+times are UTC.
+- **The answer.** At about 22:10 the owner answered the items the entry of 2026-11-02, records,
+  later, below left open (*Still the owner's at the end of the day*), in one line: *"Accept all,
+  within alpha 4"*. It takes the advice given on each, as below. The lines that named them as
+  open carry a dated note, history kept.
+- **Stalwart's CVE-2026-111497, accepted for alpha.4.** No rebuild of v0.16.27 and no move to
+  v1.x; ADR-0022 and `docs/stalwart-integration-fix.md` stand as they are. The reading is the
+  week's scan entry's, below: the binary links no brotli, `libbrotli1` is in the image only for
+  curl, which asks only the container's own loopback, and Stalwart is a CI test fixture live
+  never runs. The weekly scan keeps counting it in its `stalwart` row.
+- **The O365 lane, waived for alpha.4** (0141 T13 (a)). Its secrets are still not set, and
+  `e2e-o365.yml` has no run since 41418432093. alpha.4 is tagged without a green run of it; the
+  lane is owed for a later alpha: the secrets, as `docs/test-tenant.md` lists them, and a green
+  run. Release does not read the lane: neither `.github/workflows/release.yml` nor any
+  `scripts/release*` names it (`grep -i o365` finds nothing), and the nights it counts are E2E
+  (managed) and E2E (self-hosted) (`scripts/release-nights.mjs`). So the waiver is this record,
+  with no input to set, unlike the nights' waiver for alpha.3 (#1741).
+- **#1794 merged** at 22:12 (`b5137b4f`; head `d40c1a00`), pnpm 10.34.9 in place of 10.33.2 in
+  both Trigger.dev builds (0146 T16), in alpha.4 by the owner's answer. On its head:
+  `build (trigger, amd64)` and `build (trigger, arm64)` green in Images run 41521630508 (20:42
+  to 20:44); E2E (managed) run 41523756704, dispatched, 20:56 to 21:07, green: the webapp's
+  first RUN printing *root's pnpm@10.33.2 for pnpm 10.34.9 (by the sha512 npm published,
+  packageManager rewritten)*, the supervisor's the same for node's, then *Version 20261102.7
+  deployed with 17 detected tasks*, *verify: done apply: applied*, *SMOKE PASS*, and nothing
+  unhealthy; and Security Scan run 41527113857, dispatched with the image scans, 21:18 to 21:21,
+  which measured the webapp's build `v4.8.3-e8e5bf1fbb13` at 1 critical, 89 high and 57 with a
+  fix, and the supervisor's `v4.8.3-02f623659105` at 0, 2 and 2, against 1, 100, 68 and 0, 13,
+  13 in the week's scan (run 41465604476): the numbers the entry below had by arithmetic. That
+  entry said a draft, not merged, the owner's call when, and arithmetic; it names the merge, the
+  runs and the measurement now, and so do the inventory's Trigger.dev row and the week's scan
+  entry's route.
+- **The host's Docker, within alpha.4.** The upgrade, 29.2.1 to 29.6.2 (§2.4), happens before
+  the counted nights, the first of which is Thursday 2026-11-05 (0146), in the window §2.4
+  describes. The slot is not set when this is written. §2.4 and the end-of-day line below carry
+  a dated note.
+- **Not answered:** the removal of the copy before 26.8,
+  `<project>_clickhouse_data_v2_before_26_8`, sent at about 11:55: **sent, not confirmed**.
+
+**2026-11-02: pnpm 10.34.9 in place of 10.33.2 in both Trigger.dev builds (0146 T16), built as
+a draft; merged as #1794 for alpha.4.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`, from `main` at `ece5866c`, with
+`main` at `f515d4a9` (#1793, the scan entry below) merged in; merged as #1794 on 2026-11-02 at
+22:12 UTC (`b5137b4f`), in alpha.4 by the owner's answer of about 22:10 UTC, after both builds
+and E2E (managed) run 41523756704 were green on its head `d40c1a00` (the entry of 2026-11-02,
+records, latest, above); *was:* not merged, when it lands the owner's call (hygiene, not a
+security fix, below), and before it did it needed `build (trigger, amd64)` and `build (trigger,
+arm64)` (`images.yml`, which builds both images, the supervisor's too) green on the branch, and
+one E2E (managed) there. Times are UTC.
 - **Why, and why it is hygiene.** The image scan of 2026-11-02 (Security Scan run 41465604476 on
   `ece5866c`) read the webapp built here at 1 critical, 100 high and 68 with a fix, and the
   supervisor at 0, 13 and 13. Eleven of the highs in each are pnpm 10.33.2 itself, the copy
@@ -62,12 +108,15 @@ the supervisor's too) green on the branch, and one E2E (managed) there. Times ar
   over its stand-in with a stand-in corepack, each way it could slip), and that every path the
   removing RUN removes is checked gone after it.
 - **What it should change** (arithmetic, not measured): the webapp from 1, 100, 68 to about 1,
-  89, 57, and the supervisor from 0, 13, 13 to about 0, 2, 2. systeminformation 5.31.7 stays,
+  89, 57, and the supervisor from 0, 13, 13 to about 0, 2, 2. *(Measured on the branch, the same
+  day: Security Scan run 41527113857 read 1, 89, 57 and 0, 2, 2; the entry of 2026-11-02,
+  records, latest, above.)* systeminformation 5.31.7 stays,
   upstream's: the webapp starts HostMetrics only in `setupMetrics()`, which returns early while
   `INTERNAL_OTEL_METRIC_EXPORTER_ENABLED` is its default `"0"`, and `managed.yml` does not set
   it; the supervisor's source does not import host-metrics.
 - **Risks.** It changes the pnpm that launches every migration and the supervisor, which
-  upstream's CI has not run at 10.34.9; E2E (managed) covers that. One field of upstream's
+  upstream's CI has not run at 10.34.9; E2E (managed) covers that (run 41523756704, green on the
+  head, the entry above). One field of upstream's
   `package.json` is rewritten; nothing in the webapp's source, its migrations or the supervisor's
   source reads it (`build/server.js`, a bundle, was not read); what a script sees change is
   `npm_config_user_agent` (`pnpm/10.34.9`), and `npm_execpath` and `PATH`'s `node-gyp-bin` entry,
@@ -117,7 +166,8 @@ branch) and 100 now, 24 fewer each, with the same fixable counts.
     which `docs/stalwart-integration-fix.md`'s official image only rules out unless the owner
     changes it; or v1.x, a new major (v1.0.1, pushed 2026-10-28, is past its floor; v1.0.2,
     pushed 2026-11-02, reads 0 critical, 48 high, 0 fixable), which ADR-0022 leaves to the owner
-    too. **Recommended: accept it for alpha.4.** The owner's call, open.
+    too. **Recommended: accept it for alpha.4.** **Accepted for alpha.4** by the owner at about
+    22:10 UTC (the entry of 2026-11-02, records, latest, above); *was:* the owner's call, open.
 - **The fixable highs, and their routes.** The three built here among them (trigger.dev,
   supervisor, caddy) upgrade none of the distribution's packages, and nothing below is in
   alpha.4 unless the owner says so.
@@ -127,8 +177,9 @@ branch) and 100 now, 24 fewer each, with the same fixable counts.
     dependencies (read from upstream's lockfile, not from the image), and the supervisor's
     thirteenth is not identified. The entry of 2026-10-31, later, left that code to the owner.
     The route is under study as a follow-up, beside the owner's upstream issue,
-    triggerdotdev/trigger.dev#5084; for pnpm it is now the draft of the entry above, pnpm
-    10.34.9 in both builds.
+    triggerdotdev/trigger.dev#5084; for pnpm it is the entry above, pnpm 10.34.9 in both
+    builds, merged as #1794 for alpha.4 and measured on its branch at 1/89/57 and 0/2/2 (*was:*
+    the draft of the entry above).
   - registry 0/7/7 (`registry:3.1.2`): all in its Go binary, go-jose 4.1.4 (CVE-2026-116587),
     klauspost/compress 1.18.4, golang.org/x/net 0.59.0 and Go 1.26.8. 3.1.2 is distribution's
     newest tag. The registry has no authentication configured, so its go-jose is most likely
@@ -188,7 +239,8 @@ times are UTC.
 - **The O365 lane: its secrets are still not set.** The owner could not set them on 2026-11-02,
   and none is set; no run since 41418432093. Owed for alpha.4 (0146): the secrets, as
   `docs/test-tenant.md` lists them, and a green run, or the owner's waiver of the lane for
-  alpha.4.
+  alpha.4. *(Later 2026-11-02, about 22:10: waived for alpha.4 by the owner, and owed for a
+  later alpha; the entry of 2026-11-02, records, latest, above.)*
 - **Dependabot's #1791 closed** at 17:21, unmerged: `caddy:2.11.7-alpine` `eb4d35b` → `e70b164`
   (opened 14:04). Both index manifests list the same linux/amd64 (`04913b1d…`) and linux/arm64
   (`cc447f14…`) images, pushed 2026-10-21; only riscv64 differs. So it moved nothing on a
@@ -201,7 +253,10 @@ times are UTC.
 - **Still the owner's at the end of the day:** the O365 secrets, or the lane's waiver for
   alpha.4; the removal of the copy before 26.8 (above); the host's Docker, 29.2.1 to the 29.6.2
   set from the machine vendor's apt repository, in a window with live's hold and the OTA
-  stack's both on (§2.4); and the call on Stalwart's critical (the entry above).
+  stack's both on (§2.4); and the call on Stalwart's critical (the entry above). *(Answered at
+  about 22:10: the O365 lane waived for alpha.4; the host's Docker within alpha.4, before the
+  counted nights, its slot not set; Stalwart's critical accepted; the copy's removal not
+  answered, sent, not confirmed. The entry of 2026-11-02, records, latest, above.)*
 
 **2026-11-02: the deploy CLI comes from the lockfile, not from `npx` (#1755's follow-up).** On
 the branch `claude/ownpace-public-readiness-y7orc6-trigger-cli-lockfile`, merged as #1790 on
@@ -2750,7 +2805,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (a draft; Status, 2026-11-02) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `86d5a599…`, trigger.dev 4.8.3's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC; Node 26.12.1; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, pushed the same morning, before) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26 and 2026-10-31) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
@@ -2858,7 +2913,9 @@ stack's, live's drain done (`docs/managed-bring-up.md`, *`ownpace-live`: a relea
 `deploy-live.sh`*, step 2) and no runner job in flight, because without `live-restore` the
 daemon's restart restarts every container on the machine, live's and the OTA stack's alike;
 with a way back kept on the machine, Docker's own 29.2.1 packages, their checksums verified. A
-newer kernel line is offered there too, and is left for after alpha.4's tag. Nothing in this
+newer kernel line is offered there too, and is left for after alpha.4's tag. *(2026-11-02, about
+22:10 UTC, the owner: within alpha.4, so before the counted nights of 2026-11-05 and
+2026-11-06; the slot is not set yet. Status, 2026-11-02, records, latest.)* Nothing in this
 repository pins or watches the host's Docker; it moves by the owner's hand only. The host's
 readings live in this paragraph; 0132's Status entries of 2026-11-01 (recorded) and 2026-11-02
 point here.
