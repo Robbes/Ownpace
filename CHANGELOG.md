@@ -221,11 +221,11 @@ notices.
   (workplan 0119 §3 item 9): CVE-2026-116366 (GHSA-qhgw-ghp3-xh36, critical,
   published 2026-10-30) lets an unauthenticated user with network access run
   code on a ClickHouse server, and it is fixed only in 26.3.62.3-lts,
-  26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The stack runs 26.2,
-  the version Trigger.dev pins, which ClickHouse no longer supports, so no fix
-  will come for it; moving the version is the owner's decision. Until now
-  every container of the stack could reach it: the web app, the API, the
-  identity provider, the demo Nextcloud and every task run. ClickHouse is now
+  26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The stack ran 26.2,
+  the version Trigger.dev pins, which ClickHouse no longer supports and which
+  gets no fix; the owner moved it to 26.8.36.3-lts (the first entry of this
+  section). Until now every container of the stack could reach it: the web
+  app, the API, the identity provider, the demo Nextcloud and every task run. ClickHouse is now
   on `trigger-event-store`, an internal network with no route off the machine,
   shared with `trigger-api` alone, the one service that talks to it. That
   takes the name and the route away from every other container, so a plain
@@ -360,6 +360,11 @@ notices.
   Dependabot, #1779). nodemailer 10.3.0 adds an `otp` option for an
   `OTP-Token` header and encodes a `Content-ID` header as a message id; nothing
   here sets either, so no call site changes.
+- **imapflow 2.10.0, nodemailer 10.3.1, jose 6.2.14 and lucide-react 1.65.0**
+  (from 2.9.1, 10.3.0, 6.2.13 and 1.64.0, Dependabot, #1786). imapflow 2.10.0
+  adds a `decodeText` option to `download()`, and nodemailer 10.3.1 applies the
+  `otp` option in `MailComposer` too; nothing here calls imapflow's
+  `download()` or sets `otp`, so no call site changes.
 
 ### Added
 
