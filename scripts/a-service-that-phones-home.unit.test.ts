@@ -32,8 +32,10 @@
  *    only), so the key is set to the empty string beside it; the checkpoint
  *    stops only on `CHECKPOINT_DISABLE` (`utils/checkpoint.ts`, and the client
  *    again), so that is set too. The entrypoint's other children do not call
- *    out: pnpm 10.33.2 checks for its own update only on `install` and `add`
- *    (`pnpm/src/main.ts`), goose v3.27.1 has no network use of its own, and the
+ *    out: pnpm 10.34.9 (since 2026-11-02 the builds here run it in place of
+ *    upstream's 10.33.2, which did the same) checks for its own update only on
+ *    `install` and `add` (`pnpm/src/main.ts`; `dist/pnpm.cjs` of both as npm
+ *    published them), goose v3.27.1 has no network use of its own, and the
  *    dashboard agent's migration is plain drizzle-orm. At v4.7.6 (read
  *    2026-10-23) all of that holds: the server's two new events (the dashboard
  *    agent's feedback, a webhooks beta request) go through the same client,
@@ -51,7 +53,8 @@
  *    set (it is not here) and `APP_ORIGIN` otherwise; and `env.server.ts`'s new
  *    keys (login origins and checks, queue and webhook metrics, a deployment
  *    index store that falls back to `OBJECT_STORE_*` and is off by default,
- *    ClickHouse reader limits) name no third party.
+ *    ClickHouse reader limits) name no third party. pnpm there is upstream's
+ *    10.33.2.
  *  - ZITADEL (v4.19.2) sends a "service ping" once a day to
  *    `https://zitadel.com/api/ping`: the version, and the id, creation date and
  *    domains of every instance, and with `ResourceCount` the number of users,
