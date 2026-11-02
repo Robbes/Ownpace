@@ -4,6 +4,24 @@
 
 ## Status — 2026-11-02 (update this block at the end of every session)
 
+**2026-11-02, later, recorded: the night after ClickHouse's move is green, and its copy can go
+(sent, not done).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-records-2026-11-02-b`; 0119's Status entry of the same
+day (records, later) has the detail. Read from GitHub on 2026-11-02; times are UTC.
+- **Two green runs of `main` on the OTA stack, both on ClickHouse 26.8.36.3.** E2E (managed) run
+  41437395519, dispatched on `a7748fb6` at 11:30, its job 11:36 to 11:45, and the scheduled run
+  41437468785 on the same commit, created at 11:31 (its cron says 03:30) and queued behind the
+  first, its job 11:46 to 11:53: each *verify: done apply: applied*, *SMOKE PASS*, nothing
+  unhealthy, and `clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…` pulled. The
+  scheduled one is the night *Once the move has held* (`managed-bring-up.md`, *Moving
+  ClickHouse*) waits for.
+- **The copy before 26.8 can go; sent, not done.** The block that removes
+  `<project>_clickhouse_data_v2_before_26_8` and step 2's two files was sent to the owner at
+  about 11:55. It had not been run when this was written; it is the owner's.
+- **Still the owner's:** the host's Docker, 29.2.1 to the 29.6.2 set from the machine vendor's
+  apt repository, in a window with live's hold and the OTA stack's both on (0119 §2.4), not done
+  on 2026-11-02.
+
 **2026-11-02, recorded: the copy from before v4.8.3 removed, ClickHouse 26.8.36.3 on the OTA
 stack, and the host's Docker from the machine vendor's apt repository.** Docs only, on the
 branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`; 0119's Status entry of the
@@ -17,7 +35,9 @@ same day (records) has the detail. Read from GitHub and from the owner's reading
   #1785's move, after the owner's window of about 03:35: the hold on and the drain done, the copy
   `<project>_clickhouse_data_v2_before_26_8` (478 MB; Docker's data root had 1.7 TB free), the
   hold lifted. #1785 merged at 07:17 (`0b16a82e`) once step 4's checks read as shown. The copy
-  stays until `main`'s next scheduled E2E (managed) is green. Live runs 26.2.19.43 until a tag
+  stays until `main`'s next scheduled E2E (managed) is green. *(Later 2026-11-02: run 41437468785
+  was that night, green at 11:53, and the removal was sent at about 11:55, not done: the entry
+  above.)* Live runs 26.2.19.43 until a tag
   carries #1785 (alpha.4), and takes the same copy by hand before that deploy
   (`managed-bring-up.md`, *Moving ClickHouse*, *On live*); the same tag brings #1774's and
   #1784's networks to live (0136 T4).
