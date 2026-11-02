@@ -8,12 +8,15 @@
 `claude/ownpace-public-readiness-y7orc6-pnpm-11-28-10`, not merged. npm dates it 2026-10-30
 15:30 UTC, so it passed the three-day floor at 2026-11-02 15:31 UTC. Under it `pnpm install
 --frozen-lockfile` leaves `pnpm-lock.yaml` byte-identical and a second `pnpm install` reads
-"Already up to date". `pnpm audit` reads the one moderate `main` records since the deploy CLI
-moved into the lockfile (GHSA-g3hv-75wg-m249 on `trigger.dev>minimatch`, the entry below), and
-`scripts/audit-advisories.mjs --fail-at=high` passes on it. corepack 0.36.0, the images' copy,
-fetches and runs 11.28.10 from an empty `COREPACK_HOME`; `pnpm/action-setup` names no version
-and reads `packageManager`, as before; a global 11.28.9 run in the checkout switches itself to
-11.28.10. Under Node 24.22.1, 11.28.10 still only warns on `engines` `>=26` and installs, exit 0,
+"Already up to date"; `pnpm install --lockfile-only` in a clean export leaves it byte-identical
+too. The images' filtered installs (`--frozen-lockfile --prod --filter-prod @openmig/api...` and
+`--frozen-lockfile --filter @openmig/web...`) install the same 249 and 625 packages under
+11.28.9 on `main` and 11.28.10 here. `pnpm audit` reads the one moderate `main` records since
+the deploy CLI moved into the lockfile (GHSA-g3hv-75wg-m249 on `trigger.dev>minimatch`, the
+entry below), the same under 11.28.9 on `main`, and `scripts/audit-advisories.mjs
+--fail-at=high` passes on it. corepack 0.36.0, the images' copy, fetches and runs 11.28.10
+from an empty `COREPACK_HOME`; `pnpm/action-setup` names no version and reads `packageManager`,
+as before; a global 11.28.9 run in the checkout switches itself to 11.28.10. Under Node 24.22.1, 11.28.10 still only warns on `engines` `>=26` and installs, exit 0,
 as 11.28.9 does (a stand-in project, both measured today), so the owner's reading in
 `managed-bring-up.md`, *The Node in the shell you deploy from*, stays the check for the alpha.4
 deploy; its lines and 0131's now say `pnpm@11.28.10` at alpha.4. CI only; no E2E.
@@ -28,9 +31,14 @@ deploy; its lines and 0131's now say `pnpm@11.28.10` at alpha.4. CI only; no E2E
   `pnpm prune --prod` no longer fails with `ERR_PNPM_EXDEV` on a `node_modules` copied from an
   earlier Docker stage, and no image here runs `pnpm prune`. The rest (`pnpm store prune` with
   `cacheDir`, global installs' hoisted dependencies, the global virtual store, Node.js runtime
-  downloads, catalog entries set to a dist-tag, `pack` and `publish`, Windows shims, `pnx`)
-  touches nothing here, and the standalone `@pnpm/exe` now embeds Node.js 26.13.0, which CI and
-  the images do not run.
+  downloads and the `latest` selector, privately hoisted `.bin` shims a dependency build
+  replaces with a native executable, local tarballs under `injectWorkspacePackages` or a
+  pnpmfile hook, merged branch lockfiles, catalog entries set to a dist-tag, `pack`, `publish`
+  and `unpublish`, Windows shims, `pnx`, the error for an invalid dependency name) touches
+  nothing here: esbuild's build does swap its bin for the native executable, but no esbuild is
+  privately hoisted (`node_modules/.pnpm/node_modules` after a fresh install, measured), and
+  there is no pnpmfile and no `injectWorkspacePackages`; and the standalone `@pnpm/exe` now
+  embeds Node.js 26.13.0, which CI and the images do not run.
 - **npm's `latest-11` is still 11.28.9.** The dist-tags read at about 16:45 UTC: `latest-11`
   11.28.9, `next-11` 11.28.10, `latest` and `latest-12` 12.16.1, `next-12` 12.17.0 (2026-10-30
   14:23 UTC). GitHub's release page lists v11.28.10 as a release, not a pre-release. The pin
