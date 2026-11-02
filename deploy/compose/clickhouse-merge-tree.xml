@@ -1,0 +1,46 @@
+<!-- ClickHouse's MergeTree rules kept as 26.2 has them, where 26.8 changed
+     them (workplan 0119 §3 item 9, option 2, the owner's decision of
+     2026-11-02: 26.8.36.3-lts, ahead of the 26.2.19.43 Trigger.dev v4.8.3
+     pins). Read at v26.8.34.13-lts, the newest public 26.8 tag; 26.8.36.3,
+     a security release, has none.
+
+     allow_dimensions_outside_sorting_key = 1. From 26.7 the default is
+     false (src/Core/SettingsChangesHistory.cpp, the 26.7 MergeTree block),
+     and an AggregatingMergeTree is refused at CREATE, BAD_ARGUMENTS, when a
+     column is neither in its ORDER BY or PARTITION BY nor an aggregate state
+     (src/Storages/MergeTree/MergeTreeData.cpp: the check runs when
+     `mode <= CREATE`, so a table already on a volume is attached unchecked).
+     Trigger.dev's migration 022 (internal-packages/clickhouse/schema/
+     022_create_errors_v1_table.sql at v4.8.3) has three: error_type,
+     error_message and sample_stack_trace. On an empty volume goose stops
+     there, and trigger-api, whose entrypoint runs it under `set -e`,
+     crash-loops: a new install, a new host, a reset. 1 is 26.2's rule.
+
+     auto_statistics_types = '' (empty). From 26.4 the default writes column
+     statistics into every new part ('basic, uniq_v2' at 26.8; '' at 26.2 and
+     26.3), applied when a table loads as well as when it is created
+     (src/Storages/MergeTree/registerStorageMergeTree.cpp). 26.2 and 26.3 read
+     only the oldest statistics format, and Trigger.dev v4.8.3 has never run
+     with them. Empty writes none (addImplicitStatistics returns at once on
+     '', src/Storages/Statistics/Statistics.cpp).
+
+     How it reaches every table: Context::getMergeTreeSettings applies
+     `compatibility`, then this <merge_tree> section
+     (src/Interpreters/Context.cpp), and every MergeTree table's settings
+     start from those (registerStorageMergeTree.cpp).
+
+     IT TRAVELS WITH THE PIN. A 26.2 or 26.3 server does not start with it
+     mounted: allow_dimensions_outside_sorting_key is unknown there, and an
+     unknown key under <merge_tree> stops the server (UNKNOWN_SETTING, read at
+     v26.3.60.2-lts). A checkout that pins an older ClickHouse mounts neither
+     this file nor clickhouse-users-profile.xml.
+
+     A file of its own rather than a line in clickhouse-override.xml, which is
+     upstream's tuning verbatim and says so. docs/managed-bring-up.md, "Moving
+     ClickHouse", has the check that both values are in force. -->
+<clickhouse>
+    <merge_tree>
+        <allow_dimensions_outside_sorting_key>1</allow_dimensions_outside_sorting_key>
+        <auto_statistics_types></auto_statistics_types>
+    </merge_tree>
+</clickhouse>
