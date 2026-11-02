@@ -4,9 +4,91 @@
 
 ## Status — 2026-11-02 (update this block at the end of every session)
 
+**2026-11-02, records: #1785, #1784 and #1786 merged, the owner's ClickHouse window and readings,
+the host's Docker from the machine vendor's apt repository, and the O365 lane's missing
+secrets.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`.
+Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
+- **#1785 merged** at 07:17 (`0b16a82e`; head `632c0a28`), after E2E (managed) run 41400187583
+  on `632c0a28`, 06:29 to 06:39, was green: *verify: done apply: applied*, *SMOKE PASS*, and its
+  log pulls `clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…`. That run was the OTA
+  stack's move, so the OTA stack runs 26.8.36.3 since 06:29 to 06:39. #1782 (option 1, 26.3.62.3)
+  was closed unmerged at about 06:07, superseded by #1785. The entry of 2026-11-02 on ClickHouse
+  below, §3 item 9, the inventory's ClickHouse row, T3's row and §4 said not merged; they name
+  the merge now.
+- **The owner's window on the OTA stack** (`managed-bring-up.md`, *Moving ClickHouse*). At about
+  03:35 the hold on and the drain done, then step 3's copy,
+  `<project>_clickhouse_data_v2_before_26_8`, its block printing *the way back is taken* (the
+  volume 478 MB; Docker's data root had 1.7 TB free), and the hold lifted, with ClickHouse,
+  `trigger-api` and `trigger-supervisor` stopped until the run. Step 2's list of tables and
+  detached parts on 26.2 was added in the pull request's review after the owner had copied, so
+  it was taken after the copy, at about 06:20, by starting ClickHouse alone on 26.2.19.43 and
+  stopping it again: *35 tables and views; 0 parts already detached*. Step 4, after the run
+  (about 06:50 to 07:15): the version 26.8.36.3; `allow_dimensions_outside_sorting_key 1 1` and
+  `auto_statistics_types` empty, 1; `cast_string_to_date_time_mode basic 1`,
+  `date_time_input_format basic 1` and `input_format_read_datetime_number_as_raw_value 1 1`; and
+  the load check, *every table loads, and no part was detached since step 2*. Each read as the
+  runbook shows it, and the merge followed.
+- **What is left of the move.** The copy stays until `main`'s next scheduled E2E (managed) is
+  green (*Once the move has held*); that night has not run when this is written. Live still runs
+  26.2.19.43 until a tag carries #1785 (alpha.4), and copies its ClickHouse volume by hand before
+  that deploy (*Moving ClickHouse*, *On live*).
+- **#1784 merged** at 08:14 (`2cae9602`; head `957d147a`, its branch with `main`, #1785 included,
+  merged in), after E2E (managed) run 41408096908 on `957d147a`, 07:43 to 08:04, was green; its
+  smoke asks the proxy from the supervisor and finds no such name from the API container. The
+  first entry of 2026-11-02 below, §3 item 9, the inventory row and §4 said on the branch, not
+  merged; they name the merge now. What is left (0136 §1): code that already runs inside
+  `trigger-api` or `trigger-supervisor`, the other stack's supervisor through its own proxy, and
+  the host. Live keeps its old exposure until a tag carries #1774 and #1784 (alpha.4).
+- **#1786 merged** at 09:09 (`bce0fcfd`; head `cdeb28b2`), Dependabot's npm minor-and-patch
+  group, after E2E (managed) run 41413423420 on `cdeb28b2`, 08:29 to 08:59, was green: imapflow
+  2.9.1 → 2.10.0, which adds a `decodeText` option to `download()`; nodemailer 10.3.0 → 10.3.1,
+  which applies the `otp` option in `MailComposer` too; jose 6.2.13 → 6.2.14; lucide-react
+  1.64.0 → 1.65.0. Nothing here calls imapflow's `download()` or sets `otp` (`grep` over `apps/`
+  and `packages/`). `CHANGELOG.md`'s `[Unreleased]` has its *Changed* line.
+- **The copy from before v4.8.3 is gone.** The owner removed
+  `<project>_clickhouse_data_v2_before_v4_8_3` at about 02:10, their block printing the volume's
+  name, after the night of 2026-11-01 (run 41298604750) had proven the move. The entry of
+  2026-11-01, later, below and 0132's of the same day said **sent, not done**; they say done now.
+- **The host's Docker comes from the machine vendor's apt repository**, not from Docker's (§2.4,
+  corrected; the owner's readings). The five packages, `docker-ce` and `docker-ce-cli` 29.2.1,
+  `containerd.io` 2.2.1, `docker-compose-plugin` 5.0.2 and `docker-buildx-plugin` 0.31.1, come
+  from that repository, which outranks every other source by apt preference (priority 600);
+  Docker's own repository is not configured. Each of the five has the SHA256 that Docker's own
+  package index gives for the same version, so they are Docker's builds. apt's candidates from
+  that repository are 29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0, not Docker's
+  newest (29.9.2, Compose 5.6.1). No package is held, AppArmor is active (`docker info`'s
+  security options), and the kernel's own changelog carries CVE-2026-31431 ("Copy Fail"). The
+  plan, the owner's: the vendor's set, in a window with live's hold and the OTA stack's both on,
+  since the upgrade restarts every container (`live-restore` is off), with Docker's own 29.2.1
+  packages kept on the machine as the way back, their checksums verified; a newer kernel line is
+  offered and is left for after alpha.4's tag.
+- **The O365 lane ran for the first time, and stopped at its secrets** (T3, §3 item 6). Run
+  41273625023, queued for #1767 since 2026-11-01 04:34, ended *cancelled* at 02:00 without a
+  runner. The owner added `spark` to the self-hosted runner at about 07:40 (0141 T13 (a): the
+  label added, rather than dropped from `runs-on`). Run 41418432093, on `main` at `bce0fcfd`,
+  09:10 to 09:11, failed at *Validate required secrets*: `O365_CLIENT_ID` and `O365_TENANT_ID`
+  are not set as repository secrets, so the suite cannot run. Setting them
+  (`docs/test-tenant.md`) is the owner's.
+- **`pnpm audit` on `main`: 2 moderate, both under developer tools only**, the two the entry of
+  2026-10-31 (follow-redirects) left: minimatch below 11.0.1 (GHSA-g3hv-75wg-m249, through eslint
+  and through testcontainers' archiver) and glob 9.0.0 to 14.0.1 (GHSA-3g3m-2fjr-6pw4, through
+  testcontainers' archiver-utils). Each is fixed only on a new major, minimatch 11.0.1 and glob
+  14.0.2 (both 2026-10-27), with no backport to the lines in the tree (minimatch 10.2.6, 9.0.9
+  and 5.1.9; glob 10.5.0), and `pnpm-workspace.yaml`'s overrides are scoped below each fix
+  within a major, never across one. Not overridden: accepted as developer-only until eslint and
+  testcontainers move, since nothing shipped reaches either; a comment in the overrides says so
+  now. The audit's state lives in these Status entries, the newest first, and in that comment.
+- **The Windows payload on `main`:** windows-payload run 41375291612 on `733294a5` (01:59),
+  artifact `ownpace-appliance-win-x64-733294a5…`, `node.exe` 26.13.0. The owner's Windows 11
+  check of a zip on 26.13.0 is still owed; it can take this zip, or #1767's from branch run
+  41250312341.
+- **E2E (self-hosted), scheduled, on `main`:** run 41378982336 on `733294a5` (02:40) and run
+  41410768898 on `0b16a82e` (08:07), both green.
+
 **2026-11-02: the socket proxy, ClickHouse's last route (§3 item 9), is on a network only the
-supervisor shares.** On branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged;
-a draft for alpha.4, built as workplan 0136 T4's first bullet (0136's Status, 2026-11-02, has the
+supervisor shares.** On branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`,
+merged as #1784 on 2026-11-02 at 08:14 UTC (`2cae9602`) after E2E (managed) run 41408096908 was
+green on its head (the entry above); for alpha.4, built as workplan 0136 T4's first bullet (0136's Status, 2026-11-02, has the
 detail and the mutation counts). Item 9 said #1774 did not stop the Docker API:
 `trigger-docker-proxy` was on `ownpace-network` with `POST`, `NETWORKS` and `CONTAINERS` and no
 authentication, so any container there, every task run included, could attach a container to
@@ -15,8 +97,10 @@ network whose only other member is `trigger-supervisor`, whose `DOCKER_HOST` nam
 supervisor keeps `ownpace-network` for the runners and `trigger-api`. No image, `.env` key or
 port changes; the next `up` creates the network and recreates the proxy and the supervisor.
 `scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds it, and the smoke asks the proxy
-from the supervisor and finds no such name from the API container. Owed: E2E (managed) on the
-branch, then a run of `main` without it. Item 9 says what is left once it lands: code that
+from the supervisor and finds no such name from the API container. Owed then, and answered by
+the merge: E2E (managed) on the branch (run 41408096908, green); the run of `main` without it,
+the way back, is no longer owed, since `main` carries it. Item 9 says what is left now it has
+landed: code that
 already runs inside `trigger-api` or `trigger-supervisor`, or inside the other stack's
 supervisor, which can ask its own proxy to attach a container to this stack's
 `trigger-event-store` (0136 §1, *Two stacks on one machine*), and the host. Until live runs a
@@ -26,11 +110,13 @@ stack's `trigger-event-store` through live's proxy.
 
 **2026-11-02: ClickHouse 26.8.36.3-lts, option 2 of §3 item 9, the owner's decision (security,
 CVE-2026-116366)**, on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, cut
-from the head of #1782 (option 1, 26.3.62.3), which it supersedes; #1782 is closed unmerged
-once this branch's pull request is up. The owner, 2026-11-02:
-"Go with ClickHouse 26.8.36.3-lts." Not merged and not E2E-tested: E2E (managed) moves the OTA
-stack's ClickHouse one way, so it runs only in the owner's window, after the volume copy
-(`managed-bring-up.md`, *Moving ClickHouse*).
+from the head of #1782 (option 1, 26.3.62.3), which it supersedes; merged as #1785 on
+2026-11-02 at 07:17 UTC (`0b16a82e`), after E2E (managed) run 41400187583, the OTA stack's
+move, was green on its head and *Moving ClickHouse*'s step-4 checks read as shown (the entry
+above); #1782 was closed unmerged at about 06:07 UTC. The owner, 2026-11-02:
+"Go with ClickHouse 26.8.36.3-lts." Not merged and not E2E-tested when this entry was written:
+E2E (managed) moves the OTA stack's ClickHouse one way, so it ran only in the owner's window,
+after the volume copy (`managed-bring-up.md`, *Moving ClickHouse*).
 - **The pin:** `clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…` in `managed.yml`
   (Docker's tag has no `-lts`), amd64 `0805f9f5…` and arm64 `46ec9b0b…`, pushed 2026-10-26
   18:20 UTC; the index read from mirror.gcr.io and from Docker Hub's registry, the same 1,611
@@ -46,7 +132,7 @@ stack's ClickHouse one way, so it runs only in the owner's window, after the vol
   `deploy/compose/clickhouse-users-profile.xml`, one file into `users.d`
   (`date_time_input_format` and `cast_string_to_date_time_mode` `basic`,
   `input_format_read_datetime_number_as_raw_value` 1). A 26.2 or 26.3 server does not start
-  with the first mounted, and `main`'s checkout mounts neither.
+  with the first mounted, and `main`'s checkout mounted neither before the merge.
 - **What phones home, read again:** `scripts/a-service-that-phones-home.unit.test.ts` pins the
   new reference, and `clickhouse-no-crash-reports.xml`'s reading names the image's own
   `config.xml`, byte for byte `v26.8.34.13-lts`'s (26.8.36.3 has no public tag): crash reports
@@ -77,9 +163,10 @@ stack's ClickHouse one way, so it runs only in the owner's window, after the vol
   55 applied, to version 56; the same without `clickhouse-merge-tree.xml`, 21 applied and 022
   refused with `Code: 36` (`BAD_ARGUMENTS`); the Errors page's query on 26.8.36.3, no error;
   and a millisecond integer into `DateTime64(3)` read as milliseconds under the profile, as
-  seconds without it. **Still owed before the merge:** E2E (managed) on the branch in the
-  owner's window, which is the move, and *Moving ClickHouse*'s step-4 checks, the load check
-  among them, read as shown.
+  seconds without it. **Owed before the merge, and done on 2026-11-02** (the entry above): E2E
+  (managed) on the branch in the owner's window, which was the move (run 41400187583, 06:29 to
+  06:39 UTC, green), and *Moving ClickHouse*'s step-4 checks, the load check among them, which
+  read as shown.
 
 **2026-11-01, later: #1780 and #1779 merged, the first scheduled night on v4.8.3, Node 26 and
 ClickHouse's own network, and the O365 gate is held by a runner label (T3).** Docs only, on the
@@ -110,14 +197,17 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
   later).
 - **The ClickHouse copy from before v4.8.3.** #1755 keeps it until *the move has held*: merged,
   and `main`'s next nightly green. Run 41298604750 is that night, and the owner has been sent its
-  removal (0132's Status, 2026-11-01, later): **sent, not done**.
+  removal (0132's Status, 2026-11-01, later): **sent, not done**; done on 2026-11-02 at about
+  02:10 UTC (the entry of 2026-11-02, records, above).
 - **The O365 gate (T3, item 6's proof) is held by a runner label.** `e2e-o365.yml` runs on
   `[self-hosted, linux, arm64, spark]` (:85), and the self-hosted runner does not carry `spark`,
   so the lane has never run: 34019235750 and 34019786577 were cancelled in September, and
   41273625023, dispatched for #1767, has been queued since 04:34, while E2E (managed), on
   `[self-hosted, linux, arm64]`, ran on that runner at 10:41. The step is the owner's, 0141
   T13 (a): add `spark` to the runner, or drop it from `runs-on`, the choice #1137 left to the
-  owner; T3's row and §3 item 6 say so.
+  owner; T3's row and §3 item 6 say so. *(2026-11-02: run 41273625023 was cancelled at 02:00
+  without a runner; the owner added the label at about 07:40, and the lane's first run on a
+  runner, 41418432093, stopped at its secrets check: the entry of 2026-11-02, records, above.)*
 
 **2026-11-01: ClickHouse 26.3.62.3, option 1 of §3 item 9, built as a draft that waits for the
 owner's decision (security, CVE-2026-116366); superseded 2026-11-02, when the owner took option
@@ -217,7 +307,9 @@ nodejs/release-keys. ADR-0027's operative bullet says the same (amended in place
 and staging with `--with-node` now need `gpgv` (the hosted runner has it; the review entry below
 says what is owed for the self-hosted one). **Not done here:** the tarball the
 host steps of `docs/managed-bring-up.md` install is still checked against a list from its own
-host (§2.5); the owner's Windows 11 check of a zip on 26.13.0 is still owed.
+host (§2.5); the owner's Windows 11 check of a zip on 26.13.0 is still owed (`main`'s zip since
+2026-11-02: windows-payload run 41375291612 on `733294a5`; the entry of 2026-11-02, records,
+above).
 
 **2026-11-01: #1780's review, seven findings, all held (five distinct), all fixed on the same
 branch.** (1, 5) **An expired releaser key.** `verifyNodeReleaseSignature` took only `GOODSIG`.
@@ -358,14 +450,18 @@ today.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-rec
   cancelled (read 04:30 UTC), and the lane is 0141 T13, the owner's. A third, run 41273625023,
   dispatched for #1767 at 04:34 UTC, is queued for the self-hosted runner; if it finishes, it is
   the first O365 gate to run to its end, on `@azure/msal-node` 7.1.2 and Node 26, not the 6
-  that #819 took. Its result goes in #1767 or the next records pass. Node 26, declined on 2026-09-06, the owner
+  that #819 took. Its result goes in #1767 or the next records pass. *(2026-11-02: it never
+  started, cancelled at 02:00 UTC without a runner, and the fourth run stopped at its secrets
+  check: the entry of 2026-11-02, records, above.)* Node 26, declined on 2026-09-06, the owner
   took on 2026-10-31 for alpha.4 (item 7, recorded with #1767, open on 2026-11-01). Item 9 is
   the owner's again: #1774 (merged 2026-11-01) records that its revisit trigger fired on 2026-11-01
   (CVE-2026-116366, which no 26.2 release fixes) and leaves the version move to the owner. So
   T3 waits on that one item, ⏳.
 - **The host's Docker, read by the owner, is an open owner item**, now in §2.4: 29.2.1 where
   29.9.2 is the newest, with security fixes between, and an upgrade restarts every container on
-  the machine, because `live-restore` is not set.
+  the machine, because `live-restore` is not set. *(2026-11-02: the packages come from the
+  machine vendor's apt repository, and the target is that repository's set, 29.6.2, not Docker's
+  newest; §2.4, corrected, and the entry of 2026-11-02, records, above.)*
 - **The self-hosted runner reads 2.338.0**, the hosted ones 2.338.2; it updates itself, so it
   is watched and nothing is owed (§2.4).
 
@@ -579,7 +675,8 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   its log showing `npm install -g --omit=dev corepack@0.36.0` add 1 package and corepack
   fetch pnpm 11.28.9; windows-payload run 41250312341 fetched node.exe v26.13.0 (95.5 MiB, 100.1 MB) and
   uploaded `ownpace-appliance-win-x64-20cfed4a…` (50.8 MB zipped; the owner's Windows 11
-  check of it is owed); Security Scan with `image_scans`, run 41250313842, read the tasks'
+  check of it, or of `main`'s zip from windows-payload run 41375291612 on `733294a5`
+  (2026-11-02), is owed); Security Scan with `image_scans`, run 41250313842, read the tasks'
   base built from the branch, `node:26.13.0-trixie-slim` with the config's layer, at Debian
   13.7, 0 critical, 43 high, none with a fix: the figures of the 24.22.1 base it replaces.
 - **Review, 2026-11-01, on #1767.** (1) Nothing held `engines`: `>=24` passed every guard
@@ -611,7 +708,11 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   nodejs.org's `SHASUMS256.txt`, 100,097,864 bytes against 93,915,464 at 24.22.1). The image
   scan of the final api, web and selfhost images on 26 exists only after the merge (`:edge`);
   on a branch, Security Scan builds only the tasks' base. Re-measure there the 2026-10-25 Trivy figures the Dockerfile and config comments
-  quote for 24.
+  quote for 24. *(2026-11-02: the arm64 images ran in E2E (self-hosted) and E2E (managed) on
+  #1767's head before its merge (the entry of 2026-11-01, records, above); the o365 lane's first
+  run on a runner stopped at its secrets check, and the Windows 11 check, of this zip or of
+  `main`'s from windows-payload run 41375291612, is still the owner's: the entry of 2026-11-02,
+  records, above.)*
 
 **2026-11-01: the Atlas CLI that CI's migration lint runs is release v1.3.6, checked by its
 SHA-256 for both architectures before anything runs it (alpha.4, supply chain)**, on the branch
@@ -2212,7 +2313,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label `spark`, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (Status, 2026-11-02) — *was:* ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, has been queued since 2026-11-01 04:34 UTC, because `e2e-o365.yml` asks for the runner label `spark`, which the self-hosted runner does not carry: adding it is the owner's step; *was:* the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). |
+| T3 The owner's decisions | ⏳ **Owner**, item 6's proof only: the O365 gate's first run on a runner, 41418432093 on `main` (2026-11-02, 09:10 to 09:11 UTC), failed at *Validate required secrets*, because `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets; setting them (`docs/test-tenant.md`) is the owner's, 0141 T13 (a), whose runner label the owner added on 2026-11-02 (Status, 2026-11-02, records). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since its E2E (managed) run 41400187583 and on live from the tag that carries it (Status, 2026-11-02, records) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label `spark`, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status); item 9's version move built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02); ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, queued from 2026-11-01 04:34 UTC because `e2e-o365.yml` asks for the runner label `spark`, which the self-hosted runner did not carry, was cancelled on 2026-11-02 at 02:00 UTC without a runner; the owner added the label at about 07:40 UTC, and the fourth, 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not set: setting them is the owner's step; *was:* a third has been queued since 2026-11-01 04:34 UTC, the label missing (2026-11-01); the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 | T5 The second Nextcloud major in CI | ✅ Done 2026-10-28 | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); merged after the alpha.2 tag, on 2026-10-27 as #1705 (`d6acd430`). Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged), merged 2026-10-28 as #1720 (`3d2f129e`): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) run 40774398411 on it (2026-10-28, 21:44–21:52 UTC, `nextcloud:35.0.2` healthy) was the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
 
@@ -2251,7 +2352,7 @@ is who moves it after T1.
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`; since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `86d5a599…`, trigger.dev 4.8.3's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC; Node 26.12.1; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, pushed the same morning, before) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26 and 2026-10-31) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
-| `clickhouse/clickhouse-server` | `managed.yml` | 26.2.19.43 by digest; 26.8.36.3-lts by digest `d426d2f6…` on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), not merged (#1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | behind until that branch merges, then ahead of Trigger.dev's pin on purpose | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, on option 2's branch); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*, on that branch) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose; until that branch merges, 26.2, out of ClickHouse's support, **accepted for the Alpha** on 2026-10-23. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` can still join it through the socket proxy until 0136 T4's first bullet lands, built on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged), which stays after the move |
+| `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31) | current | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
@@ -2336,15 +2437,28 @@ pnpm 11.28.9 (11.22.0 at the audit), moved by hand: Dependabot never touches `pa
 so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
 `pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
 
-**The host's Docker** (the owner's reading of 2026-11-01, on the machine that runs live, the
-OTA stack and the self-hosted runner): Docker Engine and its CLI 29.2.1 and containerd.io 2.2.1,
-from Docker's apt repository, the Compose plugin 5.0.2, and `live-restore` not set. The newest,
-read the same day: Docker 29.9.2 and Compose 5.6.1, with security fixes between. ⏳ **Owner,
-open:** the upgrade, from the same repository, in a window with live's hold on and its drain
-done (`docs/managed-bring-up.md`, *`ownpace-live`: a release tag, with `deploy-live.sh`*, step
-2) and no runner job in flight, because without `live-restore` the daemon's restart restarts
-every container on the machine, live's and the OTA stack's alike. Nothing in this repository
-pins or watches the host's Docker; it moves by the owner's hand only.
+**The host's Docker** (the owner's readings of 2026-11-01 and 2026-11-02, on the machine that
+runs live, the OTA stack and the self-hosted runner): Docker Engine and its CLI 29.2.1,
+containerd.io 2.2.1, the Compose plugin 5.0.2 and the Buildx plugin 0.31.1, and `live-restore`
+not set. **Corrected 2026-11-02:** the five packages (`docker-ce`, `docker-ce-cli`,
+`containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from the machine vendor's
+apt repository, which outranks every other source by apt preference (priority 600), not from
+Docker's apt repository, as this paragraph said from 2026-11-01; Docker's own repository is not
+configured on the machine. Each of the five has the SHA256 that Docker's own package index gives
+for the same version, so they are Docker's builds. No package is held; AppArmor is active
+(`docker info`'s security options); the kernel's own changelog carries CVE-2026-31431 ("Copy
+Fail"). Docker's newest, read 2026-11-01: 29.9.2 and Compose 5.6.1, with security fixes between.
+apt's candidates from the vendor's repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
+29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0. ⏳ **Owner, open:** the upgrade to
+the vendor's set, not to Docker's newest, in a window with both holds on, live's and the OTA
+stack's, live's drain done (`docs/managed-bring-up.md`, *`ownpace-live`: a release tag, with
+`deploy-live.sh`*, step 2) and no runner job in flight, because without `live-restore` the
+daemon's restart restarts every container on the machine, live's and the OTA stack's alike;
+with a way back kept on the machine, Docker's own 29.2.1 packages, their checksums verified. A
+newer kernel line is offered there too, and is left for after alpha.4's tag. Nothing in this
+repository pins or watches the host's Docker; it moves by the owner's hand only. The host's
+readings live in this paragraph; 0132's Status entries of 2026-11-01 (recorded) and 2026-11-02
+point here.
 **The self-hosted runner** reads 2.338.0 in its job logs (E2E (managed) run 41264284343,
 2026-11-01 02:15 UTC); the hosted runners read 2.338.2 (CI's `build (api)` on `8d986f3c`, 04:13
 UTC), the release that bundles Node 24.22.1. Its service does not pass `--disableupdate`, so
@@ -2355,7 +2469,7 @@ it updates itself when GitHub asks it to: watched, nothing owed.
 | Tool | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on the self-hosted arm64 runner for a push to `main` | v1.3.6 from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `bb6e8167…`, arm64 `723e4cac…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.6-community@sha256:66a344bf…`, read through the registry's digests (2026-11-01). Before it `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC that day) | v1.3.6 (Docker Hub, 2026-10-27 13:03 UTC): Ariga's official build (`-tags=official`, version v1.3.6), whose Go build information names upstream commit `ed994a77898e` of 2026-10-21, clean for amd64 while arm64 reports `vcs.modified=true`. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
-| `node.exe`, the Windows payload's Node (win-x64; win-arm64 by dispatch) | `scripts/package-appliance.mjs` `--with-node`, run by `windows-payload.yml` on a dispatch and on every release tag, whose zip the release attaches | since 2026-11-01, the version `apps/selfhost/Dockerfile` names, v26.13.0, from `nodejs.org` by name, its bytes checked against the SHA-256 committed in `NODE_RUNTIME_SHA256` (win-x64 `14319838…`, 100,097,864 bytes; win-arm64 `4c9baa04…`, 88,331,080), sums of `node.exe` itself and not of the release's `.zip`. Before anything is fetched, `gpgv` checks the release's own `SHASUMS256.txt`, committed with its `.sig` in `scripts/node-release/`, against the Node.js release keyring committed beside it (`gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`, 2026-09-01, blob `bae91a9c…`): good, by primary key `C82FA3AE…`, and giving the same two sums. Read twice more: the release announcement's clear-signed list in nodejs/nodejs.org (good, by the same key, the same 34 lines) and each `node.exe` downloaded and hashed (2026-11-01). Until then: checked only against a `SHASUMS256.txt` fetched from the same directory as the binary, with no signature read | v26.13.0 (the Dockerfile's; the image's version is the `node` row's in §2.1) | current | Dependabot's image pull request moves the Dockerfile's version and cannot move the sums: `a-runtime-only-its-own-host-vouched-for` fails it until the release's `SHASUMS256.txt` and `.sig` and the two sums are pushed to it (the commands are above `NODE_RUNTIME_SHA256` and in `docs/windows-appliance-runbook.md`). The keyring moves by hand, with the commit and blob id in `NODE_RELEASE_KEYS`, when the pin watch's summary issue lists a newer nodejs/release-keys commit whose `gpg-only-active-keys/pubring.kbx` differs (its `Node.js release keys` row, weekly, since #1780's review: a key retired, revoked, added or given a new expiry), or when a release is signed by a key not in it (the build says so). A key that expired after it signed does not stop the build; one revoked, or expired before it signed, does | shipped to every Windows install, and held to the tagged commit's sum by the release's `verify` job (since #1780's review); `pnpm test` needs `gpgv`; the owner's Windows 11 check of a zip on 26.13.0 is owed (Status, 2026-10-31) |
+| `node.exe`, the Windows payload's Node (win-x64; win-arm64 by dispatch) | `scripts/package-appliance.mjs` `--with-node`, run by `windows-payload.yml` on a dispatch and on every release tag, whose zip the release attaches | since 2026-11-01, the version `apps/selfhost/Dockerfile` names, v26.13.0, from `nodejs.org` by name, its bytes checked against the SHA-256 committed in `NODE_RUNTIME_SHA256` (win-x64 `14319838…`, 100,097,864 bytes; win-arm64 `4c9baa04…`, 88,331,080), sums of `node.exe` itself and not of the release's `.zip`. Before anything is fetched, `gpgv` checks the release's own `SHASUMS256.txt`, committed with its `.sig` in `scripts/node-release/`, against the Node.js release keyring committed beside it (`gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`, 2026-09-01, blob `bae91a9c…`): good, by primary key `C82FA3AE…`, and giving the same two sums. Read twice more: the release announcement's clear-signed list in nodejs/nodejs.org (good, by the same key, the same 34 lines) and each `node.exe` downloaded and hashed (2026-11-01). Until then: checked only against a `SHASUMS256.txt` fetched from the same directory as the binary, with no signature read | v26.13.0 (the Dockerfile's; the image's version is the `node` row's in §2.1) | current | Dependabot's image pull request moves the Dockerfile's version and cannot move the sums: `a-runtime-only-its-own-host-vouched-for` fails it until the release's `SHASUMS256.txt` and `.sig` and the two sums are pushed to it (the commands are above `NODE_RUNTIME_SHA256` and in `docs/windows-appliance-runbook.md`). The keyring moves by hand, with the commit and blob id in `NODE_RELEASE_KEYS`, when the pin watch's summary issue lists a newer nodejs/release-keys commit whose `gpg-only-active-keys/pubring.kbx` differs (its `Node.js release keys` row, weekly, since #1780's review: a key retired, revoked, added or given a new expiry), or when a release is signed by a key not in it (the build says so). A key that expired after it signed does not stop the build; one revoked, or expired before it signed, does | shipped to every Windows install, and held to the tagged commit's sum by the release's `verify` job (since #1780's review); `pnpm test` needs `gpgv`; the owner's Windows 11 check of a zip on 26.13.0 is owed (Status, 2026-10-31), `main`'s zip since 2026-11-02 being windows-payload run 41375291612 on `733294a5` (Status, 2026-11-02, records) |
 | stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, the self-hosted arm64 runner for a push), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
 | Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`: the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest (2026-11-01). Atlas's docker driver (`FromURL` at v1.3.6's commit) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed` | CI only; the major is the deployments' (that guard's older rule) |
 | binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
@@ -2724,7 +2838,10 @@ is beside each; none is urgent tonight.
    (`e2e-o365.yml`) on main is the proof, queued for the self-hosted runner. *(2026-11-01:
    the gate never ran to its end; it asks for the runner label `spark`, which the self-hosted
    runner does not carry; the step is the owner's, 0141 T13 (a): add the label to the runner, or
-   drop it from `runs-on`; see T3.)*
+   drop it from `runs-on`; see T3.)* *(2026-11-02: the owner added the label; the gate's first
+   run on a runner, 41418432093 on `main`, failed at* Validate required secrets*:
+   `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets, and setting them
+   (`docs/test-tenant.md`) is the owner's; see T3.)*
    **`nodemailer` 9 → 10** — taken 2026-09-06 (#823). Read first: one breaking change,
    Node 20 or newer, against an `engines` of 24; the rest of the major is the move to
    TypeScript with ESM and CommonJS builds, and the package ships its own types now, so
@@ -2800,8 +2917,9 @@ is beside each; none is urgent tonight.
    `scripts/a-gate-that-was-never-switched-on.unit.test.ts` now fails when one does not, and
    also when the list exists without the setting, when the value is under a day, and when an
    entry is a bare package name — which pnpm treats as "exempt this package for ever".
-9. **ClickHouse 26.2, out of support since 2026-05-21 — ACCEPTED FOR THE ALPHA, 2026-10-23; TO MOVE
-   TO 26.8.36.3-LTS, THE OWNER'S DECISION OF 2026-11-02 (option 2, below; not merged).**
+9. **ClickHouse 26.2, out of support since 2026-05-21 — ACCEPTED FOR THE ALPHA, 2026-10-23; MOVED
+   TO 26.8.36.3-LTS, THE OWNER'S DECISION OF 2026-11-02 (option 2, below; merged as #1785 the
+   same day, the OTA stack moved by its E2E (managed) run, live from alpha.4).**
    ClickHouse's `SECURITY.md` (read 2026-10-23) supports 26.9, 26.8, 26.7 and 26.3, and not
    26.2; 26.2.19.43 (2026-05-21) is that line's last patch. Trigger.dev pins exactly that, by
    the same digest, in `docker/docker-compose.yml` at v4.7.2, v4.7.6, v4.7.7 and v4.8.1 (`26.2` in
@@ -2857,9 +2975,10 @@ is beside each; none is urgent tonight.
    running in any container there, every task run included, can still attach itself or a
    new container to `trigger-event-store` (0136 §1, *What shares the network*: creating a
    container through it is, in effect, control of the host). **0136 T4's first bullet closes
-   that route**, on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (Status,
-   2026-11-02): the proxy on `trigger-docker-socket`, an `internal` network only
-   `trigger-supervisor` shares. Once it lands, what is left is code that already runs inside
+   that route**, merged as #1784 on 2026-11-02 (`2cae9602`), after E2E (managed) run
+   41408096908 was green on its head (Status, 2026-11-02): the proxy on `trigger-docker-socket`,
+   an `internal` network only `trigger-supervisor` shares. Since it landed, what is left is code
+   that already runs inside
    `trigger-supervisor`, which can still ask the proxy, or inside `trigger-api`, which shares
    ClickHouse's network, or inside the other stack's `trigger-supervisor`, which can ask its
    own proxy to attach a container to this stack's `trigger-event-store` (one Docker daemon
@@ -2868,8 +2987,7 @@ is beside each; none is urgent tonight.
    carries both changes.** It runs `v0.2.0-alpha.3` (0132's Status, 2026-10-30/31), which has
    neither: live's ClickHouse is still on live's `ownpace-network`, where every container of
    live reaches it directly, and live's proxy, there too, lets any of them attach a container
-   to the OTA stack's `trigger-event-store`. #1774 is merged for alpha.4, and this branch is a
-   draft for the same tag. **The version move stays the owner's:** (b) 26.8 LTS at its fixed release, or 26.3's, one way,
+   to the OTA stack's `trigger-event-store`. #1774 and #1784 are merged for alpha.4. **The version move stayed the owner's** (taken on 2026-11-02, below): (b) 26.8 LTS at its fixed release, or 26.3's, one way,
    under Trigger.dev's migrations at v4.8.3, whose compose and test containers pin 26.2
    (above); or stay isolated on 26.2 until upstream moves, which leaves a server with no fix
    that any container on `ownpace-network` can still reach by that Docker API route until the
@@ -2881,12 +2999,14 @@ is beside each; none is urgent tonight.
    move its pin, isolated on 26.2 meanwhile.
 
    **The owner's decision, 2026-11-02: option (2), 26.8.36.3-lts.** In the owner's words:
-   "Go with ClickHouse 26.8.36.3-lts." Draft #1782 (option 1, 26.3.62.3) is superseded, and is
-   closed unmerged once option 2's pull request is up. Option 2 is built on the branch
+   "Go with ClickHouse 26.8.36.3-lts." Draft #1782 (option 1, 26.3.62.3) is superseded, and was
+   closed unmerged at about 06:07 UTC on 2026-11-02. Option 2 was built on the branch
    `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, cut from #1782's head, so that
    branch's pin watch record, live's one-way verdict and the runbook's restore carry over; it
-   merges after E2E (managed) on its branch in the owner's window, the run that moves the OTA
-   stack. It pins `clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…` (amd64 `0805f9f5…`,
+   merged as #1785 on 2026-11-02 at 07:17 UTC (`0b16a82e`), after E2E (managed) on its branch in
+   the owner's window, run 41400187583 (06:29 to 06:39 UTC), the run that moved the OTA stack,
+   was green and *Moving ClickHouse*'s step-4 checks read as shown (Status, 2026-11-02,
+   records). It pins `clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…` (amd64 `0805f9f5…`,
    arm64 `46ec9b0b…`; Docker Hub push 2026-10-26 18:20 UTC, its three-day floor passed
    2026-10-29; the index, 1,611 bytes, read from mirror.gcr.io at 01:39 UTC and again at 04:29
    UTC, and from Docker Hub's registry by digest at 01:47 UTC, on 2026-11-02, the same bytes;
@@ -3125,12 +3245,12 @@ is beside each; none is urgent tonight.
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
   its revisit triggers (§3 item 9). One fired on 2026-11-01 (CVE-2026-116366): the server is on
-  a network only `trigger-api` shares (#1774, merged 2026-11-01), which a container on `ownpace-network` can
-  still join through the socket proxy until 0136 T4's first bullet lands (on branch
-  `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged), and the version
-  move was the owner's: the owner took option 2 on 2026-11-02, 26.8.36.3-lts, built on the
-  branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8` (#1782, option 1, 26.3.62.3,
-  superseded; §3 item 9).
+  a network only `trigger-api` shares (#1774, merged 2026-11-01), which a container on `ownpace-network` could
+  still join through the socket proxy until 0136 T4's first bullet, merged as #1784 on
+  2026-11-02 (`2cae9602`), and the version move was the owner's: the owner took option 2 on
+  2026-11-02, 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since
+  its E2E (managed) run 41400187583 and on live from the tag that carries it (#1782, option 1,
+  26.3.62.3, superseded; §3 item 9).
 - **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;
   those two lines are ignored by name, so the answer does not matter for them.
 - **The three actions behind by a patch or a minor** are left to Monday's group rather than

@@ -2,7 +2,30 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-02 (update this block at the end of every session)
+
+**2026-11-02, recorded: the copy from before v4.8.3 removed, ClickHouse 26.8.36.3 on the OTA
+stack, and the host's Docker from the machine vendor's apt repository.** Docs only, on the
+branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`; 0119's Status entry of the
+same day (records) has the detail. Read from GitHub and from the owner's readings on
+2026-11-02; times are UTC.
+- **The way back from v4.8.3 is gone, as sent.** The owner removed
+  `<project>_clickhouse_data_v2_before_v4_8_3` on the OTA stack at about 02:10, their block
+  printing the volume's name, after the night of 2026-11-01 (run 41298604750) had proven the
+  move. The entry below said **sent, not done**; it says done now.
+- **ClickHouse 26.8.36.3 on the OTA stack** since E2E (managed) run 41400187583 (06:29 to 06:39),
+  #1785's move, after the owner's window of about 03:35: the hold on and the drain done, the copy
+  `<project>_clickhouse_data_v2_before_26_8` (478 MB; Docker's data root had 1.7 TB free), the
+  hold lifted. #1785 merged at 07:17 (`0b16a82e`) once step 4's checks read as shown. The copy
+  stays until `main`'s next scheduled E2E (managed) is green. Live runs 26.2.19.43 until a tag
+  carries #1785 (alpha.4), and takes the same copy by hand before that deploy
+  (`managed-bring-up.md`, *Moving ClickHouse*, *On live*); the same tag brings #1774's and
+  #1784's networks to live (0136 T4).
+- **The host's Docker** comes from the machine vendor's apt repository, not from Docker's, as
+  0119 §2.4 had it since 2026-11-01; §2.4, where the host's readings live (the entry of
+  2026-11-01, recorded, below points there), is corrected. Its upgrade is the owner's, to that repository's set (29.6.2), in a window
+  with live's hold and the OTA stack's both on, since it restarts every container on the
+  machine, with Docker's own 29.2.1 packages kept on the machine as the way back (0119 §2.4).
 
 **2026-11-01, later, recorded: the OTA stack's first scheduled night on Trigger.dev v4.8.3, Node
 26 and ClickHouse's own network; T3 (c)'s new ask merged.** Docs only, on the branch
@@ -27,7 +50,8 @@
   a copy of ClickHouse's volume from before v4.8.3, to be removed *once the move has held*
   (merged, and `main`'s next nightly green). Run 41298604750 is that night. The owner was sent the
   removal of the volume `<project>_clickhouse_data_v2_before_v4_8_3` (the command in #1755's
-  body) on 2026-11-01: **sent, not done**; the `before-v4.8.3` dump of `triggerdb` leaves with
+  body) on 2026-11-01: **sent, not done**, and done on 2026-11-02 at about 02:10 (the entry
+  above); the `before-v4.8.3` dump of `triggerdb` leaves with
   `trigger-version.sh`'s keep-seven rotation.
 - **T3 (c): the ask of live's organisation sign-up page merged** as #1753 on 2026-10-31 at 23:05
   UTC (`d669141d`). The entry of 2026-10-31 below and T3's row said built, not merged. No
@@ -53,6 +77,8 @@
   is behind, with security fixes between, and its upgrade is the owner's, in a window with
   live's hold on: without `live-restore`, it restarts every container on the machine, live's
   included. Recorded in 0119 §2.4, where the host's runtimes are, as an open owner item.
+  *(2026-11-02: the packages come from the machine vendor's apt repository, not Docker's, and
+  the upgrade is to that repository's set, with both holds on: the entry above.)*
 
 **2026-10-31: the outside probe asks live's form that founds an organisation (T3 (c), 0135 T1).**
 The ask in T3 below, which 0135 T1 made: `GET https://id.ownpace.eu/ui/login/register/org`

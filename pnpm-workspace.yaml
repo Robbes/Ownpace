@@ -82,6 +82,15 @@ overrides:
   #   GHSA-q2hr-2g5m-vwhr (MODERATE) quadratic `{a},b}` rewrite            — 2.1.7 / 5.0.12
   brace-expansion@>=2.0.0 <2.1.7: ^2.1.7
   brace-expansion@>=4.0.0 <5.0.12: ^5.0.12
+  # NOT overridden, 2026-11-02: the two MODERATE advisories `pnpm audit` reads on main, both
+  # DEV-ONLY. minimatch GHSA-g3hv-75wg-m249 (<11.0.1; via eslint, and via testcontainers'
+  # archiver) and glob GHSA-3g3m-2fjr-6pw4 (9.0.0 to 14.0.1; via testcontainers'
+  # archiver-utils) are each fixed only on a new major, minimatch 11.0.1 and glob 14.0.2 (both
+  # 2026-10-27), with no backport to the lines in the tree (minimatch 10.2.6, 9.0.9, 5.1.9;
+  # glob 10.5.0). An entry here stays below its fix within a major and never crosses one (the
+  # first comment under overrides says why), so there is nothing to pin. Accepted as
+  # developer-only until eslint and testcontainers move; nothing shipped reaches either
+  # (workplan 0119, Status of 2026-11-02).
   engine.io@>=4.1.0 <6.6.7: ^6.6.7
   # 2026-08-04 sweep. Scoped per major, like the entries above, so a package
   # that legitimately wants a different line is not forced off it.

@@ -828,9 +828,9 @@ resolve the name `clickhouse`. The server ran 26.2, which has no fix for
 CVE-2026-116366 (unauthenticated code execution for anybody who can reach it),
 so the network was what protected it. The pin is 26.8.36.3-lts, which carries
 the fix, from the owner's decision of 2026-11-02; a stack runs it from its own
-move (the OTA stack's E2E (managed) run in the owner's window; live's deploy of
-the first release tag that carries it: *Moving ClickHouse*, below), and the
-network stays.
+move (the OTA stack since its E2E (managed) run in the owner's window on
+2026-11-02; live from its deploy of the first release tag that carries it,
+alpha.4: *Moving ClickHouse*, below), and the network stays.
 `trigger-api` reaches it there for its migrations and its `CLICKHOUSE_URL`, and
 keeps `ownpace-network` for everything else. To ask ClickHouse something, run
 `clickhouse-client` inside its container with `docker compose exec`, as
@@ -6403,7 +6403,14 @@ file. 26.3's off switch for the first of the four
 (`propagate_types_serialization_versions_to_nested_types` at 0) would undo only
 that one, so it is not taken.
 
-**On the OTA stack, in the owner's window.** Before: the pull request's CI
+**On the OTA stack, in the owner's window.** Done on 2026-11-02 (workplan
+0119's Status of that day): steps 1 and 3 at about 03:35 UTC, step 2's list at
+about 06:20 UTC (it was added in review after the copy, so it was taken with
+ClickHouse started alone on 26.2.19.43 and stopped again), the run 06:29 to
+06:39 UTC, step 4's checks as shown, and the merge (#1785) at 07:17 UTC. The
+copy stays until `main`'s next scheduled E2E (managed) is green, then goes by
+*Once the move has held*, below. What follows is the procedure as it ran.
+Before: the pull request's CI
 green; the two runs 0119 §3 item 9 names before the merge done, and as
 expected (they were, 2026-11-02): the migration from an empty volume through
 056 on 26.8.36.3 (with both files mounted; and without
@@ -6675,8 +6682,8 @@ docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-clien
 and each one it names goes with
 `docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "DROP TABLE system.<name>"`.
 
-**On live, from the release tag that carries it** (alpha.4, when this change
-merges before alpha.4's fold). `deploy-live.sh`'s copy before
+**On live, from the release tag that carries it** (alpha.4: the change merged
+as #1785 on 2026-11-02, before alpha.4's fold). `deploy-live.sh`'s copy before
 the update (`copy-before-update.sh take`) holds the app's database
 (`pg_dump`), the sign-in service's database and the server's roles
 (`dump-idp.sh`), and, with `--trigger`, which it passes when the tag moves the

@@ -360,6 +360,11 @@ notices.
   Dependabot, #1779). nodemailer 10.3.0 adds an `otp` option for an
   `OTP-Token` header and encodes a `Content-ID` header as a message id; nothing
   here sets either, so no call site changes.
+- **imapflow 2.10.0, nodemailer 10.3.1, jose 6.2.14 and lucide-react 1.65.0**
+  (from 2.9.1, 10.3.0, 6.2.13 and 1.64.0, Dependabot, #1786). imapflow 2.10.0
+  adds a `decodeText` option to `download()`, and nodemailer 10.3.1 applies the
+  `otp` option in `MailComposer` too; nothing here calls imapflow's
+  `download()` or sets `otp`, so no call site changes.
 
 ### Added
 
