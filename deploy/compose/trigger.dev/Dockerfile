@@ -24,8 +24,9 @@
 #     REPLACED: PNPM).
 # Two were left after those: zlib1g (CVE-2023-45853, no fix in Debian), which
 # stays, and dompurify 3.4.13 (GHSA-cg2g-xh64-v4q7, fixed in 3.4.17), whose
-# files the last RUN as root replaces with 3.4.17's (WHAT IS REPLACED, below).
-# So 8 become 1. The binaries are the same Go builds on amd64.
+# files the last RUN as root replaces with 3.4.17's (WHAT IS REPLACED:
+# DOMPURIFY, below). So 8 become 1. The binaries are the same Go builds on
+# amd64.
 #
 # THE HIGHS NOTHING RUNS. The image scan of the image built here at v4.8.3,
 # Security Scan run 41159641513 (Trivy 0.76.1, linux/arm64, 2026-10-31), read 1
@@ -53,9 +54,9 @@
 # (the same node-gyp 11.5.0, with tar 7.5.22, brace-expansion 2.1.7 and
 # ip-address 10.7.4, and content-type besides; npm lists two moderates in it,
 # glob's and minimatch's, and no high). The scan of 2026-11-02 (Security Scan
-# run 41465604476) read 1 critical, 100 high and 68 with a fix, a newer
-# database; without pnpm 10.33.2's 11 that is about 1, 89 and 57 (arithmetic,
-# not measured).
+# run 41465604476) read 1 critical, 100 high and 68 with a fix (most likely a
+# newer database: the build of 2026-10-31 read 124 high); without pnpm
+# 10.33.2's 11 that is about 1, 89 and 57 (arithmetic, not measured).
 #
 # WHAT GOES, AND WHY NOTHING RUNS IT. Read in upstream's source at v4.8.1, again
 # at v4.8.3, and in the published packages, whose sha512 is the one
@@ -85,26 +86,25 @@
 #     managed.yml runs trigger-api as root (`user: root`, for its chown of the
 #     shared volume) and sets no HOME, so HOME is /root, and corepack runs
 #     root's copy, of the version packageManager names, for every pnpm in
-#     docker/scripts/entrypoint.sh: the
-#     migrations of @trigger.dev/database, the run-ops databases and the
-#     dashboard agent. Nothing execs into trigger-api as node. Corepack 0.36.0
-#     (Node 24.22.1's) finds the copy under $HOME/.cache/node/corepack
-#     (getCorepackHomeFolder) and reuses it by its .corepack file alone
-#     (installVersion), never fetching it again while that file is there.
-#   - root's copy of pnpm 10.33.2, /root/.cache/node/corepack/v1/pnpm/10.33.2,
-#     the one upstream ships for the user trigger-api runs as (since
-#     2026-11-02): this build installs 10.34.9 beside it and rewrites
-#     packageManager to pnpm@10.34.9, so corepack runs 10.34.9's copy and never
-#     looks at 10.33.2's (WHAT IS REPLACED: PNPM).
+#     docker/scripts/entrypoint.sh: the migrations of @trigger.dev/database,
+#     the run-ops databases and the dashboard agent. Nothing execs into
+#     trigger-api as node. Corepack 0.36.0 (Node 24.22.1's) finds the copy
+#     under $HOME/.cache/node/corepack (getCorepackHomeFolder) and reuses it by
+#     its .corepack file alone (installVersion), never fetching it again while
+#     that file is there.
+#   - since 2026-11-02, root's copy of pnpm 10.33.2,
+#     /root/.cache/node/corepack/v1/pnpm/10.33.2, the one upstream ships for
+#     the user trigger-api runs as: this build installs 10.34.9 beside it and
+#     rewrites packageManager to pnpm@10.34.9, so corepack runs 10.34.9's copy
+#     and never looks at 10.33.2's (WHAT IS REPLACED: PNPM).
 #   - tar inside root's copy, the one that runs:
 #     /root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules/tar until
 #     2026-11-02, and /root/.cache/node/corepack/v1/pnpm/10.34.9's (7.5.22)
-#     since. Asked
-#     with the risk stated, the owner chose on 2026-10-27 to remove it too.
-#     In pnpm 10.33.2's dist, and in 10.34.9's, the one require('tar') is the
-#     bundled node-gyp's
-#     lib/install.js, which downloads and unpacks Node's headers for a native
-#     build; pnpm.cjs and worker.js name no tar (they bundle tar-stream).
+#     since. Asked with the risk stated, the owner chose on 2026-10-27 to
+#     remove it too. In pnpm 10.33.2's dist, and in 10.34.9's, the one
+#     require('tar') is the bundled node-gyp's lib/install.js, which downloads
+#     and unpacks Node's headers for a native build; pnpm.cjs and worker.js
+#     name no tar (they bundle tar-stream).
 #     node-gyp runs only when a package script calls it (pnpm puts
 #     dist/node-gyp-bin on a script's PATH, and resolves node-gyp's path in a
 #     try) or an install builds a native add-on. The entrypoint's pnpm runs
@@ -116,9 +116,9 @@
 #     Since 2026-10-31 tar goes with the rest of dist/node_modules (next).
 #   - node-gyp's tree inside root's copy: all of
 #     /root/.cache/node/corepack/v1/pnpm/10.34.9/dist/node_modules (10.33.2's
-#     until 2026-11-02, the same layout), which is
-#     node-gyp 11.5.0 and the packages it brings, installed flat (tar was one),
-#     and dist/node-gyp-bin, the shim that runs it. pnpm.cjs and worker.js
+#     until 2026-11-02, the same layout), which is node-gyp 11.5.0 and the
+#     packages it brings, installed flat (tar was one), and
+#     dist/node-gyp-bin, the shim that runs it. pnpm.cjs and worker.js
 #     bundle every package pnpm itself runs. What a file of the copy outside
 #     dist/node_modules names of it is three things, each in a try: pnpm.cjs
 #     resolves node-gyp/bin/node-gyp when it loads, only to hand a package
@@ -131,13 +131,12 @@
 #     its PATH that is not there. Read by running pnpm 10.33.2's own files
 #     with both directories removed, and 10.34.9's on 2026-11-02, whose files
 #     name the same three (its tree adds content-type, which none names):
-#     `pnpm run` and `pnpm exec` work, and a
-#     script that calls node-gyp says `node-gyp: not found`. That is tar's
-#     risk again, and the only one: a script that calls node-gyp, or an
-#     install that builds a native add-on. The entrypoint's pnpm runs three
-#     migration scripts that call neither. The build checks that those three
-#     are all any file of the copy outside dist/node_modules names of it,
-#     before it removes anything.
+#     `pnpm run` and `pnpm exec` work, and a script that calls node-gyp says
+#     `node-gyp: not found`. That is tar's risk again, and the only one: a
+#     script that calls node-gyp, or an install that builds a native add-on.
+#     The entrypoint's pnpm runs three migration scripts that call neither.
+#     The build checks that those three are all any file of the copy outside
+#     dist/node_modules names of it, before it removes anything.
 #   - npm 11.19.1, which Node 24.22.1 bundles: /usr/local/lib/node_modules/npm,
 #     and Node's two links to it, /usr/local/bin/npm and /usr/local/bin/npx. No
 #     process of this stack runs either. The entrypoint runs pnpm, goose, node
@@ -171,18 +170,22 @@
 # GHSA-hg3w-7f8c-63hp, GHSA-p4xf-rf54-rj3x, GHSA-q6j5-fjx5-2mc3). None is
 # reachable here. Each needs an install, a patch command, a registry request
 # or workspace files an attacker wrote, and this container installs nothing:
-# its pnpm runs three migration scripts from the workspace baked into the
-# image. Under corepack (COREPACK_ROOT set) pnpm skips its own version switch
-# and its packageManager check. And upstream's workspace has no
-# configDependencies, no proxy settings, no nodeLinker, no root .npmrc and no
-# pnpmfile, and its lockfile is one document. So this is hygiene, not a
-# security fix: the copy that runs, and the one the scan reads, become a
-# release npm lists no advisory against. 10.34.9 is npm's latest-10, published
-# 2026-10-25 17:54 UTC, past its three-day floor since 2026-10-28. Its layout,
-# engines (node >=18.12) and bins are 10.33.2's; its update check still runs on
-# `install` and `add` only (scripts/a-service-that-phones-home.unit.test.ts);
-# and from 10.33.3 to 10.34.9 its changelog changes nothing a `pnpm --filter`
-# run of a package script goes through.
+# its pnpm runs the migrations' package scripts from the workspace baked into
+# the image (two here: @trigger.dev/database's and the dashboard agent's;
+# run-ops' only with a RUN_OPS_* variable, which managed.yml sets none of).
+# Under corepack (COREPACK_ROOT set) pnpm skips its own version switch and its
+# packageManager check. And upstream's workspace has no configDependencies, no
+# proxy settings, no nodeLinker, no root .npmrc and no pnpmfile, and its
+# lockfile is one document. So this is hygiene, not a security fix: the copy
+# that runs, and the one the scan reads, become a release npm lists no
+# advisory against. 10.34.9 is npm's latest-10, published 2026-10-25 17:54
+# UTC, past its three-day floor since 2026-10-28. Its layout, engines (node
+# >=18.12) and bins are 10.33.2's; its update check still runs on `install`
+# and `add` only (scripts/a-service-that-phones-home.unit.test.ts); and from
+# 10.33.3 to 10.34.9 its changelog changes nothing a positive `pnpm --filter`
+# run of a package script does with upstream's settings (the rest is installs,
+# patches, self-update, version switching, negative filters and repository
+# configuration that upstream does not set).
 #
 # HOW PNPM IS REPLACED. Corepack picks the version from packageManager and
 # reuses a copy by its .corepack file alone, without its hash, so 10.34.9's
@@ -200,10 +203,13 @@
 # in /triggerdotdev/package.json with node, which refuses a file that does not
 # name it exactly once, as pnpm@10.33.2; writing the file in place keeps its
 # owner, node, where `sed -i` would leave it root's. It reads the field back,
-# and proves pnpm 10.34.9 starts offline as root. Nothing in the webapp's
-# source or its migrations reads packageManager or npm_*; the one thing a
-# script sees change is npm_config_user_agent, pnpm/10.34.9 (build/server.js,
-# a bundle, was not read for it).
+# checks that root's corepack keeps pnpm 10.34.9 alone and node's keeps none
+# (a copy of any other version would be one this file was not read for), and
+# proves pnpm 10.34.9 starts offline as root. Nothing in the webapp's source
+# or its migrations reads packageManager or npm_*; what a script sees change
+# is npm_config_user_agent (pnpm/10.34.9), and npm_execpath and PATH's
+# node-gyp-bin entry, which name 10.34.9's directory (build/server.js, a
+# bundle, was not read for them).
 #
 # WHAT IS REPLACED: DOMPURIFY 3.4.13'S FILES BY 3.4.17'S. Trivy 0.76.1 reads
 # GHSA-cg2g-xh64-v4q7 (critical: with SAFE_FOR_TEMPLATES, template expressions
@@ -270,12 +276,12 @@
 #
 # THE USER COUPLING. Which copy of pnpm runs follows managed.yml's `user:` for
 # trigger-api. It is root, so this installs 10.34.9 in root's home, removes
-# node's copy, and proves root's starts offline. A trigger-api without
-# `user: root` would run node's copy, which is
-# gone; managed.yml sets COREPACK_ENABLE_NETWORK: "0" on it, so corepack then
-# refuses to start pnpm rather than fetch it, and an unscanned tar with it,
-# from the npm registry at every start. The last RUN proves that refusal as
-# node. scripts/a-binary-the-stack-never-runs.unit.test.ts fails when the
+# node's copy, and proves root's starts offline. A trigger-api without `user:
+# root` would run node's copy, which is gone; managed.yml sets
+# COREPACK_ENABLE_NETWORK: "0" on it, so corepack then refuses to start pnpm
+# rather than fetch it, and an unscanned tar with it, from the npm registry at
+# every start. The last RUN proves that refusal as node.
+# scripts/a-binary-the-stack-never-runs.unit.test.ts fails when the
 # `user:` and this file disagree, and says to move the removal. Upstream
 # decides the rest of it: the entrypoint runs every pnpm as the container's
 # user, and an entrypoint that dropped to node would run the copy that is gone.
@@ -299,9 +305,9 @@
 # refuses unless the image's @trigger.dev/core is the TRIGGER_IMAGE_TAG it is
 # given (when the .env sets one) and read_at, its entrypoint is the one read,
 # its packageManager is pnpm@10.33.2 (the one the swap replaces, WHAT IS
-# REPLACED: PNPM), and it runs on linux-arm64 or linux-x64;
-# npm's and corepack's directories name no version, so their package.json must
-# say 11.19.1 and 0.36.0, Node 24.22.1's. Each file is tested before a plain
+# REPLACED: PNPM), and it runs on linux-arm64 or linux-x64; npm's and
+# corepack's directories name no version, so their package.json must say
+# 11.19.1 and 0.36.0, Node 24.22.1's. Each file is tested before a plain
 # `rm`, never `rm -f`, and checked gone after. A Trigger.dev that moves
 # @depot/cli, esbuild, pnpm or Node, or drops one, fails here and names the
 # path: re-read this header against it, and drop the removal upstream fixed. A pull request that touches deploy/ runs this on both
@@ -334,11 +340,15 @@
 # moves dompurify past 3.4.13 fails the replacement on its path, and the
 # replacement and its REPLACED row go the same way. When upstream's
 # packageManager moves past pnpm@10.33.2, the first RUN fails, "upstream moved
-# pnpm: drop the swap": delete the swap (pm_upstream, pnpm_to and its sha512,
-# `replaced`, the install, the rewrite and its read-back, in both Dockerfiles)
-# and the guard's SWAP, and point `kept` at the copy upstream then ships, read
-# again for the three names. When none is left,
-# managed.yml runs ghcr's image again and this directory goes
+# pnpm: drop the swap": delete the swap in both Dockerfiles (pm_upstream,
+# pnpm_to and its sha512, `replaced`, the refusal of a copy already there, the
+# install and the checks of the new copy's version and .corepack hash, in the
+# supervisor node_corepack, the owner read, the chown and its check, and the
+# rewrite and its read-back), point `kept` at the copy upstream then ships,
+# read again for the three names, let the checks that no other copy is left
+# name its version, and put the proofs back at upstream's version; and delete
+# the guard's SWAP, with the tests and the stand-in corepack built on it. When
+# none is left, managed.yml runs ghcr's image again and this directory goes
 # (docs/managed-bring-up.md, "Upgrading Trigger.dev"). This file is never
 # `pin`ned backwards: its checks hold for read_at only, so going back to an
 # older release means running the checkout that pinned it (a revert of the
@@ -422,6 +432,10 @@ RUN set -eu; \
     [ -z "$left" ] || fail "a depot or esbuild binary is still there: $left"; \
     for p in "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir" "$npm_link" "$npx_link"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack went with the removal."; \
+    pnpm_copies="$(find "${kept%/*}" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ "$pnpm_copies" = "$pnpm_to " ] || fail "${kept%/*} holds ${pnpm_copies}and not pnpm $pnpm_to alone: a copy this file was not read for."; \
+    pnpm_copies="$(find "${unused%/*}" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ -z "$pnpm_copies" ] || fail "${unused%/*} still holds ${pnpm_copies}after the removals: a copy this file was not read for."; \
     [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "corepack 0.36.0 went with npm."; \
     node -e "require('$s/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli'); require('$s/esbuild@0.23.0/node_modules/esbuild')" || fail "@depot/cli or esbuild no longer loads without its binary."; \
     [ "$(cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version)" = 10.34.9 ] || fail "as root, the user trigger-api runs as, pnpm 10.34.9 does not start offline."; \
@@ -429,7 +443,7 @@ RUN set -eu; \
     echo "$me: removed both names of depot and esbuild, node's copy of pnpm, root's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten), node-gyp's tree from root's and npm; corepack 0.36.0 stays, and as root pnpm $pnpm_to starts and runs a workspace command offline."
 
 # Still as root: dompurify 3.4.13's files replaced by 3.4.17's, as npm published
-# them (WHAT IS REPLACED and HOW IT IS REPLACED, above).
+# them (WHAT IS REPLACED: DOMPURIFY and HOW IT IS REPLACED, above).
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED against this image, or drop the replacement if upstream moved dompurify." >&2; exit 1; }; \
@@ -497,7 +511,7 @@ USER node
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     if (cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version) >/dev/null 2>&1; then \
-      echo "$me: as node, pnpm still starts offline, so a copy is left that this file removes, or corepack reads another home. Re-read the user coupling in this file's header against managed.yml." >&2; \
+      echo "$me: as node, pnpm still starts offline, so a copy of pnpm 10.34.9 is in node's home, or corepack reads another home. Re-read the user coupling in this file's header against managed.yml." >&2; \
       exit 1; \
     fi; \
     echo "$me: as node, pnpm does not start offline, as it should not: trigger-api runs as root."

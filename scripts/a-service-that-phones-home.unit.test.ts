@@ -54,9 +54,7 @@
  *    keys (login origins and checks, queue and webhook metrics, a deployment
  *    index store that falls back to `OBJECT_STORE_*` and is off by default,
  *    ClickHouse reader limits) name no third party. pnpm there is upstream's
- *    10.33.2, which the builds here swap for 10.34.9 (2026-11-02): read in
- *    10.34.9 as npm published it, the update check is the same, `install` and
- *    `add` only, and none of these containers installs.
+ *    10.33.2.
  *  - ZITADEL (v4.19.2) sends a "service ping" once a day to
  *    `https://zitadel.com/api/ping`: the version, and the id, creation date and
  *    domains of every instance, and with `ResourceCount` the number of users,

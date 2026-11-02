@@ -5,20 +5,20 @@
 # 2026-10-31 also npm and the rest of node-gyp's tree in node's copy, under
 # tar's one risk (THE HIGHS NOTHING RUNS, below); and since 2026-11-02 node's
 # copy is pnpm 10.34.9 in place of upstream's 10.33.2, hygiene and not a
-# security fix (WHAT IS REPLACED: PNPM, below). The
-# header of deploy/compose/trigger.dev/Dockerfile says the rest, and all of it
-# holds here: the name and its hash, the version argument, read_at, what may
-# not be in this file, how it fails when upstream moves, the pnpm swap's
-# reasons, and the way out.
+# security fix (WHAT IS REPLACED: PNPM, below). The header of
+# deploy/compose/trigger.dev/Dockerfile says the rest, and all of it holds
+# here: the name and its hash, the version argument, read_at, what may not be
+# in this file, how it fails when upstream moves, the pnpm swap's reasons, and
+# the way out.
 #
 # WHY. Trivy 0.76.1 read 2 critical findings in
 # ghcr.io/triggerdotdev/supervisor:v4.8.1 (linux/arm64, 2026-10-26; v4.8.3 builds
 # the same Containerfile, entrypoint and pnpm), both tar
 # 7.5.13 (CVE-2026-59873) in corepack's pnpm 10.33.2: once in root's copy and
 # once in node's (which since 2026-11-02 goes whole, for 10.34.9).
-# managed.yml's trigger-supervisor sets no `user:`, so it runs
-# as the image's user, node, with HOME /home/node, and its CMD, `pnpm run
-# --filter supervisor start`, runs node's copy. Root's copy, left by the base
+# managed.yml's trigger-supervisor sets no `user:`, so it runs as the image's
+# user, node, with HOME /home/node, and its CMD, `pnpm run --filter
+# supervisor start`, runs node's copy. Root's copy, left by the base
 # stage's `corepack prepare` (apps/supervisor/Containerfile), runs nowhere: the
 # entrypoint only sets NODE_OPTIONS and execs dumb-init, the healthcheck is
 # `node -e fetch`, and nothing execs into the container but the smoke's own
@@ -49,19 +49,18 @@
 #     went first) and dist/node-gyp-bin: brace-expansion 2.1.0 (5 highs) and
 #     ip-address 10.1.0 (1); since 2026-11-02 the same tree in 10.34.9's
 #     copy, /home/node/.cache/node/corepack/v1/pnpm/10.34.9, in which npm
-#     lists no high.
-#     Without them the CMD's `pnpm run` runs its script
-#     as before; only a script that calls node-gyp, or an install that builds
-#     a native add-on, would fail, tar's risk again.
+#     lists no high. Without them the CMD's `pnpm run` runs its script as
+#     before; only a script that calls node-gyp, or an install that builds a
+#     native add-on, would fail, tar's risk again.
 # So 25 become about 13: what was left is pnpm 10.33.2 itself (11) and the rest
 # of what runs. The scan of 2026-11-02 (Security Scan run 41465604476) read 0
 # critical, 13 high and 13 with a fix; without pnpm 10.33.2's 11 that is about
 # 0, 2 and 2 (arithmetic, not measured). The first RUN checks, before it
-# removes anything, what the
-# webapp's checks: that the copy names only the three packages of its
-# dist/node_modules read, that npm is Node's 11.19.1 with no npmrc and only its
-# two links, and that corepack is 0.36.0; and the last RUN proves as node that
-# pnpm 10.34.9 starts offline and runs a command in the supervisor's package.
+# removes anything, what the webapp's checks: that the copy names only the
+# three packages of its dist/node_modules read, that npm is Node's 11.19.1
+# with no npmrc and only its two links, and that corepack is 0.36.0; and the
+# last RUN proves as node that pnpm 10.34.9 starts offline and runs a command
+# in the supervisor's package.
 #
 # WHAT IS REPLACED: PNPM, the webapp's the other way round (since 2026-11-02).
 # The webapp's header says why (18 advisories against 10.33.2, none reachable
@@ -72,16 +71,16 @@
 # `HOME=/home/node corepack install -g pnpm@10.34.9+sha512.<the sha512 npm
 # published>`, and gives that owner to all of /home/node/.cache/node/corepack,
 # the new copy and lastKnownGood.json with it, checking no other owner is left
-# there. It
-# removes root's copy and node's 10.33.2, rewrites packageManager in
-# /app/package.json, reads it back, and proves as root that pnpm still does
+# there. It removes root's copy and node's 10.33.2, rewrites packageManager in
+# /app/package.json, reads it back, checks that node's corepack keeps pnpm
+# 10.34.9 alone and root's keeps none, and proves as root that pnpm still does
 # not start offline; the last RUN, as node, proves 10.34.9 does.
 #
 # THE USER COUPLING, the webapp's the other way round. No `user:` here, so this
 # removes root's copy, installs 10.34.9 in node's home, and proves node's
-# starts offline. Upstream's own compose
-# (hosting/docker/worker) runs the supervisor `user: root`, with pnpm in its
-# command: a managed.yml that did the same would run root's copy, which is gone.
+# starts offline. Upstream's own compose (hosting/docker/worker) runs the
+# supervisor `user: root`, with pnpm in its command: a managed.yml that did
+# the same would run root's copy, which is gone.
 # managed.yml sets COREPACK_ENABLE_NETWORK: "0" on it, so that start stops
 # instead of fetching pnpm, and the first RUN proves the refusal as root.
 # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
@@ -160,9 +159,13 @@ RUN set -eu; \
     [ "$pm" = "pnpm@$pnpm_to" ] || fail "$root_pkg names $pm after the rewrite, not pnpm@$pnpm_to: corepack would look for a copy this file removed."; \
     for p in "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir" "$npm_link" "$npx_link"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack went with the removal."; \
+    pnpm_copies="$(find "${kept%/*}" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ "$pnpm_copies" = "$pnpm_to " ] || fail "${kept%/*} holds ${pnpm_copies}and not pnpm $pnpm_to alone: a copy this file was not read for."; \
+    pnpm_copies="$(find "${unused%/*}" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ -z "$pnpm_copies" ] || fail "${unused%/*} still holds ${pnpm_copies}after the removals: a copy this file was not read for."; \
     [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "corepack 0.36.0 went with npm."; \
     if (cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --version) >/dev/null 2>&1; then \
-      fail "as root, pnpm still starts offline, so a copy is left that this file removes, or corepack reads another home."; \
+      fail "as root, pnpm still starts offline, so a copy of pnpm $pnpm_to is in root's home, or corepack reads another home."; \
     fi; \
     echo "$me: removed root's copy of pnpm, node's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten, owned as node's was), node-gyp's tree from node's and npm; corepack 0.36.0 stays, and as root pnpm does not start offline, as it should not: the supervisor runs as node."
 

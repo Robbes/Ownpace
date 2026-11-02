@@ -84,7 +84,9 @@
  *    the user its service runs as, before anything is removed, and checks the
  *    copy (its version, the hash its .corepack records, node-gyp's tree and
  *    the three names); removes 10.33.2; rewrites packageManager and reads it
- *    back; and proves 10.34.9 starts offline as that user. A build that left
+ *    back; checks that the kept copy's home holds 10.34.9 alone and the other
+ *    user's no copy at all, so no copy of a version it was not read for is
+ *    left; and proves 10.34.9 starts offline as that user. A build that left
  *    packageManager at 10.33.2 would start no pnpm at all: corepack, offline,
  *    looks for the copy the build removed, and refuses. Over the stand-in, a
  *    stand-in corepack installs from a stand-in registry and refuses a wrong
@@ -95,12 +97,12 @@
  *    digest; `ARG TRIGGER_IMAGE_TAG` with no default; `USER root` for the
  *    removing RUN and `USER node` last, as upstream's; FROM, ARG, USER and RUN
  *    only (the name hashes the instruction lines, and the image's
- *    configuration stays upstream's); no `rm -f`, `rm -rf` or `|| true`; and
- *    the proofs in the image (the two packages load without their binary; as
- *    the service's user pnpm 10.34.9 starts offline and, without node-gyp's
- *    tree, runs a command in the package the service's own pnpm runs; as the
- *    other user
- *    it does not start; corepack 0.36.0 is still there), and the checks
+ *    configuration stays upstream's); no `rm -f`, `rm -rf` or `|| true`;
+ *    every path the removing RUN removes checked gone after it; and the
+ *    proofs in the image (the two packages load without their binary; as the
+ *    service's user pnpm 10.34.9 starts offline and, without node-gyp's tree,
+ *    runs a command in the package the service's own pnpm runs; as the other
+ *    user it does not start; corepack 0.36.0 is still there), and the checks
  *    before any removal: that no file of the kept copy outside its
  *    dist/node_modules names a package inside it but the three read, that
  *    npm is Node's 11.19.1 with no npmrc and only Node's two links into it,
@@ -129,11 +131,12 @@
  *    sha512, which is npm's published integrity, and each root package.json),
  *    past its floor; the swap's order holds (checks of the image as upstream
  *    left it, the install, checks of the new copy, then the removals, the
- *    rewrite and its read-back; in the supervisor, node's owner read before
- *    and given to its whole corepack home after the install); and run over the
- *    stand-in, each way it could slip fails (no rewrite, no read-back, a
- *    wrong hash, a copy already there, an upstream that moved, a package.json
- *    naming packageManager twice, an owner left behind);
+ *    rewrite and its read-back, and the check that no other copy is left; in
+ *    the supervisor, node's owner read before and given to its whole corepack
+ *    home after the install); and run over the stand-in, each way it could
+ *    slip fails (no rewrite, no read-back, a wrong hash, a copy already
+ *    there, an upstream that moved, a package.json naming packageManager
+ *    twice, an owner left behind, a copy of another version in either home);
  *  - managed.yml: each service is `localhost/<name>:${TRIGGER_IMAGE_TAG:-<pin>}-<hash>`
  *    (the hash as #1717's), built from `./<name>` with the version as its one
  *    argument, never pulled, with COREPACK_ENABLE_NETWORK "0" and no HOME,
@@ -521,6 +524,14 @@ function shapeProblems(name: Name, text: string): string[] {
     if (!runsWithoutTar(node, 'supervisor')) problems.push('no proof that, without its tar, pnpm runs a command in the supervisor offline as node, the user trigger-supervisor runs as');
     if (!refused(root)) problems.push('no proof that as root pnpm refuses to start offline');
   }
+  // Every path the removing RUN removes is checked gone after: by the loop, or (depot's and esbuild's) by the ELF search.
+  const goneLoop = /for p in ((?:"\$[a-z_]+" ?)+); do \{ \[ ! -e "\$p" \] && \[ ! -L "\$p" \]; \} \|\| fail /.exec(removingArgs);
+  const checkedGone = new Set([...(goneLoop?.[1] ?? '').matchAll(/"\$([a-z_]+)"/g)].map((m) => m[1]!));
+  for (const m of removingArgs.matchAll(/(?:^|[;\s])rm(?:\s+-r)?((?:\s+"\$[a-z_][a-z0-9_]*")+)\s*;/g)) {
+    for (const v of m[1]!.matchAll(/"\$([a-z_][a-z0-9_]*)"/g)) {
+      if (!/^(depot|esbuild)_/.test(v[1]!) && !checkedGone.has(v[1]!)) problems.push(`the removing RUN removes $${v[1]} and never checks it gone`);
+    }
+  }
   problems.push(...swapProblems(name, removingArgs));
   return problems;
 }
@@ -551,6 +562,7 @@ function swapProblems(name: Name, args: string): string[] {
   }
   const at = (re: RegExp) => args.search(re);
   const firstRm = at(/(^|[;\s])rm\s/);
+  const lastRm = Math.max(-1, ...[...args.matchAll(/(^|[;\s])rm\s/g)].map((m) => m.index!));
   const install = SWAP_INSTALL.exec(args);
   if (!install) {
     problems.push('the removing RUN does not install pnpm $pnpm_to by the sha512 npm published (corepack install -g "pnpm@$pnpm_to+sha512.$pnpm_to_sha512" || fail)');
@@ -595,6 +607,15 @@ function swapProblems(name: Name, args: string): string[] {
       if (chown < 0 || chown < i || (firstRm >= 0 && chown > firstRm)) problems.push("node's corepack home, the new copy and lastKnownGood.json with it, is not given that owner (chown -R \"$owner\" \"$node_corepack\") after the install and before anything is removed");
       if (owners < 0 || owners < chown || (firstRm >= 0 && owners > firstRm)) problems.push("no check, after the chown and before anything is removed, that node's corepack home has that one owner");
     }
+  }
+  // After the removals, no copy is left that the RUN was not read for: the kept home holds pnpm $pnpm_to alone, the other user's none.
+  const leftovers: ReadonlyArray<[RegExp, string]> = [
+    [/(?:^|[;\s])pnpm_copies="\$\(find "\$\{kept%\/\*\}" -mindepth 1 -maxdepth 1 -exec basename \{\} \\; \| LC_ALL=C sort \| tr '\\n' ' '\)";\s*\[ "\$pnpm_copies" = "\$pnpm_to " \] \|\| fail [^\n]*a copy this file was not read for/, 'that the kept copy\'s home holds pnpm $pnpm_to alone'],
+    [/(?:^|[;\s])pnpm_copies="\$\(find "\$\{unused%\/\*\}" -mindepth 1 -maxdepth 1 -exec basename \{\} \\; \| LC_ALL=C sort \| tr '\\n' ' '\)";\s*\[ -z "\$pnpm_copies" \] \|\| fail [^\n]*a copy this file was not read for/, "that the other user's home holds no copy of pnpm"],
+  ];
+  for (const [re, what] of leftovers) {
+    const j = at(re);
+    if (j < 0 || j < lastRm) problems.push(`no check, after the removals, ${what}: a copy of another version would be one this file was not read for`);
   }
   const rewrite = at(/(?:^|[;\s])node -e "[^\n]*packageManager[^\n]*" "\$root_pkg" "\$pm_upstream" "pnpm@\$pnpm_to" \|\| fail /);
   if (rewrite < 0) {
@@ -1337,7 +1358,15 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       } else {
         expect(swap(/(?<=\n {4})corepack install/, 'HOME=/home/node corepack install')).toEqual([expect.stringContaining('installs pnpm $pnpm_to under /home/node, and keeps /root/')]);
       }
-      // A build that leaves 10.33.2 behind: the RUN removes other paths than REMOVED, and the coupling no longer holds.
+      // A build that removes 10.33.2 and never checks it gone.
+      expect(swap(/(for p in "\$unused") "\$replaced"/, '$1')).toEqual(['the removing RUN removes $replaced and never checks it gone']);
+      // A build that does not look, after the removals, for a copy of another version in either home.
+      const keptAlone = /^ {4}\[ "\$pnpm_copies" = "\$pnpm_to " \][^\n]*\n/m;
+      const otherNone = /^ {4}\[ -z "\$pnpm_copies" \][^\n]*\n/m;
+      expect(swap(keptAlone, '')).toEqual([expect.stringContaining("no check, after the removals, that the kept copy's home holds pnpm $pnpm_to alone")]);
+      expect(swap(otherNone, '')).toEqual([expect.stringContaining("no check, after the removals, that the other user's home holds no copy of pnpm")]);
+      expect(move(keptAlone, install)).toEqual([expect.stringContaining("no check, after the removals, that the kept copy's home holds pnpm $pnpm_to alone")]);
+      // A build that leaves 10.33.2 behind: the RUN removes other paths than REMOVED (the REMOVED test fails).
       const left = real.replace(/(rm -r "\$unused") "\$replaced"/, '$1');
       expect(left).not.toBe(real);
       expect(rmTargets(removingRun(left)!.args)).not.toContain(COPY(name === 'trigger.dev' ? '/root' : '/home/node', SWAP.from));
@@ -1537,6 +1566,31 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
           expect(removedBy(box, run), `${name}, ${what}`).toEqual([]);
           expect(readFileSync(join(box.fs, ROOT_PKG[name]), 'utf8'), `${name}, ${what}`).toContain(`pnpm@${SWAP.from}`);
           if (what.startsWith('a registry')) expect(run.left.filter((p) => p.startsWith(kept)), `${name}, ${what}: corepack wrote a copy`).toEqual([]);
+        });
+      }
+    }
+  });
+
+  it('a copy of pnpm of another version in either home, which the build was not read for, fails it after the removals', () => {
+    for (const name of NAMES) {
+      const tree = treeOf(name, 'linux-arm64');
+      const home = name === 'trigger.dev' ? '/root' : '/home/node';
+      const other = name === 'trigger.dev' ? '/home/node' : '/root';
+      // The service's user's home with a copy beside 10.34.9, and the other user's with any copy at all (10.34.9's too, which the proof as that user would catch only later).
+      const cases: ReadonlyArray<[string, string, string]> = [
+        [home, '10.30.0', 'holds'],
+        [home, '9.15.9', 'holds'],
+        [other, '10.30.0', 'still holds'],
+        [other, SWAP.to, 'still holds'],
+      ];
+      for (const [where, version, says] of cases) {
+        withSandbox({ ...tree, files: { ...tree.files, ...pnpmCopy(where, version) } }, (box) => {
+          const run = build(dockerfiles[name], box, { tag: 'v4.8.3' });
+          const what = `${name}, a copy of ${version} under ${where}`;
+          expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+          const dir = `${box.fs}${where}/.cache/node/corepack/v1/pnpm`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          expect(run.out, what).toMatch(new RegExp(`${dir} ${says} [^\\n]*${version.replaceAll('.', '\\.')}[^\\n]*: a copy this file was not read for\\.`));
+          expect(run.left, what).toContain(`${COPY(where, version)}/.corepack`);
         });
       }
     }

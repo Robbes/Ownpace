@@ -6,17 +6,19 @@
 
 **2026-11-02: T16, pnpm 10.34.9 in place of 10.33.2 in both Trigger.dev builds, a draft.** On
 the branch `claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`, from `main` at
-`ece5866c`, not merged; 0119's Status entry of the same name has the detail. The copy of pnpm
-each service runs was the last fixable part of T16's images that is code that runs: 11 of the
+`ece5866c`, with `main` at `f515d4a9` (#1793) merged in; not merged; 0119's Status entry of the
+same name has the detail. The copy of pnpm each service runs is the one fixable part of T16's
+images that this build can swap without touching the webapp's own dependencies: 11 of the
 webapp's 100 highs and of the supervisor's 13 (Security Scan run 41465604476, 2026-11-02) are
 pnpm 10.33.2 itself, and none of its 18 advisories is reachable here. So this is hygiene, not a
 security fix, and when it lands is the owner's call: alpha.4 if it is green in time, or after.
 Each build installs 10.34.9 by the sha512 npm published before it removes anything, removes
-10.33.2, rewrites `packageManager` and reads it back, and proves 10.34.9 starts offline as the
-service's user; it refuses an upstream that moved `packageManager` (*upstream moved pnpm: drop
-the swap*). Owed before a merge: `build (trigger, amd64)` and `build (trigger, arm64)` on the
-branch, and one E2E (managed) there. Expected (arithmetic, not measured): the webapp at about
-1, 89, 57 and the supervisor at about 0, 2, 2.
+10.33.2, rewrites `packageManager` and reads it back, checks that no copy of another version is
+left in either user's home, and proves 10.34.9 starts offline as the service's user; it refuses
+an upstream that moved `packageManager` (*upstream moved pnpm: drop the swap*). Owed before a
+merge: `build (trigger, amd64)` and `build (trigger, arm64)` on the branch, and one E2E
+(managed) there. Expected (arithmetic, not measured): the webapp at about 1, 89, 57 and the
+supervisor at about 0, 2, 2.
 
 **2026-11-02, records, later: alpha.4's Windows gate proven and merged, its dates, the week's
 image scan, and what is still the owner's (T2, T11).** Docs only, on the branch

@@ -6,10 +6,10 @@
 
 **2026-11-02: pnpm 10.34.9 in place of 10.33.2 in both Trigger.dev builds (0146 T16), a
 draft.** On the branch `claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`, from `main`
-at `ece5866c`, not merged. When it lands is the owner's call (hygiene, not a security fix,
-below); before it does it needs `build (trigger, amd64)` and `build (trigger, arm64)`
-(`images.yml`, which builds both images, the supervisor's too) green on the branch, and one E2E
-(managed) there. Times are UTC.
+at `ece5866c`, with `main` at `f515d4a9` (#1793, the scan entry below) merged in; not merged.
+When it lands is the owner's call (hygiene, not a security fix, below); before it does it needs
+`build (trigger, amd64)` and `build (trigger, arm64)` (`images.yml`, which builds both images,
+the supervisor's too) green on the branch, and one E2E (managed) there. Times are UTC.
 - **Why, and why it is hygiene.** The image scan of 2026-11-02 (Security Scan run 41465604476 on
   `ece5866c`) read the webapp built here at 1 critical, 100 high and 68 with a fix, and the
   supervisor at 0, 13 and 13. Eleven of the highs in each are pnpm 10.33.2 itself, the copy
@@ -25,7 +25,8 @@ below); before it does it needs `build (trigger, amd64)` and `build (trigger, ar
   `packageManager` check; and upstream's workspace at v4.8.3 has no `configDependencies`, proxy
   settings or `nodeLinker`, no root `.npmrc` or pnpmfile, and a lockfile of one document. Upstream
   still pins `pnpm@10.33.2` (its `main` of 2026-10-31 and its pending release branch), so waiting
-  has no end date; the owner's issue, triggerdotdev/trigger.dev#5084, stays the way out.
+  has no end date; the way out is upstream's `packageManager` moving past 10.33.2 (the owner's
+  issue upstream is triggerdotdev/trigger.dev#5084).
 - **What.** 10.34.9 is npm's `latest-10`, published 2026-10-25 17:54 (its three-day floor passed
   2026-10-28), with no advisory listed against it. Its sha512, `f49b5a8e…`, is npm's published
   `dist.integrity` for it, recomputed here from the registry and from the tarball. Each build's
@@ -37,32 +38,41 @@ below); before it does it needs `build (trigger, amd64)` and `build (trigger, ar
   version, the hash its `.corepack` records, node-gyp's tree and the three names, the same in
   10.34.9, whose tree adds content-type), removes both 10.33.2 copies with the rest of what it
   removed before, rewrites the root `package.json`'s `packageManager` to `pnpm@10.34.9` with node
-  (exactly one occurrence, or it fails; the file keeps its owner) and reads it back, and proves
-  10.34.9 starts offline as the service's user. `managed.yml`'s names move to `-295f778b624f` and
-  `-d1ae90d40dc1`, so the next bring-up builds both again, fetching pnpm 10.34.9 from the npm
-  registry as the dompurify RUN fetches its tarball.
+  (exactly one occurrence, or it fails; the file keeps its owner) and reads it back, checks that
+  the service's user's corepack keeps 10.34.9 alone and the other user's none (a copy of any
+  other version would be one the build was not read for; the review of 2026-11-02 found a third
+  copy would have passed), and proves 10.34.9 starts offline as the service's user.
+  `managed.yml`'s names move to `-e8e5bf1fbb13` and `-02f623659105`, so the next bring-up builds
+  both again, fetching pnpm 10.34.9 from the npm registry as the dompurify RUN fetches its
+  tarball.
 - **Proved here, without an image.** ghcr's blobs are refused from this environment, so neither
   image could be built. In a chroot standing in for each image on Node 24.22.1 and its corepack
-  0.36.0 (upstream's v4.8.3 root `package.json`, `pnpm-workspace.yaml` and entrypoints, both
-  10.33.2 copies as corepack makes them, npm 11.19.1), with npm's pnpm tarballs served from a
-  local registry and nothing else reachable, both builds' RUNs ran green, the dompurify RUN apart;
-  `trigger-api`'s three migration package scripts as root and the supervisor's start as node ran
-  on 10.34.9 offline; a script that calls node-gyp said `node-gyp: not found`; a wrong sha512 made
-  corepack refuse (*Mismatch hashes*) with nothing removed and no copy written; and a build
-  without the rewrite failed its proof (*Network access disabled by the environment*).
+  0.36.0 (upstream's v4.8.3 root `package.json`, `pnpm-workspace.yaml` and entrypoints, both 10.33.2
+  copies as corepack makes them, npm 11.19.1), with npm's pnpm tarballs served from a local registry
+  and nothing else reachable, every RUN of both builds ran green (the dompurify RUN on dompurify
+  3.4.13's published files); `trigger-api`'s three migration package scripts as root and the
+  supervisor's start as node ran on 10.34.9 offline; a package script that calls `node-gyp
+  --version` failed (`spawn ENOENT`); a wrong sha512 made corepack refuse (*Mismatch hashes*) with
+  nothing removed and no copy written; a build without the rewrite failed its proof (*Network access
+  disabled by the environment*); and a copy of another version in either home, or a 10.33.2 left
+  behind, failed the build after the removals (*a copy this file was not read for*), where the first
+  draft built them green. The supervisor's RUNs ran with busybox 1.36.1 as `/bin/sh` and every tool
+  (Alpine's own busybox and musl Node were not tried).
   `scripts/a-binary-the-stack-never-runs.unit.test.ts` now holds the swap (SWAP, its order, and,
-  over its stand-in with a stand-in corepack, each way it could slip).
+  over its stand-in with a stand-in corepack, each way it could slip), and that every path the
+  removing RUN removes is checked gone after it.
 - **What it should change** (arithmetic, not measured): the webapp from 1, 100, 68 to about 1,
   89, 57, and the supervisor from 0, 13, 13 to about 0, 2, 2. systeminformation 5.31.7 stays,
-  upstream's: the webapp starts HostMetrics only in `setupMetrics()`, which returns early unless
-  `INTERNAL_OTEL_METRIC_EXPORTER_ENABLED` is set, and `managed.yml` does not set it; the
-  supervisor's source does not import host-metrics.
+  upstream's: the webapp starts HostMetrics only in `setupMetrics()`, which returns early while
+  `INTERNAL_OTEL_METRIC_EXPORTER_ENABLED` is its default `"0"`, and `managed.yml` does not set
+  it; the supervisor's source does not import host-metrics.
 - **Risks.** It changes the pnpm that launches every migration and the supervisor, which
   upstream's CI has not run at 10.34.9; E2E (managed) covers that. One field of upstream's
   `package.json` is rewritten; nothing in the webapp's source, its migrations or the supervisor's
-  source reads it (`build/server.js`, a bundle, was not read); the one change a script can see is
-  `npm_config_user_agent`, `pnpm/10.34.9`. 10.34.9 is a version neither Dependabot nor the pin
-  watch reads; the weekly image scan would show a new advisory against it.
+  source reads it (`build/server.js`, a bundle, was not read); what a script sees change is
+  `npm_config_user_agent` (`pnpm/10.34.9`), and `npm_execpath` and `PATH`'s `node-gyp-bin` entry,
+  which name 10.34.9's directory. 10.34.9 is a version neither Dependabot nor the pin watch
+  reads; the weekly image scan would show a new advisory against it.
 
 **2026-11-02: the week's image scan, run 41465604476 on `ece5866c`: 7 critical, 586 high, 150
 with a fix, against 51, 1,333 and 671 a week before; one critical was never recorded.** Docs
@@ -117,7 +127,8 @@ branch) and 100 now, 24 fewer each, with the same fixable counts.
     dependencies (read from upstream's lockfile, not from the image), and the supervisor's
     thirteenth is not identified. The entry of 2026-10-31, later, left that code to the owner.
     The route is under study as a follow-up, beside the owner's upstream issue,
-    triggerdotdev/trigger.dev#5084.
+    triggerdotdev/trigger.dev#5084; for pnpm it is now the draft of the entry above, pnpm
+    10.34.9 in both builds.
   - registry 0/7/7 (`registry:3.1.2`): all in its Go binary, go-jose 4.1.4 (CVE-2026-116587),
     klauspost/compress 1.18.4, golang.org/x/net 0.59.0 and Go 1.26.8. 3.1.2 is distribution's
     newest tag. The registry has no authentication configured, so its go-jose is most likely
