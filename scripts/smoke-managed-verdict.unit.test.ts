@@ -935,12 +935,14 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
   // trigger-supervisor — already had them. Of the real four, minio and
   // trigger-tls were already asserted here; these two were covered by nothing.
   const registry = smoke.match(/^REGISTRY_PORT_CHECK=[\s\S]*?\nfi$/m)?.[0];
-  const proxy = smoke.match(
-    /^if docker exec "\$API_CONTAINER" "\$API_NODE" -e \\\n\s*"fetch\('http:\/\/trigger-docker-proxy[\s\S]*?\nfi$/m,
-  )?.[0];
+  // Both sides of the proxy since 2026-11-02 (workplan 0136 T4): the
+  // supervisor's DOCKER_HOST answers in the supervisor, and the name does not
+  // resolve in the API container. From the container's name to the `esac` of
+  // the second, the first `esac` after it.
+  const proxy = smoke.match(/^SUPERVISOR_CONTAINER="\$\{COMPOSE_PROJECT\}-trigger-supervisor"\n[\s\S]*?\nesac$/m)?.[0];
 
-  /** Run an extracted block with `curl`/`docker` stubbed onto PATH. */
-  function verdict(block: string, stubs: Record<string, string>, setup = '') {
+  /** Run an extracted block with `curl`/`docker` stubbed onto PATH: everything it printed, the verdict last. */
+  function run(block: string, stubs: Record<string, string>, setup = ''): string {
     const dir = mkdtempSync(join(tmpdir(), 'smokesvc-'));
     mkdirSync(join(dir, 'bin'));
     for (const [name, body] of Object.entries(stubs)) {
@@ -948,15 +950,63 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
       chmodSync(join(dir, 'bin', name), 0o755);
     }
     try {
-      const out = execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\necho "FAIL=$fail"`], {
+      return execFileSync('bash', ['-c', `${FAIL_PREAMBLE}\n${setup}\n${block}\necho "FAIL=$fail"`], {
         encoding: 'utf8',
         env: { ...process.env, PATH: `${join(dir, 'bin')}:${process.env.PATH}` },
       });
-      return out.trim().split('\n').pop()!.replace('FAIL=', '');
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }
+
+  /** The verdict of an extracted block, the last line `run` prints. */
+  function verdict(block: string, stubs: Record<string, string>, setup = '') {
+    return run(block, stubs, setup).trim().split('\n').pop()!.replace('FAIL=', '');
+  }
+
+  /**
+   * How `fetch` answers inside one container: a Response, or a rejection
+   * carrying Node's error code the way undici's does (`cause.code`). The
+   * message names `<address>` where a real one would carry the address, so a
+   * probe that printed messages would print it.
+   */
+  const ANSWERS = {
+    docker: "async () => new Response('OK', { status: 200, headers: { 'api-version': '1.52' } })",
+    dockerWithoutHeader: "async () => new Response('OK', { status: 200 })",
+    haproxy403: "async () => new Response('Forbidden', { status: 403 })",
+    haproxy503: "async () => new Response('Service Unavailable', { status: 503 })",
+    ...Object.fromEntries(
+      (['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'UND_ERR_CONNECT_TIMEOUT'] as const).map((code) => [
+        code,
+        `async () => { throw new TypeError('fetch failed', { cause: Object.assign(new Error('${code} <address>:2375'), { code: '${code}' }) }); }`,
+      ]),
+    ),
+  } as Record<string, string>;
+
+  /**
+   * A `docker` whose `exec` runs the probe's own node script, with `fetch`
+   * answering in the supervisor as `sup` does and in the API container as
+   * `api` does. It refuses any other container, program or form, so a probe
+   * that moved to another container or binary fails here rather than passing.
+   */
+  function dockerRunningTheProbe(sup: string, api: string): Record<string, string> {
+    // Percent-encoded whole, quotes included, so it sits in the stub's single quotes as one word.
+    const preload = (fetch: string) =>
+      `data:text/javascript,${encodeURIComponent(`globalThis.fetch = ${fetch};`).replace(/'/g, '%27')}`;
+    return {
+      docker: [
+        '[ "$1" = exec ] || exit 97',
+        'case "$2" in',
+        `  stub-trigger-supervisor) [ "$3" = node ] || exit 96; pre='${preload(sup)}' ;;`,
+        `  stub-api) [ "$3" = /nodejs/bin/node ] || exit 96; pre='${preload(api)}' ;;`,
+        '  *) exit 95 ;;',
+        'esac',
+        '[ "$4" = -e ] && [ "$#" = 5 ] || exit 94',
+        'exec node --import "$pre" -e "$5"',
+      ].join('\n'),
+    };
+  }
+  const PROXY_SETUP = 'COMPOSE_PROJECT=stub API_CONTAINER=stub-api API_NODE=/nodejs/bin/node';
 
   it('both blocks are extractable — they still exist to test', () => {
     expect(registry).toBeDefined();
@@ -997,15 +1047,55 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
     expect(verdict(registry!, { curl: `echo -n ${code}` })).toBe('0');
   });
 
-  it('the docker proxy answering nothing is a failure', () => {
+  it.each([['ENOTFOUND'], ['EAI_AGAIN']])(
+    'Docker answering the supervisor, and no name in the API container (%s), is a pass',
+    (code) => {
+      const out = run(proxy!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[code]!), PROXY_SETUP);
+      expect(out.trim().split('\n').pop()).toBe('FAIL=0');
+      expect(out).toContain('trigger-docker-proxy HTTP 200 Api-Version 1.52');
+      expect(out).toContain(`trigger-docker-proxy: no such name from the API container (${code})`);
+    },
+  );
+
+  it.each([
+    ['refused', 'ECONNREFUSED'],
+    ['timed out', 'UND_ERR_CONNECT_TIMEOUT'],
+    ['found no name', 'ENOTFOUND'],
+    ['answered as HAProxy, 503', 'haproxy503'],
+    ['answered as HAProxy, 403', 'haproxy403'],
+    ['answered 200 without the Api-Version Docker sets', 'dockerWithoutHeader'],
+  ])('the supervisor\'s DOCKER_HOST %s is a failure, and says so', (_how, answer) => {
     // This is workplan 0018's entire failure mode: the supervisor creates every
     // runner container through this proxy, so when it is down an enqueue never
-    // becomes a runner — invisible in a green CI.
-    expect(verdict(proxy!, { docker: 'exit 1' }, 'API_CONTAINER=stub API_NODE=/nodejs/bin/node')).toBe('1');
+    // becomes a runner — invisible in a green CI. And only Docker's answer
+    // counts: HAProxy answers 403 and 503 itself, without Api-Version.
+    const out = run(proxy!, dockerRunningTheProbe(ANSWERS[answer]!, ANSWERS.ENOTFOUND!), PROXY_SETUP);
+    expect(out.trim().split('\n').pop()).toBe('FAIL=1');
+    expect(out).toContain('FAIL: Docker did not answer the supervisor\'s DOCKER_HOST (tcp://trigger-docker-proxy:2375) from trigger-supervisor.');
+    expect(out, 'a message carries the address, and this log is public').not.toContain('<address>');
   });
 
-  it('the docker proxy answering is a pass', () => {
-    expect(verdict(proxy!, { docker: 'exit 0' }, 'API_CONTAINER=stub API_NODE=/nodejs/bin/node')).toBe('0');
+  it.each([
+    ['Docker answering it', 'docker', "got 'answered HTTP 200' (exit 0)"],
+    ['HAProxy answering it', 'haproxy403', "got 'answered HTTP 403' (exit 0)"],
+    ['a refused connection', 'ECONNREFUSED', "got 'ECONNREFUSED' (exit 1)"],
+    ['a timeout', 'UND_ERR_CONNECT_TIMEOUT', "got 'UND_ERR_CONNECT_TIMEOUT' (exit 1)"],
+  ])('the API container reaching the proxy\'s name, by %s, is a failure, and says so', (_how, answer, got) => {
+    // Anything but an unknown name means a network the API container is on,
+    // ownpace-network, with every other service and every task run, knows it.
+    const out = run(proxy!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[answer]!), PROXY_SETUP);
+    expect(out.trim().split('\n').pop()).toBe('FAIL=1');
+    expect(out).toContain(`FAIL: the API container asked trigger-docker-proxy:2375 and got`);
+    expect(out).toContain(got);
+    expect(out).not.toContain('<address>');
+  });
+
+  it('asks the supervisor by its project\'s name, and the API container by the path the preflights found', () => {
+    // A fixed container name would ask the OTA stack's supervisor from any
+    // stack (two-stacks-on-one-box); a container the stub does not know exits 95.
+    expect(verdict(proxy!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS.ENOTFOUND!), 'COMPOSE_PROJECT=other API_CONTAINER=stub-api API_NODE=/nodejs/bin/node')).toBe('1');
+    expect(proxy).toContain('docker exec "$SUPERVISOR_CONTAINER" node -e');
+    expect(proxy).toContain('docker exec "$API_CONTAINER" "$API_NODE" -e');
   });
 
   it('asserts rather than probes, and says why', () => {

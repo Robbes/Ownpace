@@ -2653,7 +2653,7 @@ service, this is the map of what proved it and how:
 |---|---|
 | postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web, mailpit | healthcheck (compose, or the image's own HEALTHCHECK for api and web) — `--wait` blocks on them |
 | nextcloud, trigger-api, trigger-supervisor | compose healthcheck, added 2026-08-19 |
-| trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy |
+| trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy; **and asserted by the smoke**: the registry from the host, the proxy from the supervisor, whose `DOCKER_HOST` it is, and, since 2026-11-02, no such name from the API container (the proxy is on `trigger-docker-socket` with the supervisor alone, workplan 0136 T4) |
 | minio | compose healthcheck, `mc ready` (since 0146 T7, Chainguard's build), **and asserted by the smoke** from the API container — see below |
 | minio-init | a one-shot, not a service that stays up: it makes the `packets` bucket and exits 0, `--wait` waits for that, and `trigger-api` starts only after it |
 | trigger-tls | **asserted by the smoke**, not probed — see below |

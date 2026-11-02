@@ -268,6 +268,7 @@ case "$1" in
         echo "ownpace-live_ownpace-network"
         [ -n "\${STUB_NO_STATUS_NET:-}" ] || echo "ownpace-live_status-probe"
         [ -n "\${STUB_NO_STORE_NET:-}" ] || echo "ownpace-live_trigger-event-store"
+        [ -n "\${STUB_NO_SOCKET_NET:-}" ] || echo "ownpace-live_trigger-docker-socket"
         exit 0
         ;;
       inspect)
@@ -2054,6 +2055,7 @@ describe('after it began, a step that fails stops it, says so, and logs nothing'
     ['the issuer is another', {}, /issuer/, (s) => answer(s, 'id.ownpace.eu/.well-known/openid-configuration', 200, { issuer: 'https://id.ota.example.test' })],
     ["live's status-probe network is missing", { STUB_NO_STATUS_NET: '1' }, /status-probe/],
     ["live's ClickHouse network is missing", { STUB_NO_STORE_NET: '1' }, /trigger-event-store/],
+    ["live's socket proxy network is missing", { STUB_NO_SOCKET_NET: '1' }, /trigger-docker-socket/],
     ["a live container on the OTA stack's network", { STUB_ON_OTA_NET: 'ownpace-live-api' }, /ownpace-live-api/],
     ['the exposure check finds a port', { STUB_EXPOSURE_EXIT: '1' }, /exposure check/],
   ];
