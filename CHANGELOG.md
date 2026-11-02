@@ -57,6 +57,15 @@ notices.
 
 ### Security
 
+- **`pnpm audit` reads no advisory again: minimatch 11.0.3 and glob 14.0.3 under
+  the developer tools** (GHSA-g3hv-75wg-m249 and GHSA-3g3m-2fjr-6pw4, both
+  moderate). Both reached the tree only through eslint, typescript-eslint and
+  testcontainers' archiver, and each is fixed only on a new major, so the two
+  overrides in `pnpm-workspace.yaml` are the only ones that cross a major, with
+  the reason beside them: every consumer takes only what both majors still
+  export, and lint, the unit project and testcontainers' copies into a
+  container pass on them. Nothing shipped changes; they go once eslint and
+  archiver take the fixed majors themselves.
 - **ClickHouse 26.8.36.3-lts, the LTS release with the fix for CVE-2026-116366**
   (critical: code execution on the server for anybody who reaches it, with no
   password; workplan 0119 §3 item 9, option 2, the owner's decision of

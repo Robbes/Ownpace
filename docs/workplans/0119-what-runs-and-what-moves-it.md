@@ -76,11 +76,19 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   major, minimatch 11.0.1 and glob 14.0.2 (both 2026-10-27), with no backport to the lines in the
   tree (minimatch 10.2.6, 9.0.9 and 5.1.9; glob 10.5.0), and `pnpm-workspace.yaml`'s overrides
   are scoped below each fix within a major, never across one, so there is no override to add.
-  Whether to keep them or mitigate them, for instance by waiting for eslint, typescript-eslint
-  and testcontainers to take the new majors, is the owner's call, and it is open: the owner's
-  rule is that a vulnerability is not more acceptable for living in dev tooling (the esbuild
-  entry in the overrides). A comment at the end of the overrides says so now. The audit's state
-  lives in these Status entries, the newest first, and in that comment.
+  *Was:* the owner's call, and open (this entry as #1787 merged it). **Mitigated the same day,
+  on the branch `claude/ownpace-public-readiness-y7orc6-dev-advisories`:** two overrides that
+  cross a major, `minimatch@<11.0.1` to `^11.0.3` and `glob@>=9.0.0 <14.0.2` to `^14.0.3`, the
+  only entries in `pnpm-workspace.yaml` that do, with the reason beside them. Every consumer takes
+  only what both majors still export (readdir-glob `{ Minimatch }`, @eslint/config-array
+  `minimatch.Minimatch`, typescript-estree `minimatch.minimatch`, archiver-utils `glob.sync`), and
+  on them eslint over the whole repository, the unit project (1,088 files, 16,544 passed, 33
+  skipped) and testcontainers copying content and a directory into a container passed;
+  `pnpm audit` reads no advisory. The lockfile takes minimatch 11.0.3, glob 14.0.3 and one new
+  package, `@isaacs/nonrecursive-glob-match` 1.0.3 (minimatch 11's), and drops 21; all past the
+  three-day floor. Both entries go once eslint, typescript-eslint and archiver ask for the
+  fixed majors themselves. The audit's state
+  lives in these Status entries, the newest first, and in the comment beside the two entries.
 - **The Windows payload on `main`:** windows-payload run 41375291612 on `733294a5` (01:59),
   artifact `ownpace-appliance-win-x64-733294a5…`, `node.exe` 26.13.0. The owner's Windows 11
   check of a zip on 26.13.0 is still owed; it can take this zip, or #1767's from branch run
