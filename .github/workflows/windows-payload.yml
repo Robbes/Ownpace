@@ -10,12 +10,16 @@
 # Run this from the Actions tab, download the zip, extract, run. No toolchain on
 # the Windows machine, and no toolchain on the Spark either.
 #
-# On a release tag (v*) this job ALSO zips the payload and attaches it to the
-# GitHub release — before that (release-readiness, 2026-08-10) the product's
-# most-tested deliverable was reachable only through a GitHub login and a
-# 30-day Actions artefact. The payload is NOT code-signed (0025 T6 / 0015 T4,
-# owner decision pending): expect a SmartScreen prompt, documented in
-# docs/windows-appliance-runbook.md.
+# Three jobs. `build` stages the payload on Linux and uploads it. `smoke`
+# downloads that upload on a GitHub-hosted Windows runner and runs Phases 1 and
+# 2 of docs/windows-appliance-runbook.md against it (win-x64 only). `release`,
+# on a tag only and only after `smoke` passed, zips the same upload and
+# attaches it to the GitHub release — before the attach existed
+# (release-readiness, 2026-08-10) the product's most-tested deliverable was
+# reachable only through a GitHub login and a 30-day Actions artefact, and
+# until 2026-11-02 it was attached by `build` itself, before anything had run
+# it on Windows. The payload is NOT code-signed (0025 T6 / 0015 T4, owner
+# decision pending): expect a SmartScreen prompt, documented in the runbook.
 name: Windows payload
 
 on:
@@ -29,10 +33,11 @@ on:
   push:
     tags: ['v*']
 
-# contents: write is for the tag-triggered release attach only; every other
-# step just reads the repo.
+# Read-only for every job but `release`, which asks for contents: write itself:
+# the attach is the one step that writes, and since 2026-11-02 it has a job of
+# its own, so `pnpm install` and the build no longer run holding that token.
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
@@ -43,6 +48,15 @@ jobs:
         platform: ["${{ inputs.platform || 'win-x64' }}"]
     name: build ${{ matrix.platform }}
     runs-on: ubuntu-24.04
+    # What `smoke` and `release` need to find this run's upload and to know
+    # what the payload must say about itself. One platform per run, so the
+    # matrix's single leg is the one these come from.
+    outputs:
+      platform: ${{ matrix.platform }}
+      name: ${{ steps.pack.outputs.name }}
+      artifact: ${{ steps.pack.outputs.name }}-${{ github.sha }}
+      node: ${{ steps.expect.outputs.node }}
+      version: ${{ steps.expect.outputs.version }}
     steps:
       # Node first: the release check straight after the checkout runs it, and
       # it ran the hosted image's default until 2026-11-01, a version nobody
@@ -55,12 +69,14 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # THE TAG, THE VERSION AND THE CHANGELOG NAME ONE RELEASE (workplan 0146
-      # T2), checked before anything below installs or attaches. Without it, a
-      # tag pushed before the version bump would attach a payload whose build
-      # stamp names the previous version. On a tag only, the condition the
-      # attach steps below use: a dispatch on a branch runs exactly as before.
-      # The fetch lets the check see the releases already tagged, since this
-      # checkout is shallow and holds only the tag being cut. See
+      # T2), checked before anything below installs. Without it, a tag pushed
+      # before the version bump would build, smoke and attach a payload whose
+      # build stamp names the previous version. `release` runs the same check
+      # again before it attaches (a-release-that-names-itself holds the job
+      # that publishes to it); this one stops the run before the build. On a
+      # tag only: a dispatch on a branch runs exactly as before. The fetch lets
+      # the check see the releases already tagged, since this checkout is
+      # shallow and holds only the tag being cut. See
       # scripts/release-names-agree.mjs.
       - name: The tag, package.json and the changelog name one release
         if: startsWith(github.ref, 'refs/tags/')
@@ -104,6 +120,24 @@ jobs:
           node scripts/package-appliance.mjs \
             --out "dist/ownpace-appliance-${{ matrix.platform }}" \
             --with-node "${{ matrix.platform }}"
+
+      # What `smoke` holds the payload to, read here from this commit rather
+      # than from the payload it is checking: the Node version through the
+      # packager's own `nodeRuntimeVersion()` on the Dockerfile it reads (the
+      # one `--with-node` just fetched), and the root package.json's version,
+      # which `buildIdentity()` stamps into start.mjs. The commit is
+      # `github.sha`, which every job of the run already has.
+      - name: What the payload must say about itself
+        id: expect
+        run: |
+          node --input-type=module -e '
+            import { readFileSync } from "node:fs";
+            import { nodeRuntimeVersion } from "./scripts/package-appliance.mjs";
+            const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+            console.log(`node=${nodeRuntimeVersion(readFileSync("apps/selfhost/Dockerfile", "utf8"))}`);
+            console.log(`version=${version}`);
+          ' >> "$GITHUB_OUTPUT"
+          cat "$GITHUB_OUTPUT"
 
       # DO NOT ZIP HERE. `upload-artifact` zips whatever it is given, so zipping
       # first produces a zip inside a zip: the download expands to a single
@@ -178,7 +212,7 @@ jobs:
           \$bad = 0
           Get-Content .\\SHA256SUMS.txt | ForEach-Object {
             \$hash, \$path = \$_ -split '  ', 2
-            if ((Get-FileHash \$path -Algorithm SHA256).Hash -ne \$hash) { "MISMATCH: \$path"; \$bad++ }
+            if ((Get-FileHash -LiteralPath \$path -Algorithm SHA256).Hash -ne \$hash) { "MISMATCH: \$path"; \$bad++ }
           }
           if (\$bad -eq 0) { 'SHA256SUMS.txt: all files verified' }
           \`\`\`
@@ -203,17 +237,429 @@ jobs:
           not what you would hand to a customer.
           SUMMARY
 
-      # Release assets are served byte-for-byte, so HERE zipping ourselves is
-      # correct — the do-not-zip rule above is about upload-artifact's re-zip.
-      # The zip name carries the tag so a Downloads folder with several of
-      # them stays legible; SHA256SUMS.txt inside covers every payload file.
-      - name: Attach payload zip to the release (tags only)
+      # `smoke` runs win-x64 only, so a win-arm64 run ends green with `smoke`
+      # and `release` skipped. Said where the download is, so a green run is
+      # not read as an arm64 payload somebody started on Windows.
+      - name: Summary, when nothing starts this payload on Windows
+        if: matrix.platform != 'win-x64'
+        run: |
+          cat >> "$GITHUB_STEP_SUMMARY" <<'SUMMARY'
+
+          **Not started on Windows by this run.** `smoke` runs the win-x64
+          payload only, so this one has had no Windows check at all, by CI or by
+          hand. GitHub's `windows-11-arm` runner could add one.
+          SUMMARY
+
+  # THE PAYLOAD, RUN ON WINDOWS (workplan 0119, Status 2026-11-02). Until this
+  # job, a Windows zip reached a release without anything having started it on
+  # Windows: the check was a person's, by hand, on a Windows 11 laptop
+  # (docs/windows-appliance-runbook.md), last done 2026-08-13, and owed again
+  # for every runtime since. The owner, 2026-11-02: "I wont do windows...".
+  #
+  # So this job runs the runbook's Phases 1 and 2 on a GitHub-hosted runner,
+  # against the very upload `build` made (not a rebuild of the commit):
+  # - Phase 1, as downloaded: start.mjs and node.exe at the top (the
+  #   double-zipped artefact of 2026-08-07 expanded to one .zip file), the
+  #   build stamp naming this commit and package.json's version, `.\node.exe
+  #   --version` the Node the build pinned, and SHA256SUMS.txt holding for
+  #   every file with Get-FileHash (there is no sha256sum on Windows).
+  # - Phase 1, started from the payload directory with a PORT this job sets:
+  #   the first line `[appliance] build <version> (<commit>)`, every migration
+  #   the payload ships applied to a new database inside it, `[appliance]
+  #   listening on http://127.0.0.1:<port>`, and /ui (the UI's HTML and its
+  #   bundle), /status and /version answering. Stopped, and started again:
+  #   `[migrate] schema up to date at <the same migration>`, nothing applied,
+  #   listening again.
+  # - Phase 2: SELFHOST_PGLITE_DIR beneath a regular file refuses to start and
+  #   names the directory and the variable; then SELFHOST_PGLITE_DIR and
+  #   CONFIG_DIR outside the payload, not there yet, are made there, a
+  #   database of their own is migrated there, and it serves.
+  #
+  # What it does not show, and the runbook keeps by hand: the refusal under
+  # `C:\Program Files\` (this runner's account is an administrator, so the
+  # write succeeds and the test says nothing, as the runbook warns), a clean
+  # Ctrl+C (Kill() is TerminateProcess, so the second start proves the
+  # database survives a hard stop, as `Stop-Process -Force` did on 2026-08-07,
+  # not that start.mjs's signal handler closed it), the operator scripts in
+  # scripts\ (run-appliance, install-task: Phase 3), SmartScreen, and Windows
+  # 11 itself. `windows-2025` is Windows Server 2025, x64, build 26100, the
+  # build Windows 11 24H2 shares, run under an administrator account; it is
+  # not a Windows 11 client edition, a standard user, a zip downloaded in a
+  # browser and extracted in Explorer (Mark of the Web), or an upgrade over a
+  # database an earlier release made. And it runs the upload, not the zip
+  # `release` makes from it on Linux. A pinned label, not windows-latest, so
+  # the Windows major version changes only by a reviewed edit; GitHub updates
+  # the image itself (patches, PowerShell, tools) about weekly, and the step
+  # summary records which image ran.
+  #
+  # win-x64 only. win-arm64, which `build` stages on a dispatch, is not run
+  # here; GitHub does host Windows on arm64 (`windows-11-arm`), so it could
+  # be, and a dispatch of win-arm64 skips this job and with it `release`.
+  smoke:
+    name: smoke ${{ needs.build.outputs.platform }} on windows-2025
+    needs: build
+    if: needs.build.outputs.platform == 'win-x64'
+    runs-on: windows-2025
+    # Every wait below is bounded on its own, and each PowerShell step has a
+    # limit above the sum of its own waits, so a slow run fails a STEP: a
+    # step's limit is a failure, which keeps the logs below, while the job's
+    # is a cancellation, which would skip them. The job's limit is above the
+    # steps' together, and with `build` and `release` well inside the 60
+    # minutes release.yml's publish-payload waits for this run.
+    timeout-minutes: 30
+    env:
+      EXPECT_NODE: ${{ needs.build.outputs.node }}
+      EXPECT_VERSION: ${{ needs.build.outputs.version }}
+    steps:
+      # By name, from this run: the artefact `build` uploaded, expanded into
+      # a directory of its own outside the workspace (nothing is checked out
+      # here, so the payload can lean on nothing from the repository).
+      - name: Download the payload build uploaded
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build.outputs.artifact }}
+          path: ${{ runner.temp }}/payload
+
+      # About 1,600 files to hash; a minute or two at most.
+      - name: 'Phase 1: the payload as downloaded'
+        shell: pwsh
+        timeout-minutes: 6
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+
+          # Inputs first: an empty one would let every comparison below pass on nothing.
+          if ($env:EXPECT_NODE -cnotmatch '^v\d+\.\d+\.\d+$') { throw "EXPECT_NODE is '$env:EXPECT_NODE', not a Node version: the build job's output is missing." }
+          if ($env:EXPECT_VERSION -cnotmatch '^\d+\.\d+\.\d+') { throw "EXPECT_VERSION is '$env:EXPECT_VERSION', not a version: the build job's output is missing." }
+          if ($env:GITHUB_SHA -cnotmatch '^[0-9a-f]{40}$') { throw "GITHUB_SHA is '$env:GITHUB_SHA'." }
+          $payload = Join-Path $env:RUNNER_TEMP 'payload'
+          $commit = $env:GITHUB_SHA.Substring(0, 12)
+
+          # 1. It expands straight to the payload, not to a zip of it.
+          $top = @(Get-ChildItem -LiteralPath $payload -Force | ForEach-Object { $_.Name })
+          Write-Host "The download's top level: $($top -join ', ')"
+          foreach ($file in 'start.mjs', 'appliance.mjs', 'node.exe', 'package.json', 'SHA256SUMS.txt') {
+            if (-not (Test-Path -LiteralPath (Join-Path $payload $file) -PathType Leaf)) {
+              throw "No $file at the top of the download. A payload expands straight to start.mjs and node.exe; this one holds: $($top -join ', ')"
+            }
+          }
+          foreach ($dir in 'ui', 'migrations', 'scripts', 'node_modules') {
+            if (-not (Test-Path -LiteralPath (Join-Path $payload $dir) -PathType Container)) { throw "No $dir directory at the top of the download." }
+          }
+          if (Test-Path -LiteralPath (Join-Path $payload 'data')) { throw 'The download already holds a data directory, so the first start would not be a first start.' }
+
+          # 2. The build stamp names this commit and this commit's version.
+          $stampLines = @(Select-String -LiteralPath (Join-Path $payload 'start.mjs') -Pattern '^const BUILD = (\{[^}]*\});$' -CaseSensitive)
+          if ($stampLines.Count -ne 1) { throw "start.mjs has $($stampLines.Count) 'const BUILD = {...};' lines, not one." }
+          Write-Host "Build stamp: $($stampLines[0].Line)"
+          $stamp = $stampLines[0].Matches[0].Groups[1].Value | ConvertFrom-Json
+          if ($stamp.version -cne $env:EXPECT_VERSION) { throw "start.mjs is stamped $($stamp.version); package.json at this commit says $env:EXPECT_VERSION." }
+          if ($stamp.commit -cne $commit) { throw "start.mjs is stamped with commit $($stamp.commit); this run is $env:GITHUB_SHA." }
+
+          # 3. The payload's own node.exe, called by its path (the runner has
+          #    a Node of its own on PATH), is the version the build pinned.
+          $nodeVersion = (& (Join-Path $payload 'node.exe') --version | Out-String).Trim()
+          if ($LASTEXITCODE -ne 0) { throw ".\node.exe --version exited $LASTEXITCODE." }
+          if ($nodeVersion -cne $env:EXPECT_NODE) { throw ".\node.exe --version says $nodeVersion; the build pinned $env:EXPECT_NODE." }
+          Write-Host ".\node.exe --version: $nodeVersion"
+
+          # 4. SHA256SUMS.txt holds for every file it lists, and lists every file.
+          $sumsPath = [System.IO.Path]::GetFullPath((Join-Path $payload 'SHA256SUMS.txt'))
+          $listed = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+          $problems = [System.Collections.Generic.List[string]]::new()
+          $entries = @(Get-Content -LiteralPath $sumsPath -Encoding utf8 | Where-Object { $_ -ne '' })
+          foreach ($entry in $entries) {
+            $m = [regex]::Match($entry, '^([0-9a-f]{64})  \./(.+)$')
+            if (-not $m.Success) { throw "A SHA256SUMS.txt line that is not '<sha256>  ./<path>': $entry" }
+            $file = [System.IO.Path]::GetFullPath((Join-Path $payload $m.Groups[2].Value))
+            $null = $listed.Add($file)
+            if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { $problems.Add("MISSING   $($m.Groups[2].Value)"); continue }
+            $hash = (Get-FileHash -LiteralPath $file -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($hash -cne $m.Groups[1].Value) { $problems.Add("MISMATCH  $($m.Groups[2].Value)") }
+          }
+          foreach ($found in @(Get-ChildItem -LiteralPath $payload -Recurse -File -Force)) {
+            if ($found.FullName -ne $sumsPath -and -not $listed.Contains($found.FullName)) { $problems.Add("UNLISTED  $($found.FullName)") }
+          }
+          if ($problems.Count -gt 0) {
+            foreach ($problem in $problems) { Write-Host $problem }
+            throw "SHA256SUMS.txt does not hold for this download: $($problems.Count) problem(s), listed above."
+          }
+          Write-Host "SHA256SUMS.txt: $($entries.Count) files, each verified with Get-FileHash, and no file outside it."
+
+          $os = Get-CimInstance -ClassName Win32_OperatingSystem
+          $lines = @(
+            '## Windows smoke: the payload as downloaded'
+            ''
+            ('{0} {1} (build {2}), runner image {3}, PowerShell {4}.' -f $os.Caption, $os.OSArchitecture, $os.BuildNumber, [System.Environment]::GetEnvironmentVariable('ImageVersion'), $PSVersionTable.PSVersion)
+            ''
+            '| | |'
+            '|---|---|'
+            ('| top level | `start.mjs` and `node.exe` beside {0} other entries |' -f ($top.Count - 2))
+            ('| build stamp | `{0}` |' -f $stampLines[0].Line)
+            ('| `.\node.exe --version` | `{0}`, as pinned |' -f $nodeVersion)
+            ('| SHA256SUMS.txt | {0} files verified with Get-FileHash, none outside it |' -f $entries.Count)
+            ''
+          )
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $lines -Encoding utf8
+
+      # Its waits, at their limits: 180 s to listen, four requests of 15 s,
+      # 30 s to exit after Kill() and 15 s for the output (first start);
+      # 120 s, 60 s and 45 s (second); 60 s and 15 s (refused); 180 s, 60 s
+      # and 45 s (outside). 870 s, and the finally's 45 s for a start still
+      # running: under 16 minutes. A first start took 5 s on Linux, the
+      # second 1 s.
+      - name: 'Phases 1 and 2: start it, start it again, then with its data outside it'
+        shell: pwsh
+        timeout-minutes: 18
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $ProgressPreference = 'SilentlyContinue'
+          Set-StrictMode -Version Latest
+
+          $payload = Join-Path $env:RUNNER_TEMP 'payload'
+          $nodeExe = Join-Path $payload 'node.exe'
+          $logs = Join-Path $env:RUNNER_TEMP 'appliance-logs'
+          $commit = $env:GITHUB_SHA.Substring(0, 12)
+          $buildLine = "[appliance] build $env:EXPECT_VERSION ($commit)"
+          New-Item -ItemType Directory -Force -Path $logs | Out-Null
+          $started = [System.Collections.Generic.List[object]]::new()
+          $rows = [System.Collections.Generic.List[string]]::new()
+
+          # A log as it stands, read while node.exe may still be writing it.
+          function Read-Log([string] $Path) {
+            if (-not (Test-Path -LiteralPath $Path)) { return '' }
+            $stream = [System.IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite')
+            try { return [System.IO.StreamReader]::new($stream, [System.Text.UTF8Encoding]::new($false)).ReadToEnd().Replace("`r`n", "`n") }
+            finally { $stream.Dispose() }
+          }
+
+          # `.\node.exe start.mjs` from the payload directory, as the runbook
+          # runs it, with PORT set and the data directories only when given:
+          # nothing the runner or an earlier start set is passed on. The
+          # process is this step's own, held by the handle Process.Start
+          # returned, so its exit code survives it, and nothing here stops a
+          # node.exe this step did not start.
+          function Start-Appliance([string] $Label, [int] $Port, [hashtable] $Data = @{}) {
+            $info = [System.Diagnostics.ProcessStartInfo]::new($nodeExe, 'start.mjs')
+            $info.WorkingDirectory = $payload
+            $info.UseShellExecute = $false
+            $info.RedirectStandardOutput = $true
+            $info.RedirectStandardError = $true
+            foreach ($name in 'HOST', 'PORT', 'SELFHOST_PERSISTENCE', 'SELFHOST_PGLITE_DIR', 'CONFIG_DIR', 'SELFHOST_MIGRATIONS_DIR', 'SELFHOST_UI_DIR', 'OPENMIG_VERSION', 'OPENMIG_COMMIT') {
+              $null = $info.Environment.Remove($name)
+            }
+            $info.Environment['PORT'] = "$Port"
+            foreach ($name in $Data.Keys) { $info.Environment[$name] = $Data[$name] }
+            $run = [pscustomobject]@{
+              Label = $Label; Base = "http://127.0.0.1:$Port"
+              Out = (Join-Path $logs "$Label.out.log"); Err = (Join-Path $logs "$Label.err.log")
+              Process = $null; Files = @(); Copies = @()
+            }
+            $run.Process = [System.Diagnostics.Process]::Start($info)
+            $started.Add($run)
+            # Unbuffered, and shared for reading, so Read-Log sees each line as it lands.
+            $outFile = [System.IO.FileStream]::new($run.Out, 'Create', 'Write', 'ReadWrite', 1)
+            $errFile = [System.IO.FileStream]::new($run.Err, 'Create', 'Write', 'ReadWrite', 1)
+            $run.Files = @($outFile, $errFile)
+            $run.Copies = @($run.Process.StandardOutput.BaseStream.CopyToAsync($outFile), $run.Process.StandardError.BaseStream.CopyToAsync($errFile))
+            $named = ($Data.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join ' '
+            Write-Host "${Label}: .\node.exe start.mjs, pid $($run.Process.Id), PORT=$Port $named"
+            return $run
+          }
+
+          # Once node.exe has exited: the rest of its output, then the files closed.
+          function Close-Logs($Run) {
+            if (-not [System.Threading.Tasks.Task]::WaitAll([System.Threading.Tasks.Task[]]$Run.Copies, 15000)) { throw "$($Run.Label): its output was still being copied 15 s after it exited." }
+            foreach ($file in $Run.Files) { $file.Dispose() }
+          }
+
+          # Kill() is TerminateProcess on this step's own process: start.mjs's
+          # SIGINT/SIGTERM handler does not run, so the start after it shows
+          # the database survives a hard stop. Never by name: no taskkill /IM.
+          function Stop-Appliance($Run) {
+            if (-not $Run.Process.HasExited) { $Run.Process.Kill() }
+            if (-not $Run.Process.WaitForExit(30000)) { throw "$($Run.Label): pid $($Run.Process.Id) still running 30 s after Kill()." }
+            Close-Logs $Run
+            Write-Host "$($Run.Label): stopped, pid $($Run.Process.Id)"
+          }
+
+          # Until start.mjs prints its listening line, bounded; node.exe exiting first fails it too.
+          function Wait-Listening($Run, [int] $Seconds) {
+            $want = "[appliance] listening on $($Run.Base)"
+            $deadline = (Get-Date).AddSeconds($Seconds)
+            while ($true) {
+              $text = Read-Log $Run.Out
+              if ($text.Contains($want)) { break }
+              if ($Run.Process.HasExited) { throw "$($Run.Label): node.exe exited with code $($Run.Process.ExitCode) before printing '$want'." }
+              if ((Get-Date) -gt $deadline) { throw "$($Run.Label): no '$want' within $Seconds s." }
+              Start-Sleep -Milliseconds 500
+            }
+            $first = ($text -split "`n")[0]
+            if ($first -cne $buildLine) { throw "$($Run.Label): the first line is '$first', not '$buildLine'." }
+            return $text
+          }
+
+          function Get-Ok($Run, [string] $Path) {
+            $response = Invoke-WebRequest -Uri "$($Run.Base)$Path" -TimeoutSec 15
+            if ($response.StatusCode -ne 200) { throw "$($Run.Label): GET $Path answered $($response.StatusCode)." }
+            Write-Host "$($Run.Label): GET $Path answered 200"
+            return [string]$response.Content
+          }
+
+          # /ui as the runbook opens it (a 302 to /ui/, followed), its bundle,
+          # /status, and /version naming this build.
+          function Assert-Serves($Run) {
+            $html = Get-Ok $Run '/ui'
+            if ($html -notmatch '<!doctype html>' -or -not $html.Contains('<div id="root"></div>')) { throw "$($Run.Label): /ui answered without the operating UI's HTML." }
+            $bundle = [regex]::Match($html, 'src="(/ui/assets/[^"]+\.js)"')
+            if (-not $bundle.Success) { throw "$($Run.Label): the UI's HTML names no /ui/assets/*.js bundle." }
+            $bundlePath = $bundle.Groups[1].Value
+            $null = Get-Ok $Run $bundlePath
+            $status = Get-Ok $Run '/status' | ConvertFrom-Json
+            if ($status.status -cne 'ok') { throw "$($Run.Label): /status says '$($status.status)'." }
+            $version = Get-Ok $Run '/version' | ConvertFrom-Json
+            if ($version.version -cne $env:EXPECT_VERSION -or $version.commit -cne $commit) { throw "$($Run.Label): /version says $($version.version) ($($version.commit))." }
+          }
+
+          try {
+            $sql = [string[]]@(Get-ChildItem -LiteralPath (Join-Path $payload 'migrations') -Filter '*.sql' -File | ForEach-Object { $_.Name })
+            if ($sql.Count -eq 0) { throw 'The payload ships no migrations.' }
+            [System.Array]::Sort($sql, [System.StringComparer]::Ordinal)
+            $last = $sql[$sql.Count - 1]
+
+            # Phase 1, first start: a new database inside the payload, every migration it ships.
+            $run = Start-Appliance 'phase1-first-start' 18081
+            $text = Wait-Listening $run 180
+            $applying = [regex]::Matches($text, '\[migrate\] applying ').Count
+            if ($applying -ne $sql.Count -or -not $text.Contains("[migrate] applied $($sql.Count) migration(s); now at $last")) {
+              throw "phase1-first-start: printed $applying '[migrate] applying' line(s) and no '[migrate] applied $($sql.Count) migration(s); now at $last'; the payload ships $($sql.Count)."
+            }
+            foreach ($made in (Join-Path $payload 'data\pglite\PG_VERSION'), (Join-Path $payload 'data\config')) {
+              if (-not (Test-Path -LiteralPath $made)) { throw "phase1-first-start: no $made." }
+            }
+            Assert-Serves $run
+            Stop-Appliance $run
+            $rows.Add(('| Phase 1, first start | `{0}`; applied {1} migrations to `{2}` in `data\pglite` inside the payload; listening on 18081; `/ui`, its bundle, `/status` and `/version` answered 200 |' -f $buildLine, $sql.Count, $last))
+
+            # Phase 1, second start, after Kill(): the same database, nothing to migrate.
+            $run = Start-Appliance 'phase1-second-start' 18082
+            $text = Wait-Listening $run 120
+            if ($text.Contains('[migrate] applying ')) { throw 'phase1-second-start: applied migrations again to the database the first start made.' }
+            if (-not $text.Contains("[migrate] schema up to date at $last")) { throw "phase1-second-start: no '[migrate] schema up to date at $last'." }
+            Assert-Serves $run
+            Stop-Appliance $run
+            $rows.Add(('| Phase 1, second start | `[migrate] schema up to date at {0}`, nothing applied; listening on 18082; the same four answered 200 |' -f $last))
+
+            # Phase 2, a directory it cannot make: refuses, naming it and the variable.
+            $blocker = Join-Path $env:RUNNER_TEMP 'not-a-directory'
+            Set-Content -LiteralPath $blocker -Value 'a file, where a directory would have to be'
+            $wanted = Join-Path $blocker 'pglite'
+            $run = Start-Appliance 'phase2-refused' 18083 @{ SELFHOST_PGLITE_DIR = $wanted }
+            if (-not $run.Process.WaitForExit(60000)) { throw 'phase2-refused: still running 60 s after it was pointed beneath a file.' }
+            Close-Logs $run
+            $code = $run.Process.ExitCode
+            $err = Read-Log $run.Err
+            if ($code -eq 0) { throw 'phase2-refused: exited 0.' }
+            if (-not $err.Contains("The appliance cannot write its database directory:`n  $wanted") -or -not $err.Contains('SELFHOST_PGLITE_DIR was not set')) {
+              throw 'phase2-refused: its error does not name the directory and SELFHOST_PGLITE_DIR.'
+            }
+            if ((Read-Log $run.Out).Contains('[appliance] listening')) { throw 'phase2-refused: it listened.' }
+            $rows.Add(('| Phase 2, refused | `SELFHOST_PGLITE_DIR` beneath a file: exit {0}, "The appliance cannot write its database directory", naming it and the variable; never listened |' -f $code))
+
+            # Phase 2, data outside the payload, in directories that do not exist yet.
+            $outside = Join-Path $env:RUNNER_TEMP 'ownpace-data'
+            $pgliteDir = Join-Path $outside 'pglite'
+            $configDir = Join-Path $outside 'config'
+            if (Test-Path -LiteralPath $outside) { throw "phase2-outside: $outside exists already, so this could not show start.mjs making it." }
+            $run = Start-Appliance 'phase2-outside' 18084 @{ SELFHOST_PGLITE_DIR = $pgliteDir; CONFIG_DIR = $configDir }
+            $text = Wait-Listening $run 180
+            foreach ($want in "[selfhost] persistence: pglite ($pgliteDir)", "[migrate] applied $($sql.Count) migration(s); now at $last", "[selfhost] loaded 0 mapping(s) from $configDir") {
+              if (-not $text.Contains($want)) { throw "phase2-outside: no '$want'." }
+            }
+            if (-not (Test-Path -LiteralPath (Join-Path $pgliteDir 'PG_VERSION') -PathType Leaf) -or -not (Test-Path -LiteralPath $configDir -PathType Container)) {
+              throw "phase2-outside: $pgliteDir and $configDir were not made."
+            }
+            Assert-Serves $run
+            Stop-Appliance $run
+            $rows.Add(('| Phase 2, outside | `SELFHOST_PGLITE_DIR` and `CONFIG_DIR` under `{0}`, absent before: made there, a database of its own migrated there ({1} migrations), listening on 18084; the same four answered 200 |' -f $outside, $sql.Count))
+          } finally {
+            foreach ($run in $started) {
+              if (-not $run.Process.HasExited) { $run.Process.Kill(); $null = $run.Process.WaitForExit(30000) }
+              # The output still in flight, so the log below is whole; a copy
+              # that cannot finish is said, and the step's own error stands.
+              try { $null = [System.Threading.Tasks.Task]::WaitAll([System.Threading.Tasks.Task[]]$run.Copies, 15000) } catch { Write-Host "$($run.Label): $($_.Exception.Message)" }
+              foreach ($file in $run.Files) { $file.Dispose() }
+              foreach ($log in $run.Out, $run.Err) {
+                Write-Host "::group::$(Split-Path -Leaf $log)"
+                Write-Host (Read-Log $log)
+                Write-Host '::endgroup::'
+              }
+            }
+          }
+
+          $summary = @('## Windows smoke: Phases 1 and 2 of the runbook', '', '| | |', '|---|---|') + @($rows) + @('')
+          Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY -Value $summary -Encoding utf8
+
+      # The logs every start wrote, when any check failed or a step ran out of
+      # time: what the runbook asks a person to send back, kept for the run's
+      # reader instead. The steps' own limits are what make a slow run a
+      # failure() here rather than a cancelled job.
+      - name: Keep the appliance's logs
+        if: failure()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: appliance-logs-${{ needs.build.outputs.platform }}-${{ github.sha }}-attempt-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/appliance-logs
+          retention-days: 14
+          if-no-files-found: warn
+
+  # THE ATTACH, after the smoke (2026-11-02). Release assets are served
+  # byte-for-byte, so HERE zipping ourselves is correct — the do-not-zip rule
+  # in `build` is about upload-artifact's re-zip. The zip is made from the same
+  # upload `smoke` ran, checked against its own SHA256SUMS.txt first, and holds
+  # one top-level `ownpace-appliance-<platform>/` directory as it always has.
+  # Its name carries the tag so a Downloads folder with several stays legible.
+  #
+  # `needs: smoke` is the point: a zip whose payload failed on Windows, or was
+  # never run there (a win-arm64 dispatch skips `smoke`), is never attached.
+  # `if:` keeps GitHub's implicit success(), so a failed or skipped `smoke`
+  # skips this job. The names check runs again here, straight after the
+  # checkout, because this is the job that publishes
+  # (a-release-that-names-itself).
+  release:
+    name: attach ${{ needs.build.outputs.name }} to the release
+    needs: [build, smoke]
+    if: startsWith(github.ref, 'refs/tags/')
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: The tag, package.json and the changelog name one release
         if: startsWith(github.ref, 'refs/tags/')
         run: |
-          set -euo pipefail
-          ( cd dist && zip -qr "${{ steps.pack.outputs.name }}-${GITHUB_REF_NAME}.zip" "${{ steps.pack.outputs.name }}" )
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
-        if: startsWith(github.ref, 'refs/tags/')
+          git fetch --no-tags --depth=1 origin '+refs/tags/v*:refs/tags/v*'
+          node scripts/release-names-agree.mjs
+
+      - name: Download the payload smoke ran
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
-          files: dist/${{ steps.pack.outputs.name }}-${{ github.ref_name }}.zip
+          name: ${{ needs.build.outputs.artifact }}
+          path: dist/${{ needs.build.outputs.name }}
+
+      - name: Zip the payload, checked against its own sums
+        env:
+          NAME: ${{ needs.build.outputs.name }}
+        run: |
+          set -euo pipefail
+          ( cd "dist/${NAME}" && sha256sum --check --strict --quiet SHA256SUMS.txt )
+          ( cd dist && zip -qr "${NAME}-${GITHUB_REF_NAME}.zip" "${NAME}" )
+      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+        with:
+          files: dist/${{ needs.build.outputs.name }}-${{ github.ref_name }}.zip
           prerelease: ${{ contains(github.ref_name, '-') }}

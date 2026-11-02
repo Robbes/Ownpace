@@ -21,7 +21,8 @@
  *             out of the spawn (the review of 2026-10-23)
  *   check     the tag free (or Release's own at C), no branch named like it,
  *             the API contract's version, the changelog folded, CI's and
- *             Security Scan's push runs on C, the nights; and notes: the
+ *             Security Scan's push runs on C, a windows-payload run on C
+ *             whose `smoke` passed, the nights; and notes: the
  *             approval, the open code-scanning alerts on main by tool and
  *             category, main after C, the release before, what this does not
  *             check
@@ -84,6 +85,7 @@ export const EXPECTED_CHECKS = {
     'changelog-folded',
     'ci-green',
     'scan-green-on-main',
+    'windows-smoke-green',
     'nights',
     'callees-dispatchable',
     'upgrade-ledger',
@@ -223,6 +225,36 @@ export function scanGreenOnMain(run, commit) {
     return refuse('scan-green-on-main', `${name} is ${run.status === 'completed' ? `red (${run.conclusion})` : run.status}`);
   }
   return pass('scan-green-on-main', `${name} is green on C (the gate scan runs again minutes before the tag)`);
+}
+
+/** The Windows job of `windows-payload.yml`, by the name it runs under: `smoke <platform> on <image>`. */
+export const WINDOWS_SMOKE_JOB = /^smoke\b/;
+
+/**
+ * A run of `windows-payload.yml` on C whose `smoke` job started C's win-x64
+ * payload on Windows and passed (2026-11-02). Release's own run of it comes
+ * after the tag, once Security Scan has made the release page and alongside
+ * the images, so a payload that fails on Windows would first show there,
+ * with the release half-published. This is the run before the tag: dispatch
+ * the workflow on `main` (platform win-x64) while `main` is at C. The newest
+ * run on C counts, as for CI; a win-arm64 run is green with `smoke` skipped,
+ * and is refused.
+ */
+export function windowsSmokeGreen(run, jobs, commit) {
+  const check = 'windows-smoke-green';
+  if (!run) {
+    return refuse(check, `no windows-payload run on C ${short(commit)}: dispatch windows-payload.yml on main, platform win-x64, while main is at C`);
+  }
+  const name = `windows-payload run #${run.run_number}`;
+  if (run.head_sha !== commit) return refuse(check, `${name} ran ${short(run.head_sha)}, not C ${short(commit)}`);
+  if (run.status !== 'completed') return refuse(check, `${name} is ${run.status}`);
+  if (run.conclusion !== 'success') return refuse(check, `${name} ended ${run.conclusion}`);
+  const smoke = (jobs ?? []).find((j) => WINDOWS_SMOKE_JOB.test(j.name ?? ''));
+  if (!smoke) return refuse(check, `${name} is green and has no smoke job: nothing in it started the payload on Windows`);
+  if (smoke.conclusion !== 'success') {
+    return refuse(check, `${name} is green and its ${smoke.name} ${smoke.conclusion === 'skipped' ? 'was skipped (a win-arm64 run skips it)' : `ended ${smoke.conclusion}`}: dispatch it again on C with platform win-x64`);
+  }
+  return pass(check, `${name}: ${smoke.name} started C's win-x64 payload and passed (Release runs it again on the tag)`);
 }
 
 /** The tag's name, from `tagDecision`. */
@@ -576,6 +608,10 @@ export async function checkStep(client, env, candidate) {
   lines.push(ciGreen(ci, ciJobs, commit));
   const scan = await newest('security-scan.yml');
   lines.push(scanGreenOnMain(scan, commit));
+  // Dispatched, not pushed: windows-payload.yml has no push trigger on main.
+  const windows = (await client.get(`actions/workflows/windows-payload.yml/runs?head_sha=${commit}&event=workflow_dispatch&per_page=5`))?.workflow_runs?.[0] ?? null;
+  const windowsJobs = windows ? (await client.get(`actions/runs/${windows.id}/jobs?filter=latest&per_page=100`))?.jobs ?? [] : null;
+  lines.push(windowsSmokeGreen(windows, windowsJobs, commit));
 
   const { waiver } = readWaiver({ text: env.WAIVE_NIGHTS, mode, actor: env.GITHUB_ACTOR, version });
   const nights = waiveNights(await readNights(client, { commit }), waiver);
@@ -601,7 +637,13 @@ export async function checkStep(client, env, candidate) {
     lines.push(note('previous-release', gaps.length === 0 ? `${previous}'s release is complete` : `${previous}'s release: ${gaps.join('; ')}`));
   }
   lines.push(...notChecked());
-  const proof = [ci ? `CI run #${ci.run_number}` : '', scan ? `Security Scan run #${scan.run_number} on main` : ''].filter(Boolean).join(', ');
+  const proof = [
+    ci ? `CI run #${ci.run_number}` : '',
+    scan ? `Security Scan run #${scan.run_number} on main` : '',
+    windows ? `windows-payload run #${windows.run_number}` : '',
+  ]
+    .filter(Boolean)
+    .join(', ');
   return { lines, proof, waived: nights.waived === true };
 }
 

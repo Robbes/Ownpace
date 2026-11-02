@@ -113,6 +113,8 @@ import {
   openapiAgrees,
   ciGreen,
   scanGreenOnMain,
+  windowsSmokeGreen,
+  WINDOWS_SMOKE_JOB,
   tagFree,
   refUnambiguous,
   calleesDispatchable,
@@ -281,6 +283,48 @@ describe('CI and the scan on main ran the commit, and ran the suite', () => {
     expect(scanGreenOnMain(scan, C).kind).toBe('pass');
     expect(scanGreenOnMain({ ...scan, conclusion: 'failure' }, C).kind).toBe('refuse');
     expect(scanGreenOnMain(null, C).kind).toBe('refuse');
+  });
+});
+
+describe('a windows-payload run on C started its payload on Windows (2026-11-02)', () => {
+  // Release's own run of windows-payload.yml is on the tag, after the release
+  // page and beside the images: this is the run before the tag.
+  const run = { id: 41500000000, run_number: 120, event: 'workflow_dispatch', status: 'completed', conclusion: 'success', head_sha: C, head_branch: 'main' };
+  const jobs = [
+    { name: 'build win-x64', status: 'completed', conclusion: 'success' },
+    { name: 'smoke win-x64 on windows-2025', status: 'completed', conclusion: 'success' },
+    { name: 'attach ownpace-appliance-win-x64 to the release', status: 'completed', conclusion: 'skipped' },
+  ];
+  const withSmoke = (conclusion: string) => jobs.map((j) => (j.name.startsWith('smoke') ? { ...j, conclusion } : j));
+
+  it('passes a green run whose smoke job passed on C', () => {
+    const line = windowsSmokeGreen(run, jobs, C);
+    expect(line.kind).toBe('pass');
+    expect(line.sentence).toContain('windows-payload run #120');
+  });
+
+  it('refuses a green run whose smoke was skipped: a win-arm64 dispatch ends green with nothing started on Windows', () => {
+    expect(windowsSmokeGreen(run, withSmoke('skipped'), C).sentence).toMatch(/was skipped .*platform win-x64/);
+    expect(windowsSmokeGreen(run, withSmoke('failure'), C).kind).toBe('refuse');
+    expect(windowsSmokeGreen(run, jobs.filter((j) => !j.name.startsWith('smoke')), C).sentence).toMatch(/no smoke job/);
+  });
+
+  it('refuses a red run, a running one, none, and one on another commit', () => {
+    expect(windowsSmokeGreen({ ...run, conclusion: 'failure' }, jobs, C).kind).toBe('refuse');
+    expect(windowsSmokeGreen({ ...run, status: 'in_progress', conclusion: null }, jobs, C).kind).toBe('refuse');
+    expect(windowsSmokeGreen(null, null, C).sentence).toMatch(/dispatch windows-payload\.yml on main, platform win-x64/);
+    expect(windowsSmokeGreen({ ...run, head_sha: OTHER }, jobs, C).kind).toBe('refuse');
+  });
+
+  it('is a check a release needs: a run where it never ran is refused, and a waiver of the nights does not touch it', () => {
+    expect(verdict({ lines: [], mode: 'release' }).summary).toMatch(/windows-smoke-green: this check did not run/);
+    expect(verdict({ lines: [], mode: 'verify' }).summary).not.toMatch(/windows-smoke-green/);
+  });
+
+  it('knows the smoke job by the name windows-payload.yml gives it', () => {
+    const doc = parse(read('.github/workflows/windows-payload.yml')) as { jobs: Record<string, { name?: string }> };
+    expect(String(doc.jobs.smoke?.name)).toMatch(WINDOWS_SMOKE_JOB);
+    expect(Object.entries(doc.jobs).filter(([id, job]) => id !== 'smoke' && WINDOWS_SMOKE_JOB.test(String(job.name)))).toEqual([]);
   });
 });
 
@@ -580,6 +624,7 @@ describe('the verdict', () => {
       'changelog-folded',
       'ci-green',
       'scan-green-on-main',
+      'windows-smoke-green',
       'nights',
       'callees-dispatchable',
       'upgrade-ledger',
@@ -651,6 +696,7 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
       'changelog-folded',
       'ci-green',
       'scan-green-on-main',
+      'windows-smoke-green',
       'callees-dispatchable',
       'upgrade-ledger',
       'upgrade-managed',
@@ -914,10 +960,37 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
     const others = (lines: Line[]) => lines.filter((l) => l.check !== 'nights' && l.check !== 'main-after-candidate');
     expect(refusedAt(waived.lines, 'ci-green')).toHaveLength(1);
     expect(refusedAt(waived.lines, 'scan-green-on-main')).toHaveLength(1);
+    expect(refusedAt(waived.lines, 'windows-smoke-green')).toHaveLength(1);
     expect(others(waived.lines)).toEqual(others(plain.lines));
     // What the tag job is bound by: the waiver was used here, and only here.
     expect(plain.waived).toBe(false);
     expect(waived.waived).toBe(true);
+  });
+
+  it('the check step reads the newest dispatched windows-payload run on C, and its jobs, and names it in the proof', async () => {
+    const asked: string[] = [];
+    const record: Client = {
+      async get(path: string) {
+        asked.push(path);
+        if (path.startsWith('actions/workflows/windows-payload.yml/runs?')) {
+          return { workflow_runs: [{ id: 41500000000, run_number: 120, status: 'completed', conclusion: 'success', head_sha: C }] };
+        }
+        if (path.startsWith('actions/runs/41500000000/jobs')) {
+          return { jobs: [{ name: 'build win-x64', conclusion: 'success' }, { name: 'smoke win-x64 on windows-2025', conclusion: 'success' }] };
+        }
+        if (path.startsWith('actions/workflows/')) return { workflow_runs: [] };
+        if (path.startsWith('code-scanning/')) return [];
+        if (path === `commits/${C}`) return { commit: { committer: { date: '2026-10-30T20:00:00Z' } } };
+        return null;
+      },
+      async send() {
+        throw new Error('the preflight writes nothing');
+      },
+    };
+    const { lines, proof } = await checkStep(record, { VERSION: V3, COMMIT: C, PREVIOUS: '', MODE: 'release', GITHUB_ACTOR: OWNER }, ROOT);
+    expect(asked).toContain(`actions/workflows/windows-payload.yml/runs?head_sha=${C}&event=workflow_dispatch&per_page=5`);
+    expect(lines.filter((l) => l.check === 'windows-smoke-green').map((l) => l.kind)).toEqual(['pass']);
+    expect(proof).toBe('windows-payload run #120');
   });
 
   describe('the verdict and its summary', () => {

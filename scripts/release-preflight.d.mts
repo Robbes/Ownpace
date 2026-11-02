@@ -30,6 +30,14 @@ export declare function ciGreen(
   commit: string,
 ): Line;
 export declare function scanGreenOnMain(run: Partial<Run> | null, commit: string): Line;
+/** The Windows job of windows-payload.yml, by the name it runs under. */
+export declare const WINDOWS_SMOKE_JOB: RegExp;
+/** A dispatched windows-payload run on C whose smoke job passed. */
+export declare function windowsSmokeGreen(
+  run: Partial<Run> | null,
+  jobs: Array<{ name: string; status?: string; conclusion: string | null }> | null,
+  commit: string,
+): Line;
 export declare function tagFree(decision: Decision): Line;
 export declare function refUnambiguous(options: {
   version: string;

@@ -47,6 +47,14 @@ one line per check, `pass` or `refuse`, every reason at once):
   `lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (self-hosted)` and
   `ci-complete`, none skipped (a docs-only merge skips the suite and still
   reports success), and C's push run of Security Scan is green.
+- **C's payload ran on Windows** (since 2026-11-02): the newest dispatched run
+  of `windows-payload.yml` on C is green and its `smoke` job passed, which
+  starts the win-x64 payload on a hosted `windows-2025` runner (Phases 1 and 2
+  of the [Windows runbook](./windows-appliance-runbook.md)). A win-arm64 run is
+  green with `smoke` skipped, and is refused. Release runs the workflow again
+  on the tag, but only after Security Scan has made the release page and
+  beside the images, so this is the run that shows a Windows failure while
+  nothing is published yet (`windows-smoke-green`).
 - **The nights**, as [workplan 0141](./workplans/0141-proof-before-strangers.md)
   T14 defines them (`scripts/release-nights.mjs`): the newest two completed
   scheduled runs of E2E (managed) both ran C and are green on every attempt, no
@@ -106,6 +114,12 @@ one line per check, `pass` or `refuse`, every reason at once):
       before 23:30 UTC, so the appliance nightly's runs that night are on C.
 - [ ] The version bump, if it is not done yet: `version` in the root
       `package.json` and `info.version` in `apps/api/docs/openapi.yaml`.
+- [ ] **The Windows run of C:** once the fold has merged, Actions →
+      Windows payload → Run workflow on `main`, `platform` win-x64, while
+      `main` is at C (the freeze keeps it there), and see its `smoke` job
+      green. The preflight refuses C without it. Nobody needs a Windows
+      machine for it: the owner's by-hand check of the zip on Windows 11 ended
+      on 2026-11-02 ("I wont do windows...").
 - [ ] `scripts/upgrade-drill.sh` on a Docker host (the Spark box): previous
       release image, real volumes, swap to HEAD in place, healthy after a
       further restart. The drill says when it is vacuous (tag == HEAD, or the
@@ -210,7 +224,8 @@ existing tag published (§3).
 `v` plus the root version, a version with no `## [<X.Y.Z>] - <YYYY-MM-DD>`
 section in `CHANGELOG.md`, and a tag SemVer orders at or below a release
 already tagged. `images.yml`, `security-scan.yml` and `windows-payload.yml` run
-the same check as their first step after the checkout, so a tag whose names
+the same check as their first step after the checkout (in `windows-payload.yml`,
+in `build` and again in `release`, the job that attaches), so a tag whose names
 disagree publishes nothing (workplan 0146 T2). Run it with the commit you are
 about to tag checked out: it reads `package.json` and `CHANGELOG.md` from the
 working tree. Once a newer release is tagged, a re-run or a dispatch of an
@@ -310,7 +325,7 @@ time the `latest` channel exists — check it appeared.
 |---|---|---|
 | `security-scan.yml` | the GitHub release, first under Release, with its generated body (pull lines, verify one-liner, changelog link) and `bom.json` (CycloneDX SBOM) | published, the pre-release flag right, exactly one generated block, the changelog link, `bom.json` attached, CycloneDX, naming the version |
 | `images.yml` | `ownpace-{api,web,selfhost}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | linux/amd64 and linux/arm64, the revision label C, `sha-<C>` the same index, `latest` withheld from a pre-release, and `cosign verify` by digest with the exact identity `https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/tags/<tag>` and then the documented one: `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
-| `windows-payload.yml` | `ownpace-appliance-win-x64-v<X.Y.Z>.zip` attached to the release (unsigned — SmartScreen prompt documented in the runbook) | attached, its `SHA256SUMS.txt` holds for every file, and its `node.exe` hashes to the sum the tagged commit pins (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, read at the commit; a tag from before 2026-11-01 gets a note) |
+| `windows-payload.yml` | `ownpace-appliance-win-x64-v<X.Y.Z>.zip` attached to the release by its `release` job, only after its `smoke` job ran that payload on a hosted `windows-2025` runner (Phases 1 and 2 of the Windows runbook, since 2026-11-02) (unsigned — SmartScreen prompt documented in the runbook) | attached, its `SHA256SUMS.txt` holds for every file, and its `node.exe` hashes to the sum the tagged commit pins (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, read at the commit; a tag from before 2026-11-01 gets a note) |
 
 And `GET /version` on the selfhost image, started on PGlite: the version and C.
 
@@ -334,6 +349,18 @@ re-run Release: it re-runs the scan's failed jobs, which appends the body a
 second time, and says so; verify then refuses two generated blocks until you
 delete one from the release body by hand. When it was an advisory, the way out
 is a new version: the tag's lockfile will fail the same way every time.
+
+**A payload that fails on Windows on the tag.** `windows-payload.yml`'s
+`smoke` runs after Security Scan made the release page, beside `images.yml`.
+When it ends red, `release` is skipped, so the images are pushed and signed
+and the page lists them, with no zip: verify refuses the missing zip. Release
+re-runs the run's failed jobs once (§2, *When something fails*), and a runner
+that was only slow or broken passes then and the zip is attached. A payload
+that really fails on Windows fails the same way every time: read the
+`appliance-logs-…` artefact, fix it, and cut a new version. The preflight's
+`windows-smoke-green` makes this rare, since C's payload passed the same job
+before the tag; the tag's run builds the payload again from the same
+commit, so what is left to fail there is mostly the runner.
 
 **`mode=verify` on an existing tag.** `v0.2.0-alpha.1` refuses: its tag's
 scan failed before the SBOM step, so it has no `bom.json`, and nothing
