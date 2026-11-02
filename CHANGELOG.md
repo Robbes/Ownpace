@@ -295,8 +295,9 @@ notices.
   print it. The bring-up's `login` phase runs `pnpm install --frozen-lockfile`
   before it asks the CLI anything, as `deploy-tasks.sh` does, so a checkout
   pulled without an install still logs in, and both refuse an installed CLI
-  that is not the SDK's version. The tasks are now bundled by the tree's one
-  esbuild, 0.25.12, where `npx` gave the CLI its own 0.23.
+  that is not the SDK's version. The tasks are now bundled by the tree's
+  esbuild 0.25.12, the copy drizzle-kit's loader already takes, where `npx`
+  gave the CLI its own 0.23.
 - **The pin watch can record a difference from Trigger.dev's ClickHouse pin as
   intended**, for one exact pair of tag and digest (`CLICKHOUSE_INTENDED`):
   its row then reads `intended`, with the reason, and keeps no issue open,

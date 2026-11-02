@@ -241,6 +241,13 @@ overrides:
   # nobody is allowed to fix. Note it is `npx` and not `pnpm db:generate`: that script now refuses
   # (scripts/how-migrations-are-authored.mjs), because generating into the real migration chain is
   # what it used to do.
+  #
+  # 2026-11-02. This entry now holds a second consumer, and the one with more at stake: the deploy
+  # CLI (trigger.dev 4.8.3, apps/worker's devDependency) asks for `esbuild: ^0.23.0` and gets
+  # 0.25.12 through it, past the 0.24 and 0.25 minors. That esbuild bundles the task code that
+  # ships in the deployed task image, so its proof is an E2E (managed) deploy, not a unit test.
+  # Dropping or narrowing this entry (say, once drizzle-kit is fixed) sends the CLI back to 0.23.x,
+  # which is under GHSA-67mh-4wv8-2f99.
   esbuild@<0.25.0: ^0.25.0
   #
   # 2026-10-03. Six HIGH and three MODERATE, every one DEV-ONLY, published after the gate last
