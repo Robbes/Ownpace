@@ -49,8 +49,9 @@ GitHub-hosted `windows-2025` runner in a `smoke` job, against the upload its `bu
 attaches the zip from a `release` job that needs `smoke`, so a tag Release cuts never carries a
 zip that failed on Windows. `release` runs the names check straight after its checkout, as T2
 asks of every job that publishes; `a-release-that-names-itself` names it in place of `build`.
-0119's Status entry of the same day has the checks, the guard, what stays by hand and the review. **The gate now
-reads:** that job green on a dispatch of the branch, then merged; after the fold, a dispatch of
+0119's Status entry of the same day has the checks, the guard, what stays by hand and the
+review. **The gate now reads:**
+that job green on a dispatch of the branch, then merged; after the fold, a dispatch of
 `windows-payload.yml` on `main` at C (platform win-x64) with `smoke` green, before the owner
 approves, which Release's preflight now refuses C without (`windows-smoke-green`, from the
 review of the same day: Release's own run of it is on the tag, after Security Scan made the
@@ -62,7 +63,7 @@ administrator account, running the payload `build` uploaded; not a Windows 11 cl
 a standard user, a browser download of the attached zip (made on Linux afterwards), or an
 upgrade over an earlier release's database. It had not run when this was written. *(Later
 2026-11-02: windows-payload run 41434382108, dispatched on the branch at `77d446e2`, was green,
-`smoke` 11:09:13 to 11:09:30; the entry above.)*
+`smoke` 11:09:13 to 11:09:30 UTC; the entry above.)*
 
 **2026-11-02, records: T11 (c) merged and on the OTA stack, and alpha.4's open gates as they
 stand (T2, T11).** Docs only, on the branch
@@ -88,7 +89,9 @@ are UTC.
 - **The owner's Windows 11 check of a zip on Node 26.13.0** is still open. `main`'s zip is
   windows-payload run 41375291612 on `733294a5` (01:59), artifact
   `ownpace-appliance-win-x64-733294a5…`, beside #1767's from branch run 41250312341. *(Later
-  2026-11-02: replaced by `windows-payload.yml`'s `smoke` job, the entry above.)*
+  2026-11-02: replaced by `windows-payload.yml`'s `smoke` job, the entry above; green in
+  windows-payload run 41434382108 and merged as #1789 the same day: the entry of 2026-11-02,
+  records, later, above.)*
 - **E2E (self-hosted), scheduled, on `main`:** run 41378982336 on `733294a5` (02:40) and run
   41410768898 on `0b16a82e` (08:07), both green. `main`'s scheduled E2E (managed) of 2026-11-02
   had not run when this was written.

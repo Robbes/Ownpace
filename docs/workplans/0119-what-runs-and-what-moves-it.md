@@ -10,10 +10,11 @@ only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02-b
 Security Scan ran 14:49 to 14:52 UTC (Trivy 0.76.1, linux/arm64). Its report names package and
 fixed version for the criticals only and counts the highs, so the highs below were read again
 outside CI with the same Trivy and flags and the database of 2026-11-02 13:15 UTC: the Docker
-Hub images by digest (redis, registry, stalwart, nextcloud and caddy's base, each matching the
-report's counts), and the GitHub Container Registry ones (trigger.dev, supervisor, zitadel,
-gatus) in parts only: Zitadel's release binary, pnpm
-10.33.2 from npm, the two Node bases and upstream's lockfile at v4.8.3. The week before is the
+Hub images by digest (redis, registry, stalwart and nextcloud, each matching the report's
+counts, and caddy's base, whose 1, 9 and 9, less the three findings in the curl packages the
+build removes, are the report's 0, 7 and 6), and the GitHub Container Registry ones
+(trigger.dev, supervisor, zitadel) in parts only, gatus not at all: Zitadel's release binary,
+pnpm 10.33.2 from npm, the two Node bases and upstream's lockfile at v4.8.3. The week before is the
 scheduled run 40321430984 on `f62bcbe2` (2026-10-26), which scanned several upstream or floating
 references where this one scans the builds made here, and the database moved in between, so a
 row's change is the image and the database together. Where the image did not change, the
@@ -51,9 +52,10 @@ branch) and 100 now, 24 fewer each, with the same fixable counts.
   supervisor, caddy) upgrade none of the distribution's packages, and nothing below is in
   alpha.4 unless the owner says so.
   - trigger.dev 1/100/68 and supervisor 0/13/13: in each, 11 are pnpm 10.33.2 itself, the copy
-    the migrations run under, fixed by 10.34.5, and 1 is systeminformation 5.31.7, fixed by
-    5.33.16; the rest of trigger.dev's are the webapp's own dependencies (read from upstream's
-    lockfile, not from the image), and the supervisor's thirteenth is not identified. The entry of 2026-10-31, later, left that code to the owner.
+    each service runs (the webapp's migrations run under it), fixed by 10.34.5, and 1 is
+    systeminformation 5.31.7, fixed by 5.33.16; the rest of trigger.dev's are the webapp's own
+    dependencies (read from upstream's lockfile, not from the image), and the supervisor's
+    thirteenth is not identified. The entry of 2026-10-31, later, left that code to the owner.
     The route is under study as a follow-up, beside the owner's upstream issue,
     triggerdotdev/trigger.dev#5084.
   - registry 0/7/7 (`registry:3.1.2`): all in its Go binary, go-jose 4.1.4 (CVE-2026-116587),
@@ -1000,9 +1002,10 @@ maintenance until 2028-04-30, so nothing forced the move, and the owner chose to
   fetch pnpm 11.28.9; windows-payload run 41250312341 fetched node.exe v26.13.0 (95.5 MiB, 100.1 MB) and
   uploaded `ownpace-appliance-win-x64-20cfed4a…` (50.8 MB zipped; the owner's Windows 11
   check of it, or of `main`'s zip from windows-payload run 41375291612 on `733294a5`
-  (2026-11-02), is owed; dropped by the owner on 2026-11-02, the note below); Security Scan with `image_scans`, run 41250313842, read the tasks'
-  base built from the branch, `node:26.13.0-trixie-slim` with the config's layer, at Debian
-  13.7, 0 critical, 43 high, none with a fix: the figures of the 24.22.1 base it replaces.
+  (2026-11-02), is owed; *later 2026-11-02, dropped by the owner: the note below*); Security
+  Scan with `image_scans`, run 41250313842, read the tasks' base built from the branch,
+  `node:26.13.0-trixie-slim` with the config's layer, at Debian 13.7, 0 critical, 43 high,
+  none with a fix: the figures of the 24.22.1 base it replaces.
 - **Review, 2026-11-01, on #1767.** (1) Nothing held `engines`: `>=24` passed every guard
   beside images on 26. `a-gate-on-a-version-nothing-ships` now holds it to `>=<the images'
   major>` (mutation-checked: `>=24`, `26` and no `engines` each fail it). (2) Four jobs ran
@@ -2683,7 +2686,7 @@ is who moves it after T1.
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31) | current | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
 | `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded); 1 critical, 9 high and 9 fixable as pulled (Security Scan run 41130684117), 0, 7 and 6 built (Security Scan run 41161126144, linux/arm64; the Status entry of 2026-10-31) | 2.11.7 | current | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
-| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.0 (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.2 before (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.0 (read 2026-11-02) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
+| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.0 (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.5 before it (2026-10-22, #1651, `721c6ea8`, three security fixes read commit by commit), v4.19.4 before that (2026-10-05, #1528, `502c52fa`), and v4.19.2 before those (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.0 (read 2026-11-02) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.32.0 by digest (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.0 (2026-10-31, pushed 02:30 UTC), digest `9b3a463b…` | one minor, inside its three-day floor until 2026-11-03 02:30 UTC (Status, 2026-10-31) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
@@ -2880,8 +2883,8 @@ is beside each; none is urgent tonight.
    Redis does not use; 48 of the highs are six util-linux CVEs counted once per package);
    `7.4.11-alpine` reads 0/0 but runs on Alpine 3.21, whose support ends on 2026-11-01, the
    reason the stack left it; `8.10.2-alpine` reads 0/0 and `8.10.2-trixie` 0/43, both a one-way
-   major under the licence above. Redis is reachable on the compose network only. The revisit trigger
-   is unchanged.
+   major under the licence above. Redis is reachable on the compose network only. The revisit
+   trigger is unchanged.
    **2026-11-02: the week's scan reads the pin, `7.4.12-bookworm` (`b6b6e3dc…`), at 1 critical,
    the same CVE-2023-45853, still without a Debian fix, and 32 high, none fixable** (56 on
    2026-10-30, the same image: the database moved; the Status entry of 2026-11-02 on the
