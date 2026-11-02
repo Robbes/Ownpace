@@ -300,9 +300,9 @@ notices.
   to `pnpm@10.34.9`, which is how corepack chooses the copy, reads it back,
   checks that no copy of another version is left in either user's home, and
   proves 10.34.9 starts offline as the service's user. It refuses an upstream
-  that moved `packageManager` (*upstream moved pnpm: drop the swap*). Expected,
-  not measured: the image scan's highs from 100 to about 89 in the webapp and
-  from 13 to about 2 in the supervisor. Nothing a stack sets changes; the next
+  that moved `packageManager` (*upstream moved pnpm: drop the swap*). Measured
+  on its branch, the image scan's highs went from 100 to 89 in the webapp and
+  from 13 to 2 in the supervisor. Nothing a stack sets changes; the next
   bring-up builds both images again under their new names, and fetches pnpm from
   the npm registry while it does.
 - **The deploy CLI's login line is `pnpm -C apps/worker exec trigger login …`,

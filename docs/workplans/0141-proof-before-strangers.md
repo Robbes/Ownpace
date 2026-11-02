@@ -4,12 +4,23 @@
 
 ## Status — 2026-11-02 (update this block at the end of every session)
 
+**2026-11-02, latest, records: the O365 lane waived for alpha.4 by the owner (T13 (a)).** Docs
+only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02-c`. At about
+22:10 UTC the owner answered the items left open for alpha.4 in one line, *"Accept all, within
+alpha 4"*, which for this lane takes the waiver the entry below offered: alpha.4 is tagged
+without a green run of `e2e-o365.yml`. The secrets are still not set, and the lane has no run
+since 41418432093 (read from GitHub). It is owed for a later alpha: the secrets, as
+`docs/test-tenant.md` lists them, and a green run. Release does not read the lane (neither
+`.github/workflows/release.yml` nor any `scripts/release*` names it), so the waiver is a record,
+with no input to set. (b), the scenario that drives the product, is unchanged. T13's row says
+so; 0119's and 0146's Status entries of the same evening have the owner's other answers.
+
 **2026-11-02, later, records: the O365 lane's secrets are still not set (T13 (a)).** Docs only,
 on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02-b`. The owner could not
 set them on 2026-11-02, and none is set; no run of `e2e-o365.yml` since 41418432093 (read from
 GitHub). For alpha.4 (0146's Status of the same day) the lane needs the secrets, as
 `docs/test-tenant.md` lists them, and a green run, or the owner's waiver of the lane for alpha.4.
-T13's row says so.
+T13's row says so. *(Waived for alpha.4 at about 22:10 UTC: the entry above.)*
 
 **2026-11-02, records: the runner label is on, and the O365 lane's first run stopped at its
 secrets (T13 (a)).** Docs only, on the branch
@@ -509,7 +520,7 @@ for the card says so.
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
-| T13 The O365 lane and the live-target lane | ⏳ **Owner** (secrets): (a)'s label is done, the owner added `spark` to the self-hosted runner on 2026-11-02 at about 07:40 UTC; the lane's first run on a runner, 41418432093 on `main` (`bce0fcfd`, 09:10 to 09:11 UTC), failed at *Validate required secrets*, `O365_CLIENT_ID` and `O365_TENANT_ID` not set as repository secrets, so the suite cannot run; setting them (`docs/test-tenant.md`) is the owner's (Status, 2026-11-02), and the owner could not on 2026-11-02, so for alpha.4 it is the secrets and a green run, or the owner's waiver of the lane (Status, 2026-11-02, later); 📋 **Proposed** (code) — *was:* ⏳ **Owner** (runner label, secrets): `e2e-o365.yml` asks for the label `spark`, which the self-hosted runner does not carry, so run 41273625023 has been queued since 2026-11-01 04:34 UTC and no run has started (it was cancelled on 2026-11-02 at 02:00 UTC without a runner); the step is the owner's, (a): add `spark` to the runner, or drop it from `runs-on` (2026-11-01) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
+| T13 The O365 lane and the live-target lane | ⏳ **Owner** (secrets), **for a later alpha; waived for alpha.4** by the owner on 2026-11-02 at about 22:10 UTC (*"Accept all, within alpha 4"*; Status, 2026-11-02, latest), so alpha.4 is tagged without a green run, and Release does not read the lane: (a)'s label is done, the owner added `spark` to the self-hosted runner on 2026-11-02 at about 07:40 UTC; the lane's first run on a runner, 41418432093 on `main` (`bce0fcfd`, 09:10 to 09:11 UTC), failed at *Validate required secrets*, `O365_CLIENT_ID` and `O365_TENANT_ID` not set as repository secrets, so the suite cannot run; setting them (`docs/test-tenant.md`) and a green run are the owner's (Status, 2026-11-02); 📋 **Proposed** (code) — *was:* ⏳ **Owner** (secrets): the owner could not set them on 2026-11-02, so for alpha.4 it was the secrets and a green run, or the owner's waiver of the lane (2026-11-02, later); ⏳ **Owner** (runner label, secrets): `e2e-o365.yml` asks for the label `spark`, which the self-hosted runner does not carry, so run 41273625023 has been queued since 2026-11-01 04:34 UTC and no run has started (it was cancelled on 2026-11-02 at 02:00 UTC without a runner); the step is the owner's, (a): add `spark` to the runner, or drop it from `runs-on` (2026-11-01) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
 | T14 The nightly managed gate's readiness rule | ✅ **Read by code** in #1682, merged 2026-10-23 (`54e4c3d2`): `scripts/release-nights.mjs`, which the Release workflow runs, first read by it on `main` the same day (Release run 1: no commit qualifies yet); both nights on C, every attempt green, and the freeze, the owner's of 2026-10-23, written in §3; ✅ **The owner's waiver** (2026-10-30, for alpha.3), merged as #1741 on 2026-10-30 (`7e2fbbbe`), and **used once, for `v0.2.0-alpha.3`**: Release run 41066208430 (#16) tagged `e1b21aac` with the nights waived, its message quoting the owner (Status, 2026-10-31). Release's `waive_nights`, for a version in `WAIVER_VERSIONS` only (alpha.3) and from a person's account, the rule's refusals as notes that quote it, the commit given, the tag's message saying so, the tag job bound by what the preflight did, nothing else waived (§3); 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* 🔨 the waiver built as a draft on branch `claude/ownpace-public-readiness-y7orc6-release-nights-waiver` (2026-10-30); 🔨 **Read by code** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. |
 
 ## 1. What there is today
@@ -1209,7 +1220,8 @@ repository settings that the `O365_*` secrets exist for the flow the owner wants
 the owner added the label (about 07:40 UTC). The first run to get the runner, 41418432093 on
 `main`, failed at its step "Validate required secrets": `O365_CLIENT_ID` and `O365_TENANT_ID`
 are not set as repository secrets. Setting them, as `docs/test-tenant.md` lists them, is what is
-left of (a) (Status, 2026-11-02).*
+left of (a) (Status, 2026-11-02). At about 22:10 UTC the owner waived the lane for alpha.4; (a)
+stays owed, for a later alpha (Status, 2026-11-02, latest).*
 
 **(b) The scenario drives the product (proposed).**
 

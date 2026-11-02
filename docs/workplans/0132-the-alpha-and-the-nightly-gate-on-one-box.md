@@ -20,7 +20,10 @@ day (records, later) has the detail. Read from GitHub on 2026-11-02; times are U
   about 11:55. It had not been run when this was written; it is the owner's.
 - **Still the owner's:** the host's Docker, 29.2.1 to the 29.6.2 set from the machine vendor's
   apt repository, in a window with live's hold and the OTA stack's both on (0119 §2.4), not done
-  on 2026-11-02.
+  on 2026-11-02. *(The owner, at about 22:10: within alpha.4, so before the counted nights of
+  2026-11-05 and 2026-11-06; the slot, set later that evening, is Tuesday 2026-11-03, 11:00 to
+  13:00 UTC. The copy's removal, above, was not answered: sent, not confirmed. 0119's Status,
+  2026-11-02, records, latest.)*
 
 **2026-11-02, recorded: the copy from before v4.8.3 removed, ClickHouse 26.8.36.3 on the OTA
 stack, and the host's Docker from the machine vendor's apt repository.** Docs only, on the

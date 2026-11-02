@@ -4,21 +4,55 @@
 
 ## Status — 2026-11-02 (update this block at the end of every session)
 
-**2026-11-02: T16, pnpm 10.34.9 in place of 10.33.2 in both Trigger.dev builds, a draft.** On
-the branch `claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`, from `main` at
-`ece5866c`, with `main` at `f515d4a9` (#1793) merged in; not merged; 0119's Status entry of the
-same name has the detail. The copy of pnpm each service runs is the one fixable part of T16's
+**2026-11-02, records, latest: the owner's answer for alpha.4, "Accept all, within alpha 4":
+T16's pnpm swap merged and in it, Stalwart's critical accepted, the O365 lane waived, and the
+host's Docker before the counted nights (T2, T11, T16).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-records-2026-11-02-c`; 0119's Status entry of the same
+name has the detail. Read from GitHub on 2026-11-02; times are UTC.
+- **The answer.** At about 22:10 the owner answered the items the entry of 2026-11-02, records,
+  later, below left open (*Still the owner's for alpha.4*), in one line: *"Accept all, within
+  alpha 4"*. It takes the advice given on each, as below.
+- **T16, #1794 merged** at 22:12 (`b5137b4f`; head `d40c1a00`), pnpm 10.34.9 in place of
+  10.33.2 in both Trigger.dev builds, **in alpha.4**. On its head, `build (trigger, amd64)` and
+  `build (trigger, arm64)` were green (Images run 41521630508), and so was E2E (managed) run
+  41523756704 (20:56 to 21:07: 17 tasks deployed, *verify: done apply: applied*, *SMOKE PASS*,
+  nothing unhealthy). Security Scan run 41527113857, dispatched on the branch with the image
+  scans (21:18 to 21:21), measured the webapp at 1 critical, 89 high, 57 with a fix and the
+  supervisor at 0, 2, 2, against 1, 100, 68 and 0, 13, 13 in the week's scan: what the entry
+  below had by arithmetic. That entry said a draft, not merged, the owner's call when, and
+  arithmetic; it names the merge and the measurement now, and so does T16's row.
+- **T11, Stalwart's CVE-2026-111497 in `libbrotli1`: accepted for alpha.4.** No rebuild, no
+  move to v1.x; ADR-0022 unchanged. Stalwart is a CI test fixture live never runs (0119).
+- **The O365 lane: waived for alpha.4**, owed for a later alpha (0141 T13 (a)): the secrets,
+  still not set, and a green run. Release reads no O365 run (neither `release.yml` nor any
+  `scripts/release*` names the lane), so what is left for the tag is as the entries below list
+  it, without the lane.
+- **The host's Docker, 29.2.1 to 29.6.2, within alpha.4:** before the counted nights, Thursday
+  2026-11-05 and Friday 2026-11-06, in the window 0119 §2.4 describes. The owner set the slot
+  later that evening: Tuesday 2026-11-03, 11:00 to 13:00.
+- **Not answered:** the removal of ClickHouse's copy before 26.8, sent at about 11:55: sent, not
+  confirmed (0119, 0132).
+
+**2026-11-02: T16, pnpm 10.34.9 in place of 10.33.2 in both Trigger.dev builds, built as a
+draft; merged as #1794, in alpha.4.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`, from `main` at `ece5866c`, with
+`main` at `f515d4a9` (#1793) merged in; merged as #1794 on 2026-11-02 at 22:12 UTC
+(`b5137b4f`; the entry above; *was:* not merged); 0119's Status entry of the same name has the
+detail. The copy of pnpm each service runs is the one fixable part of T16's
 images that this build can swap without touching the webapp's own dependencies: 11 of the
 webapp's 100 highs and of the supervisor's 13 (Security Scan run 41465604476, 2026-11-02) are
 pnpm 10.33.2 itself, and none of its 18 advisories is reachable here. So this is hygiene, not a
-security fix, and when it lands is the owner's call: alpha.4 if it is green in time, or after.
+security fix, and it is in alpha.4 by the owner's answer of 2026-11-02 (the entry above; *was:*
+when it lands is the owner's call: alpha.4 if it is green in time, or after).
 Each build installs 10.34.9 by the sha512 npm published before it removes anything, removes
 10.33.2, rewrites `packageManager` and reads it back, checks that no copy of another version is
 left in either user's home, and proves 10.34.9 starts offline as the service's user; it refuses
 an upstream that moved `packageManager` (*upstream moved pnpm: drop the swap*). Owed before a
 merge: `build (trigger, amd64)` and `build (trigger, arm64)` on the branch, and one E2E
-(managed) there. Expected (arithmetic, not measured): the webapp at about 1, 89, 57 and the
-supervisor at about 0, 2, 2.
+(managed) there. *(Done: Images run 41521630508 and E2E (managed) run 41523756704, both green on
+the head `d40c1a00`.)* Expected (arithmetic, not measured): the webapp at about 1, 89, 57 and the
+supervisor at about 0, 2, 2. *(Measured on the branch: Security Scan run 41527113857 read 1, 89,
+57 and 0, 2, 2.)*
 
 **2026-11-02, records, later: alpha.4's Windows gate proven and merged, its dates, the week's
 image scan, and what is still the owner's (T2, T11).** Docs only, on the branch
@@ -47,13 +81,18 @@ day (records, later, and the week's image scan) have the detail. Read from GitHu
   trigger.dev's Node base) and four in the demo's Nextcloud. The seventh, CVE-2026-111497 in
   Stalwart's `libbrotli1`, has one, and was in the reports since 2026-10-29 without a record
   here; Stalwart is a CI test fixture live never runs, its binary does not link the library,
-  and the recommendation in 0119 is to accept it for alpha.4. The fixable highs (trigger.dev,
+  and the recommendation in 0119 is to accept it for alpha.4. *(Accepted by the owner at about
+  22:10: the entry of 2026-11-02, records, latest, above.)* The fixable highs (trigger.dev,
   supervisor, registry, caddy, gatus, zitadel, nextcloud) each wait for upstream, and none moves
-  for alpha.4 unless the owner says so. The preflight reports code-scanning alerts and refuses
-  nothing on them (the entry of 2026-11-01, later, below).
+  for alpha.4 unless the owner says so. *(The eleven in trigger.dev and in supervisor that are
+  pnpm 10.33.2 moved, with the owner's answer: #1794, the entries above.)* The preflight
+  reports code-scanning alerts and refuses nothing on them (the entry of 2026-11-01, later,
+  below).
 - **Still the owner's for alpha.4:** the O365 lane: its secrets, which the owner could not set
   on 2026-11-02 and none of which is set, then a green run, or the owner's waiver of the lane
-  for alpha.4 (0141 T13 (a)); and the call on Stalwart's critical.
+  for alpha.4 (0141 T13 (a)); and the call on Stalwart's critical. *(Answered at about 22:10:
+  the lane waived for alpha.4, the critical accepted; the entry of 2026-11-02, records, latest,
+  above.)*
 
 **2026-11-02: alpha.4's Windows gate is a CI job, not the owner's check (T2).** The owner,
 2026-11-02: "I wont do windows...". So the Windows 11 check of a zip on Node 26.13.0, one of
@@ -101,7 +140,9 @@ are UTC.
   `spark` at about 07:40 (0141 T13 (a)), and the lane's first run on a runner, 41418432093 on
   `main` at `bce0fcfd` (09:10 to 09:11), failed at *Validate required secrets*:
   `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets, so the suite cannot
-  run. Setting them (`docs/test-tenant.md`) is the owner's.
+  run. Setting them (`docs/test-tenant.md`) is the owner's. *(Later 2026-11-02, about 22:10:
+  the lane waived for alpha.4 by the owner, owed for a later alpha; the entry of 2026-11-02,
+  records, latest, above.)*
 - **The owner's Windows 11 check of a zip on Node 26.13.0** is still open. `main`'s zip is
   windows-payload run 41375291612 on `733294a5` (01:59), artifact
   `ownpace-appliance-win-x64-733294a5…`, beside #1767's from branch run 41250312341. *(Later
@@ -165,7 +206,8 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
   check of a zip on Node 26.13.0 are still open. *(2026-11-02: the label is on the runner, and
   the lane now waits for its two secrets; the Windows check can take `main`'s zip: the entry of
   2026-11-02, records, above. Later that day the Windows check became `windows-payload.yml`'s
-  `smoke` job: the entry of 2026-11-02 on alpha.4's Windows gate, above.)*
+  `smoke` job: the entry of 2026-11-02 on alpha.4's Windows gate, above. At about 22:10 UTC the
+  owner waived the o365 lane for alpha.4: the entry of 2026-11-02, records, latest, above.)*
 
 **2026-11-01: T11 (c), ClickHouse 26.3, built as a draft that waits for the owner; superseded
 2026-11-02 by the owner's choice of 26.8.36.3-lts (the entry above)** (0119 §3 item
@@ -2960,7 +3002,7 @@ best given with T0.
 | T14 The tasks build on the API image's own base, with no package manager | ✅ **Merged** as #1716 on 2026-10-28 (`98802571`), after #1697 (`f387b175`) and #1708, and after E2E (managed) run 40758865207 was green; in alpha.3 — *was:* 🔨 being built (2026-10-26) as draft #1716 on branch `claude/ownpace-public-readiness-y7orc6-tasks-trixie-base`, stacked on #1697 | Status, 2026-10-26. `apps/worker/trigger.config.ts` sets the build manifest's `image.base` to `apps/api/Dockerfile`'s FROM image and `image.buildBase` to the CLI's own `-build` image, and one layer installs `ca-certificates` and `dumb-init`, makes the CLI's trust edits and drops every package manager where no `g++` is. On #1708's `node:24.22.1-trixie-slim` the runtime stage reads 0 critical and 43 high, none fixable, where the image a deploy builds on the CLI's base read about 2/88 on 4.7.6 (`main` until #1697) and 1/80 on #1697 (Trivy 0.76.1, amd64 and arm64). The weekly scan lists that base as `trigger-task-base`, and #1700 (T10) builds the layer on it. A Trigger.dev move fails the version gate until the CLI's build image and trust list are read again. E2E (managed) after #1697 and #1708: run 40758865207, green before the merge. |
 | T15 Both databases of the managed stacks start as uid 70, from the official image without gosu | ✅ **Merged** as #1717 on 2026-10-28 (`6f9af7f2`), after #1678 and after E2E (managed) run 40616652331 was green; in alpha.3, which live has taken from the tag on 2026-10-30: before the deploy both databases' data files read owned by `postgres`, and after it no container was unhealthy, starting or restarting (Status, 2026-10-31) — *was:* 🔨 being built as draft #1717 on branch `claude/ownpace-public-readiness-y7orc6-postgres-without-gosu`, stacked on #1678, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26. `postgres:18.6-alpine` reads 1 critical and 26 high (Trivy v0.76.1, arm64 and amd64); the critical and 25 highs are Go's standard library in gosu, which the entrypoint runs only when it starts as root. `deploy/compose/postgres/Dockerfile` removes it and starts as uid 70, the user gosu dropped to; `managed.yml`'s `postgres` and `trigger-db` and `dev.yml`'s run it, and the scan builds and scans it. Done when E2E (managed) is green on the branch (the OTA stack's existing volumes, started as uid 70, and a second bring-up leaving both databases running on the same image ID), `build (postgres)` is green on the pull request, the image scan's `postgres-managed` reads 0 critical and 1 high (brotli-libs, until docker-library rebuilds 18.6-alpine), and live has taken it from a tag. The appliance's Postgres is T15b. |
 | T15b The appliance's Postgres starts as uid 70, from the official image without gosu | ✅ **Merged** as #1719 on 2026-10-28 (`fb0fea2e`), after #1717 and after E2E (self-hosted) run 40621523504 was green; in alpha.3 — *was:* 🔨 being built on branch `claude/ownpace-public-readiness-y7orc6-appliance-postgres-without-gosu`, stacked on #1717, for after the alpha.2 tag (2026-10-26) | Status, 2026-10-26, last. The appliance's `postgres:18.6-alpine` (`77f58511…`) reads 1 critical and 26 high (Trivy v0.76.1, arm64); the critical is gosu's Go, and no newer digest drops it. `deploy/selfhost/postgres/Dockerfile` is T15's instructions on the appliance's own base, `deploy/selfhost/compose.yml` runs it as `localhost/postgres:18.6-alpine-b18f51417292` (never pulled), Dependabot moves its FROM in an entry of its own, the scan's `postgres-selfhost` leg builds it, `build (postgres)` proves it on a pull request, and E2E (self-hosted) builds `app` by name. Done when `build (postgres)` is green on the pull request (the appliance's build started on a volume the official image initialised as root), E2E (self-hosted) is green on the branch with `persistence: postgres`, the image scan's `postgres-selfhost` reads 0 critical, and a release tag carries it. |
-| T16 The Trigger.dev images run without the files nothing here runs | ✅ **Merged** as #1722 on 2026-10-30 (`30533c7f`), with the dompurify swap as #1742 (`2a1666ae`), both in alpha.3, **which live runs since 2026-10-30**: the dry run said one-way, *cannot be compared … on the Trigger.dev pin*, a take with `triggerdb`; the second run said *v4.7.6 -> v4.8.1*; no container unhealthy, starting or restarting, the supervisor at v4.8.1 and the tick `COMPLETED_SUCCESSFULLY` on 4.8.1. The copy before the update was **not kept** as the done-condition asks: the owner removed it by hand early on 2026-10-31 and set `COPY_DELETE_WHEN_PROVEN` back to `true`, so the way back is a fix forward (Status, 2026-10-31); built (2026-10-27) on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on #1716 with #1717 merged in; #1722, **in alpha.3** (the owner, 2026-10-30: *"Put all alpha 4 into alpha 3"*; first planned for alpha.4); **decided 2026-10-26** by the owner: *"Both"*, an issue upstream and this build until upstream ships the fixes; and **2026-10-27**: tar out of the copy of pnpm each service runs too; **2026-11-02**: a draft runs pnpm 10.34.9 in place of 10.33.2 in both builds, hygiene, the owner's call when (branch `claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`; Status, 2026-11-02) | Status, 2026-10-27 (both entries). `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile` build on upstream's images by tag and digest (v4.8.1 when built; v4.8.3, `read_at` with it, since the move of 2026-10-31, 0119) and delete depot's and esbuild's Go binaries (both names each), node's copy of pnpm and the tar in root's from the webapp, root's copy of pnpm and the tar in node's from the supervisor: 8 critical findings to 2, and 2 to 0 (risk accepted: a native `pnpm install` in these containers would fail). Since 2026-10-30, an alpha.3 addition (Status, *after the fold*): the webapp's build also replaces dompurify 3.4.13's files with 3.4.17's, fetched from the npm registry and refused unless their sha512 is the one npm published, and proves nothing else in the image changed; nothing here loads dompurify, so no code that runs changes, and the webapp's 2 go to 1 (zlib1g). Dropped when upstream moves dompurify past 3.4.13. Since 2026-10-31, for alpha.4 (Status, *npm and node-gyp's tree out of both Trigger.dev builds*, #1763, merged 2026-11-01 (`a94dd5b3`; *was:* draft #1763): `build (trigger, amd64|arm64)` green in Images run 41233684732, and E2E (managed) run 41236579127 green on `9e5c270e`, 2026-10-31 20:29–20:39 UTC): both builds also remove npm 11.19.1, which Node bundles and nothing here runs, with its `npm` and `npx` links, and the rest of node-gyp's tree in the copy each service runs (`dist/node_modules`, tar in it, and `dist/node-gyp-bin`), under tar's risk: twelve fixable highs in each image, after checking pnpm's own files name only the three packages of it read and that corepack 0.36.0 stays. Every removal names a version-locked path and fails the build by name when upstream moves it; each build refuses a release other than its `read_at` and an entrypoint other than the one read; `trigger-version.sh pin` moves both FROMs and names, never `read_at`; a move's pull request has both builds green before any window; both services set `COREPACK_ENABLE_NETWORK: "0"`. Done when `build (trigger, amd64|arm64)` is green on the pull request, a dispatched image scan reads 1 and 0 (2 and 0 before the dompurify swap; after npm and node-gyp's tree, 68 and 13 fixable, measured on the branch at v4.8.3), E2E (managed) is green on the branch and live has taken it from a tag: live's deploy from alpha.2 (first run, alpha.2's script) says one-way, *cannot be compared … on the Trigger.dev pin*, and copies triggerdb; the second run (the tag's script) says *v4.7.6 -> v4.8.1*; both services run healthy from the `localhost/` names; and the copy is kept (`COPY_DELETE_WHEN_PROVEN=false`) until the task runner has run real work on them. From then on, T16a judges every deploy by the version: a later change to the builds alone at v4.8.1 is reversible. Dropped removal by removal as upstream fixes them. |
+| T16 The Trigger.dev images run without the files nothing here runs | ✅ **Merged** as #1722 on 2026-10-30 (`30533c7f`), with the dompurify swap as #1742 (`2a1666ae`), both in alpha.3, **which live runs since 2026-10-30**: the dry run said one-way, *cannot be compared … on the Trigger.dev pin*, a take with `triggerdb`; the second run said *v4.7.6 -> v4.8.1*; no container unhealthy, starting or restarting, the supervisor at v4.8.1 and the tick `COMPLETED_SUCCESSFULLY` on 4.8.1. The copy before the update was **not kept** as the done-condition asks: the owner removed it by hand early on 2026-10-31 and set `COPY_DELETE_WHEN_PROVEN` back to `true`, so the way back is a fix forward (Status, 2026-10-31); built (2026-10-27) on branch `claude/ownpace-public-readiness-y7orc6-trigger-patched`, stacked on #1716 with #1717 merged in; #1722, **in alpha.3** (the owner, 2026-10-30: *"Put all alpha 4 into alpha 3"*; first planned for alpha.4); **decided 2026-10-26** by the owner: *"Both"*, an issue upstream and this build until upstream ships the fixes; and **2026-10-27**: tar out of the copy of pnpm each service runs too; **2026-11-02**: pnpm 10.34.9 in place of 10.33.2 in both builds, hygiene, ✅ **merged** as #1794 on 2026-11-02 at 22:12 UTC (`b5137b4f`), after `build (trigger, amd64|arm64)` (Images run 41521630508) and E2E (managed) run 41523756704 were green on its head `d40c1a00`, and **in alpha.4** by the owner's answer of about 22:10 UTC, *"Accept all, within alpha 4"* (Status, 2026-11-02, records, latest) — *was:* a draft, the owner's call when (branch `claude/ownpace-public-readiness-y7orc6-trigger-pnpm-10-34-9`; Status, 2026-11-02) | Status, 2026-10-27 (both entries). `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile` build on upstream's images by tag and digest (v4.8.1 when built; v4.8.3, `read_at` with it, since the move of 2026-10-31, 0119) and delete depot's and esbuild's Go binaries (both names each), node's copy of pnpm and the tar in root's from the webapp, root's copy of pnpm and the tar in node's from the supervisor: 8 critical findings to 2, and 2 to 0 (risk accepted: a native `pnpm install` in these containers would fail). Since 2026-10-30, an alpha.3 addition (Status, *after the fold*): the webapp's build also replaces dompurify 3.4.13's files with 3.4.17's, fetched from the npm registry and refused unless their sha512 is the one npm published, and proves nothing else in the image changed; nothing here loads dompurify, so no code that runs changes, and the webapp's 2 go to 1 (zlib1g). Dropped when upstream moves dompurify past 3.4.13. Since 2026-10-31, for alpha.4 (Status, *npm and node-gyp's tree out of both Trigger.dev builds*, #1763, merged 2026-11-01 (`a94dd5b3`; *was:* draft #1763): `build (trigger, amd64|arm64)` green in Images run 41233684732, and E2E (managed) run 41236579127 green on `9e5c270e`, 2026-10-31 20:29–20:39 UTC): both builds also remove npm 11.19.1, which Node bundles and nothing here runs, with its `npm` and `npx` links, and the rest of node-gyp's tree in the copy each service runs (`dist/node_modules`, tar in it, and `dist/node-gyp-bin`), under tar's risk: twelve fixable highs in each image, after checking pnpm's own files name only the three packages of it read and that corepack 0.36.0 stays. Every removal names a version-locked path and fails the build by name when upstream moves it; each build refuses a release other than its `read_at` and an entrypoint other than the one read; `trigger-version.sh pin` moves both FROMs and names, never `read_at`; a move's pull request has both builds green before any window; both services set `COREPACK_ENABLE_NETWORK: "0"`. Done when `build (trigger, amd64|arm64)` is green on the pull request, a dispatched image scan reads 1 and 0 (2 and 0 before the dompurify swap; after npm and node-gyp's tree, 68 and 13 fixable, measured on the branch at v4.8.3; after pnpm 10.34.9, 57 and 2, measured on #1794's branch in Security Scan run 41527113857), E2E (managed) is green on the branch and live has taken it from a tag: live's deploy from alpha.2 (first run, alpha.2's script) says one-way, *cannot be compared … on the Trigger.dev pin*, and copies triggerdb; the second run (the tag's script) says *v4.7.6 -> v4.8.1*; both services run healthy from the `localhost/` names; and the copy is kept (`COPY_DELETE_WHEN_PROVEN=false`) until the task runner has run real work on them. From then on, T16a judges every deploy by the version: a later change to the builds alone at v4.8.1 is reversible. Dropped removal by removal as upstream fixes them. |
 | T16a `deploy-live.sh` reads the Trigger.dev pin as a version, in alpha.3 | ✅ **Merged** 2026-10-27 as #1721 (`991bd21c`), commit `4628488b` alone, in alpha.3 (T16's review asked for it on its own, for the alpha.3 merge order) | Status, 2026-10-27, later. The one-way or reversible verdict of a deploy, and whether its copy holds triggerdb, are computed by the `deploy-live.sh` of the checkout that runs before the deploy. alpha.3's must read `${TRIGGER_IMAGE_TAG:-v…}` as the version (`trigger_pin`), or alpha.4's `localhost/` image lines read as a pin it cannot compare. CI only (the deploy guard, `a-deploy-from-a-named-tag`); no window. Done when it is in the alpha.3 tag live deploys. With T16 in alpha.3 as well (2026-10-30), it judges every deploy after alpha.3; alpha.3's own deploy from alpha.2 is judged by alpha.2's script (T16's row). |
 
 ## 1. What there is today
