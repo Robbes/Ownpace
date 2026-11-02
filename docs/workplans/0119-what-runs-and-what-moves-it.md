@@ -21,7 +21,8 @@ was: outside the lockfile, the three-day floor, the overrides and `allowBuilds`.
   `./trigger.config.ts`; `-C` and not `--filter`, which prints the package's absolute path when
   the command fails. The printed lines read `pnpm -C apps/worker exec trigger …`, run from the
   checkout's root (`TRIGGER_CLI_SHOWN`). `pnpm --filter @openmig/worker exec trigger --version`
-  prints `4.8.3, and so does `pnpm -C apps/worker exec trigger --version`; the same CLI's `whoami` and `deploy --help` start and answer, where on minimatch 11 they would not`.
+  prints `4.8.3`, and so does `pnpm -C apps/worker exec trigger --version`; the same CLI's
+  `whoami` and `deploy --help` start and answer, where on minimatch 11 they would not.
 - **Installed before it is asked anything.** `deploy-tasks.sh` installed with
   `--frozen-lockfile` already (2026-09-28), and now also refuses an installed CLI that is not
   the SDK's version (`trigger_cli_installed`, beside its SDK check). The bring-up's `login`
