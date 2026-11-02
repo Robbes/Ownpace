@@ -289,6 +289,19 @@ notices.
 
 ### Changed
 
+- **pnpm is 11.28.10** (workplan 0119): the lockfile is unchanged, and the
+  installs, the images' filtered installs and the advisory gate give what
+  11.28.9 gave. A repeat install now re-resolves a local directory that an
+  override adds once its `package.json` changes, and relinks a `workspace:`
+  or `link:` dependency whose link was deleted from `node_modules`; every
+  command, `pnpm --version` included, switches to the pinned version with the
+  same settings; and `pnpm prune --prod` no longer fails on a `node_modules`
+  copied from an earlier Docker stage. The owner's Node 26 steps say
+  `pnpm@11.28.10` at alpha.4. npm tagged it `next-11` at the bump, with
+  `latest-11` still 11.28.9, and the pin watch reads a pin above `latest-11`
+  as `ahead` until npm moves that tag (workplan 0119). pnpm 12 (12.16.1,
+  npm's `latest`) is a new major and is not taken here: the owner's call,
+  later.
 - **The Trigger.dev webapp and supervisor built here run pnpm 10.34.9 in place
   of upstream's 10.33.2** (workplan 0146 T16). Hygiene, not a security fix: npm
   lists 18 advisories against 10.33.2 (11 high, 7 moderate) and none against

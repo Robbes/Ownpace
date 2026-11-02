@@ -259,6 +259,55 @@ times are UTC.
   critical accepted; the copy's removal not answered, sent, not confirmed. The entry of
   2026-11-02, records, latest, above.)*
 
+**2026-11-02: pnpm 11.28.10, the one `packageManager` line.** On the branch
+`claude/ownpace-public-readiness-y7orc6-pnpm-11-28-10`, not merged. npm dates it 2026-10-30
+15:30 UTC, so it passed the three-day floor at 2026-11-02 15:31 UTC. Under it `pnpm install
+--frozen-lockfile` leaves `pnpm-lock.yaml` byte-identical and a second `pnpm install` reads
+"Already up to date"; `pnpm install --lockfile-only` in a clean export leaves it byte-identical
+too. The images' filtered installs (`--frozen-lockfile --prod --filter-prod @openmig/api...` and
+`--frozen-lockfile --filter @openmig/web...`) install the same 249 and 625 packages under
+11.28.9 on `main` and 11.28.10 here. `pnpm audit` reads the one moderate `main` records since
+the deploy CLI moved into the lockfile (GHSA-g3hv-75wg-m249 on `trigger.dev>minimatch`, the
+entry below), the same under 11.28.9 on `main`, and `scripts/audit-advisories.mjs
+--fail-at=high` passes on it. corepack 0.36.0, the images' copy, fetches and runs 11.28.10
+from an empty `COREPACK_HOME`; `pnpm/action-setup` names no version and reads `packageManager`,
+as before; a global 11.28.9 run in the checkout switches itself to 11.28.10. Under Node 24.22.1, 11.28.10 still only warns on `engines` `>=26` and installs, exit 0,
+as 11.28.9 does (a stand-in project, both measured today), so the owner's reading in
+`managed-bring-up.md`, *The Node in the shell you deploy from*, stays the check for the alpha.4
+deploy; its lines and 0131's now say `pnpm@11.28.10` at alpha.4. CI only; no E2E.
+- **Read for it:** the 11.28.10 entry of the package's own `CHANGELOG.md`. What reaches this
+  repository: `pnpm install` re-resolves a local directory that an override or a package
+  extension adds once its `package.json` changes, and `--frozen-lockfile` refuses a lockfile
+  that still records its old dependencies (no override here names a local directory, and there
+  are no `packageExtensions`); `pnpm install` relinks a `workspace:` or `link:` dependency whose
+  link was deleted from `node_modules`, where it reported "Already up to date"; and every
+  command, `pnpm --version` included, applies the same `packageManager` settings when it
+  switches to the pinned version, the switch a host's global pnpm makes in the checkout.
+  `pnpm prune --prod` no longer fails with `ERR_PNPM_EXDEV` on a `node_modules` copied from an
+  earlier Docker stage, and no image here runs `pnpm prune`. The rest (`pnpm store prune` with
+  `cacheDir`, global installs' hoisted dependencies, the global virtual store, Node.js runtime
+  downloads and the `latest` selector, privately hoisted `.bin` shims a dependency build
+  replaces with a native executable, local tarballs under `injectWorkspacePackages` or a
+  pnpmfile hook, merged branch lockfiles, catalog entries set to a dist-tag, `pack`, `publish`
+  and `unpublish`, Windows shims, `pnx`, the error for an invalid dependency name) touches
+  nothing here: esbuild's build does swap its bin for the native executable, but no esbuild is
+  privately hoisted (`node_modules/.pnpm/node_modules` after a fresh install, measured), and
+  there is no pnpmfile and no `injectWorkspacePackages`; and the standalone `@pnpm/exe` now
+  embeds Node.js 26.13.0, which CI and the images do not run.
+- **npm's `latest-11` is still 11.28.9.** The dist-tags read at about 16:45 UTC: `latest-11`
+  11.28.9, `next-11` 11.28.10, `latest` and `latest-12` 12.16.1, `next-12` 12.17.0 (2026-10-30
+  14:23 UTC). GitHub's release page lists v11.28.10 as a release, not a pre-release. The pin
+  watch compares `packageManager` with `latest-11` only and reads a pin above it as `ahead`,
+  which touches no issue and fails its run (`pnpmRow`, `stateOf` and the end of `main` in
+  `scripts/idp-pin-watch.mjs`); run against this branch, the row reads `ahead`, 11.28.10
+  against 11.28.9. The rule in §2.4, "the newest pnpm 11 that is three days old (`latest-11`
+  once it is)", gives 11.28.10 by its first half and 11.28.9 by its second. So this merges once
+  `npm view pnpm dist-tags` names 11.28.10 as `latest-11`, or earlier with a red Monday run of
+  the pin watch (the next is 2026-11-09, 06:23 UTC) until it does: the owner's call.
+- **pnpm 12 is not moved here.** 12.16.1 (2026-10-27 15:27 UTC) is npm's `latest`, and the pin
+  watch's pnpm row says so in a line. A new major is the owner's call, later, in a pull request
+  of its own.
+
 **2026-11-02: the deploy CLI comes from the lockfile, not from `npx` (#1755's follow-up).** On
 the branch `claude/ownpace-public-readiness-y7orc6-trigger-cli-lockfile`, merged as #1790 on
 2026-11-02 at 14:04 UTC (`ece5866c`) after E2E (managed) run 41455605567 on its head
@@ -2892,9 +2941,12 @@ from the checkout): a bare `pnpm@11` took 11.28.10 on 2026-11-01, published 2026
 15:30 UTC and inside the floor, and the launcher is what then switches to the checkout's
 version. A developer's `npm install -g pnpm@11` (README, CONTRIBUTING) is left as it is:
 inside the checkout it switches itself to `packageManager`'s.
-pnpm 11.28.9 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
+pnpm 11.28.10 (11.22.0 at the audit), moved by hand: Dependabot never touches `packageManager`,
 so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is), then
-`pnpm install` to show the lockfile unchanged. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
+`pnpm install` to show the lockfile unchanged. npm can still tag a release past the floor
+`next-11`, as it did 11.28.10 at its bump, and the pin watch reads `latest-11` only, so a pin
+above it reads `ahead` and fails the watch's run (the Status entry of 2026-11-02). pnpm 12 is
+npm's `latest` (12.16.1); a new major is the owner's call. PostgreSQL 18 on both stacks; PGlite (npm) current. Prisma current.
 
 **The host's Docker** (the owner's readings of 2026-11-01 and 2026-11-02, on the machine that
 runs live, the OTA stack and the self-hosted runner): Docker Engine and its CLI 29.2.1,

@@ -57,7 +57,7 @@ another service runs on the system's Node would move that service too, and is no
 (not under `sudo`, whose `secure_path` finds the system's node), in `~/ownpace-live`: (a)
 `command -v node` and `node -v` name a Node 26 (one of their own, put first on their `PATH`
 with nvm, fnm or a tarball in a directory they own, when the system's is 24); (b) `pnpm -v`
-says `packageManager`'s version, `pnpm@11.28.9` at alpha.4 (any pnpm that runs it there is
+says `packageManager`'s version, `pnpm@11.28.10` at alpha.4 (any pnpm that runs it there is
 enough; installing it into their own Node 26 needs no `sudo`); (c)
 `dpkg-query -W -f='${Status} ${Version}\n' libatomic1` says `install ok installed` (Node 26's
 binaries need it). **For the alpha.4 deploy that reading is the check:**
