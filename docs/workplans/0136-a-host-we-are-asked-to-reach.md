@@ -29,12 +29,13 @@ every task run included (`DOCKER_RUNNER_NETWORKS`), could ask Docker to attach a
   service in a member's network namespace counts as a member, and `container:` or `host` is
   refused. Every service that names the proxy as a host or waits for it is in `CLIENTS`. The proxy
   publishes no port and shares no network with `api`, `web`, `zitadel`, `nextcloud`, `gatus`,
-  `mailpit` or the runners' networks. No script or workflow joins it by hand. 36 tests: 24
-  mutations of a parsed copy, each of the six tenant-facing services put on the network, and 15
-  scan cases. On disk, 12 mutations of `managed.yml` each failed it, among them the proxy back on
-  `ownpace-network`, `api` or `zitadel` on the new network, `internal: false`, a published port,
-  the supervisor off it and the runners on it. So did `main`'s own file at `733294a5` (16 of 36
-  tests failed), as T6 asks.
+  `mailpit` or the runners' networks. No script or workflow joins it by hand. 37 tests: 25
+  mutations of a parsed copy (a renamed tenant-facing service among them, which must fail rather
+  than leave the rule checking nothing), each of the six tenant-facing services put on the
+  network, and 15 scan cases. On disk, 12 mutations of `managed.yml` each failed it, among them
+  the proxy back on `ownpace-network`, `api` or `zitadel` on the new network, `internal: false`,
+  a published port, the supervisor off it and the runners on it. So did `main`'s own file at
+  `733294a5` (16 of 37 tests failed), as T6 asks.
 - **The smoke** asks from both sides, as ClickHouse's does. From `trigger-supervisor`, by `node
   -e` as its health check runs, Docker must answer `/_ping` with HTTP 200 and an `Api-Version`
   header, so HAProxy's own 403 or 503 does not count. From the API container the name must be
@@ -47,8 +48,17 @@ every task run included (`DOCKER_RUNNER_NETWORKS`), could ask Docker to attach a
   worker-plane row), and `CHANGELOG.md` has a *Security* entry.
 - **What it does not stop.** Code that already runs inside `trigger-supervisor` can still ask the
   proxy anything its environment allows, and each stack's proxy can still start a container on
-  the other stack's networks (§1, D6). The rest of T4 is not built: Trigger.dev's plane on
-  `control`, the runners on `app` and `egress`, and the host's rule.
+  the other stack's networks (§1, D6), the other's `trigger-event-store` included. A stack on a
+  checkout without this change keeps its proxy on its own `ownpace-network`: live on alpha.3
+  does, so until live runs a tag that carries it, every container of live can still reach the
+  OTA stack's ClickHouse that way (0119 §3 item 9). The rest of T4 is not built: Trigger.dev's
+  plane on `control`, the runners on `app` and `egress`, and the host's rule.
+- **Review, the same day.** The records that say what can still reach ClickHouse (`managed.yml`'s
+  comment on `trigger-event-store`, `a-store-every-container-could-reach`'s header, 0119 §3 item
+  9 and its Status, §17.1's worker-plane row) now name the other stack's supervisor and live's
+  window on alpha.3; the cross-reference to the decision that accepts it is 0136 D6, not 0132's;
+  a tenant-facing service the file does not have now fails the guard by assertion, where before
+  it passed one test and crashed another; and two tests no longer share a name.
 - **Owed:** E2E (managed) on the branch, whose smoke prints both new lines on the OTA stack; then
   a run of `main` without it, the way back. The first `up` recreates `trigger-docker-proxy` and
   `trigger-supervisor`, and the old supervisor cannot reach Docker for the seconds between the
@@ -775,7 +785,7 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | T3 A probe answer that says what happened, not what the remote said | ✅ **done**: the answer merged as #1227, the limit as #1228, the screens' half as #1234; the second step (the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them) in #1499, merged 2026-10-05 (`59f04be1`); a share's refusal on apply, in our words in English and Dutch, in #1606, merged 2026-10-16 (`1fc3c0bd`); the Sharing page says a folder press's refused rows, under the folder and in each row, in #1645, merged 2026-10-21 (`f04ec785`) — *was:* the share's refusal on apply not yet (Status, 2026-10-05); the second step 🔨 built 2026-10-05, not merged; the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
 | T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation; its first bullet, the socket proxy on a network only the supervisor shares, with its guard, 🔨 built 2026-11-02 on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (Status, 2026-11-02) | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
-| T6 Guard tests for each | ✅ **(a) with each task** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step with its guard and 38 mutations merged as #1499 (2026-10-05); T3's share refusal with `a-share-refused-in-our-words` and 15 mutations merged as #1606 (2026-10-16); the folder press's refused rows with 13 cases and 20 mutations merged as #1645 (2026-10-21); T4's first bullet with `a-network-the-tenant-cannot-see` (36 tests; 12 mutations of the file on disk, and `main`'s file, each failed it) on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged — *was:* T3's second step and share refusal not merged; #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
+| T6 Guard tests for each | ✅ **(a) with each task** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step with its guard and 38 mutations merged as #1499 (2026-10-05); T3's share refusal with `a-share-refused-in-our-words` and 15 mutations merged as #1606 (2026-10-16); the folder press's refused rows with 13 cases and 20 mutations merged as #1645 (2026-10-21); T4's first bullet with `a-network-the-tenant-cannot-see` (37 tests; 12 mutations of the file on disk, and `main`'s file, each failed it) on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged — *was:* T3's second step and share refusal not merged; #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | ✅ **done** in #1499, merged 2026-10-05 (`59f04be1`), with T3's second step: `solution-architecture.md` v1.14 and `SECURITY.md` (Status block) — *was:* 🔨 **Built 2026-10-05** on T3's second step's branch, not merged; 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
 ## 1. What there is today

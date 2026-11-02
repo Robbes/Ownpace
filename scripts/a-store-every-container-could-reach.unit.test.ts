@@ -61,9 +61,13 @@
  * proxy is on `trigger-docker-socket`, with the supervisor alone, which
  * `a-network-the-tenant-cannot-see` holds (0136 T4's first bullet). What is
  * left is code that already runs inside the supervisor, or `trigger-api`, or
- * on the host. This network takes away the name and the route: a plain
- * request, or a forged one from the web app, the API, Zitadel or Nextcloud,
- * cannot reach ClickHouse.
+ * on the host, or inside the other stack's supervisor, which can ask its own
+ * proxy to attach a container here, since one Docker daemon serves both
+ * stacks (0132 §1; accepted by 0136 D6). While the other stack runs a
+ * checkout from before 2026-11-02, its proxy is still on its own
+ * ownpace-network, and every container there can do the same. This network
+ * takes away the name and the route: a plain request, or a forged one from
+ * the web app, the API, Zitadel or Nextcloud, cannot reach ClickHouse.
  */
 
 import { describe, it, expect } from 'vitest';

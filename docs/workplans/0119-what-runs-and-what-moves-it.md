@@ -16,8 +16,13 @@ supervisor keeps `ownpace-network` for the runners and `trigger-api`. No image, 
 port changes; the next `up` creates the network and recreates the proxy and the supervisor.
 `scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds it, and the smoke asks the proxy
 from the supervisor and finds no such name from the API container. Owed: E2E (managed) on the
-branch, then a run of `main` without it. Item 9, its inventory row and §4 say what is left once
-it lands: code that already runs inside `trigger-api` or `trigger-supervisor`, and the host.
+branch, then a run of `main` without it. Item 9 says what is left once it lands: code that
+already runs inside `trigger-api` or `trigger-supervisor`, or inside the other stack's
+supervisor, which can ask its own proxy to attach a container to this stack's
+`trigger-event-store` (0136 §1, *Two stacks on one machine*), and the host. Until live runs a
+tag that carries this change and #1774, every container on live's `ownpace-network` still
+reaches live's ClickHouse directly (alpha.3 has neither), and can attach a container to the OTA
+stack's `trigger-event-store` through live's proxy.
 
 **2026-11-01, later: #1780 and #1779 merged, the first scheduled night on v4.8.3, Node 26 and
 ClickHouse's own network, and the O365 gate is held by a runner label (T3).** Docs only, on the
@@ -2757,12 +2762,20 @@ is beside each; none is urgent tonight.
    2026-11-02): the proxy on `trigger-docker-socket`, an `internal` network only
    `trigger-supervisor` shares. Once it lands, what is left is code that already runs inside
    `trigger-supervisor`, which can still ask the proxy, or inside `trigger-api`, which shares
-   ClickHouse's network, and the host; the authenticated items above stand. **The
-   version move stays the owner's:** (b) 26.8 LTS at its fixed release, or 26.3's, one way,
+   ClickHouse's network, or inside the other stack's `trigger-supervisor`, which can ask its
+   own proxy to attach a container to this stack's `trigger-event-store` (one Docker daemon
+   serves both stacks: 0136 §1, *Two stacks on one machine*, which 0136 D6 accepts), and the
+   host; the authenticated items above stand. **Live is covered only once it runs a tag that
+   carries both changes.** It runs `v0.2.0-alpha.3` (0132's Status, 2026-10-30/31), which has
+   neither: live's ClickHouse is still on live's `ownpace-network`, where every container of
+   live reaches it directly, and live's proxy, there too, lets any of them attach a container
+   to the OTA stack's `trigger-event-store`. #1774 is merged for alpha.4, and this branch is a
+   draft for the same tag. **The version move stays the owner's:** (b) 26.8 LTS at its fixed release, or 26.3's, one way,
    under Trigger.dev's migrations at v4.8.3, whose compose and test containers pin 26.2
    (above); or stay isolated on 26.2 until upstream moves, which leaves a server with no fix
    that any container on `ownpace-network` can still reach by that Docker API route until the
-   branch above lands, and that `trigger-api`, the supervisor and the host can reach after it.
+   branch above lands, and that `trigger-api`, the supervisor, the other stack's supervisor and
+   the host can reach after it.
 
 
 10. **Hardened images (Docker Hardened Images, Chainguard, distroless) — NOT NOW, 2026-10-26.**

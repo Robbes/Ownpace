@@ -4698,7 +4698,8 @@ supervisor cannot reach Docker for the seconds between the two. A run it
 dequeues then gets no container: the supervisor logs the failure and, with this
 stack's settings, does not hand the run back, so it is left to Trigger.dev's
 handling of a run that never started. On live the deploy's hold keeps passes
-from starting; a scheduled job that fires in those seconds is the one exposed. A rollback to a checkout without it puts the proxy back on
+from starting; a scheduled job that fires in those seconds is the one exposed.
+A rollback to a checkout without it puts the proxy back on
 `ownpace-network` and leaves `<project>_trigger-docker-socket` empty and in
 place: Compose removes no network its file does not declare. It is harmless, is
 reused by the next move forward, and can be removed by hand once empty with

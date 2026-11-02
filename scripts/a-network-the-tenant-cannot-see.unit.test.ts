@@ -42,9 +42,11 @@
  *    for it in `depends_on`, is in `CLIENTS`: a new client fails here until it
  *    is named, and a member that is not a client fails until it leaves;
  *  - the proxy shares no network with the tenant-facing services (`api`,
- *    `web`, `zitadel`, `nextcloud`, `gatus`, `mailpit`) or with the networks
- *    `DOCKER_RUNNER_NETWORKS` puts every task run on, which is T4's own
- *    sentence, and `DOCKER_RUNNER_NETWORKS` never names the proxy's network;
+ *    `web`, `zitadel`, `nextcloud`, `gatus`, `mailpit`, each of which must be
+ *    a service of the file, so a rename cannot leave the rule checking
+ *    nothing) or with the networks `DOCKER_RUNNER_NETWORKS` puts every task
+ *    run on, which is T4's own sentence, and `DOCKER_RUNNER_NETWORKS` never
+ *    names the proxy's network;
  *  - nothing else joins it by name: no other compose file declares it or takes
  *    a member's namespace, and no script or workflow runs `docker run
  *    --net`/`--network` or `docker network connect` with it, or `--net`
@@ -56,10 +58,10 @@
  *
  * WHAT THIS DOES NOT HOLD. Code that already runs inside `trigger-supervisor`
  * can still ask the proxy anything its environment allows, and each stack's
- * proxy can still start a container on the other stack's networks (0132 §1,
- * which D6 accepts). The rest of T4, Trigger.dev's plane on a network of its
- * own (`control`) and the host's firewall rule, is not built: when it is, it
- * extends this guard, whose name T4 gave it, rather than adding another.
+ * proxy can still start a container on the other stack's networks (0132 §1;
+ * accepted by 0136 D6). The rest of T4, Trigger.dev's plane on a network of
+ * its own (`control`) and the host's firewall rule, is not built: when it is,
+ * it extends this guard, whose name T4 gave it, rather than adding another.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -94,8 +96,13 @@ interface Compose {
   networks?: Record<string, { driver?: string; internal?: boolean; external?: unknown; name?: string } | null>;
 }
 
-/** The networks a service is on by `networks:`, and Compose's `default` when it has neither that nor a `network_mode`. */
+/**
+ * The networks a service is on by `networks:`, and Compose's `default` when it
+ * has neither that nor a `network_mode`. A service the file does not have is on
+ * none, so a name that matches nothing never reads as a service on `default`.
+ */
 const netsOf = (svc: Service | null | undefined): string[] => {
+  if (svc === undefined) return [];
   const n = svc?.networks;
   if (!n) return svc?.network_mode === undefined ? ['default'] : [];
   return Array.isArray(n) ? n : Object.keys(n);
@@ -231,6 +238,10 @@ export function proxyNetworkProblems(compose: Compose): string[] {
   // T4's sentence: the proxy is on no network that the tenant-facing services
   // or the task runs join.
   for (const t of TENANT_FACING) {
+    if (!(t in services)) {
+      problems.push(`${t} is not a service of this file, so nothing here can say it shares no network with ${PROXY}: TENANT_FACING names it`);
+      continue;
+    }
     const shared = netsOf(services[t]).filter((n) => proxyNets.includes(n));
     if (shared.length) problems.push(`${t}, which a tester or the internet reaches, shares ${shared.join(', ')} with ${PROXY}`);
   }
@@ -308,7 +319,10 @@ describe('the socket proxy is on a network only its one client shares (0136 T4)'
 
   it('every tenant-facing service it names is a service of the file, on a network', () => {
     // So a renamed service cannot make the tenant-facing rule pass by naming nothing.
-    for (const t of TENANT_FACING) expect(netsOf(managed.services?.[t]), t).not.toEqual([]);
+    for (const t of TENANT_FACING) {
+      expect(managed.services?.[t], `${t} is not a service of managed.yml`).toBeDefined();
+      expect(netsOf(managed.services?.[t]), t).not.toEqual([]);
+    }
   });
 
   it("the task runs' network is read from the file: ownpace-network", () => {
@@ -485,6 +499,14 @@ describe('each rule fails when it is broken', () => {
       /probe is on default, and is not one of the socket proxy's clients/,
     ],
     [
+      'a tenant-facing service renamed, so the list names a service the file does not have',
+      (c) => {
+        c.services!['mailpit-renamed'] = c.services!['mailpit']!;
+        delete c.services!['mailpit'];
+      },
+      /mailpit is not a service of this file/,
+    ],
+    [
       'task runs joined to it',
       (c) => {
         env(c, 'trigger-supervisor').DOCKER_RUNNER_NETWORKS =
@@ -508,8 +530,9 @@ describe('each rule fails when it is broken', () => {
     expect(problems.join('\n')).toMatch(why);
   });
 
-  it.each(TENANT_FACING.map((t) => [t]))('%s on the network', (t) => {
+  it.each(TENANT_FACING.map((t) => [t]))('%s, a tenant-facing service, put on the network', (t) => {
     const c = copy();
+    expect(c.services?.[t], `${t} is not a service of managed.yml`).toBeDefined();
     c.services![t]!.networks = [...netsOf(c.services![t]), NETWORK];
     expect(proxyNetworkProblems(c).join('\n')).toMatch(new RegExp(`${t}, which a tester or the internet reaches, shares trigger-docker-socket`));
   });

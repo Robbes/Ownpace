@@ -2213,7 +2213,13 @@ networks:
   # "What shares the network"). Since then the proxy is on
   # `trigger-docker-socket`, below, with the supervisor alone. What this
   # still does not stop is code that already runs inside trigger-supervisor
-  # or trigger-api, or on the host.
+  # or trigger-api, or on the host, or inside the other stack's
+  # trigger-supervisor, which can ask its own proxy to attach a container
+  # here: one Docker daemon serves both stacks, and each stack's proxy can
+  # start a container on any network of the machine (workplan 0132 §1;
+  # accepted by 0136 D6). While the other stack runs a checkout from before
+  # 2026-11-02, its proxy is still on its own ownpace-network, so every
+  # container there can do the same.
   trigger-event-store:
     driver: bridge
     internal: true
@@ -2254,7 +2260,7 @@ networks:
   # Zitadel or Nextcloud. What it does not stop: code that already runs inside
   # trigger-supervisor can still ask the proxy anything its environment
   # allows, and each stack's proxy can still start a container on the other
-  # stack's networks (workplan 0132 §1, which D6 accepts). The rest of 0136
+  # stack's networks (workplan 0132 §1; accepted by 0136 D6). The rest of 0136
   # T4, Trigger.dev's plane on a network of its own and the host's firewall
   # rule, is still to come.
   trigger-docker-socket:
