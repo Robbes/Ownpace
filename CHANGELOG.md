@@ -289,6 +289,16 @@ notices.
 
 ### Changed
 
+- **The test stack's mail catcher is Mailpit v1.33.0** (workplan 0146 T11
+  (a), 0119), from v1.32.0: the minor kept current, with no finding of the
+  image scan's to clear. It is built with the same Go 1.27.3 on the same
+  Alpine 3.24.3, and its binary takes golang.org/x/net 0.62.0, whose HTML
+  parser, which Mailpit runs on every message it catches, fixes
+  CVE-2026-78661 and CVE-2026-97045. Its release check is still off, read
+  again at v1.33.0. Its new Rspamd spam check and its Subject prefix for a
+  relay or a forward act only when configured, and the stack configures
+  neither. It adds no schema step, so v1.32.0 still opens the kept
+  `mailpit.db`. Live runs no catcher.
 - **The Trigger.dev webapp and supervisor built here run pnpm 10.34.9 in place
   of upstream's 10.33.2** (workplan 0146 T16). Hygiene, not a security fix: npm
   lists 18 advisories against 10.33.2 (11 high, 7 moderate) and none against

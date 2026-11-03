@@ -1944,21 +1944,27 @@ services:
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
   #
-  # v1.32.0 (pushed 2026-10-22T22:13Z, workplan 0146 T11 (a)) closes
-  # GHSA-379p-g4f4-hq5h (high, every version to v1.31.6): an image attachment
-  # whose EXIF directories point at each other held the thumbnail endpoint in
-  # a loop, a core busy and memory growing until the process was killed. Here
-  # that took a mail from this stack's own services or a caller of the web
-  # port below, which is loopback unless MAILPIT_BIND names another address.
-  # It is also built with Go 1.27.3, which fixes CVE-2026-111943 in
-  # `crypto/x509`; v1.31.6 was built with Go 1.27.2. Its first start on the
-  # kept volume applies one schema step to mailpit.db
-  # (`internal/storage/schemas/1.32.0.sql`: the index on message_tags is
-  # rebuilt on (ID, TagID)). v1.31.6 opens that file unchanged if this is
-  # rolled back: it applies only the steps it carries and ignores the newer
-  # row in its `schemas` table.
+  # v1.33.0 (pushed 2026-10-31T02:30Z, three days old 2026-11-03T02:30Z;
+  # workplan 0119, Status 2026-11-03) is the minor kept current, not a fix
+  # for a finding the image scan reports: the same Go 1.27.3 and Alpine 3.24.3
+  # as v1.32.0, with golang.org/x/net 0.62.0, whose HTML parser fixes
+  # CVE-2026-78661 (quadratic work on many short text runs; Mailpit parses
+  # every caught HTML message with it) and CVE-2026-97045. What it adds stays
+  # off here: Rspamd is asked only when MP_ENABLE_RSPAMD names a server, and
+  # the new Subject prefix acts only on a relay or a forward; this file sets
+  # none of the three. It adds no schema step, so a rollback is the v1.32.0
+  # digest.
+  #
+  # v1.32.0 (2026-10-25, 0146 T11 (a)) closed GHSA-379p-g4f4-hq5h (high,
+  # every version to v1.31.6): an image attachment whose EXIF directories
+  # point at each other held the thumbnail endpoint in a loop until the
+  # process was killed. Here that took a mail from this stack's own services
+  # or a caller of the web port below, which is loopback unless MAILPIT_BIND
+  # names another address. It was the first built with Go 1.27.3, which fixes
+  # CVE-2026-111943 in `crypto/x509`, and its first start applied
+  # `internal/storage/schemas/1.32.0.sql` to mailpit.db.
   mailpit:
-    image: axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498
+    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
     logging: *logging
@@ -1996,8 +2002,8 @@ services:
       MP_DATABASE: /data/mailpit.db
       # NO RELEASE CHECK (workplan 0139, 2026-09-28). Whenever its page asks
       # for the server's info, Mailpit (internal/stats/stats.go, read at v1.31.6
-      # and again at v1.32.0) asks GitHub for its newest release. Live runs no
-      # catcher; this is the test stack's.
+      # and again at v1.32.0 and v1.33.0) asks GitHub for its newest release.
+      # Live runs no catcher; this is the test stack's.
       # `scripts/a-service-that-phones-home.unit.test.ts`.
       MP_DISABLE_VERSION_CHECK: "true"
     ports:
