@@ -48,10 +48,13 @@ no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
 > plain Linux with Docker running as root:
 > `sudo chown -R 70:70 /some/local/dir`. Under rootless Docker the
 > container's uid 70 is another uid on the host, so let the container make the
-> change in its own terms:
+> change in its own terms. The database's container keeps no capability
+> (`cap_drop: [ALL]`), so this one-off adds back the two a recursive chown
+> needs, for itself alone:
 >
 > ```sh
 > docker compose -f deploy/selfhost/compose.yml run --rm --no-deps -u 0 \
+>   --cap-add CHOWN --cap-add DAC_READ_SEARCH \
 >   --entrypoint chown postgres -R 70:70 /var/lib/postgresql
 > ```
 
@@ -719,8 +722,10 @@ docker compose -f deploy/selfhost/compose.yml exec -T postgres \
 
 Keep the dump off the host. `exec` runs as PostgreSQL's own user in the
 container, not root, and the database trusts its own local connections, so
-`pg_dump` and `psql` answer as written here; add `-u 0` for anything that
-needs root in the container.
+`pg_dump` and `psql` answer as written here. The container keeps no
+capability, so `-u 0` alone is root without root's powers (it cannot chown
+or read another user's files): for a repair that needs them, use
+`exec --privileged -u 0`, for that one command.
 
 **Restoring into a fresh volume takes three steps, in this order** (the CI
 drill executes exactly these — `test/e2e/selfhost-backup-restore.e2e.test.ts`):
