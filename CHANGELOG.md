@@ -371,6 +371,12 @@ notices.
 
 ### Changed
 
+- **@electric-sql/pglite 0.5.14** (from 0.5.13), the appliance's PGlite. It
+  embeds the same PostgreSQL 18.6 and a byte-identical `pglite.data`, so a
+  database an older appliance wrote opens unchanged; the WASM and the
+  JavaScript are rebuilt. Proved by the ledger's and the appliance's unit tests
+  and E2E (self-hosted) on PGlite.
+
 - **The weekly image scan gives every image a tier and leads with production**
   (workplan 0119, the owner, 2026-11-03): production-public,
   production-internal, shipped or test-only, with each tier's critical, high and
