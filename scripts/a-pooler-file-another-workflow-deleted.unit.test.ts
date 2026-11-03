@@ -76,6 +76,7 @@
 import { describe, it, expect, afterAll } from 'vitest';
 import { spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   copyFileSync,
   existsSync,
   mkdirSync,
@@ -258,6 +259,9 @@ describe('ensure-env-secrets.sh writes the file managed.yml mounts, in place', (
     const persist = tempDir();
     const file = join(persist, 'userlist.txt');
     writeFileSync(file, userlistLine('stale-from-a-month-ago'));
+    // 0600, as a hand-written copy can be: the 0644 below is then the script's
+    // chmod, not this process's umask (pgbouncer reads it as another user).
+    chmodSync(file, 0o600);
     const inode = statSync(file).ino;
     const c = aCheckout(`PGBOUNCER_AUTH_PASSWORD=${PASSWORD}\nPGBOUNCER_USERLIST=${file}\n`);
     const r = ensure(c);
@@ -376,6 +380,9 @@ describe('the gate mounts the persisted userlist, writes it every run, and copie
     const persist = tempDir();
     const file = join(persist, 'userlist.txt');
     writeFileSync(file, userlistLine('stale-from-a-month-ago'));
+    // 0600, as a hand-written copy can be: the 0644 below is then the script's
+    // chmod, not this process's umask (pgbouncer reads it as another user).
+    chmodSync(file, 0o600);
     const inode = statSync(file).ino;
 
     const first = runFill(c, { MANAGED_ENV_PERSIST_DIR: persist });

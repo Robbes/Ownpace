@@ -95,11 +95,11 @@ a wildcard that would take the current one with it.
 
 **Do NOT delete `~/.persistent/open-migrate-managed`.** It holds the stack's `.env`
 — including `SECRET_ENCRYPTION_KEY`, the key that decrypts every stored credential
-in the database — and `userlist.txt`, which the OTA stack's `pgbouncer` mounts
-from there since 2026-11-03 (*PgBouncer's userlist lives in the persisted
-directory*, below). It lives outside the checkout
-precisely so `actions/checkout`'s clean cannot reach it, which also means nothing
-else will recreate it. **Move it:**
+in the database — and `userlist.txt`, PgBouncer's, which since 2026-11-03 the
+OTA stack's `pgbouncer` mounts from the persisted directory under its new name
+(*PgBouncer's userlist lives in the persisted directory*, below). It lives
+outside the checkout precisely so `actions/checkout`'s clean cannot reach it,
+which also means nothing else will recreate it. **Move it:**
 
 ```bash
 mv ~/.persistent/open-migrate-managed ~/.persistent/ownpace-managed
@@ -543,7 +543,12 @@ command in the other checkout acts on the first stack. Open a new shell, or
 `deploy/compose/` that runs Compose refuses to run when the shell and the
 checkout's `.env` disagree, before its first Compose command
 (`scripts/two-stacks-on-one-box.unit.test.ts` holds each one to that). A
-`docker compose` command you type yourself does not refuse.
+`docker compose` command you type yourself does not refuse. The same goes for
+`PGBOUNCER_USERLIST` (since 2026-11-03), which only the OTA stack's `.env` sets:
+exported from it, a `docker compose up` in live's checkout would recreate live's
+pooler on the OTA stack's userlist. `bootstrap-managed.sh` and
+`ensure-env-secrets.sh` refuse that shell; a command you type does not. A new
+shell clears both (*PgBouncer's userlist lives in the persisted directory*).
 
 Before workplan 0132 T1 the 17 containers had fixed names (`ownpace-db`,
 `trigger-api`, `ownpace-idp`, …). The first bring-up after that change

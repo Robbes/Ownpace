@@ -413,14 +413,15 @@ refuse_a_userlist_docker_would_make_a_directory() {
   if [ -d "$userlist" ]; then
     echo "!!! ${userlist}, which PGBOUNCER_USERLIST names as PgBouncer's userlist, is a directory." >&2
     echo "!!! Docker makes one there when pgbouncer starts while the file is missing, and the pooler" >&2
-    echo "!!! then cannot start (\`not a directory\`, exit 127). If it is empty, remove it, then write" >&2
-    echo "!!! the file from this .env's PGBOUNCER_AUTH_PASSWORD, and run this again:" >&2
+    echo "!!! then cannot start (\`not a directory\`, exit 127). If it is empty, remove it and write" >&2
+    echo "!!! the file from this .env's PGBOUNCER_AUTH_PASSWORD with these two (the second prints the" >&2
+    echo "!!! path, never the password), then run this again:" >&2
     echo "!!!   rmdir ${userlist}" >&2
   else
     echo "!!! ${userlist}, which PGBOUNCER_USERLIST names as PgBouncer's userlist, does not exist." >&2
     echo "!!! Compose would have Docker make a directory there, and pgbouncer could not start" >&2
-    echo "!!! (\`not a directory\`, exit 127). Write the file from this .env's PGBOUNCER_AUTH_PASSWORD" >&2
-    echo "!!! (it prints the path, never the password), and run this again:" >&2
+    echo "!!! (\`not a directory\`, exit 127). Write it from this .env's PGBOUNCER_AUTH_PASSWORD with" >&2
+    echo "!!! this (it prints the path, never the password), then run this again:" >&2
   fi
   echo "!!!   ./deploy/compose/ensure-env-secrets.sh" >&2
   exit 1

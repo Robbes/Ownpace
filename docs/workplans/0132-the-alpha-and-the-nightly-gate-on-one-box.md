@@ -6,9 +6,9 @@
 
 **2026-11-03: the OTA stack's pooler lost its userlist to another workflow's checkout, and was
 down until a hand fix; the fix built on a branch, not merged.** On the branch
-`claude/ownpace-public-readiness-y7orc6-pgbouncer-userlist`, from `main` at `21fa6ff8`; not
-merged, and CI and E2E (managed) are owed on it. The incident from the owner's readings; times
-are UTC.
+`claude/ownpace-public-readiness-y7orc6-pgbouncer-userlist`, from `main` at `21fa6ff8`, with
+`main` at `162bd55c` (#1797, the records entry below) merged in; not merged, and CI and E2E
+(managed) are owed on it. The incident from the owner's readings; times are UTC.
 - **What happened.** The nightly gate brings the OTA stack up from the self-hosted runner's work
   folder, and its `pgbouncer` bind-mounted `deploy/compose/pgbouncer/userlist.txt` from there:
   gitignored, so the gate's restore copied it in from the persisted directory on every run. But
@@ -48,12 +48,13 @@ are UTC.
   after the merge recreates it once, on the persisted file. Nothing is the owner's to do.
 - **Guard:** `scripts/a-pooler-file-another-workflow-deleted.unit.test.ts`, 30 cases: the mount,
   the resolution and its refusals run, `ensure-env-secrets.sh` run with and without the key,
-  the gate's restore and Fill step read and the Fill step run twice on a stale persisted file,
-  the bring-up's refusal run, and the runbook; each of 16 reverts of one piece of the fix fails
-  it. Four guards follow it: `a-gate-that-leaves-the-alpha-alone` (the restore copies no
-  userlist), `bootstrap-managed` and `the-state-that-lived-in-a-nameless-volume` (an
-  interpolated bind source is read by its default), and `a-stack-that-names-its-mode` (its
-  `load_env` harness stubs the new refusal).
+  the gate's restore and Fill step read and the Fill step run twice on a stale persisted file
+  left 0600 (so its 0644 afterwards is the script's), the bring-up's refusal run, and the
+  runbook; each of 17 reverts of one piece of the fix fails it (the 17th, `ensure-env-secrets.sh`
+  without its `chmod 644`, failed none before the review). Four guards follow it:
+  `a-gate-that-leaves-the-alpha-alone` (the restore copies no userlist), `bootstrap-managed` and
+  `the-state-that-lived-in-a-nameless-volume` (an interpolated bind source is read by its
+  default), and `a-stack-that-names-its-mode` (its `load_env` harness stubs the new refusal).
 - **Not changed, and worth knowing:** the OTA stack's other bind mounts (`pgbouncer.ini`, the
   dashboard front's Caddyfile, the status page's config, ClickHouse's files, Nextcloud's
   `php.ini`) are tracked files in the same work folder. A checkout cannot delete them, but
