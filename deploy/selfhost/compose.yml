@@ -50,6 +50,13 @@ services:
     container_name: ownpace-selfhost-db
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (2026-11-03, workplan 0119): uid 70 from its first process
+    # (./postgres/Dockerfile), so no capability, and no-new-privileges. The
+    # managed stack's databases run the same image the same way
+    # (deploy/compose/managed.yml, "HOW THE CONTAINERS RUN").
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-openmigrate}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/selfhost/.env}
@@ -79,6 +86,12 @@ services:
     container_name: ownpace-selfhost-app
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (2026-11-03, workplan 0119): the image's appuser from its
+    # first process, running node and nothing else, so no capability, and
+    # no-new-privileges. scripts/a-privilege-no-service-uses.unit.test.ts.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     env_file:
       # tokenFromEnv/passwordFromEnv secrets referenced by the mapping configs
       # live here (600 perms — see the quickstart).

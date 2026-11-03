@@ -57,6 +57,26 @@ notices.
 
 ### Security
 
+- **Every container runs with no new privileges, and most with only the
+  capabilities their own start uses** (workplan 0119; the owner, 2026-11-03).
+  Until now no service of `managed.yml`, the site's `www.yml` or the
+  appliance's `compose.yml` set `security_opt`, `cap_drop` or `read_only`, so
+  each started with Docker's default capabilities. Every service now sets
+  `no-new-privileges`. All but `trigger-api` and the demo's `nextcloud` drop
+  every capability and add back what their start does as root, each measured
+  on the service's own image where it could be pulled: none for the services
+  that run as another user from the start (the databases, the pooler, MinIO,
+  the supervisor, the identity provider, the API, the appliance), the Docker
+  socket proxy, the registry, Gatus and Mailpit; CHOWN, DAC_READ_SEARCH, SETGID
+  and SETUID for Redis and ClickHouse; CHOWN, NET_BIND_SERVICE, SETGID and
+  SETUID for the two nginx; NET_BIND_SERVICE for the dashboard's Caddy, whose
+  binary carries it as a file capability; CHOWN and FOWNER for the identity
+  provider's one-off. The pooler, the registry, the socket proxy, Mailpit and
+  the two one-offs start with a read-only root. Each changed service is
+  recreated once, at the deploy that carries it; an `exec` into a service has
+  the service's capabilities (`exec --privileged` for a repair that needs
+  more). `docs/managed-bring-up.md`, *How the containers run*, has the table,
+  and `a-privilege-no-service-uses` holds it.
 - **The Trigger.dev deploy CLI comes from the lockfile, not from `npx` at run
   time** (workplan 0119). `deploy-tasks.sh`, the bring-up's login check and the
   login lines the scripts print ran `npx -y trigger.dev@<sdk version>`, which

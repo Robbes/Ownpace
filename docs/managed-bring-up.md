@@ -3180,6 +3180,81 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
+## How the containers run
+
+Since 2026-11-03 (workplan 0119; the owner: *"more hardened"*) every service
+of `managed.yml`, the site's `www.yml` and the appliance's `compose.yml` sets
+`no-new-privileges`: nothing in the container gains a privilege by running a
+setuid binary or one with a file capability. No service here needs that. Those
+that change user do it as root with a system call (Redis's `setpriv`,
+ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's `su`),
+and the rest never change user. All but two drop every capability and add back
+only what their own start does as root; a service that runs as another user
+from its first process adds none. Six that write nothing outside their volumes
+start with a read-only root, with `/tmp` (and `/run`) in memory where they
+write there. `managed.yml` gives each service's reason beside it, and
+`scripts/a-privilege-no-service-uses.unit.test.ts` holds every service to this
+table: a capability added, one no longer used, a new service, or a read-only
+root, each fails it until the table and the reason move with it.
+
+| Service | Runs as | Capabilities kept | Read-only root | How it was decided |
+|---|---|---|---|---|
+| `postgres` | uid 70 | none | no | measured: its image as uid 70, a new volume and a restart |
+| `pgbouncer` | uid 70 | none | yes, `/tmp` in memory | measured |
+| `trigger-db` | uid 70 | none | no | measured, the same image as `postgres` |
+| `trigger-redis` | root, then uid 999 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: without DAC_READ_SEARCH a restart on its own volume fails (`find: './appendonlydir': Permission denied`), without CHOWN a file in `/data` that is not 999's stops it, without SETUID or SETGID `setpriv` fails |
+| `trigger-api` | root | Docker's default | no | read: its entrypoint chowns the shared volume, copies files into directories `node` owns and writes the worker token there; its image cannot be pulled where this was measured |
+| `clickhouse` | root, then uid 101 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: a new volume needs CHOWN, a data directory root owns (a copy restored by root) needs DAC_READ_SEARCH as well, `clickhouse su` needs SETUID and SETGID. The server runs with no capability either way, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added |
+| `trigger-registry` | root | none | yes, `/tmp` in memory | measured: a push, a pull and a restart |
+| `trigger-docker-proxy` | root | none | yes, `/tmp` and `/run` in memory | measured: create, start and delete a container through it; without either directory it does not start |
+| `trigger-supervisor` | node | none | no | read: its image's user from the first process, and its base carries no setuid binary and no file capability |
+| `minio` | uid 65532 | none | no | measured |
+| `minio-init` | uid 65532 | none | yes, `/tmp` in memory | measured: without `/tmp` mc cannot write its config |
+| `trigger-tls` | root | NET_BIND_SERVICE | no | measured: `/usr/bin/caddy` carries `cap_net_bind_service` as a file capability, and without it in the set the kernel refuses to start it (`exec /usr/bin/caddy: operation not permitted`); not read-only because Caddy writes its local CA into the image's trust store at start |
+| `zitadel` | its image's user | none | no | read: an image of one binary, run as its non-root user |
+| `zitadel-machinekey` | root | CHOWN, FOWNER | yes | measured: without CHOWN the chown fails, without FOWNER the chmod after it |
+| `api` | uid 65532 | none | no | read: its image's user, and its base carries no setuid binary and no file capability |
+| `web` | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured on its nginx with its config: without CHOWN nginx stops, without SETUID or SETGID its workers do |
+| `gatus` | root | none | no | read: an image of one binary, writing only its own volume |
+| `mailpit` | root | none | yes, `/tmp` in memory | measured: a message in, and a restart |
+| `nextcloud` | root, then www-data | Docker's default | no | read: its entrypoint rsyncs and chowns as root and runs occ through `su`, a set not measured |
+
+*Measured* means the service's own image, its own command and environment
+with placeholder values, started with that set until it was ready, on a new
+volume and again on the volume it wrote, and started again with one capability
+fewer where that was cheap; all of them but ClickHouse and the web app also
+came up healthy, and answered as the scripts ask them, through `managed.yml`
+itself. *Read* means its Dockerfile and
+entrypoint at the pinned version, where the image could not be pulled. E2E
+(managed) is the proof for both: it brings up every service of this file.
+NET_BIND_SERVICE stays with `web` (and the site's nginx) although Docker's own
+`net.ipv4.ip_unprivileged_port_start=0` makes it redundant today, so that
+port 80 does not rest on a daemon default.
+
+**What it changes for an operator.** A `docker compose exec` has the
+capabilities of its service: `exec -u 0` into `postgres` is root with no
+capability, which cannot chown. Nothing in `deploy/` needs more: an `exec`
+into a service with a dropped set runs `psql`, `pg_dump`, `pg_restore`,
+`redis-cli`, `mc`, `clickhouse-client` or `node`, and the two that need root's
+powers, the `chown` of the worker token in `trigger-api` and the demo's file
+work in `nextcloud`, go to the two services that keep the default set. A
+repair that does need root's powers elsewhere is `docker compose -f
+deploy/compose/managed.yml exec --privileged -u 0 <service> …`, for that one
+command.
+
+**When it reaches a stack.** A changed service is recreated at its next `up`:
+the OTA stack at the next E2E (managed) or gate, live once, at the deploy of
+the release that carries it (alpha.4), inside `deploy-live.sh`'s hold and
+drain. Live runs alpha.3's file until then. Task runs are Trigger.dev's
+containers, made by the supervisor through the socket proxy with Trigger.dev's
+own settings, so nothing here reaches them.
+
+**Not set, and why.** No `mem_limit` and no `pids_limit`: there is no
+measurement of any service's peak, ClickHouse and Node size their threads and
+heap from the machine, and a limit set without one turns a busy hour into a
+killed database. The `dev.yml` stack, which only a developer runs, is left as
+it was.
+
 ## Nothing phones home
 
 The privacy policy names every party that receives anything (§7, §8), and for

@@ -126,6 +126,26 @@ name: ownpace-managed
 # on every run. A task run's container is Trigger.dev's, not a service here, and
 # writes with the daemon's driver until its run ends.
 # scripts/a-month-of-container-output.unit.test.ts holds every service to it.
+#
+# HOW THE CONTAINERS RUN (2026-11-03, workplan 0119; the owner, 2026-11-03:
+# "more hardened"). Every service sets `no-new-privileges`: a process in it
+# cannot gain a privilege by running a setuid binary or one with a file
+# capability. Nothing here needs that: the services that change user (Redis's
+# setpriv, ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's
+# su) do it as root, with a system call, and the rest never change user. All but
+# two drop every capability (`cap_drop: [ALL]`) and add back only what their
+# own start-up does as root, each named beside the service with the reason;
+# a service that runs as another user from its first process adds none. The two
+# that keep Docker's default set, trigger-api and nextcloud, say why beside
+# them. Six that write nothing outside their volumes start with a read-only
+# root, with /tmp (and /run) in memory where they write there. Each set was
+# measured on the service's own image, its start and a restart on the volume it
+# wrote, where the image could be pulled, and read from the image's Dockerfile
+# where it could not (docs/managed-bring-up.md, "How the containers run", has
+# the table). An `exec` into a service has the same capabilities as the service:
+# a repair that needs root's powers there is `exec --privileged -u 0`. Task runs
+# are Trigger.dev's containers, not services here, and none of this reaches them.
+# scripts/a-privilege-no-service-uses.unit.test.ts holds every service to it.
 x-logging: &logging
   driver: json-file
   options:
@@ -149,6 +169,10 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-db
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): uid 70 from its first process, so no capability.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     # QUERY STATISTICS (workplan 0143 T8). pg_stat_statements must be loaded
     # at start-up; bootstrap-managed.sh's data phase creates the extension
     # that reads it. Utility statements are not tracked, so an `ALTER ROLE …
@@ -235,6 +259,13 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): uid 70 from its first process, so no capability;
+    # read-only, with its socket directory in memory.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
+    read_only: true
+    tmpfs: [/tmp]
     depends_on:
       postgres:
         condition: service_healthy
@@ -265,6 +296,10 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): as postgres above, uid 70, no capability.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     environment:
       POSTGRES_USER: trigger
       # From .env (workplan 0132 T2), and only at this volume's first
@@ -312,6 +347,13 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): the entrypoint starts as root, chowns what in
+    # /data is not uid 999's (CHOWN), reads append-only directories that are 999's
+    # and mode 0700 to do so (DAC_READ_SEARCH: a restart on its own volume fails
+    # without it), and drops to 999 with setpriv (SETUID, SETGID).
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH, SETGID, SETUID]
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data
@@ -361,6 +403,11 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-api
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): no-new-privileges, and Docker's default
+    # capabilities, on purpose. It runs as root, chowns the shared volume, and its
+    # entrypoint copies files into directories node owns and writes the worker
+    # token there, and its image cannot be run outside the stack to measure more.
+    security_opt: ["no-new-privileges:true"]
     user: root
     command: sh -c "chown -R node:node /home/node/shared && exec ./scripts/entrypoint.sh"
     environment:
@@ -568,6 +615,15 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): the entrypoint starts as root, makes and chowns
+    # the data and log directories (CHOWN), reads a tree that is not root's when a
+    # directory's owner differs, as on a copy restored by root (DAC_READ_SEARCH), and
+    # becomes uid 101 with `clickhouse su` (SETUID, SETGID). The server itself runs
+    # with no capability either way, so SYS_NICE, IPC_LOCK and NET_ADMIN are not
+    # added: it never had them under the default set.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH, SETGID, SETUID]
     # Upstream's, and not decoration: ClickHouse opens a lot of files and the
     # default soft limit is where that shows up as corruption-looking errors.
     ulimits:
@@ -653,6 +709,13 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): root, writing only its own volume, so no
+    # capability; read-only, with /tmp in memory.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
+    read_only: true
+    tmpfs: [/tmp]
     ports:
       - "127.0.0.1:${REGISTRY_PORT:-5000}:5000"
     volumes:
@@ -688,6 +751,14 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): root, as upstream's image is, and needs no
+    # capability: the socket is root's, and root is its owner. Read-only; the
+    # entrypoint writes haproxy.cfg to /tmp and HAProxy its pidfile to /run.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
+    read_only: true
+    tmpfs: [/tmp, /run]
     environment:
       CONTAINERS: 1
       IMAGES: 1
@@ -724,6 +795,12 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-supervisor
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): node from its first process, so no capability.
+    # The task runs it starts are Trigger.dev's containers, made through the
+    # proxy with Trigger.dev's own settings: none of this applies to them.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     environment:
       TRIGGER_API_URL: http://trigger-api:3000
       OTEL_EXPORTER_OTLP_ENDPOINT: http://trigger-api:3000/otel
@@ -846,6 +923,10 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): uid 65532 from its first process, so no capability.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     command: ["server", "/data"]
     environment:
       MINIO_ROOT_USER: ${MINIO_ROOT_USER:-admin}
@@ -923,6 +1004,13 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging
+    # HOW IT RUNS (see the header): uid 65532, no capability; read-only, with
+    # mc's config directory in memory.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
+    read_only: true
+    tmpfs: [/tmp]
     entrypoint: ["/bin/sh", "-c"]
     command:
       - 'MC_HOST_store="http://$${MINIO_ROOT_USER}:$${MINIO_ROOT_PASSWORD}@minio:9000" exec mc --config-dir /tmp/mc mb --ignore-existing store/packets'
@@ -962,6 +1050,17 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): root, writing only its two volumes.
+    # NET_BIND_SERVICE although it binds 3443: the image's /usr/bin/caddy carries it
+    # as a file capability (cap_net_bind_service=ep), and the kernel refuses to
+    # start a binary whose file capability the bounding set lacks: without it, `exec
+    # /usr/bin/caddy: operation not permitted`. IF CADDY EVER RUNS AS A USER OTHER
+    # THAN ROOT, revisit no-new-privileges here: a non-root Caddy binds through that
+    # file capability, and no-new-privileges stops a file capability from applying.
+    # Not read-only: Caddy writes its local CA into the image's trust store at start.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
     environment:
       TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
     ports:
@@ -1150,6 +1249,10 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): its image's non-root user, so no capability.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     # `start-from-init` is init-then-start in one command and is idempotent: on
     # a database it has already initialised it skips straight to serving. Two
     # commands would mean a first bring-up that differs from every later one,
@@ -1438,6 +1541,12 @@ services:
     image: busybox:1.38
     profiles: ["init"]
     logging: *logging
+    # HOW IT RUNS (see the header): root, for a chown (CHOWN) and then a chmod of
+    # a directory it no longer owns (FOWNER); read-only, it writes the volume alone.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, FOWNER]
+    read_only: true
     command:
       - sh
       - -c
@@ -1467,6 +1576,10 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-api
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): uid 65532 from its first process, so no capability.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     environment:
       # NO DEFAULT, on purpose (workplan 0132 T4; the owner, 2026-10-04). The
       # default was `development`, and it won over the image's own
@@ -1761,6 +1874,13 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): nginx's master is root, binds port 80
+    # (NET_BIND_SERVICE; Docker's own sysctl makes it redundant today, and it is
+    # kept so that port 80 does not rest on a daemon default), chowns its temp
+    # directories to nginx (CHOWN), and its workers become nginx (SETUID, SETGID).
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, NET_BIND_SERVICE, SETGID, SETUID]
     ports:
       # A ROUTED PORT: the app's public name (`app.…`) leads here through the
       # front. WEB_BIND is set to the front's address in this stack's `.env`,
@@ -1784,6 +1904,10 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-status
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): root, writing only its own volume, so no capability.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
     environment:
       # The address a BROWSER uses, not an internal service name: probing
       # http://api:3001 would prove the container talks to itself and say
@@ -1968,6 +2092,13 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): root, writing only its own volume, so no
+    # capability; read-only, with /tmp in memory.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: []
+    read_only: true
+    tmpfs: [/tmp]
     environment:
       # A catcher accepts whatever it is handed. Refusing on auth or TLS would
       # turn a configuration question into a delivery failure that reads like
@@ -2075,6 +2206,11 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     logging: *logging
+    # HOW IT RUNS (see the header): no-new-privileges, and Docker's default
+    # capabilities, on purpose. Its entrypoint runs as root, rsyncs and chowns
+    # into /var/www/html and runs occ through su, and Apache drops to www-data:
+    # a set not measured here.
+    security_opt: ["no-new-privileges:true"]
     # ITS DATABASE IS THE STACK'S POSTGRES (2026-10-03; workplan 0150). It was
     # SQLite, which takes one writer at a time, while the owner's migrations and
     # the nightly gate write into this one Nextcloud: on 2026-09-29 the gate's

@@ -4,6 +4,64 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03, how the containers run: every service with no new privileges, its capabilities
+cut to what its own start uses, and six read-only roots (built, not merged).** The runtime half
+of the owner's *"make base images more lean/small and more hardened"* of 2026-11-03. On the
+branch `claude/ownpace-public-readiness-y7orc6-compose-hardening`: `managed.yml`, `www.yml` and
+the appliance's `compose.yml`, the guard `a-privilege-no-service-uses`, *How the containers
+run* in `managed-bring-up.md`, and the CHANGELOG.
+- **What changed.** All 19 services of `managed.yml` (the two one-offs included), the site's
+  nginx and the appliance's two set `no-new-privileges:true`. All but `trigger-api` and
+  `nextcloud` set `cap_drop: [ALL]` and add back: nothing for `postgres`, `trigger-db`,
+  `pgbouncer`, `minio`, `minio-init`, `trigger-supervisor`, `zitadel`, `api`, `gatus`,
+  `mailpit`, `trigger-registry`, `trigger-docker-proxy` and the appliance's two; CHOWN,
+  DAC_READ_SEARCH, SETGID, SETUID for `trigger-redis` and `clickhouse`; CHOWN,
+  NET_BIND_SERVICE, SETGID, SETUID for `web` and the site's `www`; NET_BIND_SERVICE for
+  `trigger-tls`; CHOWN, FOWNER for `zitadel-machinekey`. `pgbouncer`, `trigger-registry`,
+  `trigger-docker-proxy`, `mailpit`, `minio-init` and `zitadel-machinekey` are read-only,
+  with `/tmp` (the proxy `/run` too) in memory. No `mem_limit` or `pids_limit`: nothing has
+  measured a peak. `dev.yml` is left as it was.
+- **Measured here,** each on its own image with its compose command and placeholder values,
+  ready on a new volume and again on the volume it wrote, then with one capability fewer:
+  `postgres`/`trigger-db` (the uid-70 build), `pgbouncer`, `trigger-redis`, `clickhouse`
+  26.8.36.3, `trigger-registry` (a push, a pull, a restart), `trigger-docker-proxy` (create,
+  start, delete a container through it), `minio`, `minio-init`, `trigger-tls`, the one-off's
+  busybox, `mailpit` (a message in, a restart), and the web image's nginx with its template
+  and a stub bundle, and the site's with `www-nginx.conf`. All but `clickhouse` and `web` then
+  came up healthy through `managed.yml` itself, under a project of their own, and answered the
+  `exec`s the scripts make (`psql`, `SHOW VERSION` on the pooler, `redis-cli`, `mc`). What
+  decided the lists: Caddy's binary carries `cap_net_bind_service` as a file capability, so
+  without NET_BIND_SERVICE it does not start at all (`exec /usr/bin/caddy: operation not
+  permitted`), although it binds 3443; Redis's first restart on its own volume fails without
+  DAC_READ_SEARCH (`find: './appendonlydir': Permission denied`), and without CHOWN on a file in
+  `/data` that is not uid 999's; ClickHouse needs CHOWN on a new volume and DAC_READ_SEARCH on a
+  data directory root owns, and its server runs as uid 101 with no capability under Docker's
+  default set too, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added; nginx serves port 80
+  without NET_BIND_SERVICE (Docker sets `ip_unprivileged_port_start=0`), kept so that port 80
+  does not rest on that. The official Postgres image as root does not start without
+  capabilities (`chown: /var/lib/postgresql/18/docker: Operation not permitted`): it is the
+  uid-70 build of 0146 T15 that needs none.
+- **Read, not measured** (images that could not be pulled where this was built): `trigger-api`
+  keeps Docker's default set, since its entrypoint chowns the shared volume as root and copies
+  files into directories `node` owns; `trigger-supervisor` (node from its first process; its
+  base read 0 setuid binaries and 0 file capabilities), `zitadel` and `gatus` (images of one
+  binary, from scratch), `api` (uid 65532; its distroless base read 0 and 0) add none;
+  `nextcloud` keeps the default set (its entrypoint rsyncs, chowns and runs occ through `su`
+  as root). The sandbox had no IPv6, so the socket proxy was measured with `DISABLE_IPV6=1`,
+  and a hard limit of 20000 open files, so ClickHouse ran with that instead of 262144; the
+  Postgres build's Alpine step could not run, so its uid-70 equivalent was built without it.
+- **The guard** fails 1 of 33 for each single breakage tried on the real files (one service's
+  `no-new-privileges` removed, NET_RAW added to Redis, every `cap_drop` removed, the registry's
+  read-only root removed, Caddy's NET_BIND_SERVICE removed, the note by Caddy's settings removed,
+  `nextcloud` made privileged, a guide row changed, `www.yml` or the appliance's file as on
+  `main`), 2 for a new service and for `managed.yml` as on `main` (`319a2d34`), and 6 for the
+  three files and the guide as on `main`.
+- **Live** runs alpha.3's `managed.yml` until the alpha.4 deploy, which changes every service's
+  settings and so recreates each one once, the databases among them, inside `deploy-live.sh`'s
+  hold and drain; the site's nginx with it while `WWW_LIVE` is true. The appliance takes it with
+  its next release. **Owed:** E2E (managed) on this branch, which brings up every service and is
+  the proof for the lists read rather than measured, before it merges for the fold.
+
 **2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
 OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,
 alpha.4's deploy shell read, and the drain read bounded to a day.** On the branch
