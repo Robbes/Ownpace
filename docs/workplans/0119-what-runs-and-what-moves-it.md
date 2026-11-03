@@ -5,7 +5,7 @@
 ## Status — 2026-11-03 (update this block at the end of every session)
 
 **2026-11-03: the Debian Essentials nothing runs, purged from the appliance and from the tasks'
-runtime base, for alpha.4** (the owner's decision of 2026-11-03, §3 item 11), on the branch
+runtime base, for alpha.4** (the owner's decision of 2026-11-03, §3 item 11), #1802 from the branch
 `claude/ownpace-public-readiness-y7orc6-debian-purge`. If its proof is not green before the
 alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
 - **What the 44 were.** `node:26.13.0-trixie-slim@e4db4c91…` (Debian 13.7) reads 0 critical
@@ -57,9 +57,19 @@ alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
     each runner with the image's own entrypoint and user and never execs into it; no runtime
     code in `packages/`, `apps/worker/src` or `apps/selfhost/src` imports `child_process`; the
     appliance's payload and the tasks' externals hold no native module.
-- **Not verified here, and where it is:** the CLI's repair against Debian's archive (blocked
-  from this session): the image scan dispatched on the branch builds it, on arm64; the
-  appliance on arm64: images.yml builds it on main, and E2E (self-hosted) on the branch.
+- **Measured on the branch:** Security Scan run 41593876480, dispatched with the image scans on
+  `96d2b6f8`, reads `trigger-task-base` at 0 critical and 7 high (the seven above), on arm64,
+  where run 41586744506 read it at 0 and 44 the same morning. Its leg built the stage with
+  Debian's archive: the layer's purge removed the ten after `ca-certificates`, `openssl` and
+  `dumb-init` were installed, with no refusal, and the CLI's repair after it fetched the lists
+  and said *0 upgraded, 0 newly installed, 0 to remove*. `ownpace-selfhost-edge` and
+  `-release` still read 0 and 44 there: the scan reads them from ghcr, main's and alpha.3's,
+  so the branch's appliance is measured by the local run above, and the first scan after the
+  merge reads `:edge`. images.yml's `build (selfhost)` on #1802 ran the purge on amd64 with no
+  refusal.
+- **Not verified here, and where it is:** the appliance on arm64 (images.yml builds both
+  architectures on main only; E2E (self-hosted) builds it on arm64 on the branch, and asks it
+  for util-linux); the smoke's section on a real stack (E2E (managed) on the branch).
 
 **2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
 OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,
