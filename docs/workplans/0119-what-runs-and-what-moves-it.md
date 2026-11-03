@@ -52,7 +52,7 @@ last bullet of the image scan's reading of 2026-11-02 below); not merged.
   step requires the upload to read `skipped` there; the JSON and its artifact stay, so the report
   covers them. The categories `trivy-image-nextcloud`, `trivy-image-stalwart` and
   `trivy-image-mailpit` stop with the first scan on `main` after the merge; **the alerts already
-  open under them the owner dismissed as used in tests** (2026-11-03). Their configurations stay
+  open under them stay open until the owner dismisses them as used in tests** (agreed 2026-11-03). Their configurations stay
   on the code scanning tool status page until deleted by hand.
 - **The guard,** `an-image-nobody-scanned`: every listed image has a valid tier and the map names
   no other; the test-only set is exactly the three; the appliance's images are the shipped ones;

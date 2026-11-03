@@ -432,7 +432,7 @@ jobs:
   # the SARIF and the upload, and its last step checks that it did. The report
   # leads with the totals of each tier, production first and test-only last.
   # Their categories stop being uploaded, so the alerts already open under
-  # them stay open (below); the owner dismissed those as used in tests.
+  # them stay open (below) until the owner dismisses them as used in tests.
   #
   # THE END OF LIFE IS ONLY IN THE JSON. Trivy's SARIF carries findings and the
   # image's name, never `.Metadata.OS.EOSL`. So each scan writes JSON, keeps

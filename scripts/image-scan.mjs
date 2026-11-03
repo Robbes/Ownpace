@@ -129,7 +129,7 @@
  * A test-only image is still scanned and reported, its end of life included,
  * but security-scan.yml uploads no SARIF for it: its category stops, as above
  * for a name that changes, and the alerts it left open (`trivy-image-nextcloud`,
- * `-stalwart`, `-mailpit`) the owner dismissed as used in tests on 2026-11-03.
+ * `-stalwart`, `-mailpit`) stay open until the owner dismisses them as used in tests.
  *
  * THE TASKS' IMAGE KEEPS THE NAME IT HAD, `trigger-task-base`, which now
  * names the `base` stage it is: the stage of the CLI's Containerfile that
