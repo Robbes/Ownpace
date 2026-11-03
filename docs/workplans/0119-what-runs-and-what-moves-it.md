@@ -380,6 +380,15 @@ branch) and 100 now, 24 fewer each, with the same fixable counts.
     2026-10-27, so the count moved with the database, not with the move to 35.0.2 (1 fixable a
     week before, on `34-apache`). `35.0.2-apache` still names `e0b1a2af…` (pushed 2026-10-28
     16:51 UTC); 35.0.3 is due 2026-11-12. Waits for upstream's rebuild or release.
+- **2026-11-03 (UTC): the report now lists the fixable findings per image**, which the reading
+  above had to take outside CI for the highs. Below the criticals, `image-scan.mjs report`
+  prints for each image every critical and high finding with a fix, one line per package where
+  it sits (the operating system, the binary, or the npm package's directory), with the version
+  installed, the version that clears them all, the worst severity and the ids, and then those
+  with no fix yet, counted per package; at most 60 lines a list per image, the rest counted.
+  Why: code scanning shows each binary package of one source as an alert of its own, and only
+  to those with write access; the maintainer's view needs the fixable set by package, from the
+  run's log.
 
 **2026-11-02, records, later: #1788, #1789 and #1790 merged, `main`'s two E2E (managed) runs on
 `a7748fb6`, the owner's Windows decision, the O365 lane's secrets still unset, #1791 closed and

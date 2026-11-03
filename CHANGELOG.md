@@ -289,6 +289,16 @@ notices.
 
 ### Changed
 
+- **The weekly image scan lists, per image, every critical and high finding a
+  newer package fixes** (workplan 0119): by package where it sits (the
+  operating system, a binary, an npm package's directory), with the version
+  installed, the version that clears all of them (on the installed version's
+  line where a fix is named per line), the worst severity and the ids, and
+  then those with no fix yet, counted by package. Images with most to fix come
+  first, and each list shows at most 60 lines per image with the rest counted.
+  Code scanning shows each binary package of one source as an alert of its own
+  and only to those with write access; the run's log is the fixable set by
+  package.
 - **The test stack's mail catcher is Mailpit v1.33.0** (workplan 0146 T11
   (a), 0119), from v1.32.0: the minor kept current, with no finding of the
   image scan's to clear. It is built with the same Go 1.27.3 on the same

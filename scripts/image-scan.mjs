@@ -76,7 +76,10 @@
  *           what it found and touches no issue.
  *           Findings fail nothing: a CVE published upstream on a Sunday
  *           cannot turn main red. They go to code scanning as SARIF, one
- *           category per image.
+ *           category per image. The log and the job summary name the
+ *           critical ones one by one, and since 2026-11-03 every critical and
+ *           high one by package where it sits: with a fix, the version that
+ *           clears them; without one, a count (`inventoryLines`).
  *   containerfile <base>
  *           the tasks' image as `trigger.dev deploy` builds it, up to the
  *           task code: the `base` stage of the Containerfile the CLI writes,
@@ -446,6 +449,10 @@ export async function taskBaseStage(config, { base, workingDir }) {
  * them. Code scanning has the detail, but only for those with write access;
  * the run's summary is read by anyone who reads the run. A CVE counted once per
  * binary package of one source (util-linux's, say) is listed once per package.
+ *
+ * And every critical and high finding is grouped by package where it sits
+ * (2026-11-03): with a fix, the version that clears them all; without one, a
+ * count (`withFix`, `withoutFix`, and `inventoryLines` below).
  */
 export function readReport(text) {
   let report;
@@ -458,11 +465,14 @@ export function readReport(text) {
     throw new Error('the report is not a Trivy image report (SchemaVersion 2, container_image)');
   }
   const os = report.Metadata?.OS;
+  const osName = os?.Family ? `${os.Family} ${os.Name ?? ''}`.trim() : null;
   const counts = Object.fromEntries(SEVERITIES.map((s) => [s, 0]));
   let fixable = 0;
   const criticals = [];
+  const groups = new Map();
   for (const result of report.Results ?? []) {
     for (const vuln of result.Vulnerabilities ?? []) {
+      if (SEVERITIES.includes(vuln.Severity)) addToGroup(groups, result, vuln, osName);
       if (vuln.Severity in counts) counts[vuln.Severity] += 1;
       if (vuln.FixedVersion) fixable += 1;
       if (vuln.Severity === 'CRITICAL') {
@@ -477,14 +487,226 @@ export function readReport(text) {
       }
     }
   }
+  const packages = [...groups.values()].map((g) => ({
+    target: g.target,
+    pkg: g.pkg,
+    installed: g.installed,
+    severity: g.severity,
+    ids: [...g.ids.entries()].sort(([a, sa], [b, sb]) => bySeverity(sa, sb) || compareVersions(a, b)).map(([id]) => id),
+    ...(g.fixed.length > 0 ? { fix: neededFix(g.installed, g.fixed) } : {}),
+  }));
+  const ordered = (list) => list.sort((a, b) => bySeverity(a.severity, b.severity) || byText(a.pkg, b.pkg) || byText(a.target, b.target) || compareVersions(a.installed, b.installed));
   return {
-    os: os?.Family ? `${os.Family} ${os.Name ?? ''}`.trim() : null,
+    os: osName,
     eosl: os?.EOSL === true,
     critical: counts.CRITICAL,
     high: counts.HIGH,
     fixable,
     criticals,
+    withFix: ordered(packages.filter((p) => 'fix' in p)),
+    withoutFix: ordered(packages.filter((p) => !('fix' in p))),
   };
+}
+
+// ------------------------------------------ what a newer package fixes ---
+
+/** The worse severity first: critical, then high. */
+const bySeverity = (a, b) => SEVERITIES.indexOf(a) - SEVERITIES.indexOf(b);
+const byText = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
+
+/**
+ * Where a finding sits, as the inventory names it: the operating system for
+ * its packages (`debian 12.15`, never the image reference Trivy's target
+ * starts with), the package's own file where Trivy names one, as the directory
+ * for an npm package (`…/node_modules/tar`, not its `package.json`), and the
+ * result's target otherwise (`usr/local/bin/goose`, a Go binary).
+ */
+function targetOf(result, vuln, osName) {
+  if (result.Class === 'os-pkgs') return osName ?? 'the OS packages';
+  return String(vuln.PkgPath || result.Target || 'the image').replace(/\/package\.json$/, '');
+}
+
+/**
+ * One finding into the group of its package where it sits, one group with a
+ * fix and one without: (target, package, version installed). Two binary
+ * packages of one source are two groups, as code scanning shows them; one id
+ * is counted once per group.
+ */
+function addToGroup(groups, result, vuln, osName) {
+  const fixed = String(vuln.FixedVersion ?? '').trim();
+  const target = targetOf(result, vuln, osName);
+  const pkg = vuln.PkgName ?? 'an unnamed package';
+  const installed = vuln.InstalledVersion ?? '';
+  const key = JSON.stringify([fixed !== '', target, pkg, installed]);
+  if (!groups.has(key)) groups.set(key, { target, pkg, installed, severity: vuln.Severity, ids: new Map(), fixed: [] });
+  const group = groups.get(key);
+  const id = vuln.VulnerabilityID ?? 'an unnamed finding';
+  if (bySeverity(vuln.Severity, group.severity) < 0) group.severity = vuln.Severity;
+  if (!group.ids.has(id) || bySeverity(vuln.Severity, group.ids.get(id)) < 0) group.ids.set(id, vuln.Severity);
+  if (fixed) group.fixed.push(fixed);
+}
+
+/**
+ * A version as compared here: Go's leading `v` dropped (Trivy writes a Go
+ * module's installed version `v1.24.6` and its fix `1.24.13`), and a
+ * pre-release's `-rc.3` (`1.26.0-rc.3`, among Go's fixes) written as Debian's
+ * `~`, which sorts before the release.
+ */
+const comparable = (version) =>
+  String(version)
+    .trim()
+    .replace(/^v(?=\d)/, '')
+    .replace(/-(?=(?:alpha|beta|rc|pre|preview|dev)(?![a-z]))/gi, '~');
+
+/**
+ * Two versions in order, as dpkg orders them (its `verrevcmp`), which orders
+ * Alpine's, Go's and npm's well enough to choose among one package's own
+ * fixes: a run of digits by its number (`1.24.13` after `1.24.9`), `~` before
+ * anything, the end included, and letters before other characters. Negative,
+ * zero or positive.
+ */
+export function compareVersions(a, b) {
+  const x = comparable(a);
+  const y = comparable(b);
+  const digit = (c) => c !== undefined && c >= '0' && c <= '9';
+  const order = (c) => (c === undefined || digit(c) ? 0 : c === '~' ? -1 : /[A-Za-z]/.test(c) ? c.charCodeAt(0) : c.charCodeAt(0) + 256);
+  let i = 0;
+  let j = 0;
+  while (i < x.length || j < y.length) {
+    while ((i < x.length && !digit(x[i])) || (j < y.length && !digit(y[j]))) {
+      const d = order(x[i]) - order(y[j]);
+      if (d !== 0) return d;
+      i += 1;
+      j += 1;
+    }
+    while (x[i] === '0') i += 1;
+    while (y[j] === '0') j += 1;
+    let first = 0;
+    while (digit(x[i]) && digit(y[j])) {
+      if (first === 0) first = x.charCodeAt(i) - y.charCodeAt(j);
+      i += 1;
+      j += 1;
+    }
+    if (digit(x[i])) return 1;
+    if (digit(y[j])) return -1;
+    if (first !== 0) return first;
+  }
+  return 0;
+}
+
+/** The fixes one finding names, in order: Trivy writes one per line it was fixed on, comma-separated (`1.24.13, 1.25.7, 1.26.0-rc.3`). */
+const fixesOf = (fixed) => [...new Set(fixed.split(',').map((f) => f.trim()).filter(Boolean))].sort(compareVersions);
+
+/** Where a fix's line starts, after the fix before it in its list: `1.25` for `1.25.7` after `1.24.13`, `7` for `7.5.2` after `6.2.1`. */
+function lineStart(fix, before) {
+  const runs = [...comparable(fix).matchAll(/\d+/g)];
+  const prior = comparable(before).match(/\d+/g) ?? [];
+  const at = runs.findIndex((run, k) => Number(run[0]) !== Number(prior[k]));
+  return at === -1 ? fix : comparable(fix).slice(0, runs[at].index + runs[at][0].length);
+}
+
+/**
+ * Whether a version clears a finding with these fixes, one per line: below the
+ * first it does not, nor on a later fix's line below that fix (`1.25.3`
+ * against `1.24.13, 1.25.7`).
+ */
+function clears(version, fixes) {
+  if (compareVersions(version, fixes[0]) < 0) return false;
+  for (let k = 1; k < fixes.length; k += 1) {
+    if (compareVersions(version, lineStart(fixes[k], fixes[k - 1])) >= 0 && compareVersions(version, fixes[k]) < 0) return false;
+  }
+  return true;
+}
+
+/**
+ * The version a package must reach to clear every finding of it at once: the
+ * lowest of the fixes they name, above the version installed, that clears them
+ * all. So the highest fix they need, read per line: a Go binary on 1.24.6 with
+ * `1.24.13, 1.25.7` needs 1.24.13, not 1.25.7; and with a second finding fixed
+ * only in `1.25.2` it needs 1.25.7, since 1.25.2 is still below the first
+ * finding's fix on that line.
+ */
+export function neededFix(installed, fixedVersions) {
+  const lists = fixedVersions.map(fixesOf).filter((list) => list.length > 0);
+  const all = [...new Set(lists.flat())].sort(compareVersions);
+  const above = all.filter((v) => !installed || compareVersions(v, installed) > 0);
+  const candidates = above.length > 0 ? above : all;
+  return candidates.find((v) => lists.every((list) => clears(v, list))) ?? candidates.at(-1) ?? '';
+}
+
+/** At most this many lines of each list per image; the rest is counted on a line of its own, never dropped unsaid. */
+export const INVENTORY_LINES = 60;
+
+/** How many ids a line names; it counts them all. */
+const IDS_SHOWN = 4;
+
+/** A field of the report as one plain line: no newline, no backtick to break the summary's Markdown. */
+const plain = (value) => String(value).replace(/[\r\n`]+/g, ' ');
+
+const findings = (n) => `${n} finding${n === 1 ? '' : 's'}`;
+
+/** One package with a fix: what is installed, what clears it, the worst severity, and the ids. */
+const fixLine = (p) =>
+  `- \`${plain(p.pkg)}\`${p.installed ? ` ${plain(p.installed)}` : ''} → ${plain(p.fix)}, ${p.severity.toLowerCase()}, ${findings(p.ids.length)}: ${p.ids
+    .slice(0, IDS_SHOWN)
+    .map(plain)
+    .join(', ')}${p.ids.length > IDS_SHOWN ? ` and ${p.ids.length - IDS_SHOWN} more` : ''} (${plain(p.target)})`;
+
+/** One package without a fix: what is installed, the worst severity, and how many. */
+const noFixLine = (p) => `- \`${plain(p.pkg)}\`${p.installed ? ` ${plain(p.installed)}` : ''}, ${p.severity.toLowerCase()}, ${findings(p.ids.length)} (${plain(p.target)})`;
+
+/** A list of at most INVENTORY_LINES lines, and one more that counts the rest. */
+function bounded(packages, line, kind, image) {
+  const rest = packages.slice(INVENTORY_LINES);
+  const more = rest.reduce((n, p) => n + p.ids.length, 0);
+  return [
+    ...packages.slice(0, INVENTORY_LINES).map(line),
+    ...(rest.length > 0
+      ? [`- … and ${rest.length} more package${rest.length === 1 ? '' : 's'} ${kind} (${findings(more)}), in the run's artifact \`trivy-image-${image.name}\``]
+      : []),
+  ];
+}
+
+/**
+ * The fixable inventory, image by image (2026-11-03): every critical and high
+ * finding with a fix, by package where it sits, and those without one counted
+ * by package. Code scanning shows each binary package of one source as an
+ * alert of its own, and only to those with write access; the run's log and
+ * summary are read by anyone who reads the run.
+ */
+export function inventoryLines(read) {
+  const count = (packages) => packages.reduce((n, p) => n + p.ids.length, 0);
+  const images = read
+    .filter(({ report }) => report.withFix.length + report.withoutFix.length > 0)
+    .sort((a, b) => count(b.report.withFix) - count(a.report.withFix) || count(b.report.withoutFix) - count(a.report.withoutFix));
+  if (images.length === 0) return [];
+  const lines = [
+    '',
+    '### What a newer package fixes, image by image',
+    '',
+    `Each critical and high finding, by package where it sits: the version installed, the one that clears them all (the highest fix they need, on the installed version's line where Trivy names one fix per line, as \`1.24.13, 1.25.7\`), the worst severity, and the ids; then those no package fixes yet, counted by package. A CVE in a source package built into several binary packages is a line per package, as code scanning makes it an alert per package. The images with most to fix come first, and at most ${INVENTORY_LINES} lines of each list are shown per image, the rest counted.`,
+  ];
+  for (const { image, report } of images) {
+    lines.push('', `#### \`${image.name}\``);
+    if (report.withFix.length > 0) {
+      const ids = new Set(report.withFix.flatMap((p) => p.ids)).size;
+      lines.push(
+        '',
+        `With a fix: ${findings(count(report.withFix))} in ${report.withFix.length} package${report.withFix.length === 1 ? '' : 's'}, ${ids} distinct id${ids === 1 ? '' : 's'}.`,
+        '',
+        ...bounded(report.withFix, fixLine, 'with a fix', image),
+      );
+    }
+    if (report.withoutFix.length > 0) {
+      lines.push(
+        '',
+        `No fix yet: ${findings(count(report.withoutFix))} in ${report.withoutFix.length} package${report.withoutFix.length === 1 ? '' : 's'}.`,
+        '',
+        ...bounded(report.withoutFix, noFixLine, 'with no fix yet', image),
+      );
+    }
+  }
+  return lines;
 }
 
 /** One critical finding as a line of the summary. */
@@ -579,6 +801,7 @@ export function summarize(images, readFile) {
       ...criticals,
     );
   }
+  lines.push(...inventoryLines(read));
   return { lines, annotations, missing, read };
 }
 
