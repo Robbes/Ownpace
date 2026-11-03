@@ -2,7 +2,20 @@
 
 > **In one line:** Umbrella for the managed alpha: its decisions (free, invite-only, Dutch, no backups), an alpha note on pages and grant mail, experimental labels on `SOURCE_CARDS`, Billing wording, end-of-alpha fate, go/no-go list for 0132 to 0150 and 0152 to 0154.
 
-## Status — 2026-11-02 (update this block at the end of every session)
+## Status — 2026-11-03 (update this block at the end of every session)
+
+**2026-11-03, records: the alpha.4 deploy's prerequisite, read in the shell the owner deploys
+from, is met.** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-records-2026-11-03`; 0119's Status entry of the same
+day has the rest. At about 03:20 UTC the owner read, as themselves in that shell: (a) `node -v`
+v26.10.0, their own Node, first on their `PATH`, not the system's; (b) `pnpm -v` 11.28.9,
+`packageManager`'s version; (c) `libatomic1` installed. The three checks of the entry of
+2026-11-01 below hold, so the deploy can run from that shell. **Recommended before the alpha.4
+deploy:** that Node to 26.13.0, the newest of the line (2026-10-28, the first marked LTS, and
+the version the images run), since 26.12.1 (2026-10-21), which came after 26.10.0, was a
+security release (`nodejs.org/dist/index.json`, read 2026-11-03); then `node -v` again.
+`managed-bring-up.md`, *The Node in the shell you deploy from*, has the steps (its step 3
+fetches 26.13.0 and checks it against `SHASUMS256.txt`).
 
 **2026-11-02, records: 0141's *Today* cell, the O365 lane (T5).** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`. The cell said run 41273625023 was
@@ -53,7 +66,8 @@ live's timers run no Node, so only that node has to be 26; a system Node another
 the host runs on stays where it is. The entry below said to move the host's Node (NodeSource's
 line from `node_24.x` to `node_26.x`, `sudo npm install -g pnpm`), which on a host where
 another service runs on the system's Node would move that service too, and is not needed.
-**Still the owner's, before deploying alpha.4,** in the shell they deploy from, as themselves
+**Still the owner's, before deploying alpha.4,** *(read on 2026-11-03 and met: the entry
+above)* in the shell they deploy from, as themselves
 (not under `sudo`, whose `secure_path` finds the system's node), in `~/ownpace-live`: (a)
 `command -v node` and `node -v` name a Node 26 (one of their own, put first on their `PATH`
 with nvm, fnm or a tarball in a directory they own, when the system's is 24); (b) `pnpm -v`

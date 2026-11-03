@@ -2,10 +2,53 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-02 (update this block at the end of every session)
+## Status — 2026-11-03 (update this block at the end of every session)
+
+**2026-11-03, records: the host's Docker upgraded with both holds on, the OTA stack's
+`pgbouncer` down after the restart and fixed by hand, and the copy before 26.8 removed.** On
+the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-03`; 0119's Status entry of
+the same name has the detail, and §2.4 there the host's readings. Read from GitHub and from
+the owner's readings on 2026-11-03; times are UTC.
+- **The copy before 26.8 is gone.** The owner ran *Once the move has held* at about 23:05 on
+  2026-11-02: its checks passed (26.8.36.3; the 35 tables and views of step 2's list each
+  load; no part detached since step 2), and the volume
+  `<project>_clickhouse_data_v2_before_26_8` and step 2's two files went. The entry below said
+  sent, not done; it says done now.
+- **The host's Docker, 29.2.1 → 29.6.2**, with containerd.io 2.2.5, the Compose plugin 5.2.0
+  and the Buildx plugin 0.35.0, from the machine vendor's apt repository, in a window the owner
+  pulled forward from 11:00 to about 03:30. The order, revised so that a scheduled E2E arriving
+  late queues instead of starting against the holds: `main`'s CI on `21fa6ff8` done on the
+  runner at 03:33; the runner stopped; both holds on at about 03:49; live's drain read
+  *DRAINED*; the OTA stack judged drained on 0 passes in flight and a hold older than 300
+  seconds, since its Trigger.dev drain read could not empty (the next bullet); 41 containers
+  running, 40 to come back and 1 a task run's; the upgrade, apt exiting 0, the daemon back at
+  03:57:59. After it: live's 15 services running and healthy, `/api/ready` ok, the scheduler
+  ticking (04:20:27), `/api/version` `0.2.0-alpha.3` at `e1b21aac`, the checkout's, and the
+  site's check returning 0; AppArmor enabled, live's API under `docker-default`. The runner
+  back at about 04:24, both holds lifted at about 04:33, and the five packages held with
+  `apt-mark` (the owner's choice; the rest of the host's updates, and the 7.0 kernel line,
+  after alpha.4). Green on the new Docker: E2E (self-hosted) run 41575338615, created by its
+  schedule at 03:58 while the runner was stopped, its job 04:24 to 04:30; and E2E (managed) run
+  41578935380 on `main` at `21fa6ff8`, 04:34 to 04:41.
+- **The Trigger.dev drain read on the OTA stack** never emptied: 8 runs Trigger.dev never
+  finished, 6 of `managed-sync-tick` in `DEQUEUED` (last changed 2026-09-17) and 2 of
+  `run-verification` in `PENDING_VERSION` (2026-08-20). `managed-bring-up.md`'s read (beside
+  the MinIO pin) now counts only rows changed in the last 24 hours, and a second read lists
+  the older ones apart, as stale (0119's entry says why a day, and how such a run is cancelled
+  through Trigger.dev, never by deleting rows).
+- **The incident, the OTA stack only: `pgbouncer` did not come back.** It mounts the gitignored
+  `deploy/compose/pgbouncer/userlist.txt` from the runner's checkout, where E2E (managed)
+  brings the stack up. `main`'s CI checked out there at 02:51 (`git clean -ffdx`) and deleted
+  the file under the running container; at the daemon's restart Docker made a directory at the
+  missing source, and `pgbouncer` exited 127, *not a directory*. The copy kept outside the
+  checkout was stale, its password no longer `.env`'s: `e2e-managed.yml` saves `.env` back but
+  not `userlist.txt`, which `ensure-env-secrets.sh` writes afresh on every run. The owner wrote
+  the file from the container's own `PGBOUNCER_AUTH_PASSWORD` at about 04:31 and refreshed the
+  kept copy. Live, which runs from a checkout of its own, was not affected. **Owed:** the fix in
+  code, in progress on `claude/ownpace-public-readiness-y7orc6-pgbouncer-userlist`.
 
 **2026-11-02, later, recorded: the night after ClickHouse's move is green, and its copy can go
-(sent, not done).** Docs only, on the branch
+(sent, not done; done at about 23:05 UTC, the entry above).** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-2026-11-02-b`; 0119's Status entry of the same
 day (records, later) has the detail. Read from GitHub on 2026-11-02; times are UTC.
 - **Two green runs of `main` on the OTA stack, both on ClickHouse 26.8.36.3.** E2E (managed) run
@@ -17,13 +60,16 @@ day (records, later) has the detail. Read from GitHub on 2026-11-02; times are U
   ClickHouse*) waits for.
 - **The copy before 26.8 can go; sent, not done.** The block that removes
   `<project>_clickhouse_data_v2_before_26_8` and step 2's two files was sent to the owner at
-  about 11:55. It had not been run when this was written; it is the owner's.
+  about 11:55. It had not been run when this was written; it is the owner's. *(Run at about
+  23:05, its checks passed, the copy gone: the entry of 2026-11-03, records, above.)*
 - **Still the owner's:** the host's Docker, 29.2.1 to the 29.6.2 set from the machine vendor's
   apt repository, in a window with live's hold and the OTA stack's both on (0119 §2.4), not done
   on 2026-11-02. *(The owner, at about 22:10: within alpha.4, so before the counted nights of
   2026-11-05 and 2026-11-06; the slot, set later that evening, is Tuesday 2026-11-03, 11:00 to
   13:00 UTC. The copy's removal, above, was not answered: sent, not confirmed. 0119's Status,
-  2026-11-02, records, latest.)*
+  2026-11-02, records, latest.)* *(2026-11-03: the copy removed at about 23:05 on 2026-11-02,
+  and the host's Docker upgraded from about 03:30 on 2026-11-03, the window pulled forward:
+  the entry of 2026-11-03, records, above.)*
 
 **2026-11-02, recorded: the copy from before v4.8.3 removed, ClickHouse 26.8.36.3 on the OTA
 stack, and the host's Docker from the machine vendor's apt repository.** Docs only, on the
@@ -49,6 +95,7 @@ same day (records) has the detail. Read from GitHub and from the owner's reading
   2026-11-01, recorded, below points there), is corrected. Its upgrade is the owner's, to that repository's set (29.6.2), in a window
   with live's hold and the OTA stack's both on, since it restarts every container on the
   machine, with Docker's own 29.2.1 packages kept on the machine as the way back (0119 §2.4).
+  *(Done 2026-11-03: the entry of 2026-11-03, records, above.)*
 
 **2026-11-01, later, recorded: the OTA stack's first scheduled night on Trigger.dev v4.8.3, Node
 26 and ClickHouse's own network; T3 (c)'s new ask merged.** Docs only, on the branch
@@ -101,7 +148,8 @@ same day (records) has the detail. Read from GitHub and from the owner's reading
   live's hold on: without `live-restore`, it restarts every container on the machine, live's
   included. Recorded in 0119 §2.4, where the host's runtimes are, as an open owner item.
   *(2026-11-02: the packages come from the machine vendor's apt repository, not Docker's, and
-  the upgrade is to that repository's set, with both holds on: the entry above.)*
+  the upgrade is to that repository's set, with both holds on: the entry above. 2026-11-03:
+  upgraded, 29.6.2: the entry of 2026-11-03, records, above.)*
 
 **2026-10-31: the outside probe asks live's form that founds an organisation (T3 (c), 0135 T1).**
 The ask in T3 below, which 0135 T1 made: `GET https://id.ownpace.eu/ui/login/register/org`
