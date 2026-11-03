@@ -339,7 +339,15 @@
 # name, that it says v3.29.0, and that no other path of the image was added,
 # removed or changed. The image build needs github.com reachable as well as
 # the npm registry, wherever it builds: CI, the OTA stack's runner and the
-# live host.
+# live host. A fetch that fails is no move upstream, and none of these RUNs
+# (dompurify's, the four packages', goose's) says it is: a host that does not
+# answer, or answers with an error, stops the build with nothing changed and
+# the advice to run the same tag again once it answers; a file that is gone
+# (404, 410) says so. GitHub lets a release's owner delete an asset, where npm
+# keeps a version others depend on: if goose's is gone, a machine that holds
+# this image's name keeps it, and a pull request moves the replacement to a
+# release whose assets are there, or drops it (docs/managed-bring-up.md,
+# Upgrading Trigger.dev).
 #
 # THE MODE. Trivy 0.76.1 reads the modules of a Go binary only when the file
 # is executable. The triage of 2026-11-03 first read 0 findings in goose,
@@ -649,6 +657,8 @@ RUN set -eu; \
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED against this image, or drop the replacement if upstream moved dompurify." >&2; exit 1; }; \
+    unreachable() { echo "$me: $1 did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers: nothing here needs editing (docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; exit 1; }; \
+    gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
     s=/triggerdotdev/node_modules/.pnpm; \
     pkg="$s/dompurify@3.4.13/node_modules/dompurify"; \
     from=3.4.13; \
@@ -684,7 +694,8 @@ RUN set -eu; \
     : > "$marker"; \
     paths() { find "$top" -xdev \( -path "$tmp" -o -path "$pkg" \) -prune -o -print | LC_ALL=C sort | sha256sum; }; \
     before="$(paths)"; \
-    node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) throw new Error(process.argv[1] + ' answered ' + r.status); require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); })" "$url" "$tmp/dompurify.tgz" || fail "$url could not be fetched; nothing was changed."; \
+    node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/dompurify.tgz" && st=0 || st=$?; \
+    case "$st" in 0) ;; 3) unreachable "$url" ;; 4) gone "$url" ;; *) fail "$url could not be fetched (node exits $st); nothing was changed." ;; esac; \
     got="$(node -p "'sha512-' + require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64')" "$tmp/dompurify.tgz")"; \
     [ "$got" = "$integrity" ] || fail "$url is $got, not $integrity, the integrity npm published for dompurify $to; nothing was changed."; \
     mkdir "$tmp/unpacked"; \
@@ -712,6 +723,8 @@ RUN set -eu; \
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED: FOUR PACKAGES against this image, or drop the row of a package upstream moved (THE WAY OUT)." >&2; exit 1; }; \
+    unreachable() { echo "$me: $1 did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers: nothing here needs editing (docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; exit 1; }; \
+    gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
     s=/triggerdotdev/node_modules/.pnpm; \
     bundles="/triggerdotdev/apps/webapp/build /triggerdotdev/apps/webapp/public"; \
     top=/; \
@@ -747,7 +760,8 @@ RUN set -eu; \
     pruned() { prune="$prune -o -path $s/$1@$2/node_modules/$1"; }; \
     fetched() { \
       name=$1; from=$2; to=$4; to_tree=$5; want=$6; pkg="$s/$name@$from/node_modules/$name"; url="https://registry.npmjs.org/$name/-/$name-$to.tgz"; \
-      node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) throw new Error(process.argv[1] + ' answered ' + r.status); require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); })" "$url" "$tmp/$name.tgz" || fail "$url could not be fetched; nothing was changed."; \
+      node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/$name.tgz" && st=0 || st=$?; \
+      case "$st" in 0) ;; 3) unreachable "$url" ;; 4) gone "$url" ;; *) fail "$url could not be fetched (node exits $st); nothing was changed." ;; esac; \
       got="$(node -p "'sha512-' + require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64')" "$tmp/$name.tgz")"; \
       [ "$got" = "$want" ] || fail "$url is $got, not $want, the integrity npm published for $name $to; nothing was changed."; \
       mkdir "$tmp/$name"; \
@@ -759,7 +773,7 @@ RUN set -eu; \
       chown -R "$(stat -c %u:%g "$pkg/package.json")" "$new"; \
       own "$pkg" > "$tmp/$name.own"; \
     }; \
-    swapped() { if [ -e "$s/$1@$2/node_modules/$1/node_modules" ]; then mv "$s/$1@$2/node_modules/$1/node_modules" "$tmp/$1/package/node_modules"; fi; rm -r "$s/$1@$2/node_modules/$1"; mv "$tmp/$1/package" "$s/$1@$2/node_modules/$1"; }; \
+    swapped() { if [ -e "$s/$1@$2/node_modules/$1/node_modules" ]; then mv "$s/$1@$2/node_modules/$1/node_modules" "$tmp/$1/package/node_modules" || fail "pnpm's node_modules in $s/$1@$2/node_modules/$1 could not be moved to the new release."; fi; rm -r "$s/$1@$2/node_modules/$1" || fail "$s/$1@$2/node_modules/$1 could not be removed."; mv "$tmp/$1/package" "$s/$1@$2/node_modules/$1" || fail "the new $1 could not be moved to $s/$1@$2/node_modules/$1."; }; \
     proven() { \
       name=$1; from=$2; to=$4; to_tree=$5; pkg="$s/$name@$from/node_modules/$name"; \
       { [ "$(version "$pkg")" = "$to" ] && [ "$(tree "$pkg")" = "$to_tree" ]; } || fail "$pkg is not the published $name $to after the swap."; \
@@ -793,6 +807,8 @@ RUN set -eu; \
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED: GOOSE against this image, or drop the replacement if upstream moved goose (THE WAY OUT)." >&2; exit 1; }; \
+    unreachable() { echo "$me: $1 did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers: nothing here needs editing (docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; exit 1; }; \
+    gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
     goose=/usr/local/bin/goose; \
     goose_from=v3.27.1; \
     goose_to=v3.29.0; \
@@ -813,7 +829,8 @@ RUN set -eu; \
     tmp="$(mktemp -d)"; \
     state() { { find "$top" -xdev \( -path "$tmp" -o -path "$goose" \) -prune -o -type d -exec stat -c '%n %u:%g %a' {} + ; find "$top" -xdev \( -path "$tmp" -o -path "$goose" \) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' {} + ; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }; \
     before="$(state)"; \
-    node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) throw new Error(process.argv[1] + ' answered ' + r.status); require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); })" "$url" "$tmp/goose" || fail "$url could not be fetched; nothing was changed."; \
+    node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/goose" && st=0 || st=$?; \
+    case "$st" in 0) ;; 3) unreachable "$url" ;; 4) gone "$url" ;; *) fail "$url could not be fetched (node exits $st); nothing was changed." ;; esac; \
     got="$(sha256sum "$tmp/goose" | cut -d' ' -f1)"; \
     [ "$got" = "$goose_sha256" ] || fail "$url is $got, not $goose_sha256, goose $goose_to's $asset as its release published it; nothing was changed."; \
     chown 0:0 "$tmp/goose"; \

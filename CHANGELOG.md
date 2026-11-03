@@ -72,15 +72,16 @@ notices.
   the same major they fix (8 highs), by the sha512 npm published, proving
   that every package which requires each loads the new release. The
   supervisor's build does the same for its systeminformation. Each step
-  refuses an image that moved, with nothing changed. Expected, by arithmetic
-  from the week's scan: the webapp from 1 critical, 89 high and 57 with a fix
-  to about 1, 46 and 14, and the supervisor from 0, 2 and 2 to 0, 1 and 1.
+  refuses an image that moved, with nothing changed. Measured on the branch:
+  the webapp from the week's 1 critical, 89 high and 57 with a fix to 1, 46
+  and 14, and the supervisor from 0, 2 and 2 to 0, 1 and 1.
   What stays waits on upstream (triggerdotdev/trigger.dev#5084): zlib1g's
   critical and Debian 12's highs without a fix, Go's CVE-2026-111943 in goose,
   and effect, undici 5, @fastify/busboy, turbo-stream, deepmerge-ts,
   cross-spawn 5 and body-parser 2, each fixed only by a new major or pinned
-  exactly by the package that requires it. Both builds now fetch from the
-  npm registry, and the webapp's from github.com too.
+  exactly by the package that requires it. The webapp's build now also
+  fetches from github.com; a host that does not answer stops a build with
+  nothing changed and the advice to run the same tag again.
 - **The Trigger.dev deploy CLI comes from the lockfile, not from `npx` at run
   time** (workplan 0119). `deploy-tasks.sh`, the bring-up's login check and the
   login lines the scripts print ran `npx -y trigger.dev@<sdk version>`, which

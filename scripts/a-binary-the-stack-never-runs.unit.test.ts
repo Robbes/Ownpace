@@ -867,6 +867,7 @@ function replacementProblems(text: string): string[] {
     else if (i < moved) problems.push(`the replacing RUN proves ${what} before the swap, which proves nothing`);
   }
   if (!/for d in "\$posthog" "\$mermaid"; do \\?\s*\(cd "\$d" && node /.test(args)) problems.push("the replacing RUN does not run its load proofs from each requirer's own directory");
+  problems.push(...fetchProblems(args, '$tmp/dompurify.tgz', 'the replacing RUN'));
   return problems;
 }
 
@@ -916,6 +917,29 @@ function tscProblems(args: string): string[] {
   for (const [re, what] of after) {
     const i = args.search(re);
     if (i < 0 || i < lastRm) problems.push(`no proof, after the removal, ${what}`);
+  }
+  return problems;
+}
+
+/**
+ * What is wrong with how a RUN's fetch fails, in words; empty when it holds. A
+ * host that does not answer, or answers with an error, is no move upstream: the
+ * fetch exits 3 and the RUN says to run the same tag again once it answers; a
+ * tarball or asset that is gone (404, 410) exits 4 and the RUN says so; neither
+ * prints fail()'s advice to drop the replacement, which on live's tag checkout
+ * would send the operator to edit a file. Only another exit is fail()'s.
+ */
+function fetchProblems(args: string, file: string, who: string): string[] {
+  const problems: string[] = [];
+  const target = file.replace(/[$.]/g, '\\$&');
+  if (!new RegExp(`node -e "fetch\\(process\\.argv\\[1\\]\\)\\.then\\(async \\(r\\) => \\{ if \\(!r\\.ok\\) \\{ [^"\\n]*process\\.exit\\(r\\.status === 404 \\|\\| r\\.status === 410 \\? 4 : 3\\); \\}[^"\\n]*\\}, \\(e\\) => \\{ [^"\\n]*process\\.exit\\(3\\); \\}\\)" "\\$url" "${target}" && st=0 \\|\\| st=\\$\\?; \\s*case "\\$st" in 0\\) ;; 3\\) unreachable "\\$url" ;; 4\\) gone "\\$url" ;; \\*\\) fail `).test(args)) {
+    problems.push(`${who} does not tell a host that did not answer (exit 3, unreachable) or a file that is gone (exit 4, gone) from a move upstream`);
+  }
+  if (!/(?:^|[;\s])unreachable\(\) \{ echo "\$me: \$1 did not answer, or answered with an error \(above\); nothing was changed, and upstream did not move\. Run the bring-up, or deploy-live\.sh, with the same tag again once it answers[^"\n]*" >&2; exit 1; \}/.test(args)) {
+    problems.push(`${who}'s unreachable() does not say to run the same tag again, on its own, without fail()'s advice`);
+  }
+  if (!/(?:^|[;\s])gone\(\) \{ echo "\$me: \$1 is gone \(above\)[^"\n]*upstream did not move\. [^"\n]*docs\/managed-bring-up\.md[^"\n]*" >&2; exit 1; \}/.test(args)) {
+    problems.push(`${who}'s gone() does not say the file is gone and where the way on is, on its own, without fail()'s advice`);
   }
   return problems;
 }
@@ -1002,7 +1026,6 @@ function tableProblems(name: Name, text: string): string[] {
     ['check', /found="\$\(node -e "\$who" "\$s" "\$pkg" "\$name"\)" \|\| fail [^\n]*\n {6}\[ "\$\(printf '%s\\n' "\$found" \| cut -d' ' -f1 \| LC_ALL=C sort -u \| tr '\\n' ' '\)" = "\$\(printf '%s\\n' "\$@" \| LC_ALL=C sort -u \| tr '\\n' ' '\)" \] \|\| fail /, 'which packages link it, against the row'],
     ['check', /copies="\$\(find "\$top" -xdev -type f -path "\*\/\$name\/package\.json" -exec node -e "\$same" "\$name" "\$from" \{\} \+\)" \|\| fail [^\n]*\n {6}\[ "\$copies" = "\$pkg\/package\.json" \] \|\| fail /, 'that no other package.json of that name and version is in the image'],
     ['check', /found="\$\(grep -rlF -e "\$mark" \$bundles\)" && st=0 \|\| st=\$\?; \s*\[ "\$st" = 1 \] \|\| fail /, "that the image's own build carries no copy of it (its mark; grep's 1, not 2)"],
-    ['fetched', /node -e "fetch\(process\.argv\[1\]\)[^\n]*" "\$url" "\$tmp\/\$name\.tgz" \|\| fail /, 'the fetch'],
     ['fetched', /\[ "\$got" = "\$want" \] \|\| fail /, "the tarball's sha512, against the integrity npm published"],
     ['fetched', /\[ "\$\(version "\$new"\)" = "\$to" \] \|\| fail /, "the new directory's version"],
     ['fetched', /\[ ! -e "\$new\/node_modules" \] \|\| fail /, 'that the tarball brings no node_modules'],
@@ -1019,12 +1042,14 @@ function tableProblems(name: Name, text: string): string[] {
   const whole: ReadonlyArray<[RegExp, string]> = [
     [/files\(\) \{ \(cd "\$1" && find \. -path \.\/node_modules -prune -o -type f -print0 \| LC_ALL=C sort -z \| xargs -0 sha256sum\); \}/, "tree() leaves pnpm's own node_modules out: pnpm links a package's bin there, a shim naming the install's paths"],
     [/state\(\) \{ \{ find "\$top" -xdev \\\( \$prune \\\) -prune -o -type d -exec stat -c '%n %u:%g %a' \{\} \+ ; find "\$top" -xdev \\\( \$prune \\\) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' \{\} \+ ; \}/, "state() reads every entry outside the swapped directories: each directory's owner and mode, and each other entry's owner, mode, size and times"],
-    [/swapped\(\) \{ if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then mv "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" "\$tmp\/\$1\/package\/node_modules"; fi; rm -r "\$s\/\$1@\$2\/node_modules\/\$1"; mv "\$tmp\/\$1\/package" "\$s\/\$1@\$2\/node_modules\/\$1"; \}/, "swapped() carries pnpm's own node_modules over, then puts the new release in the old one's place"],
+    [/swapped\(\) \{ if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then mv "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" "\$tmp\/\$1\/package\/node_modules" \|\| fail "[^"\n]+"; fi; rm -r "\$s\/\$1@\$2\/node_modules\/\$1" \|\| fail "[^"\n]+"; mv "\$tmp\/\$1\/package" "\$s\/\$1@\$2\/node_modules\/\$1" \|\| fail "[^"\n]+"; \}/, "swapped() carries pnpm's own node_modules over, then puts the new release in the old one's place, each step failing by name"],
     [/load="[^"\n]*if \(pj !== path\.join\(real, 'package\.json'\) \|\| v !== to\)[^"\n]*if \(!p\.startsWith\(real \+ path\.sep\)\)[^"\n]*"/, 'load checks where each require resolves, not only what it says'],
     [/who="[^"\n]*!st\.isSymbolicLink\(\) \|\| fs\.realpathSync\(path\.join\(nm, name\)\) !== real[^"\n]*"/, 'who finds the requirers by the links that lead to the directory'],
     [/same="[^"\n]*j\.name === n && j\.version === v[^"\n]*"/, 'same matches a copy by its name and version, so other versions stay'],
   ];
   for (const [re, what] of whole) if (!re.test(args)) problems.push(`the swap table's RUN: ${what}, and does not`);
+  problems.push(...fetchProblems(body('fetched'), '$tmp/$name.tgz', "the swap table's fetched()").filter((p) => !/unreachable\(\)|gone\(\)/.test(p)));
+  problems.push(...fetchProblems(args, '$tmp/$name.tgz', "the swap table's RUN").filter((p) => /unreachable\(\)|gone\(\)/.test(p)));
   // The order: every row checked, the image read, every tarball fetched and checked, then the swaps, then the proofs.
   const order: ReadonlyArray<[RegExp, string]> = [
     [/^ {4}for d in \$bundles; do \[ -d "\$d" \] \|\| fail /m, 'the build output is checked there'],
@@ -1085,7 +1110,7 @@ function gooseProblems(name: Name, text: string): string[] {
   if (!/(?:^|\s)\*\) fail "this is \$plat; /.test(args)) problems.push("goose's RUN does not refuse a platform it pins no asset for");
   const at = (re: RegExp) => args.search(re);
   const lastAt = (re: RegExp) => Math.max(-1, ...[...args.matchAll(new RegExp(re.source, 'g'))].map((m) => m.index!));
-  const fetch = at(/node -e "fetch\(process\.argv\[1\]\)[^\n]*" "\$url" "\$tmp\/goose" \|\| fail /);
+  const fetch = at(/node -e "fetch\(process\.argv\[1\]\)[^\n]*" "\$url" "\$tmp\/goose" && st=0 \|\| st=\$\?; /);
   const moved = at(/(?:^|[;\s])mv "\$tmp\/goose" "\$goose"; /);
   if (fetch < 0) problems.push("goose's RUN does not fetch the release's asset with node's fetch");
   if (moved < 0) problems.push("goose's RUN does not move the fetched file into place with `mv \"$tmp/goose\" \"$goose\"`");
@@ -1116,6 +1141,7 @@ function gooseProblems(name: Name, text: string): string[] {
     problems.push("goose's RUN's state() does not read every other entry of the image (owner and mode, and the size and times of each entry that is not a directory)");
   }
   if (vars.get('top') !== '/') problems.push(`goose's RUN's top= is ${vars.get('top') ?? 'not there'}, not /`);
+  problems.push(...fetchProblems(args, '$tmp/goose', "goose's RUN"));
   return problems;
 }
 
@@ -1131,6 +1157,8 @@ interface Tree {
   readonly links?: ReadonlyArray<{ path: string; target: string }>;
   /** What the stand-in registry serves, by URL; nothing else answers a fetch. */
   readonly registry?: Readonly<Record<string, Buffer>>;
+  /** A host of the stand-in registry that does not answer ('unreachable'), or answers every request with this HTTP status. */
+  readonly answers?: Readonly<Record<string, 'unreachable' | number>>;
   /**
    * The stand-in's own trees, integrity and hashes, which take the real ones' place in the RUNs (`build`):
    * dompurify's, each swap table row's by package name, and goose's new release.
@@ -1277,7 +1305,7 @@ const STAND_IN_TSC = Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffe
 function typescriptTree(): Pick<Tree, 'files' | 'links'> {
   return {
     files: {
-      [`${TSC.typescript}/package.json`]: `${JSON.stringify({ name: 'typescript', version: '7.0.2', type: 'module', exports: { './package.json': './package.json', '.': './lib/version.cjs' } })}\n`,
+      [`${TSC.typescript}/package.json`]: `${JSON.stringify({ name: 'typescript', version: '7.0.2', type: 'module', exports: { [`./${'package'}.json`]: `./${'package'}.json`, '.': './lib/version.cjs' } })}\n`,
       [`${TSC.typescript}/lib/version.cjs`]: 'const { version } = require("../package.json");\nexports.version = version;\nexports.versionMajorMinor = "7.0";\n',
       [`${TSC.typescript}/bin/tsc`]: '#!/usr/bin/env node\nimport "../lib/tsc.js";\n',
       [`${TSC.prisma}/package.json`]: '{"name":"prisma","version":"6.14.0"}\n',
@@ -1688,6 +1716,10 @@ function sandbox(tree: Tree): Sandbox {
     mkdirSync(dirname(join(root, 'registry', u.hostname, u.pathname)), { recursive: true });
     writeFileSync(join(root, 'registry', u.hostname, u.pathname), bytes);
   }
+  for (const [host, answer] of Object.entries(tree.answers ?? {})) {
+    mkdirSync(join(root, 'registry', host), { recursive: true });
+    writeFileSync(join(root, 'registry', host, '.answer'), String(answer));
+  }
   // mktemp's directory, inside the sandbox, so a RUN that fails leaves nothing behind.
   mkdirSync(join(root, 'tmp'));
   for (const home of ['/root', '/home/node']) mkdirSync(join(fs, home), { recursive: true });
@@ -1707,7 +1739,7 @@ function sandbox(tree: Tree): Sandbox {
     join(bin, 'preload.cjs'),
     [
       "for (const k of ['platform', 'arch']) { const v = process.env['FAKE_' + k.toUpperCase()]; if (v) Object.defineProperty(process, k, { value: v }); }",
-      "globalThis.fetch = async (url) => { const u = new URL(String(url)); const f = require('path').join(process.env.FAKE_REGISTRY || '/nonexistent', u.hostname, u.pathname); return require('fs').existsSync(f) ? new Response(require('fs').readFileSync(f)) : new Response('not in the stand-in registry', { status: 404 }); };",
+      "globalThis.fetch = async (url) => { const fs = require('fs'); const path = require('path'); const u = new URL(String(url)); const reg = process.env.FAKE_REGISTRY || '/nonexistent'; const a = path.join(reg, u.hostname, '.answer'); if (fs.existsSync(a)) { const answer = fs.readFileSync(a, 'utf8'); if (answer === 'unreachable') throw Object.assign(new TypeError('fetch failed'), { cause: new Error('getaddrinfo ENOTFOUND ' + u.hostname) }); return new Response('stand-in', { status: Number(answer) }); } const f = path.join(reg, u.hostname, u.pathname); return fs.existsSync(f) ? new Response(fs.readFileSync(f)) : new Response('not in the stand-in registry', { status: 404 }); };",
       '',
     ].join('\n'),
   );
@@ -2625,7 +2657,7 @@ describe("the webapp's build replaces dompurify's files with the release that fi
       // grep says 1 for "none found" and 2 for "could not read": only 1 is a no.
       ['a build the search for DOMPurify cannot read', unreadable('-rlF'), () => "the webapp's own build carries DOMPurify (grep exits 2)"],
       ['a build the search for imports cannot read', unreadable('-rlE'), () => "the webapp's own build imports dompurify or mermaid (grep exits 2)"],
-      ['a registry that has no such tarball', { ...base, registry: {} }, () => `${DOMPURIFY.url} could not be fetched; nothing was changed.`],
+      ['a registry that has no such tarball', { ...base, registry: {} }, () => `${DOMPURIFY.url} is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move.`],
       ['a registry that serves other bytes', served(extra), () => `${DOMPURIFY.url} is ${integrityOf(extra)}, not ${base.standIn!.integrity}, the integrity npm published for dompurify 3.4.17; nothing was changed.`],
       ['a tarball of another release, by its own integrity', served(older, { integrity: integrityOf(older) }), () => `${DOMPURIFY.url} unpacks to dompurify 3.4.16, not 3.4.17; nothing was changed.`],
       ['a tarball with other files, by its own integrity', served(extra, { integrity: integrityOf(extra) }), () => `${DOMPURIFY.url} unpacks to other files than the published dompurify 3.4.17 (above); nothing was changed.`],
@@ -2787,7 +2819,7 @@ describe("the webapp's build removes TypeScript 7's native compiler by its publi
       expect(run.out).toContain(`from ${box.fs}${TSC.prisma}, require('typescript') does not give 7.0.2 from ${box.fs}${TSC.typescript} without its binary.`);
     });
     // A typescript whose "." is no longer lib/version.cjs, though it says 7.0.2.
-    const moved = { ...tree.files, [`${TSC.typescript}/package.json`]: `${JSON.stringify({ name: 'typescript', version: '7.0.2', type: 'module', exports: { './package.json': './package.json', '.': './lib/api.cjs' } })}\n`, [`${TSC.typescript}/lib/api.cjs`]: 'exports.version = "7.0.2";\n' };
+    const moved = { ...tree.files, [`${TSC.typescript}/package.json`]: `${JSON.stringify({ name: 'typescript', version: '7.0.2', type: 'module', exports: { [`./${'package'}.json`]: `./${'package'}.json`, '.': './lib/api.cjs' } })}\n`, [`${TSC.typescript}/lib/api.cjs`]: 'exports.version = "7.0.2";\n' };
     withSandbox({ ...tree, files: moved }, (box) => {
       const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.3' });
       expect(run.status).not.toBe(0);
@@ -2928,7 +2960,7 @@ describe('the swap table replaces four packages in the webapp and one in the sup
       ['a build the search for the marks cannot read', unreadable, () => "the webapp's own build carries undici's undici:request:create (grep exits 2)"],
       ['a webapp built elsewhere', files({}, at(`${webapp}/public`)), (fs) => `${fs}${webapp}/public is not there: the build is not where it was read.`],
       // The last row's tarball missing: the first three were fetched and checked, and none of the four is swapped.
-      ['a registry without the last row\'s tarball', served(si, undefined), () => `${si.url} could not be fetched; nothing was changed.`],
+      ['a registry without the last row\'s tarball', served(si, undefined), () => `${si.url} is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move.`],
       ['a registry that serves other bytes', served(bodyParser, extraTgz), () => `${bodyParser.url} is ${integrityOf(extraTgz)}, not`],
       ['a tarball of another release, by its own integrity', served(bodyParser, tarball(older), older), () => `${bodyParser.url} unpacks to body-parser 1.20.8, not 1.20.9; nothing was changed.`],
       ['a tarball with other files, by its own integrity', served(bodyParser, extraTgz, standInSwapped('body-parser', '1.20.9')), () => `${bodyParser.url} unpacks to other files than the published body-parser 1.20.9 (above); nothing was changed.`],
@@ -3075,7 +3107,7 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
       ['an old goose that is no ELF', old(Buffer.from('#!/bin/sh\necho "goose version: v3.27.1"\n')), (fs) => `${fs}${GOOSE.path} is no ELF binary (it starts 23212f62)`],
       ['an old goose of another release: upstream moved goose', old(later), (fs) => `${fs}${GOOSE.path} says 'goose version: v3.28.0', not goose v3.27.1: upstream moved goose: drop the replacement.`],
       ['an old goose of another owner', { ...base, tools: gooseTools('1000:1000') }, (fs) => `${fs}${GOOSE.path} has 1 name(s), owner `],
-      ['a release without the asset', asset(undefined), () => `${url} could not be fetched; nothing was changed.`],
+      ['a release without the asset', asset(undefined), () => `${url} is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move.`],
       ['a release asset of other bytes', asset(later), () => `${url} is ${sha256(later)}, not ${sha256(STAND_IN_GOOSE_NEW)}, goose v3.29.0's goose_linux_x86_64 as its release published it; nothing was changed.`],
       ['a release asset that says another version, by its own hash', asset(later, true), () => "goose v3.29.0's goose_linux_x86_64 says 'goose version: v3.28.0'; nothing was changed."],
       ['the pinned hash, against the stand-in', base, () => `${url} is ${sha256(STAND_IN_GOOSE_NEW)}, not ${GOOSE.assets[plat].sha256}`, { pinnedGoose: true }],
@@ -3131,6 +3163,66 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
       expect(run.out).toContain(`${box.fs}${GOOSE.path} is not goose v3.29.0's goose_linux_arm64 after the move.`);
     });
   });
+});
+
+describe('a fetch that fails tells a host that did not answer from a move upstream, in every replacing RUN', () => {
+  const webapp = dockerfiles['trigger.dev'];
+  const fetching: ReadonlyArray<[string, Name, { pick: (run: Instruction) => boolean }, string, (plat: Plat) => string]> = [
+    ["dompurify's RUN", 'trigger.dev', replacingOnly, 'registry.npmjs.org', () => DOMPURIFY.url],
+    ["the webapp's swap table", 'trigger.dev', tableOnly, 'registry.npmjs.org', () => tableRows('trigger.dev')[0]!.url],
+    ["the supervisor's swap table", 'supervisor', tableOnly, 'registry.npmjs.org', () => tableRows('supervisor')[0]!.url],
+    ["goose's RUN", 'trigger.dev', gooseOnly, 'github.com', (plat) => GOOSE.assets[plat].url],
+  ];
+
+  it('each routes a host that does not answer, or answers with an error, to "run the same tag again", and a file that is gone to its own message', () => {
+    expect(replacementProblems(webapp)).toEqual([]);
+    for (const name of NAMES) {
+      expect(tableProblems(name, dockerfiles[name]), name).toEqual([]);
+      expect(gooseProblems(name, dockerfiles[name]), name).toEqual([]);
+    }
+    const outcome = /^ {4,6}case "\$st" in 0\) ;; 3\) unreachable "\$url" ;; 4\) gone "\$url" ;; \*\) fail [^\n]*$/;
+    // A RUN whose fetch fails into fail(), with its advice to drop the replacement.
+    const dompurifyAt = webapp.indexOf('\n# Still as root: dompurify');
+    const tableAt = webapp.indexOf('\n# Still as root: undici');
+    const gooseAt = webapp.indexOf('\n# Still as root: goose');
+    const inPart = (from: number, to: number, fn: (part: string) => string) => webapp.slice(0, from) + fn(webapp.slice(from, to)) + webapp.slice(to);
+    expect(replacementProblems(inPart(dompurifyAt, tableAt, (part) => part.replace(/ && st=0 \|\| st=\$\?; \\\n {4}case "\$st" in [^\n]*\n/, ' || fail "$url could not be fetched; nothing was changed."; \\\n')))).toEqual([
+      'the replacing RUN does not tell a host that did not answer (exit 3, unreachable) or a file that is gone (exit 4, gone) from a move upstream',
+    ]);
+    expect(tableProblems('trigger.dev', inPart(tableAt, gooseAt, (part) => dropLine(part, outcome)))).toEqual([
+      "the swap table's fetched() does not tell a host that did not answer (exit 3, unreachable) or a file that is gone (exit 4, gone) from a move upstream",
+    ]);
+    expect(gooseProblems('trigger.dev', inPart(gooseAt, webapp.length, (part) => part.replace('3) unreachable "$url" ;; 4) gone "$url" ;; ', '')))).toEqual([
+      "goose's RUN does not tell a host that did not answer (exit 3, unreachable) or a file that is gone (exit 4, gone) from a move upstream",
+    ]);
+    // An unreachable() that gives fail()'s advice, or none of its own.
+    expect(gooseProblems('trigger.dev', inPart(gooseAt, webapp.length, (part) => part.replace('Run the bring-up, or deploy-live.sh, with the same tag again once it answers', 'Drop the replacement')))).toEqual([
+      "goose's RUN's unreachable() does not say to run the same tag again, on its own, without fail()'s advice",
+    ]);
+    expect(tableProblems('supervisor', dropLine(dockerfiles.supervisor, /^ {4}gone\(\) \{/))).toEqual([
+      "the swap table's RUN's gone() does not say the file is gone and where the way on is, on its own, without fail()'s advice",
+    ]);
+    // The swap's three steps each fail by name.
+    expect(tableProblems('trigger.dev', webapp.replace(/(rm -r "\$s\/\$1@\$2\/node_modules\/\$1") \|\| fail "[^"\n]+";/, '$1;'))).toEqual([expect.stringContaining('each step failing by name')]);
+  });
+
+  for (const [what, name, only, host, url] of fetching) {
+    it(`${what}: a host that does not answer, or answers 503, stops it with nothing changed and says to run the same tag again, not to drop anything`, () => {
+      const plat = 'linux-x64';
+      for (const answer of ['unreachable', 503] as const) {
+        const tree = treeOf(name, plat);
+        withSandbox({ ...tree, answers: { [host]: answer } }, (box) => {
+          const before = snapshot(box);
+          const run = build(dockerfiles[name], box, { ...only, plat });
+          expect(run.status, `${what}, ${answer}: ${run.out}`).not.toBe(0);
+          expect(run.out).toContain(answer === 'unreachable' ? `${url(plat)}: getaddrinfo ENOTFOUND ${host}` : `${url(plat)} answered HTTP 503`);
+          expect(run.out).toContain(`${url(plat)} did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers`);
+          expect(run.out).not.toMatch(/re-read|drop the/);
+          expect(snapshot(box)).toEqual(before);
+        });
+      }
+    });
+  }
 });
 
 // ---------------------------------------------------------------------------

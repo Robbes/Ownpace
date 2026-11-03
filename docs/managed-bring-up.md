@@ -6095,7 +6095,21 @@ and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
 systeminformation 5.33.19 in place of the releases of the same major they fix,
 by the sha512 npm published; the supervisor's build does the same for its
 systeminformation. So the webapp's build reaches github.com as well as the npm
-registry.
+registry. **When a host does not answer** (or answers with an error) while an
+image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
+hold the image's name yet, the build stops with nothing changed and says that
+the host did not answer and upstream did not move: run the same command with
+the same tag again once it answers; nothing in the checkout needs editing, and
+a deploy that stopped there has not taken. **A release asset can disappear:**
+GitHub lets a release's owner delete an asset, where npm keeps a version that
+others depend on, so a later build of a tag depends on goose v3.29.0's assets
+still being there. If one is gone, the build says so (*… is gone*); a machine
+that already holds the image's name keeps running it, since compose builds only
+a name it lacks. Then a pull request moves the goose replacement to a release
+whose assets are there (its URL and SHA-256 per platform, read and hashed as
+the Dockerfile's header says), or drops it (the RUN and its REPLACED row, back
+to upstream's goose v3.27.1 and its findings), and the tag after it carries
+that.
 The image scan's critical
 findings go from 8 to 1 (zlib1g, which Debian has not fixed) and from 2 to 0.
 The one risk accepted: a `pnpm install` inside `trigger-api` or

@@ -373,7 +373,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-62bca33430e4
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-e13a605a9db5
     build:
       context: ./trigger.dev
       args:
@@ -738,7 +738,7 @@ services:
     # 5.33.19 in place of 5.31.7, by the sha512 npm published. No `user:`, so
     # it runs as the image's node, whose copy its CMD runs and the Dockerfile
     # keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-45d3671bc917
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-92025e84edc4
     build:
       context: ./supervisor
       args:

@@ -8,10 +8,13 @@
 out, goose v3.29.0's release binary in, four packages at the release of their own major that
 fixes them; built as a draft for alpha.4.** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`, from `main` at `319a2d34`
-(#1799), with `main` at `1f1d21d2` (#1800) merged in; not merged. The owner's mandate of 2026-11-03: the time
-before the fold (2026-11-04 23:30) goes to the findings a release fixes. **Owed before a merge:**
-`build (trigger, amd64)` and `build (trigger, arm64)` on the pull request, which build both images
-with every RUN below, one E2E (managed) there, and a branch image scan. Times are UTC.
+(#1799), with `main` at `1f1d21d2` (#1800) merged in; draft #1804, not merged. The owner's mandate of 2026-11-03: the time
+before the fold (2026-11-04 23:30) goes to the findings a release fixes. On #1804's head
+`9f6e5c1d`, `build (trigger, amd64)` and `build (trigger, arm64)` were green (Images run
+41600456269), so every RUN below ran in both images, the arm64 goose asset's `-version` among
+them, and the branch image scan measured what the arithmetic said (the last bullets). **Owed
+before a merge:** both builds green again on the head after the review (its RUNs changed what a
+failed fetch says, not what lands in the image), and one E2E (managed) on the branch. Times are UTC.
 - **Where the findings are.** Security Scan run 41586744506 (#1799's branch, its report listing
   every fixable finding by package and path) read the webapp built here at 1 critical, 89 high
   and 57 with a fix, and the supervisor at 0, 2 and 2. Of the webapp's 57: 15 in TypeScript 7's
@@ -92,15 +95,16 @@ with every RUN below, one E2E (managed) there, and a branch image scan. Times ar
   RUN green over the real 7.0.2 tree and binary, refusing a second name and a tsgo left
   elsewhere. The supervisor's RUN green under BusyBox 1.37.0 (Alpine's, every tool), with the
   real tarball. Not run here: either image, the arm64 goose asset (hashed, not executed), and
-  Trivy over the result.
-- **The guard** (`scripts/a-binary-the-stack-never-runs.unit.test.ts`, 38 tests to 53) holds the
+  Trivy over the result; CI has run all three since (above).
+- **The guard** (`scripts/a-binary-the-stack-never-runs.unit.test.ts`, 38 tests to 53, 58 after
+  the review) holds the
   tsc row in REMOVED, REPLACED in two kinds (packages, the table's rows among them, with their
   marks, loads and requirers; and goose as a binary, by platform), each RUN's checks and their
   order, and, over its stand-in, every step and each way it could slip; its stand-in goose is a
   minimal executable made for the machine that runs the test, x86-64 or aarch64. `managed.yml`'s
   names move to `-62bca33430e4` and `-45d3671bc917`.
 - **Mutations** (each applied to a copy of the tree with `managed.yml`'s name moved to the
-  mutated file's hash, so the name tests do not count; failed tests of 53): the controls, a
+  mutated file's hash, so the name tests do not count; failed tests of 53, before the review): the controls, a
   changed final echo in either Dockerfile, 0. tsc: no SHA-256 check 7, no one-name check 7, no
   require or import proof 11, not removed (rm and gone-loop) 7, the ELF search without tsc 7.
   The table: no integrity check 3, swaps before fetching 9, no other-copy check 3, other copies
@@ -109,8 +113,31 @@ with every RUN below, one E2E (managed) there, and a branch image scan. Times ar
   3, a row at another version 9; the supervisor's: no swap RUN 5, no integrity check 2. goose:
   no `chmod 0755` 10, no SHA-256 check 3, no old-version check 3, no stat check after the move
   3, no state comparison 3, no RUN 7. All 24 fail the guard; the controls fail none.
-- **What it should change** (arithmetic, not measured): the webapp from 1, 89, 57 to about 1, 46,
-  14, and the supervisor from 0, 2, 2 to about 0, 1, 1. **What stays, waiting on upstream**
+- **The review, on `9f6e5c1d` (no blockers).** A fetch that failed got *upstream moved, drop the
+  replacement*, which a host that did not answer is not. Each replacing RUN (dompurify's, the
+  table's in both builds, goose's) now tells the outcomes apart by the exit of node's fetch: a
+  host that did not answer, or answered with an error, says so, that nothing was changed and
+  upstream did not move, and to run the bring-up or `deploy-live.sh` with the same tag again; a
+  404 or 410 says the file is gone; neither carries the footer, and anything else fails as
+  before. `docs/managed-bring-up.md` (Upgrading Trigger.dev) says both, and that GitHub lets a
+  release's owner delete an asset where npm keeps a version others depend on, so a later build of
+  this tag needs goose's asset still there: a machine that holds the image's name keeps running
+  it, and a pull request moves the replacement to a release whose assets are there, or drops it.
+  Each of the three commands of `swapped()` now fails by name. The guard's stand-in registry
+  answers per host (not at all, or with a status), and five tests hold the outcomes in every
+  replacing RUN (53 tests to 58); its stand-in `exports` no longer spells the root
+  `package.json`'s path, so `docs/LESSONS.md` no longer sends edits of it here; the CHANGELOG
+  names github.com as the one new host. `managed.yml`'s names move from `-62bca33430e4` and
+  `-45d3671bc917`, the ones the scan read, to `-e13a605a9db5` and `-92025e84edc4`. Mutations
+  (failed tests of 58): the control 0; dompurify's failed fetch into `fail()` 5, its 404 taken
+  for no answer 4; the table without the outcome case 5, no answer into `fail()` 4, `rm` and
+  `mv` in `swapped()` without their `|| fail` 3 and 3; the supervisor's without `gone()` 3;
+  goose without the outcome branches 5, its `unreachable()` with `fail()`'s advice 4. All nine
+  fail the guard.
+- **What it changes, measured.** Security Scan run 41600469198, dispatched on `9f6e5c1d`, read
+  the webapp built there (`-62bca33430e4`) at 1 critical, 46 high and 14 with a fix, and the
+  supervisor (`-45d3671bc917`) at 0, 1 and 1, as the arithmetic said: from 1, 89, 57 and 0, 2, 2.
+  Its fixable remainder is the list below, no more. **What stays, waiting on upstream**
   (triggerdotdev/trigger.dev#5084): zlib1g's critical and the 32 highs of Debian 12's packages
   without a fix; goose's CVE-2026-111943, until a goose on Go 1.27.3; effect 3.16.12 and 3.18.4
   (exact pins of @prisma/config 6.14.0 and 6.19.0) and 3.17.1 (packages/schema-to-json's),
