@@ -2047,6 +2047,10 @@ reading a file drops off its entry by itself.
 
 - [a-command-the-docs-told-you-to-run](../scripts/a-command-the-docs-told-you-to-run.unit.test.ts) — A command the docs told you to run, that wrote a migration nobody can apply.
 
+### `package.json`
+
+- [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
+
 ### `packages/connectors/package.json`
 
 - [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts) — A SOURCE ONLY READS (workplan 0149 T5).
@@ -3410,6 +3414,7 @@ Reads:
 - `deploy/compose/managed.yml`
 - `deploy/compose/supervisor/Dockerfile`
 - `deploy/compose/trigger.dev/Dockerfile`
+- `package.json`
 - `scripts/a-service-that-phones-home.unit.test.ts`
 
 ### [a-blip-that-failed-a-gate](../scripts/a-blip-that-failed-a-gate.unit.test.ts)

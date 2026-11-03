@@ -32,8 +32,10 @@
  *
  * Two lessons came out of reading it, and each is held here. A third came with
  * the one finding left that a release fixes (below, A COPY THE SCAN READS),
- * and a fourth with the pnpm each service runs (A PNPM SWAPPED IS A PNPM
- * RENAMED).
+ * a fourth with the pnpm each service runs (A PNPM SWAPPED IS A PNPM
+ * RENAMED), and two more with the fixes of 2026-11-03 (A GO BINARY TRIVY
+ * READS ONLY WHEN IT CAN RUN, and A PACKAGE PNPM INSTALLED IS NOT ITS
+ * TARBALL).
  *
  *  - TRIVY DOES NOT SEE A HARD-LINKED SECOND NAME. The postinstall of
  *    @depot/cli and of esbuild hard-links the platform package's binary over
@@ -91,6 +93,35 @@
  *    looks for the copy the build removed, and refuses. Over the stand-in, a
  *    stand-in corepack installs from a stand-in registry and refuses a wrong
  *    hash as corepack 0.36.0 does ("Mismatch hashes", writing nothing).
+ *  - A GO BINARY TRIVY READS ONLY WHEN IT CAN RUN (2026-11-03). Trivy 0.76.1
+ *    reads the modules of a Go binary only when the file is executable. The
+ *    first triage of the webapp's goose read 0 findings, from a copy taken
+ *    out of the image without its mode; with the mode, 21. Since 2026-11-03
+ *    the webapp's build replaces goose v3.27.1, which upstream builds and the
+ *    entrypoint runs as root at every start, with goose v3.29.0's release
+ *    binary (REPLACED, kind 'binary'): 21 fixable highs to 1. The RUN checks
+ *    the old file is root's, 0755, with one name, and says v3.27.1; fetches
+ *    the release's asset for the platform; refuses any other SHA-256 with
+ *    nothing changed; gives the new file root's owner and 0755 before it
+ *    moves it into place; and proves it says v3.29.0, and that nothing else
+ *    changed. Over the stand-in, goose is a minimal executable made here for
+ *    the machine that runs this, which prints its version as goose does.
+ *  - A PACKAGE PNPM INSTALLED IS NOT ITS TARBALL (2026-11-03). Since then the
+ *    webapp's build also swaps undici, follow-redirects, body-parser and
+ *    systeminformation for the same major's release that fixes each, and the
+ *    supervisor's systeminformation, from one table of rows (REPLACED, kind
+ *    'package' with a `table`). Run over a tree pnpm 10.33.2 installed, the
+ *    first draft failed on systeminformation: pnpm links a package's own bin
+ *    into the package's directory, node_modules/.bin, a shim that names the
+ *    absolute paths of the install, so the directory in an image is never the
+ *    tarball file for file. The swap's trees leave pnpm's node_modules out,
+ *    the RUN carries it over to the new release and proves it unchanged, and
+ *    the stand-in's systeminformation has such a shim. The requirers are
+ *    found by the links themselves, since pnpm's directory name for one
+ *    carries its peers, and the supervisor's tree is resolved by `pnpm deploy
+ *    --legacy`. The same build removes TypeScript 7's native compiler, the
+ *    one ELF of @typescript/typescript-$plat 7.0.2, by its published SHA-256
+ *    (REMOVED), and proves `typescript` still resolves 7.0.2.
  *
  * What else is held:
  *  - the Dockerfiles' shape: one FROM, upstream's image by `vX.Y.Z` and index
@@ -119,7 +150,13 @@
  *    instructions over a stand-in of the image's tree on both platforms, which
  *    also shows that every check fails before anything is removed when a path
  *    upstream moves is not there;
- *  - REPLACED below equals what the webapp's replacing RUN names (the package,
+ *  - REPLACED below equals what the webapp's replacing RUNs name: dompurify's
+ *    own RUN, the swap table's rows in both builds (each package, both
+ *    versions and trees, npm's integrity, its mark and what it loads, who
+ *    requires it), and goose's RUN (both versions, each platform's asset and
+ *    SHA-256), and each of those RUNs checks before it changes anything and
+ *    proves after, in the order held here, run over the stand-in too. For
+ *    dompurify's: (the package,
  *    both versions, the tarball's address and integrity, both trees), and
  *    that RUN checks everything it can before it changes anything and proves
  *    the rest after. Run over the stand-in, with a stand-in registry and the
@@ -154,7 +191,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, relative } from 'node:path';
@@ -183,6 +220,21 @@ interface Removal {
 }
 
 const PNPM = '/triggerdotdev/node_modules/.pnpm';
+/** The supervisor's tree, as `pnpm deploy --legacy --prod` puts it (apps/supervisor/Containerfile) and the scan reads it. */
+const SUPERVISOR_PNPM = '/app/apps/supervisor/node_modules/.pnpm';
+type Plat = (typeof PLATFORMS)[number];
+
+/** TypeScript 7's native compiler in the webapp's image (REMOVED), and its SHA-256 on each platform, as npm published it. */
+const TSC = {
+  path: `${PNPM}/@typescript+typescript-$plat@7.0.2/node_modules/@typescript/typescript-$plat/lib/tsc`,
+  sha256: {
+    'linux-arm64': 'f86e8070c267b12d6c119bf567cb82d8b245e9d93da1864bc7c603cea10a8b2f',
+    'linux-x64': '4f2de678286401759b3fb4475bafe35b8f32b4b3a07d92642bbf37eadc9b34a4',
+  } as Readonly<Record<Plat, string>>,
+  /** The package `typescript` 7.0.2, and prisma's, from whose directories it must still resolve. */
+  typescript: `${PNPM}/typescript@7.0.2/node_modules/typescript`,
+  prisma: `${PNPM}/prisma@6.14.0_magicast@0.3.5_typescript@7.0.2/node_modules/prisma`,
+} as const;
 
 interface Swap {
   /** The pnpm upstream's packageManager names, and the one both builds run in its place. */
@@ -262,6 +314,11 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1 and v4.8.3; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's) getCorepackHomeFolder and installVersion",
     },
     ...npmRemovals('trigger-api', 'the entrypoint runs pnpm (through corepack), goose and node, the migrations prisma and node, the healthcheck `node -e`, and the bring-up execs only `test` and `chown` into it'),
+    {
+      path: TSC.path,
+      why: "TypeScript 7's native compiler (Go 1.26.4, golang.org/x/text v0.38.0: 15 fixable highs), the one ELF of typescript 7.0.2's platform package, there because typescript 7.0.2 is a resolved peer of prisma 6.14.0, @remix-run/* and class-variance-authority. `typescript` 7.0.2 exports \".\" as lib/version.cjs, which holds no compiler; the binary is reached only through bin/tsc or the unstable API's getExePath, and the image's one caller of the package, prisma's build/index.js, reads `(await import(\"typescript\")).default.version`",
+      evidence: "typescript 7.0.2 and @typescript/typescript-linux-x64 and -arm64 7.0.2 as npm published them (package.json exports, lib/version.cjs, lib/getExePath.js, lib/tsc.js, dist/api/options.js; each lib/tsc's SHA-256, one name, no install script); upstream's pnpm-lock.yaml, docker/scripts/entrypoint.sh, apps/webapp and internal-packages at v4.8.3 (tsc only in @trigger.dev/database's build, dev and typecheck scripts); prisma 6.14.0 build/index.js; the RUN's lines over a tree pnpm 10.33.2 installed, on Node 24.22.1, 2026-11-03",
+    },
   ],
   supervisor: [
     {
@@ -301,7 +358,9 @@ function npmRemovals(service: string, runs: string): Removal[] {
   ];
 }
 
-interface Replacement {
+/** A package's files replaced by the release of the same major that fixes it, in its directory. */
+interface PackageReplacement {
+  readonly kind: 'package';
   /** The package's directory in the image, under pnpm's name for the old version, which it keeps. */
   readonly path: string;
   readonly from: string;
@@ -314,17 +373,66 @@ interface Replacement {
   /** Each published tarball's files: the SHA-256 of `sha256sum` over them, sorted by path (the RUN's `tree`). */
   readonly fromTree: string;
   readonly toTree: string;
-  /** The packages that require it, each a directory that links it. */
+  /**
+   * The packages that require it: for dompurify's own RUN, each a directory
+   * that links it; for a row of the swap table, each name@version, which the
+   * RUN finds by the links (pnpm's directory name carries a requirer's peers).
+   */
   readonly requirers: readonly string[];
-  /** Why the swap changes no code that runs. */
+  /** A row of the swap table (rows()): a string of the package's own code no bundle of the build may carry, and what each requirer loads. */
+  readonly table?: { readonly mark: string; readonly loads: readonly string[] };
+  /** Why the swap changes no code that runs, or what it changes. */
   readonly why: string;
   readonly evidence: string;
 }
+
+/** A binary replaced by another release's, fetched by its SHA-256 for each platform. */
+interface BinaryReplacement {
+  readonly kind: 'binary';
+  readonly path: string;
+  /** What `<path> -version` says before and after. */
+  readonly from: string;
+  readonly to: string;
+  readonly said: string;
+  /** Each platform's release asset: its name, address, size and SHA-256. */
+  readonly assets: Readonly<Record<Plat, { readonly asset: string; readonly url: string; readonly bytes: number; readonly sha256: string }>>;
+  /** When the release was published (the three-day floor, CONTRIBUTING.md). */
+  readonly published: string;
+  readonly why: string;
+  readonly evidence: string;
+}
+
+type Replacement = PackageReplacement | BinaryReplacement;
+
+/** A row of the swap table: one of the four packages, in the image named. */
+function swapRow(
+  s: string,
+  name: string,
+  [from, to]: readonly [string, string],
+  [fromTree, toTree]: readonly [string, string],
+  integrity: string,
+  published: string,
+  table: PackageReplacement['table'] & object,
+  requirers: readonly string[],
+  why: string,
+  evidence: string,
+): PackageReplacement {
+  return { kind: 'package', path: `${s}/${name}@${from}/node_modules/${name}`, from, to, url: `https://registry.npmjs.org/${name}/-/${name}-${to}.tgz`, integrity, published, fromTree, toTree, requirers, table, why, evidence };
+}
+
+const SWAP_EVIDENCE =
+  "npm's bulk advisories for both versions and its published integrity and time for the new one (2026-11-03); both tarballs (the same file names, no exports, module or type gained, the dependencies; tree() of each); upstream's pnpm-lock.yaml at v4.8.3 (who links each, and what pnpm linked for its dependencies), docker/Dockerfile, apps/webapp/package.json and vite.config.ts (esbuild without --bundle, SSR externals) and the one bundle's imports; Security Scan run 41586744506's report (each path); the RUN over a tree pnpm 10.33.2 installed, the real tarballs from the registry, on Node 24.22.1 (the supervisor's under BusyBox 1.37.0), 2026-11-03";
+const SYSTEMINFORMATION_WHY =
+  'GHSA-3f7j-7jwc-fxfj (high, a Windows command injection in services()) and two lesser ones in 5.31.7; 5.33.19 fixes them, sanitising what it hands its shell commands; @opentelemetry/host-metrics 0.38.3 loads systeminformation/lib/network only, and only once host metrics start';
+const SYSTEMINFORMATION_TABLE = { mark: 'cat /sys/class/net/', loads: ['systeminformation', 'systeminformation/lib/network'] } as const;
+const SYSTEMINFORMATION_TREES = ['77226a7b179b8ebd183348773c2f8505c10b1cc0825036541983037cda8be543', 'dc01111094ab84ace2da139f1c6e612a888c4d275cb993740f7a520b7851bb38'] as const;
+const SYSTEMINFORMATION_INTEGRITY = 'sha512-Zm7wGeCG7PqfvzegMJIzrxICopWqYCeLATVmvxOOci1isLcNVKgY4Fr0hhYQzvc7cgtK3377jQVChTFAnznOiA==';
 
 /** What each Dockerfile replaces, and why. Must equal what its replacing RUN names. */
 const REPLACED: Readonly<Record<Name, readonly Replacement[]>> = {
   'trigger.dev': [
     {
+      kind: 'package',
       path: `${PNPM}/dompurify@3.4.13/node_modules/dompurify`,
       from: '3.4.13',
       to: '3.4.17',
@@ -339,9 +447,66 @@ const REPLACED: Readonly<Record<Name, readonly Replacement[]>> = {
       evidence:
         "npm's advisories for dompurify; the 3.4.13 and 3.4.17 tarballs (the same 24 file names, entry points and exports; package.json differs only in its version, scripts and devDependencies; the type declarations in one import's order, and the CJS ones drop `export { _default as default }`); upstream's pnpm-lock.yaml, app/hooks/usePostHog.ts and app/components/code/StreamdownRenderer.tsx at v4.8.1 and v4.8.3; posthog-js 1.407.3 dist/main.js, dist/module.js and lib/src/extensions/product-tours; streamdown 2.5.0 dist",
     },
+    swapRow(
+      PNPM,
+      'undici',
+      ['6.29.0', '6.29.1'],
+      ['461a038ab5fca6268e250cf431688e279c51688d51f486769a9d9c7114ae5448', '5f8644a9bf69a2c6aac6cef3f750832a3ff2b7a1f0d6d55d105abc4456cba6fb'],
+      'sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA==',
+      '2026-10-15T14:19:28.454Z',
+      { mark: 'undici:request:create', loads: ['undici'] },
+      ['@ai-sdk/provider-utils@4.0.56', '@remix-run/node@2.17.5'],
+      "CVE-2026-87018, CVE-2026-109383 and CVE-2026-109869 (3 highs; npm lists 5 advisories against 6.29.0, 3 high, none against 6.29.1); 6.29.1 changes what its fixes say: its agent and clients keep the TLS options they dropped, and fetch, EventSource and WebSocket bound what they buffer. @remix-run/node and @ai-sdk/provider-utils load it from node_modules; undici 5.29.0, @connectrpc/connect-node's, stays (a major)",
+      SWAP_EVIDENCE,
+    ),
+    swapRow(
+      PNPM,
+      'follow-redirects',
+      ['1.16.0', '1.16.2'],
+      ['374847280f34dd2d9f043d5e8b158655915ec22c8f24f58e35e790baa6c7ee41', 'a6296098bcf909250254ddc221f6350dbd95e88957d86b035b615de6ceb103e4'],
+      'sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow==',
+      '2026-10-25T21:32:25.963Z',
+      { mark: 'ERR_FR_TOO_MANY_REDIRECTS', loads: ['follow-redirects'] },
+      ['axios@1.20.0'],
+      "CVE-2026-111755, CVE-2026-111756 and CVE-2026-116689 (3 highs, npm's GHSA-q3jh-wrc6-jgq8, GHSA-8r9p-f939-6h3c and GHSA-mrwp-f3q8-3g9p, the last fixed by 1.16.2 alone); 1.16.2 strips credentials for array-form headers and escapes sensitiveHeaders. axios 1.20.0, @slack/web-api's, loads it",
+      SWAP_EVIDENCE,
+    ),
+    swapRow(
+      PNPM,
+      'body-parser',
+      ['1.20.6', '1.20.9'],
+      ['a4878aa94c0d147225571b3d8daa52abe187aa0843f82d39e650b68bb3e60b56', 'd44d0e9caa1723ff88fb3b05a305cc57efdb6d63a4cf05847f6172557af6b737'],
+      'sha512-FISIQxV5u91Y9gvuFq3q/tA/qTqLJn3AhRcEvyozyhJTh5OBFFtv827AdHU7Rbyct4r+Ba1/99oFa1Y3yuFsdw==',
+      '2026-10-22T11:38:27.889Z',
+      { mark: 'entity.parse.failed', loads: ['body-parser'] },
+      ['express@4.20.0'],
+      'CVE-2026-111181 (GHSA-27r3-jxmh-p828, high: a denial of service through trailing bytes after a compressed body); 1.20.9 checks the charset before it decompresses and drains the rest. Its dependencies are the ranges 1.20.6 had but qs (~6.16.0), which the qs 6.16.1 pnpm linked for 1.20.6 meets. express 4.20.0, the webapp\'s server, loads it; body-parser 2.3.0, express 5\'s, stays',
+      SWAP_EVIDENCE,
+    ),
+    swapRow(PNPM, 'systeminformation', ['5.31.7', '5.33.19'], SYSTEMINFORMATION_TREES, SYSTEMINFORMATION_INTEGRITY, '2026-10-30T05:08:10.331Z', SYSTEMINFORMATION_TABLE, ['@opentelemetry/host-metrics@0.38.3'], SYSTEMINFORMATION_WHY, SWAP_EVIDENCE),
+    {
+      kind: 'binary',
+      path: '/usr/local/bin/goose',
+      from: 'v3.27.1',
+      to: 'v3.29.0',
+      said: 'goose version: ',
+      assets: {
+        'linux-arm64': { asset: 'goose_linux_arm64', url: 'https://github.com/pressly/goose/releases/download/v3.29.0/goose_linux_arm64', bytes: 41287840, sha256: 'efdb8f97176df746cf3970ed40810816a51927da0600b152ac4359ae2b7c0e12' },
+        'linux-x64': { asset: 'goose_linux_x86_64', url: 'https://github.com/pressly/goose/releases/download/v3.29.0/goose_linux_x86_64', bytes: 43634848, sha256: 'cc56e2f75532a4dd52f5ef2d31db0121e91079a9c2617bc0ad4e04e2d41c228b' },
+      },
+      published: '2026-10-11T17:48:17Z',
+      why: "21 fixable highs in the goose v3.27.1 upstream builds (x/crypto v0.50.0, x/net v0.53.0, x/text v0.36.0, grpc v1.80.0, klauspost/compress v1.18.5), fifteen in packages it does not link, none reachable from `goose up` over plain HTTP to the stack's ClickHouse; v3.29.0's binary leaves Go's CVE-2026-111943, which needs TLS. `goose up` with upstream's GOOSE_DRIVER, GOOSE_DBSTRING and GOOSE_MIGRATION_DIR is unchanged; since v3.28.0 a goose_db_version table that does not exist yet is ordered by version_id, and every stack that ran trigger-api has the table",
+      evidence:
+        "goose's tags v3.27.1 and v3.29.0 (v3.29.0 at 8b457ba3; cmd/goose/main.go, internal/dialects/clickhouse.go, CHANGELOG.md, #1085); the v3.29.0 release's assets (uploaded 2026-10-11 17:48 UTC, their Last-Modified), downloaded and hashed 2026-11-03, and `-version` of the amd64 one; goose v3.27.1 built as upstream builds it (go install, Go 1.26.10), its `-version` and its symbol table; Trivy 0.76.1 over both, executable; upstream's docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.3; managed.yml's CLICKHOUSE_URL; the RUN over a stand-in root with that build and the real release asset, on Node 24.22.1, 2026-11-03",
+    },
   ],
-  supervisor: [],
+  supervisor: [swapRow(SUPERVISOR_PNPM, 'systeminformation', ['5.31.7', '5.33.19'], SYSTEMINFORMATION_TREES, SYSTEMINFORMATION_INTEGRITY, '2026-10-30T05:08:10.331Z', SYSTEMINFORMATION_TABLE, ['@opentelemetry/host-metrics@0.38.3'], `${SYSTEMINFORMATION_WHY}; the supervisor's own source does not import host-metrics, which comes with @trigger.dev/core; cross-spawn 5.1.0 stays (a major)`, SWAP_EVIDENCE)],
 };
+
+/** dompurify's own RUN, the swap table's rows and the binaries, in each image. */
+const ownRunRows = (name: Name) => REPLACED[name].filter((r): r is PackageReplacement => r.kind === 'package' && !r.table);
+const tableRows = (name: Name) => REPLACED[name].filter((r): r is PackageReplacement & { table: NonNullable<PackageReplacement['table']> } => r.kind === 'package' && r.table !== undefined);
+const binaryRows = (name: Name) => REPLACED[name].filter((r): r is BinaryReplacement => r.kind === 'binary');
 
 /** The image's own user, where corepack keeps the copy each service runs. */
 const HOME_OF: Readonly<Record<string, string>> = { root: '/root', node: '/home/node' };
@@ -533,6 +698,7 @@ function shapeProblems(name: Name, text: string): string[] {
     }
   }
   problems.push(...swapProblems(name, removingArgs));
+  if (name === 'trigger.dev') problems.push(...tscProblems(removingArgs));
   return problems;
 }
 
@@ -704,6 +870,255 @@ function replacementProblems(text: string): string[] {
   return problems;
 }
 
+/** A RUN's assignments, each with every variable but `$plat` resolved (the platform is the build's). */
+function resolvedKeepingPlat(run: string): Map<string, string> {
+  const vars = assignments(run);
+  const resolve = (value: string): string =>
+    value.replace(/\$\{?([a-z_][a-z0-9_]*)\}?/g, (all, name: string) => (name === 'plat' ? '$plat' : vars.has(name) ? resolve(vars.get(name)!) : all));
+  return new Map([...vars].map(([k, v]) => [k, resolve(v)]));
+}
+
+/**
+ * What is wrong with the webapp's removal of TypeScript 7's tsc (REMOVED, TSC), in
+ * words; empty when it holds: the binary is the published one for the platform, an
+ * ELF with one name, checked before anything is removed, and after the removal no
+ * ELF named tsc or tsgo is left and `typescript` still resolves 7.0.2 from its own
+ * directory and from prisma's, by require and by import.
+ */
+function tscProblems(args: string): string[] {
+  const problems: string[] = [];
+  const vars = resolvedKeepingPlat(args);
+  for (const [k, v] of [['tsc_bin', TSC.path], ['typescript', TSC.typescript], ['prisma', TSC.prisma]] as const) {
+    if (vars.get(k) !== v) problems.push(`the removing RUN's ${k}= is ${vars.get(k) ?? 'not there'}, not ${v}`);
+  }
+  const shas = /(?:^|[;\s])case "\$plat" in linux-arm64\) tsc_sha256=([0-9a-f]{64});; linux-x64\) tsc_sha256=([0-9a-f]{64});; esac;/.exec(args);
+  if (!shas || shas[1] !== TSC.sha256['linux-arm64'] || shas[2] !== TSC.sha256['linux-x64']) {
+    problems.push(`the removing RUN does not pin tsc's SHA-256 on each platform as npm published it (${TSC.sha256['linux-arm64']} on linux-arm64, ${TSC.sha256['linux-x64']} on linux-x64)`);
+  }
+  const firstRm = args.search(/(^|[;\s])rm\s/);
+  const lastRm = Math.max(-1, ...[...args.matchAll(/(^|[;\s])rm\s/g)].map((m) => m.index!));
+  const before: ReadonlyArray<[RegExp, string]> = [
+    [/\[ -f "\$tsc_bin" \] \|\| fail /, 'that tsc is there'],
+    [/magic="\$\(head -c4 "\$tsc_bin" \| od -An -tx1 \| tr -d ' \\n'\)"; \s*\[ "\$magic" = 7f454c46 \] \|\| fail /, 'that tsc is an ELF'],
+    [/\[ "\$\(stat -c %h "\$tsc_bin"\)" = 1 \] \|\| fail /, 'that tsc has one name, which Trivy would not see a second of'],
+    [/\[ "\$\(sha256sum "\$tsc_bin" \| cut -d' ' -f1\)" = "\$tsc_sha256" \] \|\| fail /, "that tsc is TypeScript 7.0.2's, by its SHA-256"],
+    [/for d in "\$typescript" "\$prisma"; do \[ -f "\$d\/package\.json" \] \|\| fail /, 'that typescript 7.0.2 and prisma are where they were read'],
+  ];
+  for (const [re, what] of before) {
+    const i = args.search(re);
+    if (i < 0 || (firstRm >= 0 && i > firstRm)) problems.push(`no check, before anything is removed, ${what}`);
+  }
+  const after: ReadonlyArray<[RegExp, string]> = [
+    [/left="\$\(find "\$s" -type f \\\( -name depot -o -name esbuild -o -name tsc -o -name tsgo \\\) -exec /, 'that no ELF named tsc or tsgo is left'],
+    [/for d in "\$typescript" "\$prisma"; do \s*\(cd "\$d" && node -e "[^"\n]*require\.resolve\('typescript'\)[^"\n]*v !== '7\.0\.2'[^"\n]*" "\$typescript"\) \|\| fail /, "that require('typescript') gives 7.0.2 from its lib/version.cjs, from typescript's directory and prisma's"],
+    [/\(cd "\$d" && node --input-type=module -e "[^"\n]*import\.meta\.resolve\('typescript'\)[^"\n]*v !== '7\.0\.2'[^"\n]*" "\$typescript"\) \|\| fail /, "that import('typescript') gives 7.0.2 from its lib/version.cjs, from typescript's directory and prisma's"],
+  ];
+  for (const [re, what] of after) {
+    const i = args.search(re);
+    if (i < 0 || i < lastRm) problems.push(`no proof, after the removal, ${what}`);
+  }
+  return problems;
+}
+
+/** The RUN that swaps packages by its table, rows(). */
+const tableRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])rows\(\) \{/.test(r.args));
+
+interface TableRow {
+  readonly name: string;
+  readonly from: string;
+  readonly fromTree: string;
+  readonly to: string;
+  readonly toTree: string;
+  readonly integrity: string;
+  readonly mark: string;
+  readonly loads: readonly string[];
+  readonly requirers: readonly string[];
+}
+
+/** One row of rows(), as its RUN joins it: `"$@" name from from_tree to to_tree integrity 'mark' loads requirer…; `. */
+const TABLE_ROW = /^ {6}"\$@" ([a-z0-9.-]+) (\d+\.\d+\.\d+) ([0-9a-f]{64}) (\d+\.\d+\.\d+) ([0-9a-f]{64}) (sha512-[A-Za-z0-9+/]{86}==) '([^'\n]+)' ([^\s;']+)((?: [^\s;']+)+); $/gm;
+
+function rowsOf(args: string): TableRow[] {
+  return [...args.matchAll(TABLE_ROW)].map((m) => ({
+    name: m[1]!,
+    from: m[2]!,
+    fromTree: m[3]!,
+    to: m[4]!,
+    toTree: m[5]!,
+    integrity: m[6]!,
+    mark: m[7]!,
+    loads: m[8]!.split(','),
+    requirers: m[9]!.trim().split(' '),
+  }));
+}
+
+/** Where each image's swap table works, and the build output it reads for a bundled copy. */
+const TABLE_HOME: Readonly<Record<Name, { s: string; bundles: string }>> = {
+  'trigger.dev': { s: PNPM, bundles: '/triggerdotdev/apps/webapp/build /triggerdotdev/apps/webapp/public' },
+  supervisor: { s: SUPERVISOR_PNPM, bundles: '/app/apps/supervisor/dist' },
+};
+
+/**
+ * What is wrong with an image's swap table and the RUN around it, in words;
+ * empty when it holds. Its rows are REPLACED's table rows. Every row is checked
+ * before anything is fetched, every tarball is fetched and checked before any
+ * directory is swapped, and the proofs come after the swap: each directory the
+ * new release, pnpm's own node_modules in it unchanged, nothing else of the
+ * image changed, and each dependency and each requirer's require loading it.
+ */
+function tableProblems(name: Name, text: string): string[] {
+  const want = tableRows(name);
+  const found = tableRuns(text);
+  if (found.length !== (want.length > 0 ? 1 : 0)) return [`${found.length} RUNs hold a swap table, not ${want.length > 0 ? 1 : 0}`];
+  if (want.length === 0) return [];
+  const problems: string[] = [];
+  const ins = instructions(text);
+  const all = runs(text);
+  const run = found[0]!;
+  const args = run.args;
+  if (run.user !== 'root') problems.push(`the swap table's RUN runs as ${run.user}, not root`);
+  const removing = all.findIndex((r) => /(^|[;\s])rm\s/.test(r.args));
+  if (all.findIndex((r) => r.args === args) <= removing) problems.push("the swap table's RUN comes before the removing RUN");
+  if (!ins.slice(ins.findIndex((i) => i.keyword === 'RUN' && i.args === args) + 1).some((i) => i.keyword === 'USER' && i.args === 'node')) problems.push("the swap table's RUN is not followed by upstream's USER node");
+  const vars = assignments(args);
+  const home = TABLE_HOME[name];
+  if (vars.get('s') !== home.s) problems.push(`the swap table's s= is ${vars.get('s') ?? 'not there'}, not ${home.s}`);
+  if (vars.get('bundles') !== home.bundles) problems.push(`the swap table's bundles= is ${vars.get('bundles') ?? 'not there'}, not ${home.bundles}`);
+  if (vars.get('top') !== '/') problems.push(`the swap table's top= is ${vars.get('top') ?? 'not there'}, not /: it reads the whole image for other copies and other changes`);
+  // The rows are REPLACED's, field for field.
+  const show = (r: TableRow) => [r.name, r.from, r.fromTree, r.to, r.toTree, r.integrity, r.mark, r.loads.join(','), [...r.requirers].sort().join(' ')].join(' | ');
+  const rows = rowsOf(args);
+  const expected = want.map((r) => show({ name: r.path.split('/').at(-1)!, from: r.from, fromTree: r.fromTree, to: r.to, toTree: r.toTree, integrity: r.integrity, mark: r.table.mark, loads: r.table.loads, requirers: r.requirers }));
+  const got = rows.map(show);
+  for (const row of got.filter((g) => !expected.includes(g))) problems.push(`the swap table has a row REPLACED does not: ${row}`);
+  for (const row of expected.filter((e) => !got.includes(e))) problems.push(`the swap table has no row for REPLACED's ${row}`);
+  for (const r of want) if (r.path !== `${home.s}/${r.path.split('/').at(-1)}@${r.from}/node_modules/${r.path.split('/').at(-1)}`) problems.push(`REPLACED's ${r.path} is not where the swap table works (${home.s})`);
+  /** The body of a function of the RUN, from `name() {` to its closing line. */
+  const body = (fn: string) => new RegExp(`(?:^|[;\\s])${fn}\\(\\) \\{([\\s\\S]*?)\\n {4}\\}; `).exec(args)?.[1] ?? '';
+  const needs: ReadonlyArray<[string, RegExp, string]> = [
+    ['check', /\[ "\$\(version "\$pkg"\)" = "\$from" \] \|\| fail /, "the old directory's version"],
+    ['check', /\[ -z "\$\(find "\$pkg" -path "\$pkg\/node_modules" -prune -o ! -type f ! -type d -print\)" \] \|\| fail /, 'that the old directory holds files and directories only'],
+    ['check', /\[ "\$\(tree "\$pkg"\)" = "\$from_tree" \] \|\| /, 'the old directory, file for file (from_tree)'],
+    ['check', /found="\$\(node -e "\$who" "\$s" "\$pkg" "\$name"\)" \|\| fail [^\n]*\n {6}\[ "\$\(printf '%s\\n' "\$found" \| cut -d' ' -f1 \| LC_ALL=C sort -u \| tr '\\n' ' '\)" = "\$\(printf '%s\\n' "\$@" \| LC_ALL=C sort -u \| tr '\\n' ' '\)" \] \|\| fail /, 'which packages link it, against the row'],
+    ['check', /copies="\$\(find "\$top" -xdev -type f -path "\*\/\$name\/package\.json" -exec node -e "\$same" "\$name" "\$from" \{\} \+\)" \|\| fail [^\n]*\n {6}\[ "\$copies" = "\$pkg\/package\.json" \] \|\| fail /, 'that no other package.json of that name and version is in the image'],
+    ['check', /found="\$\(grep -rlF -e "\$mark" \$bundles\)" && st=0 \|\| st=\$\?; \s*\[ "\$st" = 1 \] \|\| fail /, "that the image's own build carries no copy of it (its mark; grep's 1, not 2)"],
+    ['fetched', /node -e "fetch\(process\.argv\[1\]\)[^\n]*" "\$url" "\$tmp\/\$name\.tgz" \|\| fail /, 'the fetch'],
+    ['fetched', /\[ "\$got" = "\$want" \] \|\| fail /, "the tarball's sha512, against the integrity npm published"],
+    ['fetched', /\[ "\$\(version "\$new"\)" = "\$to" \] \|\| fail /, "the new directory's version"],
+    ['fetched', /\[ ! -e "\$new\/node_modules" \] \|\| fail /, 'that the tarball brings no node_modules'],
+    ['fetched', /\[ "\$\(tree "\$new"\)" = "\$to_tree" \]/, 'the new directory, file for file (to_tree)'],
+    ['fetched', /chown -R "\$\(stat -c %u:%g "\$pkg\/package\.json"\)" "\$new"; /, "the old package.json's owner, given to the new files"],
+    ['fetched', /own "\$pkg" > "\$tmp\/\$name\.own"; /, "pnpm's own node_modules, read before the swap"],
+    ['proven', /\{ \[ "\$\(version "\$pkg"\)" = "\$to" \] && \[ "\$\(tree "\$pkg"\)" = "\$to_tree" \]; \} \|\| fail /, 'that the directory is the new release, file for file'],
+    ['proven', /\[ "\$\(own "\$pkg"\)" = "\$\(cat "\$tmp\/\$name\.own"\)" \] \|\| fail /, "that pnpm's own node_modules is what it was"],
+    ['loaded', /node -e "\$deps" "\$pkg" \|\| fail /, 'that every dependency the new release declares loads from its directory'],
+    ['loaded', /\[ -n "\$found" \] \|\| fail /, 'that something links it after the swap'],
+    ['loaded', /\(cd "\$r" && node -e "\$load" "\$pkg" "\$name" "\$to" "\$specs"\) \|\| fail /, "that from each requirer's own directory require loads the new release from it"],
+  ];
+  for (const [fn, re, what] of needs) if (!re.test(body(fn))) problems.push(`the swap table's ${fn}() does not check ${what}`);
+  const whole: ReadonlyArray<[RegExp, string]> = [
+    [/files\(\) \{ \(cd "\$1" && find \. -path \.\/node_modules -prune -o -type f -print0 \| LC_ALL=C sort -z \| xargs -0 sha256sum\); \}/, "tree() leaves pnpm's own node_modules out: pnpm links a package's bin there, a shim naming the install's paths"],
+    [/state\(\) \{ \{ find "\$top" -xdev \\\( \$prune \\\) -prune -o -type d -exec stat -c '%n %u:%g %a' \{\} \+ ; find "\$top" -xdev \\\( \$prune \\\) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' \{\} \+ ; \}/, "state() reads every entry outside the swapped directories: each directory's owner and mode, and each other entry's owner, mode, size and times"],
+    [/swapped\(\) \{ if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then mv "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" "\$tmp\/\$1\/package\/node_modules"; fi; rm -r "\$s\/\$1@\$2\/node_modules\/\$1"; mv "\$tmp\/\$1\/package" "\$s\/\$1@\$2\/node_modules\/\$1"; \}/, "swapped() carries pnpm's own node_modules over, then puts the new release in the old one's place"],
+    [/load="[^"\n]*if \(pj !== path\.join\(real, 'package\.json'\) \|\| v !== to\)[^"\n]*if \(!p\.startsWith\(real \+ path\.sep\)\)[^"\n]*"/, 'load checks where each require resolves, not only what it says'],
+    [/who="[^"\n]*!st\.isSymbolicLink\(\) \|\| fs\.realpathSync\(path\.join\(nm, name\)\) !== real[^"\n]*"/, 'who finds the requirers by the links that lead to the directory'],
+    [/same="[^"\n]*j\.name === n && j\.version === v[^"\n]*"/, 'same matches a copy by its name and version, so other versions stay'],
+  ];
+  for (const [re, what] of whole) if (!re.test(args)) problems.push(`the swap table's RUN: ${what}, and does not`);
+  // The order: every row checked, the image read, every tarball fetched and checked, then the swaps, then the proofs.
+  const order: ReadonlyArray<[RegExp, string]> = [
+    [/^ {4}for d in \$bundles; do \[ -d "\$d" \] \|\| fail /m, 'the build output is checked there'],
+    [/^ {4}rows check; $/m, 'every row is checked'],
+    [/^ {4}tmp="\$\(mktemp -d\)"; $/m, 'the staging directory is made'],
+    [/^ {4}prune="-path \$tmp"; $/m, 'the swapped directories are named'],
+    [/^ {4}rows pruned; $/m, 'the swapped directories are named'],
+    [/^ {4}before="\$\(state\)"; $/m, 'the image is read'],
+    [/^ {4}rows fetched; $/m, 'every tarball is fetched and checked'],
+    [/^ {4}rows swapped; $/m, 'the directories are swapped'],
+    [/^ {4}rows proven; $/m, 'each directory is proved the new release'],
+    [/^ {4}\[ "\$\(state\)" = "\$before" \] \|\| fail /m, 'nothing else changed'],
+    [/^ {4}rm -r "\$tmp"; $/m, 'the staging directory goes'],
+    [/^ {4}rows loaded; $/m, 'each requirer loads it'],
+  ];
+  let last = -1;
+  for (const [re, what] of order) {
+    const i = args.search(re);
+    if (i < 0) problems.push(`the swap table's RUN does not run its steps in order: missing where ${what}`);
+    else if (i < last) problems.push(`the swap table's RUN does not run its steps in order: ${what} too early`);
+    else last = i;
+  }
+  return problems;
+}
+
+/** The RUN that replaces goose: the one that names it. */
+const gooseRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])goose=\/usr\/local\/bin\/goose;/.test(r.args));
+
+/**
+ * What is wrong with the webapp's goose RUN (REPLACED, kind 'binary'), in words;
+ * empty when it holds. The old file is checked before anything is fetched, the
+ * fetched one before it is moved into place, and the proofs come after the move.
+ */
+function gooseProblems(name: Name, text: string): string[] {
+  const want = binaryRows(name);
+  const found = gooseRuns(text);
+  if (found.length !== want.length) return [`${found.length} RUNs replace goose, not ${want.length}`];
+  if (want.length === 0) return [];
+  const g = want[0]!;
+  const problems: string[] = [];
+  const ins = instructions(text);
+  const all = runs(text);
+  const run = found[0]!;
+  const args = run.args;
+  if (run.user !== 'root') problems.push(`goose's RUN runs as ${run.user}, not root`);
+  if (all.findIndex((r) => r.args === args) <= all.findIndex((r) => /(^|[;\s])rm\s/.test(r.args))) problems.push("goose's RUN comes before the removing RUN");
+  if (!ins.slice(ins.findIndex((i) => i.keyword === 'RUN' && i.args === args) + 1).some((i) => i.keyword === 'USER' && i.args === 'node')) problems.push("goose's RUN is not followed by upstream's USER node");
+  const vars = assignments(args);
+  for (const [k, v] of [['goose', g.path], ['goose_from', g.from], ['goose_to', g.to], ['url', 'https://github.com/pressly/goose/releases/download/$goose_to/$asset']] as const) {
+    if (vars.get(k) !== v) problems.push(`goose's RUN's ${k}= is ${vars.get(k) ?? 'not there'}, not ${v}`);
+  }
+  for (const plat of PLATFORMS) {
+    const a = g.assets[plat];
+    const m = new RegExp(`(?:^|\\s)${plat}\\) asset=([a-z0-9_]+); goose_sha256=([0-9a-f]{64});;`).exec(args);
+    if (!m || m[1] !== a.asset || m[2] !== a.sha256) problems.push(`goose's RUN does not pin ${plat}'s ${a.asset} by ${a.sha256}`);
+    if (a.url !== `https://github.com/pressly/goose/releases/download/${g.to}/${a.asset}`) problems.push(`REPLACED's goose asset for ${plat} is not v${g.to}'s ${a.asset}`);
+  }
+  if (!/(?:^|\s)\*\) fail "this is \$plat; /.test(args)) problems.push("goose's RUN does not refuse a platform it pins no asset for");
+  const at = (re: RegExp) => args.search(re);
+  const lastAt = (re: RegExp) => Math.max(-1, ...[...args.matchAll(new RegExp(re.source, 'g'))].map((m) => m.index!));
+  const fetch = at(/node -e "fetch\(process\.argv\[1\]\)[^\n]*" "\$url" "\$tmp\/goose" \|\| fail /);
+  const moved = at(/(?:^|[;\s])mv "\$tmp\/goose" "\$goose"; /);
+  if (fetch < 0) problems.push("goose's RUN does not fetch the release's asset with node's fetch");
+  if (moved < 0) problems.push("goose's RUN does not move the fetched file into place with `mv \"$tmp/goose\" \"$goose\"`");
+  const stat = /\[ "\$\(stat -c '%h %u:%g %a' "\$goose"\)" = '1 0:0 755' \] \|\| fail /;
+  const before: ReadonlyArray<[number, string]> = [
+    [at(/\{ \[ -f "\$goose" \] && \[ ! -L "\$goose" \]; \} \|\| fail /), 'that goose is a file'],
+    [at(/magic="\$\(head -c4 "\$goose" \| od -An -tx1 \| tr -d ' \\n'\)"; \s*\[ "\$magic" = 7f454c46 \] \|\| fail /), 'that goose is an ELF'],
+    [at(stat), "that goose has one name, root's, 0755"],
+    [at(/said="\$\("\$goose" -version\)" \|\| fail [^\n]*\n {4}\[ "\$said" = "goose version: \$goose_from" \] \|\| fail "[^"\n]*upstream moved goose: drop the replacement\."/), 'that goose says the version the replacement was read for (upstream moved goose: drop the replacement)'],
+    [at(/(?:^|[;\s])before="\$\(state\)"; /), 'the image, read'],
+  ];
+  for (const [i, what] of before) if (i < 0 || (fetch >= 0 && i > fetch)) problems.push(`goose's RUN does not check, before it fetches, ${what}`);
+  const between: ReadonlyArray<[number, string]> = [
+    [at(/got="\$\(sha256sum "\$tmp\/goose" \| cut -d' ' -f1\)"; \s*\[ "\$got" = "\$goose_sha256" \] \|\| fail /), "the fetched file's SHA-256"],
+    [at(/(?:^|[;\s])chown 0:0 "\$tmp\/goose"; /), "root's owner, given to it"],
+    [at(/(?:^|[;\s])chmod 0755 "\$tmp\/goose"; /), 'mode 0755, given to it (Trivy reads no Go binary that is not executable)'],
+    [at(/said="\$\("\$tmp\/goose" -version\)" \|\| fail [^\n]*\n {4}\[ "\$said" = "goose version: \$goose_to" \] \|\| fail /), 'that it says the new version'],
+  ];
+  for (const [i, what] of between) if (i < 0 || i < fetch || (moved >= 0 && i > moved)) problems.push(`goose's RUN does not check, after the fetch and before the move, ${what}`);
+  const after: ReadonlyArray<[number, string]> = [
+    [at(/\[ "\$\(sha256sum "\$goose" \| cut -d' ' -f1\)" = "\$goose_sha256" \] \|\| fail /), 'that goose is the fetched file'],
+    [lastAt(stat), "that goose has one name, root's, 0755"],
+    [at(/\[ "\$\("\$goose" -version\)" = "goose version: \$goose_to" \] \|\| fail /), 'that goose says the new version'],
+    [at(/\[ "\$\(state\)" = "\$before" \] \|\| fail /), 'that nothing else changed'],
+  ];
+  for (const [i, what] of after) if (i < 0 || i < moved) problems.push(`goose's RUN does not prove, after the move, ${what}`);
+  if (!/state\(\) \{ \{ find "\$top" -xdev \\\( -path "\$tmp" -o -path "\$goose" \\\) -prune -o -type d -exec stat -c '%n %u:%g %a' \{\} \+ ; find "\$top" -xdev \\\( -path "\$tmp" -o -path "\$goose" \\\) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' \{\} \+ ; \}/.test(args)) {
+    problems.push("goose's RUN's state() does not read every other entry of the image (owner and mode, and the size and times of each entry that is not a directory)");
+  }
+  if (vars.get('top') !== '/') problems.push(`goose's RUN's top= is ${vars.get('top') ?? 'not there'}, not /`);
+  return problems;
+}
+
 // ---------------------------------------------------------------------------
 // The RUN instructions, run over a stand-in of the image's tree.
 
@@ -716,12 +1131,25 @@ interface Tree {
   readonly links?: ReadonlyArray<{ path: string; target: string }>;
   /** What the stand-in registry serves, by URL; nothing else answers a fetch. */
   readonly registry?: Readonly<Record<string, Buffer>>;
-  /** The stand-in's own trees and integrity, which take the real ones' place in the RUN (`build`). */
-  readonly standIn?: { readonly fromTree: string; readonly toTree: string; readonly integrity: string };
+  /**
+   * The stand-in's own trees, integrity and hashes, which take the real ones' place in the RUNs (`build`):
+   * dompurify's, each swap table row's by package name, and goose's new release.
+   */
+  readonly standIn?: StandIn;
+  /** Files the stand-in runs, by path in the image (mode 0755): goose. */
+  readonly executables?: Readonly<Record<string, Buffer>>;
   /** Commands that stand in for the system's, by name, as shell scripts (`stub`). */
   readonly tools?: Readonly<Record<string, string>>;
   /** The pnpm the stand-in registry publishes, which the stand-in corepack installs: its version, the sha512 it hashes to, and its files. */
   readonly pnpm?: Published;
+}
+
+interface StandIn {
+  readonly fromTree?: string;
+  readonly toTree?: string;
+  readonly integrity?: string;
+  readonly table?: Readonly<Record<string, { readonly fromTree: string; readonly toTree: string; readonly integrity: string }>>;
+  readonly goose?: string;
 }
 
 interface Published {
@@ -754,7 +1182,7 @@ const stub = (name: string, when: string, answer: string) =>
 const STAND_IN_ENTRYPOINT = '#!/bin/sh\nexec "$@"\n';
 const sha256 = (text: string | Buffer) => createHash('sha256').update(text).digest('hex');
 
-const DOMPURIFY = REPLACED['trigger.dev'][0]!;
+const DOMPURIFY = ownRunRows('trigger.dev')[0]!;
 
 /**
  * A stand-in of a published dompurify, by path under the tarball's `package/`:
@@ -842,6 +1270,168 @@ function dompurifyTree(): Pick<Tree, 'files' | 'links' | 'registry' | 'standIn'>
   };
 }
 
+/** The stand-in's tsc: an ELF by its magic, the same on both platforms; `build` puts its SHA-256 in the RUN unless told to keep the pinned ones. */
+const STAND_IN_TSC = Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.from('stand-in tsc\n')]);
+
+/** typescript 7.0.2 as its package.json exports it ("." is lib/version.cjs, no compiler), and prisma, which links it. */
+function typescriptTree(): Pick<Tree, 'files' | 'links'> {
+  return {
+    files: {
+      [`${TSC.typescript}/package.json`]: `${JSON.stringify({ name: 'typescript', version: '7.0.2', type: 'module', exports: { './package.json': './package.json', '.': './lib/version.cjs' } })}\n`,
+      [`${TSC.typescript}/lib/version.cjs`]: 'const { version } = require("../package.json");\nexports.version = version;\nexports.versionMajorMinor = "7.0";\n',
+      [`${TSC.typescript}/bin/tsc`]: '#!/usr/bin/env node\nimport "../lib/tsc.js";\n',
+      [`${TSC.prisma}/package.json`]: '{"name":"prisma","version":"6.14.0"}\n',
+    },
+    links: [{ path: `${dirname(TSC.prisma)}/typescript`, target: '../../typescript@7.0.2/node_modules/typescript' }],
+  };
+}
+
+/**
+ * A minimal static Linux executable for the machine that runs this (x86-64 or
+ * aarch64): it writes `text` to stdout and exits 0, whatever its arguments, as
+ * `goose -version` prints its version. One load segment: the ELF header, its
+ * program header, the code, then `text`.
+ */
+function standInExecutable(text: string, arch: string = process.arch): Buffer {
+  const msg = Buffer.from(text);
+  let machine: number;
+  let code: Buffer;
+  if (arch === 'x64') {
+    machine = 0x3e;
+    // mov eax,1; mov edi,1; lea rsi,[rip+16]; mov edx,len; syscall; mov eax,60; xor edi,edi; syscall
+    const len = Buffer.alloc(4);
+    len.writeUInt32LE(msg.length);
+    code = Buffer.concat([Buffer.from([0xb8, 1, 0, 0, 0, 0xbf, 1, 0, 0, 0, 0x48, 0x8d, 0x35, 16, 0, 0, 0, 0xba]), len, Buffer.from([0x0f, 0x05, 0xb8, 0x3c, 0, 0, 0, 0x31, 0xff, 0x0f, 0x05])]);
+  } else if (arch === 'arm64') {
+    machine = 0xb7;
+    // mov x0,#1; adr x1,msg (+28); mov x2,#len; mov x8,#64; svc #0; mov x0,#0; mov x8,#93; svc #0
+    const words = [0xd2800020, 0x100000e1, 0xd2800002 | (msg.length << 5), 0xd2800808, 0xd4000001, 0xd2800000, 0xd2800ba8, 0xd4000001];
+    code = Buffer.alloc(32);
+    words.forEach((w, i) => code.writeUInt32LE(w >>> 0, i * 4));
+  } else {
+    throw new Error(`no stand-in executable for ${arch}: this guard runs on x64 and arm64`);
+  }
+  const size = BigInt(120 + code.length + msg.length);
+  const h = Buffer.alloc(120);
+  Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1]).copy(h, 0);
+  h.writeUInt16LE(2, 16); // ET_EXEC
+  h.writeUInt16LE(machine, 18);
+  h.writeUInt32LE(1, 20);
+  h.writeBigUInt64LE(0x400000n + 120n, 24); // the entry: the code, after both headers
+  h.writeBigUInt64LE(64n, 32); // the program header, after the ELF header
+  h.writeUInt16LE(64, 52);
+  h.writeUInt16LE(56, 54);
+  h.writeUInt16LE(1, 56);
+  h.writeUInt16LE(64, 58);
+  h.writeUInt32LE(1, 64); // PT_LOAD
+  h.writeUInt32LE(5, 68); // R and X
+  h.writeBigUInt64LE(0x400000n, 80);
+  h.writeBigUInt64LE(0x400000n, 88);
+  h.writeBigUInt64LE(size, 96);
+  h.writeBigUInt64LE(size, 104);
+  h.writeBigUInt64LE(0x1000n, 112);
+  return Buffer.concat([h, code, msg]);
+}
+
+const GOOSE = binaryRows('trigger.dev')[0]!;
+/** goose as upstream builds it and as the release publishes it, each saying its version as goose does. */
+const STAND_IN_GOOSE_OLD = standInExecutable(`${GOOSE.said}${GOOSE.from}\n`);
+const STAND_IN_GOOSE_NEW = standInExecutable(`${GOOSE.said}${GOOSE.to}\n`);
+
+/**
+ * The stand-in's stat and chown, for goose's owner: the stand-in's files are
+ * the user's who runs this, so stat answers `owner` for `stat -c '%h %u:%g %a'`
+ * of one path (its links and mode stay the file's own), and `chown 0:0` is
+ * recorded and answered without changing anything. All else is the system's.
+ */
+function gooseTools(owner = '0:0'): Readonly<Record<string, string>> {
+  const realStat = systemCommand('stat');
+  return {
+    stat: [
+      '#!/bin/sh',
+      `if [ "$#" = 3 ] && [ "$1" = -c ] && [ "$2" = '%h %u:%g %a' ]; then r="$('${realStat}' -c '%h %a' "$3")" || exit 1; echo "\${r% *} ${owner} \${r#* }"; exit 0; fi`,
+      `exec '${realStat}' "$@"`,
+      '',
+    ].join('\n'),
+    chown: ['#!/bin/sh', `printf '%s %s\\n' chown "$*" >> "$TOOL_LOG"`, 'case "$1" in 0:0) exit 0 ;; esac', `exec '${systemCommand('chown')}' "$@"`, ''].join('\n'),
+  };
+}
+
+/** pnpm's directory, at read_at, of each package that requires one of the four (the stand-in's links are made from it). */
+const REQUIRER_DIRS: Readonly<Record<string, string>> = {
+  '@ai-sdk/provider-utils@4.0.56': '@ai-sdk+provider-utils@4.0.56_zod@4.5.4',
+  '@remix-run/node@2.17.5': '@remix-run+node@2.17.5_typescript@7.0.2',
+  'axios@1.20.0': 'axios@1.20.0',
+  'express@4.20.0': 'express@4.20.0',
+  '@opentelemetry/host-metrics@0.38.3': '@opentelemetry+host-metrics@0.38.3_@opentelemetry+api@1.9.1',
+};
+const nameOfRow = (r: PackageReplacement) => r.path.split('/').at(-1)!;
+const splitAt = (spec: string) => [spec.slice(0, spec.lastIndexOf('@')), spec.slice(spec.lastIndexOf('@') + 1)] as const;
+
+/**
+ * A stand-in of one of the four packages at a version, by path inside its
+ * directory: its entry says its version and carries the package's mark, so a
+ * check that read node_modules for it, rather than the build, would fail;
+ * systeminformation has lib/network.js, which host-metrics loads, and
+ * body-parser requires its dependency bytes when it loads.
+ */
+function standInSwapped(name: string, version: string): Record<string, string> {
+  const row = tableRows('trigger.dev').find((r) => nameOfRow(r) === name)!;
+  const main = name === 'systeminformation' ? 'lib/index.js' : 'index.js';
+  const deps = name === 'body-parser' ? { dependencies: { bytes: '~3.1.2' } } : {};
+  const files: Record<string, string> = {
+    'package.json': `${JSON.stringify({ name, version, main, ...deps })}\n`,
+    [main]: `${name === 'body-parser' ? "require('bytes');\n" : ''}// ${row.table.mark}\nmodule.exports = { version: '${version}' };\n`,
+  };
+  if (name === 'systeminformation') files['lib/network.js'] = `// ${row.table.mark}\nexports.networkStats = async () => [];\n`;
+  return files;
+}
+
+/** The stand-in registry's tarball of each package's new release, made once, so their integrity holds across builds. */
+const STAND_IN_SWAP_TARBALLS: Readonly<Record<string, Buffer>> = Object.fromEntries(tableRows('trigger.dev').map((r) => [nameOfRow(r), tarball(standInSwapped(nameOfRow(r), r.to))]));
+
+/** The swap table's part of an image's stand-in tree: each old release where pnpm put it, who links it, and the registry's new ones. */
+function swapTree(name: Name): Required<Pick<Tree, 'files' | 'links' | 'registry'>> & { table: NonNullable<StandIn['table']> } {
+  const s = TABLE_HOME[name].s;
+  const files: Record<string, string> = {};
+  const links: Array<{ path: string; target: string }> = [];
+  const registry: Record<string, Buffer> = {};
+  const table: Record<string, { fromTree: string; toTree: string; integrity: string }> = {};
+  for (const r of tableRows(name)) {
+    const n = nameOfRow(r);
+    for (const [p, text] of Object.entries(standInSwapped(n, r.from))) files[`${r.path}/${p}`] = text;
+    for (const req of r.requirers) {
+      const dir = `${s}/${REQUIRER_DIRS[req]}/node_modules`;
+      const [reqName, reqVersion] = splitAt(req);
+      files[`${dir}/${reqName}/package.json`] = `${JSON.stringify({ name: reqName, version: reqVersion })}\n`;
+      links.push({ path: `${dir}/${n}`, target: `../../${n}@${r.from}/node_modules/${n}` });
+    }
+    registry[r.url] = STAND_IN_SWAP_TARBALLS[n]!;
+    table[n] = { fromTree: treeHash(standInSwapped(n, r.from)), toTree: treeHash(standInSwapped(n, r.to)), integrity: integrityOf(STAND_IN_SWAP_TARBALLS[n]!) };
+  }
+  // pnpm's own: systeminformation's bin linked into its directory, a shim naming the install's paths, outside the tree.
+  const si = tableRows(name).find((r) => nameOfRow(r) === 'systeminformation');
+  if (si) files[`${si.path}/node_modules/.bin/systeminformation`] = `#!/bin/sh\nexport NODE_PATH="${si.path}/node_modules"\nexec node "$basedir/../../lib/cli.js" "$@"\n`;
+  // body-parser's dependency, as pnpm linked it beside it.
+  const bp = tableRows(name).find((r) => nameOfRow(r) === 'body-parser');
+  if (bp) {
+    files[`${s}/bytes@3.1.2/node_modules/bytes/package.json`] = '{"name":"bytes","version":"3.1.2","main":"index.js"}\n';
+    files[`${s}/bytes@3.1.2/node_modules/bytes/index.js`] = 'module.exports = (n) => n;\n';
+    links.push({ path: `${dirname(bp.path)}/bytes`, target: '../../bytes@3.1.2/node_modules/bytes' });
+  }
+  // pnpm's hoisted link to one of them, and the versions of the same names that stay.
+  const undici = tableRows(name).find((r) => nameOfRow(r) === 'undici');
+  if (undici) {
+    links.push({ path: `${s}/node_modules/undici`, target: `../undici@${undici.from}/node_modules/undici` });
+    files[`${s}/undici@5.29.0/node_modules/undici/package.json`] = '{"name":"undici","version":"5.29.0"}\n';
+    files[`${s}/body-parser@2.3.0_supports-color@10.0.0/node_modules/body-parser/package.json`] = '{"name":"body-parser","version":"2.3.0"}\n';
+  }
+  // The build each image's table reads for a bundled copy; the webapp's has a string of upstream's own code, which is no mark.
+  if (name === 'supervisor') files['/app/apps/supervisor/dist/index.js'] = 'export const start = () => 0;\n';
+  else files['/triggerdotdev/apps/webapp/build/server.js'] = 'if (error.code === "UND_ERR_CONNECT_TIMEOUT") retry();\n';
+  return { files, links, registry, table };
+}
+
 /** Where Node 24.22.1 puts npm and corepack, and its links to them. */
 const NPM_DIR = '/usr/local/lib/node_modules/npm';
 const COREPACK_DIR = '/usr/local/lib/node_modules/corepack';
@@ -908,6 +1498,7 @@ function pnpmCopy(home: string, version: string): Record<string, string> {
 const PUBLISHED: Published = { version: SWAP.to, sha512: SWAP.sha512, files: standInPnpm(SWAP.to) };
 
 function treeOf(name: Name, plat: string): Tree {
+  const supSwap = swapTree('supervisor');
   if (name === 'supervisor') {
     return {
       files: {
@@ -917,18 +1508,28 @@ function treeOf(name: Name, plat: string): Tree {
         ...pnpmCopy('/root', SWAP.from),
         ...pnpmCopy('/home/node', SWAP.from),
         ...NODE_GLOBALS,
+        ...supSwap.files,
       },
       binaries: [],
-      links: NODE_LINKS,
+      links: [...NODE_LINKS, ...supSwap.links],
       pnpm: PUBLISHED,
+      registry: supSwap.registry,
+      standIn: { table: supSwap.table },
     };
   }
   const pkg = (dir: string): Record<string, string> => ({ [`${dir}/package.json`]: '{"main":"lib/main.js"}\n', [`${dir}/lib/main.js`]: 'module.exports = {};\n' });
   const dompurify = dompurifyTree();
+  const ts = typescriptTree();
+  const swap = swapTree('trigger.dev');
+  const goose = GOOSE.assets[plat as Plat];
   return {
     ...dompurify,
-    links: [...(dompurify.links ?? []), ...NODE_LINKS],
+    links: [...(dompurify.links ?? []), ...NODE_LINKS, ...ts.links!, ...swap.links],
     pnpm: PUBLISHED,
+    registry: { ...dompurify.registry, ...swap.registry, ...(goose ? { [goose.url]: STAND_IN_GOOSE_NEW } : {}) },
+    standIn: { ...dompurify.standIn, table: swap.table, goose: sha256(STAND_IN_GOOSE_NEW) },
+    executables: { [GOOSE.path]: STAND_IN_GOOSE_OLD },
+    tools: gooseTools(),
     files: {
       [ROOT_PKG['trigger.dev']]: `{"packageManager":"pnpm@${SWAP.from}"}\n`,
       '/triggerdotdev/packages/core/package.json': '{"version":"4.8.3"}\n',
@@ -941,6 +1542,8 @@ function treeOf(name: Name, plat: string): Tree {
       ...pnpmCopy('/home/node', SWAP.from),
       ...NODE_GLOBALS,
       ...dompurify.files,
+      ...ts.files,
+      ...swap.files,
     },
     binaries: [
       {
@@ -951,6 +1554,8 @@ function treeOf(name: Name, plat: string): Tree {
         path: `${PNPM}/@esbuild+${plat}@0.23.0/node_modules/@esbuild/${plat}/bin/esbuild`,
         link: `${PNPM}/esbuild@0.23.0/node_modules/esbuild/bin/esbuild`,
       },
+      // TypeScript 7's compiler: one name, no postinstall.
+      { path: expand(TSC.path, plat) },
     ],
   };
 }
@@ -1067,7 +1672,7 @@ function sandbox(tree: Tree): Sandbox {
   };
   for (const [path, text] of Object.entries(tree.files)) put(path, text);
   for (const [i, b] of tree.binaries.entries()) {
-    put(b.path, Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.from(`stand-in ${i}\n`)]), 0o755);
+    put(b.path, b.path.endsWith('/lib/tsc') ? STAND_IN_TSC : Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46]), Buffer.from(`stand-in ${i}\n`)]), 0o755);
     if (b.link) {
       mkdirSync(dirname(join(fs, b.link)), { recursive: true });
       linkSync(join(fs, b.path), join(fs, b.link));
@@ -1077,6 +1682,7 @@ function sandbox(tree: Tree): Sandbox {
     mkdirSync(dirname(join(fs, l.path)), { recursive: true });
     symlinkSync(l.target, join(fs, l.path));
   }
+  for (const [path, bytes] of Object.entries(tree.executables ?? {})) put(path, bytes, 0o755);
   for (const [url, bytes] of Object.entries(tree.registry ?? {})) {
     const u = new URL(url);
     mkdirSync(dirname(join(root, 'registry', u.hostname, u.pathname)), { recursive: true });
@@ -1120,26 +1726,40 @@ interface Options {
   readonly only?: 'root' | 'node';
   /** Keep the entrypoint hash the Dockerfile pins, which the stand-in's entrypoint is not. */
   readonly pinnedEntrypoint?: boolean;
-  /** Keep the trees and integrity the replacing RUN pins, which the stand-in's are not. */
+  /** Keep the trees and integrity the replacing RUNs pin (dompurify's and the swap table's), which the stand-in's are not. */
   readonly pinnedReplacement?: boolean;
+  /** Keep tsc's SHA-256 the removing RUN pins, which the stand-in's tsc is not. */
+  readonly pinnedTsc?: boolean;
+  /** Keep goose's SHA-256 the goose RUN pins, which the stand-in's new goose is not. */
+  readonly pinnedGoose?: boolean;
   /** Only the RUNs this picks. */
   readonly pick?: (run: Instruction) => boolean;
 }
 
 /** Runs a Dockerfile's RUN instructions in order, each as its USER, and stops at the first that fails. */
-function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false, pinnedReplacement = false, pick }: Options = {}): Run {
+function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false, pinnedReplacement = false, pinnedTsc = false, pinnedGoose = false, pick }: Options = {}): Run {
   const [platform, arch] = plat.split('-') as [string, string];
   let out = '';
   for (const run of runs(text)) {
     if (only && run.user !== only) continue;
     if (pick && !pick(run)) continue;
     let script = pinnedEntrypoint ? run.args : run.args.replace(/(?<=(^|[;\s])entrypoint_sha256=)[0-9a-f]{64}/, sha256(STAND_IN_ENTRYPOINT));
-    if (!pinnedReplacement && box.standIn) {
+    const standIn = box.standIn ?? {};
+    if (!pinnedReplacement && standIn.fromTree && standIn.toTree && standIn.integrity) {
       script = script
-        .replace(/(?<=(^|[;\s])from_tree=)[0-9a-f]{64}/, box.standIn.fromTree)
-        .replace(/(?<=(^|[;\s])to_tree=)[0-9a-f]{64}/, box.standIn.toTree)
-        .replace(/(?<=(^|[;\s])integrity=)sha512-[A-Za-z0-9+/=]+/, box.standIn.integrity);
+        .replace(/(?<=(^|[;\s])from_tree=)[0-9a-f]{64}/, standIn.fromTree)
+        .replace(/(?<=(^|[;\s])to_tree=)[0-9a-f]{64}/, standIn.toTree)
+        .replace(/(?<=(^|[;\s])integrity=)sha512-[A-Za-z0-9+/=]+/, standIn.integrity);
     }
+    if (!pinnedReplacement && standIn.table) {
+      const table = standIn.table;
+      script = script.replace(TABLE_ROW, (row: string, name: string, from: string, fromTree: string, to: string, toTree: string, integrity: string) => {
+        const s = table[name];
+        return s ? row.replace(` ${fromTree} `, ` ${s.fromTree} `).replace(` ${toTree} `, ` ${s.toTree} `).replace(` ${integrity} `, ` ${s.integrity} `) : row;
+      });
+    }
+    if (!pinnedTsc) script = script.replace(/(?<=(^|[;\s])tsc_sha256=)[0-9a-f]{64}/g, sha256(STAND_IN_TSC));
+    if (!pinnedGoose && standIn.goose) script = script.replace(/(?<=(^|[;\s])goose_sha256=)[0-9a-f]{64}/g, standIn.goose);
     // The whole file system the replacement walks is the stand-in's root.
     script = rooted(script, box.fs).replace(/(?<=(^|[;\s])top=)\/;/, `${box.fs};`);
     const r = spawnSync('sh', ['-c', script], {
@@ -1497,7 +2117,9 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     /** Each file of the stand-in the build reads, and what its failure names. */
     const NEEDED: Readonly<Record<Name, ReadonlyArray<[string, string]>>> = {
       'trigger.dev': [
-        ...treeOf('trigger.dev', plat).binaries.flatMap((b) => [b.path, b.link!]).map((p): [string, string] => [p, p]),
+        ...treeOf('trigger.dev', plat).binaries.flatMap((b) => (b.link ? [b.path, b.link] : [b.path])).map((p): [string, string] => [p, p]),
+        [`${TSC.typescript}/package.json`, TSC.typescript],
+        [`${TSC.prisma}/package.json`, TSC.prisma],
         ['/triggerdotdev/package.json', '/triggerdotdev/package.json'],
         ['/triggerdotdev/packages/core/package.json', '/triggerdotdev/packages/core/package.json'],
         [ENTRYPOINT['trigger.dev'], ENTRYPOINT['trigger.dev']],
@@ -1641,6 +2263,8 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     // 10.33.2 and for whatever chown was handed, and chown is recorded and
     // answered without changing any.
     const realStat = systemCommand('stat');
+    // Given to the new copy alone, lastKnownGood.json keeps root's owner: refused, before anything is removed.
+    const narrow = dockerfiles.supervisor.replace('chown -R "$owner" "$node_corepack";', 'chown -R "$owner" "$kept";');
     const tools = {
       chown: ['#!/bin/sh', `printf '%s %s\\n' chown "$*" >> "$TOOL_LOG"`, `printf '%s\\n' "$3" >> "$TOOL_LOG.chowned"`, 'exit 0', ''].join('\n'),
       stat: [
@@ -1655,17 +2279,17 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         '',
       ].join('\n'),
     };
+    // The removing RUN alone: the swap table's RUN after it gives the new systeminformation the old one's owner, with a chown of its own.
+    const removingOnly = { pick: (run: Instruction) => run.args.includes('corepack install -g') };
     withSandbox({ ...treeOf('supervisor', 'linux-arm64'), tools }, (box) => {
-      const run = build(dockerfiles.supervisor, box, { only: 'root', tag: 'v4.8.3' });
+      const run = build(dockerfiles.supervisor, box, { only: 'root', tag: 'v4.8.3', ...removingOnly });
       expect(run.status, run.out).toBe(0);
       const chowns = readFileSync(join(box.root, 'tools.log'), 'utf8').split('\n').filter((l) => l.startsWith('chown '));
       expect(chowns).toEqual([`chown -R 4242:4343 ${box.fs}${COREPACK_HOME('/home/node')}`]);
     });
-    // Given to the new copy alone, lastKnownGood.json keeps root's owner: refused, before anything is removed.
-    const narrow = dockerfiles.supervisor.replace('chown -R "$owner" "$node_corepack";', 'chown -R "$owner" "$kept";');
     expect(narrow).not.toBe(dockerfiles.supervisor);
     withSandbox({ ...treeOf('supervisor', 'linux-arm64'), tools }, (box) => {
-      const run = build(narrow, box, { only: 'root', tag: 'v4.8.3' });
+      const run = build(narrow, box, { only: 'root', tag: 'v4.8.3', ...removingOnly });
       expect(run.status).not.toBe(0);
       // Two owners: the new copy's, given, and root's on what the chown passed over (lastKnownGood.json, v1, v1/pnpm).
       expect(run.out).toMatch(/\/home\/node\/\.cache\/node\/corepack the owners are (?:\S+ ){2}, not 4242:4343 alone/);
@@ -1713,7 +2337,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     withSandbox({ ...base, binaries: [...base.binaries, { path: other }] }, (box) => {
       const run = build(dockerfiles['trigger.dev'], box, { plat });
       expect(run.status).not.toBe(0);
-      expect(run.out).toContain(`a depot or esbuild binary is still there: ${box.fs}${other}`);
+      expect(run.out).toContain(`a depot, esbuild or tsc binary is still there: ${box.fs}${other}`);
     });
   });
 
@@ -1839,8 +2463,8 @@ describe("the webapp's build replaces dompurify's files with the release that fi
   it('REPLACED is exactly what the replacing RUN names, and each one is past its floor', () => {
     for (const name of NAMES) {
       const found = replacingRuns(dockerfiles[name]);
-      expect(found.length, name).toBe(REPLACED[name].length);
-      for (const [i, r] of REPLACED[name].entries()) {
+      expect(found.length, name).toBe(ownRunRows(name).length);
+      for (const [i, r] of ownRunRows(name).entries()) {
         const vars = resolvedAssignments(found[i]!.args);
         const pkgName = r.path.split('/').at(-1)!;
         expect(vars.get('pkg'), name).toBe(r.path);
@@ -2077,6 +2701,435 @@ describe("the webapp's build replaces dompurify's files with the release that fi
         for (const line of said(box.fs)) expect(run.out, what).toContain(line);
       });
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Since 2026-11-03: TypeScript 7's tsc goes, four packages are swapped by one table, and goose is the release's binary.
+
+/** The text with the first line `re` matches taken out. */
+function dropLine(text: string, re: RegExp): string {
+  const lines = text.split('\n');
+  const i = lines.findIndex((l) => re.test(l));
+  expect(i, `${String(re)} matched no line`).toBeGreaterThanOrEqual(0);
+  return [...lines.slice(0, i), ...lines.slice(i + 1)].join('\n');
+}
+
+/** The text with the first line `re` matches moved to just after the first line `to` matches. */
+function moveLine(text: string, re: RegExp, to: RegExp): string {
+  const lines = text.split('\n');
+  const i = lines.findIndex((l) => re.test(l));
+  expect(i, `${String(re)} matched no line`).toBeGreaterThanOrEqual(0);
+  const line = lines[i]!;
+  const rest = [...lines.slice(0, i), ...lines.slice(i + 1)];
+  const j = rest.findIndex((l) => to.test(l));
+  expect(j, `${String(to)} matched no line`).toBeGreaterThanOrEqual(0);
+  return [...rest.slice(0, j + 1), line, ...rest.slice(j + 1)].join('\n');
+}
+
+/** The text with a line put in right after the first line `re` matches. */
+function insertAfter(text: string, re: RegExp, line: string): string {
+  const lines = text.split('\n');
+  const i = lines.findIndex((l) => re.test(l));
+  expect(i, `${String(re)} matched no line`).toBeGreaterThanOrEqual(0);
+  return [...lines.slice(0, i + 1), `    ${line} \\`, ...lines.slice(i + 1)].join('\n');
+}
+
+const tableOnly = { pick: (run: Instruction) => /(^|[;\s])rows\(\) \{/.test(run.args) };
+const gooseOnly = { pick: (run: Instruction) => /(^|[;\s])goose=\/usr\/local\/bin\/goose;/.test(run.args) };
+const removingOnlyRun = { pick: (run: Instruction) => run.args.includes('corepack install -g') };
+
+describe("the webapp's build removes TypeScript 7's native compiler by its published hash, and typescript still resolves", () => {
+  const webapp = dockerfiles['trigger.dev'];
+
+  it('checks tsc before the removal and proves typescript after it', () => {
+    expect(tscProblems(removingRun(webapp)!.args)).toEqual([]);
+    expect(REMOVED['trigger.dev'].map((r) => r.path)).toContain(TSC.path);
+    for (const plat of PLATFORMS) expect(TSC.sha256[plat], plat).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('refuses each way the removal of tsc could slip', () => {
+    const problems = (text: string) => shapeProblems('trigger.dev', text);
+    expect(problems(dropLine(webapp, /\[ "\$\(sha256sum "\$tsc_bin"/))).toEqual(["no check, before anything is removed, that tsc is TypeScript 7.0.2's, by its SHA-256"]);
+    expect(problems(dropLine(webapp, /\[ "\$\(stat -c %h "\$tsc_bin"\)" = 1 \]/))).toEqual(['no check, before anything is removed, that tsc has one name, which Trivy would not see a second of']);
+    expect(problems(dropLine(webapp, /^ {4}\[ "\$magic" = 7f454c46 \] \|\| fail "\$tsc_bin/))).toEqual(['no check, before anything is removed, that tsc is an ELF']);
+    expect(problems(moveLine(webapp, /\[ "\$\(sha256sum "\$tsc_bin"/, /^ {4}rm "\$depot_bin"/))).toEqual(["no check, before anything is removed, that tsc is TypeScript 7.0.2's, by its SHA-256"]);
+    expect(problems(webapp.replace(TSC.sha256['linux-arm64'], '0'.repeat(64)))).toEqual([expect.stringContaining("does not pin tsc's SHA-256 on each platform")]);
+    expect(problems(dropLine(webapp, /require\.resolve\('typescript'\)/))).toEqual([expect.stringContaining("no proof, after the removal, that require('typescript') gives 7.0.2")]);
+    expect(problems(dropLine(webapp, /import\.meta\.resolve\('typescript'\)/))).toEqual([expect.stringContaining("no proof, after the removal, that import('typescript') gives 7.0.2")]);
+    expect(problems(webapp.replace(' -o -name tsc -o -name tsgo', ''))).toEqual(['no proof, after the removal, that no ELF named tsc or tsgo is left']);
+    expect(problems(webapp.replace('typescript="$s/typescript@7.0.2/', 'typescript="$s/typescript@7.0.1/'))).toEqual([expect.stringContaining("the removing RUN's typescript= is")]);
+  });
+
+  it('a tsc that is not the published one, or has a second name, fails it before anything is removed; typescript that no longer resolves, or a tsc left elsewhere, fails it after', () => {
+    const plat = 'linux-arm64';
+    const tree = treeOf('trigger.dev', plat);
+    // The pinned hash, which the stand-in's tsc is not.
+    withSandbox(tree, (box) => {
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.3', pinnedTsc: true });
+      expect(run.status, run.out).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}${expand(TSC.path, plat)} is not TypeScript 7.0.2's tsc for ${plat} as npm published it (SHA-256 ${TSC.sha256[plat]})`);
+      expect(removedBy(box, run)).toEqual([]);
+      expect(corepackCalls(box)).toEqual([]);
+    });
+    // A second name: the scan would read 0 while the same ELF stayed.
+    const second = `${PNPM}/@typescript+typescript-${plat}@7.0.2/node_modules/@typescript/typescript-${plat}/bin/tsc-native`;
+    withSandbox({ ...tree, binaries: tree.binaries.map((b) => (b.path.endsWith('/lib/tsc') ? { ...b, link: second } : b)) }, (box) => {
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.3' });
+      expect(run.status, run.out).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}${expand(TSC.path, plat)} has 2 names: a second name would keep the binary`);
+      expect(removedBy(box, run)).toEqual([]);
+    });
+    // prisma without its link to typescript 7.0.2: the proof after the removal fails.
+    withSandbox({ ...tree, links: tree.links!.filter((l) => l.path !== `${dirname(TSC.prisma)}/typescript`) }, (box) => {
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.3' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`from ${box.fs}${TSC.prisma}, require('typescript') does not give 7.0.2 from ${box.fs}${TSC.typescript} without its binary.`);
+    });
+    // A typescript whose "." is no longer lib/version.cjs, though it says 7.0.2.
+    const moved = { ...tree.files, [`${TSC.typescript}/package.json`]: `${JSON.stringify({ name: 'typescript', version: '7.0.2', type: 'module', exports: { './package.json': './package.json', '.': './lib/api.cjs' } })}\n`, [`${TSC.typescript}/lib/api.cjs`]: 'exports.version = "7.0.2";\n' };
+    withSandbox({ ...tree, files: moved }, (box) => {
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.3' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`require(typescript): ${box.fs}${TSC.typescript}/lib/api.cjs 7.0.2`);
+    });
+    // Another TypeScript's native binary, which REMOVED does not name: the build stops rather than ship it.
+    const other = `${PNPM}/@typescript+native-preview-${plat}@7.1.0/node_modules/@typescript/native-preview-${plat}/lib/tsgo`;
+    withSandbox({ ...tree, binaries: [...tree.binaries, { path: other }] }, (box) => {
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.3' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`a depot, esbuild or tsc binary is still there: ${box.fs}${other}`);
+    });
+  });
+});
+
+describe('the swap table replaces four packages in the webapp and one in the supervisor by the release of the same major that fixes each, and nothing else', () => {
+  it("REPLACED's table rows are what each image's table names, each past its floor", () => {
+    for (const name of NAMES) {
+      expect(tableProblems(name, dockerfiles[name]), name).toEqual([]);
+      for (const r of tableRows(name)) {
+        const n = nameOfRow(r);
+        expect(r.url).toBe(`https://registry.npmjs.org/${n}/-/${n}-${r.to}.tgz`);
+        expect(r.integrity).toMatch(/^sha512-[A-Za-z0-9+/]{86}==$/);
+        // The same major, past its three-day floor when taken, 2026-11-03 (CONTRIBUTING.md).
+        expect(r.to.split('.')[0], n).toBe(r.from.split('.')[0]);
+        expect(Date.parse('2026-11-03T00:00:00Z') - Date.parse(r.published), n).toBeGreaterThan(3 * 24 * 3600 * 1000);
+        for (const req of r.requirers) expect(REQUIRER_DIRS[req], `${n}: ${req} has no pnpm directory here`).toBeDefined();
+        expect(r.why.length).toBeGreaterThan(60);
+        expect(r.evidence.length).toBeGreaterThan(30);
+      }
+    }
+    // Both images swap systeminformation to the same release, the same way.
+    const [web, sup] = [tableRows('trigger.dev'), tableRows('supervisor')].map((rows) => rows.find((r) => nameOfRow(r) === 'systeminformation')!);
+    expect([sup!.from, sup!.to, sup!.fromTree, sup!.toTree, sup!.integrity]).toEqual([web!.from, web!.to, web!.fromTree, web!.toTree, web!.integrity]);
+    expect(sup!.path).toBe(`${SUPERVISOR_PNPM}/systeminformation@5.31.7/node_modules/systeminformation`);
+    // The two RUNs are one, but for what names the image.
+    const body = (name: Name) => tableRuns(dockerfiles[name])[0]!.args.replace(/^ {4}(me|s|bundles)=[^\n]*\n/gm, '').replace(/^ {4}fail\(\) [^\n]*\n/m, '').replace(new RegExp(`${TABLE_ROW.source}\\n`, 'gm'), '').replace(/^ {4}echo [^\n]*$/m, '').replace(/the webapp's own build|the supervisor's own build/, 'the build');
+    expect(body('supervisor')).toBe(body('trigger.dev'));
+  });
+
+  it('refuses each way the swap table could slip', () => {
+    const webapp = dockerfiles['trigger.dev'];
+    const problems = (text: string) => tableProblems('trigger.dev', text);
+    expect(problems(dropLine(webapp, /^ {6}\[ "\$got" = "\$want" \]/))).toEqual(["the swap table's fetched() does not check the tarball's sha512, against the integrity npm published"]);
+    expect(problems(dropLine(webapp, /^ {6}\[ "\$copies" = "\$pkg\/package\.json" \]/))).toEqual(["the swap table's check() does not check that no other package.json of that name and version is in the image"]);
+    expect(problems(dropLine(webapp, /^ {6}\[ "\$st" = 1 \]/))).toEqual([expect.stringContaining("check() does not check that the image's own build carries no copy of it")]);
+    expect(problems(dropLine(webapp, /^ {6}\[ "\$\(tree "\$pkg"\)" = "\$from_tree" \]/))).toEqual(["the swap table's check() does not check the old directory, file for file (from_tree)"]);
+    expect(problems(dropLine(webapp, /^ {6}\[ "\$\(printf '%s\\n' "\$found"/))).toEqual(["the swap table's check() does not check which packages link it, against the row"]);
+    expect(problems(dropLine(webapp, /^ {6}\[ ! -e "\$new\/node_modules" \]/))).toEqual(["the swap table's fetched() does not check that the tarball brings no node_modules"]);
+    expect(problems(dropLine(webapp, /^ {6}\[ "\$\(own "\$pkg"\)" = /))).toEqual(["the swap table's proven() does not check that pnpm's own node_modules is what it was"]);
+    expect(problems(dropLine(webapp, /^ {6}node -e "\$deps" "\$pkg"/))).toEqual(["the swap table's loaded() does not check that every dependency the new release declares loads from its directory"]);
+    expect(problems(webapp.replace('find . -path ./node_modules -prune -o -type f -print0', 'find . -type f -print0'))).toEqual([expect.stringContaining("tree() leaves pnpm's own node_modules out")]);
+    expect(problems(webapp.replace(/if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then [^;]*; fi; /, ''))).toEqual([expect.stringContaining("swapped() carries pnpm's own node_modules over")]);
+    expect(problems(webapp.replace("j.name === n && j.version === v", 'j.name === n'))).toEqual([expect.stringContaining('same matches a copy by its name and version')]);
+    expect(problems(webapp.replace("if (!p.startsWith(real + path.sep))", 'if (false)'))).toEqual([expect.stringContaining('load checks where each require resolves')]);
+    expect(problems(webapp.replace(" %s %Y %Z' {} + ; } | LC_ALL=C sort", "' {} + ; } | LC_ALL=C sort"))).toEqual([expect.stringContaining('state() reads every entry outside the swapped directories')]);
+    // The order: a swap before every fetch is checked, or the image read after a fetch, or no load proof.
+    expect(problems(moveLine(webapp, /^ {4}rows swapped; \\$/, /^ {4}before="\$\(state\)"; \\$/))).toEqual(["the swap table's RUN does not run its steps in order: the directories are swapped too early"]);
+    expect(problems(moveLine(webapp, /^ {4}before="\$\(state\)"; \\$/, /^ {4}rows fetched; \\$/))).toEqual(["the swap table's RUN does not run its steps in order: every tarball is fetched and checked too early"]);
+    expect(problems(dropLine(webapp, /^ {4}rows loaded; \\$/))).toEqual(["the swap table's RUN does not run its steps in order: missing where each requirer loads it"]);
+    expect(problems(dropLine(webapp, /^ {4}rows check; \\$/))).toEqual(["the swap table's RUN does not run its steps in order: missing where every row is checked"]);
+    // A row that is not REPLACED's, or none for one of REPLACED's.
+    const moved = problems(webapp.replace(' 6.29.1 5f8644a9', ' 6.29.2 5f8644a9'));
+    expect(moved).toEqual([expect.stringContaining('has a row REPLACED does not: undici | 6.29.0 |'), expect.stringContaining("has no row for REPLACED's undici | 6.29.0 |")]);
+    expect(problems(dropLine(webapp, /^ {6}"\$@" follow-redirects /))).toEqual([expect.stringContaining("has no row for REPLACED's follow-redirects")]);
+    expect(problems(webapp.replace(' axios@1.20.0;', ' axios@1.20.0 express@4.20.0;'))).toEqual([expect.stringContaining('has a row REPLACED does not: follow-redirects'), expect.stringContaining("has no row for REPLACED's follow-redirects")]);
+    // Where it runs.
+    expect(problems(webapp.replace(/\n(# Still as root: undici)/, '\nUSER node\n$1'))).toEqual(["the swap table's RUN runs as node, not root"]);
+    expect(problems(webapp.replace('bundles="/triggerdotdev/apps/webapp/build /triggerdotdev/apps/webapp/public"', 'bundles=/triggerdotdev/apps/webapp/public'))).toEqual([expect.stringContaining("bundles= is /triggerdotdev/apps/webapp/public")]);
+    const sup = dockerfiles.supervisor;
+    expect(tableProblems('supervisor', sup.replace('s=/app/apps/supervisor/node_modules/.pnpm;', 's=/app/node_modules/.pnpm;'))).toEqual([expect.stringContaining("the swap table's s= is /app/node_modules/.pnpm")]);
+    expect(tableProblems('supervisor', sup.replace(/\n# Still as root: systeminformation[\s\S]*?\n\n/, '\n\n'))).toEqual(['0 RUNs hold a swap table, not 1']);
+  });
+
+  for (const [name, plat] of [['trigger.dev', 'linux-x64'], ['supervisor', 'linux-arm64']] as const) {
+    it(`${name}: run over the stand-in, it swaps each row for the published release, keeps pnpm's own node_modules, changes nothing else, and every requirer loads it`, () => {
+      withSandbox(treeOf(name, plat), (box) => {
+        const before = snapshot(box);
+        const run = build(dockerfiles[name], box, { ...tableOnly, plat });
+        expect(run.status, run.out).toBe(0);
+        const after = snapshot(box);
+        const outside = (snap: Map<string, string>) => tableRows(name).reduce((m, r) => without(m, r.path), snap);
+        expect(outside(after)).toEqual(outside(before));
+        for (const r of tableRows(name)) {
+          const n = nameOfRow(r);
+          const files = [...after].filter(([p, v]) => p.startsWith(`${r.path}/`) && v !== 'directory' && !p.startsWith(`${r.path}/node_modules/`)).map(([p, v]) => [p.slice(r.path.length + 1), v]).sort();
+          expect(files, n).toEqual(Object.entries(standInSwapped(n, r.to)).map(([p, t]) => [p, sha256(t)]).sort());
+          // pnpm's own, carried over.
+          expect([...after].filter(([p]) => p.startsWith(`${r.path}/node_modules/`)), n).toEqual([...before].filter(([p]) => p.startsWith(`${r.path}/node_modules/`)));
+          for (const req of r.requirers) {
+            const dir = `${TABLE_HOME[name].s}/${REQUIRER_DIRS[req]}/node_modules/${splitAt(req)[0]}`;
+            for (const spec of r.table.loads) expect(run.out, `${n} from ${req}`).toContain(`require(${spec}): ${box.fs}${r.path}/`);
+            expect(run.out).not.toContain(`from ${box.fs}${dir},`);
+          }
+        }
+        expect(run.out).toContain(name === 'trigger.dev' ? 'nothing else in the image changed; from every requirer, require loads the new release.' : 'nothing else in the image changed; from @opentelemetry/host-metrics, require loads it.');
+        if (name === 'trigger.dev') expect(run.out).toContain(`pnpm hoists undici 6.29.0 too: ${box.fs}${PNPM}/node_modules/undici`);
+        // undici 5.29.0 and body-parser 2.3.0 stay, as they were.
+        if (name === 'trigger.dev') for (const p of [`${PNPM}/undici@5.29.0/node_modules/undici/package.json`, `${PNPM}/body-parser@2.3.0_supports-color@10.0.0/node_modules/body-parser/package.json`]) expect(after.get(p)).toBe(before.get(p));
+        expect(readdirSync(join(box.root, 'tmp')), 'the RUN left its staging directory').toEqual([]);
+      });
+    });
+  }
+
+  it('each way upstream or the registry could differ fails it, with nothing changed', () => {
+    const base = treeOf('trigger.dev', 'linux-arm64');
+    const rowOf = (n: string) => tableRows('trigger.dev').find((r) => nameOfRow(r) === n)!;
+    const [undici, follow, bodyParser, si] = ['undici', 'follow-redirects', 'body-parser', 'systeminformation'].map(rowOf) as [PackageReplacement, PackageReplacement, PackageReplacement, PackageReplacement];
+    const files = (add: Record<string, string>, drop: (p: string) => boolean = () => false): Tree => ({ ...base, files: { ...Object.fromEntries(Object.entries(base.files).filter(([p]) => !drop(p))), ...add } });
+    const at = (dir: string) => (p: string) => p === dir || p.startsWith(`${dir}/`);
+    /** The registry serving these bytes for a row, by their own integrity and tree when asked. */
+    const served = (r: PackageReplacement, bytes: Buffer | undefined, own?: Record<string, string>): Tree => {
+      const n = nameOfRow(r);
+      const registry = { ...base.registry };
+      if (bytes) registry[r.url] = bytes;
+      else delete registry[r.url];
+      const table = { ...base.standIn!.table! };
+      if (bytes && own) table[n] = { ...table[n]!, integrity: integrityOf(bytes), toTree: treeHash(own) };
+      return { ...base, registry, standIn: { ...base.standIn, table } };
+    };
+    const linkTo = (r: PackageReplacement, from: string) => ({ path: `${PNPM}/${from}/node_modules/${nameOfRow(r)}`, target: `../../${nameOfRow(r)}@${r.from}/node_modules/${nameOfRow(r)}` });
+    const unreadable: Tree = { ...base, tools: { ...base.tools, grep: stub('grep', '-rlF*', "echo 'grep: stand-in: Permission denied' >&2; exit 2") } };
+    const older = standInSwapped('body-parser', '1.20.8');
+    const extra = { ...standInSwapped('body-parser', '1.20.9'), 'lib/extra.js': 'module.exports = 1;\n' };
+    const extraTgz = tarball(extra);
+    const ownModules = { ...standInSwapped('body-parser', '1.20.9'), 'node_modules/x/index.js': 'module.exports = 1;\n' };
+    const webapp = '/triggerdotdev/apps/webapp';
+    const cases: ReadonlyArray<[string, Tree, (fs: string) => string, Options?]> = [
+      ['a package not where it was', { ...files({}, at(undici.path)), links: base.links!.filter((l) => !l.target.includes('undici@6.29.0')) }, (fs) => `${fs}${undici.path} is not there.`],
+      ['another version at its path', files({ [`${follow.path}/package.json`]: standInSwapped('follow-redirects', '1.16.1')['package.json']! }), () => 'is follow-redirects 1.16.1, not 1.16.0.'],
+      ['a file of it that is not the published one', files({ [`${bodyParser.path}/index.js`]: 'module.exports = {};\n' }), (fs) => `${fs}${bodyParser.path} is not the published body-parser 1.20.6, file for file`],
+      ['a link inside it, outside pnpm\'s node_modules', { ...base, links: [...base.links!, { path: `${undici.path}/lib-link.js`, target: 'index.js' }] }, (fs) => `${fs}${undici.path} holds more than files and directories`],
+      ['a third package that links it', { ...base, links: [...base.links!, linkTo(undici, 'other@1.0.0')], files: { ...base.files, [`${PNPM}/other@1.0.0/node_modules/other/package.json`]: '{"name":"other","version":"1.0.0"}\n' } }, () => 'undici 6.29.0 is linked from: @ai-sdk/provider-utils@4.0.56 '],
+      ['a requirer that no longer links it', { ...base, links: base.links!.filter((l) => l.path !== `${PNPM}/axios@1.20.0/node_modules/follow-redirects`) }, () => 'follow-redirects 1.16.0 is linked from: nothing; this file was read for axios@1.20.0.'],
+      ['a requirer of another version', files({ [`${PNPM}/express@4.20.0/node_modules/express/package.json`]: '{"name":"express","version":"4.21.0"}\n' }), () => 'body-parser 1.20.6 is linked from: express@4.21.0 '],
+      ['another copy of the same version elsewhere', files({ [`${webapp}/node_modules/undici/package.json`]: standInSwapped('undici', '6.29.0')['package.json']! }), (fs) => `undici 6.29.0's package.json is at: ${fs}`],
+      ['a browser bundle that carries one of them', files({ [`${webapp}/build/client/assets/axios-stand-in.js`]: 'const e="ERR_FR_TOO_MANY_REDIRECTS";\n' }), (fs) => `the webapp's own build carries follow-redirects's ERR_FR_TOO_MANY_REDIRECTS (grep exits 0): ${fs}${webapp}/build/client/assets/axios-stand-in.js`],
+      ['a build the search for the marks cannot read', unreadable, () => "the webapp's own build carries undici's undici:request:create (grep exits 2)"],
+      ['a webapp built elsewhere', files({}, at(`${webapp}/public`)), (fs) => `${fs}${webapp}/public is not there: the build is not where it was read.`],
+      // The last row's tarball missing: the first three were fetched and checked, and none of the four is swapped.
+      ['a registry without the last row\'s tarball', served(si, undefined), () => `${si.url} could not be fetched; nothing was changed.`],
+      ['a registry that serves other bytes', served(bodyParser, extraTgz), () => `${bodyParser.url} is ${integrityOf(extraTgz)}, not`],
+      ['a tarball of another release, by its own integrity', served(bodyParser, tarball(older), older), () => `${bodyParser.url} unpacks to body-parser 1.20.8, not 1.20.9; nothing was changed.`],
+      ['a tarball with other files, by its own integrity', served(bodyParser, extraTgz, standInSwapped('body-parser', '1.20.9')), () => `${bodyParser.url} unpacks to other files than the published body-parser 1.20.9 (above); nothing was changed.`],
+      ['a tarball with a node_modules of its own, by its own integrity and tree', served(bodyParser, tarball(ownModules), standInSwapped('body-parser', '1.20.9')), () => `${bodyParser.url} unpacks a node_modules of its own; nothing was changed.`],
+      ['the pinned trees, against the stand-in', base, (fs) => `${fs}${undici.path} is not the published undici 6.29.0, file for file`, { pinnedReplacement: true }],
+    ];
+    for (const [what, tree, said, options] of cases) {
+      withSandbox(tree, (box) => {
+        const before = snapshot(box);
+        const run = build(dockerfiles['trigger.dev'], box, { ...tableOnly, ...options });
+        expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+        expect(run.out, what).toContain(said(box.fs));
+        expect(snapshot(box), `${what}: something changed before it failed`).toEqual(before);
+      });
+    }
+    // The supervisor's, whose requirer is found by its links too.
+    const sup = treeOf('supervisor', 'linux-arm64');
+    withSandbox({ ...sup, links: sup.links!.filter((l) => !l.path.endsWith('/node_modules/systeminformation')) }, (box) => {
+      const before = snapshot(box);
+      const run = build(dockerfiles.supervisor, box, tableOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('systeminformation 5.31.7 is linked from: nothing; this file was read for @opentelemetry/host-metrics@0.38.3.');
+      expect(snapshot(box)).toEqual(before);
+    });
+  });
+
+  it('each proof after the swap fails on the change it is there to see', () => {
+    const webapp = dockerfiles['trigger.dev'];
+    const base = treeOf('trigger.dev', 'linux-arm64');
+    const afterSwap = (line: string) => insertAfter(webapp, /^ {4}rows swapped; \\$/, line);
+    for (const [line, what] of [
+      ['echo changed >> /triggerdotdev/package.json;', 'a file outside, written'],
+      [': > /triggerdotdev/stray;', 'a path outside, added'],
+      ['chmod 0600 /triggerdotdev/package.json;', "a file outside, its mode changed"],
+    ] as const) {
+      withSandbox(base, (box) => {
+        const run = build(afterSwap(line), box, tableOnly);
+        expect(run.status, what).not.toBe(0);
+        expect(run.out, what).toContain('outside the swapped directories, a path was added or removed, or an entry\'s owner, mode, size or times changed, while they were replaced.');
+      });
+    }
+    // pnpm's own node_modules left behind: the shim is gone from the new release's directory.
+    withSandbox(base, (box) => {
+      const run = build(webapp.replace(/if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then [^;]*; fi; /, ''), box, tableOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}${PNPM}/systeminformation@5.31.7/node_modules/systeminformation/node_modules, pnpm's own (a bin shim), is not what it was before the swap.`);
+    });
+    /** The stand-in, with the registry serving these files as a row's new release, by their own integrity and tree. */
+    const serving = (n: string, own: Record<string, string>): Tree => {
+      const bytes = tarball(own);
+      const r = tableRows('trigger.dev').find((x) => nameOfRow(x) === n)!;
+      return { ...base, registry: { ...base.registry, [r.url]: bytes }, standIn: { ...base.standIn, table: { ...base.standIn!.table!, [n]: { ...base.standIn!.table![n]!, integrity: integrityOf(bytes), toTree: treeHash(own) } } } };
+    };
+    const cases: ReadonlyArray<[string, Tree, (fs: string) => string]> = [
+      // A dependency the new release declares that pnpm did not link for the old one.
+      ['a release that needs a dependency not linked', serving('body-parser', { ...standInSwapped('body-parser', '1.20.9'), 'package.json': `${JSON.stringify({ name: 'body-parser', version: '1.20.9', main: 'index.js', dependencies: { bytes: '~3.1.2', qs: '~6.17.0' } })}\n` }), (fs) => `a dependency body-parser 1.20.9 declares does not load from ${fs}${PNPM}/body-parser@1.20.6/node_modules/body-parser.`],
+      // The subpath a requirer loads, gone.
+      ['a release without lib/network.js', serving('systeminformation', Object.fromEntries(Object.entries(standInSwapped('systeminformation', '5.33.19')).filter(([p]) => p !== 'lib/network.js'))), (fs) => `from ${fs}${PNPM}/${REQUIRER_DIRS['@opentelemetry/host-metrics@0.38.3']}/node_modules/@opentelemetry/host-metrics, systeminformation does not load 5.33.19`],
+      // A requirer that resolves a copy of its own, which no link check sees: only the load proof does.
+      [
+        'a requirer with a copy of its own',
+        { ...base, files: { ...base.files, ...Object.fromEntries(Object.entries(standInSwapped('follow-redirects', '1.16.2')).map(([p, t]) => [`${PNPM}/axios@1.20.0/node_modules/axios/node_modules/follow-redirects/${p}`, t])) } },
+        (fs) => `from ${fs}${PNPM}/axios@1.20.0/node_modules/axios, follow-redirects does not load 1.16.2 from ${fs}${PNPM}/follow-redirects@1.16.0/node_modules/follow-redirects.`,
+      ],
+    ];
+    for (const [what, tree, said] of cases) {
+      withSandbox(tree, (box) => {
+        const run = build(webapp, box, tableOnly);
+        expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+        expect(run.out, what).toContain(said(box.fs));
+      });
+    }
+  });
+});
+
+describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream builds, root's and executable", () => {
+  const webapp = dockerfiles['trigger.dev'];
+
+  it("REPLACED's goose is what its RUN names, past its floor", () => {
+    expect(gooseProblems('trigger.dev', webapp)).toEqual([]);
+    expect(gooseProblems('supervisor', dockerfiles.supervisor)).toEqual([]);
+    expect(Date.parse('2026-11-03T00:00:00Z') - Date.parse(GOOSE.published)).toBeGreaterThan(3 * 24 * 3600 * 1000);
+    for (const plat of PLATFORMS) {
+      expect(GOOSE.assets[plat].sha256, plat).toMatch(/^[0-9a-f]{64}$/);
+      expect(GOOSE.assets[plat].bytes, plat).toBeGreaterThan(30_000_000);
+    }
+    expect(GOOSE.why.length).toBeGreaterThan(60);
+    expect(GOOSE.evidence.length).toBeGreaterThan(30);
+    // The header says why, the ClickHouse table's order, the mode, and the way out.
+    for (const s of ['WHAT IS REPLACED: GOOSE', 'ORDER BY (version_id)', 'THE MODE', 'upstream moved goose: drop the replacement', 'CVE-2026-111943']) expect(webapp).toContain(s);
+  });
+
+  it('refuses each way the goose RUN could slip', () => {
+    const problems = (text: string) => gooseProblems('trigger.dev', text);
+    expect(problems(dropLine(webapp, /^ {4}chmod 0755 "\$tmp\/goose"; \\$/))).toEqual(["goose's RUN does not check, after the fetch and before the move, mode 0755, given to it (Trivy reads no Go binary that is not executable)"]);
+    expect(problems(moveLine(webapp, /^ {4}chmod 0755 "\$tmp\/goose"; \\$/, /^ {4}mv "\$tmp\/goose" "\$goose"; \\$/))).toEqual(["goose's RUN does not check, after the fetch and before the move, mode 0755, given to it (Trivy reads no Go binary that is not executable)"]);
+    expect(problems(dropLine(webapp, /^ {4}chown 0:0 "\$tmp\/goose"; \\$/))).toEqual(["goose's RUN does not check, after the fetch and before the move, root's owner, given to it"]);
+    expect(problems(dropLine(webapp, /^ {4}\[ "\$got" = "\$goose_sha256" \]/))).toEqual(["goose's RUN does not check, after the fetch and before the move, the fetched file's SHA-256"]);
+    expect(problems(dropLine(webapp, /^ {4}\[ "\$said" = "goose version: \$goose_from" \]/))).toEqual([expect.stringContaining('upstream moved goose: drop the replacement')]);
+    expect(problems(dropLine(webapp, /^ {4}\[ "\$\(stat -c '%h %u:%g %a' "\$goose"\)" = '1 0:0 755' \] \|\| fail "\$goose has [^\n]*as upstream's builder stage leaves it/))).toEqual(["goose's RUN does not check, before it fetches, that goose has one name, root's, 0755"]);
+    expect(problems(dropLine(webapp, /after the move, not one name, root's, 0755/))).toEqual(["goose's RUN does not prove, after the move, that goose has one name, root's, 0755"]);
+    expect(problems(dropLine(webapp, /^ {4}\[ "\$\(state\)" = "\$before" \] \|\| fail "outside \$goose/))).toEqual(["goose's RUN does not prove, after the move, that nothing else changed"]);
+    expect(problems(dropLine(webapp, /^ {4}\[ "\$\("\$goose" -version\)" = "goose version: \$goose_to" \]/))).toEqual(["goose's RUN does not prove, after the move, that goose says the new version"]);
+    // goose's own `before=`, which reads like the swap table's.
+    const at = webapp.indexOf('\n# Still as root: goose');
+    expect(problems(webapp.slice(0, at) + moveLine(webapp.slice(at), /^ {4}before="\$\(state\)"; \\$/, /^ {4}chmod 0755 "\$tmp\/goose"; \\$/))).toEqual(["goose's RUN does not check, before it fetches, the image, read"]);
+    expect(problems(webapp.replace(GOOSE.assets['linux-arm64'].sha256, '0'.repeat(64)))).toEqual(["goose's RUN does not pin linux-arm64's goose_linux_arm64 by efdb8f97176df746cf3970ed40810816a51927da0600b152ac4359ae2b7c0e12"]);
+    expect(problems(dropLine(webapp, /^ {6}\*\) fail "this is \$plat; goose/))).toEqual(["goose's RUN does not refuse a platform it pins no asset for"]);
+    expect(problems(webapp.replace('goose_from=v3.27.1;', 'goose_from=v3.27.3;'))).toEqual(["goose's RUN's goose_from= is v3.27.3, not v3.27.1"]);
+    expect(problems(webapp.replace(/\n(# Still as root: goose)/, '\nUSER node\n$1'))).toEqual(["goose's RUN runs as node, not root"]);
+  });
+
+  for (const plat of PLATFORMS) {
+    it(`on ${plat}, run over the stand-in, it puts the release's asset in place, root's and 0755, and changes nothing else`, () => {
+      withSandbox(treeOf('trigger.dev', plat), (box) => {
+        const before = snapshot(box);
+        const run = build(webapp, box, { ...gooseOnly, plat });
+        expect(run.status, run.out).toBe(0);
+        expect(readFileSync(join(box.fs, GOOSE.path)).equals(STAND_IN_GOOSE_NEW)).toBe(true);
+        expect(statSync(join(box.fs, GOOSE.path)).mode & 0o777).toBe(0o755);
+        expect(without(snapshot(box), GOOSE.path)).toEqual(without(before, GOOSE.path));
+        // Root's owner, given to the fetched file before it moved into place.
+        const chowns = readFileSync(join(box.root, 'tools.log'), 'utf8').split('\n').filter((l) => l.startsWith('chown '));
+        expect(chowns).toEqual([expect.stringMatching(new RegExp(`^chown 0:0 ${join(box.root, 'tmp').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/\\S+/goose$`))]);
+        expect(run.out).toContain(`goose v3.27.1 at ${box.fs}${GOOSE.path} is goose v3.29.0's ${GOOSE.assets[plat].asset}`);
+        expect(readdirSync(join(box.root, 'tmp'))).toEqual([]);
+      });
+    });
+  }
+
+  it('each way upstream or the release could differ fails it, with nothing changed', () => {
+    const plat = 'linux-x64';
+    const base = treeOf('trigger.dev', plat);
+    const url = GOOSE.assets[plat].url;
+    const old = (bytes: Buffer): Tree => ({ ...base, executables: { [GOOSE.path]: bytes } });
+    const asset = (bytes: Buffer | undefined, own = false): Tree => {
+      const registry = { ...base.registry };
+      if (bytes) registry[url] = bytes;
+      else delete registry[url];
+      return { ...base, registry, standIn: { ...base.standIn, goose: own && bytes ? sha256(bytes) : base.standIn!.goose } };
+    };
+    const later = standInExecutable(`${GOOSE.said}v3.28.0\n`);
+    const cases: ReadonlyArray<[string, Tree, (fs: string) => string, Options?]> = [
+      ['an old goose that is no ELF', old(Buffer.from('#!/bin/sh\necho "goose version: v3.27.1"\n')), (fs) => `${fs}${GOOSE.path} is no ELF binary (it starts 23212f62)`],
+      ['an old goose of another release: upstream moved goose', old(later), (fs) => `${fs}${GOOSE.path} says 'goose version: v3.28.0', not goose v3.27.1: upstream moved goose: drop the replacement.`],
+      ['an old goose of another owner', { ...base, tools: gooseTools('1000:1000') }, (fs) => `${fs}${GOOSE.path} has 1 name(s), owner `],
+      ['a release without the asset', asset(undefined), () => `${url} could not be fetched; nothing was changed.`],
+      ['a release asset of other bytes', asset(later), () => `${url} is ${sha256(later)}, not ${sha256(STAND_IN_GOOSE_NEW)}, goose v3.29.0's goose_linux_x86_64 as its release published it; nothing was changed.`],
+      ['a release asset that says another version, by its own hash', asset(later, true), () => "goose v3.29.0's goose_linux_x86_64 says 'goose version: v3.28.0'; nothing was changed."],
+      ['the pinned hash, against the stand-in', base, () => `${url} is ${sha256(STAND_IN_GOOSE_NEW)}, not ${GOOSE.assets[plat].sha256}`, { pinnedGoose: true }],
+    ];
+    for (const [what, tree, said, options] of cases) {
+      withSandbox(tree, (box) => {
+        const before = snapshot(box);
+        const run = build(webapp, box, { ...gooseOnly, plat, ...options });
+        expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+        expect(run.out, what).toContain(said(box.fs));
+        expect(snapshot(box), `${what}: something changed before it failed`).toEqual(before);
+      });
+    }
+    // Its mode, and a second name, read from the file itself.
+    withSandbox(base, (box) => {
+      chmodSync(join(box.fs, GOOSE.path), 0o644);
+      const run = build(webapp, box, { ...gooseOnly, plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}${GOOSE.path} has 1 name(s), owner `);
+      expect(run.out).toContain('mode 644, not one name, root\'s, 0755');
+    });
+    withSandbox(base, (box) => {
+      linkSync(join(box.fs, GOOSE.path), join(box.fs, '/usr/local/goose-second'));
+      const before = snapshot(box);
+      const run = build(webapp, box, { ...gooseOnly, plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}${GOOSE.path} has 2 name(s)`);
+      expect(snapshot(box)).toEqual(before);
+    });
+    withSandbox(treeOf('trigger.dev', 'linux-riscv64'), (box) => {
+      const run = build(webapp, box, { ...gooseOnly, plat: 'linux-riscv64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain("this is linux-riscv64; goose v3.29.0's release binaries are pinned for linux-arm64 and linux-x64.");
+    });
+  });
+
+  it('each proof after the move fails on the change it is there to see', () => {
+    const base = treeOf('trigger.dev', 'linux-arm64');
+    const afterMove = (line: string) => insertAfter(webapp, /^ {4}mv "\$tmp\/goose" "\$goose"; \\$/, line);
+    withSandbox(base, (box) => {
+      const run = build(afterMove('echo changed >> /triggerdotdev/package.json;'), box, gooseOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`outside ${box.fs}${GOOSE.path}, a path was added or removed, or an entry's owner, mode, size or times changed, while it was replaced.`);
+    });
+    withSandbox(base, (box) => {
+      const run = build(afterMove('chmod 0644 /usr/local/bin/goose;'), box, gooseOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain("after the move, not one name, root's, 0755: the entrypoint runs it, and Trivy reads no Go binary that is not executable.");
+    });
+    withSandbox(base, (box) => {
+      const run = build(afterMove('printf x >> /usr/local/bin/goose;'), box, gooseOnly);
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}${GOOSE.path} is not goose v3.29.0's goose_linux_arm64 after the move.`);
+    });
   });
 });
 
@@ -2435,8 +3488,11 @@ describe('the reading is not vacuous', () => {
     for (const name of NAMES) {
       expect(statSync(join(REPO_ROOT, dockerfileOf(name))).isFile()).toBe(true);
       // The removing RUN and the node RUN, and the webapp's replacing RUN.
-      expect(runs(dockerfiles[name]).length, name).toBe(2 + REPLACED[name].length);
-      expect(replacingRuns(dockerfiles[name]).length, name).toBe(REPLACED[name].length);
+      // The removing RUN and the node RUN, dompurify's RUN, the swap table's and goose's.
+      expect(runs(dockerfiles[name]).length, name).toBe(2 + ownRunRows(name).length + (tableRows(name).length > 0 ? 1 : 0) + binaryRows(name).length);
+      expect(replacingRuns(dockerfiles[name]).length, name).toBe(ownRunRows(name).length);
+      expect(tableRuns(dockerfiles[name]).length, name).toBe(tableRows(name).length > 0 ? 1 : 0);
+      expect(gooseRuns(dockerfiles[name]).length, name).toBe(binaryRows(name).length);
       expect(parseRef(dockerfileBase(dockerfiles[name]).ref).digest).toMatch(/^sha256:[0-9a-f]{64}$/);
     }
   });

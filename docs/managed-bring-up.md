@@ -3204,8 +3204,10 @@ refuses a `COMPOSE_FILE` in the shell.
 
 The entrypoint's other children do not call out: pnpm 10.34.9 (the builds'
 since 2026-11-02, in place of upstream's 10.33.2, which did the same) checks
-for its own update only on `install` and `add`, goose v3.27.1 has no network use
-of its own, and the dashboard agent's migration is plain drizzle-orm. Nor does
+for its own update only on `install` and `add`, goose has no network use of its
+own (v3.27.1, and v3.29.0, the build's since 2026-11-03 in place of upstream's,
+whose new code is other drivers' authentication), and the dashboard agent's
+migration is plain drizzle-orm. Nor does
 corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
 `COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
 the copy of pnpm the other user would run, and tar from the copy theirs runs
@@ -6021,7 +6023,18 @@ webapp's build also replaces dompurify 3.4.13's files with
 3.4.17's, the release that fixes the critical GHSA-cg2g-xh64-v4q7: it fetches
 the tarball from the npm registry when it builds, refuses it unless its sha512
 is the one npm published, and proves nothing else in the image changed
-(nothing here loads dompurify; its header says why). The image scan's critical
+(nothing here loads dompurify; its header says why). Since 2026-11-03 the
+webapp's build also removes TypeScript 7's native compiler (`lib/tsc` of
+`@typescript/typescript-<platform>` 7.0.2, which nothing here runs: the package
+`typescript` exports only its version), replaces goose v3.27.1, which the
+entrypoint runs for the ClickHouse migrations, with goose v3.29.0's release
+binary, fetched from GitHub by its SHA-256 and made root's and executable,
+and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
+systeminformation 5.33.19 in place of the releases of the same major they fix,
+by the sha512 npm published; the supervisor's build does the same for its
+systeminformation. So the webapp's build reaches github.com as well as the npm
+registry.
+The image scan's critical
 findings go from 8 to 1 (zlib1g, which Debian has not fixed) and from 2 to 0.
 The one risk accepted: a `pnpm install` inside `trigger-api` or
 `trigger-supervisor` that builds a native add-on, or a package script there
