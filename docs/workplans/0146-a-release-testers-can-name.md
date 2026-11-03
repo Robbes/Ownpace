@@ -11,10 +11,11 @@
 empty. It adds `v0.2.0-alpha.4` as the last of `releases` in `scripts/release-line.json`, the
 release being prepared until Release tags it (T4, `docs/release.md` §1). `SOURCE_PROOFS`,
 which T1 asks the fold to read again, has not changed since 2026-10-04, so the sources the
-*since rc.1* part lists hold. #1806 (PGlite 0.5.14) is in. **The owner pulled the fold
-earlier** (2026-11-03, about 23:03 UTC): it merges before that night's 23:30 UTC runs, so they
-count, and #1778 (the API's distroless base, a new digest whose three days pass only at 23:45
-UTC) waits for after the tag. Its squash is C, and `main` takes nothing else until the tag. Held for after alpha.4: pnpm 11.28.10
+*since rc.1* part lists hold. #1806 (PGlite 0.5.14) is in, and #1778 (the API's distroless
+base, a new digest, past its three days at 23:45 UTC on 2026-11-03) merges first; then `main`
+is merged into this branch once more. **The owner pulled the fold earlier** (2026-11-03, about
+23:03 UTC): it merges in the night of 2026-11-03, before 2026-11-04's scheduled E2E (managed),
+so that run is the first counted one and the tag can be 2026-11-05. Its squash is C, and `main` takes nothing else until the tag. Held for after alpha.4: pnpm 11.28.10
 (#1792) and MinIO's newer `latest` (0119). **Owed before the tag:**
 - C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
   `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;

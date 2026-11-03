@@ -16,9 +16,8 @@ privileges and the capabilities cut (#1803), the appliance's `/app` read-only to
 Essentials purged (#1802, §3 item 11); `node.exe` held to committed sums (#1780) and the
 payload's `smoke` on Windows (#1789); Atlas v1.3.6 (#1773), CI's named downloads (#1777), the
 deploy CLI from the lockfile (#1790), follow-redirects 1.16.2 (#1751); and the scan's fixable
-inventory and tiers (#1799, #1800), and PGlite 0.5.14 (#1806). The owner pulled the fold ahead
-of #1778's floor (the API's distroless base, a new digest, past three days only at 23:45 UTC on
-2026-11-03), so #1778 waits for after the tag too. Held for after alpha.4: pnpm 11.28.10 (#1792), while npm's
+inventory and tiers (#1799, #1800), PGlite 0.5.14 (#1806), and the API's distroless base at a
+new digest (#1778, merged just before the fold). Held for after alpha.4: pnpm 11.28.10 (#1792), while npm's
 `latest-11` names 11.28.9, and MinIO's `latest` `090010a3…`, whose floor passes 2026-11-05
 19:17 UTC; alpha.4 keeps `3b6e40c3…`. What is owed before the tag is in 0146's entry: C's CI
 and Security Scan, the Windows run on C, the counted nights of 2026-11-04 and 2026-11-05, the
