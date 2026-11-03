@@ -3300,8 +3300,10 @@ refuses a `COMPOSE_FILE` in the shell.
 
 The entrypoint's other children do not call out: pnpm 10.34.9 (the builds'
 since 2026-11-02, in place of upstream's 10.33.2, which did the same) checks
-for its own update only on `install` and `add`, goose v3.27.1 has no network use
-of its own, and the dashboard agent's migration is plain drizzle-orm. Nor does
+for its own update only on `install` and `add`, goose has no network use of its
+own (v3.27.1, and v3.29.0, the build's since 2026-11-03 in place of upstream's,
+whose new code is other drivers' authentication), and the dashboard agent's
+migration is plain drizzle-orm. Nor does
 corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
 `COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
 the copy of pnpm the other user would run, and tar from the copy theirs runs
@@ -6193,7 +6195,32 @@ webapp's build also replaces dompurify 3.4.13's files with
 3.4.17's, the release that fixes the critical GHSA-cg2g-xh64-v4q7: it fetches
 the tarball from the npm registry when it builds, refuses it unless its sha512
 is the one npm published, and proves nothing else in the image changed
-(nothing here loads dompurify; its header says why). The image scan's critical
+(nothing here loads dompurify; its header says why). Since 2026-11-03 the
+webapp's build also removes TypeScript 7's native compiler (`lib/tsc` of
+`@typescript/typescript-<platform>` 7.0.2, which nothing here runs: the package
+`typescript` exports only its version), replaces goose v3.27.1, which the
+entrypoint runs for the ClickHouse migrations, with goose v3.29.0's release
+binary, fetched from GitHub by its SHA-256 and made root's and executable,
+and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
+systeminformation 5.33.19 in place of the releases of the same major they fix,
+by the sha512 npm published; the supervisor's build does the same for its
+systeminformation. So the webapp's build reaches github.com as well as the npm
+registry. **When a host does not answer** (or answers with an error) while an
+image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
+hold the image's name yet, the build stops with nothing changed and says that
+the host did not answer and upstream did not move: run the same command with
+the same tag again once it answers; nothing in the checkout needs editing, and
+a deploy that stopped there has not taken. **A release asset can disappear:**
+GitHub lets a release's owner delete an asset, where npm keeps a version that
+others depend on, so a later build of a tag depends on goose v3.29.0's assets
+still being there. If one is gone, the build says so (*… is gone*); a machine
+that already holds the image's name keeps running it, since compose builds only
+a name it lacks. Then a pull request moves the goose replacement to a release
+whose assets are there (its URL and SHA-256 per platform, read and hashed as
+the Dockerfile's header says), or drops it (the RUN and its REPLACED row, back
+to upstream's goose v3.27.1 and its findings), and the tag after it carries
+that.
+The image scan's critical
 findings go from 8 to 1 (zlib1g, which Debian has not fixed) and from 2 to 0.
 The one risk accepted: a `pnpm install` inside `trigger-api` or
 `trigger-supervisor` that builds a native add-on, or a package script there

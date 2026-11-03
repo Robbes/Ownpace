@@ -35,9 +35,11 @@
  *    out: pnpm 10.34.9 (since 2026-11-02 the builds here run it in place of
  *    upstream's 10.33.2, which did the same) checks for its own update only on
  *    `install` and `add` (`pnpm/src/main.ts`; `dist/pnpm.cjs` of both as npm
- *    published them), goose v3.27.1 has no network use of its own, and the
- *    dashboard agent's migration is plain drizzle-orm. At v4.7.6 (read
- *    2026-10-23) all of that holds: the server's two new events (the dashboard
+ *    published them), goose has no network use of its own (v3.27.1, and
+ *    v3.29.0, which the webapp's build runs in its place since 2026-11-03,
+ *    whose new code is other drivers' authentication: `cmd/goose` at both
+ *    tags), and the dashboard agent's migration is plain drizzle-orm. At
+ *    v4.7.6 (read 2026-10-23) all of that holds: the server's two new events (the dashboard
  *    agent's feedback, a webhooks beta request) go through the same client,
  *    which the opt-out leaves unmade, and only on Trigger.dev's own cloud; the
  *    browser's new queue drops what it holds when the key is empty; the

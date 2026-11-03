@@ -40,6 +40,153 @@ one.
   `managed-bring-up.md`'s step 3, which now says to put the `PATH` line at the end of
   `~/.profile` too on Ubuntu and Debian.
 
+**2026-11-03: the Trigger.dev builds clear what a release fixes (0146 T16): TypeScript 7's tsc
+out, goose v3.29.0's release binary in, four packages at the release of their own major that
+fixes them; built as a draft for alpha.4.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`, from `main` at `319a2d34`
+(#1799), with `main` at `3632d343` (#1800, #1801) merged in; draft #1804, not merged. The owner's mandate of 2026-11-03: the time
+before the fold (2026-11-04 23:30) goes to the findings a release fixes. On #1804's head
+`9f6e5c1d`, `build (trigger, amd64)` and `build (trigger, arm64)` were green (Images run
+41600456269), so every RUN below ran in both images, the arm64 goose asset's `-version` among
+them, and the branch image scan measured what the arithmetic said (the last bullets). **Owed
+before a merge:** both builds green again on the head after the review (its RUNs changed what a
+failed fetch says, not what lands in the image), and one E2E (managed) on the branch. Times are UTC.
+- **Where the findings are.** Security Scan run 41586744506 (#1799's branch, its report listing
+  every fixable finding by package and path) read the webapp built here at 1 critical, 89 high
+  and 57 with a fix, and the supervisor at 0, 2 and 2. Of the webapp's 57: 15 in TypeScript 7's
+  native compiler, 21 in goose, 8 in four packages a release of the same major fixes, and 13
+  where only a new major fixes it or the package that requires it pins it exactly (WHAT STAYS,
+  below). The supervisor's two: systeminformation 5.31.7 and cross-spawn 5.1.0.
+- **TypeScript 7's tsc goes** (`lib/tsc` of `@typescript/typescript-<platform>` 7.0.2: Go 1.26.4
+  and x/text v0.38.0, 15 highs). typescript 7.0.2 is a resolved peer of prisma 6.14.0,
+  `@prisma/client`, `@remix-run/*` and class-variance-authority; its package exports "." as
+  `lib/version.cjs`, which holds no compiler, and the binary is reached only through `bin/tsc` or
+  the unstable API's `getExePath`. The image's one caller of the package is prisma's
+  `build/index.js`, for `.version`; `tsc` appears only in `@trigger.dev/database`'s build, dev
+  and typecheck scripts, which nothing here runs. The webapp's first RUN checks the file is
+  npm's (SHA-256 per platform: arm64 `f86e8070…`, 22,872,226 bytes; x64 `4f2de678…`,
+  24,101,026), an ELF with one name, before it removes anything, and proves after that no ELF
+  named tsc or tsgo is left and that from typescript's directory and prisma's, require and
+  import of `typescript` give 7.0.2 from `lib/version.cjs`.
+- **goose v3.27.1 to v3.29.0's release binary** (21 highs to 1). Upstream builds goose with `go
+  install …@v3.27.1`, and the entrypoint runs `goose up` as root at every start of
+  `trigger-api`, over plain HTTP to the stack's ClickHouse. Fifteen of the 21 are in packages
+  the binary does not link (of x/crypto its symbol table has md4 alone; neither x/net's html nor
+  its dns/dnsmessage, nor compress's s2), and none is reachable from `goose up`. v3.29.0 is
+  goose's newest release (tag at `8b457ba3`, assets uploaded 2026-10-11 17:48), built with Go
+  1.27.2; Trivy reads one high in it, Go's CVE-2026-111943 (crypto/x509, fixed in Go 1.27.3),
+  which needs TLS. Read at both tags: `cmd/goose` reads GOOSE_DRIVER, GOOSE_DBSTRING,
+  GOOSE_MIGRATION_DIR and `up` as before, and of the ClickHouse dialect only CreateTable changed,
+  `ORDER BY (date)` to `ORDER BY (version_id)` for a `goose_db_version` table that does not exist
+  yet (`CREATE TABLE IF NOT EXISTS`; the changelog's #1085, since v3.28.0); every stack that has
+  run `trigger-api`, the OTA stack's and live's among them, has the table, goose never alters
+  it, and each query it runs on the table reads it by `version_id`. A new RUN checks the old
+  file (an ELF, one name, root's, 0755, `goose -version` v3.27.1, or *upstream moved goose: drop
+  the replacement*), fetches the release's asset for the platform with node's fetch (GitHub
+  redirects to its release-assets host), refuses another SHA-256 with nothing changed
+  (`goose_linux_arm64` `efdb8f97…`, 41,287,840 bytes; `goose_linux_x86_64` `cc56e2f7…`,
+  43,634,848; downloaded and hashed here), makes it root's and 0755 before it moves it into
+  place, and proves after the move the file, its owner and mode, `goose -version` v3.29.0, and
+  that nothing else in the image changed.
+- **Trivy reads no Go binary that is not executable.** The first triage of goose read 0
+  findings, from a copy taken out of the image without its mode; with the mode, 21. The build
+  checks the old file's mode and gives it to the new one; a scan of a binary taken out of an
+  image is no proof unless the copy kept it. The Dockerfile's header (THE MODE) and the guard
+  keep the lesson.
+- **Four packages at the release that fixes them**, each of the same major, past its floor, in
+  its directory under pnpm's name for the old version, as dompurify's is: undici 6.29.0 to
+  6.29.1 (3 highs; @remix-run/node 2.17.5 and @ai-sdk/provider-utils 4.0.56 require it),
+  follow-redirects 1.16.0 to 1.16.2 (3; axios 1.20.0), body-parser 1.20.6 to 1.20.9 (1; express
+  4.20.0; its one new range, qs ~6.16.0, is met by the qs 6.16.1 pnpm linked for 1.20.6) and
+  systeminformation 5.31.7 to 5.33.19 (1; @opentelemetry/host-metrics 0.38.3, which loads
+  `systeminformation/lib/network` only, and only once host metrics start, which
+  `INTERNAL_OTEL_METRIC_EXPORTER_ENABLED`'s default "0" stops). npm lists no advisory against any
+  new release. The server loads them from node_modules (esbuild without `--bundle`, Vite's SSR
+  externals; the one bundle, the OTLP worker, reaches none). A new RUN holds them as one table:
+  it checks every row before it fetches (the old directory file for file; who links it, found by
+  the links, against the row; no other package.json of that name and version in the image, so
+  undici 5.29.0 and body-parser 2.3.0 stay; no string of the package's own code in the webapp's
+  build), fetches every tarball and checks it by npm's sha512 and file for file before it swaps
+  any, then proves each directory, that nothing else changed, that each dependency the new
+  release declares loads from it, and that from each requirer's own directory require loads it,
+  on the image's Node. The supervisor's build runs the same RUN with one row, its
+  systeminformation (`/app/apps/supervisor/node_modules/.pnpm/systeminformation@5.31.7/…`, where
+  the scan reads it), under BusyBox: the check that nothing else changed is a stat of every
+  entry, which BusyBox can make (its find has no `-cnewer`).
+- **A package pnpm installed is not its tarball.** The first draft of that RUN, run over a tree
+  pnpm 10.33.2 installed with the real requirers, failed on systeminformation: pnpm links a
+  package's own bin into the package's directory (`node_modules/.bin`), a shim that names the
+  install's absolute paths, so no image's directory is the tarball file for file. The trees now
+  leave pnpm's `node_modules` out, and the RUN carries it over to the new release and proves it
+  unchanged. dompurify has no bin, so its RUN never met it.
+- **Proved here, without an image** (ghcr's blobs are refused from this environment): the pins
+  re-verified by downloading and hashing every tarball, both TypeScript platform tarballs and
+  both goose assets; npm's advisories and publication times; the directory names computed with
+  pnpm 10.33.2's own `depPathToFilename` and seen in the scan's paths. In a stand-in root built by
+  pnpm 10.33.2 (copy import, so one name per file as in an image layer) with the real requirers,
+  on Node 24.22.1 under dash: the four-package RUN green with real fetches from the registry,
+  and a second run refused with nothing changed; goose's RUN green with goose v3.27.1 built as
+  upstream builds it and the real v3.29.0 asset (amd64), and refusing a wrong pin, mode 0644, a
+  second name and a goose already moved, each with nothing changed; the tsc lines of the first
+  RUN green over the real 7.0.2 tree and binary, refusing a second name and a tsgo left
+  elsewhere. The supervisor's RUN green under BusyBox 1.37.0 (Alpine's, every tool), with the
+  real tarball. Not run here: either image, the arm64 goose asset (hashed, not executed), and
+  Trivy over the result; CI has run all three since (above).
+- **The guard** (`scripts/a-binary-the-stack-never-runs.unit.test.ts`, 38 tests to 53, 58 after
+  the review) holds the
+  tsc row in REMOVED, REPLACED in two kinds (packages, the table's rows among them, with their
+  marks, loads and requirers; and goose as a binary, by platform), each RUN's checks and their
+  order, and, over its stand-in, every step and each way it could slip; its stand-in goose is a
+  minimal executable made for the machine that runs the test, x86-64 or aarch64. `managed.yml`'s
+  names move to `-62bca33430e4` and `-45d3671bc917`.
+- **Mutations** (each applied to a copy of the tree with `managed.yml`'s name moved to the
+  mutated file's hash, so the name tests do not count; failed tests of 53, before the review): the controls, a
+  changed final echo in either Dockerfile, 0. tsc: no SHA-256 check 7, no one-name check 7, no
+  require or import proof 11, not removed (rm and gone-loop) 7, the ELF search without tsc 7.
+  The table: no integrity check 3, swaps before fetching 9, no other-copy check 3, other copies
+  matched by name alone 9, `tree()` reading pnpm's shim 9, pnpm's `node_modules` not carried 8,
+  no state comparison 3, no requirer load proofs 4, no bundled-copy check 3, no requirer check
+  3, a row at another version 9; the supervisor's: no swap RUN 5, no integrity check 2. goose:
+  no `chmod 0755` 10, no SHA-256 check 3, no old-version check 3, no stat check after the move
+  3, no state comparison 3, no RUN 7. All 24 fail the guard; the controls fail none.
+- **The review, on `9f6e5c1d` (no blockers).** A fetch that failed got *upstream moved, drop the
+  replacement*, which a host that did not answer is not. Each replacing RUN (dompurify's, the
+  table's in both builds, goose's) now tells the outcomes apart by the exit of node's fetch: a
+  host that did not answer, or answered with an error, says so, that nothing was changed and
+  upstream did not move, and to run the bring-up or `deploy-live.sh` with the same tag again; a
+  404 or 410 says the file is gone; neither carries the footer, and anything else fails as
+  before. `docs/managed-bring-up.md` (Upgrading Trigger.dev) says both, and that GitHub lets a
+  release's owner delete an asset where npm keeps a version others depend on, so a later build of
+  this tag needs goose's asset still there: a machine that holds the image's name keeps running
+  it, and a pull request moves the replacement to a release whose assets are there, or drops it.
+  Each of the three commands of `swapped()` now fails by name. The guard's stand-in registry
+  answers per host (not at all, or with a status), and five tests hold the outcomes in every
+  replacing RUN (53 tests to 58); its stand-in `exports` no longer spells the root
+  `package.json`'s path, so `docs/LESSONS.md` no longer sends edits of it here; the CHANGELOG
+  names github.com as the one new host. `managed.yml`'s names move from `-62bca33430e4` and
+  `-45d3671bc917`, the ones the scan read, to `-e13a605a9db5` and `-92025e84edc4`. Mutations
+  (failed tests of 58): the control 0; dompurify's failed fetch into `fail()` 5, its 404 taken
+  for no answer 4; the table without the outcome case 5, no answer into `fail()` 4, `rm` and
+  `mv` in `swapped()` without their `|| fail` 3 and 3; the supervisor's without `gone()` 3;
+  goose without the outcome branches 5, its `unreachable()` with `fail()`'s advice 4. All nine
+  fail the guard.
+- **What it changes, measured.** Security Scan run 41600469198, dispatched on `9f6e5c1d`, read
+  the webapp built there (`-62bca33430e4`) at 1 critical, 46 high and 14 with a fix, and the
+  supervisor (`-45d3671bc917`) at 0, 1 and 1, as the arithmetic said: from 1, 89, 57 and 0, 2, 2.
+  Its fixable remainder is the list below, no more. **What stays, waiting on upstream**
+  (triggerdotdev/trigger.dev#5084): zlib1g's critical and the 32 highs of Debian 12's packages
+  without a fix; goose's CVE-2026-111943, until a goose on Go 1.27.3; effect 3.16.12 and 3.18.4
+  (exact pins of @prisma/config 6.14.0 and 6.19.0) and 3.17.1 (packages/schema-to-json's),
+  fixed in 3.20.0; undici 5.29.0 (5 highs, @connectrpc/connect-node's, fixed in 6) and its
+  @fastify/busboy 2.1.1 (fixed in 3); turbo-stream 2.4.1 (fixed in 3, an exact pin of
+  @remix-run/react and server-runtime); deepmerge-ts 7.1.5 (fixed in 8); cross-spawn 5.1.0
+  (fixed in 6; in both images); and body-parser 2.3.0 (express 5's; 2.4.0 needs iconv-lite
+  ^0.7.3, and pnpm linked 0.7.2).
+- **Risks.** The goose that runs every ClickHouse migration changes; E2E (managed) on the branch
+  runs it against the OTA stack's existing table. The builds fetch from github.com as well as
+  the npm registry, the live host's build too. The four packages change code the webapp's server
+  can load (each fix's own); upstream's CI has not run them.
+
 **2026-11-03: the Debian Essentials nothing runs, purged from the appliance and from the tasks'
 runtime base, for alpha.4** (the owner's decision of 2026-11-03, §3 item 11), #1802 from the branch
 `claude/ownpace-public-readiness-y7orc6-debian-purge`. If its proof is not green before the
@@ -3328,7 +3475,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `86d5a599…`, trigger.dev 4.8.3's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC; Node 26.12.1; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, pushed the same morning, before) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26 and 2026-10-31) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
