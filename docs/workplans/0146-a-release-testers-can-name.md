@@ -6,7 +6,7 @@
 
 **2026-11-03: T16 again, the Trigger.dev builds clear what a release fixes, a draft for
 alpha.4.** On the branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`, from
-`main` at `319a2d34`, with `main` at `1f1d21d2` merged in; draft #1804, not merged; 0119's Status entry of the same name has the detail. The owner's
+`main` at `319a2d34`, with `main` at `3632d343` merged in; draft #1804, not merged; 0119's Status entry of the same name has the detail. The owner's
 mandate of 2026-11-03: the time before the fold goes to the findings a release fixes. The
 webapp's build removes TypeScript 7's native compiler (15 fixable highs, which nothing here
 runs), replaces goose v3.27.1, which the entrypoint runs for the ClickHouse migrations, with
