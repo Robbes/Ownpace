@@ -4,6 +4,352 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03, later, records: what landed today, the owner's readings and two decisions for
+alpha.5.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-1103-b`.
+Times are UTC. The entries below that say *built, not merged* or *draft* are overtaken by this
+one.
+- **Landed on `main`, each on its proof:**
+  - #1798 (the OTA pooler's user list kept in the persist directory) as `fee22669` at 06:38,
+    after E2E (managed) 41587588442 on its head.
+  - #1799 (the scan report's fixable inventory) as `319a2d34` at 06:10, and #1800 (tiers, and
+    test-only images out of code scanning) as `1f1d21d2` at 07:11, CI only.
+  - #1801 (the appliance's `/app` root's and read-only to it) as `3632d343` at 08:06, after E2E
+    (self-hosted) 41596946243 on Postgres and 41599683427 on PGlite.
+  - #1803 (no new privileges, capabilities cut, six read-only roots) as `19c0d8c8` at 09:08,
+    after E2E (managed) 41604890530 and E2E (self-hosted) 41607791958, and an independent review
+    that found the identity provider's one-off short of DAC_OVERRIDE before any run did.
+  - #1802 (the Debian Essentials purged, item 11) as `420d54bc` at 10:33, after E2E (managed)
+    41608749208 and E2E (self-hosted) 41611377370 on `be22e821`. Merging `main` brought #1803's
+    invocation rule to its E2E step (`exec app dpkg-query`) and to a README sentence the rule
+    read as a program named `still`; the rule now reads a shell without `-c` as the shell
+    itself, and the appliance's `sh` and `dpkg-query` are reviewed (no capability).
+  - #1804 (the Trigger.dev webapp without TypeScript 7's native compiler, goose v3.29.0, four
+    packages within their major, the supervisor's systeminformation) as `46adb695` at 10:50,
+    after E2E (managed) 41614665079 on `fb7a0612` and the branch's image scan 41600469198
+    (webapp 1/89/57 to 1/46/14, supervisor 0/2/2 to 0/1/1).
+- **The owner dismissed the test-only images' open alerts** at about 07:30: 294, all as *used
+  in tests* (245 under `trivy-image-nextcloud`, 49 under `trivy-image-stalwart`; Mailpit had
+  none), and deleted the three categories' configurations on the tool status page. #1800 keeps
+  them from coming back.
+- **Two decisions for alpha.5** (§3 items 12 and 13): the appliance drops its shell, the image
+  and the compose healthcheck together in alpha.5; and the tasks' prebuilt distroless base is
+  built, signed and published to GHCR by CI.
+- **E2E (self-hosted) on `main`, scheduled:** 41575338615 on `21fa6ff8` (03:58–04:30, the first
+  after the host's Docker 29.6.2) and 41603423812 on `3632d343` (08:27–08:38), both green.
+- **The deploy shell's Node is 26.13.0** (0131's Status of the same day), by
+  `managed-bring-up.md`'s step 3, which now says to put the `PATH` line at the end of
+  `~/.profile` too on Ubuntu and Debian.
+
+**2026-11-03: the Trigger.dev builds clear what a release fixes (0146 T16): TypeScript 7's tsc
+out, goose v3.29.0's release binary in, four packages at the release of their own major that
+fixes them; built as a draft for alpha.4.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`, from `main` at `319a2d34`
+(#1799), with `main` at `3632d343` (#1800, #1801) merged in; draft #1804, not merged. The owner's mandate of 2026-11-03: the time
+before the fold (2026-11-04 23:30) goes to the findings a release fixes. On #1804's head
+`9f6e5c1d`, `build (trigger, amd64)` and `build (trigger, arm64)` were green (Images run
+41600456269), so every RUN below ran in both images, the arm64 goose asset's `-version` among
+them, and the branch image scan measured what the arithmetic said (the last bullets). **Owed
+before a merge:** both builds green again on the head after the review (its RUNs changed what a
+failed fetch says, not what lands in the image), and one E2E (managed) on the branch. Times are UTC.
+- **Where the findings are.** Security Scan run 41586744506 (#1799's branch, its report listing
+  every fixable finding by package and path) read the webapp built here at 1 critical, 89 high
+  and 57 with a fix, and the supervisor at 0, 2 and 2. Of the webapp's 57: 15 in TypeScript 7's
+  native compiler, 21 in goose, 8 in four packages a release of the same major fixes, and 13
+  where only a new major fixes it or the package that requires it pins it exactly (WHAT STAYS,
+  below). The supervisor's two: systeminformation 5.31.7 and cross-spawn 5.1.0.
+- **TypeScript 7's tsc goes** (`lib/tsc` of `@typescript/typescript-<platform>` 7.0.2: Go 1.26.4
+  and x/text v0.38.0, 15 highs). typescript 7.0.2 is a resolved peer of prisma 6.14.0,
+  `@prisma/client`, `@remix-run/*` and class-variance-authority; its package exports "." as
+  `lib/version.cjs`, which holds no compiler, and the binary is reached only through `bin/tsc` or
+  the unstable API's `getExePath`. The image's one caller of the package is prisma's
+  `build/index.js`, for `.version`; `tsc` appears only in `@trigger.dev/database`'s build, dev
+  and typecheck scripts, which nothing here runs. The webapp's first RUN checks the file is
+  npm's (SHA-256 per platform: arm64 `f86e8070…`, 22,872,226 bytes; x64 `4f2de678…`,
+  24,101,026), an ELF with one name, before it removes anything, and proves after that no ELF
+  named tsc or tsgo is left and that from typescript's directory and prisma's, require and
+  import of `typescript` give 7.0.2 from `lib/version.cjs`.
+- **goose v3.27.1 to v3.29.0's release binary** (21 highs to 1). Upstream builds goose with `go
+  install …@v3.27.1`, and the entrypoint runs `goose up` as root at every start of
+  `trigger-api`, over plain HTTP to the stack's ClickHouse. Fifteen of the 21 are in packages
+  the binary does not link (of x/crypto its symbol table has md4 alone; neither x/net's html nor
+  its dns/dnsmessage, nor compress's s2), and none is reachable from `goose up`. v3.29.0 is
+  goose's newest release (tag at `8b457ba3`, assets uploaded 2026-10-11 17:48), built with Go
+  1.27.2; Trivy reads one high in it, Go's CVE-2026-111943 (crypto/x509, fixed in Go 1.27.3),
+  which needs TLS. Read at both tags: `cmd/goose` reads GOOSE_DRIVER, GOOSE_DBSTRING,
+  GOOSE_MIGRATION_DIR and `up` as before, and of the ClickHouse dialect only CreateTable changed,
+  `ORDER BY (date)` to `ORDER BY (version_id)` for a `goose_db_version` table that does not exist
+  yet (`CREATE TABLE IF NOT EXISTS`; the changelog's #1085, since v3.28.0); every stack that has
+  run `trigger-api`, the OTA stack's and live's among them, has the table, goose never alters
+  it, and each query it runs on the table reads it by `version_id`. A new RUN checks the old
+  file (an ELF, one name, root's, 0755, `goose -version` v3.27.1, or *upstream moved goose: drop
+  the replacement*), fetches the release's asset for the platform with node's fetch (GitHub
+  redirects to its release-assets host), refuses another SHA-256 with nothing changed
+  (`goose_linux_arm64` `efdb8f97…`, 41,287,840 bytes; `goose_linux_x86_64` `cc56e2f7…`,
+  43,634,848; downloaded and hashed here), makes it root's and 0755 before it moves it into
+  place, and proves after the move the file, its owner and mode, `goose -version` v3.29.0, and
+  that nothing else in the image changed.
+- **Trivy reads no Go binary that is not executable.** The first triage of goose read 0
+  findings, from a copy taken out of the image without its mode; with the mode, 21. The build
+  checks the old file's mode and gives it to the new one; a scan of a binary taken out of an
+  image is no proof unless the copy kept it. The Dockerfile's header (THE MODE) and the guard
+  keep the lesson.
+- **Four packages at the release that fixes them**, each of the same major, past its floor, in
+  its directory under pnpm's name for the old version, as dompurify's is: undici 6.29.0 to
+  6.29.1 (3 highs; @remix-run/node 2.17.5 and @ai-sdk/provider-utils 4.0.56 require it),
+  follow-redirects 1.16.0 to 1.16.2 (3; axios 1.20.0), body-parser 1.20.6 to 1.20.9 (1; express
+  4.20.0; its one new range, qs ~6.16.0, is met by the qs 6.16.1 pnpm linked for 1.20.6) and
+  systeminformation 5.31.7 to 5.33.19 (1; @opentelemetry/host-metrics 0.38.3, which loads
+  `systeminformation/lib/network` only, and only once host metrics start, which
+  `INTERNAL_OTEL_METRIC_EXPORTER_ENABLED`'s default "0" stops). npm lists no advisory against any
+  new release. The server loads them from node_modules (esbuild without `--bundle`, Vite's SSR
+  externals; the one bundle, the OTLP worker, reaches none). A new RUN holds them as one table:
+  it checks every row before it fetches (the old directory file for file; who links it, found by
+  the links, against the row; no other package.json of that name and version in the image, so
+  undici 5.29.0 and body-parser 2.3.0 stay; no string of the package's own code in the webapp's
+  build), fetches every tarball and checks it by npm's sha512 and file for file before it swaps
+  any, then proves each directory, that nothing else changed, that each dependency the new
+  release declares loads from it, and that from each requirer's own directory require loads it,
+  on the image's Node. The supervisor's build runs the same RUN with one row, its
+  systeminformation (`/app/apps/supervisor/node_modules/.pnpm/systeminformation@5.31.7/…`, where
+  the scan reads it), under BusyBox: the check that nothing else changed is a stat of every
+  entry, which BusyBox can make (its find has no `-cnewer`).
+- **A package pnpm installed is not its tarball.** The first draft of that RUN, run over a tree
+  pnpm 10.33.2 installed with the real requirers, failed on systeminformation: pnpm links a
+  package's own bin into the package's directory (`node_modules/.bin`), a shim that names the
+  install's absolute paths, so no image's directory is the tarball file for file. The trees now
+  leave pnpm's `node_modules` out, and the RUN carries it over to the new release and proves it
+  unchanged. dompurify has no bin, so its RUN never met it.
+- **Proved here, without an image** (ghcr's blobs are refused from this environment): the pins
+  re-verified by downloading and hashing every tarball, both TypeScript platform tarballs and
+  both goose assets; npm's advisories and publication times; the directory names computed with
+  pnpm 10.33.2's own `depPathToFilename` and seen in the scan's paths. In a stand-in root built by
+  pnpm 10.33.2 (copy import, so one name per file as in an image layer) with the real requirers,
+  on Node 24.22.1 under dash: the four-package RUN green with real fetches from the registry,
+  and a second run refused with nothing changed; goose's RUN green with goose v3.27.1 built as
+  upstream builds it and the real v3.29.0 asset (amd64), and refusing a wrong pin, mode 0644, a
+  second name and a goose already moved, each with nothing changed; the tsc lines of the first
+  RUN green over the real 7.0.2 tree and binary, refusing a second name and a tsgo left
+  elsewhere. The supervisor's RUN green under BusyBox 1.37.0 (Alpine's, every tool), with the
+  real tarball. Not run here: either image, the arm64 goose asset (hashed, not executed), and
+  Trivy over the result; CI has run all three since (above).
+- **The guard** (`scripts/a-binary-the-stack-never-runs.unit.test.ts`, 38 tests to 53, 58 after
+  the review) holds the
+  tsc row in REMOVED, REPLACED in two kinds (packages, the table's rows among them, with their
+  marks, loads and requirers; and goose as a binary, by platform), each RUN's checks and their
+  order, and, over its stand-in, every step and each way it could slip; its stand-in goose is a
+  minimal executable made for the machine that runs the test, x86-64 or aarch64. `managed.yml`'s
+  names move to `-62bca33430e4` and `-45d3671bc917`.
+- **Mutations** (each applied to a copy of the tree with `managed.yml`'s name moved to the
+  mutated file's hash, so the name tests do not count; failed tests of 53, before the review): the controls, a
+  changed final echo in either Dockerfile, 0. tsc: no SHA-256 check 7, no one-name check 7, no
+  require or import proof 11, not removed (rm and gone-loop) 7, the ELF search without tsc 7.
+  The table: no integrity check 3, swaps before fetching 9, no other-copy check 3, other copies
+  matched by name alone 9, `tree()` reading pnpm's shim 9, pnpm's `node_modules` not carried 8,
+  no state comparison 3, no requirer load proofs 4, no bundled-copy check 3, no requirer check
+  3, a row at another version 9; the supervisor's: no swap RUN 5, no integrity check 2. goose:
+  no `chmod 0755` 10, no SHA-256 check 3, no old-version check 3, no stat check after the move
+  3, no state comparison 3, no RUN 7. All 24 fail the guard; the controls fail none.
+- **The review, on `9f6e5c1d` (no blockers).** A fetch that failed got *upstream moved, drop the
+  replacement*, which a host that did not answer is not. Each replacing RUN (dompurify's, the
+  table's in both builds, goose's) now tells the outcomes apart by the exit of node's fetch: a
+  host that did not answer, or answered with an error, says so, that nothing was changed and
+  upstream did not move, and to run the bring-up or `deploy-live.sh` with the same tag again; a
+  404 or 410 says the file is gone; neither carries the footer, and anything else fails as
+  before. `docs/managed-bring-up.md` (Upgrading Trigger.dev) says both, and that GitHub lets a
+  release's owner delete an asset where npm keeps a version others depend on, so a later build of
+  this tag needs goose's asset still there: a machine that holds the image's name keeps running
+  it, and a pull request moves the replacement to a release whose assets are there, or drops it.
+  Each of the three commands of `swapped()` now fails by name. The guard's stand-in registry
+  answers per host (not at all, or with a status), and five tests hold the outcomes in every
+  replacing RUN (53 tests to 58); its stand-in `exports` no longer spells the root
+  `package.json`'s path, so `docs/LESSONS.md` no longer sends edits of it here; the CHANGELOG
+  names github.com as the one new host. `managed.yml`'s names move from `-62bca33430e4` and
+  `-45d3671bc917`, the ones the scan read, to `-e13a605a9db5` and `-92025e84edc4`. Mutations
+  (failed tests of 58): the control 0; dompurify's failed fetch into `fail()` 5, its 404 taken
+  for no answer 4; the table without the outcome case 5, no answer into `fail()` 4, `rm` and
+  `mv` in `swapped()` without their `|| fail` 3 and 3; the supervisor's without `gone()` 3;
+  goose without the outcome branches 5, its `unreachable()` with `fail()`'s advice 4. All nine
+  fail the guard.
+- **What it changes, measured.** Security Scan run 41600469198, dispatched on `9f6e5c1d`, read
+  the webapp built there (`-62bca33430e4`) at 1 critical, 46 high and 14 with a fix, and the
+  supervisor (`-45d3671bc917`) at 0, 1 and 1, as the arithmetic said: from 1, 89, 57 and 0, 2, 2.
+  Its fixable remainder is the list below, no more. **What stays, waiting on upstream**
+  (triggerdotdev/trigger.dev#5084): zlib1g's critical and the 32 highs of Debian 12's packages
+  without a fix; goose's CVE-2026-111943, until a goose on Go 1.27.3; effect 3.16.12 and 3.18.4
+  (exact pins of @prisma/config 6.14.0 and 6.19.0) and 3.17.1 (packages/schema-to-json's),
+  fixed in 3.20.0; undici 5.29.0 (5 highs, @connectrpc/connect-node's, fixed in 6) and its
+  @fastify/busboy 2.1.1 (fixed in 3); turbo-stream 2.4.1 (fixed in 3, an exact pin of
+  @remix-run/react and server-runtime); deepmerge-ts 7.1.5 (fixed in 8); cross-spawn 5.1.0
+  (fixed in 6; in both images); and body-parser 2.3.0 (express 5's; 2.4.0 needs iconv-lite
+  ^0.7.3, and pnpm linked 0.7.2).
+- **Risks.** The goose that runs every ClickHouse migration changes; E2E (managed) on the branch
+  runs it against the OTA stack's existing table. The builds fetch from github.com as well as
+  the npm registry, the live host's build too. The four packages change code the webapp's server
+  can load (each fix's own); upstream's CI has not run them.
+
+**2026-11-03: the Debian Essentials nothing runs, purged from the appliance and from the tasks'
+runtime base, for alpha.4** (the owner's decision of 2026-11-03, §3 item 11), #1802 from the branch
+`claude/ownpace-public-readiness-y7orc6-debian-purge`. If its proof is not green before the
+alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
+- **What the 44 were.** `node:26.13.0-trixie-slim@e4db4c91…` (Debian 13.7) reads 0 critical
+  and 50 high with Trivy 0.76.1 (DB of 2026-11-03 01:30 UTC); 6 are npm's, which both images
+  already remove. Of the 44 left, none with a Debian fix, 36 are four util-linux CVEs
+  (CVE-2026-76642, -78408, -78409, -78410) in each of the nine binary packages its source builds
+  (util-linux, mount, login, bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1,
+  liblastlog2-2), and 1 is libsqlite3-0's (CVE-2026-119373). The other 7 stay: libacl1, libsystemd0, libudev1,
+  libtinfo6, ncurses-base, ncurses-bin and perl-base (fix deferred).
+- **The change.** `apps/selfhost/Dockerfile`'s runtime stage gets one RUN, after the package
+  managers' removal and before `USER`: `dpkg-query -W` of the ten, `dpkg --purge
+  --force-remove-essential --force-remove-protected` of the ten, `apt-get check`. The tasks'
+  layer (`apps/worker/trigger.config.ts`, `UNUSED_ESSENTIALS`) gets the same RUN as its last,
+  under the package-manager removal's `! command -v g++` guard, so it runs on the runtime base
+  and not on the CLI's `-build` image, where Python links libuuid and libsqlite3.
+  `scripts/image-scan.mjs containerfile` now writes the CLI's apt repair after the layers
+  (`CLI_APT_REPAIR`), so the scan builds the stage a deploy builds. The managed smoke asks the
+  newest image its runners started from, the one the last deploy built, about all ten (a new
+  section after the runner logs; the watcher starts each runner's log, then reads its image ID
+  on every pass until a read answers). An older image is named and not asked: Trigger.dev
+  keeps a run on the version it was triggered on, so a pass running when the smoke starts, or
+  queued before the deploy, runs the image before it. E2E (self-hosted) asks the appliance it
+  built about all ten (a step after the bring-up). `an-essential-nothing-runs` holds the
+  list, the shape, both places, the tasks' base to a `-slim` tag (a full Node image ships g++,
+  and the layer's guard would skip the purge and the npm removal without a word), the scan's
+  stage against the one the installed CLI writes (its own `generateContainerfile`), and runs
+  both checks and the watcher's pass against a stand-in docker. Each mutation turned it red:
+  a package dropped from either list, `--force-depends`, the repair left out of the scan, the
+  g++ guard dropped, the purge moved before the layer's apt step, an install after the
+  appliance's purge; and, after the review of #1802, the smoke asking
+  the oldest image, either check asking nine, reading config files as absent or not checking
+  that every package was answered for, the smoke ignoring the exit status or an undated
+  image, the watcher reading the image once or before the log, and the tasks' base moved to
+  a full Node image.
+- **Verified in this session** (Docker 29.9.2 on amd64, the base's layers from the build cache,
+  no network in the build):
+  - the appliance's base with npm removed and this RUN: 0 critical and 7 high, against 0 and 44
+    for the same base without it (Trivy 0.76.1, the same DB, `--image-src docker`). `useradd`
+    after it, `node` 26.13.0, `os.userInfo()`, `sh -c 'ls …'` and the image's
+    `docker-entrypoint.sh` all run; su, login, mount, umount, getopt, runuser, logger, more and
+    nologin are gone (`kill` is the shell's own); `dpkg-query -W util-linux` says *no packages
+    found matching util-linux* and exits 1, which is the answer both checks pass on.
+  - fail-loud: with a package installed that depends on libuuid1, dpkg says *needs-uuid
+    depends on libuuid1 … dependency problems - not removing* and the build stops (exit 1);
+    with a name the base does not have, `dpkg-query` stops it before dpkg removes anything.
+  - the task layer's RUN on that base purges; with a `g++` on the PATH it does nothing.
+  - the smoke's section against real images: the purged image passes, and beside the
+    unpurged one, built earlier, it is the one asked; the unpurged one alone fails with all
+    ten *installed*; a run that read no image fails. `dpkg-query -W -f '${Package}
+    ${Status}\n'` over the ten on the purged image answers *no packages found* for nine and
+    `login unknown ok not-installed` for `login`, whose record dpkg keeps, which both checks
+    read as absent; E2E's step passes the purged image and fails the unpurged one.
+  - the CLI's repair: trigger.dev 4.8.3 (tarball sha512 = pnpm-lock's) writes `RUN apt-get
+    update && apt-get --fix-broken install -y --no-install-recommends && …` after layers that
+    add instructions and no packages. apt 3.0.3's source (`DoInstall`,
+    `CacheFile::CheckDeps`, `pkgFixBroken`, `pkgDistUpgrade`): an install with `-f` and
+    nothing broken runs the problem resolver alone, and only a dist-upgrade marks missing
+    Essential packages for install. Offline, `apt-get -s --fix-broken install` plans nothing.
+  - at runtime: the CLI's run controller forks only `process.execPath`; the supervisor creates
+    each runner with the image's own entrypoint and user and never execs into it; no runtime
+    code in `packages/`, `apps/worker/src` or `apps/selfhost/src` imports `child_process`; the
+    appliance's payload and the tasks' externals hold no native module.
+- **Measured on the branch:** Security Scan run 41593876480, dispatched with the image scans on
+  `96d2b6f8`, reads `trigger-task-base` at 0 critical and 7 high (the seven above), on arm64,
+  where run 41586744506 read it at 0 and 44 the same morning. Its leg built the stage with
+  Debian's archive: the layer's purge removed the ten after `ca-certificates`, `openssl` and
+  `dumb-init` were installed, with no refusal, and the CLI's repair after it fetched the lists
+  and said *0 upgraded, 0 newly installed, 0 to remove*. `ownpace-selfhost-edge` and
+  `-release` still read 0 and 44 there: the scan reads them from ghcr, main's and alpha.3's,
+  so the branch's appliance is measured by the local run above, and the first scan after the
+  merge reads `:edge`. images.yml's `build (selfhost)` on #1802 ran the purge on amd64 with no
+  refusal.
+- **Not verified here, and where it is:** the appliance on arm64 (images.yml builds both
+  architectures on main only; E2E (self-hosted) builds it on arm64 on the branch, and asks it
+  about the ten); the smoke's section on a real stack (E2E (managed) on the branch).
+
+**2026-11-03, how the containers run: every service with no new privileges, its capabilities
+cut to what its own start uses, and six read-only roots (built, not merged).** The runtime half
+of the owner's *"make base images more lean/small and more hardened"* of 2026-11-03. On the
+branch `claude/ownpace-public-readiness-y7orc6-compose-hardening`: `managed.yml`, `www.yml` and
+the appliance's `compose.yml`, the guard `a-privilege-no-service-uses`, *How the containers
+run* in `managed-bring-up.md`, and the CHANGELOG. Draft PR #1803.
+- **What the review of #1803 found, fixed the same day.** A blocker: `zitadel-machinekey` kept
+  CHOWN and FOWNER, which its own command needs, and `setup-zitadel.sh` runs it on every bring-up
+  (E2E (managed) and `deploy-live.sh` included) for two other commands, `cat /machinekey/pat.txt`
+  and the rotation's write of `pat.txt.next` and its `mv`, in a directory the identity provider
+  owns at mode 700. Without DAC_OVERRIDE root does neither (`cat: can't open
+  '/machinekey/pat.txt': Permission denied`; `can't create /machinekey/pat.txt.next: Permission
+  denied`), so alpha.4's deploy would have stopped half-way. It keeps CHOWN, DAC_OVERRIDE and
+  FOWNER now, measured through `managed.yml` itself: the init, the identity provider's token
+  written as uid 1000 at 0600, `setup-zitadel.sh`'s read and the runbooks' `PAT="$(… cat …)"`, the
+  rotation's write and the read-back, and the init again; with CHOWN and FOWNER alone the read
+  and the write fail, with DAC_READ_SEARCH in place of DAC_OVERRIDE the read passes and the write
+  fails. The appliance's rootless `chown` of a bound directory
+  (`docs/selfhost-quickstart.md`) failed the same way (`chown: /var/lib/postgresql: Operation
+  not permitted`) and now adds `--cap-add CHOWN --cap-add DAC_READ_SEARCH` for itself, measured on
+  a directory with a 0700 subdirectory of another uid (CHOWN alone: `chown:
+  /var/lib/postgresql/old: Permission denied`), the appliance's Postgres then healthy on it. The
+  "`-u 0` for root" advice in the quickstart, the guide and both Postgres Dockerfiles' comments
+  says `exec --privileged -u 0` for a repair now. The guard read only the files' shape, and would
+  have passed with the blocker in place: it now also reads every `exec`, `run` and `docker exec`
+  into a service with a dropped set in `deploy/`, `scripts/`, the workflows and `docs/`
+  (workplans and ADRs aside), and fails one whose program is in no review or needs a capability
+  its service does not keep; the guide's rows for the site's nginx and the appliance are held too.
+- **What changed.** All 19 services of `managed.yml` (the two one-offs included), the site's
+  nginx and the appliance's two set `no-new-privileges:true`. All but `trigger-api` and
+  `nextcloud` set `cap_drop: [ALL]` and add back: nothing for `postgres`, `trigger-db`,
+  `pgbouncer`, `minio`, `minio-init`, `trigger-supervisor`, `zitadel`, `api`, `gatus`,
+  `mailpit`, `trigger-registry`, `trigger-docker-proxy` and the appliance's two; CHOWN,
+  DAC_READ_SEARCH, SETGID, SETUID for `trigger-redis` and `clickhouse`; CHOWN,
+  NET_BIND_SERVICE, SETGID, SETUID for `web` and the site's `www`; NET_BIND_SERVICE for
+  `trigger-tls`; CHOWN, DAC_OVERRIDE, FOWNER for `zitadel-machinekey`. `pgbouncer`, `trigger-registry`,
+  `trigger-docker-proxy`, `mailpit`, `minio-init` and `zitadel-machinekey` are read-only,
+  with `/tmp` (the proxy `/run` too) in memory. No `mem_limit` or `pids_limit`: nothing has
+  measured a peak. `dev.yml` is left as it was.
+- **Measured here,** each on its own image with its compose command and placeholder values,
+  ready on a new volume and again on the volume it wrote, then with one capability fewer:
+  `postgres`/`trigger-db` (the uid-70 build), `pgbouncer`, `trigger-redis`, `clickhouse`
+  26.8.36.3, `trigger-registry` (a push, a pull, a restart), `trigger-docker-proxy` (create,
+  start, delete a container through it), `minio`, `minio-init`, `trigger-tls`, the one-off's
+  busybox, `mailpit` (a message in, a restart), and the web image's nginx with its template
+  and a stub bundle, and the site's with `www-nginx.conf`. All but `clickhouse` and `web` then
+  came up healthy through `managed.yml` itself, under a project of their own, and answered the
+  `exec`s the scripts make (`psql`, `SHOW VERSION` on the pooler, `redis-cli`, `mc`). What
+  decided the lists: Caddy's binary carries `cap_net_bind_service` as a file capability, so
+  without NET_BIND_SERVICE it does not start at all (`exec /usr/bin/caddy: operation not
+  permitted`), although it binds 3443; Redis's first restart on its own volume fails without
+  DAC_READ_SEARCH (`find: './appendonlydir': Permission denied`), and without CHOWN on a file in
+  `/data` that is not uid 999's; ClickHouse needs CHOWN on a new volume and DAC_READ_SEARCH on a
+  data directory root owns, and its server runs as uid 101 with no capability under Docker's
+  default set too, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added; nginx serves port 80
+  without NET_BIND_SERVICE (Docker sets `ip_unprivileged_port_start=0`), kept so that port 80
+  does not rest on that. The official Postgres image as root does not start without
+  capabilities (`chown: /var/lib/postgresql/18/docker: Operation not permitted`): it is the
+  uid-70 build of 0146 T15 that needs none.
+- **Read, not measured** (images that could not be pulled where this was built): `trigger-api`
+  keeps Docker's default set, since its entrypoint chowns the shared volume as root and copies
+  files into directories `node` owns; `trigger-supervisor` (node from its first process; its
+  base read 0 setuid binaries and 0 file capabilities), `zitadel` and `gatus` (images of one
+  binary, from scratch), `api` (uid 65532; its distroless base read 0 and 0) add none;
+  `nextcloud` keeps the default set (its entrypoint rsyncs, chowns and runs occ through `su`
+  as root). The sandbox had no IPv6, so the socket proxy was measured with `DISABLE_IPV6=1`,
+  and a hard limit of 20000 open files, so ClickHouse ran with that instead of 262144; the
+  Postgres build's Alpine step could not run, so its uid-70 equivalent was built without it.
+- **The guard** fails 1 of 33 for each single breakage tried on the real files (one service's
+  `no-new-privileges` removed, NET_RAW added to Redis, every `cap_drop` removed, the registry's
+  read-only root removed, Caddy's NET_BIND_SERVICE removed, the note by Caddy's settings removed,
+  `nextcloud` made privileged, a guide row changed, `www.yml` or the appliance's file as on
+  `main`), 2 for a new service and for `managed.yml` as on `main` (`319a2d34`), and 6 for the
+  three files and the guide as on `main`. After the review it has 38 tests: with DAC_OVERRIDE
+  taken from the one-off in `managed.yml`, its policy and the guide's row together (the
+  blocker's own state), 1 fails, naming `setup-zitadel.sh:459` and `:923` and the runbooks'
+  three lines; with it taken from `managed.yml` alone, 2; a new `exec … postgres chmod` in a
+  script, 1; the quickstart's `chown` without its `--cap-add`, 1; the site's row taken out of
+  the guide, 2; the appliance's Postgres row saying CHOWN, 1.
+- **Live** runs alpha.3's `managed.yml` until the alpha.4 deploy, which changes every service's
+  settings and so recreates each one once, the databases among them, inside `deploy-live.sh`'s
+  hold and drain; the site's nginx with it while `WWW_LIVE` is true. The appliance takes it with
+  its next release. **Owed:** E2E (managed) on this branch, which brings up every service and is
+  the proof for the lists read rather than measured, before it merges for the fold.
+
 **2026-11-03: the appliance's `/app` is root's and read-only to it, its HEALTHCHECK is exec form,
 and its image names PGlite's directory; built on a branch, for alpha.4.** Item 1 of the day's
 survey of leaner and harder base images, the one that needs no owner's decision. On the branch
@@ -129,6 +475,7 @@ last bullet of the image scan's reading of 2026-11-02 below); not merged.
   a new image without a tier fails the list, and the report refuses one handed on without; the
   headline's rows and order; every list by tier; the two SARIF steps skipped exactly for
   test-only; and the leg's last step run under bash for a production and a test-only leg.
+
 **2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
 OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,
 alpha.4's deploy shell read, and the drain read bounded to a day.** On the branch
@@ -3128,7 +3475,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `managed.yml` | 7.4.12-bookworm by digest `b6b6e3dc…` (2026-10-30, a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `86d5a599…`, trigger.dev 4.8.3's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC; Node 26.12.1; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, pushed the same morning, before) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26 and 2026-10-31) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
@@ -4023,6 +4370,43 @@ is beside each; none is urgent tonight.
     Alpha. The queued drafts already bring this repository's own images to 0 critical.
     **Revisit** after the Alpha, starting with Caddy and the registry; and whenever a DHI image
     would clear a critical that no other move can.
+
+11. **The Debian Essentials nothing runs — PURGED FOR ALPHA.4, 2026-11-03.** The appliance and
+    the tasks' runtime base both run on the Node image's Debian (`node:26.13.0-trixie-slim`),
+    which read 0 critical and 44 high once npm was gone, none with a Debian fix, 37 of them in
+    util-linux, the eight other packages its source builds and libsqlite3-0. Nothing in either
+    image runs them. Debian marks util-linux and bsdutils Essential and `login` protected, so
+    removing them takes
+    `dpkg --force-remove-essential --force-remove-protected`, and leaves a state Debian does not
+    test. The alternative was distroless (item 10), which needs a prebuilt task base and an
+    appliance without a shell: alpha.5 at the earliest.
+
+    **The owner's decision: purge them, for alpha.4**, in the appliance's runtime stage and in
+    the tasks' runtime base only (never the CLI's build image), with no other force, so that a
+    base where something depends on them stops the build. Both go from 0/44 to 0/7. If the
+    proof (CI, the image scan on the branch, E2E managed and self-hosted) is not green before
+    alpha.4's fold, it moves to alpha.5. **Revisit** when either image moves to distroless,
+    which drops the Debian base and this purge with it; and on every Debian release the bases
+    move to, when `dpkg-query -W` stops the build on a renamed package.
+
+12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
+    digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the
+    compose file's `CMD-SHELL` healthcheck for `app` and the upgrade drill's `sh -c ls`; the
+    image's own HEALTHCHECK is exec form since #1801. A self-hoster following `:edge` with an
+    older `compose.yml` would see `app` unhealthy while it runs. The choice was a split (the
+    healthcheck change in alpha.4, the image in alpha.5) or both in alpha.5.
+    **The owner's decision: drop the shell, both changes together in alpha.5**, the healthcheck
+    change named in that release's notes. **Revisit** if a self-hoster reports `app` unhealthy
+    from an older `compose.yml`.
+
+13. **The tasks' prebuilt distroless base — PUBLISHED TO GHCR, 2026-11-03 (alpha.5).** A
+    distroless task image needs a base the Trigger.dev CLI builds nothing into (distroless plus
+    dumb-init, the edited CA bundle and a `node` user): 0/0, about 57.5 MB compressed instead of
+    82. It could be built at each deploy into the stack's own registry, or built once by CI.
+    **The owner's decision: CI builds it, signs it and publishes it to GHCR like the other
+    release images**, so the OTA stack and live run the same scanned bytes and a deploy needs no
+    Debian mirror. **Revisit** if GHCR becomes unreachable from live, or the CLI starts adding
+    steps of its own to a base that already has every one.
 
 ## 4. Not done, honestly
 

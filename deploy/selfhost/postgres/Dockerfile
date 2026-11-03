@@ -27,7 +27,10 @@
 #     you need" and Troubleshooting).
 #   - `docker compose exec postgres …` runs as uid 70, not root, and the
 #     image's pg_hba.conf trusts local connections as before: the backup's
-#     pg_dump and the restore's psql answer the same. `-u 0` is root.
+#     pg_dump and the restore's psql answer the same. `-u 0` is root, and
+#     since compose.yml drops every capability (2026-11-03) root without
+#     root's powers: `exec --privileged -u 0` for a repair, `run --cap-add`
+#     for a one-off (docs/selfhost-quickstart.md).
 #   - The PGlite appliance (compose.pglite.yml) and the Windows appliance
 #     (scripts/package-appliance.mjs, ADR-0027) run no Postgres server, and
 #     build nothing here.

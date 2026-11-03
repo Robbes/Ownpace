@@ -25,7 +25,9 @@
 #     volumes only.
 # The server, initdb and every client run as uid 70 exactly as they did after
 # gosu. What changes is `docker compose exec postgres …`: it runs as uid 70,
-# not root, so `-u 0` is how to be root in the container. The database's
+# not root. `-u 0` is root, and since managed.yml drops every capability
+# (2026-11-03) root without root's powers: `exec --privileged -u 0` is a repair
+# that needs them. The database's
 # local connections are trusted as before (the image's pg_hba.conf), so
 # `psql -U <role>`, pg_dump and pg_restore answer the same.
 #

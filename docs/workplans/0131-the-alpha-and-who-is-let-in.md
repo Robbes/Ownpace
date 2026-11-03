@@ -4,6 +4,17 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03, later, records: the deploy shell's Node is 26.13.0.** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-records-1103-b`. The recommendation below was taken: between
+about 09:50 and 10:30 UTC the owner installed Node 26.13.0 by `managed-bring-up.md`'s step 3, the official
+tarball into a directory of their own, checked against nodejs.org's `SHASUMS256.txt` (OK, arm64),
+beside the Node another tool of theirs keeps, which stays as it was. In a new login shell:
+`node -v` v26.13.0, `command -v node` the new directory's `bin/node`, `pnpm -v` 11.28.9 in the
+checkout, `libatomic1` installed. The first try put the `PATH` line in `~/.bashrc` alone, and a
+new login shell still found 26.10.0: Ubuntu's stock `~/.profile` reads `~/.bashrc` and then puts
+`~/.local/bin`, where the other tool's Node is linked, in front. The same line at the end of
+`~/.profile` fixed it, and step 3 now says so.
+
 **2026-11-03, records: the alpha.4 deploy's prerequisite, read in the shell the owner deploys
 from, is met.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-2026-11-03`; 0119's Status entry of the same

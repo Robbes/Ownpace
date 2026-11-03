@@ -3190,6 +3190,92 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
+## How the containers run
+
+Since 2026-11-03 (workplan 0119; the owner: *"more hardened"*) every service
+of `managed.yml`, the site's `www.yml` and the appliance's `compose.yml` sets
+`no-new-privileges`: nothing in the container gains a privilege by running a
+setuid binary or one with a file capability. No service here needs that. Those
+that change user do it as root with a system call (Redis's `setpriv`,
+ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's `su`),
+and the rest never change user. All but two drop every capability and add back
+only what their own start does as root; a service that runs as another user
+from its first process adds none. Six that write nothing outside their volumes
+start with a read-only root, with `/tmp` (and `/run`) in memory where they
+write there. `managed.yml` gives each service's reason beside it, and
+`scripts/a-privilege-no-service-uses.unit.test.ts` holds every service to this
+table: a capability added, one no longer used, a new service, or a read-only
+root, each fails it until the table and the reason move with it. It also reads
+every `exec` and `run` into a service with a dropped set that a script, a
+workflow or a document here makes, and fails one nobody has reviewed, or one
+whose program needs a capability its service does not keep.
+
+| Service | Runs as | Capabilities kept | Read-only root | How it was decided |
+|---|---|---|---|---|
+| `postgres` | uid 70 | none | no | measured: its image as uid 70, a new volume and a restart |
+| `pgbouncer` | uid 70 | none | yes, `/tmp` in memory | measured |
+| `trigger-db` | uid 70 | none | no | measured, the same image as `postgres` |
+| `trigger-redis` | root, then uid 999 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: without DAC_READ_SEARCH a restart on its own volume fails (`find: './appendonlydir': Permission denied`), without CHOWN a file in `/data` that is not 999's stops it, without SETUID or SETGID `setpriv` fails |
+| `trigger-api` | root | Docker's default | no | read: its entrypoint chowns the shared volume, copies files into directories `node` owns and writes the worker token there; its image cannot be pulled where this was measured |
+| `clickhouse` | root, then uid 101 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: a new volume needs CHOWN, a data directory root owns (a copy restored by root) needs DAC_READ_SEARCH as well, `clickhouse su` needs SETUID and SETGID. The server runs with no capability either way, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added |
+| `trigger-registry` | root | none | yes, `/tmp` in memory | measured: a push, a pull and a restart |
+| `trigger-docker-proxy` | root | none | yes, `/tmp` and `/run` in memory | measured: create, start and delete a container through it; without either directory it does not start |
+| `trigger-supervisor` | node | none | no | read: its image's user from the first process, and its base carries no setuid binary and no file capability |
+| `minio` | uid 65532 | none | no | measured |
+| `minio-init` | uid 65532 | none | yes, `/tmp` in memory | measured: without `/tmp` mc cannot write its config |
+| `trigger-tls` | root | NET_BIND_SERVICE | no | measured: `/usr/bin/caddy` carries `cap_net_bind_service` as a file capability, and without it in the set the kernel refuses to start it (`exec /usr/bin/caddy: operation not permitted`); not read-only because Caddy writes its local CA into the image's trust store at start |
+| `zitadel` | its image's user | none | no | read: an image of one binary, run as its non-root user |
+| `zitadel-machinekey` | root | CHOWN, DAC_OVERRIDE, FOWNER | yes | measured, its init and every other command it runs: without CHOWN the chown fails, without FOWNER the chmod after it; without DAC_OVERRIDE `setup-zitadel.sh` cannot read the token (`cat: can't open '/machinekey/pat.txt': Permission denied`) nor write the rotated one, in a directory the identity provider owns at mode 700 (DAC_READ_SEARCH alone reads it and still cannot write) |
+| `api` | uid 65532 | none | no | read: its image's user, and its base carries no setuid binary and no file capability |
+| `web` | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured on its nginx with its config: without CHOWN nginx stops, without SETUID or SETGID its workers do |
+| `gatus` | root | none | no | read: an image of one binary, writing only its own volume |
+| `mailpit` | root | none | yes, `/tmp` in memory | measured: a message in, and a restart |
+| `nextcloud` | root, then www-data | Docker's default | no | read: its entrypoint rsyncs and chowns as root and runs occ through `su`, a set not measured |
+| `www` (www.yml) | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured: the same nginx image as `web`, with `www-nginx.conf` |
+| `postgres` (appliance) | uid 70 | none | no | measured: the same image as `postgres` above; its rootless `chown` is a `run` with its own `--cap-add` |
+| `app` (appliance) | uid 10001 | none | no | read: its image's user from the first process, running node and nothing else |
+
+*Measured* means the service's own image, its own command and environment
+with placeholder values, started with that set until it was ready, on a new
+volume and again on the volume it wrote, and started again with one capability
+fewer where that was cheap; all of them but ClickHouse and the web app also
+came up healthy, and answered as the scripts ask them, through `managed.yml`
+itself. *Read* means its Dockerfile and
+entrypoint at the pinned version, where the image could not be pulled. E2E
+(managed) is the proof for both: it brings up every service of this file.
+NET_BIND_SERVICE stays with `web` (and the site's nginx) although Docker's own
+`net.ipv4.ip_unprivileged_port_start=0` makes it redundant today, so that
+port 80 does not rest on a daemon default.
+
+**What it changes for an operator.** A `docker compose exec` has the
+capabilities of its service: `exec -u 0` into `postgres` is root with no
+capability, which cannot chown. Every `exec` and `run` the scripts, the
+workflows and these documents make into a service with a dropped set is
+listed in `a-privilege-no-service-uses` with what it needs. Most need
+nothing: `psql`, `pg_dump`, `pg_restore`, `redis-cli`, `mc`,
+`clickhouse-client` and `node`. Reading and rotating the identity provider's
+token (`run zitadel-machinekey cat /machinekey/pat.txt`, and the rotation's
+write) is why that one-off keeps DAC_OVERRIDE. The `chown` of the worker
+token in `trigger-api` and the demo's file work in `nextcloud` go to the two
+services that keep the default set. The appliance's rootless chown is a
+`run` with its own `--cap-add` (`docs/selfhost-quickstart.md`). A repair
+that does need root's powers elsewhere is `docker compose -f
+deploy/compose/managed.yml exec --privileged -u 0 <service> …`, for that one
+command.
+
+**When it reaches a stack.** A changed service is recreated at its next `up`:
+the OTA stack at the next E2E (managed) or gate, live once, at the deploy of
+the release that carries it (alpha.4), inside `deploy-live.sh`'s hold and
+drain. Live runs alpha.3's file until then. Task runs are Trigger.dev's
+containers, made by the supervisor through the socket proxy with Trigger.dev's
+own settings, so nothing here reaches them.
+
+**Not set, and why.** No `mem_limit` and no `pids_limit`: there is no
+measurement of any service's peak, ClickHouse and Node size their threads and
+heap from the machine, and a limit set without one turns a busy hour into a
+killed database. The `dev.yml` stack, which only a developer runs, is left as
+it was.
+
 ## Nothing phones home
 
 The privacy policy names every party that receives anything (§7, §8), and for
@@ -3214,8 +3300,10 @@ refuses a `COMPOSE_FILE` in the shell.
 
 The entrypoint's other children do not call out: pnpm 10.34.9 (the builds'
 since 2026-11-02, in place of upstream's 10.33.2, which did the same) checks
-for its own update only on `install` and `add`, goose v3.27.1 has no network use
-of its own, and the dashboard agent's migration is plain drizzle-orm. Nor does
+for its own update only on `install` and `add`, goose has no network use of its
+own (v3.27.1, and v3.29.0, the build's since 2026-11-03 in place of upstream's,
+whose new code is other drivers' authentication), and the dashboard agent's
+migration is plain drizzle-orm. Nor does
 corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
 `COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
 the copy of pnpm the other user would run, and tar from the copy theirs runs
@@ -4866,8 +4954,9 @@ the user gosu dropped to, it never does. What that means for you:
   `pg_hba.conf` trusts, and answers the same: `trigger-version.sh` (backup and
   restore drill), `copy-before-update.sh`, `dump-idp.sh`, `db-roles.sh` and
   `rotate-db-passwords.sh`, the bring-up, `deploy-live.sh`, the smoke and the
-  rows of this document. Add `-u 0` for anything that needs root in the
-  container. An interactive `psql` or shell keeps its history in the
+  rows of this document. The container keeps no capability since 2026-11-03
+  (*How the containers run*), so `-u 0` alone is root without root's powers:
+  a repair that needs them is `exec --privileged -u 0`. An interactive `psql` or shell keeps its history in the
   container's `/tmp`, as root's was kept in `/root`, never on the data volume
   (uid 70's home).
 - **The network questions ask with the build.** `db-roles.sh` and
@@ -5642,6 +5731,14 @@ one of these; none needs `sudo`:
   export PATH="$HOME/.local/node-26/bin:$PATH"
   ```
 
+  **On Ubuntu and Debian, put the line at the end of `~/.profile` too.** Their
+  stock `~/.profile` reads `~/.bashrc` first and then puts `~/.local/bin` in
+  front of `PATH`, so in a login shell (a tmux window, an ssh session) a line in
+  `~/.bashrc` alone loses to any `node` in `~/.local/bin`: another tool's Node
+  linked there stays the one you get. Read it in a new login shell, not the one
+  you edited in: `command -v node` names `.local/node-26/bin/node` and
+  `node -v` prints `v26.13.0` (the owner's deploy shell, 2026-11-03).
+
 - **Only on a host where nothing else runs on the system's Node**, it can move
   instead. With **NodeSource** (`apt-cache policy nodejs | grep -c
   deb.nodesource.com` counts above 0; a count, so no mirror's address is
@@ -5789,6 +5886,21 @@ the Debian archive reachable from this machine (the build runs with
 next move, take their usual minute; it is also when the image's packages are
 refreshed, not at every deploy. A deploy that slows down or stops on
 `apt-get` points here.
+
+The layer's last step, in the runtime stage only, purges ten Debian packages
+nothing in a task container runs: util-linux, the eight others built from its
+source, and libsqlite3-0 (workplan 0119, the owner's decision of 2026-11-03).
+They carried 37 of the base's 44 high findings. A deploy that stops there
+names the cause in dpkg's own words: `dpkg-query: no packages found matching
+…` means the new base no longer has one of the ten, and `… depends on …;
+dependency problems - not removing` that something in it now needs one. Either
+way the list in `apps/worker/trigger.config.ts` (`UNUSED_ESSENTIALS`) and in
+`apps/selfhost/Dockerfile` is read again against the new base, in a pull
+request: nothing about it is changed on this machine. The managed smoke asks
+the newest image its runners started from, the one the last deploy built,
+about all ten, and fails if dpkg still has any of them. An older image a runner
+of an earlier deployment ran (Trigger.dev keeps a run on the version it was
+triggered on) is named there and not asked.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
@@ -6083,7 +6195,32 @@ webapp's build also replaces dompurify 3.4.13's files with
 3.4.17's, the release that fixes the critical GHSA-cg2g-xh64-v4q7: it fetches
 the tarball from the npm registry when it builds, refuses it unless its sha512
 is the one npm published, and proves nothing else in the image changed
-(nothing here loads dompurify; its header says why). The image scan's critical
+(nothing here loads dompurify; its header says why). Since 2026-11-03 the
+webapp's build also removes TypeScript 7's native compiler (`lib/tsc` of
+`@typescript/typescript-<platform>` 7.0.2, which nothing here runs: the package
+`typescript` exports only its version), replaces goose v3.27.1, which the
+entrypoint runs for the ClickHouse migrations, with goose v3.29.0's release
+binary, fetched from GitHub by its SHA-256 and made root's and executable,
+and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
+systeminformation 5.33.19 in place of the releases of the same major they fix,
+by the sha512 npm published; the supervisor's build does the same for its
+systeminformation. So the webapp's build reaches github.com as well as the npm
+registry. **When a host does not answer** (or answers with an error) while an
+image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
+hold the image's name yet, the build stops with nothing changed and says that
+the host did not answer and upstream did not move: run the same command with
+the same tag again once it answers; nothing in the checkout needs editing, and
+a deploy that stopped there has not taken. **A release asset can disappear:**
+GitHub lets a release's owner delete an asset, where npm keeps a version that
+others depend on, so a later build of a tag depends on goose v3.29.0's assets
+still being there. If one is gone, the build says so (*… is gone*); a machine
+that already holds the image's name keeps running it, since compose builds only
+a name it lacks. Then a pull request moves the goose replacement to a release
+whose assets are there (its URL and SHA-256 per platform, read and hashed as
+the Dockerfile's header says), or drops it (the RUN and its REPLACED row, back
+to upstream's goose v3.27.1 and its findings), and the tag after it carries
+that.
+The image scan's critical
 findings go from 8 to 1 (zlib1g, which Debian has not fixed) and from 2 to 0.
 The one risk accepted: a `pnpm install` inside `trigger-api` or
 `trigger-supervisor` that builds a native add-on, or a package script there
