@@ -43,6 +43,9 @@
 # Usage:  . "${SCRIPT_DIR}/env-read.sh"
 #         value="$(env_value "$ENV_FILE" SOME_KEY [default])"
 #
+# It also reads the one path a key names, pgbouncer_userlist <compose-dir>
+# (PgBouncer's userlist, below compose_project), as Compose resolves it.
+#
 # It also holds the one function here that WRITES the file: seed_pat_expiry
 # <env-file> (the provisioning token's first date, near the end), which writes
 # through env-upsert.sh beside this file. And the two date helpers it shares
@@ -225,6 +228,66 @@ compose_project() {
     fi
   fi
   printf '%s' "$name"
+}
+
+# pgbouncer_userlist <compose-dir>
+#
+# THE FILE MANAGED.YML MOUNTS AS PGBOUNCER'S auth_file, found the way Compose
+# finds `${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}` (2026-11-03,
+# workplan 0132):
+#
+#   PGBOUNCER_USERLIST in the environment   even when set but EMPTY: then the
+#                                           .env is not read, and the default
+#                                           applies
+#   PGBOUNCER_USERLIST in the .env beside managed.yml
+#   pgbouncer/userlist.txt beside managed.yml, the default, which live uses
+#
+# The OTA stack's .env names a file in its persisted directory, outside every
+# checkout: the gate's checkout is the runner's work folder, which the next
+# checkout of any of this repository's workflows there cleans of ignored
+# files, and on 2026-11-03 ci.yml's did that under a running pgbouncer. At the
+# Docker daemon's next restart the file was gone, Docker made a directory in
+# its place, and the pooler could not start.
+#
+# THE .env CHOOSES, as for the project: a shell that exported another stack's
+# value (`set -a; . deploy/compose/.env` in one checkout, then a command in
+# the other) would have Compose mount that stack's file, and ensure-env-secrets.sh
+# write this stack's password into it. So when the environment and the file
+# disagree, this names both and fails. A value that is set must be an absolute
+# path: a relative one Compose resolves against the compose directory, which is
+# the checkout the key exists to leave. The paths are printed; they are not
+# secrets, and the file's contents never are.
+#
+# Usage:  USERLIST="$(pgbouncer_userlist "${SCRIPT_DIR}")"
+pgbouncer_userlist() {
+  local dir="${1:-}" from_file value
+  from_file="$(env_value "${dir}/.env" PGBOUNCER_USERLIST)"
+  # As Compose reads it: env_value keeps double quotes, and Compose does not.
+  from_file="${from_file#\"}"
+  from_file="${from_file%\"}"
+  if [ "${PGBOUNCER_USERLIST+set}" = "set" ]; then
+    value="${PGBOUNCER_USERLIST}"
+    if [ "$value" != "$from_file" ]; then
+      echo "pgbouncer_userlist: this shell has PGBOUNCER_USERLIST='${value}', so Compose would mount that file as PgBouncer's userlist," >&2
+      echo "  but ${dir}/.env says '${from_file:-nothing, so pgbouncer/userlist.txt beside managed.yml}'. Compose follows the shell, and the .env is what chooses." >&2
+      echo "  Unset it (unset PGBOUNCER_USERLIST), or open a new shell, and run this again." >&2
+      return 1
+    fi
+  else
+    value="$from_file"
+  fi
+  if [ -z "$value" ]; then
+    printf '%s/pgbouncer/userlist.txt' "$dir"
+    return 0
+  fi
+  case "$value" in
+    /*) printf '%s' "$value" ;;
+    *)
+      echo "pgbouncer_userlist: PGBOUNCER_USERLIST='${value}' in ${dir}/.env is not an absolute path." >&2
+      echo "  Compose would resolve it against ${dir}, the checkout it exists to keep the file out of. Name the file from /, or remove the line to use pgbouncer/userlist.txt beside managed.yml." >&2
+      return 1
+      ;;
+  esac
 }
 
 # future_iso <days> — UTC, RFC3339, <days> from now: GNU date, then BSD.
