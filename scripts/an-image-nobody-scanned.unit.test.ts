@@ -84,6 +84,16 @@
  *    run here as the CLI runs it, and the scan's reference must be the base
  *    it leaves in the manifest.
  *
+ * And every image has a tier (the owner, 2026-11-03, workplan 0119). The
+ * report weighed the demo's Nextcloud like live's sign-in: five of the seven
+ * criticals of 2026-11-02 were in images live never runs. Each listed image now
+ * carries one of `TIERS` from `IMAGE_TIERS`, a name with none fails the list,
+ * the summary leads with each tier's totals, production first and test-only
+ * last, and a test-only leg uploads no SARIF: its findings are in the report
+ * alone. The test-only set is held to the three the owner named (Nextcloud,
+ * Stalwart, Mailpit), so moving an image into it, or out, is a change made on
+ * purpose here.
+ *
  * The network is stubbed (the git tags, the Trigger.dev CLI's tarball) and so
  * is `gh`; the compose files, the scripts and the deploy config are the real
  * ones.
@@ -102,6 +112,7 @@ import { COMPOSE_FILES, TASK_ON_API_IMAGE, builtTag, parseRef, readImages, repoR
 import {
   API_DOCKERFILE,
   BUILT_HERE,
+  IMAGE_TIERS,
   ISSUE_PREFIX,
   INVENTORY_LINES,
   ISSUES_REF,
@@ -111,6 +122,8 @@ import {
   SCAN_FILES,
   TASK_CONFIG,
   TASK_IMAGE,
+  TIERS,
+  TIER_MEANS,
   compareVersions,
   eoslIssue,
   imagesFromEnv,
@@ -124,8 +137,10 @@ import {
   summarize,
   taskBaseStage,
   taskBuildTag,
+  tierOf,
   type ScanImage,
   type TaskConfig,
+  type Tier,
 } from './image-scan.mjs';
 import taskConfig from '../apps/worker/trigger.config.ts';
 
@@ -475,6 +490,7 @@ describe('which images it scans', () => {
     expect(TASK_IMAGE).toBe('trigger-task-base');
     expect(images.find((i) => i.name === TASK_IMAGE)).toEqual({
       name: TASK_IMAGE,
+      tier: 'production-internal',
       ref: TASK_BASE,
       where: expect.stringContaining(cli),
       floating: false,
@@ -638,6 +654,8 @@ describe('which images it scans', () => {
     expect(postgres(apart)).toEqual(
       [['postgres-managed', managedPostgres.ref], ['postgres-managed-dev', 'postgres:99-alpine'], ['postgres-selfhost', selfhost.ref]].sort(),
     );
+    // The one named apart is the same image in another file, so it has its first's tier.
+    expect(apart.find((i) => i.name === 'postgres-managed-dev')?.tier).toBe(tierOf('postgres-managed'));
   });
 
   it('says which tags float, since those are scanned as the registry serves them today', () => {
@@ -850,9 +868,9 @@ describe('what a report says', () => {
 });
 
 const IMAGES: ScanImage[] = [
-  { name: 'redis', ref: 'redis:7-alpine', where: 'deploy/compose/managed.yml', floating: true },
-  { name: 'minio', ref: `bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:${'4'.repeat(64)}`, where: 'deploy/compose/managed.yml', floating: false },
-  { name: 'caddy', ref: 'caddy:2-alpine', where: 'deploy/compose/managed.yml', floating: true },
+  { name: 'redis', tier: 'production-internal', ref: 'redis:7-alpine', where: 'deploy/compose/managed.yml', floating: true },
+  { name: 'minio', tier: 'production-internal', ref: `bitnamilegacy/minio:2025.5.24-debian-12-r5@sha256:${'4'.repeat(64)}`, where: 'deploy/compose/managed.yml', floating: false },
+  { name: 'caddy', tier: 'production-internal', ref: 'caddy:2-alpine', where: 'deploy/compose/managed.yml', floating: true },
 ];
 const reports = (files: Record<string, string>) => (name: string) => files[name] ?? null;
 
@@ -905,15 +923,15 @@ describe('the report job', () => {
     expect(summary.annotations).toHaveLength(1);
     expect(summary.annotations[0]).toMatch(/^::warning::redis: .*alpine 3\.21\.9, past its end of life/);
     const table = summary.lines.join('\n');
-    expect(table).toMatch(/\| `redis` \| `redis:7-alpine` \(floats\) \| alpine 3\.21\.9 \| \*\*past its end of life\*\* \|/);
-    expect(table).toMatch(/\| `minio` \| `bitnamilegacy\/minio:2025\.5\.24-debian-12-r5@sha256:444444444444…` \| debian 12\.11 \| supported \| 1 \| 0 \| 1 \|/);
+    expect(table).toMatch(/\| `redis` \| production-internal \| `redis:7-alpine` \(floats\) \| alpine 3\.21\.9 \| \*\*past its end of life\*\* \|/);
+    expect(table).toMatch(/\| `minio` \| production-internal \| `bitnamilegacy\/minio:2025\.5\.24-debian-12-r5@sha256:444444444444…` \| debian 12\.11 \| supported \| 1 \| 0 \| 1 \|/);
   });
 
   it('marks the image a leg built, and says what that reading is', () => {
-    const built: ScanImage = { name: TASK_IMAGE, ref: TASK_BASE, where: 'the CLI', floating: false, build: taskBuildTag(TASK_BASE) };
+    const built: ScanImage = { name: TASK_IMAGE, tier: 'production-internal', ref: TASK_BASE, where: 'the CLI', floating: false, build: taskBuildTag(TASK_BASE) };
     const fine = trivyJson({ Family: 'debian', Name: '12.15' });
     const table = summarize([built, IMAGES[0]!], reports({ [`trivy-image-${TASK_IMAGE}.json`]: fine, 'trivy-image-redis.json': fine })).lines.join('\n');
-    expect(table).toContain(`| \`${TASK_IMAGE}\` | \`triggerdotdev/node:26-bookworm@sha256:dddddddddddd…\` (built on) | debian 12.15 |`);
+    expect(table).toContain(`| \`${TASK_IMAGE}\` | production-internal | \`triggerdotdev/node:26-bookworm@sha256:dddddddddddd…\` (built on) | debian 12.15 |`);
     expect(table).toMatch(/built on\* is scanned as a deploy builds on that reference/);
     // Without a built image, no such line.
     expect(summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': fine })).lines.join('\n')).not.toContain('built on');
@@ -921,10 +939,10 @@ describe('the report job', () => {
   });
 
   it('says which image was built here, and routes its issue to the Dockerfile rather than to a tag upstream moves', () => {
-    const built: ScanImage = { name: 'goaccess', ref: 'localhost/goaccess:1.12', where: 'deploy/compose/site-visits.sh', floating: false, context: 'deploy/compose/goaccess' };
+    const built: ScanImage = { name: 'goaccess', tier: 'production-internal', ref: 'localhost/goaccess:1.12', where: 'deploy/compose/site-visits.sh', floating: false, context: 'deploy/compose/goaccess' };
     const summary = summarize([built], reports({ 'trivy-image-goaccess.json': trivyJson({ Family: 'alpine', Name: '3.24.3' }) }));
     expect(summary.missing).toEqual([]);
-    expect(summary.lines.join('\n')).toMatch(/\| `goaccess` \| `localhost\/goaccess:1\.12` \(built from `deploy\/compose\/goaccess`\) \| alpine 3\.24\.3 \| supported \|/);
+    expect(summary.lines.join('\n')).toMatch(/\| `goaccess` \| production-internal \| `localhost\/goaccess:1\.12` \(built from `deploy\/compose\/goaccess`\) \| alpine 3\.24\.3 \| supported \|/);
     const issue = eoslIssue(built, readReport(trivyJson({ Family: 'alpine', Name: '3.20.10', EOSL: true })));
     expect(issue.state).toBe('behind');
     expect(issue.body).toContain('`deploy/compose/goaccess/Dockerfile`');
@@ -936,10 +954,10 @@ describe('the report job', () => {
   });
 
   it("says which image was built here, and routes its issue to the Dockerfile rather than to a tag upstream moves (a compose file's Postgres, 0146 T15)", () => {
-    const built: ScanImage = { name: 'postgres-managed', ref: 'localhost/postgres:18.6-alpine-0123456789ab', where: 'deploy/compose/managed.yml', floating: false, context: 'deploy/compose/postgres' };
+    const built: ScanImage = { name: 'postgres-managed', tier: 'production-internal', ref: 'localhost/postgres:18.6-alpine-0123456789ab', where: 'deploy/compose/managed.yml', floating: false, context: 'deploy/compose/postgres' };
     const summary = summarize([built], reports({ 'trivy-image-postgres-managed.json': trivyJson({ Family: 'alpine', Name: '3.24.3' }) }));
     expect(summary.missing).toEqual([]);
-    expect(summary.lines.join('\n')).toMatch(/\| `postgres-managed` \| `localhost\/postgres:18\.6-alpine-0123456789ab` \(built from `deploy\/compose\/postgres`\) \| alpine 3\.24\.3 \| supported \|/);
+    expect(summary.lines.join('\n')).toMatch(/\| `postgres-managed` \| production-internal \| `localhost\/postgres:18\.6-alpine-0123456789ab` \(built from `deploy\/compose\/postgres`\) \| alpine 3\.24\.3 \| supported \|/);
     const issue = eoslIssue(built, readReport(trivyJson({ Family: 'alpine', Name: '3.20.10', EOSL: true })));
     expect(issue.state).toBe('behind');
     expect(issue.body).toContain('`deploy/compose/postgres/Dockerfile`');
@@ -1089,7 +1107,7 @@ describe('what a newer package fixes, image by image (2026-11-03)', () => {
       '',
       expect.stringContaining(`at most ${INVENTORY_LINES} lines of each list are shown per image, the rest counted`),
       '',
-      '#### `minio`',
+      '#### `minio` (production-internal)',
       '',
       'With a fix: 15 findings in 9 packages, 11 distinct ids.',
       '',
@@ -1125,12 +1143,12 @@ describe('what a newer package fixes, image by image (2026-11-03)', () => {
     const none = imageReport('debian 12.15', [
       { Target: 'redis (debian 12.15)', Class: 'os-pkgs', Type: 'debian', Vulnerabilities: [finding('CVE-2023-45853', 'CRITICAL', 'zlib1g', '1:1.2.13.dfsg-1', undefined)] },
     ]);
-    const images: ScanImage[] = [...IMAGES, { name: 'nginx', ref: 'nginx:1.31.8-alpine-slim', where: 'deploy/compose/www.yml', floating: false }];
+    const images: ScanImage[] = [...IMAGES, { name: 'nginx', tier: 'production-public', ref: 'nginx:1.31.8-alpine-slim', where: 'deploy/compose/www.yml', floating: false }];
     const summary = summarize(
       images,
       reports({ 'trivy-image-redis.json': none, 'trivy-image-minio.json': one, 'trivy-image-caddy.json': INVENTORY_REPORT, 'trivy-image-nginx.json': trivyJson(null) }),
     );
-    expect(summary.lines.filter((l) => l.startsWith('#### '))).toEqual(['#### `caddy`', '#### `minio`', '#### `redis`']);
+    expect(summary.lines.filter((l) => l.startsWith('#### '))).toEqual(['#### `caddy` (production-internal)', '#### `minio` (production-internal)', '#### `redis` (production-internal)']);
     // Nothing critical or high anywhere: no section, not an empty one.
     const clean = summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': trivyJson(null) }));
     expect(clean.lines.join('\n')).not.toContain('What a newer package fixes');
@@ -1181,6 +1199,9 @@ describe('what a newer package fixes, image by image (2026-11-03)', () => {
       expect(run.status, run.stderr).toBe(0);
       const line = '- `stdlib` v1.24.6 → 1.25.7, critical, 2 findings: CVE-2025-68121, CVE-2026-25002 (usr/local/bin/gosu)';
       for (const out of [run.stdout, readFileSync(summary, 'utf8')]) {
+        // The tiers' totals lead (2026-11-03), before the table and the inventory.
+        expect(out.indexOf('### By tier, production first')).toBeGreaterThan(-1);
+        expect(out.indexOf('### By tier, production first')).toBeLessThan(out.indexOf('### Image by image'));
         expect(out).toContain('### What a newer package fixes, image by image');
         expect(out).toContain(line);
         expect(out).toContain('- `tar` 7.4.3, high, 1 finding (app/node_modules/tar)');
@@ -1283,6 +1304,149 @@ describe('one issue per image past its end of life', () => {
   });
 });
 
+// ------------------------------------------------- every image's tier ----
+
+/** A report with these findings, each in its own package: `fix` names a fixed version, or none. */
+const findingsReport = (...vulns: Array<{ severity: 'CRITICAL' | 'HIGH'; fix?: string }>) =>
+  trivyJson(
+    { Family: 'alpine', Name: '3.24.3' },
+    vulns.map((v, i) => ({ Severity: v.severity, PkgName: `pkg-${i}`, InstalledVersion: '1.0', ...(v.fix ? { FixedVersion: v.fix } : {}) })),
+  );
+
+/** One image of each tier and two of the production ones, in a list order that mixes them. */
+const TIERED: ScanImage[] = [
+  { name: 'nextcloud', tier: 'test-only', ref: 'nextcloud:35.0.2-apache', where: 'deploy/compose/managed.yml, deploy/compose/dev.yml', floating: false },
+  { name: 'redis', tier: 'production-internal', ref: 'redis:7.4.12-bookworm', where: 'deploy/compose/managed.yml', floating: false },
+  { name: 'ownpace-selfhost-edge', tier: 'shipped', ref: `${OWNPACE_REGISTRY}/ownpace-selfhost:edge`, where: 'main (images.yml)', floating: true },
+  { name: 'zitadel', tier: 'production-public', ref: 'ghcr.io/zitadel/zitadel:v4.20.0', where: 'deploy/compose/managed.yml', floating: false },
+  { name: 'trigger.dev', tier: 'production-internal', ref: 'localhost/trigger.dev:v4.8.3-0123456789ab', where: 'deploy/compose/managed.yml', floating: false, context: 'deploy/compose/trigger.dev' },
+  { name: 'gatus', tier: 'production-public', ref: 'ghcr.io/twin/gatus:v5.38.0', where: 'deploy/compose/managed.yml', floating: false },
+];
+const TIERED_REPORTS: Record<string, string> = {
+  // The most to fix of all, and still last: it is not in production.
+  'trivy-image-nextcloud.json': findingsReport({ severity: 'CRITICAL' }, ...Array.from({ length: 4 }, () => ({ severity: 'HIGH' as const, fix: '2.0' }))),
+  'trivy-image-redis.json': findingsReport({ severity: 'CRITICAL' }, { severity: 'HIGH' }),
+  'trivy-image-ownpace-selfhost-edge.json': findingsReport({ severity: 'HIGH' }),
+  'trivy-image-zitadel.json': findingsReport({ severity: 'HIGH', fix: '2.0' }),
+  'trivy-image-trigger.dev.json': findingsReport(...Array.from({ length: 3 }, () => ({ severity: 'HIGH' as const, fix: '2.0' }))),
+  'trivy-image-gatus.json': findingsReport({ severity: 'CRITICAL' }, { severity: 'HIGH', fix: '2.0' }, { severity: 'HIGH', fix: '3.0' }),
+};
+
+/** The headline's lines: from its heading to the per-image table's. */
+const headlineOf = (lines: string[]) => lines.slice(lines.indexOf('### By tier, production first'), lines.indexOf('### Image by image'));
+
+describe('every image has a tier, and the report leads with production (the owner, 2026-11-03)', () => {
+  it('the tiers, in the order the report reads them: production first, test-only last', () => {
+    expect(TIERS).toEqual(['production-public', 'production-internal', 'shipped', 'test-only']);
+    expect(Object.keys(TIER_MEANS).sort()).toEqual([...TIERS].sort());
+    expect(TIER_MEANS['test-only']).toContain('not in production');
+  });
+
+  it('gives every image the list names a tier, and none it does not name', async () => {
+    const images = await imagesToScan(REAL, fakeNet());
+    for (const image of images) {
+      expect(TIERS, `${image.name} has no tier the report knows`).toContain(image.tier);
+      expect(image.tier, image.name).toBe(IMAGE_TIERS[image.name]);
+    }
+    // A tier kept for a name nothing lists would place the next image of that name unread.
+    expect(Object.keys(IMAGE_TIERS).sort()).toEqual(images.map((i) => i.name).sort());
+    // Every tier has an image, so no row of the headline is there by accident.
+    expect([...new Set(images.map((i) => i.tier))].sort()).toEqual([...TIERS].sort());
+  });
+
+  it('test-only is exactly Nextcloud, Stalwart and Mailpit, the three the owner named: moving an image in or out is done here, on purpose', async () => {
+    const images = await imagesToScan(REAL, fakeNet());
+    expect(images.filter((i) => i.tier === 'test-only').map((i) => i.name).sort()).toEqual(['mailpit', 'nextcloud', 'stalwart']);
+    // The appliance's images are what self-hosters run: its compose file's, and Ownpace's selfhost image.
+    const appliance = images.filter((i) => i.where === 'deploy/selfhost/compose.yml').map((i) => i.name);
+    expect(appliance.length, 'the appliance runs no image this list names, so this case would prove nothing').toBeGreaterThan(0);
+    expect(images.filter((i) => i.tier === 'shipped').map((i) => i.name).sort()).toEqual([...appliance, 'ownpace-selfhost-edge', 'ownpace-selfhost-release'].sort());
+    // Ownpace's api and web are what the internet reaches on live, at :edge and at the release.
+    for (const image of OWNPACE_IMAGES.filter((i) => i !== 'selfhost')) {
+      for (const at of ['edge', 'release']) expect(images.find((i) => i.name === `ownpace-${image}-${at}`)?.tier).toBe('production-public');
+    }
+  });
+
+  it('refuses an image with no tier: a new one fails the list, naming it, and the report refuses one handed on without', async () => {
+    const managed = REAL.read('deploy/compose/managed.yml')!;
+    const added = managed.replace(/^ {2}gatus:\n/m, '  newcomer:\n    image: example/newcomer:1.2.3\n  gatus:\n');
+    expect(added, "managed.yml's gatus service was not found, so this case would prove nothing").not.toBe(managed);
+    await expect(imagesToScan(withFiles({ 'deploy/compose/managed.yml': added }), fakeNet())).rejects.toThrow(
+      /newcomer has no tier in image-scan\.mjs's IMAGE_TIERS/,
+    );
+    expect(() => tierOf('newcomer')).toThrow(/no tier/);
+    // Read as the map's own keys, never what every object has.
+    expect(() => tierOf('constructor')).toThrow(/no tier/);
+    expect(tierOf('nextcloud')).toBe('test-only');
+    // The report job: an image the list handed on without a tier, or with one it does not know.
+    const { tier: _dropped, ...untiered } = IMAGES[0]!;
+    expect(() => imagesFromEnv(JSON.stringify([untiered, IMAGES[1]]))).toThrow(/gives redis no tier the report knows/);
+    expect(() => imagesFromEnv(JSON.stringify([{ ...IMAGES[0]!, tier: 'production' }]))).toThrow(/no tier the report knows/);
+    expect(() => summarize([untiered as ScanImage], reports({}))).toThrow(/redis carries no tier the report knows/);
+  });
+
+  it('leads with the totals of each tier, production first and test-only last, said to be not in production', () => {
+    const summary = summarize(TIERED, reports(TIERED_REPORTS));
+    expect(summary.missing).toEqual([]);
+    const row = (tier: Tier, rest: string) => `| \`${tier}\`: ${TIER_MEANS[tier]} | ${rest} |`;
+    expect(headlineOf(summary.lines)).toEqual([
+      '### By tier, production first',
+      '',
+      '| tier | images | critical | high | a newer package fixes |',
+      '|---|---|---|---|---|',
+      row('production-public', '2 | 1 | 3 | 3'),
+      row('production-internal', '2 | 1 | 4 | 3'),
+      row('shipped', '1 | 0 | 1 | 0'),
+      row('test-only', '1 | 1 | 4 | 4'),
+      '',
+    ]);
+    expect(headlineOf(summary.lines).at(-2)).toContain('**not in production**');
+    // It comes first: after the one line of counts, before the table, the criticals and the inventory.
+    expect(summary.lines.indexOf('### By tier, production first')).toBe(4);
+    expect(summary.lines[2]).toMatch(/^6 listed, 6 scanned, 0 past their end of life, 0 without a report\. .*except a test-only image's, which are in this report alone\.$/);
+    // A tier no image is in has no row; one whose report is missing says so in its count.
+    const fewer = summarize(
+      TIERED.filter((i) => i.tier !== 'shipped'),
+      reports({ ...TIERED_REPORTS, 'trivy-image-redis.json': '' }),
+    );
+    expect(headlineOf(fewer.lines).filter((l) => l.startsWith('| `'))).toEqual([
+      row('production-public', '2 | 1 | 3 | 3'),
+      row('production-internal', '1 of 2, 1 without a report | 0 | 3 | 3'),
+      row('test-only', '1 | 1 | 4 | 4'),
+    ]);
+  });
+
+  it('lists the images by tier, then in their own order: the table, the criticals and the inventory', () => {
+    const summary = summarize(TIERED, reports(TIERED_REPORTS));
+    const table = summary.lines.filter((l) => /^\| `[^`]+` \| [a-z-]+/.test(l) && !l.startsWith('| `production') && !l.startsWith('| `shipped') && !l.startsWith('| `test-only'));
+    expect(table.map((l) => /^\| `([^`]+)` \| ([^|]+) \|/.exec(l)!.slice(1, 3).map((x) => x.trim()))).toEqual([
+      ['zitadel', 'production-public'],
+      ['gatus', 'production-public'],
+      ['redis', 'production-internal'],
+      ['trigger.dev', 'production-internal'],
+      ['ownpace-selfhost-edge', 'shipped'],
+      ['nextcloud', 'test-only, not in production'],
+    ]);
+    expect(summary.lines.filter((l) => /^- `[^`]+`: CVE/.test(l)).map((l) => /^- `([^`]+)`/.exec(l)![1])).toEqual(['gatus', 'redis', 'nextcloud']);
+    // Within a tier the most to fix first (gatus before zitadel, trigger.dev before redis), and
+    // test-only last though it has the most.
+    expect(summary.lines.filter((l) => l.startsWith('#### '))).toEqual([
+      '#### `gatus` (production-public)',
+      '#### `zitadel` (production-public)',
+      '#### `trigger.dev` (production-internal)',
+      '#### `redis` (production-internal)',
+      '#### `ownpace-selfhost-edge` (shipped)',
+      '#### `nextcloud` (test-only, not in production)',
+    ]);
+    // The end of life is read whatever the tier: a test-only image past it still warns and keeps its issue.
+    const eosl = summarize(TIERED, reports({ ...TIERED_REPORTS, 'trivy-image-nextcloud.json': trivyJson({ Family: 'debian', Name: '11.11', EOSL: true }) }));
+    expect(eosl.annotations).toEqual([expect.stringMatching(/^::warning::nextcloud: /)]);
+    const { gh, calls } = fakeGh([]);
+    keepIssues(TIERED, eosl, gh);
+    expect(calls.filter((c) => c[1] === 'create').map((c) => c[3])).toEqual([`${ISSUE_PREFIX}nextcloud`]);
+  });
+});
+
 // ---------------------------------------------------------- the workflow -
 
 type Step = {
@@ -1314,6 +1478,8 @@ const workflow = parseYaml(WORKFLOW) as { defaults?: unknown; jobs: Record<strin
 // passes `image_scans: false`, so its runs are the repository scan alone
 // (workplan 0146, Status of 2026-10-23). A hand dispatch keeps the default.
 const SCHEDULE_OR_DISPATCH = "github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)";
+// The condition of the two steps a test-only leg skips: the SARIF and its upload (the owner, 2026-11-03).
+const NOT_TEST_ONLY = "matrix.tier != 'test-only'";
 
 describe(`${WORKFLOW_FILE}: the image scan`, () => {
   const list = workflow.jobs['image-list'];
@@ -1378,8 +1544,11 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(built[1]!.run).toMatch(/^set -euo pipefail$/m);
     expect(built[1]!.run).toContain('docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "src/$CONTEXT"');
     expect(built[1]!.run, 'a build here pushes nothing').not.toMatch(/--push|docker push|docker login/);
-    // Every other step runs on every leg, or on the tasks' leg alone (the test of the tasks' build).
-    expect(scan!.steps.filter((s) => s.if && s.if !== 'always()' && s.if !== 'matrix.build' && !built.includes(s))).toEqual([]);
+    // Every other step runs on every leg, or on the tasks' leg alone (the test of the tasks' build),
+    // or on every leg but a test-only one's (the SARIF and its upload, the case of the tiers below).
+    expect(
+      scan!.steps.filter((s) => s.if && s.if !== 'always()' && s.if !== 'matrix.build' && s.if !== NOT_TEST_ONLY && !built.includes(s)),
+    ).toEqual([]);
     // No two steps of the job share an id.
     const ids = scan!.steps.map((s) => s.id).filter((id) => id !== undefined);
     expect(new Set(ids).size, `a step id repeats: ${ids.join(', ')}`).toBe(ids.length);
@@ -1465,15 +1634,78 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
     expect(convert.run).toMatch(/trivy convert --format sarif --output "trivy-image-\$\{NAME\}\.sarif" "trivy-image-\$\{NAME\}\.json"/);
     const upload = scan!.steps.find((s) => s.uses?.startsWith('github/codeql-action/upload-sarif@'))!;
     expect(upload.id).toBe('image_upload');
+    // Except for a test-only image (the case of the tiers below).
+    expect([convert.if, upload.if]).toEqual([NOT_TEST_ONLY, NOT_TEST_ONLY]);
     expect(upload.with).toMatchObject({ sarif_file: 'trivy-image-${{ matrix.name }}.sarif', category: 'trivy-image-${{ matrix.name }}' });
     const keep = scan!.steps.find((s) => s.uses?.startsWith('actions/upload-artifact@'))!;
     expect(keep.with).toMatchObject({ name: 'trivy-image-${{ matrix.name }}', path: 'trivy-image-${{ matrix.name }}.json', 'if-no-files-found': 'error' });
+  });
+
+  it("skips the SARIF and its upload exactly for a test-only image, and keeps its JSON for the report (the owner, 2026-11-03)", () => {
+    const tiered = scan!.steps.filter((s) => s.if?.includes('matrix.tier'));
+    expect(tiered.map((s) => s.name)).toEqual(['Turn the image report into SARIF', "Upload the image's SARIF to code scanning"]);
+    for (const step of tiered) expect(step.if, step.name).toBe(NOT_TEST_ONLY);
+    // The scan and the artifact the report job reads run on every leg, a test-only one's included.
+    const trivy = scan!.steps.find((s) => s.uses?.startsWith('aquasecurity/trivy-action@'))!;
+    const keep = scan!.steps.find((s) => s.uses?.startsWith('actions/upload-artifact@'))!;
+    expect([trivy.if, keep.if]).toEqual([undefined, undefined]);
+    // And the check that ends the leg reads the tier from the matrix the list wrote.
+    expect(scan!.steps.at(-1)!.env?.TIER).toBe('${{ matrix.tier }}');
+  });
+
+  it("each leg's check passes a test-only leg on its JSON with the upload skipped, and fails one code scanning took", () => {
+    const check = scan!.steps.at(-1)!;
+    const dir = mkdtempSync(join(tmpdir(), 'image-scan-check-'));
+    try {
+      const run = (tier: string, files: { json: boolean; sarif: boolean }, upload: string) => {
+        for (const ext of ['json', 'sarif']) rmSync(join(dir, `trivy-image-x.${ext}`), { force: true });
+        if (files.json) writeFileSync(join(dir, 'trivy-image-x.json'), '{"SchemaVersion":2}');
+        if (files.sarif) writeFileSync(join(dir, 'trivy-image-x.sarif'), '{"version":"2.1.0"}');
+        // As the runner renders the step's env for a leg named `x`; bash as GitHub runs a `run:` block.
+        const env = {
+          PATH: process.env.PATH!,
+          NAME: 'x',
+          REF: 'example/x:1.0.0',
+          TIER: tier,
+          JSON: 'trivy-image-x.json',
+          SARIF: 'trivy-image-x.sarif',
+          INSTALL_OUTCOME: 'skipped',
+          BUILD_OUTCOME: 'skipped',
+          CONTEXT_BUILD_OUTCOME: 'skipped',
+          TRIVY_OUTCOME: 'success',
+          UPLOAD_OUTCOME: upload,
+        };
+        return spawnSync('bash', ['--noprofile', '--norc', '-e', '-c', check.run!], { cwd: dir, env, encoding: 'utf8' });
+      };
+      const production = run('production-internal', { json: true, sarif: true }, 'success');
+      expect(production.status, production.stdout + production.stderr).toBe(0);
+      expect(production.stdout).toContain('code scanning took the SARIF');
+      const notUploaded = run('production-internal', { json: true, sarif: false }, 'skipped');
+      expect(notUploaded.status).toBe(1);
+      expect(notUploaded.stdout).toContain('no trivy-image-x.sarif was written');
+      expect(notUploaded.stdout).toContain("the SARIF upload ended 'skipped'");
+      const testOnly = run('test-only', { json: true, sarif: false }, 'skipped');
+      expect(testOnly.status, testOnly.stdout + testOnly.stderr).toBe(0);
+      expect(testOnly.stdout).toContain('Test-only, so nothing went to code scanning.');
+      const tookIt = run('test-only', { json: true, sarif: true }, 'success');
+      expect(tookIt.status).toBe(1);
+      expect(tookIt.stdout).toContain("the SARIF upload ended 'success' for a test-only image");
+      const noJson = run('test-only', { json: false, sarif: false }, 'skipped');
+      expect(noJson.status).toBe(1);
+      expect(noJson.stdout).toContain('no trivy-image-x.json was written');
+      // A leg with no tier (a list from before the tiers) is held to the SARIF, as before them.
+      const untiered = run('', { json: true, sarif: false }, 'skipped');
+      expect(untiered.status).toBe(1);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
   it('each leg asserts its own report: the scan, a non-empty JSON and SARIF, and the upload', () => {
     const check = scan!.steps.at(-1)!;
     expect(check.if).toBe('always()');
     expect(check.env).toMatchObject({
+      TIER: '${{ matrix.tier }}',
       INSTALL_OUTCOME: '${{ steps.install.outcome }}',
       BUILD_OUTCOME: '${{ steps.build.outcome }}',
       TRIVY_OUTCOME: '${{ steps.image_trivy.outcome }}',

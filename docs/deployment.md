@@ -59,7 +59,9 @@ that happens: both read an empty `schema_migrations` and both start applying
 **Bring-up:**
 
 1. `deploy/compose/ensure-env-secrets.sh` — generates `PGBOUNCER_AUTH_PASSWORD`
-   and writes `pgbouncer/userlist.txt` (gitignored).
+   and writes `pgbouncer/userlist.txt` (gitignored), or the file
+   `PGBOUNCER_USERLIST` names when the `.env` sets it, as the OTA stack's does
+   ([managed-bring-up.md](managed-bring-up.md#pgbouncers-userlist-lives-in-the-persisted-directory)).
 2. `psql "$DIRECT_DATABASE_URL" -v pw="'<that password>'" -f deploy/compose/pgbouncer/setup-auth.sql`
    — creates the powerless lookup role and its `SECURITY DEFINER` function, so
    PgBouncer can authenticate every other role via `auth_query` instead of

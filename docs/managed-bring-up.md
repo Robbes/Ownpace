@@ -95,9 +95,11 @@ a wildcard that would take the current one with it.
 
 **Do NOT delete `~/.persistent/open-migrate-managed`.** It holds the stack's `.env`
 — including `SECRET_ENCRYPTION_KEY`, the key that decrypts every stored credential
-in the database — and `pgbouncer/userlist.txt`. It lives outside the checkout
-precisely so `actions/checkout`'s clean cannot reach it, which also means nothing
-else will recreate it. **Move it:**
+in the database — and `userlist.txt`, PgBouncer's, which since 2026-11-03 the
+OTA stack's `pgbouncer` mounts from the persisted directory under its new name
+(*PgBouncer's userlist lives in the persisted directory*, below). It lives
+outside the checkout precisely so `actions/checkout`'s clean cannot reach it,
+which also means nothing else will recreate it. **Move it:**
 
 ```bash
 mv ~/.persistent/open-migrate-managed ~/.persistent/ownpace-managed
@@ -541,7 +543,12 @@ command in the other checkout acts on the first stack. Open a new shell, or
 `deploy/compose/` that runs Compose refuses to run when the shell and the
 checkout's `.env` disagree, before its first Compose command
 (`scripts/two-stacks-on-one-box.unit.test.ts` holds each one to that). A
-`docker compose` command you type yourself does not refuse.
+`docker compose` command you type yourself does not refuse. The same goes for
+`PGBOUNCER_USERLIST` (since 2026-11-03), which only the OTA stack's `.env` sets:
+exported from it, a `docker compose up` in live's checkout would recreate live's
+pooler on the OTA stack's userlist. `bootstrap-managed.sh` and
+`ensure-env-secrets.sh` refuse that shell; a command you type does not. A new
+shell clears both (*PgBouncer's userlist lives in the persisted directory*).
 
 Before workplan 0132 T1 the 17 containers had fixed names (`ownpace-db`,
 `trigger-api`, `ownpace-idp`, …). The first bring-up after that change
@@ -604,7 +611,9 @@ Creates `.env` from `managed.env.example` if it is missing (mode `600`), then
 runs [`ensure-env-secrets.sh`](../deploy/compose/ensure-env-secrets.sh), which
 generates every missing secret — `JWT_SECRET`, `SECRET_ENCRYPTION_KEY`, the
 five Trigger.dev secrets, `PGBOUNCER_AUTH_PASSWORD` — and writes
-`pgbouncer/userlist.txt`. It is idempotent: a value you already set is never
+`pgbouncer/userlist.txt`, or the file `PGBOUNCER_USERLIST` names, which on the
+OTA stack is in its persisted directory (*PgBouncer's userlist lives in the
+persisted directory*). It is idempotent: a value you already set is never
 rotated. Then it pins `DEPLOY_IMAGE_PLATFORM` to this host's architecture.
 
 **The provisioning token's first date.** It also writes `ZITADEL_PAT_EXPIRY`,
@@ -705,7 +714,8 @@ On a throwaway demo box where the shipped values are the right answer,
 `--accept-defaults` removes the pause.
 
 **Verify:** `grep -c '=.' deploy/compose/.env`, and that
-`deploy/compose/pgbouncer/userlist.txt` exists.
+`deploy/compose/pgbouncer/userlist.txt` exists (on the OTA stack, the file
+`PGBOUNCER_USERLIST` names).
 
 **Never commit `.env`.**
 
@@ -3750,8 +3760,59 @@ already-correct `.env` into the persist directory:
 ```bash
 mkdir -p ~/.persistent/ownpace-managed
 cp deploy/compose/.env ~/.persistent/ownpace-managed/.env
-cp deploy/compose/pgbouncer/userlist.txt ~/.persistent/ownpace-managed/userlist.txt
 ```
+
+PgBouncer's userlist is not copied. The gate writes it there itself, and the
+stack mounts it from there: see the next section.
+
+### PgBouncer's userlist lives in the persisted directory
+
+**`pgbouncer` mounts `${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}`**
+(`managed.yml`). Live's `.env` does not set the key, so live's pooler mounts
+`deploy/compose/pgbouncer/userlist.txt` in live's own checkout, which nothing
+cleans, as it always has. The OTA stack's `.env` sets it to
+`~/.persistent/ownpace-managed/userlist.txt`, written out from `/` (a relative
+path is refused):
+
+- the gate's *Fill* step writes `PGBOUNCER_USERLIST=<persisted directory>/userlist.txt`
+  into the `.env` on every run, before `ensure-env-secrets.sh`, and persists
+  the `.env` back with it, so your checkout, which links that `.env`, mounts the
+  same file as the gate does;
+- `ensure-env-secrets.sh` writes the file the key names, in place, from the
+  `.env`'s `PGBOUNCER_AUTH_PASSWORD`, mode 644, every time it runs. It prints the
+  path, never the password. There is one file, the one mounted; nothing copies it;
+- `bootstrap-managed.sh` refuses to start anything while the key names a path
+  that is not a file, and `ensure-env-secrets.sh` refuses a directory there.
+  A shell that exports another `PGBOUNCER_USERLIST` than the checkout's `.env`
+  is refused by both (Compose would follow the shell): open a new shell.
+
+**Why (2026-11-03, workplan 0132).** The file used to be the gate checkout's
+`deploy/compose/pgbouncer/userlist.txt`, copied in from here on every run. But
+every workflow of this repository that runs on the runner checks out into that
+same folder, and `ci.yml` does on every push to `main`. Its checkout deleted the
+file under the running pooler (02:51 UTC); nothing showed until the Docker
+daemon restarted (03:58), when the container's bind source was missing, Docker
+made a **directory** there, and `pgbouncer` stopped:
+`error mounting ".../pgbouncer/userlist.txt" to rootfs at "/etc/pgbouncer/userlist.txt": ... not a directory`,
+exit 127, with every API call that needs the database behind it. A host reboot
+would have done the same. The copy kept here was stale besides:
+`ensure-env-secrets.sh` rewrote the checkout's file from the `.env`, the `.env`
+was persisted back, and the copy never was, so writing the file from it gave
+`password authentication failed for user "pgbouncer_auth"`.
+
+**The first gate run after the change** writes the key, rewrites the file from
+the `.env`, and its bring-up recreates `pgbouncer` once, because the mount's
+source changed. Nothing is yours to do. To see which file the running pooler
+mounts, without printing it:
+
+```bash
+cd ~/ownpace-managed && docker inspect --format '{{range .Mounts}}{{if eq .Destination "/etc/pgbouncer/userlist.txt"}}{{.Source}}{{end}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q pgbouncer)"
+```
+
+**Do not move or delete the persisted directory while the stack runs**: the
+pooler's next start (a Docker restart, a reboot) needs the file. If
+`MANAGED_ENV_PERSIST_DIR` is changed, the next gate run points the key at the
+new directory and recreates `pgbouncer`.
 
 ### One stack, one `.env`
 
@@ -4622,7 +4683,8 @@ journal of whatever ran it), 2 refused.
 
 | What you see | What it is | What to do |
 | --- | --- | --- |
-| `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644 deploy/compose/pgbouncer/userlist.txt`, then force-recreate. `ensure-env-secrets.sh` now writes 644 and `--only data` repairs the mode |
+| `pgbouncer` exits 127 at a start: `error mounting ".../userlist.txt" to rootfs at "/etc/pgbouncer/userlist.txt": ... not a directory` | The file the pooler mounts was missing when the container started (a Docker restart, a reboot, a recreate), and Docker made an empty **directory** at that path. On the OTA stack on 2026-11-03 the file was the gate checkout's, deleted by `ci.yml`'s checkout; it now lives in the persisted directory (*PgBouncer's userlist lives in the persisted directory*) | In `~/ownpace-managed`, with the `.env` linked: `rmdir` the path the error names, then `./deploy/compose/ensure-env-secrets.sh` (it writes the file from the `.env`'s `PGBOUNCER_AUTH_PASSWORD`, and prints the path, never the password), then `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `bootstrap-managed.sh` now refuses before this can happen to a file `PGBOUNCER_USERLIST` names |
+| `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644` on the file (`deploy/compose/pgbouncer/userlist.txt`, or the one `PGBOUNCER_USERLIST` names), then force-recreate. `ensure-env-secrets.sh` now writes 644 and `--only data` repairs the mode |
 | The seed or a host-run script talks to the wrong Postgres | On a shared host, `localhost:5432` may belong to something else entirely — this stack's Postgres is published wherever `POSTGRES_PORT` says | The `demo` phase asks `docker compose port postgres 5432` rather than trusting a default. For your own commands, do the same |
 | `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `pnpm -C apps/worker exec trigger login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile> --no-browser` from the checkout's root, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
 | `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `pnpm -C apps/worker exec trigger logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json`. **Until 2026-08-31 this symptom had a SECOND cause with the same appearance**: the detector piped `whoami`'s output into `grep -q`, which exits at the first match, so under `set -o pipefail` a long-enough answer killed the producer with SIGPIPE and the pipeline returned 141 for a match that had SUCCEEDED. Verified and fixed — it now reads from a here-string — so on a current checkout this row's cause is the only one left |

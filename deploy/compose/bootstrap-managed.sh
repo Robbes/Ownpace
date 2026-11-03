@@ -246,6 +246,9 @@ load_env() {
   # provider. A date still ahead is kept (seed_pat_expiry, env-read.sh).
   seed_pat_expiry "$ENV_FILE" ||
     die "the provisioning token's first date could not be written into ${ENV_FILE} (above)."
+  # Before the file is sourced, so a value exported by another stack's shell
+  # is still told apart from this .env's (pgbouncer_userlist, env-read.sh).
+  refuse_a_userlist_docker_would_make_a_directory
   set -a
   # shellcheck disable=SC1090
   . "$ENV_FILE"
@@ -379,6 +382,48 @@ refuse_a_bind_that_is_not_an_address() { # refuse_a_bind_that_is_not_an_address 
   echo "!!! open from a laptop. Never 0.0.0.0. Fix it here and in any persisted" >&2
   echo "!!! copy the next run restores from, then run this again." >&2
   echo "!!! docs/managed-bring-up.md, \"Which address a port answers on\"." >&2
+  exit 1
+}
+
+# THE POOLER'S USERLIST, WHERE COMPOSE WILL MOUNT IT (2026-11-03, workplan 0132).
+#
+# managed.yml mounts `${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}`. The OTA
+# stack's .env names a file in its persisted directory, outside every checkout,
+# because the one in the gate's checkout was deleted by another workflow's
+# checkout under a running pgbouncer, and at the Docker daemon's next restart
+# Docker made a DIRECTORY in its place: `error mounting ... not a directory`,
+# exit 127, and every API call that needs the database failed. Docker makes
+# that directory at any start or recreate whose file is missing, so a file
+# that is not there is refused here, before the first compose call of every
+# phase, and named, rather than left for Docker to answer.
+#
+# Two refusals:
+#   - a shell that exports another value than this .env (pgbouncer_userlist,
+#     env-read.sh): Compose would follow the shell, on any stack;
+#   - a PGBOUNCER_USERLIST that names no regular file: the OTA stack's layout.
+#     The default, pgbouncer/userlist.txt beside managed.yml, which live uses,
+#     is left as it always was.
+# Paths are printed, never the file's contents.
+refuse_a_userlist_docker_would_make_a_directory() {
+  local dir="$SCRIPT_DIR" userlist
+  userlist="$(pgbouncer_userlist "$dir")" ||
+    die "where PgBouncer's userlist is could not be read (above). Nothing was started."
+  [ "$userlist" = "${dir}/pgbouncer/userlist.txt" ] && return 0
+  [ -f "$userlist" ] && return 0
+  if [ -d "$userlist" ]; then
+    echo "!!! ${userlist}, which PGBOUNCER_USERLIST names as PgBouncer's userlist, is a directory." >&2
+    echo "!!! Docker makes one there when pgbouncer starts while the file is missing, and the pooler" >&2
+    echo "!!! then cannot start (\`not a directory\`, exit 127). If it is empty, remove it and write" >&2
+    echo "!!! the file from this .env's PGBOUNCER_AUTH_PASSWORD with these two (the second prints the" >&2
+    echo "!!! path, never the password), then run this again:" >&2
+    echo "!!!   rmdir ${userlist}" >&2
+  else
+    echo "!!! ${userlist}, which PGBOUNCER_USERLIST names as PgBouncer's userlist, does not exist." >&2
+    echo "!!! Compose would have Docker make a directory there, and pgbouncer could not start" >&2
+    echo "!!! (\`not a directory\`, exit 127). Write it from this .env's PGBOUNCER_AUTH_PASSWORD with" >&2
+    echo "!!! this (it prints the path, never the password), then run this again:" >&2
+  fi
+  echo "!!!   ./deploy/compose/ensure-env-secrets.sh" >&2
   exit 1
 }
 
@@ -1414,8 +1459,10 @@ phase_data() {
 
   # The pooler reads userlist.txt as a user that is not the one who wrote it.
   # Checked here rather than discovered as `no such user: pgbouncer_auth` after
-  # an 80-second healthcheck timeout.
-  local userlist="${SCRIPT_DIR}/pgbouncer/userlist.txt"
+  # an 80-second healthcheck timeout. The file Compose mounts: on the OTA stack
+  # it is in the persisted directory (pgbouncer_userlist, env-read.sh).
+  local userlist
+  userlist="$(pgbouncer_userlist "$SCRIPT_DIR")" || die "where PgBouncer's userlist is could not be read (above)."
   if [ -f "$userlist" ] && [ ! "$(stat -c '%a' "$userlist" 2>/dev/null)" = "644" ]; then
     chmod 644 "$userlist"
     note "userlist.txt was not readable inside the container — set to 644 (see ensure-env-secrets.sh)"

@@ -244,7 +244,20 @@ services:
       - ./pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro
       # SCRAM verifier for the lookup role only — every other credential is read
       # from Postgres via auth_query, so this file does not grow.
-      - ./pgbouncer/userlist.txt:/etc/pgbouncer/userlist.txt:ro
+      #
+      # WHERE IT IS COMES FROM THE .env (2026-11-03, workplan 0132). Unset, it
+      # is pgbouncer/userlist.txt beside this file, which is live's: live runs
+      # from a checkout nothing cleans. The OTA stack's .env names a file in its
+      # persisted directory, which the nightly gate sets and
+      # ensure-env-secrets.sh writes: in the gate's checkout, the runner's work
+      # folder, the next checkout of any of this repository's workflows there
+      # deletes ignored files. ci.yml's did so under a running pgbouncer; at the
+      # Docker daemon's next restart the file was gone, Docker made a directory
+      # in its place, and the pooler stopped with `not a directory`, exit 127.
+      # A start that finds this file missing ends that way, so
+      # bootstrap-managed.sh refuses a missing one before Compose starts
+      # anything (refuse_a_userlist_docker_would_make_a_directory).
+      - ${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}:/etc/pgbouncer/userlist.txt:ro
     healthcheck:
       # `pgbouncer` is a real database name on the admin console; reaching it
       # proves the process is accepting connections, which a TCP probe does not.

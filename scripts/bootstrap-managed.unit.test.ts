@@ -1250,12 +1250,19 @@ describe('every file managed.yml mounts is a file that exists', () => {
       'committing it would put a working secret in the repository (hard rule 3).',
   };
 
-  /** Every `- ./x:/y` bind mount source in the file. */
-  const sources = [...composeYml.matchAll(/^\s*-\s+(\.\/[^:\s]+):/gm)].map((m) => m[1]!);
+  /**
+   * Every `- ./x:/y` bind mount source in the file, and the default of every
+   * `- ${VAR:-./x}:/y`, which is what Compose mounts when the .env leaves VAR
+   * unset: pgbouncer's userlist since 2026-11-03, whose OTA stack's file is in
+   * its persisted directory (scripts/a-pooler-file-another-workflow-deleted).
+   */
+  const sources = [...composeYml.matchAll(/^\s*-\s+(?:\$\{[A-Z_][A-Z0-9_]*:-)?(\.\/[^:\s}]+)\}?:/gm)].map((m) => m[1]!);
 
   it('found the bind mounts', () => {
     expect(sources.length).toBeGreaterThanOrEqual(5);
     expect(sources).toContain('./clickhouse-disable-system-logs.xml');
+    // The interpolated default is read too, or the generated file drops out.
+    expect(sources).toContain('./pgbouncer/userlist.txt');
   });
 
   it('each one is committed, or named as generated', () => {
