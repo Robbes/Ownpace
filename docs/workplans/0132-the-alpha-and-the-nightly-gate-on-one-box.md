@@ -2,7 +2,63 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-02 (update this block at the end of every session)
+## Status — 2026-11-03 (update this block at the end of every session)
+
+**2026-11-03: the OTA stack's pooler lost its userlist to another workflow's checkout, and was
+down until a hand fix; the fix built on a branch, not merged.** On the branch
+`claude/ownpace-public-readiness-y7orc6-pgbouncer-userlist`, from `main` at `21fa6ff8`; not
+merged, and CI and E2E (managed) are owed on it. The incident from the owner's readings; times
+are UTC.
+- **What happened.** The nightly gate brings the OTA stack up from the self-hosted runner's work
+  folder, and its `pgbouncer` bind-mounted `deploy/compose/pgbouncer/userlist.txt` from there:
+  gitignored, so the gate's restore copied it in from the persisted directory on every run. But
+  `ci.yml` runs on the same runner, in the same folder, on a push to `main`. At 02:51 its
+  checkout's clean (`git clean -ffdx`) deleted the file under the running pooler, which went on
+  serving from the file it had open. At 03:58 the Docker daemon restarted for the host's Docker
+  upgrade (0119 §2.4): the bind source was missing, Docker made a directory in its place, and
+  `pgbouncer` exited 127 (`error mounting ".../deploy/compose/pgbouncer/userlist.txt" to rootfs
+  at "/etc/pgbouncer/userlist.txt": ... not a directory`). Every OTA API call that needs the
+  database goes through it. A host reboot would have done the same. Live was not affected: it
+  runs from its own checkout, which no workflow touches (T1g).
+- **And the kept copy was stale.** The persisted directory's `userlist.txt` no longer matched
+  the container's `PGBOUNCER_AUTH_PASSWORD` or the database role (`password authentication
+  failed for user "pgbouncer_auth"`): `ensure-env-secrets.sh` rewrote the checkout's file from the
+  `.env` on every run, the gate persisted the `.env` back, and for the userlist it only printed a
+  `cp` for a human.
+- **The owner's fix, at about 04:31:** the userlist written by hand from the container's own
+  `PGBOUNCER_AUTH_PASSWORD`, its value not printed. The pooler and the API came back.
+- **The fix, built.** `managed.yml` mounts `${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}`.
+  The gate's Fill step writes `PGBOUNCER_USERLIST=<persisted directory>/userlist.txt` into the
+  OTA stack's `.env` on every run, before `ensure-env-secrets.sh`, which writes that file in
+  place (same inode, mode 644) from the `.env`'s password, and the step's copy-back persists the
+  key, so the operator's checkout, which links that `.env`, mounts the same file. The restore
+  copies no userlist into the checkout, and the refuse-early step no longer prints the `cp`. One
+  file, the one mounted, in no checkout. `bootstrap-managed.sh` refuses, before any compose call
+  of every phase, a named userlist that is missing or a directory, so Compose never gets to make
+  one; `ensure-env-secrets.sh` refuses a directory there; and both refuse a shell that exports
+  another `PGBOUNCER_USERLIST` than the checkout's `.env` (`pgbouncer_userlist`, `env-read.sh`),
+  since Compose would follow the shell, the way `set -a; . .env` in one stack's checkout leaks
+  into a command in the other's. `docs/managed-bring-up.md`, *PgBouncer's userlist lives in the
+  persisted directory*, and a row in *When it goes wrong*.
+- **Live, unchanged, shown.** Live's `.env` does not set the key. `docker compose config` of
+  `managed.yml` with a live-shaped `.env` (`COMPOSE_PROJECT_NAME` and `STACK_KIND=production`
+  set, no `PGBOUNCER_USERLIST`) renders byte for byte the same before and after the change, and
+  `config --hash` gives every service, `pgbouncer` included, the same hash: live's next deploy
+  recreates nothing for it. With the key set, `pgbouncer`'s hash moves, so the first gate run
+  after the merge recreates it once, on the persisted file. Nothing is the owner's to do.
+- **Guard:** `scripts/a-pooler-file-another-workflow-deleted.unit.test.ts`, 30 cases: the mount,
+  the resolution and its refusals run, `ensure-env-secrets.sh` run with and without the key,
+  the gate's restore and Fill step read and the Fill step run twice on a stale persisted file,
+  the bring-up's refusal run, and the runbook; each of 16 reverts of one piece of the fix fails
+  it. Four guards follow it: `a-gate-that-leaves-the-alpha-alone` (the restore copies no
+  userlist), `bootstrap-managed` and `the-state-that-lived-in-a-nameless-volume` (an
+  interpolated bind source is read by its default), and `a-stack-that-names-its-mode` (its
+  `load_env` harness stubs the new refusal).
+- **Not changed, and worth knowing:** the OTA stack's other bind mounts (`pgbouncer.ini`, the
+  dashboard front's Caddyfile, the status page's config, ClickHouse's files, Nextcloud's
+  `php.ini`) are tracked files in the same work folder. A checkout cannot delete them, but
+  `ci.yml`'s on a push to `main` can change them under the running stack, and a restart then
+  reads them as of that push, not as of the night's run.
 
 **2026-11-02, later, recorded: the night after ClickHouse's move is green, and its copy can go
 (sent, not done).** Docs only, on the branch
