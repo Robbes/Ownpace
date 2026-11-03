@@ -96,15 +96,21 @@
  *    here too. Its one-shot `minio-init` runs `mc mb`, and mc asks `dl.min.io`
  *    only when it is run with no command (`cmd/main.go` at mc's
  *    `RELEASE.2025-08-13T08-35-41Z`).
- *  - MAILPIT (v1.31.6, and again at v1.32.0 on 2026-10-25; the test stack's
- *    catcher, live has none) asks GitHub for its newest release whenever its
- *    web page asks for the server's info, unless `MP_DISABLE_VERSION_CHECK`
- *    says true (`internal/stats/stats.go`, the variable read in `cmd/root.go`
- *    as `1`, `true` or `yes`). Neither file changed between the two tags.
+ *  - MAILPIT (v1.31.6, again at v1.32.0 on 2026-10-25 and at v1.33.0 on
+ *    2026-11-03; the test stack's catcher, live has none) asks GitHub for its
+ *    newest release whenever its web page asks for the server's info, unless
+ *    `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`, the
+ *    variable read in `cmd/root.go` as `1`, `true` or `yes`). stats.go is the
+ *    same at all three tags, and so are the lines of root.go that read it.
  *    None of its other requests goes to its maker: a webhook goes out only
  *    when one is configured, and the HTML check, link check and screenshot
  *    proxy fetch what a caught message names only when its API is asked for
- *    them; none of those files changed either.
+ *    them (at v1.33.0 the link check's pattern also finds a link that starts
+ *    a plain text body; nothing else those four run changed). v1.33.0 adds
+ *    one more: Rspamd, pinged at start and sent a message when its check is
+ *    asked, only when `MP_ENABLE_RSPAMD` or `--enable-rspamd` names a server
+ *    (`config/config.go`, `server/server.go`, `internal/rspamd/rspamd.go`),
+ *    the operator's server and not its maker; this stack names none.
  *  - NEXTCLOUD (35 since the demo's move, workplan 0119 T5, 34 before; the
  *    demo's DAV target on the OTA stack every night, and the development one)
  *    sends its version, PHP version and install time to
@@ -595,7 +601,7 @@ const CLICKHOUSE =
 const MINIO =
   'chainguard/minio:latest@sha256:3b6e40c30ecd5cea627e382ff0b82ca841f58c52294578787043ee80c8ef7c82';
 const MAILPIT =
-  'axllent/mailpit:v1.32.0@sha256:0790692be935ea4420d085694f7985b1f692ca6a8771ab0e0bd8ba75ac180498';
+  'axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231';
 /**
  * Read at `stable34` (config.sample.php and the two crawlers), so the line, not
  * one patch of it; read again at `v35.0.2` and nextcloud_announcements'
@@ -683,7 +689,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
-    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0)",
+    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0 and v1.33.0)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {

@@ -427,7 +427,7 @@ export function stateOf(pin, newest) {
 
 // ----------------------------------------------------------- images ------
 
-/** An image reference in its three parts: `axllent/mailpit:v1.32.0@sha256:…`. */
+/** An image reference in its three parts: `axllent/mailpit:v1.33.0@sha256:…`. */
 export function parseRef(ref) {
   const at = ref.indexOf('@');
   const digest = at >= 0 ? ref.slice(at + 1) : '';
