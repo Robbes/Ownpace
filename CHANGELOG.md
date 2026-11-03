@@ -57,6 +57,30 @@ notices.
 
 ### Security
 
+- **Every container runs with no new privileges, and most with only the
+  capabilities their own start uses** (workplan 0119; the owner, 2026-11-03).
+  Until now no service of `managed.yml`, the site's `www.yml` or the
+  appliance's `compose.yml` set `security_opt`, `cap_drop` or `read_only`, so
+  each started with Docker's default capabilities. Every service now sets
+  `no-new-privileges`. All but `trigger-api` and the demo's `nextcloud` drop
+  every capability and add back what their start does as root, each measured
+  on the service's own image where it could be pulled: none for the services
+  that run as another user from the start (the databases, the pooler, MinIO,
+  the supervisor, the identity provider, the API, the appliance), the Docker
+  socket proxy, the registry, Gatus and Mailpit; CHOWN, DAC_READ_SEARCH, SETGID
+  and SETUID for Redis and ClickHouse; CHOWN, NET_BIND_SERVICE, SETGID and
+  SETUID for the two nginx; NET_BIND_SERVICE for the dashboard's Caddy, whose
+  binary carries it as a file capability; CHOWN, DAC_OVERRIDE and FOWNER for
+  the identity provider's one-off, whose read and rotation of the provisioning
+  token in a directory the provider owns need the second. The pooler, the registry, the socket proxy, Mailpit and
+  the two one-offs start with a read-only root. Each changed service is
+  recreated once, at the deploy that carries it; an `exec` into a service has
+  the service's capabilities (`exec --privileged` for a repair that needs
+  more), and the appliance's rootless `chown` of a bound directory adds its
+  two with `--cap-add`. `docs/managed-bring-up.md`, *How the containers run*,
+  has the table, and `a-privilege-no-service-uses` holds it, every `exec` and
+  `run` the scripts and documents make into a service with a dropped set
+  included.
 - **The appliance can no longer rewrite its own code** (workplan 0119): the
   selfhost image's last step was `chown -R appuser:appuser /app /data`, so uid
   10001, which the appliance runs as, owned `/app`, the payload it loads at

@@ -4,6 +4,91 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03, how the containers run: every service with no new privileges, its capabilities
+cut to what its own start uses, and six read-only roots (built, not merged).** The runtime half
+of the owner's *"make base images more lean/small and more hardened"* of 2026-11-03. On the
+branch `claude/ownpace-public-readiness-y7orc6-compose-hardening`: `managed.yml`, `www.yml` and
+the appliance's `compose.yml`, the guard `a-privilege-no-service-uses`, *How the containers
+run* in `managed-bring-up.md`, and the CHANGELOG. Draft PR #1803.
+- **What the review of #1803 found, fixed the same day.** A blocker: `zitadel-machinekey` kept
+  CHOWN and FOWNER, which its own command needs, and `setup-zitadel.sh` runs it on every bring-up
+  (E2E (managed) and `deploy-live.sh` included) for two other commands, `cat /machinekey/pat.txt`
+  and the rotation's write of `pat.txt.next` and its `mv`, in a directory the identity provider
+  owns at mode 700. Without DAC_OVERRIDE root does neither (`cat: can't open
+  '/machinekey/pat.txt': Permission denied`; `can't create /machinekey/pat.txt.next: Permission
+  denied`), so alpha.4's deploy would have stopped half-way. It keeps CHOWN, DAC_OVERRIDE and
+  FOWNER now, measured through `managed.yml` itself: the init, the identity provider's token
+  written as uid 1000 at 0600, `setup-zitadel.sh`'s read and the runbooks' `PAT="$(… cat …)"`, the
+  rotation's write and the read-back, and the init again; with CHOWN and FOWNER alone the read
+  and the write fail, with DAC_READ_SEARCH in place of DAC_OVERRIDE the read passes and the write
+  fails. The appliance's rootless `chown` of a bound directory
+  (`docs/selfhost-quickstart.md`) failed the same way (`chown: /var/lib/postgresql: Operation
+  not permitted`) and now adds `--cap-add CHOWN --cap-add DAC_READ_SEARCH` for itself, measured on
+  a directory with a 0700 subdirectory of another uid (CHOWN alone: `chown:
+  /var/lib/postgresql/old: Permission denied`), the appliance's Postgres then healthy on it. The
+  "`-u 0` for root" advice in the quickstart, the guide and both Postgres Dockerfiles' comments
+  says `exec --privileged -u 0` for a repair now. The guard read only the files' shape, and would
+  have passed with the blocker in place: it now also reads every `exec`, `run` and `docker exec`
+  into a service with a dropped set in `deploy/`, `scripts/`, the workflows and `docs/`
+  (workplans and ADRs aside), and fails one whose program is in no review or needs a capability
+  its service does not keep; the guide's rows for the site's nginx and the appliance are held too.
+- **What changed.** All 19 services of `managed.yml` (the two one-offs included), the site's
+  nginx and the appliance's two set `no-new-privileges:true`. All but `trigger-api` and
+  `nextcloud` set `cap_drop: [ALL]` and add back: nothing for `postgres`, `trigger-db`,
+  `pgbouncer`, `minio`, `minio-init`, `trigger-supervisor`, `zitadel`, `api`, `gatus`,
+  `mailpit`, `trigger-registry`, `trigger-docker-proxy` and the appliance's two; CHOWN,
+  DAC_READ_SEARCH, SETGID, SETUID for `trigger-redis` and `clickhouse`; CHOWN,
+  NET_BIND_SERVICE, SETGID, SETUID for `web` and the site's `www`; NET_BIND_SERVICE for
+  `trigger-tls`; CHOWN, DAC_OVERRIDE, FOWNER for `zitadel-machinekey`. `pgbouncer`, `trigger-registry`,
+  `trigger-docker-proxy`, `mailpit`, `minio-init` and `zitadel-machinekey` are read-only,
+  with `/tmp` (the proxy `/run` too) in memory. No `mem_limit` or `pids_limit`: nothing has
+  measured a peak. `dev.yml` is left as it was.
+- **Measured here,** each on its own image with its compose command and placeholder values,
+  ready on a new volume and again on the volume it wrote, then with one capability fewer:
+  `postgres`/`trigger-db` (the uid-70 build), `pgbouncer`, `trigger-redis`, `clickhouse`
+  26.8.36.3, `trigger-registry` (a push, a pull, a restart), `trigger-docker-proxy` (create,
+  start, delete a container through it), `minio`, `minio-init`, `trigger-tls`, the one-off's
+  busybox, `mailpit` (a message in, a restart), and the web image's nginx with its template
+  and a stub bundle, and the site's with `www-nginx.conf`. All but `clickhouse` and `web` then
+  came up healthy through `managed.yml` itself, under a project of their own, and answered the
+  `exec`s the scripts make (`psql`, `SHOW VERSION` on the pooler, `redis-cli`, `mc`). What
+  decided the lists: Caddy's binary carries `cap_net_bind_service` as a file capability, so
+  without NET_BIND_SERVICE it does not start at all (`exec /usr/bin/caddy: operation not
+  permitted`), although it binds 3443; Redis's first restart on its own volume fails without
+  DAC_READ_SEARCH (`find: './appendonlydir': Permission denied`), and without CHOWN on a file in
+  `/data` that is not uid 999's; ClickHouse needs CHOWN on a new volume and DAC_READ_SEARCH on a
+  data directory root owns, and its server runs as uid 101 with no capability under Docker's
+  default set too, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added; nginx serves port 80
+  without NET_BIND_SERVICE (Docker sets `ip_unprivileged_port_start=0`), kept so that port 80
+  does not rest on that. The official Postgres image as root does not start without
+  capabilities (`chown: /var/lib/postgresql/18/docker: Operation not permitted`): it is the
+  uid-70 build of 0146 T15 that needs none.
+- **Read, not measured** (images that could not be pulled where this was built): `trigger-api`
+  keeps Docker's default set, since its entrypoint chowns the shared volume as root and copies
+  files into directories `node` owns; `trigger-supervisor` (node from its first process; its
+  base read 0 setuid binaries and 0 file capabilities), `zitadel` and `gatus` (images of one
+  binary, from scratch), `api` (uid 65532; its distroless base read 0 and 0) add none;
+  `nextcloud` keeps the default set (its entrypoint rsyncs, chowns and runs occ through `su`
+  as root). The sandbox had no IPv6, so the socket proxy was measured with `DISABLE_IPV6=1`,
+  and a hard limit of 20000 open files, so ClickHouse ran with that instead of 262144; the
+  Postgres build's Alpine step could not run, so its uid-70 equivalent was built without it.
+- **The guard** fails 1 of 33 for each single breakage tried on the real files (one service's
+  `no-new-privileges` removed, NET_RAW added to Redis, every `cap_drop` removed, the registry's
+  read-only root removed, Caddy's NET_BIND_SERVICE removed, the note by Caddy's settings removed,
+  `nextcloud` made privileged, a guide row changed, `www.yml` or the appliance's file as on
+  `main`), 2 for a new service and for `managed.yml` as on `main` (`319a2d34`), and 6 for the
+  three files and the guide as on `main`. After the review it has 38 tests: with DAC_OVERRIDE
+  taken from the one-off in `managed.yml`, its policy and the guide's row together (the
+  blocker's own state), 1 fails, naming `setup-zitadel.sh:459` and `:923` and the runbooks'
+  three lines; with it taken from `managed.yml` alone, 2; a new `exec … postgres chmod` in a
+  script, 1; the quickstart's `chown` without its `--cap-add`, 1; the site's row taken out of
+  the guide, 2; the appliance's Postgres row saying CHOWN, 1.
+- **Live** runs alpha.3's `managed.yml` until the alpha.4 deploy, which changes every service's
+  settings and so recreates each one once, the databases among them, inside `deploy-live.sh`'s
+  hold and drain; the site's nginx with it while `WWW_LIVE` is true. The appliance takes it with
+  its next release. **Owed:** E2E (managed) on this branch, which brings up every service and is
+  the proof for the lists read rather than measured, before it merges for the fold.
+
 **2026-11-03: the appliance's `/app` is root's and read-only to it, its HEALTHCHECK is exec form,
 and its image names PGlite's directory; built on a branch, for alpha.4.** Item 1 of the day's
 survey of leaner and harder base images, the one that needs no owner's decision. On the branch
@@ -129,6 +214,7 @@ last bullet of the image scan's reading of 2026-11-02 below); not merged.
   a new image without a tier fails the list, and the report refuses one handed on without; the
   headline's rows and order; every list by tier; the two SARIF steps skipped exactly for
   test-only; and the leg's last step run under bash for a production and a test-only leg.
+
 **2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
 OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,
 alpha.4's deploy shell read, and the drain read bounded to a day.** On the branch
