@@ -4,6 +4,61 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03 (UTC): every scanned image has a tier, the weekly report leads with production, and
+the test-only images leave code scanning.** Built on the branch
+`claude/ownpace-public-readiness-y7orc6-scan-tiers`, on top of #1799 (the fixable inventory, the
+last bullet of the image scan's reading of 2026-11-02 below); not merged.
+- **The owner's decision, 2026-11-03:** (1) every image the weekly scan reads gets a tier, and its
+  report leads with production; (2) a test-only image is no longer uploaded to code scanning and
+  stays in the report. Why: the report weighed the demo's Nextcloud like live's sign-in, and five
+  of the seven criticals of 2026-11-02 were in images live never runs (Nextcloud's four,
+  Stalwart's one), listed in code scanning beside live's.
+- **The tiers** (`IMAGE_TIERS` in `scripts/image-scan.mjs`, by the name the list gives; a name
+  with none fails the list):
+  - *production-public*, what the internet reaches on live: `nginx` (www.ownpace.eu, which the
+    mesh provider maps to `WWW_PORT`, `www.yml`'s header); `zitadel` (id.ownpace.eu on
+    `ZITADEL_PORT`) and `gatus` (status.ownpace.eu on `STATUS_PORT`), two of the three routes
+    `managed-bring-up.md` sets before live's bring-up and `stand-up-live.sh` checks resolve; and
+    Ownpace's api and web at `:edge` and at the release (app.ownpace.eu, the third, on
+    `WEB_PORT`; the web image's nginx proxies `/api/` to the API, whose `API_BIND` stays empty).
+  - *production-internal*, live runs it and nothing beyond its machine and the mesh reaches it:
+    the services `bootstrap-managed.sh`'s `phase_app` starts by name on live, published on
+    loopback or not at all (`postgres-managed`, `pgbouncer`, `redis`, `trigger.dev`,
+    `clickhouse-server`, `registry`, `docker-socket-proxy`, `supervisor`, `minio`); `caddy`;
+    `busybox` (the identity provider's one-shot chown, run by the bring-up); `goaccess`
+    (`site-visits.sh`, the daily duty on live's site log, no network); and `trigger-task-base`
+    (live's task runs). **`caddy` is internal, not public:** it is `trigger-tls`, the Trigger.dev
+    dashboard's front, with a certificate no public CA signs (`tls internal`), on loopback or
+    the mesh address `TRIGGER_TLS_BIND` names; live's dashboard is opened on localhost or
+    through a tunnel (`stand-up-live.sh`). No public name is routed to it.
+  - *shipped*, what self-hosters run: `postgres-selfhost` and `ownpace-selfhost` at `:edge` and at
+    the release. Ownpace's api and web are not in the appliance (`deploy/selfhost/compose.yml`
+    runs the selfhost image and its Postgres), so they keep production-public.
+  - *test-only*: `nextcloud` (the demo's DAV backend and a test fixture; `phase_app` starts it
+    only with `--with-demo`, which `stand-up-live.sh` and `deploy-live.sh` refuse), `mailpit`
+    (the OTA stack's and the demo's catcher; live sends through a relay and `stand-up-live.sh`
+    refuses `SMTP_HOST=mailpit`) and `stalwart` (the CI fixture, ADR-0022). The owner confirmed
+    all three are development and test pipelines only, with no public surface: live has no
+    Nextcloud or Mailpit service, and Stalwart is a CI fixture.
+- **The report** opens, after its line of counts, with a table of each tier's critical, high and
+  fixable totals, production-public first and test-only last, labelled not in production; the
+  per-image table (with a tier column), the criticals and the fixable inventory then go by tier,
+  each in its own order within one. The end of life and its issues are unchanged, test-only
+  images included. On the counts of the 2026-11-03 report (#1799's branch, 26 images):
+  production-public 7 images, 0 critical, 6 high, 6 fixable; production-internal 13, 2, 181, 72;
+  shipped 3, 0, 88, 0; test-only 3, 5, 296, 95.
+- **Code scanning:** `security-scan.yml`'s image leg skips *Turn the image report into SARIF* and
+  *Upload the image's SARIF to code scanning* where the matrix's `tier` is test-only, and its last
+  step requires the upload to read `skipped` there; the JSON and its artifact stay, so the report
+  covers them. The categories `trivy-image-nextcloud`, `trivy-image-stalwart` and
+  `trivy-image-mailpit` stop with the first scan on `main` after the merge; **the alerts already
+  open under them the owner dismissed as used in tests** (2026-11-03). Their configurations stay
+  on the code scanning tool status page until deleted by hand.
+- **The guard,** `an-image-nobody-scanned`: every listed image has a valid tier and the map names
+  no other; the test-only set is exactly the three; the appliance's images are the shipped ones;
+  a new image without a tier fails the list, and the report refuses one handed on without; the
+  headline's rows and order; every list by tier; the two SARIF steps skipped exactly for
+  test-only; and the leg's last step run under bash for a production and a test-only leg.
 **2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
 OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,
 alpha.4's deploy shell read, and the drain read bounded to a day.** On the branch

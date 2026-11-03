@@ -64,6 +64,8 @@
  *           are inside Ownpace's images and are not scanned twice, except the
  *           API's Node line as the tasks' base, which is an image of its own.
  *           www.yml's nginx is, because the site runs it as it is.
+ *           Each carries its `tier` (`IMAGE_TIERS`, below), and a name with
+ *           none fails the list.
  *   report  reads the report each scan wrote, one per image. A missing or
  *           unreadable report is an error and fails the run: a scan that did
  *           not happen must never read like a week without findings. An
@@ -76,10 +78,13 @@
  *           what it found and touches no issue.
  *           Findings fail nothing: a CVE published upstream on a Sunday
  *           cannot turn main red. They go to code scanning as SARIF, one
- *           category per image. The log and the job summary name the
- *           critical ones one by one, and since 2026-11-03 every critical and
- *           high one by package where it sits: with a fix, the version that
- *           clears them; without one, a count (`inventoryLines`).
+ *           category per image, except a test-only image's (the tiers,
+ *           below). The log and the job summary lead with the totals of each
+ *           tier, production first; then they name the critical ones one by
+ *           one, and since 2026-11-03 every critical and high one by package
+ *           where it sits: with a fix, the version that clears them; without
+ *           one, a count (`inventoryLines`). Each list goes by tier, then in
+ *           its own order.
  *   containerfile <base>
  *           the tasks' image as `trigger.dev deploy` builds it, up to the
  *           task code: the `base` stage of the Containerfile the CLI writes,
@@ -113,6 +118,18 @@
  * owner deletes it on the code scanning tool status page (the Security tab,
  * Code scanning, Tool status). Its issue, if it had one, the report job
  * closes itself.
+ *
+ * EVERY IMAGE HAS A TIER, AND THE REPORT LEADS WITH PRODUCTION (the owner,
+ * 2026-11-03, workplan 0119). The report weighed the demo's Nextcloud like
+ * live's sign-in: five of the seven criticals of 2026-11-02 were in images
+ * live never runs, Nextcloud's four and Stalwart's one, and code scanning
+ * listed them beside live's. So each listed image carries one of `TIERS`, from
+ * `IMAGE_TIERS` by its name, and the summary opens with each tier's totals,
+ * production-public first and test-only last, said to be not in production.
+ * A test-only image is still scanned and reported, its end of life included,
+ * but security-scan.yml uploads no SARIF for it: its category stops, as above
+ * for a name that changes, and the alerts it left open (`trivy-image-nextcloud`,
+ * `-stalwart`, `-mailpit`) the owner dismissed as used in tests on 2026-11-03.
  *
  * THE TASKS' IMAGE KEEPS THE NAME IT HAD, `trigger-task-base`, which now
  * names the `base` stage it is: the stage of the CLI's Containerfile that
@@ -205,6 +222,117 @@ export const ISSUE_PREFIX = "An image's operating system is past its end of life
  * have opened it again under a new number).
  */
 export const ISSUES_REF = 'refs/heads/main';
+
+/**
+ * WHERE EACH IMAGE RUNS, AND SO WHAT ITS FINDINGS WEIGH (the owner, 2026-11-03,
+ * workplan 0119). Every listed image has one tier, and the order here is the
+ * report's: production first, test-only last.
+ *
+ *   production-public    the internet reaches it on live, through the mesh
+ *                        provider's ingress to a routed port (managed.env.example,
+ *                        "THE ROUTED PORTS NEED THEIRS"), or behind one that is;
+ *   production-internal  live runs it, on the stack's own network or on a port
+ *                        published on loopback or the mesh only;
+ *   shipped              what self-hosters run: the appliance's images;
+ *   test-only            development, the demo and CI only, never live. Its
+ *                        findings are in the report and go to no code scanning
+ *                        category (security-scan.yml skips its SARIF): the
+ *                        owner's decision of 2026-11-03.
+ */
+export const TIERS = ['production-public', 'production-internal', 'shipped', 'test-only'];
+
+/** What each tier means, as the report's headline says it. */
+export const TIER_MEANS = {
+  'production-public': 'what the internet reaches on live',
+  'production-internal': 'live runs it, and nothing beyond its machine and the mesh reaches it',
+  shipped: 'what self-hosters run: the appliance',
+  'test-only': '**not in production**: development, the demo and CI only, and not sent to code scanning',
+};
+
+/**
+ * EVERY IMAGE'S TIER, BY THE NAME THE LIST GIVES IT. A name with no tier here
+ * fails the list, so a new image is placed before its first scan; a second
+ * reference in one stack (`postgres-managed-dev`, the file's name added) takes
+ * its first's. Where each runs, as read on 2026-11-03:
+ */
+export const IMAGE_TIERS = {
+  // The site, www.ownpace.eu: www.yml, the name routed to WWW_PORT on WWW_BIND
+  // (www.yml's header); live's copy is deploy-live.sh's.
+  nginx: 'production-public',
+  // Sign-in, id.ownpace.eu: routed to live's ZITADEL_PORT on ZITADEL_BIND
+  // (managed-bring-up.md, the routes before the bring-up; stand-up-live.sh's
+  // LIVE_IDP).
+  zitadel: 'production-public',
+  // The status page, status.ownpace.eu: routed to live's STATUS_PORT on
+  // STATUS_BIND, the same three routes (stand-up-live.sh's LIVE_STATUS,
+  // docs/status-page.md).
+  gatus: 'production-public',
+  // The app, app.ownpace.eu, routed to WEB_PORT on WEB_BIND; its nginx proxies
+  // /api/ to the API (apps/web/nginx.conf.template), whose own API_BIND stays
+  // empty. Live builds the release tag it deploys; `:edge` is what main
+  // publishes, what the OTA stack builds every night, and the next release.
+  'ownpace-web-edge': 'production-public',
+  'ownpace-web-release': 'production-public',
+  'ownpace-api-edge': 'production-public',
+  'ownpace-api-release': 'production-public',
+  // managed.yml's services that bootstrap-managed.sh's phase_app starts by name
+  // on live, published on loopback or not at all: the ledger's and Trigger.dev's
+  // databases (POSTGRES_BIND empty), the pooler, Trigger.dev's plane, its
+  // object store and its registry (127.0.0.1 only).
+  'postgres-managed': 'production-internal',
+  pgbouncer: 'production-internal',
+  redis: 'production-internal',
+  'trigger.dev': 'production-internal',
+  'clickhouse-server': 'production-internal',
+  registry: 'production-internal',
+  'docker-socket-proxy': 'production-internal',
+  supervisor: 'production-internal',
+  minio: 'production-internal',
+  // The Trigger.dev dashboard's TLS front (trigger-tls), not a public one: a
+  // certificate no public CA signs (`tls internal`), on loopback, or on the mesh
+  // address TRIGGER_TLS_BIND names; live's is opened on localhost or through a
+  // tunnel (stand-up-live.sh).
+  caddy: 'production-internal',
+  // The identity provider's one-shot chown, which the bring-up runs with
+  // `compose run` (managed.yml's zitadel-machinekey, profile `init`).
+  busybox: 'production-internal',
+  // site-visits.sh, the daily duty that counts the visits to live's site
+  // (box-duties.sh): no network, no port.
+  goaccess: 'production-internal',
+  // The image live's task runs run in, built by each deploy of the tasks.
+  'trigger-task-base': 'production-internal',
+  // The appliance: its image and its Postgres (deploy/selfhost/compose.yml).
+  'postgres-selfhost': 'shipped',
+  'ownpace-selfhost-edge': 'shipped',
+  'ownpace-selfhost-release': 'shipped',
+  // Never live (the owner, 2026-11-03). Mailpit catches the OTA stack's and the
+  // demo's mail; live sends through a relay, and stand-up-live.sh refuses
+  // SMTP_HOST=mailpit. Nextcloud is the demo's DAV backend and a test fixture;
+  // phase_app starts it only with --with-demo, which live's scripts refuse.
+  // Stalwart is a CI test fixture and the demo's mail backend (ADR-0022),
+  // brought up by setup-stalwart.sh, never by live.
+  mailpit: 'test-only',
+  nextcloud: 'test-only',
+  stalwart: 'test-only',
+};
+
+/** The tier of an image the list names `name`: IMAGE_TIERS's, or an error that says what to do. */
+export function tierOf(name) {
+  const tier = Object.hasOwn(IMAGE_TIERS, name) ? IMAGE_TIERS[name] : undefined;
+  if (!TIERS.includes(tier)) {
+    throw new Error(
+      `${name} has no tier in image-scan.mjs's IMAGE_TIERS: say where it runs (${TIERS.join(', ')}) before it is scanned, since the report leads with production and a test-only image goes to no code scanning category`,
+    );
+  }
+  return tier;
+}
+
+/** Where an image's tier puts it in the report: 0 for production-public. An image without a valid tier is an error. */
+function tierRank(image) {
+  const rank = TIERS.indexOf(image?.tier);
+  if (rank < 0) throw new Error(`${image?.name ?? 'an image'} carries no tier the report knows (${TIERS.join(', ')})`);
+  return rank;
+}
 
 /** What the report reads for a summary: the two severities the scan asks for. */
 const SEVERITIES = ['CRITICAL', 'HIGH'];
@@ -316,9 +444,11 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     const base = stacks.get(short(image)).size > 1 ? `${short(image)}-${image.stack}` : short(image);
     const name = taken.has(base) ? `${base}-${basename(image.where[0]).replace(/\.(ya?ml|sh)$/, '')}` : base;
     taken.add(base);
+    // The tier is the short name's: a second reference in one stack is the same image.
+    const tier = tierOf(base);
     // A built image's pins are its Dockerfile's, so its tag does not float.
-    if (image.context) return { name, ref: image.ref, where: image.where.join(', '), floating: false, context: image.context };
-    return { name, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
+    if (image.context) return { name, tier, ref: image.ref, where: image.where.join(', '), floating: false, context: image.context };
+    return { name, tier, ref: image.ref, where: image.where.join(', '), floating: isFloating(image) };
   });
 
   // The tasks' image, scanned as a deploy builds it: the leg builds its `base`
@@ -343,13 +473,15 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     base = await cliBaseImage(net, cli, runtime);
     where = `trigger.dev ${cli}'s BASE_IMAGE['${runtime}'], with the layers ${TASK_CONFIG} adds at a deploy`;
   }
-  entries.push({ name: TASK_IMAGE, ref: base, where, floating: false, build: taskBuildTag(base) });
+  entries.push({ name: TASK_IMAGE, tier: tierOf(TASK_IMAGE), ref: base, where, floating: false, build: taskBuildTag(base) });
 
   // Ownpace's own: what main publishes, and the newest release.
   const release = newestReleaseTag(await net.lsRemote(upstream));
   for (const image of OWNPACE_IMAGES) {
-    entries.push({ name: `ownpace-${image}-edge`, ref: `${ownpace}${image}:edge`, where: 'main (images.yml)', floating: true });
-    entries.push({ name: `ownpace-${image}-release`, ref: `${ownpace}${image}:${release}`, where: `v${release}, the newest release tag (images.yml)`, floating: false });
+    const edge = `ownpace-${image}-edge`;
+    const tagged = `ownpace-${image}-release`;
+    entries.push({ name: edge, tier: tierOf(edge), ref: `${ownpace}${image}:edge`, where: 'main (images.yml)', floating: true });
+    entries.push({ name: tagged, tier: tierOf(tagged), ref: `${ownpace}${image}:${release}`, where: `v${release}, the newest release tag (images.yml)`, floating: false });
   }
 
   // Two images of one name would share a category, and each upload would
@@ -667,27 +799,36 @@ function bounded(packages, line, kind, image) {
   ];
 }
 
+/** An image's tier as a heading or a row names it: test-only says it is not in production. */
+const tierNote = (tier) => (tier === 'test-only' ? 'test-only, not in production' : tier);
+
 /**
  * The fixable inventory, image by image (2026-11-03): every critical and high
  * finding with a fix, by package where it sits, and those without one counted
  * by package. Code scanning shows each binary package of one source as an
  * alert of its own, and only to those with write access; the run's log and
- * summary are read by anyone who reads the run.
+ * summary are read by anyone who reads the run. Production first: by tier,
+ * then the images with most to fix.
  */
 export function inventoryLines(read) {
   const count = (packages) => packages.reduce((n, p) => n + p.ids.length, 0);
   const images = read
     .filter(({ report }) => report.withFix.length + report.withoutFix.length > 0)
-    .sort((a, b) => count(b.report.withFix) - count(a.report.withFix) || count(b.report.withoutFix) - count(a.report.withoutFix));
+    .sort(
+      (a, b) =>
+        tierRank(a.image) - tierRank(b.image) ||
+        count(b.report.withFix) - count(a.report.withFix) ||
+        count(b.report.withoutFix) - count(a.report.withoutFix),
+    );
   if (images.length === 0) return [];
   const lines = [
     '',
     '### What a newer package fixes, image by image',
     '',
-    `Each critical and high finding, by package where it sits: the version installed, the one that clears them all (the highest fix they need, on the installed version's line where Trivy names one fix per line, as \`1.24.13, 1.25.7\`), the worst severity, and the ids; then those no package fixes yet, counted by package. A CVE in a source package built into several binary packages is a line per package, as code scanning makes it an alert per package. The images with most to fix come first, and at most ${INVENTORY_LINES} lines of each list are shown per image, the rest counted.`,
+    `Each critical and high finding, by package where it sits: the version installed, the one that clears them all (the highest fix they need, on the installed version's line where Trivy names one fix per line, as \`1.24.13, 1.25.7\`), the worst severity, and the ids; then those no package fixes yet, counted by package. A CVE in a source package built into several binary packages is a line per package, as code scanning makes it an alert per package. The images come by tier, production first and test-only last, and within a tier those with most to fix first; at most ${INVENTORY_LINES} lines of each list are shown per image, the rest counted.`,
   ];
   for (const { image, report } of images) {
-    lines.push('', `#### \`${image.name}\``);
+    lines.push('', `#### \`${image.name}\` (${tierNote(image.tier)})`);
     if (report.withFix.length > 0) {
       const ids = new Set(report.withFix.flatMap((p) => p.ids)).size;
       lines.push(
@@ -742,16 +883,50 @@ export function eoslIssue(image, report) {
 const shortRef = (ref) => ref.replace(/@sha256:([0-9a-f]{12})[0-9a-f]+/, '@sha256:$1…');
 
 /**
+ * The headline (the owner, 2026-11-03): the critical, high and fixable findings
+ * of each tier, production first and test-only last, so what live runs is read
+ * before what only a test runs. A tier no image is in has no row. A tier with
+ * an image whose report is missing says so in its count, since its totals are
+ * then of fewer images than it has.
+ */
+function tierLines(images, read) {
+  const rows = [];
+  for (const tier of TIERS) {
+    const listed = images.filter((image) => image.tier === tier).length;
+    if (listed === 0) continue;
+    const reports = read.filter(({ image }) => image.tier === tier).map(({ report }) => report);
+    const sum = (field) => reports.reduce((n, report) => n + report[field], 0);
+    const count = reports.length === listed ? `${listed}` : `${reports.length} of ${listed}, ${listed - reports.length} without a report`;
+    rows.push(`| \`${tier}\`: ${TIER_MEANS[tier]} | ${count} | ${sum('critical')} | ${sum('high')} | ${sum('fixable')} |`);
+  }
+  return [
+    '### By tier, production first',
+    '',
+    '| tier | images | critical | high | a newer package fixes |',
+    '|---|---|---|---|---|',
+    ...rows,
+  ];
+}
+
+/**
  * Every listed image against the report its scan left in `dir`, as
  * `trivy-image-<name>.json`. Returns the summary's lines, the annotations, and
- * which images had no report it could read.
+ * which images had no report it could read. The summary leads with the totals
+ * by tier, and every list in it goes by tier, production first, then in the
+ * list's own order. An image without a tier is an error.
  */
 export function summarize(images, readFile) {
   const rows = [];
   const annotations = [];
   const missing = [];
   const read = [];
-  for (const image of images) {
+  // Every image's tier read first, so one alone is checked too; the sort is
+  // stable, so within a tier the list's own order holds.
+  const ordered = images
+    .map((image) => ({ rank: tierRank(image), image }))
+    .sort((a, b) => a.rank - b.rank)
+    .map(({ image }) => image);
+  for (const image of ordered) {
     let report;
     try {
       const text = readFile(`trivy-image-${image.name}.json`);
@@ -761,7 +936,7 @@ export function summarize(images, readFile) {
       const why = error instanceof Error ? error.message : String(error);
       missing.push({ image, why });
       annotations.push(`::error::${image.name}: ${why}, for ${shortRef(image.ref)}. A scan that did not happen is not a scan without findings.`);
-      rows.push(`| \`${image.name}\` | \`${shortRef(image.ref)}\` | **no report**: ${why} | | | | |`);
+      rows.push(`| \`${image.name}\` | ${tierNote(image.tier)} | \`${shortRef(image.ref)}\` | **no report**: ${why} | | | | |`);
       continue;
     }
     read.push({ image, report });
@@ -769,17 +944,21 @@ export function summarize(images, readFile) {
       annotations.push(`::warning::${image.name}: ${shortRef(image.ref)} runs ${report.os}, past its end of life (Trivy: EOSL). An issue is kept open for it.`);
     }
     rows.push(
-      `| \`${image.name}\` | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''}${image.build ? ' (built on)' : ''}${image.context ? ` (built from \`${image.context}\`)` : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
+      `| \`${image.name}\` | ${tierNote(image.tier)} | \`${shortRef(image.ref)}\`${image.floating ? ' (floats)' : ''}${image.build ? ' (built on)' : ''}${image.context ? ` (built from \`${image.context}\`)` : ''} | ${report.os ?? 'not detected'} | ${report.eosl ? '**past its end of life**' : 'supported'} | ${report.critical} | ${report.high} | ${report.fixable} |`,
     );
   }
   const eosl = read.filter((r) => r.report.eosl).length;
   const lines = [
     '## Images the stacks run',
     '',
-    `${images.length} listed, ${read.length} scanned, ${eosl} past their end of life, ${missing.length} without a report. Findings go to code scanning, one category per image (\`trivy-image-<name>\`), and fail nothing; a missing report fails the run.`,
+    `${images.length} listed, ${read.length} scanned, ${eosl} past their end of life, ${missing.length} without a report. Findings fail nothing; a missing report fails the run. They go to code scanning, one category per image (\`trivy-image-<name>\`), except a test-only image's, which are in this report alone.`,
     '',
-    '| image | reference | operating system | support | critical | high | a newer package fixes |',
-    '|---|---|---|---|---|---|---|',
+    ...tierLines(ordered, read),
+    '',
+    '### Image by image',
+    '',
+    '| image | tier | reference | operating system | support | critical | high | a newer package fixes |',
+    '|---|---|---|---|---|---|---|---|',
     ...rows,
     '',
     'A floating tag is scanned as its registry serves it today, which need not be what the box pulled last. An image built here is scanned as its Dockerfile builds today, which need not be what the box built last. The platform scanned is the one the stacks run on, linux/arm64.',
@@ -841,6 +1020,10 @@ export function imagesFromEnv(text) {
   if (!Array.isArray(images) || images.length === 0 || !images.every((i) => i?.name && i?.ref)) {
     throw new Error('IMAGES lists no image, so nothing can be said to be scanned');
   }
+  const untiered = images.filter((i) => !TIERS.includes(i.tier)).map((i) => i.name);
+  if (untiered.length > 0) {
+    throw new Error(`IMAGES gives ${untiered.join(', ')} no tier the report knows (${TIERS.join(', ')}), so the report cannot say whether it runs in production`);
+  }
   return images;
 }
 
@@ -850,7 +1033,7 @@ async function main(argv, env) {
   if (command === 'list') {
     const upstream = env.GITHUB_SERVER_URL && env.GITHUB_REPOSITORY ? `${env.GITHUB_SERVER_URL}/${env.GITHUB_REPOSITORY}.git` : 'origin';
     const images = await imagesToScan(repoReader(root), realNet(root), { upstream });
-    for (const image of images) console.error(`${image.name.padEnd(28)} ${shortRef(image.ref)}  (${image.where})`);
+    for (const image of images) console.error(`${image.name.padEnd(28)} ${image.tier.padEnd(20)} ${shortRef(image.ref)}  (${image.where})`);
     console.log(`images=${JSON.stringify(images)}`);
     return 0;
   }
