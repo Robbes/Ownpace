@@ -381,6 +381,26 @@ export function taskBuildTag(base) {
 }
 
 /**
+ * THE RUN THE CLI WRITES AFTER THE LAYERS (`aptRepair` in its
+ * `dist/esm/deploy/buildImage.js`, read at trigger.dev 4.8.3), in the base
+ * stage, whenever they add an instruction and no package: apt's lists fetched
+ * again, and `--fix-broken install`, which repairs dpkg state an instruction
+ * left broken. With nothing broken it installs nothing, so the Essential
+ * packages the layer purges stay purged (apt 3.0.3, `DoInstall`: an install
+ * runs the problem resolver alone, and only a dist-upgrade adds a missing
+ * Essential package). Written as the CLI writes it, a blank line after the
+ * layers' last instruction, so the stage scanned is the one a deploy builds;
+ * `scripts/an-essential-nothing-runs.unit.test.ts` holds it to the installed
+ * CLI's text.
+ */
+export const CLI_APT_REPAIR = [
+  'RUN apt-get update && \\',
+  '  apt-get --fix-broken install -y --no-install-recommends && \\',
+  '  apt-get clean && \\',
+  '  rm -rf /var/lib/apt/lists/*',
+].join('\n');
+
+/**
  * THE TASKS' IMAGE AS `trigger.dev deploy` BUILDS IT, up to the task code
  * (workplan 0146 T10): the `base` stage of the Containerfile the CLI writes
  * (`generateNodeContainerfile` in its `deploy/buildImage.js`, read at 4.7.6),
@@ -393,14 +413,16 @@ export function taskBuildTag(base) {
  * the config itself, so whatever the config adds is what gets scanned, and no
  * instruction or version is written here a second time.
  *
- * Two of the CLI's steps after the layers are left out because they install
- * nothing a scan reads: an `apt-get --fix-broken install` that repairs dpkg
- * state an instruction left broken, and the edits to the CA trust store. A
- * layer's `image.pkgs` is refused rather than left out, since the CLI installs
- * those with apt in this stage: the scan would read less than the deploy
- * builds. The CLI logs a throw in `onBuildComplete` and deploys without that
- * layer; here any throw stops the scan, so a base read without its layers can
- * never pass for the image a deploy built.
+ * After the layers the CLI writes its own repair, `CLI_APT_REPAIR`, whenever
+ * they add an instruction and ask it to install no package, and so does this
+ * (since 2026-11-03): the layer purges Debian Essential packages (workplan
+ * 0119), and a repair that put one back must be read here, not missed. The
+ * edits the CLI makes to the CA trust store on its own base are left out: they
+ * install nothing a scan reads. A layer's `image.pkgs` is refused rather than
+ * left out, since the CLI installs those with apt in this stage: the scan would
+ * read less than the deploy builds. The CLI logs a throw in `onBuildComplete`
+ * and deploys without that layer; here any throw stops the scan, so a base read
+ * without its layers can never pass for the image a deploy built.
  */
 export async function taskBaseStage(config, { base, workingDir }) {
   if (typeof base !== 'string' || !IMAGE_REF.test(base)) {
@@ -432,6 +454,7 @@ export async function taskBaseStage(config, { base, workingDir }) {
     'ENV DEBIAN_FRONTEND=noninteractive',
     '',
     ...instructions,
+    ...(instructions.join('\n') ? ['', CLI_APT_REPAIR] : []),
     '',
   ].join('\n');
 }

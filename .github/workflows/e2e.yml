@@ -495,6 +495,27 @@ jobs:
           # above.
           docker compose $SELFHOST_COMPOSE_FILES ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}'
 
+      # THE APPLIANCE CARRIES NO UTIL-LINUX (workplan 0119; the owner's decision
+      # of 2026-11-03). apps/selfhost/Dockerfile's runtime stage purges it, the
+      # eight other packages built from its source and libsqlite3-0, and the
+      # build stops when dpkg refuses. Asked here of the container this run built
+      # and started, with dpkg's own query and no shell, so an appliance that
+      # kept them, or got them back, stops the gate by name.
+      # scripts/an-essential-nothing-runs.unit.test.ts runs this step.
+      - name: The appliance carries no util-linux
+        run: |
+          said="$(docker compose $SELFHOST_COMPOSE_FILES exec -T app dpkg-query -W -f '${Status}' util-linux 2>&1)" && rc=0 || rc=$?
+          case "$rc:$said" in
+            "1:dpkg-query: no packages found matching util-linux" | "0:"*" not-installed")
+              echo "the appliance carries no util-linux" ;;
+            "0:"*)
+              echo "::error::util-linux is in the appliance's dpkg database as '${said}', and apps/selfhost/Dockerfile purges it"
+              exit 1 ;;
+            *)
+              echo "::error::dpkg-query could not be asked in the appliance (exit ${rc}): ${said}"
+              exit 1 ;;
+          esac
+
       - name: Green-light the mapping (0013 T7 — mappings load paused until confirmed)
         run: |
           # Since workplan 0013 T7 the appliance loads every mapping PAUSED and only schedules

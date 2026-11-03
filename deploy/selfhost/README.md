@@ -36,7 +36,7 @@ The full NAS/Pi/WSL2 walkthrough, backup (different on PGlite — no
 | `selfhost.env.example` | Env template — copy to `.env`, `chmod 600`. |
 | `config/*.json` | Your mapping configs (each is scheduled). `*.example` is ignored. |
 | `setup-stalwart.sh` / `setup-nextcloud-users.sh` | Test/e2e target provisioning (Stalwart's two-phase bring-up can't be one compose service). |
-| `../../apps/selfhost/Dockerfile` | The app image — runs the bundled appliance payload (`node start.mjs`, no `tsx`), the same directory the Windows appliance ships. |
+| `../../apps/selfhost/Dockerfile` | The app image — runs the bundled appliance payload (`node start.mjs`, no `tsx`), the same directory the Windows appliance ships. On Node's Debian image without what nothing in it runs: no package manager, and since 2026-11-03 no util-linux (su, login, mount, getopt and their libraries) and no libsqlite3 (workplan 0119). `docker compose exec app sh` still opens a shell. |
 
 ## Image channels (§22.1)
 

@@ -713,9 +713,13 @@ describe("the tasks' image, built as a deploy builds it (workplan 0146 T10)", ()
     expect(from, 'no FROM line naming the base image as the stage `base`').toBeGreaterThan(0);
     expect(lines.filter((l) => l.startsWith('FROM ')), 'one stage, the base one').toHaveLength(1);
     // After it, the stage is the CLI's ENV and the layers' instructions, whole
-    // and in order (an instruction may span lines with a `\\` continuation).
+    // and in order (an instruction may span lines with a `\\` continuation),
+    // then the CLI's own apt repair, which it writes after layers that add an
+    // instruction and no package (since 2026-11-03; an-essential-nothing-runs
+    // holds its text to the installed CLI's).
+    const { CLI_APT_REPAIR } = await import('./image-scan.mjs');
     const body = lines.slice(from + 1).join('\n');
-    expect(body).toBe(['', 'ENV DEBIAN_FRONTEND=noninteractive', '', ...instructions, ''].join('\n'));
+    expect(body).toBe(['', 'ENV DEBIAN_FRONTEND=noninteractive', '', ...instructions, '', CLI_APT_REPAIR, ''].join('\n'));
     // On the API image's own base, its own Node: nothing copies a Node binary over it.
     expect(base).toBe(/^FROM\s+(node:\S+)/m.exec(REAL.read('apps/api/Dockerfile')!)![1]!);
     expect(stage).not.toMatch(/COPY --from=\S+ \/usr\/local\/bin\/node /);
@@ -733,8 +737,15 @@ describe("the tasks' image, built as a deploy builds it (workplan 0146 T10)", ()
       'start first deploy', 'start second deploy', 'start third deploy',
       'complete first deploy', 'complete second deploy', 'complete third deploy',
     ]);
-    expect(stage.split('\n').filter((l) => /^(RUN|COPY) /.test(l))).toEqual(['RUN echo one', 'RUN echo two', 'COPY --from=example:1 /x /x']);
-    // No extension at all: the stage is the base image, said plainly.
+    // Then the CLI's apt repair, which follows layers that add an instruction.
+    expect(stage.split('\n').filter((l) => /^(RUN|COPY) /.test(l))).toEqual([
+      'RUN echo one',
+      'RUN echo two',
+      'COPY --from=example:1 /x /x',
+      'RUN apt-get update && \\',
+    ]);
+    // No extension at all: the stage is the base image, said plainly, and the
+    // CLI writes no repair after no instruction.
     const bare = await taskBaseStage({}, { base: TASK_BASE, workingDir: WORKER_DIR });
     expect(bare.split('\n').filter((l) => /^[A-Z]+ /.test(l))).toEqual([`FROM ${TASK_BASE} AS base`, 'ENV DEBIAN_FRONTEND=noninteractive']);
   });

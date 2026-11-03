@@ -1142,6 +1142,9 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
     for c in $(docker ps --filter "network=${COMPOSE_PROJECT}_ownpace-network" --format '{{.Names}}' 2>/dev/null | grep '^runner-' || true); do
       if [ ! -f "$RUNNER_LOG_DIR/$c.log" ]; then
         touch "$RUNNER_LOG_DIR/$c.log"
+        # The image it started from, by ID, read while it exists: AutoRemove
+        # takes the container, never the image (the tasks' image, below).
+        docker container inspect --format '{{.Image}}' "$c" >"$RUNNER_LOG_DIR/$c.image" 2>/dev/null || rm -f "$RUNNER_LOG_DIR/$c.image"
         docker logs -f "$c" >"$RUNNER_LOG_DIR/$c.log" 2>&1 &
       fi
     done
@@ -2953,6 +2956,48 @@ if [ "$found_logs" != "1" ]; then
   echo "NO runner containers appeared during this smoke."
   fail_at
 fi
+
+# ---------- the tasks' image carries no util-linux ----------
+#
+# WHAT THE RUNNERS RAN, ASKED OF ITSELF (workplan 0119; the owner's decision of
+# 2026-11-03). apps/worker/trigger.config.ts's layer purges util-linux, the
+# eight other packages built from its source and libsqlite3-0 from the tasks'
+# runtime base, and the Trigger.dev CLI runs an apt repair of its own after
+# the layer, which a later CLI could change. The weekly scan builds that stage
+# on GitHub's runner; this asks the image every runner of this run started
+# from, on this machine, by the ID the watcher above read while the runner
+# existed, with dpkg's own query: no shell, no network, and never a pull. A
+# deploy that put util-linux back, or a runtime base the purge skipped (it
+# runs where there is no C++ compiler), goes red here by name. When the tasks
+# leave Debian for distroless (0119 §3, item 11), there is no dpkg-query to ask
+# and this goes red until it asks another way.
+# scripts/an-essential-nothing-runs.unit.test.ts runs this block.
+note "the tasks' image carries no util-linux (0119)"
+task_images=""
+for f in "$RUNNER_LOG_DIR"/*.image; do
+  [ -s "$f" ] || continue
+  id="$(<"$f")"
+  case " $task_images " in *" $id "*) ;; *) task_images="${task_images:+$task_images }$id" ;; esac
+done
+if [ -z "$task_images" ]; then
+  echo "no runner's image was read while it ran, so what the deployed tasks' image carries cannot be told"
+  fail_at "the tasks' image was not read"
+fi
+for image in $task_images; do
+  short="${image#sha256:}"
+  short="image ${short:0:12}"
+  said="$(docker run --rm --pull never --network none --entrypoint dpkg-query "$image" -W -f '${Status}' util-linux 2>&1)" && rc=0 || rc=$?
+  case "$rc:$said" in
+    "1:dpkg-query: no packages found matching util-linux" | "0:"*" not-installed")
+      echo "${short}: no util-linux" ;;
+    "0:"*)
+      echo "${short}: util-linux is in its dpkg database as '${said}', and trigger.config.ts's layer purges it"
+      fail_at "util-linux in the tasks' image" ;;
+    *)
+      echo "${short}: dpkg-query could not be asked (exit ${rc}): ${said}"
+      fail_at "the tasks' image could not be asked" ;;
+  esac
+done
 
 # ---------- the identity provider, and the three answers to an invitation ----------
 #

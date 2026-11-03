@@ -86,6 +86,34 @@ RUN rm -rf /usr/local/lib/node_modules \
     /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
     /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
     /opt/yarn-v*
+# NO DEBIAN ESSENTIALS THAT NOTHING RUNS (workplan 0119; the owner's decision
+# of 2026-11-03, for alpha.4). util-linux, the eight other packages built from
+# its source (mount, login, bsdutils, libblkid1, libmount1, libsmartcols1,
+# libuuid1, liblastlog2-2) and libsqlite3-0 are purged. With npm gone, Trivy
+# 0.76.1 read 0 critical and 44 high in this base on 2026-11-03, none with a
+# Debian fix, and 37 of the 44 were in these ten: four util-linux CVEs in each
+# of the nine, and one in SQLite. Nothing here runs them. CMD and both
+# healthchecks start `node`, which links none of their libraries; a shell, where
+# one is used, is dash, and `ls` and the like are coreutils, which stay; the
+# payload has no native module (PGlite is WebAssembly, `pg` plain JavaScript);
+# and nothing execs su, login, mount, getopt or any other of their programs
+# into this container.
+#
+# Debian marks them Essential, and `login` protected as well, so dpkg removes
+# them only with the two `--force-remove-*` flags below, and with nothing more:
+# without `--force-depends` it refuses to remove a package that something
+# installed still depends on, so a base that grows such a dependency stops this
+# build rather than ship that package broken. `dpkg-query -W` first stops it
+# when the base no longer has one of the ten (a renamed package is a list to
+# read again, not a name to skip), and `apt-get check` last when what is left
+# is not a state apt accepts. Debian does not test a system without its
+# Essential packages; this one runs `node`. The tasks' runtime base purges the
+# same ten (apps/worker/trigger.config.ts), and
+# scripts/an-essential-nothing-runs.unit.test.ts holds the two to one list.
+RUN dpkg-query -W util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0 >/dev/null \
+  && dpkg --purge --force-remove-essential --force-remove-protected \
+    util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0 \
+  && apt-get check
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown

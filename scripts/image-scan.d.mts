@@ -102,4 +102,6 @@ export interface TaskConfig {
 }
 /** The local tag the tasks' leg builds under: the base's repository, so its alerts keep their SARIF location. */
 export declare function taskBuildTag(base: string): string;
+/** The RUN the Trigger.dev CLI writes after the layers' instructions (its `aptRepair`), as it writes it (2026-11-03). */
+export declare const CLI_APT_REPAIR: string;
 export declare function taskBaseStage(config: TaskConfig, options: { base: string; workingDir: string }): Promise<string>;
