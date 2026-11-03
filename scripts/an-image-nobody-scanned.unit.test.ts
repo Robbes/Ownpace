@@ -103,6 +103,7 @@ import {
   API_DOCKERFILE,
   BUILT_HERE,
   ISSUE_PREFIX,
+  INVENTORY_LINES,
   ISSUES_REF,
   OWNPACE_IMAGES,
   SCRIPT_DIRS,
@@ -110,11 +111,13 @@ import {
   SCAN_FILES,
   TASK_CONFIG,
   TASK_IMAGE,
+  compareVersions,
   eoslIssue,
   imagesFromEnv,
   imagesToScan,
   isFloating,
   keepIssues,
+  neededFix,
   newestReleaseTag,
   readReport,
   stackOf,
@@ -789,6 +792,11 @@ describe('what a report says', () => {
       high: 2,
       fixable: 2,
       criticals: [{ id: 'CVE-0-0', pkg: 'zlib1g', installed: '1.1', fixed: '1.2', where: 'the OS packages' }],
+      withFix: [
+        { target: 'debian 12.11', pkg: 'zlib1g', installed: '1.1', severity: 'CRITICAL', ids: ['CVE-0-0'], fix: '1.2' },
+        { target: 'debian 12.11', pkg: 'an unnamed package', installed: '', severity: 'HIGH', ids: ['CVE-0-2'], fix: '3.4' },
+      ],
+      withoutFix: [{ target: 'debian 12.11', pkg: 'an unnamed package', installed: '', severity: 'HIGH', ids: ['CVE-0-1'] }],
     });
   });
 
@@ -819,13 +827,15 @@ describe('what a report says', () => {
       ],
     });
     const summary = summarize(IMAGES, reports({ 'trivy-image-redis.json': mixed, 'trivy-image-minio.json': trivyJson(null), 'trivy-image-caddy.json': trivyJson(null) }));
-    const text = summary.lines.join('\n');
-    expect(summary.lines.filter((l) => l.startsWith('- `'))).toEqual([
+    // The section ends where the inventory by package starts (2026-11-03).
+    const section = summary.lines.slice(0, summary.lines.indexOf('### What a newer package fixes, image by image'));
+    const text = section.join('\n');
+    expect(section.filter((l) => l.startsWith('- `'))).toEqual([
       '- `redis`: CVE-2023-45853 in `zlib` 1.3.1-r2, **no fix yet** (the OS packages)',
       '- `redis`: CVE-2025-68121 in `stdlib` v1.24.6, fixed in 1.24.13, 1.25.7 (usr/local/bin/gosu)',
     ]);
     expect(text).toContain('### The critical findings, one by one');
-    // A high is counted in the table and never listed.
+    // A high is counted in the table and never listed one by one.
     expect(text).not.toContain('CVE-2026-1');
     // No critical anywhere: no section, not an empty one.
     const none = summarize(IMAGES, reports(Object.fromEntries(IMAGES.map((i) => [`trivy-image-${i.name}.json`, trivyJson(null)]))));
@@ -941,6 +951,243 @@ describe('the report job', () => {
     expect(imagesFromEnv(JSON.stringify(IMAGES))).toEqual(IMAGES);
     expect(() => imagesFromEnv('[]')).toThrow(/no image/);
     expect(() => imagesFromEnv(undefined)).toThrow(/not the JSON/);
+  });
+});
+
+// ------------------------------------------- the fixable inventory -------
+
+type Finding = { VulnerabilityID: string; Severity: string; PkgName: string; InstalledVersion: string; FixedVersion?: string; PkgPath?: string; PrimaryURL?: string };
+const finding = (id: string, severity: string, pkg: string, installed: string, fixed: string | undefined, path?: string): Finding => ({
+  VulnerabilityID: id,
+  Severity: severity,
+  PkgName: pkg,
+  InstalledVersion: installed,
+  ...(fixed === undefined ? {} : { FixedVersion: fixed }),
+  ...(path ? { PkgPath: path } : {}),
+  // Where the report links each finding (an address, in a real one) never reaches the inventory.
+  PrimaryURL: `primary-url-of-${id}`,
+});
+const imageReport = (os: string, results: Array<{ Target: string; Class: string; Type: string; Vulnerabilities: Finding[] }>) =>
+  JSON.stringify({
+    SchemaVersion: 2,
+    ArtifactName: 'localhost/trigger.dev:v4.8.3-0123456789ab',
+    ArtifactType: 'container_image',
+    Metadata: { OS: { Family: os.split(' ')[0], Name: os.split(' ')[1] }, ImageID: 'sha256:0' },
+    Results: results,
+  });
+
+/**
+ * Every shape the inventory groups (2026-11-03): an operating system's
+ * packages, with one CVE of util-linux's source in three of its binary packages
+ * (three alerts in code scanning, three lines here); two Go binaries with one
+ * Go, whose fixes Trivy names one per line (`1.24.13, 1.25.7, 1.26.0-rc.3`);
+ * npm's own tar and the app's, each by its directory; a finding listed twice
+ * for one package; fixes that order by number and not by text (`deb12u10`
+ * after `deb12u9`, `6.2.10` after `6.2.9`); findings with no fix; and a medium,
+ * which the inventory leaves out.
+ */
+const INVENTORY_REPORT = imageReport('debian 12.15', [
+  {
+    Target: 'localhost/trigger.dev:v4.8.3-0123456789ab (debian 12.15)',
+    Class: 'os-pkgs',
+    Type: 'debian',
+    Vulnerabilities: [
+      finding('CVE-2025-14104', 'HIGH', 'libblkid1', '2.38.1-5+deb12u3', '2.38.1-5+deb12u9'),
+      finding('CVE-2025-14104', 'HIGH', 'libmount1', '2.38.1-5+deb12u3', '2.38.1-5+deb12u9'),
+      finding('CVE-2025-14104', 'HIGH', 'util-linux', '2.38.1-5+deb12u3', '2.38.1-5+deb12u9'),
+      finding('CVE-2026-20001', 'HIGH', 'libmount1', '2.38.1-5+deb12u3', '2.38.1-5+deb12u10'),
+      finding('CVE-2026-30002', 'HIGH', 'libssl3', '3.0.15-1~deb12u1', '3.0.16-1~deb12u1'),
+      finding('CVE-2026-30001', 'CRITICAL', 'libssl3', '3.0.15-1~deb12u1', '3.0.17-1~deb12u2'),
+      finding('CVE-2023-45853', 'CRITICAL', 'zlib1g', '1:1.2.13.dfsg-1', undefined),
+      finding('CVE-2026-40001', 'HIGH', 'libxml2', '2.9.14+dfsg-1.3~deb12u4', ''),
+      finding('CVE-2026-40002', 'HIGH', 'libxml2', '2.9.14+dfsg-1.3~deb12u4', undefined),
+      finding('CVE-2026-50001', 'MEDIUM', 'libc6', '2.36-9+deb12u10', '2.36-9+deb12u13'),
+    ],
+  },
+  {
+    Target: 'usr/local/bin/goose',
+    Class: 'lang-pkgs',
+    Type: 'gobinary',
+    Vulnerabilities: [
+      // On 1.24.6, both ask a 1.24: 1.24.13, not 1.25.7 nor the release candidate.
+      finding('CVE-2025-68121', 'CRITICAL', 'stdlib', 'v1.24.6', '1.24.13, 1.25.7, 1.26.0-rc.3'),
+      finding('CVE-2025-61729', 'HIGH', 'stdlib', 'v1.24.6', '1.24.11, 1.25.5'),
+      finding('GHSA-0000-0000-0001', 'HIGH', 'golang.org/x/net', 'v0.38.0', '0.45.0'),
+    ],
+  },
+  {
+    Target: 'usr/local/bin/gosu',
+    Class: 'lang-pkgs',
+    Type: 'gobinary',
+    Vulnerabilities: [
+      // One fixed on 1.25 only: 1.25.2 is still below the first one's 1.25.7.
+      finding('CVE-2025-68121', 'CRITICAL', 'stdlib', 'v1.24.6', '1.24.13, 1.25.7, 1.26.0-rc.3'),
+      finding('CVE-2026-25002', 'HIGH', 'stdlib', 'v1.24.6', '1.25.2'),
+    ],
+  },
+  {
+    Target: 'Node.js',
+    Class: 'lang-pkgs',
+    Type: 'node-pkg',
+    Vulnerabilities: [
+      finding('CVE-2026-60001', 'HIGH', 'tar', '6.2.0', '6.2.1, 7.5.2', 'usr/local/lib/node_modules/npm/node_modules/tar/package.json'),
+      finding('CVE-2026-60002', 'HIGH', 'tar', '6.2.0', '6.2.9', 'usr/local/lib/node_modules/npm/node_modules/tar/package.json'),
+      finding('CVE-2026-60003', 'HIGH', 'tar', '6.2.0', '6.2.10', 'usr/local/lib/node_modules/npm/node_modules/tar/package.json'),
+      finding('CVE-2026-60001', 'HIGH', 'tar', '7.4.3', '6.2.1, 7.5.2', 'app/node_modules/tar/package.json'),
+      finding('CVE-2026-60001', 'HIGH', 'tar', '7.4.3', '6.2.1, 7.5.2', 'app/node_modules/tar/package.json'),
+      finding('CVE-2026-60004', 'HIGH', 'tar', '7.4.3', undefined, 'app/node_modules/tar/package.json'),
+    ],
+  },
+]);
+
+/** The inventory's lines in a summary: from its heading on. */
+const inventoryOf = (lines: string[]) => lines.slice(lines.indexOf('### What a newer package fixes, image by image'));
+
+describe('what a newer package fixes, image by image (2026-11-03)', () => {
+  it('orders versions by number, with Go\'s v and a release candidate read as such', () => {
+    expect(compareVersions('1.24.9', '1.24.13')).toBeLessThan(0);
+    expect(compareVersions('v1.24.13', '1.24.13')).toBe(0);
+    expect(compareVersions('1.26.0-rc.3', '1.26.0')).toBeLessThan(0);
+    expect(compareVersions('2.38.1-5+deb12u10', '2.38.1-5+deb12u9')).toBeGreaterThan(0);
+    expect(compareVersions('3.0.15-1~deb12u1', '3.0.15-1')).toBeLessThan(0);
+    expect(compareVersions('1.37.0-r21', '1.37.0-r20')).toBeGreaterThan(0);
+  });
+
+  it('needs the highest fix a package\'s findings ask, read on the line of the version installed', () => {
+    // One fix each: the highest, by number.
+    expect(neededFix('6.2.0', ['6.2.9', '6.2.10'])).toBe('6.2.10');
+    // A fix per line: the installed line's, not the highest named.
+    expect(neededFix('v1.24.6', ['1.24.13, 1.25.7, 1.26.0-rc.3', '1.24.11, 1.25.5'])).toBe('1.24.13');
+    // A finding fixed on a later line only takes the package there, and on that
+    // line to the other's fix too: 1.25.2 is below 1.25.7.
+    expect(neededFix('v1.24.6', ['1.24.13, 1.25.7, 1.26.0-rc.3', '1.25.2'])).toBe('1.25.7');
+    // Installed on a later line, the earlier line's fix is no way out.
+    expect(neededFix('7.4.3', ['6.2.1, 7.5.2'])).toBe('7.5.2');
+    // A list's lines in order by number too: 1.9 before 1.10.
+    expect(neededFix('1.9.1', ['1.9.5, 1.10.2'])).toBe('1.9.5');
+    // Part of the Go in gosu as the scan of 2026-10-26 read it: one finding is
+    // fixed on 1.26 and 1.27 only, and 1.26.10 is above every 1.26 fix named.
+    expect(neededFix('v1.24.6', ['1.24.13, 1.25.7, 1.26.0-rc.3', '1.26.10, 1.27.3', '1.25.8, 1.26.1'])).toBe('1.26.10');
+  });
+
+  it('groups each image\'s critical and high findings by package where it sits, with the fix that clears them, and counts those without one', () => {
+    const report = readReport(INVENTORY_REPORT);
+    expect(report.withFix.map((p) => [p.pkg, p.target, p.fix, p.ids.length])).toEqual([
+      ['libssl3', 'debian 12.15', '3.0.17-1~deb12u2', 2],
+      ['stdlib', 'usr/local/bin/goose', '1.24.13', 2],
+      ['stdlib', 'usr/local/bin/gosu', '1.25.7', 2],
+      ['golang.org/x/net', 'usr/local/bin/goose', '0.45.0', 1],
+      ['libblkid1', 'debian 12.15', '2.38.1-5+deb12u9', 1],
+      ['libmount1', 'debian 12.15', '2.38.1-5+deb12u10', 2],
+      ['tar', 'app/node_modules/tar', '7.5.2', 1],
+      ['tar', 'usr/local/lib/node_modules/npm/node_modules/tar', '6.2.10', 3],
+      ['util-linux', 'debian 12.15', '2.38.1-5+deb12u9', 1],
+    ]);
+    const summary = summarize([IMAGES[1]!], reports({ 'trivy-image-minio.json': INVENTORY_REPORT }));
+    expect(inventoryOf(summary.lines)).toEqual([
+      '### What a newer package fixes, image by image',
+      '',
+      expect.stringContaining(`at most ${INVENTORY_LINES} lines of each list are shown per image, the rest counted`),
+      '',
+      '#### `minio`',
+      '',
+      'With a fix: 15 findings in 9 packages, 11 distinct ids.',
+      '',
+      '- `libssl3` 3.0.15-1~deb12u1 → 3.0.17-1~deb12u2, critical, 2 findings: CVE-2026-30001, CVE-2026-30002 (debian 12.15)',
+      '- `stdlib` v1.24.6 → 1.24.13, critical, 2 findings: CVE-2025-68121, CVE-2025-61729 (usr/local/bin/goose)',
+      '- `stdlib` v1.24.6 → 1.25.7, critical, 2 findings: CVE-2025-68121, CVE-2026-25002 (usr/local/bin/gosu)',
+      '- `golang.org/x/net` v0.38.0 → 0.45.0, high, 1 finding: GHSA-0000-0000-0001 (usr/local/bin/goose)',
+      '- `libblkid1` 2.38.1-5+deb12u3 → 2.38.1-5+deb12u9, high, 1 finding: CVE-2025-14104 (debian 12.15)',
+      '- `libmount1` 2.38.1-5+deb12u3 → 2.38.1-5+deb12u10, high, 2 findings: CVE-2025-14104, CVE-2026-20001 (debian 12.15)',
+      '- `tar` 7.4.3 → 7.5.2, high, 1 finding: CVE-2026-60001 (app/node_modules/tar)',
+      '- `tar` 6.2.0 → 6.2.10, high, 3 findings: CVE-2026-60001, CVE-2026-60002, CVE-2026-60003 (usr/local/lib/node_modules/npm/node_modules/tar)',
+      '- `util-linux` 2.38.1-5+deb12u3 → 2.38.1-5+deb12u9, high, 1 finding: CVE-2025-14104 (debian 12.15)',
+      '',
+      'No fix yet: 4 findings in 3 packages.',
+      '',
+      '- `zlib1g` 1:1.2.13.dfsg-1, critical, 1 finding (debian 12.15)',
+      '- `libxml2` 2.9.14+dfsg-1.3~deb12u4, high, 2 findings (debian 12.15)',
+      '- `tar` 7.4.3, high, 1 finding (app/node_modules/tar)',
+    ]);
+    // The image reference Trivy's OS target starts with, and the link of each finding, stay out.
+    const text = inventoryOf(summary.lines).join('\n');
+    expect(text).not.toContain('localhost/');
+    expect(text).not.toContain('primary-url-of-');
+    expect(text).not.toContain('libc6');
+    // The critical findings, one by one, are still there, before it.
+    expect(summary.lines.indexOf('### The critical findings, one by one')).toBeLessThan(summary.lines.indexOf('### What a newer package fixes, image by image'));
+  });
+
+  it('puts the image with most to fix first, then the one with only findings no fix clears, and leaves out one with none', () => {
+    const one = imageReport('alpine 3.24.3', [
+      { Target: 'usr/bin/registry', Class: 'lang-pkgs', Type: 'gobinary', Vulnerabilities: [finding('CVE-2026-1', 'HIGH', 'stdlib', 'v1.26.8', '1.26.9')] },
+    ]);
+    const none = imageReport('debian 12.15', [
+      { Target: 'redis (debian 12.15)', Class: 'os-pkgs', Type: 'debian', Vulnerabilities: [finding('CVE-2023-45853', 'CRITICAL', 'zlib1g', '1:1.2.13.dfsg-1', undefined)] },
+    ]);
+    const images: ScanImage[] = [...IMAGES, { name: 'nginx', ref: 'nginx:1.31.8-alpine-slim', where: 'deploy/compose/www.yml', floating: false }];
+    const summary = summarize(
+      images,
+      reports({ 'trivy-image-redis.json': none, 'trivy-image-minio.json': one, 'trivy-image-caddy.json': INVENTORY_REPORT, 'trivy-image-nginx.json': trivyJson(null) }),
+    );
+    expect(summary.lines.filter((l) => l.startsWith('#### '))).toEqual(['#### `caddy`', '#### `minio`', '#### `redis`']);
+    // Nothing critical or high anywhere: no section, not an empty one.
+    const clean = summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': trivyJson(null) }));
+    expect(clean.lines.join('\n')).not.toContain('What a newer package fixes');
+  });
+
+  it(`shows at most ${INVENTORY_LINES} lines of each list per image, and counts the rest on a line of its own`, () => {
+    // Two findings a package, so a count of packages cannot pass for one of findings.
+    const many = (n: number, fixed: boolean) =>
+      Array.from({ length: n }, (_, i) =>
+        [1000, 5000].map((id) => finding(`CVE-2026-${id + i}`, 'HIGH', `pkg-${String(i).padStart(3, '0')}`, '1.0', fixed ? '1.1' : undefined)),
+      ).flat();
+    const capped = imageReport('alpine 3.24.3', [
+      { Target: 'x (alpine 3.24.3)', Class: 'os-pkgs', Type: 'alpine', Vulnerabilities: [...many(INVENTORY_LINES + 2, true), ...many(INVENTORY_LINES + 3, false)] },
+    ]);
+    const lines = inventoryOf(summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': capped })).lines);
+    const listed = (from: string, to?: string) => lines.slice(lines.indexOf(from), to ? lines.indexOf(to) : undefined).filter((l) => l.startsWith('- '));
+    const withFix = listed('With a fix: 124 findings in 62 packages, 124 distinct ids.', 'No fix yet: 126 findings in 63 packages.');
+    expect(withFix).toHaveLength(INVENTORY_LINES + 1);
+    expect(withFix.at(-2)).toBe('- `pkg-059` 1.0 → 1.1, high, 2 findings: CVE-2026-1059, CVE-2026-5059 (alpine 3.24.3)');
+    expect(withFix.at(-1)).toBe("- … and 2 more packages with a fix (4 findings), in the run's artifact `trivy-image-redis`");
+    const withoutFix = listed('No fix yet: 126 findings in 63 packages.');
+    expect(withoutFix).toHaveLength(INVENTORY_LINES + 1);
+    expect(withoutFix.at(-1)).toBe("- … and 3 more packages with no fix yet (6 findings), in the run's artifact `trivy-image-redis`");
+    // Exactly as many as fit: no line counting nothing.
+    const full = imageReport('alpine 3.24.3', [{ Target: 'x (alpine 3.24.3)', Class: 'os-pkgs', Type: 'alpine', Vulnerabilities: many(INVENTORY_LINES, true) }]);
+    const fits = inventoryOf(summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': full })).lines);
+    expect(fits.filter((l) => l.startsWith('- '))).toHaveLength(INVENTORY_LINES);
+    expect(fits.join('\n')).not.toContain('more package');
+    // A package with many ids names the first few and counts the rest.
+    const wide = imageReport('alpine 3.24.3', [
+      { Target: 'usr/bin/x', Class: 'lang-pkgs', Type: 'gobinary', Vulnerabilities: Array.from({ length: 7 }, (_, i) => finding(`CVE-2026-${i + 1}`, 'HIGH', 'stdlib', 'v1.26.8', '1.26.9')) },
+    ]);
+    expect(inventoryOf(summarize([IMAGES[0]!], reports({ 'trivy-image-redis.json': wide })).lines)).toContain(
+      '- `stdlib` v1.26.8 → 1.26.9, high, 7 findings: CVE-2026-1, CVE-2026-2, CVE-2026-3, CVE-2026-4 and 3 more (usr/bin/x)',
+    );
+  });
+
+  it('prints it in the log and writes it to the job summary, from the command line', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'image-scan-inventory-'));
+    try {
+      writeFileSync(join(dir, 'trivy-image-minio.json'), INVENTORY_REPORT);
+      const summary = join(dir, 'summary.md');
+      writeFileSync(summary, '');
+      const run = spawnSync(process.execPath, [join(REPO_ROOT, 'scripts/image-scan.mjs'), 'report', dir], {
+        encoding: 'utf8',
+        env: { PATH: process.env.PATH, IMAGES: JSON.stringify([IMAGES[1]!]), GITHUB_STEP_SUMMARY: summary },
+      });
+      expect(run.status, run.stderr).toBe(0);
+      const line = '- `stdlib` v1.24.6 → 1.25.7, critical, 2 findings: CVE-2025-68121, CVE-2026-25002 (usr/local/bin/gosu)';
+      for (const out of [run.stdout, readFileSync(summary, 'utf8')]) {
+        expect(out).toContain('### What a newer package fixes, image by image');
+        expect(out).toContain(line);
+        expect(out).toContain('- `tar` 7.4.3, high, 1 finding (app/node_modules/tar)');
+      }
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
 
