@@ -4,10 +4,116 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
-**2026-11-03: the test stack's mail catcher is Mailpit v1.33.0, built on a branch, not merged
-(0146 T11 (a); the pin watch's #1671).** On the branch
-`claude/ownpace-public-readiness-y7orc6-mailpit-1-33-0`, from `main` at `bd768a6f`; not merged,
-and E2E (managed) is owed on it before it can be. Times are UTC.
+**2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
+OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,
+alpha.4's deploy shell read, and the drain read bounded to a day.** On the branch
+`claude/ownpace-public-readiness-y7orc6-records-2026-11-03`: docs, and the drain read in
+`managed-bring-up.md`. Read from GitHub and from the owner's readings on 2026-11-03; times are
+UTC.
+- **#1796 merged** at 02:51 (`21fa6ff8`; head `a5372ff7`), Mailpit v1.33.0 on the test stack
+  (0146 T11 (a)), after E2E (managed) run 41566706312, dispatched on that head, 02:32 to 02:41,
+  was green: it pulled `axllent/mailpit:v1.33.0@sha256:9b3a463b…`, read *Version 20261103.1
+  deployed with 17 detected tasks*, *verify: done apply: applied* and *SMOKE PASS*, and left
+  nothing unhealthy. Merged before the fold, so in alpha.4. The entry below, the inventory's
+  Mailpit row and 0146's T11 row said built, not merged; they name the run and the merge now.
+- **The copy before 26.8 is gone.** The owner removed `<project>_clickhouse_data_v2_before_26_8`
+  and step 2's two files at about 23:05 on 2026-11-02, with *Moving ClickHouse*'s *Once the move
+  has held* block, after its checks passed: the server 26.8.36.3, each of the 35 tables and views
+  in step 2's list loading, and no part detached since step 2. The entries of 2026-11-02 that
+  said sent, not confirmed (here, 0132, 0146) say done now. Live still runs 26.2.19.43 until
+  alpha.4, and takes its own copy by hand before that deploy (*On live*).
+- **The host's Docker, upgraded** (§2.4), in the window the owner pulled forward from 11:00 to
+  about 03:30, with both holds on: Docker Engine and its CLI 29.2.1 → 29.6.2, containerd.io
+  2.2.1 → 2.2.5 (runc 1.3.6), the Compose plugin 5.0.2 → 5.2.0 and the Buildx plugin 0.31.1 →
+  0.35.0, from the machine vendor's apt repository. In order:
+  - `main`'s CI on `21fa6ff8` (run 41568667635) finished its last job on the self-hosted runner
+    at 03:33. The runner was stopped first, before the holds: the order was revised so that a
+    scheduled E2E that arrived late would queue rather than start against the holds. One did:
+    E2E (self-hosted) run 41575338615, created by its schedule at 03:58, queued until the runner
+    was back.
+  - The holds on, live's and the OTA stack's, at about 03:49. Live's drain read *DRAINED*. On
+    the OTA stack the Trigger.dev drain read (`managed-bring-up.md`, beside the MinIO pin) could
+    not empty: 8 rows Trigger.dev never finished, 6 of `managed-sync-tick` in `DEQUEUED`, last
+    changed 2026-09-17, and 2 of `run-verification` in `PENDING_VERSION`, last changed
+    2026-08-20. The owner judged it drained on 0 passes in flight and a hold older than 300
+    seconds. The read leaves such rows out now (the last bullet).
+  - Before the restart, what ran: 41 containers running, 40 of them to come back, and 1 a task
+    run's. The upgrade: apt exited 0, and the daemon was back at 03:57:59.
+  - After it: every version as planned, AppArmor enabled, live's API under `docker-default`.
+    Live: all 15 services running and healthy, `/api/ready` ok, the scheduler up with a tick
+    logged after the restart (04:20:27), `/api/version` `0.2.0-alpha.3` at `e1b21aac`, the
+    checkout's (alpha.3's tag), and the site's check returning 0. The OTA stack: `pgbouncer` did
+    not start (the next bullet) until the owner fixed it by hand at about 04:31. The runner was
+    back at about 04:24, and both holds were lifted at about 04:33.
+  - Then the five packages were held with `apt-mark hold`, the owner's choice (B6):
+    unattended-upgrades is not installed, so only an apt upgrade by hand could move Docker, and
+    the host's 505 other pending updates wait for after alpha.4, with the move to the 7.0 kernel
+    line. A Docker move from here is the owner's, by hand, with `apt-mark unhold` first.
+  - On the new Docker: E2E (self-hosted) run 41575338615, its job 04:24 to 04:30, green; and
+    E2E (managed) run 41578935380, dispatched on `main` at `21fa6ff8`, 04:34 to 04:41, green:
+    *Version 20261103.2 deployed with 17 detected tasks*, *verify: done apply: applied*,
+    *SMOKE PASS*, nothing unhealthy.
+- **The incident: the OTA stack's `pgbouncer` did not come back** (live's was not affected).
+  The OTA stack's `pgbouncer` mounts `deploy/compose/pgbouncer/userlist.txt`, which is
+  gitignored, from the runner's checkout, where E2E (managed) brings the stack up. `main`'s CI
+  checked out into that same checkout at 02:51 (`git clean -ffdx`) and deleted the file under
+  the running container, which kept the file it had open, so nothing showed. At the daemon's
+  restart Docker made a directory at the missing source, and `pgbouncer` failed to start (exit
+  127, *not a directory*). The copy the workflow keeps outside the checkout
+  (`MANAGED_ENV_PERSIST_DIR`) was stale, with a password that no longer matched:
+  `e2e-managed.yml` saves `.env` back after each run but not `userlist.txt`, while
+  `ensure-env-secrets.sh` writes `userlist.txt` afresh on every run from `.env`'s
+  `PGBOUNCER_AUTH_PASSWORD`, so every run worked and the kept copy was never read. The owner
+  wrote the file from the container's own `PGBOUNCER_AUTH_PASSWORD` and refreshed the kept
+  copy; run 41578935380 then restored, rewrote and used it. Any CI job on the self-hosted
+  runner between two E2E (managed) runs deletes the file again, and the stack runs on without
+  it until its next restart. **Owed:** the fix in code, in progress on its own branch,
+  `claude/ownpace-public-readiness-y7orc6-pgbouncer-userlist`.
+- **alpha.4's deploy shell, read** (0131's prerequisite). At about 03:20 the owner read, in the
+  shell they deploy from: `node -v` v26.10.0, their own Node first on the `PATH`, not the
+  system's; `pnpm -v` 11.28.9; and `libatomic1` installed. The prerequisite is met.
+  **Recommended before the alpha.4 deploy:** that Node to 26.13.0. Since 26.10.0, 26.12.1
+  (2026-10-21) was a security release, and 26.13.0 (2026-10-28), the first of the line marked
+  LTS and the version the images run (§2.4), is the newest (`nodejs.org/dist/index.json`, read
+  2026-11-03). `managed-bring-up.md`, *The Node in the shell you deploy from*, has the steps;
+  its step 3 fetches 26.13.0 and checks it against `SHASUMS256.txt`.
+- **pnpm 11.28.10, #1792, still held:** npm's `latest-11` names 11.28.9, `next-11` 11.28.10
+  (`npm view pnpm dist-tags`, 2026-11-03).
+- **MinIO stays at `3b6e40c3…` for alpha.4.** `chainguard/minio:latest` was pushed again at
+  19:17 on 2026-11-02 (index `090010a3…`; Docker Hub's tag listing), so its three-day floor
+  passes at 19:17 on 2026-11-05, after alpha.4's fold (2026-11-04 23:30). The week's scan (run
+  41465604476) read `3b6e40c3…` at 0 critical, 0 high, 0 with a fix, so nothing makes the
+  newer digest urgent; the pin watch will list it, and moving it is a pull request of its own
+  once it is three days old.
+- **The drain read, bounded to a day** (`managed-bring-up.md`, beside the MinIO pin; the upgrade
+  order's step 2 and *Moving ClickHouse* step 1 point to it). It counts the non-final rows whose
+  `updatedAt` is within the last 24 hours, compared with `now() AT TIME ZONE 'UTC'` since the
+  column holds UTC without a zone; a second read lists the older ones apart, as stale, by task,
+  status, count and last change, with no payload; and a third gives their ids, for cancelling
+  them through Trigger.dev (the dashboard, or `POST /api/v2/runs/<id>/cancel`, what the SDK's
+  `runs.cancel` sends), never by deleting rows. Why 24: every task takes `maxDuration: 3600`
+  from `apps/worker/trigger.config.ts`, none sets its own, and retries stop at 3 attempts with
+  at most 60 s between them, so a run ends within about 3 hours of its first attempt;
+  `run-cutover` waits on one `run-delta-sync` behind the migration's scheduled pass, about 7.
+  The row changes with each status change (upstream's run store, v4.8.3, writes `updatedAt`)
+  and not while an attempt runs (its heartbeats go to the execution snapshot), so the bound is
+  hours. Live's daily duties (170 minutes at most) are host jobs, not runs. A day is more than
+  three times the longest legitimate gap, and the OTA stack's stale rows are 47 and 75 days
+  old. The three reads, as the doc prints them, ran in PGlite against a `TaskRun` table of
+  v4.8.3's columns under three session time zones, with the same rows each time: in flight,
+  rows changed 59 minutes, 7 hours and 23 hours 50 minutes before; stale, the 6, the 2 and one
+  changed 25 hours before; never a finished run or a payload. No script runs this read:
+  `plane-tokens.sh` reads `TaskRun` by the ids the plane's concurrency sets hold, and
+  `trigger-version.sh` and the pin watch say *drain EXECUTING first* in words; no guard pins
+  the doc's text. The copies of the read in §3 item 5, below, and 0146 (2026-10-24) carry a
+  dated note.
+
+**2026-11-03: the test stack's mail catcher is Mailpit v1.33.0, built on a branch; merged as
+#1796 (0146 T11 (a); the pin watch's #1671).** On the branch
+`claude/ownpace-public-readiness-y7orc6-mailpit-1-33-0`, from `main` at `bd768a6f`; merged as
+#1796 at 02:51 UTC (`21fa6ff8`) after E2E (managed) run 41566706312 was green on its head
+`a5372ff7` (the entry above); *was:* not merged, and E2E (managed) is owed on it before it can
+be. Times are UTC.
 - **The pin.** `axllent/mailpit:v1.33.0@sha256:9b3a463b…` in `managed.yml`, the index digest
   Docker Hub's tag listing gives and a HEAD of the tag on `registry-1.docker.io` returns, read
   2026-11-03 at about 01:55 (an OCI index: amd64 `18156f9e…`, arm64 `e5bf699d…`, 386
@@ -74,7 +180,8 @@ and E2E (managed) is owed on it before it can be. Times are UTC.
   stack running v1.33.0. That is E2E (managed) on the branch, on the OTA stack, where Mailpit is
   the catcher every mail assertion of the smoke reads; owed before the merge. A nightly on
   `main` between that run and the merge starts v1.32.0 again on the same `mailpit.db`, the way
-  back above.
+  back above. *(Done: run 41566706312, 02:32 to 02:41, green on the head, and merged at 02:51
+  with no run between; the entry of 2026-11-03, records, above.)*
 
 **2026-11-02, records, latest: the owner's answer, "Accept all, within alpha 4": Stalwart's
 critical accepted, the O365 lane waived for alpha.4, #1794 merged for alpha.4, and the host's
@@ -114,9 +221,13 @@ times are UTC.
 - **The host's Docker, within alpha.4.** The upgrade, 29.2.1 to 29.6.2 (§2.4), happens before
   the counted nights, the first of which is Thursday 2026-11-05 (0146), in the window §2.4
   describes. The owner set the slot later that evening: Tuesday 2026-11-03, 11:00 to 13:00.
-  §2.4 and the end-of-day line below carry a dated note.
+  §2.4 and the end-of-day line below carry a dated note. *(Done on 2026-11-03 instead from about
+  03:30, the owner having pulled the window forward: 29.6.2, both holds on, both stacks back by
+  about 04:33; the entry of 2026-11-03, records, above.)*
 - **Not answered:** the removal of the copy before 26.8,
   `<project>_clickhouse_data_v2_before_26_8`, sent at about 11:55: **sent, not confirmed**.
+  *(Done: the owner removed it at about 23:05 the same day, after the block's checks passed;
+  the entry of 2026-11-03, records, above.)*
 
 **2026-11-02: pnpm 10.34.9 in place of 10.33.2 in both Trigger.dev builds (0146 T16), built as
 a draft; merged as #1794 for alpha.4.** On the branch
@@ -302,7 +413,8 @@ times are UTC.
   through both. The scheduled run is the night *Once the move has held* waits for (the entry of
   2026-11-02, records, below). The block that removes the copy,
   `<project>_clickhouse_data_v2_before_26_8`, was sent to the owner at about 11:55: **sent, not
-  done** when this is written.
+  done** when this is written. *(Done at about 23:05 the same day: the entry of 2026-11-03,
+  records, above.)*
 - **The by-hand Windows 11 check, dropped.** The owner's decision of 2026-11-02: they will not
   run it, and #1789's `smoke` on `windows-2025` is alpha.4's Windows evidence. After the fold,
   `windows-payload.yml` is dispatched on `main` at C for win-x64 and its `smoke` must be green;
@@ -329,7 +441,9 @@ times are UTC.
   about 22:10: the O365 lane waived for alpha.4; the host's Docker within alpha.4, before the
   counted nights, in the slot set later that evening, 2026-11-03 11:00 to 13:00 UTC; Stalwart's
   critical accepted; the copy's removal not answered, sent, not confirmed. The entry of
-  2026-11-02, records, latest, above.)*
+  2026-11-02, records, latest, above.)* *(2026-11-03: the copy removed at about 23:05 on
+  2026-11-02, and the host's Docker upgraded from about 03:30 on 2026-11-03, the window pulled
+  forward; the entry of 2026-11-03, records, above.)*
 
 **2026-11-02: the deploy CLI comes from the lockfile, not from `npx` (#1755's follow-up).** On
 the branch `claude/ownpace-public-readiness-y7orc6-trigger-cli-lockfile`, merged as #1790 on
@@ -571,7 +685,8 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   plan, the owner's: the vendor's set, in a window with live's hold and the OTA stack's both on,
   since the upgrade restarts every container (`live-restore` is off), with Docker's own 29.2.1
   packages kept on the machine as the way back, their checksums verified; a newer kernel line is
-  offered and is left for after alpha.4's tag.
+  offered and is left for after alpha.4's tag. *(Upgraded 2026-11-03 to that set, and the five
+  packages held with `apt-mark` since; §2.4 and the entry of 2026-11-03, records, above.)*
 - **The O365 lane ran for the first time, and stopped at its secrets** (T3, §3 item 6). Run
   41273625023, queued for #1767 since 2026-11-01 04:34, ended *cancelled* at 02:00 without a
   runner. The owner added `spark` to the self-hosted runner at about 07:40 (0141 T13 (a): the
@@ -986,7 +1101,8 @@ today.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-rec
   29.9.2 is the newest, with security fixes between, and an upgrade restarts every container on
   the machine, because `live-restore` is not set. *(2026-11-02: the packages come from the
   machine vendor's apt repository, and the target is that repository's set, 29.6.2, not Docker's
-  newest; §2.4, corrected, and the entry of 2026-11-02, records, above.)*
+  newest; §2.4, corrected, and the entry of 2026-11-02, records, above. 2026-11-03: upgraded to
+  it; the entry of 2026-11-03, records, above.)*
 - **The self-hosted runner reads 2.338.0**, the hosted ones 2.338.2; it updates itself, so it
   is watched and nothing is owed (§2.4).
 
@@ -2883,12 +2999,12 @@ is who moves it after T1.
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
-| `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31) | current | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
+| `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31); `latest` `090010a3…` since 2026-11-02 19:17 UTC, inside its floor until 2026-11-05 19:17 UTC, after alpha.4's fold, which keeps `3b6e40c3…` (0/0/0 in Security Scan run 41465604476; Status, 2026-11-03, records) | current — one rebuild behind from 2026-11-05 19:17 UTC | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
 | `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22; `2-alpine` floating before, never pulled, 2.11.4 when recorded); 1 critical, 9 high and 9 fixable as pulled (Security Scan run 41130684117), 0, 7 and 6 built (Security Scan run 41161126144, linux/arm64; the Status entry of 2026-10-31) | 2.11.7 | current | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.0 (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.5 before it (2026-10-22, #1651, `721c6ea8`, three security fixes read commit by commit), v4.19.4 before that (2026-10-05, #1528, `502c52fa`), and v4.19.2 before those (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.0 (read 2026-11-02) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `axllent/mailpit` | `managed.yml` | v1.33.0 by digest `9b3a463b…` (2026-11-03, the minor kept current, no finding to clear; on the branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-33-0`, not merged, E2E (managed) owed: Status, 2026-11-03); v1.32.0 by digest `0790692b…` before it (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.0 (2026-10-31, pushed 02:30 UTC; also `latest` on 2026-11-03), digest `9b3a463b…` | current — *was:* one minor, inside its three-day floor until 2026-11-03 02:30 UTC (Status, 2026-10-31) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
+| `axllent/mailpit` | `managed.yml` | v1.33.0 by digest `9b3a463b…` (2026-11-03, the minor kept current, no finding to clear; merged as #1796 at 02:51 UTC, `21fa6ff8`, after E2E (managed) run 41566706312 was green on its head, in alpha.4: Status, 2026-11-03, records; *was:* on the branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-33-0`, not merged, E2E (managed) owed); v1.32.0 by digest `0790692b…` before it (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.0 (2026-10-31, pushed 02:30 UTC; also `latest` on 2026-11-03), digest `9b3a463b…` | current — *was:* one minor, inside its three-day floor until 2026-11-03 02:30 UTC (Status, 2026-10-31) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `515c072e…` since 2026-11-01, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC, three days old on 2026-10-31; what `34-apache` named that day, read on mirror.gcr.io and Docker Hub), whose Debian and PHP 8.5.12 layers are the same blobs as the demo's 35.0.2 `e0b1a2af…`, with libbrotli's fix for the critical CVE-2026-111497; before it `1f9212ad…` (PHP 8.5.12) from 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
@@ -2971,16 +3087,27 @@ so a bump is the newest pnpm 11 that is three days old (`latest-11` once it is),
 **The host's Docker** (the owner's readings of 2026-11-01 and 2026-11-02, on the machine that
 runs live, the OTA stack and the self-hosted runner): Docker Engine and its CLI 29.2.1,
 containerd.io 2.2.1, the Compose plugin 5.0.2 and the Buildx plugin 0.31.1, and `live-restore`
-not set. **Corrected 2026-11-02:** the five packages (`docker-ce`, `docker-ce-cli`,
+not set. **Since 2026-11-03** (the owner's readings after the upgrade; Status, 2026-11-03,
+records): Docker Engine and its CLI 29.6.2, containerd.io 2.2.5 with runc 1.3.6, the Compose
+plugin 5.2.0 and the Buildx plugin 0.35.0, from the same repository; AppArmor enabled, and
+live's API under `docker-default`; the five packages held with `apt-mark hold` (the owner's
+choice: unattended-upgrades is not installed, and the host's 505 other pending updates, with
+the move to the 7.0 kernel line, wait for after alpha.4). `live-restore` is still not set.
+**Corrected 2026-11-02:** the five packages (`docker-ce`, `docker-ce-cli`,
 `containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from the machine vendor's
 apt repository, which outranks every other source by apt preference (priority 600), not from
 Docker's apt repository, as this paragraph said from 2026-11-01; Docker's own repository is not
 configured on the machine. Each of the five has the SHA256 that Docker's own package index gives
-for the same version, so they are Docker's builds. No package is held; AppArmor is active
+for the same version, so they are Docker's builds. No package was held on 2026-11-02 (the five
+are held since 2026-11-03, above); AppArmor is active
 (`docker info`'s security options); the kernel's own changelog carries CVE-2026-31431 ("Copy
 Fail"). Docker's newest, read 2026-11-01: 29.9.2 and Compose 5.6.1, with security fixes between.
 apt's candidates from the vendor's repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
-29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0. ⏳ **Owner, open:** the upgrade to
+29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0. ✅ **Done 2026-11-03**, from about
+03:30 to 04:33 UTC, with both holds on and the runner stopped first, then E2E (self-hosted) run
+41575338615 and E2E (managed) run 41578935380 green on the new Docker; the OTA stack's
+`pgbouncer` did not start after the restart and was fixed by hand (Status, 2026-11-03,
+records); *was:* ⏳ **Owner, open:** the upgrade to
 the vendor's set, not to Docker's newest, in a window with both holds on, live's and the OTA
 stack's, live's drain done (`docs/managed-bring-up.md`, *`ownpace-live`: a release tag, with
 `deploy-live.sh`*, step 2) and no runner job in flight, because without `live-restore` the
@@ -2989,10 +3116,11 @@ with a way back kept on the machine, Docker's own 29.2.1 packages, their checksu
 newer kernel line is offered there too, and is left for after alpha.4's tag. *(2026-11-02, about
 22:10 UTC, the owner: within alpha.4, so before the counted nights of 2026-11-05 and
 2026-11-06; the slot, set later that evening, is Tuesday 2026-11-03, 11:00 to 13:00 UTC.
-Status, 2026-11-02, records, latest.)* Nothing in this repository pins or watches the host's
+Status, 2026-11-02, records, latest. The owner pulled it forward to about 03:30 that morning.)*
+Nothing in this repository pins or watches the host's
 Docker; it moves by the owner's hand only. The host's
-readings live in this paragraph; 0132's Status entries of 2026-11-01 (recorded) and 2026-11-02
-point here.
+readings live in this paragraph; 0132's Status entries of 2026-11-01 (recorded), 2026-11-02 and
+2026-11-03 point here.
 **The self-hosted runner** reads 2.338.0 in its job logs (E2E (managed) run 41264284343,
 2026-11-01 02:15 UTC); the hosted runners read 2.338.2 (CI's `build (api)` on `8d986f3c`, 04:13
 UTC), the release that bundles Node 24.22.1. Its service does not pass `--disableupdate`, so
@@ -3233,6 +3361,8 @@ is beside each; none is urgent tonight.
      `docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"`,
      the non-final statuses of v4.7.6's `TaskRunStatus` (added 2026-10-24, in review of the
      branch below; `managed-bring-up.md`, beside the MinIO pin, says what output is accepted).
+     *(2026-11-03: the read there counts only the rows changed in the last 24 hours, and a
+     second read lists the older ones apart, as stale; Status, 2026-11-03, records.)*
    - **The copy**, when one is wanted. Use `mc mirror` (from `chainguard/minio-client` on the
      compose network) or `rclone sync` between two S3 remotes, from `minio:9000` to the new
      service, with `trigger-api` and the tasks stopped. Chainguard's MinIO has a shorter road:
