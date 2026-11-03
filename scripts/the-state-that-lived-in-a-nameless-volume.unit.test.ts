@@ -95,9 +95,13 @@ describe("state in the managed stack is addressed by name", () => {
     for (const [name, service] of Object.entries(compose.services)) {
       for (const mount of service.volumes ?? []) {
         // Short syntax only: `source:target[:mode]`. A bind mount starts with
-        // `.` or `/` and needs no declaration; long syntax is an object.
+        // `.` or `/` and needs no declaration; long syntax is an object. A
+        // source that is `${VAR:-default}` is judged by its default, what
+        // Compose mounts when the .env leaves VAR unset (pgbouncer's userlist,
+        // 2026-11-03).
         if (typeof mount !== "string") continue;
-        const source = mount.split(":")[0] ?? "";
+        const interpolated = /^\$\{[A-Z_][A-Z0-9_]*:?-([^}]*)\}:/.exec(mount);
+        const source = interpolated ? (interpolated[1] ?? "") : (mount.split(":")[0] ?? "");
         if (source.startsWith(".") || source.startsWith("/") || source === "")
           continue;
         if (!declared.has(source)) missing.push(`${name} mounts "${source}"`);
