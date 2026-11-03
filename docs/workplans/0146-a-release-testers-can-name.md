@@ -5,23 +5,22 @@
 ## Status — 2026-11-04 (update this block at the end of every session)
 
 **2026-11-04, last: alpha.4 is folded (T1, T2, T4).** On the branch
-`claude/ownpace-public-readiness-y7orc6-fold-alpha4`, from `main` at `9d4e397d` (#1805), its
-merge base for now; a draft, not merged. The fold moves `package.json` and the API contract to
+`claude/ownpace-public-readiness-y7orc6-fold-alpha4`, on `main` at `d8dc2f82` (#1808). The fold moves `package.json` and the API contract to
 `0.2.0-alpha.4`, and everything under `[Unreleased]`, the *since rc.1* part (T1) with it, to
 `## [0.2.0-alpha.4] - 2026-11-04`, with a summary paragraph above it; `[Unreleased]` stays,
 empty. It adds `v0.2.0-alpha.4` as the last of `releases` in `scripts/release-line.json`, the
 release being prepared until Release tags it (T4, `docs/release.md` §1). `SOURCE_PROOFS`,
 which T1 asks the fold to read again, has not changed since 2026-10-04, so the sources the
-*since rc.1* part lists hold. #1778 (the API's distroless base, a new digest) and #1806 (PGlite
-0.5.14) merge first; then `main` is merged into this branch, which refreshes the commit it folds
-on from `9d4e397d` to that merge, and the fold merges last, before 23:30 UTC on 2026-11-04. Its
-squash is C, and `main` takes nothing else until the tag. Held for after alpha.4: pnpm 11.28.10
+*since rc.1* part lists hold. #1806 (PGlite 0.5.14) is in. **The owner pulled the fold
+earlier** (2026-11-03, about 23:03 UTC): it merges before that night's 23:30 UTC runs, so they
+count, and #1778 (the API's distroless base, a new digest whose three days pass only at 23:45
+UTC) waits for after the tag. Its squash is C, and `main` takes nothing else until the tag. Held for after alpha.4: pnpm 11.28.10
 (#1792) and MinIO's newer `latest` (0119). **Owed before the tag:**
 - C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
   `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;
 - `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green
   (`windows-smoke-green`);
-- the two counted nights on C, Thursday 2026-11-05 and Friday 2026-11-06: two scheduled E2E
+- the two counted nights on C, Wednesday 2026-11-04 and Thursday 2026-11-05: two scheduled E2E
   (managed) runs on C, at most 30 hours apart, and four scheduled E2E (self-hosted) runs on C
   between C reaching `main` and the newer of the two, all green (`scripts/release-nights.mjs`).
   No waiver: `WAIVER_VERSIONS` holds alpha.3 alone;
