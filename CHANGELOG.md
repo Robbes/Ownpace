@@ -57,6 +57,31 @@ notices.
 
 ### Security
 
+- **The Trigger.dev webapp and supervisor built here clear the findings a
+  release fixes and upstream has not taken** (workplan 0146 T16, the owner's
+  mandate of 2026-11-03). The webapp's build removes TypeScript 7's native
+  compiler, which nothing here runs (15 fixable highs), by its published
+  SHA-256, and proves `typescript` still resolves 7.0.2; replaces goose
+  v3.27.1, which the entrypoint runs for the ClickHouse migrations (21 fixable
+  highs), with goose v3.29.0's release binary, fetched from GitHub by its
+  SHA-256, root's and executable (Trivy reads no Go binary that is not, which
+  is why an earlier reading of goose found nothing), whose one change to what
+  `goose up` does here is the order of a `goose_db_version` table it creates
+  on an empty volume; and puts undici 6.29.1, follow-redirects 1.16.2,
+  body-parser 1.20.9 and systeminformation 5.33.19 in place of the releases of
+  the same major they fix (8 highs), by the sha512 npm published, proving
+  that every package which requires each loads the new release. The
+  supervisor's build does the same for its systeminformation. Each step
+  refuses an image that moved, with nothing changed. Measured on the branch:
+  the webapp from the week's 1 critical, 89 high and 57 with a fix to 1, 46
+  and 14, and the supervisor from 0, 2 and 2 to 0, 1 and 1.
+  What stays waits on upstream (triggerdotdev/trigger.dev#5084): zlib1g's
+  critical and Debian 12's highs without a fix, Go's CVE-2026-111943 in goose,
+  and effect, undici 5, @fastify/busboy, turbo-stream, deepmerge-ts,
+  cross-spawn 5 and body-parser 2, each fixed only by a new major or pinned
+  exactly by the package that requires it. The webapp's build now also
+  fetches from github.com; a host that does not answer stops a build with
+  nothing changed and the advice to run the same tag again.
 - **Every container runs with no new privileges, and most with only the
   capabilities their own start uses** (workplan 0119; the owner, 2026-11-03).
   Until now no service of `managed.yml`, the site's `www.yml` or the
