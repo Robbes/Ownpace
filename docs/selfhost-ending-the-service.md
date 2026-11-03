@@ -73,9 +73,15 @@ Point it at the same storage the appliance uses:
 DATABASE_URL=postgres://... pnpm --filter @openmig/selfhost forget-me
 
 # PGlite
-SELFHOST_PERSISTENCE=pglite SELFHOST_PGLITE_DIR=/data/pglite \
+SELFHOST_PERSISTENCE=pglite SELFHOST_PGLITE_DIR=/data/state/pglite \
   pnpm --filter @openmig/selfhost forget-me
 ```
+
+`/data/state/pglite` is where the image and `compose.pglite.yml` keep PGlite's
+database, inside the state volume. If you run `forget-me` outside the
+container, point `SELFHOST_PGLITE_DIR` at wherever that directory is on your
+machine. A directory with no database in it looks just like a wiped appliance,
+the same trap as a wrong `DATABASE_URL` below.
 
 A wrong `DATABASE_URL` looks exactly like an already-wiped appliance — both
 have no tenants in them — so the refusal names that possibility too. If you see

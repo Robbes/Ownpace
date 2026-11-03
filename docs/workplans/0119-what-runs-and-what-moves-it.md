@@ -4,6 +4,76 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03: the appliance's `/app` is root's and read-only to it, its HEALTHCHECK is exec form,
+and its image names PGlite's directory; built on a branch, for alpha.4.** Item 1 of the day's
+survey of leaner and harder base images, the one that needs no owner's decision. On the branch
+`claude/ownpace-public-readiness-y7orc6-selfhost-tidy`, from `main` at `319a2d34`, draft #1801.
+Not merged: E2E (self-hosted), on Postgres and on PGlite, on the branch is owed first; the
+container-level upgrade drill (`scripts/upgrade-drill.sh`) stays the release checklist's step on
+the Docker host. Times are UTC.
+- **What changes**, in `apps/selfhost/Dockerfile` alone of the code:
+  - The build stage's last RUN stages the payload, copies the default config into it as
+    `config/` (the runtime stage copied that from the build context, with the checkout's
+    modes), and ends `chmod -R u=rwX,go=rX /payload`. The runtime stage copies `/payload` to
+    `/app` without `--chown`, so root owns it, and its RUN chowns `/data` alone to `appuser`.
+  - `ENV SELFHOST_PGLITE_DIR=/data/state/pglite`, the value `compose.pglite.yml` sets.
+  - The HEALTHCHECK is exec form, `["node", "-e", …]`, the same probe.
+  - Unchanged: the user (uid 10001, home `/app`), `/data`'s owner and contents, CMD, the other
+    ENV lines, the base, and every compose file. `deploy/selfhost/README.md`'s row for the
+    Dockerfile says who owns what.
+- **Why.** The appliance owned `/app`, the code it loads at every start, which the API has not
+  since 0146 T13. The `chown -R` wrote the payload a second time: `edge`'s amd64 manifest (index
+  `644be907…`, read today) lists, in instruction order, the payload's COPY at 11.29 MB, the
+  config's COPY at 1.8 kB and the chown's RUN at 11.30 MB, of 109.2 MB compressed. The image's
+  config, which names each layer's instruction, could not be read from this session (ghcr's blob
+  host refuses it), so that mapping is by order; the local build below shows the same pair. The
+  shell-form HEALTHCHECK needed `/bin/sh` for nothing. And `start.mjs` defaults PGlite into the
+  payload, `/app/data/pglite`, which a root-owned `/app` refuses.
+- **Proved here**, Docker 29.9.2 and BuildKit 0.34.0 on linux/amd64. The payload was staged on
+  the host with the build stage's own commands under umask 077, Node 26.13.0: 8 of its 411 files
+  came out 0600 (`start.mjs`, `appliance.mjs`, the config), none after the chmod. This branch's
+  runtime stage was built on `node:26.13.0-trixie-slim@e4db4c91…`, with the build stage and the
+  base stage given as named contexts (so without the base stage's corepack layer), and `main`'s
+  the same way:
+  - `main`'s Dockerfile: the payload's COPY 35.5 MB, then the chown's RUN 35.5 MB
+    (uncompressed). This branch's RUN: 57.3 kB.
+  - Run on PGlite with a fresh named volume and no `SELFHOST_PGLITE_DIR` given: healthy in about
+    15 s, `Healthcheck.Test` `["CMD","node","-e",…]` (`main`'s `["CMD-SHELL",…]`). As uid 10001,
+    all 411 files under `/app` root's and readable; appending to `start.mjs`, creating a file in
+    `/app`, `mkdir /app/data` and renaming `appliance.mjs` each EACCES, `chmod` EPERM; writes in
+    `/data/state` and `/data/config` succeed; the database at `/data/state/pglite`; `/version`
+    and `/ui/` answered.
+  - The same payload without the chmod: `EACCES: permission denied, open '/app/start.mjs'`, and
+    it never starts. With `SELFHOST_PGLITE_DIR=/app/data/pglite`, `start.mjs`'s default: *The
+    appliance cannot write its database directory*, EACCES.
+  - An upgrade on PGlite: `main`'s image with the override's `SELFHOST_PGLITE_DIR`, healthy, 65
+    migrations applied, the volume's `pglite` 10001's; then this branch's image on that volume
+    with none given, healthy, *schema up to date at 0067_a_cutover_ledger_per_data_type.sql*,
+    none applied. On Postgres (`postgres:18-alpine` on a network of its own): healthy, 65 applied.
+  - The new guard, `an-appliance-that-could-rewrite-its-own-code`, passes, fails on `main`'s
+    Dockerfile (5 of 7), and fails on each of 16 mutations: the chmod dropped, not last, or over
+    `/payload/ui` alone; `/app` chowned again, chmodded in the runtime, or copied with
+    `--chown` or `--chmod`; the config copied from the build context again; `CONFIG_DIR` under
+    `/app`; `SELFHOST_PGLITE_DIR` dropped or not the override's; `/data/state` not made before
+    the chown; the HEALTHCHECK in shell form, in JSON Docker would not take, or with `$PORT`; a
+    write after the chmod.
+  - Every container, volume, network and image of this was removed.
+- **Not proved here:** the build stage itself in Docker (`build (selfhost)` on the pull request
+  builds the whole Dockerfile), arm64, the appliance under compose, and the upgrade from
+  alpha.3's published image: E2E (self-hosted) and the upgrade drill, the owner's.
+- **For a self-hoster upgrading, nothing to do.** An existing `appdata` volume keeps its owner,
+  and the image still makes `/data/state` and `/data/config` as 10001's. `compose.yml`'s own
+  healthcheck for `app` takes the place of the image's, an older `compose.yml` included. What
+  no longer works: writing under `/app` from inside the container, by hand or by a mount that
+  expects it. A `docker run` of an older image on PGlite with no `SELFHOST_PGLITE_DIR` kept its
+  database in `/app/data/pglite`, in the container's own layer; this image keeps it in
+  `/data/state/pglite`, so only a volume someone mounted at `/app/data` would be left behind,
+  which no procedure here does.
+- **Not in this change:** the survey's item 2 (purging the util-linux family from the Debian
+  bases; the owner said yes for alpha.4 on 2026-11-03) is a branch of its own, and the
+  distroless appliance is alpha.5 (the owner, the same day); the compose files belong to the
+  compose hardening on its own branch.
+
 **2026-11-03 (UTC): every scanned image has a tier, the weekly report leads with production, and
 the test-only images leave code scanning.** Built on the branch
 `claude/ownpace-public-readiness-y7orc6-scan-tiers`, on top of #1799 (the fixable inventory, the
