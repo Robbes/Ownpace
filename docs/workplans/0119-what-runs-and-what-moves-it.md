@@ -4,6 +4,42 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03, later, records: what landed today, the owner's readings and two decisions for
+alpha.5.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-1103-b`.
+Times are UTC. The entries below that say *built, not merged* or *draft* are overtaken by this
+one.
+- **Landed on `main`, each on its proof:**
+  - #1798 (the OTA pooler's user list kept in the persist directory) as `fee22669` at 06:38,
+    after E2E (managed) 41587588442 on its head.
+  - #1799 (the scan report's fixable inventory) as `319a2d34` at 06:10, and #1800 (tiers, and
+    test-only images out of code scanning) as `1f1d21d2` at 07:11, CI only.
+  - #1801 (the appliance's `/app` root's and read-only to it) as `3632d343` at 08:06, after E2E
+    (self-hosted) 41596946243 on Postgres and 41599683427 on PGlite.
+  - #1803 (no new privileges, capabilities cut, six read-only roots) as `19c0d8c8` at 09:08,
+    after E2E (managed) 41604890530 and E2E (self-hosted) 41607791958, and an independent review
+    that found the identity provider's one-off short of DAC_OVERRIDE before any run did.
+  - #1802 (the Debian Essentials purged, item 11) as `420d54bc` at 10:33, after E2E (managed)
+    41608749208 and E2E (self-hosted) 41611377370 on `be22e821`. Merging `main` brought #1803's
+    invocation rule to its E2E step (`exec app dpkg-query`) and to a README sentence the rule
+    read as a program named `still`; the rule now reads a shell without `-c` as the shell
+    itself, and the appliance's `sh` and `dpkg-query` are reviewed (no capability).
+  - #1804 (the Trigger.dev webapp without TypeScript 7's native compiler, goose v3.29.0, four
+    packages within their major, the supervisor's systeminformation) as `46adb695` at 10:50,
+    after E2E (managed) 41614665079 on `fb7a0612` and the branch's image scan 41600469198
+    (webapp 1/89/57 to 1/46/14, supervisor 0/2/2 to 0/1/1).
+- **The owner dismissed the test-only images' open alerts** at about 07:30: 294, all as *used
+  in tests* (245 under `trivy-image-nextcloud`, 49 under `trivy-image-stalwart`; Mailpit had
+  none), and deleted the three categories' configurations on the tool status page. #1800 keeps
+  them from coming back.
+- **Two decisions for alpha.5** (§3 items 12 and 13): the appliance drops its shell, the image
+  and the compose healthcheck together in alpha.5; and the tasks' prebuilt distroless base is
+  built, signed and published to GHCR by CI.
+- **E2E (self-hosted) on `main`, scheduled:** 41575338615 on `21fa6ff8` (03:58–04:30, the first
+  after the host's Docker 29.6.2) and 41603423812 on `3632d343` (08:27–08:38), both green.
+- **The deploy shell's Node is 26.13.0** (0131's Status of the same day), by
+  `managed-bring-up.md`'s step 3, which now says to put the `PATH` line at the end of
+  `~/.profile` too on Ubuntu and Debian.
+
 **2026-11-03: the Debian Essentials nothing runs, purged from the appliance and from the tasks'
 runtime base, for alpha.4** (the owner's decision of 2026-11-03, §3 item 11), #1802 from the branch
 `claude/ownpace-public-readiness-y7orc6-debian-purge`. If its proof is not green before the
@@ -4204,6 +4240,25 @@ is beside each; none is urgent tonight.
     alpha.4's fold, it moves to alpha.5. **Revisit** when either image moves to distroless,
     which drops the Debian base and this purge with it; and on every Debian release the bases
     move to, when `dpkg-query -W` stops the build on a renamed package.
+
+12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
+    digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the
+    compose file's `CMD-SHELL` healthcheck for `app` and the upgrade drill's `sh -c ls`; the
+    image's own HEALTHCHECK is exec form since #1801. A self-hoster following `:edge` with an
+    older `compose.yml` would see `app` unhealthy while it runs. The choice was a split (the
+    healthcheck change in alpha.4, the image in alpha.5) or both in alpha.5.
+    **The owner's decision: drop the shell, both changes together in alpha.5**, the healthcheck
+    change named in that release's notes. **Revisit** if a self-hoster reports `app` unhealthy
+    from an older `compose.yml`.
+
+13. **The tasks' prebuilt distroless base — PUBLISHED TO GHCR, 2026-11-03 (alpha.5).** A
+    distroless task image needs a base the Trigger.dev CLI builds nothing into (distroless plus
+    dumb-init, the edited CA bundle and a `node` user): 0/0, about 57.5 MB compressed instead of
+    82. It could be built at each deploy into the stack's own registry, or built once by CI.
+    **The owner's decision: CI builds it, signs it and publishes it to GHCR like the other
+    release images**, so the OTA stack and live run the same scanned bytes and a deploy needs no
+    Debian mirror. **Revisit** if GHCR becomes unreachable from live, or the CLI starts adding
+    steps of its own to a base that already has every one.
 
 ## 4. Not done, honestly
 

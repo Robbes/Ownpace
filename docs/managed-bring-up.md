@@ -5729,6 +5729,14 @@ one of these; none needs `sudo`:
   export PATH="$HOME/.local/node-26/bin:$PATH"
   ```
 
+  **On Ubuntu and Debian, put the line at the end of `~/.profile` too.** Their
+  stock `~/.profile` reads `~/.bashrc` first and then puts `~/.local/bin` in
+  front of `PATH`, so in a login shell (a tmux window, an ssh session) a line in
+  `~/.bashrc` alone loses to any `node` in `~/.local/bin`: another tool's Node
+  linked there stays the one you get. Read it in a new login shell, not the one
+  you edited in: `command -v node` names `.local/node-26/bin/node` and
+  `node -v` prints `v26.13.0` (the owner's deploy shell, 2026-11-03).
+
 - **Only on a host where nothing else runs on the system's Node**, it can move
   instead. With **NodeSource** (`apt-cache policy nodejs | grep -c
   deb.nodesource.com` counts above 0; a count, so no mirror's address is
