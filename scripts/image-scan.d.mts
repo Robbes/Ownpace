@@ -24,9 +24,21 @@ export declare const ISSUES_REF: string;
 export declare const BUILT_HERE: string;
 export declare const API_DOCKERFILE: string;
 
+/** Where an image runs (the owner, 2026-11-03): the report's order, production first. */
+export type Tier = 'production-public' | 'production-internal' | 'shipped' | 'test-only';
+export declare const TIERS: Tier[];
+/** What each tier means, as the report's headline says it. */
+export declare const TIER_MEANS: Record<Tier, string>;
+/** Every listed image's tier, by the name the list gives it. */
+export declare const IMAGE_TIERS: Record<string, Tier>;
+/** The tier of the image the list names so; an error for a name with none. */
+export declare function tierOf(name: string): Tier;
+
 /** One image to scan: one matrix leg, one SARIF category, one artifact, one issue title. */
 export interface ScanImage {
   name: string;
+  /** Where it runs: the report's headline and order, and whether its SARIF goes to code scanning (not for test-only). */
+  tier: Tier;
   ref: string;
   where: string;
   floating: boolean;

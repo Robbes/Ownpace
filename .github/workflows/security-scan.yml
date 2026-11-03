@@ -417,15 +417,28 @@ jobs:
   # network belong to the stacks it runs.
   #
   # REPORT ONLY. Findings go to code scanning, one SARIF category per image
-  # (`trivy-image-<name>`), and fail nothing: a CVE published upstream on a
-  # Sunday cannot turn main red. What fails the run is a report that is
-  # missing, the shape `a-scan-that-skipped-itself` was written for: each scan
-  # asserts its own, and the report job checks that every listed image has one.
+  # (`trivy-image-<name>`), every image's but a test-only one's (below), and
+  # fail nothing: a CVE published upstream on a Sunday cannot turn main red.
+  # What fails the run is a report that is missing, the shape
+  # `a-scan-that-skipped-itself` was written for: each scan asserts its own,
+  # and the report job checks that every listed image has one.
+  #
+  # EVERY IMAGE HAS A TIER, AND A TEST-ONLY ONE STAYS OUT OF CODE SCANNING (the
+  # owner, 2026-11-03, workplan 0119). The list gives each leg a `tier`
+  # (image-scan.mjs, IMAGE_TIERS): production-public, production-internal,
+  # shipped or test-only. A test-only image (Nextcloud, Stalwart and Mailpit:
+  # development, the demo and CI, never live) is scanned, its JSON kept and
+  # read by the report job like any other, end of life included; its leg skips
+  # the SARIF and the upload, and its last step checks that it did. The report
+  # leads with the totals of each tier, production first and test-only last.
+  # Their categories stop being uploaded, so the alerts already open under
+  # them stay open (below) until the owner dismisses them as used in tests.
   #
   # THE END OF LIFE IS ONLY IN THE JSON. Trivy's SARIF carries findings and the
   # image's name, never `.Metadata.OS.EOSL`. So each scan writes JSON, keeps
-  # it for the report job, converts it with `trivy convert` (the binary
-  # trivy-action put on the PATH) and uploads the SARIF. The report job warns,
+  # it for the report job, and unless its image is test-only converts it with
+  # `trivy convert` (the binary trivy-action put on the PATH) and uploads the
+  # SARIF. The report job warns,
   # writes a summary line, and keeps one issue open per image past its end of
   # life, closed when that ends: from a run on main only (the schedule, or a
   # dispatch on main). A dispatch on a pull request's branch scans the images
@@ -440,10 +453,10 @@ jobs:
   # finding of the pull request; what it does to the check's conclusion is
   # read after the first run on main (workplan 0146, Status). A name changes
   # when its image leaves the stacks, or when its short name starts or stops
-  # occurring in both stacks (image-scan.mjs says how names are made); the
-  # old configuration then stays with its alerts open, and is deleted by hand
-  # on the code scanning tool status page (the Security tab, Code scanning,
-  # Tool status).
+  # occurring in both stacks (image-scan.mjs says how names are made), or
+  # when its image becomes test-only; the old configuration then stays with
+  # its alerts open, and is deleted by hand on the code scanning tool status
+  # page (the Security tab, Code scanning, Tool status).
   #
   # THE TASKS' IMAGE IS BUILT, NOT PULLED (workplan 0146 T10, 2026-10-25). No
   # registry holds it: each deploy builds it on the stack's own machine, on
@@ -529,7 +542,8 @@ jobs:
       # base when the config names none), and Ownpace's three at `:edge` and
       # at the newest release tag, which is what live runs: it builds the tag
       # it deploys; an image a script or a compose file builds here carries
-      # its `context`. See image-scan.mjs.
+      # its `context`. Each carries its `tier`, and a name without one fails
+      # the list. See image-scan.mjs.
       - name: List every image the stacks run
         id: list
         run: node scripts/image-scan.mjs list >> "$GITHUB_OUTPUT"
@@ -657,7 +671,8 @@ jobs:
           cache: 'false'
 
       # Before the SARIF, so an upload code scanning refuses still leaves the
-      # report job what it needs to say whether the image is past its end of life.
+      # report job what it needs to say whether the image is past its end of
+      # life. On every leg, a test-only image's included: the report covers it.
       - name: Keep the image's report for the report job
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
@@ -666,13 +681,17 @@ jobs:
           retention-days: 14
           if-no-files-found: error
 
+      # Not for a test-only image (the owner, 2026-11-03; the comments above
+      # image-list): its findings are in the report alone.
       - name: Turn the image report into SARIF
+        if: matrix.tier != 'test-only'
         env:
           NAME: ${{ matrix.name }}
         run: trivy convert --format sarif --output "trivy-image-${NAME}.sarif" "trivy-image-${NAME}.json"
 
       - name: Upload the image's SARIF to code scanning
         id: image_upload
+        if: matrix.tier != 'test-only'
         uses: github/codeql-action/upload-sarif@9b3254085494b55a0f7c4c2b3d2d52cc712ce370 # v4.39.1
         with:
           sarif_file: trivy-image-${{ matrix.name }}.sarif
@@ -684,12 +703,15 @@ jobs:
       # JSON and SARIF, and the upload. Always fatal, because these jobs only
       # run where the scan is the record. On the leg that builds its image, a
       # failed install or build is named first, since it skips every step
-      # after it; on the others both read 'skipped', which is no problem.
-      - name: The image scan wrote its report, and code scanning took it
+      # after it; on the others both read 'skipped', which is no problem. On a
+      # test-only leg the JSON is the report, and the upload must read
+      # 'skipped': code scanning takes nothing of an image live never runs.
+      - name: The image scan wrote its report, and code scanning took it unless test-only
         if: always()
         env:
           NAME: ${{ matrix.name }}
           REF: ${{ matrix.ref }}
+          TIER: ${{ matrix.tier }}
           JSON: trivy-image-${{ matrix.name }}.json
           SARIF: trivy-image-${{ matrix.name }}.sarif
           INSTALL_OUTCOME: ${{ steps.install.outcome }}
@@ -717,11 +739,21 @@ jobs:
           if [ ! -s "$JSON" ]; then
             problems="${problems:+$problems; }no $JSON was written (or it is empty)"
           fi
-          if [ ! -s "$SARIF" ]; then
-            problems="${problems:+$problems; }no $SARIF was written (or it is empty)"
+          if [ "$TIER" = "test-only" ]; then
+            if [ "$UPLOAD_OUTCOME" != "skipped" ]; then
+              problems="${problems:+$problems; }the SARIF upload ended '$UPLOAD_OUTCOME' for a test-only image, whose findings go to the report alone"
+            fi
+          else
+            if [ ! -s "$SARIF" ]; then
+              problems="${problems:+$problems; }no $SARIF was written (or it is empty)"
+            fi
+            if [ "$UPLOAD_OUTCOME" != "success" ]; then
+              problems="${problems:+$problems; }the SARIF upload ended '$UPLOAD_OUTCOME'"
+            fi
           fi
-          if [ "$UPLOAD_OUTCOME" != "success" ]; then
-            problems="${problems:+$problems; }the SARIF upload ended '$UPLOAD_OUTCOME'"
+          if [ -z "$problems" ] && [ "$TIER" = "test-only" ]; then
+            echo "${NAME}: Trivy wrote $(wc -c < "$JSON") bytes of JSON for the report. Test-only, so nothing went to code scanning."
+            exit 0
           fi
           if [ -z "$problems" ]; then
             echo "${NAME}: Trivy wrote $(wc -c < "$JSON") bytes of JSON, and code scanning took the SARIF."
@@ -757,7 +789,9 @@ jobs:
           merge-multiple: true
       # Every listed image against its report: a missing one is an ::error::
       # and fails the run; one past its end of life is a ::warning::, a line
-      # in the summary and an issue; findings are counted and fail nothing.
+      # in the summary and an issue, whatever its tier; findings are counted
+      # and fail nothing. The summary leads with each tier's totals,
+      # production first and test-only last, and lists the images by tier.
       # `--issue` keeps the issues on main only: the script reads GITHUB_REF
       # (image-scan.mjs, ISSUES_REF), and on any other ref says it kept none.
       - name: Every image has a report, and one issue per image past its end of life

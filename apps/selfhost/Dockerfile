@@ -68,8 +68,20 @@ ENV GIT_SHA=$GIT_SHA
 RUN pnpm --filter @openmig/web build:selfhost
 # Stage the SHIPPED artefact (workplan 0015 T3). The image now runs this, not
 # the source tree — see the runtime stage for why that is the point rather than
-# an optimisation.
-RUN node scripts/package-appliance.mjs --out /payload
+# an optimisation. The default config goes in beside it, as `config/`, which the
+# runtime stage seeds /data/config from.
+#
+# Then the whole tree is made READABLE BY EVERYONE AND WRITABLE BY ROOT ALONE,
+# whatever modes the checkout gave its files: a umask of 077 writes them 0600,
+# and COPY keeps a mode, so a root-owned /app would keep them from the user the
+# appliance runs as. CI's umask of 022 hides that. The runtime stage copies this
+# tree as root's and chowns none of it, so the appliance reads its code and
+# cannot rewrite it, as the API cannot since 0146 T13. Last in this stage, so
+# nothing after it writes a file with another mode
+# (scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts).
+RUN node scripts/package-appliance.mjs --out /payload \
+ && cp -r deploy/selfhost/config /payload/config \
+ && chmod -R u=rwX,go=rX /payload
 
 # ---- runtime: non-root, health-checked ----
 FROM base AS runtime
@@ -131,15 +143,32 @@ ENV HOST=0.0.0.0
 # Saying so here keeps `docker run` on this image behaving as it always did, and
 # leaves `compose.pglite.yml` free to override it.
 ENV SELFHOST_PERSISTENCE=postgres
+# Where PGlite keeps its database when this image runs it, declared here for the
+# same reason: `start.mjs` defaults it into the payload (`<payload>/data/pglite`,
+# so `/app/data/pglite`), which is right for a payload unpacked where its user
+# may write and wrong here, where /app is root's. Without this line a
+# `docker run -e SELFHOST_PERSISTENCE=pglite` of this image stops at start with
+# "The appliance cannot write its database directory". It is the directory
+# `compose.pglite.yml` names, inside the state volume, so the override and a
+# plain `docker run` keep one database in one place.
+ENV SELFHOST_PGLITE_DIR=/data/state/pglite
 # `/app` IS the payload — the same directory `pnpm package:appliance` produces
-# for an installer to copy. It carries its own `ui/` and `migrations/`, which
-# `start.mjs` resolves relative to itself, so no *_DIR variable is needed for
-# either and none is set: a stale override is the failure mode that would put
-# `/ui` back to "here is how to build it" while everything else looked fine.
+# for an installer to copy, with the default config (`config/`) beside it. It
+# carries its own `ui/` and `migrations/`, which `start.mjs` resolves relative
+# to itself, so no *_DIR variable is needed for either and none is set: a stale
+# override is the failure mode that would put `/ui` back to "here is how to
+# build it" while everything else looked fine.
+#
+# ROOT'S, AND READ-ONLY TO THE APPLIANCE. Copied without --chown, so root owns
+# it, with the modes the build stage set last (everyone reads, root alone
+# writes). The appliance writes only under /data (CONFIG_DIR and
+# SELFHOST_PGLITE_DIR above), so a compromised appliance cannot rewrite the
+# code it loads at its next start. Until 2026-11-03 the RUN below chowned /app
+# to appuser as well, and that `chown -R` wrote every file of the payload again
+# in a layer of its own: the published image carried the payload twice, an
+# 11.3 MB layer (compressed, amd64) right after the COPY's 11.3 MB.
 COPY --from=build /payload /app
-# Copy default config into the image (can be overridden by mounted volume).
-COPY deploy/selfhost/config /app/config
-# Non-root runtime user; owns /app and the /data mount points.
+# Non-root runtime user; owns the /data mount points, and nothing under /app.
 #
 # `/data/state` MUST exist here, empty, before the chown — even though compose
 # mounts a named volume over it. Docker seeds a fresh named volume from the
@@ -155,12 +184,20 @@ COPY deploy/selfhost/config /app/config
 RUN useradd --system --uid 10001 --home-dir /app appuser \
   && mkdir -p /data/config /data/state \
   && cp -r /app/config/* /data/config/ \
-  && chown -R appuser:appuser /app /data
+  && chown -R appuser:appuser /data
 USER appuser
 EXPOSE 8080
 # DATABASE_URL and any tokenFromEnv/passwordFromEnv secrets come from the
 # compose env-file. The status server answers /healthz once migrations applied.
+#
+# EXEC FORM: Docker runs `node` itself, with no `/bin/sh -c` around it. The
+# probe needs no shell (Node reads PORT from its own environment, so nothing
+# here is for a shell to expand), and an image without one, as the API's
+# distroless runtime is, could not run the shell form at all.
+# `deploy/selfhost/compose.yml` sets a healthcheck of its own for the `app`
+# service, which takes the place of this one under compose; this one is what a
+# plain `docker run` of the image gets.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 WORKDIR /app
 CMD ["node", "start.mjs"]

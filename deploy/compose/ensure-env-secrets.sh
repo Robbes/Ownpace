@@ -59,6 +59,23 @@ UPSERT="${SCRIPT_DIR}/env-upsert.sh"
 }
 touch "$ENV_FILE"
 
+# WHERE PGBOUNCER'S USERLIST GOES, asked before anything is written: the file
+# managed.yml mounts, `${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}`, found
+# by pgbouncer_userlist (env-read.sh). Live's .env does not set the key, so
+# live's is pgbouncer/userlist.txt beside this script, as it always was. The
+# OTA stack's names a file in its persisted directory, which the nightly gate
+# sets before it runs this (2026-11-03, workplan 0132): the file in the gate's
+# checkout was deleted by another workflow's checkout under a running
+# pgbouncer, and the copy the gate kept went stale, because this rewrote the
+# checkout's file on every run and nothing wrote the kept one. Now there is one
+# file, the one mounted, and this writes it (near the end). A shell that
+# exports another stack's value is refused here, so this never writes one
+# stack's password into the other's file.
+USERLIST="$(pgbouncer_userlist "$SCRIPT_DIR")" || {
+  echo "[ensure-env-secrets] FATAL: where PgBouncer's userlist goes could not be read (above). Nothing was written." >&2
+  exit 1
+}
+
 # A PLACEHOLDER IS NOT A SECRET, AND `^NAME=.` CANNOT TELL THE DIFFERENCE.
 #
 # This function used to ask only whether the line had *a* value. Older versions
@@ -425,10 +442,26 @@ seed_pat_expiry "$ENV_FILE"
 # not mean keeping a second copy of its password here and remembering to
 # redeploy it. Generated rather than committed, and gitignored, because a
 # password in a public repository is not a password.
-USERLIST="${SCRIPT_DIR}/pgbouncer/userlist.txt"
+#
+# WHERE: USERLIST, found at the top of this script (pgbouncer_userlist).
+#
+# IN PLACE, never a new file renamed over it: `>` keeps the inode, which is
+# what a running container's bind mount holds. A rename would leave a running
+# pgbouncer on the old file until it is recreated.
 PGB_PW="$(env_value "$ENV_FILE" PGBOUNCER_AUTH_PASSWORD)"
 if [ -n "$PGB_PW" ]; then
-  mkdir -p "${SCRIPT_DIR}/pgbouncer"
+  # A DIRECTORY where the file belongs is what Docker leaves when a container
+  # starts with a bind mount's file missing: it makes one, and PgBouncer then
+  # fails with `not a directory`, exit 127 (the OTA stack, 2026-11-03). Named
+  # here rather than left to `>`'s "Is a directory".
+  if [ -d "$USERLIST" ]; then
+    echo "[ensure-env-secrets] REFUSED: ${USERLIST} is a directory, where PgBouncer's userlist file belongs." >&2
+    echo "[ensure-env-secrets]   Docker makes one there when pgbouncer starts while the file is missing, and the pooler then cannot start." >&2
+    echo "[ensure-env-secrets]   If it is empty, as Docker leaves it, remove it and run this again: rmdir ${USERLIST}" >&2
+    echo "[ensure-env-secrets]   Nothing was written to it." >&2
+    exit 1
+  fi
+  mkdir -p "$(dirname "$USERLIST")"
   printf '"pgbouncer_auth" "%s"\n' "$PGB_PW" >"$USERLIST"
   # 0644, NOT 0600, and this is not an oversight.
   #

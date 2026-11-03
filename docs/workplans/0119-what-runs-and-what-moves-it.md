@@ -82,6 +82,132 @@ alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
   architectures on main only; E2E (self-hosted) builds it on arm64 on the branch, and asks it
   about the ten); the smoke's section on a real stack (E2E (managed) on the branch).
 
+**2026-11-03: the appliance's `/app` is root's and read-only to it, its HEALTHCHECK is exec form,
+and its image names PGlite's directory; built on a branch, for alpha.4.** Item 1 of the day's
+survey of leaner and harder base images, the one that needs no owner's decision. On the branch
+`claude/ownpace-public-readiness-y7orc6-selfhost-tidy`, from `main` at `319a2d34`, draft #1801.
+Not merged: E2E (self-hosted), on Postgres and on PGlite, on the branch is owed first; the
+container-level upgrade drill (`scripts/upgrade-drill.sh`) stays the release checklist's step on
+the Docker host. Times are UTC.
+- **What changes**, in `apps/selfhost/Dockerfile` alone of the code:
+  - The build stage's last RUN stages the payload, copies the default config into it as
+    `config/` (the runtime stage copied that from the build context, with the checkout's
+    modes), and ends `chmod -R u=rwX,go=rX /payload`. The runtime stage copies `/payload` to
+    `/app` without `--chown`, so root owns it, and its RUN chowns `/data` alone to `appuser`.
+  - `ENV SELFHOST_PGLITE_DIR=/data/state/pglite`, the value `compose.pglite.yml` sets.
+  - The HEALTHCHECK is exec form, `["node", "-e", …]`, the same probe.
+  - Unchanged: the user (uid 10001, home `/app`), `/data`'s owner and contents, CMD, the other
+    ENV lines, the base, and every compose file. `deploy/selfhost/README.md`'s row for the
+    Dockerfile says who owns what.
+- **Why.** The appliance owned `/app`, the code it loads at every start, which the API has not
+  since 0146 T13. The `chown -R` wrote the payload a second time: `edge`'s amd64 manifest (index
+  `644be907…`, read today) lists, in instruction order, the payload's COPY at 11.29 MB, the
+  config's COPY at 1.8 kB and the chown's RUN at 11.30 MB, of 109.2 MB compressed. The image's
+  config, which names each layer's instruction, could not be read from this session (ghcr's blob
+  host refuses it), so that mapping is by order; the local build below shows the same pair. The
+  shell-form HEALTHCHECK needed `/bin/sh` for nothing. And `start.mjs` defaults PGlite into the
+  payload, `/app/data/pglite`, which a root-owned `/app` refuses.
+- **Proved here**, Docker 29.9.2 and BuildKit 0.34.0 on linux/amd64. The payload was staged on
+  the host with the build stage's own commands under umask 077, Node 26.13.0: 8 of its 411 files
+  came out 0600 (`start.mjs`, `appliance.mjs`, the config), none after the chmod. This branch's
+  runtime stage was built on `node:26.13.0-trixie-slim@e4db4c91…`, with the build stage and the
+  base stage given as named contexts (so without the base stage's corepack layer), and `main`'s
+  the same way:
+  - `main`'s Dockerfile: the payload's COPY 35.5 MB, then the chown's RUN 35.5 MB
+    (uncompressed). This branch's RUN: 57.3 kB.
+  - Run on PGlite with a fresh named volume and no `SELFHOST_PGLITE_DIR` given: healthy in about
+    15 s, `Healthcheck.Test` `["CMD","node","-e",…]` (`main`'s `["CMD-SHELL",…]`). As uid 10001,
+    all 411 files under `/app` root's and readable; appending to `start.mjs`, creating a file in
+    `/app`, `mkdir /app/data` and renaming `appliance.mjs` each EACCES, `chmod` EPERM; writes in
+    `/data/state` and `/data/config` succeed; the database at `/data/state/pglite`; `/version`
+    and `/ui/` answered.
+  - The same payload without the chmod: `EACCES: permission denied, open '/app/start.mjs'`, and
+    it never starts. With `SELFHOST_PGLITE_DIR=/app/data/pglite`, `start.mjs`'s default: *The
+    appliance cannot write its database directory*, EACCES.
+  - An upgrade on PGlite: `main`'s image with the override's `SELFHOST_PGLITE_DIR`, healthy, 65
+    migrations applied, the volume's `pglite` 10001's; then this branch's image on that volume
+    with none given, healthy, *schema up to date at 0067_a_cutover_ledger_per_data_type.sql*,
+    none applied. On Postgres (`postgres:18-alpine` on a network of its own): healthy, 65 applied.
+  - The new guard, `an-appliance-that-could-rewrite-its-own-code`, passes, fails on `main`'s
+    Dockerfile (5 of 7), and fails on each of 16 mutations: the chmod dropped, not last, or over
+    `/payload/ui` alone; `/app` chowned again, chmodded in the runtime, or copied with
+    `--chown` or `--chmod`; the config copied from the build context again; `CONFIG_DIR` under
+    `/app`; `SELFHOST_PGLITE_DIR` dropped or not the override's; `/data/state` not made before
+    the chown; the HEALTHCHECK in shell form, in JSON Docker would not take, or with `$PORT`; a
+    write after the chmod.
+  - Every container, volume, network and image of this was removed.
+- **Not proved here:** the build stage itself in Docker (`build (selfhost)` on the pull request
+  builds the whole Dockerfile), arm64, the appliance under compose, and the upgrade from
+  alpha.3's published image: E2E (self-hosted) and the upgrade drill, the owner's.
+- **For a self-hoster upgrading, nothing to do.** An existing `appdata` volume keeps its owner,
+  and the image still makes `/data/state` and `/data/config` as 10001's. `compose.yml`'s own
+  healthcheck for `app` takes the place of the image's, an older `compose.yml` included. What
+  no longer works: writing under `/app` from inside the container, by hand or by a mount that
+  expects it. A `docker run` of an older image on PGlite with no `SELFHOST_PGLITE_DIR` kept its
+  database in `/app/data/pglite`, in the container's own layer; this image keeps it in
+  `/data/state/pglite`, so only a volume someone mounted at `/app/data` would be left behind,
+  which no procedure here does.
+- **Not in this change:** the survey's item 2 (purging the util-linux family from the Debian
+  bases; the owner said yes for alpha.4 on 2026-11-03) is a branch of its own, and the
+  distroless appliance is alpha.5 (the owner, the same day); the compose files belong to the
+  compose hardening on its own branch.
+
+**2026-11-03 (UTC): every scanned image has a tier, the weekly report leads with production, and
+the test-only images leave code scanning.** Built on the branch
+`claude/ownpace-public-readiness-y7orc6-scan-tiers`, on top of #1799 (the fixable inventory, the
+last bullet of the image scan's reading of 2026-11-02 below); not merged.
+- **The owner's decision, 2026-11-03:** (1) every image the weekly scan reads gets a tier, and its
+  report leads with production; (2) a test-only image is no longer uploaded to code scanning and
+  stays in the report. Why: the report weighed the demo's Nextcloud like live's sign-in, and five
+  of the seven criticals of 2026-11-02 were in images live never runs (Nextcloud's four,
+  Stalwart's one), listed in code scanning beside live's.
+- **The tiers** (`IMAGE_TIERS` in `scripts/image-scan.mjs`, by the name the list gives; a name
+  with none fails the list):
+  - *production-public*, what the internet reaches on live: `nginx` (www.ownpace.eu, which the
+    mesh provider maps to `WWW_PORT`, `www.yml`'s header); `zitadel` (id.ownpace.eu on
+    `ZITADEL_PORT`) and `gatus` (status.ownpace.eu on `STATUS_PORT`), two of the three routes
+    `managed-bring-up.md` sets before live's bring-up and `stand-up-live.sh` checks resolve; and
+    Ownpace's api and web at `:edge` and at the release (app.ownpace.eu, the third, on
+    `WEB_PORT`; the web image's nginx proxies `/api/` to the API, whose `API_BIND` stays empty).
+  - *production-internal*, live runs it and nothing beyond its machine and the mesh reaches it:
+    the services `bootstrap-managed.sh`'s `phase_app` starts by name on live, published on
+    loopback or not at all (`postgres-managed`, `pgbouncer`, `redis`, `trigger.dev`,
+    `clickhouse-server`, `registry`, `docker-socket-proxy`, `supervisor`, `minio`); `caddy`;
+    `busybox` (the identity provider's one-shot chown, run by the bring-up); `goaccess`
+    (`site-visits.sh`, the daily duty on live's site log, no network); and `trigger-task-base`
+    (live's task runs). **`caddy` is internal, not public:** it is `trigger-tls`, the Trigger.dev
+    dashboard's front, with a certificate no public CA signs (`tls internal`), on loopback or
+    the mesh address `TRIGGER_TLS_BIND` names; live's dashboard is opened on localhost or
+    through a tunnel (`stand-up-live.sh`). No public name is routed to it.
+  - *shipped*, what self-hosters run: `postgres-selfhost` and `ownpace-selfhost` at `:edge` and at
+    the release. Ownpace's api and web are not in the appliance (`deploy/selfhost/compose.yml`
+    runs the selfhost image and its Postgres), so they keep production-public.
+  - *test-only*: `nextcloud` (the demo's DAV backend and a test fixture; `phase_app` starts it
+    only with `--with-demo`, which `stand-up-live.sh` and `deploy-live.sh` refuse), `mailpit`
+    (the OTA stack's and the demo's catcher; live sends through a relay and `stand-up-live.sh`
+    refuses `SMTP_HOST=mailpit`) and `stalwart` (the CI fixture, ADR-0022). The owner confirmed
+    all three are development and test pipelines only, with no public surface: live has no
+    Nextcloud or Mailpit service, and Stalwart is a CI fixture.
+- **The report** opens, after its line of counts, with a table of each tier's critical, high and
+  fixable totals, production-public first and test-only last, labelled not in production; the
+  per-image table (with a tier column), the criticals and the fixable inventory then go by tier,
+  each in its own order within one. The end of life and its issues are unchanged, test-only
+  images included. On the counts of the 2026-11-03 report (#1799's branch, 26 images):
+  production-public 7 images, 0 critical, 6 high, 6 fixable; production-internal 13, 2, 181, 72;
+  shipped 3, 0, 88, 0; test-only 3, 5, 296, 95.
+- **Code scanning:** `security-scan.yml`'s image leg skips *Turn the image report into SARIF* and
+  *Upload the image's SARIF to code scanning* where the matrix's `tier` is test-only, and its last
+  step requires the upload to read `skipped` there; the JSON and its artifact stay, so the report
+  covers them. The categories `trivy-image-nextcloud`, `trivy-image-stalwart` and
+  `trivy-image-mailpit` stop with the first scan on `main` after the merge; **the alerts already
+  open under them stay open until the owner dismisses them as used in tests** (agreed 2026-11-03). Their configurations stay
+  on the code scanning tool status page until deleted by hand.
+- **The guard,** `an-image-nobody-scanned`: every listed image has a valid tier and the map names
+  no other; the test-only set is exactly the three; the appliance's images are the shipped ones;
+  a new image without a tier fails the list, and the report refuses one handed on without; the
+  headline's rows and order; every list by tier; the two SARIF steps skipped exactly for
+  test-only; and the leg's last step run under bash for a production and a test-only leg.
+
 **2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
 OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,
 alpha.4's deploy shell read, and the drain read bounded to a day.** On the branch

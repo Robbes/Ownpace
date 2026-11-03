@@ -21,6 +21,15 @@ name: E2E (managed)
 # both failed the SAME "one-time setup was never done" refusal, because
 # nothing had ever been placed in a location that survives a checkout.
 #
+# And not only at the start of this workflow's next run: every workflow of
+# this repository that runs on this runner checks out into the same work
+# folder, ci.yml's on a push to `main` among them. A file a RUNNING container
+# mounts from here is deleted under it, and the next start of that container
+# finds nothing (2026-11-03: PgBouncer's userlist, at a Docker daemon restart;
+# workplan 0132). So what the stack mounts and does not commit is mounted from
+# the persisted directory, never from here: the userlist through
+# PGBOUNCER_USERLIST, which the Fill step sets.
+#
 # So the one-time setup lives OUTSIDE the checkout, at a fixed path on the
 # runner, and the "Restore" step below copies it in fresh every run — a
 # deliberate step, not a workaround for `clean`, because `clean` is doing
@@ -248,11 +257,15 @@ jobs:
             # would have had every step below write into the .env of the stack
             # testers use. Asked before anything of that directory's is copied.
             ./deploy/compose/refuse-live-env.sh "${PERSIST_DIR}/.env"
-            mkdir -p deploy/compose/pgbouncer
+            # .env only. PgBouncer's userlist is NOT copied into the checkout
+            # (2026-11-03, workplan 0132): pgbouncer mounts it from the persisted
+            # directory itself, through PGBOUNCER_USERLIST, which the Fill step
+            # sets. The copy this made was the file pgbouncer mounted, and the
+            # next checkout of any of this repository's workflows on this runner
+            # deletes it: ci.yml's did, under a running pgbouncer, and at the
+            # Docker daemon's next restart the pooler could not start. The file
+            # it copied from had gone stale besides: nothing kept it current.
             cp "${PERSIST_DIR}/.env" deploy/compose/.env
-            if [ -f "${PERSIST_DIR}/userlist.txt" ]; then
-              cp "${PERSIST_DIR}/userlist.txt" deploy/compose/pgbouncer/userlist.txt
-            fi
             echo "restored the one-time setup from ${PERSIST_DIR}"
           else
             echo "nothing persisted yet at ${PERSIST_DIR} — the next step explains what to do"
@@ -318,7 +331,8 @@ jobs:
             echo "'Restore' step earlier in this job can find it next time:"
             echo "  mkdir -p ${PERSIST_DIR}"
             echo "  cp deploy/compose/.env ${PERSIST_DIR}/.env"
-            echo "  cp deploy/compose/pgbouncer/userlist.txt ${PERSIST_DIR}/userlist.txt"
+            echo "PgBouncer's userlist is not copied: the next run writes it into that"
+            echo "directory from the .env's PGBOUNCER_AUTH_PASSWORD, and mounts it from there."
             exit 1
           fi
           echo "the two a human has to obtain are present"
@@ -365,8 +379,33 @@ jobs:
         # named in the log. The loop then leaves NODE_ENV alone: its own test,
         # `^KEY=.`, does not see an `export` line, and would append production
         # after it (scripts/a-stack-that-names-its-mode.unit.test.ts runs this).
+        #
+        # PGBOUNCER'S USERLIST LIVES IN THE PERSISTED DIRECTORY, AND IS MOUNTED
+        # FROM THERE (2026-11-03, workplan 0132). It was in this checkout, the
+        # runner's work folder, which every workflow of this repository that
+        # runs here checks out into: at 02:51 UTC ci.yml's checkout deleted it
+        # under the OTA stack's running pgbouncer, and when the Docker daemon
+        # restarted at 03:58 the file was gone, Docker made a directory in its
+        # place, and the pooler stopped (`not a directory`, exit 127) with every
+        # database call behind it. The copy this gate kept in the persisted
+        # directory had gone stale as well: ensure-env-secrets.sh rewrote the
+        # checkout's file from the .env on every run, the .env was persisted
+        # back, and the copy never was.
+        # So the .env names the persisted file, set here on every run before
+        # ensure-env-secrets.sh, which writes that file, in place, from the
+        # .env's PGBOUNCER_AUTH_PASSWORD; managed.yml mounts it; and the copy-back
+        # below keeps the key for every compose call on this stack, the
+        # operator's checkout's included. One file, the one mounted, and none in
+        # any checkout. Always written, never --if-absent: where this stack's
+        # persisted directory is, is this workflow's to say.
+        # scripts/a-pooler-file-another-workflow-deleted.unit.test.ts runs this.
         run: |
           set -euo pipefail
+          . deploy/compose/env-read.sh
+          COMPOSE_PROJECT="$(compose_project deploy/compose)"
+          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
+          mkdir -p "${PERSIST_DIR}"
+          ./deploy/compose/env-upsert.sh deploy/compose/.env "PGBOUNCER_USERLIST=${PERSIST_DIR}/userlist.txt"
           ./deploy/compose/ensure-env-secrets.sh
 
           . deploy/compose/env-read.sh
@@ -434,11 +473,9 @@ jobs:
           # exactly the hazard ensure-env-secrets.sh has a refusal list for. The
           # copy is additive — the script never replaced anything above, except
           # a passed ZITADEL_PAT_EXPIRY, which the canonical copy should not
-          # keep either.
-          . deploy/compose/env-read.sh
-          COMPOSE_PROJECT="$(compose_project deploy/compose)"
-          PERSIST_DIR="${MANAGED_ENV_PERSIST_DIR:-$HOME/.persistent/${COMPOSE_PROJECT}}"
-          mkdir -p "${PERSIST_DIR}"
+          # keep either. PGBOUNCER_USERLIST goes with it, so a compose call from
+          # the operator's checkout, which links this file, mounts the same
+          # userlist as the gate's. PERSIST_DIR is the one from the top of this step.
           cp deploy/compose/.env "${PERSIST_DIR}/.env"
           echo "persisted to ${PERSIST_DIR}/.env so the next run reuses these exact values"
 
