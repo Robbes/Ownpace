@@ -49,7 +49,8 @@
  *   `bash -eo pipefail` as the runner runs it: on live's `.env` and on one slip
  *   of it the step exits non-zero and leaves no `deploy/compose/.env`, no
  *   `pgbouncer/userlist.txt` and no CLI login; on the OTA stack's `.env` it
- *   copies them. Every step that writes the checkout's `.env` or runs the
+ *   copies the `.env` and the CLI login (the userlist, never since
+ *   2026-11-03: pgbouncer mounts it from the persisted directory). Every step that writes the checkout's `.env` or runs the
  *   bring-up comes after that step.
  *
  * T1's guard (`two-stacks-on-one-box`) fails if any workflow names live's
@@ -302,7 +303,9 @@ describe("the gate asks before anything of that directory's is copied or written
     const r = restore(OTA_ENV);
     expect(r.status, r.out).toBe(0);
     expect(readFileSync(join(r.checkout, 'deploy/compose/.env'), 'utf8')).toBe(OTA_ENV);
-    expect(existsSync(join(r.checkout, 'deploy/compose/pgbouncer/userlist.txt'))).toBe(true);
+    // Never the userlist, since 2026-11-03: pgbouncer mounts it from the
+    // persisted directory (scripts/a-pooler-file-another-workflow-deleted).
+    expect(existsSync(join(r.checkout, 'deploy/compose/pgbouncer/userlist.txt'))).toBe(false);
     expect(existsSync(join(r.home, '.config/trigger/config.json'))).toBe(true);
   });
 
