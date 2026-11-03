@@ -5738,7 +5738,10 @@ dependency problems - not removing` that something in it now needs one. Either
 way the list in `apps/worker/trigger.config.ts` (`UNUSED_ESSENTIALS`) and in
 `apps/selfhost/Dockerfile` is read again against the new base, in a pull
 request: nothing about it is changed on this machine. The managed smoke asks
-the image the runners ran for util-linux and fails if it is there.
+the newest image its runners started from, the one the last deploy built,
+about all ten, and fails if dpkg still has any of them. An older image a runner
+of an earlier deployment ran (Trigger.dev keeps a run on the version it was
+triggered on) is named there and not asked.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their

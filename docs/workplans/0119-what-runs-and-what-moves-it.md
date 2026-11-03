@@ -23,15 +23,23 @@ alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
   and not on the CLI's `-build` image, where Python links libuuid and libsqlite3.
   `scripts/image-scan.mjs containerfile` now writes the CLI's apt repair after the layers
   (`CLI_APT_REPAIR`), so the scan builds the stage a deploy builds. The managed smoke asks the
-  image every runner of its run started from for util-linux (a new section after the runner
-  logs; the watcher reads each runner's image ID while it exists), and E2E (self-hosted) asks
-  the appliance it built (a step after the bring-up). `an-essential-nothing-runs` holds the
-  list, the shape, both places, the scan's stage against the one the installed CLI writes
-  (its own `generateContainerfile`), and runs both checks against a stand-in docker; each of
-  12 mutations (a package dropped from either list, `--force-depends`, the repair left out of
-  the scan, the g++ guard dropped, the purge moved before the layer's apt step, an install
-  after the appliance's purge, each wrong verdict of the smoke and E2E checks, the watcher's
-  read removed) turned it red.
+  newest image its runners started from, the one the last deploy built, about all ten (a new
+  section after the runner logs; the watcher starts each runner's log, then reads its image ID
+  on every pass until a read answers). An older image is named and not asked: Trigger.dev
+  keeps a run on the version it was triggered on, so a pass running when the smoke starts, or
+  queued before the deploy, runs the image before it. E2E (self-hosted) asks the appliance it
+  built about all ten (a step after the bring-up). `an-essential-nothing-runs` holds the
+  list, the shape, both places, the tasks' base to a `-slim` tag (a full Node image ships g++,
+  and the layer's guard would skip the purge and the npm removal without a word), the scan's
+  stage against the one the installed CLI writes (its own `generateContainerfile`), and runs
+  both checks and the watcher's pass against a stand-in docker. Each mutation turned it red:
+  a package dropped from either list, `--force-depends`, the repair left out of the scan, the
+  g++ guard dropped, the purge moved before the layer's apt step, an install after the
+  appliance's purge; and, after the review of #1802, the smoke asking
+  the oldest image, either check asking nine, reading config files as absent or not checking
+  that every package was answered for, the smoke ignoring the exit status or an undated
+  image, the watcher reading the image once or before the log, and the tasks' base moved to
+  a full Node image.
 - **Verified in this session** (Docker 29.9.2 on amd64, the base's layers from the build cache,
   no network in the build):
   - the appliance's base with npm removed and this RUN: 0 critical and 7 high, against 0 and 44
@@ -44,9 +52,12 @@ alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
     depends on libuuid1 … dependency problems - not removing* and the build stops (exit 1);
     with a name the base does not have, `dpkg-query` stops it before dpkg removes anything.
   - the task layer's RUN on that base purges; with a `g++` on the PATH it does nothing.
-  - the smoke's section against real images: the purged image passes, the unpurged one fails
-    with *install ok installed*, an image that is not there and one without `dpkg-query` fail
-    as *could not be asked*, and a run that read no image fails.
+  - the smoke's section against real images: the purged image passes, and beside the
+    unpurged one, built earlier, it is the one asked; the unpurged one alone fails with all
+    ten *installed*; a run that read no image fails. `dpkg-query -W -f '${Package}
+    ${Status}\n'` over the ten on the purged image answers *no packages found* for nine and
+    `login unknown ok not-installed` for `login`, whose record dpkg keeps, which both checks
+    read as absent; E2E's step passes the purged image and fails the unpurged one.
   - the CLI's repair: trigger.dev 4.8.3 (tarball sha512 = pnpm-lock's) writes `RUN apt-get
     update && apt-get --fix-broken install -y --no-install-recommends && …` after layers that
     add instructions and no packages. apt 3.0.3's source (`DoInstall`,
@@ -69,7 +80,7 @@ alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
   refusal.
 - **Not verified here, and where it is:** the appliance on arm64 (images.yml builds both
   architectures on main only; E2E (self-hosted) builds it on arm64 on the branch, and asks it
-  for util-linux); the smoke's section on a real stack (E2E (managed) on the branch).
+  about the ten); the smoke's section on a real stack (E2E (managed) on the branch).
 
 **2026-11-03, records: #1796 merged, the host's Docker upgraded to 29.6.2 under both holds, the
 OTA stack's `pgbouncer` down after the restart and fixed by hand, the copy before 26.8 removed,

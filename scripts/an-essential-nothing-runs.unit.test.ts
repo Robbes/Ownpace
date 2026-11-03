@@ -39,7 +39,9 @@
  * 4. THE TASKS: the layer's purge runs where there is no C++ compiler, as its
  *    package-manager removal does: the CLI replays the layer on its `-build`
  *    image, whose Python links libuuid and libsqlite3, and dpkg would refuse
- *    there. It is the layer's last RUN, after every apt step of ours. After
+ *    there. So the base must be a `-slim` Node image, which ships no g++: on
+ *    the full one both would be skipped without a word. It is the layer's last
+ *    RUN, after every apt step of ours. After
  *    the layer the CLI writes its own repair, `apt-get --fix-broken install`,
  *    which installs only what a broken dependency needs (apt 3.0.3: only a
  *    dist-upgrade adds a missing Essential package), and the weekly scan
@@ -47,11 +49,17 @@
  *    CLI's own `generateContainerfile`, so the stage scanned is the stage a
  *    deploy builds, the repair included. Until 2026-11-03 the scan left the
  *    repair out, and would have read 7 if a deploy put util-linux back.
- * 5. WHAT RAN, ASKED: the managed smoke asks the image every runner of its run
- *    started from, and E2E (self-hosted) the appliance it started, with dpkg's
- *    own query. Each block runs here against a stand-in docker: absent passes,
- *    installed fails, a probe that could not be asked fails, and (the smoke)
- *    no image read fails.
+ * 5. WHAT RAN, ASKED: the managed smoke asks the newest image its runners
+ *    started from (the last deploy's: Trigger.dev keeps a run on the version
+ *    it was triggered on, so an earlier deployment's runner can be on the
+ *    network too, and its image is named, not asked), and E2E (self-hosted)
+ *    the appliance it started, about all ten, with dpkg's own query. Each
+ *    block runs here against a stand-in docker: absent (or dpkg's record of a
+ *    purged package, as `login` keeps one) passes; installed, config files
+ *    left, a package not answered for, an answer it cannot read, and a probe
+ *    that could not be asked fail; and the smoke fails when no image was read
+ *    or one cannot be dated. The watcher starts a runner's log first and reads
+ *    its image on every pass until a read answers.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -230,6 +238,18 @@ describe("the tasks' runtime base purges the same ten, last of the layer, where 
     expect(removal, 'the package managers are no longer removed under a g++ guard').toMatch(/^RUN if ! command -v g\+\+ >\/dev\/null; then /);
   });
 
+  it("runs on a -slim Node image, which ships no C++ compiler, so the guard cannot skip it", async () => {
+    // The purge and the package managers' removal both run only where `g++`
+    // is not on the PATH. The full `node:<x.y.z>-<codename>` images ship g++
+    // (buildpack-deps), so a base moved to one would skip both in silence and
+    // the deploy would go on with util-linux and npm in the runtime.
+    const { image } = await deploy();
+    expect(
+      image.base,
+      `the tasks' base (the API's FROM line) is not a node:<x.y.z>-<codename>-slim image pinned by digest, and on an image with g++ the layer's purge and removal do nothing`,
+    ).toMatch(/^node:\d+\.\d+\.\d+-[a-z]+-slim@sha256:[0-9a-f]{64}$/);
+  });
+
   it('comes after every apt step of the layer, and is its last RUN', async () => {
     const { instructions } = await deploy();
     const runs = instructions.filter((i) => i.startsWith('RUN '));
@@ -299,73 +319,169 @@ function bash(script: string, env: Record<string, string> = {}): { status: numbe
   return { status: run.status, out: `${run.stdout}${run.stderr}` };
 }
 
-/** A stand-in docker: records its arguments, and answers a dpkg-query as told. */
-const STUB = `docker() { printf '%s\\n' "$*" >>"$CALLS"; printf '%s' "$SAYS" >&2; return "$RC"; }`;
+/**
+ * A stand-in docker, recording its arguments: an image's build time from
+ * `$CREATED` (`<id> <time>` lines; an id missing there cannot be dated), and a
+ * dpkg-query answered as `$SAYS` with `$RC`, or, in the image `$KEEPER`, with
+ * all ten installed.
+ */
+const STUB = `docker() {
+  printf '%s\\n' "$*" >>"$CALLS"
+  if [ "$1 $2" = "image inspect" ]; then
+    awk -v id="$5" '$1 == id { print $2; found = 1 } END { exit !found }' <<<"$CREATED" || { echo "Error: No such image: $5" >&2; return 1; }
+    return 0
+  fi
+  case "$*" in
+    *" \${KEEPER:-no-image-keeps-them} "*) printf '%s\\n' ${ESSENTIALS.map((p) => `'${p} install ok installed'`).join(' ')}; return 0 ;;
+  esac
+  printf '%s\\n' "$SAYS" >&2
+  return "$RC"
+}`;
 
-/** What dpkg-query says, each way it can. */
+const notFound = (p: string) => `dpkg-query: no packages found matching ${p}`;
+
+/** What dpkg-query says about the ten, each way it can. */
 const ANSWERS = {
-  absent: { RC: '1', SAYS: 'dpkg-query: no packages found matching util-linux' },
-  purgedRecord: { RC: '0', SAYS: 'purge ok not-installed' },
-  installed: { RC: '0', SAYS: 'install ok installed' },
-  configFiles: { RC: '0', SAYS: 'deinstall ok config-files' },
+  absent: { RC: '1', SAYS: ESSENTIALS.map(notFound).join('\n') },
+  // As the purged base answered on 2026-11-03: dpkg keeps a record of `login`, protected, as not-installed.
+  purgedRecord: { RC: '1', SAYS: [...ESSENTIALS.filter((p) => p !== 'login').map(notFound), 'login unknown ok not-installed'].join('\n') },
+  oneInstalled: { RC: '1', SAYS: [...ESSENTIALS.slice(0, 9).map(notFound), 'libsqlite3-0 install ok installed'].join('\n') },
+  allInstalled: { RC: '0', SAYS: ESSENTIALS.map((p) => `${p} install ok installed`).join('\n') },
+  configFiles: { RC: '1', SAYS: [...ESSENTIALS.slice(1).map(notFound), 'util-linux deinstall ok config-files'].join('\n') },
+  oneUnanswered: { RC: '1', SAYS: ESSENTIALS.slice(1).map(notFound).join('\n') },
+  oddLine: { RC: '2', SAYS: 'dpkg-query: error: cannot access archive' },
+  // Every line readable, and an exit dpkg-query never gives with them: the command did not finish as it says.
+  badExit: { RC: '137', SAYS: ESSENTIALS.map(notFound).join('\n') },
   notAsked: { RC: '125', SAYS: 'docker: Error response from daemon: No such image: sha256:0000' },
   noDpkg: { RC: '127', SAYS: 'exec: "dpkg-query": executable file not found in $PATH' },
 };
+const PASSING = [ANSWERS.absent, ANSWERS.purgedRecord];
+const FAILING = [
+  ANSWERS.oneInstalled,
+  ANSWERS.allInstalled,
+  ANSWERS.configFiles,
+  ANSWERS.oneUnanswered,
+  ANSWERS.oddLine,
+  ANSWERS.badExit,
+  ANSWERS.notAsked,
+  ANSWERS.noDpkg,
+];
 
-describe("the managed smoke asks the image the runners ran", () => {
+/** The ten a block asks about, from its `essentials="…"`. */
+const askedIn = (text: string) => /^\s*essentials="([^"]+)"$/m.exec(text)?.[1]?.split(' ');
+
+/** The query, as the stand-in records it. */
+const QUERY = `dpkg-query -W -f \${Package} \${Status}\\n ${ESSENTIALS.join(' ')}`;
+
+describe('the managed smoke asks the image the last deploy built', () => {
   const smoke = read(SMOKE);
-  const banner = "# ---------- the tasks' image carries no util-linux ----------";
+  const banner = "# ---------- the tasks' image carries none of the Debian Essentials it purges ----------";
   const start = smoke.indexOf(banner);
   const block = smoke.slice(start, smoke.indexOf('\n# ---------- ', start + banner.length));
   const failAt = (() => {
     const s = smoke.indexOf('fail_at() {');
     return smoke.slice(s, smoke.indexOf('\n}\n', s) + 3);
   })();
+  // The watcher's pass over the runners it sees: its `for` loop, whole.
+  const watcherAt = smoke.indexOf('    for c in $(docker ps --filter');
+  const watcher = smoke.slice(watcherAt, smoke.indexOf('\n    done\n', watcherAt) + '\n    done\n'.length);
 
-  /** The block run with a runner-log directory holding `images` as `.image` files; the verdict and docker's calls. */
-  function verdict(images: string[], answer: { RC: string; SAYS: string }): { fail: string; calls: string; out: string } {
+  const A = `sha256:${'a'.repeat(64)}`;
+  const B = `sha256:${'b'.repeat(64)}`;
+  const C = `sha256:${'c'.repeat(64)}`;
+  const BUILT = `${A} 2026-11-02T21:00:00.5Z\n${B} 2026-11-03T07:00:00.123456789Z\n${C} 2026-11-03T06:59:59Z`;
+
+  /** The block run with runner records holding `images`; the verdict, docker's calls and what it said. */
+  function verdict(images: string[], answer: { RC: string; SAYS: string }, extra: Record<string, string> = {}) {
     const dir = mkdtempSync(join(tmpdir(), 'essentials-smoke-'));
     try {
       images.forEach((id, n) => writeFileSync(join(dir, `runner-${n}.image`), `${id}\n`));
       writeFileSync(join(dir, 'calls'), '');
       const run = bash(
         ['set -uo pipefail', 'fail=0', 'SECTION=test', 'FAIL_REASONS=""', 'note() { SECTION="$*"; }', failAt, STUB, block, 'echo "FAIL=$fail"'].join('\n'),
-        { RUNNER_LOG_DIR: dir, CALLS: join(dir, 'calls'), ...answer },
+        { RUNNER_LOG_DIR: dir, CALLS: join(dir, 'calls'), CREATED: BUILT, ...answer, ...extra },
       );
       expect(run.status, run.out).toBe(0);
-      return { fail: /FAIL=(\d)\s*$/.exec(run.out)?.[1] ?? '?', calls: readFileSync(join(dir, 'calls'), 'utf8'), out: run.out };
+      const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n').filter(Boolean);
+      return { fail: /FAIL=(\d)\s*$/.exec(run.out)?.[1] ?? '?', runs: calls.filter((c) => c.startsWith('run ')), calls, out: run.out };
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }
 
-  const A = `sha256:${'a'.repeat(64)}`;
-  const B = `sha256:${'b'.repeat(64)}`;
-
-  it('is there, after the runner logs, and the watcher reads each runner\'s image while it exists', () => {
+  it('is there, after the runner logs, and asks about the ten', () => {
     expect(start, `${SMOKE} has no section "${banner}"`).toBeGreaterThan(smoke.indexOf('# ---------- runner logs ----------'));
-    expect(smoke).toContain(`docker container inspect --format '{{.Image}}' "$c" >"$RUNNER_LOG_DIR/$c.image"`);
+    expect(askedIn(block)).toEqual(ESSENTIALS);
     expect(block).toContain('fail_at');
   });
 
-  it('passes an image dpkg knows no util-linux in, asking each image once, by ID, with no network and no pull', () => {
-    const run = verdict([A, A, B], ANSWERS.absent);
-    expect(run.fail, run.out).toBe('0');
-    expect(run.calls.trim().split('\n')).toEqual([
-      `run --rm --pull never --network none --entrypoint dpkg-query ${A} -W -f \${Status} util-linux`,
-      `run --rm --pull never --network none --entrypoint dpkg-query ${B} -W -f \${Status} util-linux`,
-    ]);
-    expect(verdict([A], ANSWERS.purgedRecord).fail).toBe('0');
+  it("the watcher starts a runner's log first, and reads its image on every pass until a read answers", () => {
+    expect(watcherAt, 'no watcher loop over `docker ps`').toBeGreaterThan(0);
+    // Before the read: a read that waits on the daemon must not hold the log back.
+    expect(watcher.indexOf('docker logs -f')).toBeGreaterThan(0);
+    expect(watcher.indexOf('docker logs -f')).toBeLessThan(watcher.indexOf('docker container inspect'));
+    const dir = mkdtempSync(join(tmpdir(), 'essentials-watcher-'));
+    try {
+      const stub = `docker() {
+        printf '%s\\n' "$1 $2" >>"$CALLS"
+        case "$1 $2" in
+          "ps --filter") echo runner-a; echo trigger-api ;;
+          "logs -f") echo "a line" ;;
+          "container inspect")
+            n=$(($(cat "$TRIES" 2>/dev/null || echo 0) + 1)); echo "$n" >"$TRIES"
+            [ "$n" -ge 2 ] || { echo "Error response from daemon: a blip" >&2; return 1; }
+            echo "${A}" ;;
+        esac
+      }`;
+      const pass = (n: number) =>
+        bash(['set -uo pipefail', 'COMPOSE_PROJECT=ownpace', stub, ...Array.from({ length: n }, () => `${watcher}\nwait`), 'echo done'].join('\n'), {
+          RUNNER_LOG_DIR: dir,
+          CALLS: join(dir, 'calls'),
+          TRIES: join(dir, 'tries'),
+        });
+      // The first read fails: nothing is recorded, and nothing pretends it was.
+      expect(pass(1).out).toContain('done');
+      expect(existsSync(join(dir, 'runner-a.image'))).toBe(false);
+      // The next pass reads it; the one after asks no more.
+      expect(pass(2).out).toContain('done');
+      expect(readFileSync(join(dir, 'runner-a.image'), 'utf8').trim()).toBe(A);
+      const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n');
+      expect(calls.filter((c) => c === 'logs -f'), 'one log stream per runner').toHaveLength(1);
+      expect(calls.filter((c) => c === 'container inspect'), 'a read on the first pass and the second, none on the third').toHaveLength(2);
+      expect(existsSync(join(dir, 'trigger-api.log')), 'only runner-* containers').toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 
-  it('fails an image that has it, one that could not be asked, and a run that read no image', () => {
-    for (const answer of [ANSWERS.installed, ANSWERS.configFiles, ANSWERS.notAsked, ANSWERS.noDpkg]) {
-      const run = verdict([A], answer);
+  it('asks only the newest image, by ID, with no network and no pull, and names the older ones', () => {
+    // A runner of an earlier deployment (A, built the night before, still
+    // carrying all ten) beside the deploy's (B): A is named, not asked.
+    const run = verdict([A, B, A, C], ANSWERS.absent, { KEEPER: A });
+    expect(run.fail, run.out).toBe('0');
+    expect(run.runs).toEqual([`run --rm --pull never --network none --entrypoint dpkg-query ${B} -W -f \${Package} \${Status}\\n ${ESSENTIALS.join(' ')}`]);
+    expect(run.out).toContain(`image ${'a'.repeat(12)}: built before the newest`);
+    expect(run.out).toContain(`image ${'c'.repeat(12)}: built before the newest`);
+    // And the newest is the one that must be clean.
+    expect(verdict([A, B], ANSWERS.absent, { KEEPER: B }).fail).toBe('1');
+  });
+
+  it('passes what dpkg reads as absent, and fails anything else it says', () => {
+    for (const answer of PASSING) expect(verdict([B], answer).fail, answer.SAYS).toBe('0');
+    for (const answer of FAILING) {
+      const run = verdict([B], answer);
       expect(run.fail, `${answer.RC}: ${answer.SAYS}\n${run.out}`).toBe('1');
     }
+    expect(verdict([B], ANSWERS.oneInstalled).out).toContain('libsqlite3-0 (installed)');
+  });
+
+  it('fails when an image cannot be dated, and when no image was read, asking nothing', () => {
+    const undated = verdict([B, `sha256:${'d'.repeat(64)}`], ANSWERS.absent);
+    expect(undated.fail, undated.out).toBe('1');
+    expect(undated.runs).toEqual([]);
     const none = verdict([], ANSWERS.absent);
     expect(none.fail, none.out).toBe('1');
-    expect(none.calls).toBe('');
+    expect(none.calls).toEqual([]);
   });
 });
 
@@ -373,12 +489,14 @@ describe('E2E (self-hosted) asks the appliance it started', () => {
   type Step = { name?: string; run?: string };
   const workflow = parseYaml(read(E2E)) as { jobs: Record<string, { steps?: Step[] }> };
   const steps = Object.values(workflow.jobs).flatMap((job) => job.steps ?? []);
-  const at = steps.findIndex((s) => s.name === 'The appliance carries no util-linux');
+  const name = 'The appliance carries none of the Debian Essentials it purges';
+  const at = steps.findIndex((s) => s.name === name);
   const step = steps[at];
 
-  it('right after it builds and starts the appliance', () => {
-    expect(step?.run, `${E2E} has no step "The appliance carries no util-linux"`).toBeDefined();
+  it('right after it builds and starts the appliance, about the ten', () => {
+    expect(step?.run, `${E2E} has no step "${name}"`).toBeDefined();
     expect(steps[at - 1]?.name).toBe('Build + start the self-host appliance');
+    expect(askedIn(step!.run!)).toEqual(ESSENTIALS);
   });
 
   /** The step's script under `bash -e`, as the runner runs it; its exit code and docker's calls. */
@@ -389,6 +507,7 @@ describe('E2E (self-hosted) asks the appliance it started', () => {
       const run = bash(`set -e\n${STUB}\n${step!.run!}`, {
         SELFHOST_COMPOSE_FILES: '-f deploy/selfhost/compose.yml',
         CALLS: join(dir, 'calls'),
+        CREATED: '',
         ...answer,
       });
       return { status: run.status, calls: readFileSync(join(dir, 'calls'), 'utf8'), out: run.out };
@@ -397,18 +516,20 @@ describe('E2E (self-hosted) asks the appliance it started', () => {
     }
   }
 
-  it('passes an appliance with no util-linux, asking the app service with dpkg-query', () => {
-    const run = outcome(ANSWERS.absent);
-    expect(run.status, run.out).toBe(0);
-    expect(run.calls.trim()).toBe('compose -f deploy/selfhost/compose.yml exec -T app dpkg-query -W -f ${Status} util-linux');
-    expect(outcome(ANSWERS.purgedRecord).status).toBe(0);
+  it('passes what dpkg reads as absent, asking the app service', () => {
+    for (const answer of PASSING) {
+      const run = outcome(answer);
+      expect(run.status, `${answer.SAYS}\n${run.out}`).toBe(0);
+      expect(run.calls.trim()).toBe(`compose -f deploy/selfhost/compose.yml exec -T app ${QUERY}`);
+    }
   });
 
-  it('fails one that has it, and one that could not be asked', () => {
-    for (const answer of [ANSWERS.installed, ANSWERS.configFiles, ANSWERS.notAsked, ANSWERS.noDpkg]) {
+  it('fails anything else it says, by name', () => {
+    for (const answer of FAILING) {
       const run = outcome(answer);
       expect(run.status, `${answer.RC}: ${answer.SAYS}\n${run.out}`).toBe(1);
       expect(run.out).toContain('::error::');
     }
+    expect(outcome(ANSWERS.oneInstalled).out).toContain('libsqlite3-0 (installed)');
   });
 });

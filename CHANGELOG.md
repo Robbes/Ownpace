@@ -234,8 +234,9 @@ notices.
   sh` and the upgrade drill work as before, and a self-hoster who ran one of
   the removed programs inside the app container no longer finds it. The image
   scan now also builds the apt repair the Trigger.dev CLI adds after the tasks'
-  layer, so it reads the stage a deploy builds, and the managed smoke and E2E
-  (self-hosted) ask the image they ran for util-linux and fail if it is there.
+  layer, so it reads the stage a deploy builds. The managed smoke asks the
+  image the last task deploy built, and E2E (self-hosted) the appliance it
+  started, about all ten, and each fails if dpkg still has any of them.
 - **Both Postgres builds take Alpine's brotli-libs 1.2.1-r0 and libcurl
   8.23.0-r0, which clears their critical** (workplan 0119): with gosu gone,
   `postgres:18.6-alpine` still read 1 critical and 1 high, CVE-2026-111497

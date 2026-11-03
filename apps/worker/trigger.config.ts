@@ -162,9 +162,11 @@ const PACKAGE_MANAGERS = [
  * --fix-broken install`, which installs what a broken dependency needs and
  * nothing else (apt 3.0.3: only a dist-upgrade adds missing Essential
  * packages); `scripts/image-scan.mjs` writes that repair into the stage it
- * scans, and the managed smoke reads util-linux's absence from the image the
- * runners started from. `scripts/an-essential-nothing-runs.unit.test.ts` holds
- * the list to the appliance's and the RUN to its place.
+ * scans, and the managed smoke asks the newest image its runners started from
+ * (the last deploy's) about all ten. The guard runs only where there is no
+ * `g++`, so the API's FROM line must stay a `-slim` image, which ships none.
+ * `scripts/an-essential-nothing-runs.unit.test.ts` holds the list to the
+ * appliance's, the RUN to its place and the base to `-slim`.
  */
 const UNUSED_ESSENTIALS = [
   'util-linux',
