@@ -215,6 +215,8 @@ export const WAIVER_MODES = ['preflight', 'rehearse', 'release'];
 export const WAIVER_VERSIONS = [
   // The owner, 2026-10-30: "I approve alpha.3 tag now, we skip the waiting days. No one is in the alpha yet."
   'v0.2.0-alpha.3',
+  // The owner, 2026-11-03: "Just make it without waitings, I can run E2e or you do so yourself."
+  'v0.2.0-alpha.4',
 ];
 /** A GitHub login, as GITHUB_ACTOR gives it; an app's bot ends in `[bot]`. */
 const LOGIN = /^[A-Za-z0-9][A-Za-z0-9-]{0,38}(?:\[bot\])?$/;

@@ -20,7 +20,7 @@ inventory and tiers (#1799, #1800), PGlite 0.5.14 (#1806), and the API's distrol
 new digest (#1778, merged just before the fold). Held for after alpha.4: pnpm 11.28.10 (#1792), while npm's
 `latest-11` names 11.28.9, and MinIO's `latest` `090010a3…`, whose floor passes 2026-11-05
 19:17 UTC; alpha.4 keeps `3b6e40c3…`. What is owed before the tag is in 0146's entry: C's CI
-and Security Scan, the Windows run on C, the counted nights of 2026-11-04 and 2026-11-05, the
+and Security Scan, the Windows run on C, E2E (managed) and E2E (self-hosted) on both backends dispatched on C in place of the counted nights, which the owner waived for alpha.4, the
 upgrade drill, Release's preflight and the owner's approval.
 
 **2026-11-03, later, records: what landed today, the owner's readings and two decisions for

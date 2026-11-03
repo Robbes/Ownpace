@@ -13,18 +13,20 @@ release being prepared until Release tags it (T4, `docs/release.md` §1). `SOURC
 which T1 asks the fold to read again, has not changed since 2026-10-04, so the sources the
 *since rc.1* part lists hold. #1806 (PGlite 0.5.14) is in, and #1778 (the API's distroless
 base, a new digest, past its three days at 23:45 UTC on 2026-11-03) merges first; then `main`
-is merged into this branch once more. **The owner pulled the fold earlier** (2026-11-03, about
-23:03 UTC): it merges in the night of 2026-11-03, before 2026-11-04's scheduled E2E (managed),
-so that run is the first counted one and the tag can be 2026-11-05. Its squash is C, and `main` takes nothing else until the tag. Held for after alpha.4: pnpm 11.28.10
+is merged into this branch once more. **The owner pulled alpha.4 earlier and waived the
+counted nights** (2026-11-03, about 23:03 and 23:50 UTC: *"Just make it without waitings, I can
+run E2e or you do so yourself."*): the fold merges in the night of 2026-11-03, and
+`WAIVER_VERSIONS` holds `v0.2.0-alpha.4` beside alpha.3, with those words. In the nights' place,
+E2E (managed) and E2E (self-hosted), on Postgres and on PGlite, are dispatched on C and must be
+green. Its squash is C, and `main` takes nothing else until the tag. Held for after alpha.4: pnpm 11.28.10
 (#1792) and MinIO's newer `latest` (0119). **Owed before the tag:**
 - C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
   `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;
 - `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green
   (`windows-smoke-green`);
-- the two counted nights on C, Wednesday 2026-11-04 and Thursday 2026-11-05: two scheduled E2E
-  (managed) runs on C, at most 30 hours apart, and four scheduled E2E (self-hosted) runs on C
-  between C reaching `main` and the newer of the two, all green (`scripts/release-nights.mjs`).
-  No waiver: `WAIVER_VERSIONS` holds alpha.3 alone;
+- the counted nights are waived (above): E2E (managed) and E2E (self-hosted) on Postgres and on
+  PGlite, dispatched on C, green instead; Release's `preflight` and `release` then run with
+  `waive_nights`, dispatched by the owner from their own account (`docs/release.md`);
 - `scripts/upgrade-drill.sh` on the Docker host, from alpha.3's published image to C's. Both
   chains carry what alpha.3 shipped (65 and 59 files), so the drill reports the mechanics
   only: the appliance's new image (Node 26, `/app` root's, the purged packages) opening a volume
