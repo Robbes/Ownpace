@@ -4,6 +4,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.4] - 2026-11-04
+
+Little changes on a tester's screen: the changelog now says what the Alpha is,
+and a migration from Google now uses HTTP/2 with its APIs, so the owner runs
+one from their own accounts before inviting anyone. Underneath, the API, the
+web image, the appliance, the tasks, CI and the Windows payload move to Node
+26, the LTS line; the payload's `node.exe` is held to a sum the Node.js release
+signed, and the payload is started on Windows before a release attaches it.
+Trigger.dev moves to v4.8.3, one way; its webapp and supervisor, built here,
+drop npm and node-gyp, run pnpm 10.34.9 and take the fixed release of a package
+within its major, and the webapp drops TypeScript 7's native compiler and runs
+goose v3.29.0. Its ClickHouse moves, one way too, to 26.8.36.3-lts for a
+critical fix, and, like the Docker socket proxy, sits on a network only its one
+client shares. Every container runs with no new privileges, all but two with
+only the capabilities their start uses. The appliance can no longer rewrite its
+own code; it and the tasks' base purge util-linux and SQLite, which nothing in
+them runs; the dashboard's Caddy is built without curl, and both Postgres
+builds clear their critical. The weekly image scan reports by tier, production
+first, and PGlite moves to 0.5.13. Live's deploy needs Node 26 first on the
+deploying shell's `PATH`, and ClickHouse's volume copied by hand.
+
 **Since `v0.1.0-rc.1`, for a reader new to the Alpha** (workplan 0146 T1). The
 sections of alpha.1 to alpha.3 below list what each one changed, and alpha.1's
 stops at mid-August 2026. This is what the Alpha is, grouped by what a tester

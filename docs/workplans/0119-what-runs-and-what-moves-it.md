@@ -2,7 +2,26 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-03 (update this block at the end of every session)
+## Status — 2026-11-04 (update this block at the end of every session)
+
+**2026-11-04, last: what alpha.4 moves, folded.** The fold (0146 Status, 2026-11-04; a draft,
+not merged) closes alpha.4 with this plan's moves since alpha.3 in it: Node 26 for the API, web
+and appliance images, the tasks, CI and the Windows payload (#1767); Trigger.dev v4.8.3 (#1755),
+its webapp and supervisor built without npm and node-gyp (#1763), on pnpm 10.34.9 (#1794), and
+the webapp without TypeScript 7's native compiler, on goose v3.29.0 (#1804; 0146 T16);
+ClickHouse 26.8.36.3-lts (#1785) on a network of its own (#1774), and the Docker socket proxy on
+the supervisor's (#1784, 0136 T4); MinIO's build of 2026-10-29 (#1762), Caddy without curl
+(#1757), both Postgres builds' brotli-libs and libcurl (#1758), Mailpit v1.33.0 (#1796); no new
+privileges and the capabilities cut (#1803), the appliance's `/app` read-only to it (#1801), the
+Essentials purged (#1802, §3 item 11); `node.exe` held to committed sums (#1780) and the
+payload's `smoke` on Windows (#1789); Atlas v1.3.6 (#1773), CI's named downloads (#1777), the
+deploy CLI from the lockfile (#1790), follow-redirects 1.16.2 (#1751); and the scan's fixable
+inventory and tiers (#1799, #1800). Two merge before it: #1778 (the API's distroless base, a new
+digest) and #1806 (PGlite 0.5.14). Held for after alpha.4: pnpm 11.28.10 (#1792), while npm's
+`latest-11` names 11.28.9, and MinIO's `latest` `090010a3…`, whose floor passes 2026-11-05
+19:17 UTC; alpha.4 keeps `3b6e40c3…`. What is owed before the tag is in 0146's entry: C's CI
+and Security Scan, the Windows run on C, the counted nights of 2026-11-05 and 2026-11-06, the
+upgrade drill, Release's preflight and the owner's approval.
 
 **2026-11-03, later, records: what landed today, the owner's readings and two decisions for
 alpha.5.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-1103-b`.
