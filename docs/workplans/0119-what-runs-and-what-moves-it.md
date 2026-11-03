@@ -7,9 +7,9 @@
 **2026-11-03: the appliance's `/app` is root's and read-only to it, its HEALTHCHECK is exec form,
 and its image names PGlite's directory; built on a branch, for alpha.4.** Item 1 of the day's
 survey of leaner and harder base images, the one that needs no owner's decision. On the branch
-`claude/ownpace-public-readiness-y7orc6-selfhost-tidy`, from `main` at `319a2d34`. Not merged:
-E2E (self-hosted) and the upgrade drill on the branch are owed first, and are the owner's to run.
-Times are UTC.
+`claude/ownpace-public-readiness-y7orc6-selfhost-tidy`, from `main` at `319a2d34`, draft #1801.
+Not merged: E2E (self-hosted) and the upgrade drill on the branch are owed first, and are the
+owner's to run. Times are UTC.
 - **What changes**, in `apps/selfhost/Dockerfile` alone of the code:
   - The build stage's last RUN stages the payload, copies the default config into it as
     `config/` (the runtime stage copied that from the build context, with the checkout's
