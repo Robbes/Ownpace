@@ -531,6 +531,15 @@ notices.
   test uses, and the test waits for those to reach 0. The reader was right,
   and is unchanged; a reader whose `close()` leaves its pool open still fails
   the test.
+- **The bring-up guide's drain read empties again on a stack that keeps runs
+  Trigger.dev never finished** (workplan 0132; `docs/managed-bring-up.md`,
+  beside the MinIO pin). Before a restart or a move it counts the unfinished
+  runs whose row changed in the last 24 hours, longer than any run here goes
+  without one, and a second read lists the older ones apart, as stale, by
+  task, status, count and last change, with no payload. Unbounded, it never
+  emptied on the OTA stack, which keeps eight such runs last changed in August
+  and September. A stale run is cancelled through Trigger.dev, never by
+  deleting rows.
 
 ## [0.2.0-alpha.3] - 2026-10-30
 

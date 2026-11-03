@@ -6155,7 +6155,9 @@ never reads as "nothing newer", nor as an older newest.
 >    pull request open with `build (trigger, amd64)` and `build (trigger,
 >    arm64)` green.
 > 1. Stop the schedule producing work, or accept a backlog you will cancel.
-> 2. Wait for `TaskRun` to have nothing in `EXECUTING`.
+> 2. Wait for `TaskRun` to have nothing in `EXECUTING` among the rows that
+>    changed in the last 24 hours: the drain read beside the MinIO pin, below,
+>    which also lists the older rows apart, as stale.
 > 3. Back up `triggerdb`, set `.env`'s `TRIGGER_IMAGE_TAG` (where it is set)
 >    to the new version, and run the pull request's checkout: on the OTA
 >    stack, E2E (managed) on its branch does this.
@@ -6281,10 +6283,13 @@ never reads as "nothing newer", nor as an older newest.
 > that owns a stored payload, since the new store starts empty. The hold, and
 > `deploy-live.sh` under it, count Ownpace's own passes only. This reads
 > Trigger.dev's runs that have not finished, the non-final statuses of
-> v4.7.6's `TaskRunStatus`, and prints no secret:
+> v4.7.6's `TaskRunStatus` (v4.8.3 has the same nine), among the rows that
+> changed in the last 24 hours, and prints no secret. It is the drain read
+> before any restart or move of a stack's Trigger.dev, the host's Docker
+> included:
 >
 > ```
-> docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"
+> docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') AND \"updatedAt\" > (now() AT TIME ZONE 'UTC') - interval '24 hours' GROUP BY 1, 2"
 > ```
 >
 > Before the bring-up it prints nothing, or only a run of a scheduled task
@@ -6296,6 +6301,52 @@ never reads as "nothing newer", nor as an older newest.
 > pin watch says when `latest` has been rebuilt; moving the digest is a pull
 > request of its own with the new image's scan read and E2E (managed) on its
 > branch.
+>
+> **Why 24 hours.** Without the bound, which it has had since 2026-11-03, the
+> read never emptied on the OTA stack, which keeps eight runs Trigger.dev
+> never finished: six of `managed-sync-tick` in `DEQUEUED`, last
+> changed 2026-09-17, and two of `run-verification` in `PENDING_VERSION`, last
+> changed 2026-08-20 (workplan 0132's Status, 2026-11-03). Nothing that runs
+> here goes a day without its row changing. Every task takes
+> `maxDuration: 3600` from `apps/worker/trigger.config.ts` and none sets its
+> own, with three attempts at most and at most a minute between them, so a run
+> ends within about three hours of its first attempt; `run-cutover` waits
+> (`triggerAndWait`) for one `run-delta-sync`, which queues behind the
+> migration's scheduled pass already under way, so it ends within about
+> seven. A run's row changes with its status (Trigger.dev's run store writes
+> `updatedAt` with each change), but not while an attempt runs, whose
+> heartbeats go to its execution snapshot: hence hours, not minutes. Live's
+> daily duties (170 minutes at most, `ownpace-box-duties.service`) are jobs on
+> the host, not Trigger.dev runs. `updatedAt` is a UTC time without a zone,
+> so it is compared with `now() AT TIME ZONE 'UTC'`, whatever the server's
+> own zone is.
+>
+> **The rows older than that are listed apart, as stale**, by task, status,
+> count and last change, and with no payload:
+>
+> ```
+> docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*), max(\"updatedAt\") FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') AND \"updatedAt\" <= (now() AT TIME ZONE 'UTC') - interval '24 hours' GROUP BY 1, 2 ORDER BY 4"
+> ```
+>
+> Read it before going on, every time. Rows months old are the kind the OTA
+> stack keeps; they sat there through every green E2E (managed) after they
+> last changed.
+> A row that changed in the last few days is a run that stopped, or one
+> queued while the stack was down, and is worth understanding before a
+> restart or a move.
+>
+> **Clearing a stale run** is optional, and only through Trigger.dev: cancel
+> it on its page in the dashboard, or with `POST /api/v2/runs/<run id>/cancel`
+> and the environment's secret key, which is what the SDK's `runs.cancel`
+> sends. This prints the stale runs' ids, one a line:
+>
+> ```
+> docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"friendlyId\", \"taskIdentifier\", status, \"updatedAt\" FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') AND \"updatedAt\" <= (now() AT TIME ZONE 'UTC') - interval '24 hours' ORDER BY 4"
+> ```
+>
+> It has not been tried on the OTA stack's eight. A cancel that does not take
+> leaves a row where it was, which the drain read above leaves out. Never
+> delete or change rows in `triggerdb` by hand.
 >
 > **Removing the old volume**, once the stack runs on `minio_data_v2` from
 > `main` or a release tag, and the nightly gate or the deploy after the move
@@ -6428,7 +6479,9 @@ about 06:20 UTC (it was added in review after the copy, so it was taken with
 ClickHouse started alone on 26.2.19.43 and stopped again), the run 06:29 to
 06:39 UTC, step 4's checks as shown, and the merge (#1785) at 07:17 UTC. The
 copy stays until `main`'s next scheduled E2E (managed) is green, then goes by
-*Once the move has held*, below. What follows is the procedure as it ran.
+*Once the move has held*, below. *(It went on 2026-11-02 at about 23:05 UTC,
+by that block, after its checks passed: workplan 0119's Status, 2026-11-03.)*
+What follows is the procedure as it ran.
 Before: the pull request's CI
 green; the two runs 0119 §3 item 9 names before the merge done, and as
 expected (they were, 2026-11-02): the migration from an empty volume through
@@ -6451,8 +6504,13 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    minute is fine):
 
    ```bash
-   docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') GROUP BY 1, 2"
+   docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') AND \"updatedAt\" > (now() AT TIME ZONE 'UTC') - interval '24 hours' GROUP BY 1, 2"
    ```
+
+   It counts the rows that changed in the last 24 hours (since 2026-11-03;
+   the window of 2026-11-02 ran the read without that bound). The ones older
+   than that are listed apart by the stale read beside the MinIO pin, above,
+   which says why 24 hours; read it once before going on.
 
 2. **The CPU, room for one more copy, and what loads today** (this changes
    nothing on the stack; the last part writes two files in the home
