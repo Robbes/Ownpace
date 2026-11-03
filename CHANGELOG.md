@@ -81,6 +81,21 @@ notices.
   has the table, and `a-privilege-no-service-uses` holds it, every `exec` and
   `run` the scripts and documents make into a service with a dropped set
   included.
+- **The appliance can no longer rewrite its own code** (workplan 0119): the
+  selfhost image's last step was `chown -R appuser:appuser /app /data`, so uid
+  10001, which the appliance runs as, owned `/app`, the payload it loads at
+  every start. `/app` is now root's, readable by everyone and writable by root
+  alone whatever umask the checkout was made under, and the appliance owns only
+  `/data`, where it writes its config and its PGlite database. The `chown -R`
+  also wrote the payload a second time, in a layer of its own, so the image
+  loses that copy: 11.3 MB compressed on amd64, read from the `edge` image's
+  manifest. The image's HEALTHCHECK runs `node` itself, with no shell, and the
+  image sets `SELFHOST_PGLITE_DIR=/data/state/pglite`, the directory
+  `compose.pglite.yml` names: without it, a `docker run` of the image on
+  PGlite, which defaulted that directory into `/app`, would stop at start.
+  Nothing a stack sets changes. An existing `appdata` volume keeps its owner,
+  and `compose.yml`'s healthcheck still takes the place of the image's under
+  compose. Writing anything under `/app` from inside the container now fails.
 - **The Trigger.dev deploy CLI comes from the lockfile, not from `npx` at run
   time** (workplan 0119). `deploy-tasks.sh`, the bring-up's login check and the
   login lines the scripts print ran `npx -y trigger.dev@<sdk version>`, which

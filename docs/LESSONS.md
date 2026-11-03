@@ -478,6 +478,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-runtime-only-its-own-host-vouched-for](../scripts/a-runtime-only-its-own-host-vouched-for.unit.test.ts) — A RUNTIME ONLY ITS OWN HOST VOUCHED FOR: the `node.exe` every Windows payload ships was checked against a `SHASUMS256.txt` fetched from the same `nodejs.org` release directory as the binary, so whoever could change the one could change t…
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [an-appliance-that-could-rewrite-its-own-code](../scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts) — AN APPLIANCE THAT COULD REWRITE ITS OWN CODE (workplan 0119, Status of 2026-11-03).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
@@ -493,6 +494,7 @@ reading a file drops off its entry by itself.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
+- [an-appliance-that-could-rewrite-its-own-code](../scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts) — AN APPLIANCE THAT COULD REWRITE ITS OWN CODE (workplan 0119, Status of 2026-11-03).
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
@@ -1719,6 +1721,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [an-appliance-that-could-rewrite-its-own-code](../scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts) — AN APPLIANCE THAT COULD REWRITE ITS OWN CODE (workplan 0119, Status of 2026-11-03).
 
 ### `deploy/selfhost/compose.yml`
 
@@ -3063,6 +3066,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-runtime-only-its-own-host-vouched-for](../scripts/a-runtime-only-its-own-host-vouched-for.unit.test.ts) — A RUNTIME ONLY ITS OWN HOST VOUCHED FOR: the `node.exe` every Windows payload ships was checked against a `SHASUMS256.txt` fetched from the same `nodejs.org` release directory as the binary, so whoever could change the one could change t…
 - [a-zip-no-windows-had-started](../scripts/a-zip-no-windows-had-started.unit.test.ts) — A ZIP NO WINDOWS HAD STARTED: every release tag attached a Windows zip that no Windows machine had run, because the only Windows check was a person's, by hand, and it was owed (workplan 0119, Status 2026-11-02).
+- [an-appliance-that-could-rewrite-its-own-code](../scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts) — AN APPLIANCE THAT COULD REWRITE ITS OWN CODE (workplan 0119, Status of 2026-11-03).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
 
 ### `scripts/package-appliance.unit.test.ts`
@@ -5924,6 +5928,17 @@ Reads:
 - `docs/managed-bring-up.md`
 - `docs/operator-runbook.md`
 - `docs/release.md`
+
+### [an-appliance-that-could-rewrite-its-own-code](../scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts)
+
+AN APPLIANCE THAT COULD REWRITE ITS OWN CODE (workplan 0119, Status of 2026-11-03).
+
+Reads:
+
+- `apps/selfhost/Dockerfile`
+- `apps/selfhost/src/index.ts`
+- `deploy/selfhost/compose.pglite.yml`
+- `scripts/package-appliance.mjs`
 
 ### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
 
