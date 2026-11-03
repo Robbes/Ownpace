@@ -22,8 +22,8 @@ only the capabilities their start uses. The appliance can no longer rewrite its
 own code; it and the tasks' base purge util-linux and SQLite, which nothing in
 them runs; the dashboard's Caddy is built without curl, and both Postgres
 builds clear their critical. The weekly image scan reports by tier, production
-first, and PGlite moves to 0.5.13. Live's deploy needs Node 26 first on the
-deploying shell's `PATH`, and ClickHouse's volume copied by hand.
+first, and PGlite moves to 0.5.14. Live's deploy needs Node 26 first on the
+deploying shell's `PATH` and a copy of ClickHouse's volume, made by hand first.
 
 **Since `v0.1.0-rc.1`, for a reader new to the Alpha** (workplan 0146 T1). The
 sections of alpha.1 to alpha.3 below list what each one changed, and alpha.1's
