@@ -289,6 +289,12 @@ notices.
 
 ### Changed
 
+- **The weekly image scan gives every image a tier and leads with production**
+  (workplan 0119, the owner, 2026-11-03): production-public,
+  production-internal, shipped or test-only, with each tier's critical, high and
+  fixable totals first and every list by tier; a test-only image (Nextcloud,
+  Stalwart, Mailpit) is still scanned and reported, and no longer uploaded to
+  code scanning.
 - **The weekly image scan lists, per image, every critical and high finding a
   newer package fixes** (workplan 0119): by package where it sits (the
   operating system, a binary, an npm package's directory), with the version
