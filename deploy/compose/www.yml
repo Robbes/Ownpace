@@ -139,6 +139,17 @@ services:
     # fixed one stopped a second copy starting beside the OTA site.
     container_name: ${COMPOSE_PROJECT_NAME}
     restart: unless-stopped
+    # HOW IT RUNS (2026-11-03, workplan 0119): as the web app's nginx in
+    # managed.yml, the same image. The master is root, binds port 80
+    # (NET_BIND_SERVICE; Docker's own sysctl makes it redundant today, and it is
+    # kept so that port 80 does not rest on a daemon default), chowns its temp
+    # directories to nginx (CHOWN), and its workers become nginx (SETUID,
+    # SETGID). Measured on this image with this file's www-nginx.conf; without
+    # CHOWN, SETUID or SETGID nginx does not serve.
+    # scripts/a-privilege-no-service-uses.unit.test.ts holds it.
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, NET_BIND_SERVICE, SETGID, SETUID]
     ports:
       # LOOPBACK, AND THE FRONT'S ADDRESS ONLY WHEN IT IS SET (workplan 0132
       # T3). This published on every interface before that, which Docker's

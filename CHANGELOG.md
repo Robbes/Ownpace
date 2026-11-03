@@ -82,6 +82,30 @@ notices.
   exactly by the package that requires it. The webapp's build now also
   fetches from github.com; a host that does not answer stops a build with
   nothing changed and the advice to run the same tag again.
+- **Every container runs with no new privileges, and most with only the
+  capabilities their own start uses** (workplan 0119; the owner, 2026-11-03).
+  Until now no service of `managed.yml`, the site's `www.yml` or the
+  appliance's `compose.yml` set `security_opt`, `cap_drop` or `read_only`, so
+  each started with Docker's default capabilities. Every service now sets
+  `no-new-privileges`. All but `trigger-api` and the demo's `nextcloud` drop
+  every capability and add back what their start does as root, each measured
+  on the service's own image where it could be pulled: none for the services
+  that run as another user from the start (the databases, the pooler, MinIO,
+  the supervisor, the identity provider, the API, the appliance), the Docker
+  socket proxy, the registry, Gatus and Mailpit; CHOWN, DAC_READ_SEARCH, SETGID
+  and SETUID for Redis and ClickHouse; CHOWN, NET_BIND_SERVICE, SETGID and
+  SETUID for the two nginx; NET_BIND_SERVICE for the dashboard's Caddy, whose
+  binary carries it as a file capability; CHOWN, DAC_OVERRIDE and FOWNER for
+  the identity provider's one-off, whose read and rotation of the provisioning
+  token in a directory the provider owns need the second. The pooler, the registry, the socket proxy, Mailpit and
+  the two one-offs start with a read-only root. Each changed service is
+  recreated once, at the deploy that carries it; an `exec` into a service has
+  the service's capabilities (`exec --privileged` for a repair that needs
+  more), and the appliance's rootless `chown` of a bound directory adds its
+  two with `--cap-add`. `docs/managed-bring-up.md`, *How the containers run*,
+  has the table, and `a-privilege-no-service-uses` holds it, every `exec` and
+  `run` the scripts and documents make into a service with a dropped set
+  included.
 - **The appliance can no longer rewrite its own code** (workplan 0119): the
   selfhost image's last step was `chown -R appuser:appuser /app /data`, so uid
   10001, which the appliance runs as, owned `/app`, the payload it loads at
@@ -259,6 +283,24 @@ notices.
   removed, where Trivy reads 0 critical and 7 high instead of 1 and 9; the 7
   are in Caddy's own binary and wait for a Caddy release. Caddy, its
   configuration and its certificate are unchanged.
+- **The appliance and the managed tasks drop util-linux and SQLite, which
+  nothing in them runs** (workplan 0119; the owner's decision of 2026-11-03).
+  Both run on `node:26.13.0-trixie-slim`, where Trivy read 0 critical and 44
+  high findings once npm was removed, none with a Debian fix; 37 of them were
+  in util-linux, the eight other packages built from its source (mount, login,
+  bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, liblastlog2-2) and
+  libsqlite3-0. Debian marks them Essential. The appliance's runtime stage and
+  the tasks' runtime base now purge them with the two dpkg flags that takes and
+  no others, so a base where something installed depends on one of them stops
+  the build instead of shipping that package broken. What is left reads 0
+  critical and 7 high. su, login, mount, getopt, runuser, logger and more are
+  gone from both; `sh` and the core utilities stay, so `docker compose exec app
+  sh` and the upgrade drill work as before, and a self-hoster who ran one of
+  the removed programs inside the app container no longer finds it. The image
+  scan now also builds the apt repair the Trigger.dev CLI adds after the tasks'
+  layer, so it reads the stage a deploy builds. The managed smoke asks the
+  image the last task deploy built, and E2E (self-hosted) the appliance it
+  started, about all ten, and each fails if dpkg still has any of them.
 - **Both Postgres builds take Alpine's brotli-libs 1.2.1-r0 and libcurl
   8.23.0-r0, which clears their critical** (workplan 0119): with gosu gone,
   `postgres:18.6-alpine` still read 1 critical and 1 high, CVE-2026-111497
