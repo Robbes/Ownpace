@@ -3205,7 +3205,10 @@ start with a read-only root, with `/tmp` (and `/run`) in memory where they
 write there. `managed.yml` gives each service's reason beside it, and
 `scripts/a-privilege-no-service-uses.unit.test.ts` holds every service to this
 table: a capability added, one no longer used, a new service, or a read-only
-root, each fails it until the table and the reason move with it.
+root, each fails it until the table and the reason move with it. It also reads
+every `exec` and `run` into a service with a dropped set that a script, a
+workflow or a document here makes, and fails one nobody has reviewed, or one
+whose program needs a capability its service does not keep.
 
 | Service | Runs as | Capabilities kept | Read-only root | How it was decided |
 |---|---|---|---|---|
@@ -3222,12 +3225,15 @@ root, each fails it until the table and the reason move with it.
 | `minio-init` | uid 65532 | none | yes, `/tmp` in memory | measured: without `/tmp` mc cannot write its config |
 | `trigger-tls` | root | NET_BIND_SERVICE | no | measured: `/usr/bin/caddy` carries `cap_net_bind_service` as a file capability, and without it in the set the kernel refuses to start it (`exec /usr/bin/caddy: operation not permitted`); not read-only because Caddy writes its local CA into the image's trust store at start |
 | `zitadel` | its image's user | none | no | read: an image of one binary, run as its non-root user |
-| `zitadel-machinekey` | root | CHOWN, FOWNER | yes | measured: without CHOWN the chown fails, without FOWNER the chmod after it |
+| `zitadel-machinekey` | root | CHOWN, DAC_OVERRIDE, FOWNER | yes | measured, its init and every other command it runs: without CHOWN the chown fails, without FOWNER the chmod after it; without DAC_OVERRIDE `setup-zitadel.sh` cannot read the token (`cat: can't open '/machinekey/pat.txt': Permission denied`) nor write the rotated one, in a directory the identity provider owns at mode 700 (DAC_READ_SEARCH alone reads it and still cannot write) |
 | `api` | uid 65532 | none | no | read: its image's user, and its base carries no setuid binary and no file capability |
 | `web` | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured on its nginx with its config: without CHOWN nginx stops, without SETUID or SETGID its workers do |
 | `gatus` | root | none | no | read: an image of one binary, writing only its own volume |
 | `mailpit` | root | none | yes, `/tmp` in memory | measured: a message in, and a restart |
 | `nextcloud` | root, then www-data | Docker's default | no | read: its entrypoint rsyncs and chowns as root and runs occ through `su`, a set not measured |
+| `www` (www.yml) | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured: the same nginx image as `web`, with `www-nginx.conf` |
+| `postgres` (appliance) | uid 70 | none | no | measured: the same image as `postgres` above; its rootless `chown` is a `run` with its own `--cap-add` |
+| `app` (appliance) | uid 10001 | none | no | read: its image's user from the first process, running node and nothing else |
 
 *Measured* means the service's own image, its own command and environment
 with placeholder values, started with that set until it was ready, on a new
@@ -3243,12 +3249,17 @@ port 80 does not rest on a daemon default.
 
 **What it changes for an operator.** A `docker compose exec` has the
 capabilities of its service: `exec -u 0` into `postgres` is root with no
-capability, which cannot chown. Nothing in `deploy/` needs more: an `exec`
-into a service with a dropped set runs `psql`, `pg_dump`, `pg_restore`,
-`redis-cli`, `mc`, `clickhouse-client` or `node`, and the two that need root's
-powers, the `chown` of the worker token in `trigger-api` and the demo's file
-work in `nextcloud`, go to the two services that keep the default set. A
-repair that does need root's powers elsewhere is `docker compose -f
+capability, which cannot chown. Every `exec` and `run` the scripts, the
+workflows and these documents make into a service with a dropped set is
+listed in `a-privilege-no-service-uses` with what it needs. Most need
+nothing: `psql`, `pg_dump`, `pg_restore`, `redis-cli`, `mc`,
+`clickhouse-client` and `node`. Reading and rotating the identity provider's
+token (`run zitadel-machinekey cat /machinekey/pat.txt`, and the rotation's
+write) is why that one-off keeps DAC_OVERRIDE. The `chown` of the worker
+token in `trigger-api` and the demo's file work in `nextcloud` go to the two
+services that keep the default set. The appliance's rootless chown is a
+`run` with its own `--cap-add` (`docs/selfhost-quickstart.md`). A repair
+that does need root's powers elsewhere is `docker compose -f
 deploy/compose/managed.yml exec --privileged -u 0 <service> …`, for that one
 command.
 
@@ -4941,8 +4952,9 @@ the user gosu dropped to, it never does. What that means for you:
   `pg_hba.conf` trusts, and answers the same: `trigger-version.sh` (backup and
   restore drill), `copy-before-update.sh`, `dump-idp.sh`, `db-roles.sh` and
   `rotate-db-passwords.sh`, the bring-up, `deploy-live.sh`, the smoke and the
-  rows of this document. Add `-u 0` for anything that needs root in the
-  container. An interactive `psql` or shell keeps its history in the
+  rows of this document. The container keeps no capability since 2026-11-03
+  (*How the containers run*), so `-u 0` alone is root without root's powers:
+  a repair that needs them is `exec --privileged -u 0`. An interactive `psql` or shell keeps its history in the
   container's `/tmp`, as root's was kept in `/root`, never on the data volume
   (uid 70's home).
 - **The network questions ask with the build.** `db-roles.sh` and

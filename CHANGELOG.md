@@ -70,13 +70,17 @@ notices.
   socket proxy, the registry, Gatus and Mailpit; CHOWN, DAC_READ_SEARCH, SETGID
   and SETUID for Redis and ClickHouse; CHOWN, NET_BIND_SERVICE, SETGID and
   SETUID for the two nginx; NET_BIND_SERVICE for the dashboard's Caddy, whose
-  binary carries it as a file capability; CHOWN and FOWNER for the identity
-  provider's one-off. The pooler, the registry, the socket proxy, Mailpit and
+  binary carries it as a file capability; CHOWN, DAC_OVERRIDE and FOWNER for
+  the identity provider's one-off, whose read and rotation of the provisioning
+  token in a directory the provider owns need the second. The pooler, the registry, the socket proxy, Mailpit and
   the two one-offs start with a read-only root. Each changed service is
   recreated once, at the deploy that carries it; an `exec` into a service has
   the service's capabilities (`exec --privileged` for a repair that needs
-  more). `docs/managed-bring-up.md`, *How the containers run*, has the table,
-  and `a-privilege-no-service-uses` holds it.
+  more), and the appliance's rootless `chown` of a bound directory adds its
+  two with `--cap-add`. `docs/managed-bring-up.md`, *How the containers run*,
+  has the table, and `a-privilege-no-service-uses` holds it, every `exec` and
+  `run` the scripts and documents make into a service with a dropped set
+  included.
 - **The Trigger.dev deploy CLI comes from the lockfile, not from `npx` at run
   time** (workplan 0119). `deploy-tasks.sh`, the bring-up's login check and the
   login lines the scripts print ran `npx -y trigger.dev@<sdk version>`, which

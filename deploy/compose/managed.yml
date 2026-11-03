@@ -1555,10 +1555,16 @@ services:
     profiles: ["init"]
     logging: *logging
     # HOW IT RUNS (see the header): root, for a chown (CHOWN) and then a chmod of
-    # a directory it no longer owns (FOWNER); read-only, it writes the volume alone.
+    # a directory it no longer owns (FOWNER). DAC_OVERRIDE for the two other
+    # commands this service runs, in setup-zitadel.sh on every bring-up and in
+    # the runbooks: `cat /machinekey/pat.txt`, and the rotation's write of
+    # pat.txt.next and its `mv`, both in a directory that is the identity
+    # provider's at mode 700, which root without it can neither search nor
+    # write (`cat: can't open '/machinekey/pat.txt': Permission denied`).
+    # Read-only: it writes the volume alone.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    cap_add: [CHOWN, FOWNER]
+    cap_add: [CHOWN, DAC_OVERRIDE, FOWNER]
     read_only: true
     command:
       - sh
