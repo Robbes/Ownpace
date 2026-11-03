@@ -303,6 +303,7 @@ describe('the bring-up names the fix for a .env without NODE_ENV, not the secret
       'note_site_row_half_configured',
       'note_dashboard_on_this_machine_only',
       'refuse_a_bind_that_is_not_an_address',
+      'refuse_a_userlist_docker_would_make_a_directory',
       'refuse_shipped_passwords',
       // env-read.sh's; scripts/idp-wiring.unit.test.ts runs the real one here.
       'seed_pat_expiry',

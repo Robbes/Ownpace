@@ -515,6 +515,18 @@ notices.
 
 ### Fixed
 
+- **The OTA test stack's connection pooler no longer mounts a file another
+  workflow's checkout can delete** (workplan 0132): `pgbouncer` bind-mounted its
+  userlist from the self-hosted runner's work folder, which `ci.yml`'s checkout
+  cleaned on a push to `main` while the pooler ran, and at the Docker daemon's
+  next restart, on 2026-11-03, Docker made a directory in its place and the
+  pooler stopped, taking the test stack's API with it. `managed.yml` now mounts
+  `${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}`; the nightly gate points the
+  key at the file in that stack's persisted directory, and `ensure-env-secrets.sh`
+  writes it there from the `.env` on every run, so the copy the gate kept, which
+  had gone stale, is gone. The bring-up refuses a named userlist that is not a
+  file before Compose can make a directory of it. Live does not set the key, and
+  renders exactly as before.
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
   workplan 0119): a `sensitiveHeaders` array made in another realm was
   discarded, so custom credential headers could follow a redirect to another
