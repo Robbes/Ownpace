@@ -32,11 +32,12 @@ notices.
 
 - **The Alpha.** The managed edition, run by the owner, free and by invitation,
   for 10 to 20 people over a few weeks, in Dutch. It takes no backups. What each
-  source and target can migrate is in the [feature matrix](docs/feature-matrix.md),
-  with its open gaps in one table; testers have the Dutch tester guide.
+  source and target can migrate is in the [feature
+  matrix](docs/feature-matrix.md), with its open gaps in one table; testers have
+  the Dutch tester guide.
 - **Sources**, proven or experimental as the screen labels them
-  (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`, read on 2026-10-31;
-  the fold reads it again):
+  (`SOURCE_PROOFS` in `packages/shared/src/front-door.ts`, read on 2026-10-31
+  and again on 2026-11-03, unchanged since 2026-10-04):
   - proven: Gmail, Google Calendar, Google Contacts and Google Drive, and the
     Google account's calendars, contacts and files, on the owner's own account;
     an IMAP server, on one this project runs;
@@ -105,28 +106,28 @@ notices.
   nothing changed and the advice to run the same tag again.
 - **Every container runs with no new privileges, and most with only the
   capabilities their own start uses** (workplan 0119; the owner, 2026-11-03).
-  Until now no service of `managed.yml`, the site's `www.yml` or the
-  appliance's `compose.yml` set `security_opt`, `cap_drop` or `read_only`, so
-  each started with Docker's default capabilities. Every service now sets
+  Until now no service of `managed.yml`, the site's `www.yml` or the appliance's
+  `compose.yml` set `security_opt`, `cap_drop` or `read_only`, so each started
+  with Docker's default capabilities. Every service now sets
   `no-new-privileges`. All but `trigger-api` and the demo's `nextcloud` drop
-  every capability and add back what their start does as root, each measured
-  on the service's own image where it could be pulled: none for the services
-  that run as another user from the start (the databases, the pooler, MinIO,
-  the supervisor, the identity provider, the API, the appliance), the Docker
-  socket proxy, the registry, Gatus and Mailpit; CHOWN, DAC_READ_SEARCH, SETGID
-  and SETUID for Redis and ClickHouse; CHOWN, NET_BIND_SERVICE, SETGID and
-  SETUID for the two nginx; NET_BIND_SERVICE for the dashboard's Caddy, whose
-  binary carries it as a file capability; CHOWN, DAC_OVERRIDE and FOWNER for
-  the identity provider's one-off, whose read and rotation of the provisioning
-  token in a directory the provider owns need the second. The pooler, the registry, the socket proxy, Mailpit and
-  the two one-offs start with a read-only root. Each changed service is
-  recreated once, at the deploy that carries it; an `exec` into a service has
-  the service's capabilities (`exec --privileged` for a repair that needs
-  more), and the appliance's rootless `chown` of a bound directory adds its
-  two with `--cap-add`. `docs/managed-bring-up.md`, *How the containers run*,
-  has the table, and `a-privilege-no-service-uses` holds it, every `exec` and
-  `run` the scripts and documents make into a service with a dropped set
-  included.
+  every capability and add back what their start does as root, each measured on
+  the service's own image where it could be pulled: none for the services that
+  run as another user from the start (the databases, the pooler, MinIO, the
+  supervisor, the identity provider, the API, the appliance), the Docker socket
+  proxy, the registry, Gatus and Mailpit; CHOWN, DAC_READ_SEARCH, SETGID and
+  SETUID for Redis and ClickHouse; CHOWN, NET_BIND_SERVICE, SETGID and SETUID
+  for the two nginx; NET_BIND_SERVICE for the dashboard's Caddy, whose binary
+  carries it as a file capability; CHOWN, DAC_OVERRIDE and FOWNER for the
+  identity provider's one-off, whose read and rotation of the provisioning token
+  in a directory the provider owns need the second. The pooler, the registry,
+  the socket proxy, Mailpit and the two one-offs start with a read-only root.
+  Each changed service is recreated once, at the deploy that carries it; an
+  `exec` into a service has the service's capabilities (`exec --privileged` for
+  a repair that needs more), and the appliance's rootless `chown` of a bound
+  directory adds its two with `--cap-add`. `docs/managed-bring-up.md`, *How the
+  containers run*, has the table, and `a-privilege-no-service-uses` holds it,
+  every `exec` and `run` the scripts and documents make into a service with a
+  dropped set included.
 - **The appliance can no longer rewrite its own code** (workplan 0119): the
   selfhost image's last step was `chown -R appuser:appuser /app /data`, so uid
   10001, which the appliance runs as, owned `/app`, the payload it loads at
@@ -180,23 +181,22 @@ notices.
   `managed.yml` pins `clickhouse/clickhouse-server:26.8.36.3` by its index
   digest (amd64 and arm64), ahead of Trigger.dev's pin on purpose. Read before
   the move, release by release from 26.3 to 26.8 and every 26.8 patch note to
-  26.8.34.13, against Trigger.dev's 55 migrations (numbered to 056), its
-  queries and the settings it passes, and the files mounted into `config.d`.
-  One change stops the schema, on an empty volume only: from 26.7 ClickHouse
-  refuses migration 022, so a new file in `config.d`,
-  `clickhouse-merge-tree.xml`, restores the old rule. Two more would store data
-  differently on every volume, automatic column statistics (26.4) and date
-  parsing on insert (26.5 and 26.8): the same file keeps the statistics off,
-  and a profile in `users.d`, `clickhouse-users-profile.xml`, keeps 26.2's date
-  parsing. Both files move with the pin, and a new guard holds them to it: a
-  26.2 or 26.3 server does not start with the first. The move is one way
-  (26.3 and later write parts 26.2 cannot read, and an older server may not
-  start at all on the volume), so each stack copies ClickHouse's volume first
-  (`docs/managed-bring-up.md`, *Moving ClickHouse*, which also checks an
-  x86_64 host for AVX2, which 26.8's amd64 build needs, and after the move
-  that every Trigger.dev table loads), live by hand: the copy before an update
-  holds no volume.
-
+  26.8.34.13, the last with a published note (26.8.35 and 26.8.36 have none),
+  against Trigger.dev's 55 migrations (numbered to 056), its queries and the
+  settings it passes, and the files mounted into `config.d`. One change stops
+  the schema, on an empty volume only: from 26.7 ClickHouse refuses migration
+  022, so a new file in `config.d`, `clickhouse-merge-tree.xml`, restores the
+  old rule. Two more would store data differently on every volume, automatic
+  column statistics (26.4) and date parsing on insert (26.5 and 26.8): the same
+  file keeps the statistics off, and a profile in `users.d`,
+  `clickhouse-users-profile.xml`, keeps 26.2's date parsing. Both files move
+  with the pin, and a new guard holds them to it: a 26.2 or 26.3 server does not
+  start with the first. The move is one way (26.3 and later write parts 26.2
+  cannot read, and an older server may not start at all on the volume), so each
+  stack copies ClickHouse's volume first (`docs/managed-bring-up.md`, *Moving
+  ClickHouse*, which also checks an x86_64 host for AVX2, which 26.8's amd64
+  build needs, and after the move that every Trigger.dev table loads), live by
+  hand: the copy before an update holds no volume.
 - **The Windows payload's `node.exe` is checked against a SHA-256 committed in
   this repository, and that sum is the one the Node.js release was signed
   with** (workplan 0119 §2.5): the build fetched `node.exe` and the
@@ -227,7 +227,6 @@ notices.
   the pinned keyring with the same file at nodejs/release-keys' newest commit,
   so a key retired, revoked or given a new expiry upstream is listed in its
   summary issue.
-
 - **CI's other floating downloads are named releases, checked by their
   SHA-256 or digest: stalwart-cli, the dev database Atlas lints against, and
   the emulator and BuildKit images the image build runs** (workplan 0119):
@@ -256,7 +255,6 @@ notices.
   The second-Nextcloud-major CI fixture moves to upstream's rebuild
   of `nextcloud:34.0.5-apache` (2026-10-28), with libbrotli's fix for the
   critical CVE-2026-111497.
-
 - **CI's migration lint runs Atlas v1.3.6, checked by its SHA-256 before it
   runs, not a canary fetched by its `-latest` name** (workplan 0119): the
   `migration-lint` job downloaded `atlas-community-linux-<arch>-latest` with no
@@ -310,7 +308,8 @@ notices.
   high findings once npm was removed, none with a Debian fix; 37 of them were
   in util-linux, the eight other packages built from its source (mount, login,
   bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, liblastlog2-2) and
-  libsqlite3-0. Debian marks them Essential. The appliance's runtime stage and
+  libsqlite3-0. Debian marks util-linux and bsdutils Essential and login
+  protected. The appliance's runtime stage and
   the tasks' runtime base now purge them with the two dpkg flags that takes and
   no others, so a base where something installed depends on one of them stops
   the build instead of shipping that package broken. What is left reads 0
@@ -354,22 +353,22 @@ notices.
   (workplan 0119 §3 item 9): CVE-2026-116366 (GHSA-qhgw-ghp3-xh36, critical,
   published 2026-10-30) lets an unauthenticated user with network access run
   code on a ClickHouse server, and it is fixed only in 26.3.62.3-lts,
-  26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The stack ran 26.2,
-  the version Trigger.dev pins, which ClickHouse no longer supports and which
-  gets no fix; the owner moved it to 26.8.36.3-lts (the first entry of this
-  section). Until now every container of the stack could reach it: the web
-  app, the API, the identity provider, the demo Nextcloud and every task run. ClickHouse is now
-  on `trigger-event-store`, an internal network with no route off the machine,
-  shared with `trigger-api` alone, the one service that talks to it. That
-  takes the name and the route away from every other container, so a plain
-  request, or one forged through the web app, the API, Zitadel or Nextcloud,
-  cannot reach it. The Docker socket proxy was the one way left to attach a
-  container to the network from `ownpace-network`; the next entry takes it off
-  that network. The next bring-up creates the network and recreates
+  26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The stack ran 26.2, the
+  version Trigger.dev pins, which ClickHouse no longer supports and which gets
+  no fix; the owner moved it to 26.8.36.3-lts (the ClickHouse 26.8 entry of this
+  section). Until now every container of the stack could reach it: the web app,
+  the API, the identity provider, the demo Nextcloud and every task run.
+  ClickHouse is now on `trigger-event-store`, an internal network with no route
+  off the machine, shared with `trigger-api` alone, the one service that talks
+  to it. That takes the name and the route away from every other container, so a
+  plain request, or one forged through the web app, the API, Zitadel or
+  Nextcloud, cannot reach it. The Docker socket proxy was the one way left to
+  attach a container to the network from `ownpace-network`; the next entry takes
+  it off that network. The next bring-up creates the network and recreates
   `clickhouse` and `trigger-api`; no volume or data is touched.
   `a-store-every-container-could-reach` holds the members, a service in a
-  member's network namespace among them, and the smoke asks ClickHouse from
-  both sides.
+  member's network namespace among them, and the smoke asks ClickHouse from both
+  sides.
 - **Only the Trigger.dev supervisor reaches the Docker socket proxy**
   (workplan 0136 T4's first bullet, built ahead of the rest of T4 for
   CVE-2026-116366). `trigger-docker-proxy` holds the host's Docker socket and
@@ -392,6 +391,11 @@ notices.
 
 ### Changed
 
+- **@electric-sql/pglite 0.5.14** (from 0.5.13), the appliance's PGlite. It
+  embeds the same PostgreSQL 18.6 and a byte-identical `pglite.data`, so a
+  database an older appliance wrote opens unchanged; the WASM and the
+  JavaScript are rebuilt. Proved by the ledger's and the appliance's unit tests
+  and E2E (self-hosted) on PGlite.
 - **The weekly image scan gives every image a tier and leads with production**
   (workplan 0119, the owner, 2026-11-03): production-public,
   production-internal, shipped or test-only, with each tier's critical, high and
@@ -455,46 +459,45 @@ notices.
   called such a tag reversible, and going back to it would have started the
   older ClickHouse on parts it cannot read. The operator runbook's rollback
   restores the volume first.
-
-- **Everything runs Node 26, the LTS line since 2026-10-28** (workplan 0119,
-  the owner's decision of 2026-10-31; supersedes #1754 and Dependabot's
-  #1746, which moved 24 a patch). The api, web and selfhost images build on
-  `node:26.13.0-trixie-slim`, the API runs on `distroless/nodejs26-debian13`
-  with the same Node binary, the managed tasks deploy as `node-26` on the
-  API's base, the Windows payload ships node.exe 26.13.0 (about 6 MB larger),
-  CI and every workflow install 26, and `engines` asks for `>=26`. Node 26
-  ships no corepack, so the images install corepack 0.36.0 from npm to bring
-  pnpm. Node 26's fetch offers HTTP/2 to the servers it calls, and the owner
-  accepted that: Google's APIs take it, Microsoft's sign-in stays on HTTP/1.1,
-  and an error's status text over HTTP/2 has no reason phrase. No gate reaches
-  Google's APIs, Dropbox or Box through the product, and the Microsoft lane
-  reaches Graph through its own client, so a migration on live after this
-  release is the first to use HTTP/2 with them: the owner runs one from their
-  own accounts before inviting anyone. The API logs
-  one `ExperimentalWarning` about `localStorage` at start, from a library the
-  Trigger.dev SDK loads, and each task process is expected to; nothing behaves
-  differently. **Before deploying this release, the shell the deploy runs
-  from needs Node 26 first on its `PATH`, with `libatomic1`, and a pnpm that
-  runs `packageManager`'s version**: the deploy runs `pnpm install`, the task
-  deploy and the site build on the node `command -v node` names in that shell,
-  and pnpm only warns when that node is too old and the deploy goes on. A
+- **Ownpace's own images, the tasks, CI and the Windows payload run Node 26, the
+  LTS line since 2026-10-28** (workplan 0119, the owner's decision of
+  2026-10-31; supersedes #1754 and Dependabot's #1746, which moved 24 a patch).
+  The api, web and selfhost images build on `node:26.13.0-trixie-slim`, the API
+  runs on `distroless/nodejs26-debian13` with the same Node binary, the managed
+  tasks deploy as `node-26` on the API's base, the Windows payload ships
+  node.exe 26.13.0 (about 6 MB larger), CI and every workflow install 26, and
+  `engines` asks for `>=26`. Trigger.dev's webapp and supervisor, built on
+  upstream's images, keep upstream's Node 24.22.1. Node 26 ships no corepack, so
+  the images install corepack 0.36.0 from npm to bring pnpm. Node 26's fetch
+  offers HTTP/2 to the servers it calls, and the owner accepted that: Google's
+  APIs take it, Microsoft's sign-in stays on HTTP/1.1, and an error's status
+  text over HTTP/2 has no reason phrase. No gate reaches Google's APIs, Dropbox
+  or Box through the product, and the Microsoft lane reaches Graph through its
+  own client, so a migration on live after this release is the first to use
+  HTTP/2 with them: the owner runs one from their own accounts before inviting
+  anyone. The API logs one `ExperimentalWarning` about `localStorage` at start,
+  from a library the Trigger.dev SDK loads, and each task process is expected
+  to; nothing behaves differently. **Before deploying this release, the shell
+  the deploy runs from needs Node 26 first on its `PATH`, with `libatomic1`, and
+  a pnpm that runs `packageManager`'s version**: the deploy runs `pnpm install`,
+  the task deploy and the site build on the node `command -v node` names in that
+  shell, and pnpm only warns when that node is too old and the deploy goes on. A
   system Node another service on the host runs on stays as it is: a Node 26 of
-  the deploying user's own (nvm, fnm, or a tarball in a directory they own)
-  goes first on their `PATH`, pnpm installs into it without `sudo`, and the
-  deploy runs as that user, not under `sudo`, whose `secure_path` finds the
-  system's node. `deploy-live.sh` and `stand-up-live.sh` now refuse, before
-  anything moves, a node on that `PATH` below what the tag's `package.json`
-  asks for (`engines.node`), none at all, or an `engines` they cannot read
-  (an `engines.node` other than `>=N` or `>=N.N.N`, more than one `engines`
-  key in the file, an object inside it, or `node` given twice), naming the
-  node's path and version (`release_tag_node` in `release-tag.sh`). The
-  deploy to this release runs alpha.3's `deploy-live.sh`, which has no such
-  check, so for it the reading in the
-  deploy shell (`command -v node`, `node -v`) is the check; the refusal guards
-  the deploys after it. The steps are in `managed-bring-up.md`, *The Node in
-  the shell you deploy from*. The first task
-  deploy and the first CI lint after the move are slow, as nothing is cached
-  for 26 yet. Nothing a stack's `.env` sets changes.
+  the deploying user's own (nvm, fnm, or a tarball in a directory they own) goes
+  first on their `PATH`, pnpm installs into it without `sudo`, and the deploy
+  runs as that user, not under `sudo`, whose `secure_path` finds the system's
+  node. `deploy-live.sh` and `stand-up-live.sh` now refuse, before anything
+  moves, a node on that `PATH` below what the tag's `package.json` asks for
+  (`engines.node`), none at all, or an `engines` they cannot read (an
+  `engines.node` other than `>=N` or `>=N.N.N`, more than one `engines` key in
+  the file, an object inside it, or `node` given twice), naming the node's path
+  and version (`release_tag_node` in `release-tag.sh`). The deploy to this
+  release runs alpha.3's `deploy-live.sh`, which has no such check, so for it
+  the reading in the deploy shell (`command -v node`, `node -v`) is the check;
+  the refusal guards the deploys after it. The steps are in
+  `managed-bring-up.md`, *The Node in the shell you deploy from*. The first task
+  deploy and the first CI lint after the move are slow, as nothing is cached for
+  26 yet. Nothing a stack's `.env` sets changes.
 - **Pre-release has ended, and no migration a release shipped changes again**
   (workplan 0146 T3, ADR-0045): pre-release ended with `v0.2.0-alpha.1`, the
   first tag `ownpace-live` ran. `scripts/squash-migrations.sh` refuses before
@@ -535,6 +538,10 @@ notices.
   (`docs/ending-the-alpha.md`, step 4). Both refusals first apply at the
   deploy after the one that moves live onto this release: `deploy-live.sh`
   runs its copy from before the checkout moves.
+- **Dependabot's eight minor and patch updates of 2026-10-31** (#1747):
+  @electric-sql/pglite 0.5.12 (0.5.13 and 0.5.14 below and above), axios
+  1.21.0, @tanstack/react-query and its devtools 5.105.0, typescript-eslint
+  with its parser and plugin 8.72.1, and lucide-react 1.62.0.
 - **croner 11.0.0** (from 10.0.1, #1764), and Dependabot's five minor and
   patch updates (#1771): @azure/msal-node 7.1.2, @electric-sql/pglite 0.5.13,
   react-router 8.5.1, lucide-react 1.63.0 and @types/node 26.6.6. No call site
@@ -574,7 +581,6 @@ notices.
   start-on-boot task, SmartScreen and a zip downloaded in a browser, a
   standard user's account, an upgrade over an earlier release's database,
   Windows 11 itself, and the arm64 payload.
-
 - **The outside probe asks whether anybody can found an organisation at live's
   sign-in service** (workplan 0135 T1, the ask 0132 T3 records): every dispatch
   of *Exposure probe* asks `https://id.ownpace.eu/ui/login/register/org`
@@ -631,11 +637,11 @@ notices.
   next restart, on 2026-11-03, Docker made a directory in its place and the
   pooler stopped, taking the test stack's API with it. `managed.yml` now mounts
   `${PGBOUNCER_USERLIST:-./pgbouncer/userlist.txt}`; the nightly gate points the
-  key at the file in that stack's persisted directory, and `ensure-env-secrets.sh`
-  writes it there from the `.env` on every run, so the copy the gate kept, which
-  had gone stale, is gone. The bring-up refuses a named userlist that is not a
-  file before Compose can make a directory of it. Live does not set the key, and
-  renders exactly as before.
+  key at the file in that stack's persisted directory, and
+  `ensure-env-secrets.sh` writes it there from the `.env` on every run, so the
+  copy the gate kept, which had gone stale, is gone. The bring-up refuses a
+  named userlist that is not a file before Compose can make a directory of it.
+  Live does not set the key, and renders exactly as before.
 - **follow-redirects 1.16.2 closes a third high advisory** (GHSA-mrwp-f3q8-3g9p,
   workplan 0119): a `sensitiveHeaders` array made in another realm was
   discarded, so custom credential headers could follow a redirect to another

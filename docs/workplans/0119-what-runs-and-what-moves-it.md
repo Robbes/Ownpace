@@ -4394,7 +4394,8 @@ is beside each; none is urgent tonight.
     the tasks' runtime base both run on the Node image's Debian (`node:26.13.0-trixie-slim`),
     which read 0 critical and 44 high once npm was gone, none with a Debian fix, 37 of them in
     util-linux, the eight other packages its source builds and libsqlite3-0. Nothing in either
-    image runs them. Debian marks them Essential (and `login` protected), so removing them takes
+    image runs them. Debian marks util-linux and bsdutils Essential and `login` protected, so
+    removing them takes
     `dpkg --force-remove-essential --force-remove-protected`, and leaves a state Debian does not
     test. The alternative was distroless (item 10), which needs a prebuilt task base and an
     appliance without a shell: alpha.5 at the earliest.

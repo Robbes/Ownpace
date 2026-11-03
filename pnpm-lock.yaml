@@ -104,7 +104,7 @@ importers:
         version: 0.31.11
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.4(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
+        version: 0.45.4(@electric-sql/pglite@0.5.14)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
       esbuild:
         specifier: ^0.28.2
         version: 0.28.2
@@ -179,7 +179,7 @@ importers:
         version: 2.8.6
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.4(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
+        version: 0.45.4(@electric-sql/pglite@0.5.14)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
       express:
         specifier: ^5.3.0
         version: 5.3.0(supports-color@10.2.2)
@@ -378,7 +378,7 @@ importers:
     devDependencies:
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.4(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
+        version: 0.45.4(@electric-sql/pglite@0.5.14)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
       imapflow:
         specifier: ^2.10.0
         version: 2.10.0
@@ -438,8 +438,8 @@ importers:
   packages/ledger:
     dependencies:
       '@electric-sql/pglite':
-        specifier: ^0.5.13
-        version: 0.5.13
+        specifier: ^0.5.14
+        version: 0.5.14
       '@openmig/core':
         specifier: workspace:*
         version: link:../core
@@ -451,7 +451,7 @@ importers:
         version: 8.23.1
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.4(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
+        version: 0.45.4(@electric-sql/pglite@0.5.14)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
       pg:
         specifier: 'catalog:'
         version: 8.23.1
@@ -473,7 +473,7 @@ importers:
         version: link:../shared
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.4(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
+        version: 0.45.4(@electric-sql/pglite@0.5.14)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
     devDependencies:
       vitest:
         specifier: ^5.0.5
@@ -501,7 +501,7 @@ importers:
         version: 11.0.0
       drizzle-orm:
         specifier: 'catalog:'
-        version: 0.45.4(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
+        version: 0.45.4(@electric-sql/pglite@0.5.14)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9)
       pg:
         specifier: 'catalog:'
         version: 8.23.1
@@ -741,8 +741,8 @@ packages:
   '@electric-sql/client@1.0.14':
     resolution: {integrity: sha512-LtPAfeMxXRiYS0hyDQ5hue2PjljUiK9stvzsVyVb4nwxWQxfOWTSF42bHTs/o5i3x1T4kAQ7mwHpxa4A+f8X7Q==}
 
-  '@electric-sql/pglite@0.5.13':
-    resolution: {integrity: sha512-4rZuxK1k07w6sSpJzjMri0B9+HuXuC7V9pxVB51pR0T9KPqXg6TD0mdaEwBA9rkcL4jdht4tGDf/wYzAiGhT7g==}
+  '@electric-sql/pglite@0.5.14':
+    resolution: {integrity: sha512-aAQe7iArcFB2w1xtx91l3l9trxhMzD6aZf+WnosSHNhwgp70EJz80Igw/bHnW14fUEFYWPBoQ1sGom8Xc0Jttg==}
 
   '@esbuild-kit/core-utils@3.3.2':
     resolution: {integrity: sha512-sPRAnw9CdSsRmEtnsl2WXWdyquogVpB3yZ3dgwJfe8zrOzTsV7cJvmwrKVa+0ma5BoiGJ+BoqkMvawbayKUsqQ==}
@@ -5042,7 +5042,7 @@ snapshots:
     optionalDependencies:
       '@rollup/rollup-darwin-arm64': 4.62.5
 
-  '@electric-sql/pglite@0.5.13': {}
+  '@electric-sql/pglite@0.5.14': {}
 
   '@esbuild-kit/core-utils@3.3.2':
     dependencies:
@@ -6829,9 +6829,9 @@ snapshots:
       esbuild: 0.25.12
       tsx: 4.23.15
 
-  drizzle-orm@0.45.4(@electric-sql/pglite@0.5.13)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9):
+  drizzle-orm@0.45.4(@electric-sql/pglite@0.5.14)(@opentelemetry/api@1.9.1)(@types/better-sqlite3@7.6.13)(@types/pg@8.23.1)(better-sqlite3@12.11.1)(pg@8.23.1)(postgres@3.4.9):
     optionalDependencies:
-      '@electric-sql/pglite': 0.5.13
+      '@electric-sql/pglite': 0.5.14
       '@opentelemetry/api': 1.9.1
       '@types/better-sqlite3': 7.6.13
       '@types/pg': 8.23.1
