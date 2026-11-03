@@ -5877,6 +5877,21 @@ next move, take their usual minute; it is also when the image's packages are
 refreshed, not at every deploy. A deploy that slows down or stops on
 `apt-get` points here.
 
+The layer's last step, in the runtime stage only, purges ten Debian packages
+nothing in a task container runs: util-linux, the eight others built from its
+source, and libsqlite3-0 (workplan 0119, the owner's decision of 2026-11-03).
+They carried 37 of the base's 44 high findings. A deploy that stops there
+names the cause in dpkg's own words: `dpkg-query: no packages found matching
+…` means the new base no longer has one of the ten, and `… depends on …;
+dependency problems - not removing` that something in it now needs one. Either
+way the list in `apps/worker/trigger.config.ts` (`UNUSED_ESSENTIALS`) and in
+`apps/selfhost/Dockerfile` is read again against the new base, in a pull
+request: nothing about it is changed on this machine. The managed smoke asks
+the newest image its runners started from, the one the last deploy built,
+about all ten, and fails if dpkg still has any of them. An older image a runner
+of an earlier deployment ran (Trigger.dev keeps a run on the version it was
+triggered on) is named there and not asked.
+
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
 own inside their builds, but the tasks are bundled on this machine from its own

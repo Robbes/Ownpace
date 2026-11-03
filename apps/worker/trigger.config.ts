@@ -87,7 +87,9 @@ import { defineConfig } from '@trigger.dev/sdk';
  * make and g++ prebuilt instead of installing them with apt. The layer runs in both stages
  * (the CLI replays it on a build base), and the removal runs only where there
  * is no C++ compiler: every `-build` image has one, and the runtime base has
- * none. Only `node_modules` and `index.json` leave the build stage.
+ * none. Only `node_modules` and `index.json` leave the build stage. The
+ * Debian Essentials nothing runs go the same way, from the runtime base only
+ * (`UNUSED_ESSENTIALS`, below; workplan 0119, 2026-11-03).
  *
  * The Dockerfile and the certificates are read on the DEPLOYING machine, at
  * the start of the build: a throw in `onBuildStart` stops the deploy, where
@@ -138,6 +140,45 @@ const PACKAGE_MANAGERS = [
   '/usr/local/bin/yarn',
   '/usr/local/bin/yarnpkg',
   '/opt/yarn-v*',
+];
+
+/**
+ * THE DEBIAN ESSENTIALS NOTHING RUNS (workplan 0119; the owner's decision of
+ * 2026-11-03, for alpha.4): util-linux, the eight other packages built from
+ * its source, and libsqlite3-0, the list `apps/selfhost/Dockerfile`'s runtime
+ * stage purges, which says why. On this base they carried 37 of the 44 high
+ * findings Trivy 0.76.1 read that day, none with a Debian fix, and nothing in
+ * a task container runs them: the controller forks only `process.execPath`,
+ * Node links none of their libraries, and the externals below are JavaScript
+ * (`pg`) and WebAssembly (`@electric-sql/pglite`).
+ *
+ * Purged where there is no C++ compiler, as the package managers are removed,
+ * so in the runtime base only: the CLI replays the layer on its `-build` image,
+ * whose Python links libuuid and libsqlite3, and dpkg would refuse there. Last
+ * of the layer's RUNs, after every apt step of ours. Without `--force-depends`
+ * dpkg refuses to remove what something installed depends on, so such a base
+ * stops the deploy, and `dpkg-query -W` first stops it when one of the ten is
+ * gone from the base. After the layer the CLI runs its own repair, `apt-get
+ * --fix-broken install`, which installs what a broken dependency needs and
+ * nothing else (apt 3.0.3: only a dist-upgrade adds missing Essential
+ * packages); `scripts/image-scan.mjs` writes that repair into the stage it
+ * scans, and the managed smoke asks the newest image its runners started from
+ * (the last deploy's) about all ten. The guard runs only where there is no
+ * `g++`, so the API's FROM line must stay a `-slim` image, which ships none.
+ * `scripts/an-essential-nothing-runs.unit.test.ts` holds the list to the
+ * appliance's, the RUN to its place and the base to `-slim`.
+ */
+const UNUSED_ESSENTIALS = [
+  'util-linux',
+  'mount',
+  'login',
+  'bsdutils',
+  'libblkid1',
+  'libmount1',
+  'libsmartcols1',
+  'libuuid1',
+  'liblastlog2-2',
+  'libsqlite3-0',
 ];
 
 let taskBase: { image: string; instructions: string[] } | undefined;
@@ -194,6 +235,7 @@ function readTaskBase(workingDir: string): { image: string; instructions: string
         ),
       ].join(' && \\\n  '),
       `RUN sed -i -E 's#^(mozilla/(${DISTRUSTED_ROOTS.join('|')})\\.crt)$#!\\1#' /etc/ca-certificates.conf && \\\n  update-ca-certificates --fresh`,
+      `RUN if ! command -v g++ >/dev/null; then dpkg-query -W ${UNUSED_ESSENTIALS.join(' ')} >/dev/null && dpkg --purge --force-remove-essential --force-remove-protected ${UNUSED_ESSENTIALS.join(' ')} && apt-get check; fi`,
       'ENV NODE_OPTIONS=--use-openssl-ca SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt',
     ],
   };

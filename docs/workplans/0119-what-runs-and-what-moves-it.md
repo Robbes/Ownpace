@@ -4,6 +4,84 @@
 
 ## Status — 2026-11-03 (update this block at the end of every session)
 
+**2026-11-03: the Debian Essentials nothing runs, purged from the appliance and from the tasks'
+runtime base, for alpha.4** (the owner's decision of 2026-11-03, §3 item 11), #1802 from the branch
+`claude/ownpace-public-readiness-y7orc6-debian-purge`. If its proof is not green before the
+alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
+- **What the 44 were.** `node:26.13.0-trixie-slim@e4db4c91…` (Debian 13.7) reads 0 critical
+  and 50 high with Trivy 0.76.1 (DB of 2026-11-03 01:30 UTC); 6 are npm's, which both images
+  already remove. Of the 44 left, none with a Debian fix, 36 are four util-linux CVEs
+  (CVE-2026-76642, -78408, -78409, -78410) in each of the nine binary packages its source builds
+  (util-linux, mount, login, bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1,
+  liblastlog2-2), and 1 is libsqlite3-0's (CVE-2026-119373). The other 7 stay: libacl1, libsystemd0, libudev1,
+  libtinfo6, ncurses-base, ncurses-bin and perl-base (fix deferred).
+- **The change.** `apps/selfhost/Dockerfile`'s runtime stage gets one RUN, after the package
+  managers' removal and before `USER`: `dpkg-query -W` of the ten, `dpkg --purge
+  --force-remove-essential --force-remove-protected` of the ten, `apt-get check`. The tasks'
+  layer (`apps/worker/trigger.config.ts`, `UNUSED_ESSENTIALS`) gets the same RUN as its last,
+  under the package-manager removal's `! command -v g++` guard, so it runs on the runtime base
+  and not on the CLI's `-build` image, where Python links libuuid and libsqlite3.
+  `scripts/image-scan.mjs containerfile` now writes the CLI's apt repair after the layers
+  (`CLI_APT_REPAIR`), so the scan builds the stage a deploy builds. The managed smoke asks the
+  newest image its runners started from, the one the last deploy built, about all ten (a new
+  section after the runner logs; the watcher starts each runner's log, then reads its image ID
+  on every pass until a read answers). An older image is named and not asked: Trigger.dev
+  keeps a run on the version it was triggered on, so a pass running when the smoke starts, or
+  queued before the deploy, runs the image before it. E2E (self-hosted) asks the appliance it
+  built about all ten (a step after the bring-up). `an-essential-nothing-runs` holds the
+  list, the shape, both places, the tasks' base to a `-slim` tag (a full Node image ships g++,
+  and the layer's guard would skip the purge and the npm removal without a word), the scan's
+  stage against the one the installed CLI writes (its own `generateContainerfile`), and runs
+  both checks and the watcher's pass against a stand-in docker. Each mutation turned it red:
+  a package dropped from either list, `--force-depends`, the repair left out of the scan, the
+  g++ guard dropped, the purge moved before the layer's apt step, an install after the
+  appliance's purge; and, after the review of #1802, the smoke asking
+  the oldest image, either check asking nine, reading config files as absent or not checking
+  that every package was answered for, the smoke ignoring the exit status or an undated
+  image, the watcher reading the image once or before the log, and the tasks' base moved to
+  a full Node image.
+- **Verified in this session** (Docker 29.9.2 on amd64, the base's layers from the build cache,
+  no network in the build):
+  - the appliance's base with npm removed and this RUN: 0 critical and 7 high, against 0 and 44
+    for the same base without it (Trivy 0.76.1, the same DB, `--image-src docker`). `useradd`
+    after it, `node` 26.13.0, `os.userInfo()`, `sh -c 'ls …'` and the image's
+    `docker-entrypoint.sh` all run; su, login, mount, umount, getopt, runuser, logger, more and
+    nologin are gone (`kill` is the shell's own); `dpkg-query -W util-linux` says *no packages
+    found matching util-linux* and exits 1, which is the answer both checks pass on.
+  - fail-loud: with a package installed that depends on libuuid1, dpkg says *needs-uuid
+    depends on libuuid1 … dependency problems - not removing* and the build stops (exit 1);
+    with a name the base does not have, `dpkg-query` stops it before dpkg removes anything.
+  - the task layer's RUN on that base purges; with a `g++` on the PATH it does nothing.
+  - the smoke's section against real images: the purged image passes, and beside the
+    unpurged one, built earlier, it is the one asked; the unpurged one alone fails with all
+    ten *installed*; a run that read no image fails. `dpkg-query -W -f '${Package}
+    ${Status}\n'` over the ten on the purged image answers *no packages found* for nine and
+    `login unknown ok not-installed` for `login`, whose record dpkg keeps, which both checks
+    read as absent; E2E's step passes the purged image and fails the unpurged one.
+  - the CLI's repair: trigger.dev 4.8.3 (tarball sha512 = pnpm-lock's) writes `RUN apt-get
+    update && apt-get --fix-broken install -y --no-install-recommends && …` after layers that
+    add instructions and no packages. apt 3.0.3's source (`DoInstall`,
+    `CacheFile::CheckDeps`, `pkgFixBroken`, `pkgDistUpgrade`): an install with `-f` and
+    nothing broken runs the problem resolver alone, and only a dist-upgrade marks missing
+    Essential packages for install. Offline, `apt-get -s --fix-broken install` plans nothing.
+  - at runtime: the CLI's run controller forks only `process.execPath`; the supervisor creates
+    each runner with the image's own entrypoint and user and never execs into it; no runtime
+    code in `packages/`, `apps/worker/src` or `apps/selfhost/src` imports `child_process`; the
+    appliance's payload and the tasks' externals hold no native module.
+- **Measured on the branch:** Security Scan run 41593876480, dispatched with the image scans on
+  `96d2b6f8`, reads `trigger-task-base` at 0 critical and 7 high (the seven above), on arm64,
+  where run 41586744506 read it at 0 and 44 the same morning. Its leg built the stage with
+  Debian's archive: the layer's purge removed the ten after `ca-certificates`, `openssl` and
+  `dumb-init` were installed, with no refusal, and the CLI's repair after it fetched the lists
+  and said *0 upgraded, 0 newly installed, 0 to remove*. `ownpace-selfhost-edge` and
+  `-release` still read 0 and 44 there: the scan reads them from ghcr, main's and alpha.3's,
+  so the branch's appliance is measured by the local run above, and the first scan after the
+  merge reads `:edge`. images.yml's `build (selfhost)` on #1802 ran the purge on amd64 with no
+  refusal.
+- **Not verified here, and where it is:** the appliance on arm64 (images.yml builds both
+  architectures on main only; E2E (self-hosted) builds it on arm64 on the branch, and asks it
+  about the ten); the smoke's section on a real stack (E2E (managed) on the branch).
+
 **2026-11-03, how the containers run: every service with no new privileges, its capabilities
 cut to what its own start uses, and six read-only roots (built, not merged).** The runtime half
 of the owner's *"make base images more lean/small and more hardened"* of 2026-11-03. On the
@@ -4109,6 +4187,23 @@ is beside each; none is urgent tonight.
     Alpha. The queued drafts already bring this repository's own images to 0 critical.
     **Revisit** after the Alpha, starting with Caddy and the registry; and whenever a DHI image
     would clear a critical that no other move can.
+
+11. **The Debian Essentials nothing runs — PURGED FOR ALPHA.4, 2026-11-03.** The appliance and
+    the tasks' runtime base both run on the Node image's Debian (`node:26.13.0-trixie-slim`),
+    which read 0 critical and 44 high once npm was gone, none with a Debian fix, 37 of them in
+    util-linux, the eight other packages its source builds and libsqlite3-0. Nothing in either
+    image runs them. Debian marks them Essential (and `login` protected), so removing them takes
+    `dpkg --force-remove-essential --force-remove-protected`, and leaves a state Debian does not
+    test. The alternative was distroless (item 10), which needs a prebuilt task base and an
+    appliance without a shell: alpha.5 at the earliest.
+
+    **The owner's decision: purge them, for alpha.4**, in the appliance's runtime stage and in
+    the tasks' runtime base only (never the CLI's build image), with no other force, so that a
+    base where something depends on them stops the build. Both go from 0/44 to 0/7. If the
+    proof (CI, the image scan on the branch, E2E managed and self-hosted) is not green before
+    alpha.4's fold, it moves to alpha.5. **Revisit** when either image moves to distroless,
+    which drops the Debian base and this purge with it; and on every Debian release the bases
+    move to, when `dpkg-query -W` stops the build on a renamed package.
 
 ## 4. Not done, honestly
 

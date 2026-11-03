@@ -343,10 +343,17 @@ export function programOf(tokens: readonly string[]): string | null {
   let t = tokens.map(unquote);
   if (SHELLS.has(t[0]!)) {
     let j = 1;
+    let command = false;
     while (j < t.length && /^-[a-z]+$/.test(t[j]!)) {
       j += 1;
-      if (t[j - 1]!.includes('c')) break;
+      if (t[j - 1]!.includes('c')) {
+        command = true;
+        break;
+      }
     }
+    // Without -c the shell itself is the program: an interactive shell, or one reading a script
+    // file, never the word after it (prose like "`exec app sh` still opens a shell" included).
+    if (!command) return t[0]!;
     const script = t.slice(j);
     if (script.length === 0 || script[0] === '') return t[0]!;
     t = script;
@@ -552,7 +559,13 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
   },
   'trigger-supervisor': { node: NONE('the image\'s node, as node') },
   web: { wget: NONE("asks its own nginx over 127.0.0.1, as root, and writes nothing") },
-  app: { ls: NONE("the upgrade drill lists the appliance's own state directory, as appuser") },
+  app: {
+    ls: NONE("the upgrade drill lists the appliance's own state directory, as appuser"),
+    sh: NONE("an interactive shell as appuser, which the appliance's README says the purge leaves"),
+    'dpkg-query': NONE(
+      "E2E (self-hosted) asks which of the purged Essentials are installed: it reads /var/lib/dpkg, world-readable, as appuser",
+    ),
+  },
 };
 
 /**
@@ -822,6 +835,8 @@ describe('each rule fails when it is broken', () => {
     expect(found('"${COMPOSE[@]}" exec -T -e PGPASSWORD pgbouncer \\\n  psql -h 127.0.0.1 -p 6432')).toEqual(['exec pgbouncer psql']);
     expect(found(`docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'PGPASSWORD=x exec psql -U "$POSTGRES_USER"'`)).toEqual(['exec postgres psql']);
     expect(found('docker compose $MANAGED_COMPOSE exec -T --user=0 trigger-redis bash -lc "redis-cli ping"')).toEqual(['exec trigger-redis redis-cli']);
+    // Without -c the shell is the program, not the word after it.
+    expect(found('`docker compose exec app sh` still opens a shell')).toEqual(['exec app sh']);
     expect(found('docker compose -f x.yml run --rm --no-deps -u 0 --cap-add CHOWN --entrypoint chown postgres -R 70:70 /d')).toEqual(['run postgres chown +CHOWN']);
     expect(found('docker compose -f x.yml exec --privileged -u 0 minio sh')).toEqual(['exec minio sh privileged']);
     expect(found('ZITADEL_UID="$u" "${COMPOSE[@]}" run --rm --quiet-pull zitadel-machinekey')).toEqual(['run zitadel-machinekey (its command)']);

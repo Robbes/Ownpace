@@ -258,6 +258,24 @@ notices.
   removed, where Trivy reads 0 critical and 7 high instead of 1 and 9; the 7
   are in Caddy's own binary and wait for a Caddy release. Caddy, its
   configuration and its certificate are unchanged.
+- **The appliance and the managed tasks drop util-linux and SQLite, which
+  nothing in them runs** (workplan 0119; the owner's decision of 2026-11-03).
+  Both run on `node:26.13.0-trixie-slim`, where Trivy read 0 critical and 44
+  high findings once npm was removed, none with a Debian fix; 37 of them were
+  in util-linux, the eight other packages built from its source (mount, login,
+  bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, liblastlog2-2) and
+  libsqlite3-0. Debian marks them Essential. The appliance's runtime stage and
+  the tasks' runtime base now purge them with the two dpkg flags that takes and
+  no others, so a base where something installed depends on one of them stops
+  the build instead of shipping that package broken. What is left reads 0
+  critical and 7 high. su, login, mount, getopt, runuser, logger and more are
+  gone from both; `sh` and the core utilities stay, so `docker compose exec app
+  sh` and the upgrade drill work as before, and a self-hoster who ran one of
+  the removed programs inside the app container no longer finds it. The image
+  scan now also builds the apt repair the Trigger.dev CLI adds after the tasks'
+  layer, so it reads the stage a deploy builds. The managed smoke asks the
+  image the last task deploy built, and E2E (self-hosted) the appliance it
+  started, about all ten, and each fails if dpkg still has any of them.
 - **Both Postgres builds take Alpine's brotli-libs 1.2.1-r0 and libcurl
   8.23.0-r0, which clears their critical** (workplan 0119): with gosu gone,
   `postgres:18.6-alpine` still read 1 critical and 1 high, CVE-2026-111497

@@ -495,6 +495,43 @@ jobs:
           # above.
           docker compose $SELFHOST_COMPOSE_FILES ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}'
 
+      # THE APPLIANCE CARRIES NONE OF THE DEBIAN ESSENTIALS IT PURGES (workplan
+      # 0119; the owner's decision of 2026-11-03). apps/selfhost/Dockerfile's
+      # runtime stage purges util-linux, the eight other packages built from its
+      # source and libsqlite3-0, and the build stops when dpkg refuses. Asked
+      # here of the container this run built and started, all ten, with dpkg's
+      # own query and no shell: a package the image kept, or got back, stops
+      # the gate by name, and so does an answer this cannot read.
+      # scripts/an-essential-nothing-runs.unit.test.ts runs this step.
+      - name: The appliance carries none of the Debian Essentials it purges
+        run: |
+          essentials="util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0"
+          # shellcheck disable=SC2086 # the ten names, one word each
+          said="$(docker compose $SELFHOST_COMPOSE_FILES exec -T app dpkg-query -W -f '${Package} ${Status}\n' $essentials 2>&1)" && rc=0 || rc=$?
+          kept="" odd="" seen=" "
+          while IFS= read -r line; do
+            [ -n "$line" ] || continue
+            if [[ $line =~ ^dpkg-query:\ no\ packages\ found\ matching\ ([a-z0-9.+-]+)$ ]]; then
+              seen="${seen}${BASH_REMATCH[1]} "
+            elif [[ $line =~ ^([a-z0-9.+-]+)\ [a-z]+\ [a-z]+\ ([a-z-]+)$ ]]; then
+              seen="${seen}${BASH_REMATCH[1]} "
+              [ "${BASH_REMATCH[2]}" = not-installed ] || kept="${kept}${kept:+, }${BASH_REMATCH[1]} (${BASH_REMATCH[2]})"
+            else
+              odd="${odd}${odd:+ | }${line}"
+            fi
+          done <<<"$said"
+          for p in $essentials; do
+            case "$seen" in *" $p "*) ;; *) odd="${odd}${odd:+ | }no answer for ${p}" ;; esac
+          done
+          if [ "$rc" -gt 1 ] || [ -n "$odd" ]; then
+            echo "::error::dpkg-query could not be asked in the appliance (exit ${rc}): ${odd:-$said}"
+            exit 1
+          elif [ -n "$kept" ]; then
+            echo "::error::the appliance's dpkg database still has ${kept}, which apps/selfhost/Dockerfile purges"
+            exit 1
+          fi
+          echo "the appliance carries none of the ten (${essentials})"
+
       - name: Green-light the mapping (0013 T7 — mappings load paused until confirmed)
         run: |
           # Since workplan 0013 T7 the appliance loads every mapping PAUSED and only schedules

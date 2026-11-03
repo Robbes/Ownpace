@@ -1144,6 +1144,10 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
         touch "$RUNNER_LOG_DIR/$c.log"
         docker logs -f "$c" >"$RUNNER_LOG_DIR/$c.log" 2>&1 &
       fi
+      # The image it started from, by ID, read while it exists, and again on
+      # every pass until a read answers: AutoRemove takes the container, never
+      # the image (the tasks' image, below).
+      [ -s "$RUNNER_LOG_DIR/$c.image" ] || docker container inspect --format '{{.Image}}' "$c" >"$RUNNER_LOG_DIR/$c.image" 2>/dev/null || rm -f "$RUNNER_LOG_DIR/$c.image"
     done
     sleep 1
   done
@@ -2952,6 +2956,90 @@ if [ "$found_logs" != "1" ]; then
   # softer assertion.
   echo "NO runner containers appeared during this smoke."
   fail_at
+fi
+
+# ---------- the tasks' image carries none of the Debian Essentials it purges ----------
+#
+# WHAT THE LAST DEPLOY BUILT, ASKED OF ITSELF (workplan 0119; the owner's
+# decision of 2026-11-03). apps/worker/trigger.config.ts's layer purges ten
+# Debian packages from the tasks' runtime base (util-linux, the eight others
+# built from its source, and libsqlite3-0), and the Trigger.dev CLI runs an apt
+# repair of its own after the layer, which a later CLI could change. The weekly
+# scan builds that stage on GitHub's runner; this asks the image on this
+# machine, by the ID the watcher above read while each runner existed, with
+# dpkg's own query: no shell, no network, and never a pull.
+#
+# THE NEWEST IMAGE ONLY, by when it was built: the one the last deploy built.
+# Trigger.dev keeps a run on the deployment version it was triggered on, so a
+# pass already running when this smoke starts, or one queued before the deploy
+# and dequeued during it, runs the image before; that image is named here and
+# not asked. A deploy that put a package back, or a runtime base the purge
+# skipped (it runs where there is no C++ compiler), goes red here by name, as
+# does an answer this cannot read. When the tasks leave Debian for distroless
+# (0119 §3, item 11), there is no dpkg-query to ask and this goes red until it
+# asks another way. scripts/an-essential-nothing-runs.unit.test.ts runs this
+# block.
+note "the tasks' image carries none of the Debian Essentials it purges (0119)"
+essentials="util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0"
+task_images=""
+for f in "$RUNNER_LOG_DIR"/*.image; do
+  [ -s "$f" ] || continue
+  id="$(<"$f")"
+  case " $task_images " in *" $id "*) ;; *) task_images="${task_images:+$task_images }$id" ;; esac
+done
+newest="" newest_at=0 older="" undated=""
+for image in $task_images; do
+  if ! created="$(docker image inspect --format '{{.Created}}' "$image" 2>&1)" || ! at="$(date -u -d "$created" +%s%N 2>&1)"; then
+    undated="${undated}${undated:+; }${image#sha256:}: ${at:-$created}"
+    continue
+  fi
+  if [ -z "$newest" ] || [ "$at" -gt "$newest_at" ]; then
+    [ -z "$newest" ] || older="${older:+$older }$newest"
+    newest="$image" newest_at="$at"
+  else
+    older="${older:+$older }$image"
+  fi
+  at=""
+done
+if [ -z "$task_images" ]; then
+  echo "no runner's image was read while it ran, so what the deployed tasks' image carries cannot be told"
+  fail_at "the tasks' image was not read"
+elif [ -n "$undated" ]; then
+  echo "not every image the runners ran could be dated, so which one the last deploy built cannot be told: ${undated}"
+  fail_at "the tasks' image could not be told"
+else
+  for image in $older; do
+    image="${image#sha256:}"
+    echo "image ${image:0:12}: built before the newest, so an earlier deployment's runs; not asked"
+  done
+  short="${newest#sha256:}"
+  short="image ${short:0:12}"
+  # shellcheck disable=SC2086 # the ten names, one word each
+  said="$(docker run --rm --pull never --network none --entrypoint dpkg-query "$newest" -W -f '${Package} ${Status}\n' $essentials 2>&1)" && rc=0 || rc=$?
+  kept="" odd="" seen=" "
+  while IFS= read -r line; do
+    [ -n "$line" ] || continue
+    if [[ $line =~ ^dpkg-query:\ no\ packages\ found\ matching\ ([a-z0-9.+-]+)$ ]]; then
+      seen="${seen}${BASH_REMATCH[1]} "
+    elif [[ $line =~ ^([a-z0-9.+-]+)\ [a-z]+\ [a-z]+\ ([a-z-]+)$ ]]; then
+      seen="${seen}${BASH_REMATCH[1]} "
+      [ "${BASH_REMATCH[2]}" = not-installed ] || kept="${kept}${kept:+, }${BASH_REMATCH[1]} (${BASH_REMATCH[2]})"
+    else
+      odd="${odd}${odd:+ | }${line}"
+    fi
+  done <<<"$said"
+  for p in $essentials; do
+    case "$seen" in *" $p "*) ;; *) odd="${odd}${odd:+ | }no answer for ${p}" ;; esac
+  done
+  if [ "$rc" -gt 1 ] || [ -n "$odd" ]; then
+    echo "${short}: dpkg-query could not be asked (exit ${rc}): ${odd:-$said}"
+    fail_at "the tasks' image could not be asked"
+  elif [ -n "$kept" ]; then
+    echo "${short}: dpkg's database still has ${kept}, which trigger.config.ts's layer purges"
+    fail_at "a purged Essential in the tasks' image"
+  else
+    echo "${short}: none of the ten (${essentials})"
+  fi
 fi
 
 # ---------- the identity provider, and the three answers to an invitation ----------

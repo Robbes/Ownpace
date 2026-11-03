@@ -414,7 +414,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image is
   built in its leg, not pulled (workplan 0146 T10): the leg installs the workspace, writes the
   `base` stage a task deploy builds (`image-scan.mjs containerfile`, which runs
-  `apps/worker/trigger.config.ts`'s own build extensions) on the image `apps/api/Dockerfile`
+  `apps/worker/trigger.config.ts`'s own build extensions, then writes the apt repair the
+  Trigger.dev CLI adds after them, since 2026-11-03; `an-essential-nothing-runs` compares the
+  stage with the one the installed CLI writes) on the image `apps/api/Dockerfile`
   builds FROM, which the config builds the tasks on since workplan 0146 T14 (on the base image
   the pinned Trigger.dev CLI names when the config names none), builds it natively on
   `ubuntu-24.04-arm` under a local tag in that base's repository, and Trivy reads it from that
