@@ -111,6 +111,11 @@ import {
   STALWART_CLI_HOST,
   STALWART_CLI_NOTE,
   STALWART_CLI_UPSTREAM,
+  TRIVY_ARCHES,
+  TRIVY_HOST,
+  TRIVY_JOBS,
+  TRIVY_NOTE,
+  TRIVY_WORKFLOW,
   TASK_ON_API_IMAGE,
   TITLES,
   WINDOW_DAYS,
@@ -146,6 +151,7 @@ import {
   routineRows,
   securityFloor,
   stalwartCliPin,
+  trivyPin,
   stepsUsing,
   summaryOf,
   table,
@@ -1802,6 +1808,266 @@ describe('the stalwart-cli CI installs: a named release, checked by its sha256 f
     expect(hint('docs/stalwart-integration-fix.md', /\n +https:\/\/github\.com\/stalwartlabs\/cli\/[^\n]+/, '')).toEqual(['docs/stalwart-integration-fix.md names no stalwart-cli release to install']);
     // A workflow moved alone leaves every hint behind it.
     expect(stalwartCliHintFaults(REAL, 'v1.0.99')).toHaveLength(3);
+  });
+});
+
+/**
+ * THE TRIVY THE SECURITY SCAN TOOK FROM get.trivy.dev (workplan 0146,
+ * 2026-11-04). trivy-action's setup-trivy ran Trivy's `contrib/install.sh`,
+ * which takes the archive from `get.trivy.dev`; that name stopped resolving
+ * on 2026-11-04 and main's push scan on the alpha.4 candidate failed before
+ * it read a file. The repository scan and every image leg now carry one
+ * step, word for word, that names a release, pins a sha256 for both
+ * architectures, reads and compares both before anything is unpacked, and
+ * checks that what it installed calls itself that release; and each job's
+ * trivy-action steps skip setup-trivy and name the same release. This holds
+ * both jobs to that with `trivyPin`, each refusal by a mutation of the real
+ * file, RUNS the step (`trivyStepFaults`) as the stalwart-cli step is run
+ * above, and holds the row that says when a newer release is tagged.
+ */
+const TRIVY = trivyPin(REAL.read(TRIVY_WORKFLOW)!, 'security-scan');
+/** `uname -m` on each runner, and the release's name for that architecture. */
+const TRIVY_MACHINES: Record<string, string> = { x86_64: TRIVY_ARCHES.AMD64, aarch64: TRIVY_ARCHES.ARM64 };
+/** A stand-in archive per architecture, shaped like the release's (`trivy` beside a README), whose binary prints what it is told and a database line. */
+const TRIVY_STAND_IN = Object.fromEntries(
+  Object.values(TRIVY_ARCHES).map((arch) => {
+    const dir = mkdtempSync(join(atlasScratch, `trivy-${arch}-`));
+    writeFileSync(join(dir, 'README.md'), `Not Trivy: the Linux-${arch} stand-in a-pin-that-knows-it-is-behind serves.\n`);
+    writeFileSync(join(dir, 'trivy'), `#!/bin/sh\n# Linux-${arch}\n: > "$STUB_RAN"\nprintf '%s\\n' "$STUB_SAYS" 'Vulnerability DB:' '  Version: 2'\n`);
+    chmodSync(join(dir, 'trivy'), 0o755);
+    const made = spawnSync('tar', ['-czf', join(dir, 'archive.tar.gz'), '-C', dir, 'README.md', 'trivy'], { encoding: 'utf8' });
+    if (made.status !== 0) throw new Error(`tar could not make the stand-in archive: ${made.stderr}`);
+    const bytes = readFileSync(join(dir, 'archive.tar.gz'));
+    return [arch, { bytes, binary: readFileSync(join(dir, 'trivy'), 'utf8'), sha256: createHash('sha256').update(bytes).digest('hex') }];
+  }),
+) as Record<string, { bytes: Buffer; binary: string; sha256: string }>;
+const TRIVY_STAND_IN_SHA256 = Object.fromEntries(
+  Object.entries(TRIVY_ARCHES).map(([name, arch]) => [`INSTALL_TRIVY_SHA256_${name}`, TRIVY_STAND_IN[arch]!.sha256]),
+);
+
+/** The `run:` and `env:` of the one step of `job` in `workflow` that downloads from TRIVY_HOST. */
+function trivyStep(workflow: string, job: string): { run: string; env: Record<string, string> } {
+  type Step = { run?: unknown; env?: Record<string, unknown>; shell?: unknown };
+  const jobs = (parseYaml(workflow) as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const steps = (jobs[job]?.steps ?? []).filter((s) => typeof s.run === 'string' && s.run.includes(TRIVY_HOST));
+  if (steps.length !== 1) throw new Error(`${steps.length} steps of job ${job} download from ${TRIVY_HOST}; one installs Trivy`);
+  const step = steps[0]!;
+  if (step.shell !== undefined) throw new Error(`the Trivy step names shell: ${String(step.shell)}; this runs it as a step with none`);
+  if ((step.run as string).includes('${{')) throw new Error('the Trivy step carries a ${{ }} expression, which this does not render');
+  return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
+}
+
+/** Run the Trivy step on `machine`, with these sums, a stand-in whose first line is `says`, and the first `fails` fetches failing. */
+function runTrivyStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string, fails = 0): Ran & { slept: string[] } {
+  const dir = mkdtempSync(join(atlasScratch, 'trivy-run-'));
+  const temp = join(dir, 'runner-temp');
+  const served = join(dir, 'served');
+  mkdirSync(temp);
+  mkdirSync(served);
+  const version = step.env.INSTALL_TRIVY_VERSION ?? '';
+  for (const arch of Object.values(TRIVY_ARCHES)) writeFileSync(join(served, `trivy_${version.replace(/^v/, '')}_Linux-${arch}.tar.gz`), TRIVY_STAND_IN[arch]!.bytes);
+  const files = { script: join(dir, 'step.sh'), path: join(dir, 'GITHUB_PATH'), ran: join(dir, 'ran'), fetched: join(dir, 'fetched'), slept: join(dir, 'slept') };
+  writeFileSync(files.script, step.run);
+  for (const file of [files.path, files.fetched, files.slept]) writeFileSync(file, '');
+  const r = spawnSync('bash', ['-e', files.script], {
+    encoding: 'utf8',
+    timeout: 20_000,
+    env: {
+      PATH: `${STUBS}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: dir,
+      ...step.env,
+      ...sums,
+      RUNNER_TEMP: temp,
+      GITHUB_PATH: files.path,
+      STUB_PREFIX: `${TRIVY_HOST}${version}/`,
+      STUB_SERVED: served,
+      STUB_MACHINE: machine,
+      STUB_SAYS: says,
+      STUB_RAN: files.ran,
+      STUB_FETCHED: files.fetched,
+      STUB_SLEPT: files.slept,
+      ...(fails ? { STUB_FAILS: String(fails) } : {}),
+    },
+  });
+  const bin = join(temp, 'trivy-bin', 'trivy');
+  return {
+    status: r.status,
+    installed: existsSync(bin) ? readFileSync(bin, 'utf8') : undefined,
+    ran: existsSync(files.ran),
+    onPath: readFileSync(files.path, 'utf8').split('\n').includes(join(temp, 'trivy-bin')),
+    fetched: readFileSync(files.fetched, 'utf8').split('\n').filter(Boolean),
+    slept: readFileSync(files.slept, 'utf8').split('\n').filter(Boolean),
+    log: `${r.stdout}${r.stderr}`.trim(),
+  };
+}
+
+/**
+ * What the Trivy step of `job` does that it must not, run on both machines,
+ * as `stalwartStepFaults` reads the stalwart-cli step: install and run
+ * anything but the native release when both archives are the pinned ones (and
+ * fetch both); finish with anything installed, run or on the PATH when either
+ * sum is wrong; accept a binary that calls itself another version; give up on
+ * one failed fetch, or go on after three; or install anything on a machine no
+ * release is pinned for. Empty when the step is right.
+ */
+function trivyStepFaults(workflow: string, job: string): string[] {
+  const step = trivyStep(workflow, job);
+  const version = step.env.INSTALL_TRIVY_VERSION ?? '';
+  const release = `Version: ${version.replace(/^v/, '')}`;
+  const urls = Object.values(TRIVY_ARCHES).map((arch) => `${TRIVY_HOST}${version}/trivy_${version.replace(/^v/, '')}_Linux-${arch}.tar.gz`);
+  const names = Object.keys(TRIVY_ARCHES).map((name) => `INSTALL_TRIVY_SHA256_${name}`);
+  const faults: string[] = [];
+  for (const [machine, arch] of Object.entries(TRIVY_MACHINES)) {
+    const ok = runTrivyStep(step, machine, TRIVY_STAND_IN_SHA256, release);
+    if (!(ok.status === 0 && ok.installed === TRIVY_STAND_IN[arch]!.binary && ok.ran && ok.onPath && ok.fetched.join(' ') === urls.join(' '))) {
+      faults.push(`installs no release on ${machine}: exit ${ok.status}, fetched ${ok.fetched.join(' ') || 'nothing'}\n${ok.log}`);
+    }
+    for (const wrong of [...names.map((n) => [n]), names]) {
+      // A wrong sum is the pin the workflow commits: the stand-in is not those bytes.
+      const sums = { ...TRIVY_STAND_IN_SHA256, ...Object.fromEntries(wrong.map((name) => [name, step.env[name] ?? ''])) };
+      const r = runTrivyStep(step, machine, sums, release);
+      if (r.status === 0 || r.installed !== undefined || r.ran || r.onPath) {
+        faults.push(`goes on past a wrong ${wrong.join(' and ')} on ${machine}: exit ${r.status}, installed ${r.installed !== undefined}, ran ${r.ran}\n${r.log}`);
+      }
+    }
+    const other = runTrivyStep(step, machine, TRIVY_STAND_IN_SHA256, 'Version: 0.76.99');
+    if (other.status === 0) faults.push(`accepts a binary that calls itself Version: 0.76.99 on ${machine}\n${other.log}`);
+  }
+  const blip = runTrivyStep(step, 'x86_64', TRIVY_STAND_IN_SHA256, release, 2);
+  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15')) faults.push(`does not ride out two failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
+  const outage = runTrivyStep(step, 'x86_64', TRIVY_STAND_IN_SHA256, release, 3);
+  if (outage.status === 0 || outage.installed !== undefined || outage.ran || outage.fetched.length !== 3) {
+    faults.push(`goes on after three failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
+  }
+  const riscv = runTrivyStep(step, 'riscv64', TRIVY_STAND_IN_SHA256, release);
+  if (riscv.status === 0 || riscv.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${riscv.status}`);
+  return faults;
+}
+
+describe('the Trivy the Security Scan runs: a named release from GitHub, checked by its sha256 first, the same in both jobs', () => {
+  const real = REAL.read(TRIVY_WORKFLOW)!;
+  /** The workflow with one change in the repository scan's job (the first copy), which must be a change. */
+  const mutate = (from: string | RegExp, to: string): string => {
+    const next = real.replace(from, to);
+    expect(next, `${String(from)} is not in ${TRIVY_WORKFLOW}`).not.toBe(real);
+    return next;
+  };
+  /** The workflow with one change in the image legs' job only. */
+  const mutateImage = (from: string | RegExp, to: string): string => {
+    const at = real.indexOf('\n  image-scan:\n');
+    expect(at).toBeGreaterThan(0);
+    const tail = real.slice(at).replace(from, to);
+    expect(tail, `${String(from)} is not in job image-scan`).not.toBe(real.slice(at));
+    return real.slice(0, at) + tail;
+  };
+
+  it('names a release and a sha256 for each architecture, in both jobs alike, and no other job or workflow runs Trivy', () => {
+    expect(TRIVY.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(TRIVY.sha256.amd64).toMatch(/^[0-9a-f]{64}$/);
+    expect(TRIVY.sha256.arm64).toMatch(/^[0-9a-f]{64}$/);
+    const reference = trivyStep(real, 'security-scan');
+    for (const job of TRIVY_JOBS) {
+      expect(trivyPin(real, job), job).toEqual({ ...TRIVY, line: expect.any(Number) });
+      expect(trivyStep(real, job), job).toEqual(reference);
+    }
+    type Step = { uses?: unknown };
+    const jobs = (parseYaml(real) as { jobs: Record<string, { steps?: Step[] }> }).jobs;
+    const running = Object.entries(jobs)
+      .filter(([, job]) => (job.steps ?? []).some((s) => typeof s.uses === 'string' && /^aquasecurity\/(?:trivy-action|setup-trivy)@/.test(s.uses)))
+      .map(([name]) => name);
+    expect(running.sort()).toEqual([...TRIVY_JOBS].sort());
+    const elsewhere = WORKFLOWS.filter((file) => file !== TRIVY_WORKFLOW && REAL.read(file)!.split('\n').some((l) => !/^\s*#/.test(l) && /aquasecurity\/(?:trivy-action|setup-trivy)@/.test(l)));
+    expect(elsewhere).toEqual([]);
+  });
+
+  it('refuses get.trivy.dev, a name with no version, a version that is no release, a missing or shared sum, and no version check', () => {
+    expect(() => trivyPin(mutate(/\n( +)set -euo pipefail\n( +)case "\$\(uname -m\)"/, '\n$1curl -sSfL "https://get.trivy.dev/trivy?os=Linux" -o x\n$1set -euo pipefail\n$2case "$(uname -m)"'), 'security-scan')).toThrow(
+      /from get\.trivy\.dev or by its install script/,
+    );
+    expect(() => trivyPin(mutate('/download/${INSTALL_TRIVY_VERSION}/', '/download/v0.76.1/'), 'security-scan')).toThrow(/downloads a name with no version/);
+    expect(() => trivyPin(mutate(/INSTALL_TRIVY_VERSION: v\d+\.\d+\.\d+/, 'INSTALL_TRIVY_VERSION: latest'), 'security-scan')).toThrow(/names no release/);
+    expect(() => trivyPin(mutate(/\n +INSTALL_TRIVY_SHA256_ARM64: [0-9a-f]{64}/, ''), 'security-scan')).toThrow(/no sha256 for Linux-ARM64/);
+    expect(() => trivyPin(mutate(`INSTALL_TRIVY_SHA256_ARM64: ${TRIVY.sha256.arm64}`, `INSTALL_TRIVY_SHA256_ARM64: ${TRIVY.sha256.amd64}`), 'security-scan')).toThrow(
+      /one sha256 for two architectures/,
+    );
+    expect(() => trivyPin(mutate('"Version: ${INSTALL_TRIVY_VERSION#v}"', '"Version:"'), 'security-scan')).toThrow(/calls itself the release named/);
+    expect(() => trivyPin(mutate(/\n +seen="\$\(sha256sum "\$download"\)"/, ''), 'security-scan')).toThrow(/never reads a sha256/);
+  });
+
+  it('refuses a comparison with anything but the pinned sum, a fetch from elsewhere or into another file, a pipe to a shell, and another file unpacked or installed', () => {
+    expect(() => trivyPin(mutate('if [ "$seen" = "$pinned" ]; then', 'if true; then'), 'security-scan')).toThrow(/never compares the sum it read/);
+    expect(() => trivyPin(mutate('pinned="$INSTALL_TRIVY_SHA256_ARM64"', 'pinned="$(cat "$RUNNER_TEMP/arm64.sha256")"'), 'security-scan')).toThrow(/pinned sum is not only/);
+    expect(() => trivyPin(mutate('pinned="$INSTALL_TRIVY_SHA256_AMD64"', 'pinned="$(curl -sSfL https://example.org/trivy.sha256)"'), 'security-scan')).toThrow(
+      /fetches from somewhere other than/,
+    );
+    const install = /\n( +)install -m 0755 "\$unpacked\/trivy"/;
+    expect(() => trivyPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" "$MIRROR"\n$1install -m 0755 "$unpacked/trivy"'), 'security-scan')).toThrow(
+      /fetches something that is not the release/,
+    );
+    expect(() => trivyPin(mutate(install, '\n$1install -m 0755 "$RUNNER_TEMP/trivy-bin/other"'), 'security-scan')).toThrow(/makes executable something other than/);
+    expect(() => trivyPin(mutate('_Linux-$native.tar.gz" -C', '_Linux-64bit.tar.gz" -C'), 'security-scan')).toThrow(/unpacks something other than the archive it hashed/);
+    expect(() => trivyPin(mutate(/\n( +)\[ "\$refused" = 0 \] \|\| exit 1/, '\n$1curl -sSfL "${STUFF}" | sh'), 'security-scan')).toThrow(/pipes something to a shell/);
+    // Unpacked before the loop that reads the sums.
+    const tar = /\n( +tar -xzf [^\n]+)/.exec(real)![1]!;
+    const early = mutate(`\n${tar}`, '').replace(/\n( +)refused=0\n/, (all) => `\n${tar}${all}`);
+    expect(() => trivyPin(early, 'security-scan')).toThrow(/before its sha256 is read/);
+    expect(() => trivyPin(mutate(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, ''), 'security-scan')).toThrow(/before its sha256 is read/);
+  });
+
+  it("refuses a job whose trivy-action installs its own Trivy, names another release, or runs before the install, in either job", () => {
+    const skip = /\n +skip-setup-trivy: true\n/;
+    expect(() => trivyPin(mutate(skip, '\n'), 'security-scan')).toThrow(/without skip-setup-trivy: true/);
+    expect(() => trivyPin(mutateImage(skip, '\n'), 'image-scan')).toThrow(/without skip-setup-trivy: true/);
+    expect(() => trivyPin(mutateImage(/\n( +)skip-setup-trivy: true\n/, '\n$1skip-setup-trivy: false\n'), 'image-scan')).toThrow(/without skip-setup-trivy: true/);
+    expect(() => trivyPin(mutateImage(/\n( +)version: v0\.76\.1\n/, '\n$1version: v0.76.0\n'), 'image-scan')).toThrow(/with version: v0\.76\.0, and installs v0\.76\.1/);
+    const early = mutate(
+      /\n( +)- name: Install Trivy from its GitHub release/,
+      `\n$1- name: Too early\n$1  uses: aquasecurity/trivy-action@${'e'.repeat(40)} # v0.36.0\n$1  with:\n$1    version: v0.76.1\n$1    skip-setup-trivy: true\n$1- name: Install Trivy from its GitHub release`,
+    );
+    expect(() => trivyPin(early, 'security-scan')).toThrow(/before the step that installs Trivy/);
+    // The other job is read on its own: a mutation in one leaves the other's reading as it was.
+    expect(trivyPin(mutateImage(skip, '\n'), 'security-scan')).toEqual(TRIVY);
+  });
+
+  it('runs: the native release when both sums are the pinned ones, after a blip, and nothing when either is not, it calls itself another version, or the download is down', () => {
+    for (const job of TRIVY_JOBS) expect(trivyStepFaults(real, job), job).toEqual([]);
+  });
+
+  it('runs: a mismatch that no longer stops it, or a version check that no longer fails, fails it, each by a mutation of the real step', () => {
+    const faults = (from: string | RegExp, to: string): string => trivyStepFaults(mutate(from, to), 'security-scan').join('\n');
+    expect(faults(/\n +refused=1\n/, '\n')).toMatch(/goes on past a wrong INSTALL_TRIVY_SHA256_AMD64 on x86_64/);
+    expect(faults('if [ "$seen" = "$pinned" ]', 'if [ "$seen" = "$seen" ]')).toMatch(/goes on past a wrong INSTALL_TRIVY_SHA256_ARM64 on aarch64/);
+    expect(faults(/\n +\[ "\$refused" = 0 \] \|\| exit 1/, '')).toMatch(/goes on past a wrong INSTALL_TRIVY_SHA256_ARM64 on x86_64/);
+    expect(
+      faults('pinned="$INSTALL_TRIVY_SHA256_AMD64"; else pinned="$INSTALL_TRIVY_SHA256_ARM64"', 'pinned="$INSTALL_TRIVY_SHA256_ARM64"; else pinned="$INSTALL_TRIVY_SHA256_AMD64"'),
+    ).toMatch(/installs no release on x86_64/);
+    expect(faults(/if \[ "\$\{said%%/, 'if false && [ "${said%%')).toMatch(/accepts a binary that calls itself Version: 0\.76\.99 on x86_64/);
+    expect(faults(/(does not call itself \$\{INSTALL_TRIVY_VERSION#v\}\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself Version: 0\.76\.99 on aarch64/);
+    // The whole of what it says, not its first line: Trivy goes on to name its database.
+    expect(faults('"${said%%$\'\\n\'*}"', '"$said"')).toMatch(/installs no release on x86_64/);
+    expect(faults('_Linux-$native.tar.gz" -C', '_Linux-64bit.tar.gz" -C')).toMatch(/installs no release on aarch64/);
+    expect(faults('for attempt in 1 2 3; do', 'for attempt in 1; do')).toMatch(/does not ride out two failed fetches/);
+    expect(faults(/\n +sleep \$\(\(attempt \* 10 - 5\)\)\n/, '\n')).toMatch(/does not ride out two failed fetches: exit 0, slept never/);
+  });
+
+  it('is a routine pin, current while upstream tags no newer release of its major', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'Trivy')).toEqual({ name: 'Trivy', where: TRIVY_WORKFLOW, pin: TRIVY.version, newest: TRIVY.version, state: 'current' });
+  });
+
+  it('is behind when a newer release is tagged, says the values move together, and holds the copies together', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry({ trivy: 'v0.99.0' })));
+    expect(rows.find((r) => r.name === 'Trivy')).toMatchObject({ pin: TRIVY.version, newest: 'v0.99.0', state: 'behind', notes: [TRIVY_NOTE] });
+    const apart = withFiles({ [TRIVY_WORKFLOW]: mutateImage(`INSTALL_TRIVY_SHA256_ARM64: ${TRIVY.sha256.arm64}`, `INSTALL_TRIVY_SHA256_ARM64: ${'a'.repeat(64)}`) });
+    const row = (await routineRows(apart, fakeNet(registry()))).rows.find((r) => r.name === 'Trivy');
+    expect(row).toMatchObject({ pin: TRIVY.version, state: 'behind' });
+    expect(row?.notes).toContain('the copies disagree');
+  });
+
+  it('is never current when a step cannot be read', async () => {
+    const gone = withFiles({ [TRIVY_WORKFLOW]: mutateImage('https://github.com/aquasecurity/trivy/releases/download/', 'https://get.trivy.dev/trivy/') });
+    const row = (await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'Trivy');
+    expect(row).toMatchObject({ state: 'error' });
   });
 });
 
