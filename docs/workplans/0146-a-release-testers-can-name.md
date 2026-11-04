@@ -2,7 +2,44 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-03 (update this block at the end of every session)
+## Status — 2026-11-04 (update this block at the end of every session)
+
+**2026-11-04, last: alpha.4 is folded (T1, T2, T4).** On the branch
+`claude/ownpace-public-readiness-y7orc6-fold-alpha4`, on `main` at `7f3d5839` (#1778). The fold moves `package.json` and the API contract to
+`0.2.0-alpha.4`, and everything under `[Unreleased]`, the *since rc.1* part (T1) with it, to
+`## [0.2.0-alpha.4] - 2026-11-04`, with a summary paragraph above it; `[Unreleased]` stays,
+empty. It adds `v0.2.0-alpha.4` as the last of `releases` in `scripts/release-line.json`, the
+release being prepared until Release tags it (T4, `docs/release.md` §1). `SOURCE_PROOFS`,
+which T1 asks the fold to read again, has not changed since 2026-10-04, so the sources the
+*since rc.1* part lists hold. #1806 (PGlite 0.5.14) is in, and #1778 (the API's distroless
+base, a new digest, past its three days at 23:45 UTC on 2026-11-03) merges first; then `main`
+is merged into this branch once more. **The owner pulled alpha.4 earlier and waived the
+counted nights** (2026-11-03, about 23:03 and 23:50 UTC: *"Just make it without waitings, I can
+run E2e or you do so yourself."*): the fold merges in the night of 2026-11-03, and
+`WAIVER_VERSIONS` holds `v0.2.0-alpha.4` beside alpha.3, with those words. In the nights' place,
+E2E (managed) and E2E (self-hosted), on Postgres and on PGlite, are dispatched on C and must be
+green. Its squash is C, and `main` takes nothing else until the tag. Held for after alpha.4: pnpm 11.28.10
+(#1792) and MinIO's newer `latest` (0119). **Owed before the tag:**
+- C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
+  `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;
+- `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green
+  (`windows-smoke-green`);
+- the counted nights are waived (above): E2E (managed) and E2E (self-hosted) on Postgres and on
+  PGlite, dispatched on C, green instead; Release's `preflight` and `release` then run with
+  `waive_nights`, dispatched by the owner from their own account (`docs/release.md`);
+- `scripts/upgrade-drill.sh` on the Docker host, from alpha.3's published image to C's. Both
+  chains carry what alpha.3 shipped (65 and 59 files), so the drill reports the mechanics
+  only: the appliance's new image (Node 26, `/app` root's, the purged packages) opening a volume
+  alpha.3's wrote. `release.md` counts no vacuous pass, so whether this one counts, or the drill
+  is not applicable as it was for alpha.2, is the owner's to say;
+- Release, mode `preflight`, for `v0.2.0-alpha.4`, then mode `release` with `commit` empty,
+  whose preflight runs again, and the owner's approval in the `release` environment; then
+  Release tags C and publishes. The tag was planned for Friday 2026-11-06, about 11:00 UTC (the
+  entry of 2026-11-02, records, later).
+
+Live's deploy of the tag then takes the hold and the drain, ClickHouse's volume copied by hand
+(*Moving ClickHouse*, *On live*), and `deploy-live.sh --dry-run` first, from a shell with Node 26
+first on its `PATH`.
 
 **2026-11-03: T16 again, the Trigger.dev builds clear what a release fixes, a draft for
 alpha.4.** On the branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`, from
