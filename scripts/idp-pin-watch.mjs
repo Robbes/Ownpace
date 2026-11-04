@@ -73,7 +73,9 @@
  *                      release trigger-docker-proxy is built from against
  *                      upstream's git tags (its base, HAProxy, is compared
  *                      within its line, `LINES`), the Trivy the Security
- *                      Scan runs, the cosign the workflows name, every
+ *                      Scan installs from its GitHub release and checks by
+ *                      its sha256 (2026-11-04), both copies together, the
+ *                      cosign the workflows name, every
  *                      copy together, and the Atlas release ci.yml's
  *                      migration-lint downloads and checks by its sha256
  *                      (2026-11-01), against the community image's tags on
@@ -270,6 +272,28 @@ export const STALWART_CLI_HINTS = ['docs/stalwart-integration-fix.md', 'deploy/s
 /** Said beside the stalwart-cli row when it is behind: the three values move together, in all three files, and the hints with them. */
 export const STALWART_CLI_NOTE =
   "move STALWART_CLI_VERSION and both STALWART_CLI_SHA256_* together in the install step of ci.yml, e2e.yml and e2e-managed.yml (ci.yml's says where each sum is read), and the release in the install line of docs/stalwart-integration-fix.md, deploy/selfhost/setup-stalwart.sh and packages/testing/src/testcontainers-setup.ts, once the release is three days old";
+
+/**
+ * The Trivy the Security Scan runs (workplan 0146, 2026-11-04): a named
+ * release from its GitHub release page, with a SHA-256 for each architecture
+ * a runner here has, set in the `env:` of one step that the repository scan
+ * and every image leg carry word for word. Until that day trivy-action's
+ * setup-trivy installed it by Trivy's `contrib/install.sh`, which takes the
+ * archive from `get.trivy.dev`; that name stopped resolving on 2026-11-04
+ * and every scan that installed afresh failed. The `version:` of each
+ * trivy-action step stays, equal to the step's, and installs nothing
+ * (`skip-setup-trivy: true`). Upstream tags every release in git.
+ */
+export const TRIVY_WORKFLOW = '.github/workflows/security-scan.yml';
+/** The jobs of TRIVY_WORKFLOW that run Trivy, each with its own copy of the step. */
+export const TRIVY_JOBS = ['security-scan', 'image-scan'];
+export const TRIVY_HOST = 'https://github.com/aquasecurity/trivy/releases/download/';
+export const TRIVY_UPSTREAM = 'https://github.com/aquasecurity/trivy';
+/** Each architecture's sum, by the name the release gives its archive. */
+export const TRIVY_ARCHES = { AMD64: '64bit', ARM64: 'ARM64' };
+/** Said beside the Trivy row when it is behind: the values move together, in both copies, with every `version:`. */
+export const TRIVY_NOTE =
+  "move INSTALL_TRIVY_VERSION and both INSTALL_TRIVY_SHA256_* together in both copies of security-scan.yml's install step (it says where each sum is read), and `version:` on every trivy-action step, once the release is three days old";
 
 /**
  * The images two actions in images.yml run, named in their inputs (workplan
@@ -816,6 +840,118 @@ export function stalwartCliPin(workflow) {
     throw new Error('the stalwart-cli step never checks that what it installed calls itself the release named');
   }
   return { version, sha256, line: start + 1 };
+}
+
+/**
+ * The text of one job of `workflow`, from its `  <job>:` line to the next job.
+ * Throws when the workflow has no such job.
+ */
+function jobText(workflow, job) {
+  const lines = workflow.split('\n');
+  const start = lines.findIndex((text) => text === `  ${job}:` || text.startsWith(`  ${job}: `));
+  if (start < 0) throw new Error(`the workflow has no job ${job}`);
+  let end = start + 1;
+  while (end < lines.length && !/^ {2}[A-Za-z0-9_-]+:/.test(lines[end]) && !/^\S/.test(lines[end])) end++;
+  return lines.slice(start, end).join('\n');
+}
+
+/**
+ * The Trivy a job of TRIVY_WORKFLOW installs, read from its one step that
+ * downloads from TRIVY_HOST: `{ version, sha256: { amd64, arm64 }, line }`
+ * (workplan 0146, 2026-11-04). Throws for a step not of the shape it must
+ * have, as `stalwartCliPin` does: anything from `get.trivy.dev` or by an
+ * install script; a fetch from anywhere but TRIVY_HOST, of a name without
+ * `${INSTALL_TRIVY_VERSION}`, or into anything but the file it hashes; a
+ * version that is not a release (`v0.76.1`); an architecture with no 64-digit
+ * sum, or one sum for both; a sum compared with anything but the pinned one;
+ * an archive unpacked that is not the native one hashed, or a file made
+ * executable that is not the binary unpacked from it; anything unpacked or
+ * made executable before a `sha256sum` has read the downloads with an
+ * `exit 1` between; or no check that the binary calls itself the release.
+ * And for the job around it: a trivy-action step that does not skip
+ * setup-trivy, names another `version:`, or comes before the install step.
+ * Text only: the guard also runs the step's `run:` under bash. The Trivy row
+ * reads its version with this.
+ */
+export function trivyPin(workflow, job) {
+  const text = jobText(workflow, job);
+  const lineOffset = workflow.split('\n').indexOf(text.split('\n')[0]);
+  for (const line of text.split('\n').filter((l) => !/^\s*#/.test(l))) {
+    if (/get\.trivy\.dev|contrib\/install\.sh/.test(line)) {
+      throw new Error(`job ${job} installs Trivy from get.trivy.dev or by its install script, not a named release checked by its sha256: ${line.trim()}`);
+    }
+  }
+  const { start, code, logical, env } = downloadStep(text, TRIVY_HOST, 'INSTALL_TRIVY_', 'Trivy');
+  const version = env.INSTALL_TRIVY_VERSION;
+  if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
+    throw new Error(`job ${job}'s Trivy step names no release in INSTALL_TRIVY_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
+  }
+  const sha256 = {};
+  for (const [name, arch] of Object.entries(TRIVY_ARCHES)) {
+    const sum = env[`INSTALL_TRIVY_SHA256_${name}`];
+    if (!/^[0-9a-f]{64}$/.test(sum ?? '')) throw new Error(`job ${job}'s Trivy step pins no sha256 for Linux-${arch} (INSTALL_TRIVY_SHA256_${name})`);
+    sha256[name.toLowerCase()] = sum;
+  }
+  if (sha256.amd64 === sha256.arm64) throw new Error(`job ${job}'s Trivy step pins one sha256 for two architectures`);
+  for (const line of logical) {
+    if (/\|\s*(?:sudo\s+)?(?:ba|da|z)?sh\b/.test(line)) throw new Error(`job ${job}'s Trivy step pipes something to a shell: ${line}`);
+    for (const [url] of line.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(TRIVY_HOST)) throw new Error(`job ${job}'s Trivy step fetches from somewhere other than ${TRIVY_HOST}: ${url}`);
+      if (!url.startsWith(`${TRIVY_HOST}\${INSTALL_TRIVY_VERSION}/`)) {
+        throw new Error(`job ${job}'s Trivy step downloads a name with no version: ${url} (it must be under ${TRIVY_HOST}\${INSTALL_TRIVY_VERSION}/)`);
+      }
+    }
+  }
+  const archive = (arch) => `"$RUNNER_TEMP/trivy_\${INSTALL_TRIVY_VERSION#v}_Linux-$${arch}.tar.gz"`;
+  const has = (statement) => logical.some((line) => line === statement || line.startsWith(`${statement};`));
+  if (!has(`download=${archive('arch')}`)) throw new Error(`job ${job}'s Trivy step does not download each architecture to download=${archive('arch')}`);
+  for (const line of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!line.includes(TRIVY_HOST) || !/\s-o "\$download"\s/.test(line)) {
+      throw new Error(`job ${job}'s Trivy step fetches something that is not the release into "$download": ${line}`);
+    }
+  }
+  for (const line of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (line !== 'seen="$(sha256sum "$download")"') throw new Error(`job ${job}'s Trivy step hashes something other than "$download": ${line}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bpinned=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = Object.keys(TRIVY_ARCHES).map((name) => `"$INSTALL_TRIVY_SHA256_${name}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`job ${job}'s Trivy step's pinned sum is not only ${fromEnv.join(' or ')}: pinned=${pins.join(', pinned=') || 'nothing'}`);
+  }
+  if (!has('if [ "$seen" = "$pinned" ]; then')) throw new Error(`job ${job}'s Trivy step never compares the sum it read ("$seen") with the pinned one ("$pinned")`);
+  const TAR = /(?:^|[;&|(]\s*)tar\s/;
+  for (const line of logical.filter((t) => TAR.test(t.trim()))) {
+    if (!line.startsWith(`tar -xzf ${archive('native')} `)) throw new Error(`job ${job}'s Trivy step unpacks something other than the archive it hashed, ${archive('native')}: ${line}`);
+  }
+  for (const line of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    const made = /\bchmod\s+\S+\s+(\S+)/.exec(line)?.[1] ?? /\binstall\s+-m\s+\S+\s+(\S+)/.exec(line)?.[1];
+    if (made !== '"$unpacked/trivy"') throw new Error(`job ${job}'s Trivy step makes executable something other than the binary it unpacked from the archive it hashed: ${line}`);
+  }
+  const first = (re) => code.findIndex((line) => re.test(line));
+  const read = first(/\bsha256sum\b/);
+  const unpacked = code.findIndex((line) => TAR.test(line.trim()) || /\bchmod\b|\binstall\s+-m\b/.test(line));
+  if (read < 0) throw new Error(`job ${job}'s Trivy step never reads a sha256 of what it downloads`);
+  if (unpacked < 0) throw new Error(`job ${job}'s Trivy step unpacks nothing, so it cannot be what installs Trivy`);
+  if (!(read < unpacked && code.slice(read, unpacked).some((line) => /\bexit 1\b/.test(line)))) {
+    throw new Error(`job ${job}'s Trivy step unpacks or makes executable its download before its sha256 is read and a mismatch has stopped it`);
+  }
+  if (!code.some((line) => line.includes('"Version: ${INSTALL_TRIVY_VERSION#v}"'))) {
+    throw new Error(`job ${job}'s Trivy step never checks that what it installed calls itself the release named`);
+  }
+  // The job's Trivy runs that binary: every trivy-action step after the
+  // install, skipping setup-trivy, and naming the same release.
+  const actions = stepsUsing(text, 'aquasecurity/trivy-action');
+  if (actions.length === 0) throw new Error(`job ${job} installs Trivy and runs no trivy-action`);
+  const lines = text.split('\n');
+  const opened = lines.flatMap((line, i) => (/^\s*uses:\s*aquasecurity\/trivy-action@/.test(line.replace(/^(\s*)- /, '$1')) ? [i] : []));
+  if (opened.some((i) => i < start)) throw new Error(`job ${job} runs trivy-action before the step that installs Trivy`);
+  for (const step of actions) {
+    if (step.with['skip-setup-trivy'] !== 'true') {
+      throw new Error(`job ${job} runs trivy-action without skip-setup-trivy: true, so setup-trivy installs its own Trivy from get.trivy.dev`);
+    }
+    if (step.with.version !== version) throw new Error(`job ${job} runs trivy-action with version: ${step.with.version || 'none'}, and installs ${version}`);
+  }
+  return { version, sha256, line: lineOffset + start + 1 };
 }
 
 /** A tag that names a release: three numbers, and no channel word. */
@@ -1414,27 +1550,17 @@ export async function routineRows(repo, net) {
     return { pin: release, newest, state: stateOf(release, newest) };
   }]);
 
-  // Trivy: the binary the Security Scan runs, named or the action's default.
-  jobs.push(['Trivy', '.github/workflows/security-scan.yml', async () => {
-    const steps = stepsUsing(need(repo, '.github/workflows/security-scan.yml'), 'aquasecurity/trivy-action');
-    if (steps.length === 0) throw new Error('security-scan.yml runs no trivy-action');
-    const pins = new Set();
-    const notes = [];
-    for (const step of steps) {
-      if (step.with.version) {
-        pins.add(step.with.version);
-        continue;
-      }
-      const fallback = actionDefault(
-        await net.text(`https://raw.githubusercontent.com/aquasecurity/trivy-action/${step.sha}/action.yaml`),
-        'version',
-      );
-      pins.add(fallback);
-      notes.push(`no version: named, so trivy-action ${step.version || step.sha.slice(0, 7)}'s default`);
-    }
-    const pin = [...pins].sort(compareParts);
-    const newest = newestLike(pin[0], tagsOf(await net.lsRemote('https://github.com/aquasecurity/trivy')));
-    return { pin: pin.join(' / '), newest, state: stateOf(pin[0], newest), notes: [...new Set(notes)] };
+  // Trivy: the binary the Security Scan runs, from its GitHub release by its
+  // sha256 (2026-11-04), both copies together, against upstream's git tags.
+  jobs.push(['Trivy', TRIVY_WORKFLOW, async () => {
+    const workflow = need(repo, TRIVY_WORKFLOW);
+    const pins = TRIVY_JOBS.map((job) => trivyPin(workflow, job));
+    const versions = [...new Set(pins.map((p) => p.version))].sort(compareParts);
+    const disagree = versions.length > 1 || new Set(pins.map((p) => `${p.sha256.amd64} ${p.sha256.arm64}`)).size > 1;
+    const newest = newestLike(versions[0], tagsOf(await net.lsRemote(TRIVY_UPSTREAM)));
+    const state = disagree ? 'behind' : stateOf(versions[0], newest);
+    const notes = [...(disagree ? ['the copies disagree'] : []), ...(state === 'behind' ? [TRIVY_NOTE] : [])];
+    return { pin: versions.join(' / '), newest, state, ...(notes.length ? { notes } : {}) };
   }]);
 
   // cosign: what signs the images and what checks them. Named in a step

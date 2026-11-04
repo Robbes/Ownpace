@@ -215,13 +215,109 @@ jobs:
       - name: Decide where the Trivy database lives
         run: echo "TRIVY_CACHE_DIR=$HOME/.cache/trivy" >> "$GITHUB_ENV"
 
+      # TRIVY, FROM ITS GITHUB RELEASE, CHECKED BY ITS SHA256 (2026-11-04,
+      # workplan 0146). trivy-action's own install (setup-trivy, run unless
+      # `skip-setup-trivy`) runs Trivy's `contrib/install.sh`, which takes the
+      # archive from `get.trivy.dev`, Aqua's download host, and only the
+      # checksum file from GitHub. On 2026-11-04 that name stopped resolving
+      # (NXDOMAIN at a public resolver, 01:3x UTC), and every scan that
+      # installed afresh failed before it read a file: main's push scan on the
+      # Spark from 00:00 UTC, which keeps no binary cache, on the alpha.4
+      # candidate twice. GitHub-hosted runs went on from setup-trivy's binary
+      # cache. This step takes the release's own archive from GitHub instead,
+      # names the release, pins a SHA-256 for each architecture a runner here
+      # has, reads and compares BOTH before anything is unpacked (so a wrong
+      # arm64 pin fails a pull request's x86-64 run too), installs the native
+      # one, and checks that it calls itself that release. The job's Trivy
+      # steps then skip setup-trivy and run this binary from the PATH. The
+      # repository scan and every image leg carry this step's `env:` and
+      # `run:` word for word (not its name: a-scan-that-skipped-itself finds
+      # steps by their names, so each is said once in the file);
+      # `a-pin-that-knows-it-is-behind` holds the two together, holds each
+      # trivy-action step to `skip-setup-trivy: true` and to the same
+      # `version:`, and RUNS this `run:` under bash with `curl`, `uname` and
+      # `sleep` stubbed. Not `TRIVY_*` names: Trivy reads its own options from
+      # those.
+      #
+      # WHICH FILE: `trivy_<version>_Linux-64bit.tar.gz` and
+      # `trivy_<version>_Linux-ARM64.tar.gz`, the names the install script
+      # picks for x86_64 and aarch64. Each SHA-256 is the one the release's
+      # `trivy_0.76.1_checksums.txt` gives and the one read from the
+      # downloaded archive itself (2026-11-04), whose `trivy` is a static
+      # x86-64 or aarch64 ELF that reports `Version: 0.76.1`.
+      #
+      # Retried as the stalwart-cli step in ci.yml is: THREE ATTEMPTS, THEN
+      # FAIL LOUD, and a wrong sum is never retried.
+      #
+      # TO MOVE IT: the release the pin watch's Trivy row names, three days
+      # old; INSTALL_TRIVY_VERSION and both sums from that release's
+      # `checksums.txt` (or let this step fail once: it prints the sum it saw
+      # for each architecture), in both copies, and `version:` on every
+      # trivy-action step, in one pull request.
+      - name: Install Trivy from its GitHub release, checked by its sha256
+        env:
+          INSTALL_TRIVY_VERSION: v0.76.1
+          INSTALL_TRIVY_SHA256_AMD64: c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
+          INSTALL_TRIVY_SHA256_ARM64: e174dff2a6dba5e3ae41f8d0537a6324405bd08132497340304c6b20e0f16a1f
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) native=64bit ;;
+            aarch64) native=ARM64 ;;
+            *) echo "::error::No Trivy is pinned for $(uname -m): only x86_64 and aarch64."; exit 1 ;;
+          esac
+          refused=0
+          for arch in 64bit ARM64; do
+            if [ "$arch" = 64bit ]; then pinned="$INSTALL_TRIVY_SHA256_AMD64"; else pinned="$INSTALL_TRIVY_SHA256_ARM64"; fi
+            download="$RUNNER_TEMP/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-$arch.tar.gz"
+            rm -f "$download"
+            for attempt in 1 2 3; do
+              if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
+                  "https://github.com/aquasecurity/trivy/releases/download/${INSTALL_TRIVY_VERSION}/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-${arch}.tar.gz"; then
+                break
+              fi
+              echo "::warning::Trivy $INSTALL_TRIVY_VERSION Linux-$arch: download attempt $attempt failed"
+              if [ "$attempt" = 3 ]; then
+                echo "::error::Trivy $INSTALL_TRIVY_VERSION could not be downloaded from its GitHub release after 3 attempts. Nothing was scanned. Either GitHub's release download is unavailable or the release no longer serves this file."
+                exit 1
+              fi
+              # 5s, then 15s, as the stalwart-cli step waits.
+              sleep $((attempt * 10 - 5))
+            done
+            seen="$(sha256sum "$download")"
+            seen="${seen%% *}"
+            if [ "$seen" = "$pinned" ]; then
+              echo "Trivy $INSTALL_TRIVY_VERSION Linux-$arch: sha256 $seen, as pinned."
+            else
+              echo "::error::Trivy $INSTALL_TRIVY_VERSION Linux-$arch is not the build this workflow pins: its sha256 is $seen, and the pin is $pinned. Nothing was run."
+              refused=1
+            fi
+          done
+          [ "$refused" = 0 ] || exit 1
+          unpacked="$RUNNER_TEMP/trivy-unpacked"
+          rm -rf "$unpacked"
+          mkdir -p "$unpacked" "$RUNNER_TEMP/trivy-bin"
+          tar -xzf "$RUNNER_TEMP/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-$native.tar.gz" -C "$unpacked" --no-same-owner trivy
+          install -m 0755 "$unpacked/trivy" "$RUNNER_TEMP/trivy-bin/trivy"
+          echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+          said="$("$RUNNER_TEMP/trivy-bin/trivy" --version)"
+          echo "$said"
+          if [ "${said%%$'\n'*}" != "Version: ${INSTALL_TRIVY_VERSION#v}" ]; then
+            echo "::error::The Trivy this step installed does not call itself ${INSTALL_TRIVY_VERSION#v}."
+            exit 1
+          fi
+
       - name: Trivy filesystem/dependency scan (SARIF)
         id: trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
-          # THE TRIVY THAT RUNS, NAMED. Without it the action installs its own
-          # default, v0.70.0 (2026-04-17) at this SHA, and Dependabot moves the
-          # action, not that default: v0.36.0 is still its newest release. The
+          # THE TRIVY THAT RUNS, NAMED. Since 2026-11-04 the step above installs
+          # it and this input installs nothing (`skip-setup-trivy` below); it
+          # is kept, equal to that step's INSTALL_TRIVY_VERSION, because the
+          # pin watch and two guards read it. Without a name the action would
+          # install its own default, v0.70.0 (2026-04-17) at this SHA, and
+          # Dependabot moves the action, not that default: v0.36.0 is still its
+          # newest release. The
           # vulnerability database updates daily either way; this is the engine
           # (parsers, detection). v0.76.1 is from 2026-10-21: v0.76.0
           # (2026-10-14) with three dependency groups backported (the AWS SDK,
@@ -233,6 +329,9 @@ jobs:
           # Raise when Dependabot takes trivy-action > v0.36.0. Every Trivy step
           # must name one: held by a-gate-on-a-version-nothing-ships.
           version: v0.76.1
+          # The binary the step above installed and checked, on the PATH: never
+          # setup-trivy's own install, which fetches from get.trivy.dev.
+          skip-setup-trivy: true
           scan-type: fs
           format: sarif
           output: trivy.sarif
@@ -639,6 +738,98 @@ jobs:
           docker build --pull --platform "$TRIVY_PLATFORM" --tag "$REF" "src/$CONTEXT"
           docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}} {{.Config.User}}' "$REF"
 
+      # TRIVY, FROM ITS GITHUB RELEASE, CHECKED BY ITS SHA256 (2026-11-04,
+      # workplan 0146). trivy-action's own install (setup-trivy, run unless
+      # `skip-setup-trivy`) runs Trivy's `contrib/install.sh`, which takes the
+      # archive from `get.trivy.dev`, Aqua's download host, and only the
+      # checksum file from GitHub. On 2026-11-04 that name stopped resolving
+      # (NXDOMAIN at a public resolver, 01:3x UTC), and every scan that
+      # installed afresh failed before it read a file: main's push scan on the
+      # Spark from 00:00 UTC, which keeps no binary cache, on the alpha.4
+      # candidate twice. GitHub-hosted runs went on from setup-trivy's binary
+      # cache. This step takes the release's own archive from GitHub instead,
+      # names the release, pins a SHA-256 for each architecture a runner here
+      # has, reads and compares BOTH before anything is unpacked (so a wrong
+      # arm64 pin fails a pull request's x86-64 run too), installs the native
+      # one, and checks that it calls itself that release. The job's Trivy
+      # steps then skip setup-trivy and run this binary from the PATH. The
+      # repository scan and every image leg carry this step's `env:` and
+      # `run:` word for word (not its name: a-scan-that-skipped-itself finds
+      # steps by their names, so each is said once in the file);
+      # `a-pin-that-knows-it-is-behind` holds the two together, holds each
+      # trivy-action step to `skip-setup-trivy: true` and to the same
+      # `version:`, and RUNS this `run:` under bash with `curl`, `uname` and
+      # `sleep` stubbed. Not `TRIVY_*` names: Trivy reads its own options from
+      # those.
+      #
+      # WHICH FILE: `trivy_<version>_Linux-64bit.tar.gz` and
+      # `trivy_<version>_Linux-ARM64.tar.gz`, the names the install script
+      # picks for x86_64 and aarch64. Each SHA-256 is the one the release's
+      # `trivy_0.76.1_checksums.txt` gives and the one read from the
+      # downloaded archive itself (2026-11-04), whose `trivy` is a static
+      # x86-64 or aarch64 ELF that reports `Version: 0.76.1`.
+      #
+      # Retried as the stalwart-cli step in ci.yml is: THREE ATTEMPTS, THEN
+      # FAIL LOUD, and a wrong sum is never retried.
+      #
+      # TO MOVE IT: the release the pin watch's Trivy row names, three days
+      # old; INSTALL_TRIVY_VERSION and both sums from that release's
+      # `checksums.txt` (or let this step fail once: it prints the sum it saw
+      # for each architecture), in both copies, and `version:` on every
+      # trivy-action step, in one pull request.
+      - name: Install the image scan's Trivy from its GitHub release, checked by its sha256
+        env:
+          INSTALL_TRIVY_VERSION: v0.76.1
+          INSTALL_TRIVY_SHA256_AMD64: c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0
+          INSTALL_TRIVY_SHA256_ARM64: e174dff2a6dba5e3ae41f8d0537a6324405bd08132497340304c6b20e0f16a1f
+        run: |
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) native=64bit ;;
+            aarch64) native=ARM64 ;;
+            *) echo "::error::No Trivy is pinned for $(uname -m): only x86_64 and aarch64."; exit 1 ;;
+          esac
+          refused=0
+          for arch in 64bit ARM64; do
+            if [ "$arch" = 64bit ]; then pinned="$INSTALL_TRIVY_SHA256_AMD64"; else pinned="$INSTALL_TRIVY_SHA256_ARM64"; fi
+            download="$RUNNER_TEMP/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-$arch.tar.gz"
+            rm -f "$download"
+            for attempt in 1 2 3; do
+              if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
+                  "https://github.com/aquasecurity/trivy/releases/download/${INSTALL_TRIVY_VERSION}/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-${arch}.tar.gz"; then
+                break
+              fi
+              echo "::warning::Trivy $INSTALL_TRIVY_VERSION Linux-$arch: download attempt $attempt failed"
+              if [ "$attempt" = 3 ]; then
+                echo "::error::Trivy $INSTALL_TRIVY_VERSION could not be downloaded from its GitHub release after 3 attempts. Nothing was scanned. Either GitHub's release download is unavailable or the release no longer serves this file."
+                exit 1
+              fi
+              # 5s, then 15s, as the stalwart-cli step waits.
+              sleep $((attempt * 10 - 5))
+            done
+            seen="$(sha256sum "$download")"
+            seen="${seen%% *}"
+            if [ "$seen" = "$pinned" ]; then
+              echo "Trivy $INSTALL_TRIVY_VERSION Linux-$arch: sha256 $seen, as pinned."
+            else
+              echo "::error::Trivy $INSTALL_TRIVY_VERSION Linux-$arch is not the build this workflow pins: its sha256 is $seen, and the pin is $pinned. Nothing was run."
+              refused=1
+            fi
+          done
+          [ "$refused" = 0 ] || exit 1
+          unpacked="$RUNNER_TEMP/trivy-unpacked"
+          rm -rf "$unpacked"
+          mkdir -p "$unpacked" "$RUNNER_TEMP/trivy-bin"
+          tar -xzf "$RUNNER_TEMP/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-$native.tar.gz" -C "$unpacked" --no-same-owner trivy
+          install -m 0755 "$unpacked/trivy" "$RUNNER_TEMP/trivy-bin/trivy"
+          echo "$RUNNER_TEMP/trivy-bin" >> "$GITHUB_PATH"
+          said="$("$RUNNER_TEMP/trivy-bin/trivy" --version)"
+          echo "$said"
+          if [ "${said%%$'\n'*}" != "Version: ${INSTALL_TRIVY_VERSION#v}" ]; then
+            echo "::error::The Trivy this step installed does not call itself ${INSTALL_TRIVY_VERSION#v}."
+            exit 1
+          fi
+
       - name: Scan the image with Trivy (JSON)
         id: image_trivy
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -648,6 +839,9 @@ jobs:
           # exact release; an-image-nobody-scanned holds this one to the job
           # above's.
           version: v0.76.1
+          # The binary the step above installed and checked, on the PATH: never
+          # setup-trivy's own install, which fetches from get.trivy.dev.
+          skip-setup-trivy: true
           scan-type: image
           # The image the leg built, where it built one; the reference otherwise.
           image-ref: ${{ matrix.build || matrix.ref }}

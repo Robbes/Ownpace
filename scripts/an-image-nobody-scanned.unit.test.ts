@@ -1594,8 +1594,13 @@ describe(`${WORKFLOW_FILE}: the image scan`, () => {
   it("builds the tasks' image before it scans it, on that leg alone, from the deploy config itself", () => {
     const trivyAt = scan!.steps.findIndex((s) => s.uses?.startsWith('aquasecurity/trivy-action@'));
     // Every step before the scan is a build's (this one's, or a script's image's,
-    // the checkout shared), and runs only where the list asked for one.
-    for (const step of scan!.steps.slice(0, trivyAt)) {
+    // the checkout shared), and runs only where the list asked for one; but the
+    // last, which installs the Trivy the scan runs, on every leg (2026-11-04,
+    // a-pin-that-knows-it-is-behind holds what it does).
+    const installAt = scan!.steps.findIndex((s) => typeof s.env?.INSTALL_TRIVY_VERSION === 'string');
+    expect(installAt, 'the step that installs Trivy comes right before the scan').toBe(trivyAt - 1);
+    expect(scan!.steps[installAt]!.if).toBeUndefined();
+    for (const step of scan!.steps.slice(0, installAt)) {
       expect(['matrix.build', 'matrix.context', 'matrix.build || matrix.context'], `${step.name ?? step.uses} runs on every leg`).toContain(step.if);
     }
     const before = scan!.steps.slice(0, trivyAt).filter((s) => s.if?.split(' || ').includes('matrix.build'));

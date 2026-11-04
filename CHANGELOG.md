@@ -630,6 +630,20 @@ notices.
 
 ### Fixed
 
+- **Security Scan installs Trivy from its GitHub release, checked by its
+  SHA-256, and no longer from `get.trivy.dev`** (workplan 0146): trivy-action's
+  setup-trivy runs Trivy's install script, which takes the archive from
+  `get.trivy.dev`. That name stopped resolving on 2026-11-04 (NXDOMAIN at a
+  public resolver), and every scan that installed Trivy afresh failed before it
+  read a file: `main`'s push scan from 00:00 UTC, twice on the alpha.4
+  candidate. A step in the repository scan and in every image leg now fetches
+  `trivy_0.76.1_Linux-64bit.tar.gz` and `trivy_0.76.1_Linux-ARM64.tar.gz` from
+  the v0.76.1 release, compares both with the pinned sums before anything is
+  unpacked, installs the native one, and checks that it says `Version: 0.76.1`;
+  each trivy-action step sets `skip-setup-trivy: true`. The pin watch's Trivy
+  row reads the two copies, and `a-pin-that-knows-it-is-behind` holds them
+  together and runs the step.
+
 - **The OTA test stack's connection pooler no longer mounts a file another
   workflow's checkout can delete** (workplan 0132): `pgbouncer` bind-mounted its
   userlist from the self-hosted runner's work folder, which `ci.yml`'s checkout

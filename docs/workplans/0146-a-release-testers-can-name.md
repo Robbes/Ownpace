@@ -4,6 +4,24 @@
 
 ## Status — 2026-11-04 (update this block at the end of every session)
 
+**2026-11-04, later: C moves once more, for the scan's Trivy.** The fold merged as `a1a239e8`
+(#1807). On it CI, `windows-payload.yml` (`smoke`), E2E (managed), E2E (self-hosted) on Postgres
+and on PGlite went green, and the owner's `scripts/upgrade-drill.sh` passed, mechanics only. Its
+push Security Scan (run 41745603093) failed twice, at 00:17 and 01:17 UTC, before Trivy read a
+file: setup-trivy's install script takes Trivy's archive from `get.trivy.dev`, and that name did
+not resolve on the Spark, nor at a public resolver (NXDOMAIN, about 01:35 UTC). `main`'s push scan
+of #1778 had failed the same way at 00:00 UTC; pull requests' scans, on GitHub's runners, passed
+from setup-trivy's binary cache. The one re-run was spent on the first failure, and a third would
+fail the same way, so the fix is the workflow's: Trivy v0.76.1 from its GitHub release, both
+architectures' archives checked against pinned SHA-256s (the release's `checksums.txt` and the
+archives themselves agree), the native one installed and asked its version, and every
+trivy-action step with `skip-setup-trivy: true` (CHANGELOG, Fixed). Its squash is the new C.
+What it changes is `security-scan.yml`, the pin watch and two guards: nothing an image build, the
+appliance, the stacks or an E2E run reads, so the E2E runs and the drill on `a1a239e8` stand for
+the new C, whose tree differs only there. **Owed again on the new C:** its push CI and Security
+Scan green, and `windows-payload.yml` with `smoke` green; then Release's `preflight` and
+`release` as below.
+
 **2026-11-04, last: alpha.4 is folded (T1, T2, T4).** On the branch
 `claude/ownpace-public-readiness-y7orc6-fold-alpha4`, on `main` at `7f3d5839` (#1778). The fold moves `package.json` and the API contract to
 `0.2.0-alpha.4`, and everything under `[Unreleased]`, the *since rc.1* part (T1) with it, to
