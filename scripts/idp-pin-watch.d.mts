@@ -42,6 +42,13 @@ export declare const STALWART_CLI_HINTS: string[];
 export declare const STALWART_CLI_NOTE: string;
 /** The stalwart-cli release a workflow installs, and its sha256 for each architecture; throws for a step that may not run. */
 export declare function stalwartCliPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
+export declare const TRIVY_WORKFLOW: string;
+export declare const TRIVY_JOBS: string[];
+export declare const TRIVY_HOST: string;
+export declare const TRIVY_UPSTREAM: string;
+export declare const TRIVY_ARCHES: Record<'AMD64' | 'ARM64', string>;
+export declare const TRIVY_NOTE: string;
+export declare function trivyPin(workflow: string, job: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
 export interface ActionImageSpec {
   action: string;
   input: string;
