@@ -6820,7 +6820,13 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
      if docker volume inspect "$copy" >/dev/null 2>&1; then
        docker volume rm "$copy"
      fi
-     docker compose -f deploy/compose/managed.yml start clickhouse trigger-api trigger-supervisor
+     # Container by container (On live, step 2, says why): compose start
+     # refuses trigger-api while minio-init's container is gone.
+     docker start "${project}-trigger-clickhouse"
+     for i in $(seq 1 24); do s="$(docker inspect -f '{{.State.Health.Status}}' "${project}-trigger-clickhouse")"; [ "$s" = healthy ] && break; sleep 5; done; echo "clickhouse: $s"
+     docker start "${project}-trigger-api"
+     for i in $(seq 1 36); do s="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${project}-trigger-api")"; [ "$s" = healthy ] && break; sleep 5; done; echo "trigger-api: $s"
+     docker start "${project}-trigger-supervisor"
      docker compose -f deploy/compose/managed.yml ps clickhouse trigger-api trigger-supervisor
    )
    ```
@@ -6968,11 +6974,18 @@ volume, and so never ClickHouse's**: a rollback from it to a release on 26.2
 would start 26.2 on parts 26.8 wrote. So live takes the same copy by hand,
 before the deploy. `deploy-live.sh` calls a tag that moves the ClickHouse pin
 one-way, names the move, and says the copy holds no ClickHouse volume
-(`--dry-run` says it too, before anything moves). From `~/ownpace-live`:
+(`--dry-run` says it too, before anything moves). **The script that runs is the
+checkout's, the release live runs before the deploy**, and only alpha.4's and
+later compare the ClickHouse pin: live's deploy of alpha.4, on 2026-11-04, ran
+alpha.3's, which compares only the Trigger.dev and identity-provider pins, so
+neither its dry run nor its run named the move or the volume (0132 Status,
+2026-11-05). Take the copy whenever the two tags' `managed.yml` pin different
+ClickHouse images, whatever the script says. From `~/ownpace-live`:
 
 1. **The hold on and the drain done**, as for every deploy, then
-   `./deploy/compose/deploy-live.sh --dry-run <tag>`: it says `one-way`,
-   `moves the ClickHouse pin in managed.yml: …26.2.19.43… -> …26.8.36.3…`, and
+   `./deploy/compose/deploy-live.sh --dry-run <tag>`: it says `one-way`, and a
+   script that compares the pin (above) also says
+   `moves the ClickHouse pin in managed.yml: …26.2.19.43… -> …26.8.36.3…` and
    that the copy holds no ClickHouse volume.
 2. **Steps 2 and 3 above**, each block with `cd ~/ownpace-live` in place of
    its first `cd` (the project it reads is then live's, and so are the names
@@ -6983,11 +6996,31 @@ one-way, names the move, and says the copy holds no ClickHouse volume
    `cd`, as does a deploy that `deploy-live.sh` refuses before it starts
    anything from the tag, so that the next try's step 3 finds no copy. Then
    the plane started again, so that `deploy-live.sh` starts from the stack it
-   always does:
+   always does. Container by container, ClickHouse healthy first, then
+   `trigger-api`: `docker compose start` refuses `trigger-api` with
+   `trigger-api is missing dependency minio-init` once the one-shot's
+   container has gone since the last bring-up, as it had on live on
+   2026-11-04, and starts ClickHouse alone. `docker start` starts each
+   container as it was, recreating nothing; the deploy's bring-up makes
+   `minio-init` again:
 
    ```bash
-   docker compose -f deploy/compose/managed.yml start clickhouse trigger-api trigger-supervisor
+   cd ~/ownpace-live && (
+     set -eu
+     project="$(docker compose -f deploy/compose/managed.yml config --no-interpolate | sed -n 's/^name: //p')"
+     : "${project:?the compose project could not be read}"
+     docker start "${project}-trigger-clickhouse"
+     for i in $(seq 1 24); do s="$(docker inspect -f '{{.State.Health.Status}}' "${project}-trigger-clickhouse")"; [ "$s" = healthy ] && break; sleep 5; done; echo "clickhouse: $s"
+     docker start "${project}-trigger-api"
+     for i in $(seq 1 36); do s="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${project}-trigger-api")"; [ "$s" = healthy ] && break; sleep 5; done; echo "trigger-api: $s"
+     docker start "${project}-trigger-supervisor"
+     sleep 10
+     docker compose -f deploy/compose/managed.yml ps clickhouse trigger-api trigger-supervisor
+   )
    ```
+
+   It is right when ClickHouse and `trigger-api` print `healthy` and all three
+   are `Up`.
 
    What ClickHouse writes between this and the deploy (task metrics, with the
    hold on and nothing in flight) is not in the copy, and a rollback loses it.
@@ -6996,6 +7029,15 @@ one-way, names the move, and says the copy holds no ClickHouse volume
    `26.8.36.3`, the settings read as there, and the load check, with
    `cd ~/ownpace-live` in place of its first `cd`, ends `every table loads,
    and no part was detached since step 2`. One that does not is step 4 below.
+   **A tag that also moves the Trigger.dev pin** may drop tables in the same
+   deploy, and then the block stops on them as not loading: alpha.4 moved
+   v4.8.1 to v4.8.3, whose ClickHouse migration 056 drops
+   `task_events_search_mv_v1` and `task_events_search_v1`. Read that move's
+   migrations, and let the check pass over exactly the tables they drop and
+   stop on anything else gone; Trigger.dev's goose record
+   (`SELECT max(version_id) FROM default.goose_db_version WHERE is_applied = 1`)
+   names the last migration that ran. Live's check on 2026-11-04 did so: those
+   two gone, every other table loading, none detached, goose at 56.
 4. **The way back** is *Rolling back from it* in `docs/operator-runbook.md`, with
    ClickHouse's volume restored before its step 9 (step 8 says so): the
    *Back to 26.2* block above, with `cd ~/ownpace-live` in place of its first

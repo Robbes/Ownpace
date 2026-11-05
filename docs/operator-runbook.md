@@ -804,8 +804,10 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
    ./deploy/compose/trigger-version.sh restore "$C"/triggerdb-<stamp>-before-<tag>.sql.gz --yes
    ```
 
-   **ClickHouse's volume, only when the update moved the ClickHouse pin** (`deploy-live.sh`
-   named that move, and said the copy holds no ClickHouse volume): the copy is not in `$C`,
+   **ClickHouse's volume, only when the update moved the ClickHouse pin** (the two tags'
+   `managed.yml` pin different ClickHouse images; `deploy-live.sh` names that move and says the
+   copy holds no ClickHouse volume when the script that ran compares the pin, alpha.4's and
+   later, and alpha.3's, which ran live's deploy of alpha.4, does not): the copy is not in `$C`,
    because the copy before an update never takes a volume. It is the one taken by hand before
    the deploy, `ownpace-live_clickhouse_data_v2_before_26_8` for the move to 26.8: restore it
    now with the *Back to 26.2* block of `docs/managed-bring-up.md`, *Moving ClickHouse*, with

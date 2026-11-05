@@ -2,7 +2,44 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-04 (update this block at the end of every session)
+## Status — 2026-11-05 (update this block at the end of every session)
+
+**2026-11-05: `v0.2.0-alpha.4` is released, its nights waived, and live runs it (T2, T5, T13,
+T16).** Read from GitHub on 2026-11-05, and from the owner's record of live's deploy (0132
+Status, 2026-11-05). Times are UTC.
+
+- **C is `69f35528`**, the squash of #1809 (the scan's Trivy from its GitHub release, the entry
+  below), merged at 02:27 on 2026-11-04 on `a1a239e8`, the fold. On it, all green: CI run
+  41760858079 (`lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (self-hosted)` and
+  `ci-complete` run and passed), Security Scan run 41760857918 on the Spark, where Trivy v0.76.1
+  read both architectures' archives as pinned and called itself `Version: 0.76.1`, and
+  `windows-payload.yml` run 41760859076 (`build win-x64`, `smoke win-x64 on windows-2025`). The
+  E2E runs and the upgrade drill on `a1a239e8` stand for it, as the entry below says.
+- **Release.** The owner dispatched both runs from their own account, with `commit` set to C and
+  `waive_nights` set to their words: a waiver with `commit` empty is refused (`docs/release.md`),
+  so the line of the fold's entry that said `release` runs with `commit` empty was wrong for a
+  waiver. The preflight (run 41769063021, 03:45 to 03:46) refused nothing: CI, Security Scan
+  and the Windows smoke green on C, the names, the changelog and the API contract agree, the
+  tag free, C the head of `main`, the upgrade gates' 8 and 12 cases from alpha.3 passed
+  (mechanics only, 65 and 59 migrations on both sides), the nights' refusals notes naming the
+  owner's waiver. Release run 41769231540, mode `release`, dispatched at 03:47, waited at its
+  approve job until the owner approved, about 03:48; then the gate scan of C, the tag, the
+  publishing (the scan on the tag, the images and the Windows zip) and verify all succeeded, the
+  last at 03:55. Verify read the release as a pre-release with `bom.json` and
+  `ownpace-appliance-win-x64-v0.2.0-alpha.4.zip` (its 411 files' sums hold, its `node.exe`
+  v26.13.0 as pinned), and `ownpace-api`, `ownpace-web` and `ownpace-selfhost` at
+  `0.2.0-alpha.4` for amd64 and arm64, built from C, signed, `latest` not moved, the appliance's
+  `/version` answering the tag's version and commit.
+- **The tag.** `v0.2.0-alpha.4` is tag object `41274cbb…` on `69f35528`. Its message has the
+  lines *Release run: https://github.com/Robbes/Ownpace/actions/runs/41769231540* and *Nights
+  waived by Robbes, in their words: "Just make it without waitings, I can run E2e or you do so
+  yourself."*
+- **Live** took it on 2026-11-04 at 22:55:26, ClickHouse's volume copied by hand first, and its
+  hold was lifted at about 23:23 (0132 Status, 2026-11-05). The copy before the update and
+  ClickHouse's copy are kept until the owner removes both, by 2026-11-10.
+- **Held for after alpha.4, now free:** pnpm 11.28.10 (#1792), which waits for npm's `latest-11`
+  to name it (it names 11.28.9 on 2026-11-05), and MinIO's newer `latest` (0119), pushed
+  2026-11-03 09:13, past its three days from 2026-11-06 09:13.
 
 **2026-11-04, later: C moves once more, for the scan's Trivy.** The fold merged as `a1a239e8`
 (#1807). On it CI, `windows-payload.yml` (`smoke`), E2E (managed), E2E (self-hosted) on Postgres
@@ -50,8 +87,8 @@ green. Its squash is C, and `main` takes nothing else until the tag. Held for af
   only: the appliance's new image (Node 26, `/app` root's, the purged packages) opening a volume
   alpha.3's wrote. `release.md` counts no vacuous pass, so whether this one counts, or the drill
   is not applicable as it was for alpha.2, is the owner's to say;
-- Release, mode `preflight`, for `v0.2.0-alpha.4`, then mode `release` with `commit` empty,
-  whose preflight runs again, and the owner's approval in the `release` environment; then
+- Release, mode `preflight`, for `v0.2.0-alpha.4`, then mode `release` (*with `commit` set, as a waiver
+  needs: the entry of 2026-11-05; this said `commit` empty*), whose preflight runs again, and the owner's approval in the `release` environment; then
   Release tags C and publishes. The tag was planned for Friday 2026-11-06, about 11:00 UTC (the
   entry of 2026-11-02, records, later).
 
