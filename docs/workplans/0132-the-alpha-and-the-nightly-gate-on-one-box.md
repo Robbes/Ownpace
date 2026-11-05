@@ -2,7 +2,68 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-03 (update this block at the end of every session)
+## Status — 2026-11-05 (update this block at the end of every session)
+
+**2026-11-04/05: live runs `v0.2.0-alpha.4`, ClickHouse 26.8.36.3 with it, and both copies are
+kept for now (T6, T9).** The owner deployed it on 2026-11-04, before any tester, pasting checked
+blocks. Times are UTC. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-04, `v0.2.0-alpha.4`: took at 22:55:26 UTC; one-way.
+  The tag is tag object `41274cbb…` on `69f35528` (#1809), cut by Release run 41769231540,
+  which its message names. The owner waived its counted nights, for this version alone
+  (`WAIVER_VERSIONS`; 0146 Status, 2026-11-05). The acceptance is the tag message's own line:
+  *Nights waived by Robbes, in their words: "Just make it without waitings, I can run E2e or you
+  do so yourself."* That citation belongs here, and not in live's `deploys.log`.
+- **Read-only checks first.** Live's checkout at `v0.2.0-alpha.3`, clean; both box timers
+  active; in live's `.env`, `TRIGGER_IMAGE_TAG=v4.8.1`, `WWW_LIVE=true`, one
+  `COPY_DELETE_WHEN_PROVEN=true` line, no `PGBOUNCER_USERLIST` line (the pooler mounts the
+  checkout's own userlist file, as before), `OWNPACE_REACHABLE_HOSTS` and `MOLLIE_API_KEY`
+  empty; `deploys.log`'s last line alpha.3's took; the copy directory empty, mode 700. The deploy
+  shell's `node` the owner's own 26.13.0, pnpm 11.28.9, libatomic1 installed. The tag's pins:
+  Trigger.dev v4.8.3 (images and SDK), ClickHouse `26.8.36.3@sha256:d426d2f6…`; ClickHouse
+  answering 26.2.19.43; every `localhost/` image already on the daemon (the OTA stack's E2E had
+  built them); npm, Docker Hub, ghcr.io, gcr.io, deb.debian.org, Alpine's mirror and github.com's
+  goose v3.29.0 asset reachable; both databases' data files owned by `postgres`.
+- **The hold (T6 step 2)** went on at about 22:21 UTC; the owner's block at 22:32 read one hold,
+  684 s old, 0 passes in flight, nothing unfinished but the tick. The dry run exited 0: one-way,
+  `moves the Trigger.dev pin in managed.yml: v4.8.1 -> v4.8.3`, a take that would include
+  `triggerdb`. The script was alpha.3's, the checkout's, so it named no ClickHouse move
+  (*Moving ClickHouse*, *On live*, now says so).
+- **ClickHouse's volume, copied by hand** (*Moving ClickHouse*, *On live*, steps 1 and 2): the
+  CPU aarch64; the volume 156 MB with 1,610 GB free after it; 3b's lists written (no part
+  detached, `task_events_search_mv_v1` and `task_events_search_v1` listed); the plane and
+  ClickHouse stopped, the copy `ownpace-live_clickhouse_data_v2_before_26_8` made and read as
+  the volume's size, 5,590 entries and 144,503,933 bytes in files on both sides. Starting the
+  plane again, `docker compose start` started ClickHouse and refused `trigger-api`:
+  `trigger-api is missing dependency minio-init`, the one-shot's container gone since the last
+  bring-up. The three were started container by container, each `healthy`, and the bring-up
+  guide's block now does that.
+- **The run (T6 steps 3 to 7).** `TRIGGER_IMAGE_TAG=v4.8.3` was set first. One run, alpha.3's
+  `deploy-live.sh`: the copy taken at 2026-11-04T22:51:27Z, `before=v0.2.0-alpha.4`,
+  `from=v0.2.0-alpha.3` (`e1b21aac`), 6 files, `triggerdb` among them; the bring-up with
+  Trigger.dev 4.8.3, the task deployment `20261104.1` with 17 tasks; `/api/version` and
+  `/version.json` at `69f35528`, `0.2.0-alpha.4`, `/api/ready` 200, `/api/auth/mode` managed,
+  `NODE_ENV` production; the site rebuilt and healthy; the exposure check `ok`; *the deploy
+  took* at 22:55:26Z, exit 0. `COPY_DELETE_WHEN_PROVEN=false` was set at once, so the box checks
+  keep the copy before the update until ClickHouse's goes with it. `apps/worker/package.json`
+  needed nothing, the tree clean.
+- **The checks after it, with the hold on.** ClickHouse `26.8.36.3`, the settings as the guide
+  reads them; the load check, its two lines for v4.8.3's migration 056 (it drops exactly
+  `task_events_search_mv_v1` and `task_events_search_v1`): those two gone, every other table
+  loading, no part detached, goose's last migration 56. Every service up, none unhealthy,
+  starting or restarting, each on the tag's image; all 16 containers with `no-new-privileges`,
+  `drop=[ALL]` but `trigger-api`'s; the switches that phone home off (Trigger.dev's three,
+  MinIO's two, ClickHouse's crash reports). The task row
+  `current|20261104.1|DEPLOYED|4.8.3|4.8.3|26.12.1|2026-11-04 22:54`, the tick
+  `COMPLETED_SUCCESSFULLY` on 4.8.3, `www-live` ok, the copy's 6 files and ClickHouse's copy there.
+- **The lift (T6 step 8)** at about 23:23 UTC. The owner's check at about 23:40 read
+  `yes|0|-1|0`, the box checks' timer running every ten minutes, and both copies kept.
+- **What is left (T9).** No migration has run on live, so nothing has proven the update and
+  `live-pass-check.sh` does not apply yet; the owner's own migration on live, before any
+  invitation, is the proof (the CHANGELOG's alpha.4 summary asks for it too, for Node 26's HTTP/2 to Google). The copy
+  before the update's last day starts at about 2026-11-09 21:51 UTC; ClickHouse's copy, which
+  nothing deletes on its own, goes with it, by 2026-11-10 (*Moving ClickHouse*, *On live*,
+  step 5), and `COPY_DELETE_WHEN_PROVEN` goes back to `true` after both.
 
 **2026-11-03: the OTA stack's pooler lost its userlist to another workflow's checkout, and was
 down until a hand fix; the fix built on a branch, not merged.** On the branch

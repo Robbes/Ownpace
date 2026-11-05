@@ -2,7 +2,20 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-04 (update this block at the end of every session)
+## Status — 2026-11-05 (update this block at the end of every session)
+
+**2026-11-05: alpha.4's moves are on live.** Live took `v0.2.0-alpha.4` on 2026-11-04 at
+22:55:26 UTC (0132 Status, 2026-11-05): ClickHouse 26.8.36.3, with the fix for CVE-2026-116366,
+on the volume 26.2.19.43 wrote, its copy taken by hand first; Trigger.dev v4.8.3, whose
+migration 056 dropped `task_events_search_mv_v1` and `task_events_search_v1`; Node 26 in the
+API, web, the tasks (runtime 26.12.1) and the deploy shell; every container with
+`no-new-privileges` and its capabilities dropped. Held until after alpha.4 and free now: pnpm
+11.28.10 (#1792), waiting for npm's `latest-11`, and MinIO's newer `latest`, past its three days
+from 2026-11-06 09:13 UTC. `pnpm audit` on `main` names one advisory, moderate:
+GHSA-g3hv-75wg-m249 on the deploy CLI's `minimatch` 10.2.6 (`trigger.dev>minimatch`), the one
+path the workspace keeps below 11 on purpose, since trigger.dev 4.8.3 imports `makeRe`, which
+minimatch 11 no longer has (`pnpm-workspace.yaml`, the entry of 2026-11-02); every other path
+is on minimatch 11 and glob 14. It goes when a trigger.dev release takes minimatch 11.
 
 **2026-11-04, last: what alpha.4 moves, folded.** The fold (0146 Status, 2026-11-04; a draft,
 not merged) closes alpha.4 with this plan's moves since alpha.3 in it: Node 26 for the API, web

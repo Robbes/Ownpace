@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **Moving ClickHouse's steps for live start the plane container by container** (workplan
+  0132): on live's deploy of alpha.4, `docker compose start` refused `trigger-api` once the
+  one-shot `minio-init`'s container was gone, and started ClickHouse alone. The block, and the
+  way out's, now start ClickHouse, wait for it to be healthy, then `trigger-api`, then the
+  supervisor. The guide also says that the deploy's first run is the old tag's script, which
+  may not name the ClickHouse move, so the copy is taken whenever the two tags pin different
+  ClickHouse images; that the load check passes over the tables a Trigger.dev move in the same
+  deploy drops (v4.8.3's migration 056), and stops on anything else gone; and the runbook's
+  rollback step 8 restores ClickHouse's volume by the pins, not by what the script printed.
+
 ## [0.2.0-alpha.4] - 2026-11-04
 
 Little changes on a tester's screen: the changelog now says what the Alpha is,
