@@ -11,6 +11,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   migration*, in Dutch at 390 pixels, where none may scroll sideways. The menu must take focus
   and give it back on Escape, and each next screen of the flow must open at its top with focus
   on its heading.
+- **The Alpha's build is opened on a phone too** (workplan 0145 T8 (a)): the bundle live
+  serves, with the Alpha note above Migrations and the line about connecting Google above the
+  Google card of *Start a migration* and above a grant page's button, in Dutch at 390 pixels.
 
 ### Fixed
 
