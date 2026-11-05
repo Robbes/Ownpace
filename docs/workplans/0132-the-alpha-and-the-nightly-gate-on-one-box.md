@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-05 (update this block at the end of every session)
 
+**2026-11-05, records: T0 step 5's `NODE_ENV` check reads it from Docker.** Docs only, on the
+branch `claude/ownpace-public-readiness-y7orc6-distroless-readbacks`. Step 5 (*Run the checks*)
+said `docker compose … exec -T api printenv NODE_ENV`; the distroless API, live's since alpha.3
+and the OTA stack's since #1709, has no `printenv`, so it now reads the variable the container
+was started with, `docker container inspect`'s `.Config.Env`, the bring-up guide's form (#1710).
+0134 T0 step 3 moves the same way.
+
 **2026-11-04/05: live runs `v0.2.0-alpha.4`, ClickHouse 26.8.36.3 with it, and both copies are
 kept for now (T6, T9).** The owner deployed it on 2026-11-04, before any tester, pasting checked
 blocks. Times are UTC. No values.
@@ -3160,8 +3167,12 @@ switching the gate off. D7 drops it: the gate keeps running, on the OTA stack.)
      container that failed to start while Docker restored it is not retried
      (`docs/managed-bring-up.md`, *Which address a port answers on*, has the remedy). Do this on
      the first reboot after T3 (a) is on the machine, for both stacks and the site.
-   - `docker compose -f deploy/compose/managed.yml exec -T api printenv NODE_ENV` prints
-     `production` (T4). Run the same from `~/ownpace-managed` for the OTA stack.
+   - `docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker
+     compose -f deploy/compose/managed.yml ps -q api)" | grep '^NODE_ENV='` prints
+     `NODE_ENV=production` (T4). Run the same from `~/ownpace-managed` for the OTA stack.
+     *2026-11-05: this line said `exec -T api printenv NODE_ENV`, which the distroless API, live's
+     since alpha.3 and the OTA stack's since #1709, cannot answer: it has no `printenv`. The form
+     above is the bring-up guide's.*
      *2026-10-04: there it prints `development`, the owner's answer to T4, once that `.env` says
      so. The gate writes it when the `.env` gives no value, and keeps a value that is there: if
      its log says it kept `production`, set development in the persisted file (T4).*

@@ -2,7 +2,16 @@
 
 > **In one line:** Making the alpha's no-backups decision true on `ownpace-live`: `BACKUP_RETENTION_DAYS` equal to the days a pre-deploy copy is kept, so the erasure sentence says so, alpha-conditions wording, a runbook note on a lost machine, an off-machine `.env` copy, and a design for drilled database backups.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-05 (update this block at the end of every session)
+
+**2026-11-05, records: T0 step 3 reads the API's value from Docker, and live keeps a copy again.**
+Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-distroless-readbacks`. Step 3
+said `docker compose … exec api printenv BACKUP_RETENTION_DAYS`; the distroless API, live's since
+alpha.3, has no `printenv`, so it now reads the variable the container was started with,
+`docker container inspect`'s `.Config.Env`, the bring-up guide's form (#1710). Live runs
+`v0.2.0-alpha.4` since 2026-11-04: its deploy took the copy before the update at 22:51 UTC, and
+ClickHouse's volume was copied by hand beside it; the owner set `COPY_DELETE_WHEN_PROVEN=false`
+and keeps both until they remove them, by 2026-11-10 (0132's Status, 2026-11-05).
 
 **2026-11-01, records: T2 was done.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-records`. T2's
 row still said *Decided*. Its paragraph is the Alpha conditions' §6 in both languages, with the
@@ -19,7 +28,8 @@ holds: the tester guide names the one copy before an update, not its 7 days
 - **Step 3.** On 2026-10-29, on alpha.2, the owner read `BACKUP_RETENTION_DAYS` on live, in its
   `.env` and in its API container: 7 in both (PASS). Live runs `v0.2.0-alpha.3` since
   2026-10-30, whose API is distroless, so step 3's `exec api printenv` no longer answers there;
-  the bring-up guide reads it with `docker container inspect` (#1710).
+  the bring-up guide reads it with `docker container inspect` (#1710). *(2026-11-05: step 3 reads
+  it that way too now.)*
 - **Step 4, the copies.** Neither of live's copies could be proven, since no migration has run
   on live, and the owner removed both by hand (0132's Status, 2026-10-31). The copy taken
   before alpha.2 (2026-10-27 20:56 UTC) went on 2026-10-30, before alpha.3's deploy, so that
@@ -577,8 +587,16 @@ and N for the second, and step 4 is new.*
    before the first copy, and repeat step 2.
 2. If live is already up by then, recreate its API from `~/ownpace-live`:
    `docker compose -f deploy/compose/managed.yml up -d api`.
-3. Read it back from `~/ownpace-live`: `docker compose -f deploy/compose/managed.yml exec api
-   printenv BACKUP_RETENTION_DAYS` prints N, or `0` while no copy is taken.
+3. Read it back from `~/ownpace-live`, from what the API container was started with, which
+   prints `BACKUP_RETENTION_DAYS=` N, or `0` while no copy is taken:
+
+   ```bash
+   docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q api)" | grep '^BACKUP_RETENTION_DAYS='
+   ```
+
+   *(2026-11-05: this step said `exec api printenv BACKUP_RETENTION_DAYS`, which the distroless
+   API, live's since alpha.3, cannot answer: it has no `printenv`. The form above is the bring-up
+   guide's, and answers on the Node images before it too.)*
 4. **Delete a copy older than N days, whether or not a deploy followed it.** A copy is kept until
    the next deploy succeeds, and never longer than N days, which is what the erasure sentence and
    T2's paragraph promise. Nothing does this on its own (0132 T6 step 4 keeps the copy until the
