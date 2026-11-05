@@ -4,6 +4,18 @@
 
 ## Status — 2026-11-05 (update this block at the end of every session)
 
+**2026-11-05, later, build: T8 (a)'s last part, the Alpha's build on a phone.** On branch
+`claude/ownpace-public-readiness-y7orc6-alpha-phone`. Live serves the bundle built with
+`VITE_OWNPACE_STAGE=alpha`, and the suite opened only the one CI and the OTA stack build, which
+has neither the Alpha note nor `AlphaGoogleLine`. `test/ui/managed-ui.ui.test.ts` now builds
+the Alpha's too (vite alone, into a temporary folder removed after), serves it with the same
+fixture server, and opens three places in it in Dutch on a phone: Migrations, under the note
+and its link to the guide; *Start a migration*'s accounts screen for a Google source, under the
+line and its link; and a migration's grant link, under the line above its button. Each fits 390
+px. A `minWidth: 500` on the note and on the line failed all three, on their width; the other
+build's eight phone cases passed with it, as they never meet either. The suite passed 51 of 51
+twice after, in about 97 s. T8 (a) is complete with it; (b) and (c) are unchanged.
+
 **2026-11-05, build: T8 (a) for the app's own pages.** On branch
 `claude/ownpace-public-readiness-y7orc6-phone-width`. `test/ui/managed-ui.ui.test.ts` opens four
 more pages in Dutch on a phone (390 × 844, `isMobile`, `hasTouch`) and holds each to the phone's
@@ -841,7 +853,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T5 The consent window opens on the press itself | ✅ **done** in #1308, merged 2026-09-28 (`7e7d89ca`), with T7 (a); T0 found Safari blocking the window it replaces (2026-09-28), and T0's retest after it is the owner's — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28); 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | ✅ **done** in #1208, merged 2026-09-27, both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
 | T7 Help a finger can reach | (a) ✅ **done** in #1308, merged 2026-09-28 (`7e7d89ca`), with T5; (b) 📋 **Proposed**, after — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged (2026-09-28); 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
-| T8 Checks that run: phone width, axe, WebKit | (a) 🔨 **Built** but for the Alpha bundle's `AlphaGoogleLine`: the grant and progress links at 390 px ✅ **done** in #1646, merged 2026-10-21, with 0141 T12 (b); the app's own pages (the sign-in and request-access pages, Migrations with T1's menu focus, every screen of *Start a migration* with T3 (a)'s top and focus) on branch `claude/ownpace-public-readiness-y7orc6-phone-width` (2026-11-05). (b) and (c) 📋 **Proposed** — *was:* 📋 **Proposed**, all but the grant and progress links | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
+| T8 Checks that run: phone width, axe, WebKit | (a) ✅ **Done**: the grant and progress links at 390 px in #1646, merged 2026-10-21, with 0141 T12 (b); the app's own pages (the sign-in and request-access pages, Migrations with T1's menu focus, every screen of *Start a migration* with T3 (a)'s top and focus) in #1813, merged 2026-11-05; the Alpha's build (its note above Migrations, `AlphaGoogleLine` on *Start a migration* and on a grant link) on branch `claude/ownpace-public-readiness-y7orc6-alpha-phone` (2026-11-05). (b) and (c) 📋 **Proposed** — *was:* 📋 **Proposed**, all but the grant and progress links | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
 | T10 The walk on two phones | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
 
@@ -1404,7 +1416,14 @@ lands first adds them.
   flow each failed its case; so did the drawer's focus to its close button removed, the focus
   back to the menu button removed, the flow's scroll to the top removed, and its focus on the
   heading removed. The Alpha bundle's `AlphaGoogleLine` is not in this suite, which builds the
-  bundle without the Alpha stage, and stays open.)*
+  bundle without the Alpha stage, and stays open.)* *(Later the same day, on branch
+  `claude/ownpace-public-readiness-y7orc6-alpha-phone`: it is. *The Alpha's build on a phone*
+  builds the bundle a second time with `VITE_OWNPACE_STAGE=alpha`, into a folder of its own,
+  serves it the same way, and opens Migrations with the Alpha note, *Start a migration*'s
+  accounts screen with a Google source and `AlphaGoogleLine` above its card, and a grant link
+  with the line above its button, each held to 390 px. A `minWidth: 500` on the note and on the
+  line failed all three, and the eight phone cases of the other build passed, which never met
+  either.)*
 - **(b) axe.** `axe-core` becomes a root dev dependency. It is injected with `page.addScriptTag`
   from the installed package and run on the same pages at both widths, with the WCAG 2.0, 2.1 and
   2.2 A and AA tags. A `serious` or `critical` violation fails the case. A violation this plan

@@ -64,7 +64,8 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { execFileSync } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import { createReadStream, existsSync, readFileSync, statSync } from 'node:fs';
+import { createReadStream, existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContextOptions, type Page, type Request } from 'playwright-core';
@@ -531,9 +532,10 @@ const MIME: Record<string, string> = {
 
 /**
  * nginx's job, in one function: static files from the build, `/api` at the
- * same origin, and an index.html fallback so client-side routes reload.
+ * same origin, and an index.html fallback so client-side routes reload. The
+ * build is `apps/web/dist` unless another is named (the Alpha's, below).
  */
-function startServer(): Promise<{ server: Server; base: string }> {
+function startServer(dist: string = DIST): Promise<{ server: Server; base: string }> {
   const server = createServer((req, res) => {
     const url = new URL(req.url ?? '/', 'http://localhost');
     const key = `${req.method} ${url.pathname}`;
@@ -565,12 +567,12 @@ function startServer(): Promise<{ server: Server; base: string }> {
 
     // Static, with traversal refused the boring way.
     const rel = normalize(url.pathname).replace(/^(\.\.[/\\])+/, '');
-    let file = join(DIST, rel);
-    if (!file.startsWith(DIST) || !existsSync(file) || !statSync(file).isFile()) {
-      file = join(DIST, 'index.html');
+    let file = join(dist, rel);
+    if (!file.startsWith(dist) || !existsSync(file) || !statSync(file).isFile()) {
+      file = join(dist, 'index.html');
     }
     res.writeHead(200, {
-      ...nginxHeaders(`/${file.slice(DIST.length + 1)}`),
+      ...nginxHeaders(`/${file.slice(dist.length + 1)}`),
       'content-type': MIME[extname(file)] ?? 'application/octet-stream',
     });
     createReadStream(file).pipe(res);
@@ -652,12 +654,14 @@ async function newPage(
 
 /**
  * Load a route, signed in as an operator unless `signedIn: false`, on a phone
- * when `phone` (PHONE), recording what a user cannot see.
+ * when `phone` (PHONE), from another build's server when `base` names one,
+ * recording what a user cannot see.
  */
 async function open(
   path: string,
-  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date; phone?: boolean } = {},
+  opts: { locale?: 'en' | 'nl'; signedIn?: boolean; clock?: Date; phone?: boolean; base?: string } = {},
 ): Promise<Loaded> {
+  const base = opts.base ?? BASE;
   const page = await newPage(opts.locale === 'nl' ? 'nl-NL' : 'en-GB', {
     // A page held to a moment reads it in the servers' zone, as the pictures
     // taken at that moment did (`scripts/shoot-the-app-screen.mjs`).
@@ -723,7 +727,7 @@ async function open(
     // store's persisted shape into localStorage. A test that seeds internals
     // keeps passing after sign-in breaks, and the sign-in screen is the first
     // thing every operator meets.
-    await page.goto(`${BASE}/login`, { waitUntil: 'networkidle', timeout: 30_000 });
+    await page.goto(`${base}/login`, { waitUntil: 'networkidle', timeout: 30_000 });
     await page.fill('#token', TOKEN);
     await page.click('form button[type=submit]');
     await page.waitForURL((u) => !u.pathname.endsWith('/login'), { timeout: 15_000 });
@@ -731,7 +735,7 @@ async function open(
   }
 
   signingIn = false;
-  await page.goto(`${BASE}${path}`, { waitUntil: 'networkidle', timeout: 30_000 });
+  await page.goto(`${base}${path}`, { waitUntil: 'networkidle', timeout: 30_000 });
   return { page, errors, badResponses, origins, text: async () => (await page.textContent('body')) ?? '' };
 }
 
@@ -1539,7 +1543,8 @@ describe('signed in by somebody who has not accepted the texts yet', () => {
  * They open the bundle CI and the OTA stack build, without the Alpha
  * (`VITE_OWNPACE_STAGE` unset). The Alpha's build adds `AlphaGoogleLine`, a
  * line and a link to the tester guide, above the Google button; its own unit
- * tests cover that, not this file.
+ * tests cover its words, and *the Alpha's build on a phone*, below, opens a
+ * grant link in that build.
  *
  * They catch a page that does not render, a route that went, a word that left
  * the bundle and a page wider than a phone. They prove nothing about the API,
@@ -1893,6 +1898,87 @@ describe("the app's own pages on a phone, in Dutch (0145 T8 (a))", () => {
     } finally {
       for (const key of Object.keys(added)) delete FIXTURES[key];
     }
+  });
+});
+
+/**
+ * THE ALPHA'S BUILD ON A PHONE (workplan 0145 T8 (a), its last part). Live
+ * serves the bundle built with `VITE_OWNPACE_STAGE=alpha`, and that build adds
+ * what every tester sees first: the Alpha note above every signed-in page
+ * (0131 T1), and `AlphaGoogleLine`, the line and the guide's link above the
+ * Google cards of *Start a migration* and above a grant page's Google button
+ * (0140 T2 (a)). The rest of this file opens the bundle CI and the OTA stack
+ * build, which has neither. So this block builds the Alpha's too, into a
+ * folder of its own, serves it the same way, and opens those three places on
+ * a phone, in Dutch, whose words are the longer.
+ */
+describe("the Alpha's build on a phone, in Dutch (0145 T8 (a))", () => {
+  let alphaDist: string;
+  let alphaServer: Server;
+  let ALPHA: string;
+
+  beforeAll(async () => {
+    alphaDist = mkdtempSync(join(tmpdir(), 'ownpace-web-alpha-'));
+    const env: NodeJS.ProcessEnv = { ...process.env, VITE_OWNPACE_STAGE: 'alpha' };
+    delete env.VITE_API_URL;
+    // vite alone: the type check ran with the first build, and the two builds
+    // differ only in this variable.
+    execFileSync('pnpm', ['--filter', '@openmig/web', 'exec', 'vite', 'build', '--outDir', alphaDist, '--emptyOutDir'], {
+      cwd: REPO,
+      env,
+      stdio: 'pipe',
+    });
+    expect(existsSync(join(alphaDist, 'index.html')), "the Alpha's build produced no index.html").toBe(true);
+    ({ server: alphaServer, base: ALPHA } = await startServer(alphaDist));
+  }, 300_000);
+
+  afterAll(() => {
+    alphaServer?.close();
+    if (alphaDist) rmSync(alphaDist, { recursive: true, force: true });
+  });
+
+  it('Migrations fits a phone with the Alpha note above it', async () => {
+    const l = await open('/mappings', { locale: 'nl', phone: true, base: ALPHA });
+    await l.page.waitForSelector('[data-migration]');
+    await l.page.getByText('Welkom bij de Alpha!').waitFor({ timeout: 10_000 });
+    expect(await l.page.getByRole('link', { name: /Handleiding voor de Alpha/ }).count(), "the note's link to the guide").toBeGreaterThan(0);
+    await expectItFitsAPhone(l.page, 'Migrations with the Alpha note');
+    expectClean(l, "Migrations in the Alpha's build on a phone");
+    await l.page.close();
+  });
+
+  it("Start a migration's accounts fit a phone with the Alpha's Google line above the Google card", async () => {
+    const { added } = startFlowFixtures();
+    Object.assign(FIXTURES, added);
+    const missesBefore = apiMisses.length;
+    try {
+      const l = await open(`/start?person=${PERSON}`, { locale: 'nl', phone: true, base: ALPHA });
+      const next = () => l.page.getByRole('button', { name: 'Volgende', exact: true }).click();
+      await l.page.getByRole('radio', { name: 'Anna' }).waitFor({ timeout: 15_000 });
+      await next();
+      // A Google account to leave, so the screen that connects it asks for a
+      // Google sign-in: the line stands above that card.
+      await l.page.getByRole('checkbox', { name: 'Google' }).check();
+      await next();
+      await l.page.getByRole('heading', { level: 2, name: 'Wat wilt u migreren?' }).waitFor({ timeout: 10_000 });
+      await next();
+      await l.page.getByText('Koppelt u Google tijdens de Alpha? Lees eerst:').waitFor({ timeout: 10_000 });
+      expect(await l.page.getByRole('link', { name: /Als u Google koppelt/ }).count(), "the line's link to the guide").toBe(1);
+      await expectItFitsAPhone(l.page, "Start a migration's accounts with the Alpha's Google line");
+      expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
+      expectClean(l, "Start a migration in the Alpha's build on a phone");
+      await l.page.close();
+    } finally {
+      for (const key of Object.keys(added)) delete FIXTURES[key];
+    }
+  });
+
+  it("a migration's grant link fits a phone with the Alpha's Google line above its button", async () => {
+    const l = await open(`/grant/${GRANT_LINK}`, { signedIn: false, locale: 'nl', phone: true, base: ALPHA });
+    await l.page.getByText('Koppelt u Google tijdens de Alpha? Lees eerst:').first().waitFor({ timeout: 15_000 });
+    await expectItFitsAPhone(l.page, "a grant link with the Alpha's Google line");
+    expectClean(l, "a grant link in the Alpha's build on a phone");
+    await l.page.close();
   });
 });
 
