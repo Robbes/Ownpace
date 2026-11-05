@@ -11,10 +11,11 @@ migration 056 dropped `task_events_search_mv_v1` and `task_events_search_v1`; No
 API, web, the tasks (runtime 26.12.1) and the deploy shell; every container with
 `no-new-privileges` and its capabilities dropped. Held until after alpha.4 and free now: pnpm
 11.28.10 (#1792), waiting for npm's `latest-11`, and MinIO's newer `latest`, past its three days
-from 2026-11-06 09:13 UTC. Two moderate advisories in the dev tree, `minimatch` (under eslint
-and testcontainers' archiver) and `glob` (under the archiver), are fixed only in their next
-majors, which those requirers' newest releases do not ask for yet; they are reported, not
-blocking (`--fail-at=high`).
+from 2026-11-06 09:13 UTC. `pnpm audit` on `main` names one advisory, moderate:
+GHSA-g3hv-75wg-m249 on the deploy CLI's `minimatch` 10.2.6 (`trigger.dev>minimatch`), the one
+path the workspace keeps below 11 on purpose, since trigger.dev 4.8.3 imports `makeRe`, which
+minimatch 11 no longer has (`pnpm-workspace.yaml`, the entry of 2026-11-02); every other path
+is on minimatch 11 and glob 14. It goes when a trigger.dev release takes minimatch 11.
 
 **2026-11-04, last: what alpha.4 moves, folded.** The fold (0146 Status, 2026-11-04; a draft,
 not merged) closes alpha.4 with this plan's moves since alpha.3 in it: Node 26 for the API, web
