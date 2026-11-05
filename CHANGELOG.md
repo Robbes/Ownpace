@@ -4,6 +4,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **The app's own pages are opened on a phone on every pull request** (workplan 0145
+  T8 (a)): the sign-in and request-access pages, Migrations and every screen of *Start a
+  migration*, in Dutch at 390 pixels, where none may scroll sideways. The menu must take focus
+  and give it back on Escape, and each next screen of the flow must open at its top with focus
+  on its heading.
+
 ### Fixed
 
 - **Moving ClickHouse's steps for live start the plane container by container** (workplan
