@@ -2,7 +2,21 @@
 
 > **In one line:** The web app on phones, screen readers and in-app browsers: phone menu focus, `CreateMapping` wizard focus, the consent popup opened on the press, grant page language, ARIA state, axe and WebKit tests, an accessibility statement.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-11-05 (update this block at the end of every session)
+
+**2026-11-05, build: T8 (a) for the app's own pages.** On branch
+`claude/ownpace-public-readiness-y7orc6-phone-width`. `test/ui/managed-ui.ui.test.ts` opens four
+more pages in Dutch on a phone (390 × 844, `isMobile`, `hasTouch`) and holds each to the phone's
+width with the grant and view links' check, now one function, `expectItFitsAPhone`: the
+sign-in page, the request-access page, Migrations, and every screen of *Start a migration*
+(`/start?person=…`; the wizard retired, 0153 D5). On Migrations the menu button opens the drawer
+with focus on its close button, and Escape closes it with focus back on the menu button (T1). In
+the flow each Next and *Klaarzetten* is pressed from below the top, and the next screen opens at
+the top with focus on its heading (T3 (a)). None of the pages scrolls sideways at 390 px. Each
+check failed once against a broken app (a `minWidth: 500` on three pages, each focus move and
+the scroll to the top removed), and the suite passed 48 of 48 twice afterwards. Still open in
+(a): the Alpha bundle's `AlphaGoogleLine`, which this suite does not build. (b) and (c) are
+unchanged: the dependency and the CI minutes are the maintainer's (open question 4).
 
 **2026-10-21: the grant and view fixtures exist** (0141 T12 (b), merged as #1646 on 2026-10-21,
 `fb7962c5`). `open()` in `test/ui/managed-ui.ui.test.ts` has a `phone` option (390 × 844,
@@ -827,7 +841,7 @@ only a keyboard, and T9 (a) says so before anyone starts.
 | T5 The consent window opens on the press itself | ✅ **done** in #1308, merged 2026-09-28 (`7e7d89ca`), with T7 (a); T0 found Safari blocking the window it replaces (2026-09-28), and T0's retest after it is the owner's — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged** (2026-09-28); 📋 **Proposed** | §3. The window opens in the click and is pointed at the provider afterwards. A blocked window says so and offers a link. One shared helper serves both call sites. A same-tab fallback is 🅿️ **Parked (trigger: a phone or browser in T0 or T10 where neither the window nor the link comes back)**. **Before.** |
 | T6 The grant flow and the consent endings in one language | ✅ **done** in #1208, merged 2026-09-27, both halves; the Dutch wording ⏳ **Owner**, before merge — *was:* 📋 **Proposed**; the Dutch wording ⏳ **Owner** | §3. The "reads" phrase comes from the dictionary. The link-holder refusals come in pairs, as `credential-refusals.ts` does it. The endings are rendered in the language the page was in, and the public pages get a language switch. **Before**, the grant half only if grant links are used in the alpha. The grant half is built ahead of 0140's open question 2, and the switch follows open question 2 below as recommended; both answers are still the owner's. |
 | T7 Help a finger can reach | (a) ✅ **done** in #1308, merged 2026-09-28 (`7e7d89ca`), with T5; (b) 📋 **Proposed**, after — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-consent-window-opened-by-the-press`, not merged (2026-09-28); 📋 **Proposed** | §3. (a) The reason a Connect button is greyed out, as text under it, in T5's change: **before**. (b) Verify's help moves into the Hint fold, and the Mappings row actions get names and targets a thumb can hit: **after**. |
-| T8 Checks that run: phone width, axe, WebKit | 📋 **Proposed**, all but a part of (a): the grant and progress links at 390 px ✅ **done** in #1646, merged 2026-10-21, with 0141 T12 (b) — *was:* 📋 **Proposed** | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
+| T8 Checks that run: phone width, axe, WebKit | (a) 🔨 **Built** but for the Alpha bundle's `AlphaGoogleLine`: the grant and progress links at 390 px ✅ **done** in #1646, merged 2026-10-21, with 0141 T12 (b); the app's own pages (the sign-in and request-access pages, Migrations with T1's menu focus, every screen of *Start a migration* with T3 (a)'s top and focus) on branch `claude/ownpace-public-readiness-y7orc6-phone-width` (2026-11-05). (b) and (c) 📋 **Proposed** — *was:* 📋 **Proposed**, all but the grant and progress links | §3. A 390 px case, an axe scan of the key pages and a WebKit run, all in `test/ui`. Adding the dev dependency and the CI minutes is the maintainer's decision. **After.** |
 | T9 An accessibility statement in Dutch and English | (a) 📋 **Proposed**, **before**; (b) 📋 **Proposed**, **after**; whether the European Accessibility Act applies ⏳ **Owner**, with 0139's legal pass (D4) | §3. (a) One paragraph in 0144 T1's guide. (b) A page on the site: the target, what has been checked, what has not, known limitations, a contact and a date. |
 | T10 The walk on two phones | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 9); ⏳ **Owner** (the walk) — *was:* ⏳ **Owner** (the walk); 📋 **Proposed** (the runbook stage) | §3. An iPhone with Safari and an Android phone with Chrome, both in Dutch, with one pass under VoiceOver and one under TalkBack. It also produces the list of in-app browsers. **Before the first invitation**, on `ownpace-live`, once a release that carries the minimum runs there. |
 
@@ -1378,6 +1392,19 @@ lands first adds them.
   `site.ui.test.ts`:137-139. On `/mappings`, the menu opens, focus lands on its close button, and
   Escape brings focus back to the menu button (T1). In the wizard, Next leaves the page at the top
   (T3). Whether the progress row fits at 390 px is not known today. This case finds out.
+
+  *(2026-11-05: built on branch `claude/ownpace-public-readiness-y7orc6-phone-width`, in
+  `test/ui/managed-ui.ui.test.ts`'s *the app's own pages on a phone, in Dutch*, with the grant
+  and view links' check made one function, `expectItFitsAPhone`. The wizard retired (0153 D5),
+  so `/mappings/new` is `/start?person=…`, walked through all six screens with the flow's own
+  fixtures. Each Next is pressed from below the top, with room made below the app so that a
+  screen that fits the phone's height can still be scrolled, and the next screen must open at
+  the top with focus on its heading. None of the pages scrolls sideways at 390 px. Proved by
+  breaking: a `minWidth: 500` on the sign-in page, the request-access page and a step of the
+  flow each failed its case; so did the drawer's focus to its close button removed, the focus
+  back to the menu button removed, the flow's scroll to the top removed, and its focus on the
+  heading removed. The Alpha bundle's `AlphaGoogleLine` is not in this suite, which builds the
+  bundle without the Alpha stage, and stays open.)*
 - **(b) axe.** `axe-core` becomes a root dev dependency. It is injected with `page.addScriptTag`
   from the installed package and run on the same pages at both widths, with the WCAG 2.0, 2.1 and
   2.2 A and AA tags. A `serious` or `critical` violation fails the case. A violation this plan

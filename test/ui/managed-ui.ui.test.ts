@@ -604,6 +604,30 @@ interface Loaded {
 const PHONE: BrowserContextOptions = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 
 /**
+ * The page fits the phone it is on (workplan 0145 T8 (a)). A phone shows a page
+ * wider than itself by zooming out: its layout grows to the page's width, so
+ * the window's width follows the page and nothing scrolls. So both are held to
+ * the phone's 390 pixels, not the page to the window (which is all
+ * `site.ui.test.ts` needs, without `isMobile`). Every fold is opened first: the
+ * grant page's *Technical details* holds its widest words, the scope's
+ * unbroken addresses, and a closed fold is not laid out, so it would never
+ * count.
+ */
+async function expectItFitsAPhone(page: Page, what: string): Promise<void> {
+  await page.evaluate(() =>
+    document.querySelectorAll('details').forEach((d) => {
+      d.open = true;
+    }),
+  );
+  const width = await page.evaluate(() => ({
+    window: window.innerWidth,
+    page: document.documentElement.scrollWidth,
+  }));
+  expect(width.window, `${what} is wider than a phone, which zoomed out to fit it`).toBe(PHONE.viewport!.width);
+  expect(width.page, `${what} scrolls sideways at ${PHONE.viewport!.width}px`).toBeLessThanOrEqual(PHONE.viewport!.width + 1);
+}
+
+/**
  * A new page that reports every policy violation it meets: as a console error
  * the page's own listeners see, and into `violations`. Before any script of
  * the app runs, so a violation while the bundle loads is caught too.
@@ -907,6 +931,89 @@ describe('the migrations list', () => {
   });
 });
 
+/**
+ * What Start a migration asks for, answered as the API would: Anna's saved mail
+ * account and a saved Soverin, what this deployment serves, and the create,
+ * the count and the start of one migration. The caller adds them to FIXTURES
+ * and takes them out after, so no other case sees them.
+ */
+function startFlowFixtures(): { NEW: string; added: Record<string, unknown> } {
+  const NEW = 'a0000000-0000-4000-8000-0000000000d9';
+  const at = new Date(Date.now() + 60_000).toISOString();
+  const detail = {
+    id: NEW,
+    tenantId: TENANT,
+    name: 'Anna — example.nl to Soverin',
+    sourceType: 'imap',
+    targetType: 'soverin',
+    status: 'paused',
+    mode: 'mirror',
+    syncConfig: { domains: ['email'], schedule: '0 2 * * *' },
+    sourceConfig: {},
+    targetConfig: {},
+    domainStatus: [],
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+  const added: Record<string, unknown> = {
+    'GET /api/connections': {
+      connections: [
+        { id: 'c0000000-0000-4000-8000-000000000001', role: 'source', kind: 'imap', displayName: 'Anna mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { host: 'imap.example.nl', port: '993', username: 'anna@example.nl' } },
+        { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'anna@soverin.net' } },
+      ],
+    },
+    'GET /api/provider-accounts': {
+      google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' },
+      microsoft: { domains: ['email', 'calendar', 'contact', 'file', 'task'] },
+    },
+    'GET /api/provider-clients': { google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' },
+    'POST /api/migrations': detail,
+    [`POST /api/people/${PERSON}/migrations`]: (FIXTURES['GET /api/people'] as { people: unknown[] }).people[0],
+    [`POST /api/migrations/${NEW}/discover`]: {},
+    [`GET /api/migrations/${NEW}`]: detail,
+    [`GET /api/migrations/${NEW}/discovery`]: {
+      mappingId: NEW,
+      discovered: true,
+      domains: [{ domain: 'email', collections: 12, items: 18734, bytes: 3_400_000_000, discoveredAt: at }],
+    },
+    'GET /api/scope-manifest': {
+      version: 'ui-smoke',
+      migrates: [{ item: 'Email', detail: 'Folders, flags and timestamps.' }],
+      partial: [],
+      doesNotMigrate: [],
+    },
+    [`POST /api/migrations/${NEW}/start`]: { id: NEW, status: 'active' },
+    // The data ceiling (0109 T6): Free with 248 GB moved, so this mailbox's
+    // 3.4 GB passes it, and Start says so, and still starts.
+    'GET /api/billing/ceiling': {
+      tier: { id: 'free', name: 'Free', paths: 1, monthly: 0 },
+      ceilingGb: 250,
+      topUps: 0,
+      gbMoved: 248,
+      gbMovedInTheAlpha: 0,
+      share: 0.992,
+      state: 'near',
+      holds: true,
+      moveUp: { tierId: 'small', name: 'Small', paths: 4, monthlyEur: 5, ceilingGb: 750 },
+      topUp: null,
+      breakEven: null,
+    },
+    // The paths at Start (0109 T6, the path axis): this one migration fits
+    // Free's one at the same time, so nothing is asked and Start is as it was.
+    'GET /api/billing/paths': {
+      holds: true,
+      tier: { id: 'free', name: 'Free', paths: 1, monthlyEur: 0 },
+      held: 0,
+      after: 1,
+      past: false,
+      needs: null,
+      reason: null,
+      fits: [NEW],
+    },
+  };
+  return { NEW, added };
+}
+
 describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
   it('signs a member in to Migrations, with the menu the drawing shows', async () => {
     // Through the front door, as `open` does, but without its second goto:
@@ -981,83 +1088,7 @@ describe('the landing page (0153 T3 (b), the owner\'s D7)', () => {
   });
 
   it('starts a migration for Anna from their card, through six screens and one Start, to their page (0153 T4)', async () => {
-    // What the flow asks for, answered as the API would: Anna's saved mail
-    // account and a saved Soverin, what this deployment serves, and the
-    // create, the count and the start of one migration. Restored after, so no
-    // other case sees them.
-    const NEW = 'a0000000-0000-4000-8000-0000000000d9';
-    const at = new Date(Date.now() + 60_000).toISOString();
-    const detail = {
-      id: NEW,
-      tenantId: TENANT,
-      name: 'Anna — example.nl to Soverin',
-      sourceType: 'imap',
-      targetType: 'soverin',
-      status: 'paused',
-      mode: 'mirror',
-      syncConfig: { domains: ['email'], schedule: '0 2 * * *' },
-      sourceConfig: {},
-      targetConfig: {},
-      domainStatus: [],
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-    const added: Record<string, unknown> = {
-      'GET /api/connections': {
-        connections: [
-          { id: 'c0000000-0000-4000-8000-000000000001', role: 'source', kind: 'imap', displayName: 'Anna mail', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { host: 'imap.example.nl', port: '993', username: 'anna@example.nl' } },
-          { id: 'c0000000-0000-4000-8000-000000000002', role: 'target', kind: 'soverin', displayName: 'Anna Soverin', status: 'connected', createdAt: at, usedByMigrations: 0, knownValues: { username: 'anna@soverin.net' } },
-        ],
-      },
-      'GET /api/provider-accounts': {
-        google: { domains: ['calendar', 'contact', 'task'], client: 'deployment' },
-        microsoft: { domains: ['email', 'calendar', 'contact', 'file', 'task'] },
-      },
-      'GET /api/provider-clients': { google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' },
-      'POST /api/migrations': detail,
-      [`POST /api/people/${PERSON}/migrations`]: (FIXTURES['GET /api/people'] as { people: unknown[] }).people[0],
-      [`POST /api/migrations/${NEW}/discover`]: {},
-      [`GET /api/migrations/${NEW}`]: detail,
-      [`GET /api/migrations/${NEW}/discovery`]: {
-        mappingId: NEW,
-        discovered: true,
-        domains: [{ domain: 'email', collections: 12, items: 18734, bytes: 3_400_000_000, discoveredAt: at }],
-      },
-      'GET /api/scope-manifest': {
-        version: 'ui-smoke',
-        migrates: [{ item: 'Email', detail: 'Folders, flags and timestamps.' }],
-        partial: [],
-        doesNotMigrate: [],
-      },
-      [`POST /api/migrations/${NEW}/start`]: { id: NEW, status: 'active' },
-      // The data ceiling (0109 T6): Free with 248 GB moved, so this mailbox's
-      // 3.4 GB passes it, and Start says so, and still starts.
-      'GET /api/billing/ceiling': {
-        tier: { id: 'free', name: 'Free', paths: 1, monthly: 0 },
-        ceilingGb: 250,
-        topUps: 0,
-        gbMoved: 248,
-        gbMovedInTheAlpha: 0,
-        share: 0.992,
-        state: 'near',
-        holds: true,
-        moveUp: { tierId: 'small', name: 'Small', paths: 4, monthlyEur: 5, ceilingGb: 750 },
-        topUp: null,
-        breakEven: null,
-      },
-      // The paths at Start (0109 T6, the path axis): this one migration fits
-      // Free's one at the same time, so nothing is asked and Start is as it was.
-      'GET /api/billing/paths': {
-        holds: true,
-        tier: { id: 'free', name: 'Free', paths: 1, monthlyEur: 0 },
-        held: 0,
-        after: 1,
-        past: false,
-        needs: null,
-        reason: null,
-        fits: [NEW],
-      },
-    };
+    const { NEW, added } = startFlowFixtures();
     Object.assign(FIXTURES, added);
     const missesBefore = apiMisses.length;
     try {
@@ -1754,29 +1785,115 @@ describe('the grant and progress links, opened by the person they were sent to (
   for (const p of PAGES) {
     it(`opens ${p.what} on a phone, in Dutch, without scrolling sideways (0145 T8 (a))`, async () => {
       const l = await openLink(p, 'nl', true);
-      // A phone shows a page wider than itself by zooming out: its layout
-      // grows to the page's width, so the window's width follows the page and
-      // nothing scrolls. So both are held to the phone's 390 pixels, not the
-      // page to the window (which is all `site.ui.test.ts` needs, without
-      // `isMobile`).
-      // Every fold is opened first: the grant page's *Technical details* holds
-      // its widest words, the scope's unbroken addresses, and a closed fold is
-      // not laid out, so it would never count.
-      await l.page.evaluate(() =>
-        document.querySelectorAll('details').forEach((d) => {
-          d.open = true;
-        }),
-      );
-      const width = await l.page.evaluate(() => ({
-        window: window.innerWidth,
-        page: document.documentElement.scrollWidth,
-      }));
-      expect(width.window, `${p.what} is wider than a phone, which zoomed out to fit it`).toBe(390);
-      expect(width.page, `${p.what} scrolls sideways at 390px`).toBeLessThanOrEqual(391);
+      await expectItFitsAPhone(l.page, p.what);
       expectClean(l, `${p.what} on a phone`);
       await l.page.close();
     });
   }
+});
+
+describe("the app's own pages on a phone, in Dutch (0145 T8 (a))", () => {
+  it('the sign-in page fits a phone', async () => {
+    const l = await open('/login', { signedIn: false, locale: 'nl', phone: true });
+    await l.page.waitForSelector('#token');
+    await expectItFitsAPhone(l.page, 'the sign-in page');
+    expectClean(l, 'the sign-in page on a phone');
+    await l.page.close();
+  });
+
+  it('the request-access page fits a phone', async () => {
+    const l = await open('/request-access?locale=nl', { signedIn: false, locale: 'nl', phone: true });
+    await l.page.locator('form').first().waitFor({ timeout: 15_000 });
+    await expectItFitsAPhone(l.page, 'the request-access page');
+    expectClean(l, 'the request-access page on a phone');
+    await l.page.close();
+  });
+
+  it('Migrations fits a phone, and its menu takes focus and gives it back on Escape (0145 T1)', async () => {
+    const l = await open('/mappings', { locale: 'nl', phone: true });
+    await l.page.waitForSelector('[data-migration]');
+    await expectItFitsAPhone(l.page, 'Migrations');
+
+    const menu = l.page.getByRole('button', { name: 'Menu', exact: true });
+    expect(await menu.getAttribute('aria-expanded'), 'the menu starts closed').toBe('false');
+    await menu.click();
+    // Focus lands on the drawer's own close button, so a keyboard and a
+    // screen reader start inside the menu they opened, not on the page behind.
+    await expect
+      .poll(() => l.page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? null), { timeout: 5_000 })
+      .toBe('Sluiten');
+    expect(await menu.getAttribute('aria-expanded')).toBe('true');
+    await expectItFitsAPhone(l.page, 'Migrations with its menu open');
+
+    await l.page.keyboard.press('Escape');
+    await expect
+      .poll(() => l.page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? null), { timeout: 5_000 })
+      .toBe('Menu');
+    expect(await menu.getAttribute('aria-expanded'), 'Escape closed the menu').toBe('false');
+    expectClean(l, 'Migrations on a phone');
+    await l.page.close();
+  });
+
+  it('Start a migration fits a phone on every screen, and each next screen starts at the top (0145 T3 (a))', async () => {
+    const { added } = startFlowFixtures();
+    Object.assign(FIXTURES, added);
+    const missesBefore = apiMisses.length;
+    try {
+      const l = await open(`/start?person=${PERSON}`, { locale: 'nl', phone: true });
+      const page = l.page;
+      // The press that moves on is made from the bottom of the screen, where
+      // the button is: the next screen must not open where this one ended.
+      // These fixtures' screens fit in the phone's height, and a page that
+      // fits cannot be scrolled, so it would read 0 whether or not the app
+      // moved it. Room is made below the app, outside its root, as a longer
+      // screen or a larger text size would make it, so the press is made from
+      // further down and the next screen's position is the app's doing.
+      const onToTheNext = async (name: string, what: string): Promise<void> => {
+        await page.evaluate(() => {
+          if (!document.getElementById('room-below')) {
+            const room = document.createElement('div');
+            room.id = 'room-below';
+            room.style.height = '2000px';
+            document.body.appendChild(room);
+          }
+          window.scrollTo(0, document.documentElement.scrollHeight);
+        });
+        expect(await page.evaluate(() => window.scrollY), `${what}: pressed from below the top`).toBeGreaterThan(0);
+        await page.getByRole('button', { name, exact: true }).click();
+        await page.waitForTimeout(50);
+        await expect.poll(() => page.evaluate(() => window.scrollY), { timeout: 5_000, message: `${what} opened below its top` }).toBe(0);
+        // And a screen reader starts on the new screen's heading, not on the
+        // button that is gone.
+        await expect
+          .poll(() => page.evaluate(() => document.activeElement?.tagName ?? null), { timeout: 5_000, message: `focus after the press, on ${what}` })
+          .toBe('H2');
+      };
+      await page.getByRole('radio', { name: 'Anna' }).waitFor({ timeout: 15_000 });
+      await expectItFitsAPhone(page, 'Start a migration, who');
+      await onToTheNext('Volgende', 'the screen after who');
+      await page.getByRole('checkbox', { name: 'Een andere mailaanbieder' }).waitFor({ timeout: 10_000 });
+      await expectItFitsAPhone(page, 'Start a migration, from where');
+      await page.getByRole('checkbox', { name: 'Een andere mailaanbieder' }).check();
+      await onToTheNext('Volgende', 'the screen after from where');
+      await page.getByRole('heading', { level: 2, name: 'Wat wilt u migreren?' }).waitFor({ timeout: 10_000 });
+      await expectItFitsAPhone(page, 'Start a migration, what moves');
+      await onToTheNext('Volgende', 'the screen after what moves');
+      await page.getByText('anna@example.nl').first().waitFor({ timeout: 10_000 });
+      await expectItFitsAPhone(page, 'Start a migration, the account');
+      await onToTheNext('Volgende', 'the screen after the account');
+      await page.getByRole('heading', { level: 2, name: 'Waar gaat het naartoe?' }).waitFor({ timeout: 10_000 });
+      await expectItFitsAPhone(page, 'Start a migration, where it goes');
+      await onToTheNext('Klaarzetten', 'the screen after where it goes');
+      await page.getByRole('heading', { level: 2, name: 'Controleren, dan starten' }).waitFor({ timeout: 15_000 });
+      await page.getByRole('button', { name: 'Starten', exact: true }).waitFor({ timeout: 15_000 });
+      await expectItFitsAPhone(page, 'Start a migration, check, then start');
+      expect(apiMisses.slice(missesBefore), 'the flow called endpoints with no fixture').toEqual([]);
+      expectClean(l, 'Start a migration on a phone');
+      await page.close();
+    } finally {
+      for (const key of Object.keys(added)) delete FIXTURES[key];
+    }
+  });
 });
 
 describe('the app runs under the policy nginx serves it with (workplan 0158)', () => {
