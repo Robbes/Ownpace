@@ -38,7 +38,9 @@
 #
 # This FROM line is also the Windows payload's Node: `package-appliance.mjs
 # --with-node` ships the node.exe of exactly this x.y.z, and refuses a line
-# without one. Dependabot's image bump therefore moves both.
+# without one. Dependabot's image bump therefore moves both. Since 2026-11-06 it
+# is the BUILD's base only, as in apps/api/Dockerfile: the runtime stage below
+# is distroless, with a Node of its own, which must be this line's version.
 #
 # Debian 13 ("trixie"), named in the tag, as in apps/api/Dockerfile, which says
 # why. Node 26 since 2026-10-31, and the corepack that brings pnpm comes from npm
@@ -68,64 +70,69 @@ ENV GIT_SHA=$GIT_SHA
 RUN pnpm --filter @openmig/web build:selfhost
 # Stage the SHIPPED artefact (workplan 0015 T3). The image now runs this, not
 # the source tree — see the runtime stage for why that is the point rather than
-# an optimisation. The default config goes in beside it, as `config/`, which the
-# runtime stage seeds /data/config from.
+# an optimisation. The default config goes in beside it, as `config/`.
 #
-# Then the whole tree is made READABLE BY EVERYONE AND WRITABLE BY ROOT ALONE,
-# whatever modes the checkout gave its files: a umask of 077 writes them 0600,
-# and COPY keeps a mode, so a root-owned /app would keep them from the user the
-# appliance runs as. CI's umask of 022 hides that. The runtime stage copies this
-# tree as root's and chowns none of it, so the appliance reads its code and
-# cannot rewrite it, as the API cannot since 0146 T13. Last in this stage, so
+# And /data, the tree the appliance owns, made HERE, where there is a shell:
+# the runtime stage is distroless and can run nothing (workplan 0119 §3 item
+# 12). `/data/config` is seeded from the payload's `config/`, and `/data/state`
+# is made empty, the mount point of the `appdata` volume (the runtime stage
+# says why it must exist). The runtime stage copies it in as uid 10001's.
+#
+# Then both trees are made READABLE BY EVERYONE AND WRITABLE BY THEIR OWNER
+# ALONE, whatever modes the checkout gave its files: a umask of 077 writes them
+# 0600 (and `mkdir` 0700), and COPY keeps a mode, so a root-owned /app would
+# keep them from the user the appliance runs as. CI's umask of 022 hides that.
+# The runtime stage copies /payload as root's and chowns none of it, so the
+# appliance reads its code and cannot rewrite it, as the API cannot since 0146
+# T13; it copies /data as the appliance's, 0755 and 0644 as the RUN that made
+# it in the runtime stage until 2026-11-06 left it. Last in this stage, so
 # nothing after it writes a file with another mode
 # (scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts).
 RUN node scripts/package-appliance.mjs --out /payload \
  && cp -r deploy/selfhost/config /payload/config \
- && chmod -R u=rwX,go=rX /payload
+ && mkdir -p /data/config /data/state \
+ && cp -r /payload/config/* /data/config/ \
+ && chmod -R u=rwX,go=rX /payload /data
 
-# ---- runtime: non-root, health-checked ----
-FROM base AS runtime
-# NO PACKAGE MANAGER AT RUNTIME. CMD and the HEALTHCHECK run `node`, and nothing
-# execs npm, npx, pnpm, yarn or corepack into this container. npm's bundled
-# undici, brace-expansion and http-cache-semantics were the base image's 5
-# high Node.js findings. The Windows payload's node.exe comes from nodejs.org,
-# not from this image, so this changes nothing for it.
-# The whole global-modules directory goes, not npm and corepack by name: they
-# are all it holds in this base, and a package manager a later base stage
-# installs with `npm install -g` (Node 25 and later ship no corepack) lands
-# there too, so it goes with them.
-RUN rm -rf /usr/local/lib/node_modules \
-    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack \
-    /usr/local/bin/pnpm /usr/local/bin/pnpx /usr/local/bin/yarn /usr/local/bin/yarnpkg \
-    /opt/yarn-v*
-# NO DEBIAN ESSENTIALS THAT NOTHING RUNS (workplan 0119; the owner's decision
-# of 2026-11-03, for alpha.4). util-linux, the eight other packages built from
-# its source (mount, login, bsdutils, libblkid1, libmount1, libsmartcols1,
-# libuuid1, liblastlog2-2) and libsqlite3-0 are purged. With npm gone, Trivy
-# 0.76.1 read 0 critical and 44 high in this base on 2026-11-03, none with a
-# Debian fix, and 37 of the 44 were in these ten: four util-linux CVEs in each
-# of the nine, and one in SQLite. Nothing here runs them. CMD and both
-# healthchecks start `node`, which links none of their libraries; a shell, where
-# one is used, is dash, and `ls` and the like are coreutils, which stay; the
-# payload has no native module (PGlite is WebAssembly, `pg` plain JavaScript);
-# and nothing execs su, login, mount, getopt or any other of their programs
-# into this container.
+# ---- runtime: distroless, non-root, health-checked ----
 #
-# Debian marks them Essential, and `login` protected as well, so dpkg removes
-# them only with the two `--force-remove-*` flags below, and with nothing more:
-# without `--force-depends` it refuses to remove a package that something
-# installed still depends on, so a base that grows such a dependency stops this
-# build rather than ship that package broken. `dpkg-query -W` first stops it
-# when the base no longer has one of the ten (a renamed package is a list to
-# read again, not a name to skip), and `apt-get check` last when what is left
-# is not a state apt accepts. Debian does not test a system without its
-# Essential packages; this one runs `node`. The tasks' runtime base purges the
-# same ten (apps/worker/trigger.config.ts), and
-# scripts/an-essential-nothing-runs.unit.test.ts holds the two to one list.
-RUN dpkg-query -W util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0 >/dev/null \
-  && dpkg --purge --force-remove-essential --force-remove-protected \
-    util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0 \
-  && apt-get check
+# THE RUNTIME IS DISTROLESS (workplan 0119 §3 item 12; the owner's decision of
+# 2026-11-03, for alpha.5), at the same line, tag and digest as
+# apps/api/Dockerfile's runtime stage, which says what the image is: Debian 13
+# with fourteen packages and Node at /nodejs/bin/node, and nothing else. No
+# shell, no coreutils, no package manager, no perl, util-linux or ncurses. Until
+# 2026-11-06 this stage ran on the Node image above, and removed what nothing in
+# it runs: the package managers (0146 T12), then the Debian Essentials (0119 §3
+# item 11, alpha.4); none of that is here to remove now.
+#
+# One line in two Dockerfiles, so the API's checks are the appliance's too:
+# the managed smoke stops when the API's /nodejs/bin/node is not the `FROM
+# node:` line's x.y.z (deploy/compose/smoke-managed.sh, `api_node`), the three
+# `FROM node:` lines are one string, and the Windows payload's node.exe is that
+# x.y.z (package-appliance.mjs). E2E (self-hosted) asks this image's Node as
+# well. Dependabot moves the digest when the `nonroot` tag moves, and the two
+# files move together or the guard below fails; a new Node major is a new
+# image name, by hand.
+#
+# What that takes, wherever the container is reached:
+# - No RUN in this stage: there is nothing to run one with. Everything comes
+#   in by COPY from the build stage, whose last RUN made it.
+# - Node is /nodejs/bin/node and is NOT on the PATH. ENTRYPOINT and the
+#   HEALTHCHECK name it, and so does compose.yml's healthcheck for `app`, in
+#   exec form: its `CMD-SHELL` until 2026-11-06 needed /bin/sh, which this
+#   image has not got, so a `compose.yml` older than this image reports `app`
+#   unhealthy while it serves (the CHANGELOG says so). Nothing execs a shell
+#   or a bare `node` into the container: the upgrade drill and E2E
+#   (self-hosted) ask Node by its path, and release-verify.mjs too.
+# - The user is uid 10001, as it has been since the appliance had a user, NOT
+#   distroless's `nonroot` (65532): every existing `appdata` volume is uid
+#   10001's, and so is a state directory a self-hoster bound in its place, as
+#   apps/selfhost/src/index.ts's startup hint tells them (10001:10001). The
+#   Node image's `useradd --system` gave it gid 999 (measured 2026-11-06); its
+#   files on an existing volume keep that group, which nothing reads, and the
+#   owner's bits are uid 10001's either way.
+#   scripts/an-appliance-with-nothing-to-exec.unit.test.ts holds all of this.
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:9b945e92c1b5463a4b75f11e8417515e4bea7355f6adfd79ec220fbbe905dda8 AS runtime
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown
@@ -152,6 +159,13 @@ ENV SELFHOST_PERSISTENCE=postgres
 # `compose.pglite.yml` names, inside the state volume, so the override and a
 # plain `docker run` keep one database in one place.
 ENV SELFHOST_PGLITE_DIR=/data/state/pglite
+# HOME AS IT WAS. uid 10001 has no line in distroless's /etc/passwd, so Docker
+# would set HOME=/; the Node image's `appuser` had /app, and this keeps it. The
+# one reader in the payload is `pg`'s pgpass, which looks for `$HOME/.pgpass`
+# when DATABASE_URL carries no password; neither directory is the appliance's
+# to write. Without a passwd line `os.userInfo()` throws (ENOENT), and nothing
+# in the payload calls it (scripts/package-appliance.unit.test.ts).
+ENV HOME=/app
 # `/app` IS the payload — the same directory `pnpm package:appliance` produces
 # for an installer to copy, with the default config (`config/`) beside it. It
 # carries its own `ui/` and `migrations/`, which `start.mjs` resolves relative
@@ -163,41 +177,40 @@ ENV SELFHOST_PGLITE_DIR=/data/state/pglite
 # it, with the modes the build stage set last (everyone reads, root alone
 # writes). The appliance writes only under /data (CONFIG_DIR and
 # SELFHOST_PGLITE_DIR above), so a compromised appliance cannot rewrite the
-# code it loads at its next start. Until 2026-11-03 the RUN below chowned /app
-# to appuser as well, and that `chown -R` wrote every file of the payload again
-# in a layer of its own: the published image carried the payload twice, an
-# 11.3 MB layer (compressed, amd64) right after the COPY's 11.3 MB.
+# code it loads at its next start. Until 2026-11-03 a RUN here chowned /app to
+# the appliance's user as well, and that `chown -R` wrote every file of the
+# payload again in a layer of its own: the published image carried the payload
+# twice, an 11.3 MB layer (compressed, amd64) right after the COPY's 11.3 MB.
 COPY --from=build /payload /app
-# Non-root runtime user; owns the /data mount points, and nothing under /app.
+# /data IS THE APPLIANCE'S: copied as uid 10001's, the config and the empty
+# mount point the build stage made, and nothing else.
 #
-# `/data/state` MUST exist here, empty, before the chown — even though compose
+# `/data/state` MUST exist here, empty and the appliance's — even though compose
 # mounts a named volume over it. Docker seeds a fresh named volume from the
 # image path it covers, INCLUDING that directory's ownership; if the path does
 # not exist in the image, Docker creates the mount point as root and the volume
-# comes up root-owned. `appuser` (uid 10001) then cannot write to it.
+# comes up root-owned. uid 10001 then cannot write to it.
 #
 # That was latent for as long as nothing wrote there: on the Postgres path the
 # database lives in the `postgres` container's own `pgdata` volume, so `appdata`
 # was declared, mounted, root-owned and unused. PGlite is the first thing to
 # actually put a file in it, and it failed on the first boot of the e2e stack
 # with `EACCES: permission denied, mkdir '/data/state/pglite'`.
-RUN useradd --system --uid 10001 --home-dir /app appuser \
-  && mkdir -p /data/config /data/state \
-  && cp -r /app/config/* /data/config/ \
-  && chown -R appuser:appuser /data
-USER appuser
+COPY --from=build --chown=10001:10001 /data /data
+# By number, so nothing resolves it from a passwd file (there is none for it).
+USER 10001:10001
 EXPOSE 8080
 # DATABASE_URL and any tokenFromEnv/passwordFromEnv secrets come from the
 # compose env-file. The status server answers /healthz once migrations applied.
 #
-# EXEC FORM: Docker runs `node` itself, with no `/bin/sh -c` around it. The
-# probe needs no shell (Node reads PORT from its own environment, so nothing
-# here is for a shell to expand), and an image without one, as the API's
-# distroless runtime is, could not run the shell form at all.
-# `deploy/selfhost/compose.yml` sets a healthcheck of its own for the `app`
-# service, which takes the place of this one under compose; this one is what a
-# plain `docker run` of the image gets.
+# EXEC FORM, on /nodejs/bin/node by its path: Docker runs Node itself, with no
+# `/bin/sh -c` around it, which this image has not got. The probe needs no
+# shell (Node reads PORT from its own environment, so nothing here is for a
+# shell to expand). `deploy/selfhost/compose.yml` sets a healthcheck of its own
+# for the `app` service, which takes the place of this one under compose; this
+# one is what a plain `docker run` of the image gets.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
-  CMD ["node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+  CMD ["/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
 WORKDIR /app
-CMD ["node", "start.mjs"]
+ENTRYPOINT ["/nodejs/bin/node"]
+CMD ["start.mjs"]

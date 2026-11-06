@@ -495,42 +495,45 @@ jobs:
           # above.
           docker compose $SELFHOST_COMPOSE_FILES ps --format 'table {{.Name}}\t{{.Image}}\t{{.Service}}\t{{.RunningFor}}\t{{.Status}}'
 
-      # THE APPLIANCE CARRIES NONE OF THE DEBIAN ESSENTIALS IT PURGES (workplan
-      # 0119; the owner's decision of 2026-11-03). apps/selfhost/Dockerfile's
-      # runtime stage purges util-linux, the eight other packages built from its
-      # source and libsqlite3-0, and the build stops when dpkg refuses. Asked
-      # here of the container this run built and started, all ten, with dpkg's
-      # own query and no shell: a package the image kept, or got back, stops
-      # the gate by name, and so does an answer this cannot read.
-      # scripts/an-essential-nothing-runs.unit.test.ts runs this step.
-      - name: The appliance carries none of the Debian Essentials it purges
+      # THE APPLIANCE HAS NOTHING TO EXEC BUT NODE, AND RUNS THE NODE ITS
+      # DOCKERFILE NAMES (workplan 0119 §3 item 12; the owner's decision of
+      # 2026-11-03, for alpha.5). apps/selfhost/Dockerfile's runtime stage is
+      # distroless since 2026-11-06: no shell, no dpkg or apt, no package
+      # manager and none of the Debian Essentials alpha.4 purged (§3 item 11),
+      # which this step asked dpkg-query about until there was no dpkg-query
+      # to ask. Asked here of the container this run built and started, with
+      # the image's own Node by its path and no shell: a program the image
+      # has, or got back, stops the gate by name, and so does a Node other than
+      # the `FROM node:` line's x.y.z, which the Windows payload's node.exe
+      # ships (scripts/package-appliance.mjs), and an answer this cannot read.
+      # scripts/an-appliance-with-nothing-to-exec.unit.test.ts runs this step.
+      - name: The appliance has no shell or package manager, and the Node its Dockerfile names
         run: |
-          essentials="util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0"
-          # shellcheck disable=SC2086 # the ten names, one word each
-          said="$(docker compose $SELFHOST_COMPOSE_FILES exec -T app dpkg-query -W -f '${Package} ${Status}\n' $essentials 2>&1)" && rc=0 || rc=$?
-          kept="" odd="" seen=" "
+          want=""
           while IFS= read -r line; do
-            [ -n "$line" ] || continue
-            if [[ $line =~ ^dpkg-query:\ no\ packages\ found\ matching\ ([a-z0-9.+-]+)$ ]]; then
-              seen="${seen}${BASH_REMATCH[1]} "
-            elif [[ $line =~ ^([a-z0-9.+-]+)\ [a-z]+\ [a-z]+\ ([a-z-]+)$ ]]; then
-              seen="${seen}${BASH_REMATCH[1]} "
-              [ "${BASH_REMATCH[2]}" = not-installed ] || kept="${kept}${kept:+, }${BASH_REMATCH[1]} (${BASH_REMATCH[2]})"
-            else
-              odd="${odd}${odd:+ | }${line}"
+            if [[ $line =~ ^FROM[[:space:]]+node:([0-9]+\.[0-9]+\.[0-9]+)- ]]; then
+              want="v${BASH_REMATCH[1]}"
+              break
             fi
-          done <<<"$said"
-          for p in $essentials; do
-            case "$seen" in *" $p "*) ;; *) odd="${odd}${odd:+ | }no answer for ${p}" ;; esac
-          done
-          if [ "$rc" -gt 1 ] || [ -n "$odd" ]; then
-            echo "::error::dpkg-query could not be asked in the appliance (exit ${rc}): ${odd:-$said}"
-            exit 1
-          elif [ -n "$kept" ]; then
-            echo "::error::the appliance's dpkg database still has ${kept}, which apps/selfhost/Dockerfile purges"
+          done <apps/selfhost/Dockerfile
+          [ -n "$want" ] || { echo "::error::apps/selfhost/Dockerfile has no FROM node:<x.y.z>- line to hold the appliance's Node to"; exit 1; }
+          # The image's Node, its version, then every path of these it finds ("-" for none).
+          probe='const fs=require("node:fs");const there=["/bin/sh","/bin/bash","/bin/dash","/usr/bin/dpkg","/usr/bin/dpkg-query","/usr/bin/apt","/usr/bin/apt-get","/usr/local/bin/npm","/usr/local/bin/npx","/usr/local/bin/corepack","/usr/local/lib/node_modules","/bin/su","/bin/login","/bin/mount","/usr/local/bin/node"].filter(p=>{try{fs.lstatSync(p);return true}catch(e){if(e.code==="ENOENT"||e.code==="ENOTDIR")return false;throw e}});console.log(process.version+" "+(there.join(",")||"-"))'
+          # shellcheck disable=SC2086 # the compose flags, split on purpose
+          said="$(docker compose $SELFHOST_COMPOSE_FILES exec -T app /nodejs/bin/node -e "$probe" 2>&1)" && rc=0 || rc=$?
+          if [ "$rc" -ne 0 ] || ! [[ $said =~ ^(v[0-9]+\.[0-9]+\.[0-9]+)\ (-|/[^\ ]+)$ ]]; then
+            echo "::error::the appliance's /nodejs/bin/node could not be asked (exit ${rc}): ${said}"
             exit 1
           fi
-          echo "the appliance carries none of the ten (${essentials})"
+          version="${BASH_REMATCH[1]}" there="${BASH_REMATCH[2]}"
+          if [ "$there" != "-" ]; then
+            echo "::error::the appliance has ${there//,/, }, which its distroless runtime (apps/selfhost/Dockerfile) has not"
+            exit 1
+          elif [ "$version" != "$want" ]; then
+            echo "::error::the appliance runs Node ${version}; apps/selfhost/Dockerfile's FROM node: line, which the Windows payload's node.exe follows, names ${want}"
+            exit 1
+          fi
+          echo "the appliance has no shell, dpkg, apt or package manager, and runs Node ${version}, its Dockerfile's"
 
       - name: Green-light the mapping (0013 T7 — mappings load paused until confirmed)
         run: |

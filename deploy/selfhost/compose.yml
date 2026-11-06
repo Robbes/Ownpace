@@ -86,8 +86,8 @@ services:
     container_name: ownpace-selfhost-app
     restart: unless-stopped
     logging: *logging
-    # HOW IT RUNS (2026-11-03, workplan 0119): the image's appuser from its
-    # first process, running node and nothing else, so no capability, and
+    # HOW IT RUNS (2026-11-03, workplan 0119): the image's user, uid 10001, from
+    # its first process, running node and nothing else, so no capability, and
     # no-new-privileges. scripts/a-privilege-no-service-uses.unit.test.ts.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
@@ -120,8 +120,16 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    # EXEC FORM, ON THE IMAGE'S NODE BY ITS PATH (2026-11-06, workplan 0119 §3
+    # item 12): the image is distroless from 0.2.0-alpha.5 on, with no
+    # /bin/sh to run a CMD-SHELL test and no `node` on its PATH. Compose fills
+    # in ${SELFHOST_PORT} itself, so no shell is needed for that either. This
+    # file and the image go together: a compose.yml from before this change
+    # reports `app` unhealthy on the new image while it serves (CMD-SHELL
+    # cannot start), and this test fails on an image from before it, which
+    # has Node at /usr/local/bin/node. The quickstart's *Upgrades* moves both.
     healthcheck:
-      test: ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:${SELFHOST_PORT:-8081}/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))\""]
+      test: ["CMD", "/nodejs/bin/node", "-e", "fetch('http://127.0.0.1:${SELFHOST_PORT:-8081}/healthz').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       start_period: 40s

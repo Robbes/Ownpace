@@ -4,11 +4,11 @@
  * AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan
  * 0119; the owner's decision of 2026-11-03, for alpha.4).
  *
- * Two images run our code on the Node image's Debian: the appliance
- * (`apps/selfhost/Dockerfile`'s runtime stage) and the managed tasks (the
- * runtime base `apps/worker/trigger.config.ts` builds them on, the API's Node
- * image with one layer). With npm gone, Trivy 0.76.1 read 0 critical and 44
- * high in both on 2026-11-03, none with a Debian fix. 36 were four util-linux
+ * Two images ran our code on the Node image's Debian: the appliance
+ * (`apps/selfhost/Dockerfile`'s runtime stage, until 2026-11-06) and the
+ * managed tasks (the runtime base `apps/worker/trigger.config.ts` builds them
+ * on, the API's Node image with one layer). With npm gone, Trivy 0.76.1 read 0
+ * critical and 44 high in both on 2026-11-03, none with a Debian fix. 36 were four util-linux
  * CVEs in each of the nine binary packages its source builds (util-linux,
  * mount, login, bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1,
  * liblastlog2-2), and one was libsqlite3-0's. Nothing in either image runs any
@@ -19,12 +19,18 @@
  * left are libacl1, libsystemd0, libudev1, libtinfo6, ncurses-base, ncurses-bin
  * and perl-base.
  *
+ * Since 2026-11-06 the appliance's runtime is distroless (0119 §3 item 12),
+ * which has none of the ten and no dpkg to purge them with, so the purge is the
+ * tasks' alone. This file held the two lists to each other until then; the
+ * tasks' list now stands on its own, against the ten named here, and
+ * `an-appliance-with-nothing-to-exec` holds the appliance (and runs the E2E
+ * step that asks it).
+ *
  * An Essential package is one Debian assumes is there, so the purge is held
  * to the shape that fails loudly, and this file holds it:
  *
- * 1. ONE LIST, the same ten in the same order in both files, and exactly the
- *    ten this file names: a package added or dropped is a decision, read
- *    against a scan, not an edit.
+ * 1. ONE LIST, exactly the ten this file names, in this order: a package
+ *    added or dropped is a decision, read against a scan, not an edit.
  * 2. ONE SHAPE: `dpkg-query -W <list>` first, which stops the build when the
  *    base no longer has one of them (a renamed library is a list to read
  *    again, not a name dpkg skips with a warning); then `dpkg --purge` with
@@ -32,10 +38,9 @@
  *    so dpkg still refuses to remove what something installed depends on and
  *    the build stops (`--force-depends` would leave that package broken); then
  *    `apt-get check`.
- * 3. THE APPLIANCE: one RUN in the runtime stage, as root (before USER), and
- *    nothing after it in that stage installs a package. That Dockerfile is the
- *    whole image, so this is its check; E2E (self-hosted) asks the appliance
- *    it built as well (5).
+ * 3. THE APPLIANCE purges nothing: its runtime stage is distroless, with no
+ *    dpkg and none of the ten (until 2026-11-06, one RUN in its runtime stage,
+ *    as root, in the shape above).
  * 4. THE TASKS: the layer's purge runs where there is no C++ compiler, as its
  *    package-manager removal does: the CLI replays the layer on its `-build`
  *    image, whose Python links libuuid and libsqlite3, and dpkg would refuse
@@ -52,14 +57,14 @@
  * 5. WHAT RAN, ASKED: the managed smoke asks the newest image its runners
  *    started from (the last deploy's: Trigger.dev keeps a run on the version
  *    it was triggered on, so an earlier deployment's runner can be on the
- *    network too, and its image is named, not asked), and E2E (self-hosted)
- *    the appliance it started, about all ten, with dpkg's own query. Each
- *    block runs here against a stand-in docker: absent (or dpkg's record of a
- *    purged package, as `login` keeps one) passes; installed, config files
- *    left, a package not answered for, an answer it cannot read, and a probe
- *    that could not be asked fail; and the smoke fails when no image was read
- *    or one cannot be dated. The watcher starts a runner's log first and reads
- *    its image on every pass until a read answers.
+ *    network too, and its image is named, not asked) about all ten, with
+ *    dpkg's own query. The block runs here against a stand-in docker: absent
+ *    (or dpkg's record of a purged package, as `login` keeps one) passes;
+ *    installed, config files left, a package not answered for, an answer it
+ *    cannot read, and a probe that could not be asked fail; and the smoke
+ *    fails when no image was read or one cannot be dated. The watcher starts a
+ *    runner's log first and reads its image on every pass until a read
+ *    answers.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -68,7 +73,6 @@ import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileS
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { parse as parseYaml } from 'yaml';
 import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
 import { taskBaseStage } from './image-scan.mjs';
 import taskConfig from '../apps/worker/trigger.config.ts';
@@ -92,7 +96,6 @@ const ESSENTIALS = [
 
 const APPLIANCE = 'apps/selfhost/Dockerfile';
 const SMOKE = 'deploy/compose/smoke-managed.sh';
-const E2E = '.github/workflows/e2e.yml';
 const WORKER_DIR = join(ROOT, 'apps/worker');
 
 /** A package name, as dpkg spells one. */
@@ -134,7 +137,7 @@ function expectTheShape(where: string, purge: Purge | null): void {
 }
 
 type Instruction = { op: string; args: string };
-type Stage = { name: string; body: Instruction[] };
+type Stage = { name: string; base: string; body: Instruction[] };
 
 /** A Dockerfile's stages and instructions: comments dropped, continued lines joined, as Docker reads them. */
 function stagesOf(text: string): Stage[] {
@@ -153,7 +156,7 @@ function stagesOf(text: string): Stage[] {
     if (op === 'FROM') {
       const words = args.split(/\s+/).filter((w) => !w.startsWith('--'));
       const as = words.findIndex((w) => w.toUpperCase() === 'AS');
-      out.push({ name: as >= 0 ? words[as + 1]! : String(out.length), body: [] });
+      out.push({ name: as >= 0 ? words[as + 1]! : String(out.length), base: words[0]!, body: [] });
       continue;
     }
     out.at(-1)?.body.push({ op, args });
@@ -161,30 +164,26 @@ function stagesOf(text: string): Stage[] {
   return out;
 }
 
-/** A command that installs a package, with apt or dpkg. */
-const INSTALLS = /\b(?:apt-get|apt|aptitude)\s+(?:-\S+\s+)*(?:install|reinstall|upgrade|dist-upgrade|full-upgrade)\b|\bdpkg\s+(?:-\S+\s+)*(?:-i|--install|--unpack)\b/;
+/** The distroless Node image, at its `nonroot` tag by digest (apps/api/Dockerfile's runtime). */
+const DISTROLESS = /^gcr\.io\/distroless\/nodejs\d+-debian\d+:nonroot@sha256:[0-9a-f]{64}$/;
 
-describe('the appliance purges the ten in its runtime stage, and nothing puts one back', () => {
+describe('the appliance purges nothing: its runtime is distroless, with no dpkg and none of the ten', () => {
   const stages = stagesOf(read(APPLIANCE));
   const runtime = stages.at(-1)!;
-  const purges = runtime.body.filter((i) => i.op === 'RUN' && /\bdpkg --purge\b/.test(i.args));
-  const at = runtime.body.findIndex((i) => i.op === 'RUN' && /\bdpkg --purge\b/.test(i.args));
-  const user = runtime.body.findIndex((i) => i.op === 'USER');
 
-  it('one RUN of the runtime stage purges, in that shape, before USER', () => {
+  it("its runtime stage is distroless, and no stage of it purges (an-appliance-with-nothing-to-exec holds the rest)", () => {
+    // Until 2026-11-06 the runtime stage ran on the Node image and purged the
+    // ten in one RUN, in the shape the tasks' layer still has. On distroless
+    // there is nothing to purge and no dpkg to do it with.
     expect(runtime.name).toBe('runtime');
-    expect(purges.map((i) => i.args), 'RUNs in the runtime stage that purge').toHaveLength(1);
-    expectTheShape(APPLIANCE, purgeOf(purges[0]!.args));
-    // As root, who owns dpkg's database; and before the user the app runs as.
-    expect(user, 'no USER in the runtime stage').toBeGreaterThan(at);
-  });
-
-  it('no instruction after it installs a package', () => {
-    for (const i of runtime.body.slice(at + 1)) {
-      if (i.op === 'RUN') expect(i.args, `${i.op} ${i.args}`).not.toMatch(INSTALLS);
+    expect(runtime.base, `${APPLIANCE}: the runtime stage builds FROM ${runtime.base}`).toMatch(DISTROLESS);
+    for (const stage of stages) {
+      for (const i of stage.body.filter((x) => x.op === 'RUN')) expect(i.args, `${stage.name}: RUN ${i.args}`).not.toMatch(/\bdpkg --purge\b/);
     }
   });
+});
 
+describe('the purge has one shape', () => {
   it('refuses the shapes that slip', () => {
     const list = ESSENTIALS.join(' ');
     const good = `dpkg-query -W ${list} >/dev/null && dpkg --purge --force-remove-essential --force-remove-protected ${list} && apt-get check`;
@@ -202,10 +201,6 @@ describe('the appliance purges the ten in its runtime stage, and nothing puts on
     ]) {
       expect(fits(bad), bad).toBe(false);
     }
-    expect('RUN apt-get install -y util-linux').toMatch(INSTALLS);
-    expect('RUN apt-get -y --no-install-recommends install login').toMatch(INSTALLS);
-    expect('RUN dpkg -i /tmp/util-linux.deb').toMatch(INSTALLS);
-    expect('RUN apt-get check').not.toMatch(INSTALLS);
   });
 });
 
@@ -224,7 +219,7 @@ async function deploy(): Promise<{ instructions: string[]; image: Record<string,
   return { instructions, image: { ...(manifest.image as Record<string, unknown>), instructions, pkgs: [] } };
 }
 
-describe("the tasks' runtime base purges the same ten, last of the layer, where there is no C++ compiler", () => {
+describe("the tasks' runtime base purges the ten, last of the layer, where there is no C++ compiler", () => {
   it("one instruction of the deploy's layer purges, in that shape, behind the package-manager removal's guard", async () => {
     const { instructions } = await deploy();
     const purges = instructions.filter((i) => /\bdpkg --purge\b/.test(i));
@@ -370,9 +365,6 @@ const FAILING = [
 /** The ten a block asks about, from its `essentials="…"`. */
 const askedIn = (text: string) => /^\s*essentials="([^"]+)"$/m.exec(text)?.[1]?.split(' ');
 
-/** The query, as the stand-in records it. */
-const QUERY = `dpkg-query -W -f \${Package} \${Status}\\n ${ESSENTIALS.join(' ')}`;
-
 describe('the managed smoke asks the image the last deploy built', () => {
   const smoke = read(SMOKE);
   const banner = "# ---------- the tasks' image carries none of the Debian Essentials it purges ----------";
@@ -482,54 +474,5 @@ describe('the managed smoke asks the image the last deploy built', () => {
     const none = verdict([], ANSWERS.absent);
     expect(none.fail, none.out).toBe('1');
     expect(none.calls).toEqual([]);
-  });
-});
-
-describe('E2E (self-hosted) asks the appliance it started', () => {
-  type Step = { name?: string; run?: string };
-  const workflow = parseYaml(read(E2E)) as { jobs: Record<string, { steps?: Step[] }> };
-  const steps = Object.values(workflow.jobs).flatMap((job) => job.steps ?? []);
-  const name = 'The appliance carries none of the Debian Essentials it purges';
-  const at = steps.findIndex((s) => s.name === name);
-  const step = steps[at];
-
-  it('right after it builds and starts the appliance, about the ten', () => {
-    expect(step?.run, `${E2E} has no step "${name}"`).toBeDefined();
-    expect(steps[at - 1]?.name).toBe('Build + start the self-host appliance');
-    expect(askedIn(step!.run!)).toEqual(ESSENTIALS);
-  });
-
-  /** The step's script under `bash -e`, as the runner runs it; its exit code and docker's calls. */
-  function outcome(answer: { RC: string; SAYS: string }): { status: number | null; calls: string; out: string } {
-    const dir = mkdtempSync(join(tmpdir(), 'essentials-e2e-'));
-    try {
-      writeFileSync(join(dir, 'calls'), '');
-      const run = bash(`set -e\n${STUB}\n${step!.run!}`, {
-        SELFHOST_COMPOSE_FILES: '-f deploy/selfhost/compose.yml',
-        CALLS: join(dir, 'calls'),
-        CREATED: '',
-        ...answer,
-      });
-      return { status: run.status, calls: readFileSync(join(dir, 'calls'), 'utf8'), out: run.out };
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }
-
-  it('passes what dpkg reads as absent, asking the app service', () => {
-    for (const answer of PASSING) {
-      const run = outcome(answer);
-      expect(run.status, `${answer.SAYS}\n${run.out}`).toBe(0);
-      expect(run.calls.trim()).toBe(`compose -f deploy/selfhost/compose.yml exec -T app ${QUERY}`);
-    }
-  });
-
-  it('fails anything else it says, by name', () => {
-    for (const answer of FAILING) {
-      const run = outcome(answer);
-      expect(run.status, `${answer.RC}: ${answer.SAYS}\n${run.out}`).toBe(1);
-      expect(run.out).toContain('::error::');
-    }
-    expect(outcome(ANSWERS.oneInstalled).out).toContain('libsqlite3-0 (installed)');
   });
 });
