@@ -27,6 +27,6 @@
     "drizzle-orm": "catalog:",
     "imapflow": "^2.10.0",
     "trigger.dev": "4.8.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.1.0"
   }
 }
