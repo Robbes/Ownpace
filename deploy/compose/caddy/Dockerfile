@@ -48,8 +48,10 @@
 # v4 v4.1.5 and v3 v3.0.5 (CVE-2026-116587 in each). v2.11.8's binary, read
 # with `go version -m` on both platforms, is built with Go 1.27.3 and on
 # golang.org/x/net v0.60.0, which carry the first five's fixes; go-jose stays
-# at v4.1.5 (fixed in 4.1.6) and v3.0.5 (no fix), so two highs remain, one
-# fixable, until a Caddy release moves go-jose.
+# at v4.1.5 (fixed in 4.1.6) and v3.0.5 (no fix). The image scan reads this
+# build at 0 critical and 2 high, 1 of them fixable, both go-jose (Security
+# Scan run 42143936608, linux/arm64, 2026-11-06), until a Caddy release moves
+# go-jose.
 #
 # THE NAME. managed.yml builds this as `localhost/caddy:<base tag>-<12 hex>`,
 # a name no registry serves, with `pull_policy: never`, as
