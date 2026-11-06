@@ -42,8 +42,9 @@ import { defineConfig } from '@trigger.dev/sdk';
  * either. On `node:24.22.1-trixie-slim@sha256:43b9ba11…` (Debian 13.7, where
  * #1708 puts that line), the runtime stage read 0 critical and 43 high, none
  * with a fix (the same scan; 0146 T14 has the figures). The line is
- * `node:26.13.0-trixie-slim@sha256:e4db4c91…` since 2026-10-31 (Debian 13.7,
- * Node 26 LTS; workplan 0119 §2.4).
+ * `node:26.13.0-trixie-slim@sha256:5adad64f…` (Debian 13.7, Node 26 LTS;
+ * workplan 0119 §2.4): the tag since 2026-10-31, this digest, Debian's rebuild
+ * with apt 3.0.4, since 2026-11-06.
  *
  * Since workplan 0146 T13 that line is the API's BUILD stage: the API runs on
  * distroless, with a Node of its own pinned by a digest that moves apart from
