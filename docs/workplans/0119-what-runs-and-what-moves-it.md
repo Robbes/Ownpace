@@ -4,6 +4,99 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06: effect 3.17.1 is 3.22.4 in the Trigger.dev webapp's image, a fifth row of the
+swap table; effect 3.16.12 and 3.18.4 and body-parser 2.3.0 were read and not taken. Built on
+a branch stacked on the purge's (#1823), not merged.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-effect-body-parser`, from `078101bc`. Read and
+built from 12:00 UTC, committed at 12:50 UTC.
+- **Why.** Security Scan run 42213975717 (Trivy 0.76.1, linux/arm64, 11:58 UTC), of the purged
+  image, read 1 critical, 24 high and 14 with a fix. Among the 14: CVE-2026-32887 (high, fixed in
+  3.20.0) in effect 3.16.12, 3.17.1 and 3.18.4, and CVE-2026-111181 (high, fixed in 2.4.0) in
+  body-parser 2.3.0. npm's advisory for effect is GHSA-38f7-945m-qr2g (below 3.20.0); npm lists
+  none against 3.20.0, 3.21.2 or 3.22.4, nor against body-parser 2.4.0.
+- **Read in upstream's `pnpm-lock.yaml` at v4.8.3** (shallow clone, `645cc47d`):
+  - effect 3.16.12 is `@prisma/config` 6.14.0's (prisma 6.14.0's), and 3.18.4 is
+    `@prisma/config` 6.19.0's (`@trigger.dev/build`'s, `^6.10.0`). npm's manifests of both pin
+    effect exactly (`"3.16.12"`, `"3.18.4"`), so neither copy is replaced.
+  - effect 3.17.1 has one requirer: the workspace package `packages/schema-to-json` (`"^3"`).
+    Its link is that package's own `node_modules/effect`, not a directory of the store. The
+    webapp's own effect is 3.21.2 (`^3.21.2`), already fixed. No other workspace package
+    depends by name on effect, undici, follow-redirects, body-parser or systeminformation.
+  - body-parser 2.3.0 is express 5.2.1's (`^2.2.1`, under `@modelcontextprotocol/sdk` 1.32.1).
+    2.4.0 raises three ranges. What pnpm linked for 2.3.0 meets two: content-type 2.1.0 meets
+    `^2.1.0`, and qs 6.16.1 meets `^6.16.1`. iconv-lite 0.7.2, the lockfile's only 0.7, does not
+    meet `^0.7.3`, so body-parser is **not taken**.
+- **Why nothing here loads effect 3.17.1.** `@trigger.dev/schema-to-json` exports only `dist/`.
+  `.dockerignore` leaves out every `dist`, and the runner stage copies the `dist` of the two
+  databases, trigger-sdk and core alone. Its one importer is the CLI's two index workers, which
+  run where a task is indexed, never in the webapp. Its one call is `JSONSchema.make(schema)`,
+  which 3.22.4 keeps. The webapp's own import (`updateMetadata.server.ts`) is external to Vite's
+  SSR build, and an import walk of `otlpTransformWorker.ts`, the one bundle (241 files), reaches
+  no effect. The mark, `effect_internal_function`, is in effect's `Utils` in every release read
+  and in no file of upstream's source.
+- **3.22.4, not 3.20.0.** 3.22.4 is npm's newest 3.x (tag `prev`; `latest` is 4.x), published
+  2026-10-22 20:49 UTC, and the newest of its line, as the other four rows are. npm lists nothing
+  against either, and nothing here loads the copy. It declares 3.17.1's ranges,
+  `@standard-schema/spec ^1.0.0` and `fast-check ^3.23.1`, which the 1.0.0 and 3.23.2 pnpm linked
+  for 3.17.1 meet. Between the two tarballs:
+  - main, module, types and sideEffects are the same, and neither has a `type` field;
+  - the exports gain `./Graph`, `./HashRing` and `./PartitionedSemaphore` and keep the other 176;
+  - 31 files are added and none removed.
+
+  Both tarballs match npm's published sha512 (3.22.4:
+  `sha512-RNshu7AXVxxDh6aS4lothhJ+QoZ4xSykbWNaaVdvDN72RMyVwhCGdALkyl1TbEydgAmRIdD1eTyJqBUGwSBGDA==`).
+  `tree()` is `3fdbdbcf…` for 3.17.1 and `b7d6b7cb…` for 3.22.4.
+- **The change.** `deploy/compose/trigger.dev/Dockerfile`'s swap table gets effect's row. Its
+  `who` now also walks the workspace (every directory under the one that holds
+  `node_modules/.pnpm`, a `node_modules` aside) for a package that links the package from its
+  own `node_modules`, named by its `package.json`. The supervisor's RUN gets the same `who`, so
+  the two RUNs stay one. The header's sections are *WHAT IS REPLACED: FIVE PACKAGES* and *HOW
+  THE FIVE ARE SWAPPED*, with a new *A PACKAGE OF THE WORKSPACE LINKS FROM ITS OWN
+  NODE_MODULES*. Both names in `managed.yml` move with their files:
+  `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-a4bb254ab965` (was `-d2e075e39cc7`) and
+  `localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-9fa6db37008b` (was `-92025e84edc4`). The
+  supervisor's changes because its `fail()` names the renamed section and its `who` is the
+  webapp's.
+- **Run for real.** A workspace with schema-to-json's, the webapp's and `@trigger.dev/build`'s
+  effect, installed by pnpm 10.33.2 on Node 24.22.1 (from nodejs.org, by its SHASUMS256), and
+  the RUN's effect row over it, with the real tarball from the registry. pnpm's 3.17.1
+  directory is the tarball's `tree()`, file for file. With `who` reading the store alone it
+  stopped with *"effect 3.17.1 is linked from: nothing"*. With the workspace read too it
+  swapped in 3 s, and `require('effect')` from `packages/schema-to-json` loaded 3.22.4 from the
+  swapped directory. Both dependencies loaded from it, and 3.16.12, 3.18.4 and 3.21.2 stayed as
+  they were.
+- **Found on the way.** The first replica hard-linked from a store on the same file system, and
+  the state proof refused the swap. 2499 of 3.17.1's 2691 file contents are 3.16.12's, and
+  removing the directory changed the ctime of the inodes they shared. Upstream installs from a
+  BuildKit cache mount, so pnpm copies. CI's build of the four already proved the image shares
+  no inode across packages: undici 6.29.0 shares 45 contents with 5.29.0, and its swap changed
+  nothing outside. The replica that ran was installed by copying, and the header says so.
+- **Guards.** `a-binary-the-stack-never-runs`: effect's REPLACED row (taken 2026-11-06, past its
+  floor), the workspace's requirers by directory, a stand-in effect with its two dependencies
+  linked, and the three copies that stay, each linked from its requirer. `tableProblems`
+  requires the walk in both images. Over the stand-in, these each fail by name, with nothing
+  changed:
+  - the workspace's link gone, at another version, or without a `package.json`;
+  - a second workspace package, or a store package, linking 3.17.1;
+  - a client bundle carrying the mark;
+  - the last row's tarball gone.
+
+  After the swap, an entry the workspace's requirer cannot load, or a dependency not linked,
+  fails it. Six Dockerfile mutations each turned it red, and each was restored to its SHA-256:
+  - the walk dropped from the webapp's `who`, or from the supervisor's;
+  - the walk let into `node_modules`;
+  - effect's row dropped;
+  - its requirer at 4.8.4;
+  - its mark changed to `from "effect"`, which the stand-in webapp's own server import hits.
+
+  All 143 unit test files that read a changed file pass (4559 tests), the guard's own 70 among
+  them. eslint on the guard and `pnpm typecheck` are clean, and the four index checks pass.
+- **Not verified here.** The image itself: ghcr's blob host is refused to this session, so the
+  build was not run. The PR's `build (trigger, amd64)` and `build (trigger, arm64)` run the
+  RUN on the real image, where a wrong reading stops it by name. Not verified either: the
+  branch's image scan, for about 1, 23 and 13 (arithmetic: one high and one fixable less), and
+  E2E (managed).
+
 **2026-11-06: the Debian packages nothing runs, purged from the Trigger.dev webapp's image
 too, for alpha.5 (§3 item 11, extended: a proposal pending the owner's confirmation in
 review); built on a branch, not merged. CI's first build stopped at dpkg's refusal
