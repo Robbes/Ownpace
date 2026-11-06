@@ -47,6 +47,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   advisory. Nothing a stack sets changes; the next bring-up pulls it, and the data volume
   carries over.
 
+- **The identity provider moves to Zitadel v4.20.1** (workplan 0135 T7): a patch with no
+  advisory and no setup step, so the database's schema stays where v4.20.0 left it and the way
+  back is v4.20.0. Its fixes are in parts this stack does not run (the separate login app, the
+  OTEL log export, debug logging), and in session creation, whose lookup by login name no longer
+  brings the user projections up to date first. Signing in is unchanged: the stack serves
+  Zitadel's own login, whose code did not move.
+
 ### Added
 
 - **The weekly pin watch reports a newer patch of the second Nextcloud major** (workplan 0119

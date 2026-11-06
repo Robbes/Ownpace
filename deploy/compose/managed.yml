@@ -1270,7 +1270,29 @@ services:
     # The OTA instance's `zitadel` database was dumped first by the owner, on
     # v4.19.5, with deploy/compose/dump-idp.sh (2026-10-25 06:06 UTC); E2E
     # (managed) #277 applied it.
-    image: ghcr.io/zitadel/zitadel:v4.20.0
+    #
+    # v4.20.1 (2026-11-03), from the weekly pin watch. Ten commits after
+    # v4.20.0 on upstream's v4.x branch, no Zitadel advisory. Seven are login
+    # v2's (apps/login: e-mail addresses compared without case, the sessions
+    # cookie kept under the browser's limit, the i18n merge) or docs and
+    # dependency bumps; login v2 does not run here, and the console's own
+    # runtime dependencies move by a patch (Angular 21.2.25, moment 2.31.0).
+    # Three are in the server: session creation's user lookup by login name,
+    # in the session API v2 and v2beta and in SAML, no longer brings the user
+    # projections up to date first (709968c). The smoke's sign_in_as creates
+    # a session that way, for a person it has just created; the projection
+    # handlers subscribe to the events they fold and run on each push, so that
+    # person is normally projected by then, and E2E (managed) is the check.
+    # The queue log skips nil insert results (c9af97c) and the OTEL log
+    # export takes the log level and masking (64b3915); neither runs here,
+    # with no debug level and no OTEL log exporter set. No setup step:
+    # cmd/, internal/query, internal/repository, go.mod and go.sum are
+    # unchanged (still toolchain go1.26.10), so the schema stays at v4.19.4's
+    # step 80 and the way back is the v4.20.0 tag. cmd/defaults.yaml, the
+    # admin API, cmd/ready and login v1's UI are unchanged, so the three
+    # facts above, the service ping's default, the lockout and the privacy
+    # policy's fields hold at v4.20.1.
+    image: ghcr.io/zitadel/zitadel:v4.20.1
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging
