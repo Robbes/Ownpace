@@ -39,6 +39,16 @@ update && apt-get -y upgrade` on the deploying machine with the base's own apt, 
   are past it. Until then they run only in CI and on the E2E and OTA test stacks, which run each
   branch's images anyway. E2E (self-hosted) and E2E (managed) run on the branch first, and it
   merges on green.
+- **Proved on the branch.** CI was green on `85c3ac00` (30 checks). E2E (self-hosted) run
+  42216924548, on Postgres, dispatched on `85c3ac00`, was green from 12:30 to 12:35 UTC. E2E
+  (managed) run 42221869184, dispatched on `85c3ac00`, was green from 13:18 to 13:26 UTC on the
+  OTA stack: the bring-up pulled `redis:7.4.12-bookworm@sha256:2e3eb114…` and recreated
+  `trigger-redis`, healthy about ten seconds after it started; the API and the web were built
+  `FROM node:26.13.0-trixie-slim@sha256:5adad64f…`, and the task deploy built the tasks' image on
+  the same line; the smoke's verdict was *verify: done apply: applied*, and its last listing shows
+  `trigger-redis` on the new digest. The branch has since merged `main` up to `18bc3133` (#1815
+  and #1821, each green on E2E (managed) on its own branch); the 148 unit-test files that read the
+  changed files pass on the merge (4630 tests).
 
 **2026-11-06: the dashboard's TLS front on Caddy 2.11.8, built here without curl, as a draft.**
 On branch `claude/ownpace-public-readiness-y7orc6-caddy-2-11-8`. Caddy tagged v2.11.8
