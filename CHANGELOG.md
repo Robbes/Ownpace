@@ -18,6 +18,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The Alpha's build is opened on a phone too** (workplan 0145 T8 (a)): the bundle live
   serves, with the Alpha note above Migrations and the line about connecting Google above the
   Google card of *Start a migration* and above a grant page's button, in Dutch at 390 pixels.
+- **A prebuilt base for the managed tasks, published from `main`** (workplan 0119 §3 item 13):
+  `ghcr.io/robbes/ownpace-task-base`, distroless at the API image's digest with dumb-init, the
+  CA bundle carrying Trigger.dev's trust edits and a `node` user, so the deploy CLI has nothing
+  to build into it. `images.yml` builds it and starts it on a pull request, and on `main`
+  publishes it for amd64 and arm64 as `edge` and `sha-<commit>`, signed by digest like the
+  other images; no release tag builds one. The tasks do not run on it yet: they move to it by
+  digest in a later change, after the first publish.
 
 ### Fixed
 
