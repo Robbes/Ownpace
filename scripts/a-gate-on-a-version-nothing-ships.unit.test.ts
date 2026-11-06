@@ -138,40 +138,37 @@
  * (`…@sha256:3cdc8242…`), which is when upstream chose to.
  *
  * From #1689 the deploy config copied the Node binary out of the very image
- * `apps/api/Dockerfile` builds FROM over the base image's. Since workplan
- * 0146 T14 it builds the tasks on that image itself: for every target but
- * `trigger dev`, its extension sets the build manifest's `image.base` to the
- * FROM line's image, so the tasks run that image's own Node and Debian, and
- * Dependabot's move of the line is the only way either moves. (Since 0146
- * T13 that FROM line is the API's BUILD stage: the API runs on distroless,
- * whose `/nodejs/bin/node` was the same file, byte for byte, on both
- * architectures when T13 pinned it. The two pins move separately, the Node
- * tag and the distroless digest, on the one major the next block holds, and
- * the managed smoke's preflights stop when the API container's Node is not
- * this line's x.y.z: `an-api-image-with-nothing-to-exec`, section 5.) On a
- * base of its own the CLI adds nothing to the image, so the extension's one layer
- * brings what the runtime uses: dumb-init (the image's ENTRYPOINT) and
- * Debian's `ca-certificates`, with the trust edits the CLI makes to its own
- * images (four roots distrusted, eight intermediates rejected, Node on the
- * OpenSSL store). It drops every package manager from the runtime stage,
- * where nothing runs one, and names the CLI's own build image for the build
- * stage, where the CLI runs `npm i`: a base of our own with a layer would
- * otherwise make the CLI build that stage FROM the runtime base.
+ * `apps/api/Dockerfile` builds FROM over the base image's, and from workplan
+ * 0146 T14 it built the tasks on that image itself, with a layer of its own
+ * (dumb-init, the CA trust edits the CLI makes to its own images, the package
+ * managers removed). Since 2026-11-06 (workplan 0119 §3 item 13) the tasks run
+ * on a prebuilt base, `ghcr.io/robbes/ownpace-task-base`: distroless at the
+ * API's runtime digest with those edits made (`apps/worker/task-image/Dockerfile`,
+ * held to the API's lines and to the installed CLI by
+ * `a-task-base-the-cli-builds-nothing-into`), built and signed by images.yml
+ * on main and named in the config by its `sha-<commit>` tag and index digest.
+ * For every target but `trigger dev` the config's extension sets the build
+ * manifest's `image.base` to that pin and its `buildBase` to the CLI's own
+ * build image for the same major, where the CLI runs `npm i`, and adds no
+ * layer. (Since 0146 T13 the API itself runs on distroless, whose
+ * `/nodejs/bin/node` was the same file, byte for byte, as the Node line's on
+ * both architectures when T13 pinned it; the managed smoke's preflights stop
+ * when the API container's Node is not that line's x.y.z, and its section on
+ * the tasks' image when the image the last deploy built runs another.)
  *
  * This block runs the config's own extension with a stand-in build context
- * and manifest, as the CLI does, and holds what it sets: the base to the image
- * this file reads from the Dockerfile itself, the build stage to the CLI's
- * image for the same major, the packages to the two the runtime uses, the
- * trust edits to the CLI 4.8.3 list, the vendored intermediates to the CLI's
- * bytes, and the removal to a stage with no C++ compiler. It checks that
- * `trigger dev`, which builds no image, gets nothing, and that no instance
- * setting (`DEPLOY_BASE_IMAGES`) can override the config's base. It fails when
- * the deploying CLI's version leaves the one the build image and the trust
- * list were read from, naming what to read again: nothing else would say that
- * a later CLI distrusts more than this keeps. And it holds
- * that the pin watch's `TASK_ON_API_IMAGE` finds the base in the config's text
- * exactly once, because that is how the watch knows to stop reporting the
- * CLI's base image's Node.
+ * and manifest, as the CLI does, and holds what it sets: the base to the pin,
+ * of one shape only (the GHCR repository, a `sha-` tag of seven hex digits,
+ * an index digest), read from one line of the config with the pin watch's
+ * own reader (`taskBasePin`), which the image scan and Release's verify read
+ * it with too; the build stage to the CLI's image for the same major; and no
+ * layer, no package, no instruction. It holds the vendored intermediates the
+ * base copies to the CLI's bytes, checks that `trigger dev`, which builds no
+ * image, gets nothing, and that no instance setting (`DEPLOY_BASE_IMAGES`) can
+ * override the config's base. It fails when the deploying CLI's version leaves
+ * the one the build image and the trust list were read from, naming what to
+ * read again: nothing else would say that a later CLI distrusts more than the
+ * base keeps.
  *
  * ## Postgres: migration-lint replays onto the major the deployments run
  *
@@ -205,7 +202,7 @@ import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { resolveBuildRuntime } from '@trigger.dev/core/v3/build';
 import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
-import { TASK_ON_API_IMAGE, dockerfileBase } from './idp-pin-watch.mjs';
+import { TASK_BASE_LINE, dockerfileBase, taskBasePin } from './idp-pin-watch.mjs';
 import taskConfig from '../apps/worker/trigger.config.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -599,11 +596,10 @@ describe('the tasks run the Node major the images ship', () => {
   });
 });
 
-/** The image `apps/api/Dockerfile` builds FROM, read here on its own: a Node image by tag and digest. */
-const API_DOCKERFILE = 'apps/api/Dockerfile';
-const API_NODE = /^FROM\s+(node:\S+)/m.exec(read(API_DOCKERFILE))?.[1];
+/** The tasks' prebuilt base, as the config pins it (workplan 0119 §3 item 13), read with the pin watch's reader. */
+const PIN = taskBasePin(read(TASK_CONFIG));
 
-/** The extension's name, which is also its one layer's id. */
+/** The extension's name. */
 const TASK_BASE = 'task-base';
 
 type BuildManifest = Parameters<NonNullable<BuildExtension['onBuildComplete']>>[1];
@@ -628,27 +624,6 @@ async function buildFor(target: BuildContext['target']): Promise<{ layers: Build
   return { layers, manifest };
 }
 
-/** The deploy's one layer's instructions. */
-async function deployInstructions(): Promise<string[]> {
-  const { layers } = await buildFor('deploy');
-  expect(layers.map((l) => l.id), `one layer, from the ${TASK_BASE} extension`).toEqual([TASK_BASE]);
-  return layers[0]!.image?.instructions ?? [];
-}
-
-/** The one instruction that matches, or a failure naming what was looked for. */
-function only(instructions: string[], what: RegExp): string {
-  const found = instructions.filter((i) => what.test(i));
-  expect(found, `exactly one instruction matches ${what}`).toHaveLength(1);
-  return found[0]!;
-}
-
-/**
- * What trigger.dev 4.8.3 does to its own images' trust store, as 4.8.1 did
- * (`dist/esm/deploy/buildImage.js`, `distrustCompromisedRoots`), which it
- * leaves out of a stage on a base of one's own (`trustStoreHardening`).
- */
-const CLI_DISTRUSTED_ROOTS = ['emSign_ECC_Root_CA_-_G3', 'emSign_Root_CA_-_C1', 'emSign_ECC_Root_CA_-_C3', 'Comodo_AAA_Services_root'];
-const CLI_REJECT_DIR = '/usr/local/share/ca-certificates/emsign-block';
 /**
  * SHA-256 of the eight `EMSIGN_COMPROMISE_REJECTED_INTERMEDIATES` of
  * trigger.dev 4.8.3 (`dist/esm/deploy/emsignRejectedIntermediates.js`, the same
@@ -659,11 +634,12 @@ const CLI_REJECTED_SHA256 = 'f4b2b13e9429b1beeda72e78bd7c48a13c0556c2c33ab77236e
 const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
 
 /**
- * The trigger.dev version every hand-kept value above, and the config's
- * `TASK_BUILD_IMAGE`, was read from. The CLI no longer applies its trust edits
- * on a base of one's own, so a newly distrusted root or rejected intermediate
- * in a later CLI reaches the tasks only by hand. A Trigger.dev move fails
- * here until they have been read again.
+ * The trigger.dev version every hand-kept value above, the config's
+ * `TASK_BUILD_IMAGE` and the trust edits `apps/worker/task-image/Dockerfile`
+ * makes were read from. The CLI applies no trust edits of its own on a base of
+ * one's own, so a newly distrusted root or rejected intermediate in a later
+ * CLI reaches the tasks only by hand, through a new base and a new pin. A
+ * Trigger.dev move fails here until they have been read again.
  */
 const CLI_READ_AT = '4.8.3';
 
@@ -675,62 +651,49 @@ function certificateOf(pem: string): X509Certificate {
   return new X509Certificate(der.subarray(0, 4 + der.readUInt16BE(2)));
 }
 
-describe("the tasks build on the API image's own base", () => {
-  it('the API image builds FROM a Node image pinned by tag and digest', () => {
-    // Vacuity guard: a FROM line the regex no longer reads would leave
-    // nothing below to compare with.
-    expect(API_NODE, `${API_DOCKERFILE} has no FROM node:… line`).toMatch(/^node:\d+\.\d+\.\d+[^@\s]*@sha256:[0-9a-f]{64}$/);
+describe('the tasks run on the prebuilt base, pinned by tag and index digest', () => {
+  it('the config names it on one line: ghcr.io/robbes/ownpace-task-base by a sha- tag of seven hex digits and an index digest', () => {
+    // The pin watch, the image scan, Release's verify and images.yml's
+    // task-base-pin job all read this one line.
+    expect(read(TASK_CONFIG).match(new RegExp(TASK_BASE_LINE.source, 'gm')) ?? []).toHaveLength(1);
+    expect(PIN.ref).toMatch(/^ghcr\.io\/robbes\/ownpace-task-base:sha-[0-9a-f]{7}@sha256:[0-9a-f]{64}$/);
+    expect(PIN.tag).toBe(`sha-${PIN.commit}`);
   });
 
-  it("a deploy's runtime stage is that image, and its build stage the CLI's own build image for the same major", async () => {
-    const { manifest } = await buildFor('deploy');
-    expect(manifest.image?.base, `the tasks build on ${API_DOCKERFILE}'s FROM image`).toBe(API_NODE);
-    // The CLI builds its build stage FROM the runtime base when a layer adds
-    // instructions and no build base is named; there `npm i` would find the
-    // npm the layer removes. Named, it is a `-build` image of the major the
-    // config's runtime asks for, by tag and digest.
+  it('refuses a pin of any other shape, and a line missing or there twice', () => {
+    const text = read(TASK_CONFIG);
+    const line = TASK_BASE_LINE.exec(text)![0];
+    for (const bad of [
+      PIN.ref.replace(/@sha256:[0-9a-f]{64}$/, ''),
+      PIN.ref.replace(`:${PIN.tag}@`, ':edge@'),
+      PIN.ref.replace(`:${PIN.tag}@`, '@'),
+      PIN.ref.replace(`:${PIN.tag}@`, `:sha-${PIN.commit}0@`),
+      PIN.ref.replace(/@sha256:[0-9a-f]{64}$/, '@sha256:0123'),
+      PIN.ref.replace('/ownpace-task-base:', '/ownpace-api:'),
+      PIN.ref.replace('ghcr.io/robbes/', 'docker.io/robbes/'),
+    ]) {
+      expect(bad, 'the mutation changed nothing').not.toBe(PIN.ref);
+      expect(() => taskBasePin(text.replace(PIN.ref, bad)), bad).toThrow(/not ghcr\.io\/robbes\/ownpace-task-base:sha-<commit>@sha256:<index digest>/);
+    }
+    expect(() => taskBasePin(`${text}\n${line}\n`)).toThrow(/2 times/);
+    expect(() => taskBasePin(text.replace(line, ''))).toThrow(/0 times/);
+  });
+
+  it("a deploy's base is that pin, its build stage the CLI's own build image for the same major, and it adds no layer", async () => {
+    const { layers, manifest } = await buildFor('deploy');
+    expect(layers, 'the base has everything in it; a layer would put a RUN on a base with no shell').toEqual([]);
+    expect(manifest.image?.base, `the tasks run on the base ${TASK_CONFIG} pins`).toBe(PIN.ref);
+    // Named, the CLI's build stage (`npm i`, the indexer) starts from a
+    // `-build` image of the major the config's runtime asks for, by tag and
+    // digest, and never from the base.
     const major = String(taskConfig.runtime).replace(/^node-/, '');
     expect(manifest.image?.buildBase).toMatch(new RegExp(`^triggerdotdev/node:${major}-bookworm-build@sha256:[0-9a-f]{64}$`));
     // Kept, not replaced: what the CLI and other layers put there stays.
     expect(manifest.image?.pkgs).toEqual([]);
+    expect(manifest.image?.instructions).toEqual([]);
   });
 
-  it('the layer copies no Node binary and asks the CLI to install nothing', async () => {
-    const { layers } = await buildFor('deploy');
-    for (const layer of layers) {
-      expect(layer.image?.pkgs ?? [], 'apt packages go in the instructions, where the scan of the stage reads them').toEqual([]);
-      for (const instruction of layer.image?.instructions ?? []) expect(instruction).not.toMatch(/^COPY\b|\/usr\/local\/bin\/node\b/);
-    }
-  });
-
-  it('installs what the runtime runs, dumb-init and the CA store, and nothing else', async () => {
-    const apt = only(await deployInstructions(), /\bapt-get install\b/);
-    const packages = /apt-get install -y --no-install-recommends ((?:[a-z0-9.+-]+ ?)+?) &&/.exec(apt)?.[1]?.trim().split(' ');
-    // dumb-init is the ENTRYPOINT the CLI writes (`dumb-init node <controller>`);
-    // ca-certificates (with openssl, which it depends on) is the store Node
-    // reads under --use-openssl-ca. The CLI's own images add busybox and git:
-    // the run controller forks only `process.execPath`, and no task runs a
-    // binary of its own.
-    expect(packages?.sort()).toEqual(['ca-certificates', 'dumb-init']);
-    expect(apt).toMatch(/^RUN apt-get update && apt-get -y upgrade && /);
-    expect(apt).toMatch(/&& rm -rf \/var\/lib\/apt\/lists\/\*$/);
-  });
-
-  it('keeps the trust edits the CLI makes to its own images', async () => {
-    const instructions = await deployInstructions();
-    const sed = only(instructions, /\/etc\/ca-certificates\.conf/);
-    const roots = /mozilla\/\(([^)]+)\)\\\.crt\)\$#!\\1#' \/etc\/ca-certificates\.conf/.exec(sed)?.[1]?.split('|');
-    expect(roots, 'the roots the CLI distrusts, all four').toEqual(CLI_DISTRUSTED_ROOTS);
-    expect(sed).toMatch(/&& \\\n {2}update-ca-certificates --fresh$/);
-    expect(only(instructions, /^ENV\b/)).toBe('ENV NODE_OPTIONS=--use-openssl-ca SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt');
-    // In this order: the package that brings the store, the rejected
-    // intermediates, the distrust that rebuilds the store with them.
-    const at = (what: RegExp) => instructions.findIndex((i) => what.test(i));
-    expect(at(/apt-get install/)).toBeLessThan(at(new RegExp(`mkdir -p ${CLI_REJECT_DIR}`)));
-    expect(at(new RegExp(`mkdir -p ${CLI_REJECT_DIR}`))).toBeLessThan(at(/update-ca-certificates/));
-  });
-
-  it("writes the eight rejected intermediates, the CLI's bytes, each whole", async () => {
+  it("the eight rejected intermediates the base copies are trigger.dev 4.8.3's bytes, each whole", () => {
     const files = readdirSync(join(REPO_ROOT, REJECTED_DIR)).sort();
     expect(files).toHaveLength(8);
     const pems = files.map((f) => read(`${REJECTED_DIR}/${f}`));
@@ -744,33 +707,6 @@ describe("the tasks build on the API image's own base", () => {
       expect(cert.issuer, files[i]).toMatch(/CN=emSign Root (TLS|CS) CA - G3/);
       expect(cert.ca, files[i]).toBe(true);
     }
-    const write = only(await deployInstructions(), new RegExp(`mkdir -p ${CLI_REJECT_DIR}`));
-    for (const [i, pem] of pems.entries()) {
-      const lines = pem.trimEnd().split('\n');
-      const printf = [`printf '%s\\n'`, ...lines.map((l) => `'${l}'`)].join(' \\\n    ');
-      expect(write, files[i]).toContain(`${printf} \\\n    > ${CLI_REJECT_DIR}/${files[i]}`);
-    }
-  });
-
-  it('drops every package manager where no C++ compiler is, so the runtime has none and the build stage keeps npm', async () => {
-    const removal = only(await deployInstructions(), /\/usr\/local\/lib\/node_modules/);
-    // The layer runs in both stages. The build image has g++ (the CLI's
-    // `-build` images add python3, make and g++); the runtime base has none.
-    expect(removal).toMatch(/^RUN if ! command -v g\+\+ >\/dev\/null; then rm -rf .+; fi$/);
-    const removed = /then rm -rf (.+); fi$/.exec(removal)?.[1]?.split(' ');
-    expect(removed?.sort()).toEqual(
-      [
-        '/usr/local/lib/node_modules',
-        '/usr/local/bin/npm',
-        '/usr/local/bin/npx',
-        '/usr/local/bin/corepack',
-        '/usr/local/bin/pnpm',
-        '/usr/local/bin/pnpx',
-        '/usr/local/bin/yarn',
-        '/usr/local/bin/yarnpkg',
-        '/opt/yarn-v*',
-      ].sort(),
-    );
   });
 
   it(`a Trigger.dev move reads again what the config keeps of the CLI ${CLI_READ_AT}'s by hand`, () => {
@@ -781,11 +717,12 @@ describe("the tasks build on the API image's own base", () => {
     expect(
       sdk,
       [
-        `apps/worker deploys with trigger.dev ${sdk}, and ${TASK_CONFIG} keeps three things read from ${CLI_READ_AT}'s`,
-        '`dist/esm/deploy/` by hand. Read each again in the new version and carry it over, then set CLI_READ_AT:',
-        `  - \`buildImage.js\`'s \`BUILD_IMAGE['${String(taskConfig.runtime)}']\`, into the config's TASK_BUILD_IMAGE;`,
-        "  - `buildImage.js`'s `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`, into the config's DISTRUSTED_ROOTS and CLI_DISTRUSTED_ROOTS here;",
+        `apps/worker deploys with trigger.dev ${sdk}, and three things are kept from ${CLI_READ_AT}'s \`dist/esm/deploy/\``,
+        'by hand. Read each again in the new version and carry it over, then set CLI_READ_AT:',
+        `  - \`buildImage.js\`'s \`BUILD_IMAGE['${String(taskConfig.runtime)}']\`, into ${TASK_CONFIG}'s TASK_BUILD_IMAGE;`,
+        "  - `buildImage.js`'s `EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`, into apps/worker/task-image/Dockerfile's roots;",
         `  - \`emsignRejectedIntermediates.js\`, into ${REJECTED_DIR}/ and CLI_REJECTED_SHA256 here.`,
+        'A change to either of the last two is a new base: main publishes it, and TASK_BASE_IMAGE moves to it.',
       ].join('\n'),
     ).toBe(CLI_READ_AT);
   });
@@ -805,13 +742,5 @@ describe("the tasks build on the API image's own base", () => {
     for (const file of ['deploy/compose/managed.yml', 'deploy/compose/managed.env.example']) {
       expect(read(file), file).not.toMatch(/DEPLOY_(BUILD_)?BASE_IMAGES/);
     }
-  });
-
-  it("the pin watch finds the API base in the config's text, exactly once", () => {
-    // `taskNodeRow` stops reporting the CLI base image's Node when this
-    // matches, and its own guard takes the first match out to see the row
-    // report again.
-    const text = read(TASK_CONFIG);
-    expect(text.match(new RegExp(TASK_ON_API_IMAGE.source, 'g')) ?? []).toHaveLength(1);
   });
 });

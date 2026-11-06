@@ -19,91 +19,64 @@
  * apps/selfhost may know this exists.
  */
 
-import { readFileSync, readdirSync } from 'node:fs';
-import { join } from 'node:path';
 import { defineConfig } from '@trigger.dev/sdk';
 
 /**
- * THE TASKS BUILD ON THE API IMAGE'S OWN BASE (workplan 0146 T14; issue #1669
- * before it).
+ * THE TASKS RUN ON A PREBUILT BASE (workplan 0119 §3 item 13; the owner's
+ * decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes
+ * it to GHCR like the other release images").
  *
- * The CLI builds the task image on the base image it names for the runtime:
- * for `node-24`, `triggerdotdev/node:24-bookworm@sha256:3cdc8242…` at 4.8.1
- * and 4.8.3, Debian 12 with busybox, git and openssl added, read by Trivy
- * 0.76.1 on 2026-10-26 at 1 critical and 83 high findings (at 4.7.6's
- * `…@sha256:d2d0c018…`, 14 and 119); for `node-26` at 4.8.3,
- * `triggerdotdev/node:26-bookworm@sha256:e319f113…`, Debian 12 again.
- * From #1689 a deploy here copied the API image's Node binary over it. Now a
- * deploy builds the tasks on the image `apps/api/Dockerfile` builds FROM: the
- * extension below sets the build manifest's `image.base` to that line's image,
- * and the CLI writes it into the Containerfile's first stage, which the final
- * stage starts from. So the tasks run that image's own Node binary, with no
- * copy, and its Debian; Dependabot moves the line, and nothing else moves
- * either. On `node:24.22.1-trixie-slim@sha256:43b9ba11…` (Debian 13.7, where
- * #1708 puts that line), the runtime stage read 0 critical and 43 high, none
- * with a fix (the same scan; 0146 T14 has the figures). The line is
- * `node:26.13.0-trixie-slim@sha256:e4db4c91…` since 2026-10-31 (Debian 13.7,
- * Node 26 LTS; workplan 0119 §2.4).
+ * `ghcr.io/robbes/ownpace-task-base`, built from `task-image/Dockerfile` by
+ * `.github/workflows/images.yml` on main only, signed there by digest, and
+ * named here by its `sha-<commit>` tag and its index digest: distroless at the
+ * API's runtime digest, with what the CLI's runtime stage needs already in it
+ * (a `node` account at 1000:1000, dumb-init and node on its PATH, the CA bundle
+ * with the CLI's trust edits, `--use-openssl-ca`) and no shell. The extension
+ * below sets the build manifest's `image.base` to it and adds NO LAYER, so the
+ * CLI builds nothing into it: the base stage of the Containerfile it writes is
+ * `FROM <this> AS base` with one ENV line, and the runtime stage is `FROM base
+ * AS final` with no RUN (trigger.dev 4.8.3, `generateNodeContainerfile` in
+ * `dist/esm/deploy/buildImage.js`). A layer, even one ENV line, would make the
+ * CLI write its apt repair into the base stage, which has no shell to run it:
+ * `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts` runs the
+ * installed CLI's own generator on this config and fails on one.
  *
- * Since workplan 0146 T13 that line is the API's BUILD stage: the API runs on
- * distroless, with a Node of its own pinned by a digest that moves apart from
- * the tag. Same Node version as this line, checked, not assumed: the managed
- * smoke's preflights stop when the API container's Node is not this line's
- * x.y.z (deploy/compose/smoke-managed.sh, `dockerfile_node`).
+ * So a deploy pulls this image (public: no login), runs no apt and needs no
+ * Debian mirror, and the OTA stack, which deploys main, and live, which
+ * deploys the release tag that carries this line, run the same bytes, the ones
+ * the weekly image scan reads as `trigger-task-base`. Until 2026-11-06 the
+ * tasks built on `apps/api/Dockerfile`'s FROM image with a layer of their own:
+ * apt, the CLI's trust edits, the package managers removed and ten Debian
+ * Essentials purged (workplan 0146 T14; 0119 §3 item 11). The trust edits are
+ * `task-image/Dockerfile`'s now, and distroless has no package manager and
+ * none of the ten.
  *
- * The manifest is where the CLI keeps a custom base. 4.8.3's documented way to
- * fill it is an instance setting, `DEPLOY_BASE_IMAGES` on the webapp, which
- * would name the image in `managed.yml` too, a second place for it to move;
- * an instance setting is laid over this one, and `managed.yml` sets none
- * (`scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` holds that).
+ * THE TASKS' NODE IS THE BASE'S: distroless's, at the digest
+ * `apps/api/Dockerfile`'s runtime stage named on the commit the base was built
+ * from. images.yml's `task-base` leg starts each base it builds and stops when
+ * its Node is not `apps/api/Dockerfile`'s FROM node line, and the managed smoke
+ * asks the newest image the runners started from and stops when its Node is
+ * not that line's either. A Dependabot move of the API's Node or distroless
+ * moves `task-image/Dockerfile` in the same group, main publishes a base with
+ * other layers, and from then this pin is behind until it moves: the pin watch
+ * lists it (`scripts/idp-pin-watch.mjs`, the row *the tasks' base*), and the
+ * smoke stops on the two Nodes. A merge that changes nothing the base is built
+ * from republishes the same layers under a new digest (the revision label
+ * moves), and the watch calls that current.
  *
- * ON A BASE OF ITS OWN THE IMAGE GETS NOTHING FROM THE CLI: no packages (its
- * own base images carry them) and none of its trust edits (`trustStoreHardening`
- * in `deploy/buildImage.js` leaves a custom base alone). So the layer brings
- * what the runtime uses, read from the CLI's runtime entrypoint: `dumb-init`,
- * the final stage's ENTRYPOINT (`dumb-init node <controller>`), and Debian's
- * `ca-certificates` (with `openssl`, which it depends on), the store Node reads
- * under `--use-openssl-ca`. Not busybox or git: the controller forks only
- * `process.execPath`, `@trigger.dev/core` spawns nothing, and no task runs a
- * binary (AGENTS.md: the engines are JS-native). And it makes the CLI's trust
- * edits as the CLI writes them at 4.8.1 and 4.8.3: four roots distrusted in
- * `/etc/ca-certificates.conf` (Debian 13's `20250419+deb13u1` already drops two
- * of them, the emSign ECC G3 and Comodo AAA roots; emSign C1 and ECC C3 it
- * still ships), the eight eMudhra intermediates the CLI rejects, kept in
- * `task-image/emsign-block/` byte for byte, and `NODE_OPTIONS=--use-openssl-ca`
- * with `SSL_CERT_FILE`, which the run controller hands to every task process.
- * The CLI's list is now this repository's to keep: a CLI move compares them,
- * and the version gate fails when the SDK leaves the version they were read at.
- *
- * NO PACKAGE MANAGER AT RUNTIME. The controller and the tasks never run npm,
- * npx, corepack, pnpm or yarn, so the runtime stage drops them all, as the
- * selfhost image's runtime stage does (0146 T12; the API's distroless runtime
- * has none to drop since T13), and with them npm's bundled undici,
- * brace-expansion and http-cache-semantics, the base's 5 Node.js findings.
- * The CLI's build stage does run `npm i` (the externals below), and with a
- * layer and no build base named it builds that stage FROM the runtime base,
- * where npm is gone. So the build stage is named: `TASK_BUILD_IMAGE`, the
- * CLI's own build image for the runtime's major, which also brings python3,
- * make and g++ prebuilt instead of installing them with apt. The layer runs in both stages
- * (the CLI replays it on a build base), and the removal runs only where there
- * is no C++ compiler: every `-build` image has one, and the runtime base has
- * none. Only `node_modules` and `index.json` leave the build stage. The
- * Debian Essentials nothing runs go the same way, from the runtime base only
- * (`UNUSED_ESSENTIALS`, below; workplan 0119, 2026-11-03).
- *
- * The Dockerfile and the certificates are read on the DEPLOYING machine, at
- * the start of the build: a throw in `onBuildStart` stops the deploy, where
- * one in `onBuildComplete` is only logged and the deploy goes on without the
- * layer or the base. `trigger dev` builds no image, so it gets nothing. The
- * indexer container imports this file again, and neither hook runs there.
- *
- * The layer's text is the same at every deploy, so the CLI's persistent
- * `trigger` builder serves it from its cache: the packages are refreshed when
- * the API's FROM line moves or the builder's cache is gone, not at every
- * deploy, and a deploy that misses the cache runs apt in both stages and needs
- * the Debian archive. `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts`
- * holds all of it. A change here takes a task re-deploy.
+ * MOVING IT: the newest signed `sha-<commit>` main published (`edge`'s index),
+ * by tag and digest, in a pull request of its own with E2E (managed) dispatched
+ * on its branch. There images.yml's `task-base pin` job pulls it anonymously
+ * on both platforms and verifies its signature by images.yml's identity on
+ * `refs/heads/main`; `scripts/release-verify.mjs` checks the same at the tag,
+ * with its revision an ancestor of the tag's commit.
+ * `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` holds the line's
+ * shape. A change here takes a task re-deploy.
  */
+const TASK_BASE_IMAGE =
+  'ghcr.io/robbes/ownpace-task-base:sha-2886230@sha256:91fec8952f9c65525cf1d2161e7cd051489d259445ba421200ae34d605d29049';
+
+/** The extension's name. */
 const TASK_BASE = 'task-base';
 
 /**
@@ -111,135 +84,19 @@ const TASK_BASE = 'task-base';
  * (`BUILD_IMAGE['node-26']` in `dist/esm/deploy/buildImage.js`; Docker Hub's
  * `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC,
  * Node 26.12.1 in its amd64 and arm64 configs): its runtime image with
- * python3, make and g++. It was `node-24`'s, `…@sha256:34a3f455…`, until the
- * runtime moved to 26 on 2026-10-31. It moves with the CLI and with the
- * runtime's major, read from the new version's `buildImage.js` (workplan 0119
- * §2; the version gate fails on a CLI move until it is read again, and on a
- * major this image does not name); a stale one still builds, since only
- * `node_modules` and `index.json` leave the stage, and the tasks run the
- * runtime stage's Node, not this one's.
+ * python3, make and g++. Named as the manifest's `image.buildBase`, the CLI's
+ * build stage starts FROM it, so `npm i` (the externals below) and the indexer
+ * run there and never on the base, which has no shell; with no build base and
+ * a layer the CLI would build that stage FROM the base. It was `node-24`'s,
+ * `…@sha256:34a3f455…`, until the runtime moved to 26 on 2026-10-31. It moves
+ * with the CLI and with the runtime's major, read from the new version's
+ * `buildImage.js` (workplan 0119 §2; the version gate fails on a CLI move until
+ * it is read again, and on a major this image does not name); a stale one
+ * still builds, since only `node_modules` and `index.json` leave the stage,
+ * and the tasks run the base's Node, not this one's.
  */
 const TASK_BUILD_IMAGE =
   'triggerdotdev/node:26-bookworm-build@sha256:86d5a599fc69a81e15c1276440702144cd3d857258fdaf78f8c9b864768c1ab9';
-
-/** The roots trigger.dev 4.8.1 and 4.8.3 distrust in their own images (`EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`). */
-const DISTRUSTED_ROOTS = ['emSign_ECC_Root_CA_-_G3', 'emSign_Root_CA_-_C1', 'emSign_ECC_Root_CA_-_C3', 'Comodo_AAA_Services_root'];
-
-/** Where the CLI puts the intermediates it rejects (`EMSIGN_REJECT_DIR`), and where this repository keeps them. */
-const REJECT_DIR = '/usr/local/share/ca-certificates/emsign-block';
-const REJECTED = join('task-image', 'emsign-block');
-
-/** Every package manager the Node image ships, as `apps/selfhost/Dockerfile`'s runtime stage removes them (0146 T12; `apps/api/Dockerfile`'s did until T13). */
-const PACKAGE_MANAGERS = [
-  '/usr/local/lib/node_modules',
-  '/usr/local/bin/npm',
-  '/usr/local/bin/npx',
-  '/usr/local/bin/corepack',
-  '/usr/local/bin/pnpm',
-  '/usr/local/bin/pnpx',
-  '/usr/local/bin/yarn',
-  '/usr/local/bin/yarnpkg',
-  '/opt/yarn-v*',
-];
-
-/**
- * THE DEBIAN ESSENTIALS NOTHING RUNS (workplan 0119; the owner's decision of
- * 2026-11-03, for alpha.4): util-linux, the eight other packages built from
- * its source, and libsqlite3-0, the list `apps/selfhost/Dockerfile`'s runtime
- * stage purges, which says why. On this base they carried 37 of the 44 high
- * findings Trivy 0.76.1 read that day, none with a Debian fix, and nothing in
- * a task container runs them: the controller forks only `process.execPath`,
- * Node links none of their libraries, and the externals below are JavaScript
- * (`pg`) and WebAssembly (`@electric-sql/pglite`).
- *
- * Purged where there is no C++ compiler, as the package managers are removed,
- * so in the runtime base only: the CLI replays the layer on its `-build` image,
- * whose Python links libuuid and libsqlite3, and dpkg would refuse there. Last
- * of the layer's RUNs, after every apt step of ours. Without `--force-depends`
- * dpkg refuses to remove what something installed depends on, so such a base
- * stops the deploy, and `dpkg-query -W` first stops it when one of the ten is
- * gone from the base. After the layer the CLI runs its own repair, `apt-get
- * --fix-broken install`, which installs what a broken dependency needs and
- * nothing else (apt 3.0.3: only a dist-upgrade adds missing Essential
- * packages); `scripts/image-scan.mjs` writes that repair into the stage it
- * scans, and the managed smoke asks the newest image its runners started from
- * (the last deploy's) about all ten. The guard runs only where there is no
- * `g++`, so the API's FROM line must stay a `-slim` image, which ships none.
- * `scripts/an-essential-nothing-runs.unit.test.ts` holds the list to the
- * appliance's, the RUN to its place and the base to `-slim`.
- */
-const UNUSED_ESSENTIALS = [
-  'util-linux',
-  'mount',
-  'login',
-  'bsdutils',
-  'libblkid1',
-  'libmount1',
-  'libsmartcols1',
-  'libuuid1',
-  'liblastlog2-2',
-  'libsqlite3-0',
-];
-
-let taskBase: { image: string; instructions: string[] } | undefined;
-
-/** The image `apps/api/Dockerfile` builds FROM, by tag and digest, or a refusal. */
-function readApiNodeImage(workingDir: string): string {
-  const dockerfile = join(workingDir, '..', 'api', 'Dockerfile');
-  const image = /^FROM\s+(node:\S+@sha256:[0-9a-f]{64})(?:\s|$)/m.exec(readFileSync(dockerfile, 'utf8'))?.[1];
-  if (!image) {
-    throw new Error(
-      `${dockerfile} has no FROM node:<tag>@sha256:<digest> line, so the tasks cannot build on the API image's base; the deploy stops here`,
-    );
-  }
-  return image;
-}
-
-/**
- * Each rejected intermediate as the lines of its PEM, or a refusal. Every line
- * goes between single quotes in a RUN, so nothing but a PEM's armour and its
- * base64 is let through.
- */
-function readRejected(workingDir: string): Array<{ file: string; lines: string[] }> {
-  const dir = join(workingDir, REJECTED);
-  const files = readdirSync(dir)
-    .filter((file) => file.endsWith('.crt'))
-    .sort();
-  if (files.length === 0) throw new Error(`${dir} holds no .crt, so the tasks would trust what the CLI rejects; the deploy stops here`);
-  return files.map((file) => {
-    const lines = readFileSync(join(dir, file), 'utf8').trimEnd().split('\n');
-    const whole =
-      /^[A-Za-z0-9._-]+\.crt$/.test(file) &&
-      lines[0] === '-----BEGIN TRUSTED CERTIFICATE-----' &&
-      lines.at(-1) === '-----END TRUSTED CERTIFICATE-----' &&
-      lines.slice(1, -1).every((line) => /^[A-Za-z0-9+/=]+$/.test(line));
-    if (!whole) throw new Error(`${join(dir, file)} is not one TRUSTED CERTIFICATE PEM; the deploy stops here`);
-    return { file, lines };
-  });
-}
-
-/** The image the tasks build on, and the one layer they get there. */
-function readTaskBase(workingDir: string): { image: string; instructions: string[] } {
-  const image = readApiNodeImage(workingDir);
-  const rejected = readRejected(workingDir);
-  return {
-    image,
-    instructions: [
-      'RUN apt-get update && apt-get -y upgrade && apt-get install -y --no-install-recommends ca-certificates dumb-init && apt-get clean && rm -rf /var/lib/apt/lists/*',
-      `RUN if ! command -v g++ >/dev/null; then rm -rf ${PACKAGE_MANAGERS.join(' ')}; fi`,
-      [
-        `RUN mkdir -p ${REJECT_DIR}`,
-        ...rejected.map(
-          ({ file, lines }) =>
-            `${[`printf '%s\\n'`, ...lines.map((line) => `'${line}'`)].join(' \\\n    ')} \\\n    > ${REJECT_DIR}/${file}`,
-        ),
-      ].join(' && \\\n  '),
-      `RUN sed -i -E 's#^(mozilla/(${DISTRUSTED_ROOTS.join('|')})\\.crt)$#!\\1#' /etc/ca-certificates.conf && \\\n  update-ca-certificates --fresh`,
-      `RUN if ! command -v g++ >/dev/null; then dpkg-query -W ${UNUSED_ESSENTIALS.join(' ')} >/dev/null && dpkg --purge --force-remove-essential --force-remove-protected ${UNUSED_ESSENTIALS.join(' ')} && apt-get check; fi`,
-      'ENV NODE_OPTIONS=--use-openssl-ca SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt',
-    ],
-  };
-}
 
 export default defineConfig({
   // Resolved on the DEPLOYING machine, where deploy-tasks.sh guards that the
@@ -258,7 +115,7 @@ export default defineConfig({
   // triggerdotdev/node:21-bookworm (in 4.8.3, triggerdotdev/node:24-bookworm):
   // the tasks ran Node 21 until this line.
   // For node-26 the CLI would build on triggerdotdev/node:26-bookworm; the
-  // extension below names the API image's base instead, and the build stage
+  // extension below names the prebuilt base instead, and the build stage
   // image for this major. A change here takes a task re-deploy.
   runtime: 'node-26',
   // What a run logs stays in its container's output, and out of Trigger.dev's
@@ -299,19 +156,16 @@ export default defineConfig({
     // are npm-installable inside the task image instead. First cut; T5's
     // live deploy on the Spark is what proves the list.
     external: ['@electric-sql/pglite', 'pg'],
-    // The tasks build on the API image's base (the comment above `defineConfig`).
+    // The tasks run on the prebuilt base, and the CLI adds no layer to it
+    // (the comment above TASK_BASE_IMAGE). `trigger dev` builds no image, so
+    // it gets nothing. The indexer container imports this file again, where
+    // the hook does not run.
     extensions: [
       {
         name: TASK_BASE,
-        onBuildStart(context) {
-          if (context.target === 'dev') return;
-          taskBase = readTaskBase(context.workingDir);
-        },
         onBuildComplete(context, manifest) {
           if (context.target === 'dev') return;
-          taskBase ??= readTaskBase(context.workingDir);
-          manifest.image = { ...manifest.image, base: taskBase.image, buildBase: TASK_BUILD_IMAGE };
-          context.addLayer({ id: TASK_BASE, image: { instructions: taskBase.instructions } });
+          manifest.image = { ...manifest.image, base: TASK_BASE_IMAGE, buildBase: TASK_BUILD_IMAGE };
         },
       },
     ],

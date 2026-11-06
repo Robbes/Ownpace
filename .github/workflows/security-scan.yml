@@ -557,28 +557,19 @@ jobs:
   # its alerts open, and is deleted by hand on the code scanning tool status
   # page (the Security tab, Code scanning, Tool status).
   #
-  # THE TASKS' IMAGE IS BUILT, NOT PULLED (workplan 0146 T10, 2026-10-25). No
-  # registry holds it: each deploy builds it on the stack's own machine, on
-  # the image apps/api/Dockerfile builds FROM, which
-  # apps/worker/trigger.config.ts names as the tasks' base since 0146 T14 (the
-  # base image the pinned Trigger.dev CLI names when the config names none),
-  # with the layer the config adds (the base image's Debian packages upgraded,
-  # dumb-init and the CA trust edits, the package managers removed, and since
-  # 2026-11-03 the Debian Essentials nothing runs purged), and the apt repair
-  # the CLI writes after it (`CLI_APT_REPAIR`, since that day). Until T10,
-  # the scan read a base image alone, and the alerts for what the layers fix
-  # stayed open. So its leg builds the deploy's `base` stage (`image-scan.mjs
-  # containerfile`, which runs the config's own extensions and so needs the
-  # workspace installed) on GitHub's arm64 runner, natively, and Trivy reads it
-  # from that runner's Docker. The name, and so the category, stays
-  # `trigger-task-base`, and the local tag it is built under is in the base's
-  # own repository (`node:trigger-task-base-built` on the API's Node image,
-  # never pushed), which is the location Trivy's SARIF gives each Debian
-  # finding: so a scan on main that reads the built stage closes the alerts it
-  # no longer has, and the ones it still has keep their numbers and their
-  # triage. T14 moved the base's repository (`triggerdotdev/node` to `node`),
-  # so the first scan after it closes the old base's alerts and opens the new
-  # one's, once.
+  # THE TASKS' IMAGE IS THE PREBUILT BASE, PULLED (workplan 0119 §3 item 13,
+  # 2026-11-06). apps/worker/trigger.config.ts names it by tag and index
+  # digest (`TASK_BASE_IMAGE`): ghcr.io/robbes/ownpace-task-base, which
+  # images.yml builds from apps/worker/task-image/Dockerfile and publishes from
+  # main, and to which a task deploy adds the task code and nothing else. So
+  # its leg reads it from GHCR like any other image, under the name, and so
+  # the category, it always had, `trigger-task-base`. From workplan 0146 T10
+  # (2026-10-25) until then the leg built the `base` stage a deploy built,
+  # from the config's own layers on the API's Node image (`image-scan.mjs
+  # containerfile`, gone with it), under that image's repository, which is
+  # where Trivy's SARIF put each Debian finding (`library/node`); the first scan
+  # of the prebuilt base puts them under `robbes/ownpace-task-base`, so the old
+  # ones close once.
   #
   # AN IMAGE NO REGISTRY SERVES IS BUILT, NOT PULLED (#1675, 2026-10-25). A
   # script's `localhost/<name>` image is built by that script from
@@ -635,10 +626,9 @@ jobs:
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       # The compose files' image lines, read with the pin watch's reader (a
       # `${VAR:-default}` as its default, a digest kept), the images the
-      # scripts name, the tasks' image (with `build`, the tag its leg builds
-      # the deploy's stage under, on apps/api/Dockerfile's FROM image, which
-      # trigger.config.ts builds the tasks on; on the pinned Trigger.dev CLI's
-      # base when the config names none), and Ownpace's three at `:edge` and
+      # scripts name, the tasks' image (the prebuilt base trigger.config.ts
+      # pins, by its digest; on the pinned Trigger.dev CLI's base when the
+      # config names none), and Ownpace's three at `:edge` and
       # at the newest release tag, which is what live runs: it builds the tag
       # it deploys; an image a script or a compose file builds here carries
       # its `context`. Each carries its `tier`, and a name without one fails
@@ -651,12 +641,12 @@ jobs:
     name: Image scan (${{ matrix.name }})
     needs: image-list
     if: github.event_name == 'schedule' || (github.event_name == 'workflow_dispatch' && inputs.image_scans)
-    # A leg that builds its image (the tasks' `build`, the `context` of an
-    # image a script or a compose file builds) builds it for the platform
-    # scanned, on GitHub's arm64 runner (free on a public repository, as
-    # ci.yml's integration tests use it): no emulation, no setup actions.
-    # Every other leg reads its image from the registry, from amd64.
-    runs-on: ${{ (matrix.build || matrix.context) && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
+    # A leg that builds its image (the `context` of an image a script or a
+    # compose file builds) builds it for the platform scanned, on GitHub's
+    # arm64 runner (free on a public repository, as ci.yml's integration tests
+    # use it): no emulation, no setup actions. Every other leg reads its image
+    # from the registry, from amd64.
+    runs-on: ${{ matrix.context && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     timeout-minutes: 30
     permissions:
       contents: read
@@ -668,65 +658,33 @@ jobs:
         include: ${{ fromJSON(needs.image-list.outputs.images) }}
     env:
       # The platform the stacks run on: the Spark is arm64, and the tasks' image
-      # is built for its host (deploy-tasks.sh). Read from the registry itself,
+      # is built for its host (deploy-tasks.sh) on the base's image for that
+      # platform. Read from the registry itself,
       # never from a local daemon, unless the leg built the image itself, and
       # then from this runner's Docker only, so a build that left nothing can
       # never be read from a registry instead. Ownpace's images are public, so
       # no login.
       TRIVY_PLATFORM: linux/arm64
-      TRIVY_IMAGE_SRC: ${{ (matrix.build || matrix.context) && 'docker' || 'remote' }}
+      TRIVY_IMAGE_SRC: ${{ matrix.context && 'docker' || 'remote' }}
     steps:
-      # THE TASKS' IMAGE, BUILT AS A DEPLOY BUILDS IT, AND AN IMAGE BUILT HERE
-      # (the comments above image-list). The checkout runs on both
-      # kinds of leg; the next four steps on the tasks' leg only, the last one
-      # before the scan on a `context` leg only. The workspace is installed
-      # because the Containerfile comes from running the deploy config's own
-      # build extensions, as the CLI does, so nothing here repeats an
-      # instruction or a version. The tasks' build pulls its base, the API
-      # image's Node image since 0146 T14, by its digest, and reaches Debian's
-      # archive; a `context` build pulls its Dockerfile's bases by their digests
-      # and reaches the package mirrors and the source it names, as the
-      # script's or compose's own build does on the machine; it pushes nothing.
+      # AN IMAGE BUILT HERE (the comments above image-list). The checkout and
+      # the build run on a `context` leg only: a script's or a compose file's
+      # build pulls its Dockerfile's bases by their digests and reaches the
+      # package mirrors and the source it names, as the script's or compose's
+      # own build does on the machine; it pushes nothing. The tasks' leg reads
+      # the prebuilt base from GHCR like every other image, since 2026-11-06.
       #
       # The checkout goes to `src/`, never to the working directory, which the
       # Trivy step and `trivy convert` share with every other leg: there Trivy
       # reads a `.trivyignore` and a `trivy.yaml` on its own (trivy-action sets
       # neither file unless asked), so one at the repository's root would drop
       # findings from this leg's SARIF alone, and code scanning would call them
-      # fixed. image-scan.mjs finds the repository from its own path.
+      # fixed.
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: matrix.build || matrix.context
+        if: matrix.context
         with:
           persist-credentials: false
           path: src
-      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
-        if: matrix.build
-        with:
-          package_json_file: src/package.json
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: matrix.build
-        with:
-          node-version: '26'
-          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
-      - name: Install the workspace the deploy config imports
-        id: install
-        if: matrix.build
-        working-directory: src
-        run: pnpm install --frozen-lockfile
-      - name: Build the tasks' base stage as a deploy builds it
-        id: build
-        if: matrix.build
-        working-directory: src
-        env:
-          BASE: ${{ matrix.ref }}
-          TAG: ${{ matrix.build }}
-        run: |
-          set -euo pipefail
-          context="$(mktemp -d)"
-          node scripts/image-scan.mjs containerfile "$BASE" > "$context/Containerfile"
-          cat "$context/Containerfile"
-          docker build --pull --platform "$TRIVY_PLATFORM" --tag "$TAG" --file "$context/Containerfile" "$context"
-          docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$TAG"
       - name: Build the image a script or a compose file builds, from its Dockerfile here
         id: build_context
         if: matrix.context
@@ -843,8 +801,9 @@ jobs:
           # setup-trivy's own install, which fetches from get.trivy.dev.
           skip-setup-trivy: true
           scan-type: image
-          # The image the leg built, where it built one; the reference otherwise.
-          image-ref: ${{ matrix.build || matrix.ref }}
+          # The reference: what a `context` leg built under it, from this
+          # runner's Docker; the registry's otherwise.
+          image-ref: ${{ matrix.ref }}
           format: json
           output: trivy-image-${{ matrix.name }}.json
           severity: HIGH,CRITICAL
@@ -895,9 +854,9 @@ jobs:
 
       # This scan's own "a scan that skipped itself": the outcome, a non-empty
       # JSON and SARIF, and the upload. Always fatal, because these jobs only
-      # run where the scan is the record. On the leg that builds its image, a
-      # failed install or build is named first, since it skips every step
-      # after it; on the others both read 'skipped', which is no problem. On a
+      # run where the scan is the record. On a leg that builds its image, a
+      # failed build is named first, since it skips every step after it; on
+      # the others it reads 'skipped', which is no problem. On a
       # test-only leg the JSON is the report, and the upload must read
       # 'skipped': code scanning takes nothing of an image live never runs.
       - name: The image scan wrote its report, and code scanning took it unless test-only
@@ -908,20 +867,12 @@ jobs:
           TIER: ${{ matrix.tier }}
           JSON: trivy-image-${{ matrix.name }}.json
           SARIF: trivy-image-${{ matrix.name }}.sarif
-          INSTALL_OUTCOME: ${{ steps.install.outcome }}
-          BUILD_OUTCOME: ${{ steps.build.outcome }}
           CONTEXT_BUILD_OUTCOME: ${{ steps.build_context.outcome }}
           TRIVY_OUTCOME: ${{ steps.image_trivy.outcome }}
           UPLOAD_OUTCOME: ${{ steps.image_upload.outcome }}
         run: |
           set -uo pipefail
           problems=""
-          case "$INSTALL_OUTCOME" in
-            failure|cancelled) problems="the workspace install ended '$INSTALL_OUTCOME'" ;;
-          esac
-          case "$BUILD_OUTCOME" in
-            failure|cancelled) problems="${problems:+$problems; }the build of the tasks' stage ended '$BUILD_OUTCOME'" ;;
-          esac
           # On a leg that builds its image from a Dockerfile here, a failed
           # build is named first: it skips every step after it. Elsewhere the
           # build reads 'skipped'.

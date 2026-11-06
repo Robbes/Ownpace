@@ -48,3 +48,21 @@ export declare const APPLIANCE_NODES: readonly string[];
 export declare function versionExec(name: string, node: string): string[];
 export declare function pinnedRuntimeIn(packagerText: string | null, version: string, platform: string): string | null;
 export declare function checkRuntime(seen: string | null, pinned: string | null, nodeVersion: string | null): Line;
+
+/** The tasks' prebuilt base, at the digest the tagged commit's `trigger.config.ts` pins (workplan 0119 §3 item 13). */
+export interface TaskBasePin {
+  ref: string;
+  repo: string;
+  tag: string;
+  digest: string;
+  /** The seven hex digits its `sha-` tag names. */
+  commit: string;
+}
+export declare const TASK_BASE_IMAGE: string;
+/** The identity of `images.yml` on `refs/heads/main`, the only ref that publishes the tasks' base. */
+export declare const MAIN_IDENTITY: string;
+export declare function taskBasePinIn(configText: string | null): TaskBasePin | null;
+export declare function checkTaskBaseIndex(index: unknown, pin: TaskBasePin): Line;
+export declare function taskBaseRevision(config: unknown, pin: TaskBasePin): string | null;
+export declare function checkTaskBaseAncestry(compare: unknown, options: { revision: string; commit: string }): Line;
+export declare function taskBaseCosignCall(digest: string): string[];
