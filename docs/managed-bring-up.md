@@ -3233,7 +3233,7 @@ whose program needs a capability its service does not keep.
 | `nextcloud` | root, then www-data | Docker's default | no | read: its entrypoint rsyncs and chowns as root and runs occ through `su`, a set not measured |
 | `www` (www.yml) | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured: the same nginx image as `web`, with `www-nginx.conf` |
 | `postgres` (appliance) | uid 70 | none | no | measured: the same image as `postgres` above; its rootless `chown` is a `run` with its own `--cap-add` |
-| `app` (appliance) | uid 10001 | none | no | read: its image's user from the first process, running node and nothing else |
+| `app` (appliance) | uid 10001 | none | no | measured (2026-11-06): distroless, with nothing to run but `/nodejs/bin/node`, as uid 10001 from its first process; on PGlite on a new volume and on one the image before it wrote, and on Postgres |
 
 *Measured* means the service's own image, its own command and environment
 with placeholder values, started with that set until it was ready, on a new

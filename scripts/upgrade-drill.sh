@@ -148,7 +148,7 @@ if git cat-file -e "${FROM_TAG}:deploy/selfhost/config/mapping.json.example" 2>/
 else
   cp deploy/selfhost/config/mapping.json.example "$DRILL_CONFIG_DIR/mapping.json"
 fi
-# The appliance runs as appuser (uid 10001, apps/selfhost/Dockerfile), not as
+# The appliance runs as uid 10001 (apps/selfhost/Dockerfile), not as
 # whoever runs this script, and compose.drill.yml mounts this one file, so its
 # mode is what the container sees (the directory's does not reach it). Under a
 # strict umask the redirect above makes a file only its owner can read, and
@@ -201,8 +201,23 @@ if ! grep -q '"mappingId"' <<<"$BEFORE_STATUS"; then
 fi
 
 # Proof the OLD image really did create the database, rather than the drill
-# passing against a directory nothing ever wrote.
-"${COMPOSE[@]}" exec -T app sh -c 'ls /data/state/pglite >/dev/null' \
+# passing against a directory nothing ever wrote. Asked with the released
+# image's own Node, by its path, and no shell: the appliance is distroless from
+# 0.2.0-alpha.5 on, with Node at /nodejs/bin/node and no /bin/sh (workplan 0119
+# §3 item 12), and the Node image before it has /usr/local/bin/node. Whichever
+# answers --version is the one asked. (Under this checkout's compose.yml an
+# image from before alpha.5 shows `unhealthy`, since the file's healthcheck
+# runs /nodejs/bin/node; the drill reads /healthz itself, above.)
+released_node=""
+for p in /nodejs/bin/node /usr/local/bin/node; do
+  if "${COMPOSE[@]}" exec -T app "$p" --version >/dev/null 2>&1; then
+    released_node="$p"
+    break
+  fi
+done
+[ -n "$released_node" ] \
+  || fail "neither /nodejs/bin/node nor /usr/local/bin/node runs in the released appliance, so its state directory cannot be asked"
+"${COMPOSE[@]}" exec -T app "$released_node" -e "require('node:fs').readdirSync('/data/state/pglite')" \
   || fail "the released image left no PGlite state directory — nothing to upgrade"
 say "    released image wrote its PGlite state directory"
 
