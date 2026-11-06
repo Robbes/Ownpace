@@ -74,7 +74,7 @@ import { defineConfig } from '@trigger.dev/sdk';
  * shape. A change here takes a task re-deploy.
  */
 const TASK_BASE_IMAGE =
-  'ghcr.io/robbes/ownpace-task-base:sha-691b235@sha256:a6039c90eea23bcb166d22e984207e1eb7c01ea8cf3f22005d272a08568b7c9f';
+  'ghcr.io/robbes/ownpace-task-base:sha-2886230@sha256:91fec8952f9c65525cf1d2161e7cd051489d259445ba421200ae34d605d29049';
 
 /** The extension's name. */
 const TASK_BASE = 'task-base';

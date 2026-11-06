@@ -5,17 +5,26 @@
 ## Status — 2026-11-06 (update this block at the end of every session)
 
 **2026-11-06, later: the tasks move onto the prebuilt base (§3 item 13, the second change);
-built on a branch, not merged, and not yet run by CI.** On the branch
+built on a branch, not merged; CI green, E2E (managed) owed.** On the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-switch`, on `main` at `691b2352` (#1822),
-with `main` merged at `f42101b0` (#1819, the appliance without a shell).
-Times are UTC. The first change merged as #1818 (`e0ef6b55`), which overtakes the entry below
-on the base that says *built on a branch, not merged*: `main` has published
+with `main` merged at `f42101b0` (#1819, the appliance without a shell) and at `2886230a`
+(#1815, #1821 and #1816, the bases). Times are UTC. The first change merged as #1818
+(`e0ef6b55`), which overtakes the entry below on the base that says *built on a branch, not
+merged*: `main` has published
 `ghcr.io/robbes/ownpace-task-base` three times since, as `sha-e0ef6b5`, `sha-4177729` and
 `sha-691b235`, each with a `sha256-<index>` tag holding its sigstore bundle, and the package is
 public (a token and the manifests answered with no login at 10:15).
 - **The pin.** `apps/worker/trigger.config.ts` names
-  `ghcr.io/robbes/ownpace-task-base:sha-691b235@sha256:a6039c90…` as `TASK_BASE_IMAGE`, `edge`
-  when read at 10:15 (it had moved from `sha-4177729` at 10:08, with #1822). Its extension sets
+  `ghcr.io/robbes/ownpace-task-base:sha-2886230@sha256:91fec895…` as `TASK_BASE_IMAGE`, `edge`
+  when read at 13:46, with its `sha256-<index>` signature tag beside it. `main` published it
+  (Images run 42227679645, `build (task-base)` 13:42 to 13:45) from `2886230a`, #1816, which
+  moved the base's build stage to `node:26.13.0-trixie-slim@sha256:5adad64f…`. Until then the
+  pin was `sha-691b235@sha256:a6039c90…`, `edge` when read at 10:15 (it had moved from
+  `sha-4177729` at 10:08, with #1822). Read against GHCR at 13:46, the two have the same 29
+  layers on each platform and differ in their configs only: the build stage's new digest moved
+  apt and tzdata, which nothing copies into the base. The pin moves all the same, so that it
+  names the base built from the Dockerfile as it stands on `main`; the pin watch's row, run here
+  at 13:53, reads it current against `edge`. Its extension sets
   the manifest's `image.base` to it and `buildBase` to `TASK_BUILD_IMAGE`, and adds no layer;
   the API-base reader, the trust edits, `PACKAGE_MANAGERS`, `UNUSED_ESSENTIALS` and their
   comments are gone from it. The installed CLI's own generator (trigger.dev 4.8.3), on the
@@ -50,8 +59,10 @@ public (a token and the manifests answered with no login at 10:15).
   both pulls named the index digest. It now pulls arm64 by that platform's own manifest
   digest from the index, which is the blobs an arm64 host's deploy pulls, and amd64 by the pin.
   The guard expects the two pulls to name two digests, and a missing or malformed arm64 digest
-  to stop the step before anything is pulled. Read against GHCR here, the index names arm64 as
-  `sha256:5d126132…`, an image manifest of 29 layers. The managed smoke's section on
+  to stop the step before anything is pulled. Read against GHCR here, `sha-691b235`'s index
+  named arm64 as `sha256:5d126132…`, an image manifest of 29 layers; `sha-2886230`'s names
+  `sha256:85baadfd…`, with the same 29. CI was green on `33fc5b5c`, with the old pin (30
+  checks, `task-base pin` and `build (task-base)` among them). The managed smoke's section on
   the tasks' image asks the newest image its runners started for its Node, which must be the
   API's, and each shell name, none of which may start; the dpkg query of the ten Essentials is
   gone, since the base has none of them and no dpkg.
@@ -70,7 +81,9 @@ public (a token and the manifests answered with no login at 10:15).
   line), `a-pin-that-knows-it-is-behind` (121), `an-image-nobody-scanned` (65),
   `a-release-page-with-no-sbom` (22) and `every-pr-check-is-classified`. 36 mutations, one at a
   time, each turned its guard red. The 117 unit test files that read a changed file pass (4222
-  tests), with `pnpm typecheck` and a full lint.
+  tests), with `pnpm typecheck` and a full lint. On the merge with `main` at `2886230a`, the 133
+  that read a changed file pass (4524 tests), and after the pin moved, the 15 that read the
+  config or this file again (582).
 - **Not proved here, and where it is.** This session's proxy refuses GHCR's blob host, so the
   pin was not pulled here: its pull, platforms, revision label, Node and signature are the PR
   job's (no cosign here either). A deploy on the base and the smoke's new section: E2E (managed)
@@ -81,8 +94,9 @@ public (a token and the manifests answered with no login at 10:15).
   drops the tasks' half and the smoke's; merged together nothing of the purge is left, so the
   file keeps its header and the appliance's distroless case. Both add to `release-verify.mjs`,
   its types and its guard in separate places, and both to this Status block and the
-  changelog's `[Unreleased]`. #1816 moves `node:26.13.0-trixie-slim` in the task base's
-  Dockerfile too: once it merges and `main` publishes, the pin moves after it, as above.
+  changelog's `[Unreleased]`. #1816 moved `node:26.13.0-trixie-slim` in the task base's
+  Dockerfile too; it merged first (`2886230a`, 13:42), `main` published, and the pin moved after
+  it, as above.
 
 **2026-11-06: the Node and Redis bases, rebuilt by Docker Hub with Debian's apt fix.** On branch
 `claude/ownpace-public-readiness-y7orc6-bases-11-05`. The image scan of 2026-11-06 (Security Scan
@@ -4808,7 +4822,7 @@ is beside each; none is urgent tonight.
     build base and no layer, and `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts`
     runs its generator on the config to say so on every CLI move: that is the second revisit
     condition, checked. On the branch `claude/ownpace-public-readiness-y7orc6-task-base-switch`,
-    `trigger.config.ts` names `sha-691b235@sha256:a6039c90…` and adds no layer, and the scan,
+    `trigger.config.ts` names `sha-2886230@sha256:91fec895…` and adds no layer, and the scan,
     Release's verify, a pull request job, the pin watch and the managed smoke follow it; E2E
     (managed) and the image scan dispatched on that branch are what is owed before it merges
     (the Status entry of 2026-11-06, later).
