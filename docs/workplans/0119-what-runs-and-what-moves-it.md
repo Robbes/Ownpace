@@ -4,6 +4,96 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06: the appliance without a shell, built for alpha.5, not merged (§3 item 12).** On
+the branch `claude/ownpace-public-readiness-y7orc6-appliance-distroless`, from `main` at
+`a72c9908` (#1817; built and measured on `1b203759`, #1814). Owed before a merge: E2E
+(self-hosted) on the branch, on Postgres and on PGlite, and `build (selfhost)` on both
+architectures; the upgrade drill from alpha.4's published image stays the release checklist's.
+Times are UTC.
+- **What changes.**
+  - `apps/selfhost/Dockerfile`: the runtime stage is the API's line,
+    `gcr.io/distroless/nodejs26-debian13:nonroot@sha256:9b945e92…`, with no RUN. The build
+    stage's last RUN makes `/data/config` (seeded from the payload's `config/`) and the empty
+    mount point `/data/state` beside `/payload`, and sets both trees' modes last; the runtime
+    copies `/payload` to `/app` as root's and `/data` with `--chown=10001:10001`. `USER
+    10001:10001` by number, `ENV HOME=/app`, ENTRYPOINT `/nodejs/bin/node` with CMD `start.mjs`,
+    the HEALTHCHECK on `/nodejs/bin/node`. The package managers' removal and item 11's purge had
+    nothing left to remove and are gone; the base stage stays `node:26.13.0-trixie-slim`, whose
+    x.y.z the Windows payload's `node.exe` follows.
+  - `deploy/selfhost/compose.yml`: `app`'s healthcheck is `["CMD", "/nodejs/bin/node", "-e", …]`,
+    the port still compose's `${SELFHOST_PORT:-8081}`.
+  - What execs into the container. The upgrade drill finds the released image's Node by its
+    path (`/nodejs/bin/node`, then `/usr/local/bin/node`) and reads `/data/state/pglite` with it,
+    where it ran `sh -c ls`. E2E (self-hosted)'s step after the bring-up asks `/nodejs/bin/node`
+    its version and which of fifteen paths it finds (the shells, dpkg, apt, the package
+    managers, su, login, mount, the Node image's node), and stops on any, on a Node other than
+    the `FROM node:` line's and on an answer it cannot read, where it asked `dpkg-query` about
+    item 11's ten. `release-verify.mjs` asked `/version` with `docker exec <name> node`, which
+    finds nothing on distroless and would have refused alpha.5 in Release's verify job; it
+    tries `/nodejs/bin/node`, then `/usr/local/bin/node`.
+  - Docs: the appliance README's row, the quickstart's *Upgrades* (the checkout and the image
+    go together from alpha.5) and a Troubleshooting entry with both health-log lines, and the
+    CHANGELOG's [Unreleased] *Security* entry, which names the healthcheck change and what a
+    self-hoster with an older `compose.yml` does.
+  - Guards: `an-appliance-with-nothing-to-exec`, new; `an-appliance-that-could-rewrite-its-own-code`
+    reads `/data` from its COPY; `an-essential-nothing-runs` no longer holds the tasks' list to
+    the appliance's (the tasks' stands on its own against the ten it names) and hands the E2E
+    step to the new guard; `a-base-image-that-carried-what-nothing-runs` takes a distroless
+    runtime as having no package manager to remove; `a-privilege-no-service-uses` reviews the
+    three new execs and drops `ls`, `sh` and `dpkg-query`; `a-release-page-with-no-sbom` holds
+    release-verify's paths; `package-appliance` refuses a payload that calls `os.userInfo()`.
+- **Measured here** (Docker 29.9.2, BuildKit 0.34.0, linux/amd64). The payload was staged in
+  `node:26.13.0-trixie-slim@e4db4c91…` with the build stage's commands under umask 077 (8 of
+  411 files 0600 and `mkdir`'s 0700, none after the chmod). This branch's runtime stage was
+  built alone with that tree as the `build` named context, and `main`'s with the base stage
+  given as the Node image (so without its corepack layer), for comparison:
+  - 71.6 MB of compressed layers and 290 MB unpacked, against `main`'s 97.1 MB and 400 MB.
+  - Distroless as uid 10001: Docker sets `HOME=/` (no passwd line), and `os.userInfo()` throws
+    ERR_SYSTEM_ERROR. In the payload only `pg`'s pgpass reads `$HOME`, and nothing calls
+    `userInfo`; the image sets `HOME=/app`, `appuser`'s home.
+  - **The Node image's `useradd --system --uid 10001` gave `appuser` gid 999**, not 10001, so
+    an existing volume's files are 10001:999. The image runs as 10001:10001, the pair the
+    startup hint already tells a self-hoster to chown to. On the volume `main`'s image wrote,
+    PGlite opened its data, files it rewrote kept gid 999, new ones are 10001:10001; nothing
+    reads the group.
+  - A fresh PGlite volume under `compose.yml` and `compose.pglite.yml`: healthy in 6 s under
+    the exec-form test, 65 migrations applied, `/healthz`, `/version`, `/ui/` and `/status`
+    answering. `docker exec … sh` and `… node` say *executable file not found in $PATH*. A plain
+    `docker run` on a fresh volume, under the image's own HEALTHCHECK: healthy.
+  - As uid 10001: `/app` and its 411 files root's and readable; appending to `start.mjs`,
+    creating `/app/x`, `mkdir /app/data` and renaming `appliance.mjs` EACCES, `chmod` EPERM;
+    writes in `/data/state` and `/data/config` succeed; `/data`, `/data/config` and
+    `/data/state` 10001:10001 and 0755, the config 0644, as `main`'s are (there 10001:999).
+  - The upgrade on PGlite: `main`'s image on a new volume with the drill's mapping, then this
+    image on it: healthy, *schema up to date at 0067_a_cutover_ledger_per_data_type.sql*, the
+    same mapping, `POST /mappings/…/start` 200, a write in `/data/state`. On Postgres
+    (`postgres:18.6-alpine` on a network of its own): `main`'s image migrated a database, this
+    image found it up to date and was healthy, and on a new database applied 65.
+  - An older `compose.yml`'s CMD-SHELL test on this image: *unhealthy* after four checks,
+    `exec: "/bin/sh": stat /bin/sh: no such file or directory`, while `/healthz` answered. This
+    `compose.yml` on `main`'s image: `exec: "/nodejs/bin/node": stat /nodejs/bin/node: no such
+    file or directory`.
+  - E2E's probe in this image: `v26.13.0 -`; in `main`'s, on its own Node, `/bin/sh`, `/bin/bash`,
+    `/bin/dash`, dpkg, dpkg-query, apt, apt-get and `/usr/local/bin/node`. The drill's:
+    `/nodejs/bin/node --version` 0, `/usr/local/bin/node` 127, the directory's read 0, a missing
+    directory ENOENT.
+  - The guards. Each mutation turned one or more red: the runtime on the Node base again; a
+    distroless digest other than the API's; `USER 65532:65532`; a RUN in the runtime; the
+    HEALTHCHECK on a bare `node`; no ENTRYPOINT with node in CMD and no HOME; `/data` copied
+    without `--chown`, or as 10001:999; the chmod leaving `/data` out; `/data/state` not made;
+    `compose.yml`, the drill, `e2e.yml` and the CHANGELOG as on `main`; the step ignoring the
+    version, or the exit status, or not looking for `/bin/sh`; the README offering `exec app sh`;
+    release-verify asking a bare `node`; the launcher calling `os.userInfo()`.
+  - Every image, container, volume, network and build cache entry of this was removed.
+- **Not proved here:** arm64; the whole Dockerfile under BuildKit (the build stage's commands ran
+  in the Node image as a script); compose with the bundled Postgres's own build; E2E
+  (self-hosted) on either backend; the upgrade drill from the published alpha.4 image (ghcr's
+  blob host refuses this session's pulls); an image scan of this image.
+- **Left for item 13's branch:** `apps/worker/trigger.config.ts`'s comments still say its
+  `PACKAGE_MANAGERS` and `UNUSED_ESSENTIALS` are the appliance runtime stage's and that
+  `an-essential-nothing-runs` holds the two lists together. Neither is true after this, and
+  the file is being changed for item 13 on another branch, so it is left as it is here.
+
 **2026-11-06: the tasks' prebuilt base, which CI builds and starts on a pull request and
 publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch, not
 merged, and not yet run by CI.** On the branch
@@ -3614,8 +3704,8 @@ is who moves it after T1.
 
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
-| `node` (26-trixie-slim since 2026-10-31; 24-trixie-slim from 0146 T12; 24-slim before) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 26.13.0-trixie-slim by index digest `e4db4c91…`, Debian 13.7 (2026-10-31, the move to Node 26: Status, 2026-10-31; 24.22.1-trixie-slim by `43b9ba11…` from 0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 26.13.0-trixie-slim (Node 26.13.0 'Lithium', LTS from 2026-10-28; the tag's index pushed 2026-10-28 23:41 UTC); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21, minor and patch only; the major and the Debian release by hand (§2.4) | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12; Node 26 from 2026-10-31, with corepack 0.36.0 from npm in the build stages (§2.4) |
-| `gcr.io/distroless/nodejs26-debian13` (`nonroot`; `nodejs24-debian13` until 2026-10-31) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13 | the `nonroot` tag by index digest `a51c5d63…`, Debian 13 and Node 26.13.0, nodejs.org's binary byte for byte on amd64 and arm64 (uploaded 2026-10-28 21:35 UTC; taken 2026-10-31 with the `node` row's 26.13.0; `nodejs24-debian13` by `cb606325…`, Node 24.22.1, uploaded 2026-10-23 23:31 UTC, from 0146 T13) | the tag's index, as read 2026-10-31 22:30 UTC; `nonroot` moved on to `9b945e92…` at 2026-10-31 23:45 UTC, a rebuild whose amd64 image differs only in the two tzdata layers (`tzdata`, `tzdata-legacy`; the Node layer `0036073a…` the same), past its floor at 2026-11-03 23:45 UTC, read 2026-11-01 | current: the tag's newest is a tzdata rebuild inside its floor | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
+| `node` (26-trixie-slim since 2026-10-31; 24-trixie-slim from 0146 T12; 24-slim before) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` (its build stage only, since 2026-11-06, §3 item 12) Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 26.13.0-trixie-slim by index digest `e4db4c91…`, Debian 13.7 (2026-10-31, the move to Node 26: Status, 2026-10-31; 24.22.1-trixie-slim by `43b9ba11…` from 0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 26.13.0-trixie-slim (Node 26.13.0 'Lithium', LTS from 2026-10-28; the tag's index pushed 2026-10-28 23:41 UTC); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21, minor and patch only; the major and the Debian release by hand (§2.4) | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12; Node 26 from 2026-10-31, with corepack 0.36.0 from npm in the build stages (§2.4) |
+| `gcr.io/distroless/nodejs26-debian13` (`nonroot`; `nodejs24-debian13` until 2026-10-31) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13; `apps/selfhost/Dockerfile`'s, the same line (one string, `an-appliance-with-nothing-to-exec`), since 2026-11-06 (§3 item 12) | the `nonroot` tag by index digest `a51c5d63…`, Debian 13 and Node 26.13.0, nodejs.org's binary byte for byte on amd64 and arm64 (uploaded 2026-10-28 21:35 UTC; taken 2026-10-31 with the `node` row's 26.13.0; `nodejs24-debian13` by `cb606325…`, Node 24.22.1, uploaded 2026-10-23 23:31 UTC, from 0146 T13) | the tag's index, as read 2026-10-31 22:30 UTC; `nonroot` moved on to `9b945e92…` at 2026-10-31 23:45 UTC, a rebuild whose amd64 image differs only in the two tzdata layers (`tzdata`, `tzdata-legacy`; the Node layer `0036073a…` the same), past its floor at 2026-11-03 23:45 UTC, read 2026-11-01 | current: the tag's newest is a tzdata rebuild inside its floor | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `f45171d3…` (2026-10-25, 0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring; 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
 | `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31) | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, the managed stacks' base too, since 2026-10-31, from Dependabot's #1744; `77f58511…` from its move of 2026-09-24 before that; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it; a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
@@ -4544,6 +4634,14 @@ is beside each; none is urgent tonight.
     **The owner's decision: drop the shell, both changes together in alpha.5**, the healthcheck
     change named in that release's notes. **Revisit** if a self-hoster reports `app` unhealthy
     from an older `compose.yml`.
+
+    **Built 2026-11-06, not merged** (Status, 2026-11-06), on the branch
+    `claude/ownpace-public-readiness-y7orc6-appliance-distroless`: the runtime stage on the
+    API's distroless line, `/data` made in the build stage and copied in as uid 10001's,
+    `compose.yml`'s healthcheck exec form on `/nodejs/bin/node`, the CHANGELOG's entry under
+    [Unreleased]. The appliance's half of item 11's purge goes with it; the tasks' half stays
+    until item 13. Owed before a merge: E2E (self-hosted) on the branch, on Postgres and on
+    PGlite, and `build (selfhost)` on both architectures.
 
 13. **The tasks' prebuilt distroless base — PUBLISHED TO GHCR, 2026-11-03 (alpha.5).** A
     distroless task image needs a base the Trigger.dev CLI builds nothing into (distroless plus

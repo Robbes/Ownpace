@@ -33,25 +33,35 @@
  * `/bin/sh -c`. The probe needs no shell, and an image without one, as the
  * API's distroless runtime is, could not run it.
  *
+ * Since 2026-11-06 the runtime stage is that distroless image (workplan 0119 §3
+ * item 12), with no shell to run a RUN. So `/data` is no longer made and
+ * chowned there: the build stage's last RUN makes it beside the payload, and
+ * the runtime copies it in as the appliance's (`COPY --chown`), which is
+ * where an owner goes when nothing can run `chown`.
+ *
  * So this file holds, for `apps/selfhost/Dockerfile`'s runtime stage (its last):
  *
  * 1. Everything it copies into `/app` comes from a stage of this Dockerfile,
  *    as root's (no `--chown` but root, no `--chmod`), and never from the build
  *    context, whose modes are the checkout's.
- * 2. Each such stage's last RUN, COPY or ADD is a RUN whose last command is
- *    `chmod -R u=rwX,go=rX` over the directory copied.
- * 3. No RUN in the runtime stage changes the owner or mode of anything; but
- *    `chown` of `/data`, to the user the stage then runs as, after making the
- *    mount point of every named volume the appliance's compose files give its
- *    `app` service. (A volume is seeded from the image's directory, ownership
- *    included; a mount point the image lacks comes up root's: the EACCES of
- *    `apps/selfhost/src/index.ts`'s startup hint.)
+ * 2. Each stage it copies from (for `/app` and for `/data`) has as its last
+ *    RUN, COPY or ADD a RUN whose last command is `chmod -R u=rwX,go=rX` over
+ *    the directories copied.
+ * 3. No RUN in the runtime stage changes the owner or mode of anything.
+ *    `/data` comes in by one COPY from a stage of this Dockerfile, `--chown`
+ *    to the user the stage then runs as (by number, both ids), and that
+ *    stage's last RUN makes the mount point of every named volume the
+ *    appliance's compose files give its `app` service. (A volume is seeded
+ *    from the image's directory, ownership included; a mount point the image
+ *    lacks comes up root's: the EACCES of `apps/selfhost/src/index.ts`'s
+ *    startup hint.)
  * 4. `CONFIG_DIR` and `SELFHOST_PGLITE_DIR` are set, both under `/data`, and
  *    `SELFHOST_PGLITE_DIR` is the value `compose.pglite.yml` gives it; and the
  *    payload's `start.mjs` still reads both from the environment.
  * 5. Its one HEALTHCHECK is exec form (valid JSON: Docker takes anything else
- *    as the shell form, silently), runs `node`, asks `/healthz` on
- *    `process.env.PORT`, and holds no `$` a shell would have expanded.
+ *    as the shell form, silently), runs the image's Node by its path,
+ *    `/nodejs/bin/node`, asks `/healthz` on `process.env.PORT`, and holds no
+ *    `$` a shell would have expanded.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -71,6 +81,8 @@ const PACKAGER = 'scripts/package-appliance.mjs';
 const APP = '/app';
 const DATA = '/data';
 const MODES = 'u=rwX,go=rX';
+/** The distroless image's Node, off its PATH (apps/api/Dockerfile). */
+const NODE_PATH = '/nodejs/bin/node';
 
 type Instruction = { op: string; args: string };
 type Stage = { name: string; base: string; body: Instruction[] };
@@ -192,10 +204,15 @@ describe(`${DOCKERFILE}: /app is root's, readable by the appliance and not writa
     }
   });
 
-  it(`the stage it copies from runs \`chmod -R ${MODES}\` over what it copies, last`, () => {
-    for (const { i, c } of intoApp) {
-      const stage = stages.find((s) => s.name === c.flags.from)!;
-      const writes = stage.body.filter((x) => ['RUN', 'COPY', 'ADD'].includes(x.op));
+  it(`each stage it copies from runs \`chmod -R ${MODES}\` over what it copies, last`, () => {
+    // For /app and for /data alike: a mode is the source stage's to set,
+    // since the runtime has nothing to run chmod with.
+    const copies = runtime.body.filter((i) => i.op === 'COPY').map((i) => ({ i, c: copyOf(i.args) }));
+    expect(copies.filter(({ c }) => under(c.dest, DATA)).length, 'nothing copied into /data (vacuity)').toBeGreaterThan(0);
+    for (const { i, c } of copies) {
+      const stage = stages.find((s) => s.name === c.flags.from);
+      expect(stage, `${i.op} ${i.args}: not from a stage of this Dockerfile`).toBeDefined();
+      const writes = stage!.body.filter((x) => ['RUN', 'COPY', 'ADD'].includes(x.op));
       const last = writes.at(-1);
       expect(last?.op, `${c.flags.from}: its last RUN, COPY or ADD`).toBe('RUN');
       const final = commandsOf(last!.args).at(-1)!;
@@ -207,44 +224,50 @@ describe(`${DOCKERFILE}: /app is root's, readable by the appliance and not writa
     }
   });
 
-  it('no RUN in the runtime stage changes an owner or a mode, but chown of /data to its USER', () => {
+  it('no RUN in the runtime stage changes an owner or a mode', () => {
+    for (const i of runtime.body.filter((x) => x.op === 'RUN')) {
+      for (const words of commandsOf(i.args)) {
+        expect(['chown', 'chmod', 'chgrp', 'setfacl'], `RUN ${i.args}: an owner is a COPY's --chown, a mode the source stage's`).not.toContain(words[0]);
+      }
+    }
+  });
+
+  it("/data comes in by one COPY from a stage, as the USER's by number, with every mount point made there", () => {
     const users = runtime.body.filter((i) => i.op === 'USER');
     expect(users, 'the runtime names its USER once').toHaveLength(1);
     const user = users[0]!.args.trim();
-    const userAt = runtime.body.indexOf(users[0]!);
-    let chownsData = -1;
-    runtime.body.forEach((i, at) => {
-      if (i.op !== 'RUN') return;
-      for (const words of commandsOf(i.args)) {
-        if (!['chown', 'chmod', 'chgrp', 'setfacl'].includes(words[0]!)) continue;
-        const command = words.join(' ');
-        // `chown [-R] <owner> <path>…`: the owner, then the paths.
-        const operands = words.slice(1).filter((w) => !w.startsWith('-'));
-        expect(words[0], `${command}: a mode is the build stage's to set, not the runtime's`).toBe('chown');
-        expect(operands[0], `${command}: /data is the runtime user's`).toBe(`${user}:${user}`);
-        const paths = operands.slice(1);
-        expect(paths.length, command).toBeGreaterThan(0);
-        for (const p of paths) {
-          expect(under(p, APP), `${command}: hands ${p} to ${user}, which may then rewrite the code it runs`).toBe(false);
-          expect(norm(p), `${command}: only /data, whole`).toBe(DATA);
-        }
-        if (words.includes('-R')) chownsData = at;
-      }
-    });
-    expect(chownsData, `no \`chown -R ${user}:${user} ${DATA}\` in the runtime stage`).toBeGreaterThanOrEqual(0);
-    expect(chownsData, 'the chown comes after USER, as a user who may not').toBeLessThan(userAt);
+    // Both ids, by number: distroless has no passwd line for the appliance's
+    // user, and a COPY's --chown and USER must name the same owner.
+    expect(user, 'USER is <uid>:<gid>, numbers').toMatch(/^\d+:\d+$/);
+    expect(user.split(':')[0], 'not root').not.toBe('0');
+    const intoData = runtime.body
+      .map((i, at) => ({ i, at, c: i.op === 'COPY' || i.op === 'ADD' ? copyOf(i.args) : null }))
+      .filter((x) => x.c !== null && under(x.c.dest, DATA));
+    expect(intoData.map((x) => `${x.i.op} ${x.i.args}`), 'one COPY into /data').toHaveLength(1);
+    const { i, at, c } = intoData[0]!;
+    const what = `${i.op} ${i.args}`;
+    expect(i.op, `${what}: COPY from a stage`).toBe('COPY');
+    expect(norm(c!.dest), `${what}: /data, whole`).toBe(DATA);
+    expect(c!.flags.from, `${what}: from the build context, with the checkout's modes and none of the mount points`).toBeDefined();
+    expect(c!.flags.chown, `${what}: /data is the runtime user's`).toBe(user);
+    expect(c!.flags.chmod, `${what}: the mode is the source stage's, set last there`).toBeUndefined();
+    expect(at, `${what} comes before USER`).toBeLessThan(runtime.body.indexOf(users[0]!));
 
-    // The mount points are made in the same RUN, before the chown, so a fresh
-    // named volume is seeded as the user's and not root's.
-    const run = runtime.body[chownsData]!.args;
-    const made = commandsOf(run)
+    // The mount points are made in the source stage's last RUN, so the COPY
+    // brings each in as the user's, and a fresh named volume is seeded so.
+    const stage = stages.find((s) => s.name === c!.flags.from)!;
+    const last = stage.body.filter((x) => x.op === 'RUN').at(-1)!;
+    const made = commandsOf(last.args)
       .filter((w) => w[0] === 'mkdir')
       .flatMap((w) => w.slice(1).filter((x) => !x.startsWith('-')).map(norm));
+    const source = norm(c!.sources[0]!);
+    expect(c!.sources, `${what}: one source`).toHaveLength(1);
     const targets = appVolumeTargets();
     expect(targets.length, `no named volume on the app service in ${COMPOSE_DIR} (vacuity)`).toBeGreaterThan(0);
     for (const { file, target } of targets) {
       expect(under(target, DATA), `${file}: ${target} is not under ${DATA}, which the appliance owns`).toBe(true);
-      expect(made, `${file} mounts a volume at ${target}, which the chown's RUN never makes`).toContain(norm(target));
+      const there = `${source}${norm(target).slice(DATA.length)}`;
+      expect(made, `${file} mounts a volume at ${target}, which ${c!.flags.from}'s last RUN never makes (as ${there})`).toContain(there);
     }
   });
 
@@ -273,7 +296,7 @@ describe(`${DOCKERFILE}: the HEALTHCHECK runs without a shell`, () => {
   const runtime = stagesOf(read(DOCKERFILE)).at(-1)!;
   const hc = runtime.body.filter((i) => i.op === 'HEALTHCHECK');
 
-  it('is one, exec form, on node, asking /healthz on PORT, with nothing for a shell to expand', () => {
+  it(`is one, exec form, on ${NODE_PATH}, asking /healthz on PORT, with nothing for a shell to expand`, () => {
     expect(hc, 'one HEALTHCHECK in the runtime stage').toHaveLength(1);
     const command = /\bCMD\s+(.*)$/.exec(hc[0]!.args)?.[1];
     expect(command, `HEALTHCHECK ${hc[0]!.args}`).toBeDefined();
@@ -281,7 +304,9 @@ describe(`${DOCKERFILE}: the HEALTHCHECK runs without a shell`, () => {
     // Docker reads a CMD that is not a JSON array of strings as the shell form,
     // and says nothing.
     expect(words, `HEALTHCHECK ${hc[0]!.args}: the shell form, or JSON Docker would not take`).not.toBeNull();
-    expect(words![0]).toBe('node');
+    // By its path: distroless's Node is not on its PATH, and a bare `node`
+    // finds nothing there (apps/api/Dockerfile).
+    expect(words![0]).toBe(NODE_PATH);
     expect(words![1]).toBe('-e');
     expect(words![2]).toContain('/healthz');
     expect(words![2]).toContain('process.env.PORT');

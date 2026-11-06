@@ -67,6 +67,8 @@ import {
   latestWithheld,
   cosignCalls,
   versionAnswer,
+  versionExec,
+  APPLIANCE_NODES,
   pinnedRuntimeIn,
   checkRuntime,
 } from './release-verify.mjs';
@@ -283,5 +285,20 @@ describe('/version on the pulled image', () => {
     expect(versionAnswer({ version: '0.2.0-alpha.1', commit: C }, { version: V, commit: C }).kind).toBe('refuse');
     expect(versionAnswer({ version: '0.2.0-alpha.2', commit: 'unknown' }, { version: V, commit: C }).kind).toBe('refuse');
     expect(versionAnswer(null, { version: V, commit: C }).kind).toBe('refuse');
+  });
+
+  it("asks it with the image's Node by its path, the distroless one first, and never a bare node", () => {
+    // From 0.2.0-alpha.5 the appliance is distroless (workplan 0119 §3 item
+    // 12): Node at /nodejs/bin/node, off the PATH, and no shell, so `docker
+    // exec <name> node` finds nothing and the check would refuse every release.
+    expect(APPLIANCE_NODES).toEqual(['/nodejs/bin/node', '/usr/local/bin/node']);
+    for (const node of APPLIANCE_NODES) {
+      const args = versionExec('release-version-1', node);
+      expect(args.slice(0, 4)).toEqual(['exec', 'release-version-1', node, '-e']);
+      expect(args[4]).toContain("+'/version'");
+    }
+    const verify = read('scripts/release-verify.mjs');
+    expect(verify).toContain("run('docker', versionExec(name, node))");
+    expect(verify).not.toMatch(/\[\s*'exec',\s*name,\s*'node'/);
   });
 });
