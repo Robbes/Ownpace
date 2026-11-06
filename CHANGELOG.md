@@ -68,6 +68,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and E2E now also stops when the appliance's Node is not the version the Windows payload's
   `node.exe` ships.
 
+### Changed
+
+- **Trigger.dev's object store runs Chainguard's MinIO build of 2026-11-05** (workplan 0119,
+  0146 T7): the same MinIO server and `mc` as the build of 2026-10-29, byte for byte, on a
+  newer base: glibc 2.44 with four fixes from its release branch, ncurses' snapshot of
+  2026-10-31, and rebuilds of brotli, pcre2, acl and attr. Kept current, not a security fix:
+  the build before it read no critical or high finding, and none of these changes names an
+  advisory. Nothing a stack sets changes; the next bring-up pulls it, and the data volume
+  carries over.
+
 ### Added
 
 - **The weekly pin watch reports a newer patch of the second Nextcloud major** (workplan 0119
