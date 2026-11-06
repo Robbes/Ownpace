@@ -4,6 +4,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.8** (workplan 0119), still built
+  here without curl: on Alpine 3.24.3, and a binary built with Go 1.27.3 and a newer x/net,
+  which clear five of its seven high findings. It fronts the dashboard only, on loopback or the
+  mesh.
+
 ### Added
 
 - **The app's own pages are opened on a phone on every pull request** (workplan 0145

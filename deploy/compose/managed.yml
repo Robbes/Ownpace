@@ -1067,7 +1067,7 @@ services:
   # removes, why the name carries the hash of its instructions, and how it
   # moves. `never`, as for the databases: no registry serves this name.
   trigger-tls:
-    image: localhost/caddy:2.11.7-alpine-ed5425a7da36
+    image: localhost/caddy:2.11.8-alpine-c054907a40ed
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls

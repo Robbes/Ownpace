@@ -2,24 +2,25 @@
 # built here: Caddy's official image at the pinned digest, with curl removed,
 # and with it the libraries only curl pulled in (workplan 0119, 2026-10-31).
 #
-# WHY. The service ran `caddy:2.11.7-alpine` by the index digest below. Read on
-# 2026-10-31 with Trivy v0.76.1 and its database of 2026-10-30, the image scan's
-# reading (high and critical, vulnerabilities only), it holds 1 critical and 9
-# high findings, 9 of them fixed in a newer package, on linux/arm64 and
-# linux/amd64 alike. Three are in the operating system, Alpine 3.23.7:
+# WHY. Upstream's image adds curl itself, `apk add --no-cache ca-certificates
+# curl libcap mailcap` (caddy-docker's 2.11/alpine/Dockerfile, since its
+# commit f760f9dc of 2026-01-16, which gives no reason), and the image's
+# history shows that line. libcurl needs brotli-libs, c-ares, libidn2, libpsl,
+# nghttp2-libs and zstd-libs, and libidn2 and libpsl need libunistring;
+# nothing else in the image needs any of them (read from its
+# /lib/apk/db/installed). On 2026-10-31 that cost the service its one critical
+# finding and two of its highs: `caddy:2.11.7-alpine`, on Alpine 3.23.7, read
+# with Trivy v0.76.1 and its database of 2026-10-30, held 1 critical and 9
+# high, three of them in with curl:
 #   - CVE-2026-111497, critical, in brotli-libs 1.2.0-r0 (fixed in 1.2.1-r0);
 #   - CVE-2026-92392, high, in curl and libcurl 8.22.0-r0 (fixed in 8.23.0-r0).
-# All three come in with curl. Upstream's Dockerfile adds it itself,
-# `apk add --no-cache ca-certificates curl libcap mailcap` (caddy-docker's
-# 2.11/alpine/Dockerfile, since its commit f760f9dc of 2026-01-16, which gives
-# no reason), and the image's history shows that line. libcurl needs
-# brotli-libs, c-ares, libidn2, libpsl, nghttp2-libs and zstd-libs, and
-# libidn2 and libpsl need libunistring; nothing else in the image needs any of
-# them (read from its /lib/apk/db/installed). Upstream will not move it soon:
-# v2.11.7 is Caddy's newest tag, and Docker Hub's re-push of the tag on
-# 2026-10-30 changed its riscv64 image only, so its linux/amd64 (04913b1d…)
-# and linux/arm64 (cc447f14…) images are still the builds of 2026-10-21 that
-# the digest below names.
+# The FROM below is v2.11.8, Caddy's newest tag, on Alpine 3.24.3, whose curl
+# and libcurl 8.23.0-r0 and brotli-libs 1.2.1-r0 carry those fixes. curl goes
+# all the same: nothing here runs it, and what is not installed brings no
+# next finding. Docker Hub re-pushed the tag's index (the digest below) on
+# 2026-11-05 at 08:52 UTC with other platforms' images only: its linux/amd64
+# (84202bd3…) and linux/arm64 (d4848662…) images are the builds of 2026-11-04
+# 20:52 UTC, the same packages on both, read from the registry on 2026-11-06.
 #
 # WHY NOTHING HERE NEEDS CURL. Caddy is one statically linked Go binary, and
 # nothing in Caddy runs curl. Nothing else does in this container either: the
@@ -40,17 +41,15 @@
 # packages are still there, that no curl is left on the PATH, and that
 # `caddy version` still prints the release the FROM names. The user, the
 # command, the working directory, the ports and the environment are
-# upstream's: this file sets none of them. Built, the image scan reads it at
-# 0 critical and 7 high findings, 6 of them fixable (Security Scan run
-# 41161126144, linux/arm64, 2026-10-31), the counts read before the first
-# build from both platform images with the nine packages and their files
-# removed, where all seven are in the Caddy binary:
-#   - github.com/go-jose/go-jose/v4 v4.1.5, CVE-2026-116587 (fixed in 4.1.6);
-#   - github.com/go-jose/go-jose/v3 v3.0.5, the same CVE, with no fix;
-#   - golang.org/x/net v0.59.0, CVE-2026-78669 (fixed in 0.60.0);
-#   - the Go standard library v1.26.8, CVE-2026-111943, CVE-2026-78667,
-#     CVE-2026-78669 and CVE-2026-97031 (fixed in 1.26.9 and 1.26.10).
-# Those leave with a Caddy release built on newer modules and a newer Go.
+# upstream's: this file sets none of them. On v2.11.7 the image scan read the
+# build at 0 critical and 7 high, 6 of them fixable (Security Scan run
+# 41161126144, linux/arm64, 2026-10-31), all seven in the Caddy binary: Go's
+# standard library v1.26.8 (four), golang.org/x/net v0.59.0 (one) and go-jose
+# v4 v4.1.5 and v3 v3.0.5 (CVE-2026-116587 in each). v2.11.8's binary, read
+# with `go version -m` on both platforms, is built with Go 1.27.3 and on
+# golang.org/x/net v0.60.0, which carry the first five's fixes; go-jose stays
+# at v4.1.5 (fixed in 4.1.6) and v3.0.5 (no fix), so two highs remain, one
+# fixable, until a Caddy release moves go-jose.
 #
 # THE NAME. managed.yml builds this as `localhost/caddy:<base tag>-<12 hex>`,
 # a name no registry serves, with `pull_policy: never`, as
@@ -77,11 +76,11 @@
 #     with trigger-tls.Caddyfile and asks it for TLS on 3443; then dispatch E2E
 #     (managed) on the branch, whose smoke asks the same front.
 #   - Another major: the owner's call, and Dependabot is told to leave it.
-FROM caddy:2.11.7-alpine@sha256:eb4d35b7452d1ab6171fbdbe8d9275b2301dad6dad92115d91e19fb9b24d510f
+FROM caddy:2.11.8-alpine@sha256:f6228111e5fafa1a5238258d0858e103f10599b8d1659a146e7726681a002bb9
 
 # Not upstream's: curl out, and what only curl needed (the header).
 RUN set -eu; \
-    for want in curl=8.22.0-r0 libcurl=8.22.0-r0 brotli-libs=1.2.0-r0; do \
+    for want in curl=8.23.0-r0 libcurl=8.23.0-r0 brotli-libs=1.2.1-r0; do \
       awk -v want="$want" '/^P:/ { p = substr($0, 3) } /^V:/ && (p "=" substr($0, 3)) == want { found = 1 } END { exit !found }' /lib/apk/db/installed \
         || { echo "this base does not have $want, as this file's header read it: re-read the header" >&2; exit 1; }; \
     done; \
@@ -94,4 +93,4 @@ RUN set -eu; \
     done; \
     if command -v curl; then echo "a curl is still on the PATH: re-read the header" >&2; exit 1; fi; \
     version="$(caddy version)"; \
-    case "$version" in v2.11.7|"v2.11.7 "*) ;; *) echo "caddy version printed '$version', not v2.11.7: re-read the header" >&2; exit 1 ;; esac
+    case "$version" in v2.11.8|"v2.11.8 "*) ;; *) echo "caddy version printed '$version', not v2.11.8: re-read the header" >&2; exit 1 ;; esac
