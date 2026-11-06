@@ -4,6 +4,110 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06, later: the tasks move onto the prebuilt base (§3 item 13, the second change);
+built on a branch, not merged; CI, the image scan and E2E (managed) green.** On the branch
+`claude/ownpace-public-readiness-y7orc6-task-base-switch`, on `main` at `691b2352` (#1822),
+with `main` merged at `f42101b0` (#1819, the appliance without a shell) and at `2886230a`
+(#1815, #1821 and #1816, the bases). Times are UTC. The first change merged as #1818
+(`e0ef6b55`), which overtakes the entry below on the base that says *built on a branch, not
+merged*: `main` has published
+`ghcr.io/robbes/ownpace-task-base` three times since, as `sha-e0ef6b5`, `sha-4177729` and
+`sha-691b235`, each with a `sha256-<index>` tag holding its sigstore bundle, and the package is
+public (a token and the manifests answered with no login at 10:15).
+- **The pin.** `apps/worker/trigger.config.ts` names
+  `ghcr.io/robbes/ownpace-task-base:sha-2886230@sha256:91fec895…` as `TASK_BASE_IMAGE`, `edge`
+  when read at 13:46, with its `sha256-<index>` signature tag beside it. `main` published it
+  (Images run 42227679645, `build (task-base)` 13:42 to 13:45) from `2886230a`, #1816, which
+  moved the base's build stage to `node:26.13.0-trixie-slim@sha256:5adad64f…`. Until then the
+  pin was `sha-691b235@sha256:a6039c90…`, `edge` when read at 10:15 (it had moved from
+  `sha-4177729` at 10:08, with #1822). Read against GHCR at 13:46, the two have the same 29
+  layers on each platform and differ in their configs only: the build stage's new digest moved
+  apt and tzdata, which nothing copies into the base. The pin moves all the same, so that it
+  names the base built from the Dockerfile as it stands on `main`; the pin watch's row, run here
+  at 13:53, reads it current against `edge`. Its extension sets
+  the manifest's `image.base` to it and `buildBase` to `TASK_BUILD_IMAGE`, and adds no layer;
+  the API-base reader, the trust edits, `PACKAGE_MANAGERS`, `UNUSED_ESSENTIALS` and their
+  comments are gone from it. The installed CLI's own generator (trigger.dev 4.8.3), on the
+  manifest the config leaves, writes `FROM <the pin> AS base` with one `ENV
+  DEBIAN_FRONTEND=noninteractive`, the build stage `FROM triggerdotdev/node:26-bookworm-build@…`
+  where `npm i` and the indexer run, and a runtime stage `FROM base AS final` with `USER node`,
+  three `COPY --chown=node:node` and no RUN.
+- **The same Dockerfile, three digests, one set of layers.** Read on 2026-11-06: the three
+  indexes above have three digests and their amd64 and arm64 manifests the same 29 layers
+  each; only the configs differ (the revision label). So the pin watch's row *the tasks' base*
+  (`scripts/idp-pin-watch.mjs`, a routine row, in the summary issue) compares each platform's
+  layers with `edge`'s, not the digest, which would read behind after every merge: behind when
+  they differ, when the pinned index is gone from GHCR, or when no signature is listed for it;
+  a rebuild with the same layers is current, with a note; a read it cannot make is an error.
+  Run here against GHCR: current for `sha-691b235`; current, *a rebuild with the same layers*,
+  for `sha-4177729` and `sha-e0ef6b5`; behind for a digest that does not exist. The row *the
+  tasks' Node* reports current while the config names a base of its own.
+- **What else follows the pin.** `scripts/image-scan.mjs` lists `trigger-task-base` as the pin,
+  pulled as published, with no `containerfile` build (the command, its stage writer and the
+  scan leg's install and build steps in `security-scan.yml` are gone); the first scan moves its
+  Debian alerts from `library/node` to `robbes/ownpace-task-base`, once, and an issue for it
+  names the base's Dockerfile and the pin. `scripts/release-verify.mjs` reads the pin at the
+  tag's commit and checks the index has both platforms, its revision label starts with the
+  commit its tag names and is an ancestor of the tag's (the compare API), and `cosign verify`
+  by digest with `images.yml`'s identity on `refs/heads/main`; a tag that pins none gets a note.
+  images.yml's new PR job `task-base pin` (its paths take `apps/worker/trigger.config.ts`)
+  pulls the pin with no login for both platforms, checks the platforms and the revision label,
+  reads its Node (a warning when it is not `apps/api/Dockerfile`'s line, the reason below) and
+  verifies the signature with main's identity, three attempts. Its first run (on `eb55e1c8`)
+  pulled arm64 and then stopped at the amd64 pull: *"cannot overwrite digest
+  sha256:a6039c90…"*. The hosted runner's image store keeps one image under a digest, and
+  both pulls named the index digest. It now pulls arm64 by that platform's own manifest
+  digest from the index, which is the blobs an arm64 host's deploy pulls, and amd64 by the pin.
+  The guard expects the two pulls to name two digests, and a missing or malformed arm64 digest
+  to stop the step before anything is pulled. Read against GHCR here, `sha-691b235`'s index
+  named arm64 as `sha256:5d126132…`, an image manifest of 29 layers; `sha-2886230`'s names
+  `sha256:85baadfd…`, with the same 29. CI was green on `33fc5b5c`, with the old pin (30
+  checks, `task-base pin` and `build (task-base)` among them). The managed smoke's section on
+  the tasks' image asks the newest image its runners started for its Node, which must be the
+  API's, and each shell name, none of which may start; the dpkg query of the ten Essentials is
+  gone, since the base has none of them and no dpkg.
+- **A move of the API's Node is two pull requests now.** Dependabot moves `apps/api/Dockerfile`
+  and `apps/worker/task-image/Dockerfile` together; `main` publishes a base with other layers
+  only after that merges, and the tasks follow when `TASK_BASE_IMAGE` moves, in a pull request
+  of its own. Until then the pin watch lists the pin behind, the PR job warns, and the managed
+  smoke stops on the two Nodes by name (so does E2E (managed) dispatched on the Dependabot
+  branch itself). A change to the base's Dockerfile that touches only its comments changes no
+  layer, so this branch's own edit of its comments should leave the pin current after the
+  merge; the first `main` run after it says so.
+- **Held by** `a-task-base-the-cli-builds-nothing-into` (32 cases: the config, the generator on
+  it, the PR job's step run against a stand-in docker, jq, cosign and sleep, and the smoke's
+  section run against a stand-in docker, moved there from `an-essential-nothing-runs`, which
+  keeps the appliance's half), `a-gate-on-a-version-nothing-ships` (the pin's one shape and one
+  line), `a-pin-that-knows-it-is-behind` (121), `an-image-nobody-scanned` (65),
+  `a-release-page-with-no-sbom` (22) and `every-pr-check-is-classified`. 36 mutations, one at a
+  time, each turned its guard red. The 117 unit test files that read a changed file pass (4222
+  tests), with `pnpm typecheck` and a full lint. On the merge with `main` at `2886230a`, the 133
+  that read a changed file pass (4524 tests), and after the pin moved, the 15 that read the
+  config or this file again (582).
+- **Not proved here, and where it is.** This session's proxy refuses GHCR's blob host, so the
+  pin was not pulled here: its pull, platforms, revision label, Node and signature are the PR
+  job's (no cosign here either). Release's check: alpha.5's verify. The deploy on the base and
+  the scan of the pin are proved on the branch (next).
+- **Proved on the branch.** The image scan, Security Scan run 42229674760, dispatched with
+  `image_scans` on `ee6e65a3` (linux/arm64), reads `trigger-task-base` as the pin,
+  `ghcr.io/robbes/ownpace-task-base:sha-2886230@sha256:91fec895…`, Debian 13.7, at 0 critical,
+  2 high and 0 with a fix (zlib1g's two, which Debian 13 has not fixed), where the build on the
+  API's Node line read 0, 9 and 0 (run 42213975717). E2E (managed) run 42232407575, dispatched
+  on `ee6e65a3`, was green from 14:40 to 14:48 UTC on the OTA stack, the first deploy of the
+  tasks on the base: the CLI's base stage was the pin's one `FROM` (`[base 1/1]`), pulled from
+  `ghcr.io`; the image came to 222.36 MB, and version 20261106.7 deployed with 17 detected
+  tasks. The smoke's new section read the newest runner image, `cbc32b7e7471`: *Node v26.13.0,
+  the API's*, and *no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)*; its verdict was
+  *verify: done apply: applied*.
+- **For whoever merges what.** #1819 (the distroless appliance) edits
+  `an-essential-nothing-runs` too: it drops the appliance's purge and the E2E step's half, this
+  drops the tasks' half and the smoke's; merged together nothing of the purge is left, so the
+  file keeps its header and the appliance's distroless case. Both add to `release-verify.mjs`,
+  its types and its guard in separate places, and both to this Status block and the
+  changelog's `[Unreleased]`. #1816 moved `node:26.13.0-trixie-slim` in the task base's
+  Dockerfile too; it merged first (`2886230a`, 13:42), `main` published, and the pin moved after
+  it, as above.
+
 **2026-11-06: the Node and Redis bases, rebuilt by Docker Hub with Debian's apt fix.** On branch
 `claude/ownpace-public-readiness-y7orc6-bases-11-05`. The image scan of 2026-11-06 (Security Scan
 run 42143936608, on #1815's branch, linux/arm64) counts a new high with a fix, CVE-2026-109518 in
@@ -4719,16 +4823,19 @@ is beside each; none is urgent tonight.
     Debian mirror. **Revisit** if GHCR becomes unreachable from live, or the CLI starts adding
     steps of its own to a base that already has every one.
 
-    **Where it stands, 2026-11-06: the build, its run and its signing are built, not merged; the
-    tasks do not run on it yet.** `apps/worker/task-image/Dockerfile`, published from `main` only
-    by `images.yml`'s `task-base` leg as `ghcr.io/robbes/ownpace-task-base:edge` and
-    `sha-<commit>`, signed by digest; never from a tag, so that the tasks can name one digest
-    that the OTA stack and live both run. The installed CLI writes nothing a shell-less base
-    cannot run when it is given a build base and no layer, and
-    `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts` runs its generator to say so
-    on every CLI move: that is the second revisit condition, checked. The switch of
-    `trigger.config.ts` to that digest is the second change, after `main`'s first publish (the
-    Status entry of 2026-11-06 has the order).
+    **Where it stands, 2026-11-06, later: the base is built, signed and published from `main`
+    (#1818); the tasks' switch to it is built on a branch, not merged.**
+    `apps/worker/task-image/Dockerfile`, published from `main` only by `images.yml`'s
+    `task-base` leg as `ghcr.io/robbes/ownpace-task-base:edge` and `sha-<commit>`, signed by
+    digest; never from a tag, so that the tasks can name one digest that the OTA stack and live
+    both run. The installed CLI writes nothing a shell-less base cannot run when it is given a
+    build base and no layer, and `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts`
+    runs its generator on the config to say so on every CLI move: that is the second revisit
+    condition, checked. On the branch `claude/ownpace-public-readiness-y7orc6-task-base-switch`,
+    `trigger.config.ts` names `sha-2886230@sha256:91fec895…` and adds no layer, and the scan,
+    Release's verify, a pull request job, the pin watch and the managed smoke follow it; E2E
+    (managed) and the image scan dispatched on that branch are what is owed before it merges
+    (the Status entry of 2026-11-06, later).
 
 ## 4. Not done, honestly
 

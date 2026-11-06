@@ -74,6 +74,20 @@
  * stack's, a re-pushed 26.2.19.43 (26.2 cannot read 26.8's parts) or an older
  * 26.8 patch (without CVE-2026-116366's fix). A stack tag newer than
  * upstream's is `ahead` now, and its issue says it is never followed.
+ *
+ * A PIN WHOSE DIGEST MOVES ON EVERY MERGE (workplan 0119 §3 item 13,
+ * 2026-11-06). The tasks run on a base images.yml publishes from main only,
+ * which trigger.config.ts pins by its `sha-<commit>` tag and index digest.
+ * main republishes it on every merge, and its revision label moves, so its
+ * digest does too: compared by digest with `edge`, the row would be behind
+ * after every merge, and an issue that is always open is one nobody reads.
+ * Three builds of the same Dockerfile read on 2026-11-06 (`sha-e0ef6b5`,
+ * `sha-4177729`, `sha-691b235`) had three digests and the same layers on both
+ * platforms. So the row compares each platform's layers, what a deploy pulls,
+ * and is behind only when they differ, when the pinned index is gone from
+ * ghcr, or when no signature is listed for it. This holds each of those, the
+ * notes beside them, and that a read it cannot make is an error and not
+ * current.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -118,7 +132,10 @@ import {
   TRIVY_JOBS,
   TRIVY_NOTE,
   TRIVY_WORKFLOW,
-  TASK_ON_API_IMAGE,
+  TASK_BASE_ARCHES,
+  TASK_BASE_CONFIG,
+  TASK_BASE_LINE,
+  TASK_BASE_NOTE,
   TITLES,
   WINDOW_DAYS,
   actionDefault,
@@ -158,6 +175,9 @@ import {
   stepsUsing,
   summaryOf,
   table,
+  taskBaseLayers,
+  taskBasePin,
+  taskBaseRow,
   taskNodeRow,
   triggerRow,
   typescriptRow,
@@ -526,8 +546,11 @@ describe('how a pin is compared with its registry', () => {
       'aquasecurity/trivy-action',
     );
     expect(named).toEqual([{ sha: 'e'.repeat(40), version: 'v0.36.0', with: { version: 'v0.76.0', format: 'sarif' } }]);
+    // Two since 2026-11-06: the build job's, which signs, and the task-base-pin
+    // job's, which verifies the tasks' base pin; both read by the cosign row.
     const sign = stepsUsing(REAL.read('.github/workflows/images.yml')!, 'sigstore/cosign-installer');
-    expect(sign).toHaveLength(1);
+    expect(sign).toHaveLength(2);
+    expect(new Set(sign.map((s) => `${s.sha} ${s.with['cosign-release']}`)).size).toBe(1);
   });
 
   it("reads an action's default for an input, under inputs: only", () => {
@@ -774,7 +797,7 @@ describe("the tasks' Node, against Node's newest security release", () => {
   it('is behind on 26.12.0 below 26.12.1, and names the pinned CLI, the newest CLI and the floor', async () => {
     // The config's own runtime, read as the row reads it: the stand-in CLI's row for it is D26.
     expect(/\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1]).toBe('node-26');
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D26));
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_BASE_LINE, '') }), net('9.9.9', D26));
     expect(row).toMatchObject({ pin: '26.12.0', newest: '26.12.1', state: 'behind' });
     expect(row.body).toContain(`trigger.dev ${cli}`);
     expect(row.body).toContain('**26.12.1**');
@@ -782,18 +805,18 @@ describe("the tasks' Node, against Node's newest security release", () => {
   });
 
   it('says a Trigger.dev move fixes it once the newest CLI builds on a Node at the floor', async () => {
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_ON_API_IMAGE, '') }), net('9.9.9', D26_NEW, '26.12.1'));
+    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': config.replace(TASK_BASE_LINE, '') }), net('9.9.9', D26_NEW, '26.12.1'));
     expect(row.body).toMatch(/trigger\.dev 9\.9\.9, builds on Node 26\.12\.1: moving Trigger\.dev to it/);
   });
 
-  it("stops, and closes its issue, once the tasks build on the API image's base", async () => {
-    const bare = config.replace(TASK_ON_API_IMAGE, '');
-    expect(TASK_ON_API_IMAGE.test(bare), 'the vacuity case: without the mark the row reports').toBe(false);
-    const onApiImage = `${bare}\n// manifest.image = { ...manifest.image, base: taskBase.image };\n`;
+  it('stops, and closes its issue, once the tasks run on a base of their own: the prebuilt one the config pins', async () => {
+    const bare = config.replace(TASK_BASE_LINE, '');
+    expect(TASK_BASE_LINE.test(bare), 'the vacuity case: without the line the row reports').toBe(false);
     const asked = fakeNet();
-    const row = await taskNodeRow(withFiles({ 'apps/worker/trigger.config.ts': onApiImage }), asked);
+    const row = await taskNodeRow(REAL, asked);
     expect(row.state).toBe('current');
-    expect(row.closing).toMatch(/Dependabot moves with `apps\/api\/Dockerfile`/);
+    expect(row.closing).toMatch(/prebuilt base `apps\/worker\/trigger\.config\.ts` pins/);
+    expect(row.closing).toContain("*the tasks' base*");
     expect(asked.asked).toEqual([]);
   });
 });
@@ -1187,6 +1210,24 @@ const GOACCESS_RELEASE = /^# GoAccess (v\d+(?:\.\d+)+)$/m.exec(REAL.read(GOACCES
 /** The docker-socket-proxy release trigger-docker-proxy is built from (2026-10-30), read from its own line. */
 const SOCKET_PROXY_RELEASE = /^# docker-socket-proxy (v\d+\.\d+\.\d+)$/m.exec(REAL.read(SOCKET_PROXY_DOCKERFILE) ?? '')?.[1] ?? 'no release named';
 
+/** The tasks' base as the config pins it, and its repository on ghcr. */
+const TASK_BASE_PIN = taskBasePin(REAL.read(TASK_BASE_CONFIG)!);
+const TASK_BASE_NAME = registryOf(TASK_BASE_PIN.repo).name;
+/** A signature's digest: the sigstore bundle's index under `sha256-<hex>`. */
+const SIGNATURE = `sha256:${'5'.repeat(64)}`;
+
+/** What ghcr's HEADs name for the tasks' base: edge (by default the pin), the pin's tag, the pinned index and its signature. */
+function taskBaseRegistry(edge: string, over: Record<string, string | null> = {}): Record<string, string | null> {
+  return {
+    edge,
+    [TASK_BASE_PIN.tag]: TASK_BASE_PIN.digest,
+    [TASK_BASE_PIN.digest]: TASK_BASE_PIN.digest,
+    [TASK_BASE_PIN.digest.replace(':', '-')]: SIGNATURE,
+    [edge.replace(':', '-')]: SIGNATURE,
+    ...over,
+  };
+}
+
 /**
  * Every tag list answered with the pin itself, plus one newer tag for each of
  * `newer`; and a digest-only pin's tag answered with its own digest, or with
@@ -1215,6 +1256,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
     const spec = ACTION_IMAGES.find((s) => s.action === image.action)!;
     digests.set(`${registryOf(spec.repo).name}:${spec.channel}`, image.digest);
   }
+  // The tasks' base (0119 §3 item 13): edge, its tag and the index itself name the pin, which is signed.
+  for (const [ref, digest] of Object.entries(taskBaseRegistry(TASK_BASE_PIN.digest))) if (digest) digests.set(`${TASK_BASE_NAME}:${ref}`, digest);
   return {
     json: [
       TOKEN,
@@ -1248,6 +1291,120 @@ function registry(newer: Record<string, string> = {}): Stubs {
     },
   };
 }
+
+describe("the tasks' base, against main's edge by each platform's layers (0119 §3 item 13)", () => {
+  const pin = TASK_BASE_PIN;
+  const EDGE = `sha256:${'e'.repeat(64)}`;
+  const LAYERS: Record<string, string[]> = {
+    amd64: [`sha256:${'1'.repeat(64)}`, `sha256:${'4'.repeat(64)}`],
+    arm64: [`sha256:${'2'.repeat(64)}`, `sha256:${'4'.repeat(64)}`],
+  };
+  /** ghcr's index of `digest`, a manifest per platform (and an attestation's), and each manifest's layers. */
+  const index = (digest: string, layers: Record<string, string[]>, arches: string[] = TASK_BASE_ARCHES): Array<[RegExp, Answer]> => [
+    [
+      new RegExp(`/v2/${TASK_BASE_NAME}/manifests/${digest}$`),
+      {
+        manifests: [
+          ...arches.map((arch) => ({ digest: `${digest}-${arch}`, platform: { os: 'linux', architecture: arch } })),
+          { digest: `sha256:${'a'.repeat(64)}`, platform: { os: 'unknown', architecture: 'unknown' } },
+        ],
+      },
+    ],
+    ...arches.map((arch): [RegExp, Answer] => [new RegExp(`/v2/${TASK_BASE_NAME}/manifests/${digest}-${arch}$`), { layers: (layers[arch] ?? []).map((d) => ({ digest: d })) }]),
+  ];
+  /** ghcr with edge at `edge`, the HEADs `over` names otherwise, and edge's layers. */
+  const net = (edge: string, over: Record<string, string | null> = {}, edgeIndex = index(edge, LAYERS)) => {
+    const named = taskBaseRegistry(edge, over);
+    return fakeNet({
+      json: [TOKEN, ...index(pin.digest, LAYERS), ...edgeIndex],
+      digest: [
+        [
+          /\/v2\/.+\/manifests\/([^/]+)$/,
+          (url: string) => {
+            const ref = /\/manifests\/([^/]+)$/.exec(url)![1]!;
+            return Object.hasOwn(named, ref) ? named[ref] : new Error(`no digest stubbed for ${ref}`);
+          },
+        ],
+      ],
+    });
+  };
+
+  it('reads the pin from the config, and is current when edge is the pin, reading no layer', async () => {
+    expect(TASK_BASE_CONFIG).toBe('apps/worker/trigger.config.ts');
+    const asked = net(pin.digest);
+    const row = await taskBaseRow(REAL, asked);
+    expect(row).toMatchObject({ pin: `${pin.tag}@${pin.digest}`, newest: `edge@${pin.digest}`, state: 'current', notes: [] });
+    expect(asked.asked.filter((url) => /-(amd64|arm64)$/.test(url))).toEqual([]);
+  });
+
+  it('is current when edge is a rebuild with the same layers, as every merge that leaves the base alone republishes it, and says so', async () => {
+    const row = await taskBaseRow(REAL, net(EDGE));
+    expect(row.state).toBe('current');
+    expect(row.notes).toEqual(['edge is a rebuild with the same layers on both platforms: main republished what the pin was built from']);
+    expect(await taskBaseLayers(net(EDGE), pin.repo, EDGE)).toEqual(LAYERS);
+  });
+
+  it("is behind when edge's layers are not the pin's, on either platform, and says how it moves", async () => {
+    for (const arch of TASK_BASE_ARCHES) {
+      const moved = { ...LAYERS, [arch]: [...LAYERS[arch]!.slice(0, -1), `sha256:${'9'.repeat(64)}`] };
+      const row = await taskBaseRow(REAL, net(EDGE, {}, index(EDGE, moved)));
+      expect(row.state, arch).toBe('behind');
+      expect(row.notes).toEqual(["edge's layers are not the pin's, and edge is signed", TASK_BASE_NOTE]);
+    }
+    const unsigned = await taskBaseRow(REAL, net(EDGE, { [EDGE.replace(':', '-')]: null }, index(EDGE, { ...LAYERS, amd64: [`sha256:${'9'.repeat(64)}`] })));
+    expect(unsigned.notes?.[0]).toContain('edge is not signed yet');
+    // The note names the line, the job that checks the pull request and the gate it takes.
+    expect(TASK_BASE_NOTE).toMatch(/TASK_BASE_IMAGE in apps\/worker\/trigger\.config\.ts/);
+    expect(TASK_BASE_NOTE).toMatch(/`task-base pin` job/);
+    expect(TASK_BASE_NOTE).toMatch(/E2E \(managed\)/);
+  });
+
+  it('is behind when the pinned index is gone from ghcr, or no signature is listed for it, whatever edge is', async () => {
+    const gone = await taskBaseRow(REAL, net(pin.digest, { [pin.digest]: null }));
+    expect(gone.state).toBe('behind');
+    expect(gone.notes).toEqual(['the pinned index is not on ghcr.io any more, so no deploy can pull it', TASK_BASE_NOTE]);
+    const unsigned = await taskBaseRow(REAL, net(pin.digest, { [pin.digest.replace(':', '-')]: null }));
+    expect(unsigned.state).toBe('behind');
+    expect(unsigned.notes?.[0]).toContain(`no signature is listed for the pinned index (no ${pin.digest.replace(':', '-')} tag)`);
+  });
+
+  it('notes a tag that names another index now, or none, and stays current: the digest is what a deploy pulls', async () => {
+    const retagged = await taskBaseRow(REAL, net(pin.digest, { [pin.tag]: EDGE }));
+    expect(retagged.state).toBe('current');
+    expect(retagged.notes?.[0]).toMatch(new RegExp(`^${pin.tag} names another index now, sha256:eeee`));
+    const untagged = await taskBaseRow(REAL, net(pin.digest, { [pin.tag]: null }));
+    expect(untagged.state).toBe('current');
+    expect(untagged.notes?.[0]).toBe(`${pin.tag} is not on ghcr.io any more; the pin's digest is what a deploy pulls`);
+  });
+
+  it('never reads as current what it cannot read: a line of another shape, edge with no digest, an index without a platform, a manifest with no layer', async () => {
+    const config = REAL.read(TASK_BASE_CONFIG)!;
+    await expect(taskBaseRow(withFiles({ [TASK_BASE_CONFIG]: config.replace(pin.ref, pin.ref.replace(/@sha256:.+$/, '')) }), net(pin.digest))).rejects.toThrow(
+      /not ghcr\.io\/robbes\/ownpace-task-base:sha-<commit>@sha256:<index digest>/,
+    );
+    await expect(taskBaseRow(withFiles({ [TASK_BASE_CONFIG]: config.replace(TASK_BASE_LINE, '') }), net(pin.digest))).rejects.toThrow(/0 times/);
+    await expect(taskBaseRow(REAL, net(pin.digest, { edge: null }))).rejects.toThrow(/named no digest for robbes\/ownpace-task-base:edge/);
+    await expect(taskBaseRow(REAL, net(EDGE, {}, index(EDGE, LAYERS, ['amd64'])))).rejects.toThrow(/has no linux\/arm64 image/);
+    await expect(taskBaseRow(REAL, net(EDGE, {}, index(EDGE, { amd64: [], arm64: [] })))).rejects.toThrow(/lists no layers/);
+    // In the summary, a read that failed is an error row, never a current one.
+    const { rows } = await routineRows(REAL, fakeNet({ ...registry(), digest: [[/manifests\/edge$/, null], ...registry().digest!] }));
+    expect(rows.find((r) => r.name === "the tasks' base")).toMatchObject({ state: 'error', error: expect.stringMatching(/named no digest/) });
+  });
+
+  it('is a routine row, current against the registry as it stands, and listed with its note when behind', async () => {
+    const row = (await routineRows(REAL, fakeNet(registry()))).rows.find((r) => r.name === "the tasks' base");
+    expect(row).toMatchObject({ where: TASK_BASE_CONFIG, state: 'current' });
+    const behind = registry();
+    const stubs: Stubs = {
+      ...behind,
+      json: [...behind.json!, ...index(pin.digest, LAYERS), ...index(EDGE, { ...LAYERS, arm64: [`sha256:${'9'.repeat(64)}`] })],
+      digest: [[/manifests\/edge$/, EDGE], [new RegExp(`manifests/${EDGE.replace(':', '-')}$`), SIGNATURE], ...behind.digest!],
+    };
+    const { rows, status } = await routineRows(REAL, fakeNet(stubs));
+    expect(rows.filter((r) => r.state !== 'current').map((r) => r.name)).toEqual(["the tasks' base"]);
+    expect(summaryOf(rows, status).body).toContain(`- \`the tasks' base\` (${TASK_BASE_CONFIG}): ${pin.tag}@${pin.digest}, newest **edge@${EDGE}**`);
+  });
+});
 
 describe('the routine pins, in one summary issue', () => {
   it('compares every image line of the compose files, or names the row that does, with a reason', async () => {

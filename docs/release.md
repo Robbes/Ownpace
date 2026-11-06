@@ -334,10 +334,14 @@ And `GET /version` on the selfhost image, started on PGlite: the version and C.
 
 `images.yml` builds no `ownpace-task-base` on a tag. The managed tasks' prebuilt base is
 published from `main` only, as `edge` and `sha-<commit>` (workplan 0119 §3 item 13), and a
-release carries it as the digest its `apps/worker/trigger.config.ts` names, once the tasks
-name one: so the OTA stack, which deploys `main`, and live, which deploys the tag, run the
-same bytes. Until that switch the tasks build on `apps/api/Dockerfile`'s FROM image, and
-`verify` has no task base to check.
+release carries it as the digest its `apps/worker/trigger.config.ts` names (`TASK_BASE_IMAGE`,
+since 2026-11-06): so the OTA stack, which deploys `main`, and live, which deploys the tag, run
+the same bytes. `verify` reads that line at C through the API and checks the base it names:
+`ghcr.io/robbes/ownpace-task-base` at that index digest has linux/amd64 and linux/arm64; its
+revision label starts with the commit its `sha-` tag names and is an ancestor of C (the compare
+API); and `cosign verify` passes by digest with the exact identity
+`https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/heads/main`, the only ref
+that publishes it. A tag from before the switch pins none, and gets a note.
 
 **CI.** A tag the Release workflow makes runs no CI: its token's events start
 no push run, and Release dispatches only the three publishers. C's own push
