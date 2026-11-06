@@ -51,8 +51,9 @@
  *                      only.
  *   the tasks' Node    the Node in the base image the pinned Trigger.dev CLI
  *                      names, against Node's newest security release, while
- *                      `trigger.config.ts` does not build the tasks on the
- *                      API image's own base. Its own issue.
+ *                      `trigger.config.ts` names no base of its own (since
+ *                      2026-11-06 it names the prebuilt one, and the routine
+ *                      row *the tasks' base* compares that). Its own issue.
  *   pnpm               `packageManager` against the newest pnpm of its major.
  *                      Its own issue; a newer major is a line in it.
  *   TypeScript split   a cleanup notice, opened when typescript-eslint's
@@ -91,7 +92,11 @@
  *                      scripts/package-appliance.mjs, 2026-11-01), the file
  *                      at nodejs/release-keys' newest commit against the git
  *                      blob id it records, so a key retired, revoked, added
- *                      or given a new expiry upstream is named here.
+ *                      or given a new expiry upstream is named here; and the
+ *                      tasks' prebuilt base `trigger.config.ts` pins
+ *                      (`TASK_BASE_LINE`, 2026-11-06), against main's `edge`
+ *                      by each platform's layers, not its digest, which moves
+ *                      on every merge.
  *                      cosign-installer's default is a status line only. Any
  *                      other image a script in deploy/compose runs is not
  *                      compared; today there is none (db-roles.sh reads its
@@ -356,6 +361,45 @@ export const NODE_RELEASE_KEYS_FILE = 'scripts/package-appliance.mjs';
 /** Said beside the release keys row when upstream's file differs. */
 export const NODE_RELEASE_KEYS_NOTE =
   "read what that commit changed, then take its gpg-only-active-keys/pubring.kbx into scripts/node-release/release-keys.kbx and move NODE_RELEASE_KEYS' commit and blob with it (docs/windows-appliance-runbook.md); a-runtime-only-its-own-host-vouched-for then checks the committed SHASUMS256.txt with it";
+
+/**
+ * THE TASKS' PREBUILT BASE (workplan 0119 §3 item 13, 2026-11-06): the line of
+ * `apps/worker/trigger.config.ts` that names it, `const TASK_BASE_IMAGE =
+ * '<ref>';`, and the shape the ref must have: `ghcr.io/robbes/ownpace-task-base`
+ * by the `sha-<commit>` tag main published it under and its index digest.
+ * images.yml builds it from `apps/worker/task-image/` and pushes it from main
+ * only, so there is no release tag to compare: main republishes it on every
+ * merge, under a new digest even when nothing it is built from moved (its
+ * revision label does). So the row compares what a deploy would pull, the
+ * layers of each platform's image, with `edge`'s: the same layers are the
+ * same bytes, and only a base built from something else (the Dockerfile's
+ * FROM lines or what its build installs) has others. A rebuild with the same
+ * layers is current. The pinned index gone from GHCR, or no signature listed
+ * for it, is behind too: a deploy could not pull it, or Release's verify
+ * would refuse it.
+ */
+export const TASK_BASE_CONFIG = 'apps/worker/trigger.config.ts';
+export const TASK_BASE_LINE = /^const TASK_BASE_IMAGE =\s+'([^'\n]*)';$/m;
+export const TASK_BASE_REF = /^ghcr\.io\/robbes\/ownpace-task-base:sha-([0-9a-f]{7})@(sha256:[0-9a-f]{64})$/;
+/** The platforms the base is published for, and the stacks run on. */
+export const TASK_BASE_ARCHES = ['amd64', 'arm64'];
+/** Said beside the tasks' base when edge's layers are not the pin's. */
+export const TASK_BASE_NOTE =
+  "move TASK_BASE_IMAGE in apps/worker/trigger.config.ts to the sha-<commit> tag that names edge's index, by tag and digest, in a pull request of its own: images.yml's `task-base pin` job pulls and verifies it there, E2E (managed) is dispatched on its branch, and live takes it from a release tag";
+
+/**
+ * The tasks' base as `trigger.config.ts` pins it: the reference, its tag and
+ * digest, and the commit the tag names. Any other shape, or the line missing
+ * or there twice, is an error, never a pin.
+ */
+export function taskBasePin(config) {
+  const lines = [...config.matchAll(new RegExp(TASK_BASE_LINE.source, 'gm'))];
+  if (lines.length !== 1) throw new Error(`${TASK_BASE_CONFIG} names the tasks' base ${lines.length} times (const TASK_BASE_IMAGE = '…';), not once`);
+  const ref = lines[0][1];
+  const shaped = TASK_BASE_REF.exec(ref);
+  if (!shaped) throw new Error(`${TASK_BASE_CONFIG} names the tasks' base ${ref}, not ghcr.io/robbes/ownpace-task-base:sha-<commit>@sha256:<index digest>`);
+  return { ...parseRef(ref), commit: shaped[1] };
+}
 
 const IMAGE_LINE = /^\s*image:\s*ghcr\.io\/zitadel\/zitadel:(\S+)\s*$/gm;
 const RELEASE = /^v(\d+)\.(\d+)\.(\d+)$/;
@@ -1307,23 +1351,23 @@ export async function clickhouseRow(repo, net, trigger) {
 }
 
 /**
- * Where `trigger.config.ts` builds the tasks on the API image's own base (the
- * manifest's `image.base`, 0146 T14), so the CLI's base image, and its Node,
- * is in nothing a deploy builds. From #1689 to T14 the mark was a layer that
- * copied the API image's Node over the CLI's base.
+ * The tasks' Node, where the CLI's base image is what they run. Once
+ * `trigger.config.ts` names a base of its own (`TASK_BASE_LINE`: the prebuilt
+ * base since 2026-11-06; from 0146 T14 the API image's FROM line, and from
+ * #1689 a layer that copied the API image's Node over the CLI's base), the
+ * CLI's base image is in nothing a deploy builds, and this row has nothing to
+ * watch: the routine row *the tasks' base* compares that pin.
  */
-export const TASK_ON_API_IMAGE = /\bbase: taskBase\.image\b/;
-
 export async function taskNodeRow(repo, net) {
   const config = need(repo, 'apps/worker/trigger.config.ts');
-  if (TASK_ON_API_IMAGE.test(config)) {
+  if (TASK_BASE_LINE.test(config)) {
     return {
-      pin: 'apps/api/Dockerfile',
+      pin: 'apps/worker/task-image',
       newest: '-',
       state: 'current',
-      notes: ["the tasks build on the API image's base (apps/worker/trigger.config.ts), which Dependabot moves"],
+      notes: ["the tasks run on the prebuilt base (apps/worker/trigger.config.ts), whose pin the routine row the tasks' base compares"],
       closing:
-        "The tasks now build on the API image's own base (`apps/worker/trigger.config.ts`), which Dependabot moves with `apps/api/Dockerfile`. Nothing is left for this row to watch.",
+        "The tasks now run on the prebuilt base `apps/worker/trigger.config.ts` pins (`ghcr.io/robbes/ownpace-task-base`, built from `apps/worker/task-image/Dockerfile`, which Dependabot moves with `apps/api/Dockerfile`). The routine pins' row *the tasks' base* compares that pin with main's newest. Nothing is left for this row to watch.",
     };
   }
   const runtime = /\bruntime:\s*['"]([^'"]+)['"]/.exec(config)?.[1];
@@ -1344,7 +1388,7 @@ export async function taskNodeRow(repo, net) {
   const route =
     compareParts(latestNode, floor.version) >= 0
       ? `The newest CLI, trigger.dev ${latest}, builds on Node ${latestNode}: moving Trigger.dev to it (its issue's route) moves the tasks too.`
-      : `The newest CLI, trigger.dev ${latest}, still builds on Node ${latestNode}: upstream has not republished its base image. The way that does not wait for it is to build the tasks on the API image's own base in \`apps/worker/trigger.config.ts\` (\`apps/api/Dockerfile\`'s FROM line, which Dependabot moves). Once it does, this issue closes.`;
+      : `The newest CLI, trigger.dev ${latest}, still builds on Node ${latestNode}: upstream has not republished its base image. The way that does not wait for it is the tasks' prebuilt base, named in \`apps/worker/trigger.config.ts\` as \`TASK_BASE_IMAGE\` (\`apps/worker/task-image/Dockerfile\`, on the API's Node, which Dependabot moves). Once it does, this issue closes.`;
   const body = [
     `The tasks run on the base image the pinned CLI, trigger.dev ${cli}, names for \`runtime: '${runtime}'\`: \`${image}\`, whose Node is **${node}**. Node's newest ${partsOf(node)[0]}.x security release is **${floor.version}** (${floor.date}, https://nodejs.org/dist/index.json).`,
     '',
@@ -1441,6 +1485,75 @@ export async function typescriptRow(repo, net) {
     update: `typescript-eslint ${eslint.version} now admits TypeScript **${newest}**.`,
     closing: `typescript-eslint ${eslint.version}'s peer range no longer admits a stable TypeScript 7.1.`,
   };
+}
+
+// ------------------------------------------------ the tasks' base --------
+
+const shortDigest = (digest) => `${String(digest).slice(0, 19)}…`;
+
+/**
+ * Each platform's layers in one index of the tasks' base, read by digest: what
+ * `docker pull` fetches, the image's config (and so its labels) aside. An
+ * index without a platform the stacks run on, or a manifest that lists no
+ * layer, is an error, never "the same".
+ */
+export async function taskBaseLayers(net, repo, digest) {
+  const { host, name } = registryOf(repo);
+  const auth = { Authorization: `Bearer ${await registryToken(net, host, name)}` };
+  const index = await net.json(`https://${host}/v2/${name}/manifests/${digest}`, { ...auth, Accept: INDEX_TYPES });
+  if (!Array.isArray(index?.manifests)) throw new Error(`${name}@${shortDigest(digest)} is not an index of platforms`);
+  const layers = {};
+  for (const arch of TASK_BASE_ARCHES) {
+    const entry = index.manifests.find((m) => m.platform?.os === 'linux' && m.platform?.architecture === arch);
+    if (!entry) throw new Error(`${name}@${shortDigest(digest)} has no linux/${arch} image`);
+    const manifest = await net.json(`https://${host}/v2/${name}/manifests/${entry.digest}`, { ...auth, Accept: MANIFEST_TYPES });
+    const digests = Array.isArray(manifest?.layers) ? manifest.layers.map((l) => l?.digest) : [];
+    if (digests.length === 0 || !digests.every((d) => /^sha256:[0-9a-f]{64}$/.test(d ?? ''))) {
+      throw new Error(`${name}@${shortDigest(digest)}'s linux/${arch} image lists no layers`);
+    }
+    layers[arch] = digests;
+  }
+  return layers;
+}
+
+/**
+ * The tasks' base (`TASK_BASE_LINE`, the comment above it): the pin against
+ * `edge`, by each platform's layers. Behind when edge's layers are not the
+ * pin's, when the pinned index is gone from GHCR, or when no signature is
+ * listed for it (the `sha256-<hex>` tag cosign's bundle is stored under);
+ * current when edge is the pin, or a rebuild with the same layers.
+ */
+export async function taskBaseRow(repo, net) {
+  const pin = taskBasePin(need(repo, TASK_BASE_CONFIG));
+  const { host, name } = registryOf(pin.repo);
+  const auth = { Authorization: `Bearer ${await registryToken(net, host, name)}` };
+  const named = (ref) => net.digest(`https://${host}/v2/${name}/manifests/${ref}`, { ...auth, Accept: `${INDEX_TYPES},${MANIFEST_TYPES}` });
+  const signed = async (digest) => /^sha256:[0-9a-f]{64}$/.test((await named(digest.replace(':', '-'))) ?? '');
+  const edge = await named('edge');
+  if (!/^sha256:[0-9a-f]{64}$/.test(edge ?? '')) throw new Error(`${host} named no digest for ${name}:edge`);
+  const shown = { pin: `${pin.tag}@${pin.digest}`, newest: `edge@${edge}` };
+  if ((await named(pin.digest)) !== pin.digest) {
+    return { ...shown, state: 'behind', notes: [`the pinned index is not on ${host} any more, so no deploy can pull it`, TASK_BASE_NOTE] };
+  }
+  const notes = [];
+  const unsigned = !(await signed(pin.digest));
+  if (unsigned) notes.push(`no signature is listed for the pinned index (no ${pin.digest.replace(':', '-')} tag), so Release's verify would refuse it`);
+  const tagged = await named(pin.tag);
+  if (tagged !== pin.digest) {
+    notes.push(
+      `${pin.tag} ${tagged ? `names another index now, ${shortDigest(tagged)}` : `is not on ${host} any more`}; the pin's digest is what a deploy pulls`,
+    );
+  }
+  let same = edge === pin.digest;
+  if (!same) {
+    const [ours, theirs] = [await taskBaseLayers(net, pin.repo, pin.digest), await taskBaseLayers(net, pin.repo, edge)];
+    same = TASK_BASE_ARCHES.every((arch) => ours[arch].join(' ') === theirs[arch].join(' '));
+    if (same) notes.push('edge is a rebuild with the same layers on both platforms: main republished what the pin was built from');
+    else notes.push(`edge's layers are not the pin's, and edge is ${(await signed(edge)) ? 'signed' : 'not signed yet (images.yml signs it after the push)'}`);
+  }
+  const state = same && !unsigned ? 'current' : 'behind';
+  if (state === 'behind') notes.push(TASK_BASE_NOTE);
+  return { ...shown, state, notes };
 }
 
 // -------------------------------------------------- routine pins ---------
@@ -1548,6 +1661,11 @@ export async function routineRows(repo, net) {
     const state = stateOf(image.tag, newest);
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [NEXTCLOUD_SECOND_MAJOR_NOTE] } : {}) };
   }]);
+
+  // The tasks' prebuilt base (0119 §3 item 13, 2026-11-06): trigger.config.ts's
+  // pin against main's `edge`, by layers, since every merge republishes it
+  // under a new digest (taskBaseRow).
+  jobs.push(["the tasks' base", TASK_BASE_CONFIG, () => taskBaseRow(repo, net)]);
 
   // GoAccess: the visit count's image, built here since #1675 from the commit
   // of a release (deploy/compose/goaccess/Dockerfile, whose Alpine Dependabot
@@ -1862,12 +1980,16 @@ export function realNet(root) {
     text: async (url, headers) => (await get(url, headers)).text(),
     json: async (url, headers) => (await get(url, headers)).json(),
     bytes: async (url, headers) => Buffer.from(await (await get(url, headers)).arrayBuffer()),
+    // A 404 is an answer, nothing by that tag or digest, which the tasks'
+    // base row reads as a pin gone or a signature missing; registryDigest
+    // still refuses it as "named no digest". Any other failure throws.
     digest: async (url, headers = {}) => {
       const res = await fetch(url, {
         method: 'HEAD',
         headers: { 'User-Agent': 'ownpace-pin-watch', ...headers },
         signal: globalThis.AbortSignal.timeout(30_000),
       });
+      if (res.status === 404) return null;
       if (!res.ok) throw new Error(`${new URL(url).host} answered ${res.status} for ${new URL(url).pathname}`);
       return res.headers.get('docker-content-digest') ?? '';
     },

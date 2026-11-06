@@ -28,8 +28,8 @@
  * So this file holds:
  *
  * 1. Every `FROM node:` line in `apps/*\/Dockerfile` is one string, tag and
- *    digest. The managed tasks build on the API's line
- *    (`apps/worker/trigger.config.ts`), the Windows payload ships the version of
+ *    digest. The managed tasks' prebuilt base builds on the API's line
+ *    (`apps/worker/task-image/Dockerfile`), the Windows payload ships the version of
  *    the selfhost's (`scripts/package-appliance.mjs`), and the web bundle is
  *    built on the third. Two of the three said "the same node tag and digest"
  *    in a comment, and nothing compared them.

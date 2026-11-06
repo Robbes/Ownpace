@@ -359,7 +359,7 @@ services:
   # It holds the run queues: on live it changes only at a deploy, and
   # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: redis:7.4.12-bookworm@sha256:b6b6e3dc0c0952737748e55d5d885272840c7e42ba41ab1d5489f693419882f5
+    image: redis:7.4.12-bookworm@sha256:2e3eb11462c4e3759e6972678dd051d150ff54b1e60714b3c33b701260172a90
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     logging: *logging
@@ -1077,7 +1077,7 @@ services:
   # removes, why the name carries the hash of its instructions, and how it
   # moves. `never`, as for the databases: no registry serves this name.
   trigger-tls:
-    image: localhost/caddy:2.11.7-alpine-ed5425a7da36
+    image: localhost/caddy:2.11.8-alpine-c054907a40ed
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls

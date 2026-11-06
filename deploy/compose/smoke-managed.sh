@@ -158,8 +158,8 @@ api_node() {
 
 # dockerfile_node [dockerfile] — `v<x.y.z>`, the Node version of the first
 # `FROM node:<x.y.z>-…` line of the API's Dockerfile: the Node image it builds
-# on, and the image the managed tasks build on (apps/worker/trigger.config.ts,
-# 0146 T14). Exit 1 when it has none.
+# on, and the Node images.yml holds the tasks' prebuilt base to
+# (apps/worker/task-image, workplan 0119 §3 item 13). Exit 1 when it has none.
 dockerfile_node() {
   local line
   while IFS= read -r line; do
@@ -981,13 +981,15 @@ API_NODE_FOUND="$(api_node)" || {
 API_NODE="${API_NODE_FOUND%% *}"
 API_NODE_VERSION="${API_NODE_FOUND#* }"
 # THE API RUNS THE NODE ITS DOCKERFILE'S FROM NODE LINE NAMES (workplan 0146
-# T13a). The managed tasks build on that line (0146 T14). On the Node image
-# the API runs that line's Node as it is; the distroless runtime workplan 0146
-# T13 moves it to has a Node of its own, whose `nonroot` tag names no version
-# and which no scanner lists, pinned by a digest that moves apart from the node
-# tag. Asked here, on the image this stack runs, a pin moved without the other
-# stops the run with both versions named, instead of the API and the tasks
-# drifting apart with every check green.
+# T13a). On the Node image the API runs that line's Node as it is; the
+# distroless runtime workplan 0146 T13 moves it to has a Node of its own, whose
+# `nonroot` tag names no version and which no scanner lists, pinned by a digest
+# that moves apart from the node tag. Asked here, on the image this stack runs,
+# a pin moved without the other stops the run with both versions named. The
+# managed tasks run the Node of the prebuilt base trigger.config.ts pins
+# (0119 §3 item 13), and the section on the tasks' image, after the runner
+# logs, holds the image the last deploy built to this same line: so the API
+# and the tasks cannot drift apart with every check green.
 WANT_NODE="$(dockerfile_node)" || {
   echo "FATAL: $REPO_ROOT/apps/api/Dockerfile has no FROM node:<x.y.z>-… line, so which Node"
   echo "       the API should run cannot be told"
@@ -995,7 +997,7 @@ WANT_NODE="$(dockerfile_node)" || {
 }
 if [ "$API_NODE_VERSION" != "$WANT_NODE" ]; then
   echo "FATAL: the API container's ${API_NODE} is ${API_NODE_VERSION}, and apps/api/Dockerfile's"
-  echo "       FROM node line, the Node the managed tasks run, is ${WANT_NODE}. Either the"
+  echo "       FROM node line, the Node the tasks' base is held to, is ${WANT_NODE}. Either the"
   echo "       runtime's Node and that line were moved apart (a distroless digest and the"
   echo "       node tag: move the other to the same Node), or this stack's api image was"
   echo "       not built from this checkout"
@@ -2958,29 +2960,34 @@ if [ "$found_logs" != "1" ]; then
   fail_at
 fi
 
-# ---------- the tasks' image carries none of the Debian Essentials it purges ----------
+# ---------- the tasks' image is the prebuilt base's: the API's Node, and no shell ----------
 #
-# WHAT THE LAST DEPLOY BUILT, ASKED OF ITSELF (workplan 0119; the owner's
-# decision of 2026-11-03). apps/worker/trigger.config.ts's layer purges ten
-# Debian packages from the tasks' runtime base (util-linux, the eight others
-# built from its source, and libsqlite3-0), and the Trigger.dev CLI runs an apt
-# repair of its own after the layer, which a later CLI could change. The weekly
-# scan builds that stage on GitHub's runner; this asks the image on this
-# machine, by the ID the watcher above read while each runner existed, with
-# dpkg's own query: no shell, no network, and never a pull.
+# WHAT THE LAST DEPLOY BUILT, ASKED OF ITSELF (workplan 0119 §3 item 13,
+# since 2026-11-06). The tasks run on the prebuilt base
+# apps/worker/trigger.config.ts pins (TASK_BASE_IMAGE): distroless, with no
+# shell and no dpkg, and the Node distroless carried when main built it, which
+# images.yml held to apps/api/Dockerfile's FROM node line on that commit. Two
+# things only the deployed image can say: that the deploy built on that base
+# (a Trigger.dev instance can name another base for its deploys, and a CLI
+# that ignored the config's would build on its own Debian one), and that its
+# Node is still the one the preflights found the API running. A Dependabot
+# move of the API's Node moves the base's Dockerfile with it, and the tasks
+# follow only once the pin does, in a pull request of its own after main has
+# published that base: until then the two run apart, and this goes red by
+# name. So it asks the image on this machine, by the ID the watcher above
+# read while each runner existed, for `node --version` and for each shell
+# name as its entrypoint, none of which may start: no network, and never a
+# pull. Until 2026-11-06 this section asked dpkg about the ten Debian
+# Essentials the config's layer purged (0119 §3 item 11); the base has none
+# of them, and no dpkg to ask.
 #
 # THE NEWEST IMAGE ONLY, by when it was built: the one the last deploy built.
 # Trigger.dev keeps a run on the deployment version it was triggered on, so a
 # pass already running when this smoke starts, or one queued before the deploy
 # and dequeued during it, runs the image before; that image is named here and
-# not asked. A deploy that put a package back, or a runtime base the purge
-# skipped (it runs where there is no C++ compiler), goes red here by name, as
-# does an answer this cannot read. When the tasks leave Debian for distroless
-# (0119 §3, item 11), there is no dpkg-query to ask and this goes red until it
-# asks another way. scripts/an-essential-nothing-runs.unit.test.ts runs this
-# block.
-note "the tasks' image carries none of the Debian Essentials it purges (0119)"
-essentials="util-linux mount login bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 liblastlog2-2 libsqlite3-0"
+# not asked. scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts runs
+# this block.
+note "the tasks' image is the prebuilt base's: the API's Node, and no shell (0119)"
 task_images=""
 for f in "$RUNNER_LOG_DIR"/*.image; do
   [ -s "$f" ] || continue
@@ -3002,7 +3009,7 @@ for image in $task_images; do
   at=""
 done
 if [ -z "$task_images" ]; then
-  echo "no runner's image was read while it ran, so what the deployed tasks' image carries cannot be told"
+  echo "no runner's image was read while it ran, so what the deployed tasks' image is cannot be told"
   fail_at "the tasks' image was not read"
 elif [ -n "$undated" ]; then
   echo "not every image the runners ran could be dated, so which one the last deploy built cannot be told: ${undated}"
@@ -3014,31 +3021,31 @@ else
   done
   short="${newest#sha256:}"
   short="image ${short:0:12}"
-  # shellcheck disable=SC2086 # the ten names, one word each
-  said="$(docker run --rm --pull never --network none --entrypoint dpkg-query "$newest" -W -f '${Package} ${Status}\n' $essentials 2>&1)" && rc=0 || rc=$?
-  kept="" odd="" seen=" "
-  while IFS= read -r line; do
-    [ -n "$line" ] || continue
-    if [[ $line =~ ^dpkg-query:\ no\ packages\ found\ matching\ ([a-z0-9.+-]+)$ ]]; then
-      seen="${seen}${BASH_REMATCH[1]} "
-    elif [[ $line =~ ^([a-z0-9.+-]+)\ [a-z]+\ [a-z]+\ ([a-z-]+)$ ]]; then
-      seen="${seen}${BASH_REMATCH[1]} "
-      [ "${BASH_REMATCH[2]}" = not-installed ] || kept="${kept}${kept:+, }${BASH_REMATCH[1]} (${BASH_REMATCH[2]})"
-    else
-      odd="${odd}${odd:+ | }${line}"
-    fi
-  done <<<"$said"
-  for p in $essentials; do
-    case "$seen" in *" $p "*) ;; *) odd="${odd}${odd:+ | }no answer for ${p}" ;; esac
-  done
-  if [ "$rc" -gt 1 ] || [ -n "$odd" ]; then
-    echo "${short}: dpkg-query could not be asked (exit ${rc}): ${odd:-$said}"
-    fail_at "the tasks' image could not be asked"
-  elif [ -n "$kept" ]; then
-    echo "${short}: dpkg's database still has ${kept}, which trigger.config.ts's layer purges"
-    fail_at "a purged Essential in the tasks' image"
+  said="$(docker run --rm --pull never --network none --entrypoint node "$newest" --version 2>&1)" && rc=0 || rc=$?
+  if [ "$rc" != 0 ] || [[ ! "$said" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "${short}: its node could not be asked (exit ${rc}): ${said}"
+    fail_at "the tasks' Node could not be asked"
+  elif [ "$said" != "$WANT_NODE" ]; then
+    echo "${short}: the tasks run Node ${said}, and the API runs ${API_NODE_VERSION}, apps/api/Dockerfile's ${WANT_NODE}."
+    echo "       Move TASK_BASE_IMAGE in apps/worker/trigger.config.ts to the base main published from"
+    echo "       apps/worker/task-image/Dockerfile at this Node (the pin watch's row the tasks' base names it)"
+    fail_at "the tasks' Node is not the API's"
   else
-    echo "${short}: none of the ten (${essentials})"
+    echo "${short}: Node ${said}, the API's"
+  fi
+  started=""
+  for shell in sh /bin/sh bash /bin/bash /busybox/sh; do
+    if said="$(docker run --rm --pull never --network none --entrypoint "$shell" "$newest" -c true 2>&1)"; then
+      started="${started}${started:+; }${shell} started"
+    elif [[ ! "$said" =~ (executable file not found|no such file or directory) ]]; then
+      started="${started}${started:+; }${shell} did not start, for another reason than its absence: ${said}"
+    fi
+  done
+  if [ -n "$started" ]; then
+    echo "${short}: ${started}. The tasks' base has no shell, so this is not an image built on it"
+    fail_at "the tasks' image is not the prebuilt base's"
+  else
+    echo "${short}: no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)"
   fi
 fi
 

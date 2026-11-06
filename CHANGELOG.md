@@ -18,8 +18,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   still depends on, and the build stops), and since apt is on the list checks `dpkg --audit`'s
   output in `apt-get check`'s place. After the purge it proves that no ELF file in the image
   names one of the six libraries it removed, and that grep, cp, tar, gzip, dumb-init, goose
-  and node start. Expected from the scan of 2026-11-06 (1 critical, 49 high, 16 with a fix):
-  about 1, 23 and 14. `trigger-api` has no apt from then on; nothing installs in it, and a
+  and node start. Measured on its branch (Security Scan run 42213975717, linux/arm64): 1 critical,
+  24 high and 14 with a fix, from 1, 49 and 16, and E2E (managed) ran it green. `trigger-api` has no apt from then on; nothing installs in it, and a
   change is a rebuild.
 
 - **The Trigger.dev webapp's build swaps a fifth package: effect 3.17.1 for 3.22.4** (workplan
@@ -36,6 +36,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   in pnpm's store alone. body-parser 2.3.0 (CVE-2026-111181) stays: 2.4.0 needs iconv-lite
   `^0.7.3`, and pnpm linked 0.7.2 for it. Expected: about 1 critical, 23 high and 13 with a
   fix.
+
+- **The Node and Redis base images move to Docker Hub's rebuilds of 2026-11-05** (workplan
+  0119): `node:26.13.0-trixie-slim` and `redis:7.4.12-bookworm`, the same versions, with apt's
+  fix for CVE-2026-109518 (apt 3.0.4 and 2.6.2), which the tasks' image build uses on the
+  deploying machine. Nothing else in either image changed but tzdata.
+
+- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.8** (workplan 0119), still built
+  here without curl: on Alpine 3.24.3, and a binary built with Go 1.27.3 and a newer x/net,
+  which clear five of its seven high findings. It fronts the dashboard only, on loopback or the
+  mesh.
 
 - **The appliance's image has no shell: its runtime is distroless, and `compose.yml`'s
   healthcheck for `app` changes with it** (workplan 0119 §3 item 12; the owner's decision of
@@ -72,13 +82,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The Alpha's build is opened on a phone too** (workplan 0145 T8 (a)): the bundle live
   serves, with the Alpha note above Migrations and the line about connecting Google above the
   Google card of *Start a migration* and above a grant page's button, in Dutch at 390 pixels.
-- **A prebuilt base for the managed tasks, published from `main`** (workplan 0119 §3 item 13):
-  `ghcr.io/robbes/ownpace-task-base`, distroless at the API image's digest with dumb-init, the
-  CA bundle carrying Trigger.dev's trust edits and a `node` user, so the deploy CLI has nothing
-  to build into it. `images.yml` builds it and starts it on a pull request, and on `main`
-  publishes it for amd64 and arm64 as `edge` and `sha-<commit>`, signed by digest like the
-  other images; no release tag builds one. The tasks do not run on it yet: they move to it by
-  digest in a later change, after the first publish.
+- **The managed tasks run on a prebuilt base, published from `main`** (workplan 0119 §3 item
+  13): `ghcr.io/robbes/ownpace-task-base`, distroless at the API image's digest with dumb-init,
+  the CA bundle carrying Trigger.dev's trust edits and a `node` user, so the deploy CLI has
+  nothing to build into it. `images.yml` builds it and starts it on a pull request, and on
+  `main` publishes it for amd64 and arm64 as `edge` and `sha-<commit>`, signed by digest like
+  the other images; no release tag builds one. `apps/worker/trigger.config.ts` names it by tag
+  and index digest and adds no layer, so a task deploy runs no apt, needs no Debian archive and
+  purges nothing; it pulls the base from `ghcr.io` without a login instead. The weekly image
+  scan reads that base as `trigger-task-base`, a pull request that moves the pin pulls it and
+  verifies its signature, Release's verify checks the one the tag pins, and the pin watch lists
+  it behind once `main` publishes a base with other layers. The scan reads it at 0 critical,
+  2 high and none with a fix (both zlib1g's, which Debian 13 has not fixed), where the tasks'
+  build on the API's Node line read 0, 9 and 0. **For the operator:** a Dependabot
+  move of the API's Node now reaches the tasks in a second pull request, the one that moves the
+  pin to the base `main` publishes; until it merges, the managed smoke stops on the two Nodes.
 
 ### Fixed
 

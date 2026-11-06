@@ -29,9 +29,9 @@
 #     and a custom one must make itself: the four roots the CLI distrusts
 #     (`EMSIGN_COMPROMISE_DISTRUSTED_ROOTS`) turned off in
 #     /etc/ca-certificates.conf, and the eight eMudhra intermediates it rejects
-#     (`EMSIGN_REJECT_DIR`), kept byte for byte in ./emsign-block, the copy
-#     `apps/worker/trigger.config.ts` reads too. Node reads the bundle under
-#     `--use-openssl-ca` and `SSL_CERT_FILE`, set below as the CLI sets them.
+#     (`EMSIGN_REJECT_DIR`), kept byte for byte in ./emsign-block. Node reads
+#     the bundle under `--use-openssl-ca` and `SSL_CERT_FILE`, set below as the
+#     CLI sets them.
 # `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts` runs the
 # installed CLI's own generator and holds all of it: a CLI that starts to
 # write a RUN into the base or the runtime stage fails it (item 13's revisit).
@@ -54,18 +54,22 @@
 # distroless's own files with five COPY lines over them, and its user, PATH,
 # environment and entrypoint.
 #
-# What reads the published image: nothing yet. `apps/worker/trigger.config.ts`
-# still builds the tasks on apps/api/Dockerfile's FROM image with its layer;
-# it switches to this image by digest once main has published and signed one
-# (workplan 0119, Status of 2026-11-06, the landing order).
+# What reads the published image: `apps/worker/trigger.config.ts`, which names
+# it by its `sha-<commit>` tag and index digest (TASK_BASE_IMAGE, since
+# 2026-11-06) and adds no layer to it; images.yml's `task-base-pin` job pulls
+# and verifies that pin on a pull request, release-verify.mjs at the tag, and
+# the pin watch lists it behind once main publishes a base with other layers.
+# A change here that moves what the image is built from (a FROM line, what the
+# build stage installs, the certificates) reaches the tasks only with that
+# pin; one to these comments changes no layer.
 
 FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:9b945e92c1b5463a4b75f11e8417515e4bea7355f6adfd79ec220fbbe905dda8 AS distroless
 
-FROM node:26.13.0-trixie-slim@sha256:e4db4c914bf8ad241bd24804fc25d272d89bad97e68cdc8a1414862790a02c39 AS build
+FROM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS build
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates dumb-init \
   && rm -rf /var/lib/apt/lists/*
-# The eight intermediates, as trigger.config.ts writes them into its layer.
+# The eight intermediates, byte for byte as the CLI writes them into its own images.
 COPY emsign-block/ /usr/local/share/ca-certificates/emsign-block/
 # The CLI's edit of the roots, as it writes it at 4.8.3, then the checks: each
 # of the four that Debian still ships is off in the configuration and absent

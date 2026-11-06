@@ -22,7 +22,8 @@ export declare const TASK_CONFIG: string;
 /** The only ref whose run keeps the issues: `refs/heads/main`. */
 export declare const ISSUES_REF: string;
 export declare const BUILT_HERE: string;
-export declare const API_DOCKERFILE: string;
+/** What the tasks' prebuilt base is built from (workplan 0119 §3 item 13). */
+export declare const TASK_BASE_DOCKERFILE: string;
 
 /** Where an image runs (the owner, 2026-11-03): the report's order, production first. */
 export type Tier = 'production-public' | 'production-internal' | 'shipped' | 'test-only';
@@ -42,8 +43,6 @@ export interface ScanImage {
   ref: string;
   where: string;
   floating: boolean;
-  /** Set for an image the leg builds before it scans it: the local tag it builds under (workplan 0146 T10). */
-  build?: string;
   /** Set when no registry serves the image: the directory its leg builds it from (`deploy/compose/goaccess`, `deploy/compose/postgres`). */
   context?: string;
 }
@@ -101,19 +100,3 @@ export declare function eoslIssue(image: ScanImage, report: ImageReport): Row;
 export declare function summarize(images: ScanImage[], readFile: (name: string) => string | null): Summary;
 export declare function keepIssues(images: ScanImage[], summary: Summary, gh: (args: string[]) => string): string[];
 export declare function imagesFromEnv(text: string | undefined): ScanImage[];
-
-/** The parts of a Trigger.dev deploy config the tasks' base stage is built from: its build extensions, run as the CLI runs them. */
-export interface TaskConfig {
-  build?: {
-    extensions?: Array<{
-      name: string;
-      onBuildStart?: (context: never) => unknown;
-      onBuildComplete?: (context: never, manifest: never) => unknown;
-    }>;
-  };
-}
-/** The local tag the tasks' leg builds under: the base's repository, so its alerts keep their SARIF location. */
-export declare function taskBuildTag(base: string): string;
-/** The RUN the Trigger.dev CLI writes after the layers' instructions (its `aptRepair`), as it writes it (2026-11-03). */
-export declare const CLI_APT_REPAIR: string;
-export declare function taskBaseStage(config: TaskConfig, options: { base: string; workingDir: string }): Promise<string>;

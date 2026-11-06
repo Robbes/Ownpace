@@ -411,18 +411,16 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
   images the scripts name, the tasks' image, and Ownpace's three images at `:edge` and at the
-  newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image is
-  built in its leg, not pulled (workplan 0146 T10): the leg installs the workspace, writes the
-  `base` stage a task deploy builds (`image-scan.mjs containerfile`, which runs
-  `apps/worker/trigger.config.ts`'s own build extensions, then writes the apt repair the
-  Trigger.dev CLI adds after them, since 2026-11-03; `an-essential-nothing-runs` compares the
-  stage with the one the installed CLI writes) on the image `apps/api/Dockerfile`
-  builds FROM, which the config builds the tasks on since workplan 0146 T14 (on the base image
-  the pinned Trigger.dev CLI names when the config names none), builds it natively on
-  `ubuntu-24.04-arm` under a local tag in that base's repository, and Trivy reads it from that
-  runner's Docker alone. That checkout is under `src/`: Trivy reads a `.trivyignore` and a
-  `trivy.yaml` from its working directory unless told otherwise, so on this leg too it reads none
-  of the repository's, and a file at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
+  newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image,
+  `trigger-task-base`, is the prebuilt base `apps/worker/trigger.config.ts` pins
+  (`TASK_BASE_IMAGE`, workplan 0119 §3 item 13, since 2026-11-06), read from GHCR as published,
+  since a task deploy adds the task code to it and nothing else (on the base image the pinned
+  Trigger.dev CLI names when the config names none). From workplan 0146 T10 until then its leg
+  built the `base` stage a deploy built from the config's own layers (`image-scan.mjs
+  containerfile`, gone with them). A leg that builds an image a script or a compose file builds
+  here checks out under `src/`: Trivy reads a `.trivyignore` and a `trivy.yaml` from its working
+  directory unless told otherwise, so on that leg too it reads none of the repository's, and a file
+  at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
   `trivy-image-<name>` and fail nothing; an image whose operating system Trivy calls past its end
   of life gets a warning, a line in the run's summary and one issue, closed when that ends. A scan
   that left no report fails the run. An image is named after its repository's last part, with
@@ -482,9 +480,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
   Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
   ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
-  newest security release, until `trigger.config.ts` builds the tasks on the API image's own base
-  (it took that image's Node from issue #1669 and builds on the image from 0146 T14, so that row
-  reports current); `packageManager` against the newest pnpm of its major; and the
+  newest security release, while `trigger.config.ts` names no base of its own (it took the API
+  image's Node from issue #1669, built on that image from 0146 T14, and names the prebuilt base
+  since 2026-11-06, so that row reports current); `packageManager` against the newest pnpm of its
+  major; and the
   TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
@@ -492,9 +491,11 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
   image's tags on Docker Hub, since upstream's git tags stop at v1.3.0; 2026-11-01), the stalwart-cli
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
-  tags), and the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
-  digest of the channel each action ran before, `latest` and `buildx-stable-1`) share one
-  summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
+  tags), the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
+  digest of the channel each action ran before, `latest` and `buildx-stable-1`), and the tasks'
+  prebuilt base `trigger.config.ts` pins (against main's `edge` by each platform's layers, since
+  its digest moves on every merge while its layers do not: behind when they differ, or when the
+  pinned index or its signature is gone; 2026-11-06) share one summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
   reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
   rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
   which is compared with `apps/web/Dockerfile`'s FROM by tag and digest, so a digest-only move of
@@ -529,9 +530,17 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   runtime stage starts it (`dumb-init node`, as `node`, with the API image's Node and the CLI's
   eight rejected intermediates in its bundle) and checks no shell starts in it; on `main` it is
   published for both platforms as `ghcr.io/robbes/ownpace-task-base:edge` and `sha-<commit>`
-  and signed by digest. A tag builds none. Held by
+  and signed by digest. A tag builds none. `apps/worker/trigger.config.ts` names one of them by its
+  `sha-<commit>` tag and index digest (`TASK_BASE_IMAGE`, since 2026-11-06), and the job
+  `task-base pin` checks that pin on a pull request: it pulls it anonymously for both platforms,
+  checks its revision label is the commit its tag names, starts it to read its Node (a warning, not
+  a failure, when it is not `apps/api/Dockerfile`'s, since the base built at a new Node is
+  published only after the pull request that moves it merges), and verifies its signature with
+  cosign by digest against `images.yml`'s identity on `refs/heads/main`. Held by
   `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts`, which also runs the installed
-  CLI's own Containerfile writer and fails when it writes a step a shell-less base cannot run.
+  CLI's own Containerfile writer on the config and fails when it writes a step a shell-less base
+  cannot run, runs the pin job's step against a stand-in docker, jq and cosign, and runs the
+  managed smoke's question to the image the last deploy built (its Node the API's, and no shell).
 - `script-images.yml` — the images a script builds for itself (today GoAccess, which
   `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
   arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
@@ -577,8 +586,8 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost|task-base)`, `build (postgres)` or `build (trigger, amd64|arm64)` from
-`images.yml`, nor `DAV suites on the second Nextcloud major` from `nextcloud-second-major.yml`,
+`build (api|web|selfhost|task-base)`, `build (postgres)`, `build (trigger, amd64|arm64)` or
+`task-base pin` from `images.yml`, nor `DAV suites on the second Nextcloud major` from `nextcloud-second-major.yml`,
 nor `Build (deploy/compose/goaccess)` from `script-images.yml`. None is reported at all on some
 pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
