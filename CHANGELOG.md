@@ -6,6 +6,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The weekly pin watch reports a newer patch of the second Nextcloud major** (workplan 0119
+  T5): the CI leg that proves the code against the major the demo does not run (34) had its
+  image moved by hand with nothing saying when a patch was out. Its row now lists one.
+
 - **The app's own pages are opened on a phone on every pull request** (workplan 0145
   T8 (a)): the sign-in and request-access pages, Migrations and every screen of *Start a
   migration*, in Dutch at 390 pixels, where none may scroll sideways. The menu must take focus

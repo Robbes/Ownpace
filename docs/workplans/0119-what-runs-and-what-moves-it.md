@@ -2,7 +2,26 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-05 (update this block at the end of every session)
+## Status — 2026-11-06 (update this block at the end of every session)
+
+**2026-11-06: the pin watch reads the second Nextcloud major's pin.** On branch
+`claude/ownpace-public-readiness-y7orc6-nextcloud-second-major-watch`. §4 named it as the
+follow-up: `nextcloud-second-major.yml`'s `NEXTCLOUD_IMAGE` moved by hand and nothing reported a
+newer tag of its major, so 34.0.6 (due 2026-11-12) would have been nobody's to report.
+- `scripts/idp-pin-watch.mjs` has the row *nextcloud, the second major*: the workflow's one
+  `NEXTCLOUD_IMAGE` line, which must be `nextcloud` by a numbered tag and its index digest,
+  compared with the newest Docker Hub tag of the same shape and major. A newer one is listed
+  as behind, with how it moves (its own pull request, three days after the push, the workflow's
+  run read); none, two, another image or no digest is an error, never current. The compose
+  files' Nextcloud, the demo's major, stays with the image rows.
+- `scripts/a-pin-that-knows-it-is-behind.unit.test.ts`: the leg's pin is read and is not the demo's
+  major; current while only the demo's major moves; behind on a newer tag of its own, with the
+  note in the summary issue; and the four broken lines are errors. The file's 114 tests pass,
+  and each of four mutations fails them: the newest taken as the pin, two lines accepted, another
+  image accepted, any major compared.
+- Read against Docker Hub on 2026-11-06: current, 34.0.5-apache, 2535 tags listed (35.0.2 the
+  demo's newest). The workflow's two comments that said the pin watch reads no workflow file now
+  name the row.
 
 **2026-11-05: alpha.4's moves are on live.** Live took `v0.2.0-alpha.4` on 2026-11-04 at
 22:55:26 UTC (0132 Status, 2026-11-05): ClickHouse 26.8.36.3, with the fix for CVE-2026-116366,
@@ -4455,12 +4474,11 @@ is beside each; none is urgent tonight.
   under the same tag would fix, and Dependabot moves the web image's FROM, which `www.yml`
   follows. The majors stay the owner's. `busybox:1.38` is the one float left, named with its
   reason in `scripts/a-float-nothing-ever-pulled.unit.test.ts`, which refuses a new one.
-- **The second Nextcloud major's pin is moved by hand** (T5): nothing watches
-  `nextcloud-second-major.yml`'s `NEXTCLOUD_IMAGE`. A row in the pin watch reading it is the
-  follow-up, once the open pull requests that change `scripts/idp-pin-watch.mjs` have merged.
-  Since the flip (T5, in the pull request that moved the demo) the leg names 34.0.5 and the
-  compose files 35, so the pin watch reads 35 and 34.0.6 (due 2026-11-12) is nobody's to report
-  until that row exists.
+- **The second Nextcloud major's pin is moved by hand** (T5), and the pin watch says when:
+  since 2026-11-06 its row *nextcloud, the second major* reads `nextcloud-second-major.yml`'s
+  one `NEXTCLOUD_IMAGE` (by tag and index digest, or the row is an error) and lists a newer tag
+  of the same major in the summary issue, with how it moves. Read against Docker Hub on
+  2026-11-06 it is current, 34.0.5 of 2535 tags listed; 34.0.6 was due 2026-11-12.
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with

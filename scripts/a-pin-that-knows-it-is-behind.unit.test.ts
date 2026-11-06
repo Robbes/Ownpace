@@ -103,6 +103,8 @@ import {
   LINES,
   NODE_RELEASE_KEYS_FILE,
   NODE_RELEASE_KEYS_NOTE,
+  NEXTCLOUD_SECOND_MAJOR_NOTE,
+  NEXTCLOUD_SECOND_MAJOR_WORKFLOW,
   SOCKET_PROXY_DOCKERFILE,
   SOCKET_PROXY_UPSTREAM,
   STALWART_CLI_ARCHES,
@@ -149,6 +151,7 @@ import {
   repoReader,
   REBUILD_NOTE,
   routineRows,
+  secondMajorPin,
   securityFloor,
   stalwartCliPin,
   trivyPin,
@@ -1201,6 +1204,9 @@ function registry(newer: Record<string, string> = {}): Stubs {
     }
   }
   for (const file of STALWART_FILES) for (const m of (REAL.read(file) ?? '').matchAll(/stalwartlabs\/stalwart:(v[\d.]+)/g)) pins.set('stalwartlabs/stalwart', [m[1]!]);
+  // The second Nextcloud major's leg names its own tag, beside the demo's major the compose files run.
+  const second = secondMajorPin(REAL.read(NEXTCLOUD_SECOND_MAJOR_WORKFLOW)!);
+  pins.set(registryOf(second.repo).name, [...(pins.get(registryOf(second.repo).name) ?? []), second.tag]);
   // The Atlas release ci.yml installs, as the community image's tag, beside tags of other shapes
   // and another major that its row must never take for a newer release.
   pins.set(ATLAS_IMAGE, [ATLAS_TAG, 'latest-community', '1.99.0-community-alpine', '1.99.0-extended', '2.0.0-community']);
@@ -2288,5 +2294,52 @@ describe(`${WORKFLOW_FILE}`, () => {
     expect(runs[0]!.env).toMatchObject({ GH_TOKEN: '${{ github.token }}' });
     const checkout = jobs[0]!.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
     expect(checkout?.with?.['persist-credentials']).toBe(false);
+  });
+});
+
+describe("the second Nextcloud major's leg, against its own major's newest tag (0119 T5)", () => {
+  const LEG = REAL.read(NEXTCLOUD_SECOND_MAJOR_WORKFLOW)!;
+  const pin = secondMajorPin(LEG);
+  const demo = readImages(REAL.read('deploy/compose/dev.yml')!).find((i) => i.repo === 'nextcloud')!;
+  const row = async (over: Record<string, string | null> = {}, newer: Record<string, string> = {}) =>
+    (await routineRows(Object.keys(over).length ? withFiles(over) : REAL, fakeNet(registry(newer)))).rows.find((r) => r.name === 'nextcloud, the second major')!;
+
+  it('reads the one NEXTCLOUD_IMAGE the leg runs, a major the demo does not run, by tag and index digest', () => {
+    expect(pin.repo).toBe('nextcloud');
+    expect(pin.tag).toMatch(/^\d+\.\d+\.\d+-apache$/);
+    expect(pin.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(demo, 'dev.yml runs no Nextcloud: the demo major moved somewhere this case does not read').toBeDefined();
+    expect(pin.tag.split('.')[0]).not.toBe(demo.tag.split('.')[0]);
+  });
+
+  it('is current while its major lists nothing newer, and the demo major listing a newer tag changes nothing', async () => {
+    const next = `${Number(demo.tag.split('.')[0]) + 1}.0.0-apache`;
+    expect(await row({}, { 'library/nextcloud': next })).toMatchObject({ state: 'current', pin: `${pin.tag}@${pin.digest}`, newest: pin.tag, where: NEXTCLOUD_SECOND_MAJOR_WORKFLOW });
+  });
+
+  it('is behind on a newer tag of its own major, and says how it moves', async () => {
+    const [major, minor] = pin.tag.split('.');
+    const newer = `${major}.${minor}.99-apache`;
+    const behind = await row({}, { 'library/nextcloud': newer });
+    expect(behind).toMatchObject({ state: 'behind', newest: newer, notes: [NEXTCLOUD_SECOND_MAJOR_NOTE] });
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'library/nextcloud': newer })));
+    const line = (summaryOf(rows, status).body ?? '').split('\n').find((l) => l.startsWith('- `nextcloud, the second major`'));
+    expect(line).toContain(`newest **${newer}**; ${NEXTCLOUD_SECOND_MAJOR_NOTE}`);
+  });
+
+  it('a leg that names no image, two, another image or no digest is an error, never current', async () => {
+    const line = /^\s*NEXTCLOUD_IMAGE:.*$/m.exec(LEG)![0];
+    const cases: Array<[string, RegExp]> = [
+      [LEG.replace(line, ''), /sets NEXTCLOUD_IMAGE 0 times, not once/],
+      [LEG.replace(line, `${line}\n${line}`), /sets NEXTCLOUD_IMAGE 2 times, not once/],
+      [LEG.replace(line, line.replace('nextcloud:', 'owncloud:')), /names owncloud:.*not nextcloud by a numbered tag and its index digest/],
+      [LEG.replace(line, line.replace(/@sha256:[0-9a-f]{64}/, '')), /not nextcloud by a numbered tag and its index digest/],
+    ];
+    for (const [text, error] of cases) {
+      expect(text).not.toBe(LEG);
+      const broken = await row({ [NEXTCLOUD_SECOND_MAJOR_WORKFLOW]: text });
+      expect(broken.state).toBe('error');
+      expect(broken.error).toMatch(error);
+    }
   });
 });
