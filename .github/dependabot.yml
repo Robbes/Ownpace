@@ -104,11 +104,16 @@ updates:
   # three `FROM node:` lines are (scripts/an-appliance-with-nothing-to-exec),
   # so a pull request that moves the digest in one directory and not the other
   # fails until both move.
+  # apps/worker/task-image is the tasks' prebuilt base (workplan 0119 §3 item
+  # 13): its two FROM lines are apps/api/Dockerfile's two, and
+  # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts holds them
+  # equal, so it is in this group and moves in the same pull request.
   - package-ecosystem: docker
     directories:
       - "/apps/api"
       - "/apps/web"
       - "/apps/selfhost"
+      - "/apps/worker/task-image"
     schedule:
       interval: weekly
       day: monday

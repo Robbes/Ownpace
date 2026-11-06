@@ -5902,6 +5902,14 @@ about all ten, and fails if dpkg still has any of them. An older image a runner
 of an earlier deployment ran (Trigger.dev keeps a run on the version it was
 triggered on) is named there and not asked.
 
+All of this is today's path, and it is the one the owner decided to replace
+(workplan 0119 §3 item 13, for alpha.5): `images.yml` now publishes, from
+`main`, `ghcr.io/robbes/ownpace-task-base`, a distroless base with dumb-init,
+the edited CA bundle and the `node` user already in it, signed like the other
+images. The tasks do not run on it yet. Once they name it by digest, a task
+deploy pulls it from GHCR, runs no apt, needs no Debian archive and purges
+nothing, and this machine has to reach `ghcr.io` instead.
+
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
 own inside their builds, but the tasks are bundled on this machine from its own
