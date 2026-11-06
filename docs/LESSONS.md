@@ -1026,6 +1026,7 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-privilege-no-service-uses](../scripts/a-privilege-no-service-uses.unit.test.ts) — A PRIVILEGE NO SERVICE USES (workplan 0119, 2026-11-03; the owner, the same day: "make base images more lean/small and more hardened").
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
@@ -4732,6 +4733,7 @@ Reads:
 - `AGENTS.md`
 - `apps/worker/package.json`
 - `apps/worker/trigger.config.ts`
+- `deploy/compose/dev.yml`
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`

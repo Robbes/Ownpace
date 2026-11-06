@@ -24,7 +24,8 @@
 # of skipping every suite, and the server that answered must be the version
 # the tag names. The step after the run refuses a report with a skipped test,
 # so this cannot be green over nothing. The pin moves by hand: Dependabot reads
-# no workflow env and the pin watch reads no workflow file.
+# no workflow env, so the pin watch's row "nextcloud, the second major"
+# (scripts/idp-pin-watch.mjs) reads this line and lists a newer tag of its major.
 # A tag waits three days after its push before it is pinned here, the age
 # CONTRIBUTING.md asks of a dependency, unless a security fix needs it sooner.
 #
@@ -105,8 +106,8 @@ jobs:
       # moved to 35.0.2 (#1678, 0119 §4). The leg ran 35.0.1 from 2026-10-25
       # and 35.0.2 from 2026-10-26, and flipped to 34 in the pull request that
       # moved the demo (workplan 0119, T5). By hand: Dependabot reads no
-      # workflow env, and the pin watch reads no workflow file, so 34.0.6 (due
-      # 2026-11-12) is nobody's to report until a row reads this line.
+      # workflow env; the pin watch's row "nextcloud, the second major" reads
+      # this line, so 34.0.6 (due 2026-11-12) is reported in its summary issue.
       NEXTCLOUD_IMAGE: nextcloud:34.0.5-apache@sha256:515c072ea1cf82ece3503f301fdf75dd5a7148abcc8fa10aaefd5ec56643b703
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
