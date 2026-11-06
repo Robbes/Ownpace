@@ -36,14 +36,18 @@
  * 2. That string names its Debian release (`-<codename>-slim`), and the release
  *    is not bookworm. Dependabot keeps the suffix when it moves the tag, so a
  *    new Debian is an edit somebody makes.
- * 3. The selfhost runtime stage removes every package manager the base
- *    image and the base stage's `corepack enable` put there, in one RUN before
- *    `USER` (as root, which owns them), and nothing after it puts one back.
- * 4. What runs in that container runs `node` and no package manager: the
- *    stage's CMD, HEALTHCHECK and ENTRYPOINT, and the `command`, `entrypoint`
- *    and `healthcheck` of every compose service built from its Dockerfile
- *    (`deploy/selfhost/compose.yml`'s `app`), in every compose file of its
- *    directory, overrides included. That is what makes 3 safe.
+ * 3. The selfhost runtime stage carries no package manager. Since 2026-11-06
+ *    it is distroless (workplan 0119 §3 item 12), which ships none and can run
+ *    no RUN to bring one; on the Node base, as until then, it removes every
+ *    package manager the base image and the base stage's `corepack enable`
+ *    put there, in one RUN before `USER` (as root, which owns them). Either
+ *    way nothing after puts one back.
+ * 4. What runs in that container runs `node` (by any path) and no package
+ *    manager: the stage's ENTRYPOINT (else CMD) and HEALTHCHECK, and the
+ *    `command`, `entrypoint` and `healthcheck` of every compose service built
+ *    from its Dockerfile (`deploy/selfhost/compose.yml`'s `app`), in every
+ *    compose file of its directory, overrides included. That is what makes 3
+ *    safe.
  * 5. The one RUN that brings pnpm to the stage built FROM that line is one
  *    string in all three files: `npm install -g --omit=dev corepack@<x.y.z>
  *    && corepack enable`, the version exact. The Node image ships no corepack
@@ -57,15 +61,17 @@
  *    drift would build three images with three package managers. `--omit=dev`
  *    is what `an-image-that-shipped-what-it-never-runs` asks of an npm install
  *    in a stage the API's runtime takes files from (corepack has no
- *    dependencies, so it installs the same thing). The selfhost runtime
- *    removes what it installs with the rest (3): `/usr/local/lib/node_modules`
- *    and the corepack, pnpm, pnpx, yarn and yarnpkg links.
+ *    dependencies, so it installs the same thing). No runtime stage takes it
+ *    from the base stage any more: the selfhost's removed it with the rest
+ *    until 2026-11-06 (3).
  *
  * The api's runtime stage did the same until 0146 T13 put it on distroless
  * (`gcr.io/distroless/nodejs24-debian13:nonroot`), which carries Node and no
  * package manager at all, nor a shell to run a RUN with; its build stage still
  * builds FROM the Node line held by 1 and 2, and
- * `scripts/an-api-image-with-nothing-to-exec.unit.test.ts` holds the rest.
+ * `scripts/an-api-image-with-nothing-to-exec.unit.test.ts` holds the rest. The
+ * selfhost's followed on 2026-11-06, on the same line
+ * (`scripts/an-appliance-with-nothing-to-exec.unit.test.ts`).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -78,11 +84,15 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 
 /**
- * The images whose runtime stage runs on the Node image, and so must remove its
- * package managers. The api's runtime is distroless since 0146 T13, with none
- * to remove (scripts/an-api-image-with-nothing-to-exec.unit.test.ts).
+ * The images whose runtime runs our code with Node, held here: the selfhost's,
+ * distroless since 2026-11-06, and so with no package manager to remove; on
+ * the Node image it would have to remove them. The api's runtime is distroless
+ * since 0146 T13 and held by scripts/an-api-image-with-nothing-to-exec.unit.test.ts.
  */
 const NODE_RUNTIMES = ['apps/selfhost/Dockerfile'];
+
+/** The distroless Node image, at its `nonroot` tag by digest: Node, and no shell or package manager. */
+const DISTROLESS = /^gcr\.io\/distroless\/nodejs\d+-debian\d+:nonroot@sha256:[0-9a-f]{64}$/;
 
 /**
  * What the base image and `corepack enable` install that runs a package manager.
@@ -250,17 +260,25 @@ describe('one pnpm, brought one way, where the Node image ships no corepack', ()
 describe.each(NODE_RUNTIMES)('%s carries no package manager at runtime', (dockerfile) => {
   const stages = stagesOf(read(dockerfile));
   const runtime = stages.at(-1)!;
+  // The image the runtime stage runs on, through a stage it names.
+  const base = stages.find((s) => s.name === runtime.base)?.base ?? runtime.base;
+  const distroless = DISTROLESS.test(base);
   const at = runtime.body.findIndex((i) => i.op === 'RUN' && PACKAGE_MANAGERS.every((p) => removedBy(i.args).includes(p)));
   const user = runtime.body.findIndex((i) => i.op === 'USER');
 
-  it('its last stage is the runtime, built on the Node base, and it sets a USER (vacuity)', () => {
+  it('its last stage is the runtime, on distroless Node or the Node base, and it sets a USER (vacuity)', () => {
     expect(runtime.name).toBe('runtime');
-    const baseStage = stages.find((s) => s.name === runtime.base);
-    expect(baseStage?.base ?? runtime.base).toMatch(/^node:/);
+    expect(distroless || base.startsWith('node:'), `${dockerfile}: the runtime runs on ${base}`).toBe(true);
     expect(user, 'no USER in the runtime stage').toBeGreaterThanOrEqual(0);
   });
 
-  it('one RUN removes every package manager, before USER', () => {
+  it('has none to remove (distroless, and no RUN to bring one), or one RUN removes every one, before USER', () => {
+    if (distroless) {
+      // Distroless ships Node and no package manager, and has no shell, so a
+      // RUN in this stage could not run; the files come in by COPY alone.
+      expect(runtime.body.filter((i) => i.op === 'RUN').map((i) => i.args), `${dockerfile}: RUN on distroless`).toEqual([]);
+      return;
+    }
     const missing = PACKAGE_MANAGERS.filter(
       (p) => !runtime.body.some((i) => i.op === 'RUN' && removedBy(i.args).includes(p)),
     );
@@ -271,24 +289,31 @@ describe.each(NODE_RUNTIMES)('%s carries no package manager at runtime', (docker
     expect(at, 'the removal comes after USER').toBeLessThan(user);
   });
 
-  it('nothing after the removal puts one back', () => {
+  it('nothing after the removal (or, on distroless, at all) puts one back', () => {
     for (const i of runtime.body.slice(at + 1)) {
       if (i.op === 'RUN') expect(i.args, `${i.op} ${i.args}`).not.toMatch(RUNS_A_PACKAGE_MANAGER);
       if (i.op === 'COPY' || i.op === 'ADD') {
         const target = i.args.split(/\s+/).at(-1)!;
-        expect(target, `${i.op} ${i.args}`).not.toMatch(/^\/(?:usr\/local|opt)(?:\/|$)/);
+        expect(target, `${i.op} ${i.args}`).not.toMatch(/^\/(?:usr\/local|opt|nodejs)(?:\/|$)/);
       }
     }
   });
 
-  it('CMD, HEALTHCHECK and ENTRYPOINT run node, and no package manager', () => {
+  it('what it starts (ENTRYPOINT, else CMD) and its HEALTHCHECK run node, and no package manager', () => {
+    // On distroless Node is /nodejs/bin/node, off the PATH, and the ENTRYPOINT
+    // names it; CMD is then its argument.
+    const isNode = (program: string | undefined) => program !== undefined && /(?:^|\/)node$/.test(program);
+    const entrypoint = runtime.body.filter((i) => i.op === 'ENTRYPOINT');
     const cmd = runtime.body.filter((i) => i.op === 'CMD');
     expect(cmd, 'no CMD in the runtime stage').toHaveLength(1);
-    expect(programOf(cmd[0]!.args)).toBe('node');
+    expect(entrypoint.length, 'more than one ENTRYPOINT').toBeLessThanOrEqual(1);
+    expect(distroless ? entrypoint.length : 1, `${dockerfile}: distroless's own ENTRYPOINT is its node; name it`).toBe(1);
+    const started = programOf((entrypoint[0] ?? cmd[0])!.args);
+    expect(isNode(started), `${dockerfile} starts ${started}`).toBe(true);
     for (const i of runtime.body.filter((x) => x.op === 'HEALTHCHECK')) {
       const command = /\bCMD\s+(.*)$/.exec(i.args)?.[1];
       expect(command, `HEALTHCHECK ${i.args}`).toBeDefined();
-      expect(programOf(command!)).toBe('node');
+      expect(isNode(programOf(command!)), `HEALTHCHECK ${i.args}`).toBe(true);
     }
     for (const i of runtime.body.filter((x) => ['CMD', 'HEALTHCHECK', 'ENTRYPOINT'].includes(x.op))) {
       expect(i.args, `${i.op} ${i.args}`).not.toMatch(RUNS_A_PACKAGE_MANAGER);

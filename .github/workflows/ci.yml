@@ -635,7 +635,7 @@ jobs:
     if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
@@ -676,8 +676,15 @@ jobs:
         # hosted and self-hosted runners' defaults passed it cold on 24; 4 GB
         # says what it needs instead of hoping the next runner's default is
         # as large.
+        # 6 GB SINCE 2026-11-06: 4 GB stopped being enough. Cold, on `main` at
+        # e0ef6b55, the whole repository ran out of memory at 4096 MB (resident
+        # about 4.4 GB when it stopped) and passed at 6144 MB with a resident
+        # peak of about 5.1 GB (about 6.1 GB at 8192, where the collector waits
+        # longer), in about two minutes. A warm cache hid it on `main`; a pull
+        # request that touches enough files to lint most of them cold (#1819)
+        # met it. The hosted runner has 16 GB; the self-hosted one far more.
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           pnpm lint
           pnpm typecheck   # tsc (TypeScript 7) --noEmit across the workspace
@@ -723,7 +730,7 @@ jobs:
           # a missing tag under CI for the same reason, but the fix belongs
           # here: the gate should run, not report why it could not.
           fetch-depth: 0
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
@@ -789,7 +796,7 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
@@ -880,7 +887,7 @@ jobs:
           # reads each release's chains and migrators out of its tag, and
           # under CI a tag it cannot reach is a failure, not a skip.
           fetch-depth: 0
-      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'

@@ -42,6 +42,10 @@ export declare const STALWART_CLI_HINTS: string[];
 export declare const STALWART_CLI_NOTE: string;
 /** The stalwart-cli release a workflow installs, and its sha256 for each architecture; throws for a step that may not run. */
 export declare function stalwartCliPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
+export declare const NEXTCLOUD_SECOND_MAJOR_WORKFLOW: string;
+export declare const NEXTCLOUD_SECOND_MAJOR_NOTE: string;
+/** The one image the second Nextcloud major's leg names, by a numbered tag and its index digest; throws for any other line. */
+export declare function secondMajorPin(workflow: string): Omit<Image, 'line'>;
 export declare const TRIVY_WORKFLOW: string;
 export declare const TRIVY_JOBS: string[];
 export declare const TRIVY_HOST: string;
