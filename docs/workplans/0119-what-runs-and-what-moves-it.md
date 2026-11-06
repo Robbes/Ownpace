@@ -20,9 +20,12 @@ update && apt-get -y upgrade` on the deploying machine with the base's own apt, 
   Redis's 2.6.1 to 2.6.2) and tzdata (2026e to 2026f). `NODE_VERSION` reads 26.13.0 and
   `REDIS_VERSION` 7.4.12 in both.
 - **What this moves.** The three `FROM node` lines (the API's build stage, the web and the
-  appliance; the tasks build on the API's line) and `managed.yml`'s `trigger-redis`. That
-  should take the two apt findings out of `redis` and out of the appliance's next build; the
-  image scan on the branch measures it.
+  appliance; the tasks build on the API's line) and `managed.yml`'s `trigger-redis`. The image
+  scan on the branch (Security Scan run 42148216000, linux/arm64, 2026-11-06) reads `redis` at 1
+  critical, 33 high and 0 fixable, from 1, 35 and 2: the two apt findings are gone, and nothing
+  a newer package fixes is left. The appliance's rows read the published `edge` and release
+  images, so its two apt findings go with the first `edge` built from `main` after this, and the
+  release's with the next tag.
 - **Not moved.** `trigger.dev` is built on upstream's image of v4.8.3, which upstream does not
   rebuild; `clickhouse-server` 26.8.36.3 was last pushed on 2026-10-26. Both run in
   production-internal, and neither runs apt. zlib1g's high on Debian 13
