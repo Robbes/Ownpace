@@ -467,7 +467,7 @@ describe("managed.yml runs that build, by the name its instructions give it", ()
       return composeProblems(text, dockerfile);
     };
     const image = /^(\s*image:\s*)localhost\/caddy:\S+$/m;
-    expect(swap(image, '$1caddy:2.11.8-alpine@sha256:f6228111e5fafa1a5238258d0858e103f10599b8d1659a146e7726681a002bb9')).toEqual([
+    expect(swap(image, '$1caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee')).toEqual([
       expect.stringContaining("upstream's image with curl"),
       expect.stringContaining('not localhost/caddy:'),
     ]);
