@@ -819,6 +819,19 @@ step 2 keeps the database it had. Do not add `--build` to `up`, and build the
 app by name if you build it from source (`… build app`): a bare `build`
 rebuilds the database's image as well, and restarts the database for nothing.
 
+**The checkout and the app's image go together, from 0.2.0-alpha.5 on.**
+That release's image is distroless: Node at `/nodejs/bin/node`, off its PATH,
+and no shell (workplan 0119 §3 item 12). `compose.yml`'s healthcheck for `app`
+runs that Node by its path, where it ran `CMD-SHELL` before, which needs
+`/bin/sh`. So a `compose.yml` from before alpha.5 on the new image, or this
+`compose.yml` on an image from before it, shows `app` as *unhealthy* while
+`/healthz` answers. Steps 2 and 3 together are the cure: pull the image and
+update the checkout in the same upgrade, and `up -d` recreates `app` with the
+new healthcheck. Your `appdata` volume needs nothing: the image still runs as
+uid 10001. And there is no shell to open in it any more: `docker compose -f
+deploy/selfhost/compose.yml exec app /nodejs/bin/node -e '…'` runs a line of
+JavaScript there, and the state is in the volume (*Backup*, above).
+
 The upgrade that first brought this build (from an appliance that ran the
 official image as root) needs nothing but step 2 either: the old image's start
 made the data uid 70's on every start, so the database finds it as it left
@@ -850,6 +863,13 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
 - **App unhealthy / restarts:** `… logs app`. A bad `mapping.json` prints the
   offending path; a source/target auth failure shows up as a domain `lastError`
   in `/status`.
+- **`app` unhealthy while `/healthz` answers `{"status":"ok"}`:** the checkout
+  and the image are from either side of 0.2.0-alpha.5. `docker container
+  inspect ownpace-selfhost-app --format '{{json .State.Health.Log}}'` says `exec:
+  "/bin/sh": stat /bin/sh: no such file or directory` (an older `compose.yml`
+  on the new, shell-less image) or `exec: "/nodejs/bin/node": stat
+  /nodejs/bin/node: no such file or directory` (this `compose.yml` on an older
+  image). Bring the two together (*Upgrades*, steps 2 and 3) and `up -d`.
 - **`POSTGRES_PASSWORD` error on `up`:** it's unset in `.env`.
 - **The database exits with `mkdir: can't create directory
   '/var/lib/postgresql/18/': Permission denied`** (or another *Permission

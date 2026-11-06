@@ -523,7 +523,15 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   user, command, entrypoint and working directory (workplan 0146 T16). Each removal fails the
   build by name when its path is not there, and each Dockerfile refuses another release than its
   `read_at`, so the pull request of a Trigger.dev move is red there until the Dockerfiles are
-  read again.
+  read again. The build job's fourth leg, `build (task-base)`, is the managed tasks' prebuilt
+  base, `apps/worker/task-image/Dockerfile` (workplan 0119 §3 item 13): on a pull request that
+  touches its directory it builds for amd64, then starts the image as the Trigger.dev CLI's
+  runtime stage starts it (`dumb-init node`, as `node`, with the API image's Node and the CLI's
+  eight rejected intermediates in its bundle) and checks no shell starts in it; on `main` it is
+  published for both platforms as `ghcr.io/robbes/ownpace-task-base:edge` and `sha-<commit>`
+  and signed by digest. A tag builds none. Held by
+  `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts`, which also runs the installed
+  CLI's own Containerfile writer and fails when it writes a step a shell-less base cannot run.
 - `script-images.yml` — the images a script builds for itself (today GoAccess, which
   `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
   arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
@@ -569,7 +577,7 @@ against the runs recorded that evening, recorded green runs, and every event and
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
-`build (api|web|selfhost)`, `build (postgres)` or `build (trigger, amd64|arm64)` from
+`build (api|web|selfhost|task-base)`, `build (postgres)` or `build (trigger, amd64|arm64)` from
 `images.yml`, nor `DAV suites on the second Nextcloud major` from `nextcloud-second-major.yml`,
 nor `Build (deploy/compose/goaccess)` from `script-images.yml`. None is reported at all on some
 pull requests —

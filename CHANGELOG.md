@@ -11,7 +11,32 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   fix for CVE-2026-109518 (apt 3.0.4 and 2.6.2), which the tasks' image build uses on the
   deploying machine. Nothing else in either image changed but tzdata.
 
+- **The appliance's image has no shell: its runtime is distroless, and `compose.yml`'s
+  healthcheck for `app` changes with it** (workplan 0119 §3 item 12; the owner's decision of
+  2026-11-03, for alpha.5). `ghcr.io/robbes/ownpace-selfhost` now runs on the API's base,
+  `gcr.io/distroless/nodejs26-debian13:nonroot` at the same digest: Debian 13 with fourteen
+  packages and Node 26.13.0 at `/nodejs/bin/node`, and no shell, coreutils, dpkg, apt or
+  package manager, so the util-linux purge of alpha.4 has nothing left to remove. Built here on
+  amd64 from one payload, the image is 71.6 MB compressed instead of 97.1 MB, and 290 MB
+  unpacked instead of 400 MB. It still runs as uid 10001, so an existing `appdata` volume needs
+  nothing; `/app` stays root's and read-only to it, and `/data` its own. **Self-hosters: update
+  the checkout with the image.** `compose.yml`'s healthcheck for `app` was `CMD-SHELL`, which
+  needs `/bin/sh`; it is now exec form on `/nodejs/bin/node`. A `compose.yml` from before this
+  release, on this image, reports `app` as *unhealthy* while the appliance serves (`docker
+  container inspect` says `exec: "/bin/sh": stat /bin/sh: no such file or directory`), and this
+  release's `compose.yml` on an older image does the same the other way round. Back up, `git
+  pull` (or check out this release's tag), pull, `up -d`, as `docs/selfhost-quickstart.md`'s
+  *Upgrades* says. There is no shell to open with `docker compose exec app` any more; `docker
+  compose exec app /nodejs/bin/node -e '…'` asks it something. The upgrade drill, E2E
+  (self-hosted) and Release's check of `/version` ask the container with its Node by its path,
+  and E2E now also stops when the appliance's Node is not the version the Windows payload's
+  `node.exe` ships.
+
 ### Added
+
+- **The weekly pin watch reports a newer patch of the second Nextcloud major** (workplan 0119
+  T5): the CI leg that proves the code against the major the demo does not run (34) had its
+  image moved by hand with nothing saying when a patch was out. Its row now lists one.
 
 - **The app's own pages are opened on a phone on every pull request** (workplan 0145
   T8 (a)): the sign-in and request-access pages, Migrations and every screen of *Start a
@@ -21,6 +46,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The Alpha's build is opened on a phone too** (workplan 0145 T8 (a)): the bundle live
   serves, with the Alpha note above Migrations and the line about connecting Google above the
   Google card of *Start a migration* and above a grant page's button, in Dutch at 390 pixels.
+- **A prebuilt base for the managed tasks, published from `main`** (workplan 0119 §3 item 13):
+  `ghcr.io/robbes/ownpace-task-base`, distroless at the API image's digest with dumb-init, the
+  CA bundle carrying Trigger.dev's trust edits and a `node` user, so the deploy CLI has nothing
+  to build into it. `images.yml` builds it and starts it on a pull request, and on `main`
+  publishes it for amd64 and arm64 as `edge` and `sha-<commit>`, signed by digest like the
+  other images; no release tag builds one. The tasks do not run on it yet: they move to it by
+  digest in a later change, after the first publish.
 
 ### Fixed
 

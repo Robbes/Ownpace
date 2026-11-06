@@ -197,6 +197,21 @@ describe('the staged payload', () => {
     });
   });
 
+  it('asks no passwd database: os.userInfo() throws in the image, where uid 10001 has no line', () => {
+    // The container runs this payload as uid 10001 on distroless since
+    // 2026-11-06 (apps/selfhost/Dockerfile; workplan 0119 §3 item 12), whose
+    // /etc/passwd has root, nobody and nonroot only. There `os.userInfo()`
+    // throws ERR_SYSTEM_ERROR (uv_os_get_passwd ENOENT), measured on the
+    // image. Nothing in the bundle or the launcher calls it today; the one
+    // reader of the user's environment is `pg`'s pgpass, which reads $HOME,
+    // and the image sets HOME. A dependency that starts calling it fails here
+    // rather than at a self-hoster's start.
+    for (const file of ['appliance.mjs', 'start.mjs']) {
+      const text = readFileSync(join(payload, file), 'utf-8');
+      expect(text.match(/\buserInfo\s*\(/g), `${file} calls os.userInfo()`).toBeNull();
+    }
+  });
+
   it('ships every .ps1 with its .cmd wrapper, in the same directory', () => {
     // The pairing is the whole mechanism, not tidiness. Stock Windows
     // PowerShell policy is Restricted and refuses a .ps1 outright; each .cmd

@@ -189,6 +189,33 @@ export const builtNote = (dockerfile) =>
 export const STALWART_RULE =
   "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
 
+/**
+ * The second Nextcloud major's leg (workplan 0119 T5): the suites that talk to
+ * Nextcloud, against the major the demo does not run, by the one image its
+ * `NEXTCLOUD_IMAGE:` names. Dependabot reads no workflow env, so this row is
+ * what says a patch of that major is out (34.0.6 was due 2026-11-12).
+ */
+export const NEXTCLOUD_SECOND_MAJOR_WORKFLOW = '.github/workflows/nextcloud-second-major.yml';
+
+/** Said beside the second major's row when it is behind. */
+export const NEXTCLOUD_SECOND_MAJOR_NOTE =
+  "move `NEXTCLOUD_IMAGE` by tag and index digest in a pull request of its own, three days after the tag's push, and read that workflow's run on it: a skipped suite is not a proof";
+
+/**
+ * The image the second major's leg runs: its one `NEXTCLOUD_IMAGE:` line, as
+ * `nextcloud:<tag>@sha256:…`. None, two, or another image is an error, never
+ * "current".
+ */
+export function secondMajorPin(text) {
+  const named = [...text.matchAll(/^\s*NEXTCLOUD_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${NEXTCLOUD_SECOND_MAJOR_WORKFLOW} sets NEXTCLOUD_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'nextcloud' || !/\d/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${NEXTCLOUD_SECOND_MAJOR_WORKFLOW} names ${image.ref}, not nextcloud by a numbered tag and its index digest`);
+  }
+  return image;
+}
+
 /** The visit count's GoAccess, built here (#1675). */
 export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
 
@@ -1510,6 +1537,16 @@ export async function routineRows(repo, net) {
     // told whose call it is, and by which document.
     const notes = [...(pin.length > 1 ? ['the copies disagree'] : []), ...(state === 'behind' ? [STALWART_RULE] : [])];
     return { pin: pin.join(' / '), newest, state, notes };
+  }]);
+
+  // The second Nextcloud major (0119 T5): the leg's own pin, against its major's
+  // newest tag of the same shape. The compose files' Nextcloud is the demo's
+  // major, which the image rows above compare.
+  jobs.push(['nextcloud, the second major', NEXTCLOUD_SECOND_MAJOR_WORKFLOW, async () => {
+    const image = secondMajorPin(need(repo, NEXTCLOUD_SECOND_MAJOR_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [NEXTCLOUD_SECOND_MAJOR_NOTE] } : {}) };
   }]);
 
   // GoAccess: the visit count's image, built here since #1675 from the commit

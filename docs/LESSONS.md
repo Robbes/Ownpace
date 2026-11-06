@@ -36,6 +36,7 @@ reading a file drops off its entry by itself.
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `.github/workflows/ci.yml`
@@ -99,7 +100,7 @@ reading a file drops off its entry by itself.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 - [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts) — AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [two-nights-read-from-the-record](../scripts/two-nights-read-from-the-record.unit.test.ts) — TWO NIGHTS READ FROM THE RECORD: the nights a release tag waits for were counted by a person reading two `gh run list` commands, and on 2026-10-06 the alpha was tagged on one green night of two (workplan 0141 T14).
 
@@ -124,6 +125,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
 
@@ -175,6 +177,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 
 ### `CONTRIBUTING.md`
 
@@ -198,7 +201,9 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
@@ -480,6 +485,7 @@ reading a file drops off its entry by itself.
 - [a-runtime-only-its-own-host-vouched-for](../scripts/a-runtime-only-its-own-host-vouched-for.unit.test.ts) — A RUNTIME ONLY ITS OWN HOST VOUCHED FOR: the `node.exe` every Windows payload ships was checked against a `SHASUMS256.txt` fetched from the same `nodejs.org` release directory as the binary, so whoever could change the one could change t…
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [an-appliance-that-could-rewrite-its-own-code](../scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts) — AN APPLIANCE THAT COULD REWRITE ITS OWN CODE (workplan 0119, Status of 2026-11-03).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [package-appliance](../scripts/package-appliance.unit.test.ts) — The staged appliance payload actually runs (workplan 0015 T3).
@@ -752,6 +758,7 @@ reading a file drops off its entry by itself.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -871,6 +878,10 @@ reading a file drops off its entry by itself.
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
 
+### `apps/worker/task-image/Dockerfile`
+
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+
 ### `apps/worker/trigger.config.ts`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
@@ -878,6 +889,7 @@ reading a file drops off its entry by itself.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
@@ -1008,6 +1020,7 @@ reading a file drops off its entry by itself.
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
@@ -1026,6 +1039,7 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-privilege-no-service-uses](../scripts/a-privilege-no-service-uses.unit.test.ts) — A PRIVILEGE NO SERVICE USES (workplan 0119, 2026-11-03; the owner, the same day: "make base images more lean/small and more hardened").
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts) — A SITE ANOTHER STACK'S TEARDOWN DELETED.
@@ -1703,6 +1717,10 @@ reading a file drops off its entry by itself.
 
 - [the-alias-that-shadowed-the-front](../scripts/the-alias-that-shadowed-the-front.unit.test.ts) — THE ALIAS THAT SHADOWED THE FRONT.
 
+### `deploy/selfhost/README.md`
+
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
+
 ### `deploy/selfhost/compose.dev.yml`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
@@ -1740,6 +1758,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [the-mail-the-api-could-not-send](../scripts/the-mail-the-api-could-not-send.unit.test.ts) — THE MAIL THE API COULD NOT SEND.
 
@@ -1782,6 +1801,7 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-privilege-no-service-uses](../scripts/a-privilege-no-service-uses.unit.test.ts) — A PRIVILEGE NO SERVICE USES (workplan 0119, 2026-11-03; the owner, the same day: "make base images more lean/small and more hardened").
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 - [lessons](../scripts/lessons.unit.test.ts) — The lessons index cannot drift from the guards it indexes.
 
 ### `docs/README.md`
@@ -2006,6 +2026,7 @@ reading a file drops off its entry by itself.
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 - [a-journal-that-outlived-the-container](../scripts/a-journal-that-outlived-the-container.unit.test.ts) — A JOURNAL THAT OUTLIVED THE CONTAINER (the owner, 2026-09-28, ops-log-driver (a): *"Docker's default, as the text says"*, with the note *"needs checking"*; privacy §9, *Server logs*).
 - [a-month-of-container-output](../scripts/a-month-of-container-output.unit.test.ts) — A MONTH OF CONTAINER OUTPUT (workplan 0129 T3; the owner's decision, D2: application and container logs are kept for a month).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 
 ### `docs/shared-mailboxes.md`
 
@@ -2879,6 +2900,10 @@ reading a file drops off its entry by itself.
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 
+### `scripts/an-appliance-with-nothing-to-exec.unit.test.ts`
+
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
+
 ### `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
 
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
@@ -3168,6 +3193,7 @@ reading a file drops off its entry by itself.
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-drill-that-keeps-its-mapping](../scripts/a-drill-that-keeps-its-mapping.unit.test.ts) — The upgrade drill's appliances start with the mapping the drill wrote for them (workplan 0146's Status, 0025 T5).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 
 ### `scripts/workplan-index.mjs`
 
@@ -3425,6 +3451,7 @@ Reads:
 - `apps/worker/trigger.config.ts`
 - `deploy/selfhost/compose.yml`
 - `scripts/an-api-image-with-nothing-to-exec.unit.test.ts`
+- `scripts/an-appliance-with-nothing-to-exec.unit.test.ts`
 - `scripts/package-appliance.mjs`
 
 ### [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts)
@@ -4732,6 +4759,7 @@ Reads:
 - `AGENTS.md`
 - `apps/worker/package.json`
 - `apps/worker/trigger.config.ts`
+- `deploy/compose/dev.yml`
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
@@ -5621,6 +5649,20 @@ Reads:
 - `packages/shared/src/front-door.ts`
 - `packages/shared/src/target-domains.ts`
 
+### [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts)
+
+A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+
+Reads:
+
+- `.github/dependabot.yml`
+- `.github/workflows/images.yml`
+- `apps/api/Dockerfile`
+- `apps/worker/package.json`
+- `apps/worker/task-image/Dockerfile`
+- `apps/worker/trigger.config.ts`
+- `deploy/compose/deploy-tasks.sh`
+
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 
 `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
@@ -5947,6 +5989,22 @@ Reads:
 - `deploy/selfhost/compose.pglite.yml`
 - `scripts/package-appliance.mjs`
 
+### [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts)
+
+AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
+
+Reads:
+
+- `.github/workflows/e2e.yml`
+- `CHANGELOG.md`
+- `apps/api/Dockerfile`
+- `apps/selfhost/Dockerfile`
+- `deploy/selfhost/README.md`
+- `deploy/selfhost/compose.yml`
+- `docs/LESSONS.md`
+- `docs/selfhost-quickstart.md`
+- `scripts/upgrade-drill.sh`
+
 ### [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts)
 
 AN ENV FILE COMPOSE READ AND BASH COULD NOT.
@@ -5972,7 +6030,6 @@ AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 01
 
 Reads:
 
-- `.github/workflows/e2e.yml`
 - `apps/selfhost/Dockerfile`
 - `apps/worker/package.json`
 - `apps/worker/trigger.config.ts`

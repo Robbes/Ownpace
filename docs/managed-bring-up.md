@@ -3233,7 +3233,7 @@ whose program needs a capability its service does not keep.
 | `nextcloud` | root, then www-data | Docker's default | no | read: its entrypoint rsyncs and chowns as root and runs occ through `su`, a set not measured |
 | `www` (www.yml) | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured: the same nginx image as `web`, with `www-nginx.conf` |
 | `postgres` (appliance) | uid 70 | none | no | measured: the same image as `postgres` above; its rootless `chown` is a `run` with its own `--cap-add` |
-| `app` (appliance) | uid 10001 | none | no | read: its image's user from the first process, running node and nothing else |
+| `app` (appliance) | uid 10001 | none | no | measured (2026-11-06): distroless, with nothing to run but `/nodejs/bin/node`, as uid 10001 from its first process; on PGlite on a new volume and on one the image before it wrote, and on Postgres |
 
 *Measured* means the service's own image, its own command and environment
 with placeholder values, started with that set until it was ready, on a new
@@ -5901,6 +5901,14 @@ the newest image its runners started from, the one the last deploy built,
 about all ten, and fails if dpkg still has any of them. An older image a runner
 of an earlier deployment ran (Trigger.dev keeps a run on the version it was
 triggered on) is named there and not asked.
+
+All of this is today's path, and it is the one the owner decided to replace
+(workplan 0119 §3 item 13, for alpha.5): `images.yml` now publishes, from
+`main`, `ghcr.io/robbes/ownpace-task-base`, a distroless base with dumb-init,
+the edited CA bundle and the `node` user already in it, signed like the other
+images. The tasks do not run on it yet. Once they name it by digest, a task
+deploy pulls it from GHCR, runs no apt, needs no Debian archive and purges
+nothing, and this machine has to reach `ghcr.io` instead.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
