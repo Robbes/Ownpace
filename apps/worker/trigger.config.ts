@@ -44,7 +44,7 @@ import { defineConfig } from '@trigger.dev/sdk';
  * with a fix (the same scan; 0146 T14 has the figures). The line is
  * `node:26.13.0-trixie-slim@sha256:5adad64f…` (Debian 13.7, Node 26 LTS;
  * workplan 0119 §2.4): the tag since 2026-10-31, this digest, Debian's rebuild
- * with apt 3.0.4, since 2026-11-08.
+ * with apt 3.0.4, since 2026-11-06.
  *
  * Since workplan 0146 T13 that line is the API's BUILD stage: the API runs on
  * distroless, with a Node of its own pinned by a digest that moves apart from
