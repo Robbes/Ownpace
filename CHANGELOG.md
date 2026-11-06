@@ -18,8 +18,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   still depends on, and the build stops), and since apt is on the list checks `dpkg --audit`'s
   output in `apt-get check`'s place. After the purge it proves that no ELF file in the image
   names one of the six libraries it removed, and that grep, cp, tar, gzip, dumb-init, goose
-  and node start. Expected from the scan of 2026-11-06 (1 critical, 49 high, 16 with a fix):
-  about 1, 23 and 14. `trigger-api` has no apt from then on; nothing installs in it, and a
+  and node start. Measured on its branch (Security Scan run 42213975717, linux/arm64): 1 critical,
+  24 high and 14 with a fix, from 1, 49 and 16, and E2E (managed) ran it green. `trigger-api` has no apt from then on; nothing installs in it, and a
   change is a rebuild.
 
 - **The appliance's image has no shell: its runtime is distroless, and `compose.yml`'s

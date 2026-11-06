@@ -6,8 +6,8 @@
 
 **2026-11-06: the Debian packages nothing runs, purged from the Trigger.dev webapp's image
 too, for alpha.5 (§3 item 11, extended: a proposal pending the owner's confirmation in
-review); built on a branch, not merged. CI's first build stopped at dpkg's refusal
-(below), and e2fsprogs joined the list.** On the branch
+review); built on a branch, not merged; CI, the image scan and E2E (managed) are green on it.
+CI's first build stopped at dpkg's refusal (below), and e2fsprogs joined the list.** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-webapp-purge`, on `main` at `691b2352`
 (#1822), with `main` merged at `f42101b0` (#1819). Built under the owner's alpha.5 instruction of 2026-11-06, *"put in most of what you
 can, like for hardening"*. Times are UTC.
@@ -97,9 +97,20 @@ can, like for hardening"*. Times are UTC.
 - **Not verified here.** The image itself: ghcr's blob host is refused to this session, so
   neither upstream's layers nor this build were read or run. The PR's `build (trigger,
   amd64)` and `build (trigger, arm64)` run the RUN on the real image, where a wrong reading
-  stops the build (dpkg's refusal, `dpkg-query -W`, the shipped check or the ELF scan). Not
-  verified either: the branch's image scan, for the expected 1/23/14, and E2E (managed),
-  which runs the image (entrypoint, migrations, goose, the server).
+  stops the build (dpkg's refusal, `dpkg-query -W`, the shipped check or the ELF scan).
+- **Proved on the branch.** CI was green on `078101bc`, both `build (trigger, …)` legs among its
+  checks. The image scan, Security Scan run 42213975717 (linux/arm64), reads
+  `localhost/trigger.dev:v4.8.3-d2e075e39cc7` at 1 critical, 24 high and 14 fixable, from 1, 49
+  and 16, with no apt, util-linux or e2fsprogs finding left. That is one high more than the
+  arithmetic: the report lists zlib1g with three findings, its critical and two highs, where
+  the arithmetic counted one high. The 14 with a fix are npm packages in upstream's tree and
+  goose's Go standard library; the eleven without one are Debian 12's, in zlib1g, gzip,
+  libacl1, libsystemd0, libtinfo6, libudev1, ncurses-base, ncurses-bin and perl-base. E2E
+  (managed) run 42226955315, dispatched on `078101bc`, was green from 13:56 to 14:05 UTC on the
+  OTA stack: the bring-up built `localhost/trigger.dev:v4.8.3-d2e075e39cc7` and started
+  `trigger-api` from it (entrypoint, migrations, goose, the server), up and healthy; the
+  smoke's verdict was *verify: done apply: applied*, and its last listing shows `trigger-api` on
+  that image.
 - **Risks.** Debian does not test a system without its Essential packages; this one runs
   node. And `trigger-api` has no apt: nothing installs in it, and a change is a rebuild.
 
