@@ -5,9 +5,9 @@
  * 0119; the owner's decision of 2026-11-03, for alpha.4).
  *
  * Two images ran our code on the Node image's Debian: the appliance
- * (`apps/selfhost/Dockerfile`'s runtime stage, until 2026-11-06) and the
- * managed tasks (the runtime base `apps/worker/trigger.config.ts` builds them
- * on, the API's Node image with one layer). With npm gone, Trivy 0.76.1 read 0
+ * (`apps/selfhost/Dockerfile`'s runtime stage) and the managed tasks (the
+ * runtime base `apps/worker/trigger.config.ts` built them on, the API's Node
+ * image with one layer), each until 2026-11-06. With npm gone, Trivy 0.76.1 read 0
  * critical and 44 high in both on 2026-11-03, none with a Debian fix. 36 were four util-linux
  * CVEs in each of the nine binary packages its source builds (util-linux,
  * mount, login, bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1,
@@ -19,12 +19,16 @@
  * left are libacl1, libsystemd0, libudev1, libtinfo6, ncurses-base, ncurses-bin
  * and perl-base.
  *
- * Since 2026-11-06 the appliance's runtime is distroless (0119 §3 item 12),
- * which has none of the ten and no dpkg to purge them with, so the purge is the
- * tasks' alone. This file held the two lists to each other until then; the
- * tasks' list now stands on its own, against the ten named here, and
+ * Since 2026-11-06 neither purges: the appliance's runtime is distroless
+ * (0119 §3 item 12), and the tasks run on the prebuilt base
+ * (`apps/worker/task-image/Dockerfile`, published to GHCR and pinned in
+ * trigger.config.ts; item 13), distroless too, with nothing the CLI builds
+ * into it. Each has none of the ten and no dpkg to purge them with.
  * `an-appliance-with-nothing-to-exec` holds the appliance (and runs the E2E
- * step that asks it).
+ * step that asks it), and `a-task-base-the-cli-builds-nothing-into` the
+ * tasks' base, the config and the managed smoke's question to the image the
+ * last deploy built. A move back to a Debian base would take the purge back,
+ * in the shape below.
  *
  * An Essential package is one Debian assumes is there, so the purge is held
  * to the shape that fails loudly, and this file holds it:
@@ -41,46 +45,22 @@
  * 3. THE APPLIANCE purges nothing: its runtime stage is distroless, with no
  *    dpkg and none of the ten (until 2026-11-06, one RUN in its runtime stage,
  *    as root, in the shape above).
- * 4. THE TASKS: the layer's purge runs where there is no C++ compiler, as its
- *    package-manager removal does: the CLI replays the layer on its `-build`
- *    image, whose Python links libuuid and libsqlite3, and dpkg would refuse
- *    there. So the base must be a `-slim` Node image, which ships no g++: on
- *    the full one both would be skipped without a word. It is the layer's last
- *    RUN, after every apt step of ours. After
- *    the layer the CLI writes its own repair, `apt-get --fix-broken install`,
- *    which installs only what a broken dependency needs (apt 3.0.3: only a
- *    dist-upgrade adds a missing Essential package), and the weekly scan
- *    builds that stage as the installed CLI writes it: run here through the
- *    CLI's own `generateContainerfile`, so the stage scanned is the stage a
- *    deploy builds, the repair included. Until 2026-11-03 the scan left the
- *    repair out, and would have read 7 if a deploy put util-linux back.
- * 5. WHAT RAN, ASKED: the managed smoke asks the newest image its runners
- *    started from (the last deploy's: Trigger.dev keeps a run on the version
- *    it was triggered on, so an earlier deployment's runner can be on the
- *    network too, and its image is named, not asked) about all ten, with
- *    dpkg's own query. The block runs here against a stand-in docker: absent
- *    (or dpkg's record of a purged package, as `login` keeps one) passes;
- *    installed, config files left, a package not answered for, an answer it
- *    cannot read, and a probe that could not be asked fail; and the smoke
- *    fails when no image was read or one cannot be dated. The watcher starts a
- *    runner's log first and reads its image on every pass until a read
- *    answers.
+ *
+ * Until 2026-11-06 the tasks' half stood here too: the layer's purge where
+ * there was no C++ compiler, on a `-slim` base, last of the layer; the weekly
+ * scan's stage, the CLI's apt repair after the purge included; and the
+ * managed smoke's dpkg query of the image the last deploy built.
  */
 
 import { describe, it, expect } from 'vitest';
-import { spawnSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
-import { tmpdir } from 'node:os';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
-import { taskBaseStage } from './image-scan.mjs';
-import taskConfig from '../apps/worker/trigger.config.ts';
+import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
 
-/** The ten, as the owner's decision of 2026-11-03 took them, in the order both files write them. */
+/** The ten, as the owner's decision of 2026-11-03 took them, in the order both files wrote them. */
 const ESSENTIALS = [
   'util-linux',
   'mount',
@@ -95,15 +75,11 @@ const ESSENTIALS = [
 ];
 
 const APPLIANCE = 'apps/selfhost/Dockerfile';
-const SMOKE = 'deploy/compose/smoke-managed.sh';
-const WORKER_DIR = join(ROOT, 'apps/worker');
 
 /** A package name, as dpkg spells one. */
 const NAMES = '[a-z0-9][a-z0-9.+-]+(?: [a-z0-9][a-z0-9.+-]+)*';
 /** The purge, whole: the names checked, the force flags, the names purged, then apt's check. */
 const PURGE = new RegExp(`^dpkg-query -W (${NAMES}) >/dev/null && dpkg --purge ((?:--force-[a-z-]+ )+)(${NAMES}) && apt-get check$`);
-/** The task layer's: the same, where there is no C++ compiler. */
-const TASK_PURGE = /^RUN if ! command -v g\+\+ >\/dev\/null; then (.+); fi$/;
 
 type Purge = { checked: string[]; forced: string[]; purged: string[] };
 
@@ -124,16 +100,6 @@ function fits(command: string): boolean {
     same(purge.purged, ESSENTIALS) &&
     same(purge.forced, ['--force-remove-essential', '--force-remove-protected'])
   );
-}
-
-/** What every purge must be: the ten checked and purged, with the two force flags and no other. */
-function expectTheShape(where: string, purge: Purge | null): void {
-  expect(purge, `${where}: not dpkg-query -W <list> >/dev/null && dpkg --purge <flags> <list> && apt-get check`).not.toBeNull();
-  expect(purge!.checked, `${where}: the names dpkg-query checks`).toEqual(ESSENTIALS);
-  expect(purge!.purged, `${where}: the names dpkg purges`).toEqual(ESSENTIALS);
-  // `--force-depends` (or `--force-all`) would remove a package something
-  // installed still needs, and leave that package broken, instead of stopping.
-  expect(purge!.forced, `${where}: the force flags`).toEqual(['--force-remove-essential', '--force-remove-protected']);
 }
 
 type Instruction = { op: string; args: string };
@@ -173,8 +139,8 @@ describe('the appliance purges nothing: its runtime is distroless, with no dpkg 
 
   it("its runtime stage is distroless, and no stage of it purges (an-appliance-with-nothing-to-exec holds the rest)", () => {
     // Until 2026-11-06 the runtime stage ran on the Node image and purged the
-    // ten in one RUN, in the shape the tasks' layer still has. On distroless
-    // there is nothing to purge and no dpkg to do it with.
+    // ten in one RUN, in the shape below, as the tasks' layer did until the
+    // same day. On distroless there is nothing to purge and no dpkg to do it with.
     expect(runtime.name).toBe('runtime');
     expect(runtime.base, `${APPLIANCE}: the runtime stage builds FROM ${runtime.base}`).toMatch(DISTROLESS);
     for (const stage of stages) {
@@ -201,278 +167,5 @@ describe('the purge has one shape', () => {
     ]) {
       expect(fits(bad), bad).toBe(false);
     }
-  });
-});
-
-/** The config's extensions run as the CLI runs them for a deploy: its layers, and the manifest it reads back. */
-async function deploy(): Promise<{ instructions: string[]; image: Record<string, unknown> }> {
-  const layers: BuildLayer[] = [];
-  const context = { target: 'deploy', workingDir: WORKER_DIR, addLayer: (layer: BuildLayer) => layers.push(layer) } as unknown as BuildContext;
-  type Manifest = Parameters<NonNullable<BuildExtension['onBuildComplete']>>[1];
-  const manifest = { image: { pkgs: [], instructions: [] } } as unknown as Manifest;
-  const extensions = taskConfig.build?.extensions ?? [];
-  for (const extension of extensions) await extension.onBuildStart?.(context);
-  for (const extension of extensions) await extension.onBuildComplete?.(context, manifest);
-  // As the CLI applies a layer to the manifest (`applyLayerToManifest`): its instructions appended.
-  const instructions = layers.flatMap((layer) => layer.image?.instructions ?? []);
-  expect(layers.flatMap((layer) => layer.image?.pkgs ?? []), 'the layer asks the CLI to install nothing').toEqual([]);
-  return { instructions, image: { ...(manifest.image as Record<string, unknown>), instructions, pkgs: [] } };
-}
-
-describe("the tasks' runtime base purges the ten, last of the layer, where there is no C++ compiler", () => {
-  it("one instruction of the deploy's layer purges, in that shape, behind the package-manager removal's guard", async () => {
-    const { instructions } = await deploy();
-    const purges = instructions.filter((i) => /\bdpkg --purge\b/.test(i));
-    expect(purges, 'instructions of the layer that purge').toHaveLength(1);
-    const guarded = TASK_PURGE.exec(purges[0]!);
-    expect(guarded, `${purges[0]}: not RUN if ! command -v g++ >/dev/null; then <purge>; fi`).not.toBeNull();
-    expectTheShape('apps/worker/trigger.config.ts', purgeOf(guarded![1]!));
-    // The guard the package managers' removal runs under, word for word: the
-    // runtime base has no g++, every `-build` image the CLI replays it on has.
-    const removal = instructions.find((i) => /\/usr\/local\/lib\/node_modules/.test(i));
-    expect(removal, 'the package managers are no longer removed under a g++ guard').toMatch(/^RUN if ! command -v g\+\+ >\/dev\/null; then /);
-  });
-
-  it("runs on a -slim Node image, which ships no C++ compiler, so the guard cannot skip it", async () => {
-    // The purge and the package managers' removal both run only where `g++`
-    // is not on the PATH. The full `node:<x.y.z>-<codename>` images ship g++
-    // (buildpack-deps), so a base moved to one would skip both in silence and
-    // the deploy would go on with util-linux and npm in the runtime.
-    const { image } = await deploy();
-    expect(
-      image.base,
-      `the tasks' base (the API's FROM line) is not a node:<x.y.z>-<codename>-slim image pinned by digest, and on an image with g++ the layer's purge and removal do nothing`,
-    ).toMatch(/^node:\d+\.\d+\.\d+-[a-z]+-slim@sha256:[0-9a-f]{64}$/);
-  });
-
-  it('comes after every apt step of the layer, and is its last RUN', async () => {
-    const { instructions } = await deploy();
-    const runs = instructions.filter((i) => i.startsWith('RUN '));
-    const purge = runs.findIndex((i) => /\bdpkg --purge\b/.test(i));
-    const apt = runs.map((i, n) => (/\bapt-get\b/.test(i) && n !== purge ? n : -1)).filter((n) => n >= 0);
-    expect(apt.length, 'the layer installs nothing with apt any more (vacuity)').toBeGreaterThan(0);
-    for (const n of apt) expect(n, runs[n]).toBeLessThan(purge);
-    expect(purge, 'a RUN of the layer comes after the purge').toBe(runs.length - 1);
-  });
-});
-
-/** The installed Trigger.dev CLI's Containerfile writer, the one `deploy-tasks.sh` deploys with. */
-async function installedCli(): Promise<{ version: string; generateContainerfile: (options: unknown) => Promise<string> }> {
-  const dir = join(WORKER_DIR, 'node_modules/trigger.dev');
-  expect(existsSync(dir), `${dir} is missing: install the workspace (pnpm install)`).toBe(true);
-  const version = (JSON.parse(readFileSync(join(dir, 'package.json'), 'utf8')) as { version: string }).version;
-  const pinned = (JSON.parse(read('apps/worker/package.json')) as { devDependencies?: Record<string, string> }).devDependencies?.['trigger.dev'];
-  expect(version, 'the installed CLI is the one apps/worker pins').toBe(pinned);
-  const module = (await import(pathToFileURL(realpathSync(join(dir, 'dist/esm/deploy/buildImage.js'))).href)) as {
-    generateContainerfile: (options: unknown) => Promise<string>;
-  };
-  return { version, generateContainerfile: module.generateContainerfile };
-}
-
-/** One stage of a Containerfile, from its FROM line to the next, trailing blank lines dropped. */
-function stageFrom(containerfile: string, from: string): string {
-  const lines = containerfile.split('\n');
-  const start = lines.indexOf(from);
-  expect(start, `no line ${from}`).toBeGreaterThanOrEqual(0);
-  const next = lines.findIndex((line, n) => n > start && /^FROM /.test(line));
-  return lines
-    .slice(start, next < 0 ? undefined : next)
-    .join('\n')
-    .replace(/\s+$/, '');
-}
-
-describe('the scan builds the stage a deploy builds, the CLI\'s repair after the purge included', () => {
-  it("image-scan.mjs's stage is the base stage the installed CLI writes for this config", async () => {
-    const cli = await installedCli();
-    const { image } = await deploy();
-    const base = image.base as string;
-    expect(base, 'the config names the API image as the tasks\' base').toMatch(/^node:\S+@sha256:[0-9a-f]{64}$/);
-    // What `trigger deploy` writes (`writeContainerfile` in its build/buildWorker.js).
-    const written = await cli.generateContainerfile({
-      runtime: taskConfig.runtime,
-      entrypoint: 'managed-run-controller.js',
-      indexScript: 'managed-index-controller.js',
-      build: { env: {}, commands: [] },
-      image,
-    });
-    const deployed = stageFrom(written, `FROM ${base} AS base`);
-    const scanned = stageFrom(await taskBaseStage(taskConfig, { base, workingDir: WORKER_DIR }), `FROM ${base} AS base`);
-    expect(scanned, `the scan's stage differs from trigger.dev ${cli.version}'s base stage`).toBe(deployed);
-    // Vacuity: the CLI wrote a repair after the layer, and it follows the purge.
-    const repair = deployed.indexOf('apt-get --fix-broken install');
-    expect(repair, `trigger.dev ${cli.version} writes no apt repair after the layer`).toBeGreaterThan(0);
-    expect(deployed.indexOf('dpkg --purge')).toBeGreaterThan(0);
-    expect(deployed.indexOf('dpkg --purge')).toBeLessThan(repair);
-  });
-});
-
-// ------------------------------------------------- what ran, asked ----
-
-/** Bash, with a stand-in `docker` defined before `script`; stdout, stderr and the exit code. */
-function bash(script: string, env: Record<string, string> = {}): { status: number | null; out: string } {
-  const run = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
-  return { status: run.status, out: `${run.stdout}${run.stderr}` };
-}
-
-/**
- * A stand-in docker, recording its arguments: an image's build time from
- * `$CREATED` (`<id> <time>` lines; an id missing there cannot be dated), and a
- * dpkg-query answered as `$SAYS` with `$RC`, or, in the image `$KEEPER`, with
- * all ten installed.
- */
-const STUB = `docker() {
-  printf '%s\\n' "$*" >>"$CALLS"
-  if [ "$1 $2" = "image inspect" ]; then
-    awk -v id="$5" '$1 == id { print $2; found = 1 } END { exit !found }' <<<"$CREATED" || { echo "Error: No such image: $5" >&2; return 1; }
-    return 0
-  fi
-  case "$*" in
-    *" \${KEEPER:-no-image-keeps-them} "*) printf '%s\\n' ${ESSENTIALS.map((p) => `'${p} install ok installed'`).join(' ')}; return 0 ;;
-  esac
-  printf '%s\\n' "$SAYS" >&2
-  return "$RC"
-}`;
-
-const notFound = (p: string) => `dpkg-query: no packages found matching ${p}`;
-
-/** What dpkg-query says about the ten, each way it can. */
-const ANSWERS = {
-  absent: { RC: '1', SAYS: ESSENTIALS.map(notFound).join('\n') },
-  // As the purged base answered on 2026-11-03: dpkg keeps a record of `login`, protected, as not-installed.
-  purgedRecord: { RC: '1', SAYS: [...ESSENTIALS.filter((p) => p !== 'login').map(notFound), 'login unknown ok not-installed'].join('\n') },
-  oneInstalled: { RC: '1', SAYS: [...ESSENTIALS.slice(0, 9).map(notFound), 'libsqlite3-0 install ok installed'].join('\n') },
-  allInstalled: { RC: '0', SAYS: ESSENTIALS.map((p) => `${p} install ok installed`).join('\n') },
-  configFiles: { RC: '1', SAYS: [...ESSENTIALS.slice(1).map(notFound), 'util-linux deinstall ok config-files'].join('\n') },
-  oneUnanswered: { RC: '1', SAYS: ESSENTIALS.slice(1).map(notFound).join('\n') },
-  oddLine: { RC: '2', SAYS: 'dpkg-query: error: cannot access archive' },
-  // Every line readable, and an exit dpkg-query never gives with them: the command did not finish as it says.
-  badExit: { RC: '137', SAYS: ESSENTIALS.map(notFound).join('\n') },
-  notAsked: { RC: '125', SAYS: 'docker: Error response from daemon: No such image: sha256:0000' },
-  noDpkg: { RC: '127', SAYS: 'exec: "dpkg-query": executable file not found in $PATH' },
-};
-const PASSING = [ANSWERS.absent, ANSWERS.purgedRecord];
-const FAILING = [
-  ANSWERS.oneInstalled,
-  ANSWERS.allInstalled,
-  ANSWERS.configFiles,
-  ANSWERS.oneUnanswered,
-  ANSWERS.oddLine,
-  ANSWERS.badExit,
-  ANSWERS.notAsked,
-  ANSWERS.noDpkg,
-];
-
-/** The ten a block asks about, from its `essentials="…"`. */
-const askedIn = (text: string) => /^\s*essentials="([^"]+)"$/m.exec(text)?.[1]?.split(' ');
-
-describe('the managed smoke asks the image the last deploy built', () => {
-  const smoke = read(SMOKE);
-  const banner = "# ---------- the tasks' image carries none of the Debian Essentials it purges ----------";
-  const start = smoke.indexOf(banner);
-  const block = smoke.slice(start, smoke.indexOf('\n# ---------- ', start + banner.length));
-  const failAt = (() => {
-    const s = smoke.indexOf('fail_at() {');
-    return smoke.slice(s, smoke.indexOf('\n}\n', s) + 3);
-  })();
-  // The watcher's pass over the runners it sees: its `for` loop, whole.
-  const watcherAt = smoke.indexOf('    for c in $(docker ps --filter');
-  const watcher = smoke.slice(watcherAt, smoke.indexOf('\n    done\n', watcherAt) + '\n    done\n'.length);
-
-  const A = `sha256:${'a'.repeat(64)}`;
-  const B = `sha256:${'b'.repeat(64)}`;
-  const C = `sha256:${'c'.repeat(64)}`;
-  const BUILT = `${A} 2026-11-02T21:00:00.5Z\n${B} 2026-11-03T07:00:00.123456789Z\n${C} 2026-11-03T06:59:59Z`;
-
-  /** The block run with runner records holding `images`; the verdict, docker's calls and what it said. */
-  function verdict(images: string[], answer: { RC: string; SAYS: string }, extra: Record<string, string> = {}) {
-    const dir = mkdtempSync(join(tmpdir(), 'essentials-smoke-'));
-    try {
-      images.forEach((id, n) => writeFileSync(join(dir, `runner-${n}.image`), `${id}\n`));
-      writeFileSync(join(dir, 'calls'), '');
-      const run = bash(
-        ['set -uo pipefail', 'fail=0', 'SECTION=test', 'FAIL_REASONS=""', 'note() { SECTION="$*"; }', failAt, STUB, block, 'echo "FAIL=$fail"'].join('\n'),
-        { RUNNER_LOG_DIR: dir, CALLS: join(dir, 'calls'), CREATED: BUILT, ...answer, ...extra },
-      );
-      expect(run.status, run.out).toBe(0);
-      const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n').filter(Boolean);
-      return { fail: /FAIL=(\d)\s*$/.exec(run.out)?.[1] ?? '?', runs: calls.filter((c) => c.startsWith('run ')), calls, out: run.out };
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  }
-
-  it('is there, after the runner logs, and asks about the ten', () => {
-    expect(start, `${SMOKE} has no section "${banner}"`).toBeGreaterThan(smoke.indexOf('# ---------- runner logs ----------'));
-    expect(askedIn(block)).toEqual(ESSENTIALS);
-    expect(block).toContain('fail_at');
-  });
-
-  it("the watcher starts a runner's log first, and reads its image on every pass until a read answers", () => {
-    expect(watcherAt, 'no watcher loop over `docker ps`').toBeGreaterThan(0);
-    // Before the read: a read that waits on the daemon must not hold the log back.
-    expect(watcher.indexOf('docker logs -f')).toBeGreaterThan(0);
-    expect(watcher.indexOf('docker logs -f')).toBeLessThan(watcher.indexOf('docker container inspect'));
-    const dir = mkdtempSync(join(tmpdir(), 'essentials-watcher-'));
-    try {
-      const stub = `docker() {
-        printf '%s\\n' "$1 $2" >>"$CALLS"
-        case "$1 $2" in
-          "ps --filter") echo runner-a; echo trigger-api ;;
-          "logs -f") echo "a line" ;;
-          "container inspect")
-            n=$(($(cat "$TRIES" 2>/dev/null || echo 0) + 1)); echo "$n" >"$TRIES"
-            [ "$n" -ge 2 ] || { echo "Error response from daemon: a blip" >&2; return 1; }
-            echo "${A}" ;;
-        esac
-      }`;
-      const pass = (n: number) =>
-        bash(['set -uo pipefail', 'COMPOSE_PROJECT=ownpace', stub, ...Array.from({ length: n }, () => `${watcher}\nwait`), 'echo done'].join('\n'), {
-          RUNNER_LOG_DIR: dir,
-          CALLS: join(dir, 'calls'),
-          TRIES: join(dir, 'tries'),
-        });
-      // The first read fails: nothing is recorded, and nothing pretends it was.
-      expect(pass(1).out).toContain('done');
-      expect(existsSync(join(dir, 'runner-a.image'))).toBe(false);
-      // The next pass reads it; the one after asks no more.
-      expect(pass(2).out).toContain('done');
-      expect(readFileSync(join(dir, 'runner-a.image'), 'utf8').trim()).toBe(A);
-      const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n');
-      expect(calls.filter((c) => c === 'logs -f'), 'one log stream per runner').toHaveLength(1);
-      expect(calls.filter((c) => c === 'container inspect'), 'a read on the first pass and the second, none on the third').toHaveLength(2);
-      expect(existsSync(join(dir, 'trigger-api.log')), 'only runner-* containers').toBe(false);
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
-    }
-  });
-
-  it('asks only the newest image, by ID, with no network and no pull, and names the older ones', () => {
-    // A runner of an earlier deployment (A, built the night before, still
-    // carrying all ten) beside the deploy's (B): A is named, not asked.
-    const run = verdict([A, B, A, C], ANSWERS.absent, { KEEPER: A });
-    expect(run.fail, run.out).toBe('0');
-    expect(run.runs).toEqual([`run --rm --pull never --network none --entrypoint dpkg-query ${B} -W -f \${Package} \${Status}\\n ${ESSENTIALS.join(' ')}`]);
-    expect(run.out).toContain(`image ${'a'.repeat(12)}: built before the newest`);
-    expect(run.out).toContain(`image ${'c'.repeat(12)}: built before the newest`);
-    // And the newest is the one that must be clean.
-    expect(verdict([A, B], ANSWERS.absent, { KEEPER: B }).fail).toBe('1');
-  });
-
-  it('passes what dpkg reads as absent, and fails anything else it says', () => {
-    for (const answer of PASSING) expect(verdict([B], answer).fail, answer.SAYS).toBe('0');
-    for (const answer of FAILING) {
-      const run = verdict([B], answer);
-      expect(run.fail, `${answer.RC}: ${answer.SAYS}\n${run.out}`).toBe('1');
-    }
-    expect(verdict([B], ANSWERS.oneInstalled).out).toContain('libsqlite3-0 (installed)');
-  });
-
-  it('fails when an image cannot be dated, and when no image was read, asking nothing', () => {
-    const undated = verdict([B, `sha256:${'d'.repeat(64)}`], ANSWERS.absent);
-    expect(undated.fail, undated.out).toBe('1');
-    expect(undated.runs).toEqual([]);
-    const none = verdict([], ANSWERS.absent);
-    expect(none.fail, none.out).toBe('1');
-    expect(none.calls).toEqual([]);
   });
 });

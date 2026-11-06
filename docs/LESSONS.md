@@ -759,7 +759,6 @@ reading a file drops off its entry by itself.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
@@ -880,15 +879,18 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/task-image/Dockerfile`
 
+- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
+- [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 
 ### `apps/worker/trigger.config.ts`
 
-- [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
@@ -1022,7 +1024,6 @@ reading a file drops off its entry by itself.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
 
@@ -1536,10 +1537,10 @@ reading a file drops off its entry by itself.
 - [a-restart-nobody-in-the-run-asked-for](../scripts/a-restart-nobody-in-the-run-asked-for.unit.test.ts) — A RESTART NOBODY IN THE RUN ASKED FOR, AND A VERDICT THAT BLAMED WHICHEVER CHECK WAS RUNNING (E2E (managed) #195, 2026-09-23).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
+- [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-organisation-a-stranger-could-found](../scripts/an-organisation-a-stranger-could-found.unit.test.ts) — AN ORGANISATION A STRANGER COULD FOUND (workplan 0135 T1).
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [gate-coverage](../scripts/gate-coverage.unit.test.ts) — What the managed gate actually asks the running stack for.
@@ -3058,7 +3059,6 @@ reading a file drops off its entry by itself.
 ### `scripts/image-scan.mjs`
 
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
-- [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `scripts/lessons.mjs`
@@ -3448,7 +3448,7 @@ Reads:
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `apps/web/Dockerfile`
-- `apps/worker/trigger.config.ts`
+- `apps/worker/task-image/Dockerfile`
 - `deploy/selfhost/compose.yml`
 - `scripts/an-api-image-with-nothing-to-exec.unit.test.ts`
 - `scripts/an-appliance-with-nothing-to-exec.unit.test.ts`
@@ -4282,6 +4282,7 @@ Reads:
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `apps/worker/package.json`
+- `apps/worker/task-image/Dockerfile`
 - `apps/worker/trigger.config.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
@@ -5113,6 +5114,7 @@ Reads:
 
 - `.github/workflows/security-scan.yml`
 - `apps/selfhost/Dockerfile`
+- `apps/worker/trigger.config.ts`
 - `docs/release.md`
 - `scripts/fixtures/release/ghcr-ownpace-selfhost-0.2.0-alpha.1-index.json`
 - `scripts/fixtures/release/release-v0.1.0-rc.1.json`
@@ -5662,6 +5664,7 @@ Reads:
 - `apps/worker/task-image/Dockerfile`
 - `apps/worker/trigger.config.ts`
 - `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/smoke-managed.sh`
 
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 
@@ -6031,11 +6034,8 @@ AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 01
 Reads:
 
 - `apps/selfhost/Dockerfile`
-- `apps/worker/package.json`
+- `apps/worker/task-image/Dockerfile`
 - `apps/worker/trigger.config.ts`
-- `deploy/compose/deploy-tasks.sh`
-- `deploy/compose/smoke-managed.sh`
-- `scripts/image-scan.mjs`
 
 ### [an-idp-nobody-was-watching](../scripts/an-idp-nobody-was-watching.unit.test.ts)
 

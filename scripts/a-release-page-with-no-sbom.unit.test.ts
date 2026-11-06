@@ -37,6 +37,13 @@
  *   documents, so the command a reader copies is proven too.
  * - **`GET /version`** on the selfhost image, started on PGlite: the version
  *   and the commit.
+ * - **The tasks' base** the tagged commit's `apps/worker/trigger.config.ts`
+ *   pins (workplan 0119 §3 item 13, 2026-11-06): the index at that digest has
+ *   both platforms, its revision label starts with the commit its `sha-` tag
+ *   names and is an ancestor of the tag's (the compare API's `ahead` or
+ *   `identical`), and `cosign verify` passes by digest with the identity of
+ *   images.yml on `refs/heads/main`, the only ref that publishes it; a tag
+ *   whose config pins none gets a note.
  *
  * ## What this test holds
  *
@@ -55,6 +62,13 @@ import { fileURLToPath } from 'node:url';
 import { parse } from 'yaml';
 import {
   IMAGES,
+  MAIN_IDENTITY,
+  TASK_BASE_IMAGE,
+  checkTaskBaseAncestry,
+  checkTaskBaseIndex,
+  taskBaseCosignCall,
+  taskBasePinIn,
+  taskBaseRevision,
   ISSUER,
   IDENTITY_REGEXP,
   zipName,
@@ -276,6 +290,59 @@ describe('the signatures', () => {
       '--certificate-oidc-issuer',
       ISSUER,
     ]);
+  });
+});
+
+describe("the tasks' base the tagged commit pins (0119 §3 item 13)", () => {
+  const config = read('apps/worker/trigger.config.ts');
+  const pin = taskBasePinIn(config)!;
+  const index = fixture<{ manifests: Array<{ platform: { os: string; architecture: string } }> }>('ghcr-ownpace-selfhost-0.2.0-alpha.1-index.json');
+
+  it("reads the pin from the commit's trigger.config.ts with the pin watch's reader, and a tag from before the switch has none", () => {
+    expect(pin.ref).toMatch(/^ghcr\.io\/robbes\/ownpace-task-base:sha-[0-9a-f]{7}@sha256:[0-9a-f]{64}$/);
+    expect(pin.tag).toBe(`sha-${pin.commit}`);
+    expect(taskBasePinIn(null)).toBeNull();
+    expect(taskBasePinIn(config.replace(/^const TASK_BASE_IMAGE =[\s\S]*?;$/m, ''))).toBeNull();
+    // A line of another shape is a refusal, not a release without a base.
+    expect(() => taskBasePinIn(config.replace(pin.ref, pin.ref.replace(/@sha256:.+$/, '')))).toThrow(/not ghcr\.io\/robbes\/ownpace-task-base/);
+  });
+
+  it('wants both platforms in the pinned index', () => {
+    expect(checkTaskBaseIndex(index, pin).kind).toBe('pass');
+    const amd64Only = { ...index, manifests: index.manifests.filter((m) => m.platform.architecture !== 'arm64') };
+    expect(checkTaskBaseIndex(amd64Only, pin).sentence).toMatch(/no linux\/arm64/);
+    expect(checkTaskBaseIndex({ schemaVersion: 2, config: {} }, pin).kind).toBe('refuse');
+  });
+
+  it('wants a revision label that is the commit its tag names, and that commit an ancestor of the tag', () => {
+    const full = `${pin.commit}${'a'.repeat(33)}`;
+    expect(taskBaseRevision({ config: { Labels: { 'org.opencontainers.image.revision': full } } }, pin)).toBe(full);
+    expect(taskBaseRevision({ config: { Labels: { 'org.opencontainers.image.revision': C } } }, pin)).toBeNull();
+    expect(taskBaseRevision({ config: { Labels: { 'org.opencontainers.image.revision': pin.commit } } }, pin)).toBeNull();
+    expect(taskBaseRevision({ config: { Labels: {} } }, pin)).toBeNull();
+    expect(checkTaskBaseAncestry({ status: 'ahead' }, { revision: full, commit: C }).kind).toBe('pass');
+    expect(checkTaskBaseAncestry({ status: 'identical' }, { revision: C, commit: C }).kind).toBe('pass');
+    for (const status of ['behind', 'diverged', undefined]) {
+      expect(checkTaskBaseAncestry({ status }, { revision: full, commit: C }).kind, String(status)).toBe('refuse');
+    }
+    const verify = read('scripts/release-verify.mjs');
+    expect(verify).toContain('client.get(`compare/${revision}...${commit}?per_page=1`)');
+    expect(verify).toContain('lines.push(...(await checkTaskBase({ commit, readAt: atCommit(client, commit), client })));');
+  });
+
+  it('verifies the signature by digest with the identity of images.yml on main, which alone publishes it', () => {
+    expect(TASK_BASE_IMAGE).toBe('task-base');
+    expect(MAIN_IDENTITY).toBe('https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/heads/main');
+    expect(taskBaseCosignCall(pin.digest)).toEqual([
+      'verify',
+      `ghcr.io/robbes/ownpace-task-base@${pin.digest}`,
+      '--certificate-identity',
+      MAIN_IDENTITY,
+      '--certificate-oidc-issuer',
+      ISSUER,
+    ]);
+    // Never a tag's identity: images.yml builds no task base on a tag.
+    expect(taskBaseCosignCall(pin.digest).join(' ')).not.toContain('refs/tags/');
   });
 });
 
