@@ -27,10 +27,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   fix for CVE-2026-109518 (apt 3.0.4 and 2.6.2), which the tasks' image build uses on the
   deploying machine. Nothing else in either image changed but tzdata.
 
-- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.8** (workplan 0119), still built
-  here without curl: on Alpine 3.24.3, and a binary built with Go 1.27.3 and a newer x/net,
-  which clear five of its seven high findings. It fronts the dashboard only, on loopback or the
-  mesh.
+- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.9** (workplan 0119), still built
+  here without curl: on Alpine 3.24.4, and a binary built with Go 1.27.3, a newer x/net and
+  go-jose v4.1.6, which clear six of its seven high findings; the seventh, in go-jose v3, has no
+  fix. Caddy 2.11.9's other security fixes are in FastCGI, `client_auth` and Windows paths,
+  which this front does not use. It fronts the dashboard only, on loopback or the mesh.
 
 - **The appliance's image has no shell: its runtime is distroless, and `compose.yml`'s
   healthcheck for `app` changes with it** (workplan 0119 §3 item 12; the owner's decision of

@@ -5040,10 +5040,10 @@ Docker, and what it may not, is unchanged.
 **The dashboard's TLS front is a build here too** (workplan 0119, 2026-10-31).
 `trigger-tls`, the Caddy in front of the Trigger.dev dashboard, runs
 `localhost/caddy:<base tag>-<12 hex>`, which compose builds from
-`deploy/compose/caddy`: Caddy's official `caddy:2.11.8-alpine` at the digest
+`deploy/compose/caddy`: Caddy's official `caddy:2.11.9-alpine` at the digest
 its Dockerfile pins, with curl removed and the eight libraries only curl pulled
 in. On 2.11.7 those carried the image's one critical finding and two of its
-highs; on 2.11.8 they are at their fixed versions, and still go, because
+highs; from 2.11.8 on they are at their fixed versions, and still go, because
 nothing here runs them. Caddy
 itself, its Caddyfile, its volumes and its ports are as they were, and nothing
 on this stack runs curl in that container: it has no healthcheck, and the smoke
