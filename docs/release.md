@@ -332,6 +332,13 @@ time the `latest` channel exists — check it appeared.
 
 And `GET /version` on the selfhost image, started on PGlite: the version and C.
 
+`images.yml` builds no `ownpace-task-base` on a tag. The managed tasks' prebuilt base is
+published from `main` only, as `edge` and `sha-<commit>` (workplan 0119 §3 item 13), and a
+release carries it as the digest its `apps/worker/trigger.config.ts` names, once the tasks
+name one: so the OTA stack, which deploys `main`, and live, which deploys the tag, run the
+same bytes. Until that switch the tasks build on `apps/api/Dockerfile`'s FROM image, and
+`verify` has no task base to check.
+
 **CI.** A tag the Release workflow makes runs no CI: its token's events start
 no push run, and Release dispatches only the three publishers. C's own push
 run on `main` stands in for it, and the preflight refused C unless that run

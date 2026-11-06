@@ -4,6 +4,101 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06: the tasks' prebuilt base, which CI builds and starts on a pull request and
+publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch, not
+merged, and not yet run by CI.** On the branch
+`claude/ownpace-public-readiness-y7orc6-task-base-ghcr`, on `main` at `a72c9908` (#1817).
+Times are UTC. Nothing the stacks run changes with it: `apps/worker/trigger.config.ts` is not
+touched, and the tasks still build on `apps/api/Dockerfile`'s FROM image with its layer.
+- **What the CLI does on a base of its own**, read in the installed trigger.dev 4.8.3
+  (`dist/esm/deploy/buildImage.js`: `generateNodeContainerfile`, `parseGenerateOptions`,
+  `aptRepair`, `trustStoreHardening`). The manifest's `image.base` is the first stage, `FROM
+  <base> AS base`, and the runtime stage is `FROM base AS final`. With no layer instructions
+  and no packages the base stage is `ENV DEBIAN_FRONTEND=noninteractive` alone: the repair
+  (`apt-get --fix-broken install`) is written only after instructions, and the trust edits
+  only on the CLI's own base images. With `image.buildBase` named, the build stage starts from
+  it, so `npm i` and the indexer never run on the base. The runtime stage has no RUN: `USER
+  node`, `WORKDIR /app`, ARG and ENV lines with no PATH or NODE_OPTIONS, three `COPY
+  --chown=node:node`, and `ENTRYPOINT [ "dumb-init", "node", <controller> ]`. So a base with no
+  shell builds, if it already has a `node` account, dumb-init and node on its PATH, and the
+  CLI's trust edits with `--use-openssl-ca`. No shell is needed, and none is kept.
+- **The base**, `apps/worker/task-image/Dockerfile`: distroless at the API's runtime digest
+  (`gcr.io/distroless/nodejs26-debian13:nonroot@sha256:9b945e92…`), with five COPY lines from a
+  build stage on the API's FROM image (`node:26.13.0-trixie-slim@sha256:e4db4c91…`): the
+  CA bundle after the CLI's edit of `/etc/ca-certificates.conf` and its eight rejected
+  intermediates (`emsign-block/`, the copy trigger.config.ts reads), `/usr/bin/dumb-init`, its
+  dpkg record in `/var/lib/dpkg/status.d`, distroless's `/etc/passwd` and `/etc/group` with
+  `node` at 1000:1000 added, and an empty `/home/node`. Then `PATH` with `/nodejs/bin` first,
+  `NODE_OPTIONS=--use-openssl-ca`, `SSL_CERT_FILE`, `USER node` and `ENTRYPOINT ["dumb-init",
+  "node"]`. The build stage refuses a root the configuration still trusts or the bundle still
+  holds, a bundle without the eight, a dumb-init that needs more than the C library, a `node`
+  that is not 1000:1000, and a distroless `ca-certificates` at another version than the one
+  that made the bundle.
+- **The publish**, in `images.yml`'s build job, a fourth leg with the steps of the other three:
+  on a pull request that touches `apps/worker/task-image/**`, amd64, loaded and then started
+  as the CLI's entrypoint starts it (`dumb-init` as PID 1, `node` at 1000:1000, the API's Node,
+  `--use-openssl-ca`, the eight in the bundle) and with each shell name as the entrypoint,
+  none of which may start; on `main`, both platforms, pushed as `edge` and `sha-<commit>`,
+  signed by digest. The leg is in the matrix only on a pull request and on `main`
+  (`include:`), never on a tag, and not in the matrix's `image:` list, which Security Scan and
+  release.yml's verify read as Ownpace's images at `:edge` and at the release. Dependabot
+  moves its two FROM lines in the `apps/api` group.
+- **Held by** `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts` (19 cases): the
+  installed CLI's own generator writes no RUN, ADD or SHELL in the base stage or any stage
+  built from it, with a vacuity case for a layer, a package and no build base; the Dockerfile's
+  digests are the API's, its base stage runs nothing, and its trust edits are the installed
+  CLI's, the eight files byte for byte; the workflow's leg, its contexts, its load and its
+  probe; the probe step run against a stand-in docker; and Dependabot. 16 mutations, one at a
+  time, each turned it red. A 17th, dropping only the `exit 1` after *a shell started*, did
+  not, and should not: the step still fails, on its second check (a shell that starts answers
+  no *not found*), and the guard reads that failure.
+- **Proved here**, on amd64 with Docker 29.9.2. The Debian archive cannot be reached from this
+  session (`deb.debian.org` is refused by its proxy), so the build stage was a stand-in: the
+  same Dockerfile with its FROM and its apt line replaced by `buildpack-deps:trixie-curl`
+  (Debian 13, `ca-certificates` 20250419+deb13u1, the version distroless's record names) and
+  dumb-init 1.2.5 from PyPI (dynamically linked: the library check passed it), and the base
+  stage byte for byte. It built; `CONTENT SIZE` (compressed) 60.4 MB on amd64, against 60.3 MB
+  for distroless alone (§3 item 13 has about 57.5 MB, against 82 for today's base, on a platform
+  it does not name). Started under its own
+  entrypoint: Node v26.13.0, uid and gid 1000, `/home/node` 1000's, PID 1 `dumb-init`, 146
+  certificates and the 8 rejected intermediates in the bundle (distroless's own has 148: emSign
+  Root CA C1 and ECC C3 are off), `NODE_OPTIONS=--use-openssl-ca`, and `sh`, `/bin/sh`, `bash`,
+  `/bin/bash` and `/busybox/sh` each refused with *executable file not found* or *no such file
+  or directory*. Then the installed CLI's `generateContainerfile`, on that base and with
+  `node:26.13.0-trixie-slim` standing in for `TASK_BUILD_IMAGE` (Docker Hub answered 429 for
+  it), wrote the Containerfile a deploy writes; with a stand-in bundle it built every stage and
+  the runtime image ran `dumb-init node managed-run-controller.js` as uid 1000 in `/app`,
+  reading the indexer's `index.json`. Every image, container and build-cache record made here
+  was removed.
+- **Not proved here, and where it is:** the real build stage with Debian's archive and the run
+  of the image on amd64 (this branch's `build (task-base)`); arm64 and the publish, the
+  signature and the package's visibility (the first `main` run after the merge); a deploy on it
+  (E2E (managed), on the second change's branch).
+- **The landing order.** (1) This change merges; nothing deploys differently. (2) `main`'s
+  Images run publishes `ghcr.io/robbes/ownpace-task-base:edge` and `:sha-<commit>`, signed. GHCR
+  may make a new package private; it must be public, as the other three are, for the OTA stack
+  and live to pull it without a login: the owner checks the package page, and an anonymous
+  pull, before (3). (3) The second change names that index by tag and digest in
+  `trigger.config.ts` (`ghcr.io/robbes/ownpace-task-base:sha-<commit>@sha256:<index>`), keeps
+  `buildBase` (the CLI's `-build` image), adds no layer, and with it: `UNUSED_ESSENTIALS`,
+  `PACKAGE_MANAGERS`, the trust edits and the API-base reader leave the config (the Dockerfile
+  holds them now); `an-essential-nothing-runs` drops its tasks half and the managed smoke's
+  dpkg probe of the runner image goes (no dpkg in the image; distroless's records are read by
+  the scan); `a-gate-on-a-version-nothing-ships` holds the pin instead of the layer;
+  `image-scan.mjs` scans the pinned reference as `trigger-task-base`, the same name and SARIF
+  category, with no `containerfile` build; `release-verify.mjs` checks the base the tag's
+  config pins (both platforms, `cosign verify` by digest with images.yml's identity on
+  `refs/heads/main`, its revision an ancestor of the tag); a check on the pull request that the
+  pin pulls anonymously and verifies; the pin watch compares the pin with `:edge`. E2E (managed)
+  and the image scans dispatched on that branch, then merge. (4) alpha.5's tag carries the pin,
+  and live deploys it with `deploy-live.sh`. A revert of (3) is the way back, and nothing on
+  GHCR has to be deleted for it.
+- **For whoever merges what:** #1816 moves `node:26.13.0-trixie-slim` to `5adad64f…` in the
+  three app Dockerfiles; the new guard holds this Dockerfile's build FROM to `apps/api`'s, so
+  whichever of the two merges second takes the other's line too. The appliance's distroless
+  move (§3 item 12) shares `an-essential-nothing-runs` with step (3), which is why step (3) is
+  not on this branch.
+
 **2026-11-06: the pin watch reads the second Nextcloud major's pin.** On branch
 `claude/ownpace-public-readiness-y7orc6-nextcloud-second-major-watch`. §4 named it as the
 follow-up: `nextcloud-second-major.yml`'s `NEXTCLOUD_IMAGE` moved by hand and nothing reported a
@@ -4458,6 +4553,17 @@ is beside each; none is urgent tonight.
     release images**, so the OTA stack and live run the same scanned bytes and a deploy needs no
     Debian mirror. **Revisit** if GHCR becomes unreachable from live, or the CLI starts adding
     steps of its own to a base that already has every one.
+
+    **Where it stands, 2026-11-06: the build, its run and its signing are built, not merged; the
+    tasks do not run on it yet.** `apps/worker/task-image/Dockerfile`, published from `main` only
+    by `images.yml`'s `task-base` leg as `ghcr.io/robbes/ownpace-task-base:edge` and
+    `sha-<commit>`, signed by digest; never from a tag, so that the tasks can name one digest
+    that the OTA stack and live both run. The installed CLI writes nothing a shell-less base
+    cannot run when it is given a build base and no layer, and
+    `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts` runs its generator to say so
+    on every CLI move: that is the second revisit condition, checked. The switch of
+    `trigger.config.ts` to that digest is the second change, after `main`'s first publish (the
+    Status entry of 2026-11-06 has the order).
 
 ## 4. Not done, honestly
 

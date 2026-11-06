@@ -4,7 +4,9 @@ name: Images
 # Builds and publishes the three application images (0025 T1) — the workflow
 # that makes `ghcr.io/robbes/ownpace-selfhost:edge` (the compose default)
 # an image something actually produces, instead of a name that resolves to
-# nothing.
+# nothing. And, from main only, the tasks' prebuilt base,
+# `ghcr.io/robbes/ownpace-task-base` (workplan 0119 §3 item 13): the build
+# job's `task-base` leg, below its matrix.
 #
 #   - Pull requests touching the Dockerfiles, deploy/, or this workflow BUILD
 #     ONLY (no push, no registry login) on linux/amd64 — the rule-8 self-proof
@@ -37,6 +39,7 @@ on:
       - 'apps/api/Dockerfile'
       - 'apps/web/Dockerfile'
       - 'apps/selfhost/Dockerfile'
+      - 'apps/worker/task-image/**'
       - 'deploy/**'
       - '.github/workflows/images.yml'
   workflow_dispatch:
@@ -60,6 +63,24 @@ jobs:
       fail-fast: false
       matrix:
         image: [api, web, selfhost]
+        # THE TASKS' PREBUILT BASE (workplan 0119 §3 item 13; the owner's
+        # decision of 2026-11-03, for alpha.5): apps/worker/task-image/Dockerfile,
+        # distroless with what the Trigger.dev CLI's runtime stage needs from a
+        # base it builds nothing into. The same steps as the three, under
+        # `ghcr.io/robbes/ownpace-task-base`: built for linux/amd64 on a pull
+        # request and run there (the step after the build), and on main built
+        # for both platforms, pushed as `edge` and `sha-<commit>`, and signed by
+        # digest. Never on a tag, and never on another branch: the tasks name
+        # the base by the digest main published, so the OTA stack, which deploys
+        # main, and live, which deploys the tag that carries that digest, run
+        # the same bytes, and a tag that built its own would publish a base
+        # nothing runs. So the leg is in the matrix only on a pull request and
+        # on main. Not in `image` above, which is the list Security Scan reads
+        # as Ownpace's images at `:edge` and at the release, and release.yml's
+        # verify checks at the tag: the scan reads the base the tasks run, under
+        # `trigger-task-base`, once they run it. Held by
+        # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts.
+        include: ${{ fromJSON((github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && '[{"image":"task-base"}]' || '[]') }}
     steps:
       # The Node the check below runs on, the major the images run. On a tag
       # only, the one run that calls Node here; first, because the check comes
@@ -166,14 +187,19 @@ jobs:
         continue-on-error: true
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: .
-          file: apps/${{ matrix.image }}/Dockerfile
+          # The tasks' base builds from its own directory, which holds its
+          # Dockerfile and the certificates it copies; the others from the root.
+          context: ${{ matrix.image == 'task-base' && 'apps/worker/task-image' || '.' }}
+          file: ${{ matrix.image == 'task-base' && 'apps/worker/task-image/Dockerfile' || format('apps/{0}/Dockerfile', matrix.image) }}
           # The /version endpoints report this commit (build-identity.ts).
           build-args: |
             GIT_SHA=${{ github.sha }}
           # PRs prove the Dockerfile builds; the publish path proves multi-arch.
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
+          # The tasks' base on a pull request, into this runner's Docker, for
+          # the step that runs it below.
+          load: ${{ github.event_name == 'pull_request' && matrix.image == 'task-base' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Registry-backed layer cache: the second multi-arch build reuses the
@@ -200,14 +226,19 @@ jobs:
         if: steps.build_attempt.outcome == 'failure' && github.event_name != 'pull_request'
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
-          context: .
-          file: apps/${{ matrix.image }}/Dockerfile
+          # The tasks' base builds from its own directory, which holds its
+          # Dockerfile and the certificates it copies; the others from the root.
+          context: ${{ matrix.image == 'task-base' && 'apps/worker/task-image' || '.' }}
+          file: ${{ matrix.image == 'task-base' && 'apps/worker/task-image/Dockerfile' || format('apps/{0}/Dockerfile', matrix.image) }}
           # The /version endpoints report this commit (build-identity.ts).
           build-args: |
             GIT_SHA=${{ github.sha }}
           # PRs prove the Dockerfile builds; the publish path proves multi-arch.
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
+          # The tasks' base on a pull request, into this runner's Docker, for
+          # the step that runs it below.
+          load: ${{ github.event_name == 'pull_request' && matrix.image == 'task-base' }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Registry-backed layer cache: the second multi-arch build reuses the
@@ -232,6 +263,64 @@ jobs:
           echo "If the reason was a ghcr secondary rate limit, re-run this job in a few minutes."
           echo "If it was anything else, the reason is in the build step's log above."
           exit 1
+
+      # WHAT THE CLI'S RUNTIME STAGE RUNS, RUN ON THE BASE (workplan 0119 §3
+      # item 13). The task image's runtime stage is `FROM base`, with `USER
+      # node`, three `COPY --chown=node:node` and `ENTRYPOINT [ "dumb-init",
+      # "node", ... ]`, and no RUN (trigger.dev 4.8.3's buildImage.js). So the
+      # base is started here as that entrypoint starts it, under its own
+      # ENTRYPOINT, `dumb-init node`: dumb-init must be PID 1 and find node on
+      # the PATH, as the node account, uid and gid 1000, with
+      # apps/api/Dockerfile's Node, `--use-openssl-ca`, and the CA bundle with
+      # the CLI's eight rejected intermediates in it. Then each shell name as
+      # the entrypoint, which must not start: the base has none. On a pull
+      # request, linux/amd64; main's arm64 build is the publish path's, and
+      # the tasks' first deploy on it is E2E (managed)'s.
+      - name: The tasks' base starts as the CLI's runtime stage starts it, and has no shell
+        if: matrix.image == 'task-base' && github.event_name == 'pull_request'
+        env:
+          IMAGE: ${{ steps.build_attempt.outputs.imageid }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IMAGE" ]; then
+            echo "::error::the build loaded no image to run"
+            exit 1
+          fi
+          want="v$(sed -n 's/^FROM node:\([0-9]*\.[0-9]*\.[0-9]*\)-.*/\1/p' apps/api/Dockerfile)"
+          probe="$(cat <<'JS'
+          const fs = require('node:fs');
+          const bundle = fs.readFileSync(process.env.SSL_CERT_FILE ?? '', 'utf8');
+          const facts = {
+            node: process.version,
+            user: `${process.getuid()}:${process.getgid()}`,
+            pid1: fs.readFileSync('/proc/1/cmdline', 'utf8').split('\0')[0],
+            nodeOptions: process.env.NODE_OPTIONS,
+            rejected: (bundle.match(/^-----BEGIN TRUSTED CERTIFICATE-----$/gm) ?? []).length,
+          };
+          const wrong = [];
+          if (facts.node !== process.env.WANT_NODE) wrong.push(`Node is ${facts.node}, and apps/api/Dockerfile names ${process.env.WANT_NODE}`);
+          if (facts.user !== '1000:1000') wrong.push(`it runs as ${facts.user}, not node's 1000:1000`);
+          if (facts.pid1 !== 'dumb-init') wrong.push(`PID 1 is ${facts.pid1}, not dumb-init`);
+          if (!(facts.nodeOptions ?? '').split(/\s+/).includes('--use-openssl-ca')) wrong.push(`NODE_OPTIONS is ${facts.nodeOptions}, without --use-openssl-ca`);
+          if (facts.rejected !== 8) wrong.push(`the bundle holds ${facts.rejected} rejected intermediates, not the CLI's 8`);
+          console.log(JSON.stringify(facts));
+          for (const line of wrong) console.error(line);
+          process.exit(wrong.length === 0 ? 0 : 1);
+          JS
+          )"
+          docker run --rm -e "WANT_NODE=${want}" "$IMAGE" -e "$probe"
+          absent='(executable file not found|no such file or directory)'
+          for shell in sh /bin/sh bash /bin/bash /busybox/sh; do
+            if said="$(docker run --rm --entrypoint "$shell" "$IMAGE" -c true 2>&1)"; then
+              echo "::error::${shell} started in the tasks' base, which must have no shell"
+              exit 1
+            fi
+            if [[ ! "$said" =~ $absent ]]; then
+              echo "::error::${shell} did not start, for another reason than its absence: ${said}"
+              exit 1
+            fi
+            echo "no ${shell}: ${BASH_REMATCH[1]}"
+          done
 
       - name: Install cosign
         if: github.event_name != 'pull_request'

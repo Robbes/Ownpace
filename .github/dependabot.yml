@@ -99,11 +99,16 @@ updates:
   # release's signed SHASUMS256.txt and .sig and the two node.exe sums are
   # pushed to it (scripts/package-appliance.mjs, above NODE_RUNTIME_SHA256, and
   # docs/windows-appliance-runbook.md give the commands).
+  # apps/worker/task-image is the tasks' prebuilt base (workplan 0119 §3 item
+  # 13): its two FROM lines are apps/api/Dockerfile's two, and
+  # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts holds them
+  # equal, so it is in this group and moves in the same pull request.
   - package-ecosystem: docker
     directories:
       - "/apps/api"
       - "/apps/web"
       - "/apps/selfhost"
+      - "/apps/worker/task-image"
     schedule:
       interval: weekly
       day: monday
