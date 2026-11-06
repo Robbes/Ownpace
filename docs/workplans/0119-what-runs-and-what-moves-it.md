@@ -14,8 +14,8 @@ pin's the same way. Times are UTC.
   `latest` on 2026-11-06 at 10:15 (Docker Hub's `tag_last_pushed`), still `latest` at 13:11. Its
   floor ends 2026-11-09 10:15. `managed.yml`'s `minio` and `minio-init` and the phone-home
   guard's pin move together. It is the digest Docker Hub names for `latest` today, which is what
-  the pin watch compares the pin with, so the watch's row reads current with it (compared by
-  hand; the watch itself was not run). The rebuilds between `3b6e40c3…` and it, `090010a3…`
+  the pin watch compares the pin with, so the watch's row reads current with it: run on the
+  branch at 15:00 (`idp-pin-watch.mjs` without `--issue`), it does. The rebuilds between `3b6e40c3…` and it, `090010a3…`
   (pushed 2026-11-02 19:17) among them, were never pinned (the entry of 2026-11-03, records).
 - **When.** Before the floor, on the owner's instruction of 2026-11-06, which the Node and Redis
   bases also moved on (#1816, the entry below): *"Dont wait for timelines if validated order
@@ -73,8 +73,21 @@ pin's the same way. Times are UTC.
   `a-float-nothing-ever-pulled` (10). `a-service-that-phones-home` is red with the old digest
   left in its pin (*re-read what the new version sends by default*), and
   `an-object-store-with-a-maintainer` with the new one's prefix cut from the comment (*does not
-  name its digest*, *gives no date*). **Owed on the branch:** the image scan (Security Scan with
-  `image_scans`) and E2E (managed).
+  name its digest*, *gives no date*). The image scan, Security Scan run 42229886405,
+  dispatched with `image_scans` on `8584d9c9` (linux/arm64), reads `minio`
+  (`chainguard/minio:latest@sha256:aea6c163…`, wolfi) at 0 critical, 0 high and 0 with a fix.
+  E2E (managed) run 42238877459, dispatched on `8584d9c9`, from before #1824, was red on one
+  check alone: the bring-up pulled `aea6c163…` and recreated `minio`, healthy about five seconds
+  after it started, `minio-init` made `store/packets`, and the smoke's verdict was *verify: done
+  apply: applied*; what failed was the old section on the tasks' image (*the tasks' image
+  carries none of the Debian Essentials it purges*), whose `dpkg-query` it put to
+  `cbc32b7e7471`, the distroless runner image #1824's run had left running a pass. This run's
+  own deploy was a fully cached build, which keeps its first build's `Created`, so the section
+  passed it over as *built before the newest*. With `main` merged in at `d7d11a58` (#1824), E2E
+  (managed) run 42241841170, dispatched on `7f840178`, was green from 15:31 to 15:39 UTC, on the
+  same digest: `minio` healthy, `minio-init` making `store/packets` again, the tasks' image
+  read as Node v26.13.0, the API's, with no shell, and the smoke's last listing shows
+  `trigger-minio` on `aea6c163…`.
 
 **2026-11-06, later: the tasks move onto the prebuilt base (§3 item 13, the second change);
 built on a branch, not merged; CI, the image scan and E2E (managed) green.** On the branch
