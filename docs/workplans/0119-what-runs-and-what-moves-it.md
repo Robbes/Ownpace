@@ -4,6 +4,91 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06: MinIO's digest moves to Chainguard's build of 2026-11-05, before its three-day
+floor, on the owner's instruction of that day, not as a security fix (alpha.5; 0146 T7)**, on
+the branch `claude/ownpace-public-readiness-y7orc6-minio-aea6c163`. Read from each platform's
+config and layers in Docker Hub's registry, every blob checked against its digest, and the old
+pin's the same way. Times are UTC.
+- **The move.** `chainguard/minio:latest` by the index digest `aea6c163…` (linux/amd64
+  `88f32bd9…`, linux/arm64 `84d7f286…`), built 2026-11-05 19:11 (both configs) and pushed as
+  `latest` on 2026-11-06 at 10:15 (Docker Hub's `tag_last_pushed`), still `latest` at 13:11. Its
+  floor ends 2026-11-09 10:15. `managed.yml`'s `minio` and `minio-init` and the phone-home
+  guard's pin move together. It is the digest Docker Hub names for `latest` today, which is what
+  the pin watch compares the pin with, so the watch's row reads current with it: run on the
+  branch at 15:00 (`idp-pin-watch.mjs` without `--issue`), it does. The rebuilds between `3b6e40c3…` and it, `090010a3…`
+  (pushed 2026-11-02 19:17) among them, were never pinned (the entry of 2026-11-03, records).
+- **When.** Before the floor, on the owner's instruction of 2026-11-06, which the Node and Redis
+  bases also moved on (#1816, the entry below): *"Dont wait for timelines if validated order
+  works. Alpha is not live yet and will not be before 12th of November"*. The floor guards what live runs. Live takes
+  this digest from the alpha.5 tag, not before 2026-11-12, when it is past it; until then it runs
+  only in CI and on the E2E and OTA test stacks, which run each branch's images anyway. E2E
+  (managed) runs on the branch first, and it merges on green.
+- **Not the security-fix exception.** The week's scan (Security Scan run 41465604476,
+  2026-11-02) read `3b6e40c3…` at 0 critical, 0 high, 0 with a fix, and no change in this build
+  names an advisory (below).
+- **What is inside, against `3b6e40c3…`.** The same server and client, byte for byte: the two
+  layers that carry `/usr/bin/minio` and `/usr/bin/mc` have the same digests on each
+  architecture, and the files hash the same. Wolfi's `minio` 0.20261023.200651-r2 (the fork's
+  RELEASE.2026-10-23T20-06-51Z, `vcs.revision` 76c06ff1, Go 1.27.3, go-jose 4.1.6, x/net 0.62.0,
+  x/crypto 0.58.0) and `mc` 0.20250813.083541-r27 (`vcs.revision` 7394ce0d, Go 1.27.3), with
+  `go version -m` the same, module for module, on both architectures. The fork release did not
+  move and no line under `cmd/` or `internal/` changed, so the release check and call-home that
+  `a-service-that-phones-home` holds off are still the code read at
+  RELEASE.2026-09-22T19-25-18Z, and its reading holds. What moved is 11 of the 23 packages
+  (their apk databases, the same on both architectures): `glibc-2.44`,
+  `glibc-2.44-locale-posix` and `ld-linux-2.44` 2.44-r11 → -r13; `ncurses` and
+  `ncurses-terminfo-base` 6.6.20261024 → 6.6.20261031; `libbrotlicommon1`, `libbrotlidec1` and
+  `libbrotlienc1` 1.2.1-r2 → -r3; `libpcre2-8-0` 10.49-r1 → -r3; `libacl1` 2.4.0-r4 → -r5;
+  `libattr1` 2.6.0-r4 → -r6. File by file, nothing else differs but `etc/apk/world` and
+  `etc/apko.json`, which lock those versions, and the config differs only in its dates and layer
+  ids: the entrypoint is the bare `/usr/bin/minio`, the user 65532, there is no
+  `MINIO_DEFAULT_BUCKETS`, `/data` is root's with mode 0777 and `/data/.minio.sys` is 65532's, as
+  `an-object-store-with-a-maintainer` needs. Nothing a stack sets changes, so the volume on
+  `minio_data_v2` carries over and the way back is the old digest.
+- **What the base's moves fix,** read where each is built from:
+  - glibc: Wolfi builds `glibc-2.44` from glibc's `release/2.44/master` at a pinned commit, and
+    its two updates of 2026-11-02 move it from `534e36bb` (-r11) to `21442dba` (-r13), the
+    branch's tip on GitLab's mirror, the one Wolfi checks out: four backports, two to arm64's
+    vectorised `pow` and `powf` (BZ 34920, 34921), C++ and inclusion guards for `sys/pidfd.h` (BZ
+    34752) and a test, with three bug entries in `NEWS` and no security entry. The epoch's comment (*melange
+    0.63.1 hardlink fix*) is carried over from an older bump.
+  - ncurses: upstream's snapshot of 2026-10-31, whose `NEWS` lists configure changes,
+    null-pointer checks for terminfo and termcap parameters, and padding for malformed terminfo
+    data; it names no CVE or advisory.
+  - brotli, pcre2, acl and attr: the same upstream versions, rebuilt by Wolfi, their epoch
+    comments naming its own tests (`test/tw/soversion-check`, `upstream-tests/make-check`).
+    attr's -r6 is newer than the Wolfi `main` read here (2026-11-05 11:47) and was not read.
+  - Not read: Wolfi's security feed (`packages.wolfi.dev`, which this session's proxy refuses),
+    nor any advisory record after 2026-01-07, where Wolfi's advisories repository stops. The
+    image scan on the branch reads the build against Trivy's database.
+- **Signed.** Chainguard's cosign signature for the index is there (`sha256-aea6c163….sig`,
+  pushed 13:02), its payload naming `sha256:aea6c163…` for `cgr.dev/chainguard/minio` and its
+  certificate issued to `chainguard-images/images`' release workflow on `main` through GitHub
+  Actions' OIDC issuer. The signature verifies over the payload with the certificate's key, and
+  the certificate chains to the Sigstore intermediate and root it carries; Sigstore's own trust
+  root and the Rekor entry were not checked.
+- **Proved on the branch.** The 132 unit test files that read these files pass (4,361 tests),
+  among them `a-service-that-phones-home` (40), `an-object-store-with-a-maintainer` (17),
+  `a-pin-that-knows-it-is-behind` (114), `an-image-nobody-scanned` (69) and
+  `a-float-nothing-ever-pulled` (10). `a-service-that-phones-home` is red with the old digest
+  left in its pin (*re-read what the new version sends by default*), and
+  `an-object-store-with-a-maintainer` with the new one's prefix cut from the comment (*does not
+  name its digest*, *gives no date*). The image scan, Security Scan run 42229886405,
+  dispatched with `image_scans` on `8584d9c9` (linux/arm64), reads `minio`
+  (`chainguard/minio:latest@sha256:aea6c163…`, wolfi) at 0 critical, 0 high and 0 with a fix.
+  E2E (managed) run 42238877459, dispatched on `8584d9c9`, from before #1824, was red on one
+  check alone: the bring-up pulled `aea6c163…` and recreated `minio`, healthy about five seconds
+  after it started, `minio-init` made `store/packets`, and the smoke's verdict was *verify: done
+  apply: applied*; what failed was the old section on the tasks' image (*the tasks' image
+  carries none of the Debian Essentials it purges*), whose `dpkg-query` it put to
+  `cbc32b7e7471`, the distroless runner image #1824's run had left running a pass. This run's
+  own deploy was a fully cached build, which keeps its first build's `Created`, so the section
+  passed it over as *built before the newest*. With `main` merged in at `d7d11a58` (#1824), E2E
+  (managed) run 42241841170, dispatched on `7f840178`, was green from 15:31 to 15:39 UTC, on the
+  same digest: `minio` healthy, `minio-init` making `store/packets` again, the tasks' image
+  read as Node v26.13.0, the API's, with no shell, and the smoke's last listing shows
+  `trigger-minio` on `aea6c163…`.
+
 **2026-11-06, later: the tasks move onto the prebuilt base (§3 item 13, the second change);
 built on a branch, not merged; CI, the image scan and E2E (managed) green.** On the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-switch`, on `main` at `691b2352` (#1822),
@@ -963,7 +1048,9 @@ UTC.
   passes at 19:17 on 2026-11-05, after alpha.4's fold (2026-11-04 23:30). The week's scan (run
   41465604476) read `3b6e40c3…` at 0 critical, 0 high, 0 with a fix, so nothing makes the
   newer digest urgent; the pin watch will list it, and moving it is a pull request of its own
-  once it is three days old.
+  once it is three days old. *Overtaken 2026-11-06:* the move takes the newer `aea6c163…`
+  instead, before its own floor, on the owner's instruction of that day (the entry of that
+  date, on its branch).
 - **The drain read, bounded to a day** (`managed-bring-up.md`, beside the MinIO pin; the upgrade
   order's step 2 and *Moving ClickHouse* step 1 point to it). It counts the non-final rows whose
   `updatedAt` is within the last 24 hours, compared with `now() AT TIME ZONE 'UTC'` since the
@@ -3887,7 +3974,7 @@ is who moves it after T1.
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `2caaf8b1…` (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3, taken 2026-10-30; 0 critical and 0 high built, Security Scan run 41012325563); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
-| `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `3b6e40c3…` (built 2026-10-29, pushed as `latest` 2026-10-30 01:13 UTC, taken 2026-10-31, before its floor, under the security-fix exception: it clears CVE-2026-116587, a high in the go-jose 4.1.4 that Wolfi's `minio` 0.20261023.200651-r0 links, fixed in -r1; Status, 2026-10-31). The same fork release as before it, RELEASE.2026-10-23T20-06-51Z, as Wolfi's rebuild -r2; before it `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `3b6e40c3…` (pushed 2026-10-30 01:13 UTC; still `latest` on 2026-10-31); `latest` `090010a3…` since 2026-11-02 19:17 UTC, inside its floor until 2026-11-05 19:17 UTC, after alpha.4's fold, which keeps `3b6e40c3…` (0/0/0 in Security Scan run 41465604476; Status, 2026-11-03, records) | current — one rebuild behind from 2026-11-05 19:17 UTC | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
+| `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `aea6c163…` (built 2026-11-05 19:11 UTC, pushed as `latest` 2026-11-06 10:15 UTC, taken 2026-11-06 for alpha.5, before its floor, on the owner's instruction of that day, not as a security fix; Status, 2026-11-06): the same `minio` and `mc` as before it, byte for byte, Wolfi's `minio` 0.20261023.200651-r2 (the fork's RELEASE.2026-10-23T20-06-51Z) and `mc` -r27, on a rebuilt base (glibc 2.44-r13, ncurses 6.6.20261031). Before it `3b6e40c3…` (built 2026-10-29, taken 2026-10-31 under the security-fix exception for CVE-2026-116587, #1762), `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `aea6c163…` (pushed 2026-11-06 10:15 UTC; still `latest` at 13:11 UTC that day) | current | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
 | `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.8-alpine by digest `f6228111…` on branch `claude/ownpace-public-readiness-y7orc6-caddy-2-11-8` (the index of 2026-11-05; its linux/amd64 and linux/arm64 images of 2026-11-04 20:52 UTC, Alpine 3.24.3, Go 1.27.3): 0 critical, 2 high and 1 fixable built (Security Scan run 42143936608, linux/arm64; the Status entry of 2026-11-06); before it 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22): 1 critical, 9 high and 9 fixable as pulled (Security Scan run 41130684117), 0, 7 and 6 built (Security Scan run 41161126144, linux/arm64; the Status entry of 2026-10-31) | 2.11.8 | current on the branch | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.0 (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.5 before it (2026-10-22, #1651, `721c6ea8`, three security fixes read commit by commit), v4.19.4 before that (2026-10-05, #1528, `502c52fa`), and v4.19.2 before those (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.0 (read 2026-11-02) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
@@ -4342,8 +4429,9 @@ is beside each; none is urgent tonight.
 
    **Built 2026-10-24, on branch `claude/ownpace-public-readiness-y7orc6-object-store-swap`;
    merged 2026-10-25 as #1692, in alpha.2; the digest moved to `268d68a2…` on 2026-10-28,
-   and to `3b6e40c3…` on 2026-10-31, for CVE-2026-116587 (Status).** What it does, each point
-   read off the image or upstream rather than assumed:
+   to `3b6e40c3…` on 2026-10-31, for CVE-2026-116587, and to `aea6c163…` on 2026-11-06, the
+   same server on a rebuilt base, for alpha.5 (Status).** What it does, each point read off
+   the image or upstream rather than assumed:
    - `chainguard/minio:latest` by an index digest read from Docker Hub's API and its registry
      on 2026-10-24: `d88920d6a50b…`, built 2026-10-22 09:59 UTC and pushed as `latest` at
      11:25 UTC that day (its attestation's push time; the tag moved on at 2026-10-23 18:05
