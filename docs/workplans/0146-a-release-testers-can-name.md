@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06, later: the owner waives alpha.5's counted nights (T4).** The fold merged at 22:03
+UTC as `a96090ea` (#1827), and its push runs there were green: CI (run 42301751505, 22:03 to 22:37
+UTC, with `lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (self-hosted)` and
+`ci-complete` none skipped), Security Scan (run 42301751413), Images, and `windows-payload.yml`
+(run 42301780986, win-x64, `smoke` green). The owner then, on 2026-11-06: *"Waive the nights,
+continue"*. This change adds `v0.2.0-alpha.5` to `WAIVER_VERSIONS` with those words; the two guards
+that read the list (`a-release-preflight-that-said-yes-too-soon`, `a-tag-that-already-pointed-elsewhere`)
+name it, with `v0.2.0-alpha.6` now the version not waived, and `docs/release.md` lists it. It is the
+pull request of its own the entry below names, so its squash is C, not `a96090ea`. It touches no
+image, compose file, migration or product code. **Owed before the tag:**
+- C's own push runs green as above, and `windows-payload.yml` dispatched on C again (win-x64,
+  `smoke`);
+- E2E (managed), and E2E (self-hosted) on Postgres and on PGlite, dispatched on C in the nights'
+  place, as for alpha.4, and green;
+- the upgrade drill (the entry below), which this change cannot reach, on `a96090ea` or on C;
+- Release from the owner's account, mode `preflight` and then `release`, with `commit` set to C and
+  `waive_nights` in their words, and their approval in the `release` environment.
+
+Live's deploy of the tag still waits until 2026-11-09 10:15 UTC at the earliest (0119).
+
 **2026-11-06, last: alpha.5 is folded (T2, T4).** On the branch
 `claude/ownpace-public-readiness-y7orc6-alpha5-fold`, on `main` at `d468d9f2` (#1828). The fold
 moves `package.json` and the API contract to `0.2.0-alpha.5`, and everything under
