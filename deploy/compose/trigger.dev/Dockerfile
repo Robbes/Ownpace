@@ -15,9 +15,10 @@
 # REPLACED: FOUR PACKAGES): about 89 high findings become 46, and 57 with a fix
 # become 14 (WHAT STAYS says what is left, and why). Since 2026-11-06 (for
 # alpha.5, workplan 0119 §3 item 11, pending the owner's confirmation), the
-# last RUN as root purges ten Debian packages nothing here runs or loads: apt,
-# libapt-pkg6.0 and the eight util-linux builds (THE DEBIAN PACKAGES NOTHING
-# RUNS): 49 high findings become about 23, and 16 with a fix about 14.
+# last RUN as root purges eleven Debian packages nothing here runs or loads:
+# apt, libapt-pkg6.0, the eight util-linux builds and e2fsprogs, which
+# pre-depends on two of them (THE DEBIAN PACKAGES NOTHING RUNS): 49 high
+# findings become about 23, and 16 with a fix about 14.
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -469,14 +470,22 @@
 #     built from util-linux's source that this image has: util-linux,
 #     util-linux-extra, mount, bsdutils, libblkid1, libmount1, libsmartcols1
 #     and libuuid1 (24).
-# The last RUN as root purges those ten. So 1, 49 and 16 become about 1, 23
+# The last RUN as root purges those ten, and e2fsprogs 1.47.0-2+b2, which
+# carries no finding of its own and pre-depends on libblkid1 and libuuid1:
+# dpkg refused to purge those two while it stayed (images.yml's `build
+# (trigger, amd64|arm64)`, 2026-11-06). So 1, 49 and 16 become about 1, 23
 # and 14 (arithmetic from the report, which the branch's image scan measures).
 # util-linux-extra goes with util-linux, which hard-depends on it in Debian 12
 # (util-linux 2.38-1 made it "pseudo-Essential"; 2.39.1-2, after Debian 12,
 # dropped the dependency), and libapt-pkg6.0 with apt, its one user here. Not
 # on the list, though the appliance's has them: login, which in Debian 12 is
 # shadow's, not util-linux's, and carries no finding, and libsqlite3-0, which
-# Debian 13 brings for lastlog2 and the scan does not read here.
+# Debian 13 brings for lastlog2 and the scan does not read here. e2fsprogs
+# goes alone: its libraries (libext2fs2, libss2, libcom-err2) and logsave
+# stay, and need only libc6 and libcom-err2. Debian 12.15's dpkg status
+# (node:24.22.1-bookworm-slim, linux/arm64, read 2026-11-06) has no other
+# installed package that depends on one of the eleven, and none that depends
+# on e2fsprogs.
 #
 # WHY NOTHING RUNS THEM, read at read_at (below):
 #   - What starts in trigger-api: managed.yml's `sh -c "chown -R node:node
@@ -497,11 +506,12 @@
 #     testcontainers, harnesses, dev scripts, run-ops' migrate.mjs (prisma),
 #     core's v3/apps exec (the supervisor's) and the SDK's bash skill
 #     (agentSkillsRuntime.ts), which the webapp never calls.
-#   - None of those programs is apt's or util-linux's: dash, coreutils (chown,
-#     test, cp, cut, sleep), grep, tar, gzip, netcat-openbsd, dumb-init,
-#     node, goose. Nothing execs apt, apt-get, su, mount, getopt, logger, more
-#     or any other program of the ten into the container, and nothing installs
-#     a package in it: a change is a rebuild.
+#   - None of those programs is apt's, util-linux's or e2fsprogs': dash,
+#     coreutils (chown, test, cp, cut, sleep), grep, tar, gzip, netcat-openbsd,
+#     dumb-init, node, goose. Nothing execs apt, apt-get, su, mount, getopt,
+#     logger, more, mke2fs, e2fsck or any other program of the eleven into the
+#     container (nothing makes or checks a file system in it), and nothing
+#     installs a package in it: a change is a rebuild.
 #   - What links their libraries (libuuid.so.1, libblkid.so.1, libmount.so.1,
 #     libsmartcols.so.1, libapt-pkg.so.6.0, libapt-private.so.0.0), read
 #     2026-11-06 in the published files the image runs or carries, each by its
@@ -525,20 +535,21 @@
 # HOW THEY ARE PURGED, AND PROVED. The last RUN as root, after every other
 # change, as the appliance's purge (apps/selfhost/Dockerfile) and the tasks'
 # (apps/worker/trigger.config.ts) do:
-#   1. `dpkg-query -W` of exactly the ten, first: a package renamed or gone
+#   1. `dpkg-query -W` of exactly the eleven, first: a package renamed or gone
 #      stops the build before anything is purged (a list to read again, not a
 #      name to skip).
 #   2. `dpkg --audit` reads nothing in the image as upstream left it, and the
-#      ten ship the six libraries (`dpkg-query -L`), so the scan in 5 does not
-#      look for names nothing had.
+#      eleven ship the six libraries (`dpkg-query -L`), so the scan in 5 does
+#      not look for names nothing had.
 #   3. `dpkg --purge --force-remove-essential --force-remove-protected`, the
 #      two flags of the owner's decision, and no other force. Debian marks
 #      util-linux and bsdutils Essential. Without --force-depends, dpkg refuses
 #      to remove what an installed package still depends on, so a base where
-#      one does stops the build: e2fsprogs, say, which links libblkid and
-#      libuuid. Whether this base has such a package was not read in its own
-#      files (below); if it has, this is where the build says so.
-#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the ten as
+#      one does stops the build. That is how e2fsprogs joined the list: this
+#      base has it, and dpkg refused libblkid1 and libuuid1 for it. A package
+#      that joins the base and depends on one of the eleven stops the build
+#      here the same way.
+#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the eleven as
 #      gone (no record, or not-installed).
 #   5. No ELF file under / (the image's own file system, walked whole) names
 #      one of the six, so nothing left links them or opens them by name.
@@ -614,7 +625,7 @@
 # upstream fixed. Each replacement names the version it replaces the same
 # way (dompurify 3.4.13, goose v3.27.1, and the four packages' old versions
 # and their requirers), and fails by name when upstream moves it: drop that
-# replacement (THE WAY OUT). The purge names its ten packages and six
+# replacement (THE WAY OUT). The purge names its eleven packages and six
 # libraries the same way: `dpkg-query -W` stops the build on a base that
 # renames or drops one, and `dpkg-query -L` on one that no longer ships a
 # library (THE DEBIAN PACKAGES NOTHING RUNS). A pull request that touches
@@ -977,7 +988,7 @@ RUN set -eu; \
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's THE DEBIAN PACKAGES NOTHING RUNS against this image; a package leaves the list, or joins it, only with its reason." >&2; exit 1; }; \
-    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0"; \
+    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs"; \
     libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0"; \
     top=/; \
     elves="const fs = require('fs'); const path = require('path'); const [top, ...names] = process.argv.slice(1); const dev = fs.statSync(top).dev; const head = Buffer.alloc(4); let read = 0; const hits = []; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isDirectory()) { if (s.dev === dev) walk(p); continue; } if (!s.isFile() || s.size < 4) continue; const fd = fs.openSync(p, 'r'); try { fs.readSync(fd, head, 0, 4, 0); } finally { fs.closeSync(fd); } if (head.readUInt32BE(0) !== 0x7f454c46) continue; read++; const b = fs.readFileSync(p); for (const n of names) if (b.includes(n)) hits.push(p + ': ' + n); } }; walk(top); console.error(read + ' ELF files read under ' + top); if (read === 0) process.exit(2); if (hits.length) { console.log(hits.join(' ')); process.exit(1); }"; \

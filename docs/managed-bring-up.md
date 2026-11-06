@@ -6214,12 +6214,13 @@ systeminformation 5.33.19 in place of the releases of the same major they fix,
 by the sha512 npm published; the supervisor's build does the same for its
 systeminformation. So the webapp's build reaches github.com as well as the npm
 registry. Since 2026-11-06 (for alpha.5, workplan 0119 §3 item 11) the
-webapp's build ends, as root, by purging ten Debian packages nothing in
+webapp's build ends, as root, by purging eleven Debian packages nothing in
 `trigger-api` runs or loads, as the appliance and the tasks' base purge theirs:
-apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2) and the eight packages
-util-linux builds in Debian 12 (24 highs with no fix). So `trigger-api` has no
+apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages
+util-linux builds in Debian 12 (24 highs with no fix), and e2fsprogs, which
+depends on two of those and has no finding of its own. So `trigger-api` has no
 apt: nothing installs in it, and a change is a rebuild. A base where something
-still depends on one of the ten stops the build, since dpkg refuses without
+still depends on one of the eleven stops the build, since dpkg refuses without
 `--force-depends`, and so does one that renamed or dropped one of them.
 **When a host does not answer** (or answers with an error) while an
 image is built, at a bring-up or a `deploy-live.sh` on a machine that does not

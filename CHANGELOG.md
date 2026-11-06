@@ -8,10 +8,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 - **The Trigger.dev webapp built here no longer carries apt or util-linux** (workplan 0119
   §3 item 11, extended to it for alpha.5; pending the owner's confirmation in review). Its
-  build now ends, as root, by purging ten Debian 12 packages that nothing in `trigger-api`
-  runs or loads: apt and libapt-pkg6.0 (CVE-2026-109518, high, fixed in 2.6.2) and the eight
-  packages util-linux builds there (24 highs with no fix in Debian), as the appliance and the
-  tasks' base purge theirs since alpha.4. It asks `dpkg-query` for exactly those ten first,
+  build now ends, as root, by purging eleven Debian 12 packages that nothing in `trigger-api`
+  runs or loads, as the appliance and the tasks' base purge theirs since alpha.4. They are
+  apt and libapt-pkg6.0 (CVE-2026-109518, high, fixed in 2.6.2), the eight packages
+  util-linux builds there (24 highs with no fix in Debian), and e2fsprogs. e2fsprogs has no
+  finding of its own, but it depends on two of the util-linux libraries, and nothing there
+  makes or checks a file system. It asks `dpkg-query` for exactly those eleven first,
   purges with the same two flags and no other force (so dpkg refuses a package something
   still depends on, and the build stops), and since apt is on the list checks `dpkg --audit`'s
   output in `apt-get check`'s place. After the purge it proves that no ELF file in the image

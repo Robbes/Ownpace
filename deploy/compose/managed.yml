@@ -408,8 +408,9 @@ services:
     # follow-redirects 1.16.2, body-parser 1.20.9 and systeminformation
     # 5.33.19 in place of the releases they fix, by the sha512 npm published;
     # so its build reaches github.com as well as the npm registry. Since
-    # 2026-11-06 its last RUN as root purges ten Debian packages nothing here
-    # runs or loads, apt, libapt-pkg6.0 and util-linux's eight (workplan 0119
+    # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
+    # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
+    # e2fsprogs, which depends on two of them (workplan 0119
     # §3 item 11; its header says why, and
     # scripts/an-essential-nothing-runs.unit.test.ts holds the list), so
     # nothing in trigger-api can run apt. The name
@@ -420,7 +421,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-1b32bc000644
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-d2e075e39cc7
     build:
       context: ./trigger.dev
       args:

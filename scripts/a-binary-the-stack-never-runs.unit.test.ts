@@ -1580,7 +1580,8 @@ const SHIPPED_BY: Readonly<Record<string, string>> = {
  * library under its platform's directory (not in the stand-in's tree, so a
  * purge removes nothing there unless a test puts one in), the dependencies
  * among them that Debian 12 has (util-linux on its libraries and on
- * util-linux-extra, mount on util-linux, apt on libapt-pkg6.0), and packages
+ * util-linux-extra, mount on util-linux, apt on libapt-pkg6.0, e2fsprogs on
+ * libblkid1 and libuuid1 and on its own libraries, which stay), and packages
  * that stay and depend on none of them.
  */
 function debian12(plat: string): DpkgDb {
@@ -1594,6 +1595,7 @@ function debian12(plat: string): DpkgDb {
     libmount1: ['libblkid1'],
     apt: ['libapt-pkg6.0', 'zlib1g'],
     'libapt-pkg6.0': ['zlib1g'],
+    e2fsprogs: ['libblkid1', 'libcom-err2', 'libext2fs2', 'libss2', 'libuuid1', 'logsave'],
   };
   const out: Record<string, DpkgPackage> = {
     coreutils: { version: '9.1-1', status: 'installed', essential: true, depends: ['libacl1'] },
@@ -1601,6 +1603,11 @@ function debian12(plat: string): DpkgDb {
     dpkg: { version: '1.21.22', status: 'installed', essential: true, depends: ['tar', 'zlib1g'] },
     libacl1: { version: '2.3.1-3', status: 'installed' },
     zlib1g: { version: '1:1.2.13.dfsg-1', status: 'installed' },
+    // e2fsprogs' own libraries and logsave stay: in Debian 12 they need libc6 and libcom-err2 alone.
+    libext2fs2: { version: '1.47.0-2+b2', status: 'installed' },
+    libss2: { version: '1.47.0-2+b2', status: 'installed', depends: ['libcom-err2'] },
+    'libcom-err2': { version: '1.47.0-2+b2', status: 'installed' },
+    logsave: { version: '1.47.0-2+b2', status: 'installed' },
   };
   for (const name of packages) {
     out[name] = {
@@ -3413,7 +3420,7 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
         ]);
         for (const p of packages) expect(db.packages[p], p).toBeUndefined();
         // What stays, stays: nothing it keeps depended on what it purged.
-        for (const p of ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g']) expect(db.packages[p]?.status, p).toBe('installed');
+        for (const p of ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'libss2', 'libcom-err2', 'logsave']) expect(db.packages[p]?.status, p).toBe('installed');
         expect(run.out).toMatch(/^[1-9]\d* ELF files read under /m);
         expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no ELF file names ${libraries.join(' ')}`);
         expect(readFileSync(join(box.root, 'tools.log'), 'utf8')).toContain('dumb-init --version\n');
@@ -3432,14 +3439,28 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
   });
 
   it('a package an installed one still depends on stops it: no flag forces past the dependency, so dpkg refuses', () => {
-    // e2fsprogs links libblkid and libuuid: a base that has it stops here, at dpkg's own refusal.
-    const e2fsprogs: DpkgPackage = { version: '1.47.0-2', status: 'installed', depends: ['libblkid1', 'libuuid1'] };
-    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, e2fsprogs } })), (box) => {
+    // fdisk links libblkid, libmount, libsmartcols and libuuid: a base that brings it stops here, at dpkg's own
+    // refusal, as this base did for e2fsprogs until it joined the list (2026-11-06).
+    const fdisk: DpkgPackage = { version: '2.38.1-5+deb12u3', status: 'installed', depends: ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1'] };
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, fdisk } })), (box) => {
       const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('fdisk depends on libuuid1.');
+      expect(run.out).toContain('dependency problems - not removing');
+      expect(run.out).toContain('Without --force-depends it refuses to remove what an installed package depends on');
+      const { db } = dpkgOf(box);
+      for (const p of ['fdisk', 'libuuid1', 'libblkid1']) expect(db.packages[p]?.status, p).toBe('installed');
+    });
+  });
+
+  it('e2fsprogs off the list stops it as it stopped the first build on the real base: dpkg refuses libblkid1 and libuuid1 for it', () => {
+    const without = webapp.replace(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"');
+    expect(without).not.toBe(webapp);
+    withSandbox(changed('linux-arm64', (db) => db), (box) => {
+      const run = build(without, box, { plat: 'linux-arm64' });
       expect(run.status).not.toBe(0);
       expect(run.out).toContain('e2fsprogs depends on libuuid1.');
       expect(run.out).toContain('dependency problems - not removing');
-      expect(run.out).toContain('Without --force-depends it refuses to remove what an installed package depends on');
       const { db } = dpkgOf(box);
       for (const p of ['e2fsprogs', 'libuuid1', 'libblkid1']) expect(db.packages[p]?.status, p).toBe('installed');
     });

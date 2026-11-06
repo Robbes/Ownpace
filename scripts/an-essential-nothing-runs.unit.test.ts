@@ -66,12 +66,14 @@
  *    runner stage is Debian 12 (node:24.22.1-bookworm-slim), where Security
  *    Scan run 42143936608 read 24 highs with no fix in the eight packages
  *    util-linux builds there and CVE-2026-109518 in apt and libapt-pkg6.0.
- *    Its last RUN as root purges those ten (WEBAPP_PURGE, a list of its own:
- *    Debian 12 splits util-linux otherwise, and `login` there is shadow's),
+ *    Its last RUN as root purges those ten, and e2fsprogs, which pre-depends
+ *    on libblkid1 and libuuid1 and carries no finding of its own: dpkg refused
+ *    the two while it stayed (WEBAPP_PURGE, a list of its own: Debian 12
+ *    splits util-linux otherwise, and `login` there is shadow's),
  *    in the same shape: `dpkg-query -W` of the list first, then `dpkg --purge`
  *    with the two flags and no other. apt is on the list, so `apt-get check`
  *    cannot follow; `dpkg --audit` does, before and after, its output read
- *    (dpkg exits 0 when it lists problems), and the libraries the ten ship
+ *    (dpkg exits 0 when it lists problems), and the libraries the eleven ship
  *    (WEBAPP_LIBRARIES) are checked shipped before and named by no ELF file
  *    of the image after. Nothing after it installs a package, and its header
  *    carries every package and every reason (WEBAPP_REASONS). The RUN itself
@@ -333,7 +335,7 @@ describe('the scan builds the stage a deploy builds, the CLI\'s repair after the
 const WEBAPP = 'deploy/compose/trigger.dev/Dockerfile';
 
 /**
- * The ten the webapp's image purges (2026-11-06, for alpha.5), in the order its
+ * The eleven the webapp's image purges (2026-11-06, for alpha.5), in the order its
  * RUN writes them, each with why it may go. Debian 12.15 is upstream's runner
  * stage, and Security Scan run 42143936608 (Trivy 0.76.1, linux/arm64) read
  * the findings named.
@@ -349,6 +351,7 @@ const WEBAPP_PURGE: ReadonlyArray<{ readonly name: string; readonly why: string 
   { name: 'libuuid1', why: '3 highs with no fix; Node makes its UUIDs itself (crypto.randomUUID), and nothing here links libuuid' },
   { name: 'apt', why: 'CVE-2026-109518 (high, fixed in 2.6.2: an on-path attacker during an apt download); nothing in trigger-api runs apt, and nothing installs in it: a change is a rebuild' },
   { name: 'libapt-pkg6.0', why: 'CVE-2026-109518 as apt; apt is its one user here' },
+  { name: 'e2fsprogs', why: 'no finding of its own; it pre-depends on libblkid1 and libuuid1, so dpkg refuses those two while it stays; nothing makes or checks a file system here, and nothing depends on it' },
 ];
 
 /** The libraries those ship, which no ELF file of the image may name once they are gone. */
@@ -357,7 +360,7 @@ const WEBAPP_LIBRARIES = ['libuuid.so.1', 'libblkid.so.1', 'libmount.so.1', 'lib
 /**
  * What the header's THE DEBIAN PACKAGES NOTHING RUNS says, word for word once
  * its comment lines are joined: the measurement, why nothing runs or loads the
- * ten (each read at read_at, or in a published file by its hash), how dpkg's
+ * eleven (each read at read_at, or in a published file by its hash), how dpkg's
  * refusal is kept, and why `dpkg --audit` stands where `apt-get check` does.
  */
 const WEBAPP_REASONS: ReadonlyArray<readonly [string, string]> = [
@@ -366,11 +369,13 @@ const WEBAPP_REASONS: ReadonlyArray<readonly [string, string]> = [
   ['three highs with no fix in Debian in each of the eight packages', "util-linux's findings"],
   ['util-linux-extra goes with util-linux, which hard-depends on it in Debian 12', 'why util-linux-extra is on the list'],
   ['libapt-pkg6.0 with apt, its one user here', 'why libapt-pkg6.0 is on the list'],
+  ['The last RUN as root purges those ten, and e2fsprogs 1.47.0-2+b2, which carries no finding of its own and pre-depends on libblkid1 and libuuid1: dpkg refused to purge those two while it stayed', 'why e2fsprogs is on the list'],
+  ['has no other installed package that depends on one of the eleven, and none that depends on e2fsprogs', 'that nothing else depends on the eleven'],
   ['The entrypoint (docker/scripts/entrypoint.sh, pinned by entrypoint_sha256) is /bin/sh, dash, and runs pnpm', 'what the entrypoint runs'],
   ['scripts/wait-for-it.sh only with DATABASE_HOST, which managed.yml does not set', 'why wait-for-it.sh does not run'],
   ['the dashboard agent\'s repo tools run tar (with gzip, -z) and rg', 'what the server spawns'],
   ['the SDK\'s bash skill (agentSkillsRuntime.ts), which the webapp never calls', 'the one other spawner the webapp loads'],
-  ['Nothing execs apt, apt-get, su, mount, getopt, logger, more or any other program of the ten into the container', 'what nothing execs'],
+  ['Nothing execs apt, apt-get, su, mount, getopt, logger, more, mke2fs, e2fsck or any other program of the eleven into the container', 'what nothing execs'],
   ["node 24.22.1 (nodejs.org's linux-arm64 and linux-x64 builds, which the Node image unpacks) needs libdl, libstdc++, libm, libgcc_s, libpthread and libc", "node's libraries"],
   ["goose v3.29.0's two release assets are static", "goose's"],
   ["prisma 6.14.0's engines (commit 717184b7", "prisma's engines"],
@@ -426,7 +431,7 @@ function webappProblems(text: string): string[] {
   }
   const value = (name: string) => new RegExp(`(?:^|[;\\s])${name}="([^"]*)";`).exec(args)?.[1]?.split(' ');
   const same = (a: readonly string[] | undefined, b: readonly string[]) => a !== undefined && a.length === b.length && a.every((x, n) => x === b[n]);
-  if (!same(value('purge'), WEBAPP_PURGE.map((p) => p.name))) problems.push(`its purge= is ${JSON.stringify(value('purge'))}, not the ten WEBAPP_PURGE names, in order`);
+  if (!same(value('purge'), WEBAPP_PURGE.map((p) => p.name))) problems.push(`its purge= is ${JSON.stringify(value('purge'))}, not the eleven WEBAPP_PURGE names, in order`);
   if (!same(value('libraries'), WEBAPP_LIBRARIES)) problems.push(`its libraries= is ${JSON.stringify(value('libraries'))}, not WEBAPP_LIBRARIES`);
   const at = (re: RegExp) => args.search(re);
   const query = at(/(?:^|[;\s])dpkg-query -W \$purge \|\| fail /);
@@ -452,9 +457,9 @@ function webappProblems(text: string): string[] {
   if (!audits.some((i) => i < purgeAt)) problems.push("no `dpkg --audit` read, its output empty, before the purge");
   if (!audits.some((i) => i > purgeAt)) problems.push("no `dpkg --audit` read, its output empty, after the purge");
   const shipped = at(/(?:^|[;\s])listed="\$\(dpkg-query -L \$purge\)" \|\| fail "[^"]*"; for l in \$libraries; do case "\$listed" in \*"\/\$l"\*\) ;; \*\) fail /);
-  if (shipped < 0 || shipped > purgeAt) problems.push('no check, before the purge, that the ten ship every library of $libraries');
+  if (shipped < 0 || shipped > purgeAt) problems.push('no check, before the purge, that the eleven ship every library of $libraries');
   const gone = at(/(?:^|[;\s])for p in \$purge; do st="\$\(dpkg-query -W -f '\$\{db:Status-Status\}' "\$p" 2>\/dev\/null\)" && rc=0 \|\| rc=\$\?; case "\$rc:\$st" in 1:\|0:not-installed\) ;; \*\) fail /);
-  if (gone < 0 || gone < purgeAt) problems.push('no check, after the purge, that dpkg reads each of the ten as gone');
+  if (gone < 0 || gone < purgeAt) problems.push('no check, after the purge, that dpkg reads each of the eleven as gone');
   const scan = at(/(?:^|[;\s])found="\$\(node -e "\$elves" "\$top" \$libraries\)" && st=0 \|\| st=\$\?; \[ "\$st" = 0 \] \|\| fail /);
   if (scan < 0 || scan < purgeAt) problems.push('no scan, after the purge, for an ELF file that names one of $libraries');
   if (!/(?:^|[;\s])top=\/;/.test(args)) problems.push('the scan does not start at /, the image whole');
@@ -477,7 +482,7 @@ function webappProblems(text: string): string[] {
   return problems;
 }
 
-describe("the Trigger.dev webapp's image purges the ten of Debian 12 nothing there runs, last of its root RUNs (2026-11-06)", () => {
+describe("the Trigger.dev webapp's image purges the eleven of Debian 12 nothing there runs, last of its root RUNs (2026-11-06)", () => {
   const webapp = read(WEBAPP);
   const reasons = sectionOf(webapp, 'THE DEBIAN PACKAGES NOTHING RUNS (since', 'TWO NAMES FOR EACH BINARY.');
   const how = sectionOf(webapp, 'HOW THEY ARE PURGED, AND PROVED.', 'TWO NAMES FOR EACH BINARY.');
@@ -487,7 +492,7 @@ describe("the Trigger.dev webapp's image purges the ten of Debian 12 nothing the
   });
 
   it('WEBAPP_PURGE says why each may go, and the header names each package and each library', () => {
-    expect(WEBAPP_PURGE.map((p) => p.name)).toHaveLength(10);
+    expect(WEBAPP_PURGE.map((p) => p.name)).toHaveLength(11);
     for (const p of WEBAPP_PURGE) {
       expect(p.why.length, `${p.name}: why`).toBeGreaterThan(40);
       expect(reasons, `the header's section names no ${p.name}`).toMatch(new RegExp(`(^|[\\s(,])${p.name.replace(/[.+]/g, '\\$&')}([\\s),.:;]|$)`));
@@ -498,7 +503,7 @@ describe("the Trigger.dev webapp's image purges the ten of Debian 12 nothing the
   it("the header carries every reason, word for word, and says how it is proved", () => {
     expect(reasons.length, 'no section THE DEBIAN PACKAGES NOTHING RUNS').toBeGreaterThan(1000);
     for (const [needle, what] of WEBAPP_REASONS) expect(reasons, what).toContain(needle);
-    expect(how, 'no section HOW THEY ARE PURGED, AND PROVED').toContain('`dpkg-query -W` of exactly the ten, first');
+    expect(how, 'no section HOW THEY ARE PURGED, AND PROVED').toContain('`dpkg-query -W` of exactly the eleven, first');
     expect(how).toContain('--force-remove-essential --force-remove-protected`, the two flags of the owner\'s decision, and no other force');
   });
 
@@ -513,7 +518,9 @@ describe("the Trigger.dev webapp's image purges the ten of Debian 12 nothing the
       'it names 3 --force flags (--force-remove-essential --force-remove-protected --force-depends), not the purge\'s two',
     ]);
     expect(swap('--force-remove-essential --force-remove-protected $purge', '--force-all $purge')).toContain('its force flags are --force-all, not --force-remove-essential --force-remove-protected alone');
-    expect(swap(' libuuid1 apt', ' apt')).toEqual(['its purge= is ["util-linux","util-linux-extra","mount","bsdutils","libblkid1","libmount1","libsmartcols1","apt","libapt-pkg6.0"], not the ten WEBAPP_PURGE names, in order']);
+    expect(swap(' libuuid1 apt', ' apt')).toEqual(['its purge= is ["util-linux","util-linux-extra","mount","bsdutils","libblkid1","libmount1","libsmartcols1","apt","libapt-pkg6.0","e2fsprogs"], not the eleven WEBAPP_PURGE names, in order']);
+    // e2fsprogs off the list: on this base dpkg refuses libblkid1 and libuuid1 for it, so the list is the decision, not a name to drop.
+    expect(swap(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"')).toEqual(['its purge= is ["util-linux","util-linux-extra","mount","bsdutils","libblkid1","libmount1","libsmartcols1","libuuid1","apt","libapt-pkg6.0"], not the eleven WEBAPP_PURGE names, in order']);
     expect(swap('purge="util-linux util-linux-extra', 'purge="util-linux-extra util-linux')).toHaveLength(1);
     expect(swap(' libapt-private.so.0.0"', '"')).toEqual(['its libraries= is ["libuuid.so.1","libblkid.so.1","libmount.so.1","libsmartcols.so.1","libapt-pkg.so.6.0"], not WEBAPP_LIBRARIES']);
     expect(swap(/^ {4}dpkg-query -W \$purge \|\| fail [^\n]*\n/m, '')).toEqual(['no `dpkg-query -W $purge || fail`: a renamed or missing package would be a name dpkg skips with a warning']);
@@ -528,8 +535,8 @@ describe("the Trigger.dev webapp's image purges the ten of Debian 12 nothing the
       'it runs apt, which it purges: `dpkg --audit` checks what is left',
       'no `dpkg --audit` read, its output empty, after the purge',
     ]);
-    expect(swap(/^ {4}listed="[^\n]*\n {4}for l in \$libraries[^\n]*\n/m, '')).toEqual(['no check, before the purge, that the ten ship every library of $libraries']);
-    expect(swap(/^ {4}for p in \$purge; do [^\n]*\n/m, '')).toEqual(['no check, after the purge, that dpkg reads each of the ten as gone']);
+    expect(swap(/^ {4}listed="[^\n]*\n {4}for l in \$libraries[^\n]*\n/m, '')).toEqual(['no check, before the purge, that the eleven ship every library of $libraries']);
+    expect(swap(/^ {4}for p in \$purge; do [^\n]*\n/m, '')).toEqual(['no check, after the purge, that dpkg reads each of the eleven as gone']);
     expect(swap(/^ {4}found="\$\(node -e "\$elves"[^\n]*\n {4}\[ "\$st" = 0 \][^\n]*\n/m, '')).toEqual(['no scan, after the purge, for an ELF file that names one of $libraries']);
     expect(swap('if (s.dev === dev) walk(p);', 'walk(p);')).toEqual(["the scan no longer walks every directory of the image's own file system, and no other"]);
     // A device check on files as well would pass over a file whose layer gives it another st_dev.

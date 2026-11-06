@@ -6,22 +6,36 @@
 
 **2026-11-06: the Debian packages nothing runs, purged from the Trigger.dev webapp's image
 too, for alpha.5 (§3 item 11, extended: a proposal pending the owner's confirmation in
-review); built on a branch, not merged, and not yet run by CI.** On the branch
+review); built on a branch, not merged. CI's first build stopped at dpkg's refusal
+(below), and e2fsprogs joined the list.** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-webapp-purge`, on `main` at `691b2352`
 (#1822). Built under the owner's alpha.5 instruction of 2026-11-06, *"put in most of what you
 can, like for hardening"*. Times are UTC.
 - **The change.** `deploy/compose/trigger.dev/Dockerfile` gets a last RUN as root, after
-  goose's and before upstream's `USER node`. It runs `dpkg-query -W` of exactly ten packages,
-  then `dpkg --audit` (its output must be empty), then `dpkg-query -L` to check that the ten
+  goose's and before upstream's `USER node`. It runs `dpkg-query -W` of exactly eleven packages,
+  then `dpkg --audit` (its output must be empty), then `dpkg-query -L` to check that the eleven
   ship the six libraries. Then `dpkg --purge --force-remove-essential --force-remove-protected`
-  of the ten and no other force. After the purge: `dpkg --audit` empty again, each of the ten
-  read gone, no ELF file under `/` naming libuuid.so.1, libblkid.so.1, libmount.so.1,
+  of the eleven and no other force. After the purge: `dpkg --audit` empty again, each of the
+  eleven read gone, no ELF file under `/` naming libuuid.so.1, libblkid.so.1, libmount.so.1,
   libsmartcols.so.1, libapt-pkg.so.6.0 or libapt-private.so.0.0, and grep, cp, tar, gzip,
-  dumb-init, goose and node started. The ten are util-linux, util-linux-extra, mount,
-  bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, apt and libapt-pkg6.0. The header
-  says why each goes (*THE DEBIAN PACKAGES NOTHING RUNS*, *HOW THEY ARE PURGED, AND PROVED*).
-  `managed.yml`'s image is `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-1b32bc000644`
-  (was `-e13a605a9db5`). The CHANGELOG, §3 item 11 and `managed-bring-up.md` say so.
+  dumb-init, goose and node started. The eleven are util-linux, util-linux-extra, mount,
+  bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, apt, libapt-pkg6.0 and e2fsprogs.
+  The header says why each goes (*THE DEBIAN PACKAGES NOTHING RUNS*, *HOW THEY ARE PURGED, AND
+  PROVED*). `managed.yml`'s image is
+  `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-d2e075e39cc7` (was `-e13a605a9db5`).
+- **e2fsprogs joined the list after the first CI run.** On `3626beea`, with ten packages,
+  `build (trigger, amd64)` and `build (trigger, arm64)` both stopped at dpkg's refusal, as the
+  RUN is meant to: *"dependency problems prevent removal of libblkid1 … e2fsprogs depends on
+  libblkid1 (>= 2.36)"*, and the same for libuuid1. Those were the only two packages refused.
+  Read afterwards in Debian 12.15's dpkg status (`node:24.22.1-bookworm-slim`, linux/arm64, by
+  layer digest): e2fsprogs 1.47.0-2+b2 is not Essential, nothing depends on it, and it
+  pre-depends on libblkid1 and libuuid1. Its own libraries (libext2fs2, libss2, libcom-err2)
+  and logsave need only libc6 and libcom-err2, so they stay. With e2fsprogs on the list, no
+  other installed package depends on one of the eleven. Trivy's report of 2026-10-26 on that
+  base lists no finding in e2fsprogs at any severity, so the expected counts do not move.
+  Nothing in `trigger-api` makes or checks a file system. The stand-in's refusal test now
+  uses fdisk, which the base does not have, and a new test takes e2fsprogs off the list and
+  expects the refusal CI showed. The CHANGELOG, §3 item 11 and `managed-bring-up.md` say so.
 - **Why.** Security Scan run 42143936608 (linux/arm64) read the image at 1 critical, 49 high,
   16 fixable: apt and libapt-pkg6.0 2.6.1's CVE-2026-109518 (fixed in 2.6.2), and three highs
   with no Debian fix in each of the eight util-linux packages (24). Expected after the purge,
@@ -63,8 +77,8 @@ can, like for hardening"*. Times are UTC.
   `a-binary-the-stack-never-runs` now always puts a stand-in dpkg, dpkg-query, apt, apt-get
   and dumb-init first on every stand-in RUN's PATH, so no RUN reaches this machine's dpkg. Its
   stand-in Debian 12 follows the RUN's own lists, and the RUN is run over it on both
-  platforms. A missing package stops it before the purge; e2fsprogs depending on libuuid1
-  stops it at dpkg's refusal; audit output before or after stops it; and so do a library no
+  platforms. A missing package stops it before the purge; fdisk depending on libuuid1, or
+  e2fsprogs taken off the list, stops it at dpkg's refusal; audit output before or after stops it; and so do a library no
   package ships, a `config-files` record, an ELF addon naming each library (by path), and a
   dumb-init that does not start. The five guards that read the Dockerfile pass (278 tests),
   and so do all 130 that read it, `managed.yml`, the CHANGELOG, `managed-bring-up.md`,
@@ -4623,11 +4637,13 @@ is beside each; none is urgent tonight.
     the appliance and the tasks' base only, so this extension is the owner's to confirm or
     take back. `deploy/compose/trigger.dev/Dockerfile` builds on upstream's image, whose runner
     stage is Debian 12.15 (`node:24.22.1-bookworm-slim`). Security Scan run 42143936608 read it
-    at 1 critical, 49 high, 16 with a fix. Its last RUN as root purges the ten of those
-    packages that nothing in `trigger-api` runs or loads: apt and libapt-pkg6.0
-    (CVE-2026-109518, high, fixed in 2.6.2) and the eight that util-linux builds there
-    (util-linux, util-linux-extra, mount, bsdutils, libblkid1, libmount1, libsmartcols1,
-    libuuid1: three highs each, none with a fix). It uses the same shape and the same two
+    at 1 critical, 49 high, 16 with a fix. Its last RUN as root purges eleven packages that
+    nothing in `trigger-api` runs or loads. They are:
+    - apt and libapt-pkg6.0 (CVE-2026-109518, high, fixed in 2.6.2);
+    - the eight that util-linux builds there (util-linux, util-linux-extra, mount, bsdutils,
+      libblkid1, libmount1, libsmartcols1, libuuid1: three highs each, none with a fix);
+    - e2fsprogs, which has no finding of its own and pre-depends on libblkid1 and libuuid1,
+      so dpkg refuses those two while it stays. It uses the same shape and the same two
     flags, no other force, with one change: apt is on the list, so `dpkg --audit` (its output
     read, since dpkg exits 0 when it lists problems) stands where `apt-get check` does. Not
     `login` (in Debian 12 it is shadow's, with no finding) and not `libsqlite3-0` (not read
