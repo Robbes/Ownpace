@@ -565,8 +565,9 @@ describe("images.yml's task-base-pin job pulls the pin as a deploy does and veri
  * The pin step's `run:` as the runner runs it (bash -eo pipefail), in a
  * directory holding `config` as trigger.config.ts and this checkout's
  * apps/api/Dockerfile, with a stand-in docker, jq, cosign and sleep first on
- * the PATH: the index lists `PLATFORMS`, the image's revision label is
- * `REVISION`, it answers `NODE`, and cosign refuses the first `COSIGN_FAILS`.
+ * the PATH: the index lists `PLATFORMS` and names `ARM64` for its linux/arm64
+ * image, the image's revision label is `REVISION`, it answers `NODE`, and
+ * cosign refuses the first `COSIGN_FAILS`.
  */
 function runPin(env: Record<string, string>, config = read(CONFIG)): { status: number; out: string; docker: string[]; cosign: string[]; slept: string[] } {
   const step = pinJob.steps.find((s) => s.name === PIN_STEP)!;
@@ -594,7 +595,15 @@ function runPin(env: Record<string, string>, config = read(CONFIG)): { status: n
       'esac',
       'echo "unexpected docker call: $*" >&2; exit 99',
     ]);
-    tool('jq', ['cat > /dev/null', 'printf "%s\\n" "$PLATFORMS"']);
+    tool('jq', [
+      'filter="$*"',
+      'cat > /dev/null',
+      'case "$filter" in',
+      '  *join*) printf "%s\\n" "$PLATFORMS" ;;',
+      '  *.digest*) printf "%s\\n" "${ARM64:-}" ;;',
+      '  *) echo "unexpected jq filter: $filter" >&2; exit 99 ;;',
+      'esac',
+    ]);
     tool('cosign', [
       'printf "%s\\n" "$*" >> "$LOGS/cosign.log"',
       'n="$(wc -l < "$LOGS/cosign.log")"',
@@ -619,20 +628,25 @@ describe("the pin step's verdict, run against a stand-in docker, jq and cosign",
   const pin = taskBasePin(read(CONFIG));
   const byDigest = `ghcr.io/robbes/ownpace-task-base@${pin.digest}`;
   const want = `v${/^FROM node:(\d+\.\d+\.\d+)-/m.exec(read(API_DOCKERFILE))![1]}`;
-  const good = { PLATFORMS: 'amd64 arm64', REVISION: `${pin.commit}${'a'.repeat(33)}`, NODE: want, COSIGN_FAILS: '0' };
+  const arm64 = `sha256:${'b'.repeat(64)}`;
+  const good = { PLATFORMS: 'amd64 arm64', ARM64: arm64, REVISION: `${pin.commit}${'a'.repeat(33)}`, NODE: want, COSIGN_FAILS: '0' };
 
-  it('passes the pin: both platforms listed and pulled by the pin as a deploy pulls it, the revision its tag names, the API\'s Node, and the signature images.yml made on main', () => {
+  it('passes the pin: both platforms listed and pulled anonymously, arm64 by its manifest in the index and amd64 by the pin, the revision its tag names, the API\'s Node, and the signature images.yml made on main', () => {
     const r = runPin(good);
     expect(r.status, r.out).toBe(0);
     expect(r.out).not.toMatch(/::(error|warning)::/);
     expect(r.docker).toEqual([
       `buildx imagetools inspect --raw ${byDigest}`,
-      `pull --quiet --platform linux/arm64 ${pin.ref}`,
+      `pull --quiet --platform linux/arm64 ghcr.io/robbes/ownpace-task-base@${arm64}`,
       `pull --quiet --platform linux/amd64 ${pin.ref}`,
       `image inspect --format {{index .Config.Labels "org.opencontainers.image.revision"}} ${byDigest}`,
       `run --rm --platform linux/amd64 --network none ${byDigest} -p process.version`,
     ]);
     expect(r.cosign).toEqual([`verify ${byDigest} --certificate-identity ${MAIN_IDENTITY} --certificate-oidc-issuer https://token.actions.githubusercontent.com`]);
+    // The two pulls name two digests: the hosted runner's image store refused a second platform
+    // pulled by the one index digest ("cannot overwrite digest", the first run, 2026-11-06).
+    const pulled = r.docker.filter((c) => c.startsWith('pull ')).map((c) => c.split(' ').at(-1)!.split('@')[1]);
+    expect(new Set(pulled).size).toBe(2);
   });
 
   it("only warns on a Node other than apps/api/Dockerfile's, since that base is published after the pull request that moves the Node merges", () => {
@@ -645,6 +659,12 @@ describe("the pin step's verdict, run against a stand-in docker, jq and cosign",
     const arm = runPin({ ...good, PLATFORMS: 'amd64' });
     expect(arm.status).not.toBe(0);
     expect(arm.out).toContain('has no linux/arm64 image');
+    for (const bad of ['', 'null', 'sha256:abc']) {
+      const r = runPin({ ...good, ARM64: bad });
+      expect(r.status).not.toBe(0);
+      expect(r.out).toContain('names no digest for its linux/arm64 image');
+      expect(r.docker.filter((c) => c.startsWith('pull ')), 'nothing is pulled without the arm64 digest').toEqual([]);
+    }
     const other = runPin({ ...good, REVISION: 'f'.repeat(40) });
     expect(other.status).not.toBe(0);
     expect(other.out).toContain(`not the commit its tag sha-${pin.commit} names`);

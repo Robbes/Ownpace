@@ -439,15 +439,26 @@ jobs:
           pin="${BASH_REMATCH[1]}" commit="${BASH_REMATCH[2]}" digest="${BASH_REMATCH[3]}"
           by_digest="ghcr.io/robbes/ownpace-task-base@${digest}"
           echo "the pin: ${pin}"
-          platforms="$(docker buildx imagetools inspect --raw "$by_digest" | jq -r '[.manifests[]? | select(.platform.os == "linux") | .platform.architecture] | sort | unique | join(" ")')"
+          index="$(docker buildx imagetools inspect --raw "$by_digest")"
+          platforms="$(jq -r '[.manifests[]? | select(.platform.os == "linux") | .platform.architecture] | sort | unique | join(" ")' <<<"$index")"
           for arch in amd64 arm64; do
             if [[ " ${platforms} " != *" ${arch} "* ]]; then
               echo "::error::${by_digest} has no linux/${arch} image (it lists: ${platforms:-none})"
               exit 1
             fi
           done
-          # Anonymously, as a deploy pulls it; amd64 last, since it is the one started below.
-          docker pull --quiet --platform linux/arm64 "$pin"
+          # Anonymously, as a deploy pulls it. arm64 by its own manifest's
+          # digest from the index, the blobs an arm64 host's deploy pulls: the
+          # runner's image store keeps one image under a digest, so a second
+          # platform pulled by the index digest is refused ("cannot overwrite
+          # digest", 2026-11-06). amd64 by the pin, last, since it is the one
+          # started below.
+          arm64="$(jq -r '[.manifests[]? | select(.platform.os == "linux" and .platform.architecture == "arm64") | .digest] | first // empty' <<<"$index")"
+          if [[ ! "$arm64" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+            echo "::error::${by_digest} names no digest for its linux/arm64 image (read: '${arm64}')"
+            exit 1
+          fi
+          docker pull --quiet --platform linux/arm64 "ghcr.io/robbes/ownpace-task-base@${arm64}"
           docker pull --quiet --platform linux/amd64 "$pin"
           revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$by_digest")"
           if [[ ! "$revision" =~ ^${commit}[0-9a-f]{33}$ ]]; then

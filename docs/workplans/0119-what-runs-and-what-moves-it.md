@@ -44,7 +44,14 @@ public (a token and the manifests answered with no login at 10:15).
   images.yml's new PR job `task-base pin` (its paths take `apps/worker/trigger.config.ts`)
   pulls the pin with no login for both platforms, checks the platforms and the revision label,
   reads its Node (a warning when it is not `apps/api/Dockerfile`'s line, the reason below) and
-  verifies the signature with main's identity, three attempts. The managed smoke's section on
+  verifies the signature with main's identity, three attempts. Its first run (on `eb55e1c8`)
+  pulled arm64 and then stopped at the amd64 pull: *"cannot overwrite digest
+  sha256:a6039c90…"*. The hosted runner's image store keeps one image under a digest, and
+  both pulls named the index digest. It now pulls arm64 by that platform's own manifest
+  digest from the index, which is the blobs an arm64 host's deploy pulls, and amd64 by the pin.
+  The guard expects the two pulls to name two digests, and a missing or malformed arm64 digest
+  to stop the step before anything is pulled. Read against GHCR here, the index names arm64 as
+  `sha256:5d126132…`, an image manifest of 29 layers. The managed smoke's section on
   the tasks' image asks the newest image its runners started for its Node, which must be the
   API's, and each shell name, none of which may start; the dpkg query of the ten Essentials is
   gone, since the base has none of them and no dpkg.
