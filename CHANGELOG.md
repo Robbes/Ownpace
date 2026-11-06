@@ -61,7 +61,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   purges nothing; it pulls the base from `ghcr.io` without a login instead. The weekly image
   scan reads that base as `trigger-task-base`, a pull request that moves the pin pulls it and
   verifies its signature, Release's verify checks the one the tag pins, and the pin watch lists
-  it behind once `main` publishes a base with other layers. **For the operator:** a Dependabot
+  it behind once `main` publishes a base with other layers. The scan reads it at 0 critical,
+  2 high and none with a fix (both zlib1g's, which Debian 13 has not fixed), where the tasks'
+  build on the API's Node line read 0, 9 and 0. **For the operator:** a Dependabot
   move of the API's Node now reaches the tasks in a second pull request, the one that moves the
   pin to the base `main` publishes; until it merges, the managed smoke stops on the two Nodes.
 

@@ -5,7 +5,7 @@
 ## Status — 2026-11-06 (update this block at the end of every session)
 
 **2026-11-06, later: the tasks move onto the prebuilt base (§3 item 13, the second change);
-built on a branch, not merged; CI green, E2E (managed) owed.** On the branch
+built on a branch, not merged; CI, the image scan and E2E (managed) green.** On the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-switch`, on `main` at `691b2352` (#1822),
 with `main` merged at `f42101b0` (#1819, the appliance without a shell) and at `2886230a`
 (#1815, #1821 and #1816, the bases). Times are UTC. The first change merged as #1818
@@ -86,9 +86,19 @@ public (a token and the manifests answered with no login at 10:15).
   config or this file again (582).
 - **Not proved here, and where it is.** This session's proxy refuses GHCR's blob host, so the
   pin was not pulled here: its pull, platforms, revision label, Node and signature are the PR
-  job's (no cosign here either). A deploy on the base and the smoke's new section: E2E (managed)
-  dispatched on this branch. The scan of the pin: Security Scan dispatched on it with
-  `image_scans`. Release's check: alpha.5's verify.
+  job's (no cosign here either). Release's check: alpha.5's verify. The deploy on the base and
+  the scan of the pin are proved on the branch (next).
+- **Proved on the branch.** The image scan, Security Scan run 42229674760, dispatched with
+  `image_scans` on `ee6e65a3` (linux/arm64), reads `trigger-task-base` as the pin,
+  `ghcr.io/robbes/ownpace-task-base:sha-2886230@sha256:91fec895…`, Debian 13.7, at 0 critical,
+  2 high and 0 with a fix (zlib1g's two, which Debian 13 has not fixed), where the build on the
+  API's Node line read 0, 9 and 0 (run 42213975717). E2E (managed) run 42232407575, dispatched
+  on `ee6e65a3`, was green from 14:40 to 14:48 UTC on the OTA stack, the first deploy of the
+  tasks on the base: the CLI's base stage was the pin's one `FROM` (`[base 1/1]`), pulled from
+  `ghcr.io`; the image came to 222.36 MB, and version 20261106.7 deployed with 17 detected
+  tasks. The smoke's new section read the newest runner image, `cbc32b7e7471`: *Node v26.13.0,
+  the API's*, and *no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)*; its verdict was
+  *verify: done apply: applied*.
 - **For whoever merges what.** #1819 (the distroless appliance) edits
   `an-essential-nothing-runs` too: it drops the appliance's purge and the E2E step's half, this
   drops the tasks' half and the smoke's; merged together nothing of the purge is left, so the
