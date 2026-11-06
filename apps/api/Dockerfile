@@ -27,8 +27,8 @@
 # in `node:24.22.1-slim` and 0 and 48 in `node:24.22.1-trixie-slim`, then this
 # line, on amd64 and arm64 alike,
 # and none of the 43 Debian ones left has a fix. Node is the same file in both,
-# byte for byte, and the managed tasks build on this image
-# (apps/worker/trigger.config.ts, 0146 T14). Dependabot keeps the suffix when it moves the
+# byte for byte, and the managed tasks' prebuilt base is built on this image
+# (apps/worker/task-image/Dockerfile, 0119 §3 item 13). Dependabot keeps the suffix when it moves the
 # tag. scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts holds
 # the three FROM lines to one string and the tag to a named Debian release.
 #
@@ -126,7 +126,8 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # 2026-10-28 21:35 UTC.
 #
 # THE SAME NODE VERSION AS THE FROM NODE LINE ABOVE, CHECKED, NOT ASSUMED. The
-# managed tasks build on that line (apps/worker/trigger.config.ts, 0146 T14), and
+# managed tasks run this distroless's Node, from the prebuilt base built at this
+# digest (apps/worker/task-image/Dockerfile, 0119 §3 item 13), and
 # the two pins move apart: Dependabot moves the node tag, and this digest when
 # the `nonroot` tag moves. Nothing reads the version off this image either (the
 # `nonroot` tag names none, and Trivy lists no Node runtime in it). So the

@@ -24,7 +24,6 @@ export declare const GOACCESS_DOCKERFILE: string;
 export declare const SOCKET_PROXY_DOCKERFILE: string;
 export declare const SOCKET_PROXY_UPSTREAM: string;
 export declare const LINES: Record<string, number>;
-export declare const TASK_ON_API_IMAGE: RegExp;
 export declare const COSIGN_FILES: string[];
 export declare const ATLAS_WORKFLOW: string;
 export declare const ATLAS_HOST: string;
@@ -107,8 +106,8 @@ export interface Net {
   text(url: string, headers?: Record<string, string>): Promise<string>;
   json(url: string, headers?: Record<string, string>): Promise<unknown>;
   bytes(url: string, headers?: Record<string, string>): Promise<Buffer>;
-  /** A HEAD of `url`: its `Docker-Content-Digest`, or '' when it names none. */
-  digest(url: string, headers?: Record<string, string>): Promise<string>;
+  /** A HEAD of `url`: its `Docker-Content-Digest`, '' when it names none, and null when the registry answers 404. */
+  digest(url: string, headers?: Record<string, string>): Promise<string | null>;
   lsRemote(url: string): Promise<string>;
   /** `git ls-remote <url> HEAD`: the repository's newest commit on its default branch. */
   head(url: string): Promise<string>;
@@ -178,6 +177,10 @@ export declare function zitadelRow(repo: Repo, net: Net): Promise<Row>;
 export declare function triggerRow(repo: Repo, net: Net): Promise<Row>;
 export declare function clickhouseRow(repo: Repo, net: Net, trigger: Row): Promise<Row>;
 export declare function taskNodeRow(repo: Repo, net: Net): Promise<Row>;
+/** The tasks' base against main's `edge`, by each platform's layers (0119 §3 item 13). */
+export declare function taskBaseRow(repo: Repo, net: Net): Promise<Row>;
+/** Each platform's layer digests in one index of the tasks' base. */
+export declare function taskBaseLayers(net: Net, repo: string, digest: string): Promise<Record<'amd64' | 'arm64', string[]>>;
 export declare function pnpmRow(repo: Repo, net: Net): Promise<Row>;
 export declare function typescriptRow(repo: Repo, net: Net): Promise<Row>;
 export declare function routineRows(repo: Repo, net: Net): Promise<{ rows: Row[]; status: string[] }>;
@@ -196,3 +199,14 @@ export declare const NODE_RELEASE_KEYS_FILE: string;
 export declare const NODE_RELEASE_KEYS_NOTE: string;
 export declare function releaseKeysPin(text: string | null): { repo: string; commit: string; path: string; blob: string };
 export declare function gitBlobId(bytes: Uint8Array): string;
+
+/** The tasks' prebuilt base, as `apps/worker/trigger.config.ts` pins it (workplan 0119 §3 item 13). */
+export declare const TASK_BASE_CONFIG: string;
+/** The config's line, `const TASK_BASE_IMAGE = '<ref>';`, capturing the ref. */
+export declare const TASK_BASE_LINE: RegExp;
+/** The ref's one shape: the GHCR repository, `sha-<7 hex>`, and the index digest. */
+export declare const TASK_BASE_REF: RegExp;
+export declare const TASK_BASE_ARCHES: Array<'amd64' | 'arm64'>;
+export declare const TASK_BASE_NOTE: string;
+/** The config's pin of the tasks' base, with the commit its tag names; throws for any other shape, or a line missing or there twice. */
+export declare function taskBasePin(config: string): Omit<Image, 'line'> & { commit: string };

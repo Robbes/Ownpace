@@ -6,7 +6,9 @@ name: Images
 # an image something actually produces, instead of a name that resolves to
 # nothing. And, from main only, the tasks' prebuilt base,
 # `ghcr.io/robbes/ownpace-task-base` (workplan 0119 §3 item 13): the build
-# job's `task-base` leg, below its matrix.
+# job's `task-base` leg, below its matrix; on a pull request, the pin of it
+# that apps/worker/trigger.config.ts names is pulled and verified
+# (`task-base-pin`).
 #
 #   - Pull requests touching the Dockerfiles, deploy/, or this workflow BUILD
 #     ONLY (no push, no registry login) on linux/amd64 — the rule-8 self-proof
@@ -40,6 +42,8 @@ on:
       - 'apps/web/Dockerfile'
       - 'apps/selfhost/Dockerfile'
       - 'apps/worker/task-image/**'
+      # The pin of that base the tasks run on (the `task-base-pin` job).
+      - 'apps/worker/trigger.config.ts'
       - 'deploy/**'
       - '.github/workflows/images.yml'
   workflow_dispatch:
@@ -78,7 +82,10 @@ jobs:
         # on main. Not in `image` above, which is the list Security Scan reads
         # as Ownpace's images at `:edge` and at the release, and release.yml's
         # verify checks at the tag: the scan reads the base the tasks run, under
-        # `trigger-task-base`, once they run it. Held by
+        # `trigger-task-base`, and release.yml's verify the digest the tag's
+        # apps/worker/trigger.config.ts pins (TASK_BASE_IMAGE, since
+        # 2026-11-06), which the `task-base-pin` job below pulls and verifies on
+        # a pull request. Held by
         # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts.
         include: ${{ fromJSON((github.event_name == 'pull_request' || github.ref == 'refs/heads/main') && '[{"image":"task-base"}]' || '[]') }}
     steps:
@@ -380,6 +387,93 @@ jobs:
             fi
           done
           echo "::error::cosign sign failed three times — ${ref} is PUBLISHED AND UNSIGNED. Re-run this job once Sigstore is healthy (https://status.sigstore.dev); the digest is stable, so a later run signs the same image."
+          exit 1
+
+  # THE PIN THE TASKS RUN ON, PULLED AND VERIFIED ON A PULL REQUEST (workplan
+  # 0119 §3 item 13, 2026-11-06). apps/worker/trigger.config.ts names the
+  # tasks' prebuilt base by its `sha-<commit>` tag and index digest
+  # (TASK_BASE_IMAGE), and a task deploy pulls it from GHCR with no login: the
+  # OTA stack from main, live from the release tag that carries the line. So a
+  # pull request that moves the line, or touches anything else this
+  # workflow's paths name, pulls the pin here as a deploy would, anonymously
+  # (nothing in this job logs in), for both platforms; checks the index has
+  # linux/amd64 and linux/arm64 and its revision label is the commit its tag
+  # names; starts it as the CLI's entrypoint starts it and reads its Node; and
+  # verifies its signature with cosign, by digest, with the identity of this
+  # workflow on refs/heads/main, the only ref that publishes it. A Node other
+  # than apps/api/Dockerfile's FROM node line is a warning here and not a
+  # failure: the pull request that moves the API's Node moves
+  # task-image/Dockerfile with it, and the base it builds is published only
+  # once it merges, so the pin follows in a pull request of its own (the pin
+  # watch lists it behind, and the managed smoke stops on the two Nodes until
+  # it does). Release's verify checks the same pin at the tag
+  # (scripts/release-verify.mjs). Held by
+  # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts.
+  task-base-pin:
+    name: task-base pin
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install cosign
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          # The build job's, which signs what this checks; the two move together.
+          cosign-release: 'v3.1.4'
+
+      - name: The tasks' base pin pulls anonymously on both platforms, and images.yml on main signed it
+        run: |
+          set -euo pipefail
+          config="$(<apps/worker/trigger.config.ts)"
+          re="const TASK_BASE_IMAGE =[[:space:]]+'(ghcr\.io/robbes/ownpace-task-base:sha-([0-9a-f]{7})@(sha256:[0-9a-f]{64}))';"
+          if [[ ! "$config" =~ $re ]]; then
+            echo "::error::apps/worker/trigger.config.ts names no TASK_BASE_IMAGE of the shape ghcr.io/robbes/ownpace-task-base:sha-<commit>@sha256:<index digest>"
+            exit 1
+          fi
+          pin="${BASH_REMATCH[1]}" commit="${BASH_REMATCH[2]}" digest="${BASH_REMATCH[3]}"
+          by_digest="ghcr.io/robbes/ownpace-task-base@${digest}"
+          echo "the pin: ${pin}"
+          platforms="$(docker buildx imagetools inspect --raw "$by_digest" | jq -r '[.manifests[]? | select(.platform.os == "linux") | .platform.architecture] | sort | unique | join(" ")')"
+          for arch in amd64 arm64; do
+            if [[ " ${platforms} " != *" ${arch} "* ]]; then
+              echo "::error::${by_digest} has no linux/${arch} image (it lists: ${platforms:-none})"
+              exit 1
+            fi
+          done
+          # Anonymously, as a deploy pulls it; amd64 last, since it is the one started below.
+          docker pull --quiet --platform linux/arm64 "$pin"
+          docker pull --quiet --platform linux/amd64 "$pin"
+          revision="$(docker image inspect --format '{{index .Config.Labels "org.opencontainers.image.revision"}}' "$by_digest")"
+          if [[ ! "$revision" =~ ^${commit}[0-9a-f]{33}$ ]]; then
+            echo "::error::${pin} was built from '${revision}', not the commit its tag sha-${commit} names"
+            exit 1
+          fi
+          node="$(docker run --rm --platform linux/amd64 --network none "$by_digest" -p process.version)"
+          want="v$(sed -n 's/^FROM node:\([0-9]*\.[0-9]*\.[0-9]*\)-.*/\1/p' apps/api/Dockerfile)"
+          if [ "$node" = "$want" ]; then
+            echo "built from ${revision}, Node ${node}: apps/api/Dockerfile's"
+          else
+            echo "::warning::the tasks' base runs Node ${node}, and apps/api/Dockerfile names ${want}. Once main has published the base this branch builds, move TASK_BASE_IMAGE to it in a pull request of its own: the managed smoke stops on the two Nodes until then."
+          fi
+          for attempt in 1 2 3; do
+            if cosign verify "$by_digest" \
+                --certificate-identity "https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/heads/main" \
+                --certificate-oidc-issuer https://token.actions.githubusercontent.com >/dev/null; then
+              echo "signed by images.yml on refs/heads/main (attempt ${attempt})"
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then
+              echo "::warning::cosign verify failed (attempt ${attempt}/3), retrying in $(( attempt * 30 ))s"
+              sleep $(( attempt * 30 ))
+            fi
+          done
+          echo "::error::cosign verify refused ${by_digest} three times: no signature of images.yml on refs/heads/main, or Sigstore is unwell (https://status.sigstore.dev)"
           exit 1
 
   # THE DATABASES' IMAGES, BUILT AND STARTED ON A PULL REQUEST (workplan 0146

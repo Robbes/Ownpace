@@ -14,7 +14,10 @@
 # binfmt and BuildKit images images.yml's build job names in its actions'
 # inputs, and the Node.js release keyring the Windows payload's node.exe check
 # reads (NODE_RELEASE_KEYS in scripts/package-appliance.mjs), against that file
-# at nodejs/release-keys' newest commit.
+# at nodejs/release-keys' newest commit. Since 2026-11-06 it also reads the
+# tasks' prebuilt base apps/worker/trigger.config.ts pins (TASK_BASE_IMAGE),
+# against main's `edge` by each platform's layers, since its digest moves on
+# every merge.
 #
 # Once a week, and on demand, scripts/idp-pin-watch.mjs reads each pin from the
 # checkout and compares it with its upstream, without a token: git ls-remote,

@@ -5,14 +5,16 @@
  * owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and
  * publishes it to GHCR like the other release images").
  *
- * The managed tasks run in the image `trigger.dev deploy` builds. Today it
- * builds them on apps/api/Dockerfile's FROM image, Debian with a layer of
- * apt, trust edits and purges (`apps/worker/trigger.config.ts`). A distroless
- * base would read 0 critical and 0 high and be about a third smaller, but it
- * has no shell, and a Containerfile that RUNs anything on it fails the deploy.
- * So the base is built here once, by CI (`apps/worker/task-image/Dockerfile`,
- * images.yml's `task-base` leg), with everything the CLI's runtime stage needs
- * already in it, and the CLI must write no RUN on it. Read at trigger.dev
+ * The managed tasks run in the image `trigger.dev deploy` builds. Until
+ * 2026-11-06 it built them on apps/api/Dockerfile's FROM image, Debian with a
+ * layer of apt, trust edits and purges. A distroless base reads 0 critical and
+ * 0 high and is about a third smaller, but it has no shell, and a
+ * Containerfile that RUNs anything on it fails the deploy. So the base is
+ * built once, by CI (`apps/worker/task-image/Dockerfile`, images.yml's
+ * `task-base` leg), with everything the CLI's runtime stage needs already in
+ * it; `apps/worker/trigger.config.ts` names it by its `sha-<commit>` tag and
+ * index digest (`TASK_BASE_IMAGE`) and adds no layer; and the CLI must write
+ * no RUN on it. Read at trigger.dev
  * 4.8.3 (`generateNodeContainerfile` and `parseGenerateOptions` in
  * `dist/esm/deploy/buildImage.js`):
  *
@@ -51,11 +53,33 @@
  *    probe that fails, and on a start refused for another reason; and signs it
  *    with the same steps as the other three. Dependabot moves its two FROM
  *    lines in the same group as apps/api/Dockerfile's.
- *
- * What is NOT held yet: that the tasks run it. trigger.config.ts still builds
- * them on the API image's base with its layer (an-essential-nothing-runs,
- * a-gate-on-a-version-nothing-ships); it names this image by digest once main
- * has published and signed one (workplan 0119, Status of 2026-11-06).
+ * 4. THE CONFIG: its extension, run as a deploy runs it, sets the manifest's
+ *    base to the pin (`taskBasePin`, the one reader the pin watch, the scan
+ *    and Release's verify share) and its build base to the CLI's own build
+ *    image for the runtime, and adds no layer; the installed CLI's generator,
+ *    on that manifest, writes a Containerfile with nothing on the base but its
+ *    one ENV line; and `trigger dev` gets nothing.
+ * 5. THE PIN, CHECKED ON A PULL REQUEST: images.yml's `task-base-pin` job,
+ *    with no login, run here against a stand-in docker, jq and cosign. It
+ *    passes the pin when the index lists both platforms and both pull, its
+ *    revision label is the commit its tag names and cosign verifies it with
+ *    images.yml's identity on refs/heads/main; it fails on a platform
+ *    missing, another revision, a signature refused three times and a config
+ *    without the pin; and a Node other than apps/api/Dockerfile's is a warning,
+ *    since the base built at a new Node is published only after the pull
+ *    request that moves it merges.
+ * 6. WHAT RAN, ASKED: the managed smoke asks the newest image its runners
+ *    started from (the last deploy's: Trigger.dev keeps a run on the version
+ *    it was triggered on, so an earlier deployment's runner can be on the
+ *    network too, and its image is named, not asked) for its Node, which must
+ *    be the one the preflights found the API running, and for each shell
+ *    name, none of which may start. Run here against a stand-in docker: the
+ *    API's Node and no shell pass; another Node, a Node that cannot be asked,
+ *    a shell that starts, one refused for another reason than its absence, no
+ *    image read and an image that cannot be dated fail. The watcher starts a
+ *    runner's log first and reads its image on every pass until a read
+ *    answers. Until 2026-11-06 the block asked dpkg about the Debian
+ *    Essentials the config's layer purged, held by an-essential-nothing-runs.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -65,6 +89,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import type { BuildContext, BuildExtension, BuildLayer } from '@trigger.dev/core/v3/build';
+import { taskBasePin } from './idp-pin-watch.mjs';
 import taskConfig from '../apps/worker/trigger.config.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -306,8 +332,9 @@ describe("the base: distroless at the API's digest, and what the runtime stage n
     }
     // The build counts them in the bundle: as many as the CLI rejects.
     expect(edit).toContain(`[ "$rejected" != ${cli.EMSIGN_COMPROMISE_REJECTED_INTERMEDIATES.length} ]`);
-    // And trigger.config.ts, which builds the tasks until the switch, names the same four.
-    expect(read('apps/worker/trigger.config.ts')).toContain(`const DISTRUSTED_ROOTS = [${roots!.map((r) => `'${r}'`).join(', ')}];`);
+    // trigger.config.ts made the same edits in a layer of its own until the
+    // tasks moved onto this base (2026-11-06); it keeps no copy of them now.
+    expect(read('apps/worker/trigger.config.ts')).not.toMatch(/DISTRUSTED_ROOTS|emsign-block|ca-certificates/);
   });
 });
 
@@ -323,6 +350,9 @@ interface Step {
   with?: Record<string, string | boolean>;
 }
 interface Job {
+  if?: string;
+  'runs-on'?: string;
+  permissions?: Record<string, string>;
   strategy?: { matrix?: { image?: string[]; include?: unknown } };
   steps: Step[];
 }
@@ -456,6 +486,359 @@ describe('Dependabot moves its FROM lines with the API image', () => {
     const updates = (parseYaml(read('.github/dependabot.yml')) as { updates: Array<{ 'package-ecosystem': string; directories?: string[] }> }).updates;
     const entry = updates.find((u) => u['package-ecosystem'] === 'docker' && u.directories?.includes('/apps/api'));
     expect(entry?.directories).toContain(`/${CONTEXT}`);
+  });
+});
+
+// --------------------------------------------------------- 4. the config ---
+
+const CONFIG = 'apps/worker/trigger.config.ts';
+type Manifest = Parameters<NonNullable<BuildExtension['onBuildComplete']>>[1];
+
+/** The config's extensions run as the CLI runs them for a target: start, then complete; the layers they add and the manifest they leave. */
+async function configBuild(target: BuildContext['target']): Promise<{ layers: BuildLayer[]; manifest: Manifest }> {
+  const layers: BuildLayer[] = [];
+  const context = { target, workingDir: WORKER_DIR, addLayer: (layer: BuildLayer) => layers.push(layer) } as unknown as BuildContext;
+  const manifest = { image: { pkgs: [], instructions: [] } } as unknown as Manifest;
+  const extensions = taskConfig.build?.extensions ?? [];
+  for (const extension of extensions) await extension.onBuildStart?.(context);
+  for (const extension of extensions) await extension.onBuildComplete?.(context, manifest);
+  return { layers, manifest };
+}
+
+describe('the config names the published base and adds no layer to it', () => {
+  it("sets the manifest's base to the pin, its build base to the CLI's build image for the runtime, and adds no layer", async () => {
+    const cli = await installedCli();
+    const pin = taskBasePin(read(CONFIG));
+    expect(pin.repo, 'the base images.yml publishes').toBe('ghcr.io/robbes/ownpace-task-base');
+    const { layers, manifest } = await configBuild('deploy');
+    expect(layers, 'a layer, even one ENV line, makes the CLI write its apt repair on a base with no shell').toEqual([]);
+    expect(manifest.image?.base).toBe(pin.ref);
+    expect(manifest.image?.buildBase, `trigger.dev ${cli.version}'s build image for ${String(taskConfig.runtime)}`).toBe(
+      cli.BUILD_IMAGE[String(taskConfig.runtime)],
+    );
+    expect(manifest.image?.pkgs).toEqual([]);
+    expect(manifest.image?.instructions).toEqual([]);
+  });
+
+  it('the Containerfile the installed CLI writes for it: the base stage FROM the pin with one ENV line, the build stage on the build image, and no RUN on the base or after it', async () => {
+    const { layers, manifest } = await configBuild('deploy');
+    const instructions = layers.flatMap((layer) => layer.image?.instructions ?? []);
+    const written = await containerfileFor(manifest.image!.base!, manifest.image?.buildBase, { instructions });
+    expect(shellOnTheBase(written)).toEqual([]);
+    const stages = stagesOf(written);
+    expect(stages.find((s) => s.name === 'base')).toEqual({ from: taskBasePin(read(CONFIG)).ref, name: 'base', body: ['ENV DEBIAN_FRONTEND=noninteractive'] });
+    expect(stages.find((s) => s.name === 'build')?.from).toBe(manifest.image?.buildBase);
+    expect(descendants(stages, 'base').map((s) => s.name)).toEqual(['final']);
+    expect(stages.find((s) => s.name === 'final')!.body.map(keyword)).not.toContain('RUN');
+  });
+
+  it('`trigger dev` builds no image, and gets nothing', async () => {
+    const { layers, manifest } = await configBuild('dev');
+    expect(layers).toEqual([]);
+    expect(manifest).toEqual({ image: { pkgs: [], instructions: [] } });
+  });
+});
+
+// ------------------------------------------------- 5. the pin, checked ---
+
+const PIN_STEP = "The tasks' base pin pulls anonymously on both platforms, and images.yml on main signed it";
+const MAIN_IDENTITY = 'https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/heads/main';
+const pinJob = workflow.jobs['task-base-pin']!;
+
+describe("images.yml's task-base-pin job pulls the pin as a deploy does and verifies its signature, on a pull request", () => {
+  it('runs on a pull request that touches the config, on a hosted runner, reading the repository only, and logs in nowhere', () => {
+    expect(pinJob.if).toBe("github.event_name == 'pull_request'");
+    expect(pinJob['runs-on']).toBe('ubuntu-24.04');
+    expect(pinJob.permissions).toEqual({ contents: 'read' });
+    expect(workflow.on.pull_request.paths).toContain(CONFIG);
+    expect(JSON.stringify(pinJob), 'a pull of the pin that needs a login is not the pull a deploy makes').not.toMatch(/login|GITHUB_TOKEN|secrets\./);
+  });
+
+  it('installs the cosign the build job signs with', () => {
+    const installs = (job: Job) => job.steps.filter((s) => s.uses?.startsWith('sigstore/cosign-installer@')).map((s) => ({ uses: s.uses, with: s.with }));
+    expect(installs(pinJob)).toHaveLength(1);
+    expect(installs(pinJob)).toEqual(installs(buildJob));
+  });
+});
+
+/**
+ * The pin step's `run:` as the runner runs it (bash -eo pipefail), in a
+ * directory holding `config` as trigger.config.ts and this checkout's
+ * apps/api/Dockerfile, with a stand-in docker, jq, cosign and sleep first on
+ * the PATH: the index lists `PLATFORMS`, the image's revision label is
+ * `REVISION`, it answers `NODE`, and cosign refuses the first `COSIGN_FAILS`.
+ */
+function runPin(env: Record<string, string>, config = read(CONFIG)): { status: number; out: string; docker: string[]; cosign: string[]; slept: string[] } {
+  const step = pinJob.steps.find((s) => s.name === PIN_STEP)!;
+  const dir = mkdtempSync(join(tmpdir(), 'task-base-pin-'));
+  try {
+    mkdirSync(join(dir, 'bin'));
+    mkdirSync(join(dir, 'apps/worker'), { recursive: true });
+    mkdirSync(join(dir, 'apps/api'), { recursive: true });
+    writeFileSync(join(dir, 'apps/worker/trigger.config.ts'), config);
+    writeFileSync(join(dir, 'apps/api/Dockerfile'), read(API_DOCKERFILE));
+    for (const log of ['docker.log', 'cosign.log', 'sleep.log']) writeFileSync(join(dir, log), '');
+    const tool = (name: string, body: string[]) => {
+      writeFileSync(join(dir, 'bin', name), ['#!/bin/bash', ...body, ''].join('\n'));
+      chmodSync(join(dir, 'bin', name), 0o755);
+    };
+    tool('docker', [
+      'printf "%s\\n" "$*" >> "$LOGS/docker.log"',
+      'case "$1 $2" in',
+      '  "buildx imagetools") echo "{}"; exit 0 ;;',
+      '  "image inspect") printf "%s\\n" "$REVISION"; exit 0 ;;',
+      'esac',
+      'case "$1" in',
+      '  pull) exit 0 ;;',
+      '  run) printf "%s\\n" "$NODE"; exit 0 ;;',
+      'esac',
+      'echo "unexpected docker call: $*" >&2; exit 99',
+    ]);
+    tool('jq', ['cat > /dev/null', 'printf "%s\\n" "$PLATFORMS"']);
+    tool('cosign', [
+      'printf "%s\\n" "$*" >> "$LOGS/cosign.log"',
+      'n="$(wc -l < "$LOGS/cosign.log")"',
+      '[ "$n" -gt "${COSIGN_FAILS:-0}" ] || { echo "Error: no matching signatures" >&2; exit 1; }',
+    ]);
+    tool('sleep', ['printf "%s\\n" "$1" >> "$LOGS/sleep.log"']);
+    const script = join(dir, 'step.sh');
+    writeFileSync(script, step.run!);
+    const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
+      cwd: dir,
+      encoding: 'utf8',
+      env: { PATH: `${join(dir, 'bin')}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir, LOGS: dir, ...env },
+    });
+    const lines = (file: string) => readFileSync(join(dir, file), 'utf8').split('\n').filter(Boolean);
+    return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, docker: lines('docker.log'), cosign: lines('cosign.log'), slept: lines('sleep.log') };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("the pin step's verdict, run against a stand-in docker, jq and cosign", () => {
+  const pin = taskBasePin(read(CONFIG));
+  const byDigest = `ghcr.io/robbes/ownpace-task-base@${pin.digest}`;
+  const want = `v${/^FROM node:(\d+\.\d+\.\d+)-/m.exec(read(API_DOCKERFILE))![1]}`;
+  const good = { PLATFORMS: 'amd64 arm64', REVISION: `${pin.commit}${'a'.repeat(33)}`, NODE: want, COSIGN_FAILS: '0' };
+
+  it('passes the pin: both platforms listed and pulled by the pin as a deploy pulls it, the revision its tag names, the API\'s Node, and the signature images.yml made on main', () => {
+    const r = runPin(good);
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).not.toMatch(/::(error|warning)::/);
+    expect(r.docker).toEqual([
+      `buildx imagetools inspect --raw ${byDigest}`,
+      `pull --quiet --platform linux/arm64 ${pin.ref}`,
+      `pull --quiet --platform linux/amd64 ${pin.ref}`,
+      `image inspect --format {{index .Config.Labels "org.opencontainers.image.revision"}} ${byDigest}`,
+      `run --rm --platform linux/amd64 --network none ${byDigest} -p process.version`,
+    ]);
+    expect(r.cosign).toEqual([`verify ${byDigest} --certificate-identity ${MAIN_IDENTITY} --certificate-oidc-issuer https://token.actions.githubusercontent.com`]);
+  });
+
+  it("only warns on a Node other than apps/api/Dockerfile's, since that base is published after the pull request that moves the Node merges", () => {
+    const r = runPin({ ...good, NODE: 'v1.2.3' });
+    expect(r.status, r.out).toBe(0);
+    expect(r.out).toContain(`::warning::the tasks' base runs Node v1.2.3, and apps/api/Dockerfile names ${want}`);
+  });
+
+  it('fails on a platform missing, another revision, a config with no pin of that shape, and a signature refused three times', () => {
+    const arm = runPin({ ...good, PLATFORMS: 'amd64' });
+    expect(arm.status).not.toBe(0);
+    expect(arm.out).toContain('has no linux/arm64 image');
+    const other = runPin({ ...good, REVISION: 'f'.repeat(40) });
+    expect(other.status).not.toBe(0);
+    expect(other.out).toContain(`not the commit its tag sha-${pin.commit} names`);
+    const config = read(CONFIG);
+    for (const bad of [config.replace(`:${pin.tag}@`, ':edge@'), config.replace(`@${pin.digest}`, ''), config.replace('const TASK_BASE_IMAGE =', 'const TASK_BASE =')]) {
+      expect(bad).not.toBe(config);
+      const r = runPin(good, bad);
+      expect(r.status).not.toBe(0);
+      expect(r.out).toContain('::error::apps/worker/trigger.config.ts names no TASK_BASE_IMAGE');
+      expect(r.docker, 'nothing is pulled for a line it cannot read').toEqual([]);
+    }
+    const blip = runPin({ ...good, COSIGN_FAILS: '2' });
+    expect(blip.status, blip.out).toBe(0);
+    expect(blip.out).toContain('(attempt 3)');
+    expect(blip.slept).toEqual(['30', '60']);
+    const refused = runPin({ ...good, COSIGN_FAILS: '3' });
+    expect(refused.status).not.toBe(0);
+    expect(refused.cosign).toHaveLength(3);
+    expect(refused.out).toContain('::error::cosign verify refused');
+  });
+});
+
+// ------------------------------------------------------ 6. what ran, asked ---
+
+const SMOKE = 'deploy/compose/smoke-managed.sh';
+
+/** Bash, with a stand-in `docker` defined before `script`; stdout, stderr and the exit code. */
+function bash(script: string, env: Record<string, string> = {}): { status: number | null; out: string } {
+  const run = spawnSync('bash', ['-c', script], { encoding: 'utf8', env: { PATH: process.env.PATH, ...env } });
+  return { status: run.status, out: `${run.stdout}${run.stderr}` };
+}
+
+/**
+ * A stand-in docker, recording its arguments: an image's build time from
+ * `$CREATED` (`<id> <time>` lines; an id missing there cannot be dated);
+ * `--entrypoint node` answered as `$NODE_SAYS` with `$NODE_RC`; a shell
+ * starting when it is in `$STARTS`, else refused as `$SHELL_SAYS` (its SHELL
+ * the shell's name) with `$SHELL_RC`; and the image `$OLD` a Debian one, with
+ * an older Node and every shell.
+ */
+const STUB = `docker() {
+  printf '%s\\n' "$*" >>"$CALLS"
+  if [ "$1 $2" = "image inspect" ]; then
+    awk -v id="$5" '$1 == id { print $2; found = 1 } END { exit !found }' <<<"$CREATED" || { echo "Error: No such image: $5" >&2; return 1; }
+    return 0
+  fi
+  case "$*" in
+    *" \${OLD:-no-image-is-old} "*" --version") echo v20.0.0; return 0 ;;
+    *" \${OLD:-no-image-is-old} "*) return 0 ;;
+    *" --entrypoint node "*) printf '%s\\n' "$NODE_SAYS"; return "$NODE_RC" ;;
+    *" --entrypoint "*)
+      shell="$(awk '{ for (i = 1; i < NF; i++) if ($i == "--entrypoint") print $(i + 1) }' <<<"$*")"
+      case " \${STARTS:-} " in *" $shell "*) return 0 ;; esac
+      printf '%s\\n' "\${SHELL_SAYS//SHELL/$shell}" >&2
+      return "$SHELL_RC" ;;
+  esac
+  echo "unexpected docker call: $*" >&2
+  return 99
+}`;
+
+const SHELLS = ['sh', '/bin/sh', 'bash', '/bin/bash', '/busybox/sh'];
+const ABSENT_SHELL = 'docker: Error response from daemon: failed to create task for container: exec: "SHELL": executable file not found in $PATH: unknown';
+
+describe('the managed smoke asks the image the last deploy built for its Node and its shells', () => {
+  const smoke = read(SMOKE);
+  const banner = "# ---------- the tasks' image is the prebuilt base's: the API's Node, and no shell ----------";
+  const start = smoke.indexOf(banner);
+  const block = smoke.slice(start, smoke.indexOf('\n# ---------- ', start + banner.length));
+  const failAt = (() => {
+    const s = smoke.indexOf('fail_at() {');
+    return smoke.slice(s, smoke.indexOf('\n}\n', s) + 3);
+  })();
+  // The watcher's pass over the runners it sees: its `for` loop, whole.
+  const watcherAt = smoke.indexOf('    for c in $(docker ps --filter');
+  const watcher = smoke.slice(watcherAt, smoke.indexOf('\n    done\n', watcherAt) + '\n    done\n'.length);
+  const want = `v${/^FROM node:(\d+\.\d+\.\d+)-/m.exec(read(API_DOCKERFILE))![1]}`;
+
+  const A = `sha256:${'a'.repeat(64)}`;
+  const B = `sha256:${'b'.repeat(64)}`;
+  const C = `sha256:${'c'.repeat(64)}`;
+  const BUILT = `${A} 2026-11-02T21:00:00.5Z\n${B} 2026-11-06T07:00:00.123456789Z\n${C} 2026-11-06T06:59:59Z`;
+  const BASE = { NODE_SAYS: want, NODE_RC: '0', SHELL_SAYS: ABSENT_SHELL, SHELL_RC: '127' };
+
+  /** The block run with runner records holding `images`; the verdict, docker's calls and what it said. */
+  function verdict(images: string[], extra: Record<string, string> = {}) {
+    const dir = mkdtempSync(join(tmpdir(), 'task-image-smoke-'));
+    try {
+      images.forEach((id, n) => writeFileSync(join(dir, `runner-${n}.image`), `${id}\n`));
+      writeFileSync(join(dir, 'calls'), '');
+      const run = bash(
+        ['set -uo pipefail', 'fail=0', 'SECTION=test', 'FAIL_REASONS=""', 'note() { SECTION="$*"; }', failAt, STUB, block, 'echo "FAIL=$fail"'].join('\n'),
+        { RUNNER_LOG_DIR: dir, CALLS: join(dir, 'calls'), CREATED: BUILT, WANT_NODE: want, API_NODE_VERSION: want, ...BASE, ...extra },
+      );
+      expect(run.status, run.out).toBe(0);
+      const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n').filter(Boolean);
+      return { fail: /FAIL=(\d)\s*$/.exec(run.out)?.[1] ?? '?', runs: calls.filter((c) => c.startsWith('run ')), calls, out: run.out };
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  }
+
+  it("is there, after the runner logs, and asks the image's node and the five shells", () => {
+    expect(start, `${SMOKE} has no section "${banner}"`).toBeGreaterThan(smoke.indexOf('# ---------- runner logs ----------'));
+    expect(block).toContain('--entrypoint node "$newest" --version');
+    expect(block).toContain(`for shell in ${SHELLS.join(' ')}; do`);
+    expect(block).toContain('fail_at');
+    expect(smoke, 'the purge it asked dpkg about until 2026-11-06 is gone').not.toContain('--entrypoint dpkg-query');
+  });
+
+  it("the watcher starts a runner's log first, and reads its image on every pass until a read answers", () => {
+    expect(watcherAt, 'no watcher loop over `docker ps`').toBeGreaterThan(0);
+    // Before the read: a read that waits on the daemon must not hold the log back.
+    expect(watcher.indexOf('docker logs -f')).toBeGreaterThan(0);
+    expect(watcher.indexOf('docker logs -f')).toBeLessThan(watcher.indexOf('docker container inspect'));
+    const dir = mkdtempSync(join(tmpdir(), 'task-image-watcher-'));
+    try {
+      const stub = `docker() {
+        printf '%s\\n' "$1 $2" >>"$CALLS"
+        case "$1 $2" in
+          "ps --filter") echo runner-a; echo trigger-api ;;
+          "logs -f") echo "a line" ;;
+          "container inspect")
+            n=$(($(cat "$TRIES" 2>/dev/null || echo 0) + 1)); echo "$n" >"$TRIES"
+            [ "$n" -ge 2 ] || { echo "Error response from daemon: a blip" >&2; return 1; }
+            echo "${A}" ;;
+        esac
+      }`;
+      const pass = (n: number) =>
+        bash(['set -uo pipefail', 'COMPOSE_PROJECT=ownpace', stub, ...Array.from({ length: n }, () => `${watcher}\nwait`), 'echo done'].join('\n'), {
+          RUNNER_LOG_DIR: dir,
+          CALLS: join(dir, 'calls'),
+          TRIES: join(dir, 'tries'),
+        });
+      // The first read fails: nothing is recorded, and nothing pretends it was.
+      expect(pass(1).out).toContain('done');
+      expect(existsSync(join(dir, 'runner-a.image'))).toBe(false);
+      // The next pass reads it; the one after asks no more.
+      expect(pass(2).out).toContain('done');
+      expect(readFileSync(join(dir, 'runner-a.image'), 'utf8').trim()).toBe(A);
+      const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n');
+      expect(calls.filter((c) => c === 'logs -f'), 'one log stream per runner').toHaveLength(1);
+      expect(calls.filter((c) => c === 'container inspect'), 'a read on the first pass and the second, none on the third').toHaveLength(2);
+      expect(existsSync(join(dir, 'trigger-api.log')), 'only runner-* containers').toBe(false);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('asks only the newest image, by ID, with no network and no pull, and names the older ones', () => {
+    // A runner of an earlier deployment (A, built the night before on the
+    // Debian base, with an older Node and a shell) beside the deploy's (B):
+    // A is named, not asked.
+    const run = verdict([A, B, A, C], { OLD: A });
+    expect(run.fail, run.out).toBe('0');
+    expect(run.runs).toEqual([
+      `run --rm --pull never --network none --entrypoint node ${B} --version`,
+      ...SHELLS.map((shell) => `run --rm --pull never --network none --entrypoint ${shell} ${B} -c true`),
+    ]);
+    expect(run.out).toContain(`image ${'a'.repeat(12)}: built before the newest`);
+    expect(run.out).toContain(`image ${'c'.repeat(12)}: built before the newest`);
+    expect(run.out).toContain(`image ${'b'.repeat(12)}: Node ${want}, the API's`);
+    // And the newest is the one that must be the base's.
+    expect(verdict([A, B], { OLD: B }).fail).toBe('1');
+  });
+
+  it("passes the API's Node and no shell, and fails another Node, a Node it cannot ask, a shell that starts, and one refused for another reason", () => {
+    expect(verdict([B]).fail).toBe('0');
+    const older = verdict([B], { NODE_SAYS: 'v26.0.0' });
+    expect(older.fail, older.out).toBe('1');
+    expect(older.out).toContain(`the tasks run Node v26.0.0, and the API runs ${want}`);
+    for (const node of [{ NODE_SAYS: 'docker: Error response from daemon: No such image', NODE_RC: '125' }, { NODE_SAYS: 'hello', NODE_RC: '0' }]) {
+      const r = verdict([B], node);
+      expect(r.fail, r.out).toBe('1');
+      expect(r.out).toContain('its node could not be asked');
+    }
+    for (const shell of SHELLS) {
+      const r = verdict([B], { STARTS: shell });
+      expect(r.fail, `${shell}\n${r.out}`).toBe('1');
+      expect(r.out).toContain(`${shell} started`);
+    }
+    const other = verdict([B], { SHELL_SAYS: 'docker: Error response from daemon: a blip', SHELL_RC: '125' });
+    expect(other.fail, other.out).toBe('1');
+    expect(other.out).toContain('did not start, for another reason than its absence');
+    // A shell refused as missing, either way docker says it, is no shell.
+    expect(verdict([B], { SHELL_SAYS: 'exec: "SHELL": stat SHELL: no such file or directory', SHELL_RC: '127' }).fail).toBe('0');
+  });
+
+  it('fails when an image cannot be dated, and when no image was read, asking nothing', () => {
+    const undated = verdict([B, `sha256:${'d'.repeat(64)}`]);
+    expect(undated.fail, undated.out).toBe('1');
+    expect(undated.runs).toEqual([]);
+    const none = verdict([]);
+    expect(none.fail, none.out).toBe('1');
+    expect(none.calls).toEqual([]);
   });
 });
 

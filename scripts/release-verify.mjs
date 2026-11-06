@@ -30,6 +30,14 @@
  *   identity of `images.yml` at the tag and GitHub's issuer, then with the
  *   regexp `docs/release.md` documents, so the command a reader copies is
  *   proven too.
+ * - **The tasks' base** the tagged commit's `apps/worker/trigger.config.ts`
+ *   pins (`TASK_BASE_IMAGE`, workplan 0119 §3 item 13, read through the API):
+ *   `ghcr.io/robbes/ownpace-task-base` at that index digest, with linux/amd64
+ *   and linux/arm64; its revision label the commit its `sha-` tag names, and
+ *   an ancestor of the tagged commit (the compare API), since main published
+ *   it; and `cosign verify` by digest with the exact identity of `images.yml`
+ *   on `refs/heads/main`, which is the only ref that publishes it. A tag
+ *   whose config pins none (before 2026-11-06) gets a note.
  * - **`GET /version`** on the selfhost image started on PGlite in a
  *   container this job removes: the version and the commit.
  *
@@ -48,6 +56,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
 import { github, pass, refuse, note, report, short } from './release-github.mjs';
 import { nodeRuntimeVersion } from './package-appliance.mjs';
+import { TASK_BASE_CONFIG, TASK_BASE_LINE, taskBasePin } from './idp-pin-watch.mjs';
 
 export const IMAGES = ['api', 'web', 'selfhost'];
 export const REGISTRY = 'ghcr.io/robbes';
@@ -193,6 +202,49 @@ export function latestWithheld({ image, version, versionDigest, latestDigest }) 
     : refuse(check, `ownpace-${image}:latest is not this release`);
 }
 
+/**
+ * THE TASKS' BASE (workplan 0119 §3 item 13). Published from main only, never
+ * from a tag, so its signature is images.yml's on `refs/heads/main`; the image
+ * name under REGISTRY.
+ */
+export const TASK_BASE_IMAGE = 'task-base';
+export const MAIN_IDENTITY = 'https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/heads/main';
+
+/** The tagged commit's pin of the tasks' base, or null when its config names none (a tag from before 2026-11-06). */
+export function taskBasePinIn(configText) {
+  if (configText === null || !TASK_BASE_LINE.test(configText)) return null;
+  return taskBasePin(configText);
+}
+
+/** The pinned index has both platforms. */
+export function checkTaskBaseIndex(index, pin) {
+  if (!Array.isArray(index?.manifests)) return refuse('task-base', `ownpace-task-base@${short(pin.digest)} is not a multi-arch index`);
+  const has = (arch) => index.manifests.some((m) => m.platform?.os === 'linux' && m.platform?.architecture === arch);
+  const missing = ['amd64', 'arm64'].filter((a) => !has(a)).map((a) => `linux/${a}`);
+  return missing.length === 0
+    ? pass('task-base', `ownpace-task-base:${pin.tag}@${short(pin.digest)}, which the tagged commit pins, has linux/amd64 and linux/arm64`)
+    : refuse('task-base', `ownpace-task-base@${short(pin.digest)} has no ${missing.join(' and no ')}`);
+}
+
+/** The pinned base's revision label: the full commit, starting with the seven its `sha-` tag names; null when it is not. */
+export function taskBaseRevision(config, pin) {
+  const label = config?.config?.Labels?.['org.opencontainers.image.revision'];
+  return typeof label === 'string' && /^[0-9a-f]{40}$/.test(label) && label.startsWith(pin.commit) ? label : null;
+}
+
+/** The compare API's answer for `<revision>...<tag's commit>`: the revision is the commit, or behind it. */
+export function checkTaskBaseAncestry(compare, { revision, commit }) {
+  const status = compare?.status;
+  return status === 'ahead' || status === 'identical'
+    ? pass('task-base-revision', `the tasks' base was built from ${short(revision)}, ${status === 'identical' ? 'the tagged commit itself' : 'an ancestor of the tagged commit'}`)
+    : refuse('task-base-revision', `the tasks' base was built from ${short(revision)}, which is not an ancestor of ${short(commit)} (the compare API says ${status ?? 'nothing'})`);
+}
+
+/** The one `cosign verify` of the tasks' base: by digest, with the identity of images.yml on main. */
+export function taskBaseCosignCall(digest) {
+  return ['verify', `${REGISTRY}/ownpace-${TASK_BASE_IMAGE}@${digest}`, '--certificate-identity', MAIN_IDENTITY, '--certificate-oidc-issuer', ISSUER];
+}
+
 /** The two `cosign verify` calls: the exact identity, then the documented regexp. */
 export function cosignCalls({ image, digest, version }) {
   const ref = `${REGISTRY}/ownpace-${image}@${digest}`;
@@ -315,6 +367,44 @@ async function checkAssets(release, version, readAt) {
   return lines;
 }
 
+/** The tasks' base the tagged commit pins: index, platforms, revision, ancestry and signature. */
+async function checkTaskBase({ commit, readAt, client }) {
+  let pin;
+  try {
+    pin = taskBasePinIn(await readAt(TASK_BASE_CONFIG));
+  } catch (err) {
+    return [refuse('task-base', `the tasks' base the tagged commit pins could not be read: ${String(err?.message ?? err).split('\n')[0]}`)];
+  }
+  if (pin === null) {
+    return [note('task-base', "the tagged commit's trigger.config.ts pins no task base (TASK_BASE_IMAGE came on 2026-11-06): its tasks build on apps/api/Dockerfile's FROM image")];
+  }
+  const lines = [];
+  try {
+    const reg = await registryOf(TASK_BASE_IMAGE);
+    const index = await reg.manifest(pin.digest);
+    if (!index) return [refuse('task-base', `ownpace-task-base@${short(pin.digest)}, which the tagged commit pins, is not on ghcr`)];
+    lines.push(checkTaskBaseIndex(index.json, pin));
+    const amd64 = (index.json.manifests ?? []).find((m) => m.platform?.os === 'linux' && m.platform?.architecture === 'amd64');
+    const manifest = amd64 ? await reg.manifest(amd64.digest) : null;
+    const revision = taskBaseRevision(manifest?.json?.config?.digest ? await reg.blob(manifest.json.config.digest) : null, pin);
+    if (revision === null) {
+      lines.push(refuse('task-base-revision', `the tasks' base carries no revision label that starts with ${pin.commit}, the commit its tag ${pin.tag} names`));
+    } else {
+      lines.push(checkTaskBaseAncestry(await client.get(`compare/${revision}...${commit}?per_page=1`), { revision, commit }));
+    }
+  } catch (err) {
+    lines.push(refuse('task-base', `ownpace-task-base@${short(pin.digest)} could not be read: ${String(err?.message ?? err).split('\n')[0]}`));
+  }
+  try {
+    run('cosign', taskBaseCosignCall(pin.digest));
+    lines.push(pass('signature-task-base', 'cosign verify passes with the exact identity of images.yml on refs/heads/main'));
+  } catch (err) {
+    const said = String(err?.stderr ?? err?.message ?? err).trim().split('\n').pop();
+    lines.push(refuse('signature-task-base', `cosign verify fails with the exact identity of images.yml on refs/heads/main: ${said}`));
+  }
+  return lines;
+}
+
 async function checkImages({ version, commit }) {
   const lines = [];
   const tag = bare(version);
@@ -405,6 +495,7 @@ async function main() {
   const lines = [...checkRelease(release, version), ...(await checkAssets(release, version, atCommit(client, commit)))];
   const images = await checkImages({ version, commit });
   lines.push(...images.lines);
+  lines.push(...(await checkTaskBase({ commit, readAt: atCommit(client, commit), client })));
   lines.push(await checkVersion({ version, commit }));
   lines.push(note('next', 'still the owner’s: prose in the release body if the pointers need it, the announcement, and docs/release.md §5'));
   report(lines);

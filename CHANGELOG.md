@@ -18,13 +18,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The Alpha's build is opened on a phone too** (workplan 0145 T8 (a)): the bundle live
   serves, with the Alpha note above Migrations and the line about connecting Google above the
   Google card of *Start a migration* and above a grant page's button, in Dutch at 390 pixels.
-- **A prebuilt base for the managed tasks, published from `main`** (workplan 0119 §3 item 13):
-  `ghcr.io/robbes/ownpace-task-base`, distroless at the API image's digest with dumb-init, the
-  CA bundle carrying Trigger.dev's trust edits and a `node` user, so the deploy CLI has nothing
-  to build into it. `images.yml` builds it and starts it on a pull request, and on `main`
-  publishes it for amd64 and arm64 as `edge` and `sha-<commit>`, signed by digest like the
-  other images; no release tag builds one. The tasks do not run on it yet: they move to it by
-  digest in a later change, after the first publish.
+- **The managed tasks run on a prebuilt base, published from `main`** (workplan 0119 §3 item
+  13): `ghcr.io/robbes/ownpace-task-base`, distroless at the API image's digest with dumb-init,
+  the CA bundle carrying Trigger.dev's trust edits and a `node` user, so the deploy CLI has
+  nothing to build into it. `images.yml` builds it and starts it on a pull request, and on
+  `main` publishes it for amd64 and arm64 as `edge` and `sha-<commit>`, signed by digest like
+  the other images; no release tag builds one. `apps/worker/trigger.config.ts` names it by tag
+  and index digest and adds no layer, so a task deploy runs no apt, needs no Debian archive and
+  purges nothing; it pulls the base from `ghcr.io` without a login instead. The weekly image
+  scan reads that base as `trigger-task-base`, a pull request that moves the pin pulls it and
+  verifies its signature, Release's verify checks the one the tag pins, and the pin watch lists
+  it behind once `main` publishes a base with other layers. **For the operator:** a Dependabot
+  move of the API's Node now reaches the tasks in a second pull request, the one that moves the
+  pin to the base `main` publishes; until it merges, the managed smoke stops on the two Nodes.
 
 ### Fixed
 

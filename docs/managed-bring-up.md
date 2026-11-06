@@ -5872,43 +5872,40 @@ Re-deploy the tasks when the pull touched `apps/worker` **or anything the
 worker bundles** — in practice `packages/connectors`, `packages/engines`,
 `packages/orchestration`, `packages/shared`, which is most changes that are not
 purely web. When in doubt, run it: it is idempotent and costs a minute.
-And when it moved `apps/api/Dockerfile`'s `FROM` line, which Dependabot does
-most weeks: the task image is built on that very image
-(`apps/worker/trigger.config.ts`, workplan 0146 T14), so a task deploy is what
-carries its new Node and Debian to the tasks. The managed gate and
-`deploy-live.sh` run the bring-up from `data`, whose `tasks` phase deploys
-them. That first deploy after the `FROM` line moves (or after
-`TASK_BUILD_IMAGE`, the build image the config names for the build stage, is
-moved by hand) is the slow one: it pulls the new image, and the config's one layer runs
-apt in both stages (an upgrade, `ca-certificates` and `dumb-init`), so it needs
-the Debian archive reachable from this machine (the build runs with
-`--network host`). The builder caches both, so the deploys after it, until the
-next move, take their usual minute; it is also when the image's packages are
-refreshed, not at every deploy. A deploy that slows down or stops on
-`apt-get` points here.
+And when it moved `TASK_BASE_IMAGE` in `apps/worker/trigger.config.ts`: the
+tasks run on a prebuilt base (workplan 0119 §3 item 13, since 2026-11-06),
+`ghcr.io/robbes/ownpace-task-base`, distroless with dumb-init, the edited CA
+bundle and the `node` user already in it, which `images.yml` builds from
+`apps/worker/task-image/Dockerfile` on `main` and signs, and which the config
+names by its `sha-<commit>` tag and index digest. A task deploy adds the task
+code to it and nothing else: it runs no apt, needs no Debian archive and purges
+nothing. The first deploy after the pin moves pulls the base from `ghcr.io`
+without a login (the package is public), so this machine has to reach it, and
+the CLI's builder keeps it after that; a deploy that stops while pulling the
+base points here. Moving `TASK_BUILD_IMAGE`, the build image the config names
+for the CLI's build stage, by hand makes the next deploy pull that one too. The
+managed gate and `deploy-live.sh` run the bring-up from `data`, whose `tasks`
+phase deploys them.
 
-The layer's last step, in the runtime stage only, purges ten Debian packages
-nothing in a task container runs: util-linux, the eight others built from its
-source, and libsqlite3-0 (workplan 0119, the owner's decision of 2026-11-03).
-They carried 37 of the base's 44 high findings. A deploy that stops there
-names the cause in dpkg's own words: `dpkg-query: no packages found matching
-…` means the new base no longer has one of the ten, and `… depends on …;
-dependency problems - not removing` that something in it now needs one. Either
-way the list in `apps/worker/trigger.config.ts` (`UNUSED_ESSENTIALS`) and in
-`apps/selfhost/Dockerfile` is read again against the new base, in a pull
-request: nothing about it is changed on this machine. The managed smoke asks
-the newest image its runners started from, the one the last deploy built,
-about all ten, and fails if dpkg still has any of them. An older image a runner
-of an earlier deployment ran (Trigger.dev keeps a run on the version it was
-triggered on) is named there and not asked.
+A Dependabot move of `apps/api/Dockerfile`'s `FROM` lines, which comes most
+weeks, no longer reaches the tasks on its own. It moves
+`apps/worker/task-image/Dockerfile` in the same group, `main` publishes a base
+with other layers once it merges, and the tasks follow when `TASK_BASE_IMAGE`
+moves to that base, in a pull request of its own with E2E (managed) on its
+branch. Until then the API runs the new Node and the tasks the old: the weekly
+pin watch lists the pin behind (its row *the tasks' base*), and the managed
+smoke stops on the two Nodes by name. The smoke asks the newest image its
+runners started from, the one the last deploy built, for its Node, which must
+be the API's, and starts each shell name in it, none of which may start: an
+image that has a shell was not built on the base. An older image a runner of an
+earlier deployment ran (Trigger.dev keeps a run on the version it was triggered
+on) is named there and not asked.
 
-All of this is today's path, and it is the one the owner decided to replace
-(workplan 0119 §3 item 13, for alpha.5): `images.yml` now publishes, from
-`main`, `ghcr.io/robbes/ownpace-task-base`, a distroless base with dumb-init,
-the edited CA bundle and the `node` user already in it, signed like the other
-images. The tasks do not run on it yet. Once they name it by digest, a task
-deploy pulls it from GHCR, runs no apt, needs no Debian archive and purges
-nothing, and this machine has to reach `ghcr.io` instead.
+Until 2026-11-06 the tasks built on `apps/api/Dockerfile`'s FROM image with a
+layer of the config's own (apt, the CLI's trust edits, the package managers
+removed and ten Debian Essentials purged, 0146 T14 and the owner's decision of
+2026-11-03), which needed the Debian archive at the first deploy after each
+move.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
 (`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
