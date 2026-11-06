@@ -6,6 +6,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Node and Redis base images move to Docker Hub's rebuilds of 2026-11-05** (workplan
+  0119): `node:26.13.0-trixie-slim` and `redis:7.4.12-bookworm`, the same versions, with apt's
+  fix for CVE-2026-109518 (apt 3.0.4 and 2.6.2), which the tasks' image build uses on the
+  deploying machine. Nothing else in either image changed but tzdata.
+
+- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.8** (workplan 0119), still built
+  here without curl: on Alpine 3.24.3, and a binary built with Go 1.27.3 and a newer x/net,
+  which clear five of its seven high findings. It fronts the dashboard only, on loopback or the
+  mesh.
+
 - **The appliance's image has no shell: its runtime is distroless, and `compose.yml`'s
   healthcheck for `app` changes with it** (workplan 0119 §3 item 12; the owner's decision of
   2026-11-03, for alpha.5). `ghcr.io/robbes/ownpace-selfhost` now runs on the API's base,
