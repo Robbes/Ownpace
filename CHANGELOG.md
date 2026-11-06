@@ -13,7 +13,7 @@ image has no shell: its runtime is distroless, so a self-hoster updates
 managed tasks run on a prebuilt distroless base, published and signed from
 `main` and pinned by digest, so a task deploy runs no apt, needs no Debian
 archive and pulls the base from `ghcr.io` without a login. The Node and Redis
-bases take Debian's apt fix, the dashboard's Caddy moves to 2.11.8, MinIO to
+bases take Debian's apt fix, the dashboard's Caddy moves to 2.11.9, MinIO to
 Chainguard's build of 2026-11-05, and a Dependabot round moves jose, the test
 and lint tools and the web's libraries within their majors. The live steps for
 moving ClickHouse start the plane container by container.
@@ -26,10 +26,11 @@ moving ClickHouse start the plane container by container.
   that apt, in CI (below); a task deploy no longer runs apt on the deploying machine. Nothing
   else in either image changed but tzdata.
 
-- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.8** (workplan 0119), still built
-  here without curl: on Alpine 3.24.3, and a binary built with Go 1.27.3 and a newer x/net,
-  which clear five of its seven high findings. It fronts the dashboard only, on loopback or the
-  mesh.
+- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.9** (workplan 0119), still built
+  here without curl: on Alpine 3.24.4, and a binary built with Go 1.27.3, a newer x/net and
+  go-jose v4.1.6, which clear six of its seven high findings; the seventh, in go-jose v3, has no
+  fix. Caddy 2.11.9's other security fixes are in FastCGI, `client_auth` and Windows paths,
+  which this front does not use. It fronts the dashboard only, on loopback or the mesh.
 
 - **The appliance's image has no shell: its runtime is distroless, and `compose.yml`'s
   healthcheck for `app` changes with it** (workplan 0119 §3 item 12; the owner's decision of

@@ -5,7 +5,7 @@
 ## Status — 2026-11-06 (update this block at the end of every session)
 
 **2026-11-06, last: alpha.5 is folded (T2, T4).** On the branch
-`claude/ownpace-public-readiness-y7orc6-alpha5-fold`, on `main` at `21e9796e` (#1826). The fold
+`claude/ownpace-public-readiness-y7orc6-alpha5-fold`, on `main` at `d468d9f2` (#1828). The fold
 moves `package.json` and the API contract to `0.2.0-alpha.5`, and everything under
 `[Unreleased]` to `## [0.2.0-alpha.5] - 2026-11-06`, with a summary paragraph above it;
 `[Unreleased]` stays, empty. It adds `v0.2.0-alpha.5` as the last of `releases` in

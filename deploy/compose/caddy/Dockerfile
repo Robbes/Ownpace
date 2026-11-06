@@ -14,13 +14,13 @@
 # high, three of them in with curl:
 #   - CVE-2026-111497, critical, in brotli-libs 1.2.0-r0 (fixed in 1.2.1-r0);
 #   - CVE-2026-92392, high, in curl and libcurl 8.22.0-r0 (fixed in 8.23.0-r0).
-# The FROM below is v2.11.8, Caddy's newest tag, on Alpine 3.24.3, whose curl
+# The FROM below is v2.11.9, Caddy's newest tag, on Alpine 3.24.4, whose curl
 # and libcurl 8.23.0-r0 and brotli-libs 1.2.1-r0 carry those fixes. curl goes
 # all the same: nothing here runs it, and what is not installed brings no
-# next finding. Docker Hub re-pushed the tag's index (the digest below) on
-# 2026-11-05 at 08:52 UTC with other platforms' images only: its linux/amd64
-# (84202bd3…) and linux/arm64 (d4848662…) images are the builds of 2026-11-04
-# 20:52 UTC, the same packages on both, read from the registry on 2026-11-06.
+# next finding. Docker Hub pushed the tag's linux/amd64 image (fc9cbc10…) on
+# 2026-11-05 at 20:52 UTC, its linux/arm64 image (9ee99810…) at 23:52, and the
+# index (the digest below) on 2026-11-06 at 08:52; both images hold the same
+# packages, read from the registry on 2026-11-06.
 #
 # WHY NOTHING HERE NEEDS CURL. Caddy is one statically linked Go binary, and
 # nothing in Caddy runs curl. Nothing else does in this container either: the
@@ -45,13 +45,14 @@
 # build at 0 critical and 7 high, 6 of them fixable (Security Scan run
 # 41161126144, linux/arm64, 2026-10-31), all seven in the Caddy binary: Go's
 # standard library v1.26.8 (four), golang.org/x/net v0.59.0 (one) and go-jose
-# v4 v4.1.5 and v3 v3.0.5 (CVE-2026-116587 in each). v2.11.8's binary, read
-# with `go version -m` on both platforms, is built with Go 1.27.3 and on
-# golang.org/x/net v0.60.0, which carry the first five's fixes; go-jose stays
-# at v4.1.5 (fixed in 4.1.6) and v3.0.5 (no fix). The image scan reads this
-# build at 0 critical and 2 high, 1 of them fixable, both go-jose (Security
-# Scan run 42143936608, linux/arm64, 2026-11-06), until a Caddy release moves
-# go-jose.
+# v4 v4.1.5 and v3 v3.0.5 (CVE-2026-116587 in each). v2.11.8, built with Go
+# 1.27.3 and on golang.org/x/net v0.60.0, which carry the first five's fixes,
+# read 0 critical and 2 high, 1 of them fixable, both go-jose (Security Scan
+# run 42143936608, linux/arm64, 2026-11-06). v2.11.9's binary, read with `go
+# version -m` on both platforms, has v2.11.8's modules but for go-jose v4, at
+# v4.1.6, the fix; go-jose v3 stays at v3.0.5, which has none. So this build
+# should read 0 critical and 1 high, with no fix, until go-jose v3 has one or
+# Caddy drops it.
 #
 # THE NAME. managed.yml builds this as `localhost/caddy:<base tag>-<12 hex>`,
 # a name no registry serves, with `pull_policy: never`, as
@@ -78,7 +79,7 @@
 #     with trigger-tls.Caddyfile and asks it for TLS on 3443; then dispatch E2E
 #     (managed) on the branch, whose smoke asks the same front.
 #   - Another major: the owner's call, and Dependabot is told to leave it.
-FROM caddy:2.11.8-alpine@sha256:f6228111e5fafa1a5238258d0858e103f10599b8d1659a146e7726681a002bb9
+FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
 
 # Not upstream's: curl out, and what only curl needed (the header).
 RUN set -eu; \
@@ -95,4 +96,4 @@ RUN set -eu; \
     done; \
     if command -v curl; then echo "a curl is still on the PATH: re-read the header" >&2; exit 1; fi; \
     version="$(caddy version)"; \
-    case "$version" in v2.11.8|"v2.11.8 "*) ;; *) echo "caddy version printed '$version', not v2.11.8: re-read the header" >&2; exit 1 ;; esac
+    case "$version" in v2.11.9|"v2.11.9 "*) ;; *) echo "caddy version printed '$version', not v2.11.9: re-read the header" >&2; exit 1 ;; esac
