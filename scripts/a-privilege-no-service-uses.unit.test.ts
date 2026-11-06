@@ -559,12 +559,13 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
   },
   'trigger-supervisor': { node: NONE('the image\'s node, as node') },
   web: { wget: NONE("asks its own nginx over 127.0.0.1, as root, and writes nothing") },
+  // Distroless since 2026-11-06 (workplan 0119 §3 item 12): Node by its path is
+  // all there is to run, as uid 10001. Until then the drill ran `sh -c ls`,
+  // E2E asked `dpkg-query`, and the README offered `exec app sh`.
   app: {
-    ls: NONE("the upgrade drill lists the appliance's own state directory, as appuser"),
-    sh: NONE("an interactive shell as appuser, which the appliance's README says the purge leaves"),
-    'dpkg-query': NONE(
-      "E2E (self-hosted) asks which of the purged Essentials are installed: it reads /var/lib/dpkg, world-readable, as appuser",
-    ),
+    '/nodejs/bin/node': NONE("E2E (self-hosted) asks the image's node which programs it has and its version, as uid 10001; reads only"),
+    $p: NONE("the upgrade drill asks each candidate path of the released image's node for --version"),
+    $released_node: NONE("the upgrade drill reads the released appliance's own state directory with its node, as uid 10001"),
   },
 };
 

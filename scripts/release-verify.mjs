@@ -39,7 +39,8 @@
  *   on `refs/heads/main`, which is the only ref that publishes it. A tag
  *   whose config pins none (before 2026-11-06) gets a note.
  * - **`GET /version`** on the selfhost image started on PGlite in a
- *   container this job removes: the version and the commit.
+ *   container this job removes, asked from inside it with the image's own
+ *   Node by its path (`APPLIANCE_NODES`): the version and the commit.
  *
  * It writes nothing anywhere: no release, no tag, no package.
  *
@@ -454,6 +455,21 @@ async function checkImage({ image, tag, version, commit, digests }) {
   return lines;
 }
 
+/**
+ * The appliance image's Node, by its path, newest first. The image is
+ * distroless from 0.2.0-alpha.5 on, with Node at `/nodejs/bin/node`, off the
+ * PATH, and no shell (workplan 0119 §3 item 12), so a bare `node` finds
+ * nothing there; the Node image before it has `/usr/local/bin/node`. Each is
+ * tried, so a release before alpha.5 is still asked.
+ */
+export const APPLIANCE_NODES = ['/nodejs/bin/node', '/usr/local/bin/node'];
+
+/** The `docker exec` that asks the appliance's own `GET /version` from inside it, with the Node at `node`. */
+export function versionExec(name, node) {
+  const ask = "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/version').then(r=>r.text()).then(t=>console.log(t)).catch(()=>process.exit(1))";
+  return ['exec', name, node, '-e', ask];
+}
+
 async function checkVersion({ version, commit }) {
   const name = `release-version-${process.env.GITHUB_RUN_ID ?? process.pid}`;
   const image = `${REGISTRY}/ownpace-selfhost:${bare(version)}`;
@@ -461,15 +477,16 @@ async function checkVersion({ version, commit }) {
     run('docker', ['run', '-d', '--rm', '--name', name, '-e', 'SELFHOST_PERSISTENCE=pglite', '-e', 'SELFHOST_PGLITE_DIR=/data/state/pglite', image], {
       timeout: 600_000,
     });
-    const ask = "fetch('http://127.0.0.1:'+(process.env.PORT||8080)+'/version').then(r=>r.text()).then(t=>console.log(t)).catch(()=>process.exit(1))";
     let last = null;
-    for (let i = 0; i < 24; i += 1) {
+    for (let i = 0; i < 24 && last === null; i += 1) {
       await delay(5_000);
-      try {
-        last = JSON.parse(run('docker', ['exec', name, 'node', '-e', ask]).trim());
-        break;
-      } catch {
-        last = null;
+      for (const node of APPLIANCE_NODES) {
+        try {
+          last = JSON.parse(run('docker', versionExec(name, node)).trim());
+          break;
+        } catch {
+          last = null;
+        }
       }
     }
     return versionAnswer(last, { version, commit });
