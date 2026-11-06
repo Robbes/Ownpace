@@ -6,6 +6,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.8** (workplan 0119), still built
+  here without curl: on Alpine 3.24.3, and a binary built with Go 1.27.3 and a newer x/net,
+  which clear five of its seven high findings. It fronts the dashboard only, on loopback or the
+  mesh.
+
 - **The appliance's image has no shell: its runtime is distroless, and `compose.yml`'s
   healthcheck for `app` changes with it** (workplan 0119 §3 item 12; the owner's decision of
   2026-11-03, for alpha.5). `ghcr.io/robbes/ownpace-selfhost` now runs on the API's base,
