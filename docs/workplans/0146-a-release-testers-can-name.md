@@ -2,7 +2,42 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-05 (update this block at the end of every session)
+## Status — 2026-11-06 (update this block at the end of every session)
+
+**2026-11-06, last: alpha.5 is folded (T2, T4).** On the branch
+`claude/ownpace-public-readiness-y7orc6-alpha5-fold`, on `main` at `d468d9f2` (#1828). The fold
+moves `package.json` and the API contract to `0.2.0-alpha.5`, and everything under
+`[Unreleased]` to `## [0.2.0-alpha.5] - 2026-11-06`, with a summary paragraph above it;
+`[Unreleased]` stays, empty. It adds `v0.2.0-alpha.5` as the last of `releases` in
+`scripts/release-line.json`, the release being prepared until Release tags it (T4,
+`docs/release.md` §1), and gives Dependabot's npm group of 2026-11-06 (#1821), which merged
+without one, its line under *Changed*. What alpha.5 carries is in 0119's entry of the same day.
+Its squash is C, and the freeze (0141 T14) starts with it: nothing merges to `main` until the
+tag, and no E2E (managed) is dispatched on any branch, nor E2E (self-hosted) on `main`. Held for
+after alpha.5: pnpm 11.28.10 (#1792), while npm's `latest-11` names 11.28.9 (read 2026-11-06
+15:46 UTC); and #1823 and #1825, the Trigger.dev webapp's purge and its effect swap, which wait
+for the owner's yes (0119). **Owed before the tag:**
+- C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
+  `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;
+- `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green
+  (`windows-smoke-green`);
+- the counted nights (0141 T14): the scheduled E2E (managed) runs of 2026-11-07 and 2026-11-08
+  (03:30 UTC) both on C and green on every attempt, and the four scheduled E2E (self-hosted) runs
+  from the fold's merge to the second of them (23:30 and 01:30 UTC each night) on C and green;
+  or the owner's waiver: `v0.2.0-alpha.5` added to `WAIVER_VERSIONS` with their words, in the
+  fold if they give them before it merges, else in a pull request of its own, merged before the
+  dispatch, which then becomes C;
+- `scripts/upgrade-drill.sh` on the Docker host, from alpha.4's published image to C's. Both
+  chains carry what alpha.4 shipped (65 and 59 files, the same at `v0.2.0-alpha.4` and at C), so
+  it reports the mechanics only. What only the drill shows is alpha.4's appliance image, which
+  has a shell, swapped in place for C's distroless one (#1819) on a volume alpha.4's wrote, and
+  healthy after a further restart. Whether that pass counts is the owner's to say, as for
+  alpha.4;
+- Release, mode `preflight`, for `v0.2.0-alpha.5`, then mode `release`, and the owner's approval
+  in the `release` environment; then Release tags C and publishes.
+
+Live's deploy of the tag waits until 2026-11-09 10:15 UTC at the earliest, when the last of the
+images that merged before their three-day floor (MinIO's, #1826) is past it (0119).
 
 **2026-11-05: `v0.2.0-alpha.4` is released, its nights waived, and live runs it (T2, T5, T13,
 T16).** Read from GitHub on 2026-11-05, and from the owner's record of live's deploy (0132
