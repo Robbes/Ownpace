@@ -4,6 +4,88 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06: the Debian packages nothing runs, purged from the Trigger.dev webapp's image
+too, for alpha.5 (§3 item 11, extended: a proposal pending the owner's confirmation in
+review); built on a branch, not merged, and not yet run by CI.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-webapp-purge`, on `main` at `691b2352`
+(#1822). Built under the owner's alpha.5 instruction of 2026-11-06, *"put in most of what you
+can, like for hardening"*. Times are UTC.
+- **The change.** `deploy/compose/trigger.dev/Dockerfile` gets a last RUN as root, after
+  goose's and before upstream's `USER node`. It runs `dpkg-query -W` of exactly ten packages,
+  then `dpkg --audit` (its output must be empty), then `dpkg-query -L` to check that the ten
+  ship the six libraries. Then `dpkg --purge --force-remove-essential --force-remove-protected`
+  of the ten and no other force. After the purge: `dpkg --audit` empty again, each of the ten
+  read gone, no ELF file under `/` naming libuuid.so.1, libblkid.so.1, libmount.so.1,
+  libsmartcols.so.1, libapt-pkg.so.6.0 or libapt-private.so.0.0, and grep, cp, tar, gzip,
+  dumb-init, goose and node started. The ten are util-linux, util-linux-extra, mount,
+  bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, apt and libapt-pkg6.0. The header
+  says why each goes (*THE DEBIAN PACKAGES NOTHING RUNS*, *HOW THEY ARE PURGED, AND PROVED*).
+  `managed.yml`'s image is `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-1b32bc000644`
+  (was `-e13a605a9db5`). The CHANGELOG, §3 item 11 and `managed-bring-up.md` say so.
+- **Why.** Security Scan run 42143936608 (linux/arm64) read the image at 1 critical, 49 high,
+  16 fixable: apt and libapt-pkg6.0 2.6.1's CVE-2026-109518 (fixed in 2.6.2), and three highs
+  with no Debian fix in each of the eight util-linux packages (24). Expected after the purge,
+  by arithmetic: about 1, 23 and 14. Left from Debian: zlib1g's critical and its high, and one
+  high each in gzip, libacl1, libsystemd0, libtinfo6, libudev1, ncurses-base, ncurses-bin and
+  perl-base. They were not read for this purge.
+- **Read this session.**
+  - Upstream at v4.8.3, shallow-cloned (`645cc47d`). `docker/scripts/entrypoint.sh` hashes to
+    `2c6a4986…`, the pinned `entrypoint_sha256`, and runs dash, pnpm, node, grep, goose, cp
+    and dumb-init. `wait-for-it.sh` runs only with `DATABASE_HOST`, which `managed.yml` does
+    not set. The webapp and the internal packages it loads spawn only the dashboard agent's tar
+    and rg (`repo-tools.ts`). The SDK's bash skill and core's `v3/apps` exec are never called
+    by the webapp.
+  - The published binaries, each checked against its publisher's hash, then `readelf -d`:
+    - node 24.22.1 from nodejs.org (arm64 `dbabf7a1…`, x64 `6c172a9a…`) needs libdl,
+      libstdc++, libm, libgcc_s, libpthread and libc;
+    - goose v3.29.0's two assets are static;
+    - prisma 6.14.0's query and schema engines for the three `binaryTargets` (commit
+      `717184b7`) need OpenSSL and glibc;
+    - sentry-cli 2.50.2 is static, and bufferutil 4.0.9's linux-x64 prebuild and rollup
+      4.60.1's linux-x64-gnu addon need glibc alone.
+
+    Those last three are the native code in the production closure of every importer in
+    upstream's `pnpm-lock.yaml` (1883 packages). None of these files names a purged library.
+  - Debian 12's dependencies, from the Debian changelogs this machine carries:
+    - util-linux 2.38-1 made util-linux-extra "pseudo-Essential", a hard dependency, until
+      2.39.1-2, so util-linux-extra goes with util-linux;
+    - sysvinit 2.96-4 (2020) dropped sysvinit-utils' versioned dependency on util-linux, so
+      Debian 12's 3.06-4 does not stop the purge.
+
+    The full package list of Debian 12's base was not read: no Debian mirror answered.
+  - `dpkg --audit` (dpkg 1.22.6, on databases made under the session's scratch directory)
+    exits 0 when it lists a half-installed package. So the RUN reads its output, and
+    `apt-get check`, which needs apt, cannot follow the purge.
+- **Guards.** `an-essential-nothing-runs` holds the ten (WEBAPP_PURGE, each with why), the
+  six libraries, the shape (one RUN, root's last, before `USER node`; `dpkg-query -W $purge`
+  first; exactly the two flags; the audits, the shipped check, the gone check, the ELF scan
+  and the starts; no apt; nothing installed after) and the header's reasons word for word.
+  `a-binary-the-stack-never-runs` now always puts a stand-in dpkg, dpkg-query, apt, apt-get
+  and dumb-init first on every stand-in RUN's PATH, so no RUN reaches this machine's dpkg. Its
+  stand-in Debian 12 follows the RUN's own lists, and the RUN is run over it on both
+  platforms. A missing package stops it before the purge; e2fsprogs depending on libuuid1
+  stops it at dpkg's refusal; audit output before or after stops it; and so do a library no
+  package ships, a `config-files` record, an ELF addon naming each library (by path), and a
+  dumb-init that does not start. The five guards that read the Dockerfile pass (278 tests),
+  and so do all 130 that read it, `managed.yml`, the CHANGELOG, `managed-bring-up.md`,
+  LESSONS or this plan (4352 tests); lint and typecheck are clean. Seven mutations of the Dockerfile
+  each turned the two guards red, and each was restored to its SHA-256:
+  - `--force-depends` added;
+  - libuuid1 dropped;
+  - `dpkg-query -W` after the purge;
+  - the ELF scan dropped;
+  - a reason reworded;
+  - `apt-get check` in the audit's place;
+  - the purge before goose's RUN.
+- **Not verified here.** The image itself: ghcr's blob host is refused to this session, so
+  neither upstream's layers nor this build were read or run. The PR's `build (trigger,
+  amd64)` and `build (trigger, arm64)` run the RUN on the real image, where a wrong reading
+  stops the build (dpkg's refusal, `dpkg-query -W`, the shipped check or the ELF scan). Not
+  verified either: the branch's image scan, for the expected 1/23/14, and E2E (managed),
+  which runs the image (entrypoint, migrations, goose, the server).
+- **Risks.** Debian does not test a system without its Essential packages; this one runs
+  node. And `trigger-api` has no apt: nothing installs in it, and a change is a rebuild.
+
 **2026-11-06: the tasks' prebuilt base, which CI builds and starts on a pull request and
 publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch, not
 merged, and not yet run by CI.** On the branch
@@ -4534,6 +4616,24 @@ is beside each; none is urgent tonight.
     alpha.4's fold, it moves to alpha.5. **Revisit** when either image moves to distroless,
     which drops the Debian base and this purge with it; and on every Debian release the bases
     move to, when `dpkg-query -W` stops the build on a renamed package.
+
+    **2026-11-06: extended to the Trigger.dev webapp's image, for alpha.5: a proposal,
+    pending the owner's confirmation in review.** Built under the owner's alpha.5 instruction of
+    2026-11-06, *"put in most of what you can, like for hardening"*; the decision above named
+    the appliance and the tasks' base only, so this extension is the owner's to confirm or
+    take back. `deploy/compose/trigger.dev/Dockerfile` builds on upstream's image, whose runner
+    stage is Debian 12.15 (`node:24.22.1-bookworm-slim`). Security Scan run 42143936608 read it
+    at 1 critical, 49 high, 16 with a fix. Its last RUN as root purges the ten of those
+    packages that nothing in `trigger-api` runs or loads: apt and libapt-pkg6.0
+    (CVE-2026-109518, high, fixed in 2.6.2) and the eight that util-linux builds there
+    (util-linux, util-linux-extra, mount, bsdutils, libblkid1, libmount1, libsmartcols1,
+    libuuid1: three highs each, none with a fix). It uses the same shape and the same two
+    flags, no other force, with one change: apt is on the list, so `dpkg --audit` (its output
+    read, since dpkg exits 0 when it lists problems) stands where `apt-get check` does. Not
+    `login` (in Debian 12 it is shadow's, with no finding) and not `libsqlite3-0` (not read
+    in this image). Expected about 1/23/14. The same risk is accepted, and `trigger-api`
+    keeps no apt. **Revisit** with the triggers above, and when upstream's runner stage
+    leaves Debian 12.
 
 12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
     digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the

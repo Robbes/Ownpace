@@ -6213,7 +6213,15 @@ and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
 systeminformation 5.33.19 in place of the releases of the same major they fix,
 by the sha512 npm published; the supervisor's build does the same for its
 systeminformation. So the webapp's build reaches github.com as well as the npm
-registry. **When a host does not answer** (or answers with an error) while an
+registry. Since 2026-11-06 (for alpha.5, workplan 0119 §3 item 11) the
+webapp's build ends, as root, by purging ten Debian packages nothing in
+`trigger-api` runs or loads, as the appliance and the tasks' base purge theirs:
+apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2) and the eight packages
+util-linux builds in Debian 12 (24 highs with no fix). So `trigger-api` has no
+apt: nothing installs in it, and a change is a rebuild. A base where something
+still depends on one of the ten stops the build, since dpkg refuses without
+`--force-depends`, and so does one that renamed or dropped one of them.
+**When a host does not answer** (or answers with an error) while an
 image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
 hold the image's name yet, the build stops with nothing changed and says that
 the host did not answer and upstream did not move: run the same command with

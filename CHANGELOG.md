@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Trigger.dev webapp built here no longer carries apt or util-linux** (workplan 0119
+  §3 item 11, extended to it for alpha.5; pending the owner's confirmation in review). Its
+  build now ends, as root, by purging ten Debian 12 packages that nothing in `trigger-api`
+  runs or loads: apt and libapt-pkg6.0 (CVE-2026-109518, high, fixed in 2.6.2) and the eight
+  packages util-linux builds there (24 highs with no fix in Debian), as the appliance and the
+  tasks' base purge theirs since alpha.4. It asks `dpkg-query` for exactly those ten first,
+  purges with the same two flags and no other force (so dpkg refuses a package something
+  still depends on, and the build stops), and since apt is on the list checks `dpkg --audit`'s
+  output in `apt-get check`'s place. After the purge it proves that no ELF file in the image
+  names one of the six libraries it removed, and that grep, cp, tar, gzip, dumb-init, goose
+  and node start. Expected from the scan of 2026-11-06 (1 critical, 49 high, 16 with a fix):
+  about 1, 23 and 14. `trigger-api` has no apt from then on; nothing installs in it, and a
+  change is a rebuild.
+
 ### Added
 
 - **The weekly pin watch reports a newer patch of the second Nextcloud major** (workplan 0119
