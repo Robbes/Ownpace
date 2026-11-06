@@ -4,6 +4,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Node and Redis base images move to Docker Hub's rebuilds of 2026-11-05** (workplan
+  0119): `node:26.13.0-trixie-slim` and `redis:7.4.12-bookworm`, the same versions, with apt's
+  fix for CVE-2026-109518 (apt 3.0.4 and 2.6.2), which the tasks' image build uses on the
+  deploying machine. Nothing else in either image changed but tzdata.
+
 ### Added
 
 - **The app's own pages are opened on a phone on every pull request** (workplan 0145
