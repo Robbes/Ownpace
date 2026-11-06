@@ -4,12 +4,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.5] - 2026-11-06
+
+Nothing changes on a tester's screen; the app's own pages, and the Alpha's build
+itself, are now opened on a phone before they ship. Underneath, the appliance's
+image has no shell: its runtime is distroless, so a self-hoster updates
+`compose.yml` with the image, whose healthcheck for `app` is now exec form. The
+managed tasks run on a prebuilt distroless base, published and signed from
+`main` and pinned by digest, so a task deploy runs no apt, needs no Debian
+archive and pulls the base from `ghcr.io` without a login. The Node and Redis
+bases take Debian's apt fix, the dashboard's Caddy moves to 2.11.8, MinIO to
+Chainguard's build of 2026-11-05, and a Dependabot round moves jose, the test
+and lint tools and the web's libraries within their majors. The live steps for
+moving ClickHouse start the plane container by container.
+
 ### Security
 
 - **The Node and Redis base images move to Docker Hub's rebuilds of 2026-11-05** (workplan
   0119): `node:26.13.0-trixie-slim` and `redis:7.4.12-bookworm`, the same versions, with apt's
-  fix for CVE-2026-109518 (apt 3.0.4 and 2.6.2), which the tasks' image build uses on the
-  deploying machine. Nothing else in either image changed but tzdata.
+  fix for CVE-2026-109518 (apt 3.0.4 and 2.6.2). Of the builds here, only the tasks' base runs
+  that apt, in CI (below); a task deploy no longer runs apt on the deploying machine. Nothing
+  else in either image changed but tzdata.
 
 - **The Trigger.dev dashboard's TLS front moves to Caddy 2.11.8** (workplan 0119), still built
   here without curl: on Alpine 3.24.3, and a binary built with Go 1.27.3 and a newer x/net,
@@ -46,6 +61,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the build before it read no critical or high finding, and none of these changes names an
   advisory. Nothing a stack sets changes; the next bring-up pulls it, and the data volume
   carries over.
+
+- **vitest 5.1.0, eslint 10.14.0, jose 6.2.15, TanStack Query 5.105.3, lucide-react 1.67.0,
+  Tailwind CSS 4.3.4 and the Vite React plugin 6.2.1** (from 5.0.5, 10.13.0, 6.2.14, 5.105.0,
+  1.65.0, 4.3.3 and 6.1.2, with vitest's coverage and React Query's devtools; Dependabot,
+  #1821). jose 6.2.15 bounds a JWE's decompressed size and refuses a negative JWKS cache
+  duration and a negative clock tolerance; the API only verifies JWTs against the identity
+  provider's JWKS and decodes them, setting neither option, and no advisory names 6.2.14. The
+  rest are test, lint and build tools and the web's icons and data fetching, and E2E (managed)
+  ran the group green before it merged.
 
 ### Added
 
