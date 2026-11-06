@@ -676,8 +676,15 @@ jobs:
         # hosted and self-hosted runners' defaults passed it cold on 24; 4 GB
         # says what it needs instead of hoping the next runner's default is
         # as large.
+        # 6 GB SINCE 2026-11-06: 4 GB stopped being enough. Cold, on `main` at
+        # e0ef6b55, the whole repository ran out of memory at 4096 MB (resident
+        # about 4.4 GB when it stopped) and passed at 6144 MB with a resident
+        # peak of about 5.1 GB (about 6.1 GB at 8192, where the collector waits
+        # longer), in about two minutes. A warm cache hid it on `main`; a pull
+        # request that touches enough files to lint most of them cold (#1819)
+        # met it. The hosted runner has 16 GB; the self-hosted one far more.
         env:
-          NODE_OPTIONS: --max-old-space-size=4096
+          NODE_OPTIONS: --max-old-space-size=6144
         run: |
           pnpm lint
           pnpm typecheck   # tsc (TypeScript 7) --noEmit across the workspace
