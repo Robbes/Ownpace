@@ -4,7 +4,28 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
-**2026-11-07, last: what alpha.6 moves, folded.** The fold (0146 Status, 2026-11-07), whose
+**2026-11-07, last: the image scan of the alpha.6 tag, and what waits.** Security Scan run
+42368077845 (`image_scans`, on `main` at `59b91458`, the tag's commit, 11:24 to 11:28 UTC) reads,
+by tier: what the internet reaches on live 0 critical, 11 high, 7 with a fix; what live runs
+inside 2, 53 and 30; the appliance 0, 4 and 0. Per image, what moved since this plan's last
+reading:
+- the Trigger.dev webapp reads 1, 24 and 14 where it read 1, 23 and 13 on its branch: goose
+  v3.29.0, the newest goose, carries Go 1.27.2 and `golang.org/x/net` v0.61.0, and the fixes are
+  in 1.27.3 and 0.62.0;
+- Redis reads 1, 10 and 0, as on its branch;
+- MinIO's build of 2026-11-05 (`aea6c163…`) reads 0, 1 and 1 where it read 0, 0 and 0.
+  Chainguard's rebuild of 2026-11-07 at 06:54 UTC (`869ca317…`) is past its three-day floor on
+  2026-11-10 at 06:54, and moves in a pull request of its own, with its image scan read and E2E
+  (managed) on its branch.
+
+The other fixable findings in what live runs are in Go modules of Zitadel v4.20.1, Gatus
+v5.38.0, the registry 3.1.2 and Caddy 2.11.9 (`golang.org/x/net` 0.62.0, `go-jose` 4.1.6 and
+Go's standard library), each the newest release of its project on 2026-11-07 (the Go module
+proxy): they move when their projects release. pgbouncer's are Alpine's musl and zlib in
+`edoburu/pgbouncer`'s build of 2026-10-19, ClickHouse's are Ubuntu's apt, and the supervisor's is
+`cross-spawn` 5.1.0, whose fix is a major. None of them is past what this plan moves by itself.
+
+**2026-11-07: what alpha.6 moves, folded.** The fold (0146 Status, 2026-11-07), whose
 squash is C, closes alpha.6 with this plan's moves since alpha.5 in it:
 - the identity provider on Zitadel v4.20.1 (#1829; 0135 T7), on the owner's yes, after the OTA
   instance's dump;

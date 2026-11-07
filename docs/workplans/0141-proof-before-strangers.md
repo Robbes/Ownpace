@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07, later, records: alpha.6 is tagged without the O365 lane (T13 (a)).** Docs only.
+`v0.2.0-alpha.6` was tagged on 2026-11-07 at 11:19 UTC without a run of `e2e-o365.yml` (0146,
+Status of that day): its secrets are still not set. Release does not read the lane. Whether it
+is recorded as waived for alpha.6, as for alpha.4 and alpha.5, was asked of the owner the same
+day and is the owner's to say. It is owed for a later alpha, as before: the secrets, as
+`docs/test-tenant.md` lists them, and a green run.
+
 **2026-11-07, records: the O365 lane waived for alpha.5 by the owner (T13 (a)).** Docs only.
 alpha.5 was tagged on 2026-11-07 at 02:38 UTC without a run of `e2e-o365.yml` (0146, Status of
 that day): its secrets are still not set. Asked whether that is recorded as waived for alpha.5,
