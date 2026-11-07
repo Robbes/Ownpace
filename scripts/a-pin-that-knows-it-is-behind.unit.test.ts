@@ -2182,10 +2182,14 @@ describe('the Trivy the Security Scan runs: a named release from GitHub, checked
     expect(() => trivyPin(mutate(skip, '\n'), 'security-scan')).toThrow(/without skip-setup-trivy: true/);
     expect(() => trivyPin(mutateImage(skip, '\n'), 'image-scan')).toThrow(/without skip-setup-trivy: true/);
     expect(() => trivyPin(mutateImage(/\n( +)skip-setup-trivy: true\n/, '\n$1skip-setup-trivy: false\n'), 'image-scan')).toThrow(/without skip-setup-trivy: true/);
-    expect(() => trivyPin(mutateImage(/\n( +)version: v0\.76\.1\n/, '\n$1version: v0.76.0\n'), 'image-scan')).toThrow(/with version: v0\.76\.0, and installs v0\.76\.1/);
+    // Read from the pin, so a move of the release moves these mutations with it.
+    const pinned = TRIVY.version.replace(/\./g, '\\.');
+    expect(() => trivyPin(mutateImage(new RegExp(`\\n( +)version: ${pinned}\\n`), '\n$1version: v0.0.1\n'), 'image-scan')).toThrow(
+      new RegExp(`with version: v0\\.0\\.1, and installs ${pinned}`),
+    );
     const early = mutate(
       /\n( +)- name: Install Trivy from its GitHub release/,
-      `\n$1- name: Too early\n$1  uses: aquasecurity/trivy-action@${'e'.repeat(40)} # v0.36.0\n$1  with:\n$1    version: v0.76.1\n$1    skip-setup-trivy: true\n$1- name: Install Trivy from its GitHub release`,
+      `\n$1- name: Too early\n$1  uses: aquasecurity/trivy-action@${'e'.repeat(40)} # v0.36.0\n$1  with:\n$1    version: ${TRIVY.version}\n$1    skip-setup-trivy: true\n$1- name: Install Trivy from its GitHub release`,
     );
     expect(() => trivyPin(early, 'security-scan')).toThrow(/before the step that installs Trivy/);
     // The other job is read on its own: a mutation in one leaves the other's reading as it was.
