@@ -4,13 +4,16 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
-**2026-11-07, last: what alpha.6 moves, folded.** The fold (0146 Status, 2026-11-07; a draft,
-not merged) closes alpha.6 with this plan's moves since alpha.5 in it:
+**2026-11-07, last: what alpha.6 moves, folded.** The fold (0146 Status, 2026-11-07), whose
+squash is C, closes alpha.6 with this plan's moves since alpha.5 in it:
 - the identity provider on Zitadel v4.20.1 (#1829; 0135 T7), on the owner's yes, after the OTA
   instance's dump;
 - the Trigger.dev webapp's image without apt, util-linux's eight packages and e2fsprogs (#1823,
   §3 item 11, extended to it on the owner's yes), and with effect 3.22.4 in place of 3.17.1
   (#1825): Security Scan run 42263361900 read it at 1 critical, 23 high and 13 with a fix;
+- Trigger.dev's Redis built here, with the same eleven purged, and run as uid 999 from its first
+  process (#1835, §3 item 11, on the owner's word *"Redis purge in 6"*): Security Scan run
+  42349123410 read it at 1 critical, 10 high and 0 with a fix, from 1, 34 and 0;
 - the image build's BuildKit on v0.34.2 (#1832), whose first linux/arm64 build, `main`'s Images
   run 42339359494, was green;
 - the managed smoke asking the tasks' image of the deployment they run (#1833).
@@ -18,6 +21,52 @@ not merged) closes alpha.6 with this plan's moves since alpha.5 in it:
 None of them moved before its three-day floor. Held for after the tag: Trivy 0.76.2 and Atlas
 1.3.8, past their floor on 2026-11-08 at 12:50 and 14:15 UTC, and pnpm 11.28.10 (#1792). Live
 takes alpha.6 from alpha.4 (0146 Status, 2026-11-07).
+
+**2026-11-07: Trigger.dev's Redis built here, with the webapp's eleven Debian packages purged
+and redis's own user from its first process (§3 item 11), for alpha.6.** The owner, 2026-11-07:
+*"Redis purge in 6"*. On branch `claude/ownpace-public-readiness-y7orc6-redis-purge`, from `main`
+at `ca2af249`; merged as `fdd572df` (#1835). `managed.yml`'s `trigger-redis` ran
+`redis:7.4.12-bookworm` by digest, which Security Scan run 42330688192 (linux/arm64) read at 1
+critical, 34 high and 0 with a fix, 24 of the highs in the eight util-linux packages. Now:
+- **`deploy/compose/redis/Dockerfile`** builds on that digest. Its one RUN as root purges the
+  webapp's eleven in the webapp's shape: `dpkg-query -W` of the list first, `dpkg --audit` read
+  empty before and after, the six libraries shipped, the two flags and no other force, each
+  package gone, no ELF file under / naming a library it removed (read with perl-base, which the
+  image keeps: it has no node), and sh, id, find, redis-server and redis-cli started after.
+  Read in the image's own layers, by digest: 89 packages, and none outside the eleven depends on
+  one of them; Redis's binaries need libm, libssl, libcrypto and libc.
+- **The user.** The purge takes util-linux's `setpriv`, which upstream's entrypoint used to drop
+  from root, so the image ends with `USER 999:999`, and a RUN as that user starts redis-server
+  through the entrypoint and asks it for the FROM's release (7.4.12). `trigger-redis` runs
+  `localhost/redis:7.4.12-bookworm-63d89fa5f426` (`build: ./redis`, `pull_policy: never`) and
+  keeps no capability; it added CHOWN, DAC_READ_SEARCH, SETGID and SETUID for the root start.
+  `redis_data` carries over: that entrypoint chowned it to uid 999 at every start.
+- **`images.yml`'s `build (redis, amd64|arm64)`** builds it on both platforms on a pull
+  request, starts upstream's image on a new volume as `managed.yml` ran it, writes a key, then
+  starts the build on that volume as `managed.yml` runs it now, and asks for uid and gid 999,
+  an exec as 999, PONG and the key, again after a restart. Dependabot reads the directory (its
+  own entry, never a major).
+- **Run here for real (linux/amd64, Docker 29.9.2):** the build purged the eleven, its scan read
+  575 ELF files and found none of the six, and its last RUN printed *as 999:999, upstream's
+  entrypoint starts redis-server: Redis server v=7.4.12*. The job's step, run as is, passed:
+  on the volume upstream's image wrote, and after a restart, *the server runs as 999:999,
+  answers PONG, and reads the key upstream's image wrote*. Upstream's image started again on
+  that volume and read the key too, the way back. A new volume started and restarted as 999.
+  `find /data ! -user 999`, as uid 999, printed nothing on either image.
+- **Guards:** `an-essential-nothing-runs` (the Dockerfile, the purge, its reasons, `managed.yml`'s
+  service and the `sed` that moves its name, the job, run against a stub docker that answers
+  each check wrongly in turn, and Dependabot's entry), `a-binary-the-stack-never-runs` (the
+  RUN over the stand-in on both platforms, with dpkg's refusals), and the scan, phone-home,
+  privilege, database and check-classification guards for the new service shape.
+- **Proved on the branch, at `d07f964b`:** CI green, 62 checks, both `build (redis, …)` legs
+  and the image scan of `redis` among them. Security Scan run 42349123410 (linux/arm64) read
+  the build at 1 critical, 10 high and 0 with a fix, from 1, 34 and 0; the critical is zlib1g's
+  CVE-2023-45853, with no fix. E2E (managed) run 42349157615 was green: the OTA host built
+  `localhost/redis:7.4.12-bookworm-63d89fa5f426` on linux/arm64, and the build printed the
+  purge and the start as 999:999; `trigger-redis` was recreated and healthy on the stack's
+  existing `redis_data`; version 20261107.4 deployed with 17 tasks; *verify: done apply:
+  applied*, SMOKE PASS. **Before live takes it from alpha.6's tag:** the read-only check in
+  `managed-bring-up.md` on live's running `trigger-redis`, which should print nothing.
 
 **2026-11-07: the managed smoke asks the image of the deployment the tasks run (§3 item 13);
 E2E (managed) green on the branch.** On branch
@@ -4394,7 +4443,7 @@ is who moves it after T1.
 | `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31) | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, the managed stacks' base too, since 2026-10-31, from Dependabot's #1744; `77f58511…` from its move of 2026-09-24 before that; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it; a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
-| `redis` | `managed.yml` | 7.4.12-bookworm by digest `2e3eb114…` (2026-11-06, the tag's rebuild of 2026-11-05 with apt 2.6.2: Status, 2026-11-06); `b6b6e3dc…` from 2026-10-30 (a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch by hand when the pin watch lists it | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
+| `redis` | `deploy/compose/redis/Dockerfile`'s FROM, built as `localhost/redis:<tag>-<hash>` by `managed.yml` (`trigger-redis`) since 2026-11-07: the eleven Debian packages nothing there runs purged, as uid 999 from its first process (§3 item 11); `pull_policy: never` (`managed.yml` itself until then) | 7.4.12-bookworm by digest `2e3eb114…` (2026-11-06, the tag's rebuild of 2026-11-05 with apt 2.6.2: Status, 2026-11-06); `b6b6e3dc…` from 2026-10-30 (a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch or a rebuild by Dependabot's pull request (the directory's own entry, since 2026-11-07), which the pin watch lists too | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084) | v4.8.3 (2026-10-31, before its three-day floor on the owner's waiver: Status, 2026-10-31; v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.3 (2026-10-30) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `86d5a599…`, trigger.dev 4.8.3's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC; Node 26.12.1; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, pushed the same morning, before) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26 and 2026-10-31) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
@@ -5328,6 +5377,23 @@ is beside each; none is urgent tonight.
     `login` (in Debian 12 it is shadow's, with no finding) and not `libsqlite3-0` (not read
     in this image). Expected about 1/23/14. The same risk is accepted, and `trigger-api`
     keeps no apt. **Revisit** with the triggers above, and when upstream's runner stage
+    leaves Debian 12.
+
+    **2026-11-07: extended to Trigger.dev's Redis, for alpha.6, on the owner's word:** *"Redis
+    purge in 6"*. `deploy/compose/redis/Dockerfile` builds on `redis:7.4.12-bookworm`, Debian
+    12.15 as the webapp's runner stage is. Security Scan run 42330688192 read it at 1 critical,
+    34 high, 0 with a fix, 24 of the highs in the eight util-linux packages. Its one RUN as root
+    purges the webapp's eleven, in the same shape, with the same two flags and no other force,
+    and scans every ELF file with perl-base, which it keeps, since it has no node. The purge
+    takes util-linux's `setpriv`, which upstream's entrypoint used to drop from root to redis,
+    so the image runs as `USER 999:999` from its first process, and `trigger-redis` keeps no
+    capability (it added CHOWN, DAC_READ_SEARCH, SETGID and SETUID for the root start).
+    `redis_data` is uid 999's already, since that entrypoint chowned it at every start, and a
+    tag before this runs upstream's image on it again. Not purged: libsystemd0 and libudev1,
+    one high each, which only the eleven's apt, libapt-pkg6.0, util-linux and bsdutils depend
+    on here: a twelfth and thirteenth are a decision of their own. Measured 1/10/0 on its
+    branch (Security Scan run 42349123410).
+    **Revisit** with the triggers above, when the Redis line moves (item 3), and when its base
     leaves Debian 12.
 
 12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's

@@ -14,8 +14,9 @@
  * never used one. A process that took over the registry, the mail catcher or
  * the socket proxy could chown, open raw sockets and make device nodes; one
  * that took over a service started as another user could become root again
- * through any setuid binary its image carried (the Redis image carries `su`,
- * `mount` and `passwd`; ClickHouse's the same and more).
+ * through any setuid binary its image carried (the Redis image carried `su`,
+ * `mount` and `passwd`, and since its purge of 2026-11-07 still carries
+ * `passwd`; ClickHouse's the same and more).
  *
  * So, held here for each of the three files:
  *
@@ -52,9 +53,11 @@
  * any rule: Caddy's binary carries `cap_net_bind_service` as a file
  * capability, and the kernel refuses to start a binary whose file capability
  * the bounding set lacks, so `trigger-tls` keeps NET_BIND_SERVICE although it
- * binds 3443; and Redis's entrypoint `find`s through append-only directories
- * that are uid 999's and mode 0700, so without DAC_READ_SEARCH its first
- * restart on its own volume fails.
+ * binds 3443; and Redis's entrypoint, while it started as root, `find`s
+ * through append-only directories that are uid 999's and mode 0700, so without
+ * DAC_READ_SEARCH its first restart on its own volume failed. Since 2026-11-07
+ * Redis's image is built here and runs as uid 999 from its first process
+ * (deploy/compose/redis), and keeps no capability.
  *
  * THE RULE THE FIRST VERSION DID NOT HAVE (the review of 2026-11-03). The
  * lists were measured on each service's START, and the shape of the files was
@@ -106,7 +109,7 @@ export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>
     postgres: { caps: [] },
     pgbouncer: { caps: [], readOnly: ['/tmp'] },
     'trigger-db': { caps: [] },
-    'trigger-redis': { caps: ['CHOWN', 'DAC_READ_SEARCH', 'SETGID', 'SETUID'] },
+    'trigger-redis': { caps: [] },
     'trigger-api': { caps: 'docker-default' },
     clickhouse: { caps: ['CHOWN', 'DAC_READ_SEARCH', 'SETGID', 'SETUID'] },
     'trigger-registry': { caps: [], readOnly: ['/tmp'] },
@@ -530,7 +533,10 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
   },
   'trigger-db': { psql: PSQL, pg_dump: PSQL },
   pgbouncer: { psql: NONE('SHOW POOLS and SHOW VERSION on its own admin console, as uid 70') },
-  'trigger-redis': { 'redis-cli': NONE('a client over TCP; reads and writes no file') },
+  'trigger-redis': {
+    'redis-cli': NONE('a client over TCP; reads and writes no file'),
+    find: NONE("the guide's check, as uid 999, that every file in /data is uid 999's, which uid 999 reads"),
+  },
   clickhouse: {
     'clickhouse-client': NONE('a client over TCP; reads and writes no file'),
     sed: {
@@ -587,6 +593,10 @@ export const TARGETS: Readonly<Record<string, string | null>> = {
   'docs/stalwart-integration-fix.md|ownpace-stalwart': null,
   // images.yml starts the upstream image as root on its own, to prove the build reads its volume.
   '.github/workflows/images.yml|root-initialised': null,
+  // And Redis's (0119 §3 item 11): upstream's image as root, then the build as 999, each a
+  // container of its own on a volume of its own, never a service of the three files.
+  '.github/workflows/images.yml|$name': null,
+  '.github/workflows/images.yml|redis-upstream': null,
 };
 
 /** The capabilities a service's container has, read from its file: a list when it drops ALL, else null. */
@@ -708,7 +718,8 @@ describe('each rule fails when it is broken', () => {
     ['seccomp unconfined', (c) => (svc(c, 'web').security_opt = ['no-new-privileges:true', 'seccomp:unconfined']), /web sets security_opt seccomp:unconfined/],
     ['apparmor unconfined', (c) => (svc(c, 'nextcloud').security_opt = ['no-new-privileges:true', 'apparmor=unconfined']), /nextcloud sets security_opt apparmor=unconfined/],
     ['privileged', (c) => (svc(c, 'trigger-docker-proxy').privileged = true), /trigger-docker-proxy is privileged/],
-    ['a capability beyond the list', (c) => (svc(c, 'trigger-redis').cap_add = ['CHOWN', 'DAC_READ_SEARCH', 'SETGID', 'SETUID', 'SYS_ADMIN']), /trigger-redis adds SYS_ADMIN, beyond its list/],
+    ['a capability beyond the list', (c) => (svc(c, 'clickhouse').cap_add = ['CHOWN', 'DAC_READ_SEARCH', 'SETGID', 'SETUID', 'SYS_ADMIN']), /clickhouse adds SYS_ADMIN, beyond its list/],
+    ['a capability back on a service that runs as its user from the first process', (c) => (svc(c, 'trigger-redis').cap_add = ['SETUID']), /trigger-redis adds SETUID, beyond its list \(none\)/],
     ['a capability spelt as Docker also takes it', (c) => (svc(c, 'minio').cap_add = ['cap_net_raw']), /minio adds NET_RAW, beyond its list \(none\)/],
     ['ALL added back', (c) => (svc(c, 'api').cap_add = ['ALL']), /api adds ALL back/],
     ['cap_drop taken off', (c) => delete svc(c, 'clickhouse').cap_drop, /clickhouse does not drop ALL/],

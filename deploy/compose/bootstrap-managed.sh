@@ -1771,6 +1771,12 @@ phase_trigger() {
   # of its Dockerfile's instructions. The up_wait below builds it where its
   # name is missing, and nothing else does.
   note "trigger-tls is a local build of Caddy's image without curl (deploy/compose/caddy), built where the machine does not have it yet"
+  # trigger-redis is a build here too since 2026-11-07 (workplan 0119 §3 item
+  # 11): Redis's official image at its pinned digest with the Debian packages
+  # nothing here runs purged, run as uid 999 from its first process, named
+  # after the hash of its Dockerfile's instructions. The up_wait below builds
+  # it where its name is missing, and nothing else does.
+  note "trigger-redis is a local build of Redis's image without the Debian packages nothing here runs, as uid 999 (deploy/compose/redis), built where the machine does not have it yet"
   # THE SUPERVISOR COMES UP LAST, AND NOT ONLY FOR ORDERING.
   #
   # trigger-api bootstraps a worker group and writes its token into the SHARED

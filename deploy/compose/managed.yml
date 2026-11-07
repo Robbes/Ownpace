@@ -112,6 +112,13 @@ name: ownpace-managed
 # tag and digest, which Dependabot reads (its own entry, never a major). Its name ends in the hash
 # of that file's instructions, and a pull request that changes them fails
 # a-package-the-front-never-runs until the name moves with it. `up` builds it where it is missing.
+# trigger-redis runs a local build too since 2026-11-07 (workplan 0119 §3 item 11, for alpha.6):
+# Redis's official image at its pinned digest with the eleven Debian packages nothing here runs
+# purged, run as uid 999 from its first process, whose pin is the FROM of
+# deploy/compose/redis/Dockerfile by tag and digest, which Dependabot reads (its own entry, never
+# a major). Its name ends in the hash of that file's instructions, and a pull request that changes
+# them fails an-essential-nothing-runs until the name moves with it. `up` builds it where it is
+# missing.
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -133,9 +140,9 @@ name: ownpace-managed
 # HOW THE CONTAINERS RUN (2026-11-03, workplan 0119; the owner, 2026-11-03:
 # "more hardened"). Every service sets `no-new-privileges`: a process in it
 # cannot gain a privilege by running a setuid binary or one with a file
-# capability. Nothing here needs that: the services that change user (Redis's
-# setpriv, ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's
-# su) do it as root, with a system call, and the rest never change user. All but
+# capability. Nothing here needs that: the services that change user
+# (ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's su) do
+# it as root, with a system call, and the rest never change user. All but
 # two drop every capability (`cap_drop: [ALL]`) and add back only what their
 # own start-up does as root, each named beside the service with the reason;
 # a service that runs as another user from its first process adds none. The two
@@ -351,25 +358,31 @@ services:
   # 7.4 Alpine images are built on Alpine 3.21, whose security support ends on
   # 2026-11-01, and Debian 12's LTS runs to 2028-06-30. Pinned by tag and
   # digest since 2026-10-22 (0119 §4): it floated within 7.4, and nothing pulled
-  # it. 7.4's next patch comes in a pull request when the pin watch lists it, and
-  # a rebuild of this tag as Debian ships fixes when the weekly image scan counts
-  # findings a newer package fixes. Both images run Redis as uid 999 and the
-  # append-only file is that user's alone, so redis_data carries over in either
-  # direction.
+  # it. A build of the official image since 2026-11-07 (workplan 0119 §3 item
+  # 11, for alpha.6; the owner: "Redis purge in 6"):
+  # deploy/compose/redis/Dockerfile purges the eleven Debian packages nothing
+  # here runs or loads, the webapp's list, and runs Redis as uid and gid 999
+  # from its first process, so the entrypoint never takes its root branch,
+  # whose setpriv is util-linux's. Its header says what was read, why the name
+  # carries the hash of its instructions, and how it moves: the pin is its FROM,
+  # by tag and digest, which Dependabot reads (its own entry, never a major).
+  # Compose builds it on the first `up` that finds no image of this name.
+  # `never`: no registry serves this name, so `docker compose pull` passes it
+  # by, and `up` builds it without asking one. Upstream's image ran Redis as
+  # uid 999 too, and its entrypoint chowned what in /data was not 999's at
+  # every start, so redis_data carries over in either direction.
   # It holds the run queues: on live it changes only at a deploy, and
   # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: redis:7.4.12-bookworm@sha256:2e3eb11462c4e3759e6972678dd051d150ff54b1e60714b3c33b701260172a90
+    image: localhost/redis:7.4.12-bookworm-63d89fa5f426
+    build: ./redis
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
     restart: unless-stopped
     logging: *logging
-    # HOW IT RUNS (see the header): the entrypoint starts as root, chowns what in
-    # /data is not uid 999's (CHOWN), reads append-only directories that are 999's
-    # and mode 0700 to do so (DAC_READ_SEARCH: a restart on its own volume fails
-    # without it), and drops to 999 with setpriv (SETUID, SETGID).
+    # HOW IT RUNS (see the header): uid 999 from its first process, so no capability.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    cap_add: [CHOWN, DAC_READ_SEARCH, SETGID, SETUID]
     command: redis-server --appendonly yes
     volumes:
       - redis_data:/data

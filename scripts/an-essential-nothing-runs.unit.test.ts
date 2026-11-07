@@ -64,6 +64,27 @@
  *    carries every package and every reason (WEBAPP_REASONS). The RUN itself
  *    runs over a stand-in, with a stand-in dpkg, in
  *    `a-binary-the-stack-never-runs`.
+ * 5. TRIGGER.DEV'S REDIS (2026-11-07, for alpha.6: item 11 extended to it by
+ *    the owner, "Redis purge in 6"). `deploy/compose/redis/Dockerfile` builds
+ *    on Redis's official `redis:7.4.12-bookworm`, Debian 12.15 as the webapp's
+ *    runner stage is, where Security Scan run 42330688192 read 24 of its 34
+ *    highs in the eight util-linux packages. Its one RUN as root purges the
+ *    webapp's eleven (REDIS_PURGE, the same names, each with its reason here)
+ *    in the same shape, and scans with perl-base, which the image keeps, since
+ *    it has no node. That purge takes util-linux's setpriv, which upstream's
+ *    entrypoint uses to drop from root to redis, so the image runs as
+ *    `USER 999:999` from its first process, and a last RUN as that user starts
+ *    redis-server through the entrypoint and asks it for the FROM's release.
+ *    Held here: the Dockerfile's shape (a FROM by tag and digest, the RUN, the
+ *    USER and the RUN, nothing the name does not cover), the purge, the
+ *    header's reasons; managed.yml running it as `localhost/redis:<builtTag>`,
+ *    built and never pulled, with no capability and no user of its own, and
+ *    the `sed` that moves a name the Dockerfile moved past; images.yml's `build
+ *    (redis, amd64|arm64)`, which builds it, starts upstream's image on a new
+ *    volume as managed.yml ran it before, then the build on that volume as
+ *    managed.yml runs it now, and asks it for uid 999, PONG and the key, run
+ *    here against a stub docker that answers each check wrongly in turn; and
+ *    Dependabot's entry for the directory, never a major.
  *
  * Until 2026-11-06 the tasks' half stood here too: the layer's purge where
  * there was no C++ compiler, on a `-slim` base, last of the layer; the weekly
@@ -72,9 +93,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
+import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { spawnSync } from 'node:child_process';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LineCounter, parse as parseYaml, parseDocument } from 'yaml';
+import { builtTag, dockerfileBase, parseRef, readImages } from './idp-pin-watch.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (p: string) => readFileSync(join(ROOT, p), 'utf8');
@@ -276,25 +301,50 @@ function runsOf(text: string): { runs: Run[]; body: Instruction[] } {
 /** A command that installs a package, with apt or dpkg: none may follow the purge. */
 const INSTALLS = /\b(?:apt-get|apt|aptitude)\s+(?:-\S+\s+)*(?:install|reinstall|upgrade|dist-upgrade|full-upgrade)\b|\bdpkg\s+(?:-\S+\s+)*(?:-i|--install|--unpack)\b/;
 
-/** The webapp's purge, what is wrong with it, in words; empty when it holds. */
-function webappProblems(text: string): string[] {
+/** A purge's two lists, and the names this file gives them in its messages. */
+interface PurgeLists {
+  readonly names: readonly string[];
+  readonly namesLabel: string;
+  readonly libraries: readonly string[];
+  readonly librariesLabel: string;
+}
+
+const WEBAPP_LISTS: PurgeLists = {
+  names: WEBAPP_PURGE.map((p) => p.name),
+  namesLabel: 'WEBAPP_PURGE',
+  libraries: WEBAPP_LIBRARIES,
+  librariesLabel: 'WEBAPP_LIBRARIES',
+};
+
+/**
+ * Where the purge stands among a Dockerfile's RUNs, in words: as root, the
+ * last RUN as root, followed by the image's own USER, and no install after it.
+ */
+function placeProblems(run: Run, runs: Run[], body: Instruction[], user: string, userWhat: string): string[] {
   const problems: string[] = [];
-  const { runs, body } = runsOf(text);
-  const purges = runs.filter((r) => /(^|[;\s])dpkg --purge\b/.test(r.args));
-  if (purges.length !== 1) return [`${purges.length} RUNs run dpkg --purge, not one`];
-  const run = purges[0]!;
-  const args = run.args.replace(/\s+/g, ' ');
   if (run.user !== 'root') problems.push(`the purge runs as ${run.user}, not root, who owns dpkg's database`);
   const lastRoot = runs.filter((r) => r.user === 'root').at(-1);
   if (lastRoot !== run) problems.push('the purge is not the last RUN as root: every other change comes before it, and nothing after it may need what it purged');
-  if (body[run.at + 1]?.op !== 'USER' || body[run.at + 1]?.args.trim() !== 'node') problems.push("the purge is not followed by upstream's USER node");
+  if (body[run.at + 1]?.op !== 'USER' || body[run.at + 1]?.args.trim() !== user) problems.push(`the purge is not followed by ${userWhat}`);
   for (const later of runs.filter((r) => r.at > run.at)) {
     if (INSTALLS.test(later.args)) problems.push(`a RUN after the purge installs a package: ${later.args.slice(0, 80)}`);
   }
+  return problems;
+}
+
+/**
+ * The checks every purge of this shape answers to, in words, whatever image
+ * it is in: its two lists; `dpkg-query -W` of the list, first; `dpkg --purge`
+ * with the two flags and no other; no apt as a command; `dpkg --audit` read
+ * empty before and after; the libraries shipped before; each package gone
+ * after. Where the purge is, for the checks that come after it.
+ */
+function purgeShapeProblems(args: string, lists: PurgeLists): { problems: string[]; purgeAt: number } {
+  const problems: string[] = [];
   const value = (name: string) => new RegExp(`(?:^|[;\\s])${name}="([^"]*)";`).exec(args)?.[1]?.split(' ');
   const same = (a: readonly string[] | undefined, b: readonly string[]) => a !== undefined && a.length === b.length && a.every((x, n) => x === b[n]);
-  if (!same(value('purge'), WEBAPP_PURGE.map((p) => p.name))) problems.push(`its purge= is ${JSON.stringify(value('purge'))}, not the eleven WEBAPP_PURGE names, in order`);
-  if (!same(value('libraries'), WEBAPP_LIBRARIES)) problems.push(`its libraries= is ${JSON.stringify(value('libraries'))}, not WEBAPP_LIBRARIES`);
+  if (!same(value('purge'), lists.names)) problems.push(`its purge= is ${JSON.stringify(value('purge'))}, not the eleven ${lists.namesLabel} names, in order`);
+  if (!same(value('libraries'), lists.libraries)) problems.push(`its libraries= is ${JSON.stringify(value('libraries'))}, not ${lists.librariesLabel}`);
   const at = (re: RegExp) => args.search(re);
   const query = at(/(?:^|[;\s])dpkg-query -W \$purge \|\| fail /);
   const purge = /(?:^|[;\s])dpkg --purge ((?:--force-[a-z-]+ )+)\$purge \|\| fail /.exec(args);
@@ -322,8 +372,22 @@ function webappProblems(text: string): string[] {
   if (shipped < 0 || shipped > purgeAt) problems.push('no check, before the purge, that the eleven ship every library of $libraries');
   const gone = at(/(?:^|[;\s])for p in \$purge; do st="\$\(dpkg-query -W -f '\$\{db:Status-Status\}' "\$p" 2>\/dev\/null\)" && rc=0 \|\| rc=\$\?; case "\$rc:\$st" in 1:\|0:not-installed\) ;; \*\) fail /);
   if (gone < 0 || gone < purgeAt) problems.push('no check, after the purge, that dpkg reads each of the eleven as gone');
+  return { problems, purgeAt };
+}
+
+/** The webapp's purge, what is wrong with it, in words; empty when it holds. */
+function webappProblems(text: string): string[] {
+  const { runs, body } = runsOf(text);
+  const purges = runs.filter((r) => /(^|[;\s])dpkg --purge\b/.test(r.args));
+  if (purges.length !== 1) return [`${purges.length} RUNs run dpkg --purge, not one`];
+  const run = purges[0]!;
+  const args = run.args.replace(/\s+/g, ' ');
+  const problems = placeProblems(run, runs, body, 'node', "upstream's USER node");
+  const shape = purgeShapeProblems(args, WEBAPP_LISTS);
+  problems.push(...shape.problems);
+  const at = (re: RegExp) => args.search(re);
   const scan = at(/(?:^|[;\s])found="\$\(node -e "\$elves" "\$top" \$libraries\)" && st=0 \|\| st=\$\?; \[ "\$st" = 0 \] \|\| fail /);
-  if (scan < 0 || scan < purgeAt) problems.push('no scan, after the purge, for an ELF file that names one of $libraries');
+  if (scan < 0 || scan < shape.purgeAt) problems.push('no scan, after the purge, for an ELF file that names one of $libraries');
   if (!/(?:^|[;\s])top=\/;/.test(args)) problems.push('the scan does not start at /, the image whole');
   const elves = /(?:^|[;\s])elves="([^"]*)";/.exec(args)?.[1] ?? '';
   for (const [needle, what] of [
@@ -427,3 +491,615 @@ describe("the Trigger.dev webapp's image purges the eleven of Debian 12 nothing 
   });
 });
 
+
+// ------------------------------------------------------ Trigger.dev's Redis ----
+
+const REDIS = 'deploy/compose/redis/Dockerfile';
+const REDIS_CONTEXT = 'deploy/compose/redis';
+const REDIS_NAME = 'localhost/redis';
+const REDIS_SERVICE = 'trigger-redis';
+const MANAGED = 'deploy/compose/managed.yml';
+const IMAGES_WORKFLOW = '.github/workflows/images.yml';
+
+/**
+ * The eleven Redis's image purges (2026-11-07, for alpha.6: "Redis purge in
+ * 6"), in the order its RUN writes them, each with why it may go there. They
+ * are the webapp's eleven, read again against this image: Debian 12.15, as
+ * upstream's runner stage is, and Security Scan run 42330688192 (Trivy 0.76.1,
+ * linux/arm64) read the findings named.
+ */
+const REDIS_PURGE: ReadonlyArray<{ readonly name: string; readonly why: string }> = [
+  { name: 'util-linux', why: 'Essential; 3 highs with no fix; nothing here runs its programs (su, setpriv, getopt, more), and upstream\'s entrypoint, run as 999, never reaches its setpriv' },
+  { name: 'util-linux-extra', why: '3 highs with no fix; util-linux hard-depends on it in Debian 12, so it goes with it; nothing runs hwclock or lsfd' },
+  { name: 'mount', why: '3 highs with no fix; nothing mounts anything in a container that runs redis-server; it depends on util-linux' },
+  { name: 'bsdutils', why: 'Essential; 3 highs with no fix; nothing runs logger, script, wall or renice' },
+  { name: 'libblkid1', why: '3 highs with no fix; linked by the util-linux programs above and by e2fsprogs, and nothing else here (Redis needs libm, libssl, libcrypto and libc)' },
+  { name: 'libmount1', why: '3 highs with no fix; linked by mount and util-linux, and nothing else here' },
+  { name: 'libsmartcols1', why: '3 highs with no fix; linked by util-linux and util-linux-extra, and nothing else here' },
+  { name: 'libuuid1', why: '3 highs with no fix; Redis makes its own run ids from the kernel\'s random bytes, and nothing here links libuuid' },
+  { name: 'apt', why: 'no finding at 2.6.2, the release that fixed CVE-2026-109518; nothing in trigger-redis runs apt, and nothing installs in it: a change is a rebuild' },
+  { name: 'libapt-pkg6.0', why: 'no finding at 2.6.2, as apt; apt is its one user here, so it goes with it' },
+  { name: 'e2fsprogs', why: 'no finding of its own; it pre-depends on libblkid1 and libuuid1, so dpkg refuses those two while it stays; nothing makes or checks a file system here, and nothing depends on it' },
+];
+
+const REDIS_LISTS: PurgeLists = {
+  names: REDIS_PURGE.map((p) => p.name),
+  namesLabel: 'REDIS_PURGE',
+  libraries: WEBAPP_LIBRARIES,
+  librariesLabel: 'WEBAPP_LIBRARIES',
+};
+
+/**
+ * What the header says, word for word once its comment lines are joined, from
+ * WHY to the end of HOW THEY ARE PURGED: the measurement, the list and each
+ * reason, why nothing runs or loads the eleven, how dpkg's refusal is kept,
+ * why the scan is perl's, and where the reading is proved.
+ */
+const REDIS_REASONS: ReadonlyArray<readonly [string, string]> = [
+  ['Security Scan run 42330688192 (Trivy 0.76.1, linux/arm64, 2026-11-07) read it at 1 critical, 34 high and 0 with a fix', 'the scan it was read against'],
+  ['the eight packages built from util-linux\'s source: util-linux, util-linux-extra, mount, bsdutils, libblkid1, libmount1, libsmartcols1 and libuuid1, three highs with no fix in Debian in each (24)', "util-linux's findings"],
+  ['apt 2.6.2 and libapt-pkg6.0 2.6.2, which carry no finding here', 'why apt goes without a finding'],
+  ['e2fsprogs 1.47.0-2+b2, which carries no finding of its own and pre-depends on libblkid1 and libuuid1, so dpkg refuses to purge those two while it stays', 'why e2fsprogs is on the list'],
+  ['So 1, 34 and 0 become 1, 10 and 0', 'what the purge should leave'],
+  ['util-linux-extra goes with util-linux, which hard-depends on it in Debian 12', 'why util-linux-extra is on the list'],
+  ['libapt-pkg6.0 with apt, its one user here', 'why libapt-pkg6.0 is on the list'],
+  ['has 89 packages installed, and no other installed package depends on one of the eleven, and none on e2fsprogs', 'that nothing else depends on the eleven'],
+  ['Not on the list: libsystemd0 and libudev1', 'what stays, and why'],
+  ['As uid 999 (THE USER, below) the entrypoint is /bin/sh, dash, and runs `id -u` and redis-server, and nothing else', 'what the entrypoint runs'],
+  ['Redis forks itself to save and rewrite its files, and execs nothing', 'what Redis spawns'],
+  ['Nothing execs apt, apt-get, su, mount, setpriv, getopt, logger, more, mke2fs, e2fsck or any other program of the eleven into the container', 'what nothing execs'],
+  ["Redis's three binaries need libm, libssl, libcrypto and libc (`readelf -d`)", "Redis's libraries"],
+  ['No ELF file of the layer they are in names one of the six', 'that none names a purged library'],
+  ['Without --force-depends, dpkg refuses to remove what an installed package still depends on, so a base where one does stops the build', 'why no other force'],
+  ["The scan is perl's, perl-base's, which Debian marks Essential and this image keeps", 'why the scan is perl'],
+  ['So `dpkg --audit` takes its place, and its output is read, not its exit status', 'why dpkg --audit, and read by its output'],
+  ["The half of apt-get check a purge could break, a dependency left unmet, is dpkg's own refusal in 3", "what of apt-get check's work stays"],
+  ["images.yml's `build (redis, amd64|arm64)` runs this RUN on the real image on both platforms, where a wrong reading stops the build", 'where the reading is proved'],
+];
+
+/** Redis's purge, what is wrong with it, in words; empty when it holds. */
+function redisProblems(text: string): string[] {
+  const { runs, body } = runsOf(text);
+  const purges = runs.filter((r) => /(^|[;\s])dpkg --purge\b/.test(r.args));
+  if (purges.length !== 1) return [`${purges.length} RUNs run dpkg --purge, not one`];
+  const run = purges[0]!;
+  const args = run.args.replace(/\s+/g, ' ');
+  const problems = placeProblems(run, runs, body, '999:999', "USER 999:999, Redis's own user and group");
+  const shape = purgeShapeProblems(args, REDIS_LISTS);
+  problems.push(...shape.problems);
+  const scan = args.search(/(?:^|[;\s])found="\$\(perl -e "\$elves" "\$top" \$libraries\)" && st=0 \|\| st=\$\?; \[ "\$st" = 0 \] \|\| fail /);
+  if (scan < 0 || scan < shape.purgeAt) problems.push('no scan, after the purge, for an ELF file that names one of $libraries');
+  if (!/(?:^|[;\s])top=\/;/.test(args)) problems.push('the scan does not start at /, the image whole');
+  const elves = /(?:^|[;\s])elves='([^']*)';/.exec(args)?.[1] ?? '';
+  for (const [needles, what] of [
+    // Directories only: on overlayfs a file's st_dev can be its layer's, and a file skipped is a file not read.
+    [['if (-d _) { walk($p) if $s[0] == $dev; next; }'], "walks every directory of the image's own file system, and no other"],
+    [['my @s = lstat $p or die'], 'reads each entry as it is, a link as a link'],
+    [['if ($m ne "\\x7fELF") { close $f; next; }'], "reads ELF's magic"],
+    [['my $b = do { local $/; <$f> };', 'for my $n (@names) { push @hits, "$p: $n" if index($b, $n) >= 0; }'], 'reads each ELF whole for every name'],
+    [['exit 2 if $read == 0;'], 'fails when it read no ELF at all'],
+    [['if (@hits) {'], 'fails on a file that names one'],
+  ] as const) {
+    if (!needles.every((n) => elves.includes(n))) problems.push(`the scan no longer ${what}`);
+  }
+  if (!/(?:^|[;\s])sh -c : \|\| fail /.test(args)) problems.push('no proof, after the purge, that sh starts');
+  for (const c of ['id', 'find', 'redis-server', 'redis-cli']) {
+    if (!new RegExp(`for c in [^;]*(?<![\\w-])${c}(?![\\w-])[^;]*; do "\\$c" --version >/dev/null 2>&1 \\|\\| fail `).test(args)) problems.push(`no proof, after the purge, that ${c} starts`);
+  }
+  return problems;
+}
+
+/** The last RUN, as the image's user, what is wrong with it, given the release the FROM names; empty when it holds. */
+function asUserProblems(text: string, release: string | null): string[] {
+  const problems: string[] = [];
+  const last = runsOf(text).runs.at(-1);
+  if (!last || last.user !== '999:999') return ['the last RUN does not run as 999:999, so nothing proves the image starts as its own user'];
+  const args = last.args.replace(/\s+/g, ' ');
+  if (!/^set -eu;/.test(args)) problems.push('the last RUN does not start with `set -eu;`: a check that fails could be passed by');
+  if (!args.includes('who="$(id -u):$(id -g)"; [ "$who" = 999:999 ] || {')) problems.push('the last RUN does not stop when it runs as another user than 999:999');
+  if (!/(?:^|[;\s])said="\$\(docker-entrypoint\.sh redis-server --version\)" \|\| \{/.test(args)) problems.push("the last RUN does not start redis-server through upstream's entrypoint");
+  const asked = /(?:^|[;\s])case "\$said" in "Redis server v=(\d+\.\d+\.\d+) "\*\) ;; \*\) echo /.exec(args)?.[1];
+  if (!asked) problems.push('the last RUN does not ask redis-server for an exact release');
+  else if (release !== null && asked !== release) problems.push(`the last RUN asks redis-server for ${asked}, and the FROM names ${release}: re-read the header, then move the release it asks for`);
+  return problems;
+}
+
+/** The Dockerfile's instructions, each continued line joined to its first, comments and blank lines left out. */
+function instructionsOf(text: string): string[] {
+  const out: string[] = [];
+  let current = '';
+  for (const line of text.split('\n')) {
+    if (!current && /^\s*(#|$)/.test(line)) continue;
+    current += `${current ? '\n' : ''}${line}`;
+    if (!/\\\s*$/.test(line)) {
+      out.push(current);
+      current = '';
+    }
+  }
+  if (current) out.push(current);
+  return out;
+}
+
+/** What is wrong with Redis's Dockerfile as a whole; empty when it holds. */
+function redisDockerfileProblems(text: string): string[] {
+  const problems: string[] = [];
+  let base: ReturnType<typeof dockerfileBase> | null = null;
+  try {
+    base = dockerfileBase(text);
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  }
+  const release = base ? (/^(\d+\.\d+\.\d+)-bookworm$/.exec(base.tag)?.[1] ?? null) : null;
+  if (base) {
+    if (base.repo !== 'redis') problems.push(`it builds on ${base.repo}, not the official redis image`);
+    if (release === null) problems.push(`its base is ${base.tag}, not an exact Redis release on Debian 12 (\`7.4.12-bookworm\`), the base the list was read on`);
+  }
+  for (const line of text.split('\n')) {
+    if (!/^\s*#\s*[a-z][a-z0-9]*\s*=/i.test(line)) break;
+    problems.push(`\`${line}\` is a parser directive: it changes the build, and the image's name skips it as a comment. Remove it`);
+  }
+  const instructions = instructionsOf(text);
+  const kinds = instructions.map((i) => /^\s*(\S+)/.exec(i)?.[1]?.toUpperCase() ?? '');
+  if (JSON.stringify(kinds) !== JSON.stringify(['FROM', 'RUN', 'USER', 'RUN'])) {
+    problems.push(`its instructions are ${JSON.stringify(kinds)}, not FROM, RUN, USER and RUN: anything else reads files the name does not cover, or changes upstream's interface`);
+  }
+  for (const i of instructions) if (/--mount\b/i.test(i)) problems.push(`\`${i.split('\n')[0]}\` mounts something the name does not cover`);
+  const users = instructions.filter((i) => /^USER\s/i.test(i)).map((i) => i.replace(/^USER\s+/i, '').trim());
+  if (users.length !== 1 || users[0] !== '999:999') problems.push(`its USER lines are ${JSON.stringify(users)}, not one USER 999:999: upstream's entrypoint takes its root branch as root, and its setpriv is purged`);
+  problems.push(...redisProblems(text), ...asUserProblems(text, release));
+  return problems;
+}
+
+interface Service {
+  image?: string;
+  build?: string | { context?: string };
+  pull_policy?: string;
+  user?: string | number;
+  command?: string | string[];
+  cap_add?: string[];
+  cap_drop?: string[];
+  security_opt?: string[];
+  healthcheck?: { test?: string | string[] };
+  volumes?: string[];
+}
+
+const servicesOf = (text: string) => (parseYaml(text) as { services: Record<string, Service> }).services;
+const escapeForSed = (s: string) => s.replace(/[.[\]\\*^$#]/g, '\\$&');
+
+/** What is wrong with managed.yml's trigger-redis; empty when it holds. */
+function redisComposeProblems(managed: string, dockerfile: string): string[] {
+  const problems: string[] = [];
+  const want = `${REDIS_NAME}:${builtTag(dockerfile)}`;
+  const services = servicesOf(managed);
+  const svc = services[REDIS_SERVICE];
+  if (!svc) return [`${MANAGED} has no ${REDIS_SERVICE}`];
+  for (const [name, other] of Object.entries(services)) {
+    const repo = other.image ? parseRef(other.image).repo : '';
+    if (repo === 'redis') problems.push(`${MANAGED}:${name} runs ${other.image}, upstream's image with the eleven: run ${want}, built from ./redis`);
+    else if (repo === REDIS_NAME && name !== REDIS_SERVICE) problems.push(`${MANAGED}:${name} runs Redis's build too, which only ${REDIS_SERVICE} may`);
+  }
+  if (svc.image !== want) {
+    if (svc.image && parseRef(svc.image).repo === REDIS_NAME) {
+      const lineCounter = new LineCounter();
+      const node = parseDocument(managed, { lineCounter }).getIn(['services', REDIS_SERVICE, 'image'], true) as { range?: [number, number, number] } | undefined;
+      const line = node?.range ? lineCounter.linePos(node.range[0]).line : 0;
+      problems.push(
+        [
+          `${REDIS}'s instructions changed, so the image it builds is named ${want} now, and ${MANAGED}:${line} (${REDIS_SERVICE}) still gives ${svc.image}.`,
+          'Compose builds an image only where its name is missing, so under the old name every stack that has it keeps running the old build. Move the line, from the repository root:',
+          `  sed -i -e 's#${escapeForSed(svc.image)}#${want}#' ${MANAGED}`,
+          'Nothing else names it: the image scan, the pin watch and images.yml read managed.yml and the Dockerfile.',
+          "The twelve hex digits are the SHA-256 of the Dockerfile's instruction lines, comments and blank lines left out:",
+          `  grep -Ev '^[[:space:]]*(#|$)' ${REDIS} | sha256sum | cut -c1-12`,
+        ].join('\n'),
+      );
+    } else {
+      problems.push(`${REDIS_SERVICE} runs ${String(svc.image)}, not ${want}, built from ./redis`);
+    }
+  }
+  if (svc.build !== './redis') problems.push(`${REDIS_SERVICE}'s build: is ${JSON.stringify(svc.build)}, not the bare \`./redis\`: args, a target or a Dockerfile of its own are inputs the name does not carry`);
+  if (svc.pull_policy !== 'never') problems.push(`${REDIS_SERVICE} has pull_policy ${String(svc.pull_policy)}, not never: no registry serves ${want}`);
+  if (svc.user !== undefined) problems.push(`${REDIS_SERVICE} sets user: ${String(svc.user)}; the image's own 999:999 is the user its build proves`);
+  if ((svc.cap_add ?? []).length > 0) {
+    problems.push(`${REDIS_SERVICE} adds ${svc.cap_add!.join(', ')}: as 999 from its first process Redis needs no capability, and the four it added were upstream's root branch's`);
+  }
+  if (JSON.stringify(svc.cap_drop) !== JSON.stringify(['ALL'])) problems.push(`${REDIS_SERVICE} drops ${JSON.stringify(svc.cap_drop)}, not ALL`);
+  if (!(svc.security_opt ?? []).includes('no-new-privileges:true')) problems.push(`${REDIS_SERVICE} does not set no-new-privileges:true`);
+  if (svc.command !== 'redis-server --appendonly yes') problems.push(`${REDIS_SERVICE}'s command is ${JSON.stringify(svc.command)}, not redis-server --appendonly yes, the append-only file redis_data carries`);
+  if (!(svc.volumes ?? []).includes('redis_data:/data')) problems.push(`${REDIS_SERVICE} does not mount redis_data at /data, the volume upstream's image wrote`);
+  if (JSON.stringify(svc.healthcheck?.test) !== JSON.stringify(['CMD', 'redis-cli', 'ping'])) {
+    problems.push(`${REDIS_SERVICE}'s healthcheck is ${JSON.stringify(svc.healthcheck?.test)}, not redis-cli ping, a program the build proves starts`);
+  }
+  return problems;
+}
+
+interface Step {
+  name?: string;
+  uses?: string;
+  run?: string;
+  env?: Record<string, string>;
+  with?: Record<string, unknown>;
+}
+interface Job {
+  name?: string;
+  if?: string;
+  'runs-on'?: string;
+  permissions?: Record<string, string>;
+  strategy?: { 'fail-fast'?: boolean; matrix?: { include?: Array<Record<string, string>> } };
+  steps: Step[];
+}
+
+const redisJob = (workflow: string) => (parseYaml(workflow) as { jobs: Record<string, Job> }).jobs['redis'];
+/** The step that builds Redis and starts it on a volume upstream's image wrote. */
+const redisStep = (workflow: string) => redisJob(workflow)?.steps.find((s) => s.run?.includes('docker build'));
+
+/** A step's `docker run -d --name <name> …` command, its continued lines joined. */
+function dockerRun(run: string, name: string): string | null {
+  const joined = run.replace(/\\\n\s*/g, '');
+  return new RegExp(`^\\s*(docker run -d --name ${name} .*)$`, 'm').exec(joined)?.[1]?.replace(/\s+/g, ' ').trim() ?? null;
+}
+
+/** What is wrong with images.yml's build of Redis; empty when it holds. */
+function redisWorkflowProblems(workflow: string, managed: string): string[] {
+  const problems: string[] = [];
+  const job = redisJob(workflow);
+  if (!job) return ['images.yml has no redis job: nothing builds Redis before E2E (managed)'];
+  if (job.name !== 'build (redis, ${{ matrix.arch }})') problems.push(`its name is ${String(job.name)}, not build (redis, \${{ matrix.arch }}), which every-pr-check-is-classified names`);
+  if (job.if !== "github.event_name == 'pull_request'") problems.push(`it runs ${String(job.if)}, not on a pull request only`);
+  if (JSON.stringify(job.permissions) !== JSON.stringify({ contents: 'read' })) problems.push(`its permissions are ${JSON.stringify(job.permissions)}, not contents: read`);
+  const legs = job.strategy?.matrix?.include ?? [];
+  if (job['runs-on'] !== '${{ matrix.runner }}' || JSON.stringify(legs) !== JSON.stringify([{ arch: 'amd64', runner: 'ubuntu-24.04' }, { arch: 'arm64', runner: 'ubuntu-24.04-arm' }])) {
+    problems.push(`its legs are ${JSON.stringify(legs)} on ${String(job['runs-on'])}, not amd64 and arm64, each on its own platform: the purge reads each platform's packages and files`);
+  }
+  if (job.strategy?.['fail-fast'] !== false) problems.push('a leg that fails stops the other: fail-fast must be false, so each platform says what it found');
+  const checkout = job.steps.find((s) => s.uses?.startsWith('actions/checkout@'));
+  if (checkout?.with?.['persist-credentials'] !== false) problems.push('its checkout keeps a credential');
+  const step = redisStep(workflow);
+  const run = step?.run ?? '';
+  if (step?.env?.['ARCH'] !== '${{ matrix.arch }}') problems.push("its step's ARCH is not the leg's");
+  if (!/^set -euo pipefail$/m.test(run)) problems.push('its script does not start with set -euo pipefail');
+  if (!run.includes('\\(localhost\\/redis:[^[:space:]]*\\)')) problems.push(`it does not read the name from managed.yml's ${REDIS_NAME} line`);
+  if (!run.includes(`docker build --pull --progress=plain --tag "$ref" ${REDIS_CONTEXT}\n`)) problems.push(`it does not build ${REDIS_CONTEXT} under the name it read`);
+  if (!run.includes(`\\(redis:[^[:space:]]*\\)[[:space:]]*$/\\1/p' ${REDIS}`)) problems.push("it does not read upstream's image from the Dockerfile's FROM");
+  const svc = servicesOf(managed)[REDIS_SERVICE];
+  if (!svc) return [...problems, `${MANAGED} has no ${REDIS_SERVICE}`];
+  // The build as managed.yml runs it: its command, its volume's target, every capability dropped and none added.
+  const command = typeof svc.command === 'string' ? svc.command : '';
+  const target = (svc.volumes ?? []).find((v) => v.startsWith('redis_data:'))?.split(':')[1] ?? '';
+  const built = dockerRun(run, 'redis-built');
+  const wantBuilt = `docker run -d --name redis-built --security-opt no-new-privileges:true --cap-drop ALL -v redis-carry-over:${target} "$ref" ${command} >/dev/null`;
+  if (built !== wantBuilt) problems.push(`it starts the build as \`${String(built)}\`, and managed.yml runs ${REDIS_SERVICE} as \`${wantBuilt}\` would: every capability dropped, none added, its command and its volume`);
+  // Upstream's image as managed.yml ran it until the build: as root, with the four capabilities its entrypoint's root branch took.
+  const upstream = dockerRun(run, 'redis-upstream');
+  const wantUpstream = `docker run -d --name redis-upstream --security-opt no-new-privileges:true --cap-drop ALL --cap-add CHOWN --cap-add DAC_READ_SEARCH --cap-add SETGID --cap-add SETUID -v redis-carry-over:${target} "$base" ${command} >/dev/null`;
+  if (upstream !== wantUpstream) problems.push(`it starts upstream's image as \`${String(upstream)}\`, not as managed.yml ran it before the build: \`${wantUpstream}\``);
+  const order = ['pong redis-upstream', 'docker exec redis-upstream redis-cli set carried', 'docker stop redis-upstream', 'docker run -d --name redis-built', 'prove redis-built "on the volume', 'docker restart redis-built', 'prove redis-built "after a restart'].map((s) => run.indexOf(s));
+  if (order.some((i) => i < 0) || order.some((i, n) => n > 0 && i < order[n - 1]!)) {
+    problems.push("it does not write the key with upstream's image, stop it, start the build on the volume, prove it, restart it and prove it again, in that order");
+  }
+  const commands = run.split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
+  for (const line of commands) {
+    if (/(^|[\s;&|(])exit\b/.test(line) && !/(^|[\s;&|(])exit 1$/.test(line)) problems.push(`\`${line}\` exits, and not to fail`);
+  }
+  return problems;
+}
+
+/**
+ * The stubs the step runs against, as shell functions ahead of it. `docker`:
+ * every call is logged; the pull, the build, the volume, a stop and a restart
+ * succeed; `run` prints an id; `image inspect` answers the user, the platform
+ * and the configuration from the environment (DRIFT makes the build's
+ * entrypoint another than upstream's); `exec` answers redis-cli's ping, its
+ * set and its get (from what set wrote, or CARRIED when it is set), the
+ * server's /proc/1/status (SERVER_UID, SERVER_GID) and an exec's `id -u`
+ * (EXEC_UID). `sleep` returns.
+ */
+const REDIS_STUBS = `docker() {
+  printf '%s\\n' "$*" >> "$DOCKER_LOG"
+  case "$1" in
+    pull|build|volume|stop|restart) return 0 ;;
+    run) echo 0123456789ab ;;
+    image)
+      case "$4" in
+        '{{json .Config.User}}') printf '%s\\n' "$IMAGE_USER" ;;
+        '{{.Os}}/{{.Architecture}}') printf '%s\\n' "$PLATFORM" ;;
+        '{{json .Config.Entrypoint}}') if [ -n "$DRIFT" ] && [ "$5" != "$BASE" ]; then echo '["sh"]'; else echo '["docker-entrypoint.sh"]'; fi ;;
+        '{{json .Config.'*) echo '"upstream"' ;;
+        *) echo 'sha256:stub, user 999:999' ;;
+      esac ;;
+    exec)
+      shift; shift
+      case "$*" in
+        'redis-cli ping') printf '%s\\n' "$PONG" ;;
+        'redis-cli set carried '*) printf '%s' "$4" > "$STORE"; echo OK ;;
+        'redis-cli get carried') if [ -n "\${CARRIED+x}" ]; then printf '%s\\n' "$CARRIED"; else cat "$STORE"; echo; fi ;;
+        'cat /proc/1/status') printf 'Name:\\tredis-server\\nUid:\\t%s\\t%s\\t%s\\t%s\\nGid:\\t%s\\t%s\\t%s\\t%s\\n' "$SERVER_UID" "$SERVER_UID" "$SERVER_UID" "$SERVER_UID" "$SERVER_GID" "$SERVER_GID" "$SERVER_GID" "$SERVER_GID" ;;
+        'id -u') printf '%s\\n' "$EXEC_UID" ;;
+        *) echo "unexpected: docker exec $*" >&2; return 3 ;;
+      esac ;;
+    *) echo "unexpected: docker $*" >&2; return 3 ;;
+  esac
+}
+sleep() { :; }
+`;
+
+/** What a right run of the step answers: Redis's build as it ran on 2026-11-07, on amd64. */
+const RIGHT_ANSWERS: Readonly<Record<string, string>> = {
+  IMAGE_USER: '"999:999"',
+  PLATFORM: 'linux/amd64',
+  ARCH: 'amd64',
+  PONG: 'PONG',
+  SERVER_UID: '999',
+  SERVER_GID: '999',
+  EXEC_UID: '999',
+  DRIFT: '',
+};
+
+/** Runs the step as GitHub runs it (bash -eo pipefail), in this checkout, after the stubs, with `answers` over the right ones. */
+function runRedisStep(run: string, answers: Readonly<Record<string, string>> = {}): { status: number; out: string; docker: string[] } {
+  const dir = mkdtempSync(join(tmpdir(), 'redis-step-'));
+  try {
+    const script = join(dir, 'step.sh');
+    writeFileSync(script, `${REDIS_STUBS}${run}`);
+    const log = join(dir, 'docker.log');
+    writeFileSync(log, '');
+    const base = dockerfileBase(read(REDIS)).ref;
+    const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
+      cwd: ROOT,
+      encoding: 'utf8',
+      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir, CI: 'true', GITHUB_ACTIONS: 'true', DOCKER_LOG: log, STORE: join(dir, 'store'), BASE: base, ...RIGHT_ANSWERS, ...answers },
+    });
+    return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, docker: readFileSync(log, 'utf8').split('\n').filter(Boolean) };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+/** Wrong answers, each given to the step in a run of its own: none may pass. */
+const WRONG_ANSWERS: ReadonlyArray<readonly [string, Readonly<Record<string, string>>]> = [
+  ['an image that runs as root', { IMAGE_USER: '"root"' }],
+  ['an image with no USER', { IMAGE_USER: '""' }],
+  ["a build whose entrypoint is not upstream's", { DRIFT: '1' }],
+  ["a build of another platform's image", { PLATFORM: 'linux/arm64' }],
+  ['a server that never answers PONG', { PONG: '' }],
+  ['a server that runs as root', { SERVER_UID: '0' }],
+  ["a server in root's group", { SERVER_GID: '0' }],
+  ['an exec that runs as root', { EXEC_UID: '0' }],
+  ["a key upstream's image wrote that is not there", { CARRIED: '' }],
+];
+
+/** What is wrong with the step's verdict; empty when it holds. */
+function redisVerdictProblems(workflow: string, dockerfile: string): string[] {
+  const run = redisStep(workflow)?.run ?? '';
+  const want = `${REDIS_NAME}:${builtTag(dockerfile)}`;
+  const right = runRedisStep(run);
+  if (right.status !== 0 || /^::error::/m.test(right.out)) return [`with Redis answering as its build did, the step exits ${right.status}:\n${right.out}`];
+  for (const call of [
+    `build --pull --progress=plain --tag ${want} ${REDIS_CONTEXT}`,
+    `run -d --name redis-built --security-opt no-new-privileges:true --cap-drop ALL -v redis-carry-over:/data ${want} redis-server --appendonly yes`,
+    'restart redis-built',
+  ]) {
+    if (!right.docker.includes(call)) return [`the step does not run \`docker ${call}\`: ${JSON.stringify(right.docker)}`];
+  }
+  if (!/^after a restart on its own volume: the server runs as 999:999, answers PONG, and reads the key upstream's image wrote$/m.test(right.out)) {
+    return [`the step does not say what it proved after the restart:\n${right.out}`];
+  }
+  for (const [what, answers] of WRONG_ANSWERS) {
+    const r = runRedisStep(run, answers);
+    if (r.status === 0 || !/^::error::/m.test(r.out)) return [`with ${what}, the step exits ${r.status} without an error: its verdict is not every check's\n${r.out}`];
+  }
+  return [];
+}
+
+type Update = {
+  'package-ecosystem': string;
+  directory?: string;
+  directories?: string[];
+  ignore?: Array<{ 'dependency-name': string; 'update-types'?: string[] }>;
+};
+
+describe("Trigger.dev's Redis is built here: the webapp's eleven purged, and redis's own user from the first process (2026-11-07, for alpha.6)", () => {
+  const redis = read(REDIS);
+  const managed = read(MANAGED);
+  const workflow = read(IMAGES_WORKFLOW);
+  const reasons = sectionOf(redis, 'WHY. ', 'THE USER.');
+  const how = sectionOf(redis, 'HOW THEY ARE PURGED, AND PROVED.', 'THE USER.');
+  const user = sectionOf(redis, 'THE USER.', 'THE NAME.');
+  const swap = (from: string | RegExp, to: string) => {
+    const next = redis.replace(from, to);
+    expect(next, `${String(from)} is not in ${REDIS}`).not.toBe(redis);
+    return redisDockerfileProblems(next);
+  };
+
+  it('a FROM by tag and digest, the one RUN as root that purges REDIS_PURGE in the shape that fails loudly, USER 999:999 and a RUN as that user, and nothing else in the directory', () => {
+    expect(redisDockerfileProblems(redis)).toEqual([]);
+    expect(readdirSync(join(ROOT, REDIS_CONTEXT))).toEqual(['Dockerfile']);
+  });
+
+  it("is the webapp's list, on the owner's word that it is the webapp's purge, and says why each may go here", () => {
+    expect(REDIS_PURGE.map((p) => p.name)).toEqual(WEBAPP_PURGE.map((p) => p.name));
+    for (const p of REDIS_PURGE) {
+      expect(p.why.length, `${p.name}: why`).toBeGreaterThan(40);
+      expect(reasons, `the header names no ${p.name}`).toMatch(new RegExp(`(^|[\\s(,])${p.name.replace(/[.+]/g, '\\$&')}([\\s),.:;]|$)`));
+    }
+    for (const so of WEBAPP_LIBRARIES) expect(reasons, `the header names no ${so}`).toContain(so);
+  });
+
+  it('the header carries every reason, word for word, says how it is proved, and why the image runs as 999', () => {
+    expect(reasons.length, 'no sections WHY to HOW THEY ARE PURGED').toBeGreaterThan(3000);
+    for (const [needle, what] of REDIS_REASONS) expect(reasons, what).toContain(needle);
+    expect(how).toContain('`dpkg-query -W` of exactly the eleven, first');
+    expect(how).toContain("--force-remove-essential --force-remove-protected`, the two flags of the owner's decision, and no other force");
+    for (const needle of [
+      'setpriv goes with util-linux, so this image runs as 999:999 from its first process',
+      "managed.yml's trigger-redis adds no capability",
+      'THE VOLUME CARRIES OVER.',
+      '(`find /data ! -user 999`, which prints nothing)',
+      'The way back is a tag before this, which runs upstream\'s image as root again',
+    ]) {
+      expect(user, needle).toContain(needle);
+    }
+  });
+
+  it('refuses each way the purge could slip', () => {
+    expect(swap('--force-remove-protected $purge', '--force-remove-protected --force-depends $purge')).toEqual([
+      'its force flags are --force-remove-essential --force-remove-protected --force-depends, not --force-remove-essential --force-remove-protected alone',
+      "it names 3 --force flags (--force-remove-essential --force-remove-protected --force-depends), not the purge's two",
+    ]);
+    expect(swap(' libuuid1 apt', ' apt')).toEqual(['its purge= is ["util-linux","util-linux-extra","mount","bsdutils","libblkid1","libmount1","libsmartcols1","apt","libapt-pkg6.0","e2fsprogs"], not the eleven REDIS_PURGE names, in order']);
+    expect(swap(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"')).toHaveLength(1);
+    expect(swap(' libapt-private.so.0.0"', '"')).toEqual(['its libraries= is ["libuuid.so.1","libblkid.so.1","libmount.so.1","libsmartcols.so.1","libapt-pkg.so.6.0"], not WEBAPP_LIBRARIES']);
+    expect(swap(/^ {4}dpkg-query -W \$purge \|\| fail [^\n]*\n/m, '')).toEqual(['no `dpkg-query -W $purge || fail`: a renamed or missing package would be a name dpkg skips with a warning']);
+    const query = /^ {4}dpkg-query -W \$purge \|\| fail [^\n]*\n/m.exec(redis)![0];
+    const late = redis.replace(query, '').replace(/^( {4}dpkg --purge [^\n]*\n)/m, `$1${query}`);
+    expect(redisDockerfileProblems(late)).toEqual(['`dpkg-query -W $purge` is not the first thing it asks dpkg', 'dpkg-query -W comes after the purge, which checks nothing in time']);
+    expect(swap(/^ {4}\[ -z "\$audit" \] \|\| fail "dpkg --audit reads problems[^\n]*\n/m, '')).toEqual(['no `dpkg --audit` read, its output empty, before the purge']);
+    expect(swap(/^ {4}\[ -z "\$audit" \] \|\| fail "after the purge[^\n]*\n/m, '')).toEqual(['no `dpkg --audit` read, its output empty, after the purge']);
+    expect(swap(/^ {4}listed="[^\n]*\n {4}for l in \$libraries[^\n]*\n/m, '')).toEqual(['no check, before the purge, that the eleven ship every library of $libraries']);
+    expect(swap(/^ {4}for p in \$purge; do [^\n]*\n/m, '')).toEqual(['no check, after the purge, that dpkg reads each of the eleven as gone']);
+    expect(swap(/^ {4}found="\$\(perl -e "\$elves"[^\n]*\n {4}\[ "\$st" = 0 \][^\n]*\n/m, '')).toEqual(['no scan, after the purge, for an ELF file that names one of $libraries']);
+    expect(swap('top=/;', 'top=/usr;')).toEqual(['the scan does not start at /, the image whole']);
+    expect(swap('if (-d _) { walk($p) if $s[0] == $dev; next; }', 'if (-d _) { walk($p); next; }')).toEqual(["the scan no longer walks every directory of the image's own file system, and no other"]);
+    // A device check on files as well would pass over a file whose layer gives it another st_dev.
+    expect(swap('if (-d _) { walk($p) if $s[0] == $dev; next; }', 'next if $s[0] != $dev; if (-d _) { walk($p); next; }')).toEqual(["the scan no longer walks every directory of the image's own file system, and no other"]);
+    expect(swap('my @s = lstat $p or die', 'my @s = stat $p or die')).toEqual(['the scan no longer reads each entry as it is, a link as a link']);
+    expect(swap('exit 2 if $read == 0; ', '')).toEqual(['the scan no longer fails when it read no ELF at all']);
+    expect(swap('if (@hits) {', 'if (0) {')).toEqual(['the scan no longer fails on a file that names one']);
+    expect(swap('for c in id find redis-server redis-cli;', 'for c in id find redis-cli;')).toEqual(['no proof, after the purge, that redis-server starts']);
+    expect(swap(/^ {4}sh -c : \|\| fail [^\n]*\n/m, '')).toEqual(['no proof, after the purge, that sh starts']);
+    // apt-get check in dpkg --audit's place: apt is gone by then.
+    expect(swap(/^( {4}audit="\$\(dpkg --audit\)" \|\| fail "dpkg --audit did not run after the purge\.";) \\\n {4}\[ -z "\$audit" \][^\n]*\n/m, '    apt-get check || fail "apt is not consistent"; \\\n')).toEqual([
+      'it runs apt, which it purges: `dpkg --audit` checks what is left',
+      'no `dpkg --audit` read, its output empty, after the purge',
+    ]);
+    expect(swap(/^( {4})dpkg --purge /m, '$1dpkg --remove ')).toEqual(['0 RUNs run dpkg --purge, not one']);
+  });
+
+  it("refuses an image that would start as root, a last RUN that proves less, another base, and what the name does not cover", () => {
+    // The USER gone: the purge is the last RUN, as root, and upstream's entrypoint would take its root branch into a setpriv that is not there.
+    expect(swap(/^USER 999:999\n/m, '')).toEqual([
+      'its instructions are ["FROM","RUN","RUN"], not FROM, RUN, USER and RUN: anything else reads files the name does not cover, or changes upstream\'s interface',
+      "its USER lines are [], not one USER 999:999: upstream's entrypoint takes its root branch as root, and its setpriv is purged",
+      'the purge is not the last RUN as root: every other change comes before it, and nothing after it may need what it purged',
+      "the purge is not followed by USER 999:999, Redis's own user and group",
+      'the last RUN does not run as 999:999, so nothing proves the image starts as its own user',
+    ]);
+    expect(swap(/^USER 999:999$/m, 'USER redis')).toEqual(expect.arrayContaining([expect.stringContaining('not one USER 999:999'), expect.stringContaining('the purge is not followed by USER 999:999')]));
+    // The last RUN cut short, or asking for another release than the FROM's.
+    expect(swap('[ "$who" = 999:999 ] || {', '[ -n "$who" ] || {')).toEqual(['the last RUN does not stop when it runs as another user than 999:999']);
+    expect(swap('said="$(docker-entrypoint.sh redis-server --version)"', 'said="$(redis-server --version)"')).toEqual(["the last RUN does not start redis-server through upstream's entrypoint"]);
+    expect(swap(/^FROM redis:7\.4\.\d+-bookworm@/m, 'FROM redis:7.4.99-bookworm@')).toEqual([expect.stringMatching(/^the last RUN asks redis-server for 7\.4\.\d+, and the FROM names 7\.4\.99: re-read the header/)]);
+    expect(swap(/^FROM redis:/m, 'FROM valkey/valkey:')).toEqual([expect.stringContaining('not the official redis image')]);
+    expect(swap(/^FROM redis:(7\.4\.\d+)-bookworm@/m, 'FROM redis:$1-trixie@')).toEqual([expect.stringContaining('not an exact Redis release on Debian 12')]);
+    const from = dockerfileBase(redis);
+    expect(swap(from.ref, `redis:${from.tag}`)).toEqual([expect.stringContaining('carries no tag and digest')]);
+    expect(redisDockerfileProblems(`# syntax=docker/dockerfile:1\n${redis}`)).toEqual([expect.stringContaining('is a parser directive')]);
+    for (const line of ['COPY redis.conf /usr/local/etc/redis/redis.conf', 'ADD https://example.org/x /tmp/', 'ENV REDIS_ARGS=--protected-mode', 'HEALTHCHECK CMD redis-cli ping']) {
+      expect(redisDockerfileProblems(`${redis}${line}\n`), line).toEqual([expect.stringContaining('not FROM, RUN, USER and RUN')]);
+    }
+    expect(swap(/^RUN set -eu; \\\n {4}me=deploy\/compose\/redis\/Dockerfile; \\\n {4}fail\(\)/m, 'RUN --mount=type=bind,target=/src set -eu; \\\n    me=deploy/compose/redis/Dockerfile; \\\n    fail()')).toEqual([expect.stringContaining('mounts something')]);
+    // An install after the purge, as 999 or as root.
+    expect(redisDockerfileProblems(`${redis}RUN apt-get install -y util-linux\n`)).toEqual(expect.arrayContaining(['a RUN after the purge installs a package: apt-get install -y util-linux']));
+  });
+
+  it('managed.yml runs that build as localhost/redis:<builtTag>, never pulled, with no capability and no user of its own', () => {
+    expect(redisComposeProblems(managed, redis)).toEqual([]);
+    expect(readImages(managed).filter((i) => i.repo === REDIS_NAME).map((i) => i.tag)).toEqual([builtTag(redis)]);
+    expect(readImages(managed).filter((i) => i.repo === 'redis')).toEqual([]);
+  });
+
+  it('prints the sed that moves a name the Dockerfile moved past, and the sed moves it', () => {
+    const edited = redis.replace('    sh -c : || fail', '    sh -c true || fail');
+    expect(edited).not.toBe(redis);
+    const problems = redisComposeProblems(managed, edited);
+    expect(problems).toHaveLength(1);
+    const sed = /^ {2}(sed -i -e '[^']+') deploy\/compose\/managed\.yml$/m.exec(problems[0]!)?.[1];
+    expect(sed, problems[0]).toBeDefined();
+    expect(problems[0]).toMatch(new RegExp(`deploy/compose/managed\\.yml:\\d+ \\(${REDIS_SERVICE}\\)`));
+    const dir = mkdtempSync(join(tmpdir(), 'redis-name-'));
+    try {
+      const file = join(dir, 'managed.yml');
+      writeFileSync(file, managed);
+      const ran = spawnSync('sed', ['-i', '-e', sed!.replace(/^sed -i -e '/, '').replace(/'$/, ''), file], { encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(0);
+      const moved = readFileSync(file, 'utf8');
+      expect(redisComposeProblems(moved, edited)).toEqual([]);
+      expect(moved.split('\n').filter((line, i) => line !== managed.split('\n')[i])).toEqual([`    image: ${REDIS_NAME}:${builtTag(edited)}`]);
+    } finally {
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("refuses upstream's image back, another build, a pull, a user, a capability, and a healthcheck the build does not prove", () => {
+    const swapped = (from: RegExp, to: string) => {
+      const text = managed.replace(from, to);
+      expect(text, `${String(from)} matched nothing`).not.toBe(managed);
+      return redisComposeProblems(text, redis);
+    };
+    expect(swapped(/^(\s*image:\s*)localhost\/redis:\S+$/m, `$1${dockerfileBase(redis).ref}`)).toEqual([expect.stringContaining("upstream's image with the eleven"), expect.stringContaining('not localhost/redis:')]);
+    expect(swapped(/^(\s*)build: \.\/redis$/m, '$1build:\n$1  context: ./redis')).toEqual([expect.stringContaining('not the bare `./redis`')]);
+    expect(swapped(/^(\s*build: \.\/redis\n)\s*pull_policy: never\n/m, '$1')).toEqual([expect.stringContaining('not never')]);
+    expect(swapped(/^(\s*build: \.\/redis\n)/m, '$1    user: "0"\n')).toEqual([expect.stringContaining('sets user: 0')]);
+    expect(swapped(/^(\s*cap_drop: \[ALL\]\n)(\s*command: redis-server --appendonly yes)$/m, '$1    cap_add: [CHOWN, DAC_READ_SEARCH, SETGID, SETUID]\n$2')).toEqual([
+      expect.stringContaining('adds CHOWN, DAC_READ_SEARCH, SETGID, SETUID'),
+    ]);
+    expect(swapped(/(\s*test: )\["CMD", "redis-cli", "ping"\]/, '$1["CMD-SHELL", "redis-cli ping | grep PONG"]')).toEqual([expect.stringContaining('not redis-cli ping')]);
+    expect(swapped(/^(\s*)command: redis-server --appendonly yes$/m, '$1command: redis-server')).toEqual([expect.stringContaining('the append-only file redis_data carries')]);
+  });
+
+  it('images.yml builds it on both platforms on a pull request, and starts it as 999 on a volume upstream\'s image wrote, as managed.yml runs it', () => {
+    expect(redisWorkflowProblems(workflow, managed)).toEqual([]);
+  });
+
+  it("the job's verdict is every check's", () => {
+    expect(redisVerdictProblems(workflow, redis)).toEqual([]);
+  }, 60_000);
+
+  it('refuses a job that drifted from managed.yml, or stopped asking', () => {
+    const swapped = (text: string, from: RegExp | string, to: string) => {
+      const out = text.replace(from, to);
+      expect(out, `${String(from)} matched nothing`).not.toBe(text);
+      return out;
+    };
+    const problems = (wf: string, m = managed) => redisWorkflowProblems(wf, m);
+    expect(problems(swapped(workflow, 'name: build (redis, ${{ matrix.arch }})', 'name: build (redis)'))).toEqual([expect.stringContaining('every-pr-check-is-classified')]);
+    expect(problems(swapped(workflow, /\n {10}- arch: arm64\n {12}runner: ubuntu-24\.04-arm\n(?= {4}steps:\n {6}- uses: actions\/checkout@[0-9a-f]+ # v[\d.]+\n {8}with:\n {10}persist-credentials: false\n\n {6}- name: Build Redis)/, '\n'))).toEqual([
+      expect.stringContaining('not amd64 and arm64'),
+    ]);
+    expect(problems(swapped(workflow, '            --security-opt no-new-privileges:true --cap-drop ALL \\\n            -v redis-carry-over:/data "$ref"', '            --security-opt no-new-privileges:true --cap-drop ALL --cap-add CHOWN \\\n            -v redis-carry-over:/data "$ref"'))).toEqual([
+      expect.stringContaining('it starts the build as'),
+    ]);
+    expect(problems(workflow, swapped(managed, /^(\s*)command: redis-server --appendonly yes$/m, '$1command: redis-server --appendonly no'))).toEqual([
+      expect.stringContaining('it starts the build as'),
+      expect.stringContaining("it starts upstream's image as"),
+    ]);
+    expect(problems(swapped(workflow, '          docker restart redis-built >/dev/null\n', ''))).toEqual([expect.stringContaining('in that order')]);
+    expect(problems(swapped(workflow, `--tag "$ref" ${REDIS_CONTEXT}\n`, '--tag "$ref" deploy/compose/caddy\n'))).toEqual([expect.stringContaining(`does not build ${REDIS_CONTEXT}`)]);
+    expect(problems(swapped(workflow, '\n          echo "${ref}: ${platform}, $(docker image inspect', '\n          exit 0\n          echo "${ref}: ${platform}, $(docker image inspect'))).toEqual([
+      expect.stringContaining('`exit 0` exits, and not to fail'),
+    ]);
+  });
+
+  it('refuses a step that passes when Redis did not come up as 999 with the key', () => {
+    const verdict = (wf: string) => redisVerdictProblems(wf, redis);
+    const swapped = (from: string, to: string) => {
+      const out = workflow.replace(from, to);
+      expect(out, `${from} matched nothing`).not.toBe(workflow);
+      return out;
+    };
+    expect(verdict(swapped('if [ "$uid:$gid" != 999:999 ]; then', 'if [ "$gid" != 999 ]; then'))).toEqual([expect.stringMatching(/^with a server that runs as root, the step exits 0/)]);
+    expect(verdict(swapped('if [ "$carried" != "written by ${base}" ]; then', 'if [ -z "${base}" ]; then'))).toEqual([expect.stringMatching(/^with a key upstream's image wrote that is not there, the step exits 0/)]);
+    expect(verdict(swapped('if [ "$user" != \'"999:999"\' ]; then', 'if [ "$user" = \'"nobody"\' ]; then'))).toEqual([expect.stringMatching(/^with an image that runs as root, the step exits 0/)]);
+    expect(verdict(swapped('if [ "$exec_uid" != 999 ]; then', 'if [ -z "$exec_uid" ]; then'))).toEqual([expect.stringMatching(/^with an exec that runs as root, the step exits 0/)]);
+  }, 60_000);
+
+  it('Dependabot moves its base within Redis 7, in a pull request of its own', () => {
+    const updates = (parseYaml(read('.github/dependabot.yml')) as { updates: Update[] }).updates;
+    const entries = updates.filter((u) => [...(u.directories ?? []), ...(u.directory ? [u.directory] : [])].includes(`/${REDIS_CONTEXT}`));
+    expect(entries, 'one Dependabot entry reads the directory').toHaveLength(1);
+    const [entry] = entries;
+    expect(entry!['package-ecosystem']).toBe('docker');
+    expect(entry!.directories, 'an entry of its own: a shared one groups the apps, whose checks never build this').toBeUndefined();
+    expect(entry!.ignore).toEqual([{ 'dependency-name': 'redis', 'update-types': ['version-update:semver-major'] }]);
+  });
+});

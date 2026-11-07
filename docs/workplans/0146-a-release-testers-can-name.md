@@ -5,8 +5,8 @@
 ## Status — 2026-11-07 (update this block at the end of every session)
 
 **2026-11-07, last: alpha.6 is folded, its nights waived, and live waits for it (T2, T4).** On
-the branch `claude/ownpace-public-readiness-y7orc6-alpha6-fold`, on `main` at `ca2af249`
-(#1833). The fold moves `package.json` and the API contract to `0.2.0-alpha.6`, and everything under
+the branch `claude/ownpace-public-readiness-y7orc6-alpha6-fold`, on `main` at `fdd572df`
+(#1835). The fold moves `package.json` and the API contract to `0.2.0-alpha.6`, and everything under
 `[Unreleased]` to `## [0.2.0-alpha.6] - 2026-11-07`, with a summary paragraph above it;
 `[Unreleased]` stays, empty. It adds `v0.2.0-alpha.6` as the last of `releases` in
 `scripts/release-line.json`, the release being prepared until Release tags it (T4,
@@ -34,7 +34,9 @@ for after alpha.6: Trivy 0.76.2 and Atlas 1.3.8, CI tools past their three-day f
   in the `release` environment; then Release tags C and publishes.
 
 Live's deploy of the tag starts from alpha.4, with a sheet for alpha.4 to alpha.6 that takes a
-dump of live's `zitadel` database before the update (0135 T7). No image alpha.6 moves merged
+dump of live's `zitadel` database before the update (0135 T7), and first asks live's running
+`trigger-redis`, as uid 999, for any file in `/data` that is not uid 999's: none is expected
+(0119 §3 item 11, `docs/managed-bring-up.md`). No image alpha.6 moves merged
 before its three-day floor (0119), so nothing holds that deploy after the tag.
 
 **2026-11-07: `v0.2.0-alpha.5` is released, its nights waived (T2, T4).** Read from GitHub on

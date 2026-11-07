@@ -3196,9 +3196,9 @@ Since 2026-11-03 (workplan 0119; the owner: *"more hardened"*) every service
 of `managed.yml`, the site's `www.yml` and the appliance's `compose.yml` sets
 `no-new-privileges`: nothing in the container gains a privilege by running a
 setuid binary or one with a file capability. No service here needs that. Those
-that change user do it as root with a system call (Redis's `setpriv`,
-ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's `su`),
-and the rest never change user. All but two drop every capability and add back
+that change user do it as root with a system call (ClickHouse's `clickhouse
+su`, nginx's and Apache's workers, Nextcloud's `su`), and the rest never change
+user. All but two drop every capability and add back
 only what their own start does as root; a service that runs as another user
 from its first process adds none. Six that write nothing outside their volumes
 start with a read-only root, with `/tmp` (and `/run`) in memory where they
@@ -3215,7 +3215,7 @@ whose program needs a capability its service does not keep.
 | `postgres` | uid 70 | none | no | measured: its image as uid 70, a new volume and a restart |
 | `pgbouncer` | uid 70 | none | yes, `/tmp` in memory | measured |
 | `trigger-db` | uid 70 | none | no | measured, the same image as `postgres` |
-| `trigger-redis` | root, then uid 999 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: without DAC_READ_SEARCH a restart on its own volume fails (`find: './appendonlydir': Permission denied`), without CHOWN a file in `/data` that is not 999's stops it, without SETUID or SETGID `setpriv` fails |
+| `trigger-redis` | uid 999 | none | no | measured (2026-11-07): its build (`deploy/compose/redis`) runs as uid 999 from its first process, so upstream's entrypoint never takes its root branch; on a new volume, on one upstream's image wrote as root, and again after a restart on its own. Upstream's image as root needed CHOWN, DAC_READ_SEARCH, SETGID and SETUID: without DAC_READ_SEARCH a restart on its own volume failed (`find: './appendonlydir': Permission denied`), without CHOWN a file in `/data` that was not 999's stopped it, without SETUID or SETGID `setpriv` failed |
 | `trigger-api` | root | Docker's default | no | read: its entrypoint chowns the shared volume, copies files into directories `node` owns and writes the worker token there; its image cannot be pulled where this was measured |
 | `clickhouse` | root, then uid 101 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: a new volume needs CHOWN, a data directory root owns (a copy restored by root) needs DAC_READ_SEARCH as well, `clickhouse su` needs SETUID and SETGID. The server runs with no capability either way, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added |
 | `trigger-registry` | root | none | yes, `/tmp` in memory | measured: a push, a pull and a restart |
@@ -5072,6 +5072,55 @@ asks it from the host.
   `caddy:2.11.7-alpine` by the digest those tags pin; `up` pulls it when the
   machine no longer has it. A tag between the two builds Caddy 2.11.7 without
   curl.
+
+**Trigger.dev's Redis is a build here too** (workplan 0119 §3 item 11, for
+alpha.6; the owner, 2026-11-07: *"Redis purge in 6"*). `trigger-redis` runs
+`localhost/redis:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/redis`: Redis's official `redis:7.4.12-bookworm` at the digest
+its Dockerfile pins, with the eleven Debian packages the webapp's image purges
+(util-linux's eight, apt, libapt-pkg6.0 and e2fsprogs) purged, and run as uid
+and gid 999 from its first process. 24 of the image's 34 high findings were in
+util-linux's eight, and nothing in this container runs or loads any of the
+eleven. Redis itself, its command, its volume and its append-only file are as
+they were.
+
+- **The first `up` builds it, and Redis restarts once.** The bring-up's
+  trigger phase (`up_wait trigger-redis …`) finds no image of that name and
+  builds it, pulling the pinned base from Docker Hub when the machine does not
+  have it and needing no network for the purge, then recreates `trigger-redis`
+  because its image changed: the OTA stack at the E2E (managed) run of the
+  branch or the next nightly gate, live inside `deploy-live.sh`'s hold and
+  drain, from the tag. `pull_policy: never`, as for the databases.
+- **The data stays where it is, and is already uid 999's.** Upstream's
+  entrypoint chowned whatever in `/data` was not uid 999's at every start, and
+  the server wrote the rest as 999, so the volume needs nothing: the build
+  starts on it as 999 and reads its append-only file as before. The purge took
+  util-linux's `setpriv`, which that entrypoint used to drop from root, so
+  nothing chowns `/data` any more. To see it before the deploy, on the old
+  container, this prints nothing:
+  `docker compose -f deploy/compose/managed.yml exec -T -u 999 trigger-redis find /data ! -user 999`
+  A line it prints, or a `Permission denied`, is a file uid 999 does not own:
+  restart `trigger-redis` once on the old image, inside the hold (its
+  entrypoint chowns such a file at every start), and ask again. A new volume
+  takes the image's `/data`, which is uid 999's.
+- **An exec into `trigger-redis` runs as uid 999, not root**, and the
+  container keeps no capability. What this repository runs there is
+  `plane-tokens.sh`'s `redis-cli`, over TCP, which answers the same.
+- **Moving it.** A newer Redis 7.4, or a rebuild of its tag, is Dependabot's
+  pull request (the directory's own entry, never a major). A rebuild builds
+  when the base still has the eleven and nothing new depends on them; a new
+  release stops at the Dockerfile's last RUN, which asks redis-server for the
+  FROM's release: read the new image's packages and scan, move that release
+  and the header, and then `scripts/an-essential-nothing-runs.unit.test.ts`
+  prints the `sed` that moves `managed.yml`'s image line. `build (redis,
+  amd64)` and `build (redis, arm64)` (`images.yml`) build it, start upstream's
+  image on a new volume, then the build on that volume, and ask it for uid
+  999, PONG and the key written there; its E2E (managed) is dispatched like
+  any pin's. Another major is the owner's call (0119 §3 item 3).
+- **Rolling back to a tag before this runs upstream's image again**, as root
+  with the four capabilities its entrypoint takes, `redis:7.4.12-bookworm` by
+  the digest those tags pin: it finds `/data` uid 999's, as the build left it,
+  and drops to 999 as before; `up` pulls it when the machine no longer has it.
 
 ### A Nextcloud major on the OTA stack
 

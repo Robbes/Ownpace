@@ -451,6 +451,16 @@ describe('which images it scans', () => {
     expect(front?.floating).toBe(false);
     expect(REAL.read('deploy/compose/caddy/Dockerfile')).toMatch(/^FROM caddy:/m);
     expect(images.filter((i) => /caddy/.test(i.name)).map((i) => i.name), 'one scan of the front, under its old name').toEqual(['caddy']);
+    // Trigger.dev's Redis built here with the Debian packages nothing runs
+    // purged (2026-11-07, for alpha.6) keeps the name, and so the category and
+    // the issue, that `redis` had.
+    const queue = images.find((i) => i.name === 'redis');
+    expect(queue?.ref, "Trigger.dev's Redis is pulled from a registry again").toMatch(/^localhost\/redis:\d+\.\d+\.\d+-bookworm-[0-9a-f]{12}$/);
+    expect(queue?.context).toBe('deploy/compose/redis');
+    expect(queue?.where).toBe('deploy/compose/managed.yml');
+    expect(queue?.floating).toBe(false);
+    expect(REAL.read('deploy/compose/redis/Dockerfile')).toMatch(/^FROM redis:/m);
+    expect(images.filter((i) => /redis/.test(i.name)).map((i) => i.name), 'one scan of Redis, under its old name').toEqual(['redis']);
     // Every other image is pulled, and carries no context.
     for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
     // And the Postgres images built here are these two. Other images built
@@ -592,7 +602,8 @@ describe('which images it scans', () => {
     const images = await imagesToScan(REAL, fakeNet());
     expect(new Set(images.map((i) => i.name)).size).toBe(images.length);
     for (const image of images) expect(image.name).toMatch(/^[a-z0-9][a-z0-9._-]*$/);
-    const redis = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'redis')!;
+    // Redis is built here since 2026-11-07, under the name the pulled image had.
+    const redis = readImages(REAL.read('deploy/compose/managed.yml')!).find((i) => i.repo === 'localhost/redis')!;
     expect(images.find((i) => i.ref === redis.ref)?.name).toBe('redis');
     expect(images.filter((i) => i.name.startsWith('postgres')).map((i) => i.name).sort()).toEqual(['postgres-managed', 'postgres-selfhost']);
     expect(stackOf('deploy/compose/managed.yml')).toBe('managed');
