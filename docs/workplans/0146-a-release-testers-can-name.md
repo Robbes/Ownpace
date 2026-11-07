@@ -4,9 +4,9 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
-**2026-11-07, last: alpha.6 is folded, and live waits for it (T2, T4).** On the branch
-`claude/ownpace-public-readiness-y7orc6-alpha6-fold`, on `main` at `ca2af249` (#1833). The fold
-moves `package.json` and the API contract to `0.2.0-alpha.6`, and everything under
+**2026-11-07, last: alpha.6 is folded, its nights waived, and live waits for it (T2, T4).** On
+the branch `claude/ownpace-public-readiness-y7orc6-alpha6-fold`, on `main` at `ca2af249`
+(#1833). The fold moves `package.json` and the API contract to `0.2.0-alpha.6`, and everything under
 `[Unreleased]` to `## [0.2.0-alpha.6] - 2026-11-07`, with a summary paragraph above it;
 `[Unreleased]` stays, empty. It adds `v0.2.0-alpha.6` as the last of `releases` in
 `scripts/release-line.json`, the release being prepared until Release tags it (T4,
@@ -22,11 +22,11 @@ for after alpha.6: Trivy 0.76.2 and Atlas 1.3.8, CI tools past their three-day f
   `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;
 - `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green
   (`windows-smoke-green`);
-- the counted nights (0141 T14): the scheduled E2E (managed) runs of 2026-11-08 and 2026-11-09
-  (03:30 UTC) both on C and green on every attempt, and the four scheduled E2E (self-hosted) runs
-  from the fold's merge to the second of them (23:30 and 01:30 UTC each night) on C and green;
-  or the owner's waiver, in a pull request of its own, merged before the dispatch, which then
-  becomes C;
+- in the counted nights' place, which the owner waived (0141 T14) on 2026-11-07: *"we waive the
+  night counts"*. The fold adds `v0.2.0-alpha.6` to `WAIVER_VERSIONS` with those words, and the
+  two guards that hold the list (`a-release-preflight-that-said-yes-too-soon`,
+  `a-tag-that-already-pointed-elsewhere`) and `docs/release.md` say so. As for alpha.5: E2E
+  (managed), and E2E (self-hosted) on Postgres and on PGlite, dispatched on C and green;
 - `scripts/upgrade-drill.sh` on the Docker host, from alpha.5's published image to C's. Both
   chains carry what alpha.5 shipped (65 and 59 files, the same at `v0.2.0-alpha.5` and at C), so
   it reports the mechanics only. Whether that pass counts is the owner's to say, as for alpha.5;
