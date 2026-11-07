@@ -738,7 +738,15 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:postgres': BUILT_POSTGRES,
   'deploy/compose/managed.yml:trigger-db': BUILT_POSTGRES,
   'deploy/compose/managed.yml:pgbouncer': { readAt: 'edoburu/pgbouncer', why: NONE('PgBouncer') },
-  'deploy/compose/managed.yml:trigger-redis': { readAt: 'redis', why: NONE('Redis') },
+  'deploy/compose/managed.yml:trigger-redis': {
+    readAt: 'build',
+    why: `${NONE('Redis')}; built here since 2026-11-07 from the official redis image, with eleven Debian packages purged and nothing added that runs`,
+    holds: (svc, entry) => {
+      const { from, problems } = builtFrom(svc, entry);
+      if (from !== undefined && repositoryOf(from) !== 'redis') problems.push(`built FROM ${from}, not the official redis image: read what it sends by default`);
+      return problems;
+    },
+  },
   'deploy/compose/managed.yml:trigger-registry': {
     readAt: 'registry',
     why:

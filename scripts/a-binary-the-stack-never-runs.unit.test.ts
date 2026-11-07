@@ -205,7 +205,12 @@
  *    checking the base's user, command and entrypoint are the ones the
  *    headers read; its step is run here with a stub docker, and each of its
  *    refusals is seen to stop it. Dependabot reads neither directory:
- *    Trigger.dev moves by `trigger-version.sh pin` only.
+ *    Trigger.dev moves by `trigger-version.sh pin` only;
+ *  - THE PURGE RUNS OVER THE STAND-IN, with a stand-in dpkg that refuses as
+ *    dpkg does: the webapp's last RUN as root (0119 §3 item 11, 2026-11-06),
+ *    and since 2026-11-07 Trigger.dev's Redis's one RUN as root
+ *    (deploy/compose/redis/Dockerfile), the webapp's eleven in the same shape,
+ *    scanned with perl; `an-essential-nothing-runs` holds both RUNs' text.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -1685,9 +1690,9 @@ const SHIPPED_BY: Readonly<Record<string, string>> = {
  * libblkid1 and libuuid1 and on its own libraries, which stay), and packages
  * that stay and depend on none of them.
  */
-function debian12(plat: string): DpkgDb {
+function debian12(plat: string, text: string = dockerfiles['trigger.dev']): DpkgDb {
   const lib = (so: string) => [`/usr/lib/${TRIPLET[plat] ?? plat}/${so}`];
-  const { packages, libraries } = purgeLists(dockerfiles['trigger.dev']);
+  const { packages, libraries } = purgeLists(text);
   const ships = (name: string) => libraries.filter((so) => SHIPPED_BY[so] === name).flatMap(lib);
   const depends: Readonly<Record<string, readonly string[]>> = {
     'util-linux': ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1', 'util-linux-extra', 'libacl1'],
@@ -3671,6 +3676,120 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
       const run = build(webapp, box, { plat: 'linux-x64' });
       expect(run.status).not.toBe(0);
       expect(run.out).toContain('dumb-init, which this stack runs here, does not start after the purge.');
+    });
+  });
+});
+
+/**
+ * Trigger.dev's Redis (deploy/compose/redis/Dockerfile, 2026-11-07, for
+ * alpha.6): its one RUN as root purges the webapp's eleven in the same shape,
+ * and scans with perl, since that image has no node. Its tree here is the
+ * stand-in's Debian 12 read from its own RUN, Redis's two binaries as ELF
+ * stand-ins the scan reads, and redis-server and redis-cli as scripts that
+ * answer --version, which the RUN starts after the purge. The RUN after USER
+ * 999:999 is the image's user's, which this machine is not: E2E (managed) and
+ * images.yml run it.
+ */
+const REDIS_DOCKERFILE = 'deploy/compose/redis/Dockerfile';
+const redisDockerfile = read(REDIS_DOCKERFILE);
+const asRoot = (run: Instruction) => run.user === 'root';
+/** A stand-in ELF that carries `text`, as a binary carries the name of a library it links or opens. */
+const elfWith = (text: string) => Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]), Buffer.from(`stand-in\0${text}\0`)]);
+/** A program that answers --version, and logs that it was asked. */
+const versioned = (name: string) => `#!/bin/sh\nprintf '%s %s\\n' ${name} "$*" >> "$TOOL_LOG"\necho "${name} stand-in"\n`;
+
+function redisTree(plat: string): Tree {
+  return {
+    files: {},
+    binaries: [],
+    executables: { '/usr/local/bin/redis-server': elfWith('libssl.so.3'), '/usr/local/bin/redis-cli': elfWith('libssl.so.3') },
+    tools: { 'redis-server': versioned('redis-server'), 'redis-cli': versioned('redis-cli') },
+    dpkg: debian12(plat, redisDockerfile),
+  };
+}
+
+describe("Redis's RUN as root purges the webapp's eleven over the stand-in, and dpkg's own refusals stop it (0119 §3 item 11, 2026-11-07)", () => {
+  const { packages, libraries } = purgeLists(redisDockerfile);
+  const list = packages.join(' ');
+  const purged = (box: Sandbox) => dpkgOf(box).calls.filter((c) => c.startsWith('dpkg --purge'));
+
+  it("reads the webapp's two lists from its RUN (vacuity)", () => {
+    expect(purgeRuns(redisDockerfile)).toHaveLength(1);
+    expect(purgeLists(redisDockerfile)).toEqual(purgeLists(dockerfiles['trigger.dev']));
+  });
+
+  for (const plat of PLATFORMS) {
+    it(`on ${plat}: dpkg-query of the list first, then the audit, the libraries, the purge with the two flags and no other, the audit again, each package read gone, the scan and the starts`, () => {
+      withSandbox(redisTree(plat), (box) => {
+        const run = build(redisDockerfile, box, { plat, pick: asRoot });
+        expect(run.status, run.out).toBe(0);
+        const { db, calls } = dpkgOf(box);
+        expect(calls).toEqual([
+          `dpkg-query -W ${list}`,
+          'dpkg --audit',
+          `dpkg-query -L ${list}`,
+          `dpkg --purge --force-remove-essential --force-remove-protected ${list}`,
+          'dpkg --audit',
+          ...packages.map((p) => `dpkg-query -W -f \${db:Status-Status} ${p}`),
+        ]);
+        for (const p of packages) expect(db.packages[p], p).toBeUndefined();
+        for (const p of ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'libss2', 'libcom-err2', 'logsave']) expect(db.packages[p]?.status, p).toBe('installed');
+        expect(run.out).toMatch(/^2 ELF files read under /m);
+        expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no ELF file names ${libraries.join(' ')}, and sh, id, find, redis-server and redis-cli start.`);
+        const tools = readFileSync(join(box.root, 'tools.log'), 'utf8');
+        expect(tools).toContain('redis-server --version\n');
+        expect(tools).toContain('redis-cli --version\n');
+      });
+    });
+  }
+
+  it('e2fsprogs off the list stops it, as it stopped the webapp\'s first build on the real base: dpkg refuses libblkid1 and libuuid1 for it', () => {
+    const without = redisDockerfile.replace(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"');
+    expect(without).not.toBe(redisDockerfile);
+    withSandbox(redisTree('linux-arm64'), (box) => {
+      const run = build(without, box, { plat: 'linux-arm64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('e2fsprogs depends on libuuid1.');
+      expect(run.out).toContain('dependency problems - not removing');
+      for (const p of ['e2fsprogs', 'libuuid1', 'libblkid1']) expect(dpkgOf(box).db.packages[p]?.status, p).toBe('installed');
+    });
+  });
+
+  it('a package the base does not have stops it before anything is purged', () => {
+    const tree = redisTree('linux-x64');
+    const db = { ...tree.dpkg!, packages: Object.fromEntries(Object.entries(tree.dpkg!.packages).filter(([n]) => n !== 'libuuid1')) };
+    withSandbox({ ...tree, dpkg: db }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-x64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('a list to read again, not a name to skip; nothing was purged');
+      expect(purged(box)).toEqual([]);
+    });
+  });
+
+  it('an ELF file left after the purge that names one of its libraries stops it, by path, and the scan that reads no ELF at all stops it too', () => {
+    const tree = redisTree('linux-arm64');
+    withSandbox({ ...tree, executables: { ...tree.executables, '/usr/local/lib/redis/modules/probe.so': elfWith(libraries[0]!) } }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-arm64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('after the purge, an ELF file names a library it removed');
+      expect(run.out).toContain(`${box.fs}/usr/local/lib/redis/modules/probe.so: ${libraries[0]}`);
+      expect(purged(box)).toHaveLength(1);
+    });
+    withSandbox({ ...tree, executables: {} }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-arm64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toMatch(/^0 ELF files read under /m);
+      expect(run.out).toContain('or the scan read none (perl exits 2)');
+    });
+  });
+
+  it('a program this stack runs here that does not start after the purge stops it, by name', () => {
+    const broken = '#!/bin/sh\necho "redis-server: error while loading shared libraries: libuuid.so.1: cannot open shared object file" >&2\nexit 127\n';
+    const tree = redisTree('linux-x64');
+    withSandbox({ ...tree, tools: { ...tree.tools, 'redis-server': broken } }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-x64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('redis-server, which this stack runs here, does not start after the purge.');
     });
   });
 });

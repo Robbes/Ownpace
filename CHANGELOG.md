@@ -38,6 +38,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   42263361900, linux/arm64): 1 critical, 23 high and 13 with a fix, and E2E (managed) ran both
   green.
 
+- **Trigger.dev's Redis is built here, without apt or util-linux, and runs as its own user from
+  its first process** (workplan 0119 §3 item 11, extended to it for alpha.6 on the owner's word
+  of 2026-11-07, "Redis purge in 6"). `trigger-redis` runs `localhost/redis:<tag>-<hash>`,
+  which compose builds from `deploy/compose/redis`: the official `redis:7.4.12-bookworm` at its
+  pinned digest, whose one RUN as root purges the webapp's eleven Debian packages in the same
+  shape (the eight util-linux builds, with 24 of its 34 highs, apt, libapt-pkg6.0 and
+  e2fsprogs), and scans every ELF file with perl, since the image has no node. The purge takes
+  util-linux's `setpriv`, which upstream's entrypoint used to drop from root, so the image runs
+  as `USER 999:999`, the user that entrypoint dropped to, and `trigger-redis` keeps no
+  capability (it added CHOWN, DAC_READ_SEARCH, SETGID and SETUID for that root start). The
+  append-only file in `redis_data` carries over, since the entrypoint chowned it to uid 999 at
+  every start; before live takes it, `docker compose -f deploy/compose/managed.yml exec -T -u
+  999 trigger-redis find /data ! -user 999` should print nothing (`docs/managed-bring-up.md`).
+  An exec into `trigger-redis` runs as uid 999 from then on. Expected about 1 critical,
+  10 high and 0 with a fix, from 1, 34 and 0 (Security Scan run 42330688192, linux/arm64).
+
 ### Changed
 
 - **The identity provider moves to Zitadel v4.20.1** (workplan 0135 T7): a patch with no

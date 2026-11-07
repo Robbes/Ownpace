@@ -36,6 +36,9 @@
  *               `docker-socket-proxy` the pulled image had; the dashboard's TLS
  *               front, Caddy's image without curl, since 2026-10-31,
  *               deploy/compose/caddy, under the name `caddy` the pulled
+ *               image had; Trigger.dev's Redis without the Debian packages
+ *               nothing here runs, as uid 999, since 2026-11-07,
+ *               deploy/compose/redis, under the name `redis` the pulled
  *               image had), so its leg builds that
  *               directory for linux/arm64 and scans what it built
  *               (`context`); the Dockerfile must be there;
