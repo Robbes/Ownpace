@@ -4,6 +4,18 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07: the effect swap in the Trigger.dev webapp's image, for alpha.6, with the purge,
+on the owner's yes.** The owner, 2026-11-07 at about 02:50 UTC, after alpha.5 was tagged
+without either: *"yes 1823 1825"*. It merges after the purge (#1823), so the next alpha
+carries both, and its CHANGELOG line sits under `[Unreleased]`. Proved on its branch on
+2026-11-06: E2E (managed) run 42260513967 on `a6aa0e9a` (`main` at `d468d9f2`, #1823 and
+this), green from 17:27 to 17:36 UTC, whose build printed effect 3.17.1 swapped for 3.22.4
+at its store path and the eleven packages purged; Security Scan run 42263361900
+(linux/arm64) reads `trigger.dev` at 1 critical, 23 high and 13 with a fix, from 1, 24 and 14
+with the purge alone. The Dockerfile's comments, which the image name's hash leaves out, now
+give those counts in place of the estimate. The entry of 2026-11-06 that calls it built on a
+branch, not merged, is overtaken.
+
 **2026-11-07: the owner confirms the purge in the Trigger.dev webapp's image (§3 item 11), for
 alpha.6.** The owner, 2026-11-07 at about 02:50 UTC, after alpha.5 was tagged without it: *"yes 1823 1825"*.
 §3 item 11's dated note says so, and the entry below that calls it a proposal pending that

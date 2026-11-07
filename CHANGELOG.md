@@ -23,8 +23,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   change is a rebuild.
 
 - **The Trigger.dev webapp's build swaps a fifth package: effect 3.17.1 for 3.22.4** (workplan
-  0119, on the purge's branch). The scan of the purged image read 1 critical, 24 high and 14
-  with a fix, among them CVE-2026-32887 (high, fixed in 3.20.0) in three copies of effect.
+  0119, for alpha.6 with the purge, as the owner confirmed on 2026-11-07). The scan of the
+  purged image read 1 critical, 24 high and 14 with a fix, among them CVE-2026-32887 (high, fixed in 3.20.0) in three copies of effect.
   Only one may move: the workspace package that links 3.17.1, `@trigger.dev/schema-to-json`,
   asks for `^3`, while `@prisma/config` 6.14.0 and 6.19.0 pin 3.16.12 and 3.18.4 exactly.
   Nothing in `trigger-api` loads that copy (the package's `dist` is not in the image, and only
@@ -34,8 +34,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   file for file before and after. The table now also finds a requirer among the workspace's
   own packages, which link their dependencies from their own `node_modules`, where it looked
   in pnpm's store alone. body-parser 2.3.0 (CVE-2026-111181) stays: 2.4.0 needs iconv-lite
-  `^0.7.3`, and pnpm linked 0.7.2 for it. Expected: about 1 critical, 23 high and 13 with a
-  fix.
+  `^0.7.3`, and pnpm linked 0.7.2 for it. Measured with the purge (Security Scan run
+  42263361900, linux/arm64): 1 critical, 23 high and 13 with a fix, and E2E (managed) ran both
+  green.
 
 ## [0.2.0-alpha.5] - 2026-11-06
 

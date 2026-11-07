@@ -22,8 +22,8 @@
 # that image read 1 critical, 24 high and 14 with a fix (Security Scan run
 # 42213975717). Since the same day a fifth package is swapped with the four:
 # effect 3.17.1 by 3.22.4, the one of effect's three copies whose requirer's
-# range takes the fix (WHAT IS REPLACED: FIVE PACKAGES), so 24 become about 23,
-# and 14 about 13.
+# range takes the fix (WHAT IS REPLACED: FIVE PACKAGES), so 24 become 23, and
+# 14 become 13 (Security Scan run 42263361900, of the image with both).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -537,8 +537,9 @@
 # perl-base. This purge was read for apt's and util-linux's packages alone.
 # The branch's scan of the purged image (Security Scan run 42213975717) read
 # 1 critical, 24 high and 14 with a fix. Since the same day effect 3.17.1
-# goes too (WHAT IS REPLACED: FIVE PACKAGES), so 13 with a fix are left, by
-# arithmetic: goose's one, undici 5.29.0's five, @fastify/busboy 2.1.1's,
+# goes too (WHAT IS REPLACED: FIVE PACKAGES), so 13 with a fix are left, the
+# count Security Scan run 42263361900 read (the list is by arithmetic):
+# goose's one, undici 5.29.0's five, @fastify/busboy 2.1.1's,
 # turbo-stream 2.4.1's, deepmerge-ts 7.1.5's, cross-spawn 5.1.0's, effect
 # 3.16.12's and 3.18.4's (pinned exactly) and body-parser 2.3.0's (read
 # again, and not taken: 2.4.0 needs iconv-lite ^0.7.3).
