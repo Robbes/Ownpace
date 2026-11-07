@@ -4,6 +4,21 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07, last: what alpha.6 moves, folded.** The fold (0146 Status, 2026-11-07; a draft,
+not merged) closes alpha.6 with this plan's moves since alpha.5 in it:
+- the identity provider on Zitadel v4.20.1 (#1829; 0135 T7), on the owner's yes, after the OTA
+  instance's dump;
+- the Trigger.dev webapp's image without apt, util-linux's eight packages and e2fsprogs (#1823,
+  §3 item 11, extended to it on the owner's yes), and with effect 3.22.4 in place of 3.17.1
+  (#1825): Security Scan run 42263361900 read it at 1 critical, 23 high and 13 with a fix;
+- the image build's BuildKit on v0.34.2 (#1832), whose first linux/arm64 build, `main`'s Images
+  run 42339359494, was green;
+- the managed smoke asking the tasks' image of the deployment they run (#1833).
+
+None of them moved before its three-day floor. Held for after the tag: Trivy 0.76.2 and Atlas
+1.3.8, past their floor on 2026-11-08 at 12:50 and 14:15 UTC, and pnpm 11.28.10 (#1792). Live
+takes alpha.6 from alpha.4 (0146 Status, 2026-11-07).
+
 **2026-11-07: the managed smoke asks the image of the deployment the tasks run (§3 item 13);
 E2E (managed) green on the branch.** On branch
 `claude/ownpace-public-readiness-y7orc6-smoke-deployed-runner`, from `main` at `d8aee36c`, with

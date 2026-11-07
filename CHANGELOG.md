@@ -4,6 +4,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.6] - 2026-11-07
+
+Nothing changes on a tester's screen. Underneath, the identity provider moves to
+Zitadel v4.20.1, a patch whose one change this stack meets is in session
+creation. The Trigger.dev webapp built here no longer carries apt or util-linux,
+and swaps a fifth package for the release of its line that fixes it, so its
+image scan reads 1 critical, 23 high and 13 with a fix where it read 1, 49 and
+16. The published images are built with BuildKit v0.34.2, and the managed smoke
+asks the tasks' image of the deployment they run.
+
 ### Security
 
 - **The Trigger.dev webapp built here no longer carries apt or util-linux** (workplan 0119
