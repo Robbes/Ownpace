@@ -47,7 +47,8 @@ Times are UTC.
   was green. Asking the deployed version's image instead is a change for after alpha.5.
 
 **2026-11-06: the identity provider on Zitadel v4.20.1, for the owner's decision; built on a
-branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-1`, from
+branch, not merged.** *(2026-11-07: for alpha.6, on the owner's yes, after the OTA instance's
+dump: 0135's Status of that day.)* On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-1`, from
 `main` at `21e9796e` (#1826). The pin watch (`scripts/idp-pin-watch.mjs` without `--issue`), run
 at about 16:00 UTC, listed the identity provider behind, v4.20.0 against v4.20.1. A Zitadel move
 is the owner's (§3 item 2's rule, and 0135 T7), so this waits for their yes in review. Times are

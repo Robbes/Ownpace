@@ -2,7 +2,18 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-11-06 (update this block at the end of every session)
+## Status — 2026-11-07 (update this block at the end of every session)
+
+**2026-11-07: the owner's yes for alpha.6, and the OTA instance's dump (T7).** The owner, on
+2026-11-06: *"Zitadel v4.20.1 in the next alpha"*, and on 2026-11-07, after alpha.5 was tagged
+without it: *"Also Zitadel v4.20.1 in alpha.6 (#1829)"*. The owner then dumped the OTA
+instance's `zitadel` database on v4.20.0 with `./deploy/compose/dump-idp.sh`, at 02:55 UTC (the
+set `20261107T025529Z`, 701 entries read back), to be deleted once `main`'s first scheduled
+E2E (managed) on v4.20.1 is green. Its CHANGELOG line sits under `[Unreleased]`. Owed before
+the merge: E2E (managed) on the branch; for live, a tag and the copy before its update, which
+holds the provider's dump. v4.20.1 leaves `go.mod` and `go.sum` as they were, so the image's
+two fixable highs in its Go modules (the image scan of 2026-11-07, run 42330688192) are not
+expected to change with it.
 
 **2026-11-06: the pin to v4.20.1, built for the owner's decision, not merged (T7).** On branch
 `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-1`, from `main` at `21e9796e`. The weekly
