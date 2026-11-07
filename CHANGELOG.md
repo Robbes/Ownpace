@@ -47,6 +47,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   brings the user projections up to date first. Signing in is unchanged: the stack serves
   Zitadel's own login, whose code did not move.
 
+- **The image build's BuildKit moves to v0.34.2, the build Docker's stable channel names**
+  (workplan 0119): `images.yml` runs it by tag and digest for the `docker-container` driver that
+  builds, pushes and signs the published images, in place of v0.33.1, the build
+  `buildx-stable-1` named on 2026-11-01. The channel moved to v0.34.2 on 2026-11-03, past the
+  three-day floor since 2026-11-06. Among v0.34's changes are runc 1.5.2, containerd's module at
+  2.4.2 and a fix for a daemon panic in its git source; nothing that the build asks of it
+  changes, since each Dockerfile it builds names its own frontend. The pin watch's BuildKit row reads current again.
+
 ## [0.2.0-alpha.5] - 2026-11-06
 
 Nothing changes on a tester's screen; the app's own pages, and the Alpha's build

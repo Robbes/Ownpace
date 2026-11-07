@@ -4,6 +4,50 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07: BuildKit moves to v0.34.2, the build `buildx-stable-1` names; Trivy v0.76.2 and
+Atlas v1.3.8 wait for their three days.** On branch
+`claude/ownpace-public-readiness-y7orc6-ci-tools-a6`, from `main` at `d8aee36c`. The pin watch,
+run read-only at 03:20 UTC, read three CI tools behind (and the identity provider, which #1829
+moved since).
+- **BuildKit, moved.** `images.yml`'s `driver-opts` named `v0.33.1@sha256:cec9f139…`, what
+  `buildx-stable-1` named on 2026-11-01. The channel now names `sha256:c5f8862f…`, and so do
+  `v0.34.2` and `latest`: Docker Hub's tag list (pushed 2026-11-03 12:48 UTC; the channel moved at
+  12:59) and the registry's own `Docker-Content-Digest` for each of the three agree, and the index
+  fetched by that digest hashes to it (linux/amd64 `97719ccb…`, linux/arm64 `92f93f25…`). Upstream's
+  git tag `v0.34.2` is `8c579433`, of the same day. Past the three-day floor since 2026-11-06
+  12:48 UTC. The pin is now
+  `v0.34.2@sha256:c5f8862f52499773af85bc07695b2379ef08e8002352b0df2c4864c91d78dabe`, and §2.5's
+  row says so.
+- **What moves with it**, read in upstream's git between the tags (its release pages are not
+  reachable from this session): v0.34.0 (2026-10-07) brings the Dockerfile frontend 1.28 built in,
+  retries of transient registry token failures, a configurable session auth timeout, bbolt's
+  freelist left unsynced with an opt-in compaction of the metadata databases, the target platform
+  in SLSA v1 provenance, runc 1.5.2 in its image, and solver, exporter and cache fixes. v0.34.1
+  (2026-10-20) tags v0.34.0's commit again, a rebuild. v0.34.2 picks containerd's Go module at
+  2.4.2, klauspost/compress 1.20.2, an fsutil update and a fix for a daemon panic when the git
+  source's resolver cache is poisoned. Nothing in what `images.yml` asks of BuildKit
+  changes: each Dockerfile it builds names `# syntax=docker/dockerfile:1`, so the frontend is the
+  one pulled at build time, not the daemon's own; none uses `COPY --link` with a `--chown` by
+  name, which 1.28 refuses; the registry cache and the default provenance are as before. The
+  pull request's `build` legs run it on linux/amd64; the merge push is its first linux/arm64
+  build, under QEMU as before.
+- **Trivy, not moved.** v0.76.2's release assets were uploaded on 2026-11-05 at 12:50 UTC (the
+  tagged commit `3f6334d2` is from 11:50), so the floor passes on 2026-11-08 at 12:50 UTC. It
+  backports four dependency moves and nothing of Trivy's own: golang.org/x/net 0.62.0, go-jose v4
+  4.1.6, a common group of fourteen, and alpine 3.24.3 in Trivy's own images, which nothing here
+  pulls. Its `trivy_0.76.2_checksums.txt` gives `bc0fc726…` for `Linux-64bit` and `ab9d51f8…`
+  for `Linux-ARM64`, for the move then.
+- **Atlas, not moved.** `arigaio/atlas:1.3.8-community` was pushed on 2026-11-05 at 14:15 UTC, so
+  the floor passes on 2026-11-08 at 14:15 UTC. v1.3.7 (2026-11-03 13:39 UTC) is past it, but a
+  move to it would be followed by another within two days, and neither release's notes were read:
+  upstream's git tags stop at v1.3.0, and `atlasbinaries.com` is refused to this session.
+- **Proved here.** The 28 unit test files that read a changed file pass (797 tests),
+  `a-pin-that-knows-it-is-behind` among them. Each of three mutations of the new pin turns that
+  guard red (38 of 121), and each was restored and checked by SHA-256: the digest dropped, the
+  channel `buildx-stable-1` in the tag's place, and `v0.35.0-rc1` in the tag's place. The four
+  index checks and the commit-convention check pass. The pin watch, run read-only again on the
+  branch at 03:29 UTC, reads `moby/buildkit` current, and Trivy and Atlas behind.
+
 **2026-11-07: the effect swap in the Trigger.dev webapp's image, for alpha.6, with the purge,
 on the owner's yes.** The owner, 2026-11-07 at about 02:50 UTC, after alpha.5 was tagged
 without either: *"yes 1823 1825"*. It merges after the purge (#1823), so the next alpha
@@ -4443,7 +4487,7 @@ it updates itself when GitHub asks it to: watched, nothing owed.
 | stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, the self-hosted arm64 runner for a push), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
 | Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`: the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest (2026-11-01). Atlas's docker driver (`FromURL` at v1.3.6's commit) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed` | CI only; the major is the deployments' (that guard's older rule) |
 | binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
-| BuildKit (`moby/buildkit`) | `.github/workflows/images.yml`, `build`: `docker/setup-buildx-action`'s `driver-opts: image=…` for its `docker-container` driver, in the same job | `v0.33.1@sha256:cec9f139…` (2026-11-01), what `buildx-stable-1`, buildx's own default and Docker's stable channel, named that day (pushed 2026-09-30). Before it that default | `buildx-stable-1` = v0.33.1; v0.34.1 is the newest release (2026-10-20), not yet in the stable channel | current | by hand, when the pin watch's summary issue says `buildx-stable-1` names another digest: the release that carries it, three days old | CI only: what builds every published image. The channel, not the newest release, because the channel is the build Docker stands behind for buildx |
+| BuildKit (`moby/buildkit`) | `.github/workflows/images.yml`, `build`: `docker/setup-buildx-action`'s `driver-opts: image=…` for its `docker-container` driver, in the same job | `v0.34.2@sha256:c5f8862f…` (2026-11-07), what `buildx-stable-1`, buildx's own default and Docker's stable channel, named that day (pushed 2026-11-03); `v0.33.1@sha256:cec9f139…` from 2026-11-01 (pushed 2026-09-30) until then. Before it that default | `buildx-stable-1` = `latest` = v0.34.2 (2026-11-07); v0.35.0-rc1 (2026-11-05) is a release candidate | current | by hand, when the pin watch's summary issue says `buildx-stable-1` names another digest: the release that carries it, three days old | CI only: what builds every published image. The channel, not the newest release, because the channel is the build Docker stands behind for buildx |
 | The Trigger.dev deploy CLI (`trigger.dev`, npm) | `deploy/compose/deploy-tasks.sh` (`deploy`, from E2E (managed), the OTA stack's updates and live's deploys) and `trigger-cli-lib.sh` (`whoami`, for the bring-up's `login` phase and `deploy-tasks.sh`); the login lines `bootstrap-managed.sh`, `deploy-tasks.sh` and `stand-up-live.sh` print | since 2026-11-02, `apps/worker`'s devDependency at exactly the `@trigger.dev/sdk` version beside it (4.8.3), from the lockfile, run as `pnpm -C apps/worker exec trigger …`, with the four overrides and the build denial the Status entry of that day names. Before it `npx -y "trigger.dev@<sdk version>"`: the version pinned and nothing under it, fetched at run time outside the lockfile, the three-day floor, the overrides and the build approvals | 4.8.3 (2026-10-30 12:25:49 UTC) | current | with the SDK and the images, by `trigger-version.sh pin`, which moves it since that day; Dependabot ignores it by name; `bootstrap-managed.unit.test.ts` fails a manifest where it is not the image tag, and `deploy-tasks.sh` and the `login` phase refuse an installed CLI that is not the SDK's version | runs on the hosts and the E2E runner, never shipped in an image: the api and web installs filter it out, and the appliance's build stage installs it and its runtime stage copies only `/payload` |
 
 What these replaced, as recorded here on 2026-11-01 before the change: `stalwart-cli` from its
