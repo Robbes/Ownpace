@@ -2,7 +2,60 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-07 (update this block at the end of every session)
+
+**2026-11-07: the owner's yes for alpha.6, the OTA instance's dump, and E2E (managed) green on
+the branch (T7).** The owner, on
+2026-11-06: *"Zitadel v4.20.1 in the next alpha"*, and on 2026-11-07, after alpha.5 was tagged
+without it: *"Also Zitadel v4.20.1 in alpha.6 (#1829)"*. The owner then dumped the OTA
+instance's `zitadel` database on v4.20.0 with `./deploy/compose/dump-idp.sh`, at 02:55 UTC (the
+set `20261107T025529Z`, 701 entries read back), to be deleted once `main`'s first scheduled
+E2E (managed) on v4.20.1 is green. Its CHANGELOG line sits under `[Unreleased]`. E2E (managed)
+run 42331851832, on `1e6d19cf` from 02:59 to 03:07 UTC, applied it to the OTA instance: v4.20.1
+pulled and running, version 20261107.1 deployed with 17 tasks, and the smoke's sign-ins, which
+post `/v2/sessions` by login name, the lookup that changed, passed: SMOKE PASS. Live takes it
+from alpha.6's tag, with the copy before its update holding the provider's dump. v4.20.1 leaves `go.mod` and `go.sum` as they were, so the image's
+two fixable highs in its Go modules (the image scan of 2026-11-07, run 42330688192) are not
+expected to change with it.
+
+**2026-11-06: the pin to v4.20.1, built for the owner's decision, not merged (T7).** On branch
+`claude/ownpace-public-readiness-y7orc6-zitadel-4-20-1`, from `main` at `21e9796e`. The weekly
+pin watch's row, run at about 16:00 UTC, read v4.20.0 behind v4.20.1, which upstream published on
+2026-11-03 at 08:08 UTC; GHCR's index is `4817dbd8…` (linux/amd64 `ace3cd0a…`, linux/arm64
+`9f663585…`). No Zitadel advisory names it, so T7's seven days do not apply, and it is past the
+three-day floor. Read commit by commit (`git log v4.20.0..v4.20.1`, ten commits, 31 files):
+- **What this stack meets: session creation's lookup by login name (709968c, #13027).**
+  `CreateSession` in the session API v2 and v2beta, and SAML's `SetUserinfoWithLoginName`, now
+  read the user by login name without triggering the user and login-name projections first
+  (`GetUserByLoginName(ctx, false, …)`), as v2's lookup by id already did; v2beta's lookup by
+  id now does too. Upstream made it for latency under many parallel sign-ins. The smoke's `sign_in_as` is the one caller here: it
+  creates a person with `POST /v2/users/human`, starts an authorization request, and then posts
+  `/v2/sessions` with `checks.user.loginName`. The projections are now read as they stand. Their
+  handlers subscribe to the event types they fold and trigger on each push
+  (`internal/eventstore/handler/v2/handler.go`, `subscribe`), besides the 60-second requeue, so
+  a person created a moment before is normally projected; if not, the lookup finds no user and
+  the session is refused. E2E (managed) on the branch, four sign-ins a run, is the check. Login v1, which
+  this stack serves, has its own user lookups and is unchanged.
+- **Not in what runs here.** Login v2 (`apps/login`, which this stack does not deploy): e-mail
+  addresses compared without case (13c9bca, #12571, which also requires an unambiguous match
+  before an IdP auto-link), the sessions cookie kept under the browser's limit (4930911), and the
+  i18n merge without deepmerge (7c6ca4b). The queue log middleware skips nil insert results
+  (c9af97c, #12996), a panic with debug logging or an OTEL log exporter, and the OTEL log export
+  takes the log level and mask keys (64b3915, #12997); this stack sets neither a debug level nor
+  an OTEL log exporter for Zitadel. Two dependency commits (8f60c96, ff6977a) move the console's
+  runtime dependencies by a patch (Angular 21.2.25, whose notes name no security fix, and moment
+  2.31.0) and the rest of the bumps in login v2, the docs and build tools; two are docs.
+- **No setup step**: `cmd/` (so `cmd/setup` and `cmd/defaults.yaml`), `internal/query`,
+  `internal/repository`, `internal/api/grpc/admin`, `internal/api/oidc`, `internal/api/http`,
+  `internal/api/ui` (login v1 and the console's server), `go.mod` and `go.sum` are unchanged,
+  still `toolchain go1.26.10`. The schema stays at v4.19.4's step 80, and going back to v4.20.0
+  meets the same schema (read from the diff, not tested). `LoginV2.Required`, `ServicePing`,
+  `Telemetry`, the lockout and privacy defaults, the admin SMTP handler's two test verbs and
+  `zitadel ready` hold, and `zitadel-image-matches-postgres`'s floor (v4.17.1 for Postgres 18)
+  passes.
+- **Owed before a merge**: the owner's yes; the owner's dump of the OTA instance's `zitadel`
+  database with `./deploy/compose/dump-idp.sh`, on v4.20.0; E2E (managed) on the branch; and,
+  for live, a tag and a dump of live's database first.
 
 **2026-11-01, later, records: T1's outside check was merged as #1753.** Docs only, on the
 branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. The entry of
@@ -846,7 +899,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | T4 Second factors for the accounts that hold the keys, and a lockout | (a) the enrolment ⏳ **Owner**, live first; (b) the lockout at 10 wrong passwords ✅ **merged** as #1612 on 2026-10-17 (`780b0fdd`; *was:* built on branch `claude/ownpace-public-readiness-y7orc6-the-owners-sign-in-answers`, not merged) (open question 3, the owner: *"The lockout limit: I proposed 10 wrong passwords."*): `setup-zitadel.sh` writes it when it differs, the codes' limit copied back, and reads it back on the instance and the organisation, `managed.yml` gives a fresh instance the same; the 5 wrong codes and the unknown login names stay open; (c) the second factor policy ✅ **decided 2026-10-17 and merged** in #1612 (open question 2, (c): offered, not forced): `forceMfa` and `forceMfaLocalOnly` false and TOTP and U2F allowed, written when they differ and read back on every run; (b) and (c) run against a real instance: the OTA one in E2E (managed) run 41264284343 (2026-11-01, 02:18 UTC), and every deploy of live runs the same script (Status, 2026-11-01; *was:* same branch, not merged; neither yet run against a real instance) — *was:* ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |
 | T5 Privacy and terms links on the registration and sign-in pages | ✅ **done** in #1440, merged 2026-10-04 (`cd318823`), with 0139 T4 (the owner, 2026-10-03, asked whether this change sets the sign-in page's links too: *"Yes, include it"*): `setup-zitadel.sh` writes the instance privacy policy's `tosLink` and `privacyLink`, the Dutch terms and privacy pages on the site `VITE_LEGAL_SITE_URL` names (empty: the production site), copies the other five fields back, and reads both links back on the instance and on the project's organisation; `managed.yml` sets them for a fresh instance; always shown, also before the texts are published (the owner: *"Always shown"*); `scripts/a-notice-before-a-password.unit.test.ts`; not yet run against a real instance — *was:* 🔨 **Built 2026-10-03** with 0139 T4 on branch `claude/ownpace-public-readiness-y7orc6-a-notice-where-data-is-collected`, **not merged**; 📋 **Proposed**; lands with 0139's publication (D5) | §3. The instance privacy policy, from `.env`, read back. Live's first. |
 | T6 Dutch and English, in Ownpace's own words | 📋 **Decided 2026-09-24** (D4) for the languages, and (a) the languages ✅ **done** in #1286, merged 2026-09-28 (`a0897c0`); (b) the mails ✅ **done** in #1604, merged 2026-10-16 (`664dbbba`): the init (after registering), verifyemail and passwordreset mails in `nl` and `en`, from `deploy/compose/sign-in-mails.json`, naming `VITE_SUPPORT_EMAIL` (empty: `support@ownpace.eu`), written by `setup-zitadel.sh` when they differ, read back, never fatal; (c) the other mails ✅ **merged** as #1611 on 2026-10-16 (`2493d81c`): password_change and passwordless_registration, the other five left with a reason; written on the OTA instance by E2E (managed) run 41264284343 (2026-11-01, 02:18 UTC) and by every deploy of live (Status, 2026-11-01; *was:* 🔨 built 2026-10-16, not merged, on branch `claude/ownpace-public-readiness-y7orc6-the-other-sign-in-mails`; neither yet run against a real instance); 📋 **Proposed** for the brand's label policy and logo, live's organisation name built in #1612 (open question 8) | §3. Only `nl` and `en` allowed, a default from `.env`, and the verification and reset mails rewritten. Logo, colours and the organisation's name follow; live's fresh instance can carry the name from its first start. |
-| T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go); ✅ **moved to v4.19.4** in #1528, merged 2026-10-05 (`502c52f`), after the owner's dump; ✅ **moved to v4.19.5** in #1651, merged 2026-10-22 (`721c6ea8`) (three security fixes, issue #1643), after the owner's dump of 2026-10-22; E2E (managed) #274 applied it to the OTA instance; ✅ **moved to v4.20.0** in #1680, merged 2026-10-25 (`359f8e96`) (the Go 1.26.10 build, issue #1643; T7's seven days to 2026-10-29), after the owner's dump on v4.19.5 and E2E (managed) #277 on the branch, before alpha.2's counted nights; live runs it since the owner's deploy of alpha.2, before 2026-10-29 — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
+| T7 A watch on the pinned identity provider | ✅ **the pin moved to v4.19.1** in #1285, merged 2026-09-28 (`f839929`) (open question 11: go); the watch 📋 **decided 2026-09-28**: (a) the owner's GitHub subscription and (b) a weekly job, seven days (open question 5); (b) ✅ **done** in #1288, merged 2026-09-28 (`07dd8ff`); its first run found v4.19.2 (open question 12); the pin ✅ **moved to v4.19.2** in #1292, 2026-09-28, after the owner's dump with `dump-idp.sh`; E2E (managed) #210 applied it to the OTA instance (open question 12: go); ✅ **moved to v4.19.4** in #1528, merged 2026-10-05 (`502c52f`), after the owner's dump; ✅ **moved to v4.19.5** in #1651, merged 2026-10-22 (`721c6ea8`) (three security fixes, issue #1643), after the owner's dump of 2026-10-22; E2E (managed) #274 applied it to the OTA instance; ✅ **moved to v4.20.0** in #1680, merged 2026-10-25 (`359f8e96`) (the Go 1.26.10 build, issue #1643; T7's seven days to 2026-10-29), after the owner's dump on v4.19.5 and E2E (managed) #277 on the branch, before alpha.2's counted nights; live runs it since the owner's deploy of alpha.2, before 2026-10-29; ✅ **v4.20.1** in #1829, for alpha.6 on the owner's yes of 2026-11-07, after the owner's dump on v4.20.0 and E2E (managed) run 42331851832 on the branch (2026-11-06: no advisory, no setup step; Status, 2026-11-06 and 2026-11-07); live takes it from alpha.6's tag — *was:* 📋 **Proposed**; the three releases after the pin read 2026-09-28: v4.18.0 fixes GHSA-4hgj-wm6c-q7p2 in login v1, which this stack serves (open question 11) | §3. Read the three newer releases now, choose a watch, set a response window, and take a dump before an upgrade. |
 | T8 Accounts nobody let in, and erasure that reaches the identity provider | ✅ **(a) done** in #1344, merged 2026-09-29 (`0bcbc25`): `idp-strays.sh`, and the runbook's two steps; ✅ **(b) done** in #1345, merged 2026-09-29 (`a4885a5`): the daily run on live, the owner's choice (0139), once live's timer is installed, which is the owner's step (copy the units again and reload); the review ✅ **fixed 2026-09-29**, merged as #1367 (`c9826dc`): an account that was let in and removed since is kept (the Team page's removal records `member.removed`), `--remove` refuses while the database has no operator row, only our own organisation's accounts with no role at the provider are weighed, and the listing is read to its end or refused; its review ✅ **fixed 2026-09-29**, in the same merge: a role at the provider read as the provider counts it, the Team page's record naming the row it deleted, a count below the accounts given refused, and the runbook holding the duty after a reset that keeps the provider's accounts; a removed member's account 📋 **Decided 2026-09-29**, removed 7 days after the removal (open question 13: *"Samen number of days"*, then *"7 days"*), ✅ **done** in #1382, merged 2026-09-29 (`f1bf47de`), with privacy §9's row in both languages and its review's fixes of the same day: an account with no creation date held to its 7 days, and *Tenant offboarding* removing, at the purge, the account of a member removed less than 7 days before it — *was:* a removed member's account 🔨 built 2026-09-29 and its review fixed, not merged; the owner's (open question 13); the retention period 📋 **Decided 2026-09-28**, 30 days (open question 6), and the rule gains a fifth condition, an open invitation — *was:* 📋 **Proposed**; the retention period is the owner's (→ 0139) | §3. A retention rule, an operator script in `deploy/compose`, and a runbook step. |
 
 ## 1. What there is today
