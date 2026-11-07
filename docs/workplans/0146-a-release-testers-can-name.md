@@ -4,6 +4,41 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07, last: alpha.6 is folded, its nights waived, and live waits for it (T2, T4).** On
+the branch `claude/ownpace-public-readiness-y7orc6-alpha6-fold`, on `main` at `fdd572df`
+(#1835). The fold moves `package.json` and the API contract to `0.2.0-alpha.6`, and everything under
+`[Unreleased]` to `## [0.2.0-alpha.6] - 2026-11-07`, with a summary paragraph above it;
+`[Unreleased]` stays, empty. It adds `v0.2.0-alpha.6` as the last of `releases` in
+`scripts/release-line.json`, the release being prepared until Release tags it (T4,
+`docs/release.md` §1). What alpha.6 carries is in 0119's entry of the same day. Its squash is C,
+and the freeze (0141 T14) starts with it: nothing merges to `main` until the tag, and no E2E
+(managed) is dispatched on any branch, nor E2E (self-hosted) on `main`. **Live waits for
+alpha.6.** The owner, on 2026-11-07, after alpha.5 was released: *"I wait for alpha 6 for
+live"*. Live runs alpha.4 and takes alpha.6 in one step; alpha.5 is not deployed there. Held
+for after alpha.6: Trivy 0.76.2 and Atlas 1.3.8, CI tools past their three-day floor on
+2026-11-08 (0119); and pnpm 11.28.10 (#1792), while npm's `latest-11` names 11.28.9 (read
+2026-11-07 04:08 UTC). **Owed before the tag:**
+- C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
+  `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;
+- `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green
+  (`windows-smoke-green`);
+- in the counted nights' place, which the owner waived (0141 T14) on 2026-11-07: *"we waive the
+  night counts"*. The fold adds `v0.2.0-alpha.6` to `WAIVER_VERSIONS` with those words, and the
+  two guards that hold the list (`a-release-preflight-that-said-yes-too-soon`,
+  `a-tag-that-already-pointed-elsewhere`) and `docs/release.md` say so. As for alpha.5: E2E
+  (managed), and E2E (self-hosted) on Postgres and on PGlite, dispatched on C and green;
+- `scripts/upgrade-drill.sh` on the Docker host, from alpha.5's published image to C's. Both
+  chains carry what alpha.5 shipped (65 and 59 files, the same at `v0.2.0-alpha.5` and at C), so
+  it reports the mechanics only. Whether that pass counts is the owner's to say, as for alpha.5;
+- Release, mode `preflight`, for `v0.2.0-alpha.6`, then mode `release`, and the owner's approval
+  in the `release` environment; then Release tags C and publishes.
+
+Live's deploy of the tag starts from alpha.4, with a sheet for alpha.4 to alpha.6 that takes a
+dump of live's `zitadel` database before the update (0135 T7), and first asks live's running
+`trigger-redis`, as uid 999, for any file in `/data` that is not uid 999's: none is expected
+(0119 §3 item 11, `docs/managed-bring-up.md`). No image alpha.6 moves merged
+before its three-day floor (0119), so nothing holds that deploy after the tag.
+
 **2026-11-07: `v0.2.0-alpha.5` is released, its nights waived (T2, T4).** Read from GitHub on
 2026-11-07. Times are UTC.
 
