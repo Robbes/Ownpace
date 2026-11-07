@@ -38,6 +38,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   42263361900, linux/arm64): 1 critical, 23 high and 13 with a fix, and E2E (managed) ran both
   green.
 
+### Changed
+
+- **The identity provider moves to Zitadel v4.20.1** (workplan 0135 T7): a patch with no
+  advisory and no setup step, so the database's schema stays where v4.20.0 left it and the way
+  back is v4.20.0. Its fixes are in parts this stack does not run (the separate login app, the
+  OTEL log export, debug logging), and in session creation, whose lookup by login name no longer
+  brings the user projections up to date first. Signing in is unchanged: the stack serves
+  Zitadel's own login, whose code did not move.
+
 ## [0.2.0-alpha.5] - 2026-11-06
 
 Nothing changes on a tester's screen; the app's own pages, and the Alpha's build
