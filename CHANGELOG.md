@@ -22,6 +22,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   24 high and 14 with a fix, from 1, 49 and 16, and E2E (managed) ran it green. `trigger-api` has no apt from then on; nothing installs in it, and a
   change is a rebuild.
 
+- **The Trigger.dev webapp's build swaps a fifth package: effect 3.17.1 for 3.22.4** (workplan
+  0119, for alpha.6 with the purge, as the owner confirmed on 2026-11-07). The scan of the
+  purged image read 1 critical, 24 high and 14 with a fix, among them CVE-2026-32887 (high, fixed in 3.20.0) in three copies of effect.
+  Only one may move: the workspace package that links 3.17.1, `@trigger.dev/schema-to-json`,
+  asks for `^3`, while `@prisma/config` 6.14.0 and 6.19.0 pin 3.16.12 and 3.18.4 exactly.
+  Nothing in `trigger-api` loads that copy (the package's `dist` is not in the image, and only
+  the CLI's index workers import it), so, as with dompurify, the swap makes the copy the scan
+  reads the one that is fixed. It is a fifth row of the same table: the tarball is fetched
+  from the npm registry and refused unless its sha512 is npm's, and the directory is checked
+  file for file before and after. The table now also finds a requirer among the workspace's
+  own packages, which link their dependencies from their own `node_modules`, where it looked
+  in pnpm's store alone. body-parser 2.3.0 (CVE-2026-111181) stays: 2.4.0 needs iconv-lite
+  `^0.7.3`, and pnpm linked 0.7.2 for it. Measured with the purge (Security Scan run
+  42263361900, linux/arm64): 1 critical, 23 high and 13 with a fix, and E2E (managed) ran both
+  green.
+
 ### Changed
 
 - **The identity provider moves to Zitadel v4.20.1** (workplan 0135 T7): a patch with no
