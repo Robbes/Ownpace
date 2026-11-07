@@ -55,6 +55,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   2.4.2 and a fix for a daemon panic in its git source; nothing that the build asks of it
   changes, since each Dockerfile it builds names its own frontend. The pin watch's BuildKit row reads current again.
 
+### Fixed
+
+- **The managed smoke asks the image of the deployment the tasks run, not the image built
+  last** (workplan 0119 §3 item 13): it chose the runner image it asks for its Node and its
+  shells by `docker image inspect`'s Created. A deploy whose build is fully cached keeps its
+  first build's Created, so an earlier deployment's runner, on an image built more recently,
+  was asked in its place (E2E (managed) run 42238877459). `smoke-managed.sh` now reads which
+  deployment the environment runs from Trigger.dev's own database, its "current" promotion for
+  the project and environment the tasks deploy to, and each runner's `TRIGGER_DEPLOYMENT_VERSION`.
+  It asks that deployment's image only, names the others, and stops, asking none, when it
+  cannot tell which is the deployment's.
+
 ## [0.2.0-alpha.5] - 2026-11-06
 
 Nothing changes on a tester's screen; the app's own pages, and the Alpha's build

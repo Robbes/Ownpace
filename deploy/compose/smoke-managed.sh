@@ -82,6 +82,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 . "${SCRIPT_DIR}/env-read.sh"
 # shellcheck source=deploy/compose/own-addresses.sh
 . "${SCRIPT_DIR}/own-addresses.sh"
+# `trigger_env`, the one resolution of which Trigger.dev environment the tasks
+# deploy to: the tasks' image section below asks which deployment that
+# environment runs.
+# shellcheck source=deploy/compose/trigger-cli-lib.sh
+. "${SCRIPT_DIR}/trigger-cli-lib.sh"
 
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 
@@ -110,6 +115,7 @@ API="${SMOKE_API:-http://localhost:${api_port:-3001}}"
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")" || exit 1
 DB_CONTAINER="${SMOKE_DB_CONTAINER:-${COMPOSE_PROJECT}-db}"
 API_CONTAINER="${SMOKE_API_CONTAINER:-${COMPOSE_PROJECT}-api}"
+TRIGGER_DB_CONTAINER="${SMOKE_TRIGGER_DB_CONTAINER:-${COMPOSE_PROJECT}-trigger-db}"
 
 # NOTHING IS EXEC'D INTO THE API CONTAINER BUT NODE, BY ITS PATH (workplan 0146
 # T13a, the readers first). Two image layouts have to answer alike. The Node
@@ -1146,10 +1152,19 @@ RUNNER_LOG_DIR="$(mktemp -d /tmp/openmig-runner-logs.XXXXXX)"
         touch "$RUNNER_LOG_DIR/$c.log"
         docker logs -f "$c" >"$RUNNER_LOG_DIR/$c.log" 2>&1 &
       fi
-      # The image it started from, by ID, read while it exists, and again on
-      # every pass until a read answers: AutoRemove takes the container, never
-      # the image (the tasks' image, below).
-      [ -s "$RUNNER_LOG_DIR/$c.image" ] || docker container inspect --format '{{.Image}}' "$c" >"$RUNNER_LOG_DIR/$c.image" 2>/dev/null || rm -f "$RUNNER_LOG_DIR/$c.image"
+      # The image it started from, by ID, and the deployment version it runs
+      # (TRIGGER_DEPLOYMENT_VERSION, which the supervisor sets on every runner
+      # it creates), read in one inspect while it exists, and again on every
+      # pass until a read answers: AutoRemove takes the container, never the
+      # image (the tasks' image, below). Of its environment only that value is
+      # kept: the rest names the supervisor's address. The version is written
+      # first, so an image on file always has its version beside it.
+      if [ ! -s "$RUNNER_LOG_DIR/$c.image" ] &&
+        seen="$(docker container inspect --format '{{.Image}}{{range .Config.Env}}{{"\n"}}{{.}}{{end}}' "$c" 2>/dev/null)" &&
+        [ -n "${seen%%$'\n'*}" ]; then
+        sed -n 's/^TRIGGER_DEPLOYMENT_VERSION=//p' <<<"$seen" >"$RUNNER_LOG_DIR/$c.version"
+        printf '%s\n' "${seen%%$'\n'*}" >"$RUNNER_LOG_DIR/$c.image"
+      fi
     done
     sleep 1
   done
@@ -2962,7 +2977,7 @@ fi
 
 # ---------- the tasks' image is the prebuilt base's: the API's Node, and no shell ----------
 #
-# WHAT THE LAST DEPLOY BUILT, ASKED OF ITSELF (workplan 0119 §3 item 13,
+# WHAT THE DEPLOYED TASKS RUN, ASKED OF ITSELF (workplan 0119 §3 item 13,
 # since 2026-11-06). The tasks run on the prebuilt base
 # apps/worker/trigger.config.ts pins (TASK_BASE_IMAGE): distroless, with no
 # shell and no dpkg, and the Node distroless carried when main built it, which
@@ -2981,47 +2996,107 @@ fi
 # Essentials the config's layer purged (0119 §3 item 11); the base has none
 # of them, and no dpkg to ask.
 #
-# THE NEWEST IMAGE ONLY, by when it was built: the one the last deploy built.
+# THE IMAGE OF THE DEPLOYMENT THE TASKS RUN, AND NO OTHER (since 2026-11-07).
 # Trigger.dev keeps a run on the deployment version it was triggered on, so a
 # pass already running when this smoke starts, or one queued before the deploy
-# and dequeued during it, runs the image before; that image is named here and
-# not asked. scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts runs
-# this block.
+# and dequeued during it, runs an earlier deployment's image beside this one's.
+# Until 2026-11-07 this asked the image built last, by `docker image inspect`'s
+# Created, as the one the last deploy built. A deploy whose build is fully
+# cached keeps its first build's Created, so an earlier deployment's image,
+# built more recently, won: E2E (managed) run 42238877459 asked #1824's
+# distroless image, of an earlier deployment still running a pass, while that
+# run's own deploy was a cached build of the Debian one, and failed on the
+# wrong image. Now each side says it. The environment's deployment is its
+# "current" promotion, read from Trigger.dev's own database for the project
+# and environment the tasks deploy to (TRIGGER_PROJECT_REF, and trigger_env as
+# deploy-tasks.sh resolves it), as that deployment's worker's version; the
+# columns are named first, as plane-limit.sh names them, so a Trigger.dev that
+# renamed one says so. Each runner's is TRIGGER_DEPLOYMENT_VERSION, which the
+# supervisor sets on every runner it creates from the worker's version, read
+# by the watcher with its image. The image of that version's runners is asked;
+# every other runner's is named and not asked. Refused, asking nothing: no
+# runner's image read, the environment's deployment not read, no runner of it
+# seen, or its runners on more than one image.
+# scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts runs this block.
 note "the tasks' image is the prebuilt base's: the API's Node, and no shell (0119)"
-task_images=""
+# What each runner ran, "<version> <image ID>", once each; "?" for a runner
+# whose environment named no version.
+ran=""
 for f in "$RUNNER_LOG_DIR"/*.image; do
   [ -s "$f" ] || continue
   id="$(<"$f")"
-  case " $task_images " in *" $id "*) ;; *) task_images="${task_images:+$task_images }$id" ;; esac
+  version=""
+  [ -s "${f%.image}.version" ] && version="$(<"${f%.image}.version")"
+  [[ "$version" =~ ^[A-Za-z0-9._-]+$ ]] || version="?"
+  case $'\n'"${ran}"$'\n' in *$'\n'"${version} ${id}"$'\n'*) ;; *) ran="${ran}${ran:+$'\n'}${version} ${id}" ;; esac
 done
-newest="" newest_at=0 older="" undated=""
-for image in $task_images; do
-  if ! created="$(docker image inspect --format '{{.Created}}' "$image" 2>&1)" || ! at="$(date -u -d "$created" +%s%N 2>&1)"; then
-    undated="${undated}${undated:+; }${image#sha256:}: ${at:-$created}"
-    continue
-  fi
-  if [ -z "$newest" ] || [ "$at" -gt "$newest_at" ]; then
-    [ -z "$newest" ] || older="${older:+$older }$newest"
-    newest="$image" newest_at="$at"
+deployed="" why=""
+if [ -n "$ran" ]; then
+  trigger_q() { docker exec "$TRIGGER_DB_CONTAINER" psql -X -q -U trigger -d triggerdb -tA -v ON_ERROR_STOP=1 -c "$1" 2>&1; }
+  tasks_ref="$(smoke_env_value TRIGGER_PROJECT_REF)"
+  if ! tasks_env="$(trigger_env "${SCRIPT_DIR}/.env")"; then
+    why="which environment the tasks deploy to cannot be told (trigger_env, above)"
+  elif [[ ! "$tasks_ref" =~ ^[A-Za-z0-9_]+$ ]]; then
+    why="TRIGGER_PROJECT_REF in .env is '${tasks_ref}', not a project ref (letters, digits and _)"
+  elif [[ ! "$tasks_env" =~ ^[A-Za-z0-9_-]+$ ]]; then
+    why="the environment '${tasks_env}' is not a slug"
+  elif ! columns="$(trigger_q "SELECT table_name || '.' || column_name FROM information_schema.columns WHERE table_schema = 'public' AND table_name IN ('WorkerDeploymentPromotion', 'WorkerDeployment', 'BackgroundWorker', 'RuntimeEnvironment', 'Project')")"; then
+    why="Trigger.dev's database could not be asked: ${columns}"
   else
-    older="${older:+$older }$image"
+    missing=""
+    for column in WorkerDeploymentPromotion.label WorkerDeploymentPromotion.deploymentId WorkerDeploymentPromotion.environmentId \
+      WorkerDeployment.id WorkerDeployment.workerId BackgroundWorker.id BackgroundWorker.version \
+      RuntimeEnvironment.id RuntimeEnvironment.slug RuntimeEnvironment.projectId Project.id Project.externalRef; do
+      # A here-string, not a pipe: `grep -q` leaves a pipe early.
+      grep -qxF "$column" <<<"$columns" || missing="${missing} ${column}"
+    done
+    if [ -n "$missing" ]; then
+      why="this Trigger.dev's database is not the one this smoke knows; missing:${missing}"
+    elif ! deployed="$(trigger_q "SELECT w.version FROM \"WorkerDeploymentPromotion\" pr JOIN \"WorkerDeployment\" d ON d.id = pr.\"deploymentId\" JOIN \"BackgroundWorker\" w ON w.id = d.\"workerId\" JOIN \"RuntimeEnvironment\" e ON e.id = pr.\"environmentId\" JOIN \"Project\" p ON p.id = e.\"projectId\" WHERE pr.label = 'current' AND p.\"externalRef\" = '${tasks_ref}' AND e.slug = '${tasks_env}'")"; then
+      why="Trigger.dev's database could not say which deployment '${tasks_env}' runs: ${deployed}"
+      deployed=""
+    elif [[ ! "$deployed" =~ ^[A-Za-z0-9._-]+$ ]]; then
+      why="expected the one deployment '${tasks_env}' of project ${tasks_ref} runs, and Trigger.dev's database answered '${deployed//$'\n'/, }'"
+      deployed=""
+    fi
   fi
-  at=""
-done
-if [ -z "$task_images" ]; then
+fi
+ours=""
+if [ -z "$ran" ]; then
   echo "no runner's image was read while it ran, so what the deployed tasks' image is cannot be told"
   fail_at "the tasks' image was not read"
-elif [ -n "$undated" ]; then
-  echo "not every image the runners ran could be dated, so which one the last deploy built cannot be told: ${undated}"
-  fail_at "the tasks' image could not be told"
+elif [ -z "$deployed" ]; then
+  echo "which deployment the tasks run cannot be told, so neither can which runner's image is theirs: ${why}"
+  fail_at "the tasks' deployment was not read"
 else
-  for image in $older; do
-    image="${image#sha256:}"
-    echo "image ${image:0:12}: built before the newest, so an earlier deployment's runs; not asked"
-  done
-  short="${newest#sha256:}"
-  short="image ${short:0:12}"
-  said="$(docker run --rm --pull never --network none --entrypoint node "$newest" --version 2>&1)" && rc=0 || rc=$?
+  ours="$(awk -v v="$deployed" '$1 == v { print $2 }' <<<"$ran")"
+  if [ -z "$ours" ]; then
+    echo "no runner of deployment ${deployed}, the one the tasks run, was seen. The runners seen ran:"
+    awk '{ print "  image " substr($2, index($2, ":") + 1, 12) ": " ($1 == "?" ? "no version in its environment" : "deployment " $1) }' <<<"$ran"
+    fail_at "no runner of the deployed version was seen"
+    ours=""
+  elif [ "$(grep -c . <<<"$ours")" != 1 ]; then
+    echo "deployment ${deployed}'s runners ran more than one image, so which is its own cannot be told:"
+    awk '{ print "  image " substr($0, index($0, ":") + 1, 12) }' <<<"$ours"
+    fail_at "the deployed version's image could not be told"
+    ours=""
+  fi
+fi
+if [ -n "$ours" ]; then
+  while read -r version image; do
+    [ "$version" = "$deployed" ] && continue
+    short="${image#sha256:}"
+    if [ "$version" = "?" ]; then
+      echo "image ${short:0:12}: its runner's environment named no deployment version, so not the deployment's; not asked"
+    elif [ "$image" = "$ours" ]; then
+      echo "image ${short:0:12}: also ran deployment ${version}, an earlier deployment's runs, on the same image"
+    else
+      echo "image ${short:0:12}: deployment ${version}, an earlier deployment's runs; not asked"
+    fi
+  done <<<"$ran"
+  short="${ours#sha256:}"
+  short="image ${short:0:12} (deployment ${deployed})"
+  said="$(docker run --rm --pull never --network none --entrypoint node "$ours" --version 2>&1)" && rc=0 || rc=$?
   if [ "$rc" != 0 ] || [[ ! "$said" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
     echo "${short}: its node could not be asked (exit ${rc}): ${said}"
     fail_at "the tasks' Node could not be asked"
@@ -3035,7 +3110,7 @@ else
   fi
   started=""
   for shell in sh /bin/sh bash /bin/bash /busybox/sh; do
-    if said="$(docker run --rm --pull never --network none --entrypoint "$shell" "$newest" -c true 2>&1)"; then
+    if said="$(docker run --rm --pull never --network none --entrypoint "$shell" "$ours" -c true 2>&1)"; then
       started="${started}${started:+; }${shell} started"
     elif [[ ! "$said" =~ (executable file not found|no such file or directory) ]]; then
       started="${started}${started:+; }${shell} did not start, for another reason than its absence: ${said}"
@@ -3048,7 +3123,6 @@ else
     echo "${short}: no shell (sh, /bin/sh, bash, /bin/bash, /busybox/sh)"
   fi
 fi
-
 # ---------- the identity provider, and the three answers to an invitation ----------
 #
 # WHY THIS SECTION EXISTS. Zitadel was added to managed.yml in #496 and was not
