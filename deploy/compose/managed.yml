@@ -94,8 +94,9 @@ name: ownpace-managed
 # image, whose pin is the FROM of deploy/compose/trigger.dev/Dockerfile and
 # deploy/compose/supervisor/Dockerfile by tag and digest, with files deleted that never run here
 # and, since 2026-11-02, pnpm 10.34.9 in place of upstream's 10.33.2; since 2026-11-03 also
-# goose v3.29.0's release binary and four packages at the release that fixes each (the webapp's),
-# and systeminformation's (the supervisor's), fetched by the hash their publisher published.
+# goose v3.29.0's release binary and four packages at the release that fixes each (the webapp's;
+# a fifth, effect, since 2026-11-06), and systeminformation's (the supervisor's), fetched by the
+# hash their publisher published.
 # Their names start with the Trigger.dev version, TRIGGER_IMAGE_TAG or its default, as before, and
 # end in the hash of the Dockerfile's instructions; `trigger-version.sh pin` moves both, and
 # nothing builds them while the machine has the name. Dependabot reads neither Dockerfile, on
@@ -406,8 +407,17 @@ services:
     # goose v3.27.1, which the entrypoint runs, with goose v3.29.0's release
     # binary from GitHub by its SHA-256, and puts undici 6.29.1,
     # follow-redirects 1.16.2, body-parser 1.20.9 and systeminformation
-    # 5.33.19 in place of the releases they fix, by the sha512 npm published;
-    # so its build reaches github.com as well as the npm registry. The name
+    # 5.33.19 in place of the releases they fix, by the sha512 npm published
+    # (since 2026-11-06 effect 3.22.4 too, in place of the 3.17.1 the
+    # workspace's schema-to-json links; its header says why the other two
+    # copies of effect, and body-parser 2.3.0, stay);
+    # so its build reaches github.com as well as the npm registry. Since
+    # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
+    # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
+    # e2fsprogs, which depends on two of them (workplan 0119
+    # §3 item 11; its header says why, and
+    # scripts/an-essential-nothing-runs.unit.test.ts holds the list), so
+    # nothing in trigger-api can run apt. The name
     # is the version (the .env's TRIGGER_IMAGE_TAG, or the default) and the
     # hash of that file's instructions; the build argument only refuses a
     # .env naming another version than the file builds. `trigger-version.sh pin` moves the FROM and
@@ -415,7 +425,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-e13a605a9db5
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-a4bb254ab965
     build:
       context: ./trigger.dev
       args:
@@ -809,7 +819,7 @@ services:
     # 5.33.19 in place of 5.31.7, by the sha512 npm published. No `user:`, so
     # it runs as the image's node, whose copy its CMD runs and the Dockerfile
     # keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-92025e84edc4
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-9fa6db37008b
     build:
       context: ./supervisor
       args:

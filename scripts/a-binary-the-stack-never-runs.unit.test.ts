@@ -33,9 +33,10 @@
  * Two lessons came out of reading it, and each is held here. A third came with
  * the one finding left that a release fixes (below, A COPY THE SCAN READS),
  * a fourth with the pnpm each service runs (A PNPM SWAPPED IS A PNPM
- * RENAMED), and two more with the fixes of 2026-11-03 (A GO BINARY TRIVY
+ * RENAMED), two more with the fixes of 2026-11-03 (A GO BINARY TRIVY
  * READS ONLY WHEN IT CAN RUN, and A PACKAGE PNPM INSTALLED IS NOT ITS
- * TARBALL).
+ * TARBALL), and one with effect's of 2026-11-06 (A PACKAGE OF THE WORKSPACE
+ * LINKS FROM ITS OWN NODE_MODULES).
  *
  *  - TRIVY DOES NOT SEE A HARD-LINKED SECOND NAME. The postinstall of
  *    @depot/cli and of esbuild hard-links the platform package's binary over
@@ -122,6 +123,24 @@
  *    --legacy`. The same build removes TypeScript 7's native compiler, the
  *    one ELF of @typescript/typescript-$plat 7.0.2, by its published SHA-256
  *    (REMOVED), and proves `typescript` still resolves 7.0.2.
+ *  - A PACKAGE OF THE WORKSPACE LINKS FROM ITS OWN NODE_MODULES (2026-11-06).
+ *    effect 3.17.1 joined the table as its fifth row: of effect's three
+ *    copies in the scan, the one whose requirer's range takes the fix
+ *    (@prisma/config pins the other two exactly, and body-parser 2.3.0 stays,
+ *    since 2.4.0 needs an iconv-lite newer than the one pnpm linked for it).
+ *    Its requirer is no package of the store but one of the workspace,
+ *    packages/schema-to-json, whose link is in its own node_modules, and the
+ *    table's `who` read the store alone: run over a workspace pnpm 10.33.2
+ *    installed, with the real tarball, the row said "linked from: nothing".
+ *    So `who` reads the workspace too, in both images: every directory under
+ *    the one that holds node_modules/.pnpm, a node_modules aside, that links
+ *    the package from its own node_modules, named by its package.json. The
+ *    stand-in has schema-to-json's link, and the webapp's own effect 3.21.2
+ *    linked beside it, which must not count. The same replica showed that a
+ *    tree pnpm hard-linked from its store fails the swap's state proof, since
+ *    removing a directory changes the ctime of every inode it shares; the
+ *    image's install copies (the four's swap proved it on CI), and the
+ *    stand-in has no hard link between packages either.
  *
  * What else is held:
  *  - the Dockerfiles' shape: one FROM, upstream's image by `vX.Y.Z` and index
@@ -191,7 +210,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, relative } from 'node:path';
@@ -370,6 +389,8 @@ interface PackageReplacement {
   readonly integrity: string;
   /** When npm published `to` (the three-day floor, CONTRIBUTING.md). */
   readonly published: string;
+  /** When the row was taken, against which its floor is read: 2026-11-03 unless it says another day. */
+  readonly taken?: string;
   /** Each published tarball's files: the SHA-256 of `sha256sum` over them, sorted by path (the RUN's `tree`). */
   readonly fromTree: string;
   readonly toTree: string;
@@ -404,7 +425,7 @@ interface BinaryReplacement {
 
 type Replacement = PackageReplacement | BinaryReplacement;
 
-/** A row of the swap table: one of the four packages, in the image named. */
+/** A row of the swap table: one of the five packages, in the image named. */
 function swapRow(
   s: string,
   name: string,
@@ -484,6 +505,21 @@ const REPLACED: Readonly<Record<Name, readonly Replacement[]>> = {
       SWAP_EVIDENCE,
     ),
     swapRow(PNPM, 'systeminformation', ['5.31.7', '5.33.19'], SYSTEMINFORMATION_TREES, SYSTEMINFORMATION_INTEGRITY, '2026-10-30T05:08:10.331Z', SYSTEMINFORMATION_TABLE, ['@opentelemetry/host-metrics@0.38.3'], SYSTEMINFORMATION_WHY, SWAP_EVIDENCE),
+    {
+      ...swapRow(
+        PNPM,
+        'effect',
+        ['3.17.1', '3.22.4'],
+        ['3fdbdbcf4b43e82d5631ed580db16b9431d04677ada179ed34a27043d8a23ccd', 'b7d6b7cbae9262a2e258136292e231646ba675df4e965dd38136cd266d8ac9af'],
+        'sha512-RNshu7AXVxxDh6aS4lothhJ+QoZ4xSykbWNaaVdvDN72RMyVwhCGdALkyl1TbEydgAmRIdD1eTyJqBUGwSBGDA==',
+        '2026-10-22T20:49:57.301Z',
+        { mark: 'effect_internal_function', loads: ['effect'] },
+        ['@trigger.dev/schema-to-json@4.8.3'],
+        "CVE-2026-32887 (high; npm's GHSA-38f7-945m-qr2g, below 3.20.0: Effect's AsyncLocalStorage context lost or mixed up in its fibers under concurrent load), and npm lists none against 3.20.0, 3.21.2 or 3.22.4. 3.22.4 is npm's newest 3.x and declares 3.17.1's ranges, which the @standard-schema/spec 1.0.0 and fast-check 3.23.2 pnpm linked for it meet. Its one requirer is the workspace's own @trigger.dev/schema-to-json (\"^3\"), which calls JSONSchema.make, kept in 3.22.4, and nothing here loads it: the package exports only dist/, which the image does not carry, and its one importer is the CLI's index workers. effect 3.16.12 and 3.18.4 stay, pinned exactly by @prisma/config 6.14.0 and 6.19.0, and so does the webapp's own 3.21.2, fixed already",
+        "npm's bulk advisories for effect 3.16.12, 3.17.1, 3.18.4, 3.20.0, 3.21.2 and 3.22.4, and its published integrity and time for 3.22.4 (2026-11-06); both tarballs (the same main, module, types, sideEffects and dependencies, no type field; the exports gain ./Graph, ./HashRing and ./PartitionedSemaphore and keep the other 176; 31 files added and none removed; tree() of each); @prisma/config 6.14.0 and 6.19.0 as npm published them (effect pinned exactly); upstream's pnpm-lock.yaml at v4.8.3 (who links each copy, and what pnpm linked for 3.17.1), packages/schema-to-json's package.json and src/index.ts, packages/cli-v3's two index workers, apps/webapp's updateMetadata.server.ts and vite.config.ts, docker/Dockerfile and .dockerignore (no dist of schema-to-json in the image); Security Scan run 42213975717's report (each path); effect's row of the RUN over a workspace pnpm 10.33.2 installed by copying, with the real tarball from the registry, on Node 24.22.1, 2026-11-06",
+      ),
+      taken: '2026-11-06T00:00:00Z',
+    },
     {
       kind: 'binary',
       path: '/usr/local/bin/goose',
@@ -1045,6 +1081,10 @@ function tableProblems(name: Name, text: string): string[] {
     [/swapped\(\) \{ if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then mv "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" "\$tmp\/\$1\/package\/node_modules" \|\| fail "[^"\n]+"; fi; rm -r "\$s\/\$1@\$2\/node_modules\/\$1" \|\| fail "[^"\n]+"; mv "\$tmp\/\$1\/package" "\$s\/\$1@\$2\/node_modules\/\$1" \|\| fail "[^"\n]+"; \}/, "swapped() carries pnpm's own node_modules over, then puts the new release in the old one's place, each step failing by name"],
     [/load="[^"\n]*if \(pj !== path\.join\(real, 'package\.json'\) \|\| v !== to\)[^"\n]*if \(!p\.startsWith\(real \+ path\.sep\)\)[^"\n]*"/, 'load checks where each require resolves, not only what it says'],
     [/who="[^"\n]*!st\.isSymbolicLink\(\) \|\| fs\.realpathSync\(path\.join\(nm, name\)\) !== real[^"\n]*"/, 'who finds the requirers by the links that lead to the directory'],
+    [
+      /who="[^"\n]*const walk = \(d\) => \{ const l = path\.join\(d, 'node_modules', name\);[^"\n]*if \(st && st\.isSymbolicLink\(\) && fs\.realpathSync\(l\) === real\) \{ const j = JSON\.parse\(fs\.readFileSync\(path\.join\(d, 'package\.json'\), 'utf8'\)\); out\.push\(j\.name \+ '@' \+ j\.version \+ ' ' \+ d\); \} for \(const e of fs\.readdirSync\(d, \{ withFileTypes: true \}\)\) if \(e\.isDirectory\(\) && e\.name !== 'node_modules'\) walk\(path\.join\(d, e\.name\)\); \}; walk\(path\.dirname\(path\.dirname\(s\)\)\);[^"\n]*"/,
+      "who also finds the workspace's packages that link it from their own node_modules (every directory under the one that holds node_modules/.pnpm, a node_modules aside), each named by its package.json",
+    ],
     [/same="[^"\n]*j\.name === n && j\.version === v[^"\n]*"/, 'same matches a copy by its name and version, so other versions stay'],
   ];
   for (const [re, what] of whole) if (!re.test(args)) problems.push(`the swap table's RUN: ${what}, and does not`);
@@ -1170,6 +1210,30 @@ interface Tree {
   readonly tools?: Readonly<Record<string, string>>;
   /** The pnpm the stand-in registry publishes, which the stand-in corepack installs: its version, the sha512 it hashes to, and its files. */
   readonly pnpm?: Published;
+  /** The Debian packages the stand-in's dpkg and dpkg-query answer for; without it, none is installed. */
+  readonly dpkg?: DpkgDb;
+}
+
+/** One package of the stand-in's dpkg database, as far as the webapp's purge asks. */
+interface DpkgPackage {
+  readonly version: string;
+  /** `not-installed` is the record dpkg keeps of some packages it purged (the appliance's `login`). */
+  readonly status: 'installed' | 'not-installed' | 'config-files';
+  readonly essential?: boolean;
+  readonly protected?: boolean;
+  /** What it depends on, by name (Depends and Pre-Depends together). */
+  readonly depends?: readonly string[];
+  /** Its files, by path in the image; a purge removes those the stand-in's tree has. */
+  readonly files?: readonly string[];
+  /** The record dpkg keeps of it after a purge, if any: not-installed (as of `login`), or one a purge should not leave. */
+  readonly afterPurge?: 'not-installed' | 'config-files';
+}
+
+interface DpkgDb {
+  readonly packages: Readonly<Record<string, DpkgPackage>>;
+  /** What `dpkg --audit` prints before a purge, and after one when `auditAfter` is given. */
+  readonly audit?: string;
+  readonly auditAfter?: string;
 }
 
 interface StandIn {
@@ -1385,7 +1449,7 @@ function gooseTools(owner = '0:0'): Readonly<Record<string, string>> {
   };
 }
 
-/** pnpm's directory, at read_at, of each package that requires one of the four (the stand-in's links are made from it). */
+/** pnpm's directory, at read_at, of each package of the store that requires one of the five (the stand-in's links are made from it). */
 const REQUIRER_DIRS: Readonly<Record<string, string>> = {
   '@ai-sdk/provider-utils@4.0.56': '@ai-sdk+provider-utils@4.0.56_zod@4.5.4',
   '@remix-run/node@2.17.5': '@remix-run+node@2.17.5_typescript@7.0.2',
@@ -1393,27 +1457,58 @@ const REQUIRER_DIRS: Readonly<Record<string, string>> = {
   'express@4.20.0': 'express@4.20.0',
   '@opentelemetry/host-metrics@0.38.3': '@opentelemetry+host-metrics@0.38.3_@opentelemetry+api@1.9.1',
 };
+/**
+ * Each package of the workspace, at read_at, that requires one of the five,
+ * by its directory in the image: pnpm links a workspace package's
+ * dependencies from its own node_modules, not from the store's.
+ */
+const WORKSPACE_REQUIRERS: Readonly<Record<string, string>> = {
+  '@trigger.dev/schema-to-json@4.8.3': '/triggerdotdev/packages/schema-to-json',
+};
 const nameOfRow = (r: PackageReplacement) => r.path.split('/').at(-1)!;
 const splitAt = (spec: string) => [spec.slice(0, spec.lastIndexOf('@')), spec.slice(spec.lastIndexOf('@') + 1)] as const;
+/** A requirer's own directory in the image, the one its require resolves from: its package under the store, or the workspace's package. */
+const requirerDir = (s: string, req: string) => WORKSPACE_REQUIRERS[req] ?? `${s}/${REQUIRER_DIRS[req]}/node_modules/${splitAt(req)[0]}`;
 
 /**
- * A stand-in of one of the four packages at a version, by path inside its
+ * What a stand-in release declares, and the one dependency it requires when
+ * it loads, as the real ones do: body-parser's bytes, and effect's fast-check
+ * (its FastCheck module; @standard-schema/spec is types alone).
+ */
+const STAND_IN_DEPENDS: Readonly<Record<string, { readonly dependencies: Readonly<Record<string, string>>; readonly requires: string }>> = {
+  'body-parser': { dependencies: { bytes: '~3.1.2' }, requires: 'bytes' },
+  effect: { dependencies: { '@standard-schema/spec': '^1.0.0', 'fast-check': '^3.23.1' }, requires: 'fast-check' },
+};
+
+/**
+ * A stand-in of one of the five packages at a version, by path inside its
  * directory: its entry says its version and carries the package's mark, so a
  * check that read node_modules for it, rather than the build, would fail;
  * systeminformation has lib/network.js, which host-metrics loads, and
- * body-parser requires its dependency bytes when it loads.
+ * body-parser and effect require a dependency when they load.
  */
 function standInSwapped(name: string, version: string): Record<string, string> {
   const row = tableRows('trigger.dev').find((r) => nameOfRow(r) === name)!;
   const main = name === 'systeminformation' ? 'lib/index.js' : 'index.js';
-  const deps = name === 'body-parser' ? { dependencies: { bytes: '~3.1.2' } } : {};
+  const depends = STAND_IN_DEPENDS[name];
+  const deps = depends ? { dependencies: depends.dependencies } : {};
   const files: Record<string, string> = {
     'package.json': `${JSON.stringify({ name, version, main, ...deps })}\n`,
-    [main]: `${name === 'body-parser' ? "require('bytes');\n" : ''}// ${row.table.mark}\nmodule.exports = { version: '${version}' };\n`,
+    [main]: `${depends ? `require('${depends.requires}');\n` : ''}// ${row.table.mark}\nmodule.exports = { version: '${version}' };\n`,
   };
   if (name === 'systeminformation') files['lib/network.js'] = `// ${row.table.mark}\nexports.networkStats = async () => [];\n`;
   return files;
 }
+
+/**
+ * The copies of effect the table leaves, at read_at, and who links each: @prisma/config, which pins it exactly, by
+ * pnpm's directory for it, or the workspace's apps/webapp (its own, "^3.21.2"), by its directory in the image.
+ */
+const EFFECTS_THAT_STAY: ReadonlyArray<{ readonly version: string; readonly by: string; readonly store?: string; readonly workspace?: string }> = [
+  { version: '3.16.12', by: '@prisma/config@6.14.0', store: '@prisma+config@6.14.0_magicast@0.3.5' },
+  { version: '3.18.4', by: '@prisma/config@6.19.0', store: '@prisma+config@6.19.0_magicast@0.3.5' },
+  { version: '3.21.2', by: 'webapp@1.0.0', workspace: '/triggerdotdev/apps/webapp' },
+];
 
 /** The stand-in registry's tarball of each package's new release, made once, so their integrity holds across builds. */
 const STAND_IN_SWAP_TARBALLS: Readonly<Record<string, Buffer>> = Object.fromEntries(tableRows('trigger.dev').map((r) => [nameOfRow(r), tarball(standInSwapped(nameOfRow(r), r.to))]));
@@ -1429,8 +1524,15 @@ function swapTree(name: Name): Required<Pick<Tree, 'files' | 'links' | 'registry
     const n = nameOfRow(r);
     for (const [p, text] of Object.entries(standInSwapped(n, r.from))) files[`${r.path}/${p}`] = text;
     for (const req of r.requirers) {
-      const dir = `${s}/${REQUIRER_DIRS[req]}/node_modules`;
       const [reqName, reqVersion] = splitAt(req);
+      const ws = WORKSPACE_REQUIRERS[req];
+      if (ws) {
+        // A package of the workspace: its package.json, and its own node_modules' link into the store.
+        files[`${ws}/package.json`] = `${JSON.stringify({ name: reqName, version: reqVersion })}\n`;
+        links.push({ path: `${ws}/node_modules/${n}`, target: relative(`${ws}/node_modules`, r.path) });
+        continue;
+      }
+      const dir = `${s}/${REQUIRER_DIRS[req]}/node_modules`;
       files[`${dir}/${reqName}/package.json`] = `${JSON.stringify({ name: reqName, version: reqVersion })}\n`;
       links.push({ path: `${dir}/${n}`, target: `../../${n}@${r.from}/node_modules/${n}` });
     }
@@ -1453,6 +1555,29 @@ function swapTree(name: Name): Required<Pick<Tree, 'files' | 'links' | 'registry
     links.push({ path: `${s}/node_modules/undici`, target: `../undici@${undici.from}/node_modules/undici` });
     files[`${s}/undici@5.29.0/node_modules/undici/package.json`] = '{"name":"undici","version":"5.29.0"}\n';
     files[`${s}/body-parser@2.3.0_supports-color@10.0.0/node_modules/body-parser/package.json`] = '{"name":"body-parser","version":"2.3.0"}\n';
+  }
+  // effect's two dependencies, as pnpm linked them for 3.17.1, and the copies of effect that stay, each linked
+  // from its requirer: @prisma/config's two, pinned exactly, and the webapp's own 3.21.2, a workspace package's
+  // link to another version, which no requirer of 3.17.1 may count.
+  const effect = tableRows(name).find((r) => nameOfRow(r) === 'effect');
+  if (effect) {
+    for (const [dep, version] of [['@standard-schema/spec', '1.0.0'], ['fast-check', '3.23.2']] as const) {
+      const dir = `${s}/${dep.replace('/', '+')}@${version}/node_modules/${dep}`;
+      files[`${dir}/package.json`] = `${JSON.stringify({ name: dep, version, main: 'index.js' })}\n`;
+      files[`${dir}/index.js`] = 'module.exports = {};\n';
+      const at = `${dirname(effect.path)}/${dep}`;
+      links.push({ path: at, target: relative(dirname(at), dir) });
+    }
+    for (const { version, by, store, workspace } of EFFECTS_THAT_STAY) {
+      const copy = `${s}/effect@${version}/node_modules/effect`;
+      files[`${copy}/package.json`] = `${JSON.stringify({ name: 'effect', version })}\n`;
+      const [byName, byVersion] = splitAt(by);
+      const nm = workspace ? `${workspace}/node_modules` : `${s}/${store}/node_modules`;
+      files[workspace ? `${workspace}/package.json` : `${nm}/${byName}/package.json`] = `${JSON.stringify({ name: byName, version: byVersion })}\n`;
+      links.push({ path: `${nm}/effect`, target: relative(nm, copy) });
+    }
+    // The webapp's server imports its own effect by name, which is no mark.
+    files['/triggerdotdev/apps/webapp/build/server/index.js'] = 'import { Cause, Effect, Either, Option, Schedule, Duration, Fiber } from "effect";\n';
   }
   // The build each image's table reads for a bundled copy; the webapp's has a string of upstream's own code, which is no mark.
   if (name === 'supervisor') files['/app/apps/supervisor/dist/index.js'] = 'export const start = () => 0;\n';
@@ -1525,6 +1650,86 @@ function pnpmCopy(home: string, version: string): Record<string, string> {
 /** What the stand-in registry publishes for SWAP.to: the stand-in's files, under the sha512 npm published for the real ones. */
 const PUBLISHED: Published = { version: SWAP.to, sha512: SWAP.sha512, files: standInPnpm(SWAP.to) };
 
+/** The RUN that purges Debian packages: the one that runs `dpkg --purge` (the webapp's last as root, since 2026-11-06). */
+const purgeRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])dpkg --purge /.test(r.args));
+/** How many each Dockerfile has: the supervisor's base is Alpine, and has no dpkg. */
+const PURGES: Readonly<Record<Name, number>> = { 'trigger.dev': 1, supervisor: 0 };
+
+/** The purge's two lists as its RUN names them (`purge=`, `libraries=`): what it purges, and the libraries those ship. */
+function purgeLists(text: string): { packages: string[]; libraries: string[] } {
+  const vars = assignments(purgeRuns(text)[0]?.args ?? '');
+  const list = (k: string) => (vars.get(k) ?? '').split(' ').filter(Boolean);
+  return { packages: list('purge'), libraries: list('libraries') };
+}
+
+/** Debian's directory for a platform's libraries. */
+const TRIPLET: Readonly<Record<string, string>> = { 'linux-arm64': 'aarch64-linux-gnu', 'linux-x64': 'x86_64-linux-gnu' };
+
+/** Which package of the purge ships each library it names, in Debian 12 (apt carries its private one). */
+const SHIPPED_BY: Readonly<Record<string, string>> = {
+  'libuuid.so.1': 'libuuid1',
+  'libblkid.so.1': 'libblkid1',
+  'libmount.so.1': 'libmount1',
+  'libsmartcols.so.1': 'libsmartcols1',
+  'libapt-pkg.so.6.0': 'libapt-pkg6.0',
+  'libapt-private.so.0.0': 'apt',
+};
+
+/**
+ * The stand-in's Debian 12, as far as the webapp's purge reads it: every
+ * package the RUN names installed, util-linux and bsdutils Essential, each
+ * library under its platform's directory (not in the stand-in's tree, so a
+ * purge removes nothing there unless a test puts one in), the dependencies
+ * among them that Debian 12 has (util-linux on its libraries and on
+ * util-linux-extra, mount on util-linux, apt on libapt-pkg6.0, e2fsprogs on
+ * libblkid1 and libuuid1 and on its own libraries, which stay), and packages
+ * that stay and depend on none of them.
+ */
+function debian12(plat: string): DpkgDb {
+  const lib = (so: string) => [`/usr/lib/${TRIPLET[plat] ?? plat}/${so}`];
+  const { packages, libraries } = purgeLists(dockerfiles['trigger.dev']);
+  const ships = (name: string) => libraries.filter((so) => SHIPPED_BY[so] === name).flatMap(lib);
+  const depends: Readonly<Record<string, readonly string[]>> = {
+    'util-linux': ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1', 'util-linux-extra', 'libacl1'],
+    'util-linux-extra': ['libblkid1', 'libsmartcols1', 'libuuid1'],
+    mount: ['util-linux', 'libblkid1', 'libmount1', 'libsmartcols1'],
+    libmount1: ['libblkid1'],
+    apt: ['libapt-pkg6.0', 'zlib1g'],
+    'libapt-pkg6.0': ['zlib1g'],
+    e2fsprogs: ['libblkid1', 'libcom-err2', 'libext2fs2', 'libss2', 'libuuid1', 'logsave'],
+  };
+  const out: Record<string, DpkgPackage> = {
+    coreutils: { version: '9.1-1', status: 'installed', essential: true, depends: ['libacl1'] },
+    tar: { version: '1.34+dfsg-1.2+deb12u1', status: 'installed', essential: true, depends: ['libacl1'] },
+    dpkg: { version: '1.21.22', status: 'installed', essential: true, depends: ['tar', 'zlib1g'] },
+    libacl1: { version: '2.3.1-3', status: 'installed' },
+    zlib1g: { version: '1:1.2.13.dfsg-1', status: 'installed' },
+    // e2fsprogs' own libraries and logsave stay: in Debian 12 they need libc6 and libcom-err2 alone.
+    libext2fs2: { version: '1.47.0-2+b2', status: 'installed' },
+    libss2: { version: '1.47.0-2+b2', status: 'installed', depends: ['libcom-err2'] },
+    'libcom-err2': { version: '1.47.0-2+b2', status: 'installed' },
+    logsave: { version: '1.47.0-2+b2', status: 'installed' },
+  };
+  for (const name of packages) {
+    out[name] = {
+      version: '1',
+      status: 'installed',
+      essential: name === 'util-linux' || name === 'bsdutils',
+      depends: depends[name] ?? [],
+      files: [`/usr/share/doc/${name}/copyright`, ...ships(name)],
+    };
+  }
+  return { packages: out, audit: '' };
+}
+
+/** The stand-in's dpkg database after a build, and the dpkg calls it logged, in order. */
+function dpkgOf(box: Sandbox): { db: DpkgDb; calls: string[] } {
+  const db = JSON.parse(readFileSync(join(box.root, 'dpkg.json'), 'utf8')) as DpkgDb;
+  // No tool log is no tool called.
+  const log = existsSync(join(box.root, 'tools.log')) ? readFileSync(join(box.root, 'tools.log'), 'utf8') : '';
+  return { db, calls: log.split('\n').filter((l) => /^dpkg(-query)? /.test(l)) };
+}
+
 function treeOf(name: Name, plat: string): Tree {
   const supSwap = swapTree('supervisor');
   if (name === 'supervisor') {
@@ -1547,6 +1752,7 @@ function treeOf(name: Name, plat: string): Tree {
   }
   const pkg = (dir: string): Record<string, string> => ({ [`${dir}/package.json`]: '{"main":"lib/main.js"}\n', [`${dir}/lib/main.js`]: 'module.exports = {};\n' });
   const dompurify = dompurifyTree();
+  const dpkg = debian12(plat);
   const ts = typescriptTree();
   const swap = swapTree('trigger.dev');
   const goose = GOOSE.assets[plat as Plat];
@@ -1558,6 +1764,7 @@ function treeOf(name: Name, plat: string): Tree {
     standIn: { ...dompurify.standIn, table: swap.table, goose: sha256(STAND_IN_GOOSE_NEW) },
     executables: { [GOOSE.path]: STAND_IN_GOOSE_OLD },
     tools: gooseTools(),
+    dpkg,
     files: {
       [ROOT_PKG['trigger.dev']]: `{"packageManager":"pnpm@${SWAP.from}"}\n`,
       '/triggerdotdev/packages/core/package.json': '{"version":"4.8.3"}\n',
@@ -1663,6 +1870,96 @@ fs.mkdirSync(corepackHome, { recursive: true });
 fs.writeFileSync(path.join(corepackHome, 'lastKnownGood.json'), JSON.stringify({ pnpm: reference }, null, 2) + '\\n');
 `;
 
+/**
+ * What dpkg and dpkg-query do here, as far as the webapp's purge asks, from the
+ * stand-in's database (FAKE_DPKG) and never from this machine's: `dpkg-query -W
+ * [-f <format>] <names>` and `-L <names>`, and `dpkg --audit` and `--purge
+ * [--force-…] <names>`. A purge refuses as dpkg 1.21 does: an Essential
+ * package without --force-remove-essential, a protected one without
+ * --force-remove-protected, and one that an installed package it does not
+ * remove depends on without --force-depends ("dependency problems - not
+ * removing"); it goes on with the others and exits 1. What it removes, it
+ * removes from the stand-in's tree (FAKE_ROOT) and its database. Anything
+ * else is refused, with exit 3. Every call is logged to the tool log.
+ */
+const DPKG_STAND_IN = `
+const fs = require('fs');
+const path = require('path');
+const [tool, ...args] = process.argv.slice(2);
+fs.appendFileSync(process.env.TOOL_LOG, tool + ' ' + args.join(' ') + '\\n');
+const file = process.env.FAKE_DPKG;
+const db = JSON.parse(fs.readFileSync(file, 'utf8'));
+const pkgs = db.packages;
+const say = (text) => process.stderr.write(text + '\\n');
+const refuse = (text) => { say(text); process.exit(3); };
+if (tool === 'dpkg-query') {
+  let rc = 0;
+  let out = '';
+  if (args[0] === '-W' && args[1] === '-f' && args.length > 3) {
+    for (const n of args.slice(3)) {
+      const p = pkgs[n];
+      if (!p) { say('dpkg-query: no packages found matching ' + n); rc = 1; continue; }
+      const status = (p.status === 'installed' ? 'install ok ' : 'unknown ok ') + p.status;
+      out += args[2].split('\${Package}').join(n).split('\${Version}').join(p.version).split('\${db:Status-Status}').join(p.status).split('\${Status}').join(status).split('\\\\n').join('\\n');
+    }
+  } else if (args[0] === '-W' && args.length > 1 && !args[1].startsWith('-')) {
+    for (const n of args.slice(1)) {
+      const p = pkgs[n];
+      if (!p) { say('dpkg-query: no packages found matching ' + n); rc = 1; continue; }
+      out += n + '\\t' + p.version + '\\n';
+    }
+  } else if (args[0] === '-L' && args.length > 1) {
+    const lists = [];
+    for (const n of args.slice(1)) {
+      const p = pkgs[n];
+      if (!p || p.status !== 'installed') { say("dpkg-query: package '" + n + "' is not installed"); rc = 1; continue; }
+      lists.push((p.files || []).join('\\n'));
+    }
+    out = lists.join('\\n\\n') + (lists.length ? '\\n' : '');
+  } else refuse('the stand-in dpkg-query answers -W [-f <format>] <names> and -L <names> only, not: ' + args.join(' '));
+  process.stdout.write(out);
+  process.exit(rc);
+}
+if (tool === 'dpkg') {
+  if (args.length === 1 && args[0] === '--audit') { process.stdout.write(db.audit || ''); process.exit(0); }
+  if (args[0] !== '--purge') refuse('the stand-in dpkg answers --audit and --purge only, not: ' + args.join(' '));
+  const flags = args.slice(1).filter((a) => a.startsWith('-'));
+  const names = args.slice(1).filter((a) => !a.startsWith('-'));
+  const known = ['--force-remove-essential', '--force-remove-protected', '--force-depends', '--force-all'];
+  for (const f of flags) if (!known.includes(f)) refuse('the stand-in dpkg knows no ' + f);
+  const forced = (what) => flags.includes('--force-' + what) || flags.includes('--force-all');
+  let rc = 0;
+  const going = [];
+  for (const n of names) {
+    const p = pkgs[n];
+    if (!p || p.status !== 'installed') { say('dpkg: warning: ignoring request to remove ' + n + ' which isn' + "'" + 't installed'); continue; }
+    if (p.essential && !forced('remove-essential')) { say('dpkg: error processing package ' + n + ' (--purge):\\n this is an essential package; it should not be removed'); rc = 1; continue; }
+    if (p.protected && !forced('remove-protected')) { say('dpkg: error processing package ' + n + ' (--purge):\\n this is a protected package; it should not be removed'); rc = 1; continue; }
+    const by = Object.keys(pkgs).filter((m) => pkgs[m].status === 'installed' && !names.includes(m) && (pkgs[m].depends || []).includes(n));
+    if (by.length && !forced('depends')) {
+      say('dpkg: dependency problems prevent removal of ' + n + ':\\n' + by.map((m) => ' ' + m + ' depends on ' + n + '.').join('\\n') + '\\n\\ndpkg: error processing package ' + n + ' (--purge):\\n dependency problems - not removing');
+      rc = 1;
+      continue;
+    }
+    going.push(n);
+  }
+  for (const n of going) {
+    for (const f of pkgs[n].files || []) fs.rmSync(path.join(process.env.FAKE_ROOT, f), { force: true });
+    console.log('Purging configuration files for ' + n + ' (' + pkgs[n].version + ') ...');
+    if (pkgs[n].afterPurge) pkgs[n] = { version: '', status: pkgs[n].afterPurge };
+    else delete pkgs[n];
+  }
+  if (db.auditAfter !== undefined) db.audit = db.auditAfter;
+  fs.writeFileSync(file, JSON.stringify(db));
+  if (rc) say('Errors were encountered while processing.');
+  process.exit(rc);
+}
+refuse('the stand-in answers dpkg and dpkg-query only, not ' + tool);
+`;
+
+/** dumb-init, as far as the purge's proof asks it: its version, as dumb-init 1.2.5 says it (on stderr, exit 0). */
+const DUMB_INIT_STAND_IN = ['#!/bin/sh', `printf '%s %s\\n' dumb-init "$*" >> "$TOOL_LOG"`, 'case "$*" in --version) echo "dumb-init v1.2.5" >&2; exit 0 ;; esac', 'exit 3', ''].join('\n');
+
 interface Run {
   readonly status: number;
   readonly out: string;
@@ -1731,6 +2028,19 @@ function sandbox(tree: Tree): Sandbox {
   if (tree.pnpm) {
     mkdirSync(join(root, 'registry', 'pnpm'), { recursive: true });
     writeFileSync(join(root, 'registry', 'pnpm', `${tree.pnpm.version}.json`), JSON.stringify({ sha512: tree.pnpm.sha512, files: tree.pnpm.files }));
+  }
+  // dpkg and dpkg-query are ALWAYS the stand-in's, answering from its own
+  // database: a RUN that purges must never reach this machine's dpkg (the
+  // guard can run as root), whatever the tree says.
+  writeFileSync(join(root, 'dpkg.json'), JSON.stringify(tree.dpkg ?? { packages: {} }));
+  writeFileSync(join(root, 'dpkg.cjs'), DPKG_STAND_IN);
+  for (const cmd of ['dpkg', 'dpkg-query']) {
+    writeFileSync(join(bin, cmd), `#!/bin/sh\nexec '${process.execPath}' '${join(root, 'dpkg.cjs')}' ${cmd} "$@"\n`, { mode: 0o755 });
+  }
+  writeFileSync(join(bin, 'dumb-init'), DUMB_INIT_STAND_IN, { mode: 0o755 });
+  // And no apt at all: the webapp's purge removes it, so a RUN that calls it fails, here as in the image.
+  for (const cmd of ['apt', 'apt-get']) {
+    writeFileSync(join(bin, cmd), `#!/bin/sh\nprintf '%s %s\\n' ${cmd} "$*" >> "$TOOL_LOG"\necho "${cmd}: the stand-in has no apt, and the image has none after its purge" >&2\nexit 3\n`, { mode: 0o755 });
   }
   for (const [name, script] of Object.entries(tree.tools ?? {})) writeFileSync(join(bin, name), script, { mode: 0o755 });
   // Node itself, told the platform it is asked about, and with no network: a
@@ -1807,6 +2117,8 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
         PNPM_LOG: join(box.root, 'pnpm.log'),
         COREPACK_LOG: join(box.root, 'corepack.log'),
         TOOL_LOG: join(box.root, 'tools.log'),
+        FAKE_DPKG: join(box.root, 'dpkg.json'),
+        FAKE_ROOT: box.fs,
         LANG: 'C',
       },
     });
@@ -2737,7 +3049,7 @@ describe("the webapp's build replaces dompurify's files with the release that fi
 });
 
 // ---------------------------------------------------------------------------
-// Since 2026-11-03: TypeScript 7's tsc goes, four packages are swapped by one table, and goose is the release's binary.
+// Since 2026-11-03: TypeScript 7's tsc goes, four packages are swapped by one table (five since 2026-11-06), and goose is the release's binary.
 
 /** The text with the first line `re` matches taken out. */
 function dropLine(text: string, re: RegExp): string {
@@ -2835,7 +3147,7 @@ describe("the webapp's build removes TypeScript 7's native compiler by its publi
   });
 });
 
-describe('the swap table replaces four packages in the webapp and one in the supervisor by the release of the same major that fixes each, and nothing else', () => {
+describe('the swap table replaces five packages in the webapp and one in the supervisor by the release of the same major that fixes each, and nothing else', () => {
   it("REPLACED's table rows are what each image's table names, each past its floor", () => {
     for (const name of NAMES) {
       expect(tableProblems(name, dockerfiles[name]), name).toEqual([]);
@@ -2843,10 +3155,10 @@ describe('the swap table replaces four packages in the webapp and one in the sup
         const n = nameOfRow(r);
         expect(r.url).toBe(`https://registry.npmjs.org/${n}/-/${n}-${r.to}.tgz`);
         expect(r.integrity).toMatch(/^sha512-[A-Za-z0-9+/]{86}==$/);
-        // The same major, past its three-day floor when taken, 2026-11-03 (CONTRIBUTING.md).
+        // The same major, past its three-day floor when taken: 2026-11-03, effect's 2026-11-06 (CONTRIBUTING.md).
         expect(r.to.split('.')[0], n).toBe(r.from.split('.')[0]);
-        expect(Date.parse('2026-11-03T00:00:00Z') - Date.parse(r.published), n).toBeGreaterThan(3 * 24 * 3600 * 1000);
-        for (const req of r.requirers) expect(REQUIRER_DIRS[req], `${n}: ${req} has no pnpm directory here`).toBeDefined();
+        expect(Date.parse(r.taken ?? '2026-11-03T00:00:00Z') - Date.parse(r.published), n).toBeGreaterThan(3 * 24 * 3600 * 1000);
+        for (const req of r.requirers) expect(REQUIRER_DIRS[req] ?? WORKSPACE_REQUIRERS[req], `${n}: ${req} has no pnpm directory or workspace directory here`).toBeDefined();
         expect(r.why.length).toBeGreaterThan(60);
         expect(r.evidence.length).toBeGreaterThan(30);
       }
@@ -2874,6 +3186,10 @@ describe('the swap table replaces four packages in the webapp and one in the sup
     expect(problems(webapp.replace('find . -path ./node_modules -prune -o -type f -print0', 'find . -type f -print0'))).toEqual([expect.stringContaining("tree() leaves pnpm's own node_modules out")]);
     expect(problems(webapp.replace(/if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then [^;]*; fi; /, ''))).toEqual([expect.stringContaining("swapped() carries pnpm's own node_modules over")]);
     expect(problems(webapp.replace("j.name === n && j.version === v", 'j.name === n'))).toEqual([expect.stringContaining('same matches a copy by its name and version')]);
+    // who without the workspace: effect's requirer, a package of the workspace, would read as nothing (A PACKAGE OF THE WORKSPACE).
+    expect(problems(webapp.replace(' walk(path.dirname(path.dirname(s)));', ''))).toEqual([expect.stringContaining("who also finds the workspace's packages that link it from their own node_modules")]);
+    expect(problems(webapp.replace("if (e.isDirectory() && e.name !== 'node_modules') walk(", 'if (e.isDirectory()) walk('))).toEqual([expect.stringContaining("who also finds the workspace's packages that link it")]);
+    expect(tableProblems('supervisor', dockerfiles.supervisor.replace(' walk(path.dirname(path.dirname(s)));', ''))).toEqual([expect.stringContaining("who also finds the workspace's packages that link it")]);
     expect(problems(webapp.replace("if (!p.startsWith(real + path.sep))", 'if (false)'))).toEqual([expect.stringContaining('load checks where each require resolves')]);
     expect(problems(webapp.replace(" %s %Y %Z' {} + ; } | LC_ALL=C sort", "' {} + ; } | LC_ALL=C sort"))).toEqual([expect.stringContaining('state() reads every entry outside the swapped directories')]);
     // The order: a swap before every fetch is checked, or the image read after a fetch, or no load proof.
@@ -2910,15 +3226,25 @@ describe('the swap table replaces four packages in the webapp and one in the sup
           // pnpm's own, carried over.
           expect([...after].filter(([p]) => p.startsWith(`${r.path}/node_modules/`)), n).toEqual([...before].filter(([p]) => p.startsWith(`${r.path}/node_modules/`)));
           for (const req of r.requirers) {
-            const dir = `${TABLE_HOME[name].s}/${REQUIRER_DIRS[req]}/node_modules/${splitAt(req)[0]}`;
+            const dir = requirerDir(TABLE_HOME[name].s, req);
             for (const spec of r.table.loads) expect(run.out, `${n} from ${req}`).toContain(`require(${spec}): ${box.fs}${r.path}/`);
             expect(run.out).not.toContain(`from ${box.fs}${dir},`);
           }
         }
         expect(run.out).toContain(name === 'trigger.dev' ? 'nothing else in the image changed; from every requirer, require loads the new release.' : 'nothing else in the image changed; from @opentelemetry/host-metrics, require loads it.');
         if (name === 'trigger.dev') expect(run.out).toContain(`pnpm hoists undici 6.29.0 too: ${box.fs}${PNPM}/node_modules/undici`);
-        // undici 5.29.0 and body-parser 2.3.0 stay, as they were.
-        if (name === 'trigger.dev') for (const p of [`${PNPM}/undici@5.29.0/node_modules/undici/package.json`, `${PNPM}/body-parser@2.3.0_supports-color@10.0.0/node_modules/body-parser/package.json`]) expect(after.get(p)).toBe(before.get(p));
+        // undici 5.29.0, body-parser 2.3.0 and the three other copies of effect stay, as they were, and so do the links to them.
+        if (name === 'trigger.dev') {
+          const stay = [`${PNPM}/undici@5.29.0/node_modules/undici/package.json`, `${PNPM}/body-parser@2.3.0_supports-color@10.0.0/node_modules/body-parser/package.json`, ...EFFECTS_THAT_STAY.map((e) => `${PNPM}/effect@${e.version}/node_modules/effect/package.json`)];
+          for (const p of stay) expect(after.get(p), p).toBe(before.get(p));
+          for (const e of EFFECTS_THAT_STAY) {
+            const link = `${e.workspace ?? `${PNPM}/${e.store}`}/node_modules/effect`;
+            expect(after.get(link), link).toBe(`-> ${relative(dirname(link), `${PNPM}/effect@${e.version}/node_modules/effect`)}`);
+          }
+          // The workspace's requirer loads it through its own link, which the swap leaves as it was.
+          expect(after.get('/triggerdotdev/packages/schema-to-json/node_modules/effect')).toBe('-> ../../../node_modules/.pnpm/effect@3.17.1/node_modules/effect');
+          expect(run.out).toContain(`require(effect): ${box.fs}${PNPM}/effect@3.17.1/node_modules/effect/index.js 3.22.4`);
+        }
         expect(readdirSync(join(box.root, 'tmp')), 'the RUN left its staging directory').toEqual([]);
       });
     });
@@ -2927,7 +3253,7 @@ describe('the swap table replaces four packages in the webapp and one in the sup
   it('each way upstream or the registry could differ fails it, with nothing changed', () => {
     const base = treeOf('trigger.dev', 'linux-arm64');
     const rowOf = (n: string) => tableRows('trigger.dev').find((r) => nameOfRow(r) === n)!;
-    const [undici, follow, bodyParser, si] = ['undici', 'follow-redirects', 'body-parser', 'systeminformation'].map(rowOf) as [PackageReplacement, PackageReplacement, PackageReplacement, PackageReplacement];
+    const [undici, follow, bodyParser, effect] = ['undici', 'follow-redirects', 'body-parser', 'effect'].map(rowOf) as [PackageReplacement, PackageReplacement, PackageReplacement, PackageReplacement];
     const files = (add: Record<string, string>, drop: (p: string) => boolean = () => false): Tree => ({ ...base, files: { ...Object.fromEntries(Object.entries(base.files).filter(([p]) => !drop(p))), ...add } });
     const at = (dir: string) => (p: string) => p === dir || p.startsWith(`${dir}/`);
     /** The registry serving these bytes for a row, by their own integrity and tree when asked. */
@@ -2947,6 +3273,9 @@ describe('the swap table replaces four packages in the webapp and one in the sup
     const extraTgz = tarball(extra);
     const ownModules = { ...standInSwapped('body-parser', '1.20.9'), 'node_modules/x/index.js': 'module.exports = 1;\n' };
     const webapp = '/triggerdotdev/apps/webapp';
+    const schemaToJson = WORKSPACE_REQUIRERS['@trigger.dev/schema-to-json@4.8.3']!;
+    /** The stand-in with one link pointed elsewhere, as pnpm would make it. */
+    const relinked = (path: string, to: string): Tree => ({ ...base, links: base.links!.map((l) => (l.path === path ? { path, target: relative(dirname(path), to) } : l)) });
     const cases: ReadonlyArray<[string, Tree, (fs: string) => string, Options?]> = [
       ['a package not where it was', { ...files({}, at(undici.path)), links: base.links!.filter((l) => !l.target.includes('undici@6.29.0')) }, (fs) => `${fs}${undici.path} is not there.`],
       ['another version at its path', files({ [`${follow.path}/package.json`]: standInSwapped('follow-redirects', '1.16.1')['package.json']! }), () => 'is follow-redirects 1.16.1, not 1.16.0.'],
@@ -2959,8 +3288,15 @@ describe('the swap table replaces four packages in the webapp and one in the sup
       ['a browser bundle that carries one of them', files({ [`${webapp}/build/client/assets/axios-stand-in.js`]: 'const e="ERR_FR_TOO_MANY_REDIRECTS";\n' }), (fs) => `the webapp's own build carries follow-redirects's ERR_FR_TOO_MANY_REDIRECTS (grep exits 0): ${fs}${webapp}/build/client/assets/axios-stand-in.js`],
       ['a build the search for the marks cannot read', unreadable, () => "the webapp's own build carries undici's undici:request:create (grep exits 2)"],
       ['a webapp built elsewhere', files({}, at(`${webapp}/public`)), (fs) => `${fs}${webapp}/public is not there: the build is not where it was read.`],
-      // The last row's tarball missing: the first three were fetched and checked, and none of the four is swapped.
-      ['a registry without the last row\'s tarball', served(si, undefined), () => `${si.url} is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move.`],
+      // The last row's tarball missing: the first four were fetched and checked, and none of the five is swapped.
+      ['a registry without the last row\'s tarball', served(effect, undefined), () => `${effect.url} is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move.`],
+      // A requirer that is a package of the workspace, whose link is in its own node_modules (A PACKAGE OF THE WORKSPACE).
+      ['a package of the workspace that no longer links it', { ...base, links: base.links!.filter((l) => l.path !== `${schemaToJson}/node_modules/effect`) }, () => 'effect 3.17.1 is linked from: nothing; this file was read for @trigger.dev/schema-to-json@4.8.3.'],
+      ['a package of the workspace at another version', files({ [`${schemaToJson}/package.json`]: '{"name":"@trigger.dev/schema-to-json","version":"4.8.4"}\n' }), (fs) => `effect 3.17.1 is linked from: @trigger.dev/schema-to-json@4.8.4 ${fs}${schemaToJson}; this file was read for @trigger.dev/schema-to-json@4.8.3.`],
+      ['a second package of the workspace that links it', relinked(`${webapp}/node_modules/effect`, effect.path), (fs) => `effect 3.17.1 is linked from: @trigger.dev/schema-to-json@4.8.3 ${fs}${schemaToJson}\nwebapp@1.0.0 ${fs}${webapp}; this file was read for @trigger.dev/schema-to-json@4.8.3.`],
+      ['a package of the store that links it beside the workspace\'s', relinked(`${PNPM}/@prisma+config@6.14.0_magicast@0.3.5/node_modules/effect`, effect.path), (fs) => `effect 3.17.1 is linked from: @prisma/config@6.14.0 ${fs}${PNPM}/@prisma+config@6.14.0_magicast@0.3.5/node_modules/@prisma/config\n@trigger.dev/schema-to-json@4.8.3 ${fs}${schemaToJson}; this file was read`],
+      ['a package of the workspace with no package.json', files({}, (p) => p === `${schemaToJson}/package.json`), (fs) => `the packages that link ${fs}${effect.path} could not be read.`],
+      ['a browser bundle that carries effect', files({ [`${webapp}/build/client/assets/effect-stand-in.js`]: 'const t=()=>new Error().stack?.includes("effect_internal_function");\n' }), (fs) => `the webapp's own build carries effect's effect_internal_function (grep exits 0): ${fs}${webapp}/build/client/assets/effect-stand-in.js`],
       ['a registry that serves other bytes', served(bodyParser, extraTgz), () => `${bodyParser.url} is ${integrityOf(extraTgz)}, not`],
       ['a tarball of another release, by its own integrity', served(bodyParser, tarball(older), older), () => `${bodyParser.url} unpacks to body-parser 1.20.8, not 1.20.9; nothing was changed.`],
       ['a tarball with other files, by its own integrity', served(bodyParser, extraTgz, standInSwapped('body-parser', '1.20.9')), () => `${bodyParser.url} unpacks to other files than the published body-parser 1.20.9 (above); nothing was changed.`],
@@ -3017,6 +3353,18 @@ describe('the swap table replaces four packages in the webapp and one in the sup
     const cases: ReadonlyArray<[string, Tree, (fs: string) => string]> = [
       // A dependency the new release declares that pnpm did not link for the old one.
       ['a release that needs a dependency not linked', serving('body-parser', { ...standInSwapped('body-parser', '1.20.9'), 'package.json': `${JSON.stringify({ name: 'body-parser', version: '1.20.9', main: 'index.js', dependencies: { bytes: '~3.1.2', qs: '~6.17.0' } })}\n` }), (fs) => `a dependency body-parser 1.20.9 declares does not load from ${fs}${PNPM}/body-parser@1.20.6/node_modules/body-parser.`],
+      // From the workspace's requirer, which resolves it through its own node_modules: the entry it loads, gone.
+      [
+        "a release without the entry the workspace's requirer loads",
+        serving('effect', Object.fromEntries(Object.entries(standInSwapped('effect', '3.22.4')).filter(([p]) => p !== 'index.js'))),
+        (fs) => `from ${fs}/triggerdotdev/packages/schema-to-json, effect does not load 3.22.4 from ${fs}${PNPM}/effect@3.17.1/node_modules/effect.`,
+      ],
+      // A dependency effect declares, gone from where pnpm linked it for 3.17.1.
+      [
+        'a release whose dependency is not linked',
+        { ...base, links: base.links!.filter((l) => l.path !== `${PNPM}/effect@3.17.1/node_modules/fast-check`) },
+        (fs) => `a dependency effect 3.22.4 declares does not load from ${fs}${PNPM}/effect@3.17.1/node_modules/effect.`,
+      ],
       // The subpath a requirer loads, gone.
       ['a release without lib/network.js', serving('systeminformation', Object.fromEntries(Object.entries(standInSwapped('systeminformation', '5.33.19')).filter(([p]) => p !== 'lib/network.js'))), (fs) => `from ${fs}${PNPM}/${REQUIRER_DIRS['@opentelemetry/host-metrics@0.38.3']}/node_modules/@opentelemetry/host-metrics, systeminformation does not load 5.33.19`],
       // A requirer that resolves a copy of its own, which no link check sees: only the load proof does.
@@ -3161,6 +3509,168 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
       const run = build(afterMove('printf x >> /usr/local/bin/goose;'), box, gooseOnly);
       expect(run.status).not.toBe(0);
       expect(run.out).toContain(`${box.fs}${GOOSE.path} is not goose v3.29.0's goose_linux_arm64 after the move.`);
+    });
+  });
+});
+
+describe("the webapp's last RUN as root purges the Debian packages nothing here runs, and dpkg's own refusals stop it (0119 §3 item 11, 2026-11-06)", () => {
+  const webapp = dockerfiles['trigger.dev'];
+  const { packages, libraries } = purgeLists(webapp);
+  const list = packages.join(' ');
+  /** A stand-in ELF that carries `text`, as a binary carries the name of a library it links or opens. */
+  const elf = (text: string) => Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]), Buffer.from(`stand-in\0${text}\0`)]);
+  /** The webapp's tree on a platform, its database changed. */
+  const changed = (plat: string, change: (db: DpkgDb) => DpkgDb, more: Partial<Tree> = {}): Tree => {
+    const tree = treeOf('trigger.dev', plat);
+    return { ...tree, ...more, dpkg: change(tree.dpkg!) };
+  };
+  const without = (db: DpkgDb, name: string): DpkgDb => ({ ...db, packages: Object.fromEntries(Object.entries(db.packages).filter(([n]) => n !== name)) });
+  const purged = (box: Sandbox) => dpkgOf(box).calls.filter((c) => c.startsWith('dpkg --purge'));
+
+  it('reads its two lists from the RUN, and the stand-in has each library under a package of the list (vacuity)', () => {
+    expect(packages.length).toBeGreaterThan(5);
+    expect(libraries.length).toBeGreaterThan(3);
+    for (const so of libraries) expect(packages, so).toContain(SHIPPED_BY[so]);
+  });
+
+  it("never reaches this machine's dpkg or apt: the stand-in's dpkg, dpkg-query, apt, apt-get and dumb-init come first on the PATH every RUN gets", () => {
+    const cmds = ['dpkg', 'dpkg-query', 'apt', 'apt-get', 'dumb-init'];
+    withSandbox(treeOf('trigger.dev', 'linux-arm64'), (box) => {
+      const r = spawnSync('sh', ['-c', `for c in ${cmds.join(' ')}; do command -v "$c"; done`], { encoding: 'utf8', env: { PATH: `${join(box.root, 'bin')}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
+      expect(r.stdout.trim().split('\n')).toEqual(cmds.map((c) => join(box.root, 'bin', c)));
+    });
+  });
+
+  for (const plat of PLATFORMS) {
+    it(`on ${plat}: dpkg-query of the list first, then the audit, the libraries, the purge with the two flags and no other, the audit again and each package read gone`, () => {
+      withSandbox(treeOf('trigger.dev', plat), (box) => {
+        const run = build(webapp, box, { plat, tag: 'v4.8.3' });
+        expect(run.status, run.out).toBe(0);
+        const { db, calls } = dpkgOf(box);
+        expect(calls).toEqual([
+          `dpkg-query -W ${list}`,
+          'dpkg --audit',
+          `dpkg-query -L ${list}`,
+          `dpkg --purge --force-remove-essential --force-remove-protected ${list}`,
+          'dpkg --audit',
+          ...packages.map((p) => `dpkg-query -W -f \${db:Status-Status} ${p}`),
+        ]);
+        for (const p of packages) expect(db.packages[p], p).toBeUndefined();
+        // What stays, stays: nothing it keeps depended on what it purged.
+        for (const p of ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'libss2', 'libcom-err2', 'logsave']) expect(db.packages[p]?.status, p).toBe('installed');
+        expect(run.out).toMatch(/^[1-9]\d* ELF files read under /m);
+        expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no ELF file names ${libraries.join(' ')}`);
+        expect(readFileSync(join(box.root, 'tools.log'), 'utf8')).toContain('dumb-init --version\n');
+      });
+    });
+  }
+
+  it('a package the base does not have stops it before anything is purged: a list to read again, not a name to skip', () => {
+    withSandbox(changed('linux-arm64', (db) => without(db, 'libuuid1')), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('dpkg-query: no packages found matching libuuid1');
+      expect(run.out).toContain('a list to read again, not a name to skip; nothing was purged');
+      expect(purged(box)).toEqual([]);
+    });
+  });
+
+  it('a package an installed one still depends on stops it: no flag forces past the dependency, so dpkg refuses', () => {
+    // fdisk links libblkid, libmount, libsmartcols and libuuid: a base that brings it stops here, at dpkg's own
+    // refusal, as this base did for e2fsprogs until it joined the list (2026-11-06).
+    const fdisk: DpkgPackage = { version: '2.38.1-5+deb12u3', status: 'installed', depends: ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1'] };
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, fdisk } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('fdisk depends on libuuid1.');
+      expect(run.out).toContain('dependency problems - not removing');
+      expect(run.out).toContain('Without --force-depends it refuses to remove what an installed package depends on');
+      const { db } = dpkgOf(box);
+      for (const p of ['fdisk', 'libuuid1', 'libblkid1']) expect(db.packages[p]?.status, p).toBe('installed');
+    });
+  });
+
+  it('e2fsprogs off the list stops it as it stopped the first build on the real base: dpkg refuses libblkid1 and libuuid1 for it', () => {
+    const without = webapp.replace(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"');
+    expect(without).not.toBe(webapp);
+    withSandbox(changed('linux-arm64', (db) => db), (box) => {
+      const run = build(without, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('e2fsprogs depends on libuuid1.');
+      expect(run.out).toContain('dependency problems - not removing');
+      const { db } = dpkgOf(box);
+      for (const p of ['e2fsprogs', 'libuuid1', 'libblkid1']) expect(db.packages[p]?.status, p).toBe('installed');
+    });
+  });
+
+  it("dpkg's audit with anything to say stops it: before the purge with nothing purged, and after it", () => {
+    const mess = 'The following packages are in a mess due to serious problems during\ninstallation.  They must be reinstalled for them (and any packages\nthat depend on them) to function properly:\n beta                 test\n';
+    withSandbox(changed('linux-x64', (db) => ({ ...db, audit: mess })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-x64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('dpkg --audit reads problems in the image as upstream left it, before anything was purged');
+      expect(purged(box)).toEqual([]);
+    });
+    withSandbox(changed('linux-x64', (db) => ({ ...db, auditAfter: mess })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-x64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('after the purge, dpkg --audit reads: The following packages are in a mess');
+    });
+  });
+
+  it('a library no package of the list ships stops it before anything is purged, so the scan is never a search for a name nothing had', () => {
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, 'libapt-pkg6.0': { ...db.packages['libapt-pkg6.0']!, files: ['/usr/share/doc/libapt-pkg6.0/copyright'] } } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`none of ${list} ships libapt-pkg.so.6.0`);
+      expect(purged(box)).toEqual([]);
+    });
+  });
+
+  it("a record dpkg keeps as not-installed is gone; one it reads as anything else after the purge stops it", () => {
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, apt: { ...db.packages.apt!, afterPurge: 'not-installed' } } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status, run.out).toBe(0);
+      expect(dpkgOf(box).db.packages.apt?.status).toBe('not-installed');
+    });
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, 'util-linux': { ...db.packages['util-linux']!, afterPurge: 'config-files' } } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain("after the purge, dpkg reads util-linux as 'config-files' (dpkg-query exits 0), not gone.");
+    });
+  });
+
+  it("an ELF file left after the purge that names one of its libraries stops it, by path; the packages' own go with them, and a text file is no ELF", () => {
+    const plat = 'linux-arm64';
+    const tree = treeOf('trigger.dev', plat);
+    const own = `/usr/lib/${TRIPLET[plat]}/${libraries[0]}`;
+    const reader = `${PNPM}/a-reader@1.0.0/node_modules/a-reader/index.js`;
+    // The library's own file goes with its package; a script that names it is not something that links it.
+    withSandbox({ ...tree, executables: { ...tree.executables, [own]: elf(libraries[0]!) }, files: { ...tree.files, [reader]: `// dlopen('${libraries[0]}') is not this file's\n` } }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status, run.out).toBe(0);
+      expect(run.left).not.toContain(own);
+      expect(run.left).toContain(reader);
+    });
+    // An addon, or any ELF of no purged package, that names any of them.
+    const addons = Object.fromEntries(libraries.map((so, i) => [`${PNPM}/addon-${i}@1.0.0/node_modules/addon-${i}/build/Release/addon.node`, elf(so)]));
+    withSandbox({ ...tree, executables: { ...tree.executables, ...addons } }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('after the purge, an ELF file names a library it removed');
+      libraries.forEach((so, i) => expect(run.out).toContain(`${box.fs}${PNPM}/addon-${i}@1.0.0/node_modules/addon-${i}/build/Release/addon.node: ${so}`));
+      // It stopped after the purge: what it found is left for whoever reads the log.
+      expect(purged(box)).toHaveLength(1);
+    });
+  });
+
+  it('a program this stack runs here that does not start after the purge stops it, by name', () => {
+    const broken = '#!/bin/sh\necho "dumb-init: error while loading shared libraries: libuuid.so.1: cannot open shared object file" >&2\nexit 127\n';
+    const tree = treeOf('trigger.dev', 'linux-x64');
+    withSandbox({ ...tree, tools: { ...tree.tools, 'dumb-init': broken } }, (box) => {
+      const run = build(webapp, box, { plat: 'linux-x64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('dumb-init, which this stack runs here, does not start after the purge.');
     });
   });
 });
@@ -3579,9 +4089,9 @@ describe('the reading is not vacuous', () => {
   it('found the Dockerfiles and their removing RUNs', () => {
     for (const name of NAMES) {
       expect(statSync(join(REPO_ROOT, dockerfileOf(name))).isFile()).toBe(true);
-      // The removing RUN and the node RUN, and the webapp's replacing RUN.
-      // The removing RUN and the node RUN, dompurify's RUN, the swap table's and goose's.
-      expect(runs(dockerfiles[name]).length, name).toBe(2 + ownRunRows(name).length + (tableRows(name).length > 0 ? 1 : 0) + binaryRows(name).length);
+      // The removing RUN and the node RUN, dompurify's RUN, the swap table's and goose's, and the webapp's purge.
+      expect(runs(dockerfiles[name]).length, name).toBe(2 + ownRunRows(name).length + (tableRows(name).length > 0 ? 1 : 0) + binaryRows(name).length + PURGES[name]);
+      expect(purgeRuns(dockerfiles[name]).length, name).toBe(PURGES[name]);
       expect(replacingRuns(dockerfiles[name]).length, name).toBe(ownRunRows(name).length);
       expect(tableRuns(dockerfiles[name]).length, name).toBe(tableRows(name).length > 0 ? 1 : 0);
       expect(gooseRuns(dockerfiles[name]).length, name).toBe(binaryRows(name).length);
