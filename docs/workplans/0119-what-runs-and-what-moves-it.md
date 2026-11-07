@@ -2,7 +2,14 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-06 (update this block at the end of every session)
+## Status — 2026-11-07 (update this block at the end of every session)
+
+**2026-11-07: the owner confirms the purge in the Trigger.dev webapp's image (§3 item 11), for
+alpha.6.** The owner, 2026-11-07 at about 02:50 UTC, after alpha.5 was tagged without it: *"yes 1823 1825"*.
+§3 item 11's dated note says so, and the entry below that calls it a proposal pending that
+confirmation, for alpha.5, is overtaken: it merges after the tag, so the next alpha carries
+it, and its CHANGELOG line sits under `[Unreleased]`. Nothing in the image changes with it: the
+Dockerfile's comments, which the image name's hash leaves out, now say it was confirmed.
 
 **2026-11-06, last: what alpha.5 moves, folded.** The fold (0146 Status, 2026-11-06; a draft,
 not merged) closes alpha.5 with this plan's moves since alpha.4 in it: the appliance on
@@ -5079,11 +5086,11 @@ is beside each; none is urgent tonight.
     which drops the Debian base and this purge with it; and on every Debian release the bases
     move to, when `dpkg-query -W` stops the build on a renamed package.
 
-    **2026-11-06: extended to the Trigger.dev webapp's image, for alpha.5: a proposal,
-    pending the owner's confirmation in review.** Built under the owner's alpha.5 instruction of
-    2026-11-06, *"put in most of what you can, like for hardening"*; the decision above named
-    the appliance and the tasks' base only, so this extension is the owner's to confirm or
-    take back. `deploy/compose/trigger.dev/Dockerfile` builds on upstream's image, whose runner
+    **2026-11-06: extended to the Trigger.dev webapp's image, proposed for alpha.5, and
+    confirmed by the owner on 2026-11-07 at about 02:50 UTC, for alpha.6:** *"yes 1823 1825"*. Built under the
+    owner's alpha.5 instruction of 2026-11-06, *"put in most of what you can, like for
+    hardening"*; the decision above named the appliance and the tasks' base only, so this
+    extension was the owner's to confirm or take back. `deploy/compose/trigger.dev/Dockerfile` builds on upstream's image, whose runner
     stage is Debian 12.15 (`node:24.22.1-bookworm-slim`). Security Scan run 42143936608 read it
     at 1 critical, 49 high, 16 with a fix. Its last RUN as root purges eleven packages that
     nothing in `trigger-api` runs or loads. They are:

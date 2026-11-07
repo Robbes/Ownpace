@@ -45,8 +45,8 @@
  * 3. THE APPLIANCE purges nothing: its runtime stage is distroless, with no
  *    dpkg and none of the ten (until 2026-11-06, one RUN in its runtime stage,
  *    as root, in the shape above).
- * 4. THE TRIGGER.DEV WEBAPP (2026-11-06, for alpha.5: item 11 extended under
- *    the owner's alpha.5 instruction, pending the owner's confirmation).
+ * 4. THE TRIGGER.DEV WEBAPP (2026-11-06, for alpha.6: item 11 extended under
+ *    the owner's alpha.5 instruction, confirmed by the owner on 2026-11-07).
  *    `deploy/compose/trigger.dev/Dockerfile` builds on upstream's image, whose
  *    runner stage is Debian 12 (node:24.22.1-bookworm-slim), where Security
  *    Scan run 42143936608 read 24 highs with no fix in the eight packages

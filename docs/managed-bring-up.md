@@ -6213,7 +6213,7 @@ and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
 systeminformation 5.33.19 in place of the releases of the same major they fix,
 by the sha512 npm published; the supervisor's build does the same for its
 systeminformation. So the webapp's build reaches github.com as well as the npm
-registry. Since 2026-11-06 (for alpha.5, workplan 0119 §3 item 11) the
+registry. Since 2026-11-06 (for alpha.6, workplan 0119 §3 item 11) the
 webapp's build ends, as root, by purging eleven Debian packages nothing in
 `trigger-api` runs or loads, as the appliance and the tasks' base purge theirs:
 apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages
