@@ -68,18 +68,28 @@
  *    without the pin; and a Node other than apps/api/Dockerfile's is a warning,
  *    since the base built at a new Node is published only after the pull
  *    request that moves it merges.
- * 6. WHAT RAN, ASKED: the managed smoke asks the newest image its runners
- *    started from (the last deploy's: Trigger.dev keeps a run on the version
- *    it was triggered on, so an earlier deployment's runner can be on the
- *    network too, and its image is named, not asked) for its Node, which must
- *    be the one the preflights found the API running, and for each shell
- *    name, none of which may start. Run here against a stand-in docker: the
- *    API's Node and no shell pass; another Node, a Node that cannot be asked,
- *    a shell that starts, one refused for another reason than its absence, no
- *    image read and an image that cannot be dated fail. The watcher starts a
- *    runner's log first and reads its image on every pass until a read
- *    answers. Until 2026-11-06 the block asked dpkg about the Debian
- *    Essentials the config's layer purged, held by an-essential-nothing-runs.
+ * 6. WHAT RAN, ASKED: the managed smoke asks the image of the deployment the
+ *    tasks run, and no other, for its Node, which must be the one the
+ *    preflights found the API running, and for each shell name, none of which
+ *    may start. Since 2026-11-07 that image is told by deployment, not by when
+ *    it was built: the environment's "current" promotion in Trigger.dev's own
+ *    database, for the project and environment the tasks deploy to, and each
+ *    runner's TRIGGER_DEPLOYMENT_VERSION, which the watcher reads with its
+ *    image (Trigger.dev keeps a run on the version it was triggered on, so an
+ *    earlier deployment's runner can be on the network too, and its image is
+ *    named, not asked; until then the newest image by Created was asked, and a
+ *    deploy whose build was fully cached lost to an earlier deployment's image
+ *    built later, E2E (managed) run 42238877459). Run here against a stand-in
+ *    docker: the API's Node and no shell pass; another Node, a Node that cannot
+ *    be asked, a shell that starts, one refused for another reason than its
+ *    absence, no image read, no runner of the deployment seen, its runners on
+ *    two images, a database that cannot be asked or that lacks a column, no
+ *    current promotion or two, and a ref or an environment that cannot be told
+ *    fail, asking no image. The watcher starts a runner's log first and reads
+ *    its image and its version, and nothing else of its environment, on every
+ *    pass until a read answers. Until 2026-11-06 the block asked dpkg about the
+ *    Debian Essentials the config's layer purged, held by
+ *    an-essential-nothing-runs.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -690,6 +700,7 @@ describe("the pin step's verdict, run against a stand-in docker, jq and cosign",
 // ------------------------------------------------------ 6. what ran, asked ---
 
 const SMOKE = 'deploy/compose/smoke-managed.sh';
+const TRIGGER_CLI_LIB = join(ROOT, 'deploy/compose/trigger-cli-lib.sh');
 
 /** Bash, with a stand-in `docker` defined before `script`; stdout, stderr and the exit code. */
 function bash(script: string, env: Record<string, string> = {}): { status: number | null; out: string } {
@@ -697,18 +708,42 @@ function bash(script: string, env: Record<string, string> = {}): { status: numbe
   return { status: run.status, out: `${run.stdout}${run.stderr}` };
 }
 
+/** Every column the block names in Trigger.dev's database, as information_schema lists them. */
+const COLUMNS = [
+  'WorkerDeploymentPromotion.label',
+  'WorkerDeploymentPromotion.deploymentId',
+  'WorkerDeploymentPromotion.environmentId',
+  'WorkerDeployment.id',
+  'WorkerDeployment.workerId',
+  'BackgroundWorker.id',
+  'BackgroundWorker.version',
+  'RuntimeEnvironment.id',
+  'RuntimeEnvironment.slug',
+  'RuntimeEnvironment.projectId',
+  'Project.id',
+  'Project.externalRef',
+];
+
 /**
- * A stand-in docker, recording its arguments: an image's build time from
- * `$CREATED` (`<id> <time>` lines; an id missing there cannot be dated);
- * `--entrypoint node` answered as `$NODE_SAYS` with `$NODE_RC`; a shell
- * starting when it is in `$STARTS`, else refused as `$SHELL_SAYS` (its SHELL
- * the shell's name) with `$SHELL_RC`; and the image `$OLD` a Debian one, with
- * an older Node and every shell.
+ * A stand-in docker, recording its arguments. `exec` into `$TRIGGER_DB_CONTAINER`
+ * is Trigger.dev's database: information_schema is answered with `$COLUMNS`
+ * (exit `$COLUMNS_RC`), and the deployment query with `$CURRENT` (exit
+ * `$CURRENT_RC`), but only when it asks for the "current" promotion of project
+ * `$WANT_REF`'s environment `$WANT_SLUG`; any other query answers nothing.
+ * `--entrypoint node` is answered as `$NODE_SAYS` with `$NODE_RC`; a shell
+ * starts when it is in `$STARTS`, else is refused as `$SHELL_SAYS` (its SHELL
+ * the shell's name) with `$SHELL_RC`; and the image `$OLD` is a Debian one,
+ * with an older Node and every shell. Anything else, `image inspect` among it,
+ * is unexpected.
  */
 const STUB = `docker() {
   printf '%s\\n' "$*" >>"$CALLS"
-  if [ "$1 $2" = "image inspect" ]; then
-    awk -v id="$5" '$1 == id { print $2; found = 1 } END { exit !found }' <<<"$CREATED" || { echo "Error: No such image: $5" >&2; return 1; }
+  if [ "$1 $2" = "exec $TRIGGER_DB_CONTAINER" ]; then
+    case "$*" in
+      *information_schema*) printf '%s\\n' "$COLUMNS"; return "\${COLUMNS_RC:-0}" ;;
+      *"pr.label = 'current'"*"p.\\"externalRef\\" = '$WANT_REF'"*"e.slug = '$WANT_SLUG'"*)
+        [ -z "$CURRENT" ] || printf '%s\\n' "$CURRENT"; return "\${CURRENT_RC:-0}" ;;
+    esac
     return 0
   fi
   case "$*" in
@@ -728,15 +763,18 @@ const STUB = `docker() {
 const SHELLS = ['sh', '/bin/sh', 'bash', '/bin/bash', '/busybox/sh'];
 const ABSENT_SHELL = 'docker: Error response from daemon: failed to create task for container: exec: "SHELL": executable file not found in $PATH: unknown';
 
-describe('the managed smoke asks the image the last deploy built for its Node and its shells', () => {
+describe('the managed smoke asks the image of the deployment the tasks run for its Node and its shells', () => {
   const smoke = read(SMOKE);
   const banner = "# ---------- the tasks' image is the prebuilt base's: the API's Node, and no shell ----------";
   const start = smoke.indexOf(banner);
   const block = smoke.slice(start, smoke.indexOf('\n# ---------- ', start + banner.length));
-  const failAt = (() => {
-    const s = smoke.indexOf('fail_at() {');
+  const definition = (name: string) => {
+    const s = smoke.indexOf(`${name}() {`);
+    expect(s, `${SMOKE} defines ${name}`).toBeGreaterThan(0);
     return smoke.slice(s, smoke.indexOf('\n}\n', s) + 3);
-  })();
+  };
+  const failAt = definition('fail_at');
+  const smokeEnvValue = definition('smoke_env_value');
   // The watcher's pass over the runners it sees: its `for` loop, whole.
   const watcherAt = smoke.indexOf('    for c in $(docker ps --filter');
   const watcher = smoke.slice(watcherAt, smoke.indexOf('\n    done\n', watcherAt) + '\n    done\n'.length);
@@ -745,36 +783,56 @@ describe('the managed smoke asks the image the last deploy built for its Node an
   const A = `sha256:${'a'.repeat(64)}`;
   const B = `sha256:${'b'.repeat(64)}`;
   const C = `sha256:${'c'.repeat(64)}`;
-  const BUILT = `${A} 2026-11-02T21:00:00.5Z\n${B} 2026-11-06T07:00:00.123456789Z\n${C} 2026-11-06T06:59:59Z`;
+  const DEPLOYED = '20261107.2';
   const BASE = { NODE_SAYS: want, NODE_RC: '0', SHELL_SAYS: ABSENT_SHELL, SHELL_RC: '127' };
+  const DB = { TRIGGER_DB_CONTAINER: 'ownpace-trigger-db', COLUMNS: [...COLUMNS, 'Project.name'].join('\n'), CURRENT: DEPLOYED, WANT_REF: 'proj_test', WANT_SLUG: 'prod' };
 
-  /** The block run with runner records holding `images`; the verdict, docker's calls and what it said. */
-  function verdict(images: string[], extra: Record<string, string> = {}) {
+  /**
+   * The block run with runner records `[version, image]` (a version of null: no
+   * `.version` beside the image) and `.env` holding `dotenv`; the verdict, docker's
+   * calls (and those into Trigger.dev's database apart) and what it said.
+   */
+  function verdict(runners: Array<[string | null, string]>, extra: Record<string, string> = {}, dotenv = 'TRIGGER_PROJECT_REF=proj_test\n') {
     const dir = mkdtempSync(join(tmpdir(), 'task-image-smoke-'));
     try {
-      images.forEach((id, n) => writeFileSync(join(dir, `runner-${n}.image`), `${id}\n`));
+      runners.forEach(([version, id], n) => {
+        if (version !== null) writeFileSync(join(dir, `runner-${n}.version`), `${version}\n`);
+        writeFileSync(join(dir, `runner-${n}.image`), `${id}\n`);
+      });
+      writeFileSync(join(dir, '.env'), dotenv);
       writeFileSync(join(dir, 'calls'), '');
       const run = bash(
-        ['set -uo pipefail', 'fail=0', 'SECTION=test', 'FAIL_REASONS=""', 'note() { SECTION="$*"; }', failAt, STUB, block, 'echo "FAIL=$fail"'].join('\n'),
-        { RUNNER_LOG_DIR: dir, CALLS: join(dir, 'calls'), CREATED: BUILT, WANT_NODE: want, API_NODE_VERSION: want, ...BASE, ...extra },
+        ['set -uo pipefail', 'fail=0', 'SECTION=test', 'FAIL_REASONS=""', 'note() { SECTION="$*"; }', `. '${TRIGGER_CLI_LIB}'`, smokeEnvValue, failAt, STUB, block, 'echo "FAIL=$fail"'].join('\n'),
+        { RUNNER_LOG_DIR: dir, SCRIPT_DIR: dir, CALLS: join(dir, 'calls'), WANT_NODE: want, API_NODE_VERSION: want, ...BASE, ...DB, ...extra },
       );
       expect(run.status, run.out).toBe(0);
       const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n').filter(Boolean);
-      return { fail: /FAIL=(\d)\s*$/.exec(run.out)?.[1] ?? '?', runs: calls.filter((c) => c.startsWith('run ')), calls, out: run.out };
+      return {
+        // Its own line: what trigger_env says on stderr comes after stdout here.
+        fail: /^FAIL=(\d)$/m.exec(run.out)?.[1] ?? '?',
+        runs: calls.filter((c) => c.startsWith('run ')),
+        asked: calls.filter((c) => c.startsWith('exec ')),
+        calls,
+        out: run.out,
+      };
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   }
 
-  it("is there, after the runner logs, and asks the image's node and the five shells", () => {
+  it("is there, after the runner logs, and asks the deployment's image's node and the five shells, and no build time", () => {
     expect(start, `${SMOKE} has no section "${banner}"`).toBeGreaterThan(smoke.indexOf('# ---------- runner logs ----------'));
-    expect(block).toContain('--entrypoint node "$newest" --version');
+    expect(block).toContain('--entrypoint node "$ours" --version');
     expect(block).toContain(`for shell in ${SHELLS.join(' ')}; do`);
     expect(block).toContain('fail_at');
+    const code = block.split('\n').filter((line) => !/^\s*#/.test(line)).join('\n');
+    expect(code, "which image is the deployment's is no longer told by when it was built").not.toMatch(/image inspect|\.Created/);
     expect(smoke, 'the purge it asked dpkg about until 2026-11-06 is gone').not.toContain('--entrypoint dpkg-query');
+    expect(smoke, "trigger-db's container, named by the stack's compose project").toContain('TRIGGER_DB_CONTAINER="${SMOKE_TRIGGER_DB_CONTAINER:-${COMPOSE_PROJECT}-trigger-db}"');
+    expect(smoke, 'trigger_env, the one resolution of the environment, sourced').toContain('. "${SCRIPT_DIR}/trigger-cli-lib.sh"');
   });
 
-  it("the watcher starts a runner's log first, and reads its image on every pass until a read answers", () => {
+  it("the watcher starts a runner's log first, and reads its image and its deployment version, and nothing else of its environment, on every pass until a read answers", () => {
     expect(watcherAt, 'no watcher loop over `docker ps`').toBeGreaterThan(0);
     // Before the read: a read that waits on the daemon must not hold the log back.
     expect(watcher.indexOf('docker logs -f')).toBeGreaterThan(0);
@@ -784,12 +842,17 @@ describe('the managed smoke asks the image the last deploy built for its Node an
       const stub = `docker() {
         printf '%s\\n' "$1 $2" >>"$CALLS"
         case "$1 $2" in
-          "ps --filter") echo runner-a; echo trigger-api ;;
+          "ps --filter") echo runner-a; echo runner-b; echo trigger-api ;;
           "logs -f") echo "a line" ;;
           "container inspect")
-            n=$(($(cat "$TRIES" 2>/dev/null || echo 0) + 1)); echo "$n" >"$TRIES"
+            c="\${!#}"
+            n=$(($(cat "$TRIES.$c" 2>/dev/null || echo 0) + 1)); echo "$n" >"$TRIES.$c"
             [ "$n" -ge 2 ] || { echo "Error response from daemon: a blip" >&2; return 1; }
-            echo "${A}" ;;
+            echo "${A}"
+            echo "PATH=/usr/local/bin:/usr/bin"
+            echo "TRIGGER_SUPERVISOR_API_DOMAIN=the-supervisors-address"
+            [ "$c" = runner-b ] || echo "TRIGGER_DEPLOYMENT_VERSION=${DEPLOYED}"
+            echo "TRIGGER_RUN_ID=run_abc" ;;
         esac
       }`;
       const pass = (n: number) =>
@@ -801,64 +864,132 @@ describe('the managed smoke asks the image the last deploy built for its Node an
       // The first read fails: nothing is recorded, and nothing pretends it was.
       expect(pass(1).out).toContain('done');
       expect(existsSync(join(dir, 'runner-a.image'))).toBe(false);
-      // The next pass reads it; the one after asks no more.
+      expect(existsSync(join(dir, 'runner-a.version'))).toBe(false);
+      // The next pass reads both; the one after asks no more.
       expect(pass(2).out).toContain('done');
       expect(readFileSync(join(dir, 'runner-a.image'), 'utf8').trim()).toBe(A);
+      expect(readFileSync(join(dir, 'runner-a.version'), 'utf8').trim()).toBe(DEPLOYED);
+      // A runner whose environment names no version: its image, and an empty version.
+      expect(readFileSync(join(dir, 'runner-b.image'), 'utf8').trim()).toBe(A);
+      expect(readFileSync(join(dir, 'runner-b.version'), 'utf8')).toBe('');
       const calls = readFileSync(join(dir, 'calls'), 'utf8').trim().split('\n');
-      expect(calls.filter((c) => c === 'logs -f'), 'one log stream per runner').toHaveLength(1);
-      expect(calls.filter((c) => c === 'container inspect'), 'a read on the first pass and the second, none on the third').toHaveLength(2);
+      expect(calls.filter((c) => c === 'logs -f'), 'one log stream per runner').toHaveLength(2);
+      expect(calls.filter((c) => c === 'container inspect'), 'a read per runner on the first pass and the second, none on the third').toHaveLength(4);
       expect(existsSync(join(dir, 'trigger-api.log')), 'only runner-* containers').toBe(false);
+      for (const f of readdirSync(dir).filter((f) => f.startsWith('runner-') && !f.endsWith('.log'))) {
+        expect(readFileSync(join(dir, f), 'utf8'), `${f} keeps nothing else of the environment`).not.toMatch(/supervisor|PATH=|run_abc/);
+      }
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
   });
 
-  it('asks only the newest image, by ID, with no network and no pull, and names the older ones', () => {
-    // A runner of an earlier deployment (A, built the night before on the
-    // Debian base, with an older Node and a shell) beside the deploy's (B):
-    // A is named, not asked.
-    const run = verdict([A, B, A, C], { OLD: A });
+  it('asks only the image of the deployment the environment runs, by ID, with no network and no pull, and names the others', () => {
+    // Runners of two earlier deployments (A, on the Debian base with an older
+    // Node and a shell, and C) beside the deployment's (B): they are named,
+    // not asked, and no image's build time is read.
+    const run = verdict([['20261106.9', A], [DEPLOYED, B], ['20261106.9', A], ['20261107.1', C]], { OLD: A });
     expect(run.fail, run.out).toBe('0');
     expect(run.runs).toEqual([
       `run --rm --pull never --network none --entrypoint node ${B} --version`,
       ...SHELLS.map((shell) => `run --rm --pull never --network none --entrypoint ${shell} ${B} -c true`),
     ]);
-    expect(run.out).toContain(`image ${'a'.repeat(12)}: built before the newest`);
-    expect(run.out).toContain(`image ${'c'.repeat(12)}: built before the newest`);
-    expect(run.out).toContain(`image ${'b'.repeat(12)}: Node ${want}, the API's`);
-    // And the newest is the one that must be the base's.
-    expect(verdict([A, B], { OLD: B }).fail).toBe('1');
+    expect(run.asked, 'information_schema, then the deployment').toHaveLength(2);
+    expect(run.calls.filter((c) => !c.startsWith('run ') && !c.startsWith('exec '))).toEqual([]);
+    expect(run.out).toContain(`image ${'a'.repeat(12)}: deployment 20261106.9, an earlier deployment's runs; not asked`);
+    expect(run.out).toContain(`image ${'c'.repeat(12)}: deployment 20261107.1, an earlier deployment's runs; not asked`);
+    expect(run.out).toContain(`image ${'b'.repeat(12)} (deployment ${DEPLOYED}): Node ${want}, the API's`);
+    // E2E (managed) run 42238877459's shape: the deployment's own image is an
+    // older build than an earlier deployment's runner's. Its image is the one
+    // asked, whatever was built when: here the Debian one, which fails.
+    const cached = verdict([['20261106.7', B], ['20261106.8', A]], { OLD: A, CURRENT: '20261106.8' });
+    expect(cached.fail, cached.out).toBe('1');
+    expect(cached.runs.every((c) => c.includes(` ${A} `)), cached.runs.join('\n')).toBe(true);
+    expect(cached.out).toContain(`image ${'b'.repeat(12)}: deployment 20261106.7, an earlier deployment's runs; not asked`);
+    // An earlier deployment on the very image the deployment runs is said as that.
+    expect(verdict([['20261107.1', B], [DEPLOYED, B]]).out).toContain('on the same image');
   });
 
   it("passes the API's Node and no shell, and fails another Node, a Node it cannot ask, a shell that starts, and one refused for another reason", () => {
-    expect(verdict([B]).fail).toBe('0');
-    const older = verdict([B], { NODE_SAYS: 'v26.0.0' });
+    const ok = verdict([[DEPLOYED, B]]);
+    expect(ok.fail, ok.out).toBe('0');
+    const older = verdict([[DEPLOYED, B]], { NODE_SAYS: 'v26.0.0' });
     expect(older.fail, older.out).toBe('1');
     expect(older.out).toContain(`the tasks run Node v26.0.0, and the API runs ${want}`);
     for (const node of [{ NODE_SAYS: 'docker: Error response from daemon: No such image', NODE_RC: '125' }, { NODE_SAYS: 'hello', NODE_RC: '0' }]) {
-      const r = verdict([B], node);
+      const r = verdict([[DEPLOYED, B]], node);
       expect(r.fail, r.out).toBe('1');
       expect(r.out).toContain('its node could not be asked');
     }
     for (const shell of SHELLS) {
-      const r = verdict([B], { STARTS: shell });
+      const r = verdict([[DEPLOYED, B]], { STARTS: shell });
       expect(r.fail, `${shell}\n${r.out}`).toBe('1');
       expect(r.out).toContain(`${shell} started`);
     }
-    const other = verdict([B], { SHELL_SAYS: 'docker: Error response from daemon: a blip', SHELL_RC: '125' });
+    const other = verdict([[DEPLOYED, B]], { SHELL_SAYS: 'docker: Error response from daemon: a blip', SHELL_RC: '125' });
     expect(other.fail, other.out).toBe('1');
     expect(other.out).toContain('did not start, for another reason than its absence');
     // A shell refused as missing, either way docker says it, is no shell.
-    expect(verdict([B], { SHELL_SAYS: 'exec: "SHELL": stat SHELL: no such file or directory', SHELL_RC: '127' }).fail).toBe('0');
+    expect(verdict([[DEPLOYED, B]], { SHELL_SAYS: 'exec: "SHELL": stat SHELL: no such file or directory', SHELL_RC: '127' }).fail).toBe('0');
   });
 
-  it('fails when an image cannot be dated, and when no image was read, asking nothing', () => {
-    const undated = verdict([B, `sha256:${'d'.repeat(64)}`]);
-    expect(undated.fail, undated.out).toBe('1');
-    expect(undated.runs).toEqual([]);
+  it("refuses, asking no image, when no runner of the deployment was seen or its runners ran two images; a runner that named no version is not the deployment's", () => {
+    const unseen = verdict([['20261107.1', A], [null, C]]);
+    expect(unseen.fail, unseen.out).toBe('1');
+    expect(unseen.runs).toEqual([]);
+    expect(unseen.out).toContain(`no runner of deployment ${DEPLOYED}, the one the tasks run, was seen`);
+    expect(unseen.out).toContain(`image ${'a'.repeat(12)}: deployment 20261107.1`);
+    expect(unseen.out).toContain(`image ${'c'.repeat(12)}: no version in its environment`);
+    const two = verdict([[DEPLOYED, B], [DEPLOYED, C]]);
+    expect(two.fail, two.out).toBe('1');
+    expect(two.runs).toEqual([]);
+    expect(two.out).toContain('ran more than one image');
+    const unnamed = verdict([[null, A], [DEPLOYED, B]], { OLD: A });
+    expect(unnamed.fail, unnamed.out).toBe('0');
+    expect(unnamed.runs.every((c) => c.includes(` ${B} `))).toBe(true);
+    expect(unnamed.out).toContain(`image ${'a'.repeat(12)}: its runner's environment named no deployment version`);
+    // A version that is no version is none.
+    expect(verdict([[`${DEPLOYED} x`, B]]).fail).toBe('1');
+  });
+
+  it("refuses, asking no image, when the deployment the environment runs cannot be read from Trigger.dev's database", () => {
+    const cases: Array<[string, Record<string, string>, string, string?]> = [
+      ['the database cannot be asked', { COLUMNS: 'Error response from daemon: No such container: ownpace-trigger-db', COLUMNS_RC: '1' }, "Trigger.dev's database could not be asked: Error response from daemon"],
+      ['a column is renamed', { COLUMNS: COLUMNS.filter((c) => c !== 'BackgroundWorker.version').join('\n') }, 'missing: BackgroundWorker.version'],
+      ['no current promotion', { CURRENT: '' }, "and Trigger.dev's database answered ''"],
+      ['two current promotions', { CURRENT: `${DEPLOYED}\n20261107.1` }, `answered '${DEPLOYED}, 20261107.1'`],
+      ['the query fails', { CURRENT: 'ERROR:  relation "WorkerDeploymentPromotion" does not exist', CURRENT_RC: '1' }, 'could not say which deployment'],
+      ['another environment is asked than the one the tasks deploy to', { WANT_SLUG: 'staging' }, "answered ''"],
+    ];
+    for (const [what, env, says] of cases) {
+      const r = verdict([[DEPLOYED, B]], env);
+      expect(r.fail, `${what}\n${r.out}`).toBe('1');
+      expect(r.runs, what).toEqual([]);
+      expect(r.out, what).toContain(says);
+    }
+    // The environment is the one trigger_env resolves from .env, as deploy-tasks.sh's.
+    const staging = verdict([[DEPLOYED, B]], { WANT_SLUG: 'staging' }, 'TRIGGER_PROJECT_REF=proj_test\nTRIGGER_ENV=staging\n');
+    expect(staging.fail, staging.out).toBe('0');
+    // A ref that is not one, or two names for the environment that disagree,
+    // goes into no SQL: Trigger.dev's database is not asked at all.
+    for (const [what, dotenv, says] of [
+      ['a ref with a quote', "TRIGGER_PROJECT_REF=\"proj_x' OR '1'='1\"\n", 'not a project ref'],
+      ['no ref', 'TRIGGER_ENV=prod\n', "TRIGGER_PROJECT_REF in .env is ''"],
+      ['TRIGGER_ENV and TRIGGER_ENV_SLUG disagree', 'TRIGGER_PROJECT_REF=proj_test\nTRIGGER_ENV=prod\nTRIGGER_ENV_SLUG=staging\n', 'which environment the tasks deploy to cannot be told'],
+    ] as const) {
+      const r = verdict([[DEPLOYED, B]], {}, dotenv);
+      expect(r.fail, `${what}\n${r.out}`).toBe('1');
+      expect(r.asked, what).toEqual([]);
+      expect(r.runs, what).toEqual([]);
+      expect(r.out, what).toContain(says);
+    }
+  });
+
+  it('fails when no image was read, asking nothing at all', () => {
     const none = verdict([]);
     expect(none.fail, none.out).toBe('1');
     expect(none.calls).toEqual([]);
+    expect(none.out).toContain("no runner's image was read while it ran");
   });
 });
 
