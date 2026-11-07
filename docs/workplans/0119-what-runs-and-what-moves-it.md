@@ -4,9 +4,10 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
-**2026-11-07: the managed smoke asks the image of the deployment the tasks run (§3 item 13).**
-On branch `claude/ownpace-public-readiness-y7orc6-smoke-deployed-runner`, from `main` at
-`d8aee36c`, a draft. Found by E2E (managed) run 42238877459 on 2026-11-06, on a branch from
+**2026-11-07: the managed smoke asks the image of the deployment the tasks run (§3 item 13);
+E2E (managed) green on the branch.** On branch
+`claude/ownpace-public-readiness-y7orc6-smoke-deployed-runner`, from `main` at `d8aee36c`, with
+`main` merged at `f0756177`. Found by E2E (managed) run 42238877459 on 2026-11-06, on a branch from
 before #1824: the section asked the newest runner image by `docker image inspect`'s Created, as
 the one the last deploy built. That run's own deploy, 20261106.8, was a fully cached build of
 the Debian image, which keeps its first build's Created, while a pass of 20261106.7, on #1824's
@@ -31,8 +32,11 @@ section, then asking dpkg, failed on the wrong image. Now:
 - **Guard:** `a-task-base-the-cli-builds-nothing-into` runs the section and the watcher against a
   stand-in docker and Trigger.dev's database. Each of eight mutations of the section or the
   watcher turns it red, and each was restored and checked by SHA-256.
-- **Not verified here:** E2E (managed) on the branch, which reads a real runner's environment
-  and the OTA stack's own database. It is owed before this merges.
+- **Proved on the branch:** E2E (managed) run 42337443531, on `ab75b242`, dispatched at 04:13
+  UTC and green at 04:39, read a real runner's environment and the OTA stack's own database.
+  Version 20261107.3 deployed with 17 tasks, and the section asked that deployment's image
+  alone: *image cbc32b7e7471 (deployment 20261107.3): Node v26.13.0, the API's*, and *no
+  shell*. No runner of another deployment was seen, so none was named. SMOKE PASS.
 
 **2026-11-07: BuildKit moves to v0.34.2, the build `buildx-stable-1` names; Trivy v0.76.2 and
 Atlas v1.3.8 wait for their three days.** On branch
