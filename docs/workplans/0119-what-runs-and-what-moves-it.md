@@ -48,6 +48,25 @@ moved since).
   index checks and the commit-convention check pass. The pin watch, run read-only again on the
   branch at 03:29 UTC, reads `moby/buildkit` current, and Trivy and Atlas behind.
 
+**2026-11-07: the effect swap in the Trigger.dev webapp's image, for alpha.6, with the purge,
+on the owner's yes.** The owner, 2026-11-07 at about 02:50 UTC, after alpha.5 was tagged
+without either: *"yes 1823 1825"*. It merges after the purge (#1823), so the next alpha
+carries both, and its CHANGELOG line sits under `[Unreleased]`. Proved on its branch on
+2026-11-06: E2E (managed) run 42260513967 on `a6aa0e9a` (`main` at `d468d9f2`, #1823 and
+this), green from 17:27 to 17:36 UTC, whose build printed effect 3.17.1 swapped for 3.22.4
+at its store path and the eleven packages purged; Security Scan run 42263361900
+(linux/arm64) reads `trigger.dev` at 1 critical, 23 high and 13 with a fix, from 1, 24 and 14
+with the purge alone. The Dockerfile's comments, which the image name's hash leaves out, now
+give those counts in place of the estimate. The entry of 2026-11-06 that calls it built on a
+branch, not merged, is overtaken.
+
+**2026-11-07: the owner confirms the purge in the Trigger.dev webapp's image (§3 item 11), for
+alpha.6.** The owner, 2026-11-07 at about 02:50 UTC, after alpha.5 was tagged without it: *"yes 1823 1825"*.
+§3 item 11's dated note says so, and the entry below that calls it a proposal pending that
+confirmation, for alpha.5, is overtaken: it merges after the tag, so the next alpha carries
+it, and its CHANGELOG line sits under `[Unreleased]`. Nothing in the image changes with it: the
+Dockerfile's comments, which the image name's hash leaves out, now say it was confirmed.
+
 **2026-11-06, last: what alpha.5 moves, folded.** The fold (0146 Status, 2026-11-06; a draft,
 not merged) closes alpha.5 with this plan's moves since alpha.4 in it: the appliance on
 distroless, without a shell, with `compose.yml`'s healthcheck for `app` in exec form (#1819, §3
@@ -115,6 +134,209 @@ UTC.
   `deploy/compose/dump-idp.sh`, as for every Zitadel move; then E2E (managed) on the branch, whose
   smoke signs four people in through `/v2/sessions` by login name, the lookup that changed. Live
   takes it from a tag, after a dump of live's database.
+
+**2026-11-06: effect 3.17.1 is 3.22.4 in the Trigger.dev webapp's image, a fifth row of the
+swap table; effect 3.16.12 and 3.18.4 and body-parser 2.3.0 were read and not taken. Built on
+a branch stacked on the purge's (#1823), not merged.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-effect-body-parser`, from `078101bc`. Read and
+built from 12:00 UTC, committed at 12:50 UTC.
+- **Why.** Security Scan run 42213975717 (Trivy 0.76.1, linux/arm64, 11:58 UTC), of the purged
+  image, read 1 critical, 24 high and 14 with a fix. Among the 14: CVE-2026-32887 (high, fixed in
+  3.20.0) in effect 3.16.12, 3.17.1 and 3.18.4, and CVE-2026-111181 (high, fixed in 2.4.0) in
+  body-parser 2.3.0. npm's advisory for effect is GHSA-38f7-945m-qr2g (below 3.20.0); npm lists
+  none against 3.20.0, 3.21.2 or 3.22.4, nor against body-parser 2.4.0.
+- **Read in upstream's `pnpm-lock.yaml` at v4.8.3** (shallow clone, `645cc47d`):
+  - effect 3.16.12 is `@prisma/config` 6.14.0's (prisma 6.14.0's), and 3.18.4 is
+    `@prisma/config` 6.19.0's (`@trigger.dev/build`'s, `^6.10.0`). npm's manifests of both pin
+    effect exactly (`"3.16.12"`, `"3.18.4"`), so neither copy is replaced.
+  - effect 3.17.1 has one requirer: the workspace package `packages/schema-to-json` (`"^3"`).
+    Its link is that package's own `node_modules/effect`, not a directory of the store. The
+    webapp's own effect is 3.21.2 (`^3.21.2`), already fixed. No other workspace package
+    depends by name on effect, undici, follow-redirects, body-parser or systeminformation.
+  - body-parser 2.3.0 is express 5.2.1's (`^2.2.1`, under `@modelcontextprotocol/sdk` 1.32.1).
+    2.4.0 raises three ranges. What pnpm linked for 2.3.0 meets two: content-type 2.1.0 meets
+    `^2.1.0`, and qs 6.16.1 meets `^6.16.1`. iconv-lite 0.7.2, the lockfile's only 0.7, does not
+    meet `^0.7.3`, so body-parser is **not taken**.
+- **Why nothing here loads effect 3.17.1.** `@trigger.dev/schema-to-json` exports only `dist/`.
+  `.dockerignore` leaves out every `dist`, and the runner stage copies the `dist` of the two
+  databases, trigger-sdk and core alone. Its one importer is the CLI's two index workers, which
+  run where a task is indexed, never in the webapp. Its one call is `JSONSchema.make(schema)`,
+  which 3.22.4 keeps. The webapp's own import (`updateMetadata.server.ts`) is external to Vite's
+  SSR build, and an import walk of `otlpTransformWorker.ts`, the one bundle (241 files), reaches
+  no effect. The mark, `effect_internal_function`, is in effect's `Utils` in every release read
+  and in no file of upstream's source.
+- **3.22.4, not 3.20.0.** 3.22.4 is npm's newest 3.x (tag `prev`; `latest` is 4.x), published
+  2026-10-22 20:49 UTC, and the newest of its line, as the other four rows are. npm lists nothing
+  against either, and nothing here loads the copy. It declares 3.17.1's ranges,
+  `@standard-schema/spec ^1.0.0` and `fast-check ^3.23.1`, which the 1.0.0 and 3.23.2 pnpm linked
+  for 3.17.1 meet. Between the two tarballs:
+  - main, module, types and sideEffects are the same, and neither has a `type` field;
+  - the exports gain `./Graph`, `./HashRing` and `./PartitionedSemaphore` and keep the other 176;
+  - 31 files are added and none removed.
+
+  Both tarballs match npm's published sha512 (3.22.4:
+  `sha512-RNshu7AXVxxDh6aS4lothhJ+QoZ4xSykbWNaaVdvDN72RMyVwhCGdALkyl1TbEydgAmRIdD1eTyJqBUGwSBGDA==`).
+  `tree()` is `3fdbdbcf…` for 3.17.1 and `b7d6b7cb…` for 3.22.4.
+- **The change.** `deploy/compose/trigger.dev/Dockerfile`'s swap table gets effect's row. Its
+  `who` now also walks the workspace (every directory under the one that holds
+  `node_modules/.pnpm`, a `node_modules` aside) for a package that links the package from its
+  own `node_modules`, named by its `package.json`. The supervisor's RUN gets the same `who`, so
+  the two RUNs stay one. The header's sections are *WHAT IS REPLACED: FIVE PACKAGES* and *HOW
+  THE FIVE ARE SWAPPED*, with a new *A PACKAGE OF THE WORKSPACE LINKS FROM ITS OWN
+  NODE_MODULES*. Both names in `managed.yml` move with their files:
+  `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-a4bb254ab965` (was `-d2e075e39cc7`) and
+  `localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-9fa6db37008b` (was `-92025e84edc4`). The
+  supervisor's changes because its `fail()` names the renamed section and its `who` is the
+  webapp's.
+- **Run for real.** A workspace with schema-to-json's, the webapp's and `@trigger.dev/build`'s
+  effect, installed by pnpm 10.33.2 on Node 24.22.1 (from nodejs.org, by its SHASUMS256), and
+  the RUN's effect row over it, with the real tarball from the registry. pnpm's 3.17.1
+  directory is the tarball's `tree()`, file for file. With `who` reading the store alone it
+  stopped with *"effect 3.17.1 is linked from: nothing"*. With the workspace read too it
+  swapped in 3 s, and `require('effect')` from `packages/schema-to-json` loaded 3.22.4 from the
+  swapped directory. Both dependencies loaded from it, and 3.16.12, 3.18.4 and 3.21.2 stayed as
+  they were.
+- **Found on the way.** The first replica hard-linked from a store on the same file system, and
+  the state proof refused the swap. 2499 of 3.17.1's 2691 file contents are 3.16.12's, and
+  removing the directory changed the ctime of the inodes they shared. Upstream installs from a
+  BuildKit cache mount, so pnpm copies. CI's build of the four already proved the image shares
+  no inode across packages: undici 6.29.0 shares 45 contents with 5.29.0, and its swap changed
+  nothing outside. The replica that ran was installed by copying, and the header says so.
+- **Guards.** `a-binary-the-stack-never-runs`: effect's REPLACED row (taken 2026-11-06, past its
+  floor), the workspace's requirers by directory, a stand-in effect with its two dependencies
+  linked, and the three copies that stay, each linked from its requirer. `tableProblems`
+  requires the walk in both images. Over the stand-in, these each fail by name, with nothing
+  changed:
+  - the workspace's link gone, at another version, or without a `package.json`;
+  - a second workspace package, or a store package, linking 3.17.1;
+  - a client bundle carrying the mark;
+  - the last row's tarball gone.
+
+  After the swap, an entry the workspace's requirer cannot load, or a dependency not linked,
+  fails it. Six Dockerfile mutations each turned it red, and each was restored to its SHA-256:
+  - the walk dropped from the webapp's `who`, or from the supervisor's;
+  - the walk let into `node_modules`;
+  - effect's row dropped;
+  - its requirer at 4.8.4;
+  - its mark changed to `from "effect"`, which the stand-in webapp's own server import hits.
+
+  All 143 unit test files that read a changed file pass (4559 tests), the guard's own 70 among
+  them. eslint on the guard and `pnpm typecheck` are clean, and the four index checks pass.
+- **Not verified here.** The image itself: ghcr's blob host is refused to this session, so the
+  build was not run. The PR's `build (trigger, amd64)` and `build (trigger, arm64)` run the
+  RUN on the real image, where a wrong reading stops it by name. Not verified either: the
+  branch's image scan, for about 1, 23 and 13 (arithmetic: one high and one fixable less), and
+  E2E (managed).
+
+**2026-11-06: the Debian packages nothing runs, purged from the Trigger.dev webapp's image
+too, for alpha.5 (§3 item 11, extended: a proposal pending the owner's confirmation in
+review); built on a branch, not merged; CI, the image scan and E2E (managed) are green on it.
+CI's first build stopped at dpkg's refusal (below), and e2fsprogs joined the list.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trigger-webapp-purge`, on `main` at `691b2352`
+(#1822), with `main` merged at `f42101b0` (#1819). Built under the owner's alpha.5 instruction of 2026-11-06, *"put in most of what you
+can, like for hardening"*. Times are UTC.
+- **The change.** `deploy/compose/trigger.dev/Dockerfile` gets a last RUN as root, after
+  goose's and before upstream's `USER node`. It runs `dpkg-query -W` of exactly eleven packages,
+  then `dpkg --audit` (its output must be empty), then `dpkg-query -L` to check that the eleven
+  ship the six libraries. Then `dpkg --purge --force-remove-essential --force-remove-protected`
+  of the eleven and no other force. After the purge: `dpkg --audit` empty again, each of the
+  eleven read gone, no ELF file under `/` naming libuuid.so.1, libblkid.so.1, libmount.so.1,
+  libsmartcols.so.1, libapt-pkg.so.6.0 or libapt-private.so.0.0, and grep, cp, tar, gzip,
+  dumb-init, goose and node started. The eleven are util-linux, util-linux-extra, mount,
+  bsdutils, libblkid1, libmount1, libsmartcols1, libuuid1, apt, libapt-pkg6.0 and e2fsprogs.
+  The header says why each goes (*THE DEBIAN PACKAGES NOTHING RUNS*, *HOW THEY ARE PURGED, AND
+  PROVED*). `managed.yml`'s image is
+  `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-d2e075e39cc7` (was `-e13a605a9db5`).
+- **e2fsprogs joined the list after the first CI run.** On `3626beea`, with ten packages,
+  `build (trigger, amd64)` and `build (trigger, arm64)` both stopped at dpkg's refusal, as the
+  RUN is meant to: *"dependency problems prevent removal of libblkid1 … e2fsprogs depends on
+  libblkid1 (>= 2.36)"*, and the same for libuuid1. Those were the only two packages refused.
+  Read afterwards in Debian 12.15's dpkg status (`node:24.22.1-bookworm-slim`, linux/arm64, by
+  layer digest): e2fsprogs 1.47.0-2+b2 is not Essential, nothing depends on it, and it
+  pre-depends on libblkid1 and libuuid1. Its own libraries (libext2fs2, libss2, libcom-err2)
+  and logsave need only libc6 and libcom-err2, so they stay. With e2fsprogs on the list, no
+  other installed package depends on one of the eleven. Trivy's report of 2026-10-26 on that
+  base lists no finding in e2fsprogs at any severity, so the expected counts do not move.
+  Nothing in `trigger-api` makes or checks a file system. The stand-in's refusal test now
+  uses fdisk, which the base does not have, and a new test takes e2fsprogs off the list and
+  expects the refusal CI showed. The CHANGELOG, §3 item 11 and `managed-bring-up.md` say so.
+- **Why.** Security Scan run 42143936608 (linux/arm64) read the image at 1 critical, 49 high,
+  16 fixable: apt and libapt-pkg6.0 2.6.1's CVE-2026-109518 (fixed in 2.6.2), and three highs
+  with no Debian fix in each of the eight util-linux packages (24). Expected after the purge,
+  by arithmetic: about 1, 23 and 14. Left from Debian: zlib1g's critical and its high, and one
+  high each in gzip, libacl1, libsystemd0, libtinfo6, libudev1, ncurses-base, ncurses-bin and
+  perl-base. They were not read for this purge.
+- **Read this session.**
+  - Upstream at v4.8.3, shallow-cloned (`645cc47d`). `docker/scripts/entrypoint.sh` hashes to
+    `2c6a4986…`, the pinned `entrypoint_sha256`, and runs dash, pnpm, node, grep, goose, cp
+    and dumb-init. `wait-for-it.sh` runs only with `DATABASE_HOST`, which `managed.yml` does
+    not set. The webapp and the internal packages it loads spawn only the dashboard agent's tar
+    and rg (`repo-tools.ts`). The SDK's bash skill and core's `v3/apps` exec are never called
+    by the webapp.
+  - The published binaries, each checked against its publisher's hash, then `readelf -d`:
+    - node 24.22.1 from nodejs.org (arm64 `dbabf7a1…`, x64 `6c172a9a…`) needs libdl,
+      libstdc++, libm, libgcc_s, libpthread and libc;
+    - goose v3.29.0's two assets are static;
+    - prisma 6.14.0's query and schema engines for the three `binaryTargets` (commit
+      `717184b7`) need OpenSSL and glibc;
+    - sentry-cli 2.50.2 is static, and bufferutil 4.0.9's linux-x64 prebuild and rollup
+      4.60.1's linux-x64-gnu addon need glibc alone.
+
+    Those last three are the native code in the production closure of every importer in
+    upstream's `pnpm-lock.yaml` (1883 packages). None of these files names a purged library.
+  - Debian 12's dependencies, from the Debian changelogs this machine carries:
+    - util-linux 2.38-1 made util-linux-extra "pseudo-Essential", a hard dependency, until
+      2.39.1-2, so util-linux-extra goes with util-linux;
+    - sysvinit 2.96-4 (2020) dropped sysvinit-utils' versioned dependency on util-linux, so
+      Debian 12's 3.06-4 does not stop the purge.
+
+    The full package list of Debian 12's base was not read: no Debian mirror answered.
+  - `dpkg --audit` (dpkg 1.22.6, on databases made under the session's scratch directory)
+    exits 0 when it lists a half-installed package. So the RUN reads its output, and
+    `apt-get check`, which needs apt, cannot follow the purge.
+- **Guards.** `an-essential-nothing-runs` holds the ten (WEBAPP_PURGE, each with why), the
+  six libraries, the shape (one RUN, root's last, before `USER node`; `dpkg-query -W $purge`
+  first; exactly the two flags; the audits, the shipped check, the gone check, the ELF scan
+  and the starts; no apt; nothing installed after) and the header's reasons word for word.
+  `a-binary-the-stack-never-runs` now always puts a stand-in dpkg, dpkg-query, apt, apt-get
+  and dumb-init first on every stand-in RUN's PATH, so no RUN reaches this machine's dpkg. Its
+  stand-in Debian 12 follows the RUN's own lists, and the RUN is run over it on both
+  platforms. A missing package stops it before the purge; fdisk depending on libuuid1, or
+  e2fsprogs taken off the list, stops it at dpkg's refusal; audit output before or after stops it; and so do a library no
+  package ships, a `config-files` record, an ELF addon naming each library (by path), and a
+  dumb-init that does not start. With e2fsprogs on the list and `main` merged, all 158 unit
+  test files that read a changed file pass (4743 tests). The merge took `INSTALLS` out of
+  `an-essential-nothing-runs` with the appliance's purge, and the webapp's check still uses it,
+  so it is back beside that check. Before e2fsprogs, the five guards that read the Dockerfile
+  passed (278 tests), and so did all 130 that read it, `managed.yml`, the CHANGELOG,
+  `managed-bring-up.md`, LESSONS or this plan (4352 tests); lint and typecheck are clean. Seven mutations of the Dockerfile
+  each turned the two guards red, and each was restored to its SHA-256:
+  - `--force-depends` added;
+  - libuuid1 dropped;
+  - `dpkg-query -W` after the purge;
+  - the ELF scan dropped;
+  - a reason reworded;
+  - `apt-get check` in the audit's place;
+  - the purge before goose's RUN.
+- **Not verified here.** The image itself: ghcr's blob host is refused to this session, so
+  neither upstream's layers nor this build were read or run. The PR's `build (trigger,
+  amd64)` and `build (trigger, arm64)` run the RUN on the real image, where a wrong reading
+  stops the build (dpkg's refusal, `dpkg-query -W`, the shipped check or the ELF scan).
+- **Proved on the branch.** CI was green on `078101bc`, both `build (trigger, …)` legs among its
+  checks. The image scan, Security Scan run 42213975717 (linux/arm64), reads
+  `localhost/trigger.dev:v4.8.3-d2e075e39cc7` at 1 critical, 24 high and 14 fixable, from 1, 49
+  and 16, with no apt, util-linux or e2fsprogs finding left. That is one high more than the
+  arithmetic: the report lists zlib1g with three findings, its critical and two highs, where
+  the arithmetic counted one high. The 14 with a fix are npm packages in upstream's tree and
+  goose's Go standard library; the eleven without one are Debian 12's, in zlib1g, gzip,
+  libacl1, libsystemd0, libtinfo6, libudev1, ncurses-base, ncurses-bin and perl-base. E2E
+  (managed) run 42226955315, dispatched on `078101bc`, was green from 13:56 to 14:05 UTC on the
+  OTA stack: the bring-up built `localhost/trigger.dev:v4.8.3-d2e075e39cc7` and started
+  `trigger-api` from it (entrypoint, migrations, goose, the server), up and healthy; the
+  smoke's verdict was *verify: done apply: applied*, and its last listing shows `trigger-api` on
+  that image.
+- **Risks.** Debian does not test a system without its Essential packages; this one runs
+  node. And `trigger-api` has no apt: nothing installs in it, and a change is a rebuild.
 
 **2026-11-06, later: the dashboard's TLS front on Caddy 2.11.9, before its three-day floor, on
 the owner's instruction of that day, for alpha.5; CI, the image scan and E2E (managed) green on
@@ -5038,6 +5260,26 @@ is beside each; none is urgent tonight.
     alpha.4's fold, it moves to alpha.5. **Revisit** when either image moves to distroless,
     which drops the Debian base and this purge with it; and on every Debian release the bases
     move to, when `dpkg-query -W` stops the build on a renamed package.
+
+    **2026-11-06: extended to the Trigger.dev webapp's image, proposed for alpha.5, and
+    confirmed by the owner on 2026-11-07 at about 02:50 UTC, for alpha.6:** *"yes 1823 1825"*. Built under the
+    owner's alpha.5 instruction of 2026-11-06, *"put in most of what you can, like for
+    hardening"*; the decision above named the appliance and the tasks' base only, so this
+    extension was the owner's to confirm or take back. `deploy/compose/trigger.dev/Dockerfile` builds on upstream's image, whose runner
+    stage is Debian 12.15 (`node:24.22.1-bookworm-slim`). Security Scan run 42143936608 read it
+    at 1 critical, 49 high, 16 with a fix. Its last RUN as root purges eleven packages that
+    nothing in `trigger-api` runs or loads. They are:
+    - apt and libapt-pkg6.0 (CVE-2026-109518, high, fixed in 2.6.2);
+    - the eight that util-linux builds there (util-linux, util-linux-extra, mount, bsdutils,
+      libblkid1, libmount1, libsmartcols1, libuuid1: three highs each, none with a fix);
+    - e2fsprogs, which has no finding of its own and pre-depends on libblkid1 and libuuid1,
+      so dpkg refuses those two while it stays. It uses the same shape and the same two
+    flags, no other force, with one change: apt is on the list, so `dpkg --audit` (its output
+    read, since dpkg exits 0 when it lists problems) stands where `apt-get check` does. Not
+    `login` (in Debian 12 it is shadow's, with no finding) and not `libsqlite3-0` (not read
+    in this image). Expected about 1/23/14. The same risk is accepted, and `trigger-api`
+    keeps no apt. **Revisit** with the triggers above, and when upstream's runner stage
+    leaves Debian 12.
 
 12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
     digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the

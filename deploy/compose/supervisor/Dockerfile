@@ -11,7 +11,7 @@
 # deploy/compose/trigger.dev/Dockerfile says the rest, and all of it holds
 # here: the name and its hash, the version argument, read_at, what may not be
 # in this file, how it fails when upstream moves, the pnpm swap's reasons, and
-# the way out, and its WHAT IS REPLACED: FOUR PACKAGES, of which this is one.
+# the way out, and its WHAT IS REPLACED: FIVE PACKAGES, of which this is one.
 #
 # WHY. Trivy 0.76.1 read 2 critical findings in
 # ghcr.io/triggerdotdev/supervisor:v4.8.1 (linux/arm64, 2026-10-26; v4.8.3 builds
@@ -82,15 +82,19 @@
 # not start offline; the last RUN, as node, proves 10.34.9 does.
 #
 # WHAT IS REPLACED: SYSTEMINFORMATION 5.31.7 BY 5.33.19 (since 2026-11-03), as
-# the webapp's build replaces it there (its WHAT IS REPLACED: FOUR PACKAGES
-# says why, and HOW THE FOUR ARE SWAPPED how), at
+# the webapp's build replaces it there (its WHAT IS REPLACED: FIVE PACKAGES
+# says why, and HOW THE FIVE ARE SWAPPED how), at
 # /app/apps/supervisor/node_modules/.pnpm/systeminformation@5.31.7/node_modules/systeminformation,
 # where `pnpm deploy --legacy --prod` (apps/supervisor/Containerfile) put it
 # and the scan reads it: 1 fixable high, GHSA-3f7j-7jwc-fxfj. The one package
 # that links it is @opentelemetry/host-metrics 0.38.3, under @trigger.dev/core,
 # which the supervisor's own source does not import. The deploy resolves the
 # tree itself, so the second RUN finds who links the package by the links,
-# not by a directory name read from the lockfile. The supervisor's own build,
+# not by a directory name read from the lockfile. Since 2026-11-06 it reads
+# the links of /app/apps/supervisor's own node_modules too, as the webapp's
+# reads a workspace package's (A PACKAGE OF THE WORKSPACE there): the deployed
+# package links its own dependencies there, and systeminformation is not one
+# of them. The supervisor's own build,
 # dist (tsc, no bundle), must not carry systeminformation's mark. The RUN is
 # the webapp's with one row, and runs under BusyBox: so the check that
 # nothing else changed is a stat of every entry, which BusyBox's find and
@@ -195,7 +199,7 @@ RUN set -eu; \
 # published them (WHAT IS REPLACED: SYSTEMINFORMATION, above).
 RUN set -eu; \
     me=deploy/compose/supervisor/Dockerfile; \
-    fail() { echo "$me: $*" >&2; echo "$me: re-read deploy/compose/trigger.dev/Dockerfile's WHAT IS REPLACED: FOUR PACKAGES against this image, or drop the row of a package upstream moved (its THE WAY OUT)." >&2; exit 1; }; \
+    fail() { echo "$me: $*" >&2; echo "$me: re-read deploy/compose/trigger.dev/Dockerfile's WHAT IS REPLACED: FIVE PACKAGES against this image, or drop the row of a package upstream moved (its THE WAY OUT)." >&2; exit 1; }; \
     unreachable() { echo "$me: $1 did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers: nothing here needs editing (docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; exit 1; }; \
     gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
     s=/app/apps/supervisor/node_modules/.pnpm; \
@@ -209,7 +213,7 @@ RUN set -eu; \
     own() { if [ -d "$1/node_modules" ]; then (cd "$1/node_modules" && find . ! -type d -exec sha256sum {} + | LC_ALL=C sort); fi; }; \
     tree() { files "$1" | sha256sum | cut -d' ' -f1; }; \
     state() { { find "$top" -xdev \( $prune \) -prune -o -type d -exec stat -c '%n %u:%g %a' {} + ; find "$top" -xdev \( $prune \) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' {} + ; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }; \
-    who="const fs = require('fs'); const path = require('path'); const [s, pkg, name] = process.argv.slice(1); const real = fs.realpathSync(pkg); const out = []; for (const d of fs.readdirSync(s)) { if (d === 'node_modules') continue; const nm = path.join(s, d, 'node_modules'); let st; try { st = fs.lstatSync(path.join(nm, name)); } catch { continue; } if (!st.isSymbolicLink() || fs.realpathSync(path.join(nm, name)) !== real) continue; const own = []; for (const e of fs.readdirSync(nm)) { for (const x of e.startsWith('@') ? fs.readdirSync(path.join(nm, e)).map((y) => e + '/' + y) : [e]) { const p = path.join(nm, x); if (!fs.lstatSync(p).isSymbolicLink() && fs.existsSync(path.join(p, 'package.json'))) own.push(p); } } if (own.length !== 1) { out.push('unknown ' + nm); continue; } const j = JSON.parse(fs.readFileSync(path.join(own[0], 'package.json'), 'utf8')); out.push(j.name + '@' + j.version + ' ' + own[0]); } if (out.length) console.log(out.sort().join('\n'));"; \
+    who="const fs = require('fs'); const path = require('path'); const [s, pkg, name] = process.argv.slice(1); const real = fs.realpathSync(pkg); const out = []; for (const d of fs.readdirSync(s)) { if (d === 'node_modules') continue; const nm = path.join(s, d, 'node_modules'); let st; try { st = fs.lstatSync(path.join(nm, name)); } catch { continue; } if (!st.isSymbolicLink() || fs.realpathSync(path.join(nm, name)) !== real) continue; const own = []; for (const e of fs.readdirSync(nm)) { for (const x of e.startsWith('@') ? fs.readdirSync(path.join(nm, e)).map((y) => e + '/' + y) : [e]) { const p = path.join(nm, x); if (!fs.lstatSync(p).isSymbolicLink() && fs.existsSync(path.join(p, 'package.json'))) own.push(p); } } if (own.length !== 1) { out.push('unknown ' + nm); continue; } const j = JSON.parse(fs.readFileSync(path.join(own[0], 'package.json'), 'utf8')); out.push(j.name + '@' + j.version + ' ' + own[0]); } const walk = (d) => { const l = path.join(d, 'node_modules', name); let st; try { st = fs.lstatSync(l); } catch { st = null; } if (st && st.isSymbolicLink() && fs.realpathSync(l) === real) { const j = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8')); out.push(j.name + '@' + j.version + ' ' + d); } for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory() && e.name !== 'node_modules') walk(path.join(d, e.name)); }; walk(path.dirname(path.dirname(s))); if (out.length) console.log(out.sort().join('\n'));"; \
     same="const fs = require('fs'); const [n, v, ...files] = process.argv.slice(1); for (const f of files) { let j; try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { console.log('unreadable:' + f); continue; } if (j.name === n && j.version === v) console.log(f); }"; \
     deps="const fs = require('fs'); const path = require('path'); const real = fs.realpathSync(process.argv[1]); const j = JSON.parse(fs.readFileSync(path.join(real, 'package.json'), 'utf8')); for (const d of Object.keys(j.dependencies || {})) { const p = fs.realpathSync(require.resolve(d, { paths: [real] })); require(p); console.log('dependency ' + d + ': ' + p); }"; \
     load="const fs = require('fs'); const path = require('path'); const [pkg, name, to, list] = process.argv.slice(1); const specs = list.split(','); const real = fs.realpathSync(pkg); const pj = fs.realpathSync(require.resolve(name + '/package.json')); const v = require(name + '/package.json').version; if (pj !== path.join(real, 'package.json') || v !== to) { console.error('require(' + name + '/package.json) is ' + pj + ' ' + v); process.exit(1); } for (const sp of specs) { const p = fs.realpathSync(require.resolve(sp)); if (!p.startsWith(real + path.sep)) { console.error('require(' + sp + ') resolves ' + p); process.exit(1); } const m = require(sp); for (const k of Object.keys(m)) void m[k]; console.log('require(' + sp + '): ' + p + ' ' + v); }"; \
