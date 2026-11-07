@@ -4,6 +4,17 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07, later: the OTA instance's dump is deleted, and alpha.6 is tagged (T7).**
+`main`'s first scheduled E2E (managed) on v4.20.1, run 42364300447 on `59b91458`, the tag's
+commit, from 10:31 to 10:38 UTC, was green: version 20261107.6 with 17 tasks, SMOKE PASS. The
+owner then deleted the dump set `20261107T025529Z` (the dump, the roles file and the note) from
+the OTA stack's dump directory, as the entry below says. `v0.2.0-alpha.6` was tagged at 11:19
+UTC (0146), and live takes v4.20.1 from it as soon as possible, on the owner's word *"I waive
+the waits"*. Live's copy before that update holds live's own dump, taken by the copy's take on
+v4.20.0 (`copy-before-update.sh` runs `dump-idp.sh` into it). alpha.4's deploy script calls the
+deploy one-way, since the provider's pin moves; v4.20.1 has no setup step, so the way back is
+still a deploy of alpha.4.
+
 **2026-11-07: the owner's yes for alpha.6, the OTA instance's dump, and E2E (managed) green on
 the branch (T7).** The owner, on
 2026-11-06: *"Zitadel v4.20.1 in the next alpha"*, and on 2026-11-07, after alpha.5 was tagged
