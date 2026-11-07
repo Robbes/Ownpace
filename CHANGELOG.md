@@ -4,6 +4,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Trigger.dev webapp built here no longer carries apt or util-linux** (workplan 0119
+  §3 item 11, extended to it for alpha.6, as the owner confirmed on 2026-11-07). Its
+  build now ends, as root, by purging eleven Debian 12 packages that nothing in `trigger-api`
+  runs or loads, as the appliance and the tasks' base purge theirs since alpha.4. They are
+  apt and libapt-pkg6.0 (CVE-2026-109518, high, fixed in 2.6.2), the eight packages
+  util-linux builds there (24 highs with no fix in Debian), and e2fsprogs. e2fsprogs has no
+  finding of its own, but it depends on two of the util-linux libraries, and nothing there
+  makes or checks a file system. It asks `dpkg-query` for exactly those eleven first,
+  purges with the same two flags and no other force (so dpkg refuses a package something
+  still depends on, and the build stops), and since apt is on the list checks `dpkg --audit`'s
+  output in `apt-get check`'s place. After the purge it proves that no ELF file in the image
+  names one of the six libraries it removed, and that grep, cp, tar, gzip, dumb-init, goose
+  and node start. Measured on its branch (Security Scan run 42213975717, linux/arm64): 1 critical,
+  24 high and 14 with a fix, from 1, 49 and 16, and E2E (managed) ran it green. `trigger-api` has no apt from then on; nothing installs in it, and a
+  change is a rebuild.
+
 ### Changed
 
 - **The identity provider moves to Zitadel v4.20.1** (workplan 0135 T7): a patch with no

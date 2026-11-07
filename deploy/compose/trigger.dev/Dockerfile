@@ -13,7 +13,12 @@
 # binary in place of the v3.27.1 upstream builds (WHAT IS REPLACED: GOOSE), and
 # four packages are the same major's release that fixes them (WHAT IS
 # REPLACED: FOUR PACKAGES): about 89 high findings become 46, and 57 with a fix
-# become 14 (WHAT STAYS says what is left, and why).
+# become 14 (WHAT STAYS says what is left, and why). Since 2026-11-06 (for
+# alpha.6, workplan 0119 §3 item 11, confirmed by the owner on 2026-11-07), the
+# last RUN as root purges eleven Debian packages nothing here runs or loads:
+# apt, libapt-pkg6.0, the eight util-linux builds and e2fsprogs, which
+# pre-depends on two of them (THE DEBIAN PACKAGES NOTHING RUNS): 49 high
+# findings become about 23, and 16 with a fix about 14.
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -30,7 +35,7 @@
 #     REPLACED: PNPM).
 # Two were left after those: zlib1g (CVE-2023-45853, no fix in Debian), which
 # stays, and dompurify 3.4.13 (GHSA-cg2g-xh64-v4q7, fixed in 3.4.17), whose
-# files the last RUN as root replaces with 3.4.17's (WHAT IS REPLACED:
+# files the second RUN as root replaces with 3.4.17's (WHAT IS REPLACED:
 # DOMPURIFY, below). So 8 become 1. The binaries are the same Go builds on
 # amd64.
 #
@@ -275,7 +280,7 @@
 # src/attrs.ts, which allows two more SVG attributes, pointer-events and
 # vector-effect.
 #
-# HOW IT IS REPLACED, AND PROVED. The last RUN as root fetches
+# HOW IT IS REPLACED, AND PROVED. The second RUN as root fetches
 # dompurify-3.4.17.tgz from the npm registry, as the API image's build fetches
 # its packages, and refuses it unless its sha512 is the integrity npm
 # published. Before it changes anything it checks: the directory is the
@@ -444,6 +449,130 @@
 #     spawndamnit's, under the root's @changesets/cli); and body-parser
 #     2.3.0 (express 5's; 2.4.0 needs iconv-lite ^0.7.3, and pnpm linked
 #     0.7.2 for it).
+# Since 2026-11-06 the 24 util-linux highs go (THE DEBIAN PACKAGES NOTHING
+# RUNS), and of Debian's packages the critical and 9 highs stay, none with a
+# fix: zlib1g's two (CVE-2023-45853 the critical), and one each in gzip,
+# libacl1, libsystemd0, libtinfo6, libudev1, ncurses-base, ncurses-bin and
+# perl-base. This purge was read for apt's and util-linux's packages alone.
+#
+# THE DEBIAN PACKAGES NOTHING RUNS (since 2026-11-06, for alpha.6; workplan
+# 0119 §3 item 11, the owner's decision of 2026-11-03 for the appliance and the
+# tasks' base, extended here under the owner's alpha.5 instruction of
+# 2026-11-06, "put in most of what you can, like for hardening", and confirmed
+# by the owner on 2026-11-07). Upstream's runner stage is
+# node:24.22.1-bookworm-slim (Debian 12.15) with openssl, netcat-openbsd and
+# ca-certificates from apt. Security Scan run 42143936608 (Trivy 0.76.1,
+# linux/arm64, 2026-11-06) read this image at 1 critical, 49 high and 16 with
+# a fix. Of those:
+#   - apt 2.6.1 and libapt-pkg6.0 2.6.1: CVE-2026-109518 (high, fixed in
+#     2.6.2; an on-path attacker during an apt download), two of the 16;
+#   - three highs with no fix in Debian in each of the eight packages
+#     built from util-linux's source that this image has: util-linux,
+#     util-linux-extra, mount, bsdutils, libblkid1, libmount1, libsmartcols1
+#     and libuuid1 (24).
+# The last RUN as root purges those ten, and e2fsprogs 1.47.0-2+b2, which
+# carries no finding of its own and pre-depends on libblkid1 and libuuid1:
+# dpkg refused to purge those two while it stayed (images.yml's `build
+# (trigger, amd64|arm64)`, 2026-11-06). So 1, 49 and 16 become about 1, 23
+# and 14 (arithmetic from the report, which the branch's image scan measures).
+# util-linux-extra goes with util-linux, which hard-depends on it in Debian 12
+# (util-linux 2.38-1 made it "pseudo-Essential"; 2.39.1-2, after Debian 12,
+# dropped the dependency), and libapt-pkg6.0 with apt, its one user here. Not
+# on the list, though the appliance's has them: login, which in Debian 12 is
+# shadow's, not util-linux's, and carries no finding, and libsqlite3-0, which
+# Debian 13 brings for lastlog2 and the scan does not read here. e2fsprogs
+# goes alone: its libraries (libext2fs2, libss2, libcom-err2) and logsave
+# stay, and need only libc6 and libcom-err2. Debian 12.15's dpkg status
+# (node:24.22.1-bookworm-slim, linux/arm64, read 2026-11-06) has no other
+# installed package that depends on one of the eleven, and none that depends
+# on e2fsprogs.
+#
+# WHY NOTHING RUNS THEM, read at read_at (below):
+#   - What starts in trigger-api: managed.yml's `sh -c "chown -R node:node
+#     /home/node/shared && exec ./scripts/entrypoint.sh"`. The entrypoint
+#     (docker/scripts/entrypoint.sh, pinned by entrypoint_sha256) is /bin/sh,
+#     dash, and runs pnpm (corepack's shim, on node), node, grep, goose, cp
+#     and dumb-init; scripts/wait-for-it.sh only with DATABASE_HOST, which
+#     managed.yml does not set (and it runs nc, cut and sleep); and run-ops'
+#     migrations only with a RUN_OPS_* variable, which it sets none of. The
+#     migrations are `prisma migrate deploy` (prisma's schema engine) and
+#     `node migrate.mjs` (drizzle, in process). The healthcheck is `node -e`
+#     fetch, and the bring-up execs `test` and `chown` into it.
+#   - What the server spawns: in apps/webapp and the internal packages it
+#     loads, the dashboard agent's repo tools run tar (with gzip, -z) and rg,
+#     which neither the runner stage nor the lockfile installs
+#     (internal-packages/dashboard-agent/src/repo-tools.ts). The other files
+#     that import child_process, execa or tinyexec are tests, the CLI,
+#     testcontainers, harnesses, dev scripts, run-ops' migrate.mjs (prisma),
+#     core's v3/apps exec (the supervisor's) and the SDK's bash skill
+#     (agentSkillsRuntime.ts), which the webapp never calls.
+#   - None of those programs is apt's, util-linux's or e2fsprogs': dash,
+#     coreutils (chown, test, cp, cut, sleep), grep, tar, gzip, netcat-openbsd,
+#     dumb-init, node, goose. Nothing execs apt, apt-get, su, mount, getopt,
+#     logger, more, mke2fs, e2fsck or any other program of the eleven into the
+#     container (nothing makes or checks a file system in it), and nothing
+#     installs a package in it: a change is a rebuild.
+#   - What links their libraries (libuuid.so.1, libblkid.so.1, libmount.so.1,
+#     libsmartcols.so.1, libapt-pkg.so.6.0, libapt-private.so.0.0), read
+#     2026-11-06 in the published files the image runs or carries, each by its
+#     publisher's hash: node 24.22.1 (nodejs.org's linux-arm64 and linux-x64
+#     builds, which the Node image unpacks) needs libdl, libstdc++, libm,
+#     libgcc_s, libpthread and libc; goose v3.29.0's two release assets are
+#     static; prisma 6.14.0's engines (commit 717184b7, the query engine and
+#     the schema engine for linux-arm64-openssl-3.0.x and debian-openssl-3.0.x,
+#     and for debian-openssl-1.1.x, the schema's binaryTargets) need libgcc_s
+#     and glibc, and the 3.0.x ones OpenSSL 3. The native code in the
+#     production install, by upstream's pnpm-lock.yaml (every workspace
+#     importer's dependencies and optional dependencies): sentry-cli 2.50.2
+#     (static), bufferutil 4.0.9's linux-x64 prebuild (glibc alone) and rollup
+#     4.60.1's linux-x64-gnu addon (libgcc_s and glibc), and depot's,
+#     esbuild's and TypeScript 7's binaries, which go (WHAT GOES).
+#     pnpm builds only what onlyBuiltDependencies names, and of that
+#     cpu-features and ssh2 compile with node-gyp, for which the production
+#     install has no compiler. No byte of any of those files names one of the
+#     six. The build reads the image itself after the purge (below).
+#
+# HOW THEY ARE PURGED, AND PROVED. The last RUN as root, after every other
+# change, as the appliance's purge (apps/selfhost/Dockerfile) and the tasks'
+# (apps/worker/trigger.config.ts) do:
+#   1. `dpkg-query -W` of exactly the eleven, first: a package renamed or gone
+#      stops the build before anything is purged (a list to read again, not a
+#      name to skip).
+#   2. `dpkg --audit` reads nothing in the image as upstream left it, and the
+#      eleven ship the six libraries (`dpkg-query -L`), so the scan in 5 does
+#      not look for names nothing had.
+#   3. `dpkg --purge --force-remove-essential --force-remove-protected`, the
+#      two flags of the owner's decision, and no other force. Debian marks
+#      util-linux and bsdutils Essential. Without --force-depends, dpkg refuses
+#      to remove what an installed package still depends on, so a base where
+#      one does stops the build. That is how e2fsprogs joined the list: this
+#      base has it, and dpkg refused libblkid1 and libuuid1 for it. A package
+#      that joins the base and depends on one of the eleven stops the build
+#      here the same way.
+#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the eleven as
+#      gone (no record, or not-installed).
+#   5. No ELF file under / (the image's own file system, walked whole) names
+#      one of the six, so nothing left links them or opens them by name.
+#   6. The programs this stack runs here start: grep, cp, tar, gzip and
+#      dumb-init (--version), goose (-version) and node; pnpm and the
+#      migrations are JavaScript on that node.
+# The appliance's purge ends with `apt-get check`, which needs apt, and apt is
+# on this list. So `dpkg --audit` takes its place, and its output is read,
+# not its exit status: dpkg 1.22.6 exits 0 when it lists problems (2026-11-06,
+# on a database made for it). The half of apt-get check a purge could break,
+# a dependency left unmet, is dpkg's own refusal in 3.
+# The risk accepted, as for the appliance: Debian does not test a system
+# without its Essential packages; this one runs node. And trigger-api has no
+# apt: nothing installs in it, and a fix is a rebuild.
+# What is not shown here: the image's own files. They were not read for this
+# (ghcr's layers could not be fetched), so the reading above is of upstream's
+# source, lockfile and published binaries; images.yml's `build (trigger,
+# amd64|arm64)` runs this RUN on the real image, where a wrong reading stops
+# the build (dpkg's refusal, or a check above), and E2E (managed) runs what it
+# built.
+# scripts/an-essential-nothing-runs.unit.test.ts holds the list, the shape and
+# these reasons; scripts/a-binary-the-stack-never-runs.unit.test.ts runs the
+# RUN over its stand-in, with a stand-in dpkg.
 #
 # TWO NAMES FOR EACH BINARY. The postinstall of each package (install.js,
 # maybeOptimizePackage) hard-links its platform package's binary over its own
@@ -496,9 +625,13 @@
 # upstream fixed. Each replacement names the version it replaces the same
 # way (dompurify 3.4.13, goose v3.27.1, and the four packages' old versions
 # and their requirers), and fails by name when upstream moves it: drop that
-# replacement (THE WAY OUT). A pull request that touches deploy/ runs this
-# on both platforms (images.yml, `build (trigger, amd64|arm64)`); the weekly
-# image scan builds it on arm64 and counts what is left.
+# replacement (THE WAY OUT). The purge names its eleven packages and six
+# libraries the same way: `dpkg-query -W` stops the build on a base that
+# renames or drops one, and `dpkg-query -L` on one that no longer ships a
+# library (THE DEBIAN PACKAGES NOTHING RUNS). A pull request that touches
+# deploy/ runs this on both platforms (images.yml, `build (trigger,
+# amd64|arm64)`); the weekly image scan builds it on arm64 and counts what is
+# left.
 #
 # THE BASE AND THE NAME. The FROM is the pin, by tag and index digest, as in
 # deploy/compose/postgres/Dockerfile. managed.yml builds this as
@@ -542,8 +675,13 @@
 # rewrite and its read-back), point `kept` at the copy upstream then ships,
 # read again for the three names, let the checks that no other copy is left
 # name its version, and put the proofs back at upstream's version; and delete
-# the guard's SWAP, with the tests and the stand-in corepack built on it. When
-# none is left, managed.yml runs ghcr's image again and this directory goes
+# the guard's SWAP, with the tests and the stand-in corepack built on it. The
+# purge goes when upstream's runner stage leaves Debian 12's apt and
+# util-linux behind (a Debian release, or a base without them): its last RUN
+# as root fails on the name it no longer finds, and that RUN goes with the
+# guard's WEBAPP_PURGE (an-essential-nothing-runs), or its list is read again
+# at the new base (0119 §3 item 11's revisit). When none is left, managed.yml
+# runs ghcr's image again and this directory goes
 # (docs/managed-bring-up.md, "Upgrading Trigger.dev"). This file is never
 # `pin`ned backwards: its checks hold for read_at only, so going back to an
 # older release means running the checkout that pinned it (a revert of the
@@ -844,6 +982,31 @@ RUN set -eu; \
     [ "$(state)" = "$before" ] || fail "outside $goose, a path was added or removed, or an entry's owner, mode, size or times changed, while it was replaced."; \
     rm -r "$tmp"; \
     echo "$me: goose $goose_from at $goose is goose $goose_to's $asset, by its SHA-256 ($goose_sha256), root's and 0755; nothing else in the image changed."
+
+# Still as root, and the last of root's RUNs: the Debian packages nothing here
+# runs or loads, purged (THE DEBIAN PACKAGES NOTHING RUNS, above).
+RUN set -eu; \
+    me=deploy/compose/trigger.dev/Dockerfile; \
+    fail() { echo "$me: $*" >&2; echo "$me: re-read the header's THE DEBIAN PACKAGES NOTHING RUNS against this image; a package leaves the list, or joins it, only with its reason." >&2; exit 1; }; \
+    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs"; \
+    libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0"; \
+    top=/; \
+    elves="const fs = require('fs'); const path = require('path'); const [top, ...names] = process.argv.slice(1); const dev = fs.statSync(top).dev; const head = Buffer.alloc(4); let read = 0; const hits = []; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isDirectory()) { if (s.dev === dev) walk(p); continue; } if (!s.isFile() || s.size < 4) continue; const fd = fs.openSync(p, 'r'); try { fs.readSync(fd, head, 0, 4, 0); } finally { fs.closeSync(fd); } if (head.readUInt32BE(0) !== 0x7f454c46) continue; read++; const b = fs.readFileSync(p); for (const n of names) if (b.includes(n)) hits.push(p + ': ' + n); } }; walk(top); console.error(read + ' ELF files read under ' + top); if (read === 0) process.exit(2); if (hits.length) { console.log(hits.join(' ')); process.exit(1); }"; \
+    dpkg-query -W $purge || fail "dpkg-query does not find every one of: $purge (above). A package renamed or gone is a list to read again, not a name to skip; nothing was purged."; \
+    audit="$(dpkg --audit)" || fail "dpkg --audit did not run; nothing was purged."; \
+    [ -z "$audit" ] || fail "dpkg --audit reads problems in the image as upstream left it, before anything was purged: $audit"; \
+    listed="$(dpkg-query -L $purge)" || fail "dpkg-query -L does not list the files of: $purge; nothing was purged."; \
+    for l in $libraries; do case "$listed" in *"/$l"*) ;; *) fail "none of $purge ships $l, which this file was read for, so the scan after the purge would look for a name nothing had; nothing was purged." ;; esac; done; \
+    dpkg --purge --force-remove-essential --force-remove-protected $purge || fail "dpkg did not purge every one of: $purge (above). Without --force-depends it refuses to remove what an installed package depends on: read the package it names, then take the one it would break off the list or put the one that depends on it on it, each with its reason; this image was not built."; \
+    audit="$(dpkg --audit)" || fail "dpkg --audit did not run after the purge."; \
+    [ -z "$audit" ] || fail "after the purge, dpkg --audit reads: $audit"; \
+    for p in $purge; do st="$(dpkg-query -W -f '${db:Status-Status}' "$p" 2>/dev/null)" && rc=0 || rc=$?; case "$rc:$st" in 1:|0:not-installed) ;; *) fail "after the purge, dpkg reads $p as '$st' (dpkg-query exits $rc), not gone." ;; esac; done; \
+    found="$(node -e "$elves" "$top" $libraries)" && st=0 || st=$?; \
+    [ "$st" = 0 ] || fail "after the purge, an ELF file names a library it removed, or the scan read none (node exits $st): ${found:-none named}"; \
+    for c in grep cp tar gzip dumb-init; do "$c" --version >/dev/null 2>&1 || fail "$c, which this stack runs here, does not start after the purge."; done; \
+    /usr/local/bin/goose -version >/dev/null || fail "goose does not start after the purge, and the entrypoint runs it at every start."; \
+    node -e 0 || fail "node does not start after the purge, and every pnpm, migration and the server run on it."; \
+    echo "$me: purged $purge; dpkg's audit reads nothing, no ELF file names $libraries, and grep, cp, tar, gzip, dumb-init, goose and node start."
 
 # Upstream's own user, which this image keeps.
 USER node

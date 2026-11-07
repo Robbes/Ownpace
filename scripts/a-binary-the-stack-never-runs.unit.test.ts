@@ -191,7 +191,7 @@
 
 import { describe, it, expect } from 'vitest';
 import { createHash } from 'node:crypto';
-import { chmodSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
 import { dirname, join, relative } from 'node:path';
@@ -1170,6 +1170,30 @@ interface Tree {
   readonly tools?: Readonly<Record<string, string>>;
   /** The pnpm the stand-in registry publishes, which the stand-in corepack installs: its version, the sha512 it hashes to, and its files. */
   readonly pnpm?: Published;
+  /** The Debian packages the stand-in's dpkg and dpkg-query answer for; without it, none is installed. */
+  readonly dpkg?: DpkgDb;
+}
+
+/** One package of the stand-in's dpkg database, as far as the webapp's purge asks. */
+interface DpkgPackage {
+  readonly version: string;
+  /** `not-installed` is the record dpkg keeps of some packages it purged (the appliance's `login`). */
+  readonly status: 'installed' | 'not-installed' | 'config-files';
+  readonly essential?: boolean;
+  readonly protected?: boolean;
+  /** What it depends on, by name (Depends and Pre-Depends together). */
+  readonly depends?: readonly string[];
+  /** Its files, by path in the image; a purge removes those the stand-in's tree has. */
+  readonly files?: readonly string[];
+  /** The record dpkg keeps of it after a purge, if any: not-installed (as of `login`), or one a purge should not leave. */
+  readonly afterPurge?: 'not-installed' | 'config-files';
+}
+
+interface DpkgDb {
+  readonly packages: Readonly<Record<string, DpkgPackage>>;
+  /** What `dpkg --audit` prints before a purge, and after one when `auditAfter` is given. */
+  readonly audit?: string;
+  readonly auditAfter?: string;
 }
 
 interface StandIn {
@@ -1525,6 +1549,86 @@ function pnpmCopy(home: string, version: string): Record<string, string> {
 /** What the stand-in registry publishes for SWAP.to: the stand-in's files, under the sha512 npm published for the real ones. */
 const PUBLISHED: Published = { version: SWAP.to, sha512: SWAP.sha512, files: standInPnpm(SWAP.to) };
 
+/** The RUN that purges Debian packages: the one that runs `dpkg --purge` (the webapp's last as root, since 2026-11-06). */
+const purgeRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])dpkg --purge /.test(r.args));
+/** How many each Dockerfile has: the supervisor's base is Alpine, and has no dpkg. */
+const PURGES: Readonly<Record<Name, number>> = { 'trigger.dev': 1, supervisor: 0 };
+
+/** The purge's two lists as its RUN names them (`purge=`, `libraries=`): what it purges, and the libraries those ship. */
+function purgeLists(text: string): { packages: string[]; libraries: string[] } {
+  const vars = assignments(purgeRuns(text)[0]?.args ?? '');
+  const list = (k: string) => (vars.get(k) ?? '').split(' ').filter(Boolean);
+  return { packages: list('purge'), libraries: list('libraries') };
+}
+
+/** Debian's directory for a platform's libraries. */
+const TRIPLET: Readonly<Record<string, string>> = { 'linux-arm64': 'aarch64-linux-gnu', 'linux-x64': 'x86_64-linux-gnu' };
+
+/** Which package of the purge ships each library it names, in Debian 12 (apt carries its private one). */
+const SHIPPED_BY: Readonly<Record<string, string>> = {
+  'libuuid.so.1': 'libuuid1',
+  'libblkid.so.1': 'libblkid1',
+  'libmount.so.1': 'libmount1',
+  'libsmartcols.so.1': 'libsmartcols1',
+  'libapt-pkg.so.6.0': 'libapt-pkg6.0',
+  'libapt-private.so.0.0': 'apt',
+};
+
+/**
+ * The stand-in's Debian 12, as far as the webapp's purge reads it: every
+ * package the RUN names installed, util-linux and bsdutils Essential, each
+ * library under its platform's directory (not in the stand-in's tree, so a
+ * purge removes nothing there unless a test puts one in), the dependencies
+ * among them that Debian 12 has (util-linux on its libraries and on
+ * util-linux-extra, mount on util-linux, apt on libapt-pkg6.0, e2fsprogs on
+ * libblkid1 and libuuid1 and on its own libraries, which stay), and packages
+ * that stay and depend on none of them.
+ */
+function debian12(plat: string): DpkgDb {
+  const lib = (so: string) => [`/usr/lib/${TRIPLET[plat] ?? plat}/${so}`];
+  const { packages, libraries } = purgeLists(dockerfiles['trigger.dev']);
+  const ships = (name: string) => libraries.filter((so) => SHIPPED_BY[so] === name).flatMap(lib);
+  const depends: Readonly<Record<string, readonly string[]>> = {
+    'util-linux': ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1', 'util-linux-extra', 'libacl1'],
+    'util-linux-extra': ['libblkid1', 'libsmartcols1', 'libuuid1'],
+    mount: ['util-linux', 'libblkid1', 'libmount1', 'libsmartcols1'],
+    libmount1: ['libblkid1'],
+    apt: ['libapt-pkg6.0', 'zlib1g'],
+    'libapt-pkg6.0': ['zlib1g'],
+    e2fsprogs: ['libblkid1', 'libcom-err2', 'libext2fs2', 'libss2', 'libuuid1', 'logsave'],
+  };
+  const out: Record<string, DpkgPackage> = {
+    coreutils: { version: '9.1-1', status: 'installed', essential: true, depends: ['libacl1'] },
+    tar: { version: '1.34+dfsg-1.2+deb12u1', status: 'installed', essential: true, depends: ['libacl1'] },
+    dpkg: { version: '1.21.22', status: 'installed', essential: true, depends: ['tar', 'zlib1g'] },
+    libacl1: { version: '2.3.1-3', status: 'installed' },
+    zlib1g: { version: '1:1.2.13.dfsg-1', status: 'installed' },
+    // e2fsprogs' own libraries and logsave stay: in Debian 12 they need libc6 and libcom-err2 alone.
+    libext2fs2: { version: '1.47.0-2+b2', status: 'installed' },
+    libss2: { version: '1.47.0-2+b2', status: 'installed', depends: ['libcom-err2'] },
+    'libcom-err2': { version: '1.47.0-2+b2', status: 'installed' },
+    logsave: { version: '1.47.0-2+b2', status: 'installed' },
+  };
+  for (const name of packages) {
+    out[name] = {
+      version: '1',
+      status: 'installed',
+      essential: name === 'util-linux' || name === 'bsdutils',
+      depends: depends[name] ?? [],
+      files: [`/usr/share/doc/${name}/copyright`, ...ships(name)],
+    };
+  }
+  return { packages: out, audit: '' };
+}
+
+/** The stand-in's dpkg database after a build, and the dpkg calls it logged, in order. */
+function dpkgOf(box: Sandbox): { db: DpkgDb; calls: string[] } {
+  const db = JSON.parse(readFileSync(join(box.root, 'dpkg.json'), 'utf8')) as DpkgDb;
+  // No tool log is no tool called.
+  const log = existsSync(join(box.root, 'tools.log')) ? readFileSync(join(box.root, 'tools.log'), 'utf8') : '';
+  return { db, calls: log.split('\n').filter((l) => /^dpkg(-query)? /.test(l)) };
+}
+
 function treeOf(name: Name, plat: string): Tree {
   const supSwap = swapTree('supervisor');
   if (name === 'supervisor') {
@@ -1547,6 +1651,7 @@ function treeOf(name: Name, plat: string): Tree {
   }
   const pkg = (dir: string): Record<string, string> => ({ [`${dir}/package.json`]: '{"main":"lib/main.js"}\n', [`${dir}/lib/main.js`]: 'module.exports = {};\n' });
   const dompurify = dompurifyTree();
+  const dpkg = debian12(plat);
   const ts = typescriptTree();
   const swap = swapTree('trigger.dev');
   const goose = GOOSE.assets[plat as Plat];
@@ -1558,6 +1663,7 @@ function treeOf(name: Name, plat: string): Tree {
     standIn: { ...dompurify.standIn, table: swap.table, goose: sha256(STAND_IN_GOOSE_NEW) },
     executables: { [GOOSE.path]: STAND_IN_GOOSE_OLD },
     tools: gooseTools(),
+    dpkg,
     files: {
       [ROOT_PKG['trigger.dev']]: `{"packageManager":"pnpm@${SWAP.from}"}\n`,
       '/triggerdotdev/packages/core/package.json': '{"version":"4.8.3"}\n',
@@ -1663,6 +1769,96 @@ fs.mkdirSync(corepackHome, { recursive: true });
 fs.writeFileSync(path.join(corepackHome, 'lastKnownGood.json'), JSON.stringify({ pnpm: reference }, null, 2) + '\\n');
 `;
 
+/**
+ * What dpkg and dpkg-query do here, as far as the webapp's purge asks, from the
+ * stand-in's database (FAKE_DPKG) and never from this machine's: `dpkg-query -W
+ * [-f <format>] <names>` and `-L <names>`, and `dpkg --audit` and `--purge
+ * [--force-…] <names>`. A purge refuses as dpkg 1.21 does: an Essential
+ * package without --force-remove-essential, a protected one without
+ * --force-remove-protected, and one that an installed package it does not
+ * remove depends on without --force-depends ("dependency problems - not
+ * removing"); it goes on with the others and exits 1. What it removes, it
+ * removes from the stand-in's tree (FAKE_ROOT) and its database. Anything
+ * else is refused, with exit 3. Every call is logged to the tool log.
+ */
+const DPKG_STAND_IN = `
+const fs = require('fs');
+const path = require('path');
+const [tool, ...args] = process.argv.slice(2);
+fs.appendFileSync(process.env.TOOL_LOG, tool + ' ' + args.join(' ') + '\\n');
+const file = process.env.FAKE_DPKG;
+const db = JSON.parse(fs.readFileSync(file, 'utf8'));
+const pkgs = db.packages;
+const say = (text) => process.stderr.write(text + '\\n');
+const refuse = (text) => { say(text); process.exit(3); };
+if (tool === 'dpkg-query') {
+  let rc = 0;
+  let out = '';
+  if (args[0] === '-W' && args[1] === '-f' && args.length > 3) {
+    for (const n of args.slice(3)) {
+      const p = pkgs[n];
+      if (!p) { say('dpkg-query: no packages found matching ' + n); rc = 1; continue; }
+      const status = (p.status === 'installed' ? 'install ok ' : 'unknown ok ') + p.status;
+      out += args[2].split('\${Package}').join(n).split('\${Version}').join(p.version).split('\${db:Status-Status}').join(p.status).split('\${Status}').join(status).split('\\\\n').join('\\n');
+    }
+  } else if (args[0] === '-W' && args.length > 1 && !args[1].startsWith('-')) {
+    for (const n of args.slice(1)) {
+      const p = pkgs[n];
+      if (!p) { say('dpkg-query: no packages found matching ' + n); rc = 1; continue; }
+      out += n + '\\t' + p.version + '\\n';
+    }
+  } else if (args[0] === '-L' && args.length > 1) {
+    const lists = [];
+    for (const n of args.slice(1)) {
+      const p = pkgs[n];
+      if (!p || p.status !== 'installed') { say("dpkg-query: package '" + n + "' is not installed"); rc = 1; continue; }
+      lists.push((p.files || []).join('\\n'));
+    }
+    out = lists.join('\\n\\n') + (lists.length ? '\\n' : '');
+  } else refuse('the stand-in dpkg-query answers -W [-f <format>] <names> and -L <names> only, not: ' + args.join(' '));
+  process.stdout.write(out);
+  process.exit(rc);
+}
+if (tool === 'dpkg') {
+  if (args.length === 1 && args[0] === '--audit') { process.stdout.write(db.audit || ''); process.exit(0); }
+  if (args[0] !== '--purge') refuse('the stand-in dpkg answers --audit and --purge only, not: ' + args.join(' '));
+  const flags = args.slice(1).filter((a) => a.startsWith('-'));
+  const names = args.slice(1).filter((a) => !a.startsWith('-'));
+  const known = ['--force-remove-essential', '--force-remove-protected', '--force-depends', '--force-all'];
+  for (const f of flags) if (!known.includes(f)) refuse('the stand-in dpkg knows no ' + f);
+  const forced = (what) => flags.includes('--force-' + what) || flags.includes('--force-all');
+  let rc = 0;
+  const going = [];
+  for (const n of names) {
+    const p = pkgs[n];
+    if (!p || p.status !== 'installed') { say('dpkg: warning: ignoring request to remove ' + n + ' which isn' + "'" + 't installed'); continue; }
+    if (p.essential && !forced('remove-essential')) { say('dpkg: error processing package ' + n + ' (--purge):\\n this is an essential package; it should not be removed'); rc = 1; continue; }
+    if (p.protected && !forced('remove-protected')) { say('dpkg: error processing package ' + n + ' (--purge):\\n this is a protected package; it should not be removed'); rc = 1; continue; }
+    const by = Object.keys(pkgs).filter((m) => pkgs[m].status === 'installed' && !names.includes(m) && (pkgs[m].depends || []).includes(n));
+    if (by.length && !forced('depends')) {
+      say('dpkg: dependency problems prevent removal of ' + n + ':\\n' + by.map((m) => ' ' + m + ' depends on ' + n + '.').join('\\n') + '\\n\\ndpkg: error processing package ' + n + ' (--purge):\\n dependency problems - not removing');
+      rc = 1;
+      continue;
+    }
+    going.push(n);
+  }
+  for (const n of going) {
+    for (const f of pkgs[n].files || []) fs.rmSync(path.join(process.env.FAKE_ROOT, f), { force: true });
+    console.log('Purging configuration files for ' + n + ' (' + pkgs[n].version + ') ...');
+    if (pkgs[n].afterPurge) pkgs[n] = { version: '', status: pkgs[n].afterPurge };
+    else delete pkgs[n];
+  }
+  if (db.auditAfter !== undefined) db.audit = db.auditAfter;
+  fs.writeFileSync(file, JSON.stringify(db));
+  if (rc) say('Errors were encountered while processing.');
+  process.exit(rc);
+}
+refuse('the stand-in answers dpkg and dpkg-query only, not ' + tool);
+`;
+
+/** dumb-init, as far as the purge's proof asks it: its version, as dumb-init 1.2.5 says it (on stderr, exit 0). */
+const DUMB_INIT_STAND_IN = ['#!/bin/sh', `printf '%s %s\\n' dumb-init "$*" >> "$TOOL_LOG"`, 'case "$*" in --version) echo "dumb-init v1.2.5" >&2; exit 0 ;; esac', 'exit 3', ''].join('\n');
+
 interface Run {
   readonly status: number;
   readonly out: string;
@@ -1731,6 +1927,19 @@ function sandbox(tree: Tree): Sandbox {
   if (tree.pnpm) {
     mkdirSync(join(root, 'registry', 'pnpm'), { recursive: true });
     writeFileSync(join(root, 'registry', 'pnpm', `${tree.pnpm.version}.json`), JSON.stringify({ sha512: tree.pnpm.sha512, files: tree.pnpm.files }));
+  }
+  // dpkg and dpkg-query are ALWAYS the stand-in's, answering from its own
+  // database: a RUN that purges must never reach this machine's dpkg (the
+  // guard can run as root), whatever the tree says.
+  writeFileSync(join(root, 'dpkg.json'), JSON.stringify(tree.dpkg ?? { packages: {} }));
+  writeFileSync(join(root, 'dpkg.cjs'), DPKG_STAND_IN);
+  for (const cmd of ['dpkg', 'dpkg-query']) {
+    writeFileSync(join(bin, cmd), `#!/bin/sh\nexec '${process.execPath}' '${join(root, 'dpkg.cjs')}' ${cmd} "$@"\n`, { mode: 0o755 });
+  }
+  writeFileSync(join(bin, 'dumb-init'), DUMB_INIT_STAND_IN, { mode: 0o755 });
+  // And no apt at all: the webapp's purge removes it, so a RUN that calls it fails, here as in the image.
+  for (const cmd of ['apt', 'apt-get']) {
+    writeFileSync(join(bin, cmd), `#!/bin/sh\nprintf '%s %s\\n' ${cmd} "$*" >> "$TOOL_LOG"\necho "${cmd}: the stand-in has no apt, and the image has none after its purge" >&2\nexit 3\n`, { mode: 0o755 });
   }
   for (const [name, script] of Object.entries(tree.tools ?? {})) writeFileSync(join(bin, name), script, { mode: 0o755 });
   // Node itself, told the platform it is asked about, and with no network: a
@@ -1807,6 +2016,8 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
         PNPM_LOG: join(box.root, 'pnpm.log'),
         COREPACK_LOG: join(box.root, 'corepack.log'),
         TOOL_LOG: join(box.root, 'tools.log'),
+        FAKE_DPKG: join(box.root, 'dpkg.json'),
+        FAKE_ROOT: box.fs,
         LANG: 'C',
       },
     });
@@ -3165,6 +3376,168 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
   });
 });
 
+describe("the webapp's last RUN as root purges the Debian packages nothing here runs, and dpkg's own refusals stop it (0119 §3 item 11, 2026-11-06)", () => {
+  const webapp = dockerfiles['trigger.dev'];
+  const { packages, libraries } = purgeLists(webapp);
+  const list = packages.join(' ');
+  /** A stand-in ELF that carries `text`, as a binary carries the name of a library it links or opens. */
+  const elf = (text: string) => Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 0x46, 2, 1, 1, 0]), Buffer.from(`stand-in\0${text}\0`)]);
+  /** The webapp's tree on a platform, its database changed. */
+  const changed = (plat: string, change: (db: DpkgDb) => DpkgDb, more: Partial<Tree> = {}): Tree => {
+    const tree = treeOf('trigger.dev', plat);
+    return { ...tree, ...more, dpkg: change(tree.dpkg!) };
+  };
+  const without = (db: DpkgDb, name: string): DpkgDb => ({ ...db, packages: Object.fromEntries(Object.entries(db.packages).filter(([n]) => n !== name)) });
+  const purged = (box: Sandbox) => dpkgOf(box).calls.filter((c) => c.startsWith('dpkg --purge'));
+
+  it('reads its two lists from the RUN, and the stand-in has each library under a package of the list (vacuity)', () => {
+    expect(packages.length).toBeGreaterThan(5);
+    expect(libraries.length).toBeGreaterThan(3);
+    for (const so of libraries) expect(packages, so).toContain(SHIPPED_BY[so]);
+  });
+
+  it("never reaches this machine's dpkg or apt: the stand-in's dpkg, dpkg-query, apt, apt-get and dumb-init come first on the PATH every RUN gets", () => {
+    const cmds = ['dpkg', 'dpkg-query', 'apt', 'apt-get', 'dumb-init'];
+    withSandbox(treeOf('trigger.dev', 'linux-arm64'), (box) => {
+      const r = spawnSync('sh', ['-c', `for c in ${cmds.join(' ')}; do command -v "$c"; done`], { encoding: 'utf8', env: { PATH: `${join(box.root, 'bin')}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
+      expect(r.stdout.trim().split('\n')).toEqual(cmds.map((c) => join(box.root, 'bin', c)));
+    });
+  });
+
+  for (const plat of PLATFORMS) {
+    it(`on ${plat}: dpkg-query of the list first, then the audit, the libraries, the purge with the two flags and no other, the audit again and each package read gone`, () => {
+      withSandbox(treeOf('trigger.dev', plat), (box) => {
+        const run = build(webapp, box, { plat, tag: 'v4.8.3' });
+        expect(run.status, run.out).toBe(0);
+        const { db, calls } = dpkgOf(box);
+        expect(calls).toEqual([
+          `dpkg-query -W ${list}`,
+          'dpkg --audit',
+          `dpkg-query -L ${list}`,
+          `dpkg --purge --force-remove-essential --force-remove-protected ${list}`,
+          'dpkg --audit',
+          ...packages.map((p) => `dpkg-query -W -f \${db:Status-Status} ${p}`),
+        ]);
+        for (const p of packages) expect(db.packages[p], p).toBeUndefined();
+        // What stays, stays: nothing it keeps depended on what it purged.
+        for (const p of ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'libss2', 'libcom-err2', 'logsave']) expect(db.packages[p]?.status, p).toBe('installed');
+        expect(run.out).toMatch(/^[1-9]\d* ELF files read under /m);
+        expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no ELF file names ${libraries.join(' ')}`);
+        expect(readFileSync(join(box.root, 'tools.log'), 'utf8')).toContain('dumb-init --version\n');
+      });
+    });
+  }
+
+  it('a package the base does not have stops it before anything is purged: a list to read again, not a name to skip', () => {
+    withSandbox(changed('linux-arm64', (db) => without(db, 'libuuid1')), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('dpkg-query: no packages found matching libuuid1');
+      expect(run.out).toContain('a list to read again, not a name to skip; nothing was purged');
+      expect(purged(box)).toEqual([]);
+    });
+  });
+
+  it('a package an installed one still depends on stops it: no flag forces past the dependency, so dpkg refuses', () => {
+    // fdisk links libblkid, libmount, libsmartcols and libuuid: a base that brings it stops here, at dpkg's own
+    // refusal, as this base did for e2fsprogs until it joined the list (2026-11-06).
+    const fdisk: DpkgPackage = { version: '2.38.1-5+deb12u3', status: 'installed', depends: ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1'] };
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, fdisk } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('fdisk depends on libuuid1.');
+      expect(run.out).toContain('dependency problems - not removing');
+      expect(run.out).toContain('Without --force-depends it refuses to remove what an installed package depends on');
+      const { db } = dpkgOf(box);
+      for (const p of ['fdisk', 'libuuid1', 'libblkid1']) expect(db.packages[p]?.status, p).toBe('installed');
+    });
+  });
+
+  it('e2fsprogs off the list stops it as it stopped the first build on the real base: dpkg refuses libblkid1 and libuuid1 for it', () => {
+    const without = webapp.replace(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"');
+    expect(without).not.toBe(webapp);
+    withSandbox(changed('linux-arm64', (db) => db), (box) => {
+      const run = build(without, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('e2fsprogs depends on libuuid1.');
+      expect(run.out).toContain('dependency problems - not removing');
+      const { db } = dpkgOf(box);
+      for (const p of ['e2fsprogs', 'libuuid1', 'libblkid1']) expect(db.packages[p]?.status, p).toBe('installed');
+    });
+  });
+
+  it("dpkg's audit with anything to say stops it: before the purge with nothing purged, and after it", () => {
+    const mess = 'The following packages are in a mess due to serious problems during\ninstallation.  They must be reinstalled for them (and any packages\nthat depend on them) to function properly:\n beta                 test\n';
+    withSandbox(changed('linux-x64', (db) => ({ ...db, audit: mess })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-x64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('dpkg --audit reads problems in the image as upstream left it, before anything was purged');
+      expect(purged(box)).toEqual([]);
+    });
+    withSandbox(changed('linux-x64', (db) => ({ ...db, auditAfter: mess })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-x64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('after the purge, dpkg --audit reads: The following packages are in a mess');
+    });
+  });
+
+  it('a library no package of the list ships stops it before anything is purged, so the scan is never a search for a name nothing had', () => {
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, 'libapt-pkg6.0': { ...db.packages['libapt-pkg6.0']!, files: ['/usr/share/doc/libapt-pkg6.0/copyright'] } } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`none of ${list} ships libapt-pkg.so.6.0`);
+      expect(purged(box)).toEqual([]);
+    });
+  });
+
+  it("a record dpkg keeps as not-installed is gone; one it reads as anything else after the purge stops it", () => {
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, apt: { ...db.packages.apt!, afterPurge: 'not-installed' } } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status, run.out).toBe(0);
+      expect(dpkgOf(box).db.packages.apt?.status).toBe('not-installed');
+    });
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, 'util-linux': { ...db.packages['util-linux']!, afterPurge: 'config-files' } } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain("after the purge, dpkg reads util-linux as 'config-files' (dpkg-query exits 0), not gone.");
+    });
+  });
+
+  it("an ELF file left after the purge that names one of its libraries stops it, by path; the packages' own go with them, and a text file is no ELF", () => {
+    const plat = 'linux-arm64';
+    const tree = treeOf('trigger.dev', plat);
+    const own = `/usr/lib/${TRIPLET[plat]}/${libraries[0]}`;
+    const reader = `${PNPM}/a-reader@1.0.0/node_modules/a-reader/index.js`;
+    // The library's own file goes with its package; a script that names it is not something that links it.
+    withSandbox({ ...tree, executables: { ...tree.executables, [own]: elf(libraries[0]!) }, files: { ...tree.files, [reader]: `// dlopen('${libraries[0]}') is not this file's\n` } }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status, run.out).toBe(0);
+      expect(run.left).not.toContain(own);
+      expect(run.left).toContain(reader);
+    });
+    // An addon, or any ELF of no purged package, that names any of them.
+    const addons = Object.fromEntries(libraries.map((so, i) => [`${PNPM}/addon-${i}@1.0.0/node_modules/addon-${i}/build/Release/addon.node`, elf(so)]));
+    withSandbox({ ...tree, executables: { ...tree.executables, ...addons } }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('after the purge, an ELF file names a library it removed');
+      libraries.forEach((so, i) => expect(run.out).toContain(`${box.fs}${PNPM}/addon-${i}@1.0.0/node_modules/addon-${i}/build/Release/addon.node: ${so}`));
+      // It stopped after the purge: what it found is left for whoever reads the log.
+      expect(purged(box)).toHaveLength(1);
+    });
+  });
+
+  it('a program this stack runs here that does not start after the purge stops it, by name', () => {
+    const broken = '#!/bin/sh\necho "dumb-init: error while loading shared libraries: libuuid.so.1: cannot open shared object file" >&2\nexit 127\n';
+    const tree = treeOf('trigger.dev', 'linux-x64');
+    withSandbox({ ...tree, tools: { ...tree.tools, 'dumb-init': broken } }, (box) => {
+      const run = build(webapp, box, { plat: 'linux-x64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('dumb-init, which this stack runs here, does not start after the purge.');
+    });
+  });
+});
+
 describe('a fetch that fails tells a host that did not answer from a move upstream, in every replacing RUN', () => {
   const webapp = dockerfiles['trigger.dev'];
   const fetching: ReadonlyArray<[string, Name, { pick: (run: Instruction) => boolean }, string, (plat: Plat) => string]> = [
@@ -3579,9 +3952,9 @@ describe('the reading is not vacuous', () => {
   it('found the Dockerfiles and their removing RUNs', () => {
     for (const name of NAMES) {
       expect(statSync(join(REPO_ROOT, dockerfileOf(name))).isFile()).toBe(true);
-      // The removing RUN and the node RUN, and the webapp's replacing RUN.
-      // The removing RUN and the node RUN, dompurify's RUN, the swap table's and goose's.
-      expect(runs(dockerfiles[name]).length, name).toBe(2 + ownRunRows(name).length + (tableRows(name).length > 0 ? 1 : 0) + binaryRows(name).length);
+      // The removing RUN and the node RUN, dompurify's RUN, the swap table's and goose's, and the webapp's purge.
+      expect(runs(dockerfiles[name]).length, name).toBe(2 + ownRunRows(name).length + (tableRows(name).length > 0 ? 1 : 0) + binaryRows(name).length + PURGES[name]);
+      expect(purgeRuns(dockerfiles[name]).length, name).toBe(PURGES[name]);
       expect(replacingRuns(dockerfiles[name]).length, name).toBe(ownRunRows(name).length);
       expect(tableRuns(dockerfiles[name]).length, name).toBe(tableRows(name).length > 0 ? 1 : 0);
       expect(gooseRuns(dockerfiles[name]).length, name).toBe(binaryRows(name).length);
