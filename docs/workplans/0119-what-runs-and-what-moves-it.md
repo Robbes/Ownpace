@@ -4,6 +4,48 @@
 
 ## Status — 2026-11-06 (update this block at the end of every session)
 
+**2026-11-06, last: what alpha.5 moves, folded.** The fold (0146 Status, 2026-11-06; a draft,
+not merged) closes alpha.5 with this plan's moves since alpha.4 in it: the appliance on
+distroless, without a shell, with `compose.yml`'s healthcheck for `app` in exec form (#1819, §3
+item 12); the tasks' prebuilt base, published and signed from `main` (#1818), and the tasks on
+it, pinned at `sha-2886230@sha256:91fec895…` (#1824, §3 item 13); the Node and Redis bases on
+Docker Hub's rebuilds of 2026-11-05, with apt's fix (#1816); Caddy 2.11.8 and then 2.11.9, with
+go-jose's fix (#1815, #1828); MinIO's build of 2026-11-05 (#1826); Dependabot's npm group
+(#1821) and actions group (#1820); the pin watch's row for the second Nextcloud major (#1817);
+and CI's lint at 6 GB (#1822). Held: pnpm 11.28.10 (#1792), and the Trigger.dev webapp's purge
+and its effect swap (#1823, #1825), green on their branches, which wait for the owner's yes.
+Times are UTC.
+- **Four moved before their three-day floor**, on the owner's instruction of 2026-11-06
+  (*"Dont wait for timelines if validated order works. Alpha is not live yet and will not be
+  before 12th of November"*), each after E2E (managed) on its branch was green. #1815 merged at
+  13:04 as `18bc3133`, after E2E (managed) run 42218819350 was green from 12:41 to 12:48 on its
+  branch, so its entry below, which says it waits for the floor (2026-11-07 20:52 for the
+  images, 2026-11-08 08:52 for the index) and is a draft, is overtaken. #1816 merged at 13:42 as
+  `2886230a`, #1826 at 15:54 as `21e9796e`, and #1828 (Caddy 2.11.9, its floor 2026-11-09 08:52 for
+  the index) at 17:02 as `d468d9f2`. The entries of #1816 and #1826 say live takes them from the
+  alpha.5 tag *not before 2026-11-12*: that is the Alpha's earliest start, not a date set for
+  live's deploy. What binds live is the floor itself, so live's deploy of the tag waits until
+  2026-11-09 10:15, when MinIO's build, the last of the four, is past it.
+- **The tasks' base after the merges.** `main` has published it twice since #1824: `sha-d7d11a5`
+  (Images run 42240162238, from `d7d11a58`, `edge` at 15:13) and `sha-21e9796` (from
+  `21e9796e`, `edge` when read at 15:56). Both have the pin's 29 layers on amd64 and on arm64,
+  `sha-2886230`'s, and differ from it in their configs only. #1824's edits to
+  `apps/worker/task-image/Dockerfile` and `apps/api/Dockerfile`, comments only, moved no layer,
+  as its pull request expected, and the pin watch's row *the tasks' base* reads current, *a
+  rebuild with the same layers*.
+- **The managed smoke asked the wrong runner image once.** #1826's first E2E (managed), run
+  42238877459 on a branch from before #1824, failed one check, the old section *the tasks' image
+  carries none of the Debian Essentials it purges*: it asked `dpkg-query` of `cbc32b7e7471`, the
+  distroless runner image that #1824's run (42232407575) had left running a pass, and got exit
+  127. The run's own deploy was a fully cached build, which keeps its first build's `Created`,
+  so the section passed it over as *built before the newest*. The section, old and new
+  (`deploy/compose/smoke-managed.sh`), asks the runner image with the newest `Created`, *the one
+  the last deploy built*. It asks another only when the image just deployed was first built
+  before a runner image still on the machine, as here across the switch of the tasks' image.
+  Since #1824 every deploy builds on the pinned base, so either image answers the new section
+  the same until the pin moves, and #1826's second run (42241841170, on the merge with `main`)
+  was green. Asking the deployed version's image instead is a change for after alpha.5.
+
 **2026-11-06: the identity provider on Zitadel v4.20.1, for the owner's decision; built on a
 branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-1`, from
 `main` at `21e9796e` (#1826). The pin watch (`scripts/idp-pin-watch.mjs` without `--issue`), run
