@@ -6212,14 +6212,14 @@ binary, fetched from GitHub by its SHA-256 and made root's and executable,
 and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
 systeminformation 5.33.19 in place of the releases of the same major they fix,
 by the sha512 npm published; the supervisor's build does the same for its
-systeminformation. Since 2026-11-06 the webapp's build also puts effect 3.22.4
-in place of 3.17.1 the same way: of the three copies of effect the image scan
-reads (CVE-2026-32887, fixed in 3.20.0), the one whose requirer takes the fix,
-the workspace's own `@trigger.dev/schema-to-json` (`^3`), which nothing in
-`trigger-api` loads. `@prisma/config` pins the other two exactly, so they stay,
-and so does body-parser 2.3.0: 2.4.0 needs an iconv-lite newer than the 0.7.2
-pnpm linked for it. So the webapp's build reaches github.com as well as the npm
-registry. Since 2026-11-06 (for alpha.5, workplan 0119 §3 item 11) the
+systeminformation. Since 2026-11-06 (for alpha.6) the webapp's build also puts
+effect 3.22.4 in place of 3.17.1 the same way: of the three copies of effect the
+image scan reads (CVE-2026-32887, fixed in 3.20.0), the one whose requirer takes
+the fix, the workspace's own `@trigger.dev/schema-to-json` (`^3`), which nothing
+in `trigger-api` loads. `@prisma/config` pins the other two exactly, so they
+stay, and so does body-parser 2.3.0: 2.4.0 needs an iconv-lite newer than the
+0.7.2 pnpm linked for it. So the webapp's build reaches github.com as well as
+the npm registry. Since 2026-11-06 (for alpha.6, workplan 0119 §3 item 11) the
 webapp's build ends, as root, by purging eleven Debian packages nothing in
 `trigger-api` runs or loads, as the appliance and the tasks' base purge theirs:
 apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages

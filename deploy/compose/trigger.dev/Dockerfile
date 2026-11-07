@@ -14,7 +14,7 @@
 # four packages are the same major's release that fixes them (WHAT IS
 # REPLACED: FIVE PACKAGES): about 89 high findings become 46, and 57 with a fix
 # become 14 (WHAT STAYS says what is left, and why). Since 2026-11-06 (for
-# alpha.5, workplan 0119 §3 item 11, pending the owner's confirmation), the
+# alpha.6, workplan 0119 §3 item 11, confirmed by the owner on 2026-11-07), the
 # last RUN as root purges eleven Debian packages nothing here runs or loads:
 # apt, libapt-pkg6.0, the eight util-linux builds and e2fsprogs, which
 # pre-depends on two of them (THE DEBIAN PACKAGES NOTHING RUNS): 49 high
@@ -543,11 +543,11 @@
 # 3.16.12's and 3.18.4's (pinned exactly) and body-parser 2.3.0's (read
 # again, and not taken: 2.4.0 needs iconv-lite ^0.7.3).
 #
-# THE DEBIAN PACKAGES NOTHING RUNS (since 2026-11-06, for alpha.5; workplan
+# THE DEBIAN PACKAGES NOTHING RUNS (since 2026-11-06, for alpha.6; workplan
 # 0119 §3 item 11, the owner's decision of 2026-11-03 for the appliance and the
 # tasks' base, extended here under the owner's alpha.5 instruction of
-# 2026-11-06, "put in most of what you can, like for hardening", pending the
-# owner's confirmation in review). Upstream's runner stage is
+# 2026-11-06, "put in most of what you can, like for hardening", and confirmed
+# by the owner on 2026-11-07). Upstream's runner stage is
 # node:24.22.1-bookworm-slim (Debian 12.15) with openssl, netcat-openbsd and
 # ca-certificates from apt. Security Scan run 42143936608 (Trivy 0.76.1,
 # linux/arm64, 2026-11-06) read this image at 1 critical, 49 high and 16 with
