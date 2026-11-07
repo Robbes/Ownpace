@@ -19,9 +19,10 @@
 # cosign it installs only while no step names one.
 # The ones of those this file sees too are the databases' build, whose pin is the FROM of
 # deploy/compose/postgres/Dockerfile (its entry below), the Docker socket proxy's since
-# 2026-10-30, the FROM of deploy/compose/docker-socket-proxy/Dockerfile (its entry below), and
-# the dashboard's TLS front's since 2026-10-31, the FROM of deploy/compose/caddy/Dockerfile (its
-# entry below). The appliance's PostgreSQL is a build
+# 2026-10-30, the FROM of deploy/compose/docker-socket-proxy/Dockerfile (its entry below), the
+# dashboard's TLS front's since 2026-10-31, the FROM of deploy/compose/caddy/Dockerfile (its
+# entry below), and Trigger.dev's Redis's since 2026-11-07, the FROM of
+# deploy/compose/redis/Dockerfile (its entry below). The appliance's PostgreSQL is a build
 # too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
 # file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
 # that Dockerfile (in deploy/selfhost it reads only setup-stalwart.sh's Stalwart pin).
@@ -268,6 +269,33 @@ updates:
         update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore(caddy)
+
+  # Trigger.dev's Redis (deploy/compose/redis/Dockerfile, workplan 0119 §3 item
+  # 11, 2026-11-07): Redis's official image with the eleven Debian packages
+  # nothing here runs purged, run as uid 999 from its first process, which
+  # managed.yml builds as `localhost/redis:<tag>-<12 hex>`, the hex being the
+  # hash of the Dockerfile's instructions. This pull request, a newer Redis 7.4
+  # or a new digest in the FROM, builds on its own when the base still has the
+  # eleven and nothing new depends on them; a new release stops the build at its
+  # last RUN, which asks redis-server for the FROM's release: read the new
+  # image's packages and scan, and move that release and the header. A changed
+  # instruction moves the name, and scripts/an-essential-nothing-runs.unit.test.ts
+  # fails until managed.yml's image line moves too; the failure prints the
+  # `sed`. Push both to the pull request's branch, and dispatch E2E (managed) on
+  # it: Trigger.dev's queues are in it. A major is the owner's (0119 §3 item 3).
+  - package-ecosystem: docker
+    directory: "/deploy/compose/redis"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: redis
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: chore(redis)
 
   # The self-host stack's images (workplan 0119 T1). Dependabot's compose fetcher
   # reads only the files directly in a directory whose names match

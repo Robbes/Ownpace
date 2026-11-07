@@ -950,3 +950,157 @@ jobs:
       - name: Remove the front
         if: always()
         run: docker rm -f tls-front-probe || true
+
+  # TRIGGER.DEV'S REDIS BUILT HERE, ON BOTH PLATFORMS, ON A PULL REQUEST
+  # (workplan 0119 §3 item 11, 2026-11-07, for alpha.6). managed.yml's
+  # trigger-redis runs `localhost/redis:<tag>-<hash>`, which compose builds on
+  # the machine from deploy/compose/redis: Redis's official image at its pinned
+  # digest, with the Debian packages nothing here runs purged, run as uid and
+  # gid 999 from its first process. Nothing publishes it, so the matrix above
+  # never builds it, and without this job the first build of a pull request
+  # that moved its FROM would be the branch's E2E (managed). The purge reads
+  # dpkg's database and every ELF file of the image, which differ by platform,
+  # so both build, natively: the box is arm64, GitHub's runners amd64.
+  #
+  # It builds the directory under the name managed.yml gives it, whose own
+  # RUNs purge and prove the eleven gone, start redis-server through upstream's
+  # entrypoint as 999 and ask it for the FROM's release, so a base that moved
+  # fails here, by name. It checks the image's user is 999:999 and its
+  # entrypoint, command, working directory and volume are upstream's. Then it
+  # does what a stack's first `up` on the build does to the volume it already
+  # has: upstream's image, the Dockerfile's own FROM, started as managed.yml
+  # started it until this build (as root, its entrypoint chowning /data and
+  # dropping to 999 with setpriv, with the four capabilities that took), writes
+  # a key into a new volume with managed.yml's command and stops. The build
+  # then starts on that volume as managed.yml runs trigger-redis now: every
+  # capability dropped, none added, no-new-privileges. Its server must run as
+  # uid and gid 999, an exec into it as uid 999, it must answer PONG and read
+  # the key back from the append-only file, and again after a restart on its
+  # own volume, the start that needed DAC_READ_SEARCH while the entrypoint ran
+  # as root. The job exits with the verdict of every check, and the guard runs
+  # this step against a stub docker that answers each check wrongly in turn.
+  # On a pull request only, publishing nothing. Held by
+  # scripts/an-essential-nothing-runs.unit.test.ts.
+  redis:
+    name: build (redis, ${{ matrix.arch }})
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build Redis as managed.yml names it, and start it as uid 999 on a volume upstream's image wrote
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          # The reference compose builds, read from managed.yml's one image line for it, and the base its Dockerfile names.
+          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/redis:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml)"
+          if [ -z "$ref" ] || [ "$(wc -l <<<"$ref")" != 1 ]; then
+            echo "::error::managed.yml names no single localhost/redis image: '${ref}'"
+            exit 1
+          fi
+          base="$(sed -n 's/^FROM[[:space:]]\{1,\}\(redis:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/redis/Dockerfile)"
+          if [ -z "$base" ] || [ "$(wc -l <<<"$base")" != 1 ]; then
+            echo "::error::deploy/compose/redis/Dockerfile names no single redis FROM: '${base}'"
+            exit 1
+          fi
+          echo "::group::${ref}: deploy/compose/redis on ${base}"
+          docker pull --quiet "$base"
+          docker build --pull --progress=plain --tag "$ref" deploy/compose/redis
+          echo "::endgroup::"
+          # The image's user is redis's, from its first process, and the rest of its configuration is upstream's.
+          user="$(docker image inspect --format '{{json .Config.User}}' "$ref")"
+          if [ "$user" != '"999:999"' ]; then
+            echo "::error::${ref} runs as ${user}, not \"999:999\": upstream's entrypoint would take its root branch, and its setpriv is purged"
+            exit 1
+          fi
+          for field in Entrypoint Cmd WorkingDir Volumes; do
+            built="$(docker image inspect --format "{{json .Config.${field}}}" "$ref")"
+            upstream="$(docker image inspect --format "{{json .Config.${field}}}" "$base")"
+            if [ "$built" != "$upstream" ]; then
+              echo "::error::${ref}'s ${field} is ${built}, and upstream's is ${upstream}: the build must keep the image's configuration"
+              exit 1
+            fi
+          done
+          platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref")"
+          if [ "$platform" != "linux/${ARCH}" ]; then
+            echo "::error::${ref} is ${platform}, not linux/${ARCH}: this leg did not read its own platform's packages"
+            exit 1
+          fi
+          # PONG within 30 seconds, as the healthcheck asks it.
+          pong() {
+            local name="$1" answer=''
+            for attempt in $(seq 1 30); do
+              answer="$(docker exec "$name" redis-cli ping 2>/dev/null || true)"
+              if [ "$answer" = PONG ]; then
+                return 0
+              fi
+              sleep 1
+            done
+            echo "::error::${name} did not answer PONG within 30 seconds: '${answer}'"
+            exit 1
+          }
+          # The server as uid and gid 999, an exec as 999, and the key upstream's image wrote, from the append-only file.
+          prove() {
+            local name="$1" when="$2"
+            pong "$name"
+            read -r uid gid <<<"$(docker exec "$name" cat /proc/1/status | awk '/^Uid:/ { u = $2 } /^Gid:/ { g = $2 } END { print u, g }')"
+            if [ "$uid:$gid" != 999:999 ]; then
+              echo "::error::${when}, the server runs as ${uid}:${gid}, not 999:999"
+              exit 1
+            fi
+            exec_uid="$(docker exec "$name" id -u)"
+            if [ "$exec_uid" != 999 ]; then
+              echo "::error::${when}, an exec into it runs as uid ${exec_uid}, not 999"
+              exit 1
+            fi
+            carried="$(docker exec "$name" redis-cli get carried)"
+            if [ "$carried" != "written by ${base}" ]; then
+              echo "::error::${when}, the key upstream's image wrote reads '${carried}', not 'written by ${base}'"
+              exit 1
+            fi
+            echo "${when}: the server runs as ${uid}:${gid}, answers PONG, and reads the key upstream's image wrote"
+          }
+          docker volume create redis-carry-over >/dev/null
+          # Upstream's image as managed.yml ran it until this build: as root, its entrypoint chowning /data and dropping to 999 with setpriv.
+          docker run -d --name redis-upstream \
+            --security-opt no-new-privileges:true --cap-drop ALL \
+            --cap-add CHOWN --cap-add DAC_READ_SEARCH --cap-add SETGID --cap-add SETUID \
+            -v redis-carry-over:/data "$base" redis-server --appendonly yes >/dev/null
+          pong redis-upstream
+          docker exec redis-upstream redis-cli set carried "written by ${base}" >/dev/null
+          docker stop redis-upstream >/dev/null
+          # The build on that volume, as managed.yml runs trigger-redis now: no capability, no new privileges.
+          docker run -d --name redis-built \
+            --security-opt no-new-privileges:true --cap-drop ALL \
+            -v redis-carry-over:/data "$ref" redis-server --appendonly yes >/dev/null
+          prove redis-built "on the volume upstream's image wrote"
+          # A restart on its own volume: the start that needed DAC_READ_SEARCH while the entrypoint ran as root.
+          docker restart redis-built >/dev/null
+          prove redis-built "after a restart on its own volume"
+          echo "${ref}: ${platform}, $(docker image inspect --format '{{.Id}}, user {{.Config.User}}' "$ref")"
+
+      - name: Redis's logs, when it did not come up as it should
+        if: failure()
+        run: |
+          docker logs redis-upstream || true
+          docker logs redis-built || true
+
+      - name: Remove the containers and the volume
+        if: always()
+        run: |
+          docker rm -f redis-upstream redis-built || true
+          docker volume rm redis-carry-over || true

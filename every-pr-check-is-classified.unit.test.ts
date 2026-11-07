@@ -113,6 +113,15 @@ const NOT_REQUIRABLE = new Map([
       "PR touching none of those paths the workflow never runs and the context is never reported. A PR " +
       "that moves the TLS front's Dockerfile does run it, and E2E (managed) builds the image anyway.",
   ],
+  // images.yml's builds of deploy/compose/redis (workplan 0119 §3 item 11,
+  // 2026-11-07), on both platforms: the same workflow and filter, and a matrix
+  // job, which a skipped run reports under its unexpanded name.
+  [
+    'build (redis, ${{ matrix.arch }})',
+    'images.yml carries a `paths:` filter on its pull_request trigger (deploy/** among them), so on a ' +
+      "PR touching none of those paths the workflow never runs and neither leg is reported. A PR " +
+      "that moves Redis's Dockerfile does run them, and E2E (managed) builds the image anyway.",
+  ],
   // images.yml's check of the tasks' base pin (workplan 0119 §3 item 13,
   // 2026-11-06): the same workflow, so the same `paths:` filter silences it.
   [
