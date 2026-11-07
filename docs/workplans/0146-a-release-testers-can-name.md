@@ -2,7 +2,55 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-06 (update this block at the end of every session)
+## Status — 2026-11-07 (update this block at the end of every session)
+
+**2026-11-07: `v0.2.0-alpha.5` is released, its nights waived (T2, T4).** Read from GitHub on
+2026-11-07. Times are UTC.
+
+- **C is `c159a88e`**, the squash of #1830 (the owner's waiver, the entry below), merged at 23:10
+  on 2026-11-06 on `a96090ea`, the fold. On it, all green: CI run 42310105250 (`lint`,
+  `unit-tests (all)`, `ui-tests`, `integration-tests (self-hosted)` and `ci-complete` run and
+  passed, 23:10 to 00:03), Security Scan run 42310105249, Images run 42310105267, and
+  `windows-payload.yml` run 42310144472 (`build win-x64`, `smoke win-x64 on windows-2025`). In the
+  counted nights' place, dispatched on C: E2E (managed) run 42310148532 (23:11 to 23:20; version
+  20261106.13 deployed with 17 tasks, *verify: done apply: applied*, SMOKE PASS), and E2E
+  (self-hosted) on Postgres, run 42310261972, and on PGlite, run 42310273406, done at 23:49 and
+  23:55.
+- **The upgrade drill.** The owner ran `./scripts/upgrade-drill.sh v0.2.0-alpha.4` on the Docker
+  host, in a clone of its own at `a96090ea`, before 02:30 on 2026-11-07. alpha.4's published image
+  started healthy and wrote its PGlite state; the appliance built from the tree, on its
+  distroless runtime (#1819), was swapped in place on that volume, came up healthy, ran its
+  startup migration path, kept its one mapping, and was healthy again after a restart. It ended
+  *"DRILL PASSED"*, *"Mechanics only: v0.2.0-alpha.4 and HEAD are the same schema."* The waiver
+  reaches nothing the drill runs, so it stands for C. The owner sent it and went on to Release.
+- **Release.** The owner dispatched both runs from their own account, with `commit` set to C and
+  `waive_nights` set to their words. The preflight (run 42329507674, 02:29 to 02:31) refused
+  nothing: CI, Security Scan and the Windows smoke green on C, the names, the changelog (dated
+  2026-11-06) and the API contract agree, the tag free, C the head of `main`, the upgrade gates'
+  8 and 12 cases from alpha.4 passed (mechanics only, 65 and 59 migrations on both sides), the
+  nights' refusals notes naming the owner's waiver. It noted, without refusing, 2 critical and
+  113 high code-scanning alerts open on `main` in nine image categories. Release run 42329960790,
+  mode `release`, dispatched at 02:35, waited at its approve job until the owner approved, at
+  02:36; then the gate scan of C (run 42330073070), the tag, the publishing (Security Scan on the
+  tag, run 42330245617; the images, run 42330385824; the Windows zip, run 42330386555) and verify
+  all succeeded, the last at 02:42. Verify read the release as a pre-release with `bom.json`
+  (CycloneDX 1.6) and `ownpace-appliance-win-x64-v0.2.0-alpha.5.zip` (its 411 files' sums hold,
+  its `node.exe` v26.13.0 as pinned); `ownpace-api`, `ownpace-web` and `ownpace-selfhost` at
+  `0.2.0-alpha.5` for amd64 and arm64, built from C, signed, `latest` not moved; the tasks' base
+  that C pins (`sha-2886230`), for both platforms, built from an ancestor of C and signed on
+  `main`; and the appliance's `/version` answering the tag's version and commit.
+- **The tag.** `v0.2.0-alpha.5` is tag object `7ae08767…` on `c159a88e`, made at 02:38:10. Its
+  message has the lines *Release run: https://github.com/Robbes/Ownpace/actions/runs/42329960790*
+  and *Nights waived by Robbes, in their words: "Waive the nights, continue"*.
+- **The O365 lane** is not read by Release. alpha.5 is tagged without a run of it, as alpha.4 was,
+  and the owner recorded that as waived (0141 T13, Status of 2026-11-07).
+- **Live** deploys the tag from 2026-11-09 10:15 at the earliest (0119), alpha.4's two copies
+  removed first (0132).
+- **Held for after alpha.5, now free:** pnpm 11.28.10 (#1792), which waits for npm's `latest-11`
+  to name it (it names 11.28.9 on 2026-11-07); #1823 and #1825, which wait for the owner's yes;
+  and Zitadel v4.20.1 (#1829), which the owner put in the next alpha on 2026-11-06 (*"Zitadel
+  v4.20.1 in the next alpha"*), alpha.6, with a dump of the OTA stack's Zitadel database before
+  its E2E (managed).
 
 **2026-11-06, later: the owner waives alpha.5's counted nights (T4).** The fold merged at 22:03
 UTC as `a96090ea` (#1827), and its push runs there were green: CI (run 42301751505, 22:03 to 22:37
