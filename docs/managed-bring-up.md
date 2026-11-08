@@ -401,7 +401,11 @@ sign-in answers one of them instead of the service (workplan 0139, item 8;
 *After the script: the owner's steps*, step 5). And it asks live's form that
 founds an organisation, `/ui/login/register/org` at `id.ownpace.eu`, and fails
 unless it answers 404, a redirect included (workplan 0135 T1): the smoke asks
-that page on the OTA stack, and never runs on live. A port the front answers by
+that page on the OTA stack, and never runs on live. And it reads the headers of
+`https://app.ownpace.eu/` as a tester's browser gets them, and fails unless
+the policy, HSTS and the three beside them arrive once each as the app's
+template states them at the commit live's own `/version.json` names (workplan
+0158 T4). A port the front answers by
 itself, which never reaches the machine, goes in the optional repository
 variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
 during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
@@ -3190,6 +3194,72 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
+### The OTA names on the mesh only (workplan 0132, open question 7)
+
+**Decided 2026-11-08:** once testers are on the production names, which is
+from the first invitation, `app.ota.ownpace.eu`, `id.ota.ownpace.eu` and the
+test site's `www.ota.ownpace.eu` answer on the mesh only, not from the
+internet. The outside probe's pass condition for it is built:
+`gh workflow run exposure-probe.yml -f ota_names=mesh-only` fails while any of
+the three answers on 443 from a GitHub-hosted runner, whatever answers, and
+passes a name that no longer resolves. Until the step below is done, dispatch
+it with `ota_names` left at `report`, which records what the three answered
+and fails on none of it.
+
+**NetBird's dashboard has no switch for it, as the names are served today.**
+All of the names, production and OTA, reach the machine through one front,
+NetBird's hosted proxy (the probe's runs of 2026-10-29 found the same two
+addresses behind every name). NetBird-Only Access, the setting that serves a
+name to the peers of the mesh alone, is offered only on a proxy cluster with
+the `Private` capability, and NetBird Cloud's shared clusters do not have it
+(NetBird's documentation, *Reverse Proxy Authentication and Access
+Restrictions* and *Bring Your Own Proxy*). Deleting the three services there
+takes the names off the mesh as well, since nothing else serves them over TLS.
+And the machine itself reaches the OTA names through that front, from the
+internet: the OTA stack's API finds its sign-in keys through
+`https://id.ota.ownpace.eu` while `JWT_JWKS_URI` is empty (the alias note on
+the `zitadel` service in `managed.yml`), and
+`setup-zitadel.sh`, `idp-strays.sh`, the nightly gate's smoke and the OTA
+status page ask that name or `app.ota.ownpace.eu` too. Whatever takes the
+names off the internet has to leave the machine reaching them.
+
+**What it takes, two ways.** Each is the owner's, and workplan 0132's open
+question 7 records which is chosen:
+
+1. **A NetBird proxy of the owner's own, on the mesh.** In NetBird's dashboard,
+   *Reverse Proxy*, *Clusters*: a cluster of the account's own (the *Bring Your
+   Own Proxy* wizard, in beta), its proxy started with `NB_PROXY_PRIVATE=true`
+   and a certificate for the three names issued over DNS-01, so that no port of
+   it is open to the internet (NetBird's *Private Proxy Without Public Inbound
+   Ports*). Its row then shows *Private*. Then in *Reverse Proxy*, *Services*:
+   `app.ota.ownpace.eu`, `id.ota.ownpace.eu` and `www.ota.ownpace.eu`, each on
+   that cluster, with *Authentication*, *NetBird-Only Access*, and an access
+   group that holds your own devices and the machine. Then in the DNS zone of
+   `ownpace.eu`: the records that point the three names at NetBird's shared
+   cluster go (or the `*.ota` wildcard, if that is how they are made), and the
+   `_acme-challenge` records the DNS-01 issuance writes stay. NetBird then
+   gives the peers of that group a private record for each name. Check that
+   the machine reaches the names that way, from the host and from inside the
+   OTA stack's containers, which ask Docker's own resolver: the API's
+   `/api/ready` says `signIn` is up only when the API reaches its sign-in's
+   key source, and the next night's gate brings the stack up and signs its
+   people in through `id.ota.ownpace.eu`.
+2. **TLS for the three names on the machine itself**, on its mesh address,
+   with the names pointing there and NetBird's three OTA services deleted. The
+   repository has no such front today, so this is a build of its own first.
+
+NetBird's shared front can also refuse everybody but listed source addresses
+(a service's *Access Control*, *Allowed CIDRs*). That is not the mesh: the
+list holds public addresses, the machine's among them, so a device on the mesh
+that reaches the front from another address is refused, and the names still
+answer over TLS, with NetBird's 403. The probe's `mesh-only` does not pass it,
+and no mode of the probe is built for it.
+
+**Either way, Google's test client keeps working for you** on the mesh,
+because Google sends your browser to the callback and never fetches it
+(workplan 0091 T5). What a third party's server would have to reach on the
+OTA names stops, as the section above says.
+
 ## How the containers run
 
 Since 2026-11-03 (workplan 0119; the owner: *"more hardened"*) every service
@@ -4390,7 +4460,11 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    It also fails while `https://id.ownpace.eu/ui/login/register/org`, the form
    that founds an organisation, answers anything but 404 (workplan 0135 T1):
    read `disallowPublicOrgRegistration` back on live, and set it if it reads
-   false, with workplan 0135 §4, T0 step 1.
+   false, with workplan 0135 §4, T0 step 1. And it fails while the app's page
+   arrives without the headers its template states (workplan 0158 T4): a
+   policy or HSTS missing, sent twice or changed on the way names the header,
+   never what arrived; `curl -sI https://app.ownpace.eu/` from your own
+   machine shows what arrived.
    If a port answers on the production names' addresses that nothing of yours
    publishes, find out first whether the front sends it anywhere. In NetBird's
    dashboard, look for a TCP, TLS or UDP service whose public port is that
@@ -5608,7 +5682,15 @@ builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
 origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
 and so does `/version.json`, the web app's own build (workplan 0145: a web image
 that did not move beside the API is a deploy that did not take, and a tag cut
-before 0145 has no such file), `/api/ready` answers 200, `/api/auth/mode` answers `managed`,
+before 0145 has no such file), the app's page `/` carries the policy, HSTS and
+the three beside them once each, as the tag's `apps/web/nginx.conf.template`
+states them with live's `VITE_OIDC_ISSUER` (workplan 0158 T4: on live this is
+the answer through NetBird's proxy, over TLS, as a tester's browser gets it;
+`scripts/app-headers.mjs` reads the template, and for a tag cut before it, a
+way back to alpha.6, the copy of the release the deploy started from does; the
+first deploy that checks it is one started from alpha.7, since a deploy runs
+the script the checkout had before it moved), `/api/ready` answers 200,
+`/api/auth/mode` answers `managed`,
 `NODE_ENV` is `production` in the api container (read from Docker, the
 container's `.Config.Env` through `docker container inspect`, which answers for
 the Node image and for the distroless one of workplan 0146 T13, which has no

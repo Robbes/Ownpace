@@ -4,6 +4,30 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08: open question 7 answered, on the mesh only, and what the owner's step takes
+recorded (T3; alpha.7's item 11); the probe reads the app's headers (0158 T4)**, on branch
+`claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged. Nothing ran on the machine, and
+the probe was not dispatched.
+
+- **The answer.** The owner: *"Build the recommended for alpha 7."*, which took item 11's yes:
+  the OTA names on the mesh only once testers are on the production names, from the first
+  invitation. The tag that carries it is open: *"0: Tag with first invitation is 7 or even later.
+  I did not decide yet"*.
+- **The probe (T3 (c)).** Its `ota_names: mesh-only`, built with it, is the pass condition: none
+  of the three OTA names answers on 443 from the internet. The default stays `report` until the
+  owner's step; the input's description and the probe's note now say the answer, and the guard
+  holds the note's words.
+- **What the step takes.** No switch at today's front: NetBird-Only Access needs a proxy with the
+  `Private` capability, which NetBird Cloud's shared clusters do not offer, and the machine
+  itself reaches the OTA names through that front from the internet. Open question 7 and
+  `docs/managed-bring-up.md`, *The OTA names on the mesh only*, give the two ways: a NetBird
+  proxy of the owner's own, or TLS for the three names on the machine.
+- **The app's headers through the front.** The probe now also asks `https://app.ownpace.eu/` and
+  holds its headers to the template at the commit live's own `/version.json` names (0158 T4).
+  From its first dispatch after the merge it proves that a browser on the internet gets the
+  app's policy and HSTS from live. `deploy-live.sh` checks the same after each deploy, from the
+  first deploy started from alpha.7.
+
 **2026-11-08: live runs `v0.2.0-alpha.6`, and alpha.4's two copies are gone (T6, T9).** The owner
 deployed it on 2026-11-08, before any tester, pasting checked blocks. Times are UTC. No values.
 
@@ -4465,3 +4489,37 @@ is generated and has been in no log. On the OTA stack it guards a demo.
    answer as its pass condition. Mesh-only is the smaller surface, and the owner already reaches
    the machine over the mesh (D2). Google's test client keeps working either way for the owner,
    because Google redirects the browser rather than fetching the callback (0091 T5).
+   *Answered 2026-11-08: on the mesh only, once testers are on the production names.* The owner,
+   in their words: *"0: Tag with first invitation is 7 or even later. I did not decide yet"* and
+   *"Build the recommended for alpha 7."* The recommendation, alpha.7's item 11, was yes: the
+   OTA names on the mesh only once testers use the production names, the smaller surface, since
+   the owner already reaches the machine over the mesh. Testers are on the production names
+   from the first invitation, which waits for alpha.7 or a later tag; the owner has not chosen
+   which.
+   - **The pass condition is built.** T3 (c)'s probe has `ota_names: mesh-only`: none of
+     `app.ota.`, `id.ota.` and `www.ota.ownpace.eu` answers on 443 from a GitHub-hosted runner,
+     whatever would answer, and a name that no longer resolves passes. The test site's name is
+     held with the two the question names; the public site is live's `www.ownpace.eu` (0139
+     T10). Until the owner's step it is dispatched with `report`, the default, whose note now
+     says the answer and the input to use after the step.
+   - **What the step takes (read 2026-11-08, `netbirdio/netbird` at `0270bfa8`, `netbirdio/docs`
+     at `995c9099`).** NetBird's dashboard has no switch for it as the names are served today.
+     All seven names reach the machine through one front, NetBird's hosted proxy (the probe's runs
+     of 2026-10-29 found the same two addresses behind every name). *NetBird-Only Access*, which
+     serves a name to the peers of the mesh alone, needs a proxy cluster with the `Private`
+     capability, and *"NetBird Cloud's shared clusters do not currently advertise"* it.
+     Deleting the three services there takes the names off the mesh too, since nothing else
+     serves them over TLS. And the machine reaches the OTA names through that front from the
+     internet: the OTA stack's API for its sign-in keys while `JWT_JWKS_URI` is empty,
+     `setup-zitadel.sh`, `idp-strays.sh`, the gate's smoke and the OTA status page. So the step
+     is one of two ways, each more than a switch: (a) a NetBird proxy of the owner's own, run as
+     a peer with the `Private` capability and a certificate issued over DNS-01, the three OTA
+     services moved to it under NetBird-Only Access for a group of the owner's devices and the
+     machine, and the three names' public DNS records removed; or (b) TLS for the three names on
+     the machine's mesh address, which the repository does not have, so a build of its own
+     first. With (a), the stack's containers must still reach the names, through NetBird's
+     private record, which this plan has not seen reach a container. The shared front's
+     allow-list by source address is not the mesh: the names still answer over TLS, with
+     NetBird's 403, and no mode of the probe passes it. `docs/managed-bring-up.md`, *The OTA
+     names on the mesh only*, has the entries for each. Which way is the owner's.
+   - Google's test client keeps working for the owner on the mesh either way (0091 T5).

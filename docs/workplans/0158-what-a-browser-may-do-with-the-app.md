@@ -2,7 +2,61 @@
 
 > **In one line:** The managed app tells the browser which scripts may run in it, where it may send, that no page may frame it, that it is reached over HTTPS only, and that no request carries its address as a Referer; and the sign-in moves out of the browser's storage.
 
-## Status — 2026-10-05 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08: T4 built: the app's headers are read where a tester's browser gets them**, on
+branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged. It is alpha.7's item 4,
+which the owner took with the rest of the recommended list: *"Build the recommended for alpha
+7."* Until now the smoke asked the image on loopback, on the OTA stack, and nothing read the
+headers at live's https address, through NetBird's proxy (T4's row).
+
+- **What the page must carry comes from the template alone.** `scripts/app-headers.mjs` reads
+  `apps/web/nginx.conf.template` as the image renders it, the issuer substituted and nginx's
+  rule of inheritance applied by `nginx-config.mjs`, and holds an answer to it: the policy, HSTS
+  and the three beside them, each once, with the template's value. A template that states no
+  policy or no HSTS for the page is refused, so it cannot pass every answer. A finding names the
+  header, never the value that arrived. `nginx-config.ts` is now `nginx-config.mjs`, its types in
+  `nginx-config.d.mts`, so the probe and the deploy run it with no type stripping (the reason
+  `audit-advisories.d.mts` gives); the code is the same, and the seven files that imported it read
+  the `.mjs`.
+- **The outside probe proves it first.** `exposure-probe.mjs`, on a GitHub-hosted runner, asks
+  `https://app.ownpace.eu/` through NetBird's proxy and over TLS, as a browser does. It holds the
+  answer to the template at the commit live's own `/version.json` names, read from the
+  checkout's git and fetched by its id when the depth-1 checkout of `main` lacks it, with
+  `https://id.ownpace.eu` as the issuer. So a change of the template on `main` is not held
+  against a live that runs an older one. The probe runs from `main` when it is dispatched, so it
+  proves the headers on live from its first dispatch after this merges, on any tag: on alpha.6
+  today, whose template is `main`'s, unchanged since 2026-10-05.
+- **`deploy-live.sh` proves it after each deploy, from the first deploy started from alpha.7.**
+  After the bring-up it asks `/` at the origin in `WEB_URL`, live's public name, so through the
+  same front, and holds the answer to the tag's own template with live's `VITE_OIDC_ISSUER`. A
+  finding is a deploy that did not take. A deploy runs the script the checkout had before it
+  moved: live on alpha.6 deploys alpha.7 with alpha.6's script, which does not ask, so the first
+  deploy that does is the next one started from alpha.7. A tag cut before the reader, the way
+  back to alpha.6, is read with the copy of the release the deploy started from, out of git's
+  objects, so a rollback is checked and not refused for its age.
+- **Guards.** `scripts/the-headers-nobody-read-through-the-front.unit.test.ts`, new, 11 cases:
+  the reading is `nginx-config.mjs`'s for `/`, the issuer in the policy, a template without the
+  policy or HSTS refused, curl's `-D` output read from its last block, the command line's 0, 1
+  and 2, and the reader run from a directory of its own. `exposure-probe.unit.test.ts` gains 18
+  cases for the page: the five as stated pass, and each of no policy, a second policy, the OTA
+  stack's issuer, a policy nobody stated, no HSTS, HSTS without `includeSubDomains` and no
+  `nosniff` fails, naming the header and not what arrived; the template is the one at live's
+  commit; `version.json` unreadable or naming no commit, the template unreadable or stating no
+  policy, a 302 and no answer each fail; the real network lists a header sent twice twice, and
+  reads the template from git. `a-deploy-from-a-named-tag.unit.test.ts` gains 10: seven
+  breakages that do not take, the tag's template as the source, the way back read with the
+  starting release's reader, and a template that states no policy refused. The deploy's fixture
+  carries the real template and reader at each commit, and its `curl` stub answers `-D`.
+- **Each mutation alone turned a guard red, and each was restored.** In `deploy-live.sh`, six:
+  the check never called (11 cases red), a finding said and not counted (6), the template read
+  where the deploy started rather than at the tag (2), no reader for a tag without one (1), the
+  issuer not handed on (7), and a 404 taken for the page (1). In the probe and the reader, ten:
+  the check never run, a header sent twice let through, the template of the checkout rather than
+  live's commit, any status taken for the page, a template stating nothing let through, a
+  header's name compared with its case, the real network merging a repeated header, the OTA
+  names' old words, a value compared on its first 20 characters, and a value that arrived
+  printed.
 
 **2026-10-05: opened, and T1 built.** The public-readiness audit (item 10, finding
 `sec-spa-no-csp-token-in-localstorage`) found that the web image's nginx served the app with no
@@ -75,7 +129,7 @@ issuer, 0 violations, and a worker started by hand afterwards was refused with `
 | T1 The headers on the app | ✅ **Built 2026-10-05** | D1 to D10. The policy and four headers on every page, asset and `version.json`; none added to `/api/`; zod without `eval`; the issuer from the build argument; the API at a path of the app's origin. Guarded by the template's reading, a run on the real nginx, the UI suite under the policy, and the smoke's check through the image. |
 | T2 The sign-in out of the browser's storage | 📋 **Proposed: later, a pull request of its own** | §T2. A cookie no script can read, set by the API at sign-in, with a defence against cross-site requests. Until then the policy narrows what an injected script could do with the token (§*What the policy does for the token meanwhile*). |
 | T3 The appliance's screens under a policy | 📋 **Proposed** | The appliance serves the same bundle from Node (`apps/selfhost/src/static-ui.ts`), with `content-type` and `cache-control` only, and its API has no helmet. The same policy fits it, without the sign-in host; it needs its own guard and its own run. Not built here, so this plan stays about the managed image. |
-| T4 The headers seen through NetBird on live | 📋 **Proposed** | The smoke reads them from the image on the stack the gate runs on, over plain http on loopback. Nothing yet reads them at live's https address, through NetBird's proxy. `deploy-live.sh` already asks `/version.json` there and throws the headers away; reading them would prove NetBird passes them on and HSTS arrives over TLS. |
+| T4 The headers seen through NetBird on live | 🔨 **Built 2026-11-08**, on branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged — *was:* 📋 **Proposed** | §T4. `scripts/app-headers.mjs` holds the app's page to its template. The outside probe reads `https://app.ownpace.eu/` through NetBird's proxy, against the template at live's own commit, from its first dispatch after the merge; `deploy-live.sh` reads it after each deploy, against the tag's, from the first deploy started from alpha.7. *Was:* the smoke read them from the image on the gate's stack, over plain http on loopback, and nothing read them at live's https address; `deploy-live.sh` asked `/version.json` there and threw the headers away. |
 
 ## The decisions
 
@@ -284,3 +338,29 @@ languages, says the app sets no cookie of its own, and changes with it.
   the policy, a peer connection to a STUN host the script named sent it four packets, while a
   `fetch` to that host was refused. Chromium does not honour the draft `webrtc` directive. That
   is the supply-chain row of the threat model, and T2's reason.
+
+## T4 — the headers seen through NetBird on live (built)
+
+What changed:
+
+- `scripts/app-headers.mjs` (types in `app-headers.d.mts`): `expectedAppHeaders` reads what the
+  template states for `/`, `headerFindings` holds an answer to it, `parseHeaderBlock` reads
+  curl's `-D` output, and its command line is what `deploy-live.sh` runs.
+- `scripts/nginx-config.ts` became `scripts/nginx-config.mjs` with `nginx-config.d.mts`, unchanged
+  in what it does.
+- `scripts/exposure-probe.mjs`: `appHeaders`, after the form that founds an organisation, with
+  three calls of its network: `version`, `template` and `headers` (Node's raw header list, so a
+  header sent twice is seen twice).
+- `deploy/compose/deploy-live.sh`: `app_headers_check`, after `/version.json`, with the commit the
+  deploy started from read before the checkout moves.
+
+Which proves what, and from when:
+
+| Reader | Where it asks | Held to | First proof |
+|---|---|---|---|
+| The outside probe, dispatched by hand | `https://app.ownpace.eu/` from a GitHub-hosted runner: the internet, through NetBird's proxy, over TLS | the template at the commit live's `/version.json` names, with `https://id.ownpace.eu` | its first dispatch after the merge, on whatever tag live runs |
+| `deploy-live.sh`, after each deploy | `/` at the origin in `WEB_URL`, from the machine: live's public name, so through the same front, over TLS | the tag's template, with live's `VITE_OIDC_ISSUER` | the first deploy started from alpha.7, since a deploy runs the script the checkout had before it moved |
+
+Neither is scheduled, so between a deploy and a dispatch nothing reads them; the probe is
+dispatched while the owner is there (0132 open question 6). The deploy reads them from the
+machine, which reaches the front as any visitor does, from the internet.
