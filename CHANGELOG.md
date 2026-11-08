@@ -16,6 +16,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   linux/arm64): Redis 1 critical, 8 high and 0 with a fix, from 1, 10 and 0; the webapp 1, 22
   and 14, from 1, 24 and 14.
 
+### Fixed
+
+- **What a press on Deletions, Moves or Failures did is said in Dutch on a Dutch screen**
+  (workplan 0159 follow-up 18, #1840), from words both editions share; the English is unchanged.
+
 ## [0.2.0-alpha.6] - 2026-11-07
 
 Nothing changes on a tester's screen. Underneath, the identity provider moves to

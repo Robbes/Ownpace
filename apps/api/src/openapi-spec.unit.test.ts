@@ -543,6 +543,11 @@ describe('the link pages’ wire (0145 T6)', () => {
     // Not a refusal: what answering a decision did, in both languages (0159 §6 item 12).
     { path: '/api/decisions/{decisionId}/resolve', method: 'post', status: '200', half: 'effectNl' },
     { path: '/api/decisions/{decisionId}/dismiss', method: 'post', status: '200', half: 'effectNl' },
+    // And what a decision on the item queues did (0159 §6 item 18).
+    { path: '/api/migrations/{mappingId}/deletions/{hash}/keep', method: 'post', status: '200', half: 'effectNl' },
+    { path: '/api/migrations/{mappingId}/moves/{hash}/keep', method: 'post', status: '200', half: 'effectNl' },
+    { path: '/api/migrations/{mappingId}/failures/{hash}/{action}', method: 'post', status: '200', half: 'effectNl' },
+    { path: '/api/migrations/{mappingId}/failures', method: 'post', status: '200', half: 'effectNl' },
   ];
   it.each(PAIRED)('$method $path $status says it carries $half', ({ path, method, status, half }) => {
     expect(op(path, method)?.responses?.[status]?.description ?? '').toContain(half);
@@ -551,17 +556,25 @@ describe('the link pages’ wire (0145 T6)', () => {
   // The pair's schema says which language each half is in. An unquoted comma
   // in a YAML flow mapping ends the scalar, so "…did, in English." once parsed
   // as "…did" plus a stray key: the one fact the field documents, lost.
-  it('a closed decision’s schema names the language of each half', () => {
-    type Field = Record<string, unknown> & { description?: string };
-    const closed = (spec.components as { schemas?: Record<string, { properties?: Record<string, Field> }> } | undefined)
-      ?.schemas?.DecisionClosed?.properties;
-    expect(closed?.effect?.description ?? '').toContain('in English');
-    expect(closed?.effectNl?.description ?? '').toContain('in Dutch');
-    for (const half of ['effect', 'effectNl']) {
-      expect(Object.keys(closed?.[half] ?? {}).sort(), `${half} should hold only its type and description`).toEqual([
-        'description',
-        'type',
-      ]);
-    }
-  });
+  it.each(['DecisionClosed', 'QueueDecisionAccepted', 'GroupDecisionAccepted'])(
+    '%s’s schema names the language of each half, and requires both',
+    (name) => {
+      type Field = Record<string, unknown> & { description?: string };
+      const schema = (
+        spec.components as
+          | { schemas?: Record<string, { properties?: Record<string, Field>; required?: string[] }> }
+          | undefined
+      )?.schemas?.[name];
+      const fields = schema?.properties;
+      expect(fields?.effect?.description ?? '').toContain('in English');
+      expect(fields?.effectNl?.description ?? '').toContain('in Dutch');
+      for (const half of ['effect', 'effectNl']) {
+        expect(Object.keys(fields?.[half] ?? {}).sort(), `${half} should hold only its type and description`).toEqual([
+          'description',
+          'type',
+        ]);
+        expect(schema?.required ?? [], `${name} requires ${half}`).toContain(half);
+      }
+    },
+  );
 });

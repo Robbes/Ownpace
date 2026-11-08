@@ -22,6 +22,9 @@ import {
   DELETION_CONFIRMATIONS,
   DELETION_GUIDANCE,
   DISCOVERY_DOMAINS,
+  QUEUE_EFFECTS,
+  decisionEffectFields,
+  deletionRemovedEffect,
 } from '@openmig/shared';
 
 const {
@@ -581,6 +584,55 @@ describe('keep', () => {
     fireEvent.click(await screen.findByText('Keep our copy'));
     await waitFor(() => expect(keepDeletion).toHaveBeenCalledWith('acme-mail', 'h3'));
     expect(await screen.findByText('Acknowledged. The target keeps its copy.')).toBeInTheDocument();
+  });
+});
+
+/**
+ * What a press did, in the reader's language (workplan 0159 §6 item 18): the
+ * server says it in English as `effect` and in Dutch as `effectNl`, from
+ * `QUEUE_EFFECTS`, and a Dutch page shows the Dutch where the buttons were.
+ */
+describe('what a press did, on a Dutch page', () => {
+  const nl = STRINGS.nl;
+
+  it('says a kept copy in Dutch', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h-nl' })] }));
+    const said = decisionEffectFields(QUEUE_EFFECTS.deletionKept);
+    keepDeletion.mockResolvedValue({ status: 'ok', action: 'keep', naturalKeyHash: 'h-nl', ...said });
+    renderDutch();
+
+    fireEvent.click(await screen.findByText(nl['deletions.keep']));
+    expect(await screen.findByText(said.effectNl)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(said.effect)).not.toBeInTheDocument();
+  });
+
+  it('says the appliance’s removal in Dutch, and how final it was', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h-bin' })] }));
+    const said = decisionEffectFields(deletionRemovedEffect('binned'));
+    applyDeletion.mockResolvedValue({
+      mode: 'immediate',
+      result: { status: 'ok', action: 'apply', naturalKeyHash: 'h-bin', kind: 'binned', ...said },
+    });
+    renderDutch();
+
+    fireEvent.click(await screen.findByText(nl['deletions.apply']));
+    fireEvent.click(screen.getByText(nl['deletions.applyArmed']));
+    expect(await screen.findByText(said.effectNl)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(said.effect)).not.toBeInTheDocument();
+  });
+
+  it('says an older appliance’s English as served, marked English', async () => {
+    fetchDeletions.mockResolvedValue(queue({ confirmed: [deletion({ naturalKeyHash: 'h-old' })] }));
+    keepDeletion.mockResolvedValue({
+      status: 'ok',
+      action: 'keep',
+      naturalKeyHash: 'h-old',
+      effect: QUEUE_EFFECTS.deletionKept.en,
+    });
+    renderDutch();
+
+    fireEvent.click(await screen.findByText(nl['deletions.keep']));
+    expect(await screen.findByText(QUEUE_EFFECTS.deletionKept.en)).toHaveAttribute('lang', 'en');
   });
 });
 

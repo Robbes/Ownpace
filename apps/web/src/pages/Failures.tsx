@@ -39,7 +39,7 @@ import {
   ItemRow,
   QueueSection,
   Refused,
-  Resolved,
+  ServedEffect,
 } from '../components/queues/primitives.tsx';
 import { acceptFailure, fetchFailures, retryFailure } from '../services/operating-service.ts';
 import { FailureGroupPanel } from '../components/queues/FailureGroupPanel.tsx';
@@ -128,7 +128,7 @@ const Row: React.FC<{
     <HashChip hash={f.naturalKeyHash} />
     <div className="flex items-center gap-2 ml-auto">
       {outcome?.state === 'done' ? (
-        <Resolved effect={outcome.effect} />
+        <ServedEffect served={outcome.served} />
       ) : outcome?.state === 'refused' ? (
         <Refused text={outcome.text} />
       ) : (
