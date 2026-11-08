@@ -77,8 +77,9 @@
  *    highs in the eight util-linux packages. Its one RUN as root purges the
  *    webapp's eleven (REDIS_PURGE, the same names, each with its reason here;
  *    thirteen since 2026-11-08, as the webapp's) in the same shape, and checks
- *    and scans with perl-base, which the image keeps, since it has no node. That purge takes util-linux's setpriv, which upstream's
- *    entrypoint uses to drop from root to redis, so the image runs as
+ *    and scans with perl-base, which the image keeps, since it has no node.
+ *    That purge takes util-linux's setpriv, which upstream's entrypoint uses
+ *    to drop from root to redis, so the image runs as
  *    `USER 999:999` from its first process, and a last RUN as that user starts
  *    redis-server through the entrypoint and asks it for the FROM's release.
  *    Held here: the Dockerfile's shape (a FROM by tag and digest, the RUN, the

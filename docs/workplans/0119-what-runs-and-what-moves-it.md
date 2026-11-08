@@ -5482,12 +5482,13 @@ is beside each; none is urgent tonight.
     1/8/0, the webapp 1/22/14, from 1/10/0 and 1/24/14 (Security Scan run 42368077845, the
     alpha.6 tag). **Revisit** with the triggers above.
 
-    **2026-11-08: apt out of ClickHouse — LATER.** ClickHouse 26.8.36.3's image is Ubuntu
-    22.04's. Its two highs with a fix are apt's and libapt-pkg6.0's CVE-2026-109518, fixed in
-    2.4.15ubuntu0.1 (Security Scan run 42368077845). Purging apt there means building ClickHouse
-    here, as Redis is built here. The owner's answer of 2026-11-08, *"Build the recommended for
-    alpha 7."*, builds what was recommended for alpha.7, and this was listed as later. Not now.
-    **Revisit** after the Alpha, or when a ClickHouse release ships Ubuntu's fixed apt.
+    **2026-11-08: apt out of ClickHouse — LATER.** Answered 2026-11-08, the owner: *"Build the
+    recommended for alpha 7."* This one was not recommended for alpha.7: the pick list listed it
+    as later. The pinned ClickHouse image (the 26.8 LTS, item 9) is Ubuntu 22.04's. Its two
+    highs with a fix are apt's and libapt-pkg6.0's CVE-2026-109518, fixed in 2.4.15ubuntu0.1
+    (Security Scan run 42368077845). Purging apt there means building ClickHouse here, as Redis
+    is built here, which is more than alpha.7 takes. Not now. **Revisit** after the Alpha, or
+    when a ClickHouse release ships Ubuntu's fixed apt.
 
 12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
     digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the

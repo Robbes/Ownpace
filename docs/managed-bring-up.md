@@ -5081,11 +5081,12 @@ its Dockerfile pins, with the eleven Debian packages the webapp's image purges
 (util-linux's eight, apt, libapt-pkg6.0 and e2fsprogs) purged, and run as uid
 and gid 999 from its first process. 24 of the image's 34 high findings were in
 util-linux's eight, and nothing in this container runs or loads any of the
-eleven. Since 2026-11-08 (for alpha.7) both images purge libsystemd0 and
-libudev1 too, thirteen: one high each, and only four of the eleven depended on
-them. After the purge the build fails if a file of a removed library is left,
-or if any ELF file in the image needs one (its `DT_NEEDED`) or names one. Redis
-itself, its command, its volume and its append-only file are as they were.
+eleven. Since 2026-11-08 (for alpha.7) this build and the webapp's purge
+libsystemd0 and libudev1 too, thirteen packages: one high each, and only four of
+the eleven depended on them. After the purge the build fails if a file of a
+removed library is left, or if any ELF file in the image needs one (its
+`DT_NEEDED`) or names one. Redis itself, its command, its volume and its
+append-only file are as they were.
 
 - **The first `up` builds it, and Redis restarts once.** The bring-up's
   trigger phase (`up_wait trigger-redis …`) finds no image of that name and
