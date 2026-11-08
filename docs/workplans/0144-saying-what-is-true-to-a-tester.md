@@ -5,8 +5,8 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08: the guide says how long the copy before an update is kept (T1); T5's advice was done
-(T5).** On the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, on the owner's *"Build
-the recommended for alpha 7."* (2026-11-08, about 01:50 UTC).
+(T5).** On the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843
+(`d227b15f`), on the owner's *"Build the recommended for alpha 7."* (2026-11-08, about 01:50 UTC).
 - **T1.** *Geen back-ups* and *No backups* gain one sentence each, on the copy's 7 days. The Dutch
   is the owner's, given the same day on reading the first draft: *"Wij bewaren deze tot de update
   succesvol is doorgevoerd, en nooit langer dan 7 dagen."* The English follows it: *"We keep it

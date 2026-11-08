@@ -5,9 +5,10 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, records: T8 (a)'s last part merged.** Docs only, on the branch
-`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, read from GitHub on 2026-11-08. The
-entry below, and T8's row, put the Alpha's build on a phone on a branch: it merged as #1814 on
-2026-11-05 at 11:35 UTC (`1b203759`), so it is in alpha.5 and alpha.6, and the row says so.
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`), read from
+GitHub on 2026-11-08. The entry below, and T8's row, put the Alpha's build on a phone on a branch:
+it merged as #1814 on 2026-11-05 at 11:35 UTC (`1b203759`), so it is in alpha.5 and alpha.6, and the
+row says so.
 
 **2026-11-05, later, build: T8 (a)'s last part, the Alpha's build on a phone.** On branch
 `claude/ownpace-public-readiness-y7orc6-alpha-phone`. Live serves the bundle built with

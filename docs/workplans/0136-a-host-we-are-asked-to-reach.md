@@ -5,11 +5,11 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, records: open question 1 settled by the build.** Docs only, on the branch
-`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`. It asked the owner to accept §4's
-advice, T1 and T3 before the first invitation, or to accept the risk in writing instead. No answer
-is recorded, and none is needed now: T1 and T3 are merged (their rows), the last part on 2026-10-21
-(#1645), before any tester, so every tag since `v0.2.0-alpha.2` carries both. The question says so;
-T4 and T7 stay after (§4).
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`). It asked
+the owner to accept §4's advice, T1 and T3 before the first invitation, or to accept the risk in
+writing instead. No answer is recorded, and none is needed now: T1 and T3 are merged (their rows),
+the last part on 2026-10-21 (#1645), before any tester, so every tag since `v0.2.0-alpha.2` carries
+both. The question says so; T4 and T7 stay after (§4).
 
 **2026-11-02, records: T4's first bullet merged as #1784.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`. Read from GitHub on 2026-11-02;

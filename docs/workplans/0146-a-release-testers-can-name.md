@@ -5,13 +5,13 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, records: the first invitation waits for alpha.7 or a later tag (T2, §4).** Docs
-only, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records`. Asked which tag the first
-invitation waits for, the owner answered at about 01:50 UTC: *"Tag with first invitation is 7 or
-even later. I did not decide yet"*, and *"Build the recommended for alpha 7."* Recommended was
-alpha.6, live since that morning, with the owner's dated acceptance of its waived nights, and
-alpha.7 after the invitation. So alpha.6 is not the invitation tag. alpha.7 is planned with its two
-counted nights run, not waived (0141 T14), and the invitation's date is not decided. T2's row,
-§4's note and 0131 T5's row for this plan say so.
+only, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843
+(`d227b15f`). Asked which tag the first invitation waits for, the owner answered at about 01:50 UTC:
+*"Tag with first invitation is 7 or even later. I did not decide yet"*, and *"Build the recommended
+for alpha 7."* Recommended was alpha.6, live since that morning, with the owner's dated acceptance
+of its waived nights, and alpha.7 after the invitation. So alpha.6 is not the invitation tag.
+alpha.7 is planned with its two counted nights run, not waived (0141 T14), and the invitation's date
+is not decided. T2's row, §4's note and 0131 T5's row for this plan say so.
 
 **2026-11-08: live runs `v0.2.0-alpha.6` (T2).** The owner deployed it from the tag on 2026-11-08:
 one run of alpha.4's `deploy-live.sh`, from 00:26 UTC, which took at 00:32:28, one-way on the

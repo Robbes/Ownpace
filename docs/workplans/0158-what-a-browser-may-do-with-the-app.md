@@ -4,11 +4,25 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, later, recorded: T4's first proof through the front.** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records-2`. The owner dispatched *Exposure probe* on
+`main` at `200185fd`, with `ota_names=report` and `site_name=required`: run 42448301600, from
+04:48:51 to 04:49:20 UTC on a GitHub-hosted runner. It passed, and for the first time something read
+the app's headers at live's https address, through NetBird's proxy and over TLS:
+`pass  https://app.ownpace.eu/ carries Content-Security-Policy, Strict-Transport-Security,
+X-Content-Type-Options, X-Frame-Options, Referrer-Policy, each once, as
+apps/web/nginx.conf.template at 59b9145822a1 states them with https://id.ownpace.eu (workplan 0158
+T4)`. The commit is the one live's own `/version.json` names: alpha.6's, `59b91458` (#1834), which
+live runs since 2026-11-08. So a browser on the internet gets the policy, HSTS and the three beside
+them from live, each once and with the template's value. The run's other lines are 0132's (Status,
+2026-11-08, later still). `deploy-live.sh`'s own read waits for the first deploy started from
+alpha.7 (§T4); until then only a dispatch of the probe reads them at live's address.
+
 **2026-11-08: T4 built: the app's headers are read where a tester's browser gets them**, on
-branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged. It is alpha.7's item 4,
-which the owner took with the rest of the recommended list: *"Build the recommended for alpha
-7."* Until now the smoke asked the image on loopback, on the OTA stack, and nothing read the
-headers at live's https address, through NetBird's proxy (T4's row).
+branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, merged as #1845 (`0536708e`). It is
+alpha.7's item 4, which the owner took with the rest of the recommended list: *"Build the
+recommended for alpha 7."* Until now the smoke asked the image on loopback, on the OTA stack, and
+nothing read the headers at live's https address, through NetBird's proxy (T4's row).
 
 - **What the page must carry comes from the template alone.** `scripts/app-headers.mjs` reads
   `apps/web/nginx.conf.template` as the image renders it, the issuer substituted and nginx's
@@ -129,7 +143,7 @@ issuer, 0 violations, and a worker started by hand afterwards was refused with `
 | T1 The headers on the app | ✅ **Built 2026-10-05** | D1 to D10. The policy and four headers on every page, asset and `version.json`; none added to `/api/`; zod without `eval`; the issuer from the build argument; the API at a path of the app's origin. Guarded by the template's reading, a run on the real nginx, the UI suite under the policy, and the smoke's check through the image. |
 | T2 The sign-in out of the browser's storage | 📋 **Proposed: later, a pull request of its own** | §T2. A cookie no script can read, set by the API at sign-in, with a defence against cross-site requests. Until then the policy narrows what an injected script could do with the token (§*What the policy does for the token meanwhile*). |
 | T3 The appliance's screens under a policy | 📋 **Proposed** | The appliance serves the same bundle from Node (`apps/selfhost/src/static-ui.ts`), with `content-type` and `cache-control` only, and its API has no helmet. The same policy fits it, without the sign-in host; it needs its own guard and its own run. Not built here, so this plan stays about the managed image. |
-| T4 The headers seen through NetBird on live | 🔨 **Built 2026-11-08**, on branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged — *was:* 📋 **Proposed** | §T4. `scripts/app-headers.mjs` holds the app's page to its template. The outside probe reads `https://app.ownpace.eu/` through NetBird's proxy, against the template at live's own commit, from its first dispatch after the merge; `deploy-live.sh` reads it after each deploy, against the tag's, from the first deploy started from alpha.7. *Was:* the smoke read them from the image on the gate's stack, over plain http on loopback, and nothing read them at live's https address; `deploy-live.sh` asked `/version.json` there and threw the headers away. |
+| T4 The headers seen through NetBird on live | ✅ **Merged** as #1845 on 2026-11-08 (`0536708e`), and its outside half ✅ **proven** the same day: the owner's dispatch of the probe, run 42448301600 on `200185fd`, found `https://app.ownpace.eu/` carrying the policy, HSTS and the three beside them, each once, as the template at `59b91458`, the commit live's `/version.json` names (alpha.6), states them with `https://id.ownpace.eu`: the first proof through the front (Status, 2026-11-08, later). `deploy-live.sh`'s half runs from the first deploy started from alpha.7 — *was:* 🔨 **Built 2026-11-08**, on branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged; 📋 **Proposed** | §T4. `scripts/app-headers.mjs` holds the app's page to its template. The outside probe reads `https://app.ownpace.eu/` through NetBird's proxy, against the template at live's own commit, from its first dispatch after the merge; `deploy-live.sh` reads it after each deploy, against the tag's, from the first deploy started from alpha.7. *Was:* the smoke read them from the image on the gate's stack, over plain http on loopback, and nothing read them at live's https address; `deploy-live.sh` asked `/version.json` there and threw the headers away. |
 
 ## The decisions
 
@@ -358,7 +372,7 @@ Which proves what, and from when:
 
 | Reader | Where it asks | Held to | First proof |
 |---|---|---|---|
-| The outside probe, dispatched by hand | `https://app.ownpace.eu/` from a GitHub-hosted runner: the internet, through NetBird's proxy, over TLS | the template at the commit live's `/version.json` names, with `https://id.ownpace.eu` | its first dispatch after the merge, on whatever tag live runs |
+| The outside probe, dispatched by hand | `https://app.ownpace.eu/` from a GitHub-hosted runner: the internet, through NetBird's proxy, over TLS | the template at the commit live's `/version.json` names, with `https://id.ownpace.eu` | its first dispatch after the merge, on whatever tag live runs: run 42448301600, 2026-11-08, on alpha.6 (Status) |
 | `deploy-live.sh`, after each deploy | `/` at the origin in `WEB_URL`, from the machine: live's public name, so through the same front, over TLS | the tag's template, with live's `VITE_OIDC_ISSUER` | the first deploy started from alpha.7, since a deploy runs the script the checkout had before it moved |
 
 Neither is scheduled, so between a deploy and a dispatch nothing reads them; the probe is

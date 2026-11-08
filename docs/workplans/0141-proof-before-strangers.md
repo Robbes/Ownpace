@@ -5,9 +5,9 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, records: open question 1 answered, and the invitation's tag (T2, T14).** Docs only,
-on the branch `claude/ownpace-public-readiness-y7orc6-a7-records`. The owner, at about 01:50 UTC:
-*"Tag with first invitation is 7 or even later. I did not decide yet"*, and *"Build the
-recommended for alpha 7."*
+on the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843 (`d227b15f`). The
+owner, at about 01:50 UTC: *"Tag with first invitation is 7 or even later. I did not decide yet"*,
+and *"Build the recommended for alpha 7."*
 - **Open question 1**, with 0131's open question 3: (a), with one exception, 0131's
   recommendation; this plan had recommended (b). A tester who names a source does not wait for
   its sitting: the experimental label answers it. The exception is Microsoft 365 calendars, whose

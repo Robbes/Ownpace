@@ -5,11 +5,11 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, records: what Proton publishes about its sending limit (T0).** Docs only, on the
-branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`. The entry of 2026-09-28 below
-calls the API's 50 report mails a day a guess below Proton's limit for the login, which nobody had
-looked up. Looked up on 2026-11-08 through a web search: this session's network refuses `proton.me`,
-so the pages were not opened, and what follows is what the search returned from them, in its words,
-not quoted.
+branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`).
+The entry of 2026-09-28 below calls the API's 50 report mails a day a guess below Proton's limit for
+the login, which nobody had looked up. Looked up on 2026-11-08 through a web search: this session's
+network refuses `proton.me`, so the pages were not opened, and what follows is what the search
+returned from them, in its words, not quoted.
 - *Proton Mail sending limits* (https://proton.me/support/email-sending-limits): the Free plan
   may send 50 mails an hour and 150 a day. On a paid plan the limit changes with the account's
   reputation, and no number is given. A new address with no reputation yet may get less than the
