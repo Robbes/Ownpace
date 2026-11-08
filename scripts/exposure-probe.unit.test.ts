@@ -197,14 +197,14 @@ describe('the probe from outside', () => {
 
   it('resolves a machine named rather than addressed, and masks the name and what it resolves to', async () => {
     const { io, lines, tried } = fakeIo({
-      resolved: { ...ALL_RESOLVED, 'spark.mesh.example': [MACHINE] },
+      resolved: { ...ALL_RESOLVED, 'machine.mesh.example': [MACHINE] },
     });
-    expect(await runProbe({ ...CONFIG, host: 'spark.mesh.example' }, io)).toBe(0);
+    expect(await runProbe({ ...CONFIG, host: 'machine.mesh.example' }, io)).toBe(0);
     expect(tried).toContain(`${MACHINE}#3001`);
     const masks = lines.filter((l) => l.startsWith('::add-mask::'));
-    expect(masks).toContain('::add-mask::spark.mesh.example');
+    expect(masks).toContain('::add-mask::machine.mesh.example');
     expect(masks).toContain(`::add-mask::${MACHINE}`);
-    expect(lines.filter((l) => !l.startsWith('::add-mask::')).join('\n')).not.toContain('spark.mesh.example');
+    expect(lines.filter((l) => !l.startsWith('::add-mask::')).join('\n')).not.toContain('machine.mesh.example');
   });
 
   it('says the machine\'s own address was not tried when the secret is empty', async () => {

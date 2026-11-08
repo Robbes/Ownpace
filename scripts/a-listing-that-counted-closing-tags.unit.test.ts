@@ -177,7 +177,7 @@ describe('where the probe decides to look', () => {
 });
 
 describe('a refusal names the state it is in, not the one it met last', () => {
-  // TWO CONFIDENT WRONG ANSWERS, both met on the real Spark on 2026-09-09.
+  // TWO CONFIDENT WRONG ANSWERS, both met on the real machine on 2026-09-09.
   // Every non-207 used to print "the filter body is rejected outright", so a
   // `--user` passed without a `--pass` (401) and a task collection nobody had
   // created (404) were each reported as a broken listing query. In both cases

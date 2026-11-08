@@ -197,7 +197,7 @@ describe('trigger-magic-link.sh', () => {
   const LOG = [
     '{"level":"info","msg":"webapp listening on 3000"}',
     'Click here to log in with this magic link: http://localhost:3090/magic?token=OLDEST',
-    '{"level":"info","message":"email","url":"https://spark.local:3443/magic?token=NEWEST"}',
+    '{"level":"info","message":"email","url":"https://machine.local:3443/magic?token=NEWEST"}',
     'GET /login 200 12ms',
   ].join('\n');
 
@@ -210,14 +210,14 @@ describe('trigger-magic-link.sh', () => {
   it('prints the newest link, because an older one may already be spent', () => {
     const r = run(MAGIC_LINK, [], logCmd(LOG));
     expect(r.status).toBe(0);
-    expect(r.stdout.trim()).toBe('https://spark.local:3443/magic?token=NEWEST');
+    expect(r.stdout.trim()).toBe('https://machine.local:3443/magic?token=NEWEST');
   });
 
   it('--all prints every link, oldest first', () => {
     const r = run(MAGIC_LINK, ['--all'], logCmd(LOG));
     expect(r.stdout.trim().split('\n')).toEqual([
       'http://localhost:3090/magic?token=OLDEST',
-      'https://spark.local:3443/magic?token=NEWEST',
+      'https://machine.local:3443/magic?token=NEWEST',
     ]);
   });
 
@@ -331,7 +331,7 @@ describe('trigger-credentials.sh', () => {
   });
 
   it('does not blame the stack when compose could not read the file at all', () => {
-    // Seen live on the Spark, 2026-08-18. `docker compose exec` interpolates
+    // Seen live on the machine, 2026-08-18. `docker compose exec` interpolates
     // the WHOLE compose file before running anything, so ONE unset variable —
     // here on a service this command never touches — fails the call. The old
     // message said "Is the stack up?" and sent the operator looking at a
@@ -1280,7 +1280,7 @@ describe('every file managed.yml mounts is a file that exists', () => {
   it('every mount called generated is actually gitignored', () => {
     // Checked against .gitignore rather than against the filesystem: on a
     // machine that HAS run the bring-up the file exists, and a test that reads
-    // "is it there" would pass on the Spark and fail in CI for the same repo.
+    // "is it there" would pass on the machine and fail in CI for the same repo.
     for (const [source, reason] of Object.entries(GENERATED_AT_BRING_UP)) {
       const path = `deploy/compose/${source.replace(/^\.\//, '')}`;
       expect(
@@ -1344,7 +1344,7 @@ describe('every variable managed.yml refuses to start without can be satisfied',
 // ---------------------------------------------------------------------------
 describe('bootstrap-managed.sh — the env it refuses to write into', () => {
   /**
-   * Found live on the Spark, 2026-09-01. `deploy/compose/.env` there is a
+   * Found live on the machine, 2026-09-01. `deploy/compose/.env` there is a
    * symlink into the gate runner's persist directory — the shape the script
    * itself recommends — but the file behind it is the DURABLE SET: the seven
    * values a checkout clean must not destroy, because volumes depend on them.

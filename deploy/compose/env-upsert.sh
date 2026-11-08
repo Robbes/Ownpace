@@ -113,7 +113,7 @@ fi
 # LINK with a regular file. Silently: the next reader sees a perfectly good
 # `.env`, and only the file it used to point at knows it has been orphaned.
 #
-# That matters because the Spark runs the OTA stack from TWO checkouts — the
+# That matters because the machine runs the OTA stack from TWO checkouts — the
 # operator's, and the gate's, which `actions/checkout` wipes of ignored files
 # before every run and which therefore restores `.env` from
 # `~/.persistent/<project>/`. The intended arrangement is one canonical

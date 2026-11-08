@@ -141,7 +141,7 @@ says, in either the documents or the code:
 | Where | What it says today |
 |---|---|
 | SAD §3 | "self-host (**hobbyist**)" |
-| SAD §4.1, §7 | "NAS/Pi/Spark, **optionally single-user**" |
+| SAD §4.1, §7 | "NAS/Pi/arm64 machine, **optionally single-user**" |
 | SAD §7.1 | heading: "Self-host edition (**the hobbyist**)" |
 | SAD §7.3 | Auth row: self-host = "**local / single-user**" |
 | SAD §8 | "there is a **single tenant**" |

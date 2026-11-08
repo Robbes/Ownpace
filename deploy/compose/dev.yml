@@ -13,7 +13,7 @@
 # CalDAV/CardDAV) for heterogeneity tests.
 #
 # Trigger.dev is NOT here (heavy; the in-process scheduler drives the first slice; added later
-# from github.com/triggerdotdev/docker). Images pinned and arm64-friendly (the Spark is arm64);
+# from github.com/triggerdotdev/docker). Images pinned and arm64-friendly (the machine is arm64);
 # base OS is current in every case (Alpine 3.x / Debian 13 "Trixie").
 services:
   # Ledger database

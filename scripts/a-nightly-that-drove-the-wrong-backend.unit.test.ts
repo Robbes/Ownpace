@@ -31,7 +31,7 @@
  *  2. exactly one of the two declared crons is named by those comparisons —
  *     naming both, or neither, means both firings drive the same backend,
  *     which is the failure itself;
- *  3. the three gates the Spark runs stay staggered by at least an hour. It is
+ *  3. the three gates the machine runs stay staggered by at least an hour. It is
  *     one shared box: two stacks at once fight over Docker and the loser is
  *     blamed on whatever it happened to be testing.
  *
@@ -111,7 +111,7 @@ describe('the nightly drives the backend the cron says it does', () => {
 });
 
 describe('the three gates on the shared runner stay staggered', () => {
-  // The Spark runs all of these. `concurrency` queues rather than cancels, so
+  // The machine runs all of these. `concurrency` queues rather than cancels, so
   // two firings close together do not corrupt each other — they just make one
   // wait, and a queued job that waits an hour looks like a hung one.
   const GATES = [

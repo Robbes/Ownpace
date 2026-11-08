@@ -14,7 +14,7 @@
 # e2e-managed run #7 (2026-08-18) — the first run in which a skip was allowed
 # to fail rather than pass. The apply half was never blocked by a bug in apply;
 # it was blocked by a demo with nothing in it, for as long as the demo has
-# existed. Mail looked different only because the Spark's Stalwart happens to
+# existed. Mail looked different only because the machine's Stalwart happens to
 # hold three messages somebody put there by hand — nothing in this repo seeds
 # those either, which is worth knowing before trusting the verify half's counts
 # on a fresh machine.

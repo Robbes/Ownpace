@@ -1147,7 +1147,7 @@ an upgrade cannot be undone.
 asked: *"check, can't i just (as a start) host a 'ownpace-live' as production, next to the
 current 'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each
 other?"* The proposal back was to make that the decision in 0132, with testers on
-`ownpace-live`. The owner's answer: *"Yes! The spark has a lot free memory and disk, it will
+`ownpace-live`. The owner's answer: *"Yes! [The machine] has a lot free memory and disk, it will
 fit."* For this plan that means:
 
 - testers sign in at live's own identity provider at `id.ownpace.eu` (0132 T1d), with its own

@@ -173,7 +173,7 @@ export type TaskSyncDeps = CalendarSyncDeps;
  *
  * That is worse than an omission. An omission leaves a domain unsynced and
  * visibly so; this reported success for work it had not done, on a mapping
- * whose owner had ticked Tasks. Found on the owner's own Spark on 2026-09-03
+ * whose owner had ticked Tasks. Found on the owner's own machine on 2026-09-03
  * by the managed smoke's task-lane assertion (0113 T7) — the only thing in the
  * system that asked the question — against a source holding two VTODOs and a
  * `scope_selection` row that said `task`.

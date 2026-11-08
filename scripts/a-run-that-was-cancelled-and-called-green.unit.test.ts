@@ -35,7 +35,7 @@
  *
  * #1054 merged at 21:32 carrying a change to `ci.yml` and a new guard. #1055
  * merged at 21:43 carrying one paragraph of prose. Run **2841** was eleven
- * minutes into the suite on the Spark and was cancelled where it stood. Run
+ * minutes into the suite on the machine and was cancelled where it stood. Run
  * **2843** read its own diff — one `.md` file — skipped `lint`, `unit-tests`,
  * `ui-tests`, `migration-lint` and `integration-tests`, and concluded success
  * in four and a half minutes.

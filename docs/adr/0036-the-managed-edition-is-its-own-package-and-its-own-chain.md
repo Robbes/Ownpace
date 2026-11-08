@@ -167,7 +167,7 @@ carry **those and nothing else**, it may never LACK anything a fresh install has
 declaration that has stopped covering anything fails its own test.
 
 **On a MANAGED deployment it does not end there, and finding that out cost a nightly.** E2E
-(managed) run #16 died at bring-up on `relation "invoice" already exists`: the Spark's database
+(managed) run #16 died at bring-up on `relation "invoice" already exists`: the machine's database
 was built by the old shared baseline, the managed chain's bookkeeping table is empty there
 because it is a new chain, and its first run tried to create four tables that were already
 sitting in front of it. That is the normal condition for every managed deployment older than
@@ -187,7 +187,7 @@ exact door migration 0007 was built to close** — and every closed tenant looki
 purge job (which joins `tenant_closure`) would never run and an erasure somebody was promised
 would simply not happen, with nothing anywhere reporting a failure.
 
-`two-chains.unit.test.ts` reproduces the Spark: it applies the real released baseline out of
+`two-chains.unit.test.ts` reproduces the machine: it applies the real released baseline out of
 git, adds the two pre-split column sets, runs today's shared chain, writes a priced tenant and
 a closed one, and then runs the managed chain. Reverting the `IF NOT EXISTS` reproduces run #16
 exactly; removing either carry-over fails its own case.

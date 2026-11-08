@@ -83,7 +83,7 @@ export COMPOSE_PROGRESS=plain
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 # How long the identity provider gets to finish its own setup. A FIRST init
 # applies every migration from scratch; #47 took roughly two minutes on the
-# Spark, and a machine with slower disk will take longer.
+# box, and a machine with slower disk will take longer.
 IDP_READY_TIMEOUT="${IDP_READY_TIMEOUT:-300}"
 # How long a pull of the identity provider's image may take, when it is not on
 # the machine yet (prepare_machinekey_volume). A new tag is a few hundred MB.
@@ -264,7 +264,7 @@ load_env() {
   # managed.yml — including ones that never touch the service that is missing
   # it. The resulting message names a service the operator was not thinking
   # about, which reads as "that service is broken" rather than "your .env is
-  # incomplete". Seen live on the Spark, 2026-08-18: an `exec` into trigger-db
+  # incomplete". Seen live on the machine, 2026-08-18: an `exec` into trigger-db
   # failed on pgbouncer's PGBOUNCER_AUTH_PASSWORD, and the honest reading of
   # that error was that Trigger.dev was down. It was not.
   #
@@ -535,7 +535,7 @@ up_wait() { # up_wait <service> [service...]
 
 # TWO .env FILES DESCRIBING ONE STACK.
 #
-# The Spark drives the OTA stack — managed.yml's default project — from two
+# The machine drives the OTA stack — managed.yml's default project — from two
 # checkouts: the operator's, and the nightly gate's. The gate's cannot keep a
 # `.env` at all (`actions/checkout` deletes ignored files before every run), so
 # the workflow restores one from ~/.persistent/<project>/. (A second stack,
@@ -920,7 +920,7 @@ explain_failure() { # explain_failure <service> [service...]
     # consequence, so a `--tail 30` window shows thirty copies of the symptom
     # and none of the cause. That is not hypothetical: PgBouncer's
     # `could not open auth_file … Permission denied` sat one line above the
-    # visible window for three rounds of debugging (Spark, 2026-08-18) while
+    # visible window for three rounds of debugging (the machine, 2026-08-18) while
     # the repeating authentication failures below it got all the attention.
     #
     # READ ONCE, PRINT TWICE, AND LET NEITHER PIPELINE KILL THE SCRIPT.
@@ -1132,7 +1132,7 @@ phase_env() {
   # already done: it writes generated secrets THROUGH the symlink, into whatever
   # the file really is.
   #
-  # Found live on the Spark, 2026-09-01. `deploy/compose/.env` there is a
+  # Found live on the machine, 2026-09-01. `deploy/compose/.env` there is a
   # symlink into the gate runner's persist directory — the shape THIS SCRIPT
   # RECOMMENDS, so the link is not the problem and refusing on it would refuse
   # the advice. The file behind it is not a stack env: it is the DURABLE SET,
@@ -1475,7 +1475,7 @@ phase_data() {
   # sees an existing container whose spec has not changed, leaves it alone, and
   # waits on the same unhealthy process still running the OLD file. The fix
   # looks like it did not work, and the log shows the same error it showed
-  # before — which is exactly what happened on the Spark, 2026-08-18, and cost a
+  # before — which is exactly what happened on the machine, 2026-08-18, and cost a
   # round trip.
   #
   # Only when it is unhealthy, or its database was replaced (below): a pooler
@@ -2306,7 +2306,7 @@ phase_app() {
     # "starts with everything else", and its own status-page.md — and it was
     # named NOWHERE in this script, so no bring-up had ever started it. Exactly
     # what happened to zitadel above, discovered the same way: a `docker ps` on
-    # the Spark with no status page container in it.
+    # the machine with no status page container in it.
     #
     # It has no `depends_on` by design — "a status page that will not start
     # until the thing it is watching is healthy is a status page that is never

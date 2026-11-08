@@ -1,12 +1,12 @@
 # Unified CI — TypeScript/Node (pnpm). Mirrors the team convention:
 #   detect-changes -> docs-hygiene, lint, unit-tests (parallel) -> integration-tests
-# E2E is a SEPARATE, manual workflow (e2e.yml). Runs on the self-hosted (Spark) runner.
+# E2E is a SEPARATE, manual workflow (e2e.yml). Runs on the self-hosted runner.
 #
 # ── Which machine runs untrusted code ────────────────────────────────────────
 #
 # SECURITY: the self-hosted runner is ONLY used for push events. Pull requests
 # — including from forks, and this repository is PUBLIC — run on GitHub-hosted
-# runners, so a stranger's branch never executes on the Spark. That box holds
+# runners, so a stranger's branch never executes on the machine. That box holds
 # the live managed stack, its .env, the encrypted connection credentials and
 # the trigger keys; `pnpm install` alone runs lifecycle scripts, which is all
 # an attacker needs. Every workflow with a `pull_request` trigger follows this:
@@ -16,10 +16,10 @@
 # to abuse — which is why they can name the runner unconditionally.
 #
 # WHAT THE SPLIT COSTS, stated so it is a known limitation and not a surprise:
-# GitHub's hosted Linux runners are amd64, the Spark is arm64, so **a PR is
+# GitHub's hosted Linux runners are amd64, the machine is arm64, so **a PR is
 # validated on an architecture we do not deploy to, and the one we do deploy to
 # is only exercised after merge.** This has bitten once already — task images
-# built for amd64 died at exec on the arm64 Spark in under a second, with
+# built for amd64 died at exec on the arm64 machine in under a second, with
 # AutoRemove destroying the evidence (the 2026-08-01 hunt). A red main after a
 # green PR is therefore a designed-in outcome here, not an anomaly.
 #
@@ -57,7 +57,7 @@ on:
   # already documents for `images.yml`'s `paths:` filter. Only a fresh push
   # escapes it. Found 2026-08-23 on #501, which sat at zero checks.
   #
-  # THIS DOES NOT WIDEN WHAT RUNS ON THE SPARK. Every `runs-on` above keys on
+  # THIS DOES NOT WIDEN WHAT RUNS ON THE MACHINE. Every `runs-on` above keys on
   # `github.event_name == 'push'`, never on the branch, so a pull request from
   # anywhere still runs on a GitHub-hosted runner. The policy in the header is
   # untouched.
@@ -104,7 +104,7 @@ on:
 # THIS HAPPENED, on the afternoon this line was written. #1054 merged at 21:32
 # with a change to this workflow and a new guard; #1055 merged at 21:43 with
 # one paragraph of prose. Run 2841 was eleven minutes into the suite on the
-# Spark and was cancelled where it stood. Run 2843 read its own diff — one
+# machine and was cancelled where it stood. Run 2843 read its own diff — one
 # `.md` file — skipped `lint`, `unit-tests`, `ui-tests`, `migration-lint` and
 # `integration-tests`, and concluded success in four and a half minutes.
 # `main` then carried a green tick over a tree whose tests had not run. Nothing
@@ -325,7 +325,7 @@ jobs:
     # scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts holds them).
     if: github.event_name == 'pull_request'
     # Hosted unconditionally: it only ever runs on a pull request, which by the
-    # policy in the header never touches the Spark.
+    # policy in the header never touches the machine.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -703,7 +703,7 @@ jobs:
   # single file (scripts/a-first-bring-up-of-live.unit.test.ts, about 160s)
   # is the floor.
   #
-  # ONE RUN ON A PUSH. The Spark is one box that also serves production, and
+  # ONE RUN ON A PUSH. The machine is one box that also serves production, and
   # four copies of the suite there are what the worker cap below exists to
   # prevent, so the matrix is a single `all` leg on a push.
   #
@@ -747,8 +747,8 @@ jobs:
           # Unit tests mock all DAV/HTTP; no unit test reads NEXTCLOUD_* — skip
           # the ~30s Nextcloud container boot the global setup otherwise does.
           SKIP_NEXTCLOUD: 'true'
-          # AT MOST FOUR WORKERS ON THE SPARK. vitest runs one worker per core
-          # less one: three on a 4-vCPU hosted runner, and on the Spark as many
+          # AT MOST FOUR WORKERS ON THE MACHINE. vitest runs one worker per core
+          # less one: three on a 4-vCPU hosted runner, and on the machine as many
           # as its cores allow (the step above prints them). A worker holds a
           # PGlite database and its coverage, about 0.6GB: nineteen of them
           # held 13GB at once when measured, on a box that also serves
@@ -850,7 +850,7 @@ jobs:
 
   # THE arch-sensitive job, and now the one that closes the gap the header
   # describes. It runs real Postgres, real Nextcloud and real Stalwart
-  # containers, which is the closest thing CI has to the arm64 Spark the
+  # containers, which is the closest thing CI has to the arm64 machine the
   # product actually deploys to.
   #
   # The other jobs are not matrixed because their work is architecture-neutral
@@ -865,7 +865,7 @@ jobs:
   # why), so `better-sqlite3` is the native module left.
   #
   # On a PULL REQUEST it runs twice, amd64 and arm64, both free 4-vCPU hosted
-  # runners. On a PUSH it stays a single self-hosted run — the Spark is already
+  # runners. On a PUSH it stays a single self-hosted run — the machine is already
   # arm64, and the matrix must not multiply work on a box that also serves
   # production.
   #

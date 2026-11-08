@@ -6,7 +6,7 @@
  * asserts — a positive control that MUST arrive, then silence for the tag.
  *
  * HARNESS EQUIPMENT, not product. The catch-all's IMAP credentials live in
- * the Spark's `.env` beside the smoke's other plumbing (rule 3, and 0105's
+ * the machine's `.env` beside the smoke's other plumbing (rule 3, and 0105's
  * two-credential-kinds rule: the product holds what it needs to MIGRATE, the
  * gate holds what it needs to JUDGE). Nothing here is imported by any app.
  *

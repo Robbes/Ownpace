@@ -6,7 +6,7 @@
  * `ownpace-www` was marked unhealthy every thirty seconds from 2026-08-20 to
  * 2026-08-25 — five days — and nobody noticed, because `www.yml` is not part of
  * the managed stack and the gate's residue check only speaks for `managed.yml`.
- * Found by reading `docker ps | grep unh` on the Spark while chasing a
+ * Found by reading `docker ps | grep unh` on the machine while chasing a
  * different unhealthy container.
  *
  *     "FailingStreak": 39

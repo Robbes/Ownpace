@@ -629,7 +629,7 @@ owner waiting for a pass, and its copy goes without the owner's step.
      *Daily summary* has the line *The copy before an update*. Write the verdict, the mail's time
      and anything unexpected here, under T9.
 
-**2026-10-24: the Spark's runner service had been down since 2026-09-25, and it showed only when
+**2026-10-24: the machine's runner service had been down since 2026-09-25, and it showed only when
 the queue stopped.** E2E (self-hosted) #292 (scheduled, on `cf47ea50`) waited from 01:48 UTC for a
 runner that never came. The runner's systemd unit had failed on 2026-09-25 with `Result:
 oom-kill`: the OOM killer took a process of a job, the listener then exited with code 0 (*"no
@@ -659,11 +659,11 @@ Since #1662 (`d98f54f2`) and #1672 (`be6a857f`), `setup-zitadel.sh` and `smoke-m
 read of the provider again on a 502, 503 or 504, four asks with 14 seconds of waiting between
 them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a read no longer
 fails the gate, but no retry rides out an outage like this one. The follow-up was the
-owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
+owner's: making sure the machine's NetBird peer cannot expire (the owner's checklist of
 2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and
 every public name with it. The owner's call on T10, 2026-10-22: not now. When every public
-name stops answering at once, the first thing to check is the Spark peer's login (`netbird
-status` on the Spark).
+name stops answering at once, the first thing to check is the machine's peer login (`netbird
+status` on the machine).
 
 **2026-10-21, T7: the daily duties have a voice** (0142 T3), on branch
 `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. `ownpace-box-duties.service` has
@@ -3133,7 +3133,7 @@ now, through one function, T6 (b); see the Status block.)*
   other?"* ("alle seperate" is read as "all separate".) The proposal put back to the owner: make
   "ownpace-live beside ownpace-managed" the decision in this plan, with the container-name
   parameterisation as its first task, and testers on `ownpace-live`. The owner's answer: *"Yes!
-  The spark has a lot free memory and disk, it will fit."* So:
+  [The machine] has a lot free memory and disk, it will fit."* So:
   - A second compose project, `ownpace-live`, runs on the reference machine beside
     `ownpace-managed`.
   - `ownpace-live` is production for the alpha. Testers use it, on the production names from

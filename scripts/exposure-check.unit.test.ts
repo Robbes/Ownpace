@@ -234,7 +234,7 @@ describe('the exposure check on the machine', () => {
   });
 
   it('refuses an EXPOSURE_ALLOW entry that is not an address, without repeating it', () => {
-    for (const bad of ['spark.mesh.example', '192.0.2', '256.1.1.1', '192.0.2.10/24']) {
+    for (const bad of ['machine.mesh.example', '192.0.2', '256.1.1.1', '192.0.2.10/24']) {
       const r = check([`ota-web\t127.0.0.1:3123->80/tcp`], [`EXPOSURE_ALLOW=${FRONT},${bad}`]);
       expect(r.status, bad).toBe(2);
       expect(r.stderr).toContain('EXPOSURE_ALLOW');

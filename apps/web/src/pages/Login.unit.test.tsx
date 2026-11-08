@@ -25,7 +25,7 @@ vi.mock('../services/oidc.ts', () => ({ oidcConfig: vi.fn(), beginSignIn: vi.fn(
 
 // The page mounts BuildStamp, which asks the server what IT is running. That
 // question belongs to build-identity's own tests; what this file has to show
-// is that the sign-in page MOUNTS it at all — the gap reported from the Spark
+// is that the sign-in page MOUNTS it at all — the gap reported from the machine
 // was a stamp that existed everywhere except the page you can see without an
 // account.
 vi.mock('../services/build-identity.ts', () => ({

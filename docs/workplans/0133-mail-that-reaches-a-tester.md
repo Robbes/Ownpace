@@ -471,7 +471,7 @@ reset mails.
 can't i just (as a start) host a 'ownpace-live' as production, next to the current
 'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each other?"*
 The proposal back was to make that the decision in 0132, with testers on `ownpace-live`. The
-owner's answer: *"Yes! The spark has a lot free memory and disk, it will fit."* For mail this
+owner's answer: *"Yes! [The machine] has a lot free memory and disk, it will fit."* For mail this
 means:
 
 - the relay is configured on `ownpace-live`: its API, its tasks on its own Trigger.dev plane

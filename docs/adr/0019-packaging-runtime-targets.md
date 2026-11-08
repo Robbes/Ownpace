@@ -35,7 +35,7 @@ friction on Windows are now historical context for why decision 3 was made, not 
 live constraint.
 
 ## Context
-The self-host edition is container/Linux-first (Docker Compose, NAS/Pi/Spark, Helm, Home Assistant add-on). Users may want to run it on **Windows 11**, possibly as a background **system-tray** app. The core is Node/TypeScript and therefore cross-platform, and the JMAP-first mail path (ADR-0018) is pure Node (a JS JMAP writer + a JS IMAP source). The shell-out engines we reuse (ADR-0007) vary in Windows-friendliness: **rclone** has native Windows builds, **vdirsyncer** installs via Python, but **imapsync** (Perl) is awkward on native Windows.
+The self-host edition is container/Linux-first (Docker Compose, NAS/Pi/arm64 machine, Helm, Home Assistant add-on). Users may want to run it on **Windows 11**, possibly as a background **system-tray** app. The core is Node/TypeScript and therefore cross-platform, and the JMAP-first mail path (ADR-0018) is pure Node (a JS JMAP writer + a JS IMAP source). The shell-out engines we reuse (ADR-0007) vary in Windows-friendliness: **rclone** has native Windows builds, **vdirsyncer** installs via Python, but **imapsync** (Perl) is awkward on native Windows.
 
 ## Decision
 1. **Container-first stays the supported self-host packaging.** It already runs on **Windows 11 via Docker Desktop + WSL2** (web UI in a browser) with no new code. This is the recommended Windows path today.

@@ -33,9 +33,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **imapflow 2.5.6** (from 2.4.3), with nodemailer 10.1.7, eslint 10.13.0,
   @tanstack/react-query and its devtools 5.104.4 and lucide-react 1.59.0
   (Dependabot, #1673).
-- **CI on the Spark takes the newest Node 24, and the security scan names its
+- **CI on the machine takes the newest Node 24, and the security scan names its
   Trivy** (#1659): every setup-node step asks for the newest 24.x, where the
-  Spark's jobs had kept 24.18.0; Security Scan sets up pnpm and Node as every
+  machine's jobs had kept 24.18.0; Security Scan sets up pnpm and Node as every
   other job does and installs from the lockfile; Trivy is held at v0.76.0.
 - **Live refuses a sign-in provider's key, so its sign-in page stays email and
   password only** (workplan 0140 T10, #1644): the stand-up and the deploy

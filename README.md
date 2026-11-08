@@ -5,7 +5,7 @@ Low-maintenance, open-source stack to migrate families and small/medium business
 - **Idempotent** transfers (re-run safely; no duplicates).
 - **Shadow-run** old and new in parallel for as long as you want, then cut over on your schedule.
 - **You stay in control** — a clear UI shows what migrates, what doesn't, the status, and any choices to make.
-- **Two editions, one core:** self-host it yourself (NAS / mini-PC / Raspberry Pi / Spark) or use it as a managed service.
+- **Two editions, one core:** self-host it yourself (NAS / mini-PC / Raspberry Pi / arm64 machine) or use it as a managed service.
 
 ## Get it (released artifacts)
 

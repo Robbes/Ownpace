@@ -21,7 +21,7 @@ left: a security fix and a 43-site mechanical sweep do not belong in one review.
 The defect is not a leak. Not one of these sites handed anything internal to a browser;
 0079 closed that entirely. What they did was answer *Failed to list mappings* — a sentence
 with no handle on it. The owner meets a red box on a phone; the stack is in a log on the
-Spark; and nothing in the box says which of the day's requests it was.
+machine; and nothing in the box says which of the day's requests it was.
 
 The measure of what that costs is already in the record: **reference `e133a809` is the only
 reason the create-route 500 was diagnosed rather than guessed at** (0071 T6). That

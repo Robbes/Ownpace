@@ -14,7 +14,7 @@
  *
  * which replaces the directory and therefore its INODE. A bind mount resolves
  * to an inode when the container starts, so a running nginx goes on looking at
- * the old, now-unlinked directory. On the Spark, 2026-08-24:
+ * the old, now-unlinked directory. On the machine, 2026-08-24:
  *
  *   19:49  "GET / HTTP/1.1" 200 11367        served fine
  *   20:20  (republish)

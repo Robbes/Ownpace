@@ -36,7 +36,7 @@
  * ## Why an error subclass rather than a translated string
  *
  * A thrown `Error` carries one message, and the factory that throws it has no
- * idea who will read it — a log on the Spark, a probe result on a phone in
+ * idea who will read it — a log on the machine, a probe result on a phone in
  * Dutch, an API response. Picking a language at throw time would mean plumbing
  * a locale into every factory and still getting it wrong for the second reader.
  *

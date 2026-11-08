@@ -33,7 +33,7 @@ import type { VerificationRunReport, VerifyStartResponse } from '@openmig/shared
  * quietly accumulated 29GB and filled the disk of the box it was running on.
  *
  * That matters beyond a developer's laptop: `unit-tests` runs on the
- * SELF-HOSTED runner for pushes to main, which is the same Spark the managed
+ * SELF-HOSTED runner for pushes to main, which is the same machine the managed
  * stack needs ~15GB free on. Nothing was watching, because a test that leaks
  * still passes.
  *

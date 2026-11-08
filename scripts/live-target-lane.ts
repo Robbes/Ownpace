@@ -101,7 +101,7 @@ export function controlFromEnv(env: {
  *   - `mint`: sign a fresh 1-hour owner token per run with the stack's
  *     JWT_SECRET — exactly what `smoke-managed.sh`'s `mint()` does, and
  *     proven nightly by the hermetic gate. This is the mode for today's
- *     Spark stack; the secret is already gate-side plumbing (rule 3).
+ *     stack on the machine; the secret is already gate-side plumbing (rule 3).
  *   - `token`: a static bearer, verbatim — for a stack that verifies against
  *     a real issuer and can hand out a long-lived credential. A SHORT-lived
  *     token pasted here would 401 every night after the first hour, which is

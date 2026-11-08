@@ -158,7 +158,7 @@ echo "[deploy-tasks] installing this checkout's packages (pnpm install --frozen-
 # CLI_VERSION above comes from apps/worker/package.json. The CLI compares
 # itself against what is actually in node_modules, and on a mismatch it prints
 # "Would you like to apply those updates?" and WAITS. Observed live on the
-# Spark, 2026-08-18: package.json pinned 4.5.11, node_modules still held 4.5.9
+# machine, 2026-08-18: package.json pinned 4.5.11, node_modules still held 4.5.9
 # from before the bump, and a scripted deploy turned into an interactive one.
 #
 # That is the same class of failure as npx's install prompt (below) — a prompt
@@ -402,7 +402,7 @@ TRIGGER_PROJECT_REF="${TRIGGER_PROJECT_REF}" \
 
 # THE DEPLOY EDITS apps/worker/package.json AND DOES NOT SAY SO.
 #
-# Observed on the Spark, 2026-08-18: the only change was the trailing newline
+# Observed on the machine, 2026-08-18: the only change was the trailing newline
 # being stripped. Harmless in itself, and worth naming anyway — a working tree
 # that is dirty for no reason anybody remembers is one that blocks the next
 # `git pull` at the least convenient moment, and trains people to `git checkout

@@ -50,7 +50,7 @@
  *     — which happened on every run, because trivy-action's default cache sits
  *     inside the workspace that `actions/checkout` cleans. Caching is what
  *     makes the alarm rare rather than routine.
- *  7. **Both kinds of runner are covered.** This job runs on the Spark for a
+ *  7. **Both kinds of runner are covered.** This job runs on the machine for a
  *     push to main and on a GitHub-hosted runner for everything else — pull
  *     requests, the weekly schedule, tags. A cache that only worked on one of
  *     them would leave the schedule, which the assertion treats as the
@@ -149,7 +149,7 @@ describe('a scan that uploaded nothing cannot report green', () => {
 });
 
 describe('the vulnerability database survives between runs', () => {
-  it('Trivy is pointed out of the workspace, which is the one place the Spark cannot keep', () => {
+  it('Trivy is pointed out of the workspace, which is the one place the machine cannot keep', () => {
     // trivy-action defaults `cache-dir` to `$GITHUB_WORKSPACE/.cache/trivy`.
     // On a GitHub-hosted runner that is harmless — the action's own cache
     // restores it, and checkout has already run by then. On the SELF-HOSTED
@@ -177,7 +177,7 @@ describe('the vulnerability database survives between runs', () => {
   it("trivy-action's own cache is on where the machine dies, and off where it does not", () => {
     // trivy-action ALREADY caches: actions/cache over `cache-dir`, keyed by the
     // day, with a `cache-trivy-` prefix to fall back on. The only thing it
-    // cannot work out for itself is which machine it is on. On the Spark $HOME
+    // cannot work out for itself is which machine it is on. On the box $HOME
     // survives the run, so shipping 83 MB to GitHub and back re-supplies a file
     // that never left the box; everywhere else the machine is destroyed and the
     // cache is the only thing carrying the database across.

@@ -469,7 +469,7 @@ describe('the provisioning token can actually be written (E2E managed #44)', () 
 
   it('removes the container it created, whether or not the read worked', () => {
     // A created-and-abandoned container is litter on a long-lived box, and the
-    // Spark is the definition of one.
+    // machine is the definition of one.
     expect(bootstrapFn).toMatch(/docker rm -f "\$cid"/);
     const rmLine = bootstrapFn.split('\n').find((l) => /docker rm -f "\$cid"/.test(l)) ?? '';
     expect(rmLine, 'a removal that only happens on success does not happen when it matters').
@@ -562,7 +562,7 @@ describe('one origin, and every side of the stack can present it', () => {
     // front network-wide, and the API — which must present the same origin
     // because `iss` matches byte for byte — follows it to the container and
     // connects to a port nothing there listens on. Same 500 as the bug the
-    // alias was added to fix, opposite cause (Spark, 2026-09-01).
+    // alias was added to fix, opposite cause (the machine, 2026-09-01).
     //
     // So the alias is DERIVED from the same three values the issuer is built
     // from, and the derivation is pinned by
@@ -744,7 +744,7 @@ describe('the provisioning token rotates before it dies', () => {
    * The expiry is a FIRSTINSTANCE setting: the provider reads
    * ZITADEL_PAT_EXPIRY once, at init, and the seed was written --if-absent — so
    * without rotation the whole gate ran on a credential whose deadline was
-   * frozen by whichever run FIRST executed the script. The Spark's instance
+   * frozen by whichever run FIRST executed the script. The machine's instance
    * was re-initialised during the E2E (managed) #50-#52 clear-downs and
    * inherited a seed written hours earlier: a token due to die the next
    * afternoon, taking every later run with it — and taking the ability to

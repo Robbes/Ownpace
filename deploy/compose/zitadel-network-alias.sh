@@ -27,7 +27,7 @@
 #
 # Same 500, same shape, opposite cause — and measured rather than reasoned: a
 # container on the DEFAULT bridge, where the alias cannot reach, fetched that
-# exact URL and got 200 (Spark, 2026-09-01).
+# exact URL and got 200 (the machine, 2026-09-01).
 #
 # So the alias is derived rather than assumed. The provider owns the name only
 # when the external address is one it actually serves; otherwise the front owns

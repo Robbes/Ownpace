@@ -21,7 +21,7 @@
 > the task process (SAD §17).
 
 ## Context
-We need robust scheduling, retries, concurrency budgets, and long-running tasks. The ledger already holds durable migration state, so full durable-execution is helpful but not essential. Self-host must remain possible, including local dev on an arm64 Spark.
+We need robust scheduling, retries, concurrency budgets, and long-running tasks. The ledger already holds durable migration state, so full durable-execution is helpful but not essential. Self-host must remain possible, including local dev on an arm64 machine.
 
 ## Decision
 Define a **`Scheduler`/`JobRunner` interface** with two implementations:

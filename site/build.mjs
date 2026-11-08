@@ -2034,7 +2034,7 @@ export const { rendered, drafts, llms } = build();
  * request gets `directory index of "/usr/share/nginx/html/" is forbidden` —
  * a 403 that looks like a permissions problem and is not one.
  *
- * That happened on the Spark on 2026-08-24. The site served 200s at 19:49,
+ * That happened on the machine on 2026-08-24. The site served 200s at 19:49,
  * a republish at 20:20 replaced the directory, and `www.ota.ownpace.eu`
  * answered 403 from then on with the files sitting correctly on disk the
  * whole time. `deploy/compose/www.yml` promised in its own header that a

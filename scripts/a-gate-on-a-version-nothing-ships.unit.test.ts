@@ -63,22 +63,22 @@
  *
  * The right major was not enough. With `check-latest` left at its default,
  * false, setup-node takes the first `24.x` it finds in the runner's own tool
- * cache. A GitHub-hosted runner gets a fresh image every week; the Spark's
+ * cache. A GitHub-hosted runner gets a fresh image every week; the machine's
  * self-hosted runner keeps its cache for ever. Its jobs logged `check-latest:
  * false`, `Found in cache @ …/_tool/node/24.18.0/arm64` and `node: v24.18.0`
  * on 2026-10-21 (E2E (managed) #262 and the unit-tests job of the same day's
  * push run), while the images built `FROM node:24.22.0-slim` and 24.18.1
  * (2026-07-28) and 24.22.1 (2026-10-20) were security releases. Every
- * push-to-main job and every nightly gate on the Spark ran four minors behind
+ * push-to-main job and every nightly gate on the machine ran four minors behind
  * what ships and two security releases behind the newest 24.x, and nothing
  * would ever have moved it. So every `setup-node` step says `check-latest:
  * true`, the hosted ones too: it costs them a few seconds at most, and one rule
- * is simpler to hold than "the steps whose `runs-on` can land on the Spark". If
+ * is simpler to hold than "the steps whose `runs-on` can land on the machine". If
  * the version manifest cannot be reached, setup-node logs it and falls back to
  * the cache, so the flag cannot fail a job.
  *
  * Security Scan had no `setup-node` step at all, so none of this saw it: it ran
- * the Spark's apt Node on main and the hosted image's default elsewhere, and
+ * the machine's apt Node on main and the hosted image's default elsewhere, and
  * installed pnpm by piping get.pnpm.io's script into `sh` with no version, into
  * the runner user's own pnpm home (found 2026-10-21). It now sets up pnpm and
  * Node like every other job, and STEP_ANCHORS below names it, so a scan job
@@ -286,7 +286,7 @@ const ANCHORS = ['.github/workflows/e2e-managed.yml', '.github/workflows/e2e-liv
 
 /**
  * Every `setup-node` step there is, by workflow and job: the nine that can run
- * on the Spark (ci.yml's five on a push, the four E2E lanes), the three that
+ * on the machine (ci.yml's five on a push, the four E2E lanes), the three that
  * run on hosted runners only, Security Scan's, and the two added 2026-11-01
  * to jobs that ran Node without one (ci.yml's `commit-convention`, images.yml's
  * `build`). Named rather than counted,
@@ -423,7 +423,7 @@ describe('every gate runs the Node major the images ship', () => {
     expect(
       cached,
       'without `check-latest: true` setup-node takes the first matching version in the tool cache, and the ' +
-        "self-hosted runner's cache is never refreshed: the Spark ran 24.18.0 for months while the images moved on",
+        "self-hosted runner's cache is never refreshed: the machine ran 24.18.0 for months while the images moved on",
     ).toEqual([]);
   });
 });

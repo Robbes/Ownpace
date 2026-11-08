@@ -5,7 +5,7 @@
 ## Status — 2026-08-18 (update this block at the end of every session)
 
 **Built 2026-08-18, and verified on real hardware the same day.** T8 is closed:
-the owner ran it on the Spark and every phase completed. The bring-up is no
+the owner ran it on the machine and every phase completed. The bring-up is no
 longer a document with a shebang.
 
 **What that cost, recorded because it is the finding.** Six rounds of defects,
@@ -37,11 +37,11 @@ architecture, idempotent on re-run). The first real proof is the nightly
 | T5 the prose companion | ✅ **Built 2026-08-18** | `docs/managed-bring-up.md`. Every command, every script, every button, in order, with a verification per phase, a thirteen-row failure table, and a "what this does not cover" section. |
 | T6 make the nightly exercise it | ✅ **Built 2026-08-18** | `e2e-managed.yml` now brings the stack up with `bootstrap-managed.sh --from data --with-demo --no-smoke` instead of an inline copy of the run order. A bring-up script nothing runs is a document with a shebang. |
 | T7 the two latent bugs found on the way | ✅ **Fixed 2026-08-18** | Below. |
-| T8 first real firing | ✅ **Done 2026-08-18** | Run end to end on the Spark by the owner. Phases `data` → `trigger` → `account` → `login` → `app` → `tasks` all completed; the two human phases were no-ops on an already configured box, so **`account` and `login` remain the least exercised wording in the script**. It cost **six rounds of defects**, every one of them in configuration nothing had ever executed — see below. What the run proved, in the order it proved it: the pooler serves; the app talks through it (`DATABASE_URL` and `APP_DATABASE_URL` on `pgbouncer:6432`, `DIRECT_DATABASE_URL` on `postgres:5432`); migrations reached 0026; and **a task executed** — two `runner-…` containers appeared and ran within the two-minute window. |
+| T8 first real firing | ✅ **Done 2026-08-18** | Run end to end on the machine by the owner. Phases `data` → `trigger` → `account` → `login` → `app` → `tasks` all completed; the two human phases were no-ops on an already configured box, so **`account` and `login` remain the least exercised wording in the script**. It cost **six rounds of defects**, every one of them in configuration nothing had ever executed — see below. What the run proved, in the order it proved it: the pooler serves; the app talks through it (`DATABASE_URL` and `APP_DATABASE_URL` on `pgbouncer:6432`, `DIRECT_DATABASE_URL` on `postgres:5432`); migrations reached 0026; and **a task executed** — two `runner-…` containers appeared and ran within the two-minute window. |
 
 ## What this is
 
-The owner's requirement: *"in the past i did setup Trigger.dev on the spark …
+The owner's requirement: *"in the past i did setup Trigger.dev on [the machine] …
 however, i'd like the install to be as much automated as possible, so that i
 can redo a roll out where ever i want. At minimum all steps need to be
 documented, including commands to run, scripts to run, buttons to click."*

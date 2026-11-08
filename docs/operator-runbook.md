@@ -579,7 +579,7 @@ new rates apply to invoices generated from now on.
 
 ## This box also runs CI — beside live for the alpha, and not beyond it
 
-The Spark is several things at once: the OTA stack (`ownpace-managed`, the demo
+The machine is several things at once: the OTA stack (`ownpace-managed`, the demo
 and the nightly gate's target), `ownpace-live` (the stack the alpha's testers
 use), the CI runner for pushes to `main`, the e2e runner, and the O365 e2e
 runner. Sharing it was a reasonable arrangement while the only data on it was
@@ -612,7 +612,7 @@ nearly happened twice:
 must not share this machine. Two ways to get there, and the cheaper one only
 became available recently:
 
-1. **Move CI off.** The Spark was buying two things GitHub-hosted runners could
+1. **Move CI off.** The machine was buying two things GitHub-hosted runners could
    not: arm64 and a warm cache. Arm64 is no longer one of them — GitHub's
    `ubuntu-24.04-arm` hosted runners are generally available and free for
    public repositories. What remains is cache/speed, which is worth far less

@@ -30,7 +30,7 @@
  * Deliberately keyed on `restart:` rather than "every compose file must be
  * named". `dev.yml` and `dev.ci.yml` have no restart policies because they are
  * ephemeral — brought up for a run and torn down after — and naming them would
- * be a real risk rather than tidiness: their containers are live on the Spark
+ * be a real risk rather than tidiness: their containers are live on the machine
  * under the current default project, so a rename would strand those and start
  * duplicates competing for the same fixed-name network and published ports.
  * That is the port-collision class that already cost this repo a day. The rule

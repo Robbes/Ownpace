@@ -56,7 +56,7 @@ Docker Hub on 2026-10-18 (index `sha256:c429b311…`). Upstream's changelog v0.1
 renames no setting, recovery-mode variable or plan object this file uses. What touches this
 repository:
 - v0.16.26: the x86_64 images, all but `-alpine`, refuse to start on a CPU without x86-64-v2
-  (a VM with a generic CPU model). The Spark runner is arm64; GitHub's hosted runners have it.
+  (a VM with a generic CPU model). The self-hosted runner is arm64; GitHub's hosted runners have it.
 - v0.16.16 and v0.16.27: the WebUI is downloaded in recovery mode too, and from the release
   `v1.0.11` rather than `releases/latest` (a stored `latest` address is served as `v1.0.11`).
 - v0.16.18: a new database fetches its ASN and country lists from
@@ -271,7 +271,7 @@ await db.execute(sql`DELETE FROM cursor WHERE tenant_id = ${TEST_TENANT_ID}`);
 `sudo` + a mounted `docker.sock` giving it access to the *host's* Docker daemon — reports Docker
 and "port not available"/connection-refused failures on work that is proven green in this repo's
 own CI. This is a real, distinct environment shape: neither `integration-tests` (GitHub-hosted
-`ubuntu-latest`, a plain VM with a local daemon) nor `e2e.yml` (the self-hosted Spark runner,
+`ubuntu-latest`, a plain VM with a local daemon) nor `e2e.yml` (the self-hosted runner,
 running directly on the host, no extra container layer) ever exercises it, so nothing here
 accounts for it by default.
 
@@ -291,7 +291,7 @@ what actually resolves the problem vs. what merely works around it:
 
 0. **Best fix: put the agent's own container on the same Docker network as the target container,
    and address it by Docker DNS name instead of a published host port at all.** Confirmed working
-   on the DGX Spark box this repo's e2e work happens on:
+   on the box this repo's e2e work happens on:
    `deploy/compose/dev.yml` declares a **fixed-name** network, `ownpace_dev-network`
    (`networks: dev-network: name: ownpace_dev-network`), and `deploy/selfhost/setup-stalwart.sh`
    joins it under the alias `stalwart` (creating the network first if `dev.yml` hasn't been brought
@@ -317,19 +317,19 @@ what actually resolves the problem vs. what merely works around it:
 2. Make sure the agent's own container was started with `--add-host=host.docker.internal:host-gateway`
    — Linux does not wire this up automatically the way Docker Desktop does, so without it
    `host.docker.internal` won't resolve inside the agent at all. (Already correctly wired on the
-   Spark box's agent container — confirmed via `/etc/hosts` showing `172.17.0.1 host.docker.internal`
+   box's agent container — confirmed via `/etc/hosts` showing `172.17.0.1 host.docker.internal`
    — so if this is your symptom, look at item 0/1 instead of this one.)
 3. If the agent's sessions get killed abruptly (common for time-boxed sandboxes), Testcontainers'
    Ryuk reaper — which also talks over the same mounted socket — can leak containers instead of
    cleaning them up, and those leftovers block ports/volume names on retry. Either let Ryuk do its
    job by exiting cleanly, or set `TESTCONTAINERS_RYUK_DISABLED=true` and take on cleanup explicitly
    (`docker compose down -v --remove-orphans`, stale `stalwart-test-*` volumes) at the **start** of
-   each attempt, not just the end. **Observed on the Spark box**: ~250 orphaned `stalwart-test-*`
+   each attempt, not just the end. **Observed on the box**: ~250 orphaned `stalwart-test-*`
    volumes accumulated over 13 days (roughly 19 failed/abandoned runs a day) — `docker volume prune`
    periodically, and don't assume a standing container that merely passes its healthcheck is actually
    functional (see the bootstrap-mode trap below).
 4. Don't assume fixed host ports are free — and not just from other agent sessions. **Observed on
-   the Spark box**: port 8080 is permanently held by an unrelated `searxng` service, nothing to do
+   the box**: port 8080 is permanently held by an unrelated `searxng` service, nothing to do
    with this repo or Docker-in-Docker at all. `deploy/compose/dev.yml`'s Postgres port,
    `deploy/selfhost/setup-stalwart.sh`'s JMAP/IMAPS ports (`STALWART_JMAP_PORT`/
    `STALWART_IMAPS_PORT` env overrides), and `e2e.yml`'s selfhost-appliance port (`SELFHOST_PORT`)
@@ -407,7 +407,7 @@ this before assuming a "never came up" failure is a real backend bug.
 
 ### RESOLVED (2026-07-25): a second, different race — stalwart-cli hits the published port before it's wired up, even on a bare host
 
-Reproduced on the Spark box's own bare shell (not a DooD sandbox — `DOCKER_HOST` unset, default
+Reproduced on the box's own bare shell (not a DooD sandbox — `DOCKER_HOST` unset, default
 context, confirmed via `docker context show`): `setup-stalwart.sh` passed `wait_for_jmap` ("Recovery
 listener" check via `docker exec`, hitting the container's own internal `localhost:8080`), then the
 very next line — the `stalwart-cli apply` call, which targets `$CLI_URL` (the *published* port,
@@ -462,13 +462,13 @@ Before repeating that investigation, rule these out first, cheaply:
 3. **Try a bare (non-nested) Docker host if you have one available.** Per the "Rule" above this
    section: if a failure only reproduces inside a DooD sandbox, it's more likely something about that
    environment than a Stalwart/script bug — `setup-stalwart.sh` (pre-this-fix, bind-mount and all)
-   is proven working on the bare Spark runner per "Round 4" below.
+   is proven working on the bare self-hosted runner per "Round 4" below.
 4. If it reproduces even via `docker exec` on a bare host, that's a genuine, novel finding worth its
    own investigation (image bug, `STALWART_RECOVERY_MODE` regression in the pinned version, resource limits
    inside the sandbox preventing the listener thread from starting, etc.) — but confirm 1–3 first
    before spending hours on it again.
 
-## Bugs found via Spark box forensics, and how they were actually fixed
+## Bugs found via forensics on the box, and how they were actually fixed
 
 Three **independent, already-committed bugs** surfaced while diagnosing a stranded agent session,
 across two rounds of investigation. All three are now fixed — this section is the historical record
@@ -572,7 +572,7 @@ them because it's the first thing to actually attempt a full, real T5 run end-to
 nested Docker caused any of them. Don't reflexively blame DooD for a new failure here; check
 whether it reproduces for any agent, nested or not, first.
 
-## Round 4: the first actual `e2e.yml` dispatch on the bare Spark runner
+## Round 4: the first actual `e2e.yml` dispatch on the bare self-hosted runner
 
 The first real `e2e.yml` dispatch on the self-hosted runner (not a nested agent sandbox) failed at
 `setup-stalwart.sh` phase 1 with:

@@ -61,7 +61,7 @@ outright rather than documented.
 
 ## The security property is unchanged
 
-Removing the filter does not widen what runs on the self-hosted Spark, which
+Removing the filter does not widen what runs on the self-hosted runner's machine, which
 holds the live managed stack, its `.env` and the encrypted connection
 credentials.
 

@@ -120,7 +120,7 @@ one line per check, `pass` or `refuse`, every reason at once):
       green. The preflight refuses C without it. Nobody needs a Windows
       machine for it: the owner's by-hand check of the zip on Windows 11 ended
       on 2026-11-02 ("I wont do windows...").
-- [ ] `scripts/upgrade-drill.sh` on a Docker host (the Spark box): previous
+- [ ] `scripts/upgrade-drill.sh` on a Docker host (the box): previous
       release image, real volumes, swap to HEAD in place, healthy after a
       further restart. The drill says when it is vacuous (tag == HEAD, or the
       chain has no new migration) — a vacuous pass does not count, and the

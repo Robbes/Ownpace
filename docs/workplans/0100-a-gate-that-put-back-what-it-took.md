@@ -89,7 +89,7 @@ the point — so it seeds its own or refuses, and the refusal already says so.
 319 files, 3568 tests, all passing (2026-08-23).
 
 **The removal is proved against a stubbed Nextcloud and a stubbed psql, not
-against the Spark.** This environment has no Docker daemon. The `--remove`
+against the machine.** This environment has no Docker daemon. The `--remove`
 behaviour runs for real in CI against the suite's existing docker stub; the
 balance section's control flow — including the guard that was wrong in the first
 draft — was run the same way, with `q` answering from a fixture.

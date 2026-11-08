@@ -303,7 +303,7 @@ fi
 #   [set-task-env] FAILED: Connection error.
 #
 # which says nothing about waiting and reads like a broken key or a wrong URL.
-# Observed live on the Spark, 2026-08-18: the operator ran it twice and the
+# Observed live on the machine, 2026-08-18: the operator ran it twice and the
 # second one worked, which is the correct fix expressed as a manual retry.
 #
 # `compose up --wait` covers this inside bootstrap-managed.sh, but this script

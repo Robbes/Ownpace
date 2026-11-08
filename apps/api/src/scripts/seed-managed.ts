@@ -109,7 +109,7 @@ const STALWART_MAIL = { host: 'stalwart', imapsPort: 993, jmapBaseUrl: 'http://s
 // discovery of their own (unlike CalDAVSource/CarddavSource, packages/connectors): they
 // assume `config.url` IS ALREADY the DAV base and build collection paths directly under it
 // (e.g. `${baseUrl}/calendars/${username}/...`), matching the self-host convention where an
-// operator configures this url by hand. Confirmed live on the Spark box: with the bare
+// operator configures this url by hand. Confirmed live on the box: with the bare
 // origin, MKCALENDAR/MKCOL landed on Nextcloud's plain web-UI routes and got its HTML 404
 // page back, not a DAV error.
 const NEXTCLOUD_DAV_BASE_URL = 'http://nextcloud/remote.php/dav/';
