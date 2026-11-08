@@ -4,6 +4,23 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08: the stalwart-cli download waits out about four minutes of GitHub answering 503.** On
+the branch `claude/ownpace-public-readiness-y7orc6-stalwart-cli-retry`. The scheduled E2E (managed)
+run 42472273620 on `main` at `aadc032d` (10:38 UTC) failed in *Install stalwart-cli* before any test
+ran: the amd64 archive came as pinned, then GitHub's release download answered 503 for the arm64 one
+three times, from 10:40:10 to 10:41:39, and the step gave up after its third attempt, having waited
+5 and 15 seconds. Fetched again from outside the run at 10:43, the arm64 archive came with its
+pinned sum, and the run is re-run once, its failure being a download before any test.
+`scripts/release-nights.mjs` counts no night with a failed attempt, so a blip like this one on a
+counted night would reset the count a release waits for. The step, word for word in `ci.yml`,
+`e2e.yml` and `e2e-managed.yml`, now makes five attempts, 5, 15, 45 and 135 seconds apart, and still
+fails loud, with the attempts it made, when the download stays down; a wrong sum is still never
+retried. `a-pin-that-knows-it-is-behind` runs the real step: four failed fetches are waited out with
+exactly those waits, five stop it with nothing installed, and mutations to one attempt, to the three
+it had, to no wait and to the old arithmetic's 5, 15, 25 and 35 seconds each fail it. Put back to
+three attempts in `e2e.yml` alone, three of its tests fail. §2.5's stalwart-cli row names no attempt
+count, so it stays as written.
+
 **2026-11-08, records: the deploy CLI's minimatch, read; six stale notes dated.** Docs and one
 comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844
 (`200185fd`).

@@ -1116,9 +1116,11 @@ function runStalwartStep(step: { run: string; env: Record<string, string> }, mac
  * machines: install and run anything but the native release when both
  * architectures' archives are the pinned ones (and fetch both); finish with
  * anything installed, run or on the PATH when either sum is wrong; accept a
- * binary that calls itself another version; give up on one failed fetch, or
- * go on after three; or install anything on a machine no release is pinned
- * for. Empty when the step is right.
+ * binary that calls itself another version; give up before four failed
+ * fetches have been waited out, 5, 15, 45 and 135 seconds apart (2026-11-08:
+ * GitHub's release download answered 503 for about two minutes, and a failed
+ * night resets the count a release waits for), or go on after five; or install
+ * anything on a machine no release is pinned for. Empty when the step is right.
  */
 function stalwartStepFaults(workflow: string): string[] {
   const step = stalwartStep(workflow);
@@ -1143,12 +1145,13 @@ function stalwartStepFaults(workflow: string): string[] {
     const other = runStalwartStep(step, machine, STALWART_STAND_IN_SHA256, 'stalwart-cli 1.0.99');
     if (other.status === 0) faults.push(`accepts a binary that calls itself stalwart-cli 1.0.99 on ${machine}\n${other.log}`);
   }
-  // A CDN blip on the first two fetches is absorbed; three in a row stop the step with nothing installed.
-  const blip = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 2);
-  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15')) faults.push(`does not ride out two failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
-  const outage = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 3);
-  if (outage.status === 0 || outage.installed !== undefined || outage.ran || outage.fetched.length !== 3) {
-    faults.push(`goes on after three failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
+  // Four failed fetches in a row are waited out, 5, 15, 45 and 135 seconds apart: about four
+  // minutes of a download that answers 503; five in a row stop the step with nothing installed.
+  const blip = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 4);
+  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15 45 135')) faults.push(`does not ride out four failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
+  const outage = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 5);
+  if (outage.status === 0 || outage.installed !== undefined || outage.ran || outage.fetched.length !== 5) {
+    faults.push(`goes on after five failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
   }
   const riscv = runStalwartStep(step, 'riscv64', STALWART_STAND_IN_SHA256, release);
   if (riscv.status === 0 || riscv.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${riscv.status}`);
@@ -1914,9 +1917,12 @@ describe('the stalwart-cli CI installs: a named release, checked by its sha256 f
     expect(faults(/if \[ "\$said" != /, 'if false && [ "$said" != ')).toMatch(/accepts a binary that calls itself stalwart-cli 1\.0\.99 on x86_64/);
     expect(faults(/(does not call itself \$\{STALWART_CLI_VERSION#v\}\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself stalwart-cli 1\.0\.99 on aarch64/);
     expect(faults('-$native-unknown-linux-gnu.tar.xz" -C', '-x86_64-unknown-linux-gnu.tar.xz" -C')).toMatch(/installs no release on aarch64/);
-    // The retry: none at all, or one that waits for nothing between attempts.
-    expect(faults('for attempt in 1 2 3; do', 'for attempt in 1; do')).toMatch(/does not ride out two failed fetches/);
-    expect(faults(/\n +sleep \$\(\(attempt \* 10 - 5\)\)\n/, '\n')).toMatch(/does not ride out two failed fetches: exit 0, slept never/);
+    // The retry: none at all, the three attempts it had until 2026-11-08, one that waits for
+    // nothing between attempts, or the 5s, 15s, 25s and 35s the old arithmetic would give.
+    expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1; do')).toMatch(/does not ride out four failed fetches/);
+    expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1 2 3; do')).toMatch(/does not ride out four failed fetches/);
+    expect(faults(/\n +sleep \$\(\(5 \* 3 \*\* \(attempt - 1\)\)\)\n/, '\n')).toMatch(/does not ride out four failed fetches: exit 0, slept never/);
+    expect(faults('sleep $((5 * 3 ** (attempt - 1)))', 'sleep $((attempt * 10 - 5))')).toMatch(/does not ride out four failed fetches: exit 0, slept 5 15 25 35/);
   });
 
   it('is a routine pin, current while upstream tags no newer release of its major', async () => {

@@ -181,19 +181,22 @@ jobs:
             if [ "$arch" = x86_64 ]; then pinned="$STALWART_CLI_SHA256_AMD64"; else pinned="$STALWART_CLI_SHA256_ARM64"; fi
             download="$RUNNER_TEMP/stalwart-cli-$STALWART_CLI_VERSION-$arch-unknown-linux-gnu.tar.xz"
             rm -f "$download"
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5; do
               if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
                   "https://github.com/stalwartlabs/cli/releases/download/${STALWART_CLI_VERSION}/stalwart-cli-${arch}-unknown-linux-gnu.tar.xz"; then
                 break
               fi
               echo "::warning::stalwart-cli $STALWART_CLI_VERSION linux/$arch: download attempt $attempt failed"
-              if [ "$attempt" = 3 ]; then
-                echo "::error::stalwart-cli $STALWART_CLI_VERSION could not be downloaded after 3 attempts. This is not a test failure: no test ran. Either GitHub's release download is unavailable or the release no longer serves this file."
+              if [ "$attempt" = 5 ]; then
+                echo "::error::stalwart-cli $STALWART_CLI_VERSION could not be downloaded after 5 attempts. This is not a test failure: no test ran. Either GitHub's release download is unavailable or the release no longer serves this file."
                 exit 1
               fi
-              # 5s, then 15s: long enough for a CDN blip, short enough that a
-              # real outage is reported inside a minute.
-              sleep $((attempt * 10 - 5))
+              # 5s, 15s, 45s, then 135s. On 2026-11-08 GitHub's release download
+              # answered 503 for about two minutes, longer than the 5s and 15s
+              # this waited, and a scheduled E2E night that fails resets the count
+              # a release waits for (scripts/release-nights.mjs). A real outage is
+              # still reported, inside seven minutes for a file.
+              sleep $((5 * 3 ** (attempt - 1)))
             done
             seen="$(sha256sum "$download")"
             seen="${seen%% *}"
