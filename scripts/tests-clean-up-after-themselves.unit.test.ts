@@ -16,7 +16,7 @@
  * disk that is full.
  *
  * IT IS NOT ONLY A LAPTOP PROBLEM. `unit-tests` and `integration-tests` run on
- * the SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * the SELF-HOSTED runner for pushes to main — the same machine the managed stack
  * needs ~15GB free on, and the same box that spent yesterday having its disk
  * quietly filled by a backup drill that kept every dump (0099). Two unrelated
  * leaks on one machine in two days is a pattern, not bad luck: things that

@@ -520,7 +520,7 @@ export const runDeltaSync = schemaTask({
           // email branch wrote neither: a comment here claimed
           // buildDepsFromMapping managed the email status itself, which was
           // simply not true (nothing in @openmig/core or the ledger touches
-          // that table). Live on the Spark, an email-only mapping syncing
+          // that table). Live on the machine, an email-only mapping syncing
           // cleanly every 15 minutes reported "last sync: 9 days ago" —
           // the run history and the mapping list disagreeing about the same
           // passes, with the stale one shown on the screen an owner checks
@@ -654,7 +654,7 @@ export const runDeltaSync = schemaTask({
           } else if (domain === 'task') {
             // The managed half of the seventh fan-out (workplan 0113). This
             // file had the same bare `else` as orchestration's runOneDomain,
-            // and THIS is the one that ran on the owner's Spark: the task
+            // and THIS is the one that ran on the owner's machine: the task
             // domain built file deps, ran runFileSync, copied nothing, and was
             // marked completed. The two dispatchers are separate code with
             // identical shape, so a fix to one is not a fix to the other —

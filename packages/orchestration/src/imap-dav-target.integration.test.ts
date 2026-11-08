@@ -17,7 +17,7 @@
 // inside a workspace package, so pnpm links no `@openmig/*` into scope there
 // and the import would have died on the runner with ERR_MODULE_NOT_FOUND —
 // while `tsc` and `tsx` both resolved it locally through tsconfig paths. It
-// compiled, it passed here, and it would have failed on the Spark. The rule's
+// compiled, it passed here, and it would have failed on the machine. The rule's
 // second half is the deeper one: an e2e talks to a RUNNING appliance over the
 // wire, and pulling library code into one makes it partly a test of this
 // checkout.

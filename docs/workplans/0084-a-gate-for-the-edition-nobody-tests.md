@@ -1,6 +1,6 @@
 # Workplan 0084 — a gate for the edition nobody tests
 
-> **In one line:** Nightly managed end-to-end gate `e2e-managed.yml` on the Spark's long-lived `managed.yml` stack: managed smoke verify and apply, a PgBouncer check, redacted evidence, seeded demo sources, and fixes for ledger `target_ref` and empty-handle DELETEs.
+> **In one line:** Nightly managed end-to-end gate `e2e-managed.yml` on the machine's long-lived `managed.yml` stack: managed smoke verify and apply, a PgBouncer check, redacted evidence, seeded demo sources, and fixes for ledger `target_ref` and empty-handle DELETEs.
 
 ## Status — 2026-08-18 (update this block at the end of every session)
 
@@ -29,10 +29,10 @@ changed the design (below).
 
 | Task | Status | Notes |
 |---|---|---|
-| T1 stand the managed stack up in CI | ✅ **Built 2026-08-18** | `deploy/compose/managed.yml` is **fourteen services**: postgres, pgbouncer, trigger-db, trigger-redis, trigger-api, clickhouse, trigger-registry, trigger-docker-proxy, trigger-supervisor, minio, trigger-tls, api, web, nextcloud. That is the honest scope — this is not "add a job". Self-hosted arm64 Spark runner, same as `e2e.yml`, because nothing else in CI can host it. |
+| T1 stand the managed stack up in CI | ✅ **Built 2026-08-18** | `deploy/compose/managed.yml` is **fourteen services**: postgres, pgbouncer, trigger-db, trigger-redis, trigger-api, clickhouse, trigger-registry, trigger-docker-proxy, trigger-supervisor, minio, trigger-tls, api, web, nextcloud. That is the honest scope — this is not "add a job". Self-hosted arm64 runner, same as `e2e.yml`, because nothing else in CI can host it. |
 | T2 the acceptance itself — **mostly already written** | ✅ **Built 2026-08-18** | `deploy/compose/smoke-managed.sh` (257 lines, workplan 0020 T5) already drives the live verify + apply smoke against a running managed stack, captures runner logs before AutoRemove destroys them, and lands stuck rows by hand rather than leaving them pointing at nothing. **This task is wiring, not writing.** `setup-managed-demo.sh` + `seed-managed.ts` + `deploy-tasks.sh` are the bring-up it expects. |
 | T3 the pooler is in the path | ✅ **Built 2026-08-18** | The reason this workplan exists at all. 0082 T4 shipped PgBouncer and **nothing can verify it** — `e2e.yml` stands up `deploy/selfhost/compose.yml` and never references `managed.yml`. The gate must assert the app is actually talking through the pooler (`SHOW POOLS` reports non-zero `cl_active`) and that **migrations are not** (they hold a session advisory lock; through a transaction pooler two replicas would stop excluding each other, silently). Closing 0082 T4 is this task. |
-| T4 nightly, and somebody reads it | ✅ **Built 2026-08-18** | Nightly like `e2e.yml` (`30 1` postgres, `30 3` pglite — pick a third slot, not one of those two: the Spark cannot run them concurrently). **A nightly nobody reads is worse than no nightly**, because it converts a real signal into a green-looking habit. See "Who reads it" below. |
+| T4 nightly, and somebody reads it | ✅ **Built 2026-08-18** | Nightly like `e2e.yml` (`30 1` postgres, `30 3` pglite — pick a third slot, not one of those two: the machine cannot run them concurrently). **A nightly nobody reads is worse than no nightly**, because it converts a real signal into a green-looking habit. See "Who reads it" below. |
 | T5 evidence without leaking secrets | ✅ **Proved 2026-08-18 (run #13)** | Ran empty through run #9 — the smoke wrote to `/tmp` while the collector globbed the workspace, so redaction had never redacted anything and no artifact existed. Fixed by pointing `SMOKE_OUT` at a collected path. Run #9's artifact was downloaded and grepped: no `tr_prod_`, `tr_pat_`, `postgres://` or JWT shapes survive, and a `[redacted]` marker is present. The evidence tail now also prints into the job log on `always()`, from the REDACTED copy — the original carries the runners' whole task environment. |
 | T6 teardown that actually tears down | ⛔ **Withdrawn 2026-08-18** | Fourteen services, named volumes, a local registry and a docker proxy on a **shared, long-lived** machine. **Withdrawn, and this is the finding that mattered most.** The naive `down -v` this row asked for would have destroyed the Trigger.dev account, project and API key — none of which can be recreated unattended — and the next run would fail looking like a broken test rather than a missing account. See below. The run now leaves the stack standing and reports what state it is in. |
 | T7 what "green" is allowed to mean | ✅ **Enforced and met 2026-08-18 (run #13)** | Writing the criteria down did not enforce them: run #6 went green with T7.1 unasserted and T7.3's apply half skipped. All five are now enforced in code and mutation-verified, and run #13 satisfies them — `verify: done   apply: applied`, a runner executing, the pooler assertion passing, `unhealthy: none`, and the stack left standing for the next run. **One documented gap remains:** T7.1 cannot speak for the seven services that define no healthcheck. |
@@ -76,7 +76,7 @@ existed** — and until run #7 the smoke reported that as a pass.
 
 Mail looks different only by accident. Run #7's verify half reports
 `sourceCount 3, targetCount 3, checksumMatches 3` — but nothing in this repo
-seeds those three messages either. They are ambient state on the Spark's
+seeds those three messages either. They are ambient state on the machine's
 Stalwart, put there by hand at some point. Worth knowing before trusting the
 verify half's counts on a fresh machine: **that half would find nothing to
 verify too.**
@@ -107,7 +107,7 @@ fourth turned out not to be a defect at all (see below).
 **Not yet wired into the bring-up, on purpose.** `--with-demo` does not call it
 yet. If it misbehaves against the real Nextcloud it would break the bring-up
 step and take the whole gate with it, which is a worse failure than the one it
-fixes. Run it by hand on the Spark first; wire it into `setup-managed-demo.sh`
+fixes. Run it by hand on the machine first; wire it into `setup-managed-demo.sh`
 once it has worked once.
 
 **A correction worth recording, since this workplan is about not over-claiming.**
@@ -155,7 +155,7 @@ together.
 
 **Still the same missing precondition.** Nothing has yet put content into the
 demo DAV source, so there is still nothing to sync and no `copied` row to act
-on. `seed-demo-dav-content.sh` exists and has not been run on the Spark.
+on. `seed-demo-dav-content.sh` exists and has not been run on the machine.
 
 ## Run #9 — a refusal that named a symptom, not a state (2026-08-18)
 
@@ -191,7 +191,7 @@ is exactly what `seed-managed.ts` writes. So the path from seeded content to a
 `copied` row with a target id is unbroken, and content is the only thing
 missing.
 
-Whether `seed-demo-dav-content.sh` has been run on the Spark is still not
+Whether `seed-demo-dav-content.sh` has been run on the machine is still not
 knowable from a run's evidence. After this change it is: run #10's refusal, if
 it comes, will say which of the three states the ledger is in.
 
@@ -199,7 +199,7 @@ it comes, will say which of the three states the ledger is in.
 
 Red at the same step. The interesting part is not the failure, it is what the
 gate could not do about it: every remaining route to green needed a human on
-the Spark, and there was none.
+the machine, and there was none.
 
 **The two things standing between the gate and an honest green, both structural.**
 
@@ -327,7 +327,7 @@ what the images probably contain:
 
 | service | probe | why it is safe to assert |
 |---|---|---|
-| `nextcloud` | `curl … /status.php` | **proven** — `setup-nextcloud-users.sh` has been running exactly this via `docker exec` against this image on the Spark since the demo existed |
+| `nextcloud` | `curl … /status.php` | **proven** — `setup-nextcloud-users.sh` has been running exactly this via `docker exec` against this image on the machine since the demo existed |
 | `trigger-api` | `node -e fetch('http://127.0.0.1:3000/')` | Node application image, so the runtime its own entrypoint uses is the one binary certainly present; the appliance's healthcheck uses the same shape |
 | `trigger-supervisor` | `node -e fetch('http://127.0.0.1:8020/')` | same, and 8020 is the workload API a runner's own log names (`TRIGGER_SUPERVISOR_API_PORT`) |
 
@@ -357,7 +357,7 @@ reports `sourceCount: 0, targetCount: 0, PASS`. Perfectly true, and worth
 nothing.
 
 It is the same shape as the apply half's skip-that-passed, and it survived that
-fix untouched. It has never fired on the Spark only because that box happens to
+fix untouched. It has never fired on the machine only because that box happens to
 hold three messages somebody put there by hand, and **nothing in this
 repository seeds them** — so on any other machine this half has been vacuous
 and green for its whole existence.
@@ -643,7 +643,7 @@ one, which reads as green while proving nothing.
 - **No real O365 source.** Same posture as `e2e.yml`: Stalwart and Nextcloud
   are the fixtures. A gate that needs live Microsoft credentials is a gate that
   fails for reasons that are not ours.
-- **No public-internet exposure.** The stack comes up on the Spark's network
+- **No public-internet exposure.** The stack comes up on the machine's network
   and dies there.
 - **Not a performance test.** It proves the stack works, not that it is fast.
   0082's numbers still want `pg_stat_statements`, which is a separate thing.
@@ -764,7 +764,7 @@ changed body under a spent key still classifies as `tombstoned`.
 ### Runs #21 and #22 (2026-08-19) — the fix, proved on the box
 
 The run #20 entry above was written against a stubbed Nextcloud, and said so.
-Two runs on the Spark discharge that, and they prove **different halves** — which
+Two runs on the machine discharge that, and they prove **different halves** — which
 is the point, because either one alone would leave the other unproven.
 
 **#21 (`32285427467`) exercised the repair path.** Prepare fired, because nothing

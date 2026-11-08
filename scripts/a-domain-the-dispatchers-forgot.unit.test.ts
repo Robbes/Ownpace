@@ -186,7 +186,7 @@ describe('the task pass is a task pass, not the calendar one under another name'
   it("files its items under the 'task' domain", () => {
     // Passing `domain: 'calendar'` here would put every to-do in the ledger as
     // a calendar item: the verification gate would then find task rows absent
-    // and report SKIPPED, which is the state the owner's Spark was in.
+    // and report SKIPPED, which is the state the owner's machine was in.
     expect(wrapper('runTaskSync')).toMatch(/domain:\s*['"]task['"]/);
   });
 

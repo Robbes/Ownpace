@@ -93,7 +93,7 @@ a suite that normally takes ~140s. CI's own run on the pull request is the check
 that matters.
 
 **The workflow change is not proved by running it.** It cannot be: it needs the
-Spark, its persisted `.env` and a Trigger.dev account. The derivation is
+machine, its persisted `.env` and a Trigger.dev account. The derivation is
 exercised against the real `managed.yml` by T3's test, and the shell was run by
 hand against this checkout to confirm it yields all twelve variables — but
 whether the gate goes green is the next nightly's answer, or a manual dispatch.

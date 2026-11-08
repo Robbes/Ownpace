@@ -18,7 +18,7 @@
  *             managed.env.example, a section in docs/managed-bring-up.md
  *             saying it "starts with everything else", and a whole
  *             status-page.md — for a container no bring-up had ever run.
- *             Found by reading `docker ps` on the Spark and noticing what was
+ *             Found by reading `docker ps` on the machine and noticing what was
  *             not in it.
  *
  * Both are the same defect and neither was a typo: it is what happens when the

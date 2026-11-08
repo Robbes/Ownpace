@@ -1,7 +1,7 @@
 # Owner testing — what to run yourself, in what order, and why
 
 This runbook sequences every test only the owner can run, across the machines you
-actually have: the Windows laptop, the Spark, and a real Google Drive. It does not
+actually have: the Windows laptop, the machine, and a real Google Drive. It does not
 repeat the documents that already exist — it says **which one to follow when, what
 to do differently this round, and what to send back**. The stage documents are:
 
@@ -9,7 +9,7 @@ to do differently this round, and what to send back**. The stage documents are:
 |---|---|---|
 | 1 | [`google-workspace-setup.md`](./google-workspace-setup.md) | Credentials + the export byte-stability verdict + the CI fixture |
 | 2 | [`windows-appliance-runbook.md`](./windows-appliance-runbook.md) | The appliance on Windows — already proven for mail; this round adds Drive and the queues |
-| 3 | [`selfhost-quickstart.md`](./selfhost-quickstart.md) | The compose deployment on the Spark, over days |
+| 3 | [`selfhost-quickstart.md`](./selfhost-quickstart.md) | The compose deployment on the machine, over days |
 | 10 | [`soverin-supervised-run.md`](./soverin-supervised-run.md) | A migration into a provider we do not host, and the nightly lane that keeps checking it |
 | — | [`operator-runbook.md`](./operator-runbook.md) | What every queue and refusal means, while you are clicking |
 
@@ -126,7 +126,7 @@ so — that is my work, not yours.
 3. Mapping: add a `domains.files` block to the mapping JSON —
    [`selfhost-quickstart.md`](./selfhost-quickstart.md) §"Google Drive as the
    file source" has the exact shape. Choose the target by what you want to
-   eyeball: **Nextcloud (WebDAV) on the Spark** lets you see arriving files in
+   eyeball: **Nextcloud (WebDAV) on the machine** lets you see arriving files in
    its own web UI (`setup-nextcloud-users.sh` is idempotent, NetBird reaches it,
    `"tlsVerify": false` as the runbook says); Stalwart JMAP files also works.
 4. Scope it: set `"rootFolderId"` to your **test folder**, not all of My Drive.
@@ -211,10 +211,10 @@ quote it verbatim (rule 9 applies to me too).
 
 ---
 
-## Stage 3 — the Spark: the same thing, left alone for a week
+## Stage 3 — the machine: the same thing, left alone for a week
 
 Stage 2 proves the flows; it cannot prove a schedule that holds up. Follow
-[`selfhost-quickstart.md`](./selfhost-quickstart.md) on the Spark (compose path),
+[`selfhost-quickstart.md`](./selfhost-quickstart.md) on the machine (compose path),
 same mapping shape, 15-min cron, and let it run.
 
 - **Day 1:** `GET /status` after a few passes — counts stable, `itemsFailed`
@@ -233,7 +233,7 @@ surprised you.
 
 ---
 
-## Stage 4 — managed on the Spark: now a real test
+## Stage 4 — managed on the machine: now a real test
 
 Both gaps this stage used to wait on are built: managed makes a Google Drive
 source (through **Start a migration** since the wizard retired, 0153 D5), and
@@ -241,7 +241,7 @@ the relocation apply runs through its own queued job (`run-apply-relocation`)
 landing on its own receipt. So Stage 4 is Stage 2's drills through the managed
 journey:
 
-1. Bring up `deploy/compose/managed.yml` on the Spark (worker included — the
+1. Bring up `deploy/compose/managed.yml` on the machine (worker included — the
    destructive path runs through Trigger.dev there, so a missing worker shows
    up as receipts stuck `queued`, which is itself worth seeing once).
 2. Walk **Start a migration** (`/start`): tick **Google** on
@@ -378,7 +378,7 @@ refused with.
 
 ---
 
-## Stage 7 — the cutover gate on real data (workplan 0009, ~10 min, the Spark)
+## Stage 7 — the cutover gate on real data (workplan 0009, ~10 min, the machine)
 
 The cutover's state machine is proved on Postgres and, since 0009 T12, pressed
 nightly on the managed stack. What no gate can prove is the one thing that
@@ -393,7 +393,7 @@ itself (owner decision 2026-07-16: verify-only DNS). The runbook the operator
 follows for the switch is `runbook`'s output; that is the manual, not this.
 
 ```sh
-# from the repo root on the Spark, DATABASE_URL pointing at the managed Postgres
+# from the repo root on the machine, DATABASE_URL pointing at the managed Postgres
 pnpm exec tsx apps/worker/src/cli/index.ts start-cutover \
   --tenant <tenant-id> --mapping <mapping-id> \
   --domain <your-domain> --target <the target's mail host>
@@ -746,7 +746,7 @@ and step H's run by hand prints `PASS`.
 - **Scope Drive testing to a dedicated test folder** via `rootFolderId` — not
   because the token can damage Drive (it is `drive.readonly`; it cannot), but
   because a small corpus makes every queue legible and every drill reversible.
-- **Destructive drills point at disposable targets only**: the Spark's
+- **Destructive drills point at disposable targets only**: the machine's
   `dev.local` accounts exist precisely to be wiped. `allowApplyDeletions` stays
   off everywhere else — it defaults off, and nothing here needs it on a mapping
   you care about.

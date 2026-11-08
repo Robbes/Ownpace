@@ -35,7 +35,7 @@ import type { RunsResponse } from '@openmig/shared';
  * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
  * the suite was measured leaking 322MB per run after quietly accumulating
  * 29GB and filling the disk of the box running it. `unit-tests` runs on the
- * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * SELF-HOSTED runner for pushes to main — the same machine the managed stack
  * needs ~15GB free on.
  *
  * Registered rather than removed at each call site, so a new test here cannot

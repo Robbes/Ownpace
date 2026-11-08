@@ -82,7 +82,7 @@ USERLIST="$(pgbouncer_userlist "$SCRIPT_DIR")" || {
 # of managed.env.example shipped `change-me-…` defaults, so an .env copied from
 # one of those satisfied that test forever and the secret was never generated.
 #
-# Found on the Spark, 2026-08-18, where the live stack was running with
+# Found on the machine, 2026-08-18, where the live stack was running with
 #   TRIGGER_ENCRYPTION_KEY=change-me-32-byte-encryption-key
 #   TRIGGER_LOGIN_SECRET=change-me-login-secret
 # — values published in this repository's git history. TRIGGER_ENCRYPTION_KEY
@@ -472,7 +472,7 @@ if [ -n "$PGB_PW" ]; then
   #
   # and then, having no users at all, refuses every login with `no such user:
   # pgbouncer_auth` — which reads like a missing role rather than a mode bit.
-  # (Spark, 2026-08-18. The startup line naming the real cause had already
+  # (the machine, 2026-08-18. The startup line naming the real cause had already
   # scrolled out of the log window, so it cost three rounds of looking at the
   # wrong thing.)
   #
@@ -510,7 +510,7 @@ fi
 # the one value without which the api refuses to start once OWNPACE_STAGE is
 # `alpha` (assertBackupRetentionConfig, apps/api/src/config-guards.ts), and an
 # .env from before that refusal (#1435, 2026-10-04) carries it blank. Found on
-# the Spark's OTA stack, 2026-10-05: the api crash-looped after a pull, and the
+# the machine's OTA stack, 2026-10-05: the api crash-looped after a pull, and the
 # site said "Your account could not be read".
 #
 # Off live the true answer is known: copy-before-update.sh, the only thing

@@ -1,14 +1,14 @@
 # Build the Windows appliance payload on CI, so nobody has to build it by hand.
 #
 # WHY THIS EXISTS. Getting a payload onto the Windows laptop used to mean:
-# build it on the Spark, zip it, scp it across, and hope the two machines agreed
+# build it on the box, zip it, scp it across, and hope the two machines agreed
 # about what was in it. Every step of that is a place for "which build is this?"
 # to become unanswerable — and the payload's own start-up line exists precisely
 # because two copies on one machine look identical (see `buildIdentity()` in
 # scripts/package-appliance.mjs).
 #
 # Run this from the Actions tab, download the zip, extract, run. No toolchain on
-# the Windows machine, and no toolchain on the Spark either.
+# the Windows machine, and no toolchain on the box either.
 #
 # Three jobs. `build` stages the payload on Linux and uploads it. `smoke`
 # downloads that upload on a GitHub-hosted Windows runner and runs Phases 1 and

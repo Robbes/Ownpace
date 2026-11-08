@@ -617,7 +617,7 @@ testers: a tester who also connects two family members' Google accounts counts a
 **From 0132 D7 — testers on `ownpace-live`.** The owner asked: *"check, can't i just (as a start)
 host a 'ownpace-live' as production, next to the current 'ownpace-managed' on OTA-domain? What
 would i need to do to keep alle seperate from each other?"* Asked whether that should be the
-decision, with testers on `ownpace-live`: *"Yes! The spark has a lot free memory and disk, it will
+decision, with testers on `ownpace-live`: *"Yes! [The machine] has a lot free memory and disk, it will
 fit."* 0132 records the whole decision. For this plan it means that every consent a tester meets
 runs against the registrations live names, at live's addresses: `app.ownpace.eu` for the consents
 (T11), and `id.ownpace.eu` for any sign-in provider (T10).

@@ -32,7 +32,7 @@ from outside (T3, T5, T10; item 8).** From the owner's steps (the owner's checkl
   acceptance screen asks for 1.0 (T3).
 - **One step skipped by the owner's choice, not failed.** The checklist compares live's `.env`
   with a copy of it off the machine, and that needed a new copy of the file there. The owner
-  (2026-10-29): *"I don't want the env away from the spark now"*. So the compare was not made
+  (2026-10-29): *"I don't want the env away from [the machine] now"*. So the compare was not made
   (0134 T4).
 - **Item 8, the half from outside.** Exposure probe runs 40833492206 and 40835664486
   (2026-10-29) pass. Their checks include that no NetBird sign-in answers `app.`, `id.`,
@@ -2532,7 +2532,7 @@ the same with 1.3 for the terms. The Alpha conditions (1.0, the owner's) are not
 
 - **What the revision rests on**, as the plans record it: households only, *"tester: households
   only for now."* (open question 6); the service carries on after the Alpha, *"End of aplha: we
-  continue, perhapse move off the spark to other hoster."* (0131 open question 1 (b)); the site,
+  continue, perhapse move off [the machine] to other hoster."* (0131 open question 1 (b)); the site,
   and with it the service, on this machine, *"site will first be hosted on this machine during
   alpha"* (T0 fact 6; D5, *"It's all controlled by me and invite only."*); *"stored access after finished
   migration: keep until deleted or closes."* (open question 3 (a)); one copy before each update,
@@ -3011,7 +3011,7 @@ on usages of the process link. Please check for differences and correct if neede
      follows. If you meant every migration, both go back to the plural.
   3. §11: your English said another hosting *provider*, your Dutch another hosting
      *environment*. Both now say from the current environment to another provider, as in your
-     answer *"move off the spark to other hoster"*. If you meant any other environment, possibly
+     answer *"move off [the machine] to other hoster"*. If you meant any other environment, possibly
      at the same provider, both say *"another hosting environment"*.
   4. §6: *"The backup doesn't leave the hosting environment"* sits under *No backups*, and is the
      text's only contraction; the Dutch says *"Ze"* (that copy). *"That copy does not leave the
@@ -3137,7 +3137,7 @@ review it, where can i read it? and yes, also make the draft"*.
   *Opnieuw verbinden*).
 - **The owner's answers of 2026-09-28 it rests on**, verbatim:
   - the end of the alpha (0131 open question 1 (b)): *"End of aplha: we continue, perhapse move
-    off the spark to other hoster."* The service carries on under new conditions, perhaps at
+    off [the machine] to other hoster."* The service carries on under new conditions, perhaps at
     another hosting provider. Testers are told in advance, with the new conditions and where the
     data would go, and may close their account instead (§11);
   - *"tester: households only for now."* (open question 6, below; §1);
@@ -3765,7 +3765,7 @@ The first answer placed the alpha at the OTA address. Later the same day the own
 *"check, can't i just (as a start) host a 'ownpace-live' as production, next to the current
 'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each other?"*
 The proposal back was to make that the decision in 0132, with testers on `ownpace-live`. The
-owner's answer: *"Yes! The spark has a lot free memory and disk, it will fit."* (0132 D-new.)
+owner's answer: *"Yes! [The machine] has a lot free memory and disk, it will fit."* (0132 D-new.)
 
 So the alpha runs on the reference machine, in a second compose project, `ownpace-live` (live),
 at the production names of 0091: `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu`. The

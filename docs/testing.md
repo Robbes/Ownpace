@@ -41,7 +41,7 @@ convention that is already half-abandoned.
   **every pull request**, not nightly, because it is cheap and those defects are expensive.
   Kept out of `pnpm test` because it needs two things the unit gate must not require: a Chromium
   binary and a production `pnpm build` of the web app.
-- **E2E** (on the self-hosted arm64 Spark): nightly black-box gates against a
+- **E2E** (on the self-hosted arm64 runner): nightly black-box gates against a
   running self-host appliance (`e2e.yml`, both persistence backends) and the managed stack
   (`e2e-managed.yml`), a nightly soft lane against a target we do not host
   (`e2e-live-target.yml`), and a dispatch-only shadow read of the real SMB O365 source
@@ -438,13 +438,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   the name the pulled image had (`postgres-managed`, `postgres-selfhost`, `trigger.dev`,
   `supervisor`).
 - `e2e.yml` — nightly (23:30 UTC on the Postgres stack, 01:30 UTC on PGlite) and on dispatch, on
-  `[self-hosted, linux, arm64]` (the Spark); brings up Stalwart via
+  `[self-hosted, linux, arm64]` (the machine); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
   `docker compose` service, since compose can't express that transition for one service), seeds
   the source over IMAPS, builds + starts the self-host appliance, and runs the workplan 0010 T5
   restart-resume idempotency gate, then tears down. Installs `stalwart-cli` itself (same install
   step as `integration-tests`, see below) since it drives `setup-stalwart.sh`'s provisioning phase.
-- `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the Spark: the managed-edition gate
+- `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition gate
   (workplan 0084), run against a long-lived configured stack, so it does not prove bring-up from
   scratch.
 - **Before a release tag, and so before a deploy to live** (workplan 0141 T14, the owner's rule
@@ -455,10 +455,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   T14 is the one statement of it; `scripts/release-nights.mjs` reads it, and the Release
   workflow refuses to tag a commit it does not hold for. A tag pushed by hand is the owner's
   break-glass, with the acceptance written in the deploy log.
-- `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the Spark: the soft lane against
+- `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the machine: the soft lane against
   a target we do not host (workplan 0105 T4). Red means investigate; it never runs on a pull
   request, so it blocks nothing.
-- `e2e-o365.yml` — dispatch only, on the Spark: the secret-gated real-tenant O365 e2e (workplan
+- `e2e-o365.yml` — dispatch only, on the machine: the secret-gated real-tenant O365 e2e (workplan
   0008 T7); the tenant and its secrets are in `docs/test-tenant.md`.
 - `clock-watch.yml` — daily (06:41 UTC) and on dispatch, on a GitHub-hosted runner: the clocks
   nothing else warns about. It reads the certificates `app.`, `id.` and `status.ownpace.eu`

@@ -13,7 +13,7 @@
  * (line 742), so `.env` has never carried such a line. The grep returned the
  * empty string, the assignment SUCCEEDED, and the script then refused for a
  * requirement the reader had just apparently satisfied — the worst shape a
- * refusal can have. Found 2026-08-31 by the owner, on the Spark, following the
+ * refusal can have. Found 2026-08-31 by the owner, on the machine, following the
  * document exactly.
  *
  * Three guards, because there are three ways for this to come back:

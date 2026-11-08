@@ -181,7 +181,7 @@ day** that a check needed checking.
 `pnpm lint` · `pnpm typecheck` · `pnpm test` — green (2026-08-23).
 
 **The bring-up and smoke changes are not proved by running them**, for the same
-reason as 0098: they need the Spark. The scripts are pinned by tests that read
+reason as 0098: they need the machine. The scripts are pinned by tests that read
 them; whether the gate goes green is the next dispatch's answer.
 
 ## What the next dispatch answered: run #38
@@ -394,7 +394,7 @@ two dispatches.
 
 ### Runs #42 and #43 — the database was cleared, and nothing changed
 
-The `zitadel` database was dropped by hand on the Spark, the container removed
+The `zitadel` database was dropped by hand on the machine, the container removed
 and the machinekey volume with it. Run #42 shows that landing: `verify
 database`, `verify grant`, then `starting migration name=14_events_push`,
 `40_init_push_func_v4`, `01_tables` — **starting**, not verifying. A genuinely
@@ -542,7 +542,7 @@ now. `run` returns the one-shot's exit code and nothing else.
 
 ### What is still owed after this
 
-The Spark's `zitadel` database still holds the instance-domain row the failed
+The machine's `zitadel` database still holds the instance-domain row the failed
 attempts left behind, so it needs the clear-down the bring-up now prints —
 **after** this fix is on main, not before. Clearing it first buys one run and
 poisons the database again, which is exactly the loop #42 and #43 were.
@@ -591,7 +591,7 @@ which is a fair description of what the per-file version had become.
 
 ### Run #45 — the refusal was right, and it was only half an answer
 
-The machinekey fix reached the Spark and the bring-up stopped on its own guard:
+The machinekey fix reached the machine and the bring-up stopped on its own guard:
 
 ```
 !!! ghcr.io/zitadel/zitadel:v4.6.2 runs as 'zitadel', which is not a numeric uid[:gid].
@@ -632,7 +632,7 @@ Proved against a stubbed docker whose fixture passwd maps `zitadel` to a uid:
 the name resolves, `name:group` resolves, a name absent from passwd still
 refuses, a numeric user skips the lookup, and an empty user still means root.
 The real uid is whatever the real passwd says — this environment has a compose
-parser, no Docker daemon, and no route to ghcr.io, so it is read on the Spark
+parser, no Docker daemon, and no route to ghcr.io, so it is read on the machine
 and nowhere else.
 
 ### Run #46 — uid 1000, and a provider older than its database
@@ -788,7 +788,7 @@ Mutation-verified, after fixing the two bad breaks:
 
 ### What is still open — and the answer the fourth window would have given
 
-The probe's own words, read by hand from the Spark while this was being
+The probe's own words, read by hand from the machine while this was being
 written:
 
 ```
@@ -1141,7 +1141,7 @@ the place where it was noticed.**
 ### What this run does NOT settle
 
 It does not say which of the three it was. Nothing available from outside the
-Spark distinguishes them, and guessing is how #516 nearly shipped a fix for a
+machine distinguishes them, and guessing is how #516 nearly shipped a fix for a
 failure mode that was not happening. What #50 will do is print the status and
 the provider's own words, and refuse at the first call that proves the token
 rather than the fourth call that happens to use it.
@@ -1267,7 +1267,7 @@ empty. An incomplete break, not a hole.
 
 ## Runs #49, #50 and #51 — the token was an error message
 
-Three runs, two full clear-downs of the Spark, and a diagnosis that was wrong
+Three runs, two full clear-downs of the machine, and a diagnosis that was wrong
 twice. The actual bug, in one line:
 
 ```
@@ -1693,7 +1693,7 @@ from some earlier failed revoke, present ever since, now at least said out
 loud. A cleanup mechanism whose failure mode is silence does not exist until
 something independent counts what it left behind.
 
-## A version agreement that only the Spark could check
+## A version agreement that only the machine could check
 
 A confirmation run dispatched for an unrelated reason — proving the identity
 provider still granted and revoked cleanly after a hand-edit — died at the
@@ -1743,7 +1743,7 @@ invisible until something independent checked, and each cheap once it was.
 ## What no gate has ever driven
 
 A sweep of the three e2e gates — `e2e.yml` (self-hosted, two nightly
-backends), `e2e-managed.yml` (05:30 on the Spark) and `e2e-o365.yml`
+backends), `e2e-managed.yml` (05:30 on the machine) and `e2e-o365.yml`
 (secret-gated, a real read-only tenant) — against the connector list DERIVED
 from `config.ts` rather than a list written by hand.
 
@@ -1870,7 +1870,7 @@ earlier. `zcat "$f" | head -20 | grep -q …` closes the pipe the moment grep
 matches; `zcat` dies of SIGPIPE; `set -o pipefail` reports that as the
 pipeline failing. Worse than a plain bug, because it depends on whether the
 writer has finished before the reader leaves: it would have passed here and
-failed on the Spark, or passed a hundred times and failed once.
+failed on the machine, or passed a hundred times and failed once.
 
 Every early-exit consumer now reads from a here-string. **The lesson is about
 the guard, not the bug**: knowing a rule, having written the rule, and having
@@ -1941,7 +1941,7 @@ passed locally, and `test/e2e/no-workspace-imports.unit.test.ts` refused it:
 `test/e2e` is not inside a workspace package, so pnpm links no `@openmig/*`
 there and the import would have died on the runner with
 `ERR_MODULE_NOT_FOUND` — while `tsc` and `tsx` both resolved it locally
-through tsconfig paths. **A test that passes here and dies on the Spark is
+through tsconfig paths. **A test that passes here and dies on the machine is
 worse than no test**, and the only thing standing between that and a merged
 pull request was a guard written for exactly this. Its second half is the
 deeper rule: an e2e talks to a RUNNING appliance over the wire, and pulling
@@ -1966,7 +1966,7 @@ the verdict moved back to `owed` without the owed list following.
 
 ## The drill was quietly filling the disk
 
-Running the new tooling by hand on the Spark showed two backups where there
+Running the new tooling by hand on the machine showed two backups where there
 should have been one: a `-drill` dump from the gate's own run, 14MB
 compressed (185MB of SQL). **The drill takes a real backup every pass and kept
 every one of them** — about 14MB a night, 5GB a year, on the machine whose
@@ -1983,7 +1983,7 @@ found.
 ## The file that made the argument, and then made the mistake
 
 The section above says, in bold, that a test which passes here and dies on the
-Spark is worse than no test. The file it shipped to make that argument did
+machine is worse than no test. The file it shipped to make that argument did
 exactly that, one layer down, and CI caught it on both architectures within
 eight minutes of the pull request opening:
 
@@ -2147,7 +2147,7 @@ must be gitignored**. Without that second half the list is a place to put files
 somebody merely forgot to commit. "Generated" is a claim; `.gitignore` is where
 this repository records having meant it. It is also checked against
 `.gitignore` rather than against the disk on purpose — on a machine that has
-run the bring-up the file exists, so "is it there" would pass on the Spark and
+run the bring-up the file exists, so "is it there" would pass on the machine and
 fail in CI for the same commit.
 
 Seven mutations, seven caught: ClickHouse back to `bitnamilegacy:latest`;
@@ -2205,7 +2205,7 @@ different guard than the one that was argued for.
 
 ## One stack, two `.env` files, and an afternoon
 
-The ClickHouse pin went to the Spark and the bring-up stopped dead at the
+The ClickHouse pin went to the machine and the bring-up stopped dead at the
 identity provider. Five minutes of nothing, then:
 
 ```
@@ -2220,7 +2220,7 @@ had just worked, three log lines earlier, on `verify database` / `verify grant`
 / `verify zitadel`. A stranger's volume would have failed those too. Only the
 `zitadel` role's own password was refused.
 
-**The cause was that the Spark runs ONE managed stack and had TWO `.env` files
+**The cause was that the machine runs ONE managed stack and had TWO `.env` files
 describing it.** `managed.yml` pins `name: ownpace-managed` and every service
 carries a fixed `container_name`, both global to the host — so the operator's
 checkout and the nightly gate's checkout drive the very same containers,
@@ -2414,7 +2414,7 @@ had **no teardown hook at all**, and a PGlite data directory is 41MB. Measured
 before the fix: **24 directories, 322MB, per run**. After: **zero**.
 
 **It is not only a laptop problem.** `unit-tests` and `integration-tests` run
-on the SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+on the SELF-HOSTED runner for pushes to main — the same machine the managed stack
 needs ~15GB free on. Five merges today would have been about 1.6GB of dead
 PGlite databases on the box we spent the afternoon trying to bring a stack up
 on.
@@ -2452,7 +2452,7 @@ guard names it.
 
 The preflight added a few hours earlier — the one whose whole point was that a
 `zitadel` role and a `.env` out of step should cost a second rather than five
-minutes — ran on the Spark and said:
+minutes — ran on the machine and said:
 
 ```
  ✔ Container ownpace-db Healthy    the zitadel role accepts the password in .env
@@ -2813,7 +2813,7 @@ broader and wrong.
 
 ## A service nobody ever started, twice
 
-`docker ps | grep own` on the Spark had no `ownpace-status` in it. The status
+`docker ps | grep own` on the machine had no `ownpace-status` in it. The status
 page was in `managed.yml`, had `STATUS_PORT` in `managed.env.example`, a section
 in `docs/managed-bring-up.md` stating it **"starts with everything else"**, and
 a whole `status-page.md` of its own.
@@ -3271,7 +3271,7 @@ the first place**, so it stays unwritten and named rather than half-done.
 
 ## A healthcheck that asked the wrong address
 
-Found by reading `docker ps | grep unh` on the Spark while chasing a different
+Found by reading `docker ps | grep unh` on the machine while chasing a different
 unhealthy container. `ownpace-www` had been marked unhealthy every thirty
 seconds since **2026-08-20** — five days — and nothing had ever said so, because
 `www.yml` is not part of the managed stack and the gate's residue check only

@@ -1197,7 +1197,7 @@ can try a change to the caps on their own environment before the pull request.
 D-new).** Later the same day the owner asked: *"check, can't i just (as a start) host a
 'ownpace-live' as production, next to the current 'ownpace-managed' on OTA-domain? What would i
 need to do to keep alle seperate from each other?"* ("alle seperate" is read as "all separate".)
-Asked whether to make that the decision, with testers on `ownpace-live`: *"Yes! The spark has a
+Asked whether to make that the decision, with testers on `ownpace-live`: *"Yes! [The machine] has a
 lot free memory and disk, it will fit."*
 
 So two managed stacks share the machine, each with its own Trigger.dev plane, and this plan sizes

@@ -28,7 +28,7 @@
  * (PREPARING), the entries just after it (2), and failed a ledger that had
  * converged. The wait is lifted from the script and run in bash against a
  * ledger that commits between two reads, so the next such read fails here,
- * not on the Spark at night.
+ * not on the machine at night.
  *
  * The lines are read from the real script, the way the neighbouring smoke
  * guards do: a test restating them would pass while the script drifted.

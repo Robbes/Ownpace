@@ -1544,7 +1544,7 @@ UTC.
 - **The host's Docker, upgraded** (§2.4), in the window the owner pulled forward from 11:00 to
   about 03:30, with both holds on: Docker Engine and its CLI 29.2.1 → 29.6.2, containerd.io
   2.2.1 → 2.2.5 (runc 1.3.6), the Compose plugin 5.0.2 → 5.2.0 and the Buildx plugin 0.31.1 →
-  0.35.0, from the machine vendor's apt repository. In order:
+  0.35.0, from a third-party apt repository. In order:
   - `main`'s CI on `21fa6ff8` (run 41568667635) finished its last job on the self-hosted runner
     at 03:33. The runner was stopped first, before the holds: the order was revised so that a
     scheduled E2E that arrived late would queue rather than start against the holds. One did:
@@ -1966,7 +1966,7 @@ times are UTC.
   11.28.9 (`next-11` names 11.28.10); its records are its own.
 - **Still the owner's at the end of the day:** the O365 secrets, or the lane's waiver for
   alpha.4; the removal of the copy before 26.8 (above); the host's Docker, 29.2.1 to the 29.6.2
-  set from the machine vendor's apt repository, in a window with live's hold and the OTA
+  set from a third-party apt repository, in a window with live's hold and the OTA
   stack's both on (§2.4); and the call on Stalwart's critical (the entry above). *(Answered at
   about 22:10: the O365 lane waived for alpha.4; the host's Docker within alpha.4, before the
   counted nights, in the slot set later that evening, 2026-11-03 11:00 to 13:00 UTC; Stalwart's
@@ -2161,7 +2161,7 @@ and 2026-11-02, records, below), and was one of alpha.4's gates (0146's Status).
   status is the workplans'.
 
 **2026-11-02, records: #1785, #1784 and #1786 merged, the owner's ClickHouse window and readings,
-the host's Docker from the machine vendor's apt repository, and the O365 lane's missing
+the host's Docker from a third-party apt repository, and the O365 lane's missing
 secrets.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`.
 Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
 - **#1785 merged** at 07:17 (`0b16a82e`; head `632c0a28`), after E2E (managed) run 41400187583
@@ -2208,7 +2208,7 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   `<project>_clickhouse_data_v2_before_v4_8_3` at about 02:10, their block printing the volume's
   name, after the night of 2026-11-01 (run 41298604750) had proven the move. The entry of
   2026-11-01, later, below and 0132's of the same day said **sent, not done**; they say done now.
-- **The host's Docker comes from the machine vendor's apt repository**, not from Docker's (§2.4,
+- **The host's Docker comes from a third-party apt repository**, not from Docker's (§2.4,
   corrected; the owner's readings). The five packages, `docker-ce` and `docker-ce-cli` 29.2.1,
   `containerd.io` 2.2.1, `docker-compose-plugin` 5.0.2 and `docker-buildx-plugin` 0.31.1, come
   from that repository, which outranks every other source by apt preference (priority 600);
@@ -2217,14 +2217,14 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   that repository are 29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0, not Docker's
   newest (29.9.2, Compose 5.6.1). No package is held, AppArmor is active (`docker info`'s
   security options), and the kernel's own changelog carries CVE-2026-31431 ("Copy Fail"). The
-  plan, the owner's: the vendor's set, in a window with live's hold and the OTA stack's both on,
+  plan, the owner's: that repository's set, in a window with live's hold and the OTA stack's both on,
   since the upgrade restarts every container (`live-restore` is off), with Docker's own 29.2.1
   packages kept on the machine as the way back, their checksums verified; a newer kernel line is
   offered and is left for after alpha.4's tag. *(Upgraded 2026-11-03 to that set, and the five
   packages held with `apt-mark` since; §2.4 and the entry of 2026-11-03, records, above.)*
 - **The O365 lane ran for the first time, and stopped at its secrets** (T3, §3 item 6). Run
   41273625023, queued for #1767 since 2026-11-01 04:34, ended *cancelled* at 02:00 without a
-  runner. The owner added `spark` to the self-hosted runner at about 07:40 (0141 T13 (a): the
+  runner. The owner added the label named after the machine to the self-hosted runner at about 07:40 (0141 T13 (a): the
   label added, rather than dropped from `runs-on`). Run 41418432093, on `main` at `bce0fcfd`,
   09:10 to 09:11, failed at *Validate required secrets*: `O365_CLIENT_ID` and `O365_TENANT_ID`
   are not set as repository secrets, so the suite cannot run. Setting them
@@ -2374,11 +2374,11 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
   removal (0132's Status, 2026-11-01, later): **sent, not done**; done on 2026-11-02 at about
   02:10 UTC (the entry of 2026-11-02, records, above).
 - **The O365 gate (T3, item 6's proof) is held by a runner label.** `e2e-o365.yml` runs on
-  `[self-hosted, linux, arm64, spark]` (:85), and the self-hosted runner does not carry `spark`,
+  `[self-hosted, linux, arm64]` and the label named after the machine (:85), and the self-hosted runner does not carry that label,
   so the lane has never run: 34019235750 and 34019786577 were cancelled in September, and
   41273625023, dispatched for #1767, has been queued since 04:34, while E2E (managed), on
   `[self-hosted, linux, arm64]`, ran on that runner at 10:41. The step is the owner's, 0141
-  T13 (a): add `spark` to the runner, or drop it from `runs-on`, the choice #1137 left to the
+  T13 (a): add that label to the runner, or drop it from `runs-on`, the choice #1137 left to the
   owner; T3's row and §3 item 6 say so. *(2026-11-02: run 41273625023 was cancelled at 02:00
   without a runner; the owner added the label at about 07:40, and the lane's first run on a
   runner, 41418432093, stopped at its secrets check: the entry of 2026-11-02, records, above.)*
@@ -2634,8 +2634,8 @@ today.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-rec
   T3 waits on that one item, ⏳.
 - **The host's Docker, read by the owner, is an open owner item**, now in §2.4: 29.2.1 where
   29.9.2 is the newest, with security fixes between, and an upgrade restarts every container on
-  the machine, because `live-restore` is not set. *(2026-11-02: the packages come from the
-  machine vendor's apt repository, and the target is that repository's set, 29.6.2, not Docker's
+  the machine, because `live-restore` is not set. *(2026-11-02: the packages come from a
+  third-party apt repository, and the target is that repository's set, 29.6.2, not Docker's
   newest; §2.4, corrected, and the entry of 2026-11-02, records, above. 2026-11-03: upgraded to
   it; the entry of 2026-11-03, records, above.)*
 - **The self-hosted runner reads 2.338.0**, the hosted ones 2.338.2; it updates itself, so it
@@ -4029,7 +4029,7 @@ customer whose own Nextcloud already runs it.
   `*.integration.test.ts` that reads a `NEXTCLOUD_` variable, found by `scripts/nextcloud-suites.mjs`
   rather than listed: WebDAV, CalDAV and CardDAV sources, the DAV sync and update propagation, the
   chunked upload (0156) and a new share suite. None needs Stalwart, so Stalwart is not started. On a
-  GitHub-hosted amd64 runner, never the Spark: on a push to `main` that touches `packages/**` or the
+  GitHub-hosted amd64 runner, never the machine: on a push to `main` that touches `packages/**` or the
   test setup, Mondays at 05:17 UTC, on demand, and on a pull request that changes the leg itself. Not
   on every pull request, since `ci.yml` already runs every suite against 34 on two architectures.
   Not a required check (`every-pr-check-is-classified` lists it with the reason).
@@ -4492,7 +4492,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | ⏳ **Owner**, item 6's proof only: the O365 gate's first run on a runner, 41418432093 on `main` (2026-11-02, 09:10 to 09:11 UTC), failed at *Validate required secrets*, because `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets; setting them (`docs/test-tenant.md`) is the owner's, 0141 T13 (a), whose runner label the owner added on 2026-11-02 (Status, 2026-11-02, records). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since its E2E (managed) run 41400187583 and on live from the tag that carries it (Status, 2026-11-02, records) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label `spark`, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status); item 9's version move built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02); ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, queued from 2026-11-01 04:34 UTC because `e2e-o365.yml` asks for the runner label `spark`, which the self-hosted runner did not carry, was cancelled on 2026-11-02 at 02:00 UTC without a runner; the owner added the label at about 07:40 UTC, and the fourth, 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not set: setting them is the owner's step; *was:* a third has been queued since 2026-11-01 04:34 UTC, the label missing (2026-11-01); the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). |
+| T3 The owner's decisions | ⏳ **Owner**, item 6's proof only: the O365 gate's first run on a runner, 41418432093 on `main` (2026-11-02, 09:10 to 09:11 UTC), failed at *Validate required secrets*, because `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets; setting them (`docs/test-tenant.md`) is the owner's, 0141 T13 (a), whose runner label the owner added on 2026-11-02 (Status, 2026-11-02, records). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since its E2E (managed) run 41400187583 and on live from the tag that carries it (Status, 2026-11-02, records) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label named after the machine, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status); item 9's version move built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02); ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, queued from 2026-11-01 04:34 UTC because `e2e-o365.yml` asks for the runner label named after the machine, which the self-hosted runner did not carry, was cancelled on 2026-11-02 at 02:00 UTC without a runner; the owner added the label at about 07:40 UTC, and the fourth, 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not set: setting them is the owner's step; *was:* a third has been queued since 2026-11-01 04:34 UTC, the label missing (2026-11-01); the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 | T5 The second Nextcloud major in CI | ✅ Done 2026-10-28 | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); merged after the alpha.2 tag, on 2026-10-27 as #1705 (`d6acd430`). Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged), merged 2026-10-28 as #1720 (`3d2f129e`): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) run 40774398411 on it (2026-10-28, 21:44–21:52 UTC, `nextcloud:35.0.2` healthy) was the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
 
@@ -4629,21 +4629,21 @@ live's API under `docker-default`; the five packages held with `apt-mark hold` (
 choice: unattended-upgrades is not installed, and the host's 505 other pending updates, with
 the move to the 7.0 kernel line, wait for after alpha.4). `live-restore` is still not set.
 **Corrected 2026-11-02:** the five packages (`docker-ce`, `docker-ce-cli`,
-`containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from the machine vendor's
-apt repository, which outranks every other source by apt preference (priority 600), not from
+`containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from a third-party apt
+repository, which outranks every other source by apt preference (priority 600), not from
 Docker's apt repository, as this paragraph said from 2026-11-01; Docker's own repository is not
 configured on the machine. Each of the five has the SHA256 that Docker's own package index gives
 for the same version, so they are Docker's builds. No package was held on 2026-11-02 (the five
 are held since 2026-11-03, above); AppArmor is active
 (`docker info`'s security options); the kernel's own changelog carries CVE-2026-31431 ("Copy
 Fail"). Docker's newest, read 2026-11-01: 29.9.2 and Compose 5.6.1, with security fixes between.
-apt's candidates from the vendor's repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
+apt's candidates from that repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
 29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0. ✅ **Done 2026-11-03**, from about
 03:30 to 04:33 UTC, with both holds on and the runner stopped first, then E2E (self-hosted) run
 41575338615 and E2E (managed) run 41578935380 green on the new Docker; the OTA stack's
 `pgbouncer` did not start after the restart and was fixed by hand (Status, 2026-11-03,
 records); *was:* ⏳ **Owner, open:** the upgrade to
-the vendor's set, not to Docker's newest, in a window with both holds on, live's and the OTA
+that repository's set, not to Docker's newest, in a window with both holds on, live's and the OTA
 stack's, live's drain done (`docs/managed-bring-up.md`, *`ownpace-live`: a release tag, with
 `deploy-live.sh`*, step 2) and no runner job in flight, because without `live-restore` the
 daemon's restart restarts every container on the machine, live's and the OTA stack's alike;
@@ -5037,12 +5037,12 @@ is beside each; none is urgent tonight.
      `stand-up-live.sh`; both stacks' `.env` already hold a generated value, so neither
      changes.
    - What it does not prove: no Docker daemon was available, so nothing here pulled or ran
-     the image. The branch's E2E (managed) on the Spark is the first run.
+     the image. The branch's E2E (managed) on the machine is the first run.
 6. **`@azure/msal-node` 5 → 6** — taken 2026-09-06 (#819). Its one breaking change removes
    the interactive loopback flow, which the connectors never call: they use the
    client-credential, refresh-token and username-password paths only. The O365 gate
    (`e2e-o365.yml`) on main is the proof, queued for the self-hosted runner. *(2026-11-01:
-   the gate never ran to its end; it asks for the runner label `spark`, which the self-hosted
+   the gate never ran to its end; it asks for the runner label named after the machine, which the self-hosted
    runner does not carry; the step is the owner's, 0141 T13 (a): add the label to the runner, or
    drop it from `runs-on`; see T3.)* *(2026-11-02: the owner added the label; the gate's first
    run on a runner, 41418432093 on `main`, failed at its step "Validate required secrets":

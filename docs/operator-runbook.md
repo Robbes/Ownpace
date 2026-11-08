@@ -612,7 +612,7 @@ reason is not hypothetical — it has already nearly happened twice:
 must not share this machine. Two ways to get there, and the cheaper one only
 became available recently:
 
-1. **Move CI off.** The Spark was buying two things GitHub-hosted runners could
+1. **Move CI off.** The machine was buying two things GitHub-hosted runners could
    not: arm64 and a warm cache. Arm64 is no longer one of them — GitHub's
    `ubuntu-24.04-arm` hosted runners are generally available and free for
    public repositories. What remains is cache/speed, which is worth far less

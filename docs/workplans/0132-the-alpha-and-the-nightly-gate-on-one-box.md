@@ -4,6 +4,46 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08: the machine's product name is out of the repository's text, and a guard keeps it
+out (alpha.7).** Built on the branch `claude/ownpace-public-readiness-y7orc6-a7-machine-name`.
+**Answered 2026-11-08** (about 01:50 UTC), the owner: *"Build the recommended for alpha 7."* What
+was recommended: one pull request for the docs and comments, and a guard so the name does not
+return; git history keeps the old text, and it is not rewritten.
+- **The rule, written down for the first time.** Public text calls the box that runs CI's pushes,
+  the nightly gates, the OTA stack and live the machine, the box, the host, the arm64 machine or
+  the self-hosted runner, never by its hardware product name. A quotation of the owner keeps its
+  words, with the substitution in square brackets: *"[The machine] has a lot free memory and disk,
+  it will fit."* Until now agents were told it, and no file said it or checked it.
+- **The sweep.** At `origin/main` `200185fd`, a case-insensitive whole-word search for the name
+  found 360 lines in 142 tracked files, and none is left. 359 now say the repository's own neutral
+  term, each read in context: 9 workflows, 17 of the stacks' files, 20 files in `apps/` and
+  `packages/`, 36 under `scripts/` (guard headers among them), 37 workplans and their index, 5 ADR
+  files (one a frozen record), 11 other documents, the CHANGELOG, the README, AGENTS.md, 2 E2E tests
+  and the site's build. Five test fixtures' host names and a runbook's placeholder got neutral
+  names, and the tests that read them pass unchanged. One record (0025 T1) named the self-hosted
+  runner itself; it now says "the self-hosted runner". Eighteen quotations of four things the owner
+  said carry the brackets. The 360th line was the O365 lane's runner label (below).
+- **The guard.** `node scripts/machine-product-name.mjs --check`, a step of `docs-hygiene`, so it
+  runs on every change. It compares the SHA-256 of each lowercased token, and of each adjacent
+  pair for the names of two words, with a list of digests, and names a hit's file, line and
+  column, never the word. It reads 2,895 files and passes over 11 binaries and `pnpm-lock.yaml`,
+  whose names are third-party packages'. It has no exceptions: a hit anywhere fails. Its guard,
+  `scripts/a-machine-called-by-its-product-name.unit.test.ts`, has 12 cases, among them one added
+  word, and the old runner label put back, each turning a temporary repository red and green
+  again. Five mutations each turned it red: a word in a doc, the label put back in the workflow,
+  a digest dropped, a hyphen kept inside a token, and the CI step removed.
+- **The O365 lane's runner label, dropped (0141 T13 (a)).** `e2e-o365.yml`'s `runs-on` asked for the
+  label named after the machine, which the owner added to the runner on 2026-11-02 rather than drop
+  it. Since 2026-11-08 it asks for `[self-hosted, linux, arm64]`, as `e2e.yml` and `e2e-managed.yml`
+  do. The 110 self-hosted jobs read on 2026-11-08 (CI's pushes, the nightly lanes, the scan, and the
+  O365 lane's run 41418432093) all ran on the one runner, so the lane lands where it did. The runner
+  may keep the old label: nothing public names it once the workflow does not.
+- **The host's Docker apt repository, reworded.** 14 places in 0119 and 0132 now call it a
+  third-party apt repository, and its package set "that repository's set".
+- **Outside the repository, unchanged:** the runner's own name and its host's name, which every
+  self-hosted job prints into its public log at set-up, both hold the word; and git history,
+  commit messages and earlier pull request text.
+
 **2026-11-08, records: two notes corrected (T9, the pooler's fix).** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, read from GitHub on 2026-11-08. The
 entry of 2026-11-03 called the pooler's fix built on a branch, not merged: it merged as #1798 that
@@ -330,7 +370,7 @@ the owner's readings on 2026-11-03; times are UTC.
   `<project>_clickhouse_data_v2_before_26_8` and step 2's two files went. The entry below said
   sent, not done; it says done now.
 - **The host's Docker, 29.2.1 → 29.6.2**, with containerd.io 2.2.5, the Compose plugin 5.2.0
-  and the Buildx plugin 0.35.0, from the machine vendor's apt repository, in a window the owner
+  and the Buildx plugin 0.35.0, from a third-party apt repository, in a window the owner
   pulled forward from 11:00 to about 03:30. The order, revised so that a scheduled E2E arriving
   late queues instead of starting against the holds: `main`'s CI on `21fa6ff8` done on the
   runner at 03:33; the runner stopped; both holds on at about 03:49; live's drain read
@@ -377,8 +417,8 @@ day (records, later) has the detail. Read from GitHub on 2026-11-02; times are U
   `<project>_clickhouse_data_v2_before_26_8` and step 2's two files was sent to the owner at
   about 11:55. It had not been run when this was written; it is the owner's. *(Run at about
   23:05, its checks passed, the copy gone: the entry of 2026-11-03, records, above.)*
-- **Still the owner's:** the host's Docker, 29.2.1 to the 29.6.2 set from the machine vendor's
-  apt repository, in a window with live's hold and the OTA stack's both on (0119 §2.4), not done
+- **Still the owner's:** the host's Docker, 29.2.1 to the 29.6.2 set from a third-party apt
+  repository, in a window with live's hold and the OTA stack's both on (0119 §2.4), not done
   on 2026-11-02. *(The owner, at about 22:10: within alpha.4, so before the counted nights of
   2026-11-05 and 2026-11-06; the slot, set later that evening, is Tuesday 2026-11-03, 11:00 to
   13:00 UTC. The copy's removal, above, was not answered: sent, not confirmed. 0119's Status,
@@ -387,7 +427,7 @@ day (records, later) has the detail. Read from GitHub on 2026-11-02; times are U
   the entry of 2026-11-03, records, above.)*
 
 **2026-11-02, recorded: the copy from before v4.8.3 removed, ClickHouse 26.8.36.3 on the OTA
-stack, and the host's Docker from the machine vendor's apt repository.** Docs only, on the
+stack, and the host's Docker from a third-party apt repository.** Docs only, on the
 branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`; 0119's Status entry of the
 same day (records) has the detail. Read from GitHub and from the owner's readings on
 2026-11-02; times are UTC.
@@ -405,7 +445,7 @@ same day (records) has the detail. Read from GitHub and from the owner's reading
   carries #1785 (alpha.4), and takes the same copy by hand before that deploy
   (`managed-bring-up.md`, *Moving ClickHouse*, *On live*); the same tag brings #1774's and
   #1784's networks to live (0136 T4).
-- **The host's Docker** comes from the machine vendor's apt repository, not from Docker's, as
+- **The host's Docker** comes from a third-party apt repository, not from Docker's, as
   0119 §2.4 had it since 2026-11-01; §2.4, where the host's readings live (the entry of
   2026-11-01, recorded, below points there), is corrected. Its upgrade is the owner's, to that repository's set (29.6.2), in a window
   with live's hold and the OTA stack's both on, since it restarts every container on the
@@ -462,7 +502,7 @@ same day (records) has the detail. Read from GitHub and from the owner's reading
   is behind, with security fixes between, and its upgrade is the owner's, in a window with
   live's hold on: without `live-restore`, it restarts every container on the machine, live's
   included. Recorded in 0119 §2.4, where the host's runtimes are, as an open owner item.
-  *(2026-11-02: the packages come from the machine vendor's apt repository, not Docker's, and
+  *(2026-11-02: the packages come from a third-party apt repository, not Docker's, and
   the upgrade is to that repository's set, with both holds on: the entry above. 2026-11-03:
   upgraded, 29.6.2: the entry of 2026-11-03, records, above.)*
 
@@ -745,7 +785,7 @@ owner waiting for a pass, and its copy goes without the owner's step.
      *Daily summary* has the line *The copy before an update*. Write the verdict, the mail's time
      and anything unexpected here, under T9.
 
-**2026-10-24: the Spark's runner service had been down since 2026-09-25, and it showed only when
+**2026-10-24: the machine's runner service had been down since 2026-09-25, and it showed only when
 the queue stopped.** E2E (self-hosted) #292 (scheduled, on `cf47ea50`) waited from 01:48 UTC for a
 runner that never came. The runner's systemd unit had failed on 2026-09-25 with `Result:
 oom-kill`: the OOM killer took a process of a job, the listener then exited with code 0 (*"no
@@ -775,11 +815,11 @@ Since #1662 (`d98f54f2`) and #1672 (`be6a857f`), `setup-zitadel.sh` and `smoke-m
 read of the provider again on a 502, 503 or 504, four asks with 14 seconds of waiting between
 them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a read no longer
 fails the gate, but no retry rides out an outage like this one. The follow-up was the
-owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
+owner's: making sure the machine's NetBird peer cannot expire (the owner's checklist of
 2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and
 every public name with it. The owner's call on T10, 2026-10-22: not now. When every public
-name stops answering at once, the first thing to check is the Spark peer's login (`netbird
-status` on the Spark).
+name stops answering at once, the first thing to check is the machine's peer login (`netbird
+status` on the machine).
 
 **2026-10-21, T7: the daily duties have a voice** (0142 T3), on branch
 `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. `ownpace-box-duties.service` has
@@ -3253,7 +3293,7 @@ now, through one function, T6 (b); see the Status block.)*
   other?"* ("alle seperate" is read as "all separate".) The proposal put back to the owner: make
   "ownpace-live beside ownpace-managed" the decision in this plan, with the container-name
   parameterisation as its first task, and testers on `ownpace-live`. The owner's answer: *"Yes!
-  The spark has a lot free memory and disk, it will fit."* So:
+  [The machine] has a lot free memory and disk, it will fit."* So:
   - A second compose project, `ownpace-live`, runs on the reference machine beside
     `ownpace-managed`.
   - `ownpace-live` is production for the alpha. Testers use it, on the production names from

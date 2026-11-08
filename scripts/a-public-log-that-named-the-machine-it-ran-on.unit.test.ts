@@ -99,7 +99,7 @@ const MESH = '100.64.0.1';
 const FRONT = '192.0.2.10';
 const NEXTCLOUD = '203.0.113.5';
 const TRUSTED = '198.51.100.7';
-const NAME = 'spark.mesh.example';
+const NAME = 'machine.mesh.example';
 /** The mesh's own domain, inside NAME and inside FILES, and met before FILES. */
 const ZONE = 'mesh.example';
 const FILES = 'files.mesh.example';

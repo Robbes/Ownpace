@@ -79,7 +79,7 @@ name: E2E (managed)
 on:
   schedule:
     # 03:30 UTC — after e2e.yml's 23:30 (postgres, the night before) and 01:30
-    # (pglite) firings. The Spark is one shared box: three stacks at once would
+    # (pglite) firings. The machine is one shared box: three stacks at once would
     # fight over Docker and the loser would be blamed on whatever it happened
     # to be testing. Two hours between each, which is ten times the longest run
     # this gate has taken.

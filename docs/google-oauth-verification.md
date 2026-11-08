@@ -192,7 +192,7 @@ browser is redirected and the token exchange happens on the server with the clie
 origin is only required for browser-side OAuth. Leave this empty.
 
 **Authorized redirect URIs.** Confirmed by the owner 2026-08-20, with `*.ownpace.eu` now
-resolving to the spark box. Google matches byte-for-byte, before any redirect of ours runs, so a
+resolving to the box. Google matches byte-for-byte, before any redirect of ours runs, so a
 trailing slash or a missing port is a failure and not a near-miss:
 
 ```
@@ -240,7 +240,7 @@ become a liability at the exact moment the service became real.
 
 > ### ⚠️ The wildcard means `app.` currently points at the test box
 >
-> `*.ownpace.eu` → spark resolves **every** name, including `app.` — so the URI registered as
+> `*.ownpace.eu` → the box resolves **every** name, including `app.` — so the URI registered as
 > *production* today lands an authorization code on the **development** machine. Harmless while
 > nothing is live, and a real hazard the moment anything is.
 >
@@ -253,7 +253,7 @@ become a liability at the exact moment the service became real.
 > 2. **Register `app.` on a different client from `ota.`** — the split this file already
 >    recommends. Then the development client physically cannot mint a token against the
 >    production hostname, and a leaked dev secret is not a production incident. The trigger for
->    doing it is now concrete: **split when `app.` stops meaning spark.**
+>    doing it is now concrete: **split when `app.` stops meaning the box.**
 >
 > Until one of those is done, treat `app.ownpace.eu` as registered-but-not-live and do the
 > testing on `ota.`.

@@ -17,7 +17,7 @@
 # DB_HOST, DB_PORT and POSTGRES_DB (managed.yml:742). So that grep returns the
 # empty string on every stack there has ever been, the assignment succeeds, and
 # the script refuses for a reason the operator has just apparently satisfied.
-# Found 2026-08-31, by the owner running it on the Spark.
+# Found 2026-08-31, by the owner running it on the machine.
 #
 # This is seed-managed.sh's problem exactly, and this is seed-managed.sh's
 # answer: a wrapper that composes what the host cannot inherit. Read that file

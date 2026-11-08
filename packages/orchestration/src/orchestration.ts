@@ -666,7 +666,7 @@ export async function runAllDomains(
         // into the file `else`: a selected task domain built FILE deps, ran a
         // FILE pass, copied nothing because that pass is idempotent, and was
         // then marked COMPLETED. Not a skip — a wrong pass reporting success.
-        // Found on the owner's Spark by the managed smoke's task-lane
+        // Found on the owner's machine by the managed smoke's task-lane
         // assertion (T7) against a source holding two VTODOs.
         //
         // T5 widened five LISTS and none of them helped, for the same reason

@@ -50,7 +50,7 @@ Blocking pieces:
   Postgres volume (`/docker-entrypoint-initdb.d`). For upgrades, run the migration
   step explicitly before starting the app tier (see the operator runbook).
 
-## Verification steps (on a Docker host — amd64 and the Spark arm64)
+## Verification steps (on a Docker host — amd64 and the arm64 machine)
 1. `cp deploy/compose/managed.env.example deploy/compose/.env` and fill secrets
    (incl. `SECRET_ENCRYPTION_KEY=$(openssl rand -hex 32)`).
 2. `docker compose -f deploy/compose/managed.yml build` — all three images build.

@@ -160,7 +160,7 @@ pass against the dev stack.
 Update `README.md` quickstart (bring up stack → run the slice) and `docs/testing.md` (the idempotency
 property test); add an ADR if a decision crystallizes (e.g. **ADR-0019: mail natural-key = Message-ID
 + content-hash normalization rules**). Keep docs-hygiene green.
-**Acceptance:** quickstart works from a clean clone on the Spark; gates green.
+**Acceptance:** quickstart works from a clean clone on the machine; gates green.
 
 ### T9 — Reindex / adopt from target (lost-ledger recovery) [ADR-0020]
 Make idempotency survive a **lost ledger** (e.g. a fresh reinstall with no backup). (a) In the
@@ -176,7 +176,7 @@ Integration test on Stalwart.
 
 ## Conventions & gotchas
 - **arm64 lockfile:** the committed `pnpm-lock.yaml` was generated on x64; if a native optional
-  mismatches on the Spark, run a plain `pnpm install` once to reconcile, then commit.
+  mismatches on the machine, run a plain `pnpm install` once to reconcile, then commit.
 - **No committed artifacts** (`node_modules`/`dist`/`build`/`.env`) — the PR guard enforces this.
 - **Stalwart in dev:** the image's built-in healthcheck targets TLS/443 and is disabled in the compose;
   the e2e workflow polls `stalwart:8080`. JMAP + DAV are on the HTTP API (8080). **Stalwart v0.16
@@ -184,7 +184,7 @@ Integration test on Stalwart.
   false`); there is no plaintext 143.** See `docs/stalwart-integration-fix.md`.
 - **Secrets:** none for this slice — everything runs against local Stalwart. Real O365 is
   manual/secret-gated only.
-- Small PRs, each green on lint + unit + integration; the arm64 e2e job is **manual** on the Spark.
+- Small PRs, each green on lint + unit + integration; the arm64 e2e job is **manual** on the machine.
 
 ## Slice roadmap (context, not this slice)
 - **0001 (this):** O365 → JMAP mail, one-way shadow, idempotent.

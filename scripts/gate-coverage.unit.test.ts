@@ -72,7 +72,7 @@ const NOT_ASKED: Record<string, string> = {
     'access-requests.integration.test.ts, which does not.',
   '/api/scope-manifest':
     'a static description of the scopes each provider needs. Nothing about it ' +
-    'can be true on a laptop and false on the Spark.',
+    'can be true on a laptop and false on the machine.',
   '/api/setup':
     'the first-run path. A stack this gate can talk to is past it by ' +
     'definition, so asking would prove the opposite of what it looks like.',

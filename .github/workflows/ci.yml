@@ -8,7 +8,7 @@
 #
 # SECURITY: the self-hosted runner is ONLY used for push events. Pull requests
 # — including from forks, and this repository is PUBLIC — run on GitHub-hosted
-# runners, so a stranger's branch never executes on the Spark. That box holds
+# runners, so a stranger's branch never executes on the machine. That box holds
 # the live managed stack, its .env, the encrypted connection credentials and
 # the trigger keys; `pnpm install` alone runs lifecycle scripts, which is all
 # an attacker needs. Every workflow with a `pull_request` trigger follows this:
@@ -18,10 +18,10 @@
 # to abuse — which is why they can name the runner unconditionally.
 #
 # WHAT THE SPLIT COSTS, stated so it is a known limitation and not a surprise:
-# GitHub's hosted Linux runners are amd64, the Spark is arm64, so **a PR is
+# GitHub's hosted Linux runners are amd64, the machine is arm64, so **a PR is
 # validated on an architecture we do not deploy to, and the one we do deploy to
 # is only exercised after merge.** This has bitten once already — task images
-# built for amd64 died at exec on the arm64 Spark in under a second, with
+# built for amd64 died at exec on the arm64 machine in under a second, with
 # AutoRemove destroying the evidence (the 2026-08-01 hunt). A red main after a
 # green PR is therefore a designed-in outcome here, not an anomaly.
 #
@@ -148,7 +148,7 @@ on:
 # THIS HAPPENED, on the afternoon this line was written. #1054 merged at 21:32
 # with a change to this workflow and a new guard; #1055 merged at 21:43 with
 # one paragraph of prose. Run 2841 was eleven minutes into the suite on the
-# Spark and was cancelled where it stood. Run 2843 read its own diff — one
+# machine and was cancelled where it stood. Run 2843 read its own diff — one
 # `.md` file — skipped `lint`, `unit-tests`, `ui-tests`, `migration-lint` and
 # `integration-tests`, and concluded success in four and a half minutes.
 # `main` then carried a green tick over a tree whose tests had not run. Nothing
@@ -374,7 +374,7 @@ jobs:
     # scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts holds them).
     if: github.event_name == 'pull_request'
     # Hosted unconditionally: it only ever runs on a pull request, which by the
-    # policy in the header never touches the Spark.
+    # policy in the header never touches the machine.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -509,6 +509,14 @@ jobs:
         # archive of site/ alone. Plain node, no install. The guard is
         # scripts/a-doc-an-assistant-is-sent-to.unit.test.ts.
         run: node scripts/llms-docs.mjs --check
+      - name: No file names the machine by its product name
+        # HERE for the same reason: most of the text that named it was
+        # workplans and runbooks, and a pull request that touches only those
+        # skips `unit-tests`. Every file git lists is read; a hit is printed as
+        # its file, line and column, never the word, since this log is public.
+        # Plain node, no install. The rules, and what is skipped and why, are in
+        # scripts/a-machine-called-by-its-product-name.unit.test.ts.
+        run: node scripts/machine-product-name.mjs --check
 
   fixture-uuid-check:
     name: fixture-uuid-check
@@ -915,7 +923,7 @@ jobs:
 
   # THE arch-sensitive job, and now the one that closes the gap the header
   # describes. It runs real Postgres, real Nextcloud and real Stalwart
-  # containers, which is the closest thing CI has to the arm64 Spark the
+  # containers, which is the closest thing CI has to the arm64 machine the
   # product actually deploys to.
   #
   # The other jobs are not matrixed because their work is architecture-neutral

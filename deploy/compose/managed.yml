@@ -25,7 +25,7 @@
 # derives the resource-name prefix from the CURRENT DIRECTORY'S BASENAME ("compose"), so on a
 # shared host, any other unrelated project also run from a directory literally named `compose`
 # collides on the exact same volume/network names (compose_postgres_data,
-# compose_ownpace-network, ...). Confirmed live on the Spark box (2026-07-25): the database
+# compose_ownpace-network, ...). Confirmed live on the box (2026-07-25): the database
 # container silently mounted a `compose_postgres_data` volume created two days earlier -- NOT this project's
 # data -- so its `openmigrate` role's real password didn't match this stack's own .env, and every
 # app-tier connection failed with "password authentication failed" despite .env, the container's
@@ -497,7 +497,7 @@ services:
       DEPLOY_REGISTRY_NAMESPACE: trigger
       # The architecture task images are built FOR — decided SERVER-side and
       # handed to the deploying CLI (deployment.imagePlatform; no CLI flag).
-      # Upstream defaults to linux/amd64, which on the arm64 Spark produced
+      # Upstream defaults to linux/amd64, which on the arm64 machine produced
       # images whose runners died at exec ("exec format error") in under a
       # second, with AutoRemove destroying the evidence — the 2026-08-01 T5
       # hunt. MUST match the host that runs the supervisor's containers:
@@ -513,7 +513,7 @@ services:
       # events-in-postgres) survived webapp BOOT, but v4.5.7's dashboard
       # genuinely queries ClickHouse for the environment metrics page, and the
       # resulting ECONNREFUSED became an unhandledRejection that killed the
-      # whole webapp process — confirmed live on the Spark, 2026-08-01, taking
+      # whole webapp process — confirmed live on the machine, 2026-08-01, taking
       # the supervisor's session down with it. The clickhouse service below is
       # the reference stack's own; goose migrations run at entrypoint.
       CLICKHOUSE_URL: http://${CLICKHOUSE_USER:-default}:${CLICKHOUSE_PASSWORD:-password}@clickhouse:8123?secure=false
@@ -2397,7 +2397,7 @@ services:
       - ./nextcloud-php.ini:/usr/local/etc/php/conf.d/zz-ownpace-no-jit.ini:ro
     # The one probe here that is not an inference: `setup-nextcloud-users.sh`
     # has been running `docker exec <nextcloud> curl … http://localhost/status.php`
-    # against this image on the Spark since the demo existed, so both the binary
+    # against this image on the machine since the demo existed, so both the binary
     # and the endpoint are proven rather than assumed.
     #
     # `start_period` is long because first boot INSTALLS Nextcloud, and

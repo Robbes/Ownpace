@@ -13,7 +13,7 @@
  *
  * It is not a schema duplicate. It runs the PRODUCT's parser over the
  * PRODUCT's fixtures, so a field the parser stops accepting, or starts
- * requiring, breaks here rather than on the Spark box.
+ * requiring, breaks here rather than on the box.
  *
  * The archive mappings are why it exists now: `where` (0116 T4) is a new
  * optional field, and the in-target gate's fixture is the first thing in the

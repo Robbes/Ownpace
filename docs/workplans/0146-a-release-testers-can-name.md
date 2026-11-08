@@ -224,7 +224,7 @@ Status, 2026-11-05). Times are UTC.
 - **C is `69f35528`**, the squash of #1809 (the scan's Trivy from its GitHub release, the entry
   below), merged at 02:27 on 2026-11-04 on `a1a239e8`, the fold. On it, all green: CI run
   41760858079 (`lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (self-hosted)` and
-  `ci-complete` run and passed), Security Scan run 41760857918 on the Spark, where Trivy v0.76.1
+  `ci-complete` run and passed), Security Scan run 41760857918 on the machine, where Trivy v0.76.1
   read both architectures' archives as pinned and called itself `Version: 0.76.1`, and
   `windows-payload.yml` run 41760859076 (`build win-x64`, `smoke win-x64 on windows-2025`). The
   E2E runs and the upgrade drill on `a1a239e8` stand for it, as the entry below says.
@@ -259,7 +259,7 @@ Status, 2026-11-05). Times are UTC.
 and on PGlite went green, and the owner's `scripts/upgrade-drill.sh` passed, mechanics only. Its
 push Security Scan (run 41745603093) failed twice, at 00:17 and 01:17 UTC, before Trivy read a
 file: setup-trivy's install script takes Trivy's archive from `get.trivy.dev`, and that name did
-not resolve on the Spark, nor at a public resolver (NXDOMAIN, about 01:35 UTC). `main`'s push scan
+not resolve on the machine, nor at a public resolver (NXDOMAIN, about 01:35 UTC). `main`'s push scan
 of #1778 had failed the same way at 00:00 UTC; pull requests' scans, on GitHub's runners, passed
 from setup-trivy's binary cache. The one re-run was spent on the first failure, and a third would
 fail the same way, so the fix is the workflow's: Trivy v0.76.1 from its GitHub release, both
@@ -516,7 +516,7 @@ are UTC.
   group (09:09, `bce0fcfd`, after E2E (managed) run 41413423420), whose `CHANGELOG.md` *Changed*
   line this entry's branch adds.
 - **The o365 lane** (the entry of 2026-11-01, later, below): the owner added the runner label
-  `spark` at about 07:40 (0141 T13 (a)), and the lane's first run on a runner, 41418432093 on
+  named after the machine at about 07:40 (0141 T13 (a)), and the lane's first run on a runner, 41418432093 on
   `main` at `bce0fcfd` (09:10 to 09:11), failed at *Validate required secrets*:
   `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets, so the suite cannot
   run. Setting them (`docs/test-tenant.md`) is the owner's. *(Later 2026-11-02, about 22:10:
@@ -580,7 +580,7 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
 - **So what is left for the tag:** the fold (the version in `package.json` and `openapi.yaml`,
   `[Unreleased]` into `[0.2.0-alpha.4]`), C's CI green, and two counted nights on C or the
   owner's waiver (0141 T14). From the Node 26 move (0119's Status, 2026-11-01), the o365 lane,
-  which waits for the owner's step on the runner label `spark` (0141 T13 (a): add it to the
+  which waits for the owner's step on the runner label named after the machine (0141 T13 (a): add it to the
   runner, or drop it from `runs-on`), and the owner's Windows 11
   check of a zip on Node 26.13.0 are still open. *(2026-11-02: the label is on the runner, and
   the lane now waits for its two secrets; the Windows check can take `main`'s zip: the entry of
@@ -1977,7 +1977,7 @@ builds on, merged before it as `afe17fef`), after the alpha.2 tag, once E2E (man
   denied"*. An interactive psql and shell as uid 70 wrote their history into the volume's root
   without the two variables, and into `/tmp` with them.
 - **Not proven here, and what proves it.** That the Dockerfile builds (no daemon here): E2E
-  (managed) on the branch builds it on the Spark, and a dispatch of Security Scan with the image
+  (managed) on the branch builds it on the machine, and a dispatch of Security Scan with the image
   scans on the branch builds and scans it on arm64. That the stacks' real volumes start as uid
   70: E2E (managed) runs against the OTA stack's existing volumes, and its first `up` recreates
   both databases on the build. That a new Docker volume initialises as uid 70: the integration
@@ -3672,7 +3672,7 @@ ci states. The OTA address. It's all controlled by me and invite only."* ("ci st
 read as "test"). Later the same day, as 0131 D3 records, the owner asked: *"check, can't i just (as
 a start) host a 'ownpace-live' as production, next to the current 'ownpace-managed' on OTA-domain?
 What would i need to do to keep alle seperate from each other?"* The proposal back was to make it
-so. The answer: *"Yes! The spark has a lot free memory and disk, it will fit."*
+so. The answer: *"Yes! [The machine] has a lot free memory and disk, it will fit."*
 
 So testers use `ownpace-live`, on the same machine as the OTA stack `ownpace-managed`, at the
 production names (0131 D3, 0132 D7). The OTA stack stays the nightly gate's target and follows

@@ -17,7 +17,7 @@
  * gRPC-gateway's not-found body: a JSON viewer showing `code: 5`,
  * `message: "Not Found"`. Nothing on that screen names the login UI, the
  * feature, or this stack — so the first guess is a routing fault at the reverse
- * proxy, and that is where the evening goes (Spark, 2026-08-25).
+ * proxy, and that is where the evening goes (the machine, 2026-08-25).
  *
  * AND THE GATE WAS GREEN FOR ALL OF IT. `smoke-managed.sh` signs in the way a
  * machine does — `/oauth/v2/authorize`, then `/v2/sessions` and CreateCallback

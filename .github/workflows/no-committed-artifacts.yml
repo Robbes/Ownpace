@@ -23,7 +23,7 @@ jobs:
     # with a self-hosted runner is rarely the step somebody audited. It is the
     # step added later to a workflow already pointed at the wrong machine.
     #
-    # Nothing here wants the Spark regardless: no Docker, no arm64, no cache.
+    # Nothing here wants the machine regardless: no Docker, no arm64, no cache.
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

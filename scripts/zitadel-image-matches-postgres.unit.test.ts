@@ -20,7 +20,7 @@
  * Neither number can be checked against reality from here — this repository's
  * CI has no Docker daemon and no route to ghcr.io — so what is checkable is the
  * PAIRING, and that is what this pins. Moving either version alone is how a
- * combination nobody has ever run reaches the Spark.
+ * combination nobody has ever run reaches the machine.
  */
 
 import { describe, it, expect } from 'vitest';

@@ -3,7 +3,7 @@
 /**
  * ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
  *
- * The Spark drives the OTA stack, `managed.yml`'s default project, from TWO
+ * The machine drives the OTA stack, `managed.yml`'s default project, from TWO
  * checkouts: the operator's, and the nightly gate's. The gate's checkout
  * cannot keep a `.env` at all — `actions/checkout` deletes ignored files
  * before every run — so the workflow restores one from
@@ -60,7 +60,7 @@ let link: string;
 
 beforeEach(() => {
   dir = mkdtempSync(join(tmpdir(), 'one-env-'));
-  // Two directories, as on the Spark: the persisted one holds the file, the
+  // Two directories, as on the machine: the persisted one holds the file, the
   // checkout only points at it.
   canonical = join(dir, 'persisted.env');
   link = join(dir, 'checkout.env');
@@ -306,7 +306,7 @@ describe('ensure-env-secrets.sh, run for real, does not de-link the .env', () =>
       chmodSync(join(work, f), 0o755);
     }
 
-    // The arrangement on the Spark: the canonical file lives elsewhere and the
+    // The arrangement on the machine: the canonical file lives elsewhere and the
     // checkout only points at it. Empty, so every secret has to be generated —
     // which is precisely the path that used to run `sed -i`.
     const persisted = join(dir, 'persisted-for-secrets.env');

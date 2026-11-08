@@ -170,7 +170,7 @@ jobs:
 
       # PNPM AND NODE AS EVERY OTHER JOB SETS THEM UP: the pnpm `packageManager`
       # names and the Node major the images run, the newest release of it.
-      # Until 2026-10-21 this job had neither step. It ran the Spark's apt Node
+      # Until 2026-10-21 this job had neither step. It ran the machine's apt Node
       # on main and the hosted image's default elsewhere, which no guard saw,
       # and it installed pnpm by piping get.pnpm.io's script into `sh` with no
       # version, into the runner user's own pnpm home, so every merge replaced
@@ -225,7 +225,7 @@ jobs:
       #   a GitHub-hosted runner — destroyed after the run, so trivy-action's
       #     own daily cache is exactly the right mechanism and stays ON.
       #
-      #   the Spark — $HOME survives between runs, so the database is already
+      #   the machine — $HOME survives between runs, so the database is already
       #     on disk when the job starts. Uploading and downloading 83 MB to
       #     re-supply a file that never left the box is pure waste, so the
       #     built-in cache is turned OFF there.
@@ -250,7 +250,7 @@ jobs:
       # checksum file from GitHub. On 2026-11-04 that name stopped resolving
       # (NXDOMAIN at a public resolver, 01:3x UTC), and every scan that
       # installed afresh failed before it read a file: main's push scan on the
-      # Spark from 00:00 UTC, which keeps no binary cache, on the alpha.4
+      # machine from 00:00 UTC, which keeps no binary cache, on the alpha.4
       # candidate twice. GitHub-hosted runs went on from setup-trivy's binary
       # cache. This step takes the release's own archive from GitHub instead,
       # names the release, pins a SHA-256 for each architecture a runner here
@@ -364,7 +364,7 @@ jobs:
           format: sarif
           output: trivy.sarif
           severity: HIGH,CRITICAL
-          # Out of the workspace, so the Spark can keep it — see "THE DATABASE
+          # Out of the workspace, so the machine can keep it — see "THE DATABASE
           # THIS SCAN NEEDS" above.
           cache-dir: ${{ env.TRIVY_CACHE_DIR }}
           # The action's own daily cache, on everywhere it is needed and off on
@@ -540,7 +540,7 @@ jobs:
   # ON (Release's two dispatches turn it off), so a pull request, a push to
   # main and a tag run exactly as before, and the required `security-scan`
   # check is still the job above alone. ON GITHUB-HOSTED RUNNERS ONLY, never
-  # the Spark: a scan downloads every image's layers, and that box's disk and
+  # the machine: a scan downloads every image's layers, and that box's disk and
   # network belong to the stacks it runs.
   #
   # REPORT ONLY. Findings go to code scanning, one SARIF category per image
@@ -685,7 +685,7 @@ jobs:
       matrix:
         include: ${{ fromJSON(needs.image-list.outputs.images) }}
     env:
-      # The platform the stacks run on: the Spark is arm64, and the tasks' image
+      # The platform the stacks run on: the machine is arm64, and the tasks' image
       # is built for its host (deploy-tasks.sh) on the base's image for that
       # platform. Read from the registry itself,
       # never from a local daemon, unless the leg built the image itself, and
@@ -731,7 +731,7 @@ jobs:
       # checksum file from GitHub. On 2026-11-04 that name stopped resolving
       # (NXDOMAIN at a public resolver, 01:3x UTC), and every scan that
       # installed afresh failed before it read a file: main's push scan on the
-      # Spark from 00:00 UTC, which keeps no binary cache, on the alpha.4
+      # machine from 00:00 UTC, which keeps no binary cache, on the alpha.4
       # candidate twice. GitHub-hosted runs went on from setup-trivy's binary
       # cache. This step takes the release's own archive from GitHub instead,
       # names the release, pins a SHA-256 for each architecture a runner here

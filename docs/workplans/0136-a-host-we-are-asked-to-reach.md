@@ -1058,7 +1058,7 @@ cannot work on managed at all (open question 3).
 owner asked: *"check, can't i just (as a start) host a 'ownpace-live' as production, next to the
 current 'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each
 other?"* The proposal back was to make that 0132's decision, with testers on `ownpace-live`. The
-owner's answer: *"Yes! The spark has a lot free memory and disk, it will fit."* So testers use
+owner's answer: *"Yes! [The machine] has a lot free memory and disk, it will fit."* So testers use
 live, on the production names, and the OTA stack stays the nightly gate's target and the demo.
 0132 records that the separation is by names on one Docker daemon, not a boundary, and accepts
 it for a hand-picked alpha. For this plan, "keep all separate" has one gap a typed host can use:

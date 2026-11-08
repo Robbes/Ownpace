@@ -121,7 +121,7 @@ const auth = 'Basic ' + Buffer.from(`${USER}:${PASS}`).toString('base64');
  *
  * EVERY refusal used to read "the filter body is rejected outright", which is
  * true of a 400 and a confident lie about everything else. Both halves of that
- * lie were met on the real Spark on 2026-09-09: a `--user` passed without a
+ * lie were met on the real machine on 2026-09-09: a `--user` passed without a
  * `--pass` answered 401 and was reported as a rejected filter, and a task
  * collection nobody had created answered 404 and was reported as a rejected
  * filter. In each case the tool named the one thing that was working and sent

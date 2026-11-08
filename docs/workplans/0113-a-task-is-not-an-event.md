@@ -113,7 +113,7 @@ generated over `DISCOVERY_DOMAINS` and proved by breaking six ways.
 
 **2026-09-03: the SEVENTH fan-out — the task domain ran a FILE sync and was
 marked completed.** The one the whole workplan was written to prevent, found on the owner's
-Spark by T7's task-lane assertion — the only thing in the system that asked the question.
+machine by T7's task-lane assertion — the only thing in the system that asked the question.
 
 There was **no task sync pass at all**. T3a/T3b built the source, T4 made the CalDAV writer
 follow its component, T2 gave the ledger a `todo:` natural key, T5 added `task` to five lists
@@ -143,7 +143,7 @@ NOT_VERIFIABLE, so the cutover gate would still have passed. The gates and the e
 in the same direction; only the smoke's by-name assertion did not.
 
 **2026-09-03 (latest): the SIXTH fan-out, and a gate that would not say what it found.**
-The owner ran `SMOKE_PREPARE_APPLY=1 smoke-managed.sh` on the Spark and got
+The owner ran `SMOKE_PREPARE_APPLY=1 smoke-managed.sh` on the machine and got
 `verify: done   apply: applied` followed by a bare `SMOKE FAIL`. Both halves he could name had
 succeeded, so the cause was one of the other hundred and forty-five assertions — and the only
 way to find it was to read a several-hundred-line log on a phone. **The gate knew which
@@ -183,7 +183,7 @@ the one destructive path. `verifyTasks`' own comment, written in T5, predicted e
 *"a domain that copies and is never verified is the green run that checked nothing, and this
 gate is the last thing standing between that and a cutover."*
 
-**Measured, not deduced.** The owner ran `smoke-managed.sh` on the Spark at 13:40 UTC; the DAV
+**Measured, not deduced.** The owner ran `smoke-managed.sh` on the machine at 13:40 UTC; the DAV
 verify report it printed carries `mail`, `files`, `calendar` and `contacts` and no `tasks` key
 of any kind.
 
