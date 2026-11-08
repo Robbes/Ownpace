@@ -28,8 +28,13 @@ nothing and installs, a planted wrong copy stops the third with nothing installe
 the fourth fetches that archive again. Mutations of the real step each fail it: one attempt, the
 three it had, no wait, the old arithmetic's 5, 15, 25 and 35 seconds, nothing kept, the kept copy
 never used, a kept copy used without its sum read, and a refused copy left in place. Put back in
-`e2e.yml` alone, either change fails three of its tests. §2.5's stalwart-cli row names neither, so
-it stays as written.
+`e2e.yml` alone, either change fails three of its tests. Proved on the self-hosted runner, on
+`052507ea`: E2E (managed) run 42477845078, once that runner could reach the release again, fetched
+both archives at 11:56 (`as pinned, from the release`) and passed its smoke; E2E (self-hosted,
+Postgres) run 42478459983 then started from both kept copies (`as pinned, from the copy an earlier
+run kept`), fetched nothing, and passed every gate, from 12:03 to 12:09. The runner's tool cache now
+holds both archives of v1.0.14, so the nights after this merges start from them. §2.5's stalwart-cli
+row names neither, so it stays as written.
 
 **2026-11-08, records: the deploy CLI's minimatch, read; six stale notes dated.** Docs and one
 comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844
