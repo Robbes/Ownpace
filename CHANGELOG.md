@@ -24,13 +24,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **The OTA names go on the mesh only once testers are on the production names** (workplan 0132
-  open question 7, the owner's answer of 2026-11-08). The outside probe's `ota_names: mesh-only`
-  is the pass condition; its default stays `report` until the owner's step, and its words now
-  say the answer. NetBird's shared proxy, which serves every name today, has no setting that
-  serves a name to the mesh alone, and the machine reaches the OTA names through it from the
-  internet, so the step is a NetBird proxy of the owner's own or TLS for the three names on the
-  machine: `docs/managed-bring-up.md`, *The OTA names on the mesh only*.
+- **The OTA names stay public for now** (workplan 0132 open question 7, the owner's answers of
+  2026-11-08). On the mesh only, once testers are on the production names, stays the aim, and the
+  outside probe's `ota_names: mesh-only` is its pass condition; the probe stays at `report`.
+  NetBird's shared proxy, which serves every name today, has no setting that serves a name to the
+  mesh alone, and the machine reaches the OTA names through it from the internet, so it takes a
+  NetBird proxy of the owner's own or TLS for the three names on the machine
+  (`docs/managed-bring-up.md`, *The OTA names on the mesh only*). The owner chose to leave the names
+  public for now.
+- **The tester guide says how long the copy before an update is kept** (workplans 0144 T1 and 0134):
+  at most 7 days, as the Alpha conditions (§6) and both Alpha mails say, the Dutch in the owner's
+  own words. Until now the guide named the one copy and not its 7 days.
 
 ### Fixed
 

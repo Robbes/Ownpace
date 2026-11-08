@@ -4,10 +4,16 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
-**2026-11-08: open question 7 answered, on the mesh only, and what the owner's step takes
-recorded (T3; alpha.7's item 11); the probe reads the app's headers (0158 T4)**, on branch
-`claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged. Nothing ran on the machine, and
-the probe was not dispatched.
+**2026-11-08, later: the OTA names stay public for now (open question 7).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records`. Offered a NetBird proxy of their own, TLS for
+the three names on the machine, or the names left public for now, the owner answered: *"11: c, leave
+public for now."* The probe stays at `report`, and mesh-only comes back after the first invitation
+(open question 7's last bullet).
+
+**2026-11-08: open question 7 answered, on the mesh only, and what the owner's step takes recorded
+(T3; alpha.7's item 11); the probe reads the app's headers (0158 T4)**, on branch
+`claude/ownpace-public-readiness-y7orc6-a7-headers`, merged as #1845 (`0536708e`). Nothing ran on
+the machine, and the probe was not dispatched.
 
 - **The answer.** The owner: *"Build the recommended for alpha 7."*, which took item 11's yes:
   the OTA names on the mesh only once testers are on the production names, from the first
@@ -4523,3 +4529,8 @@ is generated and has been in no log. On the OTA stack it guards a demo.
      NetBird's 403, and no mode of the probe passes it. `docs/managed-bring-up.md`, *The OTA
      names on the mesh only*, has the entries for each. Which way is the owner's.
    - Google's test client keeps working for the owner on the mesh either way (0091 T5).
+   - **Not now: later on 2026-11-08 the owner chose to leave them public.** Offered (a), (b), or the
+     OTA names left public for now and the question taken up again after the first invitation, the
+     owner answered: *"11: c, leave public for now."* The names keep answering from the internet,
+     the probe stays at `report`, and mesh-only stays the aim, by (a) or (b), after the first
+     invitation.

@@ -4,19 +4,25 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
-**2026-11-08: open question 4 answered: the console cannot be refused off the mesh at today's
-front, so nothing is built (alpha.7's item 5)**, on branch
-`claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged; records only. The owner took the
-recommendation with alpha.7's list: *"Build the recommended for alpha 7."* Both sign-in names
-reach the machine through NetBird's hosted proxy, and it cannot tell a peer of the mesh from a
-stranger: it knows a peer only over WireGuard, at a proxy of the account's own with the
-`Private` capability, which NetBird Cloud's shared clusters do not offer. Behind it, every
-request reaches the machine from NetBird's address. What it can do, refuse a path to everybody,
-would hide the console's screens and leave the APIs it calls, which the machine's own scripts
-call at the public name too; that is a fake guard, so it is not built. T4, the second factors
-and the lockout, carries the risk alone. Open question 4 has the reading, the console's calls,
-and what would make it possible: a NetBird proxy of the owner's own with the `Private`
-capability, and a second, mesh-only name for each sign-in service.
+**2026-11-08, records: open question 7 answered: self-registration stays on.** Docs only, on the
+branch `claude/ownpace-public-readiness-y7orc6-a7-records`. The owner, at about 01:50 UTC: *"Build
+the recommended for alpha 7."* The recommendation was to keep it on: it is how a granted person
+gets an account without the product creating one; they prove their address by mail, and T8
+removes accounts nobody let in. Nothing is built or changed for it (§4, step 5).
+
+**2026-11-08: open question 4 answered: the console cannot be refused off the mesh at today's front,
+so nothing is built (alpha.7's item 5)**, on branch
+`claude/ownpace-public-readiness-y7orc6-a7-headers`, merged as #1845 (`0536708e`); records only. The
+owner took the recommendation with alpha.7's list: *"Build the recommended for alpha 7."* Both
+sign-in names reach the machine through NetBird's hosted proxy, and it cannot tell a peer of the
+mesh from a stranger: it knows a peer only over WireGuard, at a proxy of the account's own with the
+`Private` capability, which NetBird Cloud's shared clusters do not offer. Behind it, every request
+reaches the machine from NetBird's address. What it can do, refuse a path to everybody, would hide
+the console's screens and leave the APIs it calls, which the machine's own scripts call at the
+public name too; that is a fake guard, so it is not built. T4, the second factors and the lockout,
+carries the risk alone. Open question 4 has the reading, the console's calls, and what would make it
+possible: a NetBird proxy of the owner's own with the `Private` capability, and a second, mesh-only
+name for each sign-in service.
 
 **2026-11-08: live's identity provider runs v4.20.1 (T7).** Live's deploy of `v0.2.0-alpha.6`
 (0132's Status, 2026-11-08) moved it from v4.20.0, one-way in alpha.4's script's words. Before the
@@ -1890,7 +1896,10 @@ carried T1 and T2.
 7. **Self-registration during the alpha.** Keep it on, which is recommended and follows 0095 T0?
    Or turn it off and create each tester's account by hand in the console? The second avoids
    stray accounts entirely. The cost is more work for the owner, and a creation mail whose
-   upstream wording names Zitadel.
+   upstream wording names Zitadel. *Answered 2026-11-08: keep it on*, as recommended, on the
+   owner's *"Build the recommended for alpha 7."*: it is how a granted person gets an account
+   without the product creating one; they prove their address by mail, and T8 removes accounts
+   nobody let in.
 8. **The organisation's name (T6).** On live, name it `Ownpace` from its first start, which needs
    no rename? On the OTA instance, rename it now, after a trial on a throwaway stack, or after the
    alpha? *Answered 2026-10-17 for live:* *"The sign-in organisation name on live: "Ownpace":
