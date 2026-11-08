@@ -2,7 +2,25 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-07 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, recorded: live runs alpha.6's pins.** The owner deployed `v0.2.0-alpha.6` (tagged
+2026-11-07 on `59b91458`) to live on 2026-11-08, from alpha.4 in one run of alpha.4's script, which
+took at 00:32:28 UTC (0132's Status, 2026-11-08, has the deploy). Before it, every image the run
+needed was already on the shared daemon, the OTA stack's E2E having built and pulled them, so block
+4 built none. After it, read on live: `zitadel` on v4.20.1 (#1829); `trigger-redis` on
+`localhost/redis:7.4.12-bookworm-63d89fa5f426` (#1835), as `999:999` with no capability added and
+`apt`, `apt-get`, `mount`, `setpriv` and `mke2fs` absent; `trigger-api` on
+`localhost/trigger.dev:v4.8.3-a4bb254ab965` (#1823, #1825), the same five absent from it;
+`trigger-supervisor` on `localhost/supervisor:v4.8.3-9fa6db37008b`; `trigger-tls` on Caddy 2.11.9
+(#1828); MinIO and `minio-init` on `aea6c163…` (#1826); no container unhealthy, starting or
+restarting, and none on an image alpha.6 replaced. The task deployment's row
+`current|20261108.1|DEPLOYED|4.8.3|4.8.3|26.12.1|2026-11-08 00:31`, its runners on the prebuilt base
+(#1824; Node v26.13.0, no shell), and the tick `COMPLETED_SUCCESSFULLY` on 4.8.3. The deploy's
+comparison read only the identity provider's pin as moved, and called the deploy one-way. The copy
+before this update is kept on live until a pass proves it (0132 T9). Still to move, in pull requests
+of their own: Trivy 0.76.2 and Atlas 1.3.8 (CI only), and MinIO's rebuild `869ca317…` after its
+floor, 2026-11-10 at 06:54.
 
 **2026-11-07, last: the image scan of the alpha.6 tag, and what waits.** Security Scan run
 42368077845 (`image_scans`, on `main` at `59b91458`, the tag's commit, 11:24 to 11:28 UTC) reads,

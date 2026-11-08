@@ -2,7 +2,17 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-11-07 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08: live's identity provider runs v4.20.1 (T7).** Live's deploy of `v0.2.0-alpha.6`
+(0132's Status, 2026-11-08) moved it from v4.20.0, one-way in alpha.4's script's words. Before the
+checkout, the copy's take ran `dump-idp.sh` into the copy before alpha.6 while v4.20.0 ran: its note
+names `ghcr.io/zitadel/zitadel:v4.20.0`, and the dump read back 701 entries, as the OTA instance's
+did on 2026-11-07. After it, `zitadel` runs `ghcr.io/zitadel/zitadel:v4.20.1` (index `4817dbd8…`),
+its two switches that phone home off, and the owner read the organisations count (`setup-zitadel.sh
+--count-organisations`, the daily duty's check) and one sign-in of their own, through Zitadel's own
+login, as OK. The way back stays a deploy of alpha.4, since v4.20.1 moved no setup step; the dump
+stays in the copy until the update is proven or the copy's day 6 ends.
 
 **2026-11-07, later: the OTA instance's dump is deleted, and alpha.6 is tagged (T7).**
 `main`'s first scheduled E2E (managed) on v4.20.1, run 42364300447 on `59b91458`, the tag's
