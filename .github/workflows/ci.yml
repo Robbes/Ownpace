@@ -1,6 +1,8 @@
 # Unified CI — TypeScript/Node (pnpm). Mirrors the team convention:
 #   detect-changes -> docs-hygiene, lint, unit-tests (parallel) -> integration-tests
-# E2E is a SEPARATE, manual workflow (e2e.yml). Runs on the self-hosted (Spark) runner.
+# E2E is a SEPARATE, manual workflow (e2e.yml). A push runs on GitHub's hosted
+# arm64 runner during the alpha, and on the self-hosted runner otherwise (the
+# switch below).
 #
 # ── Which machine runs untrusted code ────────────────────────────────────────
 #
@@ -38,6 +40,40 @@
 # Runner images are PINNED (`ubuntu-24.04`, not `ubuntu-latest`) for the same
 # reason every action here is pinned to a SHA: `-latest` moves under you, and
 # this repository does not accept a dependency it did not choose.
+#
+# ── During the alpha, a push runs on GitHub's runners too ───────────────────
+#
+# THE OWNER'S ANSWER OF 2026-11-08 (workplan 0132, open question 1): every job
+# that does not need the machine leaves it for the alpha's weeks. From the
+# first invitation the machine holds live and testers' credentials beside the
+# self-hosted runner's Docker socket, and every merge ran this file there at
+# once. So a push now runs every job below on GitHub's hosted arm64 runner,
+# `ubuntu-24.04-arm`: the architecture live runs on, free for a public
+# repository, and the runner a pull request's arm64 legs already use. No job
+# here needs the machine: none reads `~/.persistent`, a stack's `.env` or
+# `managed.yml`, and the containers they start are their own. What does need
+# it still runs `main` there on its schedule: e2e.yml (the appliance's
+# nightly), e2e-managed.yml (the gate on the OTA stack) and
+# e2e-live-target.yml (the live-target lane).
+#
+# ONE SWITCH TURNS IT BACK: the repository variable `CI_PUSH_ON_SELF_HOSTED`.
+# Unset, or anything but `true`, a push runs on `ubuntu-24.04-arm`. Set to
+# `true` (Settings, Secrets and variables, Actions, Variables), every push job
+# of this file and of security-scan.yml runs on the self-hosted runner again,
+# as before 2026-11-08. Every `runs-on` and runner matrix below that a push
+# reaches reads it, and nothing else does;
+# `scripts/a-merge-that-ran-beside-the-socket.unit.test.ts` holds both states.
+#
+# Two jobs do not move because they never ran there: `commit-convention` runs
+# on pull requests only, and `ci-complete` reads the other jobs' results and
+# runs no repository code; both stay on `ubuntu-24.04`. A pull request keeps
+# the runners it always had.
+#
+# A DISPATCH RUNS THE PUSH'S JOBS ON THE PUSH'S RUNNER while the switch is on,
+# so a branch can prove the push path before it merges: its own pull request
+# run cannot, since it runs on the pull request's runners. A dispatch never
+# takes the self-hosted runner, whatever the variable says, because it can run
+# a branch nobody has merged.
 name: CI
 
 on:
@@ -57,10 +93,10 @@ on:
   # already documents for `images.yml`'s `paths:` filter. Only a fresh push
   # escapes it. Found 2026-08-23 on #501, which sat at zero checks.
   #
-  # THIS DOES NOT WIDEN WHAT RUNS ON THE SPARK. Every `runs-on` above keys on
-  # `github.event_name == 'push'`, never on the branch, so a pull request from
-  # anywhere still runs on a GitHub-hosted runner. The policy in the header is
-  # untouched.
+  # THIS DOES NOT WIDEN WHAT RUNS ON THE SELF-HOSTED RUNNER. Every `runs-on`
+  # below sends only a `push` there, never a branch's pull request, so a pull
+  # request from anywhere still runs on a GitHub-hosted runner. The policy in
+  # the header is untouched.
   #
   # `push` keeps its filter: that one is about which branches deserve a build
   # after the fact, which is a different question.
@@ -80,10 +116,18 @@ on:
     # publishers on it. What stands in for CI on the tag is the push run on
     # main of the commit the tag is cut on: Release's preflight refuses a
     # commit whose push run here did not run lint, the unit tests, the UI
-    # tests and the integration tests. This workflow has no dispatch trigger
-    # on purpose: dispatched, every `runs-on` below would pick a hosted
-    # runner, which is not the run that proved the commit.
+    # tests and the integration tests.
     tags: ['v*']
+  # A DISPATCH RUNS WHAT A PUSH RUNS, where a push runs it while the switch in
+  # the header is on (2026-11-08): one `unit-tests (all)`, one arm64 leg of
+  # `migration-lint` and of `integration-tests`, on `ubuntu-24.04-arm`. It is
+  # how a branch proves the push path before it merges. It never stands in
+  # for the push run: Release's preflight reads `event=push` runs on main
+  # only, and a dispatch keeps a concurrency group of its own (below), so it
+  # cannot take a pending push run's place. Until 2026-11-08 this workflow had
+  # no dispatch trigger, because every `runs-on` would then have picked
+  # `ubuntu-24.04`, which was not the run that proved a commit.
+  workflow_dispatch:
 
 # CANCEL A SUPERSEDED PULL REQUEST RUN. DO NOT ASK FOR A PUSH RUN TO BE CANCELLED.
 #
@@ -145,14 +189,19 @@ on:
 # The groups are already separate — `github.ref` is `refs/pull/N/merge` on a
 # pull request and `refs/heads/main` on a push — so this changes only the push
 # path. Held by `a-run-that-was-cancelled-and-called-green.unit.test.ts`.
+#
+# A DISPATCH HAS A GROUP OF ITS OWN (2026-11-08). Dispatched on main, its ref is
+# the push's, and in the push's group it could take the one pending slot and
+# cancel the push run waiting there: that commit would then have no push run
+# for Release's preflight to read.
 concurrency:
-  group: ci-${{ github.ref }}
+  group: ci-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   detect-changes:
     name: detect-changes
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && 'self-hosted' || github.event_name != 'pull_request' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     outputs:
       any_changed: ${{ steps.filter.outputs.any_changed }}
       migrations_changed: ${{ steps.migrations.outputs.any_changed }}
@@ -354,7 +403,7 @@ jobs:
 
   docs-hygiene:
     name: docs-hygiene
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && 'self-hosted' || github.event_name != 'pull_request' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     # Quality gate for all changes (incl. docs-only)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -463,7 +512,7 @@ jobs:
 
   fixture-uuid-check:
     name: fixture-uuid-check
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && 'self-hosted' || github.event_name != 'pull_request' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     # Runs on all PRs — fast check before heavier jobs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -475,15 +524,17 @@ jobs:
     name: migration-lint (${{ matrix.runner }})
     # BOTH ARCHITECTURES ON A PULL REQUEST (workplan 0119, 2026-11-01). The
     # Atlas this job runs is a different download for amd64 and arm64, and a
-    # push runs it on the self-hosted arm64 runner. Until then a pull request
-    # ran the amd64 one only, so the first run of a new arm64 binary was the
-    # merge push, on the owner's machine. As in integration-tests: a push stays
-    # one self-hosted run, and `fail-fast: false` keeps the other leg's result.
+    # push runs it on arm64: GitHub's hosted arm64 runner while the switch in
+    # the header is on, the self-hosted one otherwise. Until 2026-11-01 a pull
+    # request ran the amd64 one only, so the first run of a new arm64 binary
+    # was the merge push, on the owner's machine. As in integration-tests: a
+    # push stays one arm64 run, and `fail-fast: false` keeps the other leg's
+    # result.
     runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ github.event_name == 'push' && fromJSON('["self-hosted"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
+        runner: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && fromJSON('["self-hosted"]') || github.event_name != 'pull_request' && fromJSON('["ubuntu-24.04-arm"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
     needs: detect-changes
     # ADR-0017's last unbuilt bullet, decided KEEP + BUILD by the owner
     # (2026-08-02, workplan 0021 T5): Atlas replays every migration against a
@@ -630,7 +681,7 @@ jobs:
 
   lint:
     name: lint
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && 'self-hosted' || github.event_name != 'pull_request' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     steps:
@@ -703,22 +754,25 @@ jobs:
   # single file (scripts/a-first-bring-up-of-live.unit.test.ts, about 160s)
   # is the floor.
   #
-  # ONE RUN ON A PUSH. The Spark is one box that also serves production, and
-  # four copies of the suite there are what the worker cap below exists to
-  # prevent, so the matrix is a single `all` leg on a push.
+  # ONE RUN ON A PUSH, and on a dispatch, which runs what a push runs. The
+  # self-hosted runner is one box that also serves production, and four copies
+  # of the suite there are what the worker cap below exists to prevent, so the
+  # matrix is a single `all` leg on a push. It stays one leg on GitHub's arm64
+  # runner while the switch in the header is on: `unit-tests (all)` is the job
+  # Release's preflight requires of a push run.
   #
   # Coverage stays on in every leg; a shard's report covers only its own
   # files, uploaded under its own name.
   unit-tests:
     name: unit-tests (${{ matrix.shard }})
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && 'self-hosted' || github.event_name != 'pull_request' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     strategy:
       # Every shard reports, so a failure names all the files that broke.
       fail-fast: false
       matrix:
-        shard: ${{ github.event_name == 'push' && fromJSON('["all"]') || fromJSON('["1","2","3","4"]') }}
+        shard: ${{ github.event_name != 'pull_request' && fromJSON('["all"]') || fromJSON('["1","2","3","4"]') }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -747,19 +801,21 @@ jobs:
           # Unit tests mock all DAV/HTTP; no unit test reads NEXTCLOUD_* — skip
           # the ~30s Nextcloud container boot the global setup otherwise does.
           SKIP_NEXTCLOUD: 'true'
-          # AT MOST FOUR WORKERS ON THE SPARK. vitest runs one worker per core
-          # less one: three on a 4-vCPU hosted runner, and on the Spark as many
-          # as its cores allow (the step above prints them). A worker holds a
-          # PGlite database and its coverage, about 0.6GB: nineteen of them
-          # held 13GB at once when measured, on a box that also serves
-          # production. From 2026-09-24 a push to main failed here more often
-          # than it passed, most often with workers killed mid-file by SIGKILL,
-          # which vitest does not send and the kernel's out-of-memory killer
-          # does, and PGlite's migrations in a `beforeAll` past their 30
-          # seconds. The same suite passes on the hosted runners a pull
-          # request uses, which run three. Empty on a pull request, where
-          # vitest keeps its own default.
-          VITEST_MAX_WORKERS: ${{ github.event_name == 'push' && '4' || '' }}
+          # AT MOST FOUR WORKERS ON THE SELF-HOSTED RUNNER. vitest runs one
+          # worker per core less one: three on a 4-vCPU hosted runner, and on
+          # that machine as many as its cores allow (the step above prints
+          # them). A worker holds a PGlite database and its coverage, about
+          # 0.6GB: nineteen of them held 13GB at once when measured, on a box
+          # that also serves production. From 2026-09-24 a push to main failed
+          # here more often than it passed, most often with workers killed
+          # mid-file by SIGKILL, which vitest does not send and the kernel's
+          # out-of-memory killer does, and PGlite's migrations in a
+          # `beforeAll` past their 30 seconds. The same suite passes on the
+          # hosted runners a pull request uses, which run three. Empty on
+          # every GitHub-hosted runner, where vitest keeps its own default:
+          # keyed on the machine since 2026-11-08, when a push started running
+          # on GitHub's arm64 runner during the alpha (the header).
+          VITEST_MAX_WORKERS: ${{ runner.environment == 'self-hosted' && '4' || '' }}
         # No `--`: pnpm forwards it literally, and vitest's CLI parser discards
         # everything after it. `pnpm test -- --coverage` therefore ran
         # `vitest run --project unit --project unit-browser -- --coverage`,
@@ -792,7 +848,7 @@ jobs:
   # same-origin assertion honest. Runtime is ~20s including the build.
   ui-tests:
     name: ui-tests
-    runs-on: ${{ github.event_name == 'push' && 'self-hosted' || 'ubuntu-24.04' }}
+    runs-on: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && 'self-hosted' || github.event_name != 'pull_request' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -826,6 +882,15 @@ jobs:
       # reuse a cache whose browser no longer matches — and since a cache hit
       # skips the install step, that fails as a missing browser at launch
       # rather than as a cache miss.
+      #
+      # AND ON THE KIND OF RUNNER (2026-11-08). actions/cache stores a path
+      # relative to the workspace, and the self-hosted runner's workspace sits
+      # at another depth below its home than a hosted runner's. So the arm64
+      # copy main's pushes saved on the machine, under the same key, would be
+      # unpacked on a hosted arm64 runner outside its home, where it cannot
+      # write (read from actions/cache's code, not seen in a run): about 297
+      # MB fetched for a warning. `runner.environment` keeps each kind of
+      # runner to its own copies.
       - name: Which browser build do we need?
         id: pw
         run: echo "version=$(node -p "require('playwright-core/package.json').version")" >> "$GITHUB_OUTPUT"
@@ -839,7 +904,7 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/ms-playwright
-          key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ steps.pw.outputs.version }}
+          key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{ steps.pw.outputs.version }}
       - name: Install Chromium
         if: steps.pw-cache.outputs.cache-hit != 'true'
         run: node node_modules/playwright-core/cli.js install chromium
@@ -865,9 +930,12 @@ jobs:
   # why), so `better-sqlite3` is the native module left.
   #
   # On a PULL REQUEST it runs twice, amd64 and arm64, both free 4-vCPU hosted
-  # runners. On a PUSH it stays a single self-hosted run — the Spark is already
-  # arm64, and the matrix must not multiply work on a box that also serves
-  # production.
+  # runners. On a PUSH it stays a single arm64 run, the architecture live
+  # runs on: GitHub's hosted arm64 runner while the switch in the header is
+  # on, the self-hosted runner otherwise, where the matrix must not multiply
+  # work on a box that also serves production. That one leg is named after
+  # its runner, `integration-tests (ubuntu-24.04-arm)` or
+  # `integration-tests (self-hosted)`, and Release's preflight takes either.
   #
   # `fail-fast: false` so an arm64-only failure still reports the amd64 result.
   # Knowing WHICH architecture broke is the entire point of running both.
@@ -877,7 +945,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ github.event_name == 'push' && fromJSON('["self-hosted"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
+        runner: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && fromJSON('["self-hosted"]') || github.event_name != 'pull_request' && fromJSON('["ubuntu-24.04-arm"]') || fromJSON('["ubuntu-24.04","ubuntu-24.04-arm"]') }}
     needs: unit-tests
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -907,7 +975,8 @@ jobs:
         # installer checks the archive against a sum it carries itself, so
         # nothing here ever named the bytes). Now it fetches the release below
         # for BOTH architectures the job runs on (the hosted amd64 and arm64
-        # runners for a pull request, the self-hosted arm64 runner for a push),
+        # runners for a pull request, one arm64 runner for a push: GitHub's
+        # while the switch in the header is on, the self-hosted one otherwise),
         # refuses either whose SHA-256 is not the one pinned here, and only
         # then unpacks the native one, installs it, and checks that it calls
         # itself that release. Both are checked on every run, so a wrong arm64

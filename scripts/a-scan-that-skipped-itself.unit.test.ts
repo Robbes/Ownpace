@@ -50,11 +50,13 @@
  *     — which happened on every run, because trivy-action's default cache sits
  *     inside the workspace that `actions/checkout` cleans. Caching is what
  *     makes the alarm rare rather than routine.
- *  7. **Both kinds of runner are covered.** This job runs on the Spark for a
- *     push to main and on a GitHub-hosted runner for everything else — pull
- *     requests, the weekly schedule, tags. A cache that only worked on one of
- *     them would leave the schedule, which the assertion treats as the
- *     security record, pulling cold every week.
+ *  7. **Both kinds of runner are covered.** This job runs on the self-hosted
+ *     runner for a push to main when `CI_PUSH_ON_SELF_HOSTED` is `true` (not
+ *     during the alpha, 2026-11-08: a-merge-that-ran-beside-the-socket) and on
+ *     a GitHub-hosted runner for everything else — pull requests, the weekly
+ *     schedule, tags. A cache that only worked on one of them would leave the
+ *     schedule, which the assertion treats as the security record, pulling
+ *     cold every week.
  *
  * Read as text: this is a workflow file, and what is asserted is that certain
  * steps exist, in a certain order, with certain conditions.
