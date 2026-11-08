@@ -211,6 +211,10 @@
  *    and since 2026-11-07 Trigger.dev's Redis's one RUN as root
  *    (deploy/compose/redis/Dockerfile), the webapp's eleven in the same shape,
  *    scanned with perl; `an-essential-nothing-runs` holds both RUNs' text.
+ *    Since 2026-11-08 both purge libsystemd0 and libudev1 too, thirteen, and
+ *    check after the purge that no file of a removed library is left and no
+ *    ELF file needs one (DT_NEEDED), over stand-in ELF files a dynamic loader
+ *    would read: 64- and 32-bit, either byte order.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -1678,35 +1682,45 @@ const SHIPPED_BY: Readonly<Record<string, string>> = {
   'libsmartcols.so.1': 'libsmartcols1',
   'libapt-pkg.so.6.0': 'libapt-pkg6.0',
   'libapt-private.so.0.0': 'apt',
+  'libsystemd.so.0': 'libsystemd0',
+  'libudev.so.1': 'libudev1',
 };
+
+/** What stays after the purge, in the stand-in's Debian 12: nothing it keeps depends on what it purged. */
+const STAYS = ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'libss2', 'libcom-err2', 'logsave', 'libcap2', 'libgcrypt20', 'liblz4-1', 'liblzma5', 'libzstd1'];
 
 /**
  * The stand-in's Debian 12, as far as the webapp's purge reads it: every
  * package the RUN names installed, util-linux and bsdutils Essential, each
  * library under its platform's directory (not in the stand-in's tree, so a
  * purge removes nothing there unless a test puts one in), the dependencies
- * among them that Debian 12 has (util-linux on its libraries and on
- * util-linux-extra, mount on util-linux, apt on libapt-pkg6.0, e2fsprogs on
- * libblkid1 and libuuid1 and on its own libraries, which stay), and packages
- * that stay and depend on none of them.
+ * among them that Debian 12 has (util-linux on its libraries, on
+ * util-linux-extra and on libsystemd0 and libudev1, mount on util-linux, apt
+ * on libapt-pkg6.0 and libsystemd0, libapt-pkg6.0 on libsystemd0 and
+ * libudev1, bsdutils on libsystemd0, e2fsprogs on libblkid1 and libuuid1 and
+ * on its own libraries, which stay, and libsystemd0 on its own, which stay
+ * too: read 2026-11-08 in the Redis and Node images' dpkg status), and
+ * packages that stay and depend on none of them.
  */
 function debian12(plat: string, text: string = dockerfiles['trigger.dev']): DpkgDb {
   const lib = (so: string) => [`/usr/lib/${TRIPLET[plat] ?? plat}/${so}`];
   const { packages, libraries } = purgeLists(text);
   const ships = (name: string) => libraries.filter((so) => SHIPPED_BY[so] === name).flatMap(lib);
   const depends: Readonly<Record<string, readonly string[]>> = {
-    'util-linux': ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1', 'util-linux-extra', 'libacl1'],
+    'util-linux': ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1', 'util-linux-extra', 'libacl1', 'libsystemd0', 'libudev1'],
     'util-linux-extra': ['libblkid1', 'libsmartcols1', 'libuuid1'],
     mount: ['util-linux', 'libblkid1', 'libmount1', 'libsmartcols1'],
+    bsdutils: ['libsystemd0'],
     libmount1: ['libblkid1'],
-    apt: ['libapt-pkg6.0', 'zlib1g'],
-    'libapt-pkg6.0': ['zlib1g'],
+    apt: ['libapt-pkg6.0', 'zlib1g', 'libsystemd0'],
+    'libapt-pkg6.0': ['zlib1g', 'libsystemd0', 'libudev1'],
     e2fsprogs: ['libblkid1', 'libcom-err2', 'libext2fs2', 'libss2', 'libuuid1', 'logsave'],
+    libsystemd0: ['libcap2', 'libgcrypt20', 'liblz4-1', 'liblzma5', 'libzstd1'],
   };
   const out: Record<string, DpkgPackage> = {
     coreutils: { version: '9.1-1', status: 'installed', essential: true, depends: ['libacl1'] },
     tar: { version: '1.34+dfsg-1.2+deb12u1', status: 'installed', essential: true, depends: ['libacl1'] },
-    dpkg: { version: '1.21.22', status: 'installed', essential: true, depends: ['tar', 'zlib1g'] },
+    dpkg: { version: '1.21.22', status: 'installed', essential: true, depends: ['tar', 'zlib1g', 'liblzma5', 'libzstd1'] },
     libacl1: { version: '2.3.1-3', status: 'installed' },
     zlib1g: { version: '1:1.2.13.dfsg-1', status: 'installed' },
     // e2fsprogs' own libraries and logsave stay: in Debian 12 they need libc6 and libcom-err2 alone.
@@ -1714,6 +1728,12 @@ function debian12(plat: string, text: string = dockerfiles['trigger.dev']): Dpkg
     libss2: { version: '1.47.0-2+b2', status: 'installed', depends: ['libcom-err2'] },
     'libcom-err2': { version: '1.47.0-2+b2', status: 'installed' },
     logsave: { version: '1.47.0-2+b2', status: 'installed' },
+    // What libsystemd0 needs stays: dpkg purges what it is given, never what that needed.
+    libcap2: { version: '1:2.66-4+deb12u3+b1', status: 'installed' },
+    libgcrypt20: { version: '1.10.1-3+deb12u1', status: 'installed' },
+    'liblz4-1': { version: '1.9.4-1', status: 'installed' },
+    liblzma5: { version: '5.4.1-1+deb12u2', status: 'installed' },
+    libzstd1: { version: '1.5.4+dfsg2-5', status: 'installed' },
   };
   for (const name of packages) {
     out[name] = {
@@ -1725,6 +1745,84 @@ function debian12(plat: string, text: string = dockerfiles['trigger.dev']): Dpkg
     };
   }
   return { packages: out, audit: '' };
+}
+
+/**
+ * A dynamically linked ELF file as the dynamic loader reads one, and no more:
+ * the ELF header, a PT_LOAD over the whole file at 0x400000 and a PT_DYNAMIC,
+ * a dynamic section with one DT_NEEDED for each of `needed`, then DT_STRTAB,
+ * DT_STRSZ and DT_NULL, and the string table, which also carries `text` where
+ * no DT_NEEDED points (a name a program opens with dlopen, say). 64-bit and
+ * little-endian, as both platforms are, unless asked for 32-bit or big-endian,
+ * so the purge's check is proved on every class and byte order it reads.
+ * Data only: nothing runs it.
+ */
+function dynamicElf(needed: readonly string[], { bits = 64, endian = 'le', text = '' }: { bits?: 32 | 64; endian?: 'le' | 'be'; text?: string } = {}): Buffer {
+  const w = bits === 64 ? 8 : 4;
+  const ehsize = bits === 64 ? 64 : 52;
+  const phentsize = bits === 64 ? 56 : 32;
+  const base = 0x400000;
+  const offsets: number[] = [];
+  let strtab = Buffer.from([0]);
+  for (const name of [...needed, ...(text ? [text] : [])]) {
+    offsets.push(strtab.length);
+    strtab = Buffer.concat([strtab, Buffer.from(`${name}\0`)]);
+  }
+  const dynoff = ehsize + 2 * phentsize;
+  const entries: Array<[number, number]> = needed.map((_, i) => [1, offsets[i]!]);
+  const dynsz = (entries.length + 3) * 2 * w;
+  const stroff = dynoff + dynsz;
+  entries.push([5, base + stroff], [10, strtab.length], [0, 0]);
+  const size = stroff + strtab.length;
+  const b = Buffer.alloc(size);
+  const le = endian === 'le';
+  const u16 = (v: number, at: number) => (le ? b.writeUInt16LE(v, at) : b.writeUInt16BE(v, at));
+  const u32 = (v: number, at: number) => (le ? b.writeUInt32LE(v, at) : b.writeUInt32BE(v, at));
+  const word = (v: number, at: number) => (w === 8 ? (le ? b.writeBigUInt64LE(BigInt(v), at) : b.writeBigUInt64BE(BigInt(v), at)) : u32(v, at));
+  Buffer.from([0x7f, 0x45, 0x4c, 0x46, bits === 64 ? 2 : 1, le ? 1 : 2, 1]).copy(b, 0);
+  u16(3, 16); // ET_DYN
+  u16(bits === 64 ? 183 : 20, 18); // AArch64, or 32-bit PowerPC: the check reads neither
+  u32(1, 20);
+  if (bits === 64) {
+    word(ehsize, 32); // e_phoff
+    u16(ehsize, 52);
+    u16(phentsize, 54);
+    u16(2, 56); // e_phnum
+  } else {
+    word(ehsize, 28);
+    u16(ehsize, 40);
+    u16(phentsize, 42);
+    u16(2, 44);
+  }
+  const header = (i: number, type: number, offset: number, filesz: number) => {
+    const p = ehsize + i * phentsize;
+    u32(type, p);
+    if (bits === 64) {
+      u32(4, p + 4); // p_flags: R
+      word(offset, p + 8);
+      word(base + offset, p + 16); // p_vaddr
+      word(base + offset, p + 24);
+      word(filesz, p + 32);
+      word(filesz, p + 40);
+      word(0x1000, p + 48);
+    } else {
+      word(offset, p + 4);
+      word(base + offset, p + 8);
+      word(base + offset, p + 12);
+      word(filesz, p + 16);
+      word(filesz, p + 20);
+      u32(4, p + 24);
+      word(0x1000, p + 28);
+    }
+  };
+  header(0, 1, 0, size); // PT_LOAD
+  header(1, 2, dynoff, dynsz); // PT_DYNAMIC
+  entries.forEach(([tag, value], i) => {
+    word(tag, dynoff + i * 2 * w);
+    word(value, dynoff + i * 2 * w + w);
+  });
+  strtab.copy(b, stroff);
+  return b;
 }
 
 /** The stand-in's dpkg database after a build, and the dpkg calls it logged, in order. */
@@ -1767,7 +1865,8 @@ function treeOf(name: Name, plat: string): Tree {
     pnpm: PUBLISHED,
     registry: { ...dompurify.registry, ...swap.registry, ...(goose ? { [goose.url]: STAND_IN_GOOSE_NEW } : {}) },
     standIn: { ...dompurify.standIn, table: swap.table, goose: sha256(STAND_IN_GOOSE_NEW) },
-    executables: { [GOOSE.path]: STAND_IN_GOOSE_OLD },
+    // goose is static; openssl, which upstream's runner stage installs, needs what the purge keeps.
+    executables: { [GOOSE.path]: STAND_IN_GOOSE_OLD, '/usr/bin/openssl': dynamicElf(['libssl.so.3', 'libcrypto.so.3', 'libc.so.6']) },
     tools: gooseTools(),
     dpkg,
     files: {
@@ -3562,9 +3661,11 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
         ]);
         for (const p of packages) expect(db.packages[p], p).toBeUndefined();
         // What stays, stays: nothing it keeps depended on what it purged.
-        for (const p of ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'libss2', 'libcom-err2', 'logsave']) expect(db.packages[p]?.status, p).toBe('installed');
+        for (const p of STAYS) expect(db.packages[p]?.status, p).toBe('installed');
         expect(run.out).toMatch(/^[1-9]\d* ELF files read under /m);
-        expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no ELF file names ${libraries.join(' ')}`);
+        // The check of what is left read a dynamic section, and every one it met.
+        expect(run.out).toMatch(/^[1-9]\d* ELF files read under \S+, [1-9]\d* of them needing a library, 0 whose dynamic section could not be read$/m);
+        expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no file of ${libraries.join(' ')} is left and no ELF file needs or names one`);
         expect(readFileSync(join(box.root, 'tools.log'), 'utf8')).toContain('dumb-init --version\n');
       });
     });
@@ -3596,7 +3697,7 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
   });
 
   it('e2fsprogs off the list stops it as it stopped the first build on the real base: dpkg refuses libblkid1 and libuuid1 for it', () => {
-    const without = webapp.replace(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"');
+    const without = webapp.replace(' libapt-pkg6.0 e2fsprogs libsystemd0 ', ' libapt-pkg6.0 libsystemd0 ');
     expect(without).not.toBe(webapp);
     withSandbox(changed('linux-arm64', (db) => db), (box) => {
       const run = build(without, box, { plat: 'linux-arm64' });
@@ -3648,24 +3749,112 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
   it("an ELF file left after the purge that names one of its libraries stops it, by path; the packages' own go with them, and a text file is no ELF", () => {
     const plat = 'linux-arm64';
     const tree = treeOf('trigger.dev', plat);
-    const own = `/usr/lib/${TRIPLET[plat]}/${libraries[0]}`;
+    const own = libraries.map((so) => `/usr/lib/${TRIPLET[plat]}/${so}`);
     const reader = `${PNPM}/a-reader@1.0.0/node_modules/a-reader/index.js`;
-    // The library's own file goes with its package; a script that names it is not something that links it.
-    withSandbox({ ...tree, executables: { ...tree.executables, [own]: elf(libraries[0]!) }, files: { ...tree.files, [reader]: `// dlopen('${libraries[0]}') is not this file's\n` } }, (box) => {
+    // Each library's own file goes with its package; a script that names one is not something that links it.
+    withSandbox({ ...tree, executables: { ...tree.executables, ...Object.fromEntries(own.map((p, i) => [p, elf(libraries[i]!)])) }, files: { ...tree.files, [reader]: `// dlopen('${libraries.at(-1)}') is not this file's\n` } }, (box) => {
       const run = build(webapp, box, { plat });
       expect(run.status, run.out).toBe(0);
-      expect(run.left).not.toContain(own);
+      for (const p of own) expect(run.left).not.toContain(p);
       expect(run.left).toContain(reader);
     });
-    // An addon, or any ELF of no purged package, that names any of them.
-    const addons = Object.fromEntries(libraries.map((so, i) => [`${PNPM}/addon-${i}@1.0.0/node_modules/addon-${i}/build/Release/addon.node`, elf(so)]));
+    // An addon, or any ELF of no purged package, that needs only libc and names one of them where a dlopen would.
+    const addons = Object.fromEntries(libraries.map((so, i) => [`${PNPM}/addon-${i}@1.0.0/node_modules/addon-${i}/build/Release/addon.node`, dynamicElf(['libc.so.6'], { text: so })]));
     withSandbox({ ...tree, executables: { ...tree.executables, ...addons } }, (box) => {
       const run = build(webapp, box, { plat });
       expect(run.status).not.toBe(0);
+      // None needs one, so the check of what is left passes them, and the scan of what names one stops it.
+      expect(run.out).not.toContain('a file of a library it removed is left');
       expect(run.out).toContain('after the purge, an ELF file names a library it removed');
       libraries.forEach((so, i) => expect(run.out).toContain(`${box.fs}${PNPM}/addon-${i}@1.0.0/node_modules/addon-${i}/build/Release/addon.node: ${so}`));
       // It stopped after the purge: what it found is left for whoever reads the log.
       expect(purged(box)).toHaveLength(1);
+    });
+  });
+
+  it('an ELF file that needs a library the purge removed stops it, by path, whatever its class and byte order', () => {
+    const plat = 'linux-x64';
+    const tree = treeOf('trigger.dev', plat);
+    const needing = {
+      [`${PNPM}/usb@2.14.0/node_modules/usb/prebuilds/linux-x64/node.napi.node`]: dynamicElf(['libc.so.6', 'libudev.so.1']),
+      '/opt/vendor/bin/agent': dynamicElf(['libsystemd.so.0', 'libc.so.6'], { bits: 32, endian: 'be' }),
+      '/opt/vendor/lib/libprobe.so': dynamicElf(['libuuid.so.1'], { bits: 32 }),
+      '/opt/vendor/lib/libprobe64be.so': dynamicElf(['libudev.so.1'], { endian: 'be' }),
+    };
+    withSandbox({ ...tree, executables: { ...tree.executables, ...needing } }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('after the purge, a file of a library it removed is left, or an ELF file needs one (DT_NEEDED), or the check read no ELF file that needs a library at all (node exits 1)');
+      expect(run.out).toContain(`${box.fs}${PNPM}/usb@2.14.0/node_modules/usb/prebuilds/linux-x64/node.napi.node: needs libudev.so.1`);
+      expect(run.out).toContain(`${box.fs}/opt/vendor/bin/agent: needs libsystemd.so.0`);
+      expect(run.out).toContain(`${box.fs}/opt/vendor/lib/libprobe.so: needs libuuid.so.1`);
+      expect(run.out).toContain(`${box.fs}/opt/vendor/lib/libprobe64be.so: needs libudev.so.1`);
+      // What it needs and nothing else: libc is no library the purge removed.
+      expect(run.out).not.toContain('needs libc.so.6');
+      // It stopped there, before the scan of what names one.
+      expect(run.out).not.toContain('an ELF file names a library it removed');
+      expect(purged(box)).toHaveLength(1);
+    });
+  });
+
+  it('a file of a removed library left where no package of the list had it stops it: a copy, or a link by its name', () => {
+    const plat = 'linux-arm64';
+    const tree = treeOf('trigger.dev', plat);
+    withSandbox(
+      {
+        ...tree,
+        files: { ...tree.files, '/opt/vendor/lib/libudev.so.1.7.5': 'a copy, whatever its bytes\n' },
+        links: [...(tree.links ?? []), { path: '/usr/local/lib/libsystemd.so.0', target: 'libsystemd.so.0.35.0' }],
+      },
+      (box) => {
+        const run = build(webapp, box, { plat });
+        expect(run.status).not.toBe(0);
+        expect(run.out).toContain(`${box.fs}/opt/vendor/lib/libudev.so.1.7.5: a file of libudev.so.1 is left`);
+        expect(run.out).toContain(`${box.fs}/usr/local/lib/libsystemd.so.0: a file of libsystemd.so.0 is left`);
+        expect(run.left).toContain('/usr/local/lib/libsystemd.so.0');
+      },
+    );
+  });
+
+  it('an ELF file whose dynamic section cannot be read counts as needing a library it names, and one that names none passes', () => {
+    const plat = 'linux-arm64';
+    const tree = treeOf('trigger.dev', plat);
+    // The stand-in binaries the earlier RUNs remove are ELF by their magic alone; one left that names no removed library passes.
+    withSandbox({ ...tree, executables: { ...tree.executables, '/opt/vendor/bin/stub': elf('libssl.so.3') } }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status, run.out).toBe(0);
+      expect(run.out).toMatch(/^[1-9]\d* ELF files read under \S+, [1-9]\d* of them needing a library, 1 whose dynamic section could not be read$/m);
+    });
+    withSandbox({ ...tree, executables: { ...tree.executables, '/opt/vendor/bin/stub': elf('libudev.so.1') } }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}/opt/vendor/bin/stub: names libudev.so.1, and its dynamic section cannot be read`);
+    });
+  });
+
+  it('a check that met no ELF file needing a library stops it: a reader that reads nothing is no proof', () => {
+    const plat = 'linux-x64';
+    const tree = treeOf('trigger.dev', plat);
+    const staticOnly = Object.fromEntries(Object.entries(tree.executables ?? {}).filter(([path]) => path !== '/usr/bin/openssl'));
+    withSandbox({ ...tree, executables: staticOnly }, (box) => {
+      const run = build(webapp, box, { plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toMatch(/^[1-9]\d* ELF files read under \S+, 0 of them needing a library, 0 whose dynamic section could not be read$/m);
+      expect(run.out).toContain('or the check read no ELF file that needs a library at all (node exits 2)');
+    });
+  });
+
+  it('a package that stays and depends on libsystemd0 stops it at dpkg\'s refusal: no flag leaves that dependency dangling', () => {
+    // A package that needs libsystemd0, as procps does on Ubuntu 24.04: a base that brings one stops here.
+    const procps: DpkgPackage = { version: '1', status: 'installed', depends: ['libsystemd0'] };
+    withSandbox(changed('linux-arm64', (db) => ({ ...db, packages: { ...db.packages, procps } })), (box) => {
+      const run = build(webapp, box, { plat: 'linux-arm64' });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('procps depends on libsystemd0.');
+      expect(run.out).toContain('dependency problems - not removing');
+      expect(run.out).toContain('Without --force-depends it refuses to remove what an installed package depends on');
+      const { db } = dpkgOf(box);
+      for (const p of ['procps', 'libsystemd0']) expect(db.packages[p]?.status, p).toBe('installed');
     });
   });
 
@@ -3683,12 +3872,13 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
 /**
  * Trigger.dev's Redis (deploy/compose/redis/Dockerfile, 2026-11-07, for
  * alpha.6): its one RUN as root purges the webapp's eleven in the same shape,
- * and scans with perl, since that image has no node. Its tree here is the
- * stand-in's Debian 12 read from its own RUN, Redis's two binaries as ELF
- * stand-ins the scan reads, and redis-server and redis-cli as scripts that
- * answer --version, which the RUN starts after the purge. The RUN after USER
- * 999:999 is the image's user's, which this machine is not: E2E (managed) and
- * images.yml run it.
+ * thirteen since 2026-11-08, and checks with perl, since that image has no
+ * node. Its tree here is the stand-in's Debian 12 read from its own RUN,
+ * Redis's two binaries as ELF stand-ins that need what Redis's binaries need
+ * (libm, libssl, libcrypto and libc, read with `readelf -d` on 2026-11-08),
+ * and redis-server and redis-cli as scripts that answer --version, which the
+ * RUN starts after the purge. The RUN after USER 999:999 is the image's
+ * user's, which this machine is not: E2E (managed) and images.yml run it.
  */
 const REDIS_DOCKERFILE = 'deploy/compose/redis/Dockerfile';
 const redisDockerfile = read(REDIS_DOCKERFILE);
@@ -3698,17 +3888,19 @@ const elfWith = (text: string) => Buffer.concat([Buffer.from([0x7f, 0x45, 0x4c, 
 /** A program that answers --version, and logs that it was asked. */
 const versioned = (name: string) => `#!/bin/sh\nprintf '%s %s\\n' ${name} "$*" >> "$TOOL_LOG"\necho "${name} stand-in"\n`;
 
+/** What Redis's three binaries need (`readelf -d`, both platforms, 2026-11-08). */
+const REDIS_NEEDS = ['libm.so.6', 'libssl.so.3', 'libcrypto.so.3', 'libc.so.6'];
 function redisTree(plat: string): Tree {
   return {
     files: {},
     binaries: [],
-    executables: { '/usr/local/bin/redis-server': elfWith('libssl.so.3'), '/usr/local/bin/redis-cli': elfWith('libssl.so.3') },
+    executables: { '/usr/local/bin/redis-server': dynamicElf(REDIS_NEEDS), '/usr/local/bin/redis-cli': dynamicElf(REDIS_NEEDS) },
     tools: { 'redis-server': versioned('redis-server'), 'redis-cli': versioned('redis-cli') },
     dpkg: debian12(plat, redisDockerfile),
   };
 }
 
-describe("Redis's RUN as root purges the webapp's eleven over the stand-in, and dpkg's own refusals stop it (0119 §3 item 11, 2026-11-07)", () => {
+describe("Redis's RUN as root purges the webapp's thirteen over the stand-in, and dpkg's own refusals stop it (0119 §3 item 11, 2026-11-07; thirteen since 2026-11-08)", () => {
   const { packages, libraries } = purgeLists(redisDockerfile);
   const list = packages.join(' ');
   const purged = (box: Sandbox) => dpkgOf(box).calls.filter((c) => c.startsWith('dpkg --purge'));
@@ -3733,9 +3925,10 @@ describe("Redis's RUN as root purges the webapp's eleven over the stand-in, and 
           ...packages.map((p) => `dpkg-query -W -f \${db:Status-Status} ${p}`),
         ]);
         for (const p of packages) expect(db.packages[p], p).toBeUndefined();
-        for (const p of ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'libss2', 'libcom-err2', 'logsave']) expect(db.packages[p]?.status, p).toBe('installed');
-        expect(run.out).toMatch(/^2 ELF files read under /m);
-        expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no ELF file names ${libraries.join(' ')}, and sh, id, find, redis-server and redis-cli start.`);
+        for (const p of STAYS) expect(db.packages[p]?.status, p).toBe('installed');
+        expect(run.out).toMatch(/^2 ELF files read under \S+, 2 of them needing a library, 0 whose dynamic section could not be read$/m);
+        expect(run.out).toMatch(/^2 ELF files read under \S+$/m);
+        expect(run.out).toContain(`purged ${list}; dpkg's audit reads nothing, no file of ${libraries.join(' ')} is left and no ELF file needs or names one, and sh, id, find, redis-server and redis-cli start.`);
         const tools = readFileSync(join(box.root, 'tools.log'), 'utf8');
         expect(tools).toContain('redis-server --version\n');
         expect(tools).toContain('redis-cli --version\n');
@@ -3744,7 +3937,7 @@ describe("Redis's RUN as root purges the webapp's eleven over the stand-in, and 
   }
 
   it('e2fsprogs off the list stops it, as it stopped the webapp\'s first build on the real base: dpkg refuses libblkid1 and libuuid1 for it', () => {
-    const without = redisDockerfile.replace(' libapt-pkg6.0 e2fsprogs"', ' libapt-pkg6.0"');
+    const without = redisDockerfile.replace(' libapt-pkg6.0 e2fsprogs libsystemd0 ', ' libapt-pkg6.0 libsystemd0 ');
     expect(without).not.toBe(redisDockerfile);
     withSandbox(redisTree('linux-arm64'), (box) => {
       const run = build(without, box, { plat: 'linux-arm64', pick: asRoot });
@@ -3766,9 +3959,10 @@ describe("Redis's RUN as root purges the webapp's eleven over the stand-in, and 
     });
   });
 
-  it('an ELF file left after the purge that names one of its libraries stops it, by path, and the scan that reads no ELF at all stops it too', () => {
+  it('an ELF file left after the purge that names one of its libraries stops it, by path, and a check that reads no ELF at all stops it too', () => {
     const tree = redisTree('linux-arm64');
-    withSandbox({ ...tree, executables: { ...tree.executables, '/usr/local/lib/redis/modules/probe.so': elfWith(libraries[0]!) } }, (box) => {
+    // A module that needs libc alone and opens one by its name.
+    withSandbox({ ...tree, executables: { ...tree.executables, '/usr/local/lib/redis/modules/probe.so': dynamicElf(['libc.so.6'], { text: libraries[0]! }) } }, (box) => {
       const run = build(redisDockerfile, box, { plat: 'linux-arm64', pick: asRoot });
       expect(run.status).not.toBe(0);
       expect(run.out).toContain('after the purge, an ELF file names a library it removed');
@@ -3778,8 +3972,50 @@ describe("Redis's RUN as root purges the webapp's eleven over the stand-in, and 
     withSandbox({ ...tree, executables: {} }, (box) => {
       const run = build(redisDockerfile, box, { plat: 'linux-arm64', pick: asRoot });
       expect(run.status).not.toBe(0);
-      expect(run.out).toMatch(/^0 ELF files read under /m);
-      expect(run.out).toContain('or the scan read none (perl exits 2)');
+      expect(run.out).toMatch(/^0 ELF files read under \S+, 0 of them needing a library, 0 whose dynamic section could not be read$/m);
+      expect(run.out).toContain('or the check read no ELF file that needs a library at all (perl exits 2)');
+    });
+  });
+
+  it('an ELF file that needs libsystemd.so.0 or libudev.so.1, or a file of either left, stops it, by path, whatever the class and byte order', () => {
+    const tree = redisTree('linux-x64');
+    const needing = {
+      '/usr/local/lib/redis/modules/sd.so': dynamicElf(['libsystemd.so.0', 'libc.so.6']),
+      '/usr/local/lib/redis/modules/udev32be.so': dynamicElf(['libudev.so.1'], { bits: 32, endian: 'be' }),
+    };
+    withSandbox({ ...tree, executables: { ...tree.executables, ...needing }, links: [{ path: '/usr/local/lib/libudev.so.1', target: 'libudev.so.1.7.5' }] }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-x64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('after the purge, a file of a library it removed is left, or an ELF file needs one (DT_NEEDED), or the check read no ELF file that needs a library at all (perl exits 1)');
+      expect(run.out).toContain(`${box.fs}/usr/local/lib/redis/modules/sd.so: needs libsystemd.so.0`);
+      expect(run.out).toContain(`${box.fs}/usr/local/lib/redis/modules/udev32be.so: needs libudev.so.1`);
+      // A link dpkg did not list, by the name of a library the purge removed.
+      expect(run.out).toContain(`${box.fs}/usr/local/lib/libudev.so.1: a file of libudev.so.1 is left`);
+      expect(run.out).not.toContain('an ELF file names a library it removed');
+    });
+    // The two libraries' own files, where libsystemd0 and libudev1 have them, go with their packages.
+    const own = ['libsystemd.so.0', 'libudev.so.1'].map((so) => `/usr/lib/x86_64-linux-gnu/${so}`);
+    withSandbox({ ...tree, executables: { ...tree.executables, ...Object.fromEntries(own.map((p) => [p, elfWith(p)])) } }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-x64', pick: asRoot });
+      expect(run.status, run.out).toBe(0);
+      for (const p of own) expect(run.left).not.toContain(p);
+    });
+  });
+
+  it('a package that stays and depends on libudev1 stops it at dpkg\'s refusal, and the check reads an ELF file it cannot parse by its bytes', () => {
+    const tree = redisTree('linux-arm64');
+    const keeper: DpkgPackage = { version: '1', status: 'installed', depends: ['libudev1'] };
+    withSandbox({ ...tree, dpkg: { ...tree.dpkg!, packages: { ...tree.dpkg!.packages, 'a-udev-user': keeper } } }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-arm64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain('a-udev-user depends on libudev1.');
+      expect(run.out).toContain('dependency problems - not removing');
+      for (const p of ['a-udev-user', 'libudev1']) expect(dpkgOf(box).db.packages[p]?.status, p).toBe('installed');
+    });
+    withSandbox({ ...tree, executables: { ...tree.executables, '/usr/local/lib/redis/modules/stub.so': elfWith('libsystemd.so.0') } }, (box) => {
+      const run = build(redisDockerfile, box, { plat: 'linux-arm64', pick: asRoot });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`${box.fs}/usr/local/lib/redis/modules/stub.so: names libsystemd.so.0, and its dynamic section cannot be read`);
     });
   });
 

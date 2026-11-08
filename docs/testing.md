@@ -386,7 +386,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `ci.yml` — `detect-changes -> docs-hygiene + fixture-uuid-check + migration-lint + lint +
   unit-tests (parallel) -> integration-tests` (unit-tests stopped waiting for lint on 2026-10-05);
   on a pull request `unit-tests` is split over four hosted runners (`vitest --shard=N/4`, about
-  6 minutes instead of 11), and on a push it is one run on the Spark; docs-hygiene enforces the root `.md` allowlist and
+  6 minutes instead of 11), and on a push it is one run, on arm64 like every push job (GitHub's
+  `ubuntu-24.04-arm` during the alpha, the self-hosted runner otherwise; see Runners below);
+  docs-hygiene enforces the root `.md` allowlist and
   that the canonical docs exist; **`fixture-uuid-check`** enforces unique test-fixture UUIDs
   across the tree (the remediation from `docs/test-fixture-uuid-collision-audit.md` — a colliding
   tenant or mapping UUID pasted into a new test fails CI by name rather than causing cross-test
@@ -396,7 +398,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   dockerized Postgres (the base the stacks build on, `deploy/compose/postgres/Dockerfile`'s FROM
   by tag and digest, since 2026-11-01) and fails on destructive schema changes — runs only when either migration
   directory (or the workflow) changes, on a pull request on hosted amd64 and arm64 (the Atlas
-  each runs is its own download, pinned by its SHA-256; 2026-11-01) and on a push on the Spark;
+  each runs is its own download, pinned by its SHA-256; 2026-11-01) and on a push on arm64;
   **`commit-convention`** (2026-09-21) reads the commit subjects a pull request ADDS and requires
   the Conventional Commits prefix CONTRIBUTING.md and the pull-request template both already
   mandated. Measured the day it was built: two of the last two hundred subjects on `main`
@@ -606,15 +608,21 @@ only a fresh push escapes. A `paths:` filter stays allowed because a workflow it
 subject the PR did not touch, and the honest response is to leave that check out of branch
 protection. A `branches:` filter cannot be rescued that way: the check is required and unreportable.
 
-Removing it does not widen what runs on the Spark. Every `runs-on` in `ci.yml` keys on
-`github.event_name == 'push'`, never on the branch, so pull requests from anywhere still run on
-GitHub-hosted runners — and `push` keeps its `branches: [main]` filter, which is what makes that
-true.
+Removing it does not widen what runs on the self-hosted runner. Every `runs-on` in `ci.yml` sends
+only a push there, never a pull request, whatever its branch, so pull requests from anywhere still
+run on GitHub-hosted runners — and `push` keeps its `branches: [main]` filter, which is what makes
+that true.
 
 Runners: on a pull request every `ci.yml` job is GitHub-hosted, with integration on both
 `ubuntu-24.04` and `ubuntu-24.04-arm` for every code-changing pull request; after merge to `main`
-the same jobs run on the self-hosted arm64 Spark. Image builds are GitHub-hosted, and e2e runs only
-on the Spark. The Spark runner executes trusted workflows only. The `integration-tests` job,
+the same jobs run once, on arm64. During the alpha that is GitHub's hosted `ubuntu-24.04-arm`, for
+`security-scan.yml`'s push scan too (the owner, 2026-11-08, workplan 0132 open question 1), and a
+dispatch of either on a branch runs its push jobs there, to prove that path before a merge. The
+repository variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends the push jobs back to the
+self-hosted arm64 runner, where they ran until then;
+`scripts/a-merge-that-ran-beside-the-socket.unit.test.ts` holds both states. Image builds are
+GitHub-hosted, and e2e runs only on the self-hosted runner, which executes trusted workflows only.
+The `integration-tests` job,
 `e2e.yml` and `e2e-managed.yml` install `stalwart-cli` as a host binary for their provisioning
 phases, by one step word for word: a named release (v1.0.14), each architecture's archive checked
 by its SHA-256 before anything is unpacked, and the version the binary prints (2026-11-01; until

@@ -26,6 +26,21 @@ comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanu
   second Nextcloud major's 34.0.6, ClickHouse's 26.2, the `${TRIGGER_IMAGE_TAG:-v4.5.12}` lines
   and *Monday's group*.
 
+**2026-11-08: libsystemd0 and libudev1 out of Redis and the webapp, built for alpha.7, merged as
+#1846 (`422f049c`) (§3 item 11); apt out of ClickHouse is later.** Answered 2026-11-08, the owner:
+*"Build the recommended for alpha 7."* On branch
+`claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`, from `main` at `b832d027`. Both purge
+RUNs take the two, thirteen packages in one `dpkg --purge` with the same two flags and no other
+force. Only apt, bsdutils, libapt-pkg6.0 and util-linux depended on either, all four in the eleven
+(the dpkg status of Redis's image and of the webapp's Node base, read by layer digest on both
+platforms; dpkg's own refusal in CI read the rest). After the purge, a new check fails the build if
+a file of a removed library is left, or if any ELF file needs one (DT_NEEDED). The names move to
+`localhost/redis:7.4.12-bookworm-d5301e0623d4` and `localhost/trigger.dev:v4.8.3-42a2fcc298b0`;
+user, entrypoint, command and healthcheck are as they were. On the branch at `d8c4bd59`: `build
+(redis, …)` and `build (trigger, …)` green on both platforms, the check finding nothing in either
+image; Security Scan run 42440765278 read Redis at 1/8/0 and the webapp at 1/22/14, from 1/10/0 and
+1/24/14. Owed before a merge: E2E (managed) on the branch. ClickHouse's apt waits: building
+ClickHouse here is not for alpha.7 (§3 item 11, the entry of 2026-11-08).
 **2026-11-08, recorded: live runs alpha.6's pins.** The owner deployed `v0.2.0-alpha.6` (tagged
 2026-11-07 on `59b91458`) to live on 2026-11-08, from alpha.4 in one run of alpha.4's script, which
 took at 00:32:28 UTC (0132's Status, 2026-11-08, has the deploy). Before it, every image the run
@@ -5465,6 +5480,52 @@ is beside each; none is urgent tonight.
     branch (Security Scan run 42349123410).
     **Revisit** with the triggers above, when the Redis line moves (item 3), and when its base
     leaves Debian 12.
+
+    **2026-11-08: libsystemd0 and libudev1 in Redis and the webapp — YES, FOR ALPHA.7, BUILT,
+    NOT MERGED.** Answered 2026-11-08, the owner: *"Build the recommended for alpha 7."* The
+    recommendation was yes: one high each, with no fix, in both images, and nothing left uses
+    either once the eleven are gone. Built on the branch
+    `claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`. Read first, on 2026-11-08, in
+    Redis's image and in `node:24.22.1-bookworm-slim`, each by its layers' digests on both
+    platforms (the Node image's five layers are the webapp's first five):
+    - **dpkg.** libsystemd0 and libudev1 252.39-1~deb12u2 are Priority optional, neither
+      Essential nor protected, and run no maintainer script. Only apt, bsdutils, libapt-pkg6.0
+      and util-linux depend on either, all four in the eleven.
+    - **ELF files.** `readelf -d` of every ELF file: 702 and 703 in Redis's image, 694 and 695
+      in the Node image. Only util-linux's findmnt, lsblk and lslogins, bsdutils' logger, apt's
+      http method and libapt-pkg.so.6.0.0 need libsystemd.so.0 or libudev.so.1. No other ELF
+      file but the two libraries names either. redis-server names libsystemd only in a message,
+      that it was built without it.
+    - **The webapp's published binaries**, fetched by their publishers' hashes: goose's two
+      assets, prisma's five engines, sentry-cli's two builds, bufferutil's linux-x64 prebuild
+      and rollup's two addons. None needs or names either.
+
+    So both purges take the two: thirteen, in one `dpkg --purge` with the same two flags and no
+    other force. No dependency is left dangling: dpkg refuses one without `--force-depends`.
+    After the purge, before the scan for names, a new check reads the whole file system. It
+    fails the build if a file of one of the eight removed libraries is left by its name, or if
+    any ELF file needs one. It reads DT_NEEDED from the program headers and the dynamic section,
+    on every class and byte order, in perl in Redis and in node in the webapp. It fails too when
+    it met no ELF file that needs a library at all. Both readers, as the Dockerfiles carry them,
+    read the same DT_NEEDED as `readelf -d` on all 2794 ELF files of the four images. With the
+    thirteen's files removed from a copy of each, the check found nothing.
+    - **Proved on the branch, at `d8c4bd59`:** images.yml run 42440852224 built both images on
+      both platforms. dpkg purged the thirteen without a refusal. The check read 573 and 572 ELF
+      files in Redis and 585 and 583 in the webapp (amd64, arm64), none it could not parse, and
+      found nothing. Redis then started as 999:999 and read back the key upstream's image wrote,
+      again after a restart. Security Scan run 42440765278 (linux/arm64) read Redis at 1/8/0 and
+      the webapp at 1/22/14, from 1/10/0 and 1/24/14 (run 42368077845, the alpha.6 tag): each
+      list lost libsystemd0 and libudev1 and nothing else.
+
+    **Revisit** with the triggers above.
+
+    **2026-11-08: apt out of ClickHouse — LATER.** Answered 2026-11-08, the owner: *"Build the
+    recommended for alpha 7."* This one was put to the owner as later, not recommended for
+    alpha.7. The pinned ClickHouse image (the 26.8 LTS, item 9) is Ubuntu 22.04's. Its two
+    highs with a fix are apt's and libapt-pkg6.0's CVE-2026-109518, fixed in 2.4.15ubuntu0.1
+    (Security Scan run 42368077845). Purging apt there means building ClickHouse here, as Redis
+    is built here, which is more than alpha.7 takes. Not now. **Revisit** after the Alpha, or
+    when a ClickHouse release ships Ubuntu's fixed apt.
 
 12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
     digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the
