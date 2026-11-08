@@ -13,11 +13,19 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { STRINGS } from '../i18n/strings.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
-import { MOVES_MEANING, MOVE_GUIDANCE, type MovesResponse } from '@openmig/shared';
+import {
+  MOVES_MEANING,
+  MOVE_GUIDANCE,
+  QUEUE_EFFECTS,
+  decisionEffectFields,
+  oldCopyRemovedEffect,
+  type MovesResponse,
+} from '@openmig/shared';
 
-const { fetchMovesMock, applyMoveMock, fetchMoveApplyReceiptMock, isSelfHostMock } = vi.hoisted(
+const { fetchMovesMock, keepMoveMock, applyMoveMock, fetchMoveApplyReceiptMock, isSelfHostMock } = vi.hoisted(
   () => ({
     fetchMovesMock: vi.fn(),
+    keepMoveMock: vi.fn(),
     applyMoveMock: vi.fn(),
     fetchMoveApplyReceiptMock: vi.fn(),
     isSelfHostMock: vi.fn(() => true),
@@ -26,7 +34,7 @@ const { fetchMovesMock, applyMoveMock, fetchMoveApplyReceiptMock, isSelfHostMock
 
 vi.mock('../services/operating-service', () => ({
   fetchMoves: fetchMovesMock,
-  keepMove: vi.fn(),
+  keepMove: keepMoveMock,
   applyMove: applyMoveMock,
   fetchMoveApplyReceipt: fetchMoveApplyReceiptMock,
   DecisionRefusedError: class extends Error {},
@@ -480,5 +488,66 @@ describe('what this means and what you can do', () => {
     );
     expect(text).toContain('Or move it yourself on the new system, then press Leave it where it is.');
     expect(text).not.toMatch(API_WORDS);
+  });
+});
+
+/**
+ * What a press did, in the reader's language (workplan 0159 §6 item 18): the
+ * server says it in English as `effect` and in Dutch as `effectNl`, from
+ * `QUEUE_EFFECTS`, and a Dutch page shows the Dutch where the buttons were.
+ */
+describe('what a press did, on a Dutch page', () => {
+  const nl = STRINGS.nl;
+  const RENAMED = {
+    naturalKeyHash: 'Docs/report.pdf',
+    domain: 'file' as const,
+    from: 'Docs',
+    to: 'Docs',
+    toNaturalKeyHash: 'Docs/summary.pdf',
+  };
+
+  function renderDutch() {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Moves receiptPollMs={10} />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  afterEach(() => {
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  it('says a move left where it is in Dutch', async () => {
+    fetchMovesMock.mockResolvedValue(queue({ open: [MOVE] }));
+    const said = decisionEffectFields(QUEUE_EFFECTS.moveKept);
+    keepMoveMock.mockResolvedValue({ status: 'ok', action: 'keep', naturalKeyHash: MOVE.naturalKeyHash, ...said });
+    renderDutch();
+
+    fireEvent.click(await screen.findByRole('button', { name: nl['moves.keep'] }));
+    await waitFor(() => expect(keepMoveMock).toHaveBeenCalledWith('acme-mail', MOVE.naturalKeyHash));
+    expect(await screen.findByText(said.effectNl)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(said.effect)).not.toBeInTheDocument();
+  });
+
+  it('says the appliance’s removal of the old copy in Dutch, with the bin', async () => {
+    fetchMovesMock.mockResolvedValue(queue({ open: [RENAMED] }));
+    const said = decisionEffectFields(oldCopyRemovedEffect('binned'));
+    applyMoveMock.mockResolvedValue({
+      mode: 'immediate',
+      result: { status: 'ok', action: 'apply', naturalKeyHash: RENAMED.naturalKeyHash, kind: 'binned', ...said },
+    });
+    renderDutch();
+
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(nl['moves.apply']) }));
+    fireEvent.click(await screen.findByRole('button', { name: new RegExp(nl['moves.applyArmed']) }));
+    expect(await screen.findByText(said.effectNl)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(said.effect)).not.toBeInTheDocument();
   });
 });

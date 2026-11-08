@@ -10,12 +10,12 @@
  * renamed in one place would leave the fold sending people to a button that
  * is not on the screen. Held here in both languages.
  */
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
-import { QUEUE_GUIDANCE, type GuidedQueue } from '@openmig/shared';
-import { LocaleProvider } from '../../i18n/index.tsx';
+import { QUEUE_EFFECTS, QUEUE_GUIDANCE, decisionEffectFields, type GuidedQueue } from '@openmig/shared';
+import { LocaleProvider, useLocale } from '../../i18n/index.tsx';
 import { LOCALES, STRINGS } from '../../i18n/strings.ts';
-import { EvidenceBadge, GuidancePanel } from './primitives.tsx';
+import { EvidenceBadge, GuidancePanel, ServedEffect } from './primitives.tsx';
 
 type Key = keyof (typeof STRINGS)['en'];
 
@@ -110,6 +110,67 @@ describe('the evidence chip', () => {
     // Still told apart by its colour: an assumed deletion may not be acted on.
     expect(assumed.className).toContain('bg-amber-50');
     expect(screen.getByText('Gemeld door de bron').className).toContain('bg-emerald-50');
+  });
+});
+
+/**
+ * WHAT A PRESS DID, IN THE READER'S LANGUAGE (workplan 0159 §6 item 18). The
+ * line where the buttons were was the server's English under a Dutch page.
+ * Both editions now say it in Dutch as well (`effectNl` beside `effect`, from
+ * `QUEUE_EFFECTS`), and the row shows the half in its reader's language, as
+ * the Decisions page does, with the same helper (`decisionEffectText`).
+ */
+describe('what a press did', () => {
+  const KEPT = decisionEffectFields(QUEUE_EFFECTS.deletionKept);
+
+  /** A switch the test can press, as the language menu does. */
+  function SwitchToEnglish() {
+    const { setLocale } = useLocale();
+    return (
+      <button type="button" onClick={() => setLocale('en')}>
+        switch to English
+      </button>
+    );
+  }
+
+  function renderIn(locale: 'en' | 'nl', served: Parameters<typeof ServedEffect>[0]['served']) {
+    window.localStorage.setItem('ownpace.locale', locale);
+    return render(
+      <LocaleProvider>
+        <SwitchToEnglish />
+        <ServedEffect served={served} />
+      </LocaleProvider>,
+    );
+  }
+
+  it('says the Dutch on a Dutch page, unmarked, and not the English', () => {
+    renderIn('nl', KEPT);
+    expect(screen.getByText(KEPT.effectNl)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(KEPT.effect)).not.toBeInTheDocument();
+  });
+
+  it('says the English on an English page', () => {
+    renderIn('en', KEPT);
+    expect(screen.getByText(KEPT.effect)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(KEPT.effectNl)).not.toBeInTheDocument();
+  });
+
+  it('keeps both halves, so the line follows a language switch', () => {
+    renderIn('nl', KEPT);
+    fireEvent.click(screen.getByRole('button', { name: 'switch to English' }));
+    expect(screen.getByText(KEPT.effect)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(KEPT.effectNl)).not.toBeInTheDocument();
+  });
+
+  it('says the English as served, marked English, when the server sent no Dutch', () => {
+    // An appliance from before the Dutch answers with `effect` alone.
+    renderIn('nl', { effect: KEPT.effect });
+    expect(screen.getByText(KEPT.effect)).toHaveAttribute('lang', 'en');
+  });
+
+  it('says nothing when nothing was served', () => {
+    const { container } = render(<ServedEffect served={{}} />);
+    expect(container).toBeEmptyDOMElement();
   });
 });
 

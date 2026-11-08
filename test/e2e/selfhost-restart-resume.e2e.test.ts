@@ -773,6 +773,8 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
     const body = execSync(`curl -sf -X POST ${accept}`, { encoding: 'utf8' });
     console.log(`[e2e] accept -> ${body.trim()}`);
     expect(body).toContain('"action":"accept"');
+    // What it did, in Dutch beside the English (workplan 0159 §6 item 18).
+    expect(body).toContain('"effectNl":"');
 
     // The queue empties, and the domain stops reporting a failure — the item is
     // now knowingly left behind rather than outstanding.
@@ -859,6 +861,8 @@ describe('Restart-Resume Idempotency Gate (T5)', () => {
     const body = execSync(`curl -sf -X POST ${keep}`, { encoding: 'utf8' });
     console.log(`[e2e] keep -> ${body.trim()}`);
     expect(body).toContain('"action":"keep"');
+    // What it did, in Dutch beside the English (workplan 0159 §6 item 18).
+    expect(body).toContain('"effectNl":"');
 
     // Quiet, not forgotten: out of the open queue, still in the record. A queue
     // nobody can quiet is one people stop reading.
