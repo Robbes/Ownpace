@@ -11,16 +11,19 @@ screen, an acknowledged deletion or move in the owner's words, *Keuze
 vastgelegd.*; and the tester guide says the copy before an update is kept at
 most 7 days. Underneath, a merge no longer runs beside live's Docker socket
 during the alpha: a push runs CI and the repository scan on GitHub's hosted
-arm64 runner, and one repository variable sends them back. Trigger.dev's Redis
-and webapp images drop systemd's two libraries, so their scans read 1 critical,
-8 high and 0 with a fix, and 1, 22 and 14. The app's policy and HSTS are now
-read where a tester's browser gets them: the outside probe proved them on live
-through the front, and live's deploy checks them from the first deploy started
-from this release. The appliance's PGlite moves to 0.5.15, which rejects the
-commit of an aborted transaction where it resolved silently. The OTA names stay
-public for now, and the repository calls the machine the machine. Live's deploy
-from alpha.6 is reversible by the deploy's own rule: no migration moves, nor the
-Trigger.dev, identity provider or ClickHouse pin.
+arm64 runner, and one repository variable sends them back. CI's scanner moves to
+Trivy v0.76.2 and its migration lint to Atlas v1.3.8, and the self-hosted runner
+keeps the stalwart-cli archives it fetched, so a night no longer fails because
+GitHub's release download answers 503. Trigger.dev's Redis and webapp images
+drop systemd's two libraries, so their scans read 1 critical, 8 high and 0 with
+a fix, and 1, 22 and 14. The app's policy and HSTS are now read where a tester's
+browser gets them: the outside probe proved them on live through the front, and
+live's deploy checks them from the first deploy started from this release. The
+appliance's PGlite moves to 0.5.15, which rejects the commit of an aborted
+transaction where it resolved silently. The OTA names stay public for now, and
+the repository calls the machine the machine. Live's deploy from alpha.6 is
+reversible by the deploy's own rule: no migration moves, nor the Trigger.dev,
+identity provider or ClickHouse pin.
 
 ### Security
 

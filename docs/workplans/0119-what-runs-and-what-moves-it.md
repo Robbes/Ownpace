@@ -20,9 +20,11 @@ whose squash is C, closes alpha.7 with this plan's moves since alpha.6 in it:
   codeql-action's `upload-sarif` 4.39.3 (tagged 2026-11-04 16:49 UTC).
 
 By npm's dates and the tags', each of the four was more than three days old when it merged;
-cosign-installer's tag is lightweight, so its date is its commit's. Not in it yet: Trivy 0.76.2
-and Atlas 1.3.8 (CI only), whose own pull request is to land before the fold. **Held for after the
-tag**, since nothing merges during the freeze:
+cosign-installer's tag is lightweight, so its date is its commit's. In it too, both CI only: Trivy
+0.76.2 and Atlas 1.3.8 (#1851, the entry below), and the stalwart-cli download's five attempts and
+the copy the self-hosted runner keeps (#1850, the entry below that), after the scheduled E2E
+(managed) of 2026-11-08 failed on GitHub's release download before any test ran. **Held for after
+the tag**, since nothing merges during the freeze:
 - MinIO's rebuild `869ca317…`, past its three-day floor on 2026-11-10 at 06:54 UTC, in a pull
   request of its own with its image scan read and E2E (managed) on its branch;
 - pnpm 11.28.x, while npm's `latest-11` names 11.28.9 (read 2026-11-08; `next-11` names 11.28.11,

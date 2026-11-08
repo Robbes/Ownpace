@@ -5,27 +5,31 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, later: alpha.7 is folded, and its nights are counted, not waived (T2, T4).** On the
-branch `claude/ownpace-public-readiness-y7orc6-a7-fold`, from `main` at `aadc032d` (#1848). The
-fold moves `package.json` and the API contract to `0.2.0-alpha.7`, and everything under
-`[Unreleased]` to `## [0.2.0-alpha.7] - 2026-11-08`, with a summary paragraph above it;
-`[Unreleased]` stays, empty. Two lines are brought up to date as they move: the app's headers,
-which the outside probe proved on live on 2026-11-08 (run 42448301600, 0158 T4), and the Dutch
-queue lines, with the owner's *Keuze vastgelegd.* (#1847, which merged without a line). Two lines
-are added for what merged without one: Dependabot's #1837 (PGlite 0.5.15, lucide-react 1.68.0)
-and #1836 (cosign-installer 4.1.3, the code-scanning upload 4.39.3). It adds `v0.2.0-alpha.7` as
-the last of `releases` in `scripts/release-line.json`, the release being prepared until Release
-tags it (T4, `docs/release.md` §1). alpha.7 carries those two, merged after alpha.6's commit on
-2026-11-07 and 2026-11-08, and #1840 to #1847, all merged on 2026-11-08 (0131's Status of that
-day); this plan's moves are in 0119's entry of the same day. Its squash is C, and the freeze (0141
-T14) starts with it: nothing merges to `main` until the tag, and no E2E (managed) is dispatched on
-any branch, nor E2E (self-hosted) on `main`.
+branch `claude/ownpace-public-readiness-y7orc6-a7-fold`, from `main` at `aadc032d` (#1848), with
+`main` merged at `afb815e6` (#1851). The fold moves `package.json` and the API contract to
+`0.2.0-alpha.7`, and everything under `[Unreleased]` to `## [0.2.0-alpha.7] - 2026-11-08`, with a
+summary paragraph above it; `[Unreleased]` stays, empty. Two lines are brought up to date as they
+move: the app's headers, which the outside probe proved on live on 2026-11-08 (run 42448301600, 0158
+T4), and the Dutch queue lines, with the owner's *Keuze vastgelegd.* (#1847, which merged without a
+line). Two lines are added for what merged without one: Dependabot's #1837 (PGlite 0.5.15,
+lucide-react 1.68.0) and #1836 (cosign-installer 4.1.3, the code-scanning upload 4.39.3). It adds
+`v0.2.0-alpha.7` as the last of `releases` in `scripts/release-line.json`, the release being
+prepared until Release tags it (T4, `docs/release.md` §1). alpha.7 carries those two, merged after
+alpha.6's commit on 2026-11-07 and 2026-11-08, and #1840 to #1847 (0131's Status of that day), #1850
+and #1851 (0119's), all merged on 2026-11-08; this plan's moves are in 0119's entry of the same day.
+Its squash is C, and the freeze (0141 T14) starts with it: nothing merges to `main` until the tag,
+and no E2E (managed) is dispatched on any branch, nor E2E (self-hosted) on `main`.
 
 **The nights are counted.** The owner, on 2026-11-08: *"0: Tag with first invitation is 7 or even
 later. I did not decide yet"*. alpha.7 may be the tag the first invitation waits for, so it is
-planned with its two counted nights run, not waived (the entry below; 0141 T14).
-`WAIVER_VERSIONS` in `scripts/release-nights.mjs` stays alpha.3 to alpha.6, and the two guards
-that hold it, `a-release-preflight-that-said-yes-too-soon` and
-`a-tag-that-already-pointed-elsewhere`, refuse a waiver for alpha.7 and pass unchanged here.
+planned with its two counted nights run, not waived (the entry below; 0141 T14). `WAIVER_VERSIONS`
+in `scripts/release-nights.mjs` stays alpha.3 to alpha.6, and the two guards that hold it,
+`a-release-preflight-that-said-yes-too-soon` and `a-tag-that-already-pointed-elsewhere`, refuse a
+waiver for alpha.7 and pass unchanged here. The scheduled E2E (managed) of 2026-11-08, run
+42472273620, ran `aadc032d`, before C, and failed on GitHub's release download before any test, as
+did its one re-run; it counts against nothing. Since #1850 the self-hosted runner keeps the
+stalwart-cli archives it fetched (both of v1.0.14 are kept since run 42477845078), so the nights
+wait on that download only if the kept copies go.
 **Owed before the tag:**
 - C's own push runs on `main`, now on GitHub's hosted arm64 runner (0132 open question 1): CI
   green, with `lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (ubuntu-24.04-arm)` and
