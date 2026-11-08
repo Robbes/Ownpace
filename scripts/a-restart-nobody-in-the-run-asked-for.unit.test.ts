@@ -4,7 +4,7 @@
  * A RESTART NOBODY IN THE RUN ASKED FOR, AND A VERDICT THAT BLAMED WHICHEVER
  * CHECK WAS RUNNING (E2E (managed) #195, 2026-09-23).
  *
- * The managed gate runs on the long-lived stack on the Spark, and GitHub
+ * The managed gate runs on the long-lived stack on the machine, and GitHub
  * starts the nightly hours late, in the owner's working morning. On #195 the
  * API container was recreated mid-run by something outside the run, most
  * likely a deploy on the same box. The section that happened to be running
@@ -14,7 +14,7 @@
  * The smoke now notes when the API container started, before its first
  * section, and asks again at the verdict. These run the smoke's own functions,
  * extracted from the script, against a fake `docker`, so what is proved is the
- * code that runs on the Spark, not a copy of it.
+ * code that runs on the machine, not a copy of it.
  */
 
 import { describe, it, expect } from 'vitest';

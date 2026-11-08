@@ -46,6 +46,8 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
+- [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
@@ -65,12 +67,14 @@ reading a file drops off its entry by itself.
 
 - [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts) — A CREDENTIAL THE NEXT STEP PRINTED.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 
 ### `.github/workflows/e2e-managed.yml`
 
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-gate-that-leaves-the-alpha-alone](../scripts/a-gate-that-leaves-the-alpha-alone.unit.test.ts) — A GATE THAT LEAVES THE ALPHA ALONE: the nightly managed gate wrote into whichever persisted `.env` a repository variable named, and would have written into live's (workplan 0132 T1g, D7).
+- [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
 - [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts) — A PASSWORD THE REPOSITORY KNOWS (workplan 0132 T2).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -88,6 +92,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/e2e-o365.yml`
 
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `.github/workflows/e2e.yml`
@@ -95,6 +100,7 @@ reading a file drops off its entry by itself.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-domain-the-self-hosted-gate-never-sees](../scripts/a-domain-the-self-hosted-gate-never-sees.unit.test.ts) — The self-hosted gate seeds every domain the appliance it starts is configured to sync (workplan 0113 T8).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-nightly-that-drove-the-wrong-backend](../scripts/a-nightly-that-drove-the-wrong-backend.unit.test.ts) — A cron moved, and both nightlies quietly ran the same backend.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -149,6 +155,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/security-scan.yml`
 
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
@@ -169,12 +176,14 @@ reading a file drops off its entry by itself.
 
 ### `AGENTS.md`
 
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
 ### `CHANGELOG.md`
 
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
@@ -534,6 +543,7 @@ reading a file drops off its entry by itself.
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-error-log-that-kept-the-link](../scripts/an-error-log-that-kept-the-link.unit.test.ts) — AN ERROR LOG THAT KEPT THE LINK, on the web image's nginx (workplan 0108).
 - [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12a).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 
 ### `apps/web/src/AppRoutes.tsx`
@@ -761,6 +771,7 @@ reading a file drops off its entry by itself.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
@@ -919,6 +930,7 @@ reading a file drops off its entry by itself.
 - [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [an-env-compose-read-and-bash-could-not](../scripts/an-env-compose-read-and-bash-could-not.unit.test.ts) — AN ENV FILE COMPOSE READ AND BASH COULD NOT.
@@ -998,6 +1010,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/deploy-live.sh`
 
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-deploy-a-dropped-connection-could-stop](../scripts/a-deploy-a-dropped-connection-could-stop.unit.test.ts) — A DEPLOY A DROPPED CONNECTION COULD STOP (live's deploy of 2026-11-08; workplan 0132 T6).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
@@ -1008,11 +1021,13 @@ reading a file drops off its entry by itself.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [leaving-pages-say-what-the-app-says](../scripts/leaving-pages-say-what-the-app-says.unit.test.ts) — THE LEAVING… PAGES SAY WHAT THE APP SAYS (workplan 0152 T5).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
 
 ### `deploy/compose/deploy-tasks.sh`
 
@@ -1025,6 +1040,7 @@ reading a file drops off its entry by itself.
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [bootstrap-managed](../scripts/bootstrap-managed.unit.test.ts) — The three scripts a managed bring-up cannot get wrong, tested.
 - [the-stack-knew-and-did-not-say](../scripts/the-stack-knew-and-did-not-say.unit.test.ts) — THE STACK KNEW WHAT WAS WRONG AND MADE THE OPERATOR FIND OUT.
@@ -1182,6 +1198,7 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 
 ### `deploy/compose/managed.env.example`
 
@@ -1548,6 +1565,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
@@ -1610,6 +1628,7 @@ reading a file drops off its entry by itself.
 - [a-sign-in-page-in-our-own-words](../scripts/a-sign-in-page-in-our-own-words.unit.test.ts) — A SIGN-IN PAGE IN OUR OWN WORDS (workplan 0135 T6): the languages, and the mails.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
@@ -1812,6 +1831,7 @@ reading a file drops off its entry by itself.
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-privilege-no-service-uses](../scripts/a-privilege-no-service-uses.unit.test.ts) — A PRIVILEGE NO SERVICE USES (workplan 0119, 2026-11-03; the owner, the same day: "make base images more lean/small and more hardened").
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
@@ -1945,6 +1965,7 @@ reading a file drops off its entry by itself.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-demo-nextcloud-on-the-stacks-postgres](../scripts/a-demo-nextcloud-on-the-stacks-postgres.unit.test.ts) — A DEMO NEXTCLOUD ON THE STACK'S POSTGRES (workplan 0150; the owner, 2026-09-29: "ok, we'll move to postgres", and of the follow-up: "You take that aswell").
+- [a-deploy-a-dropped-connection-could-stop](../scripts/a-deploy-a-dropped-connection-could-stop.unit.test.ts) — A DEPLOY A DROPPED CONNECTION COULD STOP (live's deploy of 2026-11-08; workplan 0132 T6).
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
@@ -1966,6 +1987,7 @@ reading a file drops off its entry by itself.
 - [a-search-kept-past-its-year](../scripts/a-search-kept-past-its-year.unit.test.ts) — A SEARCH KEPT PAST ITS YEAR (privacy §4.5 and §9; the owner's privacy-search-records (a), 2026-09-28: 12 months).
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
+- [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
@@ -2104,6 +2126,7 @@ reading a file drops off its entry by itself.
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-count-every-merge-made-stale](../scripts/a-count-every-merge-made-stale.unit.test.ts) — A COUNT EVERY MERGE MADE STALE: both generated indexes opened with a total across every plan or guard, so every merge changed a line that every other open pull request carried too (workplan 0147, 2026-09-28).
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 
 ### `drizzle.config.ts`
 
@@ -2820,6 +2843,7 @@ reading a file drops off its entry by itself.
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 
 ### `pnpm-workspace.yaml`
@@ -2920,6 +2944,11 @@ reading a file drops off its entry by itself.
 ### `scripts/an-integration-test-is-handed-its-database.unit.test.ts`
 
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
+
+### `scripts/app-headers.mjs`
+
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
 
 ### `scripts/bootstrap-managed.unit.test.ts`
 
@@ -3095,9 +3124,18 @@ reading a file drops off its entry by itself.
 
 - [a-database-without-a-container](../scripts/a-database-without-a-container.unit.test.ts) — A DATABASE YOU CAN ASK, ON A MACHINE WITH NO CONTAINER RUNTIME.
 
+### `scripts/machine-product-name.mjs`
+
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
+
 ### `scripts/nextcloud-suites.mjs`
 
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
+
+### `scripts/nginx-config.mjs`
+
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
 
 ### `scripts/nothing-ever-parsed-the-bring-up.unit.test.ts`
 
@@ -3925,6 +3963,15 @@ Reads:
 - `deploy/selfhost/compose.yml`
 - `scripts/idp-pin-watch.mjs`
 
+### [a-deploy-a-dropped-connection-could-stop](../scripts/a-deploy-a-dropped-connection-could-stop.unit.test.ts)
+
+A DEPLOY A DROPPED CONNECTION COULD STOP (live's deploy of 2026-11-08; workplan 0132 T6).
+
+Reads:
+
+- `deploy/compose/deploy-live.sh`
+- `docs/managed-bring-up.md`
+
 ### [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts)
 
 A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
@@ -3948,6 +3995,8 @@ Reads:
 - `deploy/compose/www.yml`
 - `docs/incident-runbook.md`
 - `docs/managed-bring-up.md`
+- `scripts/app-headers.mjs`
+- `scripts/nginx-config.mjs`
 - `site/build.mjs`
 
 ### [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts)
@@ -4522,6 +4571,21 @@ Reads:
 - `deploy/compose/trigger-remember-token.sh`
 - `packages/testing/fixtures/stalwart/config.json`
 
+### [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts)
+
+A MACHINE CALLED BY ITS PRODUCT NAME.
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/e2e-o365.yml`
+- `AGENTS.md`
+- `CHANGELOG.md`
+- `docs/LESSONS.md`
+- `docs/workplans/README.md`
+- `pnpm-lock.yaml`
+- `scripts/machine-product-name.mjs`
+
 ### [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts)
 
 A MEASUREMENT THAT CANNOT READ THE CREDENTIALS ITS OWN DEPLOYMENT HOLDS WILL NOT BE RUN, AND THE DECISION IT GATES STAYS OPEN.
@@ -4530,6 +4594,18 @@ Reads:
 
 - `docs/google-workspace-setup.md`
 - `scripts/drive-export-stability.ts`
+
+### [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts)
+
+A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/e2e-live-target.yml`
+- `.github/workflows/e2e-managed.yml`
+- `.github/workflows/e2e.yml`
+- `.github/workflows/security-scan.yml`
 
 ### [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts)
 
@@ -5680,6 +5756,21 @@ Reads:
 - `deploy/compose/smoke-managed.sh`
 - `deploy/compose/trigger-cli-lib.sh`
 
+### [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts)
+
+A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
+
+Reads:
+
+- `apps/worker/package.json`
+- `deploy/compose/bootstrap-managed.sh`
+- `deploy/compose/deploy-live.sh`
+- `deploy/compose/deploy-tasks.sh`
+- `deploy/compose/live-pass-check.sh`
+- `deploy/compose/smoke-managed.sh`
+- `deploy/compose/stand-up-live.sh`
+- `docs/managed-bring-up.md`
+
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 
 `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
@@ -6823,6 +6914,17 @@ Reads:
 - `docs/workplans/0131-the-alpha-and-who-is-let-in.md`
 - `site/build.mjs`
 - `site/copy.mjs`
+
+### [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts)
+
+THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
+
+Reads:
+
+- `apps/web/nginx.conf.template`
+- `deploy/compose/deploy-live.sh`
+- `scripts/app-headers.mjs`
+- `scripts/nginx-config.mjs`
 
 ### [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts)
 

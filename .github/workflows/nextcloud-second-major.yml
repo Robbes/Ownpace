@@ -40,7 +40,7 @@
 #   - on demand.
 # Always on a GitHub-hosted runner, never the self-hosted one: it has a
 # pull_request trigger (ci.yml's header says why that must never reach the
-# Spark), and the Spark is one machine that also serves production. amd64:
+# box), and the box is one machine that also serves production. amd64:
 # the question is the Nextcloud major, not the architecture, and ci.yml's
 # arm64 leg covers that for the demo's major.
 #

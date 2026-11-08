@@ -6,7 +6,7 @@
  * Since #1435 (2026-10-04) the api refuses to start when `OWNPACE_STAGE` is
  * `alpha` and `BACKUP_RETENTION_DAYS` is blank. An `.env` from before that
  * carries the line blank, as `managed.env.example` ships it, so the first
- * pull after it left the OTA stack's api crash-looping (the Spark,
+ * pull after it left the OTA stack's api crash-looping (the machine,
  * 2026-10-05) with nothing in the deploy saying why.
  *
  * `ensure-env-secrets.sh`, which the bring-up's env phase and the gate's Fill

@@ -721,7 +721,7 @@ describe('a verify that compared nothing is not a pass', () => {
   // The same shape as the apply half's skip-that-passed, and it survived that
   // fix: `state: done` says the run finished, not that it compared anything. On
   // an empty mailbox verify reports sourceCount 0 / targetCount 0 / PASS —
-  // true, and worth nothing. It has never fired on the Spark only because that
+  // true, and worth nothing. It has never fired on the machine only because that
   // box happens to hold three messages somebody put there by hand; nothing in
   // this repo seeds them.
   const block = smoke.match(/^VERIFIED_ITEMS="\$\(json_number[\s\S]*?\nfi$/m)?.[0];

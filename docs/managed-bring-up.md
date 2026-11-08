@@ -401,7 +401,11 @@ sign-in answers one of them instead of the service (workplan 0139, item 8;
 *After the script: the owner's steps*, step 5). And it asks live's form that
 founds an organisation, `/ui/login/register/org` at `id.ownpace.eu`, and fails
 unless it answers 404, a redirect included (workplan 0135 T1): the smoke asks
-that page on the OTA stack, and never runs on live. A port the front answers by
+that page on the OTA stack, and never runs on live. And it reads the headers of
+`https://app.ownpace.eu/` as a tester's browser gets them, and fails unless
+the policy, HSTS and the three beside them arrive once each as the app's
+template states them at the commit live's own `/version.json` names (workplan
+0158 T4). A port the front answers by
 itself, which never reaches the machine, goes in the optional repository
 variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
 during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
@@ -1857,7 +1861,7 @@ curl -fsS "http://localhost:${STATUS_PORT:-3124}/health"
 **This section said "starts with everything else" from the day it was written,
 and it was not true.** `gatus` was named nowhere in `bootstrap-managed.sh`, so
 no bring-up had ever started it — the same thing that happened to `zitadel` for
-three weeks, and found the same way, by reading `docker ps` on the Spark and
+three weeks, and found the same way, by reading `docker ps` on the machine and
 noticing what was not in it. `scripts/every-service-somebody-starts.unit.test.ts`
 now compares `managed.yml`'s service list against the bring-up's, so a service
 defined and never started fails a test instead of quietly not existing.
@@ -3190,6 +3194,77 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
+### The OTA names on the mesh only (workplan 0132, open question 7)
+
+**Not now (the owner, later on 2026-11-08):** *"11: c, leave public for now."*
+The OTA names keep answering from the internet until after the first
+invitation; the steps below wait until then, and the probe is dispatched with
+`ota_names` left at `report`.
+
+**Decided 2026-11-08:** once testers are on the production names, which is
+from the first invitation, `app.ota.ownpace.eu`, `id.ota.ownpace.eu` and the
+test site's `www.ota.ownpace.eu` answer on the mesh only, not from the
+internet. The outside probe's pass condition for it is built:
+`gh workflow run exposure-probe.yml -f ota_names=mesh-only` fails while any of
+the three answers on 443 from a GitHub-hosted runner, whatever answers, and
+passes a name that no longer resolves. Until the step below is done, dispatch
+it with `ota_names` left at `report`, which records what the three answered
+and fails on none of it.
+
+**NetBird's dashboard has no switch for it, as the names are served today.**
+All of the names, production and OTA, reach the machine through one front,
+NetBird's hosted proxy (the probe's runs of 2026-10-29 found the same two
+addresses behind every name). NetBird-Only Access, the setting that serves a
+name to the peers of the mesh alone, is offered only on a proxy cluster with
+the `Private` capability, and NetBird Cloud's shared clusters do not have it
+(NetBird's documentation, *Reverse Proxy Authentication and Access
+Restrictions* and *Bring Your Own Proxy*). Deleting the three services there
+takes the names off the mesh as well, since nothing else serves them over TLS.
+And the machine itself reaches the OTA names through that front, from the
+internet: the OTA stack's API finds its sign-in keys through
+`https://id.ota.ownpace.eu` while `JWT_JWKS_URI` is empty (the alias note on
+the `zitadel` service in `managed.yml`), and
+`setup-zitadel.sh`, `idp-strays.sh`, the nightly gate's smoke and the OTA
+status page ask that name or `app.ota.ownpace.eu` too. Whatever takes the
+names off the internet has to leave the machine reaching them.
+
+**What it takes, two ways.** Each is the owner's, and workplan 0132's open
+question 7 records which is chosen:
+
+1. **A NetBird proxy of the owner's own, on the mesh.** In NetBird's dashboard,
+   *Reverse Proxy*, *Clusters*: a cluster of the account's own (the *Bring Your
+   Own Proxy* wizard, in beta), its proxy started with `NB_PROXY_PRIVATE=true`
+   and a certificate for the three names issued over DNS-01, so that no port of
+   it is open to the internet (NetBird's *Private Proxy Without Public Inbound
+   Ports*). Its row then shows *Private*. Then in *Reverse Proxy*, *Services*:
+   `app.ota.ownpace.eu`, `id.ota.ownpace.eu` and `www.ota.ownpace.eu`, each on
+   that cluster, with *Authentication*, *NetBird-Only Access*, and an access
+   group that holds your own devices and the machine. Then in the DNS zone of
+   `ownpace.eu`: the records that point the three names at NetBird's shared
+   cluster go (or the `*.ota` wildcard, if that is how they are made), and the
+   `_acme-challenge` records the DNS-01 issuance writes stay. NetBird then
+   gives the peers of that group a private record for each name. Check that
+   the machine reaches the names that way, from the host and from inside the
+   OTA stack's containers, which ask Docker's own resolver: the API's
+   `/api/ready` says `signIn` is up only when the API reaches its sign-in's
+   key source, and the next night's gate brings the stack up and signs its
+   people in through `id.ota.ownpace.eu`.
+2. **TLS for the three names on the machine itself**, on its mesh address,
+   with the names pointing there and NetBird's three OTA services deleted. The
+   repository has no such front today, so this is a build of its own first.
+
+NetBird's shared front can also refuse everybody but listed source addresses
+(a service's *Access Control*, *Allowed CIDRs*). That is not the mesh: the
+list holds public addresses, the machine's among them, so a device on the mesh
+that reaches the front from another address is refused, and the names still
+answer over TLS, with NetBird's 403. The probe's `mesh-only` does not pass it,
+and no mode of the probe is built for it.
+
+**Either way, Google's test client keeps working for you** on the mesh,
+because Google sends your browser to the callback and never fetches it
+(workplan 0091 T5). What a third party's server would have to reach on the
+OTA names stops, as the section above says.
+
 ## How the containers run
 
 Since 2026-11-03 (workplan 0119; the owner: *"more hardened"*) every service
@@ -3875,7 +3950,8 @@ path is refused):
 **Why (2026-11-03, workplan 0132).** The file used to be the gate checkout's
 `deploy/compose/pgbouncer/userlist.txt`, copied in from here on every run. But
 every workflow of this repository that runs on the runner checks out into that
-same folder, and `ci.yml` does on every push to `main`. Its checkout deleted the
+same folder, and `ci.yml` did on every push to `main` (not during the alpha,
+since 2026-11-08: workplan 0132, open question 1). Its checkout deleted the
 file under the running pooler (02:51 UTC); nothing showed until the Docker
 daemon restarted (03:58), when the container's bind source was missing, Docker
 made a **directory** there, and `pgbouncer` stopped:
@@ -4054,7 +4130,9 @@ you run it again with `--resume`.
 stubs in its guard, `scripts/a-first-bring-up-of-live.unit.test.ts`. It runs
 from the release tag live runs, so that tag has to carry it: cut the release
 (0146 T0) from a commit of `main` that has this script, once the nightly gate
-has run that commit green.
+has run that commit green. *(2026-11-08: run on live since. The owner ran it
+there on 2026-10-07, and its first refusal, a missing `zitadel` role read as a
+wrong password, was fixed in #1545 the same day; workplan 0132's Status.)*
 
 ### Before the script: the owner's steps
 
@@ -4390,7 +4468,11 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    It also fails while `https://id.ownpace.eu/ui/login/register/org`, the form
    that founds an organisation, answers anything but 404 (workplan 0135 T1):
    read `disallowPublicOrgRegistration` back on live, and set it if it reads
-   false, with workplan 0135 §4, T0 step 1.
+   false, with workplan 0135 §4, T0 step 1. And it fails while the app's page
+   arrives without the headers its template states (workplan 0158 T4): a
+   policy or HSTS missing, sent twice or changed on the way names the header,
+   never what arrived; `curl -sI https://app.ownpace.eu/` from your own
+   machine shows what arrived.
    If a port answers on the production names' addresses that nothing of yours
    publishes, find out first whether the front sends it anywhere. In NetBird's
    dashboard, look for a TCP, TLS or UDP service whose public port is that
@@ -4782,7 +4864,7 @@ journal of whatever ran it), 2 refused.
 | Any `docker compose` command fails with `required variable X is missing a value` | Compose interpolates the **whole** file before running anything, so one unset variable breaks every command — including ones that never touch the service named in the error. An `.env` that predates the pooler hits this on `PGBOUNCER_AUTH_PASSWORD` | `./deploy/compose/ensure-env-secrets.sh`, then `--only data` to create the matching Postgres role and start the pooler |
 | `pgbouncer` never becomes healthy, complains about a password | `setup-auth.sql` has not run, or ran without `my.pw` set | `--only data`. The SQL now refuses an unset `my.pw` rather than creating a role with no password |
 | Every app connection: `password authentication failed`, though `.env` and the container agree | A volume from a *different* project — compose's project name derived from the directory basename | `managed.yml` pins its project (`name: ownpace-managed`, which `COMPOSE_PROJECT_NAME` in the `.env` beside it overrides). Check `docker volume ls` for a stray `compose_postgres_data` |
-| `trigger.dev login` prints an authorization URL on the https front, and **Firefox** answers *"De pagina verwijst niet op een juiste manier door"* / cannot connect to `<host>:3443`, while **Chromium completes the same URL** — both after clicking through the self-signed-certificate warning | **Observed 2026-08-31 on the Spark, and NOT root-caused — do not repeat the following as though it were the cause.** What is known: `trigger-tls` serves a self-signed certificate, the dashboard's session is a `Secure` cookie, and a session cookie that never sticks renders precisely as "isn't redirecting properly". Chromium and Firefox do not agree about what a connection whose certificate was manually overridden may do with cookies. Whether that is what happened here was not established, because the workaround cost nothing | Do the one-time login in Chromium. The token lands in the host's CLI profile and no browser is needed again, so this is one browser choice per machine and blocks nothing. **It says nothing about the PRODUCT's sign-in**, which is Zitadel on a real hostname with a real certificate — if that ever fails in one browser only, it is a different fault and this row is not it |
+| `trigger.dev login` prints an authorization URL on the https front, and **Firefox** answers *"De pagina verwijst niet op een juiste manier door"* / cannot connect to `<host>:3443`, while **Chromium completes the same URL** — both after clicking through the self-signed-certificate warning | **Observed 2026-08-31 on the machine, and NOT root-caused — do not repeat the following as though it were the cause.** What is known: `trigger-tls` serves a self-signed certificate, the dashboard's session is a `Secure` cookie, and a session cookie that never sticks renders precisely as "isn't redirecting properly". Chromium and Firefox do not agree about what a connection whose certificate was manually overridden may do with cookies. Whether that is what happened here was not established, because the workaround cost nothing | Do the one-time login in Chromium. The token lands in the host's CLI profile and no browser is needed again, so this is one browser choice per machine and blocks nothing. **It says nothing about the PRODUCT's sign-in**, which is Zitadel on a real hostname with a real certificate — if that ever fails in one browser only, it is a different fault and this row is not it |
 | **The product's sign-in never completes.** The right password comes back to the same sign-in page with no error on it; a **wrong** password still says so. Every user, every browser, and Zitadel's own log shows `POST /password` answering **200 with no redirect** — no token, no callback, nothing to see | Until 2026-08-31 `setup-zitadel.sh` turned self-registration on by writing the ORGANISATION's login policy with `POST /management/v1/policies/login`. That is Zitadel's `AddCustomLoginPolicy`: it mints a policy from the body it is handed and leaves the thirteen fields it was not handed at their proto3 defaults — which for the five `Duration` fields is **zero**. `passwordCheckLifetime: 0` means a password check is valid for no time at all, so Zitadel verifies the password, finds the verification already stale, and computes the password step again. The wrong-password path returns before the lifetime is ever consulted, which is why only the CORRECT password loops. The same custom policy shadows the instance policy wholesale, so it also hid the providers `configure_idp` had just put buttons on | Pull, then re-run `./deploy/compose/setup-zitadel.sh`. It now resets the organisation to the instance default and writes the three settings on the INSTANCE policy, echoing every lifetime the instance answered with — and it refuses, naming the field, if any of them is still zero. To repair a box without a checkout: read the token with `docker compose -f deploy/compose/managed.yml run --rm -T zitadel-machinekey cat /machinekey/pat.txt`, then `curl -sS -X DELETE $JWT_ISSUER/management/v1/policies/login -H "Authorization: Bearer $PAT"` — the organisation falls back to the instance default and sign-in works again immediately. **Do not re-run an OLD `setup-zitadel.sh` afterwards**: it would mint the same policy again |
 | The `login` phase refuses, you run the printed command, it succeeds, and the phase refuses again | Two different things, both true: `TRIGGER_CLI_PROFILE` names the profile the phase asks for, and the CLI stores logins per profile NAME in `~/.config/trigger/config.json` on the host. Setting the variable does not create the login; logging in under the old name does not satisfy the new setting | Read the two lines the refusal prints — `in use` and `default`. Either log in under the name in use, or point the setting at a name the machine already has: `./deploy/compose/env-upsert.sh deploy/compose/.env TRIGGER_CLI_PROFILE=<name>`. Do not delete the other profile to tidy up; the gate's runner may be using it |
 | `trigger-magic-link.sh` finds nothing | The link is only written when one is **requested** | Submit your email on the dashboard's login page first, then re-run |
@@ -4800,7 +4882,7 @@ journal of whatever ran it), 2 refused.
 | The deploy asks "Would you like to apply those updates?" mid-script | `apps/worker/package.json` pins one SDK version and `node_modules` holds another, so the CLI offers to reconcile them — and waits. In CI there is no terminal to answer from | `pnpm install --frozen-lockfile`, then re-run. `deploy-tasks.sh` now refuses up front rather than letting the deploy become interactive |
 | The CLI sits at its version banner for tens of minutes | `npx`'s "Ok to proceed?" install prompt, invisible because output is discarded. The scripts ran the CLI with `npx -y` until 2026-11-02 for that reason | Nothing here runs `npx` any more: the CLI is the lockfile's, `pnpm -C apps/worker exec trigger …`, which asks nothing. By hand, run it that way too |
 | `pnpm -C apps/worker exec trigger …` answers `Command "trigger" not found`, or a script says the deploy CLI is not installed in apps/worker | The checkout was pulled without an install, so the CLI (apps/worker's devDependency since 2026-11-02) is not in its `node_modules`, or is another version than the SDK | `pnpm install --frozen-lockfile` from the checkout's root. The `login` phase and `deploy-tasks.sh` both do it first, so this meets you only by hand |
-| **`<project>-nextcloud` is `Up` but `(unhealthy)`**, `curl` says `Empty reply from server` in under a second, and `nextcloud.log` has written nothing for hours | PHP is SEGFAULTING on every web request. `docker compose -f deploy/compose/managed.yml logs nextcloud` shows `AH00051: child pid … exit signal Segmentation fault (11)` on a metronomic 15-second beat — the healthcheck interval — because the only request arriving is `/status.php` and every one of them kills its worker. Apache writes the access line *after* a response completes, so a crashed child logs nothing at all, which is why `nextcloud.log` looks idle rather than broken. The cause, isolated on the Spark 2026-09-13: **PHP's tracing JIT**, which the image's own `opcache-recommended.ini` enables (`opcache.jit=1255`, `jit_buffer_size=8M`). A bulk delete drove a shared bootstrap path hot, it compiled to something that faults, and every request through it afterwards died. It survives `docker restart` because the same trace recompiles | Fixed in the repo: `deploy/compose/nextcloud-php.ini` is mounted as `zz-ownpace-no-jit.ini` and turns the JIT off while leaving opcache on. Pull and force-recreate the service. **To confirm this is what you are looking at**, use the one asymmetry that identifies it: `docker compose -f deploy/compose/managed.yml exec nextcloud php /var/www/html/status.php` returns clean JSON on the CLI (where `opcache.enable_cli=Off`) while the identical file segfaults under Apache. Do NOT reach for the database, the data directory or `integrity:check-core` first — all three were ruled out before the JIT was found |
+| **`<project>-nextcloud` is `Up` but `(unhealthy)`**, `curl` says `Empty reply from server` in under a second, and `nextcloud.log` has written nothing for hours | PHP is SEGFAULTING on every web request. `docker compose -f deploy/compose/managed.yml logs nextcloud` shows `AH00051: child pid … exit signal Segmentation fault (11)` on a metronomic 15-second beat — the healthcheck interval — because the only request arriving is `/status.php` and every one of them kills its worker. Apache writes the access line *after* a response completes, so a crashed child logs nothing at all, which is why `nextcloud.log` looks idle rather than broken. The cause, isolated on the machine 2026-09-13: **PHP's tracing JIT**, which the image's own `opcache-recommended.ini` enables (`opcache.jit=1255`, `jit_buffer_size=8M`). A bulk delete drove a shared bootstrap path hot, it compiled to something that faults, and every request through it afterwards died. It survives `docker restart` because the same trace recompiles | Fixed in the repo: `deploy/compose/nextcloud-php.ini` is mounted as `zz-ownpace-no-jit.ini` and turns the JIT off while leaving opcache on. Pull and force-recreate the service. **To confirm this is what you are looking at**, use the one asymmetry that identifies it: `docker compose -f deploy/compose/managed.yml exec nextcloud php /var/www/html/status.php` returns clean JSON on the CLI (where `opcache.enable_cli=Off`) while the identical file segfaults under Apache. Do NOT reach for the database, the data directory or `integrity:check-core` first — all three were ruled out before the JIT was found |
 | Task runs die instantly, no logs, runner container gone | `DEPLOY_IMAGE_PLATFORM` does not match the host | Fix it in `.env`, `up -d --force-recreate trigger-api` (it is read server-side), then `--from tasks` |
 | Enqueues fail by name; runs land `failed` immediately | `TRIGGER_SECRET_KEY` unset or not a `tr_prod_` key | `--only account`, then `up -d api` |
 | Tasks run but cannot reach the database | The task environment was never uploaded, or holds `localhost` | `./deploy/compose/set-task-env.sh`. Values are read at run start; no redeploy needed |
@@ -5081,8 +5163,12 @@ its Dockerfile pins, with the eleven Debian packages the webapp's image purges
 (util-linux's eight, apt, libapt-pkg6.0 and e2fsprogs) purged, and run as uid
 and gid 999 from its first process. 24 of the image's 34 high findings were in
 util-linux's eight, and nothing in this container runs or loads any of the
-eleven. Redis itself, its command, its volume and its append-only file are as
-they were.
+eleven. Since 2026-11-08 (for alpha.7) this build and the webapp's purge
+libsystemd0 and libudev1 too, thirteen packages: one high each, and only four of
+the eleven depended on them. After the purge the build fails if a file of a
+removed library is left, or if any ELF file in the image needs one (its
+`DT_NEEDED`) or names one. Redis itself, its command, its volume and its
+append-only file are as they were.
 
 - **The first `up` builds it, and Redis restarts once.** The bring-up's
   trigger phase (`up_wait trigger-redis …`) finds no image of that name and
@@ -5108,7 +5194,7 @@ they were.
   `plane-tokens.sh`'s `redis-cli`, over TCP, which answers the same.
 - **Moving it.** A newer Redis 7.4, or a rebuild of its tag, is Dependabot's
   pull request (the directory's own entry, never a major). A rebuild builds
-  when the base still has the eleven and nothing new depends on them; a new
+  when the base still has the thirteen and nothing new depends on them; a new
   release stops at the Dockerfile's last RUN, which asks redis-server for the
   FROM's release: read the new image's packages and scan, move that release
   and the header, and then `scripts/an-essential-nothing-runs.unit.test.ts`
@@ -5394,11 +5480,18 @@ thing. One script moves it:
    back from it), and when the daily duties' timer is not active (nothing
    would delete the copy). **If it says one-way,** the way back that is not a
    fix and a new tag is the copy the deploy takes.
-4. From `~/ownpace-live`:
+4. From `~/ownpace-live`, **inside `tmux` (or `screen`)**:
 
    ```bash
+   tmux new -s deploy                         # after a drop: tmux attach -t deploy
    ./deploy/compose/deploy-live.sh <tag>
    ```
+
+   Always so from a phone, or over any connection that may drop (live's deploy
+   of 2026-11-08 ran so). A dropped connection hangs up the shell, and the
+   script with it, wherever it is; and a deploy whose identity-provider pin
+   moves is one-way (step 3), so a run stopped halfway has the copy as its way
+   back. Inside `tmux` the run goes on, and `tmux attach -t deploy` shows it.
 
    Right before its checkout it takes **the copy before the update**, into
    `~/.persistent/ownpace-live/copy-before-update`: the app's database, the
@@ -5439,6 +5532,19 @@ thing. One script moves it:
    ```bash
    ./deploy/compose/env-upsert.sh deploy/compose/.env LIVE_PASS_CHECK_MIGRATION=<the migration's id>
    ```
+
+   **A task image dated 1970-01-01 is not a stale image.** Trigger.dev 4.8.3's
+   CLI builds reproducibly (`dist/esm/deploy/buildImage.js` in its package): it
+   passes `SOURCE_DATE_EPOCH=0` to every build, which dates the image's config
+   1970-01-01, and an image it exports to push it writes with
+   `rewrite-timestamp=true`, which rewrites the layers' file times too. So the
+   tasks' image reads 1970-01-01 whatever day it was built: live's deploy of
+   2026-11-08 read it so, on the image it had just built. A check after a
+   deploy tells which image runs by its tag or its digest, or by the
+   deployment's version beside each runner as the managed smoke does, never by
+   a creation date. `scripts/a-task-image-dated-1970.unit.test.ts` reads both
+   settings in the installed CLI, so a CLI move that drops one fails until this
+   is read again.
 6. **The copy goes by itself once the update is proven.** Every ten minutes
    live's box checks run `copy-before-update.sh delete-if-proven` (workplan
    0132 T9). It keeps `delete`'s rule: the last line `deploys.log` has since
@@ -5608,7 +5714,15 @@ builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
 origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
 and so does `/version.json`, the web app's own build (workplan 0145: a web image
 that did not move beside the API is a deploy that did not take, and a tag cut
-before 0145 has no such file), `/api/ready` answers 200, `/api/auth/mode` answers `managed`,
+before 0145 has no such file), the app's page `/` carries the policy, HSTS and
+the three beside them once each, as the tag's `apps/web/nginx.conf.template`
+states them with live's `VITE_OIDC_ISSUER` (workplan 0158 T4: on live this is
+the answer through NetBird's proxy, over TLS, as a tester's browser gets it;
+`scripts/app-headers.mjs` reads the template, and for a tag cut before it, a
+way back to alpha.6, the copy of the release the deploy started from does; the
+first deploy that checks it is one started from alpha.7, since a deploy runs
+the script the checkout had before it moved), `/api/ready` answers 200,
+`/api/auth/mode` answers `managed`,
 `NODE_ENV` is `production` in the api container (read from Docker, the
 container's `.Config.Env` through `docker container inspect`, which answers for
 the Node image and for the distroless one of workplan 0146 T13, which has no
@@ -5677,7 +5791,10 @@ is added to that file by hand.
 
 **Not yet run on live.** Live is not stood up (workplan 0132 T1b), so the
 script has run only against the stubs in its guard,
-`scripts/a-deploy-from-a-named-tag.unit.test.ts`.
+`scripts/a-deploy-from-a-named-tag.unit.test.ts`. *(2026-11-08: run on live
+since, by the owner, for every deploy from a tag: `v0.2.0-alpha.2` on
+2026-10-27/28, `v0.2.0-alpha.3` on 2026-10-30 in two runs, `v0.2.0-alpha.4` on
+2026-11-04 and `v0.2.0-alpha.6` on 2026-11-08; workplan 0132's Status.)*
 
 #### The Node in the shell you deploy from
 
@@ -5951,7 +6068,10 @@ runners started from, the one the last deploy built, for its Node, which must
 be the API's, and starts each shell name in it, none of which may start: an
 image that has a shell was not built on the base. An older image a runner of an
 earlier deployment ran (Trigger.dev keeps a run on the version it was triggered
-on) is named there and not asked.
+on) is named there and not asked. *(2026-11-08: since #1833, merged 2026-11-07,
+the smoke tells which image is the deployment's by the deployment, not by when
+it was built: the environment's "current" promotion in Trigger.dev's database,
+and each runner's `TRIGGER_DEPLOYMENT_VERSION`.)*
 
 Until 2026-11-06 the tasks built on `apps/api/Dockerfile`'s FROM image with a
 layer of the config's own (apt, the CLI's trust edits, the package managers
@@ -6274,9 +6394,12 @@ webapp's build ends, as root, by purging eleven Debian packages nothing in
 apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages
 util-linux builds in Debian 12 (24 highs with no fix), and e2fsprogs, which
 depends on two of those and has no finding of its own. So `trigger-api` has no
-apt: nothing installs in it, and a change is a rebuild. A base where something
-still depends on one of the eleven stops the build, since dpkg refuses without
-`--force-depends`, and so does one that renamed or dropped one of them.
+apt: nothing installs in it, and a change is a rebuild. Since 2026-11-08 (for
+alpha.7) it purges libsystemd0 and libudev1 too, systemd's two libraries, which
+only apt, libapt-pkg6.0, util-linux and bsdutils needed there. A base where
+something still depends on one of the thirteen stops the build, since dpkg
+refuses without `--force-depends`, and so does one that renamed or dropped one
+of them.
 **When a host does not answer** (or answers with an error) while an
 image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
 hold the image's name yet, the build stops with nothing changed and says that

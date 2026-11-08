@@ -2,7 +2,18 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, recorded: `www.ownpace.eu` held to live's front from outside (T10; item 8).** Docs
+only, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-2`. The owner dispatched
+*Exposure probe* on `main` at `200185fd`, with `site_name=required`: run 42448301600, from 04:48:51
+to 04:49:20 UTC, on a GitHub-hosted runner. It passed. For the site it printed
+`pass  www.ownpace.eu: 443 answers over TLS, on live's front`, and `pass  www.ownpace.eu/: the
+website answers itself (200), no NetBird sign-in in front`. The runs of 2026-10-29 printed the same
+with `site_name` at `report`, which records what it finds and fails on none of it. With `required`
+the probe holds it: every address the name resolves to must be live's front, and 443 must answer
+over TLS for the name. No NetBird sign-in stood in front of `app.`, `id.` or `status.ownpace.eu`
+either (item 8). 0132's Status (2026-11-08, later still) has the rest of the run.
 
 **2026-11-01, later, records: T0, T1 and T2 date #1317's merge 2026-09-28.** Docs only, on the
 branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. The three rows said
@@ -32,7 +43,7 @@ from outside (T3, T5, T10; item 8).** From the owner's steps (the owner's checkl
   acceptance screen asks for 1.0 (T3).
 - **One step skipped by the owner's choice, not failed.** The checklist compares live's `.env`
   with a copy of it off the machine, and that needed a new copy of the file there. The owner
-  (2026-10-29): *"I don't want the env away from the spark now"*. So the compare was not made
+  (2026-10-29): *"I don't want the env away from [the machine] now"*. So the compare was not made
   (0134 T4).
 - **Item 8, the half from outside.** Exposure probe runs 40833492206 and 40835664486
   (2026-10-29) pass. Their checks include that no NetBird sign-in answers `app.`, `id.`,
@@ -2532,7 +2543,7 @@ the same with 1.3 for the terms. The Alpha conditions (1.0, the owner's) are not
 
 - **What the revision rests on**, as the plans record it: households only, *"tester: households
   only for now."* (open question 6); the service carries on after the Alpha, *"End of aplha: we
-  continue, perhapse move off the spark to other hoster."* (0131 open question 1 (b)); the site,
+  continue, perhapse move off [the machine] to other hoster."* (0131 open question 1 (b)); the site,
   and with it the service, on this machine, *"site will first be hosted on this machine during
   alpha"* (T0 fact 6; D5, *"It's all controlled by me and invite only."*); *"stored access after finished
   migration: keep until deleted or closes."* (open question 3 (a)); one copy before each update,
@@ -3011,7 +3022,7 @@ on usages of the process link. Please check for differences and correct if neede
      follows. If you meant every migration, both go back to the plural.
   3. §11: your English said another hosting *provider*, your Dutch another hosting
      *environment*. Both now say from the current environment to another provider, as in your
-     answer *"move off the spark to other hoster"*. If you meant any other environment, possibly
+     answer *"move off [the machine] to other hoster"*. If you meant any other environment, possibly
      at the same provider, both say *"another hosting environment"*.
   4. §6: *"The backup doesn't leave the hosting environment"* sits under *No backups*, and is the
      text's only contraction; the Dutch says *"Ze"* (that copy). *"That copy does not leave the
@@ -3137,7 +3148,7 @@ review it, where can i read it? and yes, also make the draft"*.
   *Opnieuw verbinden*).
 - **The owner's answers of 2026-09-28 it rests on**, verbatim:
   - the end of the alpha (0131 open question 1 (b)): *"End of aplha: we continue, perhapse move
-    off the spark to other hoster."* The service carries on under new conditions, perhaps at
+    off [the machine] to other hoster."* The service carries on under new conditions, perhaps at
     another hosting provider. Testers are told in advance, with the new conditions and where the
     data would go, and may close their account instead (§11);
   - *"tester: households only for now."* (open question 6, below; §1);
@@ -3492,7 +3503,7 @@ longer starts by pausing the nightly gate, which never touches live.
 | T7 A tester can end their account | 🔨 **(a) built 2026-09-27, merged as #1237**: `operator.sh close`; the identity provider's account ✅ **since 0135 T8 (a), merged 2026-09-29 as #1344** (0131 §6, M3's step 7): `idp-strays.sh --subject <sub> --remove` in the runbook's *Tenant offboarding*, refused while the account still belongs somewhere — *was:* by hand until 0135 T8; *nothing uses your access after closing* is not fully true yet: since #1320 (`d7868276`, merged 2026-09-28), on this branch since `main` was merged into it in `c1413b53`, nothing new starts for a closed organisation; ✅ **work already running stops**, merged 2026-09-29 as #1377 (`a6be6129`), with the review's fixes of the same day: a verification, a confirmation and a discovery check the close between their steps (each listing of a target and each sample downloaded, each item read, each collection) and stop, and the confirmed list says *stopped* for a confirmation the close stopped; still not true: a sync pass the cancel did not stop reads to the end of its data type, a file source's discovery walks its whole folder tree before its first check, and the daily shared-address discovery and drift check still read an organisation closed while they run (terms briefing, precondition B); 📋 **Decided 2026-10-05**: the sentences in terms §11, privacy §9 and the Alpha conditions §10 are reworded to match the code (*"Reword to match the code"*), in the final-text pull request, #1532, merged 2026-10-07 (Status, 2026-10-05) — *was:* work already running stops 🔨 built 2026-09-29 on branch `claude/ownpace-public-readiness-y7orc6-the-close-stops-what-is-running`, not merged; work already running not all stopped, a verification or a confirmation reading to its end; a tester who does not accept the new conditions after the Alpha is closed that day and erased 7 days later (alpha-s11-erasure-window (b)), which `operator.sh close <tenant> 7` already does — *was:* (a) built; terms §11 and privacy §9 describing the close in the drafts of 2026-09-28 | §3. An audited operator command for the close that exists without a screen, and the identity provider's account (0135 T8). |
 | T8 A breach procedure, a record of processing, a light impact assessment | 🔨 **(a) the procedure written 2026-09-27**, merged as #1241: `docs/breach-procedure.md`; the record and the assessment are the owner's — *was:* 📋 **Proposed** | §3. One page in `docs/`, and two documents the owner keeps. |
 | T9 SECURITY.md covers the hosted service, with one channel | ✅ **done** in #1257, merged 2026-09-27 (`12cb40fb`): `SECURITY.md`'s scope, versions and five days, and `security.txt` from the site build; privacy §11 names the form, then support@, in both languages in the draft of 2026-09-28 (not committed), so the guard, which asks for one channel, can ask for both, in order — *was:* 🔨 **Written 2026-09-27, not merged**; 📋 **Decided 2026-09-27** (open question 5): the advisory form with `support@ownpace.eu` as fallback, five working days, `main` and live's release | §3. Scope, supported versions, a response target, `security.txt`. |
-| T10 The texts published where a tester can read them, with no placeholder left | ✅ **Published on live** 2026-10-28: `v0.2.0-alpha.2` with `WWW_LIVE=true`, and `www.ownpace.eu` routed to it (0132 T1e). On 2026-10-29 the six texts there read 1.0, dated 2026-10-19 (Status, 2026-10-29); (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) ✅ **done** in #1306, merged 2026-09-28 (`3704067a`): `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves. The texts are final since #1532 (T1, merged 2026-10-07), and `--public --check` on it prints 0 legal pages marked draft, so from v0.2.0-alpha.2 draft words no longer stop a deploy with `WWW_LIVE` true; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; the conditions ✅ **rendered** by T3, merged 2026-09-29 as #1360 (`2d3e113a`), which links them, at `/alpha.html` and `/nl/alpha.html` outside the nav; still 📋 **Proposed**: `subprocessors.md` only when the first business customer arrives (rec-subprocessors-url (a), 2026-09-28; privacy §7's table is the complete list until then); (c) `--no-drafts` not needed, by that answer — *was:* publishing 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged, and the rendered conditions not merged; (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
+| T10 The texts published where a tester can read them, with no placeholder left | ✅ **Published on live** 2026-10-28: `v0.2.0-alpha.2` with `WWW_LIVE=true`, and `www.ownpace.eu` routed to it (0132 T1e). On 2026-10-29 the six texts there read 1.0, dated 2026-10-19 (Status, 2026-10-29). On 2026-11-08 the outside probe, dispatched by the owner with `site_name=required` (run 42448301600), held `www.ownpace.eu` to live's front: every address it resolves to is the front's, 443 answers over TLS for it, and the site answers itself, with no NetBird sign-in in front (Status, 2026-11-08); (a) the link module ✅ **done** in #1270, merged 2026-09-28 (`a8ed15b5`): `VITE_LEGAL_SITE_URL` and `legal-links.ts`, the grant page on it; publishing with `--public` on the reference machine (T0 fact 6, answered 2026-09-28) ✅ **done** in #1306, merged 2026-09-28 (`3704067a`): `deploy-live.sh` builds the tag's site and serves it as `ownpace-live-www` when live's `.env` says `WWW_LIVE=true`, and `box-duties.sh` watches it. That build is `--public`, so indexable: the step follows the owner's answer to open question 1, (a), of 2026-09-28, *"public site: yes, search engine index."* (recorded under the question by #1293, merged 2026-09-28). Live's `WWW_LIVE` stays `false` until the texts are final: with it `true` a deploy refuses before anything moves. The texts are final since #1532 (T1, merged 2026-10-07), and `--public --check` on it prints 0 legal pages marked draft, so from v0.2.0-alpha.2 draft words no longer stop a deploy with `WWW_LIVE` true; (b) the site's second copy, #1275, merged separately (`4b93e061`), which the tag must hold; the conditions ✅ **rendered** by T3, merged 2026-09-29 as #1360 (`2d3e113a`), which links them, at `/alpha.html` and `/nl/alpha.html` outside the nav; still 📋 **Proposed**: `subprocessors.md` only when the first business customer arrives (rec-subprocessors-url (a), 2026-09-28; privacy §7's table is the complete list until then); (c) `--no-drafts` not needed, by that answer — *was:* publishing 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-the-site-deployed-with-live`, not merged, and the rendered conditions not merged; (a) ✅ done in #1270; still 📋 **Proposed**: rendering the conditions and `subprocessors.md`, publishing with `--public` where T0 fact 6 says, (b) the site's second copy (draft #1275, the owner's call) and (c) `--no-drafts` | §3 and open question 1. The production site at `www.ownpace.eu`, from the `--public` build that already refuses placeholders and draft version lines, served where T0 says, and one setting for every link the app makes to them. |
 | T11 A family member's permission, recorded | 📋 **Proposed**; waits on T1. Privacy §12 now says a grant link for a child under 16 is completed by the parent together with the child (privacy-children-grant-link (a), 2026-09-28) | §3. Only if the lawyer confirms the household model the terms describe. |
 
 ## 1. What there is today
@@ -3765,7 +3776,7 @@ The first answer placed the alpha at the OTA address. Later the same day the own
 *"check, can't i just (as a start) host a 'ownpace-live' as production, next to the current
 'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each other?"*
 The proposal back was to make that the decision in 0132, with testers on `ownpace-live`. The
-owner's answer: *"Yes! The spark has a lot free memory and disk, it will fit."* (0132 D-new.)
+owner's answer: *"Yes! [The machine] has a lot free memory and disk, it will fit."* (0132 D-new.)
 
 So the alpha runs on the reference machine, in a second compose project, `ownpace-live` (live),
 at the production names of 0091: `app.ownpace.eu`, `id.ownpace.eu` and `status.ownpace.eu`. The

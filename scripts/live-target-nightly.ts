@@ -6,7 +6,7 @@
  * binds the real wires: the catch-all reader, nodemailer for the one control
  * mail, and fetch for the sync triggers.
  *
- * Run by `.github/workflows/e2e-live-target.yml` (the Spark's runner, via
+ * Run by `.github/workflows/e2e-live-target.yml` (the machine's runner, via
  * tsx), configured entirely from the environment — see the lane module for
  * the exact variables and the stand-down/misconfigured discipline.
  */

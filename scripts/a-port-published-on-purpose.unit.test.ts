@@ -371,7 +371,7 @@ describe('the bring-up refuses a bind that is not an address, before Compose doe
     ['WEB_BIND', '0.0.0.0', 'every interface'],
     ['STATUS_BIND', '::', 'every interface'],
     ['MAILPIT_BIND', '[::]', 'every interface'],
-    ['ZITADEL_BIND', 'spark.example.net', 'not an IPv4 address'],
+    ['ZITADEL_BIND', 'machine.example.net', 'not an IPv4 address'],
     ['TRIGGER_TLS_BIND', 'localhost', 'not an IPv4 address'],
     ['WWW_BIND', '256.1.1.1', 'not an IPv4 address'],
     ['API_BIND', '010.0.0.1', 'not an IPv4 address'],

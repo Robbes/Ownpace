@@ -253,7 +253,7 @@ fail=0
 # This script has ONE HUNDRED AND FORTY-SEVEN places that can set the flag and,
 # until now, one
 # verdict line that said `SMOKE FAIL` and nothing else. The owner ran it on the
-# Spark, got a FAIL with `verify: done  apply: applied`, and had to ask which
+# machine, got a FAIL with `verify: done  apply: applied`, and had to ask which
 # assertion had fired — on a phone, against a 3,900-line script and a log of
 # several hundred lines. The gate knew the answer and did not say it.
 #
@@ -297,7 +297,7 @@ note() { SECTION="$*"; printf '\n--- %s ---\n' "$*"; }
 
 # WHO ELSE IS ON THIS STACK (E2E (managed) #195, 2026-09-23).
 #
-# This gate runs on the long-lived stack on the Spark, and GitHub starts the
+# This gate runs on the long-lived stack on the machine, and GitHub starts the
 # nightly hours late, in the owner's working morning. On #195 the API container
 # was recreated in the middle of the run by something outside it, most likely a
 # deploy on the same box: the web container went in the same minute. The section

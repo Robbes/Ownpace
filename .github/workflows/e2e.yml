@@ -2,7 +2,7 @@ name: E2E (self-hosted)
 
 # ==============================================================================
 # Intentionally SEPARATE from CI (ci.yml). Nightly + manual dispatch: needs the
-# self-hosted Spark runner + Docker. Drives the workplan 0010 T5 acceptance gate
+# self-hosted runner + Docker. Drives the workplan 0010 T5 acceptance gate
 # — the self-host appliance's restart-resume idempotency property — end to end,
 # for all FIVE domains (issue #114 follow-up extended this from mail-only to also
 # cover calendar/contacts; a 2026-07-27 follow-up added WebDAV files, closing the

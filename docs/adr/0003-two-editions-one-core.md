@@ -14,7 +14,7 @@
 - Migration behavior and idempotency are identical across editions.
 
 ## Context
-Audience spans a self-hosting hobbyist (NAS/Pi/Spark, possibly single-user) and customers without a server who need a managed service.
+Audience spans a self-hosting hobbyist (NAS/Pi/arm64 machine, possibly single-user) and customers without a server who need a managed service.
 
 ## Decision
 Ship **one codebase** with two editions. Only the control-plane differs: orchestration, state, tenancy, secrets, auth, provisioning, billing. The migration core, connectors, engines, and UI are identical. See solution-architecture.md section 7.3.

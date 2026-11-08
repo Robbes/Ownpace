@@ -2,7 +2,263 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-05 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, later still, recorded: the outside probe passes, and reads the app's headers through
+the front for the first time (T3 (c); 0158 T4, 0135 T1, 0139 T10).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records-2`. The owner dispatched *Exposure probe* on
+`main` at `200185fd`, with `ota_names=report` and `site_name=required`: run 42448301600, from
+04:48:51 to 04:49:20 UTC on a GitHub-hosted runner. It is the probe's first run since 2026-10-29,
+and the first with the checks of #1753 and #1845. It ended `exposure-probe: pass`. Its log prints
+no address, and none is quoted here.
+
+- **The ports.** `pass  no tried port answers on 2 address(es), beside 2 the front answers by
+  itself`. Both are IPv4 addresses of the front, each behind all seven names. On each, port 5432
+  answered, the front's own (`EXPOSURE_PROBE_FRONT_PORTS`), and said nothing when asked in
+  PostgreSQL's protocol, so it was not counted.
+- **The four public names.** `app.`, `id.`, `status.` and `www.ownpace.eu` answer over TLS on
+  443, `www.` on live's front, held there by `site_name=required` for the first time (0139 T10).
+  The discovery document at `id.ownpace.eu` names `https://id.ownpace.eu` as issuer, and no
+  NetBird sign-in stands in front of any of the four (0139, item 8).
+- **The form that founds an organisation** at `id.ownpace.eu`, `/ui/login/register/org`, answers
+  404 (0135 T1): the probe's first ask of live's page since #1753 merged.
+- **The app's headers, through the front (0158 T4).** `pass  https://app.ownpace.eu/ carries
+  Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options,
+  Referrer-Policy, each once, as apps/web/nginx.conf.template at 59b9145822a1 states them with
+  https://id.ownpace.eu (workplan 0158 T4)`. The commit is the one live's own `/version.json`
+  names, alpha.6's (`59b91458`, #1834). Until this run nothing read them at live's https address.
+- **Two notes, both as chosen.** The three OTA names answer over TLS, recorded in report mode, as
+  the owner chose (*"11: c, leave public for now."*, open question 7). `EXPOSURE_PROBE_HOST` is not
+  set, so the machine's own address was not tried, as in the earlier runs.
+
+**2026-11-08: the machine's product name is out of the repository's text, and a guard keeps it
+out (alpha.7).** Built on the branch `claude/ownpace-public-readiness-y7orc6-a7-machine-name`,
+merged as #1841 (`fd0508bd`). **Answered 2026-11-08** (about 01:50 UTC), the owner: *"Build the
+recommended for alpha 7."* What was recommended: one pull request for the docs and comments, and a
+guard so the name does not return; git history keeps the old text, and it is not rewritten.
+- **The rule, written down for the first time.** Public text calls the box that runs CI's pushes,
+  the nightly gates, the OTA stack and live the machine, the box, the host, the arm64 machine or
+  the self-hosted runner, never by its hardware product name. A quotation of the owner keeps its
+  words, with the substitution in square brackets: *"[The machine] has a lot free memory and disk,
+  it will fit."* Until now agents were told it, and no file said it or checked it.
+- **The sweep.** At `origin/main` `200185fd`, a case-insensitive whole-word search for the name
+  found 360 lines in 142 tracked files, and none is left. 359 now say the repository's own neutral
+  term, each read in context: 9 workflows, 17 of the stacks' files, 20 files in `apps/` and
+  `packages/`, 36 under `scripts/` (guard headers among them), 37 workplans and their index, 5 ADR
+  files (one a frozen record), 11 other documents, the CHANGELOG, the README, AGENTS.md, 2 E2E tests
+  and the site's build. Five test fixtures' host names and a runbook's placeholder got neutral
+  names, and the tests that read them pass unchanged. One record (0025 T1) named the self-hosted
+  runner itself; it now says "the self-hosted runner". Eighteen quotations of four things the owner
+  said carry the brackets. The 360th line was the O365 lane's runner label (below).
+- **The guard.** `node scripts/machine-product-name.mjs --check`, a step of `docs-hygiene`, so it
+  runs on every change. It compares the SHA-256 of each lowercased token, and of each adjacent
+  pair for the names of two words, with a list of digests, and names a hit's file, line and
+  column, never the word. It reads 2,895 files and passes over 11 binaries and `pnpm-lock.yaml`,
+  whose names are third-party packages'. It has no exceptions: a hit anywhere fails. Its guard,
+  `scripts/a-machine-called-by-its-product-name.unit.test.ts`, has 12 cases, among them one added
+  word, and the old runner label put back, each turning a temporary repository red and green
+  again. Five mutations each turned it red: a word in a doc, the label put back in the workflow,
+  a digest dropped, a hyphen kept inside a token, and the CI step removed.
+- **The O365 lane's runner label, dropped (0141 T13 (a)).** `e2e-o365.yml`'s `runs-on` asked for the
+  label named after the machine, which the owner added to the runner on 2026-11-02 rather than drop
+  it. Since 2026-11-08 it asks for `[self-hosted, linux, arm64]`, as `e2e.yml` and `e2e-managed.yml`
+  do. The 110 self-hosted jobs read on 2026-11-08 (CI's pushes, the nightly lanes, the scan, and the
+  O365 lane's run 41418432093) all ran on the one runner, so the lane lands where it did. The runner
+  may keep the old label: nothing public names it once the workflow does not.
+- **The host's Docker apt repository, reworded.** 14 places in 0119 and 0132 now call it a
+  third-party apt repository, and its package set "that repository's set".
+- **Outside the repository, unchanged:** the runner's own name and its host's name, which every
+  self-hosted job prints into its public log at set-up, both hold the word; and git history,
+  commit messages and earlier pull request text.
+
+**2026-11-08, records: two notes corrected (T9, the pooler's fix).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`), read from
+GitHub on 2026-11-08. The entry of 2026-11-03 called the pooler's fix built on a branch, not merged:
+it merged as #1798 that day at 06:38 UTC (`fee22669`). T9's row said `COPY_DELETE_WHEN_PROVEN` is
+`true` again, written before alpha.4's deploy set it `false` (2026-11-04); it is `true` again since
+2026-11-08, when the owner removed both of alpha.4's copies (the entry below), and the row says so.
+The entry below's reading of the task image's 1970-01-01 date is a lesson now, in step 5 of live's
+deploy in `docs/managed-bring-up.md` and in `scripts/a-task-image-dated-1970.unit.test.ts`; so is
+its run inside `tmux` (step 4, `scripts/a-deploy-a-dropped-connection-could-stop.unit.test.ts`).
+
+**2026-11-08, later: CI's push jobs run on GitHub's hosted arm64 runner for the alpha's weeks (open
+question 1, answered).** Asked with the list of what to build into alpha.7, where this was
+recommended for every job that does not need the machine, the owner answered: *"Build the
+recommended for alpha 7."* Built on branch
+`claude/ownpace-public-readiness-y7orc6-a7-ci-hosted-push`, merged as #1842 (`c4b50214`). Times are
+UTC.
+
+- **What moves.** None of the push jobs needs the machine: none reads `~/.persistent`, a stack's
+  `.env` or `managed.yml`, and the containers they start are their own. So a push to `main` or a
+  tag runs `ci.yml`'s `detect-changes`, `docs-hygiene`, `fixture-uuid-check`, `migration-lint`,
+  `lint`, `unit-tests`, `ui-tests` and `integration-tests` on `ubuntu-24.04-arm`, and a push to
+  `main` runs `security-scan.yml`'s repository scan there. Same commands, same pins, and still one
+  `unit-tests (all)` leg and one arm64 leg of `migration-lint` and of `integration-tests`.
+  `commit-convention` (pull requests only) and `ci-complete` (it reads results and runs no
+  repository code) stay on `ubuntu-24.04`. A pull request, the weekly schedule, a tag's scan, the
+  image scans and Release's two dispatches keep the runners they had.
+- **One switch turns it back:** the repository variable `CI_PUSH_ON_SELF_HOSTED`. Unset, or
+  anything but `true`, the push jobs stay on GitHub's runner; `true` sends every one of them back
+  to the self-hosted runner and changes nothing else. Both workflows' headers say so. A dispatch
+  runs a push's jobs on the push's runner while the switch is on (for `security-scan.yml`, with
+  its new `push_runner` input), so a branch proves the push path before it merges. It never takes
+  the self-hosted runner, whatever the variable says, since it can run a branch nobody merged.
+- **The guard**, `scripts/a-merge-that-ran-beside-the-socket.unit.test.ts`, evaluates every
+  workflow's runners, matrices and job conditions for every event, every ref a push trigger admits
+  and both states of the switch. While the switch is on, nothing a push starts can run on the
+  self-hosted runner. `true` sends the nine jobs back and moves nothing else. No pull request in
+  any workflow, and no event but a push in these two, reaches the self-hosted runner in either
+  state. A dispatch runs what a push to main runs, on the same runners. It fails closed on a
+  runner it cannot tell. Against `main`'s two workflows it fails on every push job, by name, and
+  each of its mutations of the real files fails with its own message.
+- **What the self-hosted runner gave unasked, and what stands in for it.**
+  - Release's preflight required `integration-tests (self-hosted)` by name. A hosted push run names
+    its leg `integration-tests (ubuntu-24.04-arm)`, so the next release would have been refused.
+    The preflight now takes either name and refuses an amd64 leg; with the old list, its test
+    refuses a hosted run.
+  - The pnpm store on disk: setup-node's `cache: pnpm` restores it on GitHub's runner, as on a pull
+    request. The security scan installs cold, as a pull request's does.
+  - Chromium's cache is keyed on `runner.environment` too. The copy the machine saved under the
+    old key would unpack outside a hosted runner's home (read from actions/cache's code).
+  - The unit tests' cap of four workers is the machine's, and is now keyed on
+    `runner.environment`: on GitHub's runner vitest keeps its default, as a pull request's legs do.
+  - Trivy's database on disk: the scan's `ON_SELF_HOSTED` reads the switch too, so trivy-action's
+    own daily cache is on wherever the scan runs on GitHub's runner.
+  - Docker and buildx are on GitHub's arm64 image. Node 26, pnpm, Trivy, Atlas, stalwart-cli and
+    Chromium are set up or downloaded and checked by the jobs themselves, as on a pull request's
+    arm64 legs. No job here sets a timeout or a service.
+  - A dispatch of `ci.yml` has a concurrency group of its own, so on `main` it cannot take a
+    pending push run's place.
+- **What stays on the machine.** `e2e.yml`, `e2e-managed.yml` and `e2e-live-target.yml` still run
+  `main` there each night, `pnpm install` included, and `e2e-o365.yml` on dispatch. So the path is
+  slower, not gone: a merged change still reaches the machine by the next night.
+- **Proven before the merge** by one dispatch of each workflow on the branch at `67052006`, each
+  job on the runner the API reports:
+  - CI run 42439765838, green. `detect-changes`, `docs-hygiene`, `fixture-uuid-check`,
+    `migration-lint (ubuntu-24.04-arm)`, `lint`, `unit-tests (all)`, `ui-tests` and
+    `integration-tests (ubuntu-24.04-arm)` ran on `ubuntu-24.04-arm`, `ci-complete` on
+    `ubuntu-24.04`, and `commit-convention` was skipped. Atlas v1.3.6 checked both sums and linted
+    124 migrations. The unit tests read 1277 files and 20305 tests, none skipped; main's last push
+    on the machine (run 42434299055) read 1276 and 20281, 34 of them skipped. The 24 more are this
+    change's 23 and the one test per guard that `lessons.unit.test.ts` adds. The 34 need nginx and
+    PostgreSQL's server binaries, which GitHub's runners have and the machine does not, so a push
+    now runs them, as a pull request's shards already did. The integration tests read 97 files and
+    824 tests, as on the machine. The UI tests passed, 72, with Chromium fetched under its new key.
+  - Security Scan run 42439767206 (`push_runner`, no image legs), green in about a minute: Node
+    v26.13.0 and pnpm 11.28.9; the audit's line as on main's last push scan (1 moderate, dev only);
+    Trivy 0.76.1 with both sums as pinned and its daily cache restored; 617 bytes of SARIF, taken by
+    code scanning. Main's last push scan wrote 643: the 26 bytes are the longer workspace path the
+    report names as its root (reasoned from the two paths).
+  - The pull request's own runs, on its usual runners, were green on the same commit (CI run
+    42439962944).
+- **The records** that said a push runs on the machine now say what is true: SECURITY.md, 0131
+  §4, this plan's §1, D1, §4 and open question 1, the runbook's *This box also runs CI*,
+  `docs/testing.md`, `docs/release.md`, the architecture document, the bring-up and
+  `e2e-managed.yml`'s header.
+
+**2026-11-08, later: the OTA names stay public for now (open question 7).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843 (`d227b15f`). Offered a NetBird
+proxy of their own, TLS for the three names on the machine, or the names left public for now, the
+owner answered: *"11: c, leave public for now."* The probe stays at `report`, and mesh-only comes
+back after the first invitation (open question 7's last bullet).
+
+**2026-11-08: open question 7 answered, on the mesh only, and what the owner's step takes recorded
+(T3; alpha.7's item 11); the probe reads the app's headers (0158 T4)**, on branch
+`claude/ownpace-public-readiness-y7orc6-a7-headers`, merged as #1845 (`0536708e`). Nothing ran on
+the machine, and the probe was not dispatched.
+
+- **The answer.** The owner: *"Build the recommended for alpha 7."*, which took item 11's yes:
+  the OTA names on the mesh only once testers are on the production names, from the first
+  invitation. The tag that carries it is open: *"0: Tag with first invitation is 7 or even later.
+  I did not decide yet"*.
+- **The probe (T3 (c)).** Its `ota_names: mesh-only`, built with it, is the pass condition: none
+  of the three OTA names answers on 443 from the internet. The default stays `report` until the
+  owner's step; the input's description and the probe's note now say the answer, and the guard
+  holds the note's words.
+- **What the step takes.** No switch at today's front: NetBird-Only Access needs a proxy with the
+  `Private` capability, which NetBird Cloud's shared clusters do not offer, and the machine
+  itself reaches the OTA names through that front from the internet. Open question 7 and
+  `docs/managed-bring-up.md`, *The OTA names on the mesh only*, give the two ways: a NetBird
+  proxy of the owner's own, or TLS for the three names on the machine.
+- **The app's headers through the front.** The probe now also asks `https://app.ownpace.eu/` and
+  holds its headers to the template at the commit live's own `/version.json` names (0158 T4).
+  From its first dispatch after the merge it proves that a browser on the internet gets the
+  app's policy and HSTS from live. `deploy-live.sh` checks the same after each deploy, from the
+  first deploy started from alpha.7.
+
+**2026-11-08: live runs `v0.2.0-alpha.6`, and alpha.4's two copies are gone (T6, T9).** The owner
+deployed it on 2026-11-08, before any tester, pasting checked blocks. Times are UTC. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-08, `v0.2.0-alpha.6`: took at 00:32:28 UTC; one-way. The
+  tag is tag object `0b68615c…` on `59b91458` (#1834), cut by Release run 42367456781, which its
+  message names. The owner waived its counted nights, for this version alone (`WAIVER_VERSIONS`;
+  0146 Status, 2026-11-07); the acceptance is the tag message's own line: *Nights waived by Robbes,
+  in their words: "we waive the night counts"*. Its timing is the owner's word of 2026-11-07: *"I
+  waive the waits. We do the alpha release to live as soon as possible."* So it did not wait for
+  alpha.5's MinIO build to pass its three days (2026-11-09 10:15). alpha.5 never ran on live: the
+  run went from alpha.4.
+- **Read-only checks first.** Live's checkout at `v0.2.0-alpha.4`, clean; both box timers active; in
+  live's `.env`, `TRIGGER_IMAGE_TAG=v4.8.3`, `WWW_LIVE=true`, one `COPY_DELETE_WHEN_PROVEN=false`
+  line, no `PGBOUNCER_USERLIST` line and the checkout's userlist file, `OWNPACE_REACHABLE_HOSTS` and
+  `MOLLIE_API_KEY` empty; `deploys.log`'s last line alpha.4's took. The deploy shell's `node` the
+  owner's own v26.13.0, pnpm 11.28.9. The tag annotated, on `59b91458`, with its three message
+  lines; its pins Trigger.dev 4.8.3 (images and SDK), Zitadel v4.20.1, the tasks' base
+  `sha-2886230@sha256:91fec895…` and `FROM node:26.13.0`. Between the tags no migration file moves,
+  nor `deploy-live.sh`, `copy-before-update.sh`, `dump-idp.sh`, `deploy-tasks.sh` or the units;
+  under `deploy/compose` seven files do, and the bring-up gains six comment or `note` lines. Every
+  image the run needed was already on the daemon (the OTA stack's E2E had built and pulled them),
+  Zitadel v4.20.1's index `4817dbd8…`; npm, Docker Hub, ghcr.io, gcr.io and github.com reachable,
+  and the tasks' base readable from ghcr.io without a login. `trigger-redis` still on alpha.4's
+  upstream image (no user of its own, four capabilities), and every file in its `/data` uid 999's.
+- **alpha.4's two copies, removed first** (the alpha.4 entry's last bullet, and *Moving ClickHouse*,
+  *On live*, step 5, done before this deploy: while the copy before alpha.4 was there, the take
+  would have kept it and taken no copy of alpha.4). Read first: the copy's header
+  (`taken=2026-11-04T22:51:27Z`, `before=v0.2.0-alpha.4`, `from=v0.2.0-alpha.3`), its 6 entries each
+  the note's own; ClickHouse's copy volume, created 2026-11-04 22:35:59; ClickHouse 26.8.36.3
+  loading every table, no part detached since the copy. Then, at about 00:16: the copy removed by
+  hand, its 6 files, the directory kept at mode 700 (no pass had proven alpha.4, so the docs' delete
+  did not apply); ClickHouse's copy and the two lists its step 2 wrote removed;
+  `COPY_DELETE_WHEN_PROVEN=true`, one line.
+- **The hold (T6 step 2)** went on at about 00:15:30 UTC, its sentence naming 03:00 Dutch time. The
+  owner's block at 00:21 read one hold, 309 s old, 0 passes in flight, nothing unfinished but the
+  tick (three reads before it were early). The dry run, alpha.4's script, exited 0: one-way, its one
+  line `moves the identity provider pin in managed.yml: ghcr.io/zitadel/zitadel:v4.20.0 ->
+  ghcr.io/zitadel/zitadel:v4.20.1`, and a take of the app's database, the sign-in service's database
+  and the roles, with no `triggerdb`.
+- **The run (T6 steps 3 to 7),** from 00:26, in a terminal session that outlives a dropped
+  connection (`tmux`). One run, alpha.4's `deploy-live.sh`: the copy taken at 2026-11-08T00:29:17Z,
+  `before=v0.2.0-alpha.6`, `from=v0.2.0-alpha.4` (`69f35528`), 5 entries and no `triggerdb`
+  (Trigger.dev's pin did not move); its sign-in part is `dump-idp.sh`'s dump on v4.20.0, 701 entries
+  read back (0135 T7). The bring-up, the tag's own, with Trigger.dev 4.8.3 and the task deployment
+  `20261108.1`; `/api/version` and `/version.json` at `59b91458`, `0.2.0-alpha.6`, `/api/ready` 200,
+  `/api/auth/mode` managed, `NODE_ENV` production; the site rebuilt and healthy; the exposure check
+  `ok`, 40 containers and 35 publishes, each on loopback or an address the allow-list names, and one
+  accepted as not Ownpace's; *the deploy took* at 00:32:28Z, exit 0. `apps/worker/package.json`
+  needed nothing, the tree clean.
+- **The checks after it, with the hold on.** Every service up, none unhealthy, starting or
+  restarting, each on the tag's image: Zitadel v4.20.1, `trigger-redis` on
+  `localhost/redis:7.4.12-bookworm-63d89fa5f426`, `trigger-api` and `trigger-supervisor` on their
+  alpha.6 builds, `trigger-tls` on Caddy 2.11.9, MinIO and `minio-init` on Chainguard's build
+  `aea6c163…`; nothing on an image alpha.6 replaced. All 16 containers with `no-new-privileges`,
+  `drop=[ALL]` but `trigger-api`'s; `trigger-redis` with no capability added (alpha.4's had four),
+  as `999:999`, answering as uid 999, Redis 7.4.12, its append-only file loaded and writing; `apt`,
+  `apt-get`, `mount`, `setpriv` and `mke2fs` absent from `trigger-redis` and `trigger-api`; MinIO's
+  and Zitadel's switches that phone home off. The task row
+  `current|20261108.1|DEPLOYED|4.8.3|4.8.3|26.12.1|2026-11-08 00:31`, the tick 5 times
+  `COMPLETED_SUCCESSFULLY` on 4.8.3, its runners on one image whose Node is v26.13.0 like the api's,
+  with no shell under any of five names. That image's creation time reads 1970-01-01: Trigger.dev
+  4.8.3's CLI builds with `SOURCE_DATE_EPOCH=0` and `rewrite-timestamp=true` (its
+  `deploy/buildImage.js`), so a task image's date says nothing of when it was built. `www-live` ok.
+  The owner read the sign-in service's check on v4.20.1 (the organisations count) and one sign-in of
+  their own as OK.
+- **The lift (T6 step 8)** at about 01:08 UTC. The owner's check at about 01:23 read `yes|0|-1|0`,
+  the box checks' timer running every ten minutes, and the copy's 5 entries kept.
+- **What is left (T9).** No migration has run on live, so nothing has proven alpha.6, and
+  `live-pass-check.sh` does not apply yet; the owner's own migration on live, before any invitation,
+  is the proof. Until then the box checks keep the copy before alpha.6, and the daily duties delete
+  it after its day 6 in any case. The way back is still a deploy of alpha.4 by the same script,
+  which calls it one-way too, on images the machine still has. The alpha.4 entry's last bullet is
+  done: both of its copies went on 2026-11-08, and `COPY_DELETE_WHEN_PROVEN` is `true` again.
 
 **2026-11-05, records: T0 step 5's `NODE_ENV` check reads it from Docker.** Docs only, on the
 branch `claude/ownpace-public-readiness-y7orc6-distroless-readbacks`. Step 5 (*Run the checks*)
@@ -73,7 +329,8 @@ blocks. Times are UTC. No values.
   step 5), and `COPY_DELETE_WHEN_PROVEN` goes back to `true` after both.
 
 **2026-11-03: the OTA stack's pooler lost its userlist to another workflow's checkout, and was
-down until a hand fix; the fix built on a branch, not merged.** On the branch
+down until a hand fix; the fix built on a branch, not merged.** *(Merged as #1798 on 2026-11-03
+at 06:38 UTC, `fee22669`: the entry of 2026-11-08, records.)* On the branch
 `claude/ownpace-public-readiness-y7orc6-pgbouncer-userlist`, from `main` at `21fa6ff8`, with
 `main` at `162bd55c` (#1797, the records entry below) merged in; not merged, and CI and E2E
 (managed) are owed on it. The incident from the owner's readings; times are UTC.
@@ -140,7 +397,7 @@ the owner's readings on 2026-11-03; times are UTC.
   `<project>_clickhouse_data_v2_before_26_8` and step 2's two files went. The entry below said
   sent, not done; it says done now.
 - **The host's Docker, 29.2.1 → 29.6.2**, with containerd.io 2.2.5, the Compose plugin 5.2.0
-  and the Buildx plugin 0.35.0, from the machine vendor's apt repository, in a window the owner
+  and the Buildx plugin 0.35.0, from a third-party apt repository, in a window the owner
   pulled forward from 11:00 to about 03:30. The order, revised so that a scheduled E2E arriving
   late queues instead of starting against the holds: `main`'s CI on `21fa6ff8` done on the
   runner at 03:33; the runner stopped; both holds on at about 03:49; live's drain read
@@ -187,8 +444,8 @@ day (records, later) has the detail. Read from GitHub on 2026-11-02; times are U
   `<project>_clickhouse_data_v2_before_26_8` and step 2's two files was sent to the owner at
   about 11:55. It had not been run when this was written; it is the owner's. *(Run at about
   23:05, its checks passed, the copy gone: the entry of 2026-11-03, records, above.)*
-- **Still the owner's:** the host's Docker, 29.2.1 to the 29.6.2 set from the machine vendor's
-  apt repository, in a window with live's hold and the OTA stack's both on (0119 §2.4), not done
+- **Still the owner's:** the host's Docker, 29.2.1 to the 29.6.2 set from a third-party apt
+  repository, in a window with live's hold and the OTA stack's both on (0119 §2.4), not done
   on 2026-11-02. *(The owner, at about 22:10: within alpha.4, so before the counted nights of
   2026-11-05 and 2026-11-06; the slot, set later that evening, is Tuesday 2026-11-03, 11:00 to
   13:00 UTC. The copy's removal, above, was not answered: sent, not confirmed. 0119's Status,
@@ -197,7 +454,7 @@ day (records, later) has the detail. Read from GitHub on 2026-11-02; times are U
   the entry of 2026-11-03, records, above.)*
 
 **2026-11-02, recorded: the copy from before v4.8.3 removed, ClickHouse 26.8.36.3 on the OTA
-stack, and the host's Docker from the machine vendor's apt repository.** Docs only, on the
+stack, and the host's Docker from a third-party apt repository.** Docs only, on the
 branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`; 0119's Status entry of the
 same day (records) has the detail. Read from GitHub and from the owner's readings on
 2026-11-02; times are UTC.
@@ -215,7 +472,7 @@ same day (records) has the detail. Read from GitHub and from the owner's reading
   carries #1785 (alpha.4), and takes the same copy by hand before that deploy
   (`managed-bring-up.md`, *Moving ClickHouse*, *On live*); the same tag brings #1774's and
   #1784's networks to live (0136 T4).
-- **The host's Docker** comes from the machine vendor's apt repository, not from Docker's, as
+- **The host's Docker** comes from a third-party apt repository, not from Docker's, as
   0119 §2.4 had it since 2026-11-01; §2.4, where the host's readings live (the entry of
   2026-11-01, recorded, below points there), is corrected. Its upgrade is the owner's, to that repository's set (29.6.2), in a window
   with live's hold and the OTA stack's both on, since it restarts every container on the
@@ -272,7 +529,7 @@ same day (records) has the detail. Read from GitHub and from the owner's reading
   is behind, with security fixes between, and its upgrade is the owner's, in a window with
   live's hold on: without `live-restore`, it restarts every container on the machine, live's
   included. Recorded in 0119 §2.4, where the host's runtimes are, as an open owner item.
-  *(2026-11-02: the packages come from the machine vendor's apt repository, not Docker's, and
+  *(2026-11-02: the packages come from a third-party apt repository, not Docker's, and
   the upgrade is to that repository's set, with both holds on: the entry above. 2026-11-03:
   upgraded, 29.6.2: the entry of 2026-11-03, records, above.)*
 
@@ -555,7 +812,7 @@ owner waiting for a pass, and its copy goes without the owner's step.
      *Daily summary* has the line *The copy before an update*. Write the verdict, the mail's time
      and anything unexpected here, under T9.
 
-**2026-10-24: the Spark's runner service had been down since 2026-09-25, and it showed only when
+**2026-10-24: the machine's runner service had been down since 2026-09-25, and it showed only when
 the queue stopped.** E2E (self-hosted) #292 (scheduled, on `cf47ea50`) waited from 01:48 UTC for a
 runner that never came. The runner's systemd unit had failed on 2026-09-25 with `Result:
 oom-kill`: the OOM killer took a process of a job, the listener then exited with code 0 (*"no
@@ -585,11 +842,11 @@ Since #1662 (`d98f54f2`) and #1672 (`be6a857f`), `setup-zitadel.sh` and `smoke-m
 read of the provider again on a 502, 503 or 504, four asks with 14 seconds of waiting between
 them (`IDP_READ_ATTEMPTS`), and still send each write once. A short 502 on a read no longer
 fails the gate, but no retry rides out an outage like this one. The follow-up was the
-owner's: making sure the Spark's NetBird peer cannot expire (the owner's checklist of
+owner's: making sure the machine's NetBird peer cannot expire (the owner's checklist of
 2026-10-21, T10, by 2026-10-27), since a peer whose login expires takes the tunnel down, and
 every public name with it. The owner's call on T10, 2026-10-22: not now. When every public
-name stops answering at once, the first thing to check is the Spark peer's login (`netbird
-status` on the Spark).
+name stops answering at once, the first thing to check is the machine's peer login (`netbird
+status` on the machine).
 
 **2026-10-21, T7: the daily duties have a voice** (0142 T3), on branch
 `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged. `ownpace-box-duties.service` has
@@ -2784,14 +3041,14 @@ conflicted: both new entries kept. Nothing has run on the machine, and live does
 | T1f Every port that need not be reachable bound to 127.0.0.1, in both stacks | ✅ **done** in #1236, merged 2026-09-27 (`528d1308`), with T3 (a); the task build's way to the API on loopback followed in #1253 (`5ee41045`) — *was:* 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27), with T3 (a); 📋 **Decided 2026-09-24** (D7) | §3, T3. Containers reach ports the host publishes through the Docker gateway, so each stack can reach the other's. **Merge precondition in the Status block: the OTA stack's binds are set first, and the site is recreated by hand after.** |
 | T1g Live is deployed by hand from a tag; CI never touches it | The code half ✅ **done** in #1265, merged 2026-09-28 (`c292fffb`); live's own deploys are T6 (a) — *was:* 🔨 the code half built on branch `claude/ownpace-public-readiness-y7orc6-a-gate-that-leaves-the-alpha-alone`, not merged (2026-09-27); 📋 **Decided 2026-09-24** (D7); the code 📋 **Proposed** | §3. The OTA stack keeps following `main` nightly. The procedure is T6; tags are 0146's. The marker's name, `STACK_KIND=production`, is defined once in `deploy/compose/stack-kind.sh` (2026-09-27, with 0143 T9's script), and this task's refusals source it. Built: the gate's refusal (`refuse-live-env.sh`, in the restore, before its first copy), the reader's refusal of live's marker on the OTA project, and the runbook's and release checklist's wording; the Status block says how. |
 | T2 Database passwords the repository does not contain | ✅ **done**: step B, T2's last code, in #1527, merged 2026-10-05 (`e1e2b22a`): `TRIGGER_DB_PASSWORD` refused on a real address like the four, noted on localhost, generated while `trigger_db_data` is new, and `managed.yml`'s fallback kept as the four keep compose's defaults. With it T2 is done, for the five keys; nothing for the owner to do on the OTA stack, whose `.env` holds the value the rotation wrote — *was:* step B 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-the-tasks-database-key-is-required`, not merged (2026-10-05); *earlier:* Step B ⏳ (the key required, generated while `trigger_db_data` is new, and refused on a real address like the four), after the `trigger-db` second half's step A (the rotation learns it, `--with-trigger-stores`, and the bring-up's trigger phase holds its role to `.env`), ✅ **done** in #1521, merged 2026-10-05 (`e8b01259`), and the owner's run of it on the OTA stack, ✅ **done 2026-10-05** (E2E (managed) #242 green, `--check` exits 0). The bring-up's code, (b) and the refusals of shipped values, for the four keys, ✅ **done** in #1504, merged 2026-10-05 (`5e2e32eb`); the E2E (managed) run the owner's rotation dispatched was green (#237). The OTA stack's change (T0 step 2) ✅ **done by the owner 2026-10-05**. The rotation script ✅ **done** in #1307, merged 2026-09-28 (`83eb73ed`). The `trigger-db` first half ✅ **done** in #1309, merged 2026-09-28 (`4991094a`): `TRIGGER_DB_PASSWORD`, falling back to today's literal — *was:* the bring-up's code 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-password-the-repository-knows`, not merged (2026-10-05); the `trigger-db` second half ⏳ split off 2026-10-05 (the session's call, to keep the gate running); the code 📋 **Proposed**; 🔨 the `trigger-db` part built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live` (2026-09-28); 📋 **Decided 2026-09-24** (D2, D3) on the machine | §3. The OTA stack's roles held the shipped values until the owner changed them on 2026-10-05 (T0 step 2), with `ALTER ROLE`, because `.env` does not reach a role that already exists. On live the owner sets them in its `.env` before its first bring-up (D8, T1b). The bring-up sets the roles from `.env`, and refuses shipped values on a real address. |
-| T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`); (b) runs with each `deploy-live.sh` on live since 2026-10-27/28, and (c) has been dispatched since 2026-10-28. (c) passes since 2026-10-29 (runs 40833492206 and 40835664486): the front's own port 5432 is a note behind PostgreSQL's handshake, ✅ **done** in #1730, merged 2026-10-29 (`e8dd2c1e`), and the owner set `EXPOSURE_PROBE_FRONT_PORTS=5432` (Status, 2026-10-29); (c) asks live's form that founds an organisation for 404 (0135 T1's ask) ✅ **merged** as #1753 on 2026-10-31 (`d669141d`), not yet dispatched since (Status, 2026-11-01, later; *was:* 🔨 built 2026-10-31 on branch `claude/ownpace-public-readiness-y7orc6-exposure-probe-registration`, not merged); (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes, **its code half** ✅ **done** in #1362, merged 2026-09-29 (`bfdfbf66`), with its review's fixes: live's `TRUST_PROXY=2` (the stand-up takes 2 or 3 and nothing else), both nginx logs record the address NetBird passes on, the gate's public log filters it out, and the check *one log line of each on live* written, its lines read apart; the check itself waits for live to stand (T1b to T1e); (c) asks the four names for NetBird's sign-in, in the same merge (0139, item 8); (b) accepts the owner's containers that are not Ownpace's by name, in #1534 and #1538, merged 2026-10-06 and 2026-10-07 — *was:* (b) and (c) not yet run on the machine or dispatched; (d)'s code half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged (2026-09-28, review fixes 2026-09-29); *earlier:* (d) 📋 **Proposed**, waits for live to stand (T1b to T1e); *earlier:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
+| T3 "Not reachable from the internet", checked | (b) the exposure check and (c) the outside probe ✅ **done** in #1271, merged 2026-09-28 (`6088f469`); (b) runs with each `deploy-live.sh` on live since 2026-10-27/28, and (c) has been dispatched since 2026-10-28. (c) passes since 2026-10-29 (runs 40833492206 and 40835664486, and run 42448301600 of 2026-11-08, dispatched by the owner on `200185fd` with `ota_names=report` and `site_name=required`): the front's own port 5432 is a note behind PostgreSQL's handshake, ✅ **done** in #1730, merged 2026-10-29 (`e8dd2c1e`), and the owner set `EXPOSURE_PROBE_FRONT_PORTS=5432` (Status, 2026-10-29); (c) asks live's form that founds an organisation for 404 (0135 T1's ask) ✅ **merged** as #1753 on 2026-10-31 (`d669141d`), and holds the app's headers through the front to the template at live's commit (0158 T4) ✅ **merged** as #1845 on 2026-11-08 (`0536708e`): both first asked, and passed, in run 42448301600, which recorded the OTA names in report mode, as the owner chose (open question 7), and held `www.ownpace.eu` to live's front (Status, 2026-11-08, later still; *was:* the form not yet dispatched since #1753 (Status, 2026-11-01, later); *earlier:* 🔨 built 2026-10-31 on branch `claude/ownpace-public-readiness-y7orc6-exposure-probe-registration`, not merged); (a) the binds ✅ **done** in #1236, merged 2026-09-27, with #1253; (d) the path a tester's request takes, **its code half** ✅ **done** in #1362, merged 2026-09-29 (`bfdfbf66`), with its review's fixes: live's `TRUST_PROXY=2` (the stand-up takes 2 or 3 and nothing else), both nginx logs record the address NetBird passes on, the gate's public log filters it out, and the check *one log line of each on live* written, its lines read apart; the check itself waits for live to stand (T1b to T1e); (c) asks the four names for NetBird's sign-in, in the same merge (0139, item 8); (b) accepts the owner's containers that are not Ownpace's by name, in #1534 and #1538, merged 2026-10-06 and 2026-10-07 — *was:* (b) and (c) not yet run on the machine or dispatched; (d)'s code half 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-the-visitors-address-from-netbird`, not merged (2026-09-28, review fixes 2026-09-29); *earlier:* (d) 📋 **Proposed**, waits for live to stand (T1b to T1e); *earlier:* (b) and (c) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-port-nobody-meant-to-open`, not merged (2026-09-28); 📋 **Proposed** (D2, D4, D7); (a) the binds 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-ports-published-on-purpose`, not merged** (2026-09-27) | §3. A loopback default for the eight ports published on all interfaces (seven in `managed.yml`, the site's one), in both stacks (T1f). A check on the machine after every deploy, a probe from outside that includes the production names, and the path a tester's request takes, written down. Before the first check and probe the owner sets `EXPOSURE_ALLOW` in each stack's `.env` to every address any container on the machine is published on (both stacks' `*_BIND` values, the site's `WWW_BIND`, the demo's `STALWART_BIND`; commas, no space), and the repository variable `EXPOSURE_PROBE_LIVE_PORTS`. |
 | T4 A stack that does not say it is production does not start | ✅ **done** in #1472, merged 2026-10-04 (`fb5a1336`); 📋 **Decided 2026-10-04** by the owner: every stack names its mode, the OTA stack runs *"Development, said explicitly"*, and a live `.env` without `ALERT_ENABLED=true` is refused (*"Refuse to deploy"*, 0142 T0); rejected: *"Production on both"* (the first proposal), *"Warn only"*, *"Leave as is"* — *was:* 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04); 📋 **Proposed** (production on both) | §3. `managed.yml` takes `${NODE_ENV:?…}`, no default. The example keeps `production`. The gate writes `development` into the OTA stack's `.env` when it gives no value, before its backfill. `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose `NODE_ENV` is not `production` or whose `ALERT_ENABLED` is not `true`, and a line either does not read; `deploy-live.sh` also asks the api container. |
 | T4b An issuer without an audience does not start (added 2026-10-04; no workplan owned it) | ✅ **done** in #1472, merged 2026-10-04 (`fb5a1336`), with T4; stated in the plan, no owner decision needed — *was:* 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-a-stack-that-names-its-mode`, not merged (2026-10-04) | §3. The API refuses to start when `JWT_ISSUER` is set and `JWT_AUDIENCE` is empty, on every stack and whatever `NODE_ENV` says, and its verifier never passes an empty audience. Both stacks get `JWT_AUDIENCE` from `setup-zitadel.sh`, so nothing changes there. |
 | T5 No demo in the alpha, and the values that left the machine replaced | ✅ **Closed for live 2026-09-24** (D7), and the refusal of `--with-demo` on live ✅ **done** in #1309, merged 2026-09-28 (`4991094a`) (*was:* 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-first-bring-up-of-live`, not merged); 🅿️ **Parked for the OTA stack (trigger: 0026 row 24's own, the OTA stack stops being a demo)** — *was:* the refusal 📋 **Proposed** | §3 and §4. Live never had the demo or its values, so there is nothing to replace. `bootstrap-managed.sh` refuses `--with-demo` on a `.env` that is, or could be, live's (`stack_may_be_live`). Routes (a) and (b) are kept for the OTA stack. |
 | T6 One way to deploy live, from a tag | Step 4, the copy before the update, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`): `deploy-live.sh` takes it with `copy-before-update.sh` (0139, rec-copies (a)), with the review's fixes of 2026-09-29 (a tag without the scripts live is kept by refused, the rollback's `since`); (a) `deploy-live.sh` ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), with 0146 T5 (a), first run on live 2026-10-27/28 for `v0.2.0-alpha.2`, with the rollback by day 6 rehearsed to `v0.2.0-alpha.1` and alpha.2 deployed again (Status, 2026-10-29), and on 2026-10-30 for `v0.2.0-alpha.3`, in two runs, took at 23:44:35 UTC (Status, 2026-10-31); (b) ✅ **done** in #1232, merged 2026-09-27: every enqueue in the API goes through one function that answers 409 with the hold's sentence; the three web gaps (b) left ✅ **done** in #1284, merged 2026-09-28 (`f7a7a270`). The procedure's steps on the machine are the owner's, once live stands (T1b) and 0146 has cut a release tag — *was:* step 4 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); (b) ✅ **done** in #1232, merged 2026-09-27; the procedure and (a), `deploy-live.sh`, 📋 **Proposed** (D1, D5, D7) | §3. Hold, drain, a tag, bring-up without the demo, checks, lift. Replaces three procedures that disagree. With 0146. (a) is the deploy script, (b) the hold at every door. The Status block (2026-09-28) says how (a) was built. |
 | T7 What the gate does for the OTA stack, done for live | The drill off live, its duty replaced by the copy's backstop `copies`, ✅ **done** in #1361, merged 2026-09-29 (`b65da810`) (0139, rec-drill (a)), with the review's fixes of 2026-09-29 (6 days less an hour, each file by its own age); ✅ **done** in #1276, merged 2026-09-28 (`b2e63ab0`): `box-duties.sh`, `setup-zitadel.sh --token-only` and `--count-organisations`, and a user timer in the bring-up; waits for live to stand (T1b to T1e, from 0146 T0's tag) and for the owner to install the timer; ✅ **done** in #1664, merged 2026-10-21 (`6bd020f6`): a failed run mails the owner (`OnFailure=`, 0142 T3), and each run leaves a record the box checks read; live takes it with its next tag — *was:* a failed run's mail 🔨 built 2026-10-21 on branch `claude/ownpace-public-readiness-y7orc6-owner-told`, not merged; the drill off live 🔨 built 2026-09-28 on branch `claude/ownpace-public-readiness-y7orc6-one-copy-before-each-update`, not merged; 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-duty-the-gate-used-to-do`, not merged (2026-09-28); 📋 **Proposed**, with T1b | §3. The identity provider's provisioning token, the Trigger.dev database drill (until 2026-09-28; since then the copy's backstop, 0139), T3's check and 0135's organisation count, on a timer on the machine, for live. |
 | T8 The gate gets a stack of its own on the same machine | ⛔ **Superseded 2026-09-24** by D7 | §3. The second stack is live, not the gate's. Its parts moved to T1, T1b and 0143. |
-| T9 An update proven without the owner's wait (added 2026-10-27; the owner, 2026-10-28: *build both*, one draft PR for alpha.3, merged only after live runs `v0.2.0-alpha.2`) | ✅ **done** in #1724, merged 2026-10-28 (`24864dcc`), after E2E (managed) run 40691667564 and E2E (self-hosted) run 40695344152; it reached live with the alpha.3 tag on 2026-10-30 (Status, 2026-10-31): of the steps in the entry of 2026-10-27, 2 and 4 done; 1 replaced, the copy before alpha.2 removed by hand before the deploy; 5 and 6 do not apply, since no migration has run on live and both copies were removed by hand; 3 not done, and nothing owed: the owner read no `LIVE_PASS_CHECK_MIGRATION` line in live's `.env` (2026-10-31/11-01), so `live-pass-check.sh` refuses before it asks Docker (exit 2, `deploy/compose/live-pass-check.sh`:116-119) and nothing else reads the key (Status, 2026-11-01; *was:* 3 not recorded); `COPY_DELETE_WHEN_PROVEN` is `true` again — *was:* it reaches live with the alpha.3 tag, then ⏳ **Owner**: the steps in the entry of 2026-10-27; 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-live-pass-check`, not merged (2026-10-27); merges only after live runs `v0.2.0-alpha.2` | §3 T6 steps 8 and 9, with 0139 rec-copies (a) and 0142 T3. (a) Live's box checks run `copy-before-update.sh delete-if-proven` every ten minutes: `delete`'s own rule, and stricter: no hold on, the checkout at the commit that took, a data type of a proving pass's migration completed, an hour after the hold was last lifted, nothing outside the copy's note, and `COPY_DELETE_WHEN_PROVEN` not false. They delete as `delete` does and mail *Update proven* once. (b) `deploy/compose/live-pass-check.sh` starts one pass on `LIVE_PASS_CHECK_MIGRATION` through *Sync now*'s own gates and enqueue (`pressSyncNow`, moved to `routes/migrations/sync-now.ts`), refuses while the hold is on or the tick's caps are full, and says within 15 minutes how it ended. |
+| T9 An update proven without the owner's wait (added 2026-10-27; the owner, 2026-10-28: *build both*, one draft PR for alpha.3, merged only after live runs `v0.2.0-alpha.2`) | ✅ **done** in #1724, merged 2026-10-28 (`24864dcc`), after E2E (managed) run 40691667564 and E2E (self-hosted) run 40695344152; it reached live with the alpha.3 tag on 2026-10-30 (Status, 2026-10-31): of the steps in the entry of 2026-10-27, 2 and 4 done; 1 replaced, the copy before alpha.2 removed by hand before the deploy; 5 and 6 do not apply, since no migration has run on live and both copies were removed by hand; 3 not done, and nothing owed: the owner read no `LIVE_PASS_CHECK_MIGRATION` line in live's `.env` (2026-10-31/11-01), so `live-pass-check.sh` refuses before it asks Docker (exit 2, `deploy/compose/live-pass-check.sh`:116-119) and nothing else reads the key (Status, 2026-11-01; *was:* 3 not recorded); `COPY_DELETE_WHEN_PROVEN` is `true` again *(2026-11-08: `false` from alpha.4's deploy of 2026-11-04 until the owner removed both of its copies on 2026-11-08, and `true` since; Status, 2026-11-05 and 2026-11-08)* — *was:* it reaches live with the alpha.3 tag, then ⏳ **Owner**: the steps in the entry of 2026-10-27; 🔨 **Built** on branch `claude/ownpace-public-readiness-y7orc6-live-pass-check`, not merged (2026-10-27); merges only after live runs `v0.2.0-alpha.2` | §3 T6 steps 8 and 9, with 0139 rec-copies (a) and 0142 T3. (a) Live's box checks run `copy-before-update.sh delete-if-proven` every ten minutes: `delete`'s own rule, and stricter: no hold on, the checkout at the commit that took, a data type of a proving pass's migration completed, an hour after the hold was last lifted, nothing outside the copy's note, and `COPY_DELETE_WHEN_PROVEN` not false. They delete as `delete` does and mail *Update proven* once. (b) `deploy/compose/live-pass-check.sh` starts one pass on `LIVE_PASS_CHECK_MIGRATION` through *Sync now*'s own gates and enqueue (`pressSyncNow`, moved to `routes/migrations/sync-now.ts`), refuses while the hold is on or the tick's caps are full, and says within 15 minutes how it ended. |
 
 ## 1. What there is today
 
@@ -2857,6 +3114,8 @@ names the class of problem as *"CI and production share a Docker daemon"*, and D
 one daemon: live, the OTA stack and the runner. SECURITY.md says of the runner: *"trusted
 workflows only (docker socket + root = RCE risk)"*. Pull requests run on GitHub-hosted runners,
 and a push to `main` runs `ci.yml`'s jobs and `security-scan.yml`'s on the self-hosted one.
+*2026-11-08: not during the alpha. They run on GitHub's hosted arm64 runner, and the repository
+variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends them back (open question 1).*
 `ci.yml` does not reference `managed.yml`. `e2e.yml` brings up the appliance's stack, whose own
 port defaults to loopback (`SELFHOST_BIND`). The dev Stalwart and Nextcloud it starts beside the
 appliance are published on every interface, on free ports it picks, until its cleanup step
@@ -3032,7 +3291,9 @@ now, through one function, T6 (b); see the Status block.)*
   support them. Max 10/20 people"*. So the alpha runs on the reference machine, at
   `app.ota.ownpace.eu` and `id.ota.ownpace.eu`, and CI stays on that machine. That departs from
   the runbook's rule, and this plan records the conditions. **D7 changes the address:** testers
-  use the production names, on `ownpace-live`. The machine, and CI on it, stand.
+  use the production names, on `ownpace-live`. The machine, and CI on it, stand. *2026-11-08:
+  CI's push jobs leave the machine for the alpha's weeks, and its nightlies stay (open question
+  1).*
 - **D2, what is reachable today.** Asked whether ports 5432, 3001, 3090, 3443 and 3126 are
   reachable from outside, whether the database passwords were changed, and whether the live
   identity provider holds other organisations: *"No, these ports are not reachable outside of
@@ -3059,7 +3320,7 @@ now, through one function, T6 (b); see the Status block.)*
   other?"* ("alle seperate" is read as "all separate".) The proposal put back to the owner: make
   "ownpace-live beside ownpace-managed" the decision in this plan, with the container-name
   parameterisation as its first task, and testers on `ownpace-live`. The owner's answer: *"Yes!
-  The spark has a lot free memory and disk, it will fit."* So:
+  [The machine] has a lot free memory and disk, it will fit."* So:
   - A second compose project, `ownpace-live`, runs on the reference machine beside
     `ownpace-managed`.
   - `ownpace-live` is production for the alpha. Testers use it, on the production names from
@@ -4282,11 +4543,12 @@ known beyond the machine:
    `SECRET_ENCRYPTION_KEY` and the `tr_prod_` key. Runner debug output also prints the whole task
    environment.
 3. **Copies held by code, not by people.** Both stacks' persisted `.env` files sit on a machine
-   where every push to `main` runs a job with access to the Docker socket (SECURITY.md), and where
-   the nightlies run `main` on their schedules. That is not a person
-   holding a credential. It is a path by which a merged change, or a dependency the change pulls
-   in, could read one. The owner's merge is the gate for that path (0131 §4), and it is the reason
-   for open question 1.
+   where the nightlies run `main` on their schedules, in jobs with access to the Docker socket
+   (SECURITY.md). Until 2026-11-08 every push to `main` did too, at once; during the alpha a push
+   runs on GitHub's hosted runner (open question 1). That is not a person holding a credential.
+   It is a path by which a merged change, or a dependency the change pulls in, could read one. The
+   owner's merge is the gate for that path (0131 §4), and it was the reason for open question 1.
+   *Was: a machine where every push to `main` runs a job with access to the Docker socket.*
 
 Live's own values, generated or set by the owner (D8), are in none of the first two kinds, and
 they stay out of them as long as its `.env` never reaches a runner (T1g), its runner logs are never
@@ -4349,13 +4611,26 @@ is generated and has been in no log. On the OTA stack it guards a demo.
 
 ## Open questions
 
-1. **CI's push jobs.** D1 keeps CI on the machine, and D7 keeps it beside live on one Docker
-   daemon. The runbook's first route, GitHub's hosted arm64 runners (free for public
-   repositories), could move just the push jobs of `ci.yml` and `security-scan.yml` off the
-   machine for the alpha's weeks. That would remove the path by which every merge runs at once
-   next to a Docker socket that sits beside testers' credentials. The appliance's nightly, the
-   managed gate on the OTA stack and the live-target lane would still run `main` on the machine
-   on their schedules. Keep the push jobs on the machine, or move them?
+1. **~~CI's push jobs.~~ Answered 2026-11-08: move them, every job that does not need the
+   machine.** Asked with the list of what to build into alpha.7, where this was recommended as
+   *yes: CI's push jobs on GitHub's runners during the alpha weeks, for every job that does not
+   need this machine, so that no merge runs next to live's Docker socket while testers'
+   credentials are there*, the owner answered: *"Build the recommended for alpha 7."* None of the
+   jobs needs the machine, so all of them move. A push runs every job of `ci.yml` and
+   `security-scan.yml` that it starts on GitHub's hosted arm64 runner, `ubuntu-24.04-arm`, and a
+   dispatch on a branch runs the same jobs there, to prove the path before a merge. One switch
+   turns it back after the alpha, and nothing else is needed: the repository variable
+   `CI_PUSH_ON_SELF_HOSTED`, set to `true` (Settings, Secrets and variables, Actions, Variables).
+   `scripts/a-merge-that-ran-beside-the-socket.unit.test.ts` holds both states. The appliance's
+   nightly, the managed gate on the OTA stack and the live-target lane still run `main` on the
+   machine on their schedules (Status, 2026-11-08). The question as it was asked: D1 keeps CI on
+   the machine, and D7 keeps it beside live on one Docker daemon. The runbook's first route,
+   GitHub's hosted arm64 runners (free for public repositories), could move just the push jobs of
+   `ci.yml` and `security-scan.yml` off the machine for the alpha's weeks. That would remove the
+   path by which every merge runs at once next to a Docker socket that sits beside testers'
+   credentials. The appliance's nightly, the managed gate on the OTA stack and the live-target
+   lane would still run `main` on the machine on their schedules. Keep the push jobs on the
+   machine, or move them?
 2. **~~A now, B later?~~ Answered 2026-09-24 by D7: neither.** The gate keeps running, on the
    OTA stack, and testers are on live. The date that *"A few weeks"* (D6) means is 0131 T4's
    question now, not a trigger here. The question as it was asked: Is A (the gate off)
@@ -4391,3 +4666,42 @@ is generated and has been in no log. On the OTA stack it guards a demo.
    answer as its pass condition. Mesh-only is the smaller surface, and the owner already reaches
    the machine over the mesh (D2). Google's test client keeps working either way for the owner,
    because Google redirects the browser rather than fetching the callback (0091 T5).
+   *Answered 2026-11-08: on the mesh only, once testers are on the production names.* The owner,
+   in their words: *"0: Tag with first invitation is 7 or even later. I did not decide yet"* and
+   *"Build the recommended for alpha 7."* The recommendation, alpha.7's item 11, was yes: the
+   OTA names on the mesh only once testers use the production names, the smaller surface, since
+   the owner already reaches the machine over the mesh. Testers are on the production names
+   from the first invitation, which waits for alpha.7 or a later tag; the owner has not chosen
+   which.
+   - **The pass condition is built.** T3 (c)'s probe has `ota_names: mesh-only`: none of
+     `app.ota.`, `id.ota.` and `www.ota.ownpace.eu` answers on 443 from a GitHub-hosted runner,
+     whatever would answer, and a name that no longer resolves passes. The test site's name is
+     held with the two the question names; the public site is live's `www.ownpace.eu` (0139
+     T10). Until the owner's step it is dispatched with `report`, the default, whose note now
+     says the answer and the input to use after the step.
+   - **What the step takes (read 2026-11-08, `netbirdio/netbird` at `0270bfa8`, `netbirdio/docs`
+     at `995c9099`).** NetBird's dashboard has no switch for it as the names are served today.
+     All seven names reach the machine through one front, NetBird's hosted proxy (the probe's runs
+     of 2026-10-29 found the same two addresses behind every name). *NetBird-Only Access*, which
+     serves a name to the peers of the mesh alone, needs a proxy cluster with the `Private`
+     capability, and *"NetBird Cloud's shared clusters do not currently advertise"* it.
+     Deleting the three services there takes the names off the mesh too, since nothing else
+     serves them over TLS. And the machine reaches the OTA names through that front from the
+     internet: the OTA stack's API for its sign-in keys while `JWT_JWKS_URI` is empty,
+     `setup-zitadel.sh`, `idp-strays.sh`, the gate's smoke and the OTA status page. So the step
+     is one of two ways, each more than a switch: (a) a NetBird proxy of the owner's own, run as
+     a peer with the `Private` capability and a certificate issued over DNS-01, the three OTA
+     services moved to it under NetBird-Only Access for a group of the owner's devices and the
+     machine, and the three names' public DNS records removed; or (b) TLS for the three names on
+     the machine's mesh address, which the repository does not have, so a build of its own
+     first. With (a), the stack's containers must still reach the names, through NetBird's
+     private record, which this plan has not seen reach a container. The shared front's
+     allow-list by source address is not the mesh: the names still answer over TLS, with
+     NetBird's 403, and no mode of the probe passes it. `docs/managed-bring-up.md`, *The OTA
+     names on the mesh only*, has the entries for each. Which way is the owner's.
+   - Google's test client keeps working for the owner on the mesh either way (0091 T5).
+   - **Not now: later on 2026-11-08 the owner chose to leave them public.** Offered (a), (b), or the
+     OTA names left public for now and the question taken up again after the first invitation, the
+     owner answered: *"11: c, leave public for now."* The names keep answering from the internet,
+     the probe stays at `report`, and mesh-only stays the aim, by (a) or (b), after the first
+     invitation.

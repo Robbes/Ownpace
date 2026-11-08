@@ -630,6 +630,126 @@ export const DECISION_EFFECTS = {
   },
 } as const;
 
+/**
+ * What a decision on Deletions, Moves or Failures did, said to the person who
+ * just pressed it (`DecisionAccepted.effect`, `GroupDecisionAccepted.effect`).
+ * Until 2026-11-08 each edition wrote its own copy of these sentences, in
+ * English only, and the queues showed them under a Dutch page.
+ *
+ * IN ENGLISH AND IN DUTCH (workplan 0159 §6 item 18), as `DECISION_EFFECTS`
+ * is: the Dutch lives beside its English, updated together or neither (class
+ * 4 of `docs/i18n-prose-boundary.md`). Both editions answer from here, through
+ * the choosers in `decision-words.ts`: the English as `effect`, word for word
+ * what they sent before, and the Dutch beside it as `effectNl`
+ * (`decisionEffectFields`). The page says the half in its reader's language
+ * (`decisionEffectText`). The Dutch says *het oude systeem* and *het nieuwe
+ * systeem* for the source and the target, as the queues' own Dutch does
+ * (`QUEUE_GUIDANCE`). It is the builder's, for the owner to read.
+ *
+ * `{count}` is how many items a group decision changed. A group of one has
+ * its own line, so the Dutch agrees in number; its English is the template's
+ * with 1, as it always was.
+ */
+export const QUEUE_EFFECTS = {
+  deletionKept: {
+    en:
+      'Acknowledged. The target keeps its copy and this stops being reported unless the ' +
+      'item reappears on the source and vanishes again.',
+    nl:
+      'Keuze vastgelegd. De kopie blijft op het nieuwe systeem staan, en dit wordt niet ' +
+      'meer gemeld, tenzij het item op het oude systeem terugkomt en weer verdwijnt.',
+  },
+  deletionRemoved: {
+    en: 'Removed from the target with no recovery path from here.',
+    nl: 'Verwijderd op het nieuwe systeem, zonder herstelmogelijkheid vanaf hier.',
+  },
+  deletionRemovedToBin: {
+    en:
+      "Removed from the target. The target's own bin still has it for whatever retention " +
+      'window that server keeps — this tool cannot restore it, but the server might still ' +
+      'be able to.',
+    nl:
+      'Verwijderd op het nieuwe systeem. Het staat daar nog in de prullenbak, zolang dat ' +
+      'systeem het bewaart; Ownpace kan het niet terughalen, maar het nieuwe systeem ' +
+      'misschien nog wel.',
+  },
+  moveKept: {
+    en:
+      'Acknowledged. Nothing changed on the source or the target; this move stops being ' +
+      'reported unless the item moves somewhere else again.',
+    nl:
+      'Keuze vastgelegd. Aan geen van beide kanten is iets veranderd; deze verplaatsing ' +
+      'wordt niet meer gemeld, tenzij het item weer ergens anders heen wordt verplaatst.',
+  },
+  oldCopyRemoved: {
+    en:
+      'The old copy has been removed from the target. The file itself is still there, under ' +
+      'the name and folder the source moved it to — that copy was made before this removal ' +
+      'and was checked again just now.',
+    nl:
+      'De oude kopie is verwijderd op het nieuwe systeem. Het bestand zelf staat er nog, onder ' +
+      'de naam en in de map die het op het oude systeem kreeg; die kopie is gemaakt vóór deze ' +
+      'verwijdering en is zojuist opnieuw gecontroleerd.',
+  },
+  /** Said after `oldCopyRemoved` when the new system's own bin took the old copy. */
+  oldCopyInBin: {
+    en: "The target's own bin still holds the old copy for whatever retention window that server keeps.",
+    nl: 'De oude kopie staat nog in de prullenbak van het nieuwe systeem, zolang dat systeem die bewaart.',
+  },
+  failureRetried: {
+    en: 'Attempts reset and cursors cleared; the next scheduled pass will try again.',
+    nl:
+      'De telling van de pogingen is teruggezet; de volgende geplande ronde doorloopt alles ' +
+      'opnieuw en probeert het nog eens.',
+  },
+  failureAccepted: {
+    en: 'Left behind for good: no further retries, and excluded from the verification gate.',
+    nl:
+      'Dit item gaat definitief niet mee: het wordt niet meer opnieuw geprobeerd en telt niet ' +
+      'mee bij de verificatie.',
+  },
+  failuresMatchedNothing: {
+    en:
+      'Nothing matched, so nothing changed. Check the domain and the wording — the substring ' +
+      'is matched literally, not as a pattern.',
+    nl:
+      'Er paste niets, dus er is niets veranderd. Controleer de soort en de tekst; wat u typt, ' +
+      'wordt precies zo vergeleken als u het typt, niet als patroon.',
+  },
+  failuresRetried: {
+    en:
+      'Attempts reset on {count} item(s) and cursors cleared; the next scheduled pass will ' +
+      'try them again.',
+    nl:
+      'De telling van de pogingen is teruggezet voor {count} items; de volgende geplande ronde ' +
+      'doorloopt alles opnieuw en probeert ze nog eens.',
+  },
+  failuresRetriedOne: {
+    en:
+      'Attempts reset on 1 item(s) and cursors cleared; the next scheduled pass will try ' +
+      'them again.',
+    nl:
+      'De telling van de pogingen is teruggezet voor 1 item; de volgende geplande ronde ' +
+      'doorloopt alles opnieuw en probeert het nog eens.',
+  },
+  failuresAccepted: {
+    en:
+      'Left behind for good: {count} item(s) will not be retried, and are excluded from the ' +
+      'verification gate.',
+    nl:
+      '{count} items gaan definitief niet mee: ze worden niet meer opnieuw geprobeerd en ' +
+      'tellen niet mee bij de verificatie.',
+  },
+  failuresAcceptedOne: {
+    en:
+      'Left behind for good: 1 item(s) will not be retried, and are excluded from the ' +
+      'verification gate.',
+    nl:
+      '1 item gaat definitief niet mee: het wordt niet meer opnieuw geprobeerd en telt niet ' +
+      'mee bij de verificatie.',
+  },
+} as const;
+
 /** The decisions an owner can make, across all three queues. */
 export type OperatingAction = 'keep' | 'apply' | 'retry' | 'accept';
 
@@ -685,7 +805,10 @@ export interface GroupDecisionAccepted {
   readonly action: Extract<OperatingAction, 'retry' | 'accept'>;
   readonly matched: number;
   readonly match: FailureGroupMatch;
+  /** What the press did, in English (`failureGroupEffect`). */
   readonly effect: string;
+  /** `effect` in Dutch (workplan 0159 §6 item 18). */
+  readonly effectNl: string;
 }
 
 /**
@@ -693,13 +816,17 @@ export interface GroupDecisionAccepted {
  *
  * `effect` is written to be read verbatim by the person who just clicked, and
  * says what is now true rather than what the tool did — "the target keeps its
- * copy", not "acknowledgedAt was set".
+ * copy", not "acknowledgedAt was set". Its Dutch travels beside it as
+ * `effectNl`, both from `QUEUE_EFFECTS` (workplan 0159 §6 item 18); a page
+ * shows the half in its reader's language. An appliance from before the
+ * Dutch sends `effect` alone.
  */
 export interface DecisionAccepted {
   readonly status: 'ok';
   readonly action: OperatingAction;
   readonly naturalKeyHash: string;
   readonly effect: string;
+  readonly effectNl: string;
   /**
    * For `apply` only: whether the target's own bin still holds the removed
    * item. The difference between a recoverable removal and a final one, so it

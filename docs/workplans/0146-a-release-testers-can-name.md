@@ -2,7 +2,27 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-07 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, records: the first invitation waits for alpha.7 or a later tag (T2, §4).** Docs
+only, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843
+(`d227b15f`). Asked which tag the first invitation waits for, the owner answered at about 01:50 UTC:
+*"Tag with first invitation is 7 or even later. I did not decide yet"*, and *"Build the recommended
+for alpha 7."* Recommended was alpha.6, live since that morning, with the owner's dated acceptance
+of its waived nights, and alpha.7 after the invitation. So alpha.6 is not the invitation tag.
+alpha.7 is planned with its two counted nights run, not waived (0141 T14), and the invitation's date
+is not decided. T2's row, §4's note and 0131 T5's row for this plan say so.
+
+**2026-11-08: live runs `v0.2.0-alpha.6` (T2).** The owner deployed it from the tag on 2026-11-08:
+one run of alpha.4's `deploy-live.sh`, from 00:26 UTC, which took at 00:32:28, one-way on the
+identity provider's line alone (v4.20.0 to v4.20.1). Before it, the owner removed alpha.4's copy
+before the update and ClickHouse's copy by hand; the deploy took a copy before alpha.6, which the
+box checks keep until a pass proves the update. Every check after it passed, and the hold, on from
+about 00:15, came off at about 01:08; 0132's Status of 2026-11-08 has the blocks. Still the owner's
+to answer: whether the O365 lane is recorded as waived for alpha.6 (0141 T13), and which tag the
+first invitation waits for (0131 T5; *answered the same day: the entry above*). Held for after
+the deploy, now moving: Dependabot #1836, landing; Trivy 0.76.2 and Atlas 1.3.8 after their
+floors, 2026-11-08 at 12:50 and 14:15 (0119).
 
 **2026-11-07, last: `v0.2.0-alpha.6` is released, its nights waived, and live takes it as soon
 as possible (T2, T4).** Read from GitHub on 2026-11-07. Times are UTC.
@@ -204,7 +224,7 @@ Status, 2026-11-05). Times are UTC.
 - **C is `69f35528`**, the squash of #1809 (the scan's Trivy from its GitHub release, the entry
   below), merged at 02:27 on 2026-11-04 on `a1a239e8`, the fold. On it, all green: CI run
   41760858079 (`lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (self-hosted)` and
-  `ci-complete` run and passed), Security Scan run 41760857918 on the Spark, where Trivy v0.76.1
+  `ci-complete` run and passed), Security Scan run 41760857918 on the machine, where Trivy v0.76.1
   read both architectures' archives as pinned and called itself `Version: 0.76.1`, and
   `windows-payload.yml` run 41760859076 (`build win-x64`, `smoke win-x64 on windows-2025`). The
   E2E runs and the upgrade drill on `a1a239e8` stand for it, as the entry below says.
@@ -239,7 +259,7 @@ Status, 2026-11-05). Times are UTC.
 and on PGlite went green, and the owner's `scripts/upgrade-drill.sh` passed, mechanics only. Its
 push Security Scan (run 41745603093) failed twice, at 00:17 and 01:17 UTC, before Trivy read a
 file: setup-trivy's install script takes Trivy's archive from `get.trivy.dev`, and that name did
-not resolve on the Spark, nor at a public resolver (NXDOMAIN, about 01:35 UTC). `main`'s push scan
+not resolve on the machine, nor at a public resolver (NXDOMAIN, about 01:35 UTC). `main`'s push scan
 of #1778 had failed the same way at 00:00 UTC; pull requests' scans, on GitHub's runners, passed
 from setup-trivy's binary cache. The one re-run was spent on the first failure, and a third would
 fail the same way, so the fix is the workflow's: Trivy v0.76.1 from its GitHub release, both
@@ -496,7 +516,7 @@ are UTC.
   group (09:09, `bce0fcfd`, after E2E (managed) run 41413423420), whose `CHANGELOG.md` *Changed*
   line this entry's branch adds.
 - **The o365 lane** (the entry of 2026-11-01, later, below): the owner added the runner label
-  `spark` at about 07:40 (0141 T13 (a)), and the lane's first run on a runner, 41418432093 on
+  named after the machine at about 07:40 (0141 T13 (a)), and the lane's first run on a runner, 41418432093 on
   `main` at `bce0fcfd` (09:10 to 09:11), failed at *Validate required secrets*:
   `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets, so the suite cannot
   run. Setting them (`docs/test-tenant.md`) is the owner's. *(Later 2026-11-02, about 22:10:
@@ -560,7 +580,7 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
 - **So what is left for the tag:** the fold (the version in `package.json` and `openapi.yaml`,
   `[Unreleased]` into `[0.2.0-alpha.4]`), C's CI green, and two counted nights on C or the
   owner's waiver (0141 T14). From the Node 26 move (0119's Status, 2026-11-01), the o365 lane,
-  which waits for the owner's step on the runner label `spark` (0141 T13 (a): add it to the
+  which waits for the owner's step on the runner label named after the machine (0141 T13 (a): add it to the
   runner, or drop it from `runs-on`), and the owner's Windows 11
   check of a zip on Node 26.13.0 are still open. *(2026-11-02: the label is on the runner, and
   the lane now waits for its two secrets; the Windows check can take `main`'s zip: the entry of
@@ -1957,7 +1977,7 @@ builds on, merged before it as `afe17fef`), after the alpha.2 tag, once E2E (man
   denied"*. An interactive psql and shell as uid 70 wrote their history into the volume's root
   without the two variables, and into `/tmp` with them.
 - **Not proven here, and what proves it.** That the Dockerfile builds (no daemon here): E2E
-  (managed) on the branch builds it on the Spark, and a dispatch of Security Scan with the image
+  (managed) on the branch builds it on the machine, and a dispatch of Security Scan with the image
   scans on the branch builds and scans it on arm64. That the stacks' real volumes start as uid
   70: E2E (managed) runs against the OTA stack's existing volumes, and its first `up` recreates
   both databases on the build. That a new Docker volume initialises as uid 70: the integration
@@ -3344,7 +3364,7 @@ best given with T0.
 |---|---|---|
 | T0 The alpha's version name, and whether any rename comes first | ✅ **Answered 2026-09-28**: *"The version name (0146 T0): ok, what do I do?"*, read as accepting the whole recommendation: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no rename; no last squash. The owner named no item, and has not objected since (Status, 2026-09-28) — *was:* ⏳ **Owner** | §3. **Alpha minimum.** Recommended: `v0.2.0-alpha.1`, then `alpha.2`, `alpha.3` for each deploy; no renames, as ADR-0040 already decided. Two other names each have a trap (§1). |
 | T1 A changelog section a reader can use | ✅ **Merged** as #1766 on 2026-11-01 (`479f9230`; *was:* 🔨 built as draft #1766 on branch `claude/ownpace-public-readiness-y7orc6-release-record-0146`, not merged, 2026-10-31): the *since rc.1* part at the top of `[Unreleased]`, which the fold makes alpha.4's section, its verdicts read from `SOURCE_PROOFS` on 2026-10-31 (Status, 2026-10-31, later) — *was:* 📋 **Proposed** (D1, D6) | §3. After the first invitation, unless it is ready before the tag. Grouped by what a tester notices, with the experimental sources marked, and the stale lines corrected. |
-| T2 The version bumped, the tag cut, and the build named where it is needed | ✅ Steps 4 to 6's **Release workflow done** in #1682, merged 2026-10-23 (`54e4c3d2`), and proven on `main` the same day by Release runs 1 to 6 (Status, 2026-10-23); `v0.2.0-alpha.2`'s tag ✅ cut 2026-10-27 on the fold, `f62bcbe2` (#1706); `v0.2.0-alpha.3`'s ✅ cut 2026-10-30 on `e1b21aac` by Release run 41066208430 (#16), the counted nights waived by the owner for that version alone (#1741), and published with `bom.json` and the Windows zip (Status, 2026-10-31); `v0.2.0-alpha.4`'s first preflight, Release run 41300769431 (#17) on `82d0c945`, 2026-11-01, refused 8 checks, each one the fold, C's CI (then queued) or the nights answer, and passed both upgrade gates from alpha.3 (Status, 2026-11-01, later). The preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates (the managed chain's is T4's, #1681); the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05) — *was:* steps 4 to 6 🔨 through the Release workflow on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
+| T2 The version bumped, the tag cut, and the build named where it is needed | ✅ Steps 4 to 6's **Release workflow done** in #1682, merged 2026-10-23 (`54e4c3d2`), and proven on `main` the same day by Release runs 1 to 6 (Status, 2026-10-23); `v0.2.0-alpha.2`'s tag ✅ cut 2026-10-27 on the fold, `f62bcbe2` (#1706); `v0.2.0-alpha.3`'s ✅ cut 2026-10-30 on `e1b21aac` by Release run 41066208430 (#16), the counted nights waived by the owner for that version alone (#1741), and published with `bom.json` and the Windows zip (Status, 2026-10-31); `v0.2.0-alpha.4`'s first preflight, Release run 41300769431 (#17) on `82d0c945`, 2026-11-01, refused 8 checks, each one the fold, C's CI (then queued) or the nights answer, and passed both upgrade gates from alpha.3 (Status, 2026-11-01, later). The preflight reads the fold, CI and the scan on C, the nights and both chains' upgrade gates (the managed chain's is T4's, #1681); the tag and the publishing are the workflow's after the owner's approval (Status, 2026-10-23); Step 1 ✅ **done** in #1305, merged 2026-09-28 (`0c1a8d8c`): the root version `0.2.0-alpha.1`, `CHANGELOG.md`'s `[0.2.0-alpha.1] - 2026-09-29` with T2's floor, the issue template's Build example, `release.md`'s count of six, and (reviews, 2026-09-28) `openapi.yaml`'s `info.version` held to the root version by guard block (d) and named in `release.md`, the Build field sending managed and Docker testers to the sidebar and Windows testers to the log line, and the stamp held at the bottom of the sidebar in both editions. Steps 2 and 3 ✅ **done** in #1274, merged 2026-09-28 (`1353f062`): the build line in the problem report, `scripts/release-names-agree.mjs` in the three publishing workflows, and both guards. Steps 4 to 6 📋 the owner's: the drill from rc.1, the commit by the two-green-scheduled-nights rule (0141 T14), and the tag and its push; `v0.2.0-alpha.1` is tagged, 2026-10-06 (on `90a23e9b`), and `v0.2.0-alpha.2` is the version since #1558 (merged 2026-10-11) but not yet tagged (both read from the remote 2026-10-16); 📋 **Decided 2026-10-05**, *"Two tags"*: `v0.2.0-alpha.1` once the pull requests in flight merge, to stand live up and rehearse, then `v0.2.0-alpha.2` with the final texts, its own freeze, two nights and deploy, before the first invitation (Status, 2026-10-05); 📋 **Answered 2026-11-08**, *"Tag with first invitation is 7 or even later. I did not decide yet"*: the first invitation waits for `v0.2.0-alpha.7` or a later tag, not alpha.6, and alpha.7 is planned with its two counted nights run (Status, 2026-11-08) — *was:* steps 4 to 6 🔨 through the Release workflow on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); step 1 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-named-v0-2-0-alpha-1`, not merged (2026-09-28); steps 1 and 4 to 6 📋 waiting for T0 (the name) and the owner (2026-09-28); 🔨 steps 2 and 3 built on branch `claude/ownpace-public-readiness-y7orc6-a-release-that-names-itself`, not merged (2026-09-28); 📋 **Proposed** (D1, D5) | §3. **Alpha minimum.** `docs/release.md`'s procedure, a check that the tag, `package.json` and the changelog agree before anything publishes, and a build line in every problem report. |
 | T3 Pre-release ends at the alpha tag, and the repository holds to it | ✅ **Merged** as #1766 on 2026-11-01 (`479f9230`; *was:* 🔨 built as draft #1766 on branch `claude/ownpace-public-readiness-y7orc6-release-record-0146`, not merged, 2026-10-31): `release-line.json` (`v0.2.0-alpha.1`), the script's refusal, ADR-0045 amended, the runner's message, the README, and `a-chain-that-only-grows`, with byte equality against the newest release that shipped each file (Status, 2026-10-31, later) — *was:* 📋 **Proposed** (D3) | §3. After the tag exists. The squash script refuses; no migration a release shipped may change; ADR-0045, the runner's message and the README say so. |
 | T4 Upgrades rehearsed from rc.1 and from the alpha tag, on both chains | The managed chain's upgrade proof from the alpha tag ✅ **done** in #1681, merged 2026-10-23 (`b357add8`): `packages/managed/src/migrate-upgrade.unit.test.ts`, from `UPGRADE_FROM_REF` or `v0.2.0-alpha.1`, both chains, with the shared gate's allow-list held to releases before the split (Status, 2026-10-23); the unit legs from both starting points, the Postgres leg and `every-release-is-a-starting-point` ✅ **merged** as #1766 on 2026-11-01 (`479f9230`; *was:* 🔨 built as draft #1766, not merged, 2026-10-31); the container drill from the alpha tag stays the next release's (`release.md`) — *was:* the rest 📋 **Proposed** (D3); 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-managed-upgrade-test`, not merged (2026-10-23) | §3. The container drill from rc.1 runs in T2. The rest follows the tag: both unit gates start from both tags, the managed chain included, on Postgres as well as PGlite. |
 | T5 `ownpace-live` runs only a release tag | (a) ✅ **done** in #1277, merged 2026-09-28 (`2cfe7cd6`), in 0132 T6's `deploy-live.sh`, first run on live 2026-10-27/28 for `v0.2.0-alpha.2` (0132 Status, 2026-10-29), and on 2026-10-30 for `v0.2.0-alpha.3`, which live runs from its tag since, deployed in the two runs T13 needs, the second saying *the deploy took* at 23:44:35 UTC (0132 Status, 2026-10-31): the release rule, `/api/version`'s version, one-way or reversible, and the guard's four cases. `--external-id` is deferred (open question 6) — *was:* (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-deploy-from-a-named-tag`, not merged (2026-09-28); 📋 **Proposed** (D2, D3, D4) | §3. **Alpha minimum.** 0132 T6's procedure and script, with the tag always a release whose name, version and commit agree. The deploy says before the hold lifts whether it can be undone. |
@@ -3652,7 +3672,7 @@ ci states. The OTA address. It's all controlled by me and invite only."* ("ci st
 read as "test"). Later the same day, as 0131 D3 records, the owner asked: *"check, can't i just (as
 a start) host a 'ownpace-live' as production, next to the current 'ownpace-managed' on OTA-domain?
 What would i need to do to keep alle seperate from each other?"* The proposal back was to make it
-so. The answer: *"Yes! The spark has a lot free memory and disk, it will fit."*
+so. The answer: *"Yes! [The machine] has a lot free memory and disk, it will fit."*
 
 So testers use `ownpace-live`, on the same machine as the OTA stack `ownpace-managed`, at the
 production names (0131 D3, 0132 D7). The OTA stack stays the nightly gate's target and follows
@@ -4263,6 +4283,11 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
 
 *2026-10-05: two tags (Status, 2026-10-05). For this row, "the alpha tag" is `v0.2.0-alpha.2`,
 which carries the final texts. `v0.2.0-alpha.1` comes first, to stand live up and rehearse.*
+
+*2026-11-08: the owner, *"Tag with first invitation is 7 or even later. I did not decide yet"*
+(Status, 2026-11-08). For this row, "the alpha tag" is `v0.2.0-alpha.7` or a later one, not
+alpha.6, which live runs since that morning; alpha.7 is planned with its two counted nights run,
+not waived.*
 
 **Also before the first invitation, but carried elsewhere:** the identity provider's release watch
 and response window (0135 T7).

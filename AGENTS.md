@@ -121,7 +121,7 @@ operative bullets points into it; never bulk-read `docs/adr/`, and never `docs/a
 
 ## Safety notes
 - The test O365 source is a **real SMB tenant**: read-only, least-privilege, never write back.
-- The Spark arm64 runner has docker socket + root: trusted workflows only; build multi-arch (amd64+arm64) images.
+- The arm64 self-hosted runner has docker socket + root: trusted workflows only; build multi-arch (amd64+arm64) images.
 - **Running as an agent inside its own container (Docker-outside-of-Docker, e.g. OpenHands with a
   mounted `docker.sock`)?** Containers you start are siblings on the *host's* daemon, not nested —
   `localhost` inside your container is not the host's `localhost`. See

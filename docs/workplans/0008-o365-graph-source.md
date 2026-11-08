@@ -119,7 +119,7 @@ principle — log, don't duplicate); secret-gated pull of a small real folder is
 Populate `test/e2e/` with a real-tenant scenario: mail+calendar+contacts shadow pass → sleep
 past token expiry → second pass (proves refresh) → idempotency assertion (0 creates), plus the
 24 h soak variant behind a `workflow_dispatch` input. New `e2e-o365.yml` workflow: manual only,
-secrets from repo/environment secrets, runs on the Spark, **read-only source enforced** (assert
+secrets from repo/environment secrets, runs on the machine, **read-only source enforced** (assert
 no write-scope in the token's `scp`/`roles` claim before starting).
 **Acceptance:** documented green run linked in this Status block (timestamps showing >1 token
 lifetime); workflow refuses to run if the token carries write scopes.

@@ -22,6 +22,15 @@
 # organisation, without following a redirect, and fails unless it answers 404
 # (workplan 0135 T1): the smoke asks that page on the OTA instance every night,
 # and never runs on live.
+# And it reads the headers of https://app.ownpace.eu/ as a tester's browser
+# gets them, through NetBird's proxy and over TLS, and fails unless the policy,
+# HSTS and the three beside them arrive once each as apps/web/nginx.conf.template
+# states them, at the commit live's own /version.json names (workplan 0158 T4).
+# That template is read from this checkout's git, fetched by its id from this
+# repository when the depth-1 checkout of main does not have it.
+# The OTA names answer on the mesh only once testers are on the production
+# names (0132 open question 7, answered 2026-11-08); until the owner's step that
+# takes them off the internet, ota_names stays report, then it is mesh-only.
 # scripts/exposure-probe.mjs says how, and scripts/exposure-probe-ports.mjs
 # derives the port list from managed.yml, www.yml and setup-managed-demo.sh:
 # no port is written in this file.
@@ -65,9 +74,11 @@ on:
     inputs:
       ota_names:
         description: >-
-          What the OTA names (app.ota., id.ota., www.ota.ownpace.eu) should do on 443, open
-          question 7: report records what answered and fails on none of it; internet requires
-          each to answer over TLS; mesh-only requires none to answer.
+          What the OTA names (app.ota., id.ota., www.ota.ownpace.eu) should do on 443. Open
+          question 7 is answered (2026-11-08): on the mesh only, from the owner's step that takes
+          them off the internet. mesh-only requires none to answer, and is the input from that
+          step on; report, until then, records what answered and fails on none of it; internet
+          requires each to answer over TLS, as they do before the step.
         type: choice
         options:
           - report

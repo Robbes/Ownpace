@@ -50,8 +50,13 @@ import { compareRevision, revisionSnapshotOf, type RevisionSnapshot, isCredentia
 // data by accident.
 import {
   DECISION_EFFECTS,
+  QUEUE_EFFECTS,
   decisionEffectFields,
   decisionResolvedEffect,
+  deletionRemovedEffect,
+  failureEffect,
+  failureGroupEffect,
+  oldCopyRemovedEffect,
   MAPPING_LIFECYCLES,
   PASS_RUNNING_STATES,
   REPORTING_CLOSED,
@@ -3124,13 +3129,13 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
         log.info(
           `[selfhost] ${m.config.mappingId}: operator chose 'keep' for vanished item ${hash.slice(0, 12)}`,
         );
+        // The same pair as managed: English as `effect`, Dutch as `effectNl`,
+        // from the shared words (0159 §6 item 18).
         return sendJson(res, 200, {
           status: 'ok',
           action: 'keep',
           naturalKeyHash: hash,
-          effect:
-            "Acknowledged. The target keeps its copy and this stops being reported unless the " +
-            'item reappears on the source and vanishes again.',
+          ...decisionEffectFields(QUEUE_EFFECTS.deletionKept),
         });
       }
       // THE ONE DESTRUCTIVE ROUTE IN THIS API. Everything above it in this file
@@ -3191,12 +3196,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           action: 'apply',
           naturalKeyHash: hash,
           kind: outcome.kind,
-          effect:
-            outcome.kind === 'binned'
-              ? "Removed from the target. The target's own bin still has it for whatever " +
-                'retention window that server keeps — this tool cannot restore it, but the ' +
-                'server might still be able to.'
-              : 'Removed from the target with no recovery path from here.',
+          ...decisionEffectFields(deletionRemovedEffect(outcome.kind)),
         });
       }
       // THE SECOND DESTRUCTIVE ROUTE (ADR-0030). It removes the target's OLD
@@ -3253,14 +3253,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           action: 'apply',
           naturalKeyHash: hash,
           kind: outcome.kind,
-          effect:
-            'The old copy has been removed from the target. The file itself is still there, ' +
-            'under the name and folder the source moved it to — that copy was made before ' +
-            'this removal and was checked again just now.' +
-            (outcome.kind === 'binned'
-              ? " The target's own bin still holds the old copy for whatever retention window " +
-                'that server keeps.'
-              : ''),
+          ...decisionEffectFields(oldCopyRemovedEffect(outcome.kind)),
         });
       }
       const moveMatch =
@@ -3295,9 +3288,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           status: 'ok',
           action: 'keep',
           naturalKeyHash: hash,
-          effect:
-            'Acknowledged. Nothing changed on the source or the target; this move stops being ' +
-            'reported unless the item moves somewhere else again.',
+          ...decisionEffectFields(QUEUE_EFFECTS.moveKept),
         });
       }
       /**
@@ -3397,15 +3388,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           action,
           matched,
           match,
-          effect:
-            matched === 0
-              ? 'Nothing matched, so nothing changed. Check the domain and the wording — the ' +
-                'substring is matched literally, not as a pattern.'
-              : action === 'retry'
-                ? `Attempts reset on ${matched} item(s) and cursors cleared; the next ` +
-                  'scheduled pass will try them again.'
-                : `Left behind for good: ${matched} item(s) will not be retried, and are ` +
-                  'excluded from the verification gate.',
+          ...decisionEffectFields(failureGroupEffect(action, matched)),
         };
         return sendJson(res, 200, answer);
       }
@@ -3450,10 +3433,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           status: 'ok',
           action,
           naturalKeyHash: hash,
-          effect:
-            action === 'retry'
-              ? 'Attempts reset and cursors cleared; the next scheduled pass will try again.'
-              : 'Left behind for good: no further retries, and excluded from the verification gate.',
+          ...decisionEffectFields(failureEffect(action)),
         });
       }
       // Run history for one mapping (workplan 0026 T3 row 23 -- the runs

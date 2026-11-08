@@ -48,7 +48,7 @@ import { fileURLToPath } from 'node:url';
  * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
  * the suite was measured leaking 322MB per run after quietly accumulating
  * 29GB and filling the disk of the box running it. `unit-tests` runs on the
- * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * SELF-HOSTED runner for pushes to main — the same machine the managed stack
  * needs ~15GB free on.
  *
  * Registered rather than removed at each call site, so a new test here cannot
@@ -326,7 +326,7 @@ describe('the managed chain adopts a database that predates the split', () => {
   //   Seed failed: Migration 0001_the_managed_service.sql failed:
   //     relation "invoice" already exists
   //
-  // The Spark's database was built by the OLD shared baseline, which created
+  // The machine's database was built by the OLD shared baseline, which created
   // these four tables. The managed chain's bookkeeping table is empty there —
   // it is a new chain — so its first run tried to create them again.
   //
@@ -388,7 +388,7 @@ describe('the managed chain adopts a database that predates the split', () => {
       conn.release();
     }
 
-    // 5. And the managed chain, which is the thing that failed on the Spark.
+    // 5. And the managed chain, which is the thing that failed on the machine.
     await runManagedMigrations({ driver, logger: () => {} });
   }, 180_000);
 

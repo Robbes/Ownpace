@@ -55,7 +55,7 @@
 # `directory index of "/usr/share/nginx/html/" is forbidden` on every request —
 # a 403 that reads like a permissions problem and is not one. This header
 # claimed "no restart is needed" while the build did exactly that, and cost an
-# evening on the Spark (2026-08-24). If anything ever does replace the
+# evening on the machine (2026-08-24). If anything ever does replace the
 # directory, `up -d --force-recreate` re-resolves the mount.
 #
 # A stale dist also serves silently: check the build stamp in the page source

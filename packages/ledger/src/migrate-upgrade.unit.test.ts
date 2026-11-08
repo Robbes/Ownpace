@@ -48,7 +48,7 @@
  *
  * NO DOCKER, NO REGISTRY, NO RUNNER. The released schema is in git, so this
  * runs in the unit project and gates every PR — unlike the container-level
- * upgrade drill, which needs the published image and the Spark runner.
+ * upgrade drill, which needs the published image and the self-hosted runner.
  *
  * FROM WHICH RELEASES (workplan 0146 T4). Every leg above runs once per
  * starting point `scripts/release-line.json` names: this chain's oldest
@@ -77,7 +77,7 @@ import { readReleaseLine, rootVersion, startingPoints } from './__tests__/releas
  * leaks for the lifetime of the machine, a PGlite data directory is 41MB, and
  * the suite was measured leaking 322MB per run after quietly accumulating
  * 29GB and filling the disk of the box running it. `unit-tests` runs on the
- * SELF-HOSTED runner for pushes to main — the same Spark the managed stack
+ * SELF-HOSTED runner for pushes to main — the same machine the managed stack
  * needs ~15GB free on.
  *
  * Registered rather than removed at each call site, so a new test here cannot

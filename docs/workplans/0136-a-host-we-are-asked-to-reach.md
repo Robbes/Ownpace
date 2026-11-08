@@ -2,7 +2,14 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-11-02 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, records: open question 1 settled by the build.** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`). It asked
+the owner to accept §4's advice, T1 and T3 before the first invitation, or to accept the risk in
+writing instead. No answer is recorded, and none is needed now: T1 and T3 are merged (their rows),
+the last part on 2026-10-21 (#1645), before any tester, so every tag since `v0.2.0-alpha.2` carries
+both. The question says so; T4 and T7 stay after (§4).
 
 **2026-11-02, records: T4's first bullet merged as #1784.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`. Read from GitHub on 2026-11-02;
@@ -1051,7 +1058,7 @@ cannot work on managed at all (open question 3).
 owner asked: *"check, can't i just (as a start) host a 'ownpace-live' as production, next to the
 current 'ownpace-managed' on OTA-domain? What would i need to do to keep alle seperate from each
 other?"* The proposal back was to make that 0132's decision, with testers on `ownpace-live`. The
-owner's answer: *"Yes! The spark has a lot free memory and disk, it will fit."* So testers use
+owner's answer: *"Yes! [The machine] has a lot free memory and disk, it will fit."* So testers use
 live, on the production names, and the OTA stack stays the nightly gate's target and the demo.
 0132 records that the separation is by names on one Docker daemon, not a boundary, and accepts
 it for a hand-picked alpha. For this plan, "keep all separate" has one gap a typed host can use:
@@ -1445,7 +1452,9 @@ edge does not see that traffic.
 ## Open questions
 
 1. **Accept the advice?** T1 and T3 before the first invitation, and the rest after (§4). Or the
-   written acceptance in its place.
+   written acceptance in its place. *Settled by the build, marked 2026-11-08, with no answer
+   recorded: T1 and T3 are merged, before any invitation, so no written acceptance stands in
+   their place. T4 and T7 stay after (§4).*
 2. **The allowlist's name and shape.** `OWNPACE_REACHABLE_HOSTS` with exact names only (T2). Is
    there any real target during the alpha that sits on a private address and must be admitted?
    The answer here assumes none.

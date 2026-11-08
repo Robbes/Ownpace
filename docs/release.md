@@ -44,9 +44,13 @@ one line per check, `pass` or `refuse`, every reason at once):
   version's section is dated no more than seven days before the run and no
   later than the day after.
 - **`main` is green for C:** C's own push run of CI on `main` ran and passed
-  `lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (self-hosted)` and
-  `ci-complete`, none skipped (a docs-only merge skips the suite and still
-  reports success), and C's push run of Security Scan is green.
+  `lint`, `unit-tests (all)`, `ui-tests`, the push's one arm64 integration leg
+  and `ci-complete`, none skipped (a docs-only merge skips the suite and still
+  reports success), and C's push run of Security Scan is green. The leg is
+  named after its runner: `integration-tests (ubuntu-24.04-arm)` while CI's
+  push jobs run on GitHub's runner during the alpha, `integration-tests
+  (self-hosted)` once the repository variable `CI_PUSH_ON_SELF_HOSTED` turns
+  them back (`ci.yml`'s header; workplan 0132, open question 1).
 - **C's payload ran on Windows** (since 2026-11-02): the newest dispatched run
   of `windows-payload.yml` on C is green and its `smoke` job passed, which
   starts the win-x64 payload on a hosted `windows-2025` runner (Phases 1 and 2
@@ -120,7 +124,7 @@ one line per check, `pass` or `refuse`, every reason at once):
       green. The preflight refuses C without it. Nobody needs a Windows
       machine for it: the owner's by-hand check of the zip on Windows 11 ended
       on 2026-11-02 ("I wont do windows...").
-- [ ] `scripts/upgrade-drill.sh` on a Docker host (the Spark box): previous
+- [ ] `scripts/upgrade-drill.sh` on a Docker host (the box): previous
       release image, real volumes, swap to HEAD in place, healthy after a
       further restart. The drill says when it is vacuous (tag == HEAD, or the
       chain has no new migration) — a vacuous pass does not count, and the

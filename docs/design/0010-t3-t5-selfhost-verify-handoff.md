@@ -37,7 +37,7 @@ you have `deploy/selfhost/` + the appliance image + the T1/T2 entrypoint).
 ## Part 1 — T3 live verification (make the bundle real)
 1. **Build both arches.** `docker buildx build --platform linux/amd64,linux/arm64
    -f apps/selfhost/Dockerfile .` — resolve any build breakage. Verify native
-   arm64 on the Spark runner. The `pnpm --filter … exec tsx` CMD must actually
+   arm64 on the self-hosted runner. The `pnpm --filter … exec tsx` CMD must actually
    launch `start()` (the entrypoint's `import.meta.url === argv[1]` CLI guard
    must fire under that invocation — confirm it does, adjust the CMD if not).
 2. **Compose up, clean host.** `cp deploy/selfhost/selfhost.env.example
@@ -65,7 +65,7 @@ A **black-box** e2e against the running compose stack (new `*.e2e.test.ts`; the
 4. Run a **second pass**. Assert: **`created = 0` (zero duplicates), cursor
    advanced, target state byte-identical** to after pass 1. This is the property
    that must hold; a non-zero second-pass create count is a failure, not a flake.
-5. Wire it into `.github/workflows/e2e.yml` (the manual, self-hosted Spark
+5. Wire it into `.github/workflows/e2e.yml` (the manual, self-hosted
    workflow — do **not** add it to the automated CI chain; it needs Docker +
    Stalwart). Follow the existing pattern (fresh volumes via `down -v`, attach
    runner to the compose network, `pnpm test:e2e`).
@@ -86,4 +86,4 @@ A **black-box** e2e against the running compose stack (new `*.e2e.test.ts`; the
 
 ## Gates before PR
 `pnpm lint && pnpm typecheck && pnpm test && pnpm test:integration` green, plus
-the new e2e green on the Spark runner (evidence pasted into the workplan).
+the new e2e green on the self-hosted runner (evidence pasted into the workplan).

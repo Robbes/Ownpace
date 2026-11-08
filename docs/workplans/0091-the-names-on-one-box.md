@@ -16,7 +16,7 @@ confirmed. T1, T3 and T4 are unchanged: T1 waits on the rename itself, T3 on T1,
 | T2 `www` — the site | ✅ **Done 2026-08-20** | `site/build.mjs` generates 10 pages — landing, how-it-works, pricing, privacy, terms — in **EN and NL** (ADR-0013), into `site/dist/`, with no workspace import and no npm dependency. Served by `deploy/compose/www.yml`. 6 guards in `site/site.unit.test.ts`, one of which caught a wrong price on its first run. |
 | T3 `ota` — the stack that already exists, under its own name | 📋 Planned (needs T1) — the identity provider's own name (`id.ota.…`) is worked through in `managed.env.example` since 0099 | Nothing to build; the stack runs. What changes is the address it believes it has. |
 | T4 `app` stays dark until it means production | 📋 Planned (owner decision) | The wildcard already resolves it *to the test box*, so the URI registered as production points at development. |
-| T5 What cannot work on the spark, said rather than discovered | ✅ **Stated 2026-09-05** | A section in `docs/managed-bring-up.md` (*What cannot work on a mesh-only host*): Mollie's webhooks need a public `API_URL` — the API's own production refusal is named beside it; Google's verification fetch reads the policy and home page from the public internet, and the redirect URI is the one exception because Google 302s the browser rather than resolving the host; and the rule for everything else. Said as what a mesh is for, not as a defect. |
+| T5 What cannot work on the machine, said rather than discovered | ✅ **Stated 2026-09-05** | A section in `docs/managed-bring-up.md` (*What cannot work on a mesh-only host*): Mollie's webhooks need a public `API_URL` — the API's own production refusal is named beside it; Google's verification fetch reads the policy and home page from the public internet, and the redirect URI is the one exception because Google 302s the browser rather than resolving the host; and the rule for everything else. Said as what a mesh is for, not as a defect. |
 
 ## Why this exists
 
@@ -178,15 +178,15 @@ against the real machinery — which is what makes T4's recommendation cheap to 
 ## T4 — `app` stays dark until it means production
 
 **The nesting largely solves this, and that is the strongest argument for it.** Under the flat
-scheme `*.ownpace.eu` resolved **every** name to the spark, `app.` included — so the URI
+scheme `*.ownpace.eu` resolved **every** name to the machine, `app.` included — so the URI
 registered as production pointed at the development box. With the environment as a domain level,
 the test names live under `ota.` and production names do not.
 
 **But only if the wildcard is scoped down with them.** A `*.ownpace.eu` record still pointing at
-the spark keeps `app.ownpace.eu` resolving there, and the hazard survives the rename untouched.
+the machine keeps `app.ownpace.eu` resolving there, and the hazard survives the rename untouched.
 The recommendation is therefore concrete:
 
-- **`*.ota.ownpace.eu` → the spark.** One wildcard, the whole test environment, and it cannot
+- **`*.ota.ownpace.eu` → the machine.** One wildcard, the whole test environment, and it cannot
   accidentally answer for a production name.
 - **`www.ownpace.eu` and `app.ownpace.eu` get explicit records**, pointed at production hosting
   when it exists — and until then, pointed at nothing.
@@ -221,7 +221,7 @@ development. That is the whole reason, and it is sufficient.
    what `set-task-env.sh` uploads, which is why the second env file is the load-bearing part.
 2. **Compute is shared.** One supervisor, one runner pool. A runaway test job competes with
    production for capacity; per-environment concurrency limits shape that but the machine
-   underneath is one machine. Acceptable on the spark, not acceptable once `app.` is real.
+   underneath is one machine. Acceptable on the machine, not acceptable once `app.` is real.
 3. **The version pin is instance-wide.** `TRIGGER_IMAGE_TAG=v4.5.9` carries a scar — 4.5.11
    broke the reference deployment within an hour, against ~27,500 successful runs on 4.5.9 — so
    the pin is deliberate. One instance means **you cannot canary a Trigger upgrade in staging
@@ -229,7 +229,7 @@ development. That is the whole reason, and it is sufficient.
    argument for separate instances *later*, and it costs nothing now.
 
 The trigger for changing this is written down rather than left to judgement: **`app.` gets
-served when `app.` stops meaning spark** — pointed explicitly at production hosting ahead of the
+served when `app.` stops meaning the box** — pointed explicitly at production hosting ahead of the
 wildcard, and, per [ADR-0041](../adr/0041-who-owns-the-oauth-client.md), on a **different OAuth
 client** from the one `ota.` uses, so that a leaked development secret is not a production
 incident.
@@ -252,5 +252,5 @@ incident.
 - **Routing, TLS and certificates.** Netbird's, and the owner's.
 - The marketing site's content and layout (0086 T1).
 - Filling the legal documents' placeholders — an owner task, listed in `site/legal/README.md`.
-- Moving anything off the spark. This plan is explicitly *for now, on the spark*; T4 exists so
+- Moving anything off the machine. This plan is explicitly *for now, on the machine*; T4 exists so
   that "for now" does not quietly become permanent for the one name where it must not.

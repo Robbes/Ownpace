@@ -68,7 +68,7 @@ set -euo pipefail
 #     running container (e.g. you changed .env after `docker compose up` without
 #     recreating nextcloud). Getting this wrong doesn't error at bring-up: it makes every
 #     account-provisioning request 401, which then trips Nextcloud's brute-force guard
-#     into 429s on top (confirmed live on the Spark box, 2026-07-25 -- managed.env.example
+#     into 429s on top (confirmed live on the box, 2026-07-25 -- managed.env.example
 #     ships NEXTCLOUD_ADMIN_PASSWORD=change-me-nextcloud-admin, NOT this script's old
 #     hardcoded admin_managed_pw fallback, and the manual .env setup walkthrough never
 #     overrides it).
@@ -94,7 +94,7 @@ fi
 # (workplan 0132 T1) -- verify with `docker compose -f managed.yml config`. Getting this
 # wrong doesn't error: it just makes setup-stalwart.sh silently create and join an ISOLATED network of its own, leaving
 # Stalwart unreachable from api/worker with no obvious symptom until a sync actually tries to
-# connect (confirmed live on the Spark box, 2026-07-25, while chasing an unrelated Postgres bug).
+# connect (confirmed live on the box, 2026-07-25, while chasing an unrelated Postgres bug).
 COMPOSE_PROJECT="$(compose_project "${SCRIPT_DIR}")"
 MANAGED_NETWORK="${MANAGED_NETWORK:-${COMPOSE_PROJECT}_ownpace-network}"
 NEXTCLOUD_CONTAINER="${NEXTCLOUD_CONTAINER:-${COMPOSE_PROJECT}-nextcloud}"

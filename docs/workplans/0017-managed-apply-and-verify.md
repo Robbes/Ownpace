@@ -17,7 +17,7 @@
 ## Post-merge validation — closure (2026-08-01)
 
 The "designed 502" caveat below is CLOSED: with 0018's execution plane
-deployed (arm64 image, deploy 20260801.4), the live Spark smoke ran
+deployed (arm64 image, deploy 20260801.4), the live smoke on the machine ran
 `POST /verify/start` → 202 → **`done` in 1.7 s** with the real per-domain
 report (mail PASS, 3/3 matched, 3/3 checksums clean, 0 missing on target) —
 route → queue → supervisor → runner → job → row → poller, end to end. The
@@ -35,7 +35,7 @@ state.
   logs show `[migrate] applying 0001…0004` → `applied 4 migration(s); now at
   0004_managed_apply.sql`, and the restart gate later reports `schema up to
   date`. Migrations 0002–0004 had never run in a real container before this.
-- **Live managed smoke (Spark, 2026-07-31).** Fresh stack (volume reset per the
+- **Live managed smoke (the machine, 2026-07-31).** Fresh stack (volume reset per the
   migrator's own remedy — the old volume was pre-squash), migrations 0001–0004
   on a real managed database, both seeded mappings showing
   `allow_apply_deletions` FALSE by default. `POST /verify/start` over real auth

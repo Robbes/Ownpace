@@ -273,7 +273,7 @@ on this path answers 404 — pinned where it was found.
 | Family | Why not |
 |---|---|
 | `/api/access-requests` | granting one sends a real email to a real address; `access-requests.integration.test.ts` does not |
-| `/api/scope-manifest` | a static description of provider scopes — nothing about it can be true on a laptop and false on the Spark |
+| `/api/scope-manifest` | a static description of provider scopes — nothing about it can be true on a laptop and false on the machine |
 | `/api/setup` | the first-run path; a stack this gate can talk to is past it by definition |
 | `/api/connections` | every connection the gate uses is written by the demo seed, encrypted with the stack's key. Exercising the route means writing credentials from a script (hard rule 3) |
 | `/api/decisions` | needs a drift decision to exist, which needs a source that produced one; manufacturing it tests the fixture |
@@ -296,10 +296,10 @@ and a reason that outlives its route fails too.
 `pnpm lint` clean · `pnpm typecheck` clean (all four projects) · `pnpm test`
 320 files, 3580 tests, all passing (2026-08-23).
 
-**The new phases are proved against stubs, not against the Spark** — this
+**The new phases are proved against stubs, not against the machine** — this
 environment has no Docker daemon. Both were run with `http` and `q` answering
 from a table: every report green on a healthy-but-degraded stack (which is what
-the Spark is today), and failing on a 500, on a 200 with the key missing, on an
+the machine is today), and failing on a 500, on a 200 with the key missing, on an
 error page the size of a real report, on a 400, and on a database reporting
 `down`. Offboarding was run the same way: clean close-and-reopen passes; a 200
 with no closure row, a window that ends before it starts, a reopen that leaves

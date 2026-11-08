@@ -2,7 +2,64 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-07 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, records: the deploy CLI's minimatch, read; six stale notes dated.** Docs and one
+comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844
+(`200185fd`).
+- **GHSA-g3hv-75wg-m249 on `trigger.dev>minimatch`** (CVE-2026-118764, moderate, CVSS 4.0 6.9),
+  Dependabot alert #10 on `main`, the one path kept on minimatch 10.2.6 on purpose. The advisory
+  (https://github.com/advisories/GHSA-g3hv-75wg-m249, read 2026-11-08) puts the amplification in
+  `firstPhasePreProcess()`, *"when optimizationLevel >= 2"*. Read in the installed packages:
+  minimatch 10.2.6's `dist/esm/index.js` calls it only under `if (optimizationLevel >= 2)`, the
+  option's default being 1 (lines 332 to 335), and trigger.dev 4.8.3's one call into minimatch is
+  `makeRe(externalName)`, with no options (`dist/esm/build/externals.js`, line 311). So the code
+  the advisory names does not run on this path. `pnpm-workspace.yaml`'s comment above the entry
+  says so; it is a comment only, and `pnpm install --frozen-lockfile --prefer-offline` leaves
+  `pnpm-lock.yaml` byte-identical (sha256 `af712c4b…` before and after).
+- **The alert,** dismissed by the owner on 2026-11-08 at about 02:10 UTC, with GitHub's reason
+  *"Vulnerable code is not actually used"*, and a comment that gives the same two code facts and
+  the override's end.
+- **What reopens it:** a trigger.dev release that takes minimatch 11 (then the override goes, as
+  its comment says), or a trigger.dev change that passes `optimizationLevel` 2 or more.
+- **Stale, noted with their dates:** §3 items 12 and 13 still said *not merged*: #1819 and #1824
+  merged on 2026-11-06 and shipped in alpha.5. Four bullets of §4, *Not done, honestly*: the
+  second Nextcloud major's 34.0.6, ClickHouse's 26.2, the `${TRIGGER_IMAGE_TAG:-v4.5.12}` lines
+  and *Monday's group*.
+
+**2026-11-08: libsystemd0 and libudev1 out of Redis and the webapp, built for alpha.7, merged as
+#1846 (`422f049c`) (§3 item 11); apt out of ClickHouse is later.** Answered 2026-11-08, the owner:
+*"Build the recommended for alpha 7."* On branch
+`claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`, from `main` at `b832d027`. Both purge
+RUNs take the two, thirteen packages in one `dpkg --purge` with the same two flags and no other
+force. Only apt, bsdutils, libapt-pkg6.0 and util-linux depended on either, all four in the eleven
+(the dpkg status of Redis's image and of the webapp's Node base, read by layer digest on both
+platforms; dpkg's own refusal in CI read the rest). After the purge, a new check fails the build if
+a file of a removed library is left, or if any ELF file needs one (DT_NEEDED). The names move to
+`localhost/redis:7.4.12-bookworm-d5301e0623d4` and `localhost/trigger.dev:v4.8.3-42a2fcc298b0`;
+user, entrypoint, command and healthcheck are as they were. On the branch at `d8c4bd59`: `build
+(redis, …)` and `build (trigger, …)` green on both platforms, the check finding nothing in either
+image; Security Scan run 42440765278 read Redis at 1/8/0 and the webapp at 1/22/14, from 1/10/0 and
+1/24/14. Owed before a merge, and paid: E2E (managed) on the branch, run 42443538787 on `80948402`,
+green from 03:38 to 03:46 UTC. ClickHouse's apt waits: building ClickHouse here is not for alpha.7
+(§3 item 11, the entry of 2026-11-08).
+**2026-11-08, recorded: live runs alpha.6's pins.** The owner deployed `v0.2.0-alpha.6` (tagged
+2026-11-07 on `59b91458`) to live on 2026-11-08, from alpha.4 in one run of alpha.4's script, which
+took at 00:32:28 UTC (0132's Status, 2026-11-08, has the deploy). Before it, every image the run
+needed was already on the shared daemon, the OTA stack's E2E having built and pulled them, so block
+4 built none. After it, read on live: `zitadel` on v4.20.1 (#1829); `trigger-redis` on
+`localhost/redis:7.4.12-bookworm-63d89fa5f426` (#1835), as `999:999` with no capability added and
+`apt`, `apt-get`, `mount`, `setpriv` and `mke2fs` absent; `trigger-api` on
+`localhost/trigger.dev:v4.8.3-a4bb254ab965` (#1823, #1825), the same five absent from it;
+`trigger-supervisor` on `localhost/supervisor:v4.8.3-9fa6db37008b`; `trigger-tls` on Caddy 2.11.9
+(#1828); MinIO and `minio-init` on `aea6c163…` (#1826); no container unhealthy, starting or
+restarting, and none on an image alpha.6 replaced. The task deployment's row
+`current|20261108.1|DEPLOYED|4.8.3|4.8.3|26.12.1|2026-11-08 00:31`, its runners on the prebuilt base
+(#1824; Node v26.13.0, no shell), and the tick `COMPLETED_SUCCESSFULLY` on 4.8.3. The deploy's
+comparison read only the identity provider's pin as moved, and called the deploy one-way. The copy
+before this update is kept on live until a pass proves it (0132 T9). Still to move, in pull requests
+of their own: Trivy 0.76.2 and Atlas 1.3.8 (CI only), and MinIO's rebuild `869ca317…` after its
+floor, 2026-11-10 at 06:54.
 
 **2026-11-08: Trivy v0.76.2 and Atlas v1.3.8, past their three days.** On branch
 `claude/ownpace-public-readiness-y7orc6-ci-tools-trivy-atlas`, from `main` at `a8c2b9f4`, the two
@@ -1002,6 +1059,10 @@ GHSA-g3hv-75wg-m249 on the deploy CLI's `minimatch` 10.2.6 (`trigger.dev>minimat
 path the workspace keeps below 11 on purpose, since trigger.dev 4.8.3 imports `makeRe`, which
 minimatch 11 no longer has (`pnpm-workspace.yaml`, the entry of 2026-11-02); every other path
 is on minimatch 11 and glob 14. It goes when a trigger.dev release takes minimatch 11.
+*(2026-11-08: and its code does not run there: minimatch 10.2.6 calls `firstPhasePreProcess()`,
+the advisory's path, only at `optimizationLevel` 2 or more, and the CLI's one call passes no
+options. Dependabot alert #10, dismissed by the owner on 2026-11-08 as "Vulnerable code is not
+actually used"; the Status entry of 2026-11-08.)*
 
 **2026-11-04, last: what alpha.4 moves, folded.** The fold (0146 Status, 2026-11-04; a draft,
 not merged) closes alpha.4 with this plan's moves since alpha.3 in it: Node 26 for the API, web
@@ -1515,7 +1576,7 @@ UTC.
 - **The host's Docker, upgraded** (§2.4), in the window the owner pulled forward from 11:00 to
   about 03:30, with both holds on: Docker Engine and its CLI 29.2.1 → 29.6.2, containerd.io
   2.2.1 → 2.2.5 (runc 1.3.6), the Compose plugin 5.0.2 → 5.2.0 and the Buildx plugin 0.31.1 →
-  0.35.0, from the machine vendor's apt repository. In order:
+  0.35.0, from a third-party apt repository. In order:
   - `main`'s CI on `21fa6ff8` (run 41568667635) finished its last job on the self-hosted runner
     at 03:33. The runner was stopped first, before the holds: the order was revised so that a
     scheduled E2E that arrived late would queue rather than start against the holds. One did:
@@ -1937,7 +1998,7 @@ times are UTC.
   11.28.9 (`next-11` names 11.28.10); its records are its own.
 - **Still the owner's at the end of the day:** the O365 secrets, or the lane's waiver for
   alpha.4; the removal of the copy before 26.8 (above); the host's Docker, 29.2.1 to the 29.6.2
-  set from the machine vendor's apt repository, in a window with live's hold and the OTA
+  set from a third-party apt repository, in a window with live's hold and the OTA
   stack's both on (§2.4); and the call on Stalwart's critical (the entry above). *(Answered at
   about 22:10: the O365 lane waived for alpha.4; the host's Docker within alpha.4, before the
   counted nights, in the slot set later that evening, 2026-11-03 11:00 to 13:00 UTC; Stalwart's
@@ -1992,6 +2053,11 @@ was: outside the lockfile, the three-day floor, the overrides and `allowBuilds`.
     audit` names GHSA-g3hv-75wg-m249 (moderate) again, on that one path (`pnpm audit` piped through `scripts/audit-advisories.mjs --fail-at=high`, as the gate runs it: 1 moderate, `minimatch` 10.2.6, dev only, 0 high, exit 0); it does
     not fail the gate, which blocks at high. The decision is the cost of the move, said here
     rather than left in the audit: the input reaching `makeRe` there is never anybody's.
+    *(2026-11-08: nor does the advisory's code run there: it is in `firstPhasePreProcess()`,
+    which minimatch 10.2.6 calls only when `optimizationLevel >= 2` (default 1,
+    `dist/esm/index.js`:332-335), and the CLI calls `makeRe(externalName)` with no options
+    (`dist/esm/build/externals.js`:311). Dependabot alert #10 dismissed by the owner on
+    2026-11-08; the Status entry of that day says what reopens it.)*
   - `"zod@>=4.0.0 <4.6.6": ^4.6.7` for GHSA-mrhx-c7xc-m3w5 (high): the CLI pins zod 4.5.4
     exactly; everything else already took 4.6.7.
   - `"deepmerge-ts@<8.0.0": ^8.0.2` for GHSA-ggr8-5vv4-36mx (high), reached through
@@ -2127,7 +2193,7 @@ and 2026-11-02, records, below), and was one of alpha.4's gates (0146's Status).
   status is the workplans'.
 
 **2026-11-02, records: #1785, #1784 and #1786 merged, the owner's ClickHouse window and readings,
-the host's Docker from the machine vendor's apt repository, and the O365 lane's missing
+the host's Docker from a third-party apt repository, and the O365 lane's missing
 secrets.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`.
 Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
 - **#1785 merged** at 07:17 (`0b16a82e`; head `632c0a28`), after E2E (managed) run 41400187583
@@ -2174,7 +2240,7 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   `<project>_clickhouse_data_v2_before_v4_8_3` at about 02:10, their block printing the volume's
   name, after the night of 2026-11-01 (run 41298604750) had proven the move. The entry of
   2026-11-01, later, below and 0132's of the same day said **sent, not done**; they say done now.
-- **The host's Docker comes from the machine vendor's apt repository**, not from Docker's (§2.4,
+- **The host's Docker comes from a third-party apt repository**, not from Docker's (§2.4,
   corrected; the owner's readings). The five packages, `docker-ce` and `docker-ce-cli` 29.2.1,
   `containerd.io` 2.2.1, `docker-compose-plugin` 5.0.2 and `docker-buildx-plugin` 0.31.1, come
   from that repository, which outranks every other source by apt preference (priority 600);
@@ -2183,14 +2249,14 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   that repository are 29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0, not Docker's
   newest (29.9.2, Compose 5.6.1). No package is held, AppArmor is active (`docker info`'s
   security options), and the kernel's own changelog carries CVE-2026-31431 ("Copy Fail"). The
-  plan, the owner's: the vendor's set, in a window with live's hold and the OTA stack's both on,
+  plan, the owner's: that repository's set, in a window with live's hold and the OTA stack's both on,
   since the upgrade restarts every container (`live-restore` is off), with Docker's own 29.2.1
   packages kept on the machine as the way back, their checksums verified; a newer kernel line is
   offered and is left for after alpha.4's tag. *(Upgraded 2026-11-03 to that set, and the five
   packages held with `apt-mark` since; §2.4 and the entry of 2026-11-03, records, above.)*
 - **The O365 lane ran for the first time, and stopped at its secrets** (T3, §3 item 6). Run
   41273625023, queued for #1767 since 2026-11-01 04:34, ended *cancelled* at 02:00 without a
-  runner. The owner added `spark` to the self-hosted runner at about 07:40 (0141 T13 (a): the
+  runner. The owner added the label named after the machine to the self-hosted runner at about 07:40 (0141 T13 (a): the
   label added, rather than dropped from `runs-on`). Run 41418432093, on `main` at `bce0fcfd`,
   09:10 to 09:11, failed at *Validate required secrets*: `O365_CLIENT_ID` and `O365_TENANT_ID`
   are not set as repository secrets, so the suite cannot run. Setting them
@@ -2340,11 +2406,11 @@ branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. Read f
   removal (0132's Status, 2026-11-01, later): **sent, not done**; done on 2026-11-02 at about
   02:10 UTC (the entry of 2026-11-02, records, above).
 - **The O365 gate (T3, item 6's proof) is held by a runner label.** `e2e-o365.yml` runs on
-  `[self-hosted, linux, arm64, spark]` (:85), and the self-hosted runner does not carry `spark`,
+  `[self-hosted, linux, arm64]` and the label named after the machine (:85), and the self-hosted runner does not carry that label,
   so the lane has never run: 34019235750 and 34019786577 were cancelled in September, and
   41273625023, dispatched for #1767, has been queued since 04:34, while E2E (managed), on
   `[self-hosted, linux, arm64]`, ran on that runner at 10:41. The step is the owner's, 0141
-  T13 (a): add `spark` to the runner, or drop it from `runs-on`, the choice #1137 left to the
+  T13 (a): add that label to the runner, or drop it from `runs-on`, the choice #1137 left to the
   owner; T3's row and §3 item 6 say so. *(2026-11-02: run 41273625023 was cancelled at 02:00
   without a runner; the owner added the label at about 07:40, and the lane's first run on a
   runner, 41418432093, stopped at its secrets check: the entry of 2026-11-02, records, above.)*
@@ -2600,8 +2666,8 @@ today.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-rec
   T3 waits on that one item, ⏳.
 - **The host's Docker, read by the owner, is an open owner item**, now in §2.4: 29.2.1 where
   29.9.2 is the newest, with security fixes between, and an upgrade restarts every container on
-  the machine, because `live-restore` is not set. *(2026-11-02: the packages come from the
-  machine vendor's apt repository, and the target is that repository's set, 29.6.2, not Docker's
+  the machine, because `live-restore` is not set. *(2026-11-02: the packages come from a
+  third-party apt repository, and the target is that repository's set, 29.6.2, not Docker's
   newest; §2.4, corrected, and the entry of 2026-11-02, records, above. 2026-11-03: upgraded to
   it; the entry of 2026-11-03, records, above.)*
 - **The self-hosted runner reads 2.338.0**, the hosted ones 2.338.2; it updates itself, so it
@@ -3995,7 +4061,7 @@ customer whose own Nextcloud already runs it.
   `*.integration.test.ts` that reads a `NEXTCLOUD_` variable, found by `scripts/nextcloud-suites.mjs`
   rather than listed: WebDAV, CalDAV and CardDAV sources, the DAV sync and update propagation, the
   chunked upload (0156) and a new share suite. None needs Stalwart, so Stalwart is not started. On a
-  GitHub-hosted amd64 runner, never the Spark: on a push to `main` that touches `packages/**` or the
+  GitHub-hosted amd64 runner, never the machine: on a push to `main` that touches `packages/**` or the
   test setup, Mondays at 05:17 UTC, on demand, and on a pull request that changes the leg itself. Not
   on every pull request, since `ci.yml` already runs every suite against 34 on two architectures.
   Not a required check (`every-pr-check-is-classified` lists it with the reason).
@@ -4458,7 +4524,7 @@ a decision each, §3, for the owner.
 | T0 The audit | ✅ Done 2026-09-06 | §2. Registries queried directly (Docker Hub v2 API, GHCR token + paginated tag list, `git ls-remote` for the actions); `pnpm outdated -r` for npm. |
 | T1 Dependabot learns the images | ✅ Done 2026-09-06 | `docker` over the three Dockerfiles, `docker-compose` over `deploy/compose` and `deploy/selfhost`, weekly, minor+patch grouped, majors one PR each. The one-way images and the deliberate pins are ignored by name (§2.1). `@trigger.dev/*` ignored in npm: it moves through `trigger-version.sh` or not at all. The three digest-only pins (`node@sha256:…` ×3, `postgres@sha256:…`) carry their tag now — same digests, no version moved — because Dependabot compares tags, and a bare digest has nothing to compare. |
 | T2 The safe moves | ✅ Done 2026-09-06 | node 24.20.0-slim (three Dockerfiles), postgres 18.6-alpine (self-host), pgbouncer v1.25.2-p0, mailpit v1.31.1, busybox 1.38 (compose, three scripts, one test, the bring-up doc), nginx 1.30-alpine (web image and www; both on 1.31 since the morning, see the status block); three action version comments set to the tag their SHA is. Stateless, or a fixture, or a patch of a store that upgrades in place. Proved on the branch before merge: **E2E (self-hosted) #189 green** (the postgres and node moves, restart-resume included) and **E2E (managed) #161 green** (pgbouncer in front of the API, mailpit, busybox, nginx behind www), both dispatched at 01:57 UTC; `images.yml` built the three images from the moved FROM lines; the `unit` scripts guards 92 files, 1 567 tests. |
-| T3 The owner's decisions | ⏳ **Owner**, item 6's proof only: the O365 gate's first run on a runner, 41418432093 on `main` (2026-11-02, 09:10 to 09:11 UTC), failed at *Validate required secrets*, because `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets; setting them (`docs/test-tenant.md`) is the owner's, 0141 T13 (a), whose runner label the owner added on 2026-11-02 (Status, 2026-11-02, records). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since its E2E (managed) run 41400187583 and on live from the tag that carries it (Status, 2026-11-02, records) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label `spark`, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status); item 9's version move built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02); ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, queued from 2026-11-01 04:34 UTC because `e2e-o365.yml` asks for the runner label `spark`, which the self-hosted runner did not carry, was cancelled on 2026-11-02 at 02:00 UTC without a runner; the owner added the label at about 07:40 UTC, and the fourth, 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not set: setting them is the owner's step; *was:* a third has been queued since 2026-11-01 04:34 UTC, the label missing (2026-11-01); the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). |
+| T3 The owner's decisions | ⏳ **Owner**, item 6's proof only: the O365 gate's first run on a runner, 41418432093 on `main` (2026-11-02, 09:10 to 09:11 UTC), failed at *Validate required secrets*, because `O365_CLIENT_ID` and `O365_TENANT_ID` are not set as repository secrets; setting them (`docs/test-tenant.md`) is the owner's, 0141 T13 (a), whose runner label the owner added on 2026-11-02 (Status, 2026-11-02, records). Every item is decided: item 9's version move was taken on 2026-11-02, option 2, ClickHouse 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since its E2E (managed) run 41400187583 and on live from the tag that carries it (Status, 2026-11-02, records) — *was:* ⏳ **Owner**, item 6's proof only: the O365 gate waits for the owner's step on the runner label named after the machine, 0141 T13 (a): add it to the runner, or drop it from `runs-on` (2026-11-01, later, Status); item 9's version move built on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02); ⏳ **Owner**, item 9's version move and item 6's proof: #1774 (merged 2026-11-01) records that item 9's revisit trigger fired on 2026-11-01 (CVE-2026-116366) (2026-11-01); 🔨 In progress | Taken 2026-09-06: `@azure/msal-node` 6 (#819; the O365 gate that was to prove it has never run to its end: `e2e-o365.yml`'s two runs, 34019235750 and 34019786577 of 2026-09-06, were both cancelled, and the lane is 0141 T13; a third, 41273625023 for #1767, queued from 2026-11-01 04:34 UTC because `e2e-o365.yml` asks for the runner label named after the machine, which the self-hosted runner did not carry, was cancelled on 2026-11-02 at 02:00 UTC without a runner; the owner added the label at about 07:40 UTC, and the fourth, 41418432093 on `main`, failed at its secrets check, `O365_CLIENT_ID` and `O365_TENANT_ID` not set: setting them is the owner's step; *was:* a third has been queued since 2026-11-01 04:34 UTC, the label missing (2026-11-01); the O365 gate on main is the proof, queued for the self-hosted runner), Node 26 declined (#820; taken 2026-10-31 for alpha.4, item 7, with #1767), `nodemailer` 10 (#823), registry 3.1.1 (#825), Zitadel v4.17.3 (#826, applied by the gate run in the owner's window), Trigger.dev v4.5.16 pinned (#827, applied the same way after the drain and the backup). Taken 2026-09-09: Redis (item 3 — **stay on 7.4**, with a revisit trigger) and the release-age gate (item 8 — `minimumReleaseAge: 4320`, three days; seven fossil exclude entries removed; guard added). Taken 2026-10-23: ClickHouse 26.2 for the Alpha (item 9). Taken 2026-10-31: Trigger.dev v4.8.3 before its three-day floor, *"I waive the wait for v4.8.3, just go with it"*, for v4.8.3 alone (Status, 2026-10-31). The object store (item 5): taken 2026-10-23, *"T7 no, fix already within the alpha"* (0146 T7), and ✅ merged as #1692 on 2026-10-25 (`0029db4a`, E2E (managed) #281 green) — *was:* still the owner's, with a candidate named. Taken 2026-10-26: hardened images, not now (item 10: no `dhi.io` credential before the Alpha; revisit after it). Taken 2026-11-02: ClickHouse 26.8.36.3-lts, item 9's option 2, *"Go with ClickHouse 26.8.36.3-lts."* (#1782, option 1, 26.3.62.3, superseded). |
 | T4 vitest 5 | ✅ Done 2026-09-06 | `vitest` and `@vitest/coverage-v8` 4.1.11 → 5.0.0, every declaring package together. Green on Node 22 (508 files, 6 326 tests) and on Node 24 as CI runs it (509 files, 6 411 tests); the v8 provider loads and reports. Two things the major needed first, found by trying it and landed as their own PR (#810) because they are right under vitest 4 too: the alias map's missing subpath pins — `@openmig/core/archive-reader` and thirteen more, plus a guard — and the exclude patterns in their documented form, since vitest 5 follows pnpm's workspace symlinks when it crawls and a bare `node_modules` matched only the top level. The bump is its own PR, stacked on #810. |
 | T5 The second Nextcloud major in CI | ✅ Done 2026-10-28 | 2026-10-25: `nextcloud-second-major.yml` runs the suites that talk to Nextcloud against 35.0.1 by digest (35.0.2 since 2026-10-26), the setup refuses a Nextcloud that did not start or is not the version named, and the tier has a share suite. Green on its pull request (#1705: 36 tests against 35.0.1, 814 against 34.0.5 on both architectures); merged after the alpha.2 tag, on 2026-10-27 as #1705 (`d6acd430`). Reviewed and `main` merged in the same day; after the fold (#1706), the CHANGELOG bullet back under `[Unreleased]`; on 2026-10-26, once its digest was three days old, 35.0.2 by digest (PHP 8.5.12) (Status). CI only, not one way. 2026-10-26, for alpha.3 on `…-nextcloud-35-demo` (#1678 and #1705 merged), merged 2026-10-28 as #1720 (`3d2f129e`): the demo, the dev stack and the tier to 35.0.2 by digest and the leg to 34.0.5, the major customers who have not upgraded still run; **the owner's OK came on 2026-10-26** ("Yes, in alpha.3", Status), and E2E (managed) run 40774398411 on it (2026-10-28, 21:44–21:52 UTC, `nextcloud:35.0.2` healthy) was the OTA demo's one-way upgrade, after the copies (Status of 2026-10-26; the way back in `managed-bring-up.md`). |
 
@@ -4595,21 +4661,21 @@ live's API under `docker-default`; the five packages held with `apt-mark hold` (
 choice: unattended-upgrades is not installed, and the host's 505 other pending updates, with
 the move to the 7.0 kernel line, wait for after alpha.4). `live-restore` is still not set.
 **Corrected 2026-11-02:** the five packages (`docker-ce`, `docker-ce-cli`,
-`containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from the machine vendor's
-apt repository, which outranks every other source by apt preference (priority 600), not from
+`containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from a third-party apt
+repository, which outranks every other source by apt preference (priority 600), not from
 Docker's apt repository, as this paragraph said from 2026-11-01; Docker's own repository is not
 configured on the machine. Each of the five has the SHA256 that Docker's own package index gives
 for the same version, so they are Docker's builds. No package was held on 2026-11-02 (the five
 are held since 2026-11-03, above); AppArmor is active
 (`docker info`'s security options); the kernel's own changelog carries CVE-2026-31431 ("Copy
 Fail"). Docker's newest, read 2026-11-01: 29.9.2 and Compose 5.6.1, with security fixes between.
-apt's candidates from the vendor's repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
+apt's candidates from that repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
 29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0. ✅ **Done 2026-11-03**, from about
 03:30 to 04:33 UTC, with both holds on and the runner stopped first, then E2E (self-hosted) run
 41575338615 and E2E (managed) run 41578935380 green on the new Docker; the OTA stack's
 `pgbouncer` did not start after the restart and was fixed by hand (Status, 2026-11-03,
 records); *was:* ⏳ **Owner, open:** the upgrade to
-the vendor's set, not to Docker's newest, in a window with both holds on, live's and the OTA
+that repository's set, not to Docker's newest, in a window with both holds on, live's and the OTA
 stack's, live's drain done (`docs/managed-bring-up.md`, *`ownpace-live`: a release tag, with
 `deploy-live.sh`*, step 2) and no runner job in flight, because without `live-restore` the
 daemon's restart restarts every container on the machine, live's and the OTA stack's alike;
@@ -5004,12 +5070,12 @@ is beside each; none is urgent tonight.
      `stand-up-live.sh`; both stacks' `.env` already hold a generated value, so neither
      changes.
    - What it does not prove: no Docker daemon was available, so nothing here pulled or ran
-     the image. The branch's E2E (managed) on the Spark is the first run.
+     the image. The branch's E2E (managed) on the machine is the first run.
 6. **`@azure/msal-node` 5 → 6** — taken 2026-09-06 (#819). Its one breaking change removes
    the interactive loopback flow, which the connectors never call: they use the
    client-credential, refresh-token and username-password paths only. The O365 gate
    (`e2e-o365.yml`) on main is the proof, queued for the self-hosted runner. *(2026-11-01:
-   the gate never ran to its end; it asks for the runner label `spark`, which the self-hosted
+   the gate never ran to its end; it asks for the runner label named after the machine, which the self-hosted
    runner does not carry; the step is the owner's, 0141 T13 (a): add the label to the runner, or
    drop it from `runs-on`; see T3.)* *(2026-11-02: the owner added the label; the gate's first
    run on a runner, 41418432093 on `main`, failed at its step "Validate required secrets":
@@ -5448,6 +5514,53 @@ is beside each; none is urgent tonight.
     **Revisit** with the triggers above, when the Redis line moves (item 3), and when its base
     leaves Debian 12.
 
+    **2026-11-08: libsystemd0 and libudev1 in Redis and the webapp — YES, FOR ALPHA.7, BUILT,
+    NOT MERGED.** *(Later on 2026-11-08: merged as #1846 (`422f049c`), after E2E (managed) run
+    42443538787 on the branch was green.)* Answered 2026-11-08, the owner: *"Build the recommended
+    for alpha 7."* The recommendation was yes: one high each, with no fix, in both images, and
+    nothing left uses either once the eleven are gone. Built on the branch
+    `claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`. Read first, on 2026-11-08, in
+    Redis's image and in `node:24.22.1-bookworm-slim`, each by its layers' digests on both
+    platforms (the Node image's five layers are the webapp's first five):
+    - **dpkg.** libsystemd0 and libudev1 252.39-1~deb12u2 are Priority optional, neither
+      Essential nor protected, and run no maintainer script. Only apt, bsdutils, libapt-pkg6.0
+      and util-linux depend on either, all four in the eleven.
+    - **ELF files.** `readelf -d` of every ELF file: 702 and 703 in Redis's image, 694 and 695
+      in the Node image. Only util-linux's findmnt, lsblk and lslogins, bsdutils' logger, apt's
+      http method and libapt-pkg.so.6.0.0 need libsystemd.so.0 or libudev.so.1. No other ELF
+      file but the two libraries names either. redis-server names libsystemd only in a message,
+      that it was built without it.
+    - **The webapp's published binaries**, fetched by their publishers' hashes: goose's two
+      assets, prisma's five engines, sentry-cli's two builds, bufferutil's linux-x64 prebuild
+      and rollup's two addons. None needs or names either.
+
+    So both purges take the two: thirteen, in one `dpkg --purge` with the same two flags and no
+    other force. No dependency is left dangling: dpkg refuses one without `--force-depends`.
+    After the purge, before the scan for names, a new check reads the whole file system. It
+    fails the build if a file of one of the eight removed libraries is left by its name, or if
+    any ELF file needs one. It reads DT_NEEDED from the program headers and the dynamic section,
+    on every class and byte order, in perl in Redis and in node in the webapp. It fails too when
+    it met no ELF file that needs a library at all. Both readers, as the Dockerfiles carry them,
+    read the same DT_NEEDED as `readelf -d` on all 2794 ELF files of the four images. With the
+    thirteen's files removed from a copy of each, the check found nothing.
+    - **Proved on the branch, at `d8c4bd59`:** images.yml run 42440852224 built both images on
+      both platforms. dpkg purged the thirteen without a refusal. The check read 573 and 572 ELF
+      files in Redis and 585 and 583 in the webapp (amd64, arm64), none it could not parse, and
+      found nothing. Redis then started as 999:999 and read back the key upstream's image wrote,
+      again after a restart. Security Scan run 42440765278 (linux/arm64) read Redis at 1/8/0 and
+      the webapp at 1/22/14, from 1/10/0 and 1/24/14 (run 42368077845, the alpha.6 tag): each
+      list lost libsystemd0 and libudev1 and nothing else.
+
+    **Revisit** with the triggers above.
+
+    **2026-11-08: apt out of ClickHouse — LATER.** Answered 2026-11-08, the owner: *"Build the
+    recommended for alpha 7."* This one was put to the owner as later, not recommended for
+    alpha.7. The pinned ClickHouse image (the 26.8 LTS, item 9) is Ubuntu 22.04's. Its two
+    highs with a fix are apt's and libapt-pkg6.0's CVE-2026-109518, fixed in 2.4.15ubuntu0.1
+    (Security Scan run 42368077845). Purging apt there means building ClickHouse here, as Redis
+    is built here, which is more than alpha.7 takes. Not now. **Revisit** after the Alpha, or
+    when a ClickHouse release ships Ubuntu's fixed apt.
+
 12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
     digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the
     compose file's `CMD-SHELL` healthcheck for `app` and the upgrade drill's `sh -c ls`; the
@@ -5464,7 +5577,8 @@ is beside each; none is urgent tonight.
     `compose.yml`'s healthcheck exec form on `/nodejs/bin/node`, the CHANGELOG's entry under
     [Unreleased]. The appliance's half of item 11's purge goes with it; the tasks' half stays
     until item 13. Owed before a merge: E2E (self-hosted) on the branch, on Postgres and on
-    PGlite, and `build (selfhost)` on both architectures.
+    PGlite, and `build (selfhost)` on both architectures. *(2026-11-08: merged as #1819 on
+    2026-11-06, `f42101b0`, and shipped in alpha.5, the CHANGELOG's `[0.2.0-alpha.5]`.)*
 
 13. **The tasks' prebuilt distroless base — PUBLISHED TO GHCR, 2026-11-03 (alpha.5).** A
     distroless task image needs a base the Trigger.dev CLI builds nothing into (distroless plus
@@ -5476,7 +5590,9 @@ is beside each; none is urgent tonight.
     steps of its own to a base that already has every one.
 
     **Where it stands, 2026-11-06, later: the base is built, signed and published from `main`
-    (#1818); the tasks' switch to it is built on a branch, not merged.**
+    (#1818); the tasks' switch to it is built on a branch, not merged.** *(2026-11-08: the switch
+    merged as #1824 on 2026-11-06, `d7d11a58`, and shipped in alpha.5; live's tasks run on the
+    base since its deploy of alpha.6, 2026-11-08.)*
     `apps/worker/task-image/Dockerfile`, published from `main` only by `images.yml`'s
     `task-base` leg as `ghcr.io/robbes/ownpace-task-base:edge` and `sha-<commit>`, signed by
     digest; never from a tag, so that the tasks can name one digest that the OTA stack and live
@@ -5508,7 +5624,8 @@ is beside each; none is urgent tonight.
   since 2026-11-06 its row *nextcloud, the second major* reads `nextcloud-second-major.yml`'s
   one `NEXTCLOUD_IMAGE` (by tag and index digest, or the row is an error) and lists a newer tag
   of the same major in the summary issue, with how it moves. Read against Docker Hub on
-  2026-11-06 it is current, 34.0.5 of 2535 tags listed; 34.0.6 was due 2026-11-12.
+  2026-11-06 it is current, 34.0.5 of 2535 tags listed; 34.0.6 was due 2026-11-12. *(2026-11-08:
+  still due, on 2026-11-12; the pin stays 34.0.5 until 34.0.6 ships and passes its floor.)*
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
@@ -5518,8 +5635,15 @@ is beside each; none is urgent tonight.
   2026-11-02 (`2cae9602`), and the version move was the owner's: the owner took option 2 on
   2026-11-02, 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since
   its E2E (managed) run 41400187583 and on live from the tag that carries it (#1782, option 1,
-  26.3.62.3, superseded; §3 item 9).
+  26.3.62.3, superseded; §3 item 9). *(2026-11-08: so the pin is 26.8.36.3-lts, not 26.2,
+  and 26.8 is a line ClickHouse's `SECURITY.md` supports (read 2026-10-23, §3 item 9); live runs
+  it since its deploy of alpha.4 on 2026-11-04, 0132's Status of 2026-11-05.)*
 - **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;
-  those two lines are ignored by name, so the answer does not matter for them.
+  those two lines are ignored by name, so the answer does not matter for them. *(2026-11-08: moot
+  now. The two lines read `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-…` and
+  `localhost/supervisor:…`, images built here since alpha.3 (0146 T16), and Dependabot's
+  `docker-compose` entry reads `deploy/selfhost` only; the pin watch reads `managed.yml`.)*
 - **The three actions behind by a patch or a minor** are left to Monday's group rather than
-  moved tonight: the group's PR exists precisely so that they arrive together, once.
+  moved tonight: the group's PR exists precisely so that they arrive together, once. *(2026-11-08:
+  the inventory of 2026-09-06 (§2.3). Dependabot's `github-actions` group has moved them since,
+  week by week; its latest, #1836, merged on 2026-11-08.)*

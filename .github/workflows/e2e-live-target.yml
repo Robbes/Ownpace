@@ -31,8 +31,8 @@ name: E2E (live target)
 #   4. The SILENCE: nothing in the catch-all may carry today's canary tag.
 #
 # Credentials: NOTHING here is a GitHub secret. The LIVE_* variables live in
-# the Spark's persisted .env (the same file the managed gate restores, outside
-# every checkout), because they are the Spark's harness plumbing — rule 3, and
+# the machine's persisted .env (the same file the managed gate restores, outside
+# every checkout), because they are the machine's harness plumbing — rule 3, and
 # 0105's two-credential-kinds rule: the product holds what it needs to
 # MIGRATE (SecretStore, via the UI); the gate holds what it needs to JUDGE.
 #
@@ -51,7 +51,7 @@ on:
   schedule:
     # 04:30 UTC — after e2e.yml's 23:30 (postgres) and 01:30 (pglite) and e2e-managed's 03:30.
     # This lane runs no Docker stack (node + IMAP + HTTPS only), so it is
-    # light; the slot just keeps the Spark's log lines legible.
+    # light; the slot just keeps the machine's log lines legible.
     - cron: '30 4 * * *'
   workflow_dispatch:
 

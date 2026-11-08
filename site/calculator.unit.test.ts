@@ -40,7 +40,7 @@ import {
 } from './calculator.mjs';
 import { OBJECT_TYPES, PROFILES_VERSION, SIZE_ASKED, pathsFor } from './profiles.mjs';
 import { GMAIL_IMAP_DOWNLOAD_BYTES_PER_DAY } from '../packages/shared/src/rate-budget.ts';
-import { parseNginx, type NginxNode } from '../scripts/nginx-config.ts';
+import { parseNginx, type NginxNode } from '../scripts/nginx-config.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 
@@ -282,7 +282,7 @@ describe('the one script, the one hash', () => {
     // <meta charset>, a plain-text file cannot. Unlike `add_header`, `charset`
     // IS inherited, so one line at server level covers every location, until a
     // location sets one of its own or a `charset_types` narrows it. Read as
-    // nginx reads the file (`scripts/nginx-config.ts`), so a commented-out line
+    // nginx reads the file (`scripts/nginx-config.mjs`), so a commented-out line
     // is no line.
     const top = parseNginx(
       readFileSync(join(HERE, '..', 'deploy', 'compose', 'www-nginx.conf'), 'utf8'),

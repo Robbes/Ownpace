@@ -21,10 +21,12 @@
  *
  * IT PASSES WHEN, per 0132 T3: 443 on each production name answers over TLS;
  * the discovery document at `https://id.ownpace.eu` names `https://id.ownpace.eu`
- * as its issuer, so the production names reach live and not the OTA stack; and
- * nothing else answers. What the OTA names should do on 443 is open question 7,
- * unanswered: the dispatch input `ota_names` says it, and its default,
- * `report`, records what answered without failing on it.
+ * as its issuer, so the production names reach live and not the OTA stack; the
+ * app's page carries the headers the template at live's own commit states
+ * (workplan 0158 T4); and nothing else answers. What the OTA names should do on
+ * 443 is the dispatch input `ota_names`: open question 7 is answered, on the
+ * mesh only (2026-11-08), and until the owner's step its default, `report`,
+ * records what answered without failing on it.
  *
  * ITS LOG NEVER PRINTS AN ADDRESS. The run's log is public. Every address the
  * names resolve to, and the machine's own, is masked with `::add-mask::`
@@ -38,9 +40,16 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
+import { spawnSync } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { createServer as createHttpServer } from 'node:http';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { APP_TEMPLATE, expectedAppHeaders } from './app-headers.mjs';
 import {
+  APP_PAGE,
+  APP_VERSION,
   ISSUER,
   ORG_REGISTRATION,
   OTA_NAMES,
@@ -50,11 +59,24 @@ import {
   probeConfig,
   realNetwork,
   runProbe,
+  type HeadersAnswer,
   type PageAnswer,
   type PostgresAnswer,
   type ProbeIo,
   type ProbeConfig,
 } from './exposure-probe.mjs';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+/** The app's template as this checkout has it, and the commit the fake live web build names. */
+const TEMPLATE = readFileSync(join(REPO_ROOT, APP_TEMPLATE), 'utf8');
+const LIVE_COMMIT = '0123456789abcdef0123456789abcdef01234567';
+
+/** What the template states for the app's page with live's issuer, as `[name, value]` pairs. */
+function stated(template = TEMPLATE): Array<[string, string]> {
+  const { headers, errors } = expectedAppHeaders(template, ISSUER);
+  if (errors.length) throw new Error(errors.join('; '));
+  return headers.map((h): [string, string] => [h.name.toLowerCase(), h.value]);
+}
 
 const FRONT = '192.0.2.10';
 const FRONT_2 = '192.0.2.11';
@@ -78,6 +100,12 @@ interface Fake {
   postgres?: Record<string, PostgresAnswer>;
   /** What a page answers, by URL; otherwise 404 for the form that founds an organisation, 200 for the rest. */
   pages?: Record<string, PageAnswer>;
+  /** What live's version.json names (default: LIVE_COMMIT). */
+  version?: { commit?: string; why?: string };
+  /** The template by commit (default: this checkout's at LIVE_COMMIT, nothing at any other). */
+  templates?: Record<string, string>;
+  /** What the app's page answers (default: 200 with what the template states). */
+  appPage?: HeadersAnswer;
 }
 
 /** What Zitadel answers at the form once disallowPublicOrgRegistration holds. */
@@ -100,12 +128,14 @@ function fakeIo(fake: Fake): {
   tlsAsked: string[];
   pgAsked: string[];
   pagesAsked: string[];
+  templatesAsked: string[];
 } {
   const lines: string[] = [];
   const tried: string[] = [];
   const tlsAsked: string[] = [];
   const pgAsked: string[] = [];
   const pagesAsked: string[] = [];
+  const templatesAsked: string[] = [];
   const io: ProbeIo = {
     resolve: async (name) => {
       const error = fake.unresolvable?.[name];
@@ -136,9 +166,16 @@ function fakeIo(fake: Fake): {
       pagesAsked.push(url);
       return fake.pages?.[url] ?? (url === ORG_REGISTRATION ? CLOSED : { status: 200, netbird: false });
     },
+    version: async () => fake.version ?? { commit: LIVE_COMMIT },
+    template: async (commit) => {
+      templatesAsked.push(commit);
+      const text = (fake.templates ?? { [LIVE_COMMIT]: TEMPLATE })[commit];
+      return text === undefined ? { why: 'git show failed (128)' } : { text };
+    },
+    headers: async () => fake.appPage ?? { status: 200, headers: stated() },
     print: (line) => lines.push(line),
   };
-  return { io, lines, tried, tlsAsked, pgAsked, pagesAsked };
+  return { io, lines, tried, tlsAsked, pgAsked, pagesAsked, templatesAsked };
 }
 
 const CONFIG: ProbeConfig = { ports: [3001, 3123, 5432], host: MACHINE, otaMode: 'report', siteMode: 'report' };
@@ -197,14 +234,14 @@ describe('the probe from outside', () => {
 
   it('resolves a machine named rather than addressed, and masks the name and what it resolves to', async () => {
     const { io, lines, tried } = fakeIo({
-      resolved: { ...ALL_RESOLVED, 'spark.mesh.example': [MACHINE] },
+      resolved: { ...ALL_RESOLVED, 'machine.mesh.example': [MACHINE] },
     });
-    expect(await runProbe({ ...CONFIG, host: 'spark.mesh.example' }, io)).toBe(0);
+    expect(await runProbe({ ...CONFIG, host: 'machine.mesh.example' }, io)).toBe(0);
     expect(tried).toContain(`${MACHINE}#3001`);
     const masks = lines.filter((l) => l.startsWith('::add-mask::'));
-    expect(masks).toContain('::add-mask::spark.mesh.example');
+    expect(masks).toContain('::add-mask::machine.mesh.example');
     expect(masks).toContain(`::add-mask::${MACHINE}`);
-    expect(lines.filter((l) => !l.startsWith('::add-mask::')).join('\n')).not.toContain('spark.mesh.example');
+    expect(lines.filter((l) => !l.startsWith('::add-mask::')).join('\n')).not.toContain('machine.mesh.example');
   });
 
   it('says the machine\'s own address was not tried when the secret is empty', async () => {
@@ -447,7 +484,139 @@ describe('www.ownpace.eu, tried only on live\'s front (0139 T10)', () => {
   });
 });
 
-describe('the OTA names, as open question 7 will decide', () => {
+/**
+ * WHAT A TESTER'S BROWSER GETS FROM THE APP (workplan 0158 T4). The probe asks
+ * live's own version.json which commit its web app was built from, reads the
+ * template at that commit, and holds the page's headers to what it states with
+ * live's issuer: each once, with its value. Every step that cannot be made
+ * fails, and no finding repeats a value that arrived.
+ */
+describe("the app's page, held to the template at live's own commit (0158 T4)", () => {
+  const appLines = (lines: readonly string[]) =>
+    lines.filter((l) => /^(pass|FAIL|note) {2}/.test(l) && (l.includes(APP_PAGE) || l.includes(APP_VERSION) || l.includes(APP_TEMPLATE)));
+  const without = (name: string) => stated().filter(([n]) => n !== name);
+  const swapped = (name: string, value: string) => stated().map(([n, v]): [string, string] => [n, n === name ? value : v]);
+  /** A value nobody's template states, which must never reach the log. */
+  const ODD = "default-src 'self' https://odd.example";
+
+  it('passes when the page carries the five as the template at live\'s commit states them, and says which commit', async () => {
+    const { io, lines, templatesAsked } = fakeIo({});
+    expect(await runProbe(CONFIG, io), lines.join('\n')).toBe(0);
+    expect(templatesAsked).toEqual([LIVE_COMMIT]);
+    const line = appLines(lines);
+    expect(line).toEqual([
+      `pass  ${APP_PAGE} carries Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, each once, as ${APP_TEMPLATE} at ${LIVE_COMMIT.slice(0, 12)} states them with ${ISSUER} (workplan 0158 T4)`,
+    ]);
+    expectNoAddress(lines);
+  });
+
+  it.each([
+    ['no policy', without('content-security-policy'), 'Content-Security-Policy: not sent'],
+    ['a second policy beside it', [...stated(), ['content-security-policy', ODD]], 'Content-Security-Policy: sent 2 times, where the template states it once'],
+    ['a policy that names the OTA stack\'s issuer', swapped('content-security-policy', stated().find(([n]) => n === 'content-security-policy')![1].replace(ISSUER, 'https://id.ota.ownpace.eu')), 'Content-Security-Policy: not the value the template states'],
+    ['a policy nobody stated', swapped('content-security-policy', ODD), 'Content-Security-Policy: not the value the template states'],
+    ['no HSTS', without('strict-transport-security'), 'Strict-Transport-Security: not sent'],
+    ['HSTS without includeSubDomains', swapped('strict-transport-security', 'max-age=31536000'), 'Strict-Transport-Security: not the value the template states'],
+    ['no nosniff', without('x-content-type-options'), 'X-Content-Type-Options: not sent'],
+  ] as const)('fails the page with %s, naming the header and never what arrived', async (_label, headers, finding) => {
+    const { io, lines } = fakeIo({ appPage: { status: 200, headers } });
+    expect(await runProbe(CONFIG, io)).toBe(1);
+    expect(appLines(lines)).toEqual([
+      `FAIL  ${APP_PAGE} ${finding}, held to ${APP_TEMPLATE} at ${LIVE_COMMIT.slice(0, 12)} with ${ISSUER} (workplan 0158 T4)`,
+    ]);
+    expect(lines.join('\n')).not.toContain(ODD);
+    expect(lines.join('\n')).not.toContain('id.ota.ownpace.eu;');
+    expectNoAddress(lines);
+  });
+
+  it('a header name in any case is the header: HTTP/1.1 sends them capitalised', async () => {
+    const capitalised = stated().map(([n, v]): [string, string] => [n.replace(/(^|-)([a-z])/g, (_m, d: string, c: string) => d + c.toUpperCase()), v]);
+    expect(await runProbe(CONFIG, fakeIo({ appPage: { status: 200, headers: capitalised } }).io)).toBe(0);
+  });
+
+  it("reads the template at the commit live's version.json names, not this checkout's: a page held to the one live runs", async () => {
+    const OLDER = 'fedcba9876543210fedcba9876543210fedcba98';
+    const older = TEMPLATE.replaceAll('max-age=31536000; includeSubDomains', 'max-age=600; includeSubDomains');
+    expect(older).not.toBe(TEMPLATE);
+    const asOlder = fakeIo({
+      version: { commit: OLDER },
+      templates: { [OLDER]: older, [LIVE_COMMIT]: TEMPLATE },
+      appPage: { status: 200, headers: stated(older) },
+    });
+    expect(await runProbe(CONFIG, asOlder.io), asOlder.lines.join('\n')).toBe(0);
+    expect(asOlder.templatesAsked).toEqual([OLDER]);
+    const asMain = fakeIo({
+      version: { commit: OLDER },
+      templates: { [OLDER]: older, [LIVE_COMMIT]: TEMPLATE },
+      appPage: { status: 200, headers: stated() },
+    });
+    expect(await runProbe(CONFIG, asMain.io)).toBe(1);
+    expect(appLines(asMain.lines)[0]).toContain('Strict-Transport-Security: not the value the template states');
+  });
+
+  it.each([
+    ['version.json cannot be read', { version: { why: 'could not be read (ECONNRESET)' } }, `${APP_VERSION} could not be read (ECONNRESET): the commit live's web app was built from is not known`],
+    ['version.json names no commit', { version: { why: 'names no commit in full' } }, `${APP_VERSION} names no commit in full: the commit live's web app was built from is not known`],
+    ['the template at that commit cannot be read', { templates: {} }, `${APP_TEMPLATE} at ${LIVE_COMMIT.slice(0, 12)}, the commit ${APP_VERSION} names, could not be read (git show failed (128))`],
+    ['the template states no policy for the page', { templates: { [LIVE_COMMIT]: TEMPLATE.replace(/^\s*add_header Content-Security-Policy .*\n/gm, '') } }, `${APP_TEMPLATE} at ${LIVE_COMMIT.slice(0, 12)} states no Content-Security-Policy for the app's page, so an answer without one would pass`],
+    ['the page answers with NetBird\'s sign-in', { appPage: { status: 302, headers: [['location', 'https://login.netbird.example/']] } }, `${APP_PAGE} answers 302, not the app's page, so its headers were not held to`],
+    ['the page does not answer', { appPage: { why: 'ETIMEDOUT' } }, `${APP_PAGE} does not answer (ETIMEDOUT), so its headers were not read`],
+  ] as const)('fails when %s: a check nobody could make is not passed', async (_label, fake, words) => {
+    const { io, lines } = fakeIo(fake as Fake);
+    expect(await runProbe(CONFIG, io)).toBe(1);
+    const line = appLines(lines);
+    expect(line).toHaveLength(1);
+    expect(line[0]).toMatch(/^FAIL {2}/);
+    expect(line[0]).toContain(words);
+    expect(line[0]).toContain('(workplan 0158 T4)');
+    expectNoAddress(lines);
+  });
+
+  it('the real network lists a header sent twice twice, follows no redirect, and reads a version stamp', async () => {
+    const server = createHttpServer((req, res) => {
+      if (req.url === '/version.json') {
+        res.writeHead(200, { 'Content-Type': 'application/json', Connection: 'close' });
+        res.end(JSON.stringify({ version: '0.2.0-alpha.7', commit: LIVE_COMMIT }));
+      } else if (req.url === '/moved') {
+        res.writeHead(302, { Location: '/', Connection: 'close' });
+        res.end();
+      } else {
+        res.setHeader('Content-Security-Policy', ["default-src 'none'", "default-src 'self'"]);
+        res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+        res.writeHead(200, { Connection: 'close' });
+        res.end('<!doctype html>');
+      }
+    });
+    await new Promise<void>((done) => server.listen(0, 'localhost', done));
+    try {
+      const a = server.address();
+      const base = `http://localhost:${typeof a === 'object' && a ? a.port : 0}`;
+      const net = realNetwork({ fetchMs: 3000 });
+      const page = await net.headers(`${base}/`);
+      expect(page.status).toBe(200);
+      expect(page.headers!.filter(([n]) => n.toLowerCase() === 'content-security-policy').map(([, v]) => v)).toEqual([
+        "default-src 'none'",
+        "default-src 'self'",
+      ]);
+      expect((await net.headers(`${base}/moved`)).status).toBe(302);
+      expect(await net.version(`${base}/version.json`)).toEqual({ commit: LIVE_COMMIT });
+      expect(await net.version(`${base}/`)).toEqual({ why: expect.stringMatching(/^could not be read/) });
+    } finally {
+      await new Promise<void>((done) => server.close(() => done()));
+    }
+  });
+
+  it("the real network reads the template at a commit from this checkout's git, and refuses what is not a commit id", async () => {
+    const head = spawnSync('git', ['-C', REPO_ROOT, 'rev-parse', 'HEAD'], { encoding: 'utf8' }).stdout.trim();
+    const shown = spawnSync('git', ['-C', REPO_ROOT, 'show', `${head}:${APP_TEMPLATE}`], { encoding: 'utf8' }).stdout;
+    const net = realNetwork({ gitMs: 20000 });
+    expect(await net.template(head)).toEqual({ text: shown });
+    expect(await net.template('HEAD')).toEqual({ why: 'not a commit id' });
+    expect(await net.template(`${head};id`)).toEqual({ why: 'not a commit id' });
+  });
+});
+
+describe('the OTA names, on the mesh only from the owner\'s step (open question 7, answered 2026-11-08)', () => {
   const answering = { state: 'tls' as const };
   const silent = { state: 'none' as const, why: 'timeout' };
   const otaTls = (s: { state: 'tls' | 'tcp-only' | 'none'; why?: string }) =>
@@ -459,6 +628,15 @@ describe('the OTA names, as open question 7 will decide', () => {
       expect(await runProbe({ ...CONFIG, otaMode: 'report' }, io)).toBe(0);
       for (const n of OTA_NAMES) expect(lines.join('\n')).toContain(n);
     }
+  });
+
+  it('report says the answer, and what the dispatch takes once the owner\'s step is done', async () => {
+    const { io, lines } = fakeIo({ tls: otaTls(answering) });
+    expect(await runProbe({ ...CONFIG, otaMode: 'report' }, io)).toBe(0);
+    const notes = lines.filter((l) => OTA_NAMES.some((n) => l.startsWith(`note  ${n}:`)));
+    expect(notes).toHaveLength(OTA_NAMES.length);
+    for (const l of notes) expect(l).toContain("on the mesh only from the owner's step (0132 open question 7), then ota_names is mesh-only");
+    expect(lines.join('\n')).not.toContain('decides whether it should');
   });
 
   it('internet requires each OTA name to answer over TLS', async () => {

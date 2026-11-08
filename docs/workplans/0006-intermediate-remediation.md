@@ -10,7 +10,7 @@
 | B — Docs case collision `DEPLOYMENT.md` vs `deployment.md` | ✅ Done — single `deployment.md` remains | approved |
 | C — Workplan & docs integrity (0003/0004/0005 status, broken links, stale README) | ✅ Done — index rows carry supersession notes | approved |
 | D — Root dependency & shim cleanup (`mollie-api-node`, stale `.d.ts`) | ✅ Done — dependency and shim removed | approved |
-| E — CI hardening (self-hosted runner on `pull_request`, unpinned actions) | ✅ Done — PRs run on `ubuntu-latest`, Spark only on push | approved |
+| E — CI hardening (self-hosted runner on `pull_request`, unpinned actions) | ✅ Done — PRs run on `ubuntu-latest`, the self-hosted runner only on push | approved |
 | G — Compose duplication & Postgres version drift (root vs `deploy/compose`) | ✅ Done — root compose removed; `deploy/compose/managed.yml` is the one source | approved |
 | H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
 | I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
@@ -139,13 +139,13 @@ manifest free of unused deps.
 ## E — CI hardening (supply chain)
 
 **Evidence.** `ci.yml` runs **all** jobs (`lint`, `unit`, `integration`) on `runs-on: self-hosted`
-and triggers on `pull_request`. AGENTS.md safety notes: the Spark runner has docker socket +
+and triggers on `pull_request`. AGENTS.md safety notes: the self-hosted runner has docker socket +
 root, *trusted workflows only*. ADR-0009 targets a **public** monorepo — once public, an external
 fork PR would execute on that runner. Several actions are unpinned (`pnpm/action-setup@v4`,
 `actions/setup-node@v4` carry `TODO: pin` comments). The architecture (§22) prescribes
-GitHub-hosted runners for lint/unit and the Spark only for integration/e2e.
+GitHub-hosted runners for lint/unit and the machine only for integration/e2e.
 
-**Fix (proposed).** Move lint+unit jobs to `ubuntu-latest`; keep integration/e2e on the Spark but
+**Fix (proposed).** Move lint+unit jobs to `ubuntu-latest`; keep integration/e2e on the machine but
 gate them (run on `push` to `main` and on PRs from branch authors with write access, e.g.
 `github.event.pull_request.head.repo.full_name == github.repository`). Pin the two actions to
 commit SHAs. Document the policy in `docs/testing.md`.

@@ -9,7 +9,7 @@
  * which is the one screen an operator, a person answering an invitation, or
  * anyone asking for access can actually reach.
  *
- * Reported from the Spark on 2026-08-24, looking at *Aanmelden bij Ownpace*:
+ * Reported from the machine on 2026-08-24, looking at *Aanmelden bij Ownpace*:
  * "I don't see a version on the front app page?" The API answered
  * `GET /version` correctly the whole time, and the bundle was stamped — the
  * one place nobody could look was the page everybody looks at first.

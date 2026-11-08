@@ -292,7 +292,7 @@ and needs a certificate; that decision has not been taken. Fine for Phases 1–3
 not what you would hand a customer.
 
 <details>
-<summary>Building it by hand instead (on the Spark)</summary>
+<summary>Building it by hand instead (on the machine)</summary>
 
 Still works, and is what the workflow runs:
 
@@ -404,7 +404,7 @@ because a named suspicion is faster to check than a blank error.
 ## What needs to be running, and where
 
 Short version: **Phases 1 and 2 need nothing but the laptop.** Phase 3's most
-valuable test needs a real source and target, and that is what the Spark is for.
+valuable test needs a real source and target, and that is what the machine is for.
 
 | Phase | Needs a source/target server? |
 |---|---|
@@ -418,23 +418,23 @@ Stalwart you provisioned first was wasted effort.
 
 ### For the Phase 3 shutdown test, over NetBird
 
-Keep Stalwart (and Nextcloud, if you want the DAV domains) **on the Spark**,
+Keep Stalwart (and Nextcloud, if you want the DAV domains) **on the machine**,
 started with `deploy/selfhost/setup-stalwart.sh` (idempotent), and run the
-appliance on the laptop, pointing its mapping at the Spark's NetBird address.
+appliance on the laptop, pointing its mapping at the machine's NetBird address.
 
 **Publish it on that address, because the default is loopback.** Since
 workplan 0132 T3, `setup-stalwart.sh` publishes both ports on `STALWART_BIND`,
 which is `127.0.0.1` unless set: its accounts and passwords are in this
 repository. Before that it published with no bind address, on every interface.
-Run it on the Spark with the NetBird address, and the script asks that same
+Run it on the machine with the NetBird address, and the script asks that same
 address when it provisions:
 
 ```bash
-STALWART_BIND=<spark-netbird-ip> ./deploy/selfhost/setup-stalwart.sh
+STALWART_BIND=<machine-netbird-ip> ./deploy/selfhost/setup-stalwart.sh
 ```
 
-- JMAP: `http://<spark-netbird-ip>:18080/.well-known/jmap`
-- IMAPS: `<spark-netbird-ip>:1993` (TLS, self-signed)
+- JMAP: `http://<machine-netbird-ip>:18080/.well-known/jmap`
+- IMAPS: `<machine-netbird-ip>:1993` (TLS, self-signed)
 - Accounts: `source@dev.local` / `source_password`, `target@dev.local` / `target_password`
 
 **Direction of traffic matters here and it is the reassuring part.** The
@@ -824,7 +824,7 @@ Then the things only a real machine can answer:
    <http://127.0.0.1:8080/ui/confirm> without logging in to anything first.
 2. **Does it stop and start cleanly?** `Stop-ScheduledTask` then
    `Start-ScheduledTask`, and check the log picks up rather than re-migrating.
-3. **The mid-sync test.** Start Stalwart on the Spark, point a mapping at it over
+3. **The mid-sync test.** Start Stalwart on the machine, point a mapping at it over
    NetBird, and stop the task while a sync is copying. Start it again. The ledger
    must be intact and a re-run must not duplicate — hard rule 1. The crash test
    makes this very likely to pass, but *likely* is not *tested*, and this is the

@@ -168,11 +168,11 @@ wait_for_jmap() {
 # whether the *published* port (what stalwart-cli, a host binary, actually connects to via
 # $CLI_URL) is wired up yet. Those are two different paths (internal bind vs. Docker's
 # port-publish/NAT), and the latter can lag the former by a moment even on a bare host with no
-# DooD involved: confirmed live on the Spark box (2026-07-25) — wait_for_jmap passed, the very
+# DooD involved: confirmed live on the box (2026-07-25) — wait_for_jmap passed, the very
 # next line's stalwart-cli call failed with "error sending request for url
 # (.../api/schema)", yet a manual curl against the same published port succeeded moments later.
 # Poll the actual CLI_URL here so stalwart-cli never races that gap. 90s, not 30s: on a busy
-# shared host (confirmed live, Spark box, 2026-07-25 -- this fired right after tearing down 7
+# shared host (confirmed live, the box, 2026-07-25 -- this fired right after tearing down 7
 # containers and starting postgres+nextcloud in the same breath), the published-port wiring can
 # lag well past 30s even though the container itself is healthy throughout.
 wait_for_cli_url() {

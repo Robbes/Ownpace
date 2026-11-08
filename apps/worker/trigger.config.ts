@@ -154,7 +154,7 @@ export default defineConfig({
     // The @openmig/* workspace packages are not on npm and MUST be bundled;
     // what must NOT be bundled is the native/wasm tail they drag in — these
     // are npm-installable inside the task image instead. First cut; T5's
-    // live deploy on the Spark is what proves the list.
+    // live deploy on the machine is what proves the list.
     external: ['@electric-sql/pglite', 'pg'],
     // The tasks run on the prebuilt base, and the CLI adds no layer to it
     // (the comment above TASK_BASE_IMAGE). `trigger dev` builds no image, so

@@ -23,12 +23,13 @@ name: E2E (managed)
 #
 # And not only at the start of this workflow's next run: every workflow of
 # this repository that runs on this runner checks out into the same work
-# folder, ci.yml's on a push to `main` among them. A file a RUNNING container
-# mounts from here is deleted under it, and the next start of that container
-# finds nothing (2026-11-03: PgBouncer's userlist, at a Docker daemon restart;
-# workplan 0132). So what the stack mounts and does not commit is mounted from
-# the persisted directory, never from here: the userlist through
-# PGBOUNCER_USERLIST, which the Fill step sets.
+# folder, ci.yml's on a push to `main` among them whenever its push jobs run
+# here (not during the alpha, since 2026-11-08: ci.yml's header). A file a
+# RUNNING container mounts from here is deleted under it, and the next start
+# of that container finds nothing (2026-11-03: PgBouncer's userlist, at a
+# Docker daemon restart; workplan 0132). So what the stack mounts and does not
+# commit is mounted from the persisted directory, never from here: the
+# userlist through PGBOUNCER_USERLIST, which the Fill step sets.
 #
 # So the one-time setup lives OUTSIDE the checkout, at a fixed path on the
 # runner, and the "Restore" step below copies it in fresh every run — a
@@ -78,7 +79,7 @@ name: E2E (managed)
 on:
   schedule:
     # 03:30 UTC — after e2e.yml's 23:30 (postgres, the night before) and 01:30
-    # (pglite) firings. The Spark is one shared box: three stacks at once would
+    # (pglite) firings. The machine is one shared box: three stacks at once would
     # fight over Docker and the loser would be blamed on whatever it happened
     # to be testing. Two hours between each, which is ten times the longest run
     # this gate has taken.

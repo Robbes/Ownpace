@@ -12,7 +12,7 @@
  * The section now adds a person of its own, puts the APPLY mapping with them,
  * issues and opens THEIR progress link, revokes it, and deletes the person.
  * These run the section exactly as the script has it, against a fake API, so
- * what is proved is the code that runs on the Spark, not a copy of it.
+ * what is proved is the code that runs on the machine, not a copy of it.
  */
 
 import { describe, it, expect } from 'vitest';

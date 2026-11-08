@@ -1477,7 +1477,7 @@ fi
 # gRPC-gateway's not-found body — a JSON viewer showing `code: 5`,
 # `message: "Not Found"`. Nothing on that screen names the login UI, the
 # feature, or this stack, so the first guess is a routing fault at the reverse
-# proxy. It cost an evening on the Spark (2026-08-25) before the feature flag
+# proxy. It cost an evening on the machine (2026-08-25) before the feature flag
 # was found.
 #
 # AND NO GATE WOULD HAVE CAUGHT IT. smoke-managed.sh signs in the way a machine

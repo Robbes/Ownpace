@@ -15,7 +15,7 @@
  * 0157 T6), at the price that door offers. On a stack in the alpha it picks
  * nothing, since no pace holds there. These tests run `at_a_paid_pace`
  * exactly as the script has it, against a fake API. So what is proved is the
- * code that runs on the Spark, not a copy of it.
+ * code that runs on the machine, not a copy of it.
  */
 
 import { describe, it, expect } from 'vitest';

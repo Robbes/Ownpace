@@ -23,7 +23,7 @@
  *
  * Same 500, same shape, opposite cause. Measured rather than reasoned: a
  * container on the DEFAULT bridge — where the alias cannot reach — fetched that
- * exact URL and got 200 (Spark, 2026-09-01). The front was fine; the alias was
+ * exact URL and got 200 (the machine, 2026-09-01). The front was fine; the alias was
  * standing in front of it.
  *
  * So the alias is derived. This pins the decision, and pins that nothing starts
@@ -97,7 +97,7 @@ describe('which name the provider answers to on the network', () => {
   });
 
   it('is the container when TLS is terminated somewhere else', () => {
-    // The Spark, 2026-09-01: Netbird terminates 443 and forwards to 3126.
+    // The machine, 2026-09-01: Netbird terminates 443 and forwards to 3126.
     expect(
       decide(
         'ZITADEL_EXTERNALDOMAIN=id.ota.ownpace.eu\nZITADEL_PORT=3126\nZITADEL_EXTERNALPORT=443\nZITADEL_EXTERNALSECURE=true\n',

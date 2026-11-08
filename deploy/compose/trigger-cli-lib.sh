@@ -287,7 +287,7 @@ trigger_cli_logged_in() { # trigger_cli_logged_in <cli_version> <profile>
 # "Not logged in, run login --profile openmig" is a true statement and a
 # useless one when you ARE logged in, as `ownpace`, and nothing on screen
 # mentions that a profile NAME is configurable at all. That happened on the
-# Spark (0099): the operator ran the printed command with a different profile,
+# machine (0099): the operator ran the printed command with a different profile,
 # it succeeded, and the phase refused again — because the script kept asking
 # about `openmig`, which is pre-rename branding nobody had reason to guess.
 #

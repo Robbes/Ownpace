@@ -2,7 +2,36 @@
 
 > **In one line:** Every screen of the managed app and the public site, in English and Dutch, on a phone and a desktop, looked at as a tester meets it: what reads wrong, does not fit or a screen reader cannot follow is fixed where the words are ours, and put to the owner where they are the owner's.
 
-## Status — 2026-10-21 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, later: the owner read follow-up 18's Dutch (open question 8), merged as #1847
+(`8d19e715`).** On the thirteen lines of #1840, the owner: *"het oude systeem and het nieuwe
+systeem: ok"*, *"Acknowledged: Keuze"*, *"cursors cleared: doorloopt alles opnieuw"* and *"this tool
+is Ownpace: ok"*. So the two lines that open with an acknowledgement, `QUEUE_EFFECTS.deletionKept`
+and `.moveKept`, now open with *Keuze vastgelegd.* where they said *Beslissing vastgelegd.*; every
+other word stands as built, and the English is unchanged.
+
+**2026-11-08: follow-up 18 built, for alpha.7 (#1840, merged the same day as `1a17f911`).** On Deletions, Moves and
+Failures, the line a press leaves where its buttons were was the server's English under a Dutch
+page. Answered 2026-11-08, the owner: *"Build the recommended for alpha 7."* The recommendation
+was to build this into alpha.7. Its new words are the builder's and wait for the owner's reading
+(open question 8).
+
+- `QUEUE_EFFECTS` in `operating-contract.ts` holds the thirteen lines in English and in Dutch,
+  beside `DECISION_EFFECTS`. Each edition used to write its own copy of the English. Both answer
+  from the table now, with `decisionEffectFields`: the English as `effect`, word for word as
+  before, and the Dutch as `effectNl`. Every old `effect` expression of both editions, evaluated
+  for retry and accept, 0, 1 and 3 items, binned and deleted, gave exactly the table's English
+  (managed 9 lines, the appliance 13).
+- The rows say the half in the reader's language (`ServedEffect`, with the Decisions page's
+  `decisionEffectText`), also after a language switch. An older appliance's English-only answer
+  shows as served, marked `lang="en"`. A group of one item has its own Dutch line, so the Dutch
+  agrees in number.
+- The decisions' twin guard reads both tables, and went red with one Dutch sentence removed
+  (*QUEUE_EFFECTS.moveKept has no Dutch*). Both editions' answers are pressed over PGlite
+  (`a-queue-decision-said-in-dutch`, managed and on the appliance): red with main's routes, green
+  here. So are 13 new component tests. The appliance's E2E apply and restart gates read
+  `effectNl` too (first run: when it is dispatched).
 
 **2026-10-21: follow-ups 6 and 12 built and merged.** Each was built from main, a second reviewer
 tried to break it, and it merged on its own after `ci-complete` was green. Their new words, in
@@ -474,12 +503,13 @@ accepted any version (the Status block).
     *permission list* / *rechtenlijst*, the checklist's hover lines *This access …* / *Dit recht
     …*, and *Nog geen gedeelde rechten*. The glossary's share row lists them; they wait for the
     owner.
-18. **The item queues' effect lines are still English** (found building #1649). The line under a
-    decision just made on Deletions, Moves and Failures is the server's `effect`, shown by
-    `Resolved` in `apps/web/src/components/queues/primitives.tsx`. It has no Dutch twin and is
-    not marked `lang="en"` under a Dutch page. The fix follows #1649: a Dutch twin in
-    `@openmig/shared`, served as `effectNl`. A row under *Already decided* is not affected: since
-    #1652 it says what was decided in the page's own words.
+18. ~~**The item queues' effect lines are still English** (found building #1649).~~ **Resolved in
+    #1840.** The line a press on Deletions, Moves or Failures leaves where its buttons were is in
+    `QUEUE_EFFECTS` (`operating-contract.ts`), in English and in Dutch. Both editions serve the
+    Dutch as `effectNl` beside `effect` (`decisionEffectFields`), and the rows show the reader's
+    half (`ServedEffect`, with `decisionEffectText`). From a server that sent no Dutch the English
+    shows, marked `lang="en"`. A row under *Already decided* still says its own words (#1652). The
+    builder wrote the Dutch, for the owner to read (open question 8).
 
 ## Open questions
 
@@ -498,11 +528,16 @@ accepted any version (the Status block).
 6. **The Leaving pages' words** (T15) are proposals until the owner has read 0152's.
 7. **Follow-up 10.** Is one list of guide links per column right, or should each link name its
    row?
-8. **For the owner to read**, built on 2026-10-21 in words the builder wrote:
+8. **For the owner to read**, built on 2026-10-21 and 2026-11-08 in words the builder wrote:
    - the Dutch of the three lines under a decided decision (#1649, follow-up 12): *Antwoord
      vastgelegd. De migratie handelt er vanaf nu naar.* (the answer changed something),
      *Antwoord vastgelegd. Er verandert daardoor niets aan uw migraties.* (only recorded), and
      *Terzijde gelegd; er is niets mee gedaan. Blijft de situatie zo, dan kan de vraag
      terugkomen.* (set aside). The English is unchanged;
    - the five labels on a decided row of Deletions and Moves (#1652, follow-up 6), in English and
-     in Dutch, as follow-up 6 lists them.
+     in Dutch, as follow-up 6 lists them;
+   - the Dutch of the lines a press leaves where the buttons were on Deletions, Moves and Failures
+     (#1840, follow-up 18): thirteen lines, eighteen sentences, in `QUEUE_EFFECTS`
+     (`operating-contract.ts`), each beside its English, which is unchanged. #1840 lists them.
+     *(2026-11-08: read by the owner; the acknowledgement is* Keuze vastgelegd.*, the rest as
+     built: the Status entry of that day.)*

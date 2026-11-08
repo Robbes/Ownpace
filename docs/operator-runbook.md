@@ -579,13 +579,13 @@ new rates apply to invoices generated from now on.
 
 ## This box also runs CI — beside live for the alpha, and not beyond it
 
-The Spark is several things at once: the OTA stack (`ownpace-managed`, the demo
-and the nightly gate's target), `ownpace-live` (the stack the alpha's testers
-use), the CI runner for pushes to `main`, the e2e runner, and the O365 e2e
-runner. Sharing it was a reasonable arrangement while the only data on it was
-the demo seed. It stops being reasonable the moment a customer's mailbox
-credentials live here, and the reason is not hypothetical — it has already
-nearly happened twice:
+The machine is several things at once: the OTA stack (`ownpace-managed`, the
+demo and the nightly gate's target), `ownpace-live` (the stack the alpha's
+testers use), the CI runner for pushes to `main` (not during the alpha: route 1
+below), the e2e runner, and the O365 e2e runner. Sharing it was a reasonable
+arrangement while the only data on it was the demo seed. It stops being
+reasonable the moment a customer's mailbox credentials live here, and the
+reason is not hypothetical — it has already nearly happened twice:
 
 - **A drill nearly took a live appliance down.** `container_name` in
   `compose.yml` is a fixed string and `docker compose -p` does not namespace
@@ -612,11 +612,16 @@ nearly happened twice:
 must not share this machine. Two ways to get there, and the cheaper one only
 became available recently:
 
-1. **Move CI off.** The Spark was buying two things GitHub-hosted runners could
+1. **Move CI off.** The machine was buying two things GitHub-hosted runners could
    not: arm64 and a warm cache. Arm64 is no longer one of them — GitHub's
    `ubuntu-24.04-arm` hosted runners are generally available and free for
    public repositories. What remains is cache/speed, which is worth far less
-   than not sharing a Docker daemon with production.
+   than not sharing a Docker daemon with production. **Done for CI's push
+   jobs for the alpha's weeks** (the owner, 2026-11-08, workplan 0132 open
+   question 1): a push runs every job of `ci.yml` and `security-scan.yml` on
+   `ubuntu-24.04-arm`, and the repository variable `CI_PUSH_ON_SELF_HOSTED`,
+   set to `true`, sends them back. The nightlies still run `main` here, so CI
+   and production still share this machine.
 2. **Move production off**, onto a host that runs no CI at all.
 
 **The alpha is the one exception, by the owner's decision of 2026-09-24**

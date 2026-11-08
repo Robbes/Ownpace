@@ -9,7 +9,7 @@
  *     verify: done   apply: applied
  *     SMOKE FAIL — evidence in /tmp/openmig-smoke-managed-20260903T143750Z.txt
  *
- * That is what the owner got back from the Spark on 2026-09-03. Both halves he
+ * That is what the owner got back from the machine on 2026-09-03. Both halves he
  * could name had succeeded, so the cause was one of the other hundred and
  * forty-five — and the only way to find out was to read a several-hundred-line
  * log on a phone, or ask. The information existed at the moment of failure and
