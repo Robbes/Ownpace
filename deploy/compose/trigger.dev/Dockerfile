@@ -15,15 +15,21 @@
 # REPLACED: FIVE PACKAGES): about 89 high findings become 46, and 57 with a fix
 # become 14 (WHAT STAYS says what is left, and why). Since 2026-11-06 (for
 # alpha.6, workplan 0119 §3 item 11, confirmed by the owner on 2026-11-07), the
-# last RUN as root purges eleven Debian packages nothing here runs or loads:
-# apt, libapt-pkg6.0, the eight util-linux builds and e2fsprogs, which
-# pre-depends on two of them (THE DEBIAN PACKAGES NOTHING RUNS): 49 high
-# findings become about 23, and 16 with a fix about 14. The branch's scan of
-# that image read 1 critical, 24 high and 14 with a fix (Security Scan run
-# 42213975717). Since the same day a fifth package is swapped with the four:
+# last RUN as root purges eleven Debian packages nothing here runs or loads
+# (thirteen since 2026-11-08, below): apt, libapt-pkg6.0, the eight
+# util-linux builds and e2fsprogs, which pre-depends on two of them (THE
+# DEBIAN PACKAGES NOTHING RUNS): 49 high findings become about 23, and 16
+# with a fix about 14. The branch's scan of that image read 1 critical, 24
+# high and 14 with a fix (Security Scan run 42213975717). Since the same day
+# a fifth package is swapped with the four:
 # effect 3.17.1 by 3.22.4, the one of effect's three copies whose requirer's
 # range takes the fix (WHAT IS REPLACED: FIVE PACKAGES), so 24 become 23, and
-# 14 become 13 (Security Scan run 42263361900, of the image with both).
+# 14 become 13 (Security Scan run 42263361900, of the image with both). Since
+# 2026-11-08 (for alpha.7) the purge takes libsystemd0 and libudev1 too,
+# systemd's two libraries, which nothing left needs once apt and util-linux
+# are gone: the scan of the alpha.6 tag read 1, 24 and 14 (Security Scan run
+# 42368077845, one more in goose v3.29.0's golang.org/x/net), and the two take
+# 2 highs off it (THE DEBIAN PACKAGES NOTHING RUNS).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -542,28 +548,40 @@
 # goose's one, undici 5.29.0's five, @fastify/busboy 2.1.1's,
 # turbo-stream 2.4.1's, deepmerge-ts 7.1.5's, cross-spawn 5.1.0's, effect
 # 3.16.12's and 3.18.4's (pinned exactly) and body-parser 2.3.0's (read
-# again, and not taken: 2.4.0 needs iconv-lite ^0.7.3).
+# again, and not taken: 2.4.0 needs iconv-lite ^0.7.3). Since 2026-11-08
+# libsystemd0's high and libudev1's go too, and of Debian's packages the
+# critical and 8 highs stay, none with a fix: zlib1g's three (CVE-2023-45853
+# the critical), and one each in gzip, libacl1, libtinfo6, ncurses-base,
+# ncurses-bin and perl-base.
 #
 # THE DEBIAN PACKAGES NOTHING RUNS (since 2026-11-06, for alpha.6; workplan
 # 0119 §3 item 11, the owner's decision of 2026-11-03 for the appliance and the
 # tasks' base, extended here under the owner's alpha.5 instruction of
 # 2026-11-06, "put in most of what you can, like for hardening", and confirmed
-# by the owner on 2026-11-07). Upstream's runner stage is
-# node:24.22.1-bookworm-slim (Debian 12.15) with openssl, netcat-openbsd and
-# ca-certificates from apt. Security Scan run 42143936608 (Trivy 0.76.1,
-# linux/arm64, 2026-11-06) read this image at 1 critical, 49 high and 16 with
-# a fix. Of those:
+# by the owner on 2026-11-07; libsystemd0 and libudev1 since 2026-11-08, for
+# alpha.7, on the owner's answer that day, "Build the recommended for alpha
+# 7.", where the recommendation for these two was yes). Upstream's runner
+# stage is node:24.22.1-bookworm-slim (Debian 12.15) with openssl,
+# netcat-openbsd and ca-certificates from apt. Security Scan run 42143936608
+# (Trivy 0.76.1, linux/arm64, 2026-11-06) read this image at 1 critical, 49
+# high and 16 with a fix. Of those:
 #   - apt 2.6.1 and libapt-pkg6.0 2.6.1: CVE-2026-109518 (high, fixed in
 #     2.6.2; an on-path attacker during an apt download), two of the 16;
 #   - three highs with no fix in Debian in each of the eight packages
 #     built from util-linux's source that this image has: util-linux,
 #     util-linux-extra, mount, bsdutils, libblkid1, libmount1, libsmartcols1
-#     and libuuid1 (24).
-# The last RUN as root purges those ten, and e2fsprogs 1.47.0-2+b2, which
+#     and libuuid1 (24);
+#   - one high with no fix in Debian in each of libsystemd0 and libudev1
+#     252.39-1~deb12u2, systemd's two libraries (since 2026-11-08).
+# The last RUN as root purges the first ten, and e2fsprogs 1.47.0-2+b2, which
 # carries no finding of its own and pre-depends on libblkid1 and libuuid1:
 # dpkg refused to purge those two while it stayed (images.yml's `build
 # (trigger, amd64|arm64)`, 2026-11-06). So 1, 49 and 16 become about 1, 23
 # and 14 (arithmetic from the report, which the branch's image scan measures).
+# Since 2026-11-08 it purges libsystemd0 and libudev1 too: only apt,
+# libapt-pkg6.0, util-linux and bsdutils depend on them in this base, all four
+# on the list, so the thirteen go together and dpkg needs no other force; and
+# 24 high become 22 (from the alpha.6 tag's 1, 24 and 14, above).
 # util-linux-extra goes with util-linux, which hard-depends on it in Debian 12
 # (util-linux 2.38-1 made it "pseudo-Essential"; 2.39.1-2, after Debian 12,
 # dropped the dependency), and libapt-pkg6.0 with apt, its one user here. Not
@@ -571,10 +589,17 @@
 # shadow's, not util-linux's, and carries no finding, and libsqlite3-0, which
 # Debian 13 brings for lastlog2 and the scan does not read here. e2fsprogs
 # goes alone: its libraries (libext2fs2, libss2, libcom-err2) and logsave
-# stay, and need only libc6 and libcom-err2. Debian 12.15's dpkg status
-# (node:24.22.1-bookworm-slim, linux/arm64, read 2026-11-06) has no other
-# installed package that depends on one of the eleven, and none that depends
-# on e2fsprogs.
+# stay, and need only libc6 and libcom-err2. What libsystemd0 and libudev1
+# depend on stays (libc6, libcap2, libgcrypt20, liblz4-1, liblzma5 and
+# libzstd1): dpkg purges only what it is given. Debian 12.15's dpkg status
+# (node:24.22.1-bookworm-slim, linux/arm64, read 2026-11-06, and on both
+# platforms on 2026-11-08 by its layers' digests, which are this image's first
+# five) has 88 packages installed, no other installed package that depends
+# on one of the thirteen, and none that depends on e2fsprogs. libsystemd0 and
+# libudev1 are Priority optional, neither Essential nor protected, and run no
+# maintainer script, only ldconfig's trigger. The runner stage's own layer
+# (openssl, netcat-openbsd, ca-certificates and their libraries, and `apt-get
+# upgrade`) could not be read here, as below: dpkg's refusal reads it.
 #
 # WHY NOTHING RUNS THEM, read at read_at (below):
 #   - What starts in trigger-api: managed.yml's `sh -c "chown -R node:node
@@ -598,9 +623,22 @@
 #   - None of those programs is apt's, util-linux's or e2fsprogs': dash,
 #     coreutils (chown, test, cp, cut, sleep), grep, tar, gzip, netcat-openbsd,
 #     dumb-init, node, goose. Nothing execs apt, apt-get, su, mount, getopt,
-#     logger, more, mke2fs, e2fsck or any other program of the eleven into the
-#     container (nothing makes or checks a file system in it), and nothing
-#     installs a package in it: a change is a rebuild.
+#     logger, more, mke2fs, e2fsck or any other program of the thirteen into
+#     the container (nothing makes or checks a file system in it), and nothing
+#     installs a package in it: a change is a rebuild. libsystemd0 and libudev1
+#     have no program: they are libraries alone.
+#   - What links libsystemd.so.0 and libudev.so.1, read 2026-11-08: in the
+#     Node image's layers on both platforms (`readelf -d` of every ELF file,
+#     694 on linux/arm64 and 695 on linux/amd64), only util-linux's findmnt,
+#     lsblk and lslogins, bsdutils' logger, apt's http method and
+#     libapt-pkg.so.6.0.0 need either, all six purged with their packages, and
+#     no other ELF file but the two libraries themselves names either; node
+#     24.22.1 there needs libdl, libstdc++, libm, libgcc_s, libpthread, libc
+#     and ld-linux. In the published files the next bullet reads, fetched
+#     again by their publishers' hashes (goose's two assets, prisma's five
+#     engines by the sha256 binaries.prisma.sh publishes, and sentry-cli's two
+#     builds, bufferutil's linux-x64 prebuild and rollup's linux-x64-gnu and
+#     linux-arm64-gnu addons by npm's sha512), none needs or names either.
 #   - What links their libraries (libuuid.so.1, libblkid.so.1, libmount.so.1,
 #     libsmartcols.so.1, libapt-pkg.so.6.0, libapt-private.so.0.0), read
 #     2026-11-06 in the published files the image runs or carries, each by its
@@ -624,25 +662,34 @@
 # HOW THEY ARE PURGED, AND PROVED. The last RUN as root, after every other
 # change, as the appliance's purge (apps/selfhost/Dockerfile) and the tasks'
 # (apps/worker/trigger.config.ts) do:
-#   1. `dpkg-query -W` of exactly the eleven, first: a package renamed or gone
-#      stops the build before anything is purged (a list to read again, not a
-#      name to skip).
+#   1. `dpkg-query -W` of exactly the thirteen, first: a package renamed or
+#      gone stops the build before anything is purged (a list to read again,
+#      not a name to skip).
 #   2. `dpkg --audit` reads nothing in the image as upstream left it, and the
-#      eleven ship the six libraries (`dpkg-query -L`), so the scan in 5 does
-#      not look for names nothing had.
+#      thirteen ship the eight libraries (`dpkg-query -L`), so the checks in 5
+#      and 6 do not look for names nothing had.
 #   3. `dpkg --purge --force-remove-essential --force-remove-protected`, the
 #      two flags of the owner's decision, and no other force. Debian marks
 #      util-linux and bsdutils Essential. Without --force-depends, dpkg refuses
 #      to remove what an installed package still depends on, so a base where
 #      one does stops the build. That is how e2fsprogs joined the list: this
 #      base has it, and dpkg refused libblkid1 and libuuid1 for it. A package
-#      that joins the base and depends on one of the eleven stops the build
-#      here the same way.
-#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the eleven as
-#      gone (no record, or not-installed).
-#   5. No ELF file under / (the image's own file system, walked whole) names
-#      one of the six, so nothing left links them or opens them by name.
-#   6. The programs this stack runs here start: grep, cp, tar, gzip and
+#      that joins the base and depends on one of the thirteen stops the build
+#      here the same way: no dependency is left dangling.
+#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the thirteen
+#      as gone (no record, or not-installed).
+#   5. No file of the eight is left under / (the image's own file system,
+#      walked whole) by its name, the library or a link to it, wherever it is.
+#      And no ELF file needs one: its DT_NEEDED entries, read from its program
+#      headers and its dynamic section as the dynamic loader reads them, 32- or
+#      64-bit, either byte order. An ELF file whose dynamic section cannot be
+#      read counts as needing a library when it names it, since what an ELF
+#      file needs is a string in it; and the check fails when it read no ELF
+#      file that needs a library at all.
+#   6. No ELF file under / names one of the eight, so nothing left links them
+#      or opens them by name. 5 and 6 run in this RUN, as root, who can read
+#      every directory, and nothing after it installs a package.
+#   7. The programs this stack runs here start: grep, cp, tar, gzip and
 #      dumb-init (--version), goose (-version) and node; pnpm and the
 #      migrations are JavaScript on that node.
 # The appliance's purge ends with `apt-get check`, which needs apt, and apt is
@@ -714,7 +761,7 @@
 # upstream fixed. Each replacement names the version it replaces the same
 # way (dompurify 3.4.13, goose v3.27.1, and the five packages' old versions
 # and their requirers), and fails by name when upstream moves it: drop that
-# replacement (THE WAY OUT). The purge names its eleven packages and six
+# replacement (THE WAY OUT). The purge names its thirteen packages and eight
 # libraries the same way: `dpkg-query -W` stops the build on a base that
 # renames or drops one, and `dpkg-query -L` on one that no longer ships a
 # library (THE DEBIAN PACKAGES NOTHING RUNS). A pull request that touches
@@ -1081,9 +1128,10 @@ RUN set -eu; \
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's THE DEBIAN PACKAGES NOTHING RUNS against this image; a package leaves the list, or joins it, only with its reason." >&2; exit 1; }; \
-    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs"; \
-    libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0"; \
+    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs libsystemd0 libudev1"; \
+    libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0 libsystemd.so.0 libudev.so.1"; \
     top=/; \
+    needs="const fs = require('fs'); const path = require('path'); const [top, ...names] = process.argv.slice(1); const dev = fs.statSync(top).dev; const head = Buffer.alloc(4); let read = 0, dyn = 0, unread = 0; const hits = []; const needed = (b) => { const c = b[4], o = b[5]; if ((c !== 1 && c !== 2) || (o !== 1 && o !== 2)) throw new Error('class'); const w = c === 2 ? 8 : 4, le = o === 1; const u16 = (at) => (le ? b.readUInt16LE(at) : b.readUInt16BE(at)); const u32 = (at) => (le ? b.readUInt32LE(at) : b.readUInt32BE(at)); const word = (at) => (w === 8 ? Number(le ? b.readBigUInt64LE(at) : b.readBigUInt64BE(at)) : u32(at)); const phoff = word(w === 8 ? 32 : 28), phsz = u16(w === 8 ? 54 : 42), phnum = u16(w === 8 ? 56 : 44); const load = []; let dynamic = null; for (let k = 0; k < phnum; k++) { const p = phoff + k * phsz, t = u32(p); const f = w === 8 ? [word(p + 8), word(p + 16), word(p + 32)] : [word(p + 4), word(p + 8), word(p + 16)]; if (t === 1) load.push(f); if (t === 2) dynamic = f; } if (!dynamic) return []; let str = null; const need = []; for (let p = dynamic[0]; p + 2 * w <= dynamic[0] + dynamic[2]; p += 2 * w) { const t = word(p), v = word(p + w); if (t === 0) break; if (t === 1) need.push(v); if (t === 5) str = v; } if (!need.length) return []; const seg = str === null ? undefined : load.find((s) => str >= s[1] && str < s[1] + s[2]); if (!seg) throw new Error('strtab'); const at = str - seg[1] + seg[0]; return need.map((v) => { const s = at + v, e = s < b.length ? b.indexOf(0, s) : -1; if (e < 0) throw new Error('name'); return b.toString('latin1', s, e); }); }; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isDirectory()) { if (s.dev === dev) walk(p); continue; } for (const n of names) if (e === n || e.startsWith(n + '.')) hits.push(p + ': a file of ' + n + ' is left'); if (!s.isFile() || s.size < 4) continue; const fd = fs.openSync(p, 'r'); try { fs.readSync(fd, head, 0, 4, 0); } finally { fs.closeSync(fd); } if (head.readUInt32BE(0) !== 0x7f454c46) continue; read++; const b = fs.readFileSync(p); let need; try { need = needed(b); } catch { unread++; for (const n of names) if (b.includes(n)) hits.push(p + ': names ' + n + ', and its dynamic section cannot be read'); continue; } if (need.length) dyn++; for (const n of names) if (need.includes(n)) hits.push(p + ': needs ' + n); } }; walk(top); console.error(read + ' ELF files read under ' + top + ', ' + dyn + ' of them needing a library, ' + unread + ' whose dynamic section could not be read'); if (dyn === 0) process.exit(2); if (hits.length) { console.log(hits.join(' ')); process.exit(1); }"; \
     elves="const fs = require('fs'); const path = require('path'); const [top, ...names] = process.argv.slice(1); const dev = fs.statSync(top).dev; const head = Buffer.alloc(4); let read = 0; const hits = []; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isDirectory()) { if (s.dev === dev) walk(p); continue; } if (!s.isFile() || s.size < 4) continue; const fd = fs.openSync(p, 'r'); try { fs.readSync(fd, head, 0, 4, 0); } finally { fs.closeSync(fd); } if (head.readUInt32BE(0) !== 0x7f454c46) continue; read++; const b = fs.readFileSync(p); for (const n of names) if (b.includes(n)) hits.push(p + ': ' + n); } }; walk(top); console.error(read + ' ELF files read under ' + top); if (read === 0) process.exit(2); if (hits.length) { console.log(hits.join(' ')); process.exit(1); }"; \
     dpkg-query -W $purge || fail "dpkg-query does not find every one of: $purge (above). A package renamed or gone is a list to read again, not a name to skip; nothing was purged."; \
     audit="$(dpkg --audit)" || fail "dpkg --audit did not run; nothing was purged."; \
@@ -1094,12 +1142,14 @@ RUN set -eu; \
     audit="$(dpkg --audit)" || fail "dpkg --audit did not run after the purge."; \
     [ -z "$audit" ] || fail "after the purge, dpkg --audit reads: $audit"; \
     for p in $purge; do st="$(dpkg-query -W -f '${db:Status-Status}' "$p" 2>/dev/null)" && rc=0 || rc=$?; case "$rc:$st" in 1:|0:not-installed) ;; *) fail "after the purge, dpkg reads $p as '$st' (dpkg-query exits $rc), not gone." ;; esac; done; \
+    left="$(node -e "$needs" "$top" $libraries)" && st=0 || st=$?; \
+    [ "$st" = 0 ] || fail "after the purge, a file of a library it removed is left, or an ELF file needs one (DT_NEEDED), or the check read no ELF file that needs a library at all (node exits $st): ${left:-none named}"; \
     found="$(node -e "$elves" "$top" $libraries)" && st=0 || st=$?; \
     [ "$st" = 0 ] || fail "after the purge, an ELF file names a library it removed, or the scan read none (node exits $st): ${found:-none named}"; \
     for c in grep cp tar gzip dumb-init; do "$c" --version >/dev/null 2>&1 || fail "$c, which this stack runs here, does not start after the purge."; done; \
     /usr/local/bin/goose -version >/dev/null || fail "goose does not start after the purge, and the entrypoint runs it at every start."; \
     node -e 0 || fail "node does not start after the purge, and every pnpm, migration and the server run on it."; \
-    echo "$me: purged $purge; dpkg's audit reads nothing, no ELF file names $libraries, and grep, cp, tar, gzip, dumb-init, goose and node start."
+    echo "$me: purged $purge; dpkg's audit reads nothing, no file of $libraries is left and no ELF file needs or names one, and grep, cp, tar, gzip, dumb-init, goose and node start."
 
 # Upstream's own user, which this image keeps.
 USER node

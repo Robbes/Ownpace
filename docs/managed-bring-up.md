@@ -5081,8 +5081,11 @@ its Dockerfile pins, with the eleven Debian packages the webapp's image purges
 (util-linux's eight, apt, libapt-pkg6.0 and e2fsprogs) purged, and run as uid
 and gid 999 from its first process. 24 of the image's 34 high findings were in
 util-linux's eight, and nothing in this container runs or loads any of the
-eleven. Redis itself, its command, its volume and its append-only file are as
-they were.
+eleven. Since 2026-11-08 (for alpha.7) both images purge libsystemd0 and
+libudev1 too, thirteen: one high each, and only four of the eleven depended on
+them. After the purge the build fails if a file of a removed library is left,
+or if any ELF file in the image needs one (its `DT_NEEDED`) or names one. Redis
+itself, its command, its volume and its append-only file are as they were.
 
 - **The first `up` builds it, and Redis restarts once.** The bring-up's
   trigger phase (`up_wait trigger-redis …`) finds no image of that name and
@@ -5108,7 +5111,7 @@ they were.
   `plane-tokens.sh`'s `redis-cli`, over TCP, which answers the same.
 - **Moving it.** A newer Redis 7.4, or a rebuild of its tag, is Dependabot's
   pull request (the directory's own entry, never a major). A rebuild builds
-  when the base still has the eleven and nothing new depends on them; a new
+  when the base still has the thirteen and nothing new depends on them; a new
   release stops at the Dockerfile's last RUN, which asks redis-server for the
   FROM's release: read the new image's packages and scan, move that release
   and the header, and then `scripts/an-essential-nothing-runs.unit.test.ts`
@@ -6274,9 +6277,12 @@ webapp's build ends, as root, by purging eleven Debian packages nothing in
 apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages
 util-linux builds in Debian 12 (24 highs with no fix), and e2fsprogs, which
 depends on two of those and has no finding of its own. So `trigger-api` has no
-apt: nothing installs in it, and a change is a rebuild. A base where something
-still depends on one of the eleven stops the build, since dpkg refuses without
-`--force-depends`, and so does one that renamed or dropped one of them.
+apt: nothing installs in it, and a change is a rebuild. Since 2026-11-08 (for
+alpha.7) it purges libsystemd0 and libudev1 too, systemd's two libraries, which
+only apt, libapt-pkg6.0, util-linux and bsdutils needed there. A base where
+something still depends on one of the thirteen stops the build, since dpkg
+refuses without `--force-depends`, and so does one that renamed or dropped one
+of them.
 **When a host does not answer** (or answers with an error) while an
 image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
 hold the image's name yet, the build stops with nothing changed and says that
