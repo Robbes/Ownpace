@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, records: open question 7 answered: self-registration stays on.** Docs only, on the
+branch `claude/ownpace-public-readiness-y7orc6-a7-records`. The owner, at about 01:50 UTC: *"Build
+the recommended for alpha 7."* The recommendation was to keep it on: it is how a granted person
+gets an account without the product creating one; they prove their address by mail, and T8
+removes accounts nobody let in. Nothing is built or changed for it (§4, step 5).
+
+**2026-11-08: open question 4 answered: the console cannot be refused off the mesh at today's front,
+so nothing is built (alpha.7's item 5)**, on branch
+`claude/ownpace-public-readiness-y7orc6-a7-headers`, merged as #1845 (`0536708e`); records only. The
+owner took the recommendation with alpha.7's list: *"Build the recommended for alpha 7."* Both
+sign-in names reach the machine through NetBird's hosted proxy, and it cannot tell a peer of the
+mesh from a stranger: it knows a peer only over WireGuard, at a proxy of the account's own with the
+`Private` capability, which NetBird Cloud's shared clusters do not offer. Behind it, every request
+reaches the machine from NetBird's address. What it can do, refuse a path to everybody, would hide
+the console's screens and leave the APIs it calls, which the machine's own scripts call at the
+public name too; that is a fake guard, so it is not built. T4, the second factors and the lockout,
+carries the risk alone. Open question 4 has the reading, the console's calls, and what would make it
+possible: a NetBird proxy of the owner's own with the `Private` capability, and a second, mesh-only
+name for each sign-in service.
+
 **2026-11-08: live's identity provider runs v4.20.1 (T7).** Live's deploy of `v0.2.0-alpha.6`
 (0132's Status, 2026-11-08) moved it from v4.20.0, one-way in alpha.4's script's words. Before the
 checkout, the copy's take ran `dump-idp.sh` into the copy before alpha.6 while v4.20.0 ran: its note
@@ -1821,6 +1841,50 @@ carried T1 and T2.
 4. **The console on the public origin.** Can the mesh provider's ingress refuse `/ui/console` to
    anyone off the mesh, at `id.ownpace.eu` and at `id.ota.ownpace.eu`? If it can, that is worth
    doing for the alpha. If it cannot, T4 carries the risk alone.
+   *Answered 2026-11-08: not at the front the names use today, so nothing is built, and T4
+   carries the risk alone.* The owner took the recommendation with alpha.7's list: *"Build the
+   recommended for alpha 7."* Read in NetBird's source (`netbirdio/netbird` at `0270bfa8`), its
+   documentation (`netbirdio/docs` at `995c9099`) and Zitadel v4.20.1's console:
+   - **The front cannot tell the mesh from the internet.** Every name, both sign-in names among
+     them, reaches the machine through NetBird's hosted proxy: the probe's runs of 2026-10-29
+     found the same two addresses behind all of them. That proxy knows a request comes from a
+     peer of the account only when it arrives over WireGuard at a proxy's own listener on the
+     mesh (`proxy/internal/auth/middleware.go`, `forwardWithTunnelPeer`: the public listener
+     never marks a request so). Only a proxy run inside a NetBird client with the `Private`
+     capability has one, and *"NetBird Cloud's shared clusters do not currently advertise the
+     `Private` capability"* (`manage/reverse-proxy/bring-your-own-proxy.mdx`). So the owner's
+     laptop on the mesh reaches `id.ownpace.eu` over the internet, as a stranger does.
+   - **Nor can the machine.** Every request through the front arrives from NetBird's own mesh
+     address (0132 T3), and the header NetBird sets names the address the visitor connected
+     from: the laptop's public one, not its mesh address.
+   - **The front can refuse a path to everybody, and that would be a fake guard.** A target set
+     to *Block access* answers 403 without asking the machine (`handleTargetAccess`;
+     `manage/reverse-proxy/authentication.mdx`, *Per-target access actions*). The console is
+     `/ui/console`, whose `assets/environment.json` names the origin it was opened at as its API
+     and its issuer (`internal/api/ui/console/console.go`). It signs in through
+     `/oauth/v2/authorize`, `/ui/login/`, `/oauth/v2/token` and `/oidc/v1/userinfo`, and does
+     its work by gRPC-web at that origin: `/zitadel.admin.v1.AdminService/`,
+     `/zitadel.management.v1.ManagementService/`, `/zitadel.auth.v1.AuthService/` and the v2
+     services for users, sessions, features, organisations, actions, web keys, authorisations
+     and applications (`console/src/app/services/grpc.service.ts`), with `/assets/v1/` for
+     pictures. Refusing `/ui/console` alone hides the screens and leaves those APIs, which an
+     operator's password reaches without them. Refusing the APIs as well refuses the machine's
+     own calls to them, which go to the public name through the same front: `setup-zitadel.sh`
+     in every bring-up, its `--token-only` in live's daily duties, and `idp-strays.sh`. Either
+     way the owner and the operators are refused too: the support screen links into the
+     console, and a locked tester is unlocked there (T4b).
+   - **What would make it possible.** A front that knows the mesh: a NetBird proxy of the
+     owner's own, run as a peer with the `Private` capability (NetBird's *Bring Your Own Proxy*,
+     in beta). With it, a second name for each instance's sign-in service, served by
+     *NetBird-Only Access* to a group of the owner's devices and the machine, which Zitadel
+     answers as a domain of the same instance; the scripts above pointed at that name; and on
+     the public name, *Block access* for `/ui/console` and the API paths above, keeping
+     `/ui/login/`, `/oauth/v2/`, `/oidc/v1/`, `/.well-known/` and `/assets/v1/` for testers. A
+     second name, because NetBird-Only Access is a service's and not a path's (*"expose it as
+     two services on different subdomains"*). None of it was tried here. On the OTA instance,
+     0132 open question 7's answer (2026-11-08: the OTA names on the mesh only) takes the whole
+     name off the internet, the console with it, once its owner's step is done; that step needs
+     a front of the same kind.
 5. **The release watch (T7).** Which of (a), (b) and (c)? And is seven days the right window for a
    security release? *Answered 2026-09-28: "a+b, 7 days".*
 6. **Accounts nobody let in (T8).** Is 30 days the retention period? 0139 then writes it into the
@@ -1832,7 +1896,10 @@ carried T1 and T2.
 7. **Self-registration during the alpha.** Keep it on, which is recommended and follows 0095 T0?
    Or turn it off and create each tester's account by hand in the console? The second avoids
    stray accounts entirely. The cost is more work for the owner, and a creation mail whose
-   upstream wording names Zitadel.
+   upstream wording names Zitadel. *Answered 2026-11-08: keep it on*, as recommended, on the
+   owner's *"Build the recommended for alpha 7."*: it is how a granted person gets an account
+   without the product creating one; they prove their address by mail, and T8 removes accounts
+   nobody let in.
 8. **The organisation's name (T6).** On live, name it `Ownpace` from its first start, which needs
    no rename? On the OTA instance, rename it now, after a trial on a throwaway stack, or after the
    alpha? *Answered 2026-10-17 for live:* *"The sign-in organisation name on live: "Ownpace":

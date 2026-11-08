@@ -92,7 +92,7 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FAILURE_CATEGORIES } from '@openmig/shared';
-import { chooseLocation, parseNginx, type NginxNode } from './nginx-config.ts';
+import { chooseLocation, parseNginx, type NginxNode } from './nginx-config.mjs';
 import {
   MAX_DESCRIPTION,
   MAX_SCREENSHOT_BYTES,
@@ -259,7 +259,7 @@ function apiSources(): Map<string, string> {
 // The front's side: nginx, parsed
 // ---------------------------------------------------------------------------
 
-// The parser and the location choice live in `./nginx-config.ts`, shared with
+// The parser and the location choice live in `./nginx-config.mjs`, shared with
 // workplan 0158's guard on the headers the app is served with.
 
 /** Whether this location itself proxies: its own `proxy_pass`, or one in an `if` inside it, never a nested location's. */

@@ -46,7 +46,7 @@
 //
 // The fixture server sends each file with the headers the web image's nginx
 // sends it with, read from `apps/web/nginx.conf.template` as nginx reads it
-// (`scripts/nginx-config.ts`), the Content-Security-Policy among them. Every
+// (`scripts/nginx-config.mjs`), the Content-Security-Policy among them. Every
 // page this file opens listens for `securitypolicyviolation`, and a violation
 // fails the test that opened the page. The listener is needed: Chromium logs
 // nothing to the console for an `eval` a script tried inside a try/catch, and
@@ -69,7 +69,7 @@ import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium, type Browser, type BrowserContextOptions, type Page, type Request } from 'playwright-core';
-import { envsubst, headersFor, parseNginx } from '../../scripts/nginx-config.ts';
+import { envsubst, headersFor, parseNginx } from '../../scripts/nginx-config.mjs';
 import {
   APP_SCREEN_NOW,
   APP_SCREEN_PERSON,
