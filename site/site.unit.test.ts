@@ -760,6 +760,29 @@ describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', (
     }
   });
 
+  /**
+   * How long the copy before an update is kept (0134, 2026-11-08): the
+   * conditions §6 bind, both Alpha mails say 7 days, and until 2026-11-08 the
+   * guide named the copy and not its 7 days. It now says §6's own sentence,
+   * so a change to that sentence fails here until the guide follows.
+   */
+  it("says how long the copy before an update is kept, in the Alpha conditions' own words", async () => {
+    const SENTENCE = {
+      nl: 'Wij bewaren haar tot blijkt dat die update werkt, en nooit langer dan 7 dagen.',
+      en: 'We keep it until that update is shown to work, and never longer than 7 days.',
+    } as const;
+    const CONDITIONS = { nl: 'site/legal/alpha.nl.md', en: 'site/legal/alpha.md' } as const;
+    const pages = await alphaBuild();
+    for (const locale of ['nl', 'en'] as const) {
+      const conditions = read(CONDITIONS[locale]).replace(/<!--[\s\S]*?-->/g, '').replace(/\s+/g, ' ');
+      expect(conditions, `${CONDITIONS[locale]} no longer says it in these words`).toContain(SENTENCE[locale]);
+      const text = body(page(pages, GUIDE[locale])).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      expect(text, `the ${locale} guide does not say how long the copy before an update is kept`).toContain(
+        SENTENCE[locale],
+      );
+    }
+  });
+
   it('links nothing that does not answer: a page the alpha build writes, an app route, or the support address', async () => {
     const pages = await alphaBuild();
     const { APP_URL, SUPPORT_EMAIL } = (await import('./prices.mjs')) as unknown as {

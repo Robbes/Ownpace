@@ -538,7 +538,9 @@ a comment beside the sentence, in both languages, where the text rests on it. **
   both mails, after the same welcome, and the conditions §6 say the same. The tester guide names
   the one copy before an update, but not its 7 days.
   `alpha.note.terms` is gone.
-  **Still to do:** live runs a tag that carries it.
+  **Still to do:** live runs a tag that carries it. *(2026-11-08: done since 2026-10-28, when live
+  first ran `v0.2.0-alpha.2`, which carries #1460, merged 2026-10-04 with the welcome; live runs
+  alpha.6 now. And since 2026-11-08 the tester guide says the copy's 7 days, in §6's words.)*
 - *A privacy line in the mail to people items were shared with* (privacy §4.6;
   privacy-share-mail-notice (a)): one sentence and a link to the policy, in both languages, in
   `packages/shared/src/share-announcement.ts` and its copy in

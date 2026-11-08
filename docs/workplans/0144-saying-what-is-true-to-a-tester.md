@@ -2,7 +2,23 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-10-17 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08: the guide says how long the copy before an update is kept (T1); T5's advice was done
+(T5).** On the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, on the owner's *"Build
+the recommended for alpha 7."* (2026-11-08, about 01:50 UTC).
+- **T1.** *Geen back-ups* and *No backups* gain one sentence each, the Alpha conditions' §6 in
+  their own words: *"Wij bewaren haar tot blijkt dat die update werkt, en nooit langer dan 7
+  dagen."* and *"We keep it until that update is shown to work, and never longer than 7 days."*
+  Both Alpha mails say the 7 days too (*"kept up to 7 days"*, *"die hoogstens 7 dagen wordt
+  bewaard"*). The entry of 2026-10-04 left this to the owner because the Dutch needs the owner's
+  read: that read of the new sentence is owed (0152 T0). `site/site.unit.test.ts` now fails when
+  either guide stops saying the conditions' sentence, or the conditions change it.
+- **T5.** Its row said *Proposed*. The advice before anybody connects, start with an empty
+  destination or choose a target folder, has been in the guide since #1439 (merged 2026-10-04,
+  `d7ffc16e`), in both languages (`site/pages/nl/alpha-handleiding.md`, *Begin met een lege
+  bestemming* and *Is uw bestemming niet leeg?*; `site/pages/en/alpha-guide.md`, the same two
+  bullets). The confirm screen's half, after, is still proposed.
 
 **2026-10-17: the owner's Dutch read-through of the tester guide (T0 item 3, T1).** The owner,
 verbatim: *"The Dutch read-through of the tester guide: ok"*. That is the Dutch tester guide of T1,
@@ -257,7 +273,9 @@ the conditions, is where a tester reads what the Alpha means: nothing is charged
 end, no backups apart from one copy before each update, and keep your old account. The guide
 already says each of them; nothing in it changed. It does not say how long the copy is kept: the
 7 days are in both mails and the conditions §6 only. Adding *"kept up to 7 days"* to both guides
-is an owner item, because the Dutch needs the owner's read. Not done here.
+is an owner item, because the Dutch needs the owner's read. Not done here. *(2026-11-08: added,
+on the owner's "Build the recommended for alpha 7.", in §6's own words; the owner's read is owed:
+the entry at the top.)*
 
 **2026-10-04: the spelling is *Alpha*, the guide's Dutch address moved, and the app and the mails
 link the guide. On `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged.**
@@ -773,11 +791,11 @@ Everything a tester reads is written in Dutch first and translated into English 
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner's words: the address, the site copy, the guide read in Dutch | ✅ **all three answered.** The Dutch read of the tester guide ✅ **answered 2026-10-17**: *"The Dutch read-through of the tester guide: ok"* (T1's guide only); *was:* ⏳ **Owner**: the Dutch read. The site copy ✅ **answered** 2026-10-05 (open question 2): option B, *"P1a, P2a, P3b, P4a, P5a, P6a, P7a, P8 keep, P9a now, P10b later, P11b. Dutch as written."*, built as T3 (b); *was:* ⏳ **Owner**: the site copy and the Dutch read. The address ✅ **answered** 2026-09-27, in 0133 (open questions 2 and 3): `support@ownpace.eu`; it goes in `ownpace-live`'s `.env` as `VITE_SUPPORT_EMAIL`; *was:* ⏳ **Owner**, all three | §3. The address testers write to (0133 open question 3). Approval or rewrite of T3's site copy. A read of T1's Dutch before it is published. **Before the first invitation.** |
-| T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, merged (#1439)** (2026-10-03), the short form; the Dutch read ⏳ **Owner**. ✅ **2026-10-04, merged in #1460 (`db67747f`):** spelt *Alpha*, served at `/nl/alpha-handleiding.html`, and linked by the alpha note (on every page it stands on, the request page included), the access-granted mail and the invitation. The Dutch read ✅ **2026-10-17**, the owner: *"The Dutch read-through of the tester guide: ok"* (T0) — *was:* the Dutch read ⏳ **Owner**; the 2026-10-04 change on `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged; 📋 **Proposed** (D1, D3) | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
+| T1 A Dutch tester guide | 🔨 **Built on branch `claude/ownpace-public-readiness-y7orc6-a-guide-for-the-alpha-tester`, merged (#1439)** (2026-10-03), the short form; the Dutch read ⏳ **Owner**. ✅ **2026-10-04, merged in #1460 (`db67747f`):** spelt *Alpha*, served at `/nl/alpha-handleiding.html`, and linked by the alpha note (on every page it stands on, the request page included), the access-granted mail and the invitation. The Dutch read ✅ **2026-10-17**, the owner: *"The Dutch read-through of the tester guide: ok"* (T0) — *was:* the Dutch read ⏳ **Owner**; the 2026-10-04 change on `claude/ownpace-public-readiness-y7orc6-the-alpha-by-its-name`, not merged; 📋 **Proposed** (D1, D3). *(2026-11-08: one sentence added under *Geen back-ups* / *No backups*, how long the copy before an update is kept, in the conditions' §6 words; the owner's read of it is owed, 0152 T0. Status, 2026-11-08.)* | §3. One page on the site that carries the alpha's texts (0139 T10): what the alpha is, before you start, how to start, what is experimental, how to get help, how to leave. Built only when the site is built for the alpha. **Before the first invitation**, in its short form. |
 | T2 A known-limitations page the feature matrix keeps true | 📋 **Proposed** (D4) | §3. A copy on the site, in Dutch and English, and a guard that fails when it disagrees with the matrix's open gaps or 0131 T2's verdicts. **After.** |
 | T3 "Read-only" replaced by what is true | ✅ **(b), the site copy, and the setup title done** in #1529, merged 2026-10-05 (`08c84e0d`), in the owner's words (open question 2); the guard's `PENDING` is empty. ✅ **(a) and (c) done** in #1188, merged 2026-09-26. 📋 **Decided 2026-09-25 (owner)**. The password hint 📋 **Proposed** (after). The app's other *read-only* strings, P10 (b), 📋 **Later** (the owner, 2026-10-05) — *was:* (b) and the setup title 🔨 built 2026-10-05 on branch `claude/ownpace-public-readiness-y7orc6-the-site-says-ownpace-only-reads`, not merged; (b), the site copy, ⏳ **Owner** (T0); the setup title 📋 **Proposed** (after) | §3. The grant page says "read-only" only when Google enforces it. One line beside *Connect with Google*. Site copy, how-it-works, the grant-link guide and one setup title. **Before the first invitation**: the Connect line and the site copy, and the grant page if testers send grant links (0140 open question 2). |
 | T4 The warning in front of the delete switch says what the check does | ✅ **done** in #1607, merged 2026-10-16 (`256734c2`), with 0149 T6; guard `a-warning-the-check-keeps` — *was:* 📋 **Proposed** | §3. `APPLY_FLAG_WARNING` in both languages. Making removal fail closed is W18, now 0149, whose T1 to T3 land before the first invitation (0149 D1). **After**, written once 0149 T3 has landed, because T3 changes what the check does (0149 T6). |
-| T5 A destination that is not empty | 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
+| T5 A destination that is not empty | ✅ **The advice, before, done** in #1439, merged 2026-10-04 (`d7ffc16e`): T1's guide, *Voordat u begint*, in both languages; 📋 **Proposed** (the confirm screen, after) — *was:* 📋 **Proposed** | §3. The advice goes into T1 (**before**). The confirm screen names what adoption means later, and an IMAP target's exception (**after**). |
 | T6 A person to write to, before and after sign-in | (a) ✅ **done** in #1269, merged 2026-09-28 (`b2703c6f`); live shows it once `VITE_SUPPORT_EMAIL` is in its `.env` and its web image is rebuilt. (c), the GitHub chooser, ✅ **done** in #1600, merged 2026-10-16 (`8a9a269c`) — *was:* (c) built 2026-10-16 (Status), not merged; (a) 🔨 built on branch `claude/ownpace-public-readiness-y7orc6-a-person-to-write-to`, not merged (2026-09-28); 📋 **Proposed**; the address ⏳ **Owner** (T0) | §3. A support line on the pages outside the app, and in the sidebar when the report form is off. The GitHub chooser gets a route for the hosted service. The report form's settings reach the API since #1148 (2026-09-24) (§1). **Before the first invitation.** |
 | T7 *Request access* on the sign-in page | ✅ **done** in #1213, merged 2026-09-27; *was:* 📋 **Proposed** (D3) | §3. One link under the sign-in button, in the reader's language. **Before the first invitation.** |
 | T8 An owner can close their organisation from the screen | 📋 **Proposed** | §3. The screen for the close route that exists. The operator's path during the alpha and the identity provider's account are 0139 T7's, and the erasure sentence's word on backups is 0134 T1's. **After.** |

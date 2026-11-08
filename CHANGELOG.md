@@ -4,6 +4,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The tester guide says how long the copy before an update is kept** (workplans 0144 T1 and
+  0134): at most 7 days, in the Alpha conditions' own sentence (§6), as both Alpha mails say too.
+  Until now the guide named the one copy and not its 7 days.
+
 ## [0.2.0-alpha.6] - 2026-11-07
 
 Nothing changes on a tester's screen. Underneath, the identity provider moves to

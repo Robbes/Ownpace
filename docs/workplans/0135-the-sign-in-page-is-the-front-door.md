@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, records: open question 7 answered: self-registration stays on.** Docs only, on the
+branch `claude/ownpace-public-readiness-y7orc6-a7-records`. The owner, at about 01:50 UTC: *"Build
+the recommended for alpha 7."* The recommendation was to keep it on: it is how a granted person
+gets an account without the product creating one; they prove their address by mail, and T8
+removes accounts nobody let in. Nothing is built or changed for it (§4, step 5).
+
 **2026-11-08: live's identity provider runs v4.20.1 (T7).** Live's deploy of `v0.2.0-alpha.6`
 (0132's Status, 2026-11-08) moved it from v4.20.0, one-way in alpha.4's script's words. Before the
 checkout, the copy's take ran `dump-idp.sh` into the copy before alpha.6 while v4.20.0 ran: its note
@@ -1832,7 +1838,10 @@ carried T1 and T2.
 7. **Self-registration during the alpha.** Keep it on, which is recommended and follows 0095 T0?
    Or turn it off and create each tester's account by hand in the console? The second avoids
    stray accounts entirely. The cost is more work for the owner, and a creation mail whose
-   upstream wording names Zitadel.
+   upstream wording names Zitadel. *Answered 2026-11-08: keep it on*, as recommended, on the
+   owner's *"Build the recommended for alpha 7."*: it is how a granted person gets an account
+   without the product creating one; they prove their address by mail, and T8 removes accounts
+   nobody let in.
 8. **The organisation's name (T6).** On live, name it `Ownpace` from its first start, which needs
    no rename? On the OTA instance, rename it now, after a trial on a throwaway stack, or after the
    alpha? *Answered 2026-10-17 for live:* *"The sign-in organisation name on live: "Ownpace":
