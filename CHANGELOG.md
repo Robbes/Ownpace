@@ -4,6 +4,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The repository calls the machine the machine, the box or the self-hosted runner, never by its
+  hardware product name** (workplan 0132): 374 lines in 142 files named it, in comments, guides,
+  records and five test fixtures. A quotation of the owner keeps its words, with the substitution
+  in square brackets. `node scripts/machine-product-name.mjs --check` runs in `docs-hygiene` on
+  every change, compares digests rather than the words, and names the file and line of any
+  return. One line is left, the O365 lane's runner label, until the owner's step (0141 T13 (a)).
+  Git history keeps the old text.
+
 ## [0.2.0-alpha.6] - 2026-11-07
 
 Nothing changes on a tester's screen. Underneath, the identity provider moves to

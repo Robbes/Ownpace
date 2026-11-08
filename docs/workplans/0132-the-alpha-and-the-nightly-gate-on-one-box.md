@@ -4,6 +4,45 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08: the machine's product name is out of the repository's text, and a guard keeps it
+out (alpha.7).** Built on the branch `claude/ownpace-public-readiness-y7orc6-a7-machine-name`.
+**Answered 2026-11-08** (about 01:50 UTC), the owner: *"Build the recommended for alpha 7."* What
+was recommended: one pull request for the docs and comments, and a guard so the name does not
+return; git history keeps the old text, and it is not rewritten.
+- **The rule, written down for the first time.** Public text calls the box that runs CI's pushes,
+  the nightly gates, the OTA stack and live the machine, the box, the host, the arm64 machine or
+  the self-hosted runner, never by its hardware product name. A quotation of the owner keeps its
+  words, with the substitution in square brackets: *"[The machine] has a lot free memory and disk,
+  it will fit."* Until now agents were told it, and no file said it or checked it.
+- **The sweep.** At `origin/main` `b832d027`, a case-insensitive whole-word search for the name
+  found 375 lines in 142 tracked files. 374 now say the repository's own neutral term, each read
+  in context: 9 workflows, 17 of the stacks' files, 20 files in `apps/` and `packages/`, 36
+  under `scripts/` (guard headers among them), 37 workplans and their index, 5 ADR files (one a
+  frozen record), 11 other documents, the CHANGELOG, the README, AGENTS.md, 2 E2E tests and the
+  site's build. Five test fixtures' host names and a runbook's placeholder got neutral names, and
+  the tests that read them pass unchanged. One record (0025 T1) named the self-hosted runner
+  itself; it now says "the self-hosted runner". Eighteen quotations of four things the owner said
+  carry the brackets.
+- **The guard.** `node scripts/machine-product-name.mjs --check`, a step of `docs-hygiene`, so it
+  runs on every change. It compares the SHA-256 of each lowercased token, and of each adjacent
+  pair for the names of two words, with a list of digests, and names a hit's file, line and
+  column, never the word. It reads 2,886 files and passes over 11 binaries and `pnpm-lock.yaml`,
+  whose names are third-party packages'. Its guard,
+  `scripts/a-machine-called-by-its-product-name.unit.test.ts`, has 16 cases, among them one added
+  word turning a temporary repository red and green again; five mutations, of the detector, the
+  tree and the CI step, each turned it red.
+- **Owed: one line, waiting for the owner (0141 T13 (a)).** `e2e-o365.yml`'s `runs-on` asks for
+  the label named after the machine, which the owner added to the runner on 2026-11-02 rather than
+  drop it, and the guard's `OWED` declares that line. Either (a) the owner adds a neutral label to
+  the runner and the workflow asks for that, or (b) the workflow drops the label and asks for
+  `[self-hosted, linux, arm64]`, as `e2e.yml` and `e2e-managed.yml` do. The 110 self-hosted jobs
+  read on 2026-11-08 (CI's pushes, the nightly lanes, the scan, and the O365 lane's run
+  41418432093) all ran on the one runner, so (b) routes the lane the same way; it gives up the pin
+  #1137 left in place in case it was meant.
+- **Outside the repository, unchanged:** the runner's own name and its host's name, which every
+  self-hosted job prints into its public log at set-up, both hold the word; and git history,
+  commit messages and earlier pull request text.
+
 **2026-11-08: live runs `v0.2.0-alpha.6`, and alpha.4's two copies are gone (T6, T9).** The owner
 deployed it on 2026-11-08, before any tester, pasting checked blocks. Times are UTC. No values.
 
