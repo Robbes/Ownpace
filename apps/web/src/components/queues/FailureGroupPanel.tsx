@@ -46,10 +46,10 @@
 
 import React from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import type { DiscoveryDomain, FailureCategory, ItemFailure } from '@openmig/shared';
+import type { DecisionEffectFields, DiscoveryDomain, FailureCategory, ItemFailure } from '@openmig/shared';
 import { useT } from '../../i18n/index.tsx';
 import { Hint } from '../Hint.tsx';
-import { ActionButton, Refused, Resolved } from './primitives.tsx';
+import { ActionButton, Refused, ServedEffect, servedOf } from './primitives.tsx';
 import { DecisionRefusedError, decideFailureGroup } from '../../services/operating-service.ts';
 import { DOMAIN_STRING_KEY } from '../../i18n/domain-words.ts';
 // The same sentences the rows print, chosen the same way, by category and by
@@ -165,7 +165,9 @@ export function failureGroups(
 type Outcome =
   | { readonly state: 'idle' }
   | { readonly state: 'pending' }
-  | { readonly state: 'done'; readonly effect: string }
+  // Both halves of what the press did, as served: the line follows the
+  // reader's language (workplan 0159 §6 item 18).
+  | { readonly state: 'done'; readonly served: Partial<DecisionEffectFields> }
   | { readonly state: 'refused'; readonly text: string };
 
 export const FailureGroupPanel: React.FC<{
@@ -224,7 +226,7 @@ export const FailureGroupPanel: React.FC<{
     setOutcome({ on, result: { state: 'pending' } });
     void decideFailureGroup(mappingId, action, match)
       .then((r) => {
-        setOutcome({ on, result: { state: 'done', effect: r.effect } });
+        setOutcome({ on, result: { state: 'done', served: servedOf(r) } });
         // Re-read rather than patch: the server decides what the decision did
         // to the queue, and guessing it here would be a second copy of rules
         // that already exist once.
@@ -348,7 +350,7 @@ export const FailureGroupPanel: React.FC<{
                       </ActionButton>
                     </>
                   )}
-                  {mine.state === 'done' && <Resolved effect={mine.effect} />}
+                  {mine.state === 'done' && <ServedEffect served={mine.served} />}
                   {mine.state === 'refused' && <Refused text={mine.text} />}
                 </li>
               );
@@ -425,7 +427,7 @@ export const FailureGroupPanel: React.FC<{
           >
             {t('failures.group.accept')}
           </ActionButton>
-          {manual.state === 'done' && <Resolved effect={manual.effect} />}
+          {manual.state === 'done' && <ServedEffect served={manual.served} />}
           {manual.state === 'refused' && <Refused text={manual.text} />}
         </div>
       </details>

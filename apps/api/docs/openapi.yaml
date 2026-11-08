@@ -3947,10 +3947,12 @@ paths:
       description: Decides the queue entry the safe way — the copy stays, and it stops being watched. Also keeps an earlier export (`earlierExports.waiting`).
       responses:
         '200':
-          description: Kept.
+          description: |
+            Kept. `effect` says what that did in English and `effectNl` in
+            Dutch, the same sentence.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/QueueDecisionAccepted' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -4527,10 +4529,12 @@ paths:
       summary: Leave the target copy where it is
       responses:
         '200':
-          description: Kept.
+          description: |
+            Kept. `effect` says what that did in English and `effectNl` in
+            Dutch, the same sentence.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/QueueDecisionAccepted' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
 
@@ -4677,7 +4681,8 @@ paths:
           description: |
             Recorded, with the number of items it actually changed. `matched: 0`
             is a successful call that changed nothing — usually a substring
-            that does not occur, since it is matched literally.
+            that does not occur, since it is matched literally. `effect` says
+            what the press did in English and `effectNl` in Dutch.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/GroupDecisionAccepted' }
@@ -4704,10 +4709,12 @@ paths:
       summary: Retry or accept a failed item
       responses:
         '200':
-          description: Recorded.
+          description: |
+            Recorded. `effect` says what that did in English and `effectNl` in
+            Dutch, the same sentence.
           content:
             application/json:
-              schema: { type: object }
+              schema: { $ref: '#/components/schemas/QueueDecisionAccepted' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
@@ -8919,10 +8926,28 @@ components:
         effect:
           type: string
           description: |
-            What just happened, in a sentence meant for a person — including
-            when nothing matched, where it says so rather than reporting
-            success over an empty set.
-      required: [status, action, matched, match, effect]
+            What just happened, in a sentence meant for a person, in English —
+            including when nothing matched, where it says so rather than
+            reporting success over an empty set.
+        effectNl:
+          type: string
+          description: |
+            `effect` in Dutch (workplan 0159 §6 item 18).
+      required: [status, action, matched, match, effect, effectNl]
+
+    QueueDecisionAccepted:
+      type: object
+      description: |
+        A decision on one item of Deletions, Moves or Failures, carried out,
+        with what it did in a sentence for the person who pressed the button,
+        in `effect` (English) and `effectNl` (Dutch).
+      properties:
+        status: { type: string, enum: [ok] }
+        action: { type: string, enum: [keep, retry, accept] }
+        naturalKeyHash: { type: string }
+        effect: { type: string, description: "What the decision did, in English." }
+        effectNl: { type: string, description: "`effect` in Dutch (workplan 0159 §6 item 18)." }
+      required: [status, action, naturalKeyHash, effect, effectNl]
 
     DecisionClosed:
       type: object
