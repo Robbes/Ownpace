@@ -10,15 +10,17 @@ the recommended for alpha 7."* On branch
 `claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`, from `main` at `b832d027`. Both
 purge RUNs take the two, thirteen packages in one `dpkg --purge` with the same two flags and no
 other force. Only apt, bsdutils, libapt-pkg6.0 and util-linux depended on either, all four in
-the eleven (dpkg status, read by layer digest on both platforms). After the purge, a new check
-fails the build if a file of a removed library is left, or if any ELF file needs one
-(DT_NEEDED). The names move to
+the eleven (the dpkg status of Redis's image and of the webapp's Node base, read by layer digest
+on both platforms; dpkg's own refusal in CI read the rest). After the purge, a new check fails
+the build if a file of a removed library is left, or if any ELF file needs one (DT_NEEDED). The
+names move to
 `localhost/redis:7.4.12-bookworm-d5301e0623d4` and
 `localhost/trigger.dev:v4.8.3-42a2fcc298b0`; user, entrypoint, command and healthcheck are as
-they were. Owed: CI's `build (redis, …)` and `build (trigger, …)` on both platforms, the image
-scan on the branch (expected Redis 1/8/0 and the webapp 1/22/14, from 1/10/0 and 1/24/14),
-and E2E (managed) on the branch, which the coordinator dispatches. ClickHouse's apt waits:
-building ClickHouse here is not for alpha.7 (§3 item 11, the entry of 2026-11-08).
+they were. On the branch at `d8c4bd59`: `build (redis, …)` and `build (trigger, …)` green on
+both platforms, the check finding nothing in either image; Security Scan run 42440765278 read
+Redis at 1/8/0 and the webapp at 1/22/14, from 1/10/0 and 1/24/14. Owed before a merge: E2E
+(managed) on the branch. ClickHouse's apt waits: building ClickHouse here is not for alpha.7
+(§3 item 11, the entry of 2026-11-08).
 
 **2026-11-08, recorded: live runs alpha.6's pins.** The owner deployed `v0.2.0-alpha.6` (tagged
 2026-11-07 on `59b91458`) to live on 2026-11-08, from alpha.4 in one run of alpha.4's script, which
@@ -5478,13 +5480,20 @@ is beside each; none is urgent tonight.
     on every class and byte order, in perl in Redis and in node in the webapp. It fails too when
     it met no ELF file that needs a library at all. Both readers, as the Dockerfiles carry them,
     read the same DT_NEEDED as `readelf -d` on all 2794 ELF files of the four images. With the
-    thirteen's files removed from a copy of each, the check found nothing. Expected: Redis
-    1/8/0, the webapp 1/22/14, from 1/10/0 and 1/24/14 (Security Scan run 42368077845, the
-    alpha.6 tag). **Revisit** with the triggers above.
+    thirteen's files removed from a copy of each, the check found nothing.
+    - **Proved on the branch, at `d8c4bd59`:** images.yml run 42440852224 built both images on
+      both platforms. dpkg purged the thirteen without a refusal. The check read 573 and 572 ELF
+      files in Redis and 585 and 583 in the webapp (amd64, arm64), none it could not parse, and
+      found nothing. Redis then started as 999:999 and read back the key upstream's image wrote,
+      again after a restart. Security Scan run 42440765278 (linux/arm64) read Redis at 1/8/0 and
+      the webapp at 1/22/14, from 1/10/0 and 1/24/14 (run 42368077845, the alpha.6 tag): each
+      list lost libsystemd0 and libudev1 and nothing else.
+
+    **Revisit** with the triggers above.
 
     **2026-11-08: apt out of ClickHouse — LATER.** Answered 2026-11-08, the owner: *"Build the
-    recommended for alpha 7."* This one was not recommended for alpha.7: the pick list listed it
-    as later. The pinned ClickHouse image (the 26.8 LTS, item 9) is Ubuntu 22.04's. Its two
+    recommended for alpha 7."* This one was put to the owner as later, not recommended for
+    alpha.7. The pinned ClickHouse image (the 26.8 LTS, item 9) is Ubuntu 22.04's. Its two
     highs with a fix are apt's and libapt-pkg6.0's CVE-2026-109518, fixed in 2.4.15ubuntu0.1
     (Security Scan run 42368077845). Purging apt there means building ClickHouse here, as Redis
     is built here, which is more than alpha.7 takes. Not now. **Revisit** after the Alpha, or

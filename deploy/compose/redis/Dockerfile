@@ -40,7 +40,8 @@
 #     high each with no fix in Debian, which only apt, libapt-pkg6.0,
 #     util-linux and bsdutils depend on here, all four on this list.
 # So 1, 34 and 0 became 1, 10 and 0 with the first eleven (measured on its
-# branch: Security Scan run 42349123410), and the two take it to 1, 8 and 0.
+# branch: Security Scan run 42349123410), and the two take it to 1, 8 and 0
+# (Security Scan run 42440765278, on the branch that took them).
 # util-linux-extra goes with util-linux, which hard-depends on it in Debian 12,
 # and libapt-pkg6.0 with apt, its one user here. e2fsprogs goes alone: its
 # libraries (libext2fs2, libss2, libcom-err2) and logsave stay, and need only

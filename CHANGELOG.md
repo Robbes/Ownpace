@@ -12,8 +12,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   libapt-pkg6.0, util-linux and bsdutils needed them, and those go in the same purge, with the
   same two flags and no other force, so dpkg would still refuse a package that needs one. After
   the purge the build fails if a file of a removed library is left, or if any ELF file in the
-  image needs one (its DT_NEEDED). Expected: Redis 1 critical, 8 high and 0 with a fix, from 1,
-  10 and 0; the webapp 1, 22 and 14, from 1, 24 and 14.
+  image needs one (its DT_NEEDED). Measured on its branch (Security Scan run 42440765278,
+  linux/arm64): Redis 1 critical, 8 high and 0 with a fix, from 1, 10 and 0; the webapp 1, 22
+  and 14, from 1, 24 and 14.
 
 ## [0.2.0-alpha.6] - 2026-11-07
 

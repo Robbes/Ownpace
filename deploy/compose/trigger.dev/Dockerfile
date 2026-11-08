@@ -29,7 +29,8 @@
 # systemd's two libraries, which nothing left needs once apt and util-linux
 # are gone: the scan of the alpha.6 tag read 1, 24 and 14 (Security Scan run
 # 42368077845, one more in goose v3.29.0's golang.org/x/net), and the two take
-# 2 highs off it (THE DEBIAN PACKAGES NOTHING RUNS).
+# 2 highs off it (THE DEBIAN PACKAGES NOTHING RUNS): 1, 22 and 14 on the branch
+# that took them (Security Scan run 42440765278).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -581,7 +582,8 @@
 # Since 2026-11-08 it purges libsystemd0 and libudev1 too: only apt,
 # libapt-pkg6.0, util-linux and bsdutils depend on them in this base, all four
 # on the list, so the thirteen go together and dpkg needs no other force; and
-# 24 high become 22 (from the alpha.6 tag's 1, 24 and 14, above).
+# 24 high become 22 (from the alpha.6 tag's 1, 24 and 14, above; measured by
+# Security Scan run 42440765278).
 # util-linux-extra goes with util-linux, which hard-depends on it in Debian 12
 # (util-linux 2.38-1 made it "pseudo-Essential"; 2.39.1-2, after Debian 12,
 # dropped the dependency), and libapt-pkg6.0 with apt, its one user here. Not
