@@ -7,11 +7,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **The repository calls the machine the machine, the box or the self-hosted runner, never by its
-  hardware product name** (workplan 0132): 374 lines in 142 files named it, in comments, guides,
-  records and five test fixtures. A quotation of the owner keeps its words, with the substitution
-  in square brackets. `node scripts/machine-product-name.mjs --check` runs in `docs-hygiene` on
-  every change, compares digests rather than the words, and names the file and line of any
-  return. One line is left, the O365 lane's runner label, until the owner's step (0141 T13 (a)).
+  hardware product name** (workplan 0132): 375 lines in 142 files named it, in comments, guides,
+  records, five test fixtures and the O365 lane's runner label. A quotation of the owner keeps its
+  words, with the substitution in square brackets. The O365 lane now asks for the labels the other
+  two E2E lanes ask for, and lands on the same runner (0141 T13 (a)).
+  `node scripts/machine-product-name.mjs --check` runs in `docs-hygiene` on every change, compares
+  digests rather than the words, has no exceptions, and names the file and line of any return.
   Git history keeps the old text.
 
 ## [0.2.0-alpha.6] - 2026-11-07

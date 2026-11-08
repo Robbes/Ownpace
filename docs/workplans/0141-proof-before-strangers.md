@@ -1237,6 +1237,9 @@ the owner added the label (about 07:40 UTC). The first run to get the runner, 41
 are not set as repository secrets. Setting them, as `docs/test-tenant.md` lists them, is what is
 left of (a) (Status, 2026-11-02). At about 22:10 UTC the owner waived the lane for alpha.4; (a)
 stays owed, for a later alpha (Status, 2026-11-02, latest).*
+*2026-11-08: the label is no longer in the workflow; `runs-on` asks for
+`[self-hosted, linux, arm64]`, as `e2e.yml` and `e2e-managed.yml` do, so the lane routes as those
+two E2E lanes do, to the one runner (#1841).*
 
 **(b) The scenario drives the product (proposed).**
 

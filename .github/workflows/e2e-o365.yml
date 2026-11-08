@@ -82,7 +82,7 @@ env:
 
 jobs:
   e2e-o365:
-    runs-on: [self-hosted, linux, arm64, spark]
+    runs-on: [self-hosted, linux, arm64]
     steps:
       - name: Validate required secrets
         run: |

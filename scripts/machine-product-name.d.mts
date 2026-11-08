@@ -17,9 +17,6 @@ export declare const PAIR_DIGESTS: ReadonlyArray<readonly [string, string]>;
 /** The paths passed over by name. */
 export declare const SKIPPED: ReadonlyArray<string>;
 
-/** The files that still hold an occurrence waiting for a decision, and on how many lines. */
-export declare const OWED: Readonly<Record<string, number>>;
-
 export interface Hit {
   /** 1-based. */
   readonly line: number;
@@ -32,15 +29,7 @@ export declare function hitsIn(text: string): Hit[];
 
 export interface Finding extends Hit {
   readonly file: string;
-  /** Empty for a file that declares nothing; otherwise why the count is wrong. Line 0 for the file as a whole. */
-  readonly what: string;
 }
-
-/** The lines `owed` does not account for, and a declaration nothing uses. */
-export declare function owedFindings(
-  byFile: Readonly<Record<string, ReadonlyArray<Hit>>>,
-  owed?: Readonly<Record<string, number>>,
-): Finding[];
 
 /** git's own test for binary: a NUL in the first 8,000 bytes. */
 export declare function isBinary(bytes: Uint8Array): boolean;
@@ -49,14 +38,12 @@ export interface Tree {
   readonly scanned: ReadonlyArray<string>;
   readonly binary: ReadonlyArray<string>;
   readonly skipped: ReadonlyArray<string>;
-  /** Per file that names it, its hits, owed ones included. */
-  readonly byFile: Readonly<Record<string, ReadonlyArray<Hit>>>;
-  /** Every line `owed` does not account for. */
+  /** Every line that names it, in file and line order. There are no exceptions. */
   readonly findings: ReadonlyArray<Finding>;
 }
 
 /** Every file `git ls-files` lists under `root`, untracked ones included, read and judged. */
-export declare function scanTree(root?: string, owed?: Readonly<Record<string, number>>): Tree;
+export declare function scanTree(root?: string): Tree;
 
 /** The failure message: each file, line and column, and what to write instead. Never the word. */
 export declare function verdictMessage(found: ReadonlyArray<Finding>): string;

@@ -465,8 +465,8 @@ jobs:
         # workplans and runbooks, and a pull request that touches only those
         # skips `unit-tests`. Every file git lists is read; a hit is printed as
         # its file, line and column, never the word, since this log is public.
-        # Plain node, no install. The rules, what is skipped and the one line
-        # still owed are in scripts/a-machine-called-by-its-product-name.unit.test.ts.
+        # Plain node, no install. The rules, and what is skipped and why, are in
+        # scripts/a-machine-called-by-its-product-name.unit.test.ts.
         run: node scripts/machine-product-name.mjs --check
 
   fixture-uuid-check:

@@ -26,8 +26,8 @@
  * on it, which is how `a-convention-two-of-two-hundred-commits-followed`
  * describes the same shape.
  *
- * The sweep changed 374 of the 375 lines (workplan 0132's Status, 2026-11-08).
- * Each was read in context. An owner's quotation keeps its words, with the
+ * The sweep changed all 375 lines (workplan 0132's Status, 2026-11-08). Each
+ * was read in context. An owner's quotation keeps its words, with the
  * substitution in square brackets, *"[The machine] has a lot free memory"*.
  * Fixtures got neutral names, and the tests that read them pass unchanged.
  * Git history keeps the old text: the recommendation the owner accepted on
@@ -60,15 +60,16 @@
  * update, which nobody here could rename. It holds none today. `SKIPPED` in the
  * detector lists it, and a case below pins the list.
  *
- * WHAT IS OWED. One line is still there on purpose. `e2e-o365.yml`'s `runs-on`
- * asks for a runner label that is the word itself, and the owner added that
- * label to the runner on 2026-11-02 rather than drop it from `runs-on`, the
- * choice #1137 left to them (workplan 0141 T13 (a)). A label is behaviour: a
- * job whose labels no runner carries waits for one forever. So it waits for the
- * owner. `OWED` in the detector declares each such file and how many lines it
- * holds, and a file that holds more or fewer fails, for the reason the conflict
- * detector counts its quotations: a declaration nothing uses would excuse the
- * next word written there. A case below holds today's one line to the label.
+ * THE ONE LINE THAT WAS BEHAVIOUR. `e2e-o365.yml`'s `runs-on` asked for a
+ * runner label that was the word itself, which the owner had added to the
+ * runner on 2026-11-02 rather than drop it, the choice #1137 left to them
+ * (workplan 0141 T13 (a)). A label is behaviour: a job whose labels no runner
+ * carries waits for one forever. On 2026-11-08 the lane was given the labels
+ * the other two E2E lanes ask for, `[self-hosted, linux, arm64]`. The 110
+ * self-hosted jobs read that day, the O365 lane's one run among them, all
+ * ran on the one runner, so the lane lands where it did. The runner keeps its
+ * old label, and nothing public names it once the workflow does not. So there
+ * are no exceptions: a hit anywhere fails.
  *
  * WHERE IT RUNS. `docs-hygiene` in `.github/workflows/ci.yml` runs
  * `node scripts/machine-product-name.mjs --check` on every change, docs-only
@@ -98,13 +99,11 @@ import { tmpdir } from 'node:os';
 import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  OWED,
   PAIR_DIGESTS,
   SKIPPED,
   WORD_DIGESTS,
   hitsIn,
   isBinary,
-  owedFindings,
   scanTree,
   verdictMessage,
 } from './machine-product-name.mjs';
@@ -131,10 +130,6 @@ const title = (s: string): string => s.charAt(0).toUpperCase() + s.slice(1);
 
 const tree = scanTree();
 
-/** How many lines each file names it on. */
-const counts = (byFile: Readonly<Record<string, ReadonlyArray<unknown>>>): Record<string, number> =>
-  Object.fromEntries(Object.entries(byFile).map(([file, hits]) => [file, hits.length]));
-
 const dirs: string[] = [];
 afterEach(() => {
   for (const d of dirs.splice(0)) rmSync(d, { recursive: true, force: true });
@@ -159,7 +154,7 @@ describe('the list: digests in the detector, an encoding here, and the same word
   });
 });
 
-describe('no file in the tree names it, but the one line that is owed', () => {
+describe('no file in the tree names it', () => {
   it('reads the whole tree, so an empty listing cannot pass', () => {
     // 2,886 text files on 2026-11-08, out of 2,898 that git lists.
     for (const file of ['CHANGELOG.md', 'AGENTS.md', 'docs/LESSONS.md', 'docs/workplans/README.md', '.github/workflows/ci.yml']) {
@@ -172,7 +167,7 @@ describe('no file in the tree names it, but the one line that is owed', () => {
     expect(tree.binary.length).toBeLessThan(50);
   });
 
-  it(`finds nothing OWED does not declare (${tree.scanned.length} files read)`, () => {
+  it(`finds none (${tree.scanned.length} files read)`, () => {
     expect(tree.findings, verdictMessage(tree.findings)).toEqual([]);
   });
 
@@ -181,19 +176,6 @@ describe('no file in the tree names it, but the one line that is owed', () => {
     expect(tree.skipped).toEqual(['pnpm-lock.yaml']);
   });
 
-  it('owes one line, the runner label of the O365 lane, and declares it here as well as in the detector', () => {
-    // Declared in two places on purpose, so that a new exception is added on
-    // purpose and never by accident. It goes when the owner's step is done.
-    expect(OWED).toEqual({ '.github/workflows/e2e-o365.yml': 1 });
-    expect(counts(tree.byFile)).toEqual(OWED);
-    const workflow = readFileSync(join(REPO_ROOT, '.github/workflows/e2e-o365.yml'), 'utf8').split('\n');
-    const [hit] = tree.byFile['.github/workflows/e2e-o365.yml']!;
-    // A boolean, so that a failure does not print the line, label and all.
-    expect(
-      /^ {4}runs-on: \[self-hosted, linux, arm64, [a-z0-9]+\]$/.test(workflow[hit!.line - 1]!),
-      `line ${hit!.line} of e2e-o365.yml holds the word and is not the runs-on label`,
-    ).toBe(true);
-  });
 });
 
 /**
@@ -249,29 +231,6 @@ describe('what counts as naming it', () => {
   });
 });
 
-describe('what is owed, and what is not', () => {
-  const at = (line: number) => ({ line, column: 1 });
-  const declared = { 'x.yml': 1 };
-
-  it('passes a declared file that holds exactly what it declares, and nothing else', () => {
-    expect(owedFindings({ 'x.yml': [at(9)] }, declared)).toEqual([]);
-  });
-
-  it('fails each line of a file that declares nothing, and of a declared file that holds more', () => {
-    expect(owedFindings({ 'a.md': [at(2), at(7)] }, {}).map((f) => `${f.file}:${f.line}`)).toEqual(['a.md:2', 'a.md:7']);
-    expect(owedFindings({ 'x.yml': [at(3), at(9)] }, declared).map((f) => f.what)).toEqual([
-      'one of 2, where OWED declares 1',
-      'one of 2, where OWED declares 1',
-    ]);
-  });
-
-  it('fails a declaration nothing uses any more, so that it goes when the owner’s step is done', () => {
-    expect(owedFindings({}, declared)).toEqual([
-      { file: 'x.yml', line: 0, column: 0, what: expect.stringMatching(/^OWED declares 1 line\(s\) .* holds 0: take the entry out/) },
-    ]);
-  });
-});
-
 describe('where it runs: on every change, docs-only ones included', () => {
   it("is a step of docs-hygiene, which nothing skips, and imports only Node's own modules", () => {
     const ci = readFileSync(join(REPO_ROOT, '.github', 'workflows', 'ci.yml'), 'utf8');
@@ -287,8 +246,8 @@ describe('where it runs: on every change, docs-only ones included', () => {
 
   it('a word added to a file turns the check red, naming the file and line and not the word; taken out, green', () => {
     // The command docs-hygiene runs, from another directory, on a repository of
-    // untracked files: the detector, the owed workflow, a plan, a binary and
-    // the lockfile.
+    // untracked files: the detector, the O365 lane's workflow as it now reads, a
+    // plan, a binary and the lockfile.
     const root = mkdtempSync(join(tmpdir(), 'machine-product-name-'));
     dirs.push(root);
     const write = (path: string, body: string | Buffer): void => {
@@ -298,7 +257,8 @@ describe('where it runs: on every change, docs-only ones included', () => {
     const [w] = WORDS as [string];
     mkdirSync(join(root, 'scripts'));
     copyFileSync(DETECTOR, join(root, 'scripts', 'machine-product-name.mjs'));
-    write('.github/workflows/e2e-o365.yml', `jobs:\n  e2e-o365:\n    runs-on: [self-hosted, linux, arm64, ${w}]\n`);
+    const workflow = (labels: string) => `jobs:\n  e2e-o365:\n    runs-on: [${labels}]\n`;
+    write('.github/workflows/e2e-o365.yml', workflow('self-hosted, linux, arm64'));
     write('site/logo.png', Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0]), Buffer.from(` ${w} `)]));
     write('pnpm-lock.yaml', `packages:\n  ${w}-md5@3.0.2:\n    resolution: {integrity: sha512-x}\n`);
     write('docs/workplans/0200-x.md', '# A plan\n\nThe gate runs on the machine.\n');
@@ -309,9 +269,10 @@ describe('where it runs: on every change, docs-only ones included', () => {
         encoding: 'utf8',
       });
 
+    const passed = 'no file names the machine by its product name: 3 files read (1 binary and 1 skipped passed over)';
     const before = check();
     expect(before.status, before.stderr).toBe(0);
-    expect(before.stdout).toContain('(1 binary and 1 skipped passed over); owed: 1 in .github/workflows/e2e-o365.yml');
+    expect(before.stdout.trim()).toBe(passed);
 
     write('docs/workplans/0200-x.md', `# A plan\n\nThe gate runs on the ${title(w)}.\n`);
     const red = check();
@@ -327,7 +288,16 @@ describe('where it runs: on every change, docs-only ones included', () => {
     write('docs/workplans/0200-x.md', '# A plan\n\nThe gate runs on the machine.\n');
     const green = check();
     expect(green.status, green.stderr).toBe(0);
-    expect(green.stdout).toContain('owed: 1 in .github/workflows/e2e-o365.yml');
+    expect(green.stdout.trim()).toBe(passed);
+
+    // And the runner label the lane asked for until 2026-11-08, put back: red at
+    // its line and column, as it would have been on `e2e-o365.yml`:85.
+    write('.github/workflows/e2e-o365.yml', workflow(`self-hosted, linux, arm64, ${w}`));
+    const label = check();
+    expect(label.status, label.stderr).toBe(1);
+    expect(label.stderr).toContain('  .github/workflows/e2e-o365.yml:3:42\n');
+    write('.github/workflows/e2e-o365.yml', workflow('self-hosted, linux, arm64'));
+    expect(check().status).toBe(0);
   });
 
   it('reads a binary as git does: a NUL in its first 8,000 bytes', () => {

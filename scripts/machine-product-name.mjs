@@ -66,21 +66,6 @@ export const PAIR_DIGESTS = Object.freeze([
  */
 export const SKIPPED = Object.freeze(['pnpm-lock.yaml']);
 
-/**
- * The files that still hold an occurrence waiting for a decision, and on how
- * many lines. A file that holds more or fewer than it declares fails: one
- * declared and gone would excuse the next one written there.
- *
- * `.github/workflows/e2e-o365.yml`: the runner label its `runs-on` asks for,
- * which is the word itself. The owner added that label to the runner on
- * 2026-11-02 rather than drop it from `runs-on`, the choice #1137 left to them
- * (workplan 0141 T13 (a)). It goes when the workflow asks for a neutral label
- * the owner has added to the runner, or for none, and this entry goes with it.
- */
-export const OWED = Object.freeze({
-  '.github/workflows/e2e-o365.yml': 1,
-});
-
 /** A token: a run of ASCII letters and digits. A hyphen, underscore, dot or slash ends one. */
 const TOKEN = /[A-Za-z0-9]+/g;
 
@@ -126,41 +111,15 @@ export function hitsIn(text) {
   return [...found].map(([line, column]) => ({ line, column })).sort((a, b) => a.line - b.line);
 }
 
-/**
- * The lines of declared files that `owed` does not account for, as findings,
- * and a finding with line 0 for a file that holds fewer than it declares.
- */
-export function owedFindings(byFile, owed = OWED) {
-  const findings = [];
-  const files = [...new Set([...Object.keys(byFile), ...Object.keys(owed)])].sort();
-  for (const file of files) {
-    const hits = byFile[file] ?? [];
-    const want = owed[file] ?? 0;
-    if (hits.length === want) continue;
-    if (hits.length < want) {
-      findings.push({
-        file,
-        line: 0,
-        column: 0,
-        what:
-          `OWED declares ${want} line(s) in this file and it holds ${hits.length}: ` +
-          'take the entry out of OWED in scripts/machine-product-name.mjs',
-      });
-      continue;
-    }
-    for (const h of hits) findings.push({ file, ...h, what: want === 0 ? '' : `one of ${hits.length}, where OWED declares ${want}` });
-  }
-  return findings;
-}
-
 /** git's own test for binary: a NUL in the first 8,000 bytes. */
 export const isBinary = (bytes) => bytes.subarray(0, 8000).includes(0);
 
 /**
  * Every file `git ls-files` lists under `root`, untracked ones included, read
- * and judged. `findings` holds every line `owed` does not account for.
+ * and judged. `findings` holds every line that names it: there are no
+ * exceptions, so each one fails.
  */
-export function scanTree(root = REPO_ROOT, owed = OWED) {
+export function scanTree(root = REPO_ROOT) {
   const listing = execFileSync('git', ['ls-files', '-z', '--cached', '--others', '--exclude-standard'], {
     cwd: root,
     encoding: 'utf8',
@@ -172,7 +131,7 @@ export function scanTree(root = REPO_ROOT, owed = OWED) {
   const scanned = [];
   const binary = [];
   const skipped = [];
-  const byFile = {};
+  const findings = [];
   for (const file of files) {
     if (SKIPPED.includes(file)) {
       skipped.push(file);
@@ -195,13 +154,10 @@ export function scanTree(root = REPO_ROOT, owed = OWED) {
       continue;
     }
     scanned.push(file);
-    const hits = hitsIn(bytes.toString('utf8'));
-    if (hits.length > 0) byFile[file] = hits;
+    for (const hit of hitsIn(bytes.toString('utf8'))) findings.push({ file, ...hit });
   }
-  const findings = owedFindings(byFile, owed).sort((a, b) =>
-    a.file === b.file ? a.line - b.line : a.file < b.file ? -1 : 1,
-  );
-  return { scanned, binary, skipped, byFile, findings };
+  // `files` is sorted and each file's hits are in line order, so `findings` is too.
+  return { scanned, binary, skipped, findings };
 }
 
 /** The failure message: each file, line and column, and what to write instead. Never the word. */
@@ -210,7 +166,7 @@ export function verdictMessage(found) {
   return [
     `${files} file(s) name the machine by its hardware product name:`,
     '',
-    ...found.map((f) => `  ${f.file}${f.line > 0 ? `:${f.line}:${f.column}` : ''}${f.what ? `  ${f.what}` : ''}`),
+    ...found.map((f) => `  ${f.file}:${f.line}:${f.column}`),
     '',
     'Say "the machine", "the box", "the host", "the arm64 machine" or "the self-hosted runner" instead.',
     'In a quotation of the owner, mark the substitution in square brackets: [the machine].',
@@ -230,11 +186,9 @@ export function main(argv = process.argv.slice(2), root = REPO_ROOT) {
     console.error(verdictMessage(tree.findings));
     return 1;
   }
-  const owed = Object.entries(tree.byFile).map(([file, hits]) => `${hits.length} in ${file}`);
   console.log(
     `no file names the machine by its product name: ${tree.scanned.length} files read ` +
-      `(${tree.binary.length} binary and ${tree.skipped.length} skipped passed over); ` +
-      `owed: ${owed.join(', ') || 'none'}`,
+      `(${tree.binary.length} binary and ${tree.skipped.length} skipped passed over)`,
   );
   return 0;
 }

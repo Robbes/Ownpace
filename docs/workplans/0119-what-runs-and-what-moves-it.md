@@ -1503,7 +1503,7 @@ UTC.
 - **The host's Docker, upgraded** (§2.4), in the window the owner pulled forward from 11:00 to
   about 03:30, with both holds on: Docker Engine and its CLI 29.2.1 → 29.6.2, containerd.io
   2.2.1 → 2.2.5 (runc 1.3.6), the Compose plugin 5.0.2 → 5.2.0 and the Buildx plugin 0.31.1 →
-  0.35.0, from the machine vendor's apt repository. In order:
+  0.35.0, from a third-party apt repository. In order:
   - `main`'s CI on `21fa6ff8` (run 41568667635) finished its last job on the self-hosted runner
     at 03:33. The runner was stopped first, before the holds: the order was revised so that a
     scheduled E2E that arrived late would queue rather than start against the holds. One did:
@@ -1925,7 +1925,7 @@ times are UTC.
   11.28.9 (`next-11` names 11.28.10); its records are its own.
 - **Still the owner's at the end of the day:** the O365 secrets, or the lane's waiver for
   alpha.4; the removal of the copy before 26.8 (above); the host's Docker, 29.2.1 to the 29.6.2
-  set from the machine vendor's apt repository, in a window with live's hold and the OTA
+  set from a third-party apt repository, in a window with live's hold and the OTA
   stack's both on (§2.4); and the call on Stalwart's critical (the entry above). *(Answered at
   about 22:10: the O365 lane waived for alpha.4; the host's Docker within alpha.4, before the
   counted nights, in the slot set later that evening, 2026-11-03 11:00 to 13:00 UTC; Stalwart's
@@ -2115,7 +2115,7 @@ and 2026-11-02, records, below), and was one of alpha.4's gates (0146's Status).
   status is the workplans'.
 
 **2026-11-02, records: #1785, #1784 and #1786 merged, the owner's ClickHouse window and readings,
-the host's Docker from the machine vendor's apt repository, and the O365 lane's missing
+the host's Docker from a third-party apt repository, and the O365 lane's missing
 secrets.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-02`.
 Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
 - **#1785 merged** at 07:17 (`0b16a82e`; head `632c0a28`), after E2E (managed) run 41400187583
@@ -2162,7 +2162,7 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   `<project>_clickhouse_data_v2_before_v4_8_3` at about 02:10, their block printing the volume's
   name, after the night of 2026-11-01 (run 41298604750) had proven the move. The entry of
   2026-11-01, later, below and 0132's of the same day said **sent, not done**; they say done now.
-- **The host's Docker comes from the machine vendor's apt repository**, not from Docker's (§2.4,
+- **The host's Docker comes from a third-party apt repository**, not from Docker's (§2.4,
   corrected; the owner's readings). The five packages, `docker-ce` and `docker-ce-cli` 29.2.1,
   `containerd.io` 2.2.1, `docker-compose-plugin` 5.0.2 and `docker-buildx-plugin` 0.31.1, come
   from that repository, which outranks every other source by apt preference (priority 600);
@@ -2171,7 +2171,7 @@ Read from GitHub and from the owner's readings on 2026-11-02; times are UTC.
   that repository are 29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0, not Docker's
   newest (29.9.2, Compose 5.6.1). No package is held, AppArmor is active (`docker info`'s
   security options), and the kernel's own changelog carries CVE-2026-31431 ("Copy Fail"). The
-  plan, the owner's: the vendor's set, in a window with live's hold and the OTA stack's both on,
+  plan, the owner's: that repository's set, in a window with live's hold and the OTA stack's both on,
   since the upgrade restarts every container (`live-restore` is off), with Docker's own 29.2.1
   packages kept on the machine as the way back, their checksums verified; a newer kernel line is
   offered and is left for after alpha.4's tag. *(Upgraded 2026-11-03 to that set, and the five
@@ -2588,8 +2588,8 @@ today.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-rec
   T3 waits on that one item, ⏳.
 - **The host's Docker, read by the owner, is an open owner item**, now in §2.4: 29.2.1 where
   29.9.2 is the newest, with security fixes between, and an upgrade restarts every container on
-  the machine, because `live-restore` is not set. *(2026-11-02: the packages come from the
-  machine vendor's apt repository, and the target is that repository's set, 29.6.2, not Docker's
+  the machine, because `live-restore` is not set. *(2026-11-02: the packages come from a
+  third-party apt repository, and the target is that repository's set, 29.6.2, not Docker's
   newest; §2.4, corrected, and the entry of 2026-11-02, records, above. 2026-11-03: upgraded to
   it; the entry of 2026-11-03, records, above.)*
 - **The self-hosted runner reads 2.338.0**, the hosted ones 2.338.2; it updates itself, so it
@@ -4583,21 +4583,21 @@ live's API under `docker-default`; the five packages held with `apt-mark hold` (
 choice: unattended-upgrades is not installed, and the host's 505 other pending updates, with
 the move to the 7.0 kernel line, wait for after alpha.4). `live-restore` is still not set.
 **Corrected 2026-11-02:** the five packages (`docker-ce`, `docker-ce-cli`,
-`containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from the machine vendor's
-apt repository, which outranks every other source by apt preference (priority 600), not from
+`containerd.io`, `docker-compose-plugin`, `docker-buildx-plugin`) come from a third-party apt
+repository, which outranks every other source by apt preference (priority 600), not from
 Docker's apt repository, as this paragraph said from 2026-11-01; Docker's own repository is not
 configured on the machine. Each of the five has the SHA256 that Docker's own package index gives
 for the same version, so they are Docker's builds. No package was held on 2026-11-02 (the five
 are held since 2026-11-03, above); AppArmor is active
 (`docker info`'s security options); the kernel's own changelog carries CVE-2026-31431 ("Copy
 Fail"). Docker's newest, read 2026-11-01: 29.9.2 and Compose 5.6.1, with security fixes between.
-apt's candidates from the vendor's repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
+apt's candidates from that repository, read 2026-11-02: `docker-ce` and `docker-ce-cli`
 29.6.2, containerd.io 2.2.5, Compose 5.2.0 and Buildx 0.35.0. ✅ **Done 2026-11-03**, from about
 03:30 to 04:33 UTC, with both holds on and the runner stopped first, then E2E (self-hosted) run
 41575338615 and E2E (managed) run 41578935380 green on the new Docker; the OTA stack's
 `pgbouncer` did not start after the restart and was fixed by hand (Status, 2026-11-03,
 records); *was:* ⏳ **Owner, open:** the upgrade to
-the vendor's set, not to Docker's newest, in a window with both holds on, live's and the OTA
+that repository's set, not to Docker's newest, in a window with both holds on, live's and the OTA
 stack's, live's drain done (`docs/managed-bring-up.md`, *`ownpace-live`: a release tag, with
 `deploy-live.sh`*, step 2) and no runner job in flight, because without `live-restore` the
 daemon's restart restarts every container on the machine, live's and the OTA stack's alike;
