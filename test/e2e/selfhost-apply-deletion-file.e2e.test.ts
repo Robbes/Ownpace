@@ -83,6 +83,10 @@ describe('apply — file domain (WebDAV/Nextcloud)', () => {
     expect(body.action).toBe('apply');
     // A Nextcloud files DELETE always lands in that account's own trashbin.
     expect(body.kind).toBe('binned');
+    // What it did, in English and in Dutch beside it (workplan 0159 §6 item 18).
+    expect(body.effect).toEqual(expect.stringMatching(/\S/));
+    expect(body.effectNl).toEqual(expect.stringMatching(/\S/));
+    expect(body.effectNl).not.toBe(body.effect);
 
     const afterLive = await fetch(LIVE_URL, { headers: davAuthHeader(DAV_TARGET_USER, TARGET_DAV_PASSWORD) });
     expect(afterLive.status, 'the file must no longer be at its live target path').toBe(404);

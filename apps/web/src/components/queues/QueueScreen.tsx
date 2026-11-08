@@ -14,8 +14,8 @@
 import React from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Loader2 } from 'lucide-react';
-import type { ApplyReceipt, QueueEnvelope } from '@openmig/shared';
-import { ClosedBanner, LIFECYCLE_NOTE_KEY } from './primitives.tsx';
+import type { ApplyReceipt, DecisionEffectFields, QueueEnvelope } from '@openmig/shared';
+import { ClosedBanner, LIFECYCLE_NOTE_KEY, servedOf } from './primitives.tsx';
 import MappingHubLink from '../MappingHubLink.tsx';
 import StateChip from '../StateChip.tsx';
 import AsOf from '../AsOf.tsx';
@@ -30,10 +30,14 @@ import { serverMessage } from '../../services/api.ts';
  * `receipt` is the managed apply's temporal shape (workplan 0019 T2): the
  * outcome is a lifecycle the Deletions screen polls to a terminal state, not a
  * single reply. Other queues never produce it.
+ *
+ * `done` keeps both halves of what the server said the press did, as served
+ * (`effect`, `effectNl`; workplan 0159 §6 item 18): the row says the half in
+ * its reader's language, also after a language switch (`ServedEffect`).
  */
 export type ItemOutcome =
   | { readonly state: 'pending' }
-  | { readonly state: 'done'; readonly effect: string }
+  | { readonly state: 'done'; readonly served: Partial<DecisionEffectFields> }
   | { readonly state: 'refused'; readonly text: string }
   | { readonly state: 'receipt'; readonly receipt: ApplyReceipt };
 
@@ -47,7 +51,7 @@ export interface QueueScreenProps<T extends QueueEnvelope> {
   readonly renderMapping: (
     mappingId: string,
     queue: T,
-    act: (hash: string, run: () => Promise<{ effect: string }>) => void,
+    act: (hash: string, run: () => Promise<Partial<DecisionEffectFields>>) => void,
     outcomes: Readonly<Record<string, ItemOutcome>>,
     /** Direct outcome control, for flows `act` cannot model (the apply receipt). */
     setOutcome: (hash: string, outcome: ItemOutcome) => void,
@@ -87,11 +91,11 @@ export function QueueScreen<T extends QueueEnvelope>({
   }, [queryClient, queryKey]);
 
   const act = React.useCallback(
-    (hash: string, run: () => Promise<{ effect: string }>) => {
+    (hash: string, run: () => Promise<Partial<DecisionEffectFields>>) => {
       setOutcomes((o) => ({ ...o, [hash]: { state: 'pending' } }));
       void run()
         .then((r) => {
-          setOutcomes((o) => ({ ...o, [hash]: { state: 'done', effect: r.effect } }));
+          setOutcomes((o) => ({ ...o, [hash]: { state: 'done', served: servedOf(r) } }));
           // Re-read rather than patch the cache: the server decides what a
           // decision did to the queue (a `keep` and an `apply` both move the
           // item to `acknowledged`, because the ledger closes the entry either

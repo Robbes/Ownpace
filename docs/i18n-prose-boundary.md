@@ -151,8 +151,11 @@ of* it.
    `effectNl` (`decisionEffectFields`). The page says the half in its
    reader's language (`decisionEffectText`). From a server that sent no
    Dutch it shows the English as served, marked `lang="en"`. The item
-   queues' effect lines (Deletions, Moves, Failures) are not paired yet and
-   stay English.
+   queues' effect lines (Deletions, Moves, Failures) are paired the same way
+   since 2026-11-08 (workplan 0159 §6 item 18): `QUEUE_EFFECTS`, which both
+   editions serve as `effect` and `effectNl`, the English unchanged, and
+   which the rows say in their reader's half with the same helper
+   (`ServedEffect`).
 5. **Customer guides** (workplan 0148 T4) — the guides `/docs` serves, written
    for the person who connects an account:
    - documents authored in each language, side by side in `docs/guides/nl/`

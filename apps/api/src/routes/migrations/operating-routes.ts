@@ -52,7 +52,11 @@ import {
 import {
   DISCOVERY_DOMAINS,
   FAILURE_CATEGORIES,
+  QUEUE_EFFECTS,
   dataTypesPastCutover,
+  decisionEffectFields,
+  failureEffect,
+  failureGroupEffect,
   isFailureCategory,
   sourceStillDecides,
   type DiscoveryDomain,
@@ -993,13 +997,13 @@ router.post(
             'inferred deletion — not yet been missing for enough consecutive scans.',
         });
       }
+      // What it did, in English as `effect` and in Dutch as `effectNl`, from
+      // the shared words the appliance answers with too (0159 §6 item 18).
       const body: DecisionAccepted = {
         status: 'ok',
         action: 'keep',
         naturalKeyHash: hash,
-        effect:
-          'Acknowledged. The target keeps its copy and this stops being reported unless the ' +
-          'item reappears on the source and vanishes again.',
+        ...decisionEffectFields(QUEUE_EFFECTS.deletionKept),
       };
       res.json(body);
     } catch (error) {
@@ -1029,9 +1033,7 @@ router.post(
         status: 'ok',
         action: 'keep',
         naturalKeyHash: hash,
-        effect:
-          'Acknowledged. Nothing changed on the source or the target; this move stops being ' +
-          'reported unless the item moves somewhere else again.',
+        ...decisionEffectFields(QUEUE_EFFECTS.moveKept),
       };
       res.json(body);
     } catch (error) {
@@ -1184,20 +1186,14 @@ router.post('/:mappingId/failures', authenticate, async (req: AuthenticatedReque
       );
     }
 
+    // A press that matched nothing says so, rather than reporting success
+    // over an empty set.
     const body_: GroupDecisionAccepted = {
       status: 'ok',
       action,
       matched,
       match,
-      effect:
-        matched === 0
-          ? 'Nothing matched, so nothing changed. Check the domain and the wording — the ' +
-            'substring is matched literally, not as a pattern.'
-          : action === 'retry'
-            ? `Attempts reset on ${matched} item(s) and cursors cleared; the next scheduled ` +
-              'pass will try them again.'
-            : `Left behind for good: ${matched} item(s) will not be retried, and are excluded ` +
-              'from the verification gate.',
+      ...decisionEffectFields(failureGroupEffect(action, matched)),
     };
     res.json(body_);
   } catch (error) {
@@ -1253,10 +1249,7 @@ router.post(
         status: 'ok',
         action,
         naturalKeyHash: hash,
-        effect:
-          action === 'retry'
-            ? 'Attempts reset and cursors cleared; the next scheduled pass will try again.'
-            : 'Left behind for good: no further retries, and excluded from the verification gate.',
+        ...decisionEffectFields(failureEffect(action)),
       };
       res.json(body);
     } catch (error) {

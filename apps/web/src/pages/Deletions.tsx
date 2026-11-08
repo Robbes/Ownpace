@@ -44,6 +44,8 @@ import {
   ReceiptStatus,
   Refused,
   Resolved,
+  ServedEffect,
+  servedOf,
 } from '../components/queues/primitives.tsx';
 import {
   applyDeletion,
@@ -94,7 +96,7 @@ const Row: React.FC<{
     <HashChip hash={d.naturalKeyHash} />
     <div className="flex items-center gap-2 ml-auto">
       {outcome?.state === 'done' ? (
-        <Resolved effect={outcome.effect} />
+        <ServedEffect served={outcome.served} />
       ) : outcome?.state === 'refused' ? (
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
@@ -136,7 +138,7 @@ const EarlierRow: React.FC<{
       <HashChip hash={e.naturalKeyHash} />
       <div className="flex items-center gap-2 ml-auto">
         {outcome?.state === 'done' ? (
-          <Resolved effect={outcome.effect} />
+          <ServedEffect served={outcome.served} />
         ) : outcome?.state === 'refused' ? (
           <Refused text={outcome.text} />
         ) : e.acknowledgedAt !== undefined ? (
@@ -216,8 +218,9 @@ const Deletions: React.FC<{
       applyDeletion(mapping, hash)
         .then((outcome) => {
           if (outcome.mode === 'immediate') {
-            // The appliance's synchronous answer renders as it always has.
-            setOutcome(hash, { state: 'done', effect: outcome.result.effect });
+            // The appliance's synchronous answer renders as it always has,
+            // in the reader's language where it says both.
+            setOutcome(hash, { state: 'done', served: servedOf(outcome.result) });
             refresh();
             return;
           }

@@ -17,19 +17,21 @@ import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-import { FAILURE_GUIDANCE, type FailuresResponse } from '@openmig/shared';
+import { FAILURE_GUIDANCE, decisionEffectFields, failureEffect, type FailuresResponse } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 
-const { fetchFailuresMock, decideFailureGroupMock } = vi.hoisted(() => ({
+const { fetchFailuresMock, retryFailureMock, acceptFailureMock, decideFailureGroupMock } = vi.hoisted(() => ({
   fetchFailuresMock: vi.fn(),
+  retryFailureMock: vi.fn(),
+  acceptFailureMock: vi.fn(),
   decideFailureGroupMock: vi.fn(),
 }));
 
 vi.mock('../services/operating-service', () => ({
   fetchFailures: fetchFailuresMock,
-  retryFailure: vi.fn(),
-  acceptFailure: vi.fn(),
+  retryFailure: retryFailureMock,
+  acceptFailure: acceptFailureMock,
   // The group press (2026-09-12). Listed here because the panel imports from
   // this same module, and a mock factory that omits an export hands the
   // component `undefined` — which reads as a render crash rather than as a
@@ -411,5 +413,54 @@ describe('what this means and what you can do', () => {
     );
     expect(text).toContain('Still trying: these are tried again by themselves on every pass. You need not do anything.');
     expect(text).not.toMatch(API_WORDS);
+  });
+});
+
+/**
+ * What a press did, in the reader's language (workplan 0159 §6 item 18): the
+ * server says it in English as `effect` and in Dutch as `effectNl`, from
+ * `QUEUE_EFFECTS`, and a Dutch page shows the Dutch where the buttons were.
+ */
+describe('what a press did, on a Dutch page', () => {
+  const nl = STRINGS.nl;
+
+  function renderDutch() {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    return render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Failures />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  afterEach(() => {
+    window.localStorage.removeItem('ownpace.locale');
+  });
+
+  it('says a retry in Dutch', async () => {
+    fetchFailuresMock.mockResolvedValue(queue());
+    const said = decisionEffectFields(failureEffect('retry'));
+    retryFailureMock.mockResolvedValue({ status: 'ok', action: 'retry', naturalKeyHash: FAILURE.naturalKeyHash, ...said });
+    renderDutch();
+
+    await userEvent.click(await screen.findByRole('button', { name: nl['failures.retry'] }));
+    expect(retryFailureMock).toHaveBeenCalledWith('acme-mail', FAILURE.naturalKeyHash);
+    expect(await screen.findByText(said.effectNl)).not.toHaveAttribute('lang');
+    expect(screen.queryByText(said.effect)).not.toBeInTheDocument();
+  });
+
+  it('says a migration without the item in Dutch', async () => {
+    fetchFailuresMock.mockResolvedValue(queue());
+    const said = decisionEffectFields(failureEffect('accept'));
+    acceptFailureMock.mockResolvedValue({ status: 'ok', action: 'accept', naturalKeyHash: FAILURE.naturalKeyHash, ...said });
+    renderDutch();
+
+    await userEvent.click(await screen.findByRole('button', { name: nl['failures.accept'] }));
+    expect(await screen.findByText(said.effectNl)).not.toHaveAttribute('lang');
   });
 });

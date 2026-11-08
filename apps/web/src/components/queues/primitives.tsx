@@ -11,8 +11,10 @@
 import React from 'react';
 import { AlertCircle, AlertTriangle, Check, Info, Loader2, Trash2 } from 'lucide-react';
 import {
+  decisionEffectText,
   queueGuidance,
   type ApplyReceipt,
+  type DecisionEffectFields,
   type DeletionEvidence,
   type GuidedQueue,
   type MappingLifecycle,
@@ -24,7 +26,8 @@ import type { StringKey } from '../../i18n/index.tsx';
 // SERVER prose (refusal reasons, effects) renders verbatim as ever —
 // translating it is drift (rule 2/ADR-0026). The queues' guidance is the
 // customer's version from @openmig/shared, in both languages (the owner,
-// 2026-10-18); the operator's stays on the API.
+// 2026-10-18); the operator's stays on the API. What a press did is the
+// server's too, which says it in both languages (`ServedEffect`).
 
 const DOMAIN_KEY: Record<string, StringKey> = {
   email: 'domain.email',
@@ -314,13 +317,39 @@ export const AfterCutoverNote: React.FC<{ withheld: readonly { domain: string }[
   return <p className="mb-3 text-sm text-gray-600">{t('queue.afterCutover', { dataTypes: named.join(', ') })}</p>;
 };
 
-/** A decision that went through, shown where the buttons were. */
-export const Resolved: React.FC<{ effect: string }> = ({ effect }) => (
-  <span className="inline-flex items-start gap-1 text-xs text-emerald-700">
+/**
+ * A decision that went through, shown where the buttons were. `lang` marks a
+ * line in another language than the page's, so a screen reader reads it as
+ * that language.
+ */
+export const Resolved: React.FC<{ effect: string; lang?: string }> = ({ effect, lang }) => (
+  <span className="inline-flex items-start gap-1 text-xs text-emerald-700" lang={lang}>
     <Check className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
     {effect}
   </span>
 );
+
+/** Both halves of an answer's line, and nothing else of the answer. */
+export const servedOf = ({ effect, effectNl }: Partial<DecisionEffectFields>): Partial<DecisionEffectFields> => ({
+  effect,
+  effectNl,
+});
+
+/**
+ * What a press just did, in the server's words (workplan 0159 §6 item 18).
+ *
+ * Both editions say it in English as `effect` and in Dutch as `effectNl`,
+ * from `QUEUE_EFFECTS` in `@openmig/shared`, and the row says the half in its
+ * reader's language with the Decisions page's own helper
+ * (`decisionEffectText`). From a server that sent no Dutch it says the
+ * English as served, marked `lang="en"`. Nothing served, nothing said.
+ */
+export const ServedEffect: React.FC<{ served: Partial<DecisionEffectFields> }> = ({ served }) => {
+  const { locale } = useLocale();
+  const said = decisionEffectText(served, locale);
+  if (!said) return null;
+  return <Resolved effect={said.text} lang={said.lang !== locale ? said.lang : undefined} />;
+};
 
 /**
  * A refusal, shown where the buttons were.

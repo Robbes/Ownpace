@@ -50,6 +50,8 @@ import {
   ReceiptStatus,
   Refused,
   Resolved,
+  ServedEffect,
+  servedOf,
 } from '../components/queues/primitives.tsx';
 import {
   applyMove,
@@ -143,7 +145,7 @@ const Row: React.FC<{
     )}
     <div className="flex items-center gap-2 ml-auto">
       {outcome?.state === 'done' ? (
-        <Resolved effect={outcome.effect} />
+        <ServedEffect served={outcome.served} />
       ) : outcome?.state === 'refused' ? (
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
@@ -223,8 +225,9 @@ const Moves: React.FC<{
       applyMove(mapping, hash)
         .then((outcome) => {
           if (outcome.mode === 'immediate') {
-            // The appliance's synchronous answer renders as it always has.
-            setOutcome(hash, { state: 'done', effect: outcome.result.effect });
+            // The appliance's synchronous answer renders as it always has,
+            // in the reader's language where it says both.
+            setOutcome(hash, { state: 'done', served: servedOf(outcome.result) });
             refresh();
             return;
           }
