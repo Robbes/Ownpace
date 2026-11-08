@@ -4,12 +4,12 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
-**2026-11-08, later: the owner read follow-up 18's Dutch (open question 8).** On the thirteen lines
-of #1840, the owner: *"het oude systeem and het nieuwe systeem: ok"*, *"Acknowledged: Keuze"*,
-*"cursors cleared: doorloopt alles opnieuw"* and *"this tool is Ownpace: ok"*. So the two lines that
-open with an acknowledgement, `QUEUE_EFFECTS.deletionKept` and `.moveKept`, now open with *Keuze
-vastgelegd.* where they said *Beslissing vastgelegd.*; every other word stands as built, and the
-English is unchanged.
+**2026-11-08, later: the owner read follow-up 18's Dutch (open question 8), merged as #1847
+(`8d19e715`).** On the thirteen lines of #1840, the owner: *"het oude systeem and het nieuwe
+systeem: ok"*, *"Acknowledged: Keuze"*, *"cursors cleared: doorloopt alles opnieuw"* and *"this tool
+is Ownpace: ok"*. So the two lines that open with an acknowledgement, `QUEUE_EFFECTS.deletionKept`
+and `.moveKept`, now open with *Keuze vastgelegd.* where they said *Beslissing vastgelegd.*; every
+other word stands as built, and the English is unchanged.
 
 **2026-11-08: follow-up 18 built, for alpha.7 (#1840, merged the same day as `1a17f911`).** On Deletions, Moves and
 Failures, the line a press leaves where its buttons were was the server's English under a Dutch

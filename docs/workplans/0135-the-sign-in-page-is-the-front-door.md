@@ -4,11 +4,23 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, later, recorded: the outside probe asks live's form that founds an organisation,
+and it answers 404 (T1).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records-2`. The owner dispatched *Exposure probe* on
+`main` at `200185fd`: run 42448301600, from 04:48:51 to 04:49:20 UTC, its first run since #1753
+merged. It passed, with this line among the rest:
+`pass  https://id.ownpace.eu/ui/login/register/org answers 404: the form that founds an
+organisation is not served (workplan 0135 T1)`. In the same run the discovery document named
+`https://id.ownpace.eu` as issuer, so the page asked was live's. Live runs alpha.6, on Zitadel
+v4.20.1 since its deploy of 2026-11-08: the restriction holds there after that upgrade. The probe
+is dispatched by hand, when the owner is there to act on what it finds; the smoke asks the OTA
+instance's page every night. 0132's Status (2026-11-08, later still) has the whole run.
+
 **2026-11-08, records: open question 7 answered: self-registration stays on.** Docs only, on the
-branch `claude/ownpace-public-readiness-y7orc6-a7-records`. The owner, at about 01:50 UTC: *"Build
-the recommended for alpha 7."* The recommendation was to keep it on: it is how a granted person
-gets an account without the product creating one; they prove their address by mail, and T8
-removes accounts nobody let in. Nothing is built or changed for it (§4, step 5).
+branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843 (`d227b15f`). The owner,
+at about 01:50 UTC: *"Build the recommended for alpha 7."* The recommendation was to keep it on: it
+is how a granted person gets an account without the product creating one; they prove their address
+by mail, and T8 removes accounts nobody let in. Nothing is built or changed for it (§4, step 5).
 
 **2026-11-08: open question 4 answered: the console cannot be refused off the mesh at today's front,
 so nothing is built (alpha.7's item 5)**, on branch
@@ -934,7 +946,7 @@ Names used from here on: **live** is the identity provider of `ownpace-live`, at
 | Task | Status | Notes |
 |---|---|---|
 | T0 The owner applies T1 and T2 by hand, on each instance, and reads both back | ⏳ **Owner** (D2, D7) for live, where on 2026-10-29 the registration page answered 404 from outside and the restrictions' read-back was not run (Status, 2026-10-31); on the OTA instance ✅ both set and read back by E2E (managed) #203 on 2026-09-27, and the owner's sign-in checked 2026-09-28 on `1353f06` | §3 and §4. The OTA instance now. Live before its first invitation and before 0133 T3; if live's first tag carries T1 and T2, only the read-backs are left there. Minutes each, and no deploy. |
-| T1 Public organisation registration off | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7); the outside probe asks live's page and fails unless it answers 404 ✅ **merged** as #1753 on 2026-10-31 (`d669141d`), not yet dispatched since (Status, 2026-11-01, later; *was:* 🔨 built 2026-10-31 on branch `claude/ownpace-public-readiness-y7orc6-exposure-probe-registration`, not merged) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
+| T1 Public organisation registration off | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): `managed.yml` for a fresh instance, `setup-zitadel.sh` for an existing one, read back, and the smoke asks the page; in place on live before its first invitation (D2, D7); the outside probe asks live's page and fails unless it answers 404 ✅ **merged** as #1753 on 2026-10-31 (`d669141d`), and ✅ **passed** in its first dispatch since, run 42448301600 of 2026-11-08: 404 (Status, 2026-11-08, later; *was:* not yet dispatched since (Status, 2026-11-01, later); 🔨 built 2026-10-31 on branch `claude/ownpace-public-readiness-y7orc6-exposure-probe-registration`, not merged) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. The instance restriction `disallowPublicOrgRegistration`, set by `setup-zitadel.sh` and read back, and set by `managed.yml` for a fresh instance, which live's is. |
 | T2 The project admits its own organisation only | ✅ **done** in #1261, merged 2026-09-28 (`3be0ef03`): created with the check, an existing project updated and read back; in place on live before its first invitation (D2, D7) — *was:* 🔨 **Built 2026-09-27, not merged**; 📋 **Proposed** | §3. `hasProjectCheck` on the Ownpace project, set at creation and on an existing project, and read back. Live's project is created at its first bring-up. This sits beside `tenant_member`, not in its place. |
 | T3 One organisation, recorded and counted again | 📋 **Decided 2026-09-24** (D1) for the record; (a) the count on every run of `setup-zitadel.sh` ✅ **done** in #1272, merged 2026-09-28 (`3408c143`); live's daily count is 0132 T7's; live's count on 2026-10-29: 1, by `setup-zitadel.sh --count-organisations` (Status, 2026-10-31); the count after T0 waits for T0's read-back — *was:* (a) 🔨 built 2026-09-27, not merged; the count 📋 **Proposed** | §3. The owner's answer covers the OTA instance; live's starts with one. The count is per instance: a count anybody can repeat, a line in the bring-up's summary, daily on live by 0132 T7, nightly on the OTA instance by the gate's own run of `setup-zitadel.sh`. |
 | T4 Second factors for the accounts that hold the keys, and a lockout | (a) the enrolment ⏳ **Owner**, live first; (b) the lockout at 10 wrong passwords ✅ **merged** as #1612 on 2026-10-17 (`780b0fdd`; *was:* built on branch `claude/ownpace-public-readiness-y7orc6-the-owners-sign-in-answers`, not merged) (open question 3, the owner: *"The lockout limit: I proposed 10 wrong passwords."*): `setup-zitadel.sh` writes it when it differs, the codes' limit copied back, and reads it back on the instance and the organisation, `managed.yml` gives a fresh instance the same; the 5 wrong codes and the unknown login names stay open; (c) the second factor policy ✅ **decided 2026-10-17 and merged** in #1612 (open question 2, (c): offered, not forced): `forceMfa` and `forceMfaLocalOnly` false and TOTP and U2F allowed, written when they differ and read back on every run; (b) and (c) run against a real instance: the OTA one in E2E (managed) run 41264284343 (2026-11-01, 02:18 UTC), and every deploy of live runs the same script (Status, 2026-11-01; *was:* same branch, not merged; neither yet run against a real instance) — *was:* ⏳ **Owner** for the enrolment; 📋 **Proposed** for the lockout and forced MFA | §3. The first human and every operator, on each instance, live first; the machine user cannot have one and relies on its token's short life. A lockout threshold. Whether a second factor is forced is open question 2. |

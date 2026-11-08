@@ -6,8 +6,8 @@
 
 **2026-11-08, records: Google's seven-day expiry read from Google; the user cap's number not (T1,
 open question 1).** Docs only, on the branch
-`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`. `developers.google.com` answers from
-this session, `support.google.com` does not.
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`).
+`developers.google.com` answers from this session, `support.google.com` does not.
 - ✅ **Seven days, verified.** Google's *Refresh token expiration*
   (https://developers.google.com/identity/protocols/oauth2#expiration, last updated 2026-10-29,
   read 2026-11-08): an external consent screen whose publishing status is Testing *"is issued a

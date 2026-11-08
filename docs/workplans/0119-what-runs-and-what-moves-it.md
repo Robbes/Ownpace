@@ -5,7 +5,8 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, records: the deploy CLI's minimatch, read; six stale notes dated.** Docs and one
-comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`.
+comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844
+(`200185fd`).
 - **GHSA-g3hv-75wg-m249 on `trigger.dev>minimatch`** (CVE-2026-118764, moderate, CVSS 4.0 6.9),
   Dependabot alert #10 on `main`, the one path kept on minimatch 10.2.6 on purpose. The advisory
   (https://github.com/advisories/GHSA-g3hv-75wg-m249, read 2026-11-08) puts the amplification in
@@ -39,8 +40,9 @@ a file of a removed library is left, or if any ELF file needs one (DT_NEEDED). T
 user, entrypoint, command and healthcheck are as they were. On the branch at `d8c4bd59`: `build
 (redis, …)` and `build (trigger, …)` green on both platforms, the check finding nothing in either
 image; Security Scan run 42440765278 read Redis at 1/8/0 and the webapp at 1/22/14, from 1/10/0 and
-1/24/14. Owed before a merge: E2E (managed) on the branch. ClickHouse's apt waits: building
-ClickHouse here is not for alpha.7 (§3 item 11, the entry of 2026-11-08).
+1/24/14. Owed before a merge, and paid: E2E (managed) on the branch, run 42443538787 on `80948402`,
+green from 03:38 to 03:46 UTC. ClickHouse's apt waits: building ClickHouse here is not for alpha.7
+(§3 item 11, the entry of 2026-11-08).
 **2026-11-08, recorded: live runs alpha.6's pins.** The owner deployed `v0.2.0-alpha.6` (tagged
 2026-11-07 on `59b91458`) to live on 2026-11-08, from alpha.4 in one run of alpha.4's script, which
 took at 00:32:28 UTC (0132's Status, 2026-11-08, has the deploy). Before it, every image the run
@@ -5482,9 +5484,10 @@ is beside each; none is urgent tonight.
     leaves Debian 12.
 
     **2026-11-08: libsystemd0 and libudev1 in Redis and the webapp — YES, FOR ALPHA.7, BUILT,
-    NOT MERGED.** Answered 2026-11-08, the owner: *"Build the recommended for alpha 7."* The
-    recommendation was yes: one high each, with no fix, in both images, and nothing left uses
-    either once the eleven are gone. Built on the branch
+    NOT MERGED.** *(Later on 2026-11-08: merged as #1846 (`422f049c`), after E2E (managed) run
+    42443538787 on the branch was green.)* Answered 2026-11-08, the owner: *"Build the recommended
+    for alpha 7."* The recommendation was yes: one high each, with no fix, in both images, and
+    nothing left uses either once the eleven are gone. Built on the branch
     `claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`. Read first, on 2026-11-08, in
     Redis's image and in `node:24.22.1-bookworm-slim`, each by its layers' digests on both
     platforms (the Node image's five layers are the webapp's first five):

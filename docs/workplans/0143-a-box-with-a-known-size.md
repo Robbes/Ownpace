@@ -5,12 +5,12 @@
 ## Status — 2026-11-08 (update this block at the end of every session)
 
 **2026-11-08, records: two notes caught up with what merged.** Docs only, on the branch
-`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`. The entry of 2026-10-14 said the Start
-screen shows the cap's refusal in English until the web reads `messageNl`: the same pull request,
-#1598 (merged 2026-10-14, `b21a9735`), made `serverMessage` show `messageNl` to a Dutch reader
-(`apps/web/src/services/api.ts`, held by `api.unit.test.ts`). Open question 2 asked whether T3b
-comes before the first invitation: it merged as #1355 on 2026-09-29 (`2ce65461`), so every tag since
-alpha.1 carries it. Both say so now, with their dates.
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`). The entry
+of 2026-10-14 said the Start screen shows the cap's refusal in English until the web reads
+`messageNl`: the same pull request, #1598 (merged 2026-10-14, `b21a9735`), made `serverMessage` show
+`messageNl` to a Dutch reader (`apps/web/src/services/api.ts`, held by `api.unit.test.ts`). Open
+question 2 asked whether T3b comes before the first invitation: it merged as #1355 on 2026-09-29
+(`2ce65461`), so every tag since alpha.1 carries it. Both say so now, with their dates.
 
 **2026-10-16: T1's last part, the host in the bring-up.** `docs/managed-bring-up.md`, *Before
 you start*, gains a memory line and a CPU line beside the disk line: about 7 GB for one stack at
