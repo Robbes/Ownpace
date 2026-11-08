@@ -54,8 +54,25 @@ recommended for alpha 7."* Built on branch
 - **What stays on the machine.** `e2e.yml`, `e2e-managed.yml` and `e2e-live-target.yml` still run
   `main` there each night, `pnpm install` included, and `e2e-o365.yml` on dispatch. So the path is
   slower, not gone: a merged change still reaches the machine by the next night.
-- **Proven before the merge** by one dispatch of each workflow on the branch, read in the pull
-  request.
+- **Proven before the merge** by one dispatch of each workflow on the branch at `67052006`, each
+  job on the runner the API reports:
+  - CI run 42439765838, green. `detect-changes`, `docs-hygiene`, `fixture-uuid-check`,
+    `migration-lint (ubuntu-24.04-arm)`, `lint`, `unit-tests (all)`, `ui-tests` and
+    `integration-tests (ubuntu-24.04-arm)` ran on `ubuntu-24.04-arm`, `ci-complete` on
+    `ubuntu-24.04`, and `commit-convention` was skipped. Atlas v1.3.6 checked both sums and linted
+    124 migrations. The unit tests read 1277 files and 20305 tests, none skipped; main's last push
+    on the machine (run 42434299055) read 1276 and 20281, 34 of them skipped. The 24 more are this
+    change's 23 and the one test per guard that `lessons.unit.test.ts` adds. The 34 need nginx and
+    PostgreSQL's server binaries, which GitHub's runners have and the machine does not, so a push
+    now runs them, as a pull request's shards already did. The integration tests read 97 files and
+    824 tests, as on the machine. The UI tests passed, 72, with Chromium fetched under its new key.
+  - Security Scan run 42439767206 (`push_runner`, no image legs), green in about a minute: Node
+    v26.13.0 and pnpm 11.28.9; the audit's line as on main's last push scan (1 moderate, dev only);
+    Trivy 0.76.1 with both sums as pinned and its daily cache restored; 617 bytes of SARIF, taken by
+    code scanning. Main's last push scan wrote 643: the 26 bytes are the longer workspace path the
+    report names as its root (reasoned from the two paths).
+  - The pull request's own runs, on its usual runners, were green on the same commit (CI run
+    42439962944).
 - **The records** that said a push runs on the machine now say what is true: SECURITY.md, 0131
   §4, this plan's §1, D1, §4 and open question 1, the runbook's *This box also runs CI*,
   `docs/testing.md`, `docs/release.md`, the architecture document, the bring-up and
