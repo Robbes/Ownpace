@@ -27,7 +27,8 @@
  */
 
 import type { DecisionRow } from './decisions.ts';
-import { DECISION_EFFECTS } from './operating-contract.ts';
+import { DECISION_EFFECTS, QUEUE_EFFECTS } from './operating-contract.ts';
+import type { RemovalKind } from './ports.ts';
 
 /** The two languages a decision is said in. */
 export type DecisionLanguage = 'en' | 'nl';
@@ -154,11 +155,51 @@ export function decisionResolvedEffect(changedSomething: boolean): DecisionEffec
   return changedSomething ? DECISION_EFFECTS.resolved : DECISION_EFFECTS.recorded;
 }
 
+// What a decision on Deletions, Moves or Failures did (workplan 0159 §6 item
+// 18), chosen from `QUEUE_EFFECTS` the way each edition chose its English
+// before. Both editions answer with these, so the two cannot drift (ADR-0026).
+
+/** Removing a deleted item's copy: whether the new system's own bin still holds it. */
+export function deletionRemovedEffect(kind: RemovalKind): DecisionEffect {
+  return kind === 'binned' ? QUEUE_EFFECTS.deletionRemovedToBin : QUEUE_EFFECTS.deletionRemoved;
+}
+
+/** Removing a moved file's old copy, and whether the bin still holds that copy. */
+export function oldCopyRemovedEffect(kind: RemovalKind): DecisionEffect {
+  const removed = QUEUE_EFFECTS.oldCopyRemoved;
+  if (kind !== 'binned') return removed;
+  const bin = QUEUE_EFFECTS.oldCopyInBin;
+  return { en: `${removed.en} ${bin.en}`, nl: `${removed.nl} ${bin.nl}` };
+}
+
+/** One failed item tried again on the next pass, or migrated without. */
+export function failureEffect(action: 'retry' | 'accept'): DecisionEffect {
+  return action === 'retry' ? QUEUE_EFFECTS.failureRetried : QUEUE_EFFECTS.failureAccepted;
+}
+
 /**
- * How an effect travels, beside the decision in a resolve's or a dismiss's
- * answer: the English as `effect`, which a page from before the Dutch reads,
- * and the Dutch as `effectNl`, the pairing `reason`/`reasonNl` has. Both
- * editions build their answer with this, so the two cannot drift (ADR-0026).
+ * A decision over a group of failures, with how many items it changed. A
+ * press that matched nothing says so; one item has its own line.
+ */
+export function failureGroupEffect(action: 'retry' | 'accept', matched: number): DecisionEffect {
+  if (matched === 0) return QUEUE_EFFECTS.failuresMatchedNothing;
+  if (matched === 1) {
+    return action === 'retry' ? QUEUE_EFFECTS.failuresRetriedOne : QUEUE_EFFECTS.failuresAcceptedOne;
+  }
+  const said = action === 'retry' ? QUEUE_EFFECTS.failuresRetried : QUEUE_EFFECTS.failuresAccepted;
+  // `replace(/…/g)` rather than `replaceAll`: the web app compiles this
+  // module, and its lib target predates it (as `confirmed-list.ts` says).
+  const count = String(matched);
+  return { en: said.en.replace(/\{count\}/g, count), nl: said.nl.replace(/\{count\}/g, count) };
+}
+
+/**
+ * How an effect travels, beside the decision in its answer: a drift
+ * decision's resolve or dismiss, and a decision on Deletions, Moves or
+ * Failures. The English as `effect`, which a page from before the Dutch
+ * reads, and the Dutch as `effectNl`, the pairing `reason`/`reasonNl` has.
+ * Both editions build their answer with this, so the two cannot drift
+ * (ADR-0026).
  */
 export interface DecisionEffectFields {
   readonly effect: string;
@@ -171,8 +212,9 @@ export function decisionEffectFields(said: DecisionEffect): DecisionEffectFields
 
 /**
  * The line under a decision just answered or set aside, in the reader's
- * language. A server from before the Dutch sends only `effect`, which shows
- * as served and says it is English. Nothing served, nothing said.
+ * language: on *Wacht op u*, and where the buttons were on Deletions, Moves
+ * and Failures. A server from before the Dutch sends only `effect`, which
+ * shows as served and says it is English. Nothing served, nothing said.
  */
 export function decisionEffectText(
   served: Partial<DecisionEffectFields>,

@@ -382,9 +382,18 @@ export class DecisionRefusedError extends Error {
   }
 }
 
-async function decide(path: string): Promise<DecisionAccepted> {
+/**
+ * A queue decision's answer as this page may receive it. Both editions say
+ * what the press did in English as `effect` and in Dutch as `effectNl`
+ * (workplan 0159 §6 item 18); an appliance from before the Dutch sends the
+ * English alone, so the Dutch is not promised here.
+ */
+export type QueueAnswer<T extends DecisionEffectFields> = Omit<T, 'effectNl'> &
+  Partial<DecisionEffectFields>;
+
+async function decide(path: string): Promise<QueueAnswer<DecisionAccepted>> {
   try {
-    return (await client.post<DecisionAccepted>(path)).data;
+    return (await client.post<QueueAnswer<DecisionAccepted>>(path)).data;
   } catch (err) {
     const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;
     // Only a body that actually carries the server's refusal shape is treated as
@@ -397,7 +406,7 @@ async function decide(path: string): Promise<DecisionAccepted> {
 }
 
 /** Keep the target's copy of a vanished item, and stop reporting it. */
-export function keepDeletion(mappingId: string, hash: string): Promise<DecisionAccepted> {
+export function keepDeletion(mappingId: string, hash: string): Promise<QueueAnswer<DecisionAccepted>> {
   return decide(`${mappingPath(mappingId)}/deletions/${encodeURIComponent(hash)}/keep`);
 }
 
@@ -414,7 +423,7 @@ export function keepDeletion(mappingId: string, hash: string): Promise<DecisionA
  * appliance's shape — a mis-parse on the one route that destroys data.
  */
 export type ApplyOutcome =
-  | { readonly mode: 'immediate'; readonly result: DecisionAccepted }
+  | { readonly mode: 'immediate'; readonly result: QueueAnswer<DecisionAccepted> }
   | { readonly mode: 'queued'; readonly receipt: ApplyReceipt };
 
 /**
@@ -500,7 +509,7 @@ export async function fetchCompletionReport(
 }
 
 /** Accept the target's layout for a moved item, and stop reporting it. */
-export function keepMove(mappingId: string, hash: string): Promise<DecisionAccepted> {
+export function keepMove(mappingId: string, hash: string): Promise<QueueAnswer<DecisionAccepted>> {
   return decide(`${mappingPath(mappingId)}/moves/${encodeURIComponent(hash)}/keep`);
 }
 
@@ -621,12 +630,12 @@ export async function fetchMoveApplyReceipt(
 }
 
 /** Try a failed item again on the next pass (also clears the mapping's cursors). */
-export function retryFailure(mappingId: string, hash: string): Promise<DecisionAccepted> {
+export function retryFailure(mappingId: string, hash: string): Promise<QueueAnswer<DecisionAccepted>> {
   return decide(`${mappingPath(mappingId)}/failures/${encodeURIComponent(hash)}/retry`);
 }
 
 /** Migrate without a failed item, permanently. */
-export function acceptFailure(mappingId: string, hash: string): Promise<DecisionAccepted> {
+export function acceptFailure(mappingId: string, hash: string): Promise<QueueAnswer<DecisionAccepted>> {
   return decide(`${mappingPath(mappingId)}/failures/${encodeURIComponent(hash)}/accept`);
 }
 
@@ -653,7 +662,7 @@ export async function decideFailureGroup(
   mappingId: string,
   action: 'retry' | 'accept',
   match: FailureGroupMatch,
-): Promise<GroupDecisionAccepted> {
+): Promise<QueueAnswer<GroupDecisionAccepted>> {
   const body = {
     action,
     ...(match.domain ? { domain: match.domain } : {}),
@@ -662,7 +671,7 @@ export async function decideFailureGroup(
   };
   try {
     return (
-      await client.post<GroupDecisionAccepted>(`${mappingPath(mappingId)}/failures`, body)
+      await client.post<QueueAnswer<GroupDecisionAccepted>>(`${mappingPath(mappingId)}/failures`, body)
     ).data;
   } catch (err) {
     const res = (err as { response?: { status: number; data?: DecisionRefused } }).response;

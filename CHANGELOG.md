@@ -10,6 +10,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   0134): at most 7 days, in the Alpha conditions' own sentence (§6), as both Alpha mails say too.
   Until now the guide named the one copy and not its 7 days.
 
+### Fixed
+
+- **What a press on Deletions, Moves or Failures did is said in Dutch on a Dutch screen**
+  (workplan 0159 follow-up 18, #1840), from words both editions share; the English is unchanged.
+
 ## [0.2.0-alpha.6] - 2026-11-07
 
 Nothing changes on a tester's screen. Underneath, the identity provider moves to
