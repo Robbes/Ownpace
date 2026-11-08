@@ -66,6 +66,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A night no longer fails because GitHub's release download answers 503** (workplan 0119). The
+  stalwart-cli step that CI's integration tests and both E2E gates run word for word gave up after
+  three attempts, 5 and 15 seconds apart, and on 2026-11-08 the self-hosted runner got 503 for over
+  half an hour; the scheduled E2E (managed) run died there before any test ran. It now makes five
+  attempts, 5, 15, 45 and 135 seconds apart, and a run that has read the pinned sums keeps both
+  archives in the runner's tool cache, so the next run on that runner starts from them, hashed
+  exactly as a fetch is. A kept copy that is not the pinned build stops the run and is removed; a
+  wrong sum is still never retried.
 - **What a press on Deletions, Moves or Failures did is said in Dutch on a Dutch screen**
   (workplan 0159 follow-up 18, #1840), from words both editions share; the English is unchanged.
 

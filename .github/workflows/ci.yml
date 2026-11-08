@@ -1008,9 +1008,23 @@ jobs:
         # Retried, because a single network blip here fails the whole
         # integration suite before one test has run. 2026-08-04: GitHub's
         # release CDN answered 502 for the binary and the job died at 27
-        # seconds. THREE ATTEMPTS, THEN FAIL LOUD: a persistent outage still
-        # fails the job, with the attempts it made stated (hard rule 9), and a
-        # wrong sum is never retried.
+        # seconds. 2026-11-08: it answered 503 for the arm64 archive for about
+        # two minutes, and the scheduled E2E (managed) run 42472273620 died
+        # here after three attempts, 5 and 15 seconds apart; a failed night
+        # resets the count a release waits for. FIVE ATTEMPTS, 5, 15, 45 AND
+        # 135 SECONDS APART, THEN FAIL LOUD: a persistent outage still fails
+        # the job, with the attempts it made stated (hard rule 9), and a wrong
+        # sum is never retried.
+        #
+        # KEPT ON THE RUNNER (2026-11-08): the self-hosted runner then got 503
+        # from GitHub's release download for over half an hour, longer than
+        # any retry can wait. A run that has read the pinned sum keeps each
+        # archive in RUNNER_TOOL_CACHE, written whole or not at all, and the
+        # next run on that runner starts from the kept copy, hashed exactly as
+        # a fetch is. A kept copy that is not the pinned build stops the run
+        # like a wrong fetch and is removed, so the run after fetches the
+        # release. GitHub's hosted runners start each job with an empty cache
+        # and fetch as before.
         #
         # TO MOVE IT: a newer release three days old, when the pin watch's
         # summary issue lists it (`scripts/idp-pin-watch.mjs`, its stalwart-cli
@@ -1033,27 +1047,44 @@ jobs:
           for arch in x86_64 aarch64; do
             if [ "$arch" = x86_64 ]; then pinned="$STALWART_CLI_SHA256_AMD64"; else pinned="$STALWART_CLI_SHA256_ARM64"; fi
             download="$RUNNER_TEMP/stalwart-cli-$STALWART_CLI_VERSION-$arch-unknown-linux-gnu.tar.xz"
+            kept="${RUNNER_TOOL_CACHE:-$RUNNER_TEMP}/stalwart-cli/$STALWART_CLI_VERSION/stalwart-cli-$arch-unknown-linux-gnu.tar.xz"
             rm -f "$download"
-            for attempt in 1 2 3; do
-              if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
-                  "https://github.com/stalwartlabs/cli/releases/download/${STALWART_CLI_VERSION}/stalwart-cli-${arch}-unknown-linux-gnu.tar.xz"; then
-                break
-              fi
-              echo "::warning::stalwart-cli $STALWART_CLI_VERSION linux/$arch: download attempt $attempt failed"
-              if [ "$attempt" = 3 ]; then
-                echo "::error::stalwart-cli $STALWART_CLI_VERSION could not be downloaded after 3 attempts. This is not a test failure: no test ran. Either GitHub's release download is unavailable or the release no longer serves this file."
-                exit 1
-              fi
-              # 5s, then 15s: long enough for a CDN blip, short enough that a
-              # real outage is reported inside a minute.
-              sleep $((attempt * 10 - 5))
-            done
+            if [ -f "$kept" ] && cp "$kept" "$download"; then
+              # A copy an earlier run on this runner kept, hashed below exactly as a
+              # fetch is: the self-hosted runner's nights do not wait on GitHub's
+              # release download once it has served the pinned build once.
+              from="the copy an earlier run kept"
+            else
+              from="the release"
+              for attempt in 1 2 3 4 5; do
+                if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
+                    "https://github.com/stalwartlabs/cli/releases/download/${STALWART_CLI_VERSION}/stalwart-cli-${arch}-unknown-linux-gnu.tar.xz"; then
+                  break
+                fi
+                echo "::warning::stalwart-cli $STALWART_CLI_VERSION linux/$arch: download attempt $attempt failed"
+                if [ "$attempt" = 5 ]; then
+                  echo "::error::stalwart-cli $STALWART_CLI_VERSION could not be downloaded after 5 attempts. This is not a test failure: no test ran. Either GitHub's release download is unavailable or the release no longer serves this file."
+                  exit 1
+                fi
+                # 5s, 15s, 45s, then 135s. On 2026-11-08 GitHub's release download
+                # answered 503 for about two minutes, longer than the 5s and 15s
+                # this waited, and a scheduled E2E night that fails resets the count
+                # a release waits for (scripts/release-nights.mjs). A real outage is
+                # still reported, inside seven minutes for a file.
+                sleep $((5 * 3 ** (attempt - 1)))
+              done
+            fi
             seen="$(sha256sum "$download")"
             seen="${seen%% *}"
             if [ "$seen" = "$pinned" ]; then
-              echo "stalwart-cli $STALWART_CLI_VERSION linux/$arch: sha256 $seen, as pinned."
+              echo "stalwart-cli $STALWART_CLI_VERSION linux/$arch: sha256 $seen, as pinned, from $from."
+              # Kept for the next run, written whole or not at all; a runner that
+              # cannot keep it fetches the release again next time.
+              { mkdir -p "${kept%/*}" && cp "$download" "$kept.$$" && mv -f "$kept.$$" "$kept"; } ||
+                { rm -f "$kept.$$"; echo "::warning::stalwart-cli $STALWART_CLI_VERSION linux/$arch: no copy could be kept for the next run, which fetches the release."; }
             else
-              echo "::error::stalwart-cli $STALWART_CLI_VERSION linux/$arch is not the build this workflow pins: its sha256 is $seen, and the pin is $pinned. Nothing was run."
+              echo "::error::stalwart-cli $STALWART_CLI_VERSION linux/$arch from $from is not the build this workflow pins: its sha256 is $seen, and the pin is $pinned. Nothing was run, and no copy is kept, so the next run fetches the release."
+              rm -f "$kept" || true
               refused=1
             fi
           done
