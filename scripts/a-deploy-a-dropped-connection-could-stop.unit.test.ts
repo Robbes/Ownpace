@@ -3,15 +3,16 @@
 /**
  * A DEPLOY A DROPPED CONNECTION COULD STOP (live's deploy of 2026-11-08; workplan 0132 T6).
  *
- * The owner deployed `v0.2.0-alpha.6` to live from a phone, and ran
- * `deploy-live.sh` inside `tmux` (0132's Status, 2026-11-08). That deploy
- * moved the identity provider's pin, so the script called it one-way: once
- * the new version has run, the way back is the copy the deploy took, not
+ * The owner ran live's deploy of `v0.2.0-alpha.6` inside `tmux`, a terminal
+ * session that outlives a dropped connection (0132's Status, 2026-11-08). That
+ * deploy moved the identity provider's pin, so the script called it one-way:
+ * once the new version has run, the way back is the copy the deploy took, not
  * another deploy (`docs/managed-bring-up.md`, step 3). A connection that drops
  * hangs up the shell, and the script with it, wherever it is: the script sets
- * no trap for it, and a run stopped halfway is the one case the copy exists
- * for. Nothing in the repository said to start it where it outlives the
- * connection; that was the owner's habit, and a habit is not a step.
+ * no trap for it, and a run stopped halfway is a failed update, the case the
+ * copy exists for. Nothing in the repository said to start it where it
+ * outlives the connection; the owner chose it that night, and a choice is not
+ * a step.
  *
  * ## What this holds
  *
