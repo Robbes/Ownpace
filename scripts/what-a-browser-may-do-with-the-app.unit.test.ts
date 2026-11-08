@@ -14,7 +14,7 @@
  * So the template now names one policy and four more headers, and repeats
  * them in each location that serves the app, as the site's file does: nginx
  * inherits `add_header` only into a level that sets none of its own. This
- * reads the template as nginx reads it (`./nginx-config.ts`) and asks, for
+ * reads the template as nginx reads it (`./nginx-config.mjs`) and asks, for
  * every kind of address the app is opened at:
  *
  * - **the app's pages, its assets and `version.json`** carry exactly the five
@@ -26,7 +26,7 @@
  *   from nginx would be enforced beside it and block that script, which is
  *   the 2026-09-02 defect again. Nor does nginx hide one of the API's;
  * - **nothing the reading cannot see.** An `if` block or an `error_page`
- *   changes which headers an answer gets, and `./nginx-config.ts` reads
+ *   changes which headers an answer gets, and `./nginx-config.mjs` reads
  *   neither. So the template has none, and this fails the day it gains one,
  *   on a machine without nginx too;
  * - **the policy is the one written here, word for word.** Loosening it means
@@ -60,7 +60,7 @@ import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { callbackPageHeaders } from '../apps/api/src/routes/migrations/google-consent.ts';
-import { chooseLocation, envsubst, headersFor, parseNginx, type NginxNode } from './nginx-config.ts';
+import { chooseLocation, envsubst, headersFor, parseNginx, type NginxNode } from './nginx-config.mjs';
 import { nginxBinary, serveTheTemplate, type AppNginx } from './nginx-on-this-machine.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -318,7 +318,7 @@ describe('the API keeps its own headers, and only its own', () => {
 });
 
 describe('the template holds nothing the reading cannot see', () => {
-  // `./nginx-config.ts` reads locations and `add_header`. An `if` block with
+  // `./nginx-config.mjs` reads locations and `add_header`. An `if` block with
   // its own `add_header` replaces the location's for the requests it matches,
   // and an `error_page` answers from another location with that location's
   // headers. The run on a real nginx below would catch either, but it skips
@@ -327,7 +327,7 @@ describe('the template holds nothing the reading cannot see', () => {
   it.each(['if', 'error_page'])('has no %s', (name) => {
     expect(
       everywhere(TOP).filter((n) => n.name === name),
-      `${TEMPLATE_PATH} uses ${name}, which ./nginx-config.ts does not read: teach headersFor first`,
+      `${TEMPLATE_PATH} uses ${name}, which ./nginx-config.mjs does not read: teach headersFor first`,
     ).toEqual([]);
   });
 });

@@ -34,7 +34,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
-import { parseNginx, type NginxNode } from './nginx-config.ts';
+import { parseNginx, type NginxNode } from './nginx-config.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (path: string): string => readFileSync(join(ROOT, path), 'utf8');

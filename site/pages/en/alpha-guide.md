@@ -26,9 +26,10 @@ personally. The Alpha lasts a few weeks.
 - **Households only.** You take part with your own accounts or your family's.
 - **No obligations, on either side.** You may stop at any time. We may stop the Alpha or start it
   over. We tell you at least 7 days in advance by email. The service may falter.
-- **No backups.** Only right before an update do we make one copy. If the service's records are
-  lost, you connect your accounts again and set up your migrations again. What is already at
-  your new provider stays there.
+- **No backups.** Only right before an update do we make one copy. We keep it until the update has
+  been applied successfully, and never longer than 7 days. If the service's records are lost, you
+  connect your accounts again and set up your migrations again. What is already at your new provider
+  stays there.
 - **After the Alpha** the service carries on, under new conditions.
 
 ## Before you start {#before-you-start}
