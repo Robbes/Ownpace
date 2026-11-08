@@ -14,6 +14,10 @@ export declare const DISCOVERY: string;
 /** The form that founds an organisation at live's issuer, which answers 404 once 0135 T1 holds. */
 export declare const ORG_REGISTRATION: string;
 export declare const OTA_MODES: readonly string[];
+/** The app's page, whose headers are held to its template (workplan 0158 T4). */
+export declare const APP_PAGE: string;
+/** The web app's own build stamp, which names the commit the template is read at. */
+export declare const APP_VERSION: string;
 /** The production site's name (workplan 0139 T10), tried only on live's front. */
 export declare const SITE_NAME: string;
 export declare const SITE_MODES: readonly string[];
@@ -80,6 +84,13 @@ export type PostgresAnswer =
   | { readonly kind: 'closed' }
   | { readonly untried: string };
 
+/** A page's status and its headers as they arrived, a header sent twice listed twice; or why nothing answered. */
+export interface HeadersAnswer {
+  readonly status?: number;
+  readonly headers?: ReadonlyArray<readonly [string, string]>;
+  readonly why?: string;
+}
+
 /** PostgreSQL's SSLRequest: eight bytes, answered by PostgreSQL with `S` or `N`. */
 export declare const SSL_REQUEST: Buffer;
 
@@ -92,6 +103,12 @@ export interface ProbeIo {
   tls(name: string): Promise<TlsAnswer>;
   issuer(url: string): Promise<{ readonly issuer?: string; readonly why?: string }>;
   page(url: string): Promise<PageAnswer>;
+  /** The commit a web build's `version.json` names in full, or why there is none (workplan 0158 T4). */
+  version(url: string): Promise<{ readonly commit?: string; readonly why?: string }>;
+  /** `apps/web/nginx.conf.template` at that commit, or why it could not be read. */
+  template(commit: string): Promise<{ readonly text?: string; readonly why?: string }>;
+  /** One page's status and headers, no redirect followed. */
+  headers(url: string): Promise<HeadersAnswer>;
   print(line: string): void;
 }
 
@@ -121,4 +138,6 @@ export declare function realNetwork(timeouts?: {
   readonly connectMs?: number;
   readonly tlsMs?: number;
   readonly fetchMs?: number;
+  /** For each git call that reads the app's template (workplan 0158 T4). */
+  readonly gitMs?: number;
 }): Omit<ProbeIo, 'print'>;

@@ -534,6 +534,7 @@ reading a file drops off its entry by itself.
 - [a-visitor-every-log-called-netbird](../scripts/a-visitor-every-log-called-netbird.unit.test.ts) — A VISITOR EVERY LOG CALLED NETBIRD (the owner, 2026-09-28, ops-trust-proxy (b): *"Keep visitors' addresses in all our logs"*; privacy §4.5).
 - [an-error-log-that-kept-the-link](../scripts/an-error-log-that-kept-the-link.unit.test.ts) — AN ERROR LOG THAT KEPT THE LINK, on the web image's nginx (workplan 0108).
 - [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12a).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
 - [what-a-browser-may-do-with-the-app](../scripts/what-a-browser-may-do-with-the-app.unit.test.ts) — WHAT A BROWSER MAY DO WITH THE APP (workplan 0158).
 
 ### `apps/web/src/AppRoutes.tsx`
@@ -1013,6 +1014,7 @@ reading a file drops off its entry by itself.
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [the-end-of-the-alpha-empties-the-task-history](../scripts/the-end-of-the-alpha-empties-the-task-history.unit.test.ts) — THE END OF THE ALPHA EMPTIES THE TASK RUNNER'S HISTORY (docs/ending-the-alpha.md, *The switch* and *Checks*; site/legal/privacy.md §9).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
 
 ### `deploy/compose/deploy-tasks.sh`
 
@@ -2921,6 +2923,11 @@ reading a file drops off its entry by itself.
 
 - [what-build-is-this](../scripts/what-build-is-this.unit.test.ts) — ONE VERSION NUMBER, IN ONE FILE.
 
+### `scripts/app-headers.mjs`
+
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
+
 ### `scripts/bootstrap-managed.unit.test.ts`
 
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
@@ -3098,6 +3105,11 @@ reading a file drops off its entry by itself.
 ### `scripts/nextcloud-suites.mjs`
 
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
+
+### `scripts/nginx-config.mjs`
+
+- [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
+- [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
 
 ### `scripts/nothing-ever-parsed-the-bring-up.unit.test.ts`
 
@@ -3948,6 +3960,8 @@ Reads:
 - `deploy/compose/www.yml`
 - `docs/incident-runbook.md`
 - `docs/managed-bring-up.md`
+- `scripts/app-headers.mjs`
+- `scripts/nginx-config.mjs`
 - `site/build.mjs`
 
 ### [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts)
@@ -6823,6 +6837,17 @@ Reads:
 - `docs/workplans/0131-the-alpha-and-who-is-let-in.md`
 - `site/build.mjs`
 - `site/copy.mjs`
+
+### [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts)
+
+THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
+
+Reads:
+
+- `apps/web/nginx.conf.template`
+- `deploy/compose/deploy-live.sh`
+- `scripts/app-headers.mjs`
+- `scripts/nginx-config.mjs`
 
 ### [the-hero-is-the-drawing](../scripts/the-hero-is-the-drawing.unit.test.ts)
 
