@@ -96,6 +96,7 @@ describe('decisionSucceeded', () => {
       action: 'apply',
       naturalKeyHash: 'b'.repeat(64),
       effect: 'Removed from the target.',
+      effectNl: 'Verwijderd op het nieuwe systeem.',
       kind: 'binned',
     };
     expect(decisionSucceeded(outcome)).toBe(true);

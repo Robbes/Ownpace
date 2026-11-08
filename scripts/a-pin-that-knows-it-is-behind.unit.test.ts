@@ -1679,14 +1679,16 @@ describe('the Atlas CLI migration-lint runs: a named release, checked by its sha
     expect(ATLAS.version).toMatch(/^v\d+\.\d+\.\d+$/);
     expect(Object.keys(ATLAS.sha256).sort()).toEqual([...ATLAS_ARCHES].sort());
     for (const arch of ATLAS_ARCHES) expect(ATLAS.sha256[arch as 'amd64' | 'arm64']).toMatch(/^[0-9a-f]{64}$/);
-    // The machines the job lands on: the self-hosted arm64 runner for a push; hosted amd64 AND arm64 for a
-    // pull request, so the arm64 binary has run before the owner's machine runs it (review of 2026-11-01).
+    // The machines the job lands on: one arm64 runner for a push (GitHub's while ci.yml's switch keeps the
+    // push jobs off the machine, the self-hosted one when `CI_PUSH_ON_SELF_HOSTED` is `true`; 2026-11-08);
+    // hosted amd64 AND arm64 for a pull request, so the arm64 binary has run before the owner's machine
+    // runs it (review of 2026-11-01). Where each event lands is a-merge-that-ran-beside-the-socket's.
     type Job = { 'runs-on'?: unknown; strategy?: { 'fail-fast'?: unknown; matrix?: { runner?: unknown } } };
     const job = (parseYaml(ci) as { jobs: Record<string, Job> }).jobs['migration-lint'];
     expect(job?.['runs-on']).toBe('${{ matrix.runner }}');
     expect(job?.strategy?.['fail-fast']).toBe(false);
     expect(job?.strategy?.matrix?.runner).toBe(
-      "${{ github.event_name == 'push' && fromJSON('[\"self-hosted\"]') || fromJSON('[\"ubuntu-24.04\",\"ubuntu-24.04-arm\"]') }}",
+      "${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && fromJSON('[\"self-hosted\"]') || github.event_name != 'pull_request' && fromJSON('[\"ubuntu-24.04-arm\"]') || fromJSON('[\"ubuntu-24.04\",\"ubuntu-24.04-arm\"]') }}",
     );
   });
 

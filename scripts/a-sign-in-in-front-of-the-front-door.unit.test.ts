@@ -49,8 +49,13 @@
  */
 
 import { describe, it, expect, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { APP_TEMPLATE, expectedAppHeaders } from './app-headers.mjs';
 import {
+  ISSUER,
   NETBIRD_ASSETS,
   ORG_REGISTRATION,
   PRODUCTION_NAMES,
@@ -101,6 +106,12 @@ const NETBIRD_PAGE: PageAnswer = { status: 401, netbird: true };
 const ITSELF: PageAnswer = { status: 200, netbird: false };
 /** The form that founds an organisation, closed: exposure-probe.unit.test.ts asks it the other ways. */
 const FORM_CLOSED: PageAnswer = { status: 404, netbird: false };
+/**
+ * The app's page with the headers its template states (workplan 0158 T4):
+ * exposure-probe.unit.test.ts asks them the other ways.
+ */
+const TEMPLATE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '..', APP_TEMPLATE), 'utf8');
+const STATED = expectedAppHeaders(TEMPLATE, ISSUER).headers.map((h): [string, string] => [h.name, h.value]);
 
 interface Fake {
   pages?: Record<string, PageAnswer>;
@@ -121,6 +132,9 @@ function fakeIo(fake: Fake = {}): { io: ProbeIo; lines: string[]; asked: string[
       asked.push(url);
       return fake.pages?.[url] ?? (url === ORG_REGISTRATION ? FORM_CLOSED : ITSELF);
     },
+    version: async () => ({ commit: '0123456789abcdef0123456789abcdef01234567' }),
+    template: async () => ({ text: TEMPLATE }),
+    headers: async () => ({ status: 200, headers: STATED }),
     print: (line) => lines.push(line),
   };
   return { io, lines, asked };

@@ -197,10 +197,13 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
+import { APP_TEMPLATE, expectedAppHeaders } from './app-headers.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
 const SCRIPT = 'deploy-live.sh';
+/** What reads the app's headers after a deploy (0158 T4), as every tag from it carries them. */
+const HEADER_READER = ['scripts/app-headers.mjs', 'scripts/nginx-config.mjs'];
 
 /** 0146 T5's sentence, which every refusal of a ref carries. */
 const RELEASE_SENTENCE = 'live runs releases: name a release tag';
@@ -211,6 +214,8 @@ const NEXT = { tag: 'v0.2.0-alpha.2', version: '0.2.0-alpha.2' };
 
 /** The public origin in the fixture's `.env`. It must never be printed. */
 const APP_HOST = 'app.example.test';
+/** The sign-in service in the fixture's `.env`, which the app's policy names. */
+const ISSUER = 'https://id.example.test';
 
 const CASE_MS = 60_000;
 const PGLITE_CASE_MS = 180_000;
@@ -403,13 +408,17 @@ if (!process.env.STUB_PGLITE) {
 })();
 `;
 
-/** curl: answers from STUB_HTTP/<path with / as _>.code and .body; no file, no connection. */
+/**
+ * curl: answers from STUB_HTTP/<path with / as _>.code and .body, and with -D
+ * its .headers (nothing when the case wrote none); no file, no connection.
+ */
 const CURL_STUB = `#!/usr/bin/env bash
-out='' fmt='' url=''
+out='' fmt='' url='' hdr=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
     -o) out="$2"; shift 2 ;;
     -w) fmt="$2"; shift 2 ;;
+    -D) hdr="$2"; shift 2 ;;
     --max-time | -m | --connect-timeout) shift 2 ;;
     -*) shift ;;
     *) url="$1"; shift ;;
@@ -438,6 +447,9 @@ case "$host" in
 esac
 [ -f "$STUB_HTTP/$name.code" ] || exit 7
 if [ -n "$out" ]; then cp "$STUB_HTTP/$name.body" "$out"; else cat "$STUB_HTTP/$name.body"; fi
+if [ -n "$hdr" ]; then
+  if [ -f "$STUB_HTTP/$name.headers" ]; then cp "$STUB_HTTP/$name.headers" "$hdr"; else : >"$hdr"; fi
+fi
 [ -n "$fmt" ] && cat "$STUB_HTTP/$name.code"
 exit 0
 `;
@@ -592,6 +604,10 @@ interface Release {
   engines?: unknown;
   /** The root package.json's whole text at this commit, given its version, in place of the one `version` and `engines` make. */
   packageText?: (version: string) => string;
+  /** The app's nginx template at this commit, made from the one before it (workplan 0158 T4). */
+  template?: (text: string) => string;
+  /** Take scripts/app-headers.mjs and scripts/nginx-config.mjs out at this commit, as a tag cut before 0158 T4. */
+  noHeaderReader?: boolean;
 }
 
 interface Stage {
@@ -618,6 +634,8 @@ const LIVE_ENV = [
   // the deploy refuses a .env without either (the owner, 2026-10-04).
   'NODE_ENV=production',
   'ALERT_ENABLED=true',
+  // The issuer the web image was built with, which its policy names (0158 T4).
+  `VITE_OIDC_ISSUER=${ISSUER}`,
   '',
 ].join('\n');
 
@@ -779,6 +797,13 @@ function stage(opts: StageOptions = {}): Stage {
   const siteDir = join(work, 'site');
   writeExec(join(siteDir, 'build.mjs'), SITE_BUILD_STUB);
   writeFileSync(join(siteDir, 'drafts'), '0\n');
+  // The app's template and the reader of its headers, the real ones (0158 T4).
+  const templateFile = join(work, ...APP_TEMPLATE.split('/'));
+  mkdirSync(dirname(templateFile), { recursive: true });
+  copyFileSync(join(REPO_ROOT, APP_TEMPLATE), templateFile);
+  mkdirSync(join(work, 'scripts'), { recursive: true });
+  for (const f of HEADER_READER) copyFileSync(join(REPO_ROOT, f), join(work, f));
+  const templates: Record<string, string> = {};
   mkdirSync(join(work, 'packages', 'ledger', 'migrations'), { recursive: true });
   mkdirSync(join(work, 'packages', 'managed', 'migrations'), { recursive: true });
   writeFileSync(join(work, 'packages', 'ledger', 'migrations', '0001_first.sql'), 'SELECT 1;\n');
@@ -787,6 +812,7 @@ function stage(opts: StageOptions = {}): Stage {
   git(root, work, 'commit', '-q', '-m', 'the running release');
   git(root, work, 'tag', '-a', RUNNING.tag, '-m', `Ownpace ${RUNNING.tag}`);
   commit[RUNNING.tag] = git(root, work, 'rev-parse', 'HEAD');
+  templates[RUNNING.tag] = readFileSync(templateFile, 'utf8');
   git(root, work, 'push', '-q', 'origin', 'main', `refs/tags/${RUNNING.tag}`);
 
   for (const r of opts.releases ?? []) {
@@ -824,6 +850,12 @@ function stage(opts: StageOptions = {}): Stage {
       if (r.noSite) rmSync(join(siteDir, 'build.mjs'));
     }
     if (r.script !== undefined) writeExec(join(compose, SCRIPT), r.script);
+    if (r.template) writeFileSync(templateFile, r.template(readFileSync(templateFile, 'utf8')));
+    templates[r.tag] = readFileSync(templateFile, 'utf8');
+    for (const f of HEADER_READER) {
+      if (r.noHeaderReader) rmSync(join(work, f), { force: true });
+      else copyFileSync(join(REPO_ROOT, f), join(work, f));
+    }
     for (const [unit, text] of Object.entries(r.units ?? {})) {
       mkdirSync(join(compose, 'systemd'), { recursive: true });
       writeFileSync(join(compose, 'systemd', unit), text);
@@ -879,6 +911,9 @@ function stage(opts: StageOptions = {}): Stage {
   // web app's own build alike (0145).
   const next = opts.releases?.[0];
   if (next) answerAs(s, { tag: next.tag, version: next.version ?? next.tag.replace(/^v/, '') });
+  // The app's page, with the headers the deployed tag's template states for
+  // it (0158 T4), as nginx sends them over HTTP/2: names in lower case.
+  answerPage(s, statedHeaders(templates[next?.tag ?? RUNNING.tag]!));
   answer(s, '/api/ready', 200, { status: 'ok', database: 'up', signIn: 'up' });
   answer(s, '/api/auth/mode', 200, { mode: 'managed', acceptsSeedToken: false });
   return s;
@@ -888,6 +923,27 @@ function answer(s: Stage, path: string, code: number, body: unknown): void {
   const name = path.replace(/^\//, '').replace(/\//g, '_');
   writeFileSync(join(s.http, `${name}.code`), String(code));
   writeFileSync(join(s.http, `${name}.body`), typeof body === 'string' ? body : JSON.stringify(body));
+}
+
+/**
+ * The headers a template states for the app's page with the fixture's issuer,
+ * as `[name, value]` pairs: all it states, even where it states too little for
+ * the reader, whose refusal a case asks for.
+ */
+function statedHeaders(template: string): Array<[string, string]> {
+  return expectedAppHeaders(template, ISSUER).headers.map((h): [string, string] => [h.name.toLowerCase(), h.value]);
+}
+
+/** The page answers with the headers the checkout's template states, changed by `change`. */
+function changePage(s: Stage, change: (h: Array<[string, string]>) => Array<[string, string]>, code = 200): void {
+  answerPage(s, change(statedHeaders(readFileSync(join(s.work, ...APP_TEMPLATE.split('/')), 'utf8'))), code);
+}
+
+/** The app's page, `/`: a status, a body and these headers, as `curl -D` writes them. */
+function answerPage(s: Stage, headers: ReadonlyArray<readonly [string, string]>, code = 200): void {
+  answer(s, '/', code, '<!doctype html><html><head></head><body><div id="root"></div></body></html>');
+  const block = [`HTTP/2 ${code}`, 'content-type: text/html', ...headers.map(([n, v]) => `${n}: ${v}`), '', ''].join('\r\n');
+  writeFileSync(join(s.http, '.headers'), block);
 }
 
 /** The app as a release: the API's `/api/version` and the web app's `/version.json` (0145). */
@@ -1763,9 +1819,14 @@ describe('a deploy that took', () => {
       expect(called(s, 'curl')).toEqual([
         `curl https://${APP_HOST}/api/version`,
         `curl https://${APP_HOST}/version.json`,
+        `curl https://${APP_HOST}/`,
         `curl https://${APP_HOST}/api/ready`,
         `curl https://${APP_HOST}/api/auth/mode`,
       ]);
+      // The page carries what the tag's template states, each once (0158 T4).
+      expect(r.out).toContain(
+        "[deploy-live]   the app's page: Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, as the template states them",
+      );
       expect(called(s, 'exposure-check')).toEqual([`exposure-check --env-file ${join(s.compose, '.env')}`]);
       expect(r.out).toMatch(/the deploy took/);
       // The api container says production (0132 T4), asked as stand-up-live.sh asks it.
@@ -1918,6 +1979,38 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
       (s) => answer(s, '/api/auth/mode', 200, { mode: 'dev', acceptsSeedToken: true }),
       /\/api\/auth\/mode/,
     ],
+    // The app's page as a tester's browser gets it (0158 T4): each header the
+    // tag's template states, once, with the template's value.
+    [
+      "the app's page carries no policy",
+      (s) => changePage(s, (h) => h.filter(([n]) => n !== 'content-security-policy')),
+      /the app's page at the origin in WEB_URL: Content-Security-Policy: not sent \(workplan 0158 T4\)/,
+    ],
+    [
+      "the app's page carries a second policy beside the template's",
+      (s) => changePage(s, (h) => [...h, ['content-security-policy', "default-src 'self'"]]),
+      /Content-Security-Policy: sent 2 times, where the template states it once/,
+    ],
+    [
+      "the app's policy names another issuer than the one the image was built with",
+      (s) =>
+        changePage(s, (h) =>
+          h.map(([n, v]): [string, string] => [n, n === 'content-security-policy' ? v.replace(ISSUER, 'https://id.ota.example.test') : v]),
+        ),
+      /Content-Security-Policy: not the value the template states/,
+    ],
+    [
+      "HSTS arrives without includeSubDomains",
+      (s) => changePage(s, (h) => h.map(([n, v]): [string, string] => [n, n === 'strict-transport-security' ? 'max-age=31536000' : v])),
+      /Strict-Transport-Security: not the value the template states/,
+    ],
+    [
+      'the front drops HSTS',
+      (s) => changePage(s, (h) => h.filter(([n]) => n !== 'strict-transport-security')),
+      /Strict-Transport-Security: not sent/,
+    ],
+    ["the app's page is not reachable", (s) => silence(s, '/'), /the app's page: not reached at the origin in WEB_URL/],
+    ["the app's page answers 404", (s) => changePage(s, (h) => h, 404), /the app's page: answered HTTP 404, not 200/],
     ['the exposure check finds a port', () => ({ STUB_EXPOSURE_EXIT: '1' }), /exposure/],
     // The api container's own NODE_ENV (0132 T4). Not a shell export: the
     // bring-up sources the .env with `set -a`, which overrides one. A line
@@ -1945,6 +2038,62 @@ describe('a deploy that did not take keeps the hold and exits non-zero', () => {
       expect(lines).toHaveLength(1);
       expect(lines[0]!.split('\t').slice(1)).toEqual([NEXT.tag, s.commit[NEXT.tag], 'did-not-take', 'reversible']);
       expect(r.out).not.toContain(APP_HOST);
+    },
+    CASE_MS,
+  );
+
+  // 0158 T4: the tag's template is what the page is held to, and a tag cut
+  // before the reader (the way back to alpha.6) is still read.
+  it(
+    "the page is held to the TAG's template: one HSTS it moves takes when the page carries it, and does not take with the running release's",
+    () => {
+      const longer = (t: string): string => {
+        const moved = t.replaceAll('max-age=31536000; includeSubDomains', 'max-age=63072000; includeSubDomains');
+        if (moved === t) throw new Error("the template's HSTS is not where this fixture moves it");
+        return moved;
+      };
+      const s = stage({ releases: [{ ...NEXT, template: longer }] });
+      const took = run(s, [NEXT.tag]);
+      expect(took.status, took.out).toBe(0);
+      expect(took.out).toContain("the app's page: Content-Security-Policy, Strict-Transport-Security");
+
+      const t = stage({ releases: [{ ...NEXT, template: longer }] });
+      answerPage(t, statedHeaders(readFileSync(join(t.work, ...APP_TEMPLATE.split('/')), 'utf8')));
+      const not = run(t, [NEXT.tag]);
+      expect(not.status, not.out).toBe(3);
+      expect(not.out).toContain("the app's page at the origin in WEB_URL: Strict-Transport-Security: not the value the template states (workplan 0158 T4).");
+    },
+    CASE_MS,
+  );
+
+  it(
+    "a tag cut before the reader is read with the copy of the release the deploy started from, so the way back is checked and not refused",
+    () => {
+      const s = stage({ releases: [{ ...NEXT, noHeaderReader: true }] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(existsSync(join(s.work, 'scripts', 'app-headers.mjs')), 'the tag has no reader of its own').toBe(false);
+      expect(r.out).toContain(
+        "the app's page: Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, as the template states them",
+      );
+      expect(r.out).toMatch(/the deploy took/);
+    },
+    CASE_MS,
+  );
+
+  it(
+    'a template that states no policy for the page is not a page that passes: the reader refuses it',
+    () => {
+      const bare = (t: string): string => {
+        const cut = t.replace(/^\s*add_header Content-Security-Policy .*\n/gm, '');
+        if (cut === t) throw new Error("the template's policy lines are not where this fixture cuts them");
+        return cut;
+      };
+      const s = stage({ releases: [{ ...NEXT, template: bare }] });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(3);
+      expect(r.out).toContain("the app's page: its headers could not be held to the tag's template (node exited 2)");
+      expect(r.out).toContain("states no Content-Security-Policy for the app's page, so an answer without one would pass");
     },
     CASE_MS,
   );

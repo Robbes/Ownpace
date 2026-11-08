@@ -4,8 +4,57 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **A merge no longer runs beside live's Docker socket during the alpha** (workplan 0132, open
+  question 1, answered by the owner on 2026-11-08). A push to `main` ran every job of `ci.yml`
+  and `security-scan.yml` on the self-hosted runner, which shares the machine and its Docker
+  daemon with live and the testers' credentials it stores. None of those jobs needs the machine,
+  so a push now runs them on GitHub's hosted arm64 runner, `ubuntu-24.04-arm`, with the same
+  commands and pins, and a dispatch on a branch runs them there too, to prove that path before a
+  merge. The repository variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends them back, and
+  nothing else does. Release's preflight takes the push's integration leg under either runner's
+  name. The nightly E2E gates still run `main` on the machine. A guard evaluates every workflow's
+  runners for every event and both states of the switch: while it is on, nothing a push starts
+  reaches the self-hosted runner, and no pull request, or dispatch of the two files, ever does.
+- **Trigger.dev's Redis and webapp images no longer carry libsystemd0 or libudev1** (workplan
+  0119 §3 item 11, for alpha.7, on the owner's answer of 2026-11-08). Both builds' purge now
+  takes systemd's two libraries too, one high each with no fix in Debian. Only apt,
+  libapt-pkg6.0, util-linux and bsdutils needed them, and those go in the same purge, with the
+  same two flags and no other force, so dpkg would still refuse a package that needs one. After
+  the purge the build fails if a file of a removed library is left, or if any ELF file in the
+  image needs one (its DT_NEEDED). Measured on its branch (Security Scan run 42440765278,
+  linux/arm64): Redis 1 critical, 8 high and 0 with a fix, from 1, 10 and 0; the webapp 1, 22
+  and 14, from 1, 24 and 14.
+- **The app's policy and HSTS are read where a tester's browser gets them** (workplan 0158 T4).
+  Since 0158 T1 the app's nginx sends a content security policy, HSTS and three headers beside
+  them, but only the image was asked for them, over plain http on loopback, on the OTA stack.
+  `scripts/app-headers.mjs` now says what the page must carry from
+  `apps/web/nginx.conf.template` alone, as the image renders it with the issuer, and holds an
+  answer to it: each header once, with the template's value, a template that states no policy or
+  no HSTS refused. The outside probe asks `https://app.ownpace.eu/` from a GitHub-hosted runner,
+  through NetBird's proxy and over TLS, against the template at the commit live's own
+  `/version.json` names; it proves the headers from its first dispatch after this merges.
+  `deploy-live.sh` asks the same page after each deploy, against the tag's template with live's
+  `VITE_OIDC_ISSUER`, and a finding is a deploy that did not take; it runs from the first deploy
+  started from this release, since a deploy runs the script of the release it starts from. A
+  tag cut before the reader, the way back to alpha.6, is read with the starting release's copy.
+  `scripts/nginx-config.ts` is now `nginx-config.mjs` with its types beside it, unchanged in
+  what it does, so both run it without type stripping.
+
 ### Changed
 
+- **The OTA names stay public for now** (workplan 0132 open question 7, the owner's answers of
+  2026-11-08). On the mesh only, once testers are on the production names, stays the aim, and the
+  outside probe's `ota_names: mesh-only` is its pass condition; the probe stays at `report`.
+  NetBird's shared proxy, which serves every name today, has no setting that serves a name to the
+  mesh alone, and the machine reaches the OTA names through it from the internet, so it takes a
+  NetBird proxy of the owner's own or TLS for the three names on the machine
+  (`docs/managed-bring-up.md`, *The OTA names on the mesh only*). The owner chose to leave the names
+  public for now.
+- **The tester guide says how long the copy before an update is kept** (workplans 0144 T1 and 0134):
+  at most 7 days, as the Alpha conditions (§6) and both Alpha mails say, the Dutch in the owner's
+  own words. Until now the guide named the one copy and not its 7 days.
 - **The repository calls the machine the machine, the box or the self-hosted runner, never by its
   hardware product name** (workplan 0132): 375 lines in 142 files named it, in comments, guides,
   records, five test fixtures and the O365 lane's runner label. A quotation of the owner keeps its
@@ -14,6 +63,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `node scripts/machine-product-name.mjs --check` runs in `docs-hygiene` on every change, compares
   digests rather than the words, has no exceptions, and names the file and line of any return.
   Git history keeps the old text.
+
+### Fixed
+
+- **What a press on Deletions, Moves or Failures did is said in Dutch on a Dutch screen**
+  (workplan 0159 follow-up 18, #1840), from words both editions share; the English is unchanged.
 
 ## [0.2.0-alpha.6] - 2026-11-07
 

@@ -17,13 +17,14 @@
  *
  * Nothing here runs nginx. `what-a-browser-may-do-with-the-app.unit.test.ts`
  * does, where the machine has one, and holds this reading to what it answers.
+ *
+ * `.mjs`, with its types in `nginx-config.d.mts`, since 2026-11-08 (workplan
+ * 0158 T4): the outside probe and `deploy-live.sh` read the app's headers
+ * through `app-headers.mjs`, which imports this, and both run on a bare
+ * checkout, where a script needs no type stripping (the reason
+ * `audit-advisories.d.mts` gives). The code is the `.ts` it was, its types
+ * moved to the declaration file.
  */
-
-export interface NginxNode {
-  readonly name: string;
-  readonly args: readonly string[];
-  readonly children?: NginxNode[];
-}
 
 /**
  * An nginx config as its directives and blocks. Comments are `#` to the end of
@@ -32,30 +33,30 @@ export interface NginxNode {
  * variable, is part of the word around it rather than a block. Anything this
  * cannot parse throws: a config that does not parse is one nothing checked.
  */
-export function parseNginx(conf: string, file: string): NginxNode[] {
-  const top: NginxNode[] = [];
-  const stack: NginxNode[][] = [top];
-  let words: string[] = [];
-  const fail = (why: string): never => {
+export function parseNginx(conf, file) {
+  const top = [];
+  const stack = [top];
+  let words = [];
+  const fail = (why) => {
     throw new Error(`${file}: ${why}. It does not parse, so nothing in it was checked: fix the config, not this test.`);
   };
   let i = 0;
   while (i < conf.length) {
-    const c = conf[i]!;
+    const c = conf[i];
     if (c === '#') {
       while (i < conf.length && conf[i] !== '\n') i++;
     } else if (/\s/.test(c)) {
       i++;
     } else if (c === ';') {
       if (words.length === 0) fail('an empty directive');
-      stack.at(-1)!.push({ name: words[0]!, args: words.slice(1) });
+      stack.at(-1).push({ name: words[0], args: words.slice(1) });
       words = [];
       i++;
     } else if (c === '{') {
       if (words.length === 0) fail('a block with no name');
-      const node: NginxNode = { name: words[0]!, args: words.slice(1), children: [] };
-      stack.at(-1)!.push(node);
-      stack.push(node.children!);
+      const node = { name: words[0], args: words.slice(1), children: [] };
+      stack.at(-1).push(node);
+      stack.push(node.children);
       words = [];
       i++;
     } else if (c === '}') {
@@ -79,7 +80,7 @@ export function parseNginx(conf: string, file: string): NginxNode[] {
       i = j + 1;
     } else {
       let word = '';
-      while (i < conf.length && !/[\s;{}]/.test(conf[i]!)) {
+      while (i < conf.length && !/[\s;{}]/.test(conf[i])) {
         if (conf[i] === '$' && conf[i + 1] === '{') {
           const end = conf.indexOf('}', i);
           if (end < 0) fail('a `${` that never closes');
@@ -97,18 +98,12 @@ export function parseNginx(conf: string, file: string): NginxNode[] {
   return top;
 }
 
-export interface Location {
-  readonly node: NginxNode;
-  readonly modifier: '=' | '^~' | '~' | '~*' | '';
-  readonly pattern: string;
-}
-
 /** A location block's modifier and pattern, written apart or together (`= /x`, `=/x`). A named one is none. */
-export function locationOf(node: NginxNode): Location | undefined {
+export function locationOf(node) {
   if (node.name !== 'location' || node.children === undefined) return undefined;
   const [first, second] = node.args;
   if (first === undefined || first.startsWith('@')) return undefined;
-  for (const modifier of ['=', '^~', '~*', '~'] as const) {
+  for (const modifier of ['=', '^~', '~*', '~']) {
     if (first === modifier) return second === undefined ? undefined : { node, modifier, pattern: second };
     if (first.startsWith(modifier)) return { node, modifier, pattern: first.slice(modifier.length) };
   }
@@ -124,19 +119,19 @@ export function locationOf(node: NginxNode): Location | undefined {
  * order, and the first that matches wins over it. `final` is whether an exact
  * or a regex match ended the search, which a level above must not override.
  */
-export function chooseLocation(level: readonly NginxNode[], uri: string): { path: NginxNode[]; final: boolean } | undefined {
-  const locations = level.map(locationOf).filter((l): l is Location => l !== undefined);
+export function chooseLocation(level, uri) {
+  const locations = level.map(locationOf).filter((l) => l !== undefined);
   const exact = locations.find((l) => l.modifier === '=' && l.pattern === uri);
   if (exact) return { path: [exact.node], final: true };
-  let prefix: Location | undefined;
+  let prefix;
   for (const l of locations) {
     if ((l.modifier === '' || l.modifier === '^~') && uri.startsWith(l.pattern)) {
       if (prefix === undefined || l.pattern.length > prefix.pattern.length) prefix = l;
     }
   }
-  let found: { path: NginxNode[]; final: boolean } | undefined;
+  let found;
   if (prefix) {
-    const inner = chooseLocation(prefix.node.children!, uri);
+    const inner = chooseLocation(prefix.node.children, uri);
     if (inner?.final) return { path: [prefix.node, ...inner.path], final: true };
     found = { path: [prefix.node, ...(inner?.path ?? [])], final: false };
     if (prefix.modifier === '^~') return found;
@@ -144,7 +139,7 @@ export function chooseLocation(level: readonly NginxNode[], uri: string): { path
   for (const l of locations) {
     if (l.modifier !== '~' && l.modifier !== '~*') continue;
     if (new RegExp(l.pattern, l.modifier === '~*' ? 'i' : '').test(uri)) {
-      return { path: [l.node, ...(chooseLocation(l.node.children!, uri)?.path ?? [])], final: true };
+      return { path: [l.node, ...(chooseLocation(l.node.children, uri)?.path ?? [])], final: true };
     }
   }
   return found;
@@ -157,18 +152,11 @@ export function chooseLocation(level: readonly NginxNode[], uri: string): { path
  * and every other `$` reaches nginx as written: `$host`, `$uri`, and the
  * `$ownpace_…` names this repository gives its own variables for that reason.
  */
-export function envsubst(template: string, defined: Readonly<Record<string, string>>): string {
-  return template.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (whole, braced?: string, bare?: string) => {
-    const name = (braced ?? bare)!;
-    return Object.hasOwn(defined, name) ? defined[name]! : whole;
+export function envsubst(template, defined) {
+  return template.replace(/\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z_][A-Za-z0-9_]*)/g, (whole, braced, bare) => {
+    const name = braced ?? bare;
+    return Object.hasOwn(defined, name) ? defined[name] : whole;
   });
-}
-
-/** One `add_header` as nginx sends it: the name, the value with its variables resolved, and whether `always` is on. */
-export interface SentHeader {
-  readonly name: string;
-  readonly value: string;
-  readonly always: boolean;
 }
 
 /**
@@ -184,10 +172,10 @@ export interface SentHeader {
  * rather than being guessed. Read from the FIRST server in the file, which is
  * the only one the app's template has. Undefined when no location is chosen.
  */
-export function headersFor(top: readonly NginxNode[], uri: string): SentHeader[] | undefined {
-  const levels: Array<readonly NginxNode[]> = [top];
-  let server: NginxNode | undefined;
-  const find = (nodes: readonly NginxNode[]): void => {
+export function headersFor(top, uri) {
+  const levels = [top];
+  let server;
+  const find = (nodes) => {
     for (const node of nodes) {
       if (server || node.children === undefined) continue;
       if (node.name === 'server') {
@@ -202,18 +190,18 @@ export function headersFor(top: readonly NginxNode[], uri: string): SentHeader[]
   };
   find(top);
   if (!server) throw new Error('no server block: nothing answers a request');
-  const chosen = chooseLocation(server.children!, uri)?.path;
+  const chosen = chooseLocation(server.children, uri)?.path;
   if (!chosen) return undefined;
-  const scopes = [...levels, ...chosen.map((l) => l.children!)];
-  const variables = new Map<string, string>();
+  const scopes = [...levels, ...chosen.map((l) => l.children)];
+  const variables = new Map();
   for (const scope of scopes.slice(levels.length - 1)) {
     for (const node of scope) {
       if (node.name === 'set' && node.args[0]?.startsWith('$')) variables.set(node.args[0].slice(1), node.args[1] ?? '');
     }
   }
-  const resolve = (value: string): string =>
-    value.replace(/\$(?:\{(\w+)\}|(\w+))/g, (_whole, braced?: string, bare?: string) => {
-      const name = (braced ?? bare)!;
+  const resolve = (value) =>
+    value.replace(/\$(?:\{(\w+)\}|(\w+))/g, (_whole, braced, bare) => {
+      const name = braced ?? bare;
       const known = variables.get(name);
       if (known === undefined) throw new Error(`add_header uses $${name}, which no \`set\` above it gives a value`);
       return resolve(known);
@@ -221,5 +209,5 @@ export function headersFor(top: readonly NginxNode[], uri: string): SentHeader[]
   const own = [...scopes].reverse().find((scope) => scope.some((n) => n.name === 'add_header'));
   return (own ?? [])
     .filter((n) => n.name === 'add_header')
-    .map((n) => ({ name: n.args[0]!, value: resolve(n.args[1] ?? ''), always: n.args[2] === 'always' }));
+    .map((n) => ({ name: n.args[0], value: resolve(n.args[1] ?? ''), always: n.args[2] === 'always' }));
 }

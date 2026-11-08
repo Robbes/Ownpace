@@ -329,7 +329,7 @@ what actually resolves the problem vs. what merely works around it:
    periodically, and don't assume a standing container that merely passes its healthcheck is actually
    functional (see the bootstrap-mode trap below).
 4. Don't assume fixed host ports are free — and not just from other agent sessions. **Observed on
-   the box**: port 8080 is permanently held by an unrelated `searxng` service, nothing to do
+   the box**: a usual port is always taken by another service on the machine, nothing to do
    with this repo or Docker-in-Docker at all. `deploy/compose/dev.yml`'s Postgres port,
    `deploy/selfhost/setup-stalwart.sh`'s JMAP/IMAPS ports (`STALWART_JMAP_PORT`/
    `STALWART_IMAPS_PORT` env overrides), and `e2e.yml`'s selfhost-appliance port (`SELFHOST_PORT`)

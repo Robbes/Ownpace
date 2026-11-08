@@ -28,14 +28,21 @@
  * `https://id.ownpace.eu/.well-known/openid-configuration` names
  * `https://id.ownpace.eu` as its issuer, so the production names reach live and
  * not the OTA stack. The form that founds an organisation there answers 404
- * (below). And no tried port answers (a TCP connection is accepted)
- * on any of those addresses. What the OTA names should do on 443 is open
- * question 7, which nobody has answered: `EXPOSURE_PROBE_OTA_NAMES` (the
- * dispatch input `ota_names`) is `report` by default, which records what
- * answered without failing on it; `internet` requires each to answer over TLS;
- * `mesh-only` requires none to answer at all. An address this runner cannot
- * reach (a GitHub-hosted runner has no IPv6 route) is said to be NOT TRIED,
- * never counted as closed.
+ * (below). The app's page carries the headers its template states (below).
+ * And no tried port answers (a TCP connection is accepted) on any of those
+ * addresses. An address this runner cannot reach (a GitHub-hosted runner has
+ * no IPv6 route) is said to be NOT TRIED, never counted as closed.
+ *
+ * THE OTA NAMES (0132 open question 7, answered 2026-11-08: on the mesh only,
+ * once testers are on the production names, which is from the first
+ * invitation). `EXPOSURE_PROBE_OTA_NAMES` (the dispatch input `ota_names`) is
+ * `report` by default, which records what answered without failing on it;
+ * `mesh-only` requires none of the three to answer on 443 at all, so a name
+ * that no longer resolves passes, and one that still leads to a front fails,
+ * whatever that front answers; `internet` requires each to answer over TLS, as
+ * they do today. `report` stays the default until the owner's step that takes
+ * them off the internet is done (0132 open question 7 says what it takes);
+ * from then on the probe is dispatched with `mesh-only`.
  *
  * THE PRODUCTION SITE, `www.ownpace.eu` (workplan 0139 T10), is live's only
  * once live's `.env` says `WWW_LIVE=true` and the name is routed to live's
@@ -118,6 +125,20 @@
  * `EXPOSURE_PROBE_FRONT_PORTS` does for a port the front holds by itself
  * (above): the page is the sign-in service's, and only its 404 refuses.
  *
+ * WHAT A TESTER'S BROWSER GETS FROM THE APP (workplan 0158 T4). The app's
+ * nginx states a policy and four headers on every page (0158 T1), and before
+ * this nothing read them where a browser gets them: at live's https address,
+ * through NetBird's proxy, which ends TLS. The probe reads the commit live's
+ * web app was built from in its own `APP_VERSION`, reads
+ * `apps/web/nginx.conf.template` at that commit (`io.template`: from this
+ * checkout's git, fetched by its id when the checkout does not have it), and
+ * holds the headers of `APP_PAGE` to what that template states with `ISSUER`
+ * (`app-headers.mjs`): each once, with its value. So a change of the template
+ * on main is not held against a live that runs an older one. A page that does
+ * not answer 200, a commit that cannot be read, and a template that states no
+ * policy or no HSTS each fail: a check nobody could make is not passed. A
+ * finding names the header, never the value that arrived.
+ *
  * Not yet: the forged `X-Forwarded-For` request (0132 T3 (d)), which needs
  * live standing.
  *
@@ -127,11 +148,15 @@
 
 import { promises as dns } from 'node:dns';
 import { Buffer } from 'node:buffer';
+import { execFile } from 'node:child_process';
 import { appendFileSync } from 'node:fs';
+import { get as httpGet } from 'node:http';
+import { get as httpsGet } from 'node:https';
 import { connect as netConnect, isIP } from 'node:net';
-import { resolve as resolvePath } from 'node:path';
+import { dirname, resolve as resolvePath } from 'node:path';
 import { connect as tlsConnect } from 'node:tls';
 import { fileURLToPath } from 'node:url';
+import { APP_TEMPLATE, expectedAppHeaders, headerFindings } from './app-headers.mjs';
 import { readPorts } from './exposure-probe-ports.mjs';
 
 export const PRODUCTION_NAMES = ['app.ownpace.eu', 'id.ownpace.eu', 'status.ownpace.eu'];
@@ -147,6 +172,9 @@ export const DISCOVERY = `${ISSUER}/.well-known/openid-configuration`;
  */
 export const ORG_REGISTRATION = `${ISSUER}/ui/login/register/org`;
 export const OTA_MODES = ['report', 'internet', 'mesh-only'];
+/** The app's page as a browser asks it first, and the web app's own build stamp beside it (workplan 0158 T4). */
+export const APP_PAGE = 'https://app.ownpace.eu/';
+export const APP_VERSION = 'https://app.ownpace.eu/version.json';
 export const TLS_PORT = 443;
 /**
  * The page each of the four names answers a visitor first, and what answers
@@ -570,6 +598,9 @@ export async function runProbe(config, io) {
   const form = orgRegistrationVerdict(await io.page(ORG_REGISTRATION));
   (form.kind === 'closed' ? pass : fail)(`${ORG_REGISTRATION} ${form.words}`);
 
+  // ---- What a tester's browser gets from the app (0158 T4) ------------------
+  await appHeaders(io, pass, fail);
+
   // ---- No NetBird sign-in in front of the four names (0139, item 8) ----------
   say(`exposure-probe: NetBird's sign-in off on ${SIGN_IN_PAGES.map((p) => p.name).join(', ')} (workplan 0139, item 8)`);
   const siteAsked = site.addresses.length > 0 && siteElsewhere === 0;
@@ -586,7 +617,7 @@ export async function runProbe(config, io) {
     else fail(`${label}: ${verdict.words}`);
   }
 
-  // ---- The OTA names, as open question 7 will decide --------------------------
+  // ---- The OTA names (0132 open question 7: on the mesh only) -----------------
   for (const name of OTA_NAMES) {
     const r = resolved.get(name);
     const t = r.addresses.length ? await io.tls(name) : { state: 'none', why: r.error ?? 'no address' };
@@ -596,7 +627,9 @@ export async function runProbe(config, io) {
         : t.state === 'tcp-only'
           ? `${TLS_PORT} answers, not over TLS for the name (${t.why ?? 'no reason'})`
           : `${TLS_PORT} does not answer (${t.why ?? 'no reason'})`;
-    if (config.otaMode === 'report') note(`${name}: ${what}; recorded, open question 7 decides whether it should`);
+    if (config.otaMode === 'report') {
+      note(`${name}: ${what}; recorded: on the mesh only from the owner's step (0132 open question 7), then ota_names is mesh-only`);
+    }
     else if (config.otaMode === 'internet') (t.state === 'tls' ? pass : fail)(`${name}: ${what}; ota_names is internet`);
     else (t.state === 'none' ? pass : fail)(`${name}: ${what}; ota_names is mesh-only`);
   }
@@ -609,11 +642,53 @@ export async function runProbe(config, io) {
   return 0;
 }
 
+/**
+ * The app's page against the template at the commit live's web app was built
+ * from (workplan 0158 T4). Each step that cannot be made is a finding.
+ */
+async function appHeaders(io, pass, fail) {
+  const rule = 'workplan 0158 T4';
+  const built = await io.version(APP_VERSION);
+  if (built.commit === undefined) {
+    fail(`${APP_VERSION} ${built.why ?? 'names no commit'}: the commit live's web app was built from is not known, so its page was not held to a template (${rule})`);
+    return;
+  }
+  const at = `${APP_TEMPLATE} at ${built.commit.slice(0, 12)}`;
+  const template = await io.template(built.commit);
+  if (template.text === undefined) {
+    fail(`${at}, the commit ${APP_VERSION} names, could not be read (${template.why ?? 'no reason'}), so the app's page was not held to it (${rule})`);
+    return;
+  }
+  const { headers, errors } = expectedAppHeaders(template.text, ISSUER);
+  if (errors.length) {
+    for (const e of errors) fail(`${e.replace(APP_TEMPLATE, at)} (${rule})`);
+    return;
+  }
+  const page = await io.headers(APP_PAGE);
+  if (page.status === undefined) {
+    fail(`${APP_PAGE} does not answer (${page.why ?? 'no reason'}), so its headers were not read (${rule})`);
+    return;
+  }
+  if (page.status !== 200) {
+    fail(`${APP_PAGE} answers ${page.status}, not the app's page, so its headers were not held to ${at} (${rule})`);
+    return;
+  }
+  const findings = headerFindings(headers, page.headers);
+  if (findings.length) {
+    for (const f of findings) fail(`${APP_PAGE} ${f}, held to ${at} with ${ISSUER} (${rule})`);
+    return;
+  }
+  pass(`${APP_PAGE} carries ${headers.map((h) => h.name).join(', ')}, each once, as ${at} states them with ${ISSUER} (${rule})`);
+}
+
+/** A commit as git names one in full: what `/version.json` must say before it reaches git. */
+const COMMIT = /^[0-9a-f]{40}$/;
+
 /** Error codes that say the runner could not try, not that the port is closed. */
 const CANNOT_TRY = new Set(['ENETUNREACH', 'EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EPERM', 'EACCES']);
 
 /** The real network, with its timeouts. Nothing here reads an error's message. */
-export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000 } = {}) {
+export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000, gitMs = 60000 } = {}) {
   return {
     async resolve(name) {
       const [v4, v6] = await Promise.allSettled([dns.resolve4(name), dns.resolve6(name)]);
@@ -728,6 +803,62 @@ export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000 }
       } catch (e) {
         return { why: e?.cause?.code ?? e?.name ?? 'error' };
       }
+    },
+
+    /** The commit a web build's `version.json` names, in full, or why there is none (0158 T4). */
+    async version(url) {
+      try {
+        const res = await fetch(url, { redirect: 'manual', signal: globalThis.AbortSignal.timeout(fetchMs) });
+        if (res.status !== 200) return { why: `answers HTTP ${res.status}` };
+        const body = await res.json();
+        return typeof body?.commit === 'string' && COMMIT.test(body.commit) ? { commit: body.commit } : { why: 'names no commit in full' };
+      } catch (e) {
+        return { why: `could not be read (${e?.cause?.code ?? e?.name ?? 'error'})` };
+      }
+    },
+
+    /**
+     * The app's template at a commit, from the git of the checkout this runs
+     * in, fetched from its origin by the commit's id when the checkout does not
+     * have it (a depth-1 checkout of main has only main's tip). No shell; the
+     * id is checked before it reaches git.
+     */
+    async template(commit) {
+      if (!COMMIT.test(commit)) return { why: 'not a commit id' };
+      const root = resolvePath(dirname(fileURLToPath(import.meta.url)), '..');
+      const git = (args) =>
+        new Promise((done) =>
+          execFile('git', ['-C', root, ...args], { timeout: gitMs, maxBuffer: 4 * 1024 * 1024, encoding: 'utf8' }, (e, stdout) =>
+            done(e ? { code: e.code ?? 'error' } : { stdout }),
+          ),
+        );
+      const show = () => git(['show', `${commit}:${APP_TEMPLATE}`]);
+      let shown = await show();
+      if (shown.stdout === undefined) {
+        const fetched = await git(['fetch', '--quiet', '--no-tags', '--depth=1', 'origin', commit]);
+        if (fetched.stdout === undefined) return { why: `git fetch of the commit failed (${fetched.code})` };
+        shown = await show();
+      }
+      return shown.stdout === undefined ? { why: `git show failed (${shown.code})` } : { text: shown.stdout };
+    },
+
+    /**
+     * One page's status and headers as they arrived, no redirect followed:
+     * Node's raw list, so a header sent twice is seen twice. A failure is its
+     * code alone.
+     */
+    headers(url) {
+      return new Promise((done) => {
+        const get = url.startsWith('https:') ? httpsGet : httpGet;
+        const req = get(url, { timeout: fetchMs }, (res) => {
+          const pairs = [];
+          for (let i = 0; i + 1 < res.rawHeaders.length; i += 2) pairs.push([res.rawHeaders[i], res.rawHeaders[i + 1]]);
+          res.resume();
+          done({ status: res.statusCode, headers: pairs });
+        });
+        req.once('timeout', () => req.destroy(Object.assign(new Error('timeout'), { code: 'timeout' })));
+        req.once('error', (e) => done({ why: e?.code ?? 'error' }));
+      });
     },
   };
 }

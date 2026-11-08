@@ -4,6 +4,43 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, records: the deploy CLI's minimatch, read; six stale notes dated.** Docs and one
+comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`.
+- **GHSA-g3hv-75wg-m249 on `trigger.dev>minimatch`** (CVE-2026-118764, moderate, CVSS 4.0 6.9),
+  Dependabot alert #10 on `main`, the one path kept on minimatch 10.2.6 on purpose. The advisory
+  (https://github.com/advisories/GHSA-g3hv-75wg-m249, read 2026-11-08) puts the amplification in
+  `firstPhasePreProcess()`, *"when optimizationLevel >= 2"*. Read in the installed packages:
+  minimatch 10.2.6's `dist/esm/index.js` calls it only under `if (optimizationLevel >= 2)`, the
+  option's default being 1 (lines 332 to 335), and trigger.dev 4.8.3's one call into minimatch is
+  `makeRe(externalName)`, with no options (`dist/esm/build/externals.js`, line 311). So the code
+  the advisory names does not run on this path. `pnpm-workspace.yaml`'s comment above the entry
+  says so; it is a comment only, and `pnpm install --frozen-lockfile --prefer-offline` leaves
+  `pnpm-lock.yaml` byte-identical (sha256 `af712c4b…` before and after).
+- **The alert,** dismissed by the owner on 2026-11-08 at about 02:10 UTC, with GitHub's reason
+  *"Vulnerable code is not actually used"*, and a comment that gives the same two code facts and
+  the override's end.
+- **What reopens it:** a trigger.dev release that takes minimatch 11 (then the override goes, as
+  its comment says), or a trigger.dev change that passes `optimizationLevel` 2 or more.
+- **Stale, noted with their dates:** §3 items 12 and 13 still said *not merged*: #1819 and #1824
+  merged on 2026-11-06 and shipped in alpha.5. Four bullets of §4, *Not done, honestly*: the
+  second Nextcloud major's 34.0.6, ClickHouse's 26.2, the `${TRIGGER_IMAGE_TAG:-v4.5.12}` lines
+  and *Monday's group*.
+
+**2026-11-08: libsystemd0 and libudev1 out of Redis and the webapp, built for alpha.7, merged as
+#1846 (`422f049c`) (§3 item 11); apt out of ClickHouse is later.** Answered 2026-11-08, the owner:
+*"Build the recommended for alpha 7."* On branch
+`claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`, from `main` at `b832d027`. Both purge
+RUNs take the two, thirteen packages in one `dpkg --purge` with the same two flags and no other
+force. Only apt, bsdutils, libapt-pkg6.0 and util-linux depended on either, all four in the eleven
+(the dpkg status of Redis's image and of the webapp's Node base, read by layer digest on both
+platforms; dpkg's own refusal in CI read the rest). After the purge, a new check fails the build if
+a file of a removed library is left, or if any ELF file needs one (DT_NEEDED). The names move to
+`localhost/redis:7.4.12-bookworm-d5301e0623d4` and `localhost/trigger.dev:v4.8.3-42a2fcc298b0`;
+user, entrypoint, command and healthcheck are as they were. On the branch at `d8c4bd59`: `build
+(redis, …)` and `build (trigger, …)` green on both platforms, the check finding nothing in either
+image; Security Scan run 42440765278 read Redis at 1/8/0 and the webapp at 1/22/14, from 1/10/0 and
+1/24/14. Owed before a merge: E2E (managed) on the branch. ClickHouse's apt waits: building
+ClickHouse here is not for alpha.7 (§3 item 11, the entry of 2026-11-08).
 **2026-11-08, recorded: live runs alpha.6's pins.** The owner deployed `v0.2.0-alpha.6` (tagged
 2026-11-07 on `59b91458`) to live on 2026-11-08, from alpha.4 in one run of alpha.4's script, which
 took at 00:32:28 UTC (0132's Status, 2026-11-08, has the deploy). Before it, every image the run
@@ -990,6 +1027,10 @@ GHSA-g3hv-75wg-m249 on the deploy CLI's `minimatch` 10.2.6 (`trigger.dev>minimat
 path the workspace keeps below 11 on purpose, since trigger.dev 4.8.3 imports `makeRe`, which
 minimatch 11 no longer has (`pnpm-workspace.yaml`, the entry of 2026-11-02); every other path
 is on minimatch 11 and glob 14. It goes when a trigger.dev release takes minimatch 11.
+*(2026-11-08: and its code does not run there: minimatch 10.2.6 calls `firstPhasePreProcess()`,
+the advisory's path, only at `optimizationLevel` 2 or more, and the CLI's one call passes no
+options. Dependabot alert #10, dismissed by the owner on 2026-11-08 as "Vulnerable code is not
+actually used"; the Status entry of 2026-11-08.)*
 
 **2026-11-04, last: what alpha.4 moves, folded.** The fold (0146 Status, 2026-11-04; a draft,
 not merged) closes alpha.4 with this plan's moves since alpha.3 in it: Node 26 for the API, web
@@ -1980,6 +2021,11 @@ was: outside the lockfile, the three-day floor, the overrides and `allowBuilds`.
     audit` names GHSA-g3hv-75wg-m249 (moderate) again, on that one path (`pnpm audit` piped through `scripts/audit-advisories.mjs --fail-at=high`, as the gate runs it: 1 moderate, `minimatch` 10.2.6, dev only, 0 high, exit 0); it does
     not fail the gate, which blocks at high. The decision is the cost of the move, said here
     rather than left in the audit: the input reaching `makeRe` there is never anybody's.
+    *(2026-11-08: nor does the advisory's code run there: it is in `firstPhasePreProcess()`,
+    which minimatch 10.2.6 calls only when `optimizationLevel >= 2` (default 1,
+    `dist/esm/index.js`:332-335), and the CLI calls `makeRe(externalName)` with no options
+    (`dist/esm/build/externals.js`:311). Dependabot alert #10 dismissed by the owner on
+    2026-11-08; the Status entry of that day says what reopens it.)*
   - `"zod@>=4.0.0 <4.6.6": ^4.6.7` for GHSA-mrhx-c7xc-m3w5 (high): the CLI pins zod 4.5.4
     exactly; everything else already took 4.6.7.
   - `"deepmerge-ts@<8.0.0": ^8.0.2` for GHSA-ggr8-5vv4-36mx (high), reached through
@@ -5435,6 +5481,52 @@ is beside each; none is urgent tonight.
     **Revisit** with the triggers above, when the Redis line moves (item 3), and when its base
     leaves Debian 12.
 
+    **2026-11-08: libsystemd0 and libudev1 in Redis and the webapp — YES, FOR ALPHA.7, BUILT,
+    NOT MERGED.** Answered 2026-11-08, the owner: *"Build the recommended for alpha 7."* The
+    recommendation was yes: one high each, with no fix, in both images, and nothing left uses
+    either once the eleven are gone. Built on the branch
+    `claude/ownpace-public-readiness-y7orc6-a7-libsystemd-purge`. Read first, on 2026-11-08, in
+    Redis's image and in `node:24.22.1-bookworm-slim`, each by its layers' digests on both
+    platforms (the Node image's five layers are the webapp's first five):
+    - **dpkg.** libsystemd0 and libudev1 252.39-1~deb12u2 are Priority optional, neither
+      Essential nor protected, and run no maintainer script. Only apt, bsdutils, libapt-pkg6.0
+      and util-linux depend on either, all four in the eleven.
+    - **ELF files.** `readelf -d` of every ELF file: 702 and 703 in Redis's image, 694 and 695
+      in the Node image. Only util-linux's findmnt, lsblk and lslogins, bsdutils' logger, apt's
+      http method and libapt-pkg.so.6.0.0 need libsystemd.so.0 or libudev.so.1. No other ELF
+      file but the two libraries names either. redis-server names libsystemd only in a message,
+      that it was built without it.
+    - **The webapp's published binaries**, fetched by their publishers' hashes: goose's two
+      assets, prisma's five engines, sentry-cli's two builds, bufferutil's linux-x64 prebuild
+      and rollup's two addons. None needs or names either.
+
+    So both purges take the two: thirteen, in one `dpkg --purge` with the same two flags and no
+    other force. No dependency is left dangling: dpkg refuses one without `--force-depends`.
+    After the purge, before the scan for names, a new check reads the whole file system. It
+    fails the build if a file of one of the eight removed libraries is left by its name, or if
+    any ELF file needs one. It reads DT_NEEDED from the program headers and the dynamic section,
+    on every class and byte order, in perl in Redis and in node in the webapp. It fails too when
+    it met no ELF file that needs a library at all. Both readers, as the Dockerfiles carry them,
+    read the same DT_NEEDED as `readelf -d` on all 2794 ELF files of the four images. With the
+    thirteen's files removed from a copy of each, the check found nothing.
+    - **Proved on the branch, at `d8c4bd59`:** images.yml run 42440852224 built both images on
+      both platforms. dpkg purged the thirteen without a refusal. The check read 573 and 572 ELF
+      files in Redis and 585 and 583 in the webapp (amd64, arm64), none it could not parse, and
+      found nothing. Redis then started as 999:999 and read back the key upstream's image wrote,
+      again after a restart. Security Scan run 42440765278 (linux/arm64) read Redis at 1/8/0 and
+      the webapp at 1/22/14, from 1/10/0 and 1/24/14 (run 42368077845, the alpha.6 tag): each
+      list lost libsystemd0 and libudev1 and nothing else.
+
+    **Revisit** with the triggers above.
+
+    **2026-11-08: apt out of ClickHouse — LATER.** Answered 2026-11-08, the owner: *"Build the
+    recommended for alpha 7."* This one was put to the owner as later, not recommended for
+    alpha.7. The pinned ClickHouse image (the 26.8 LTS, item 9) is Ubuntu 22.04's. Its two
+    highs with a fix are apt's and libapt-pkg6.0's CVE-2026-109518, fixed in 2.4.15ubuntu0.1
+    (Security Scan run 42368077845). Purging apt there means building ClickHouse here, as Redis
+    is built here, which is more than alpha.7 takes. Not now. **Revisit** after the Alpha, or
+    when a ClickHouse release ships Ubuntu's fixed apt.
+
 12. **The appliance without a shell — YES, ALL IN ALPHA.5, 2026-11-03.** Distroless at the API's
     digest reads 0/0 and about 35% smaller for the appliance. What needs a shell today is the
     compose file's `CMD-SHELL` healthcheck for `app` and the upgrade drill's `sh -c ls`; the
@@ -5451,7 +5543,8 @@ is beside each; none is urgent tonight.
     `compose.yml`'s healthcheck exec form on `/nodejs/bin/node`, the CHANGELOG's entry under
     [Unreleased]. The appliance's half of item 11's purge goes with it; the tasks' half stays
     until item 13. Owed before a merge: E2E (self-hosted) on the branch, on Postgres and on
-    PGlite, and `build (selfhost)` on both architectures.
+    PGlite, and `build (selfhost)` on both architectures. *(2026-11-08: merged as #1819 on
+    2026-11-06, `f42101b0`, and shipped in alpha.5, the CHANGELOG's `[0.2.0-alpha.5]`.)*
 
 13. **The tasks' prebuilt distroless base — PUBLISHED TO GHCR, 2026-11-03 (alpha.5).** A
     distroless task image needs a base the Trigger.dev CLI builds nothing into (distroless plus
@@ -5463,7 +5556,9 @@ is beside each; none is urgent tonight.
     steps of its own to a base that already has every one.
 
     **Where it stands, 2026-11-06, later: the base is built, signed and published from `main`
-    (#1818); the tasks' switch to it is built on a branch, not merged.**
+    (#1818); the tasks' switch to it is built on a branch, not merged.** *(2026-11-08: the switch
+    merged as #1824 on 2026-11-06, `d7d11a58`, and shipped in alpha.5; live's tasks run on the
+    base since its deploy of alpha.6, 2026-11-08.)*
     `apps/worker/task-image/Dockerfile`, published from `main` only by `images.yml`'s
     `task-base` leg as `ghcr.io/robbes/ownpace-task-base:edge` and `sha-<commit>`, signed by
     digest; never from a tag, so that the tasks can name one digest that the OTA stack and live
@@ -5495,7 +5590,8 @@ is beside each; none is urgent tonight.
   since 2026-11-06 its row *nextcloud, the second major* reads `nextcloud-second-major.yml`'s
   one `NEXTCLOUD_IMAGE` (by tag and index digest, or the row is an error) and lists a newer tag
   of the same major in the summary issue, with how it moves. Read against Docker Hub on
-  2026-11-06 it is current, 34.0.5 of 2535 tags listed; 34.0.6 was due 2026-11-12.
+  2026-11-06 it is current, 34.0.5 of 2535 tags listed; 34.0.6 was due 2026-11-12. *(2026-11-08:
+  still due, on 2026-11-12; the pin stays 34.0.5 until 34.0.6 ships and passes its floor.)*
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with
@@ -5505,8 +5601,15 @@ is beside each; none is urgent tonight.
   2026-11-02 (`2cae9602`), and the version move was the owner's: the owner took option 2 on
   2026-11-02, 26.8.36.3-lts, merged as #1785 the same day (`0b16a82e`), on the OTA stack since
   its E2E (managed) run 41400187583 and on live from the tag that carries it (#1782, option 1,
-  26.3.62.3, superseded; §3 item 9).
+  26.3.62.3, superseded; §3 item 9). *(2026-11-08: so the pin is 26.8.36.3-lts, not 26.2,
+  and 26.8 is a line ClickHouse's `SECURITY.md` supports (read 2026-10-23, §3 item 9); live runs
+  it since its deploy of alpha.4 on 2026-11-04, 0132's Status of 2026-11-05.)*
 - **Whether Dependabot reads `${TRIGGER_IMAGE_TAG:-v4.5.12}`** correctly is not tested here;
-  those two lines are ignored by name, so the answer does not matter for them.
+  those two lines are ignored by name, so the answer does not matter for them. *(2026-11-08: moot
+  now. The two lines read `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-…` and
+  `localhost/supervisor:…`, images built here since alpha.3 (0146 T16), and Dependabot's
+  `docker-compose` entry reads `deploy/selfhost` only; the pin watch reads `managed.yml`.)*
 - **The three actions behind by a patch or a minor** are left to Monday's group rather than
-  moved tonight: the group's PR exists precisely so that they arrive together, once.
+  moved tonight: the group's PR exists precisely so that they arrive together, once. *(2026-11-08:
+  the inventory of 2026-09-06 (§2.3). Dependabot's `github-actions` group has moved them since,
+  week by week; its latest, #1836, merged on 2026-11-08.)*

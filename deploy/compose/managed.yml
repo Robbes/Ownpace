@@ -114,7 +114,8 @@ name: ownpace-managed
 # a-package-the-front-never-runs until the name moves with it. `up` builds it where it is missing.
 # trigger-redis runs a local build too since 2026-11-07 (workplan 0119 §3 item 11, for alpha.6):
 # Redis's official image at its pinned digest with the eleven Debian packages nothing here runs
-# purged, run as uid 999 from its first process, whose pin is the FROM of
+# purged (thirteen since 2026-11-08, for alpha.7: libsystemd0 and libudev1 too), run as uid 999
+# from its first process, whose pin is the FROM of
 # deploy/compose/redis/Dockerfile by tag and digest, which Dependabot reads (its own entry, never
 # a major). Its name ends in the hash of that file's instructions, and a pull request that changes
 # them fails an-essential-nothing-runs until the name moves with it. `up` builds it where it is
@@ -361,7 +362,9 @@ services:
   # it. A build of the official image since 2026-11-07 (workplan 0119 §3 item
   # 11, for alpha.6; the owner: "Redis purge in 6"):
   # deploy/compose/redis/Dockerfile purges the eleven Debian packages nothing
-  # here runs or loads, the webapp's list, and runs Redis as uid and gid 999
+  # here runs or loads, the webapp's list (thirteen since 2026-11-08, for
+  # alpha.7: libsystemd0 and libudev1, which only four of the eleven needed),
+  # and runs Redis as uid and gid 999
   # from its first process, so the entrypoint never takes its root branch,
   # whose setpriv is util-linux's. Its header says what was read, why the name
   # carries the hash of its instructions, and how it moves: the pin is its FROM,
@@ -374,7 +377,7 @@ services:
   # It holds the run queues: on live it changes only at a deploy, and
   # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: localhost/redis:7.4.12-bookworm-63d89fa5f426
+    image: localhost/redis:7.4.12-bookworm-d5301e0623d4
     build: ./redis
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
@@ -428,7 +431,8 @@ services:
     # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
     # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
     # e2fsprogs, which depends on two of them (workplan 0119
-    # §3 item 11; its header says why, and
+    # §3 item 11; since 2026-11-08, for alpha.7, libsystemd0 and libudev1
+    # too, which only four of those needed; its header says why, and
     # scripts/an-essential-nothing-runs.unit.test.ts holds the list), so
     # nothing in trigger-api can run apt. The name
     # is the version (the .env's TRIGGER_IMAGE_TAG, or the default) and the
@@ -438,7 +442,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-a4bb254ab965
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-42a2fcc298b0
     build:
       context: ./trigger.dev
       args:
