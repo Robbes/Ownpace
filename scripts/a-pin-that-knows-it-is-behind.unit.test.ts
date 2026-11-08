@@ -1068,8 +1068,19 @@ function stalwartStep(workflow: string): { run: string; env: Record<string, stri
   return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
 }
 
-/** Run the stalwart-cli step on `machine`, with these sums, a stand-in that says `says`, and the first `fails` fetches failing. */
-function runStalwartStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string, fails = 0): Ran & { slept: string[] } {
+/**
+ * Run the stalwart-cli step on `machine`, with these sums, a stand-in that says `says`, and the first
+ * `fails` fetches failing. `toolCache` is the runner's RUNNER_TOOL_CACHE: a fresh one unless a test
+ * passes the same directory to two runs, as one runner's nights share theirs.
+ */
+function runStalwartStep(
+  step: { run: string; env: Record<string, string> },
+  machine: string,
+  sums: Record<string, string>,
+  says: string,
+  fails = 0,
+  toolCache?: string,
+): Ran & { slept: string[] } {
   const dir = mkdtempSync(join(atlasScratch, 'stalwart-run-'));
   const temp = join(dir, 'runner-temp');
   const served = join(dir, 'served');
@@ -1088,6 +1099,7 @@ function runStalwartStep(step: { run: string; env: Record<string, string> }, mac
       ...step.env,
       ...sums,
       RUNNER_TEMP: temp,
+      RUNNER_TOOL_CACHE: toolCache ?? join(dir, 'tool-cache'),
       GITHUB_PATH: files.path,
       STUB_PREFIX: `${STALWART_CLI_HOST}${step.env.STALWART_CLI_VERSION}/`,
       STUB_SERVED: served,
@@ -1116,9 +1128,11 @@ function runStalwartStep(step: { run: string; env: Record<string, string> }, mac
  * machines: install and run anything but the native release when both
  * architectures' archives are the pinned ones (and fetch both); finish with
  * anything installed, run or on the PATH when either sum is wrong; accept a
- * binary that calls itself another version; give up on one failed fetch, or
- * go on after three; or install anything on a machine no release is pinned
- * for. Empty when the step is right.
+ * binary that calls itself another version; give up before four failed
+ * fetches have been waited out, 5, 15, 45 and 135 seconds apart (2026-11-08:
+ * GitHub's release download answered 503 for about two minutes, and a failed
+ * night resets the count a release waits for), or go on after five; or install
+ * anything on a machine no release is pinned for. Empty when the step is right.
  */
 function stalwartStepFaults(workflow: string): string[] {
   const step = stalwartStep(workflow);
@@ -1143,15 +1157,39 @@ function stalwartStepFaults(workflow: string): string[] {
     const other = runStalwartStep(step, machine, STALWART_STAND_IN_SHA256, 'stalwart-cli 1.0.99');
     if (other.status === 0) faults.push(`accepts a binary that calls itself stalwart-cli 1.0.99 on ${machine}\n${other.log}`);
   }
-  // A CDN blip on the first two fetches is absorbed; three in a row stop the step with nothing installed.
-  const blip = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 2);
-  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15')) faults.push(`does not ride out two failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
-  const outage = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 3);
-  if (outage.status === 0 || outage.installed !== undefined || outage.ran || outage.fetched.length !== 3) {
-    faults.push(`goes on after three failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
+  // Four failed fetches in a row are waited out, 5, 15, 45 and 135 seconds apart: about four
+  // minutes of a download that answers 503; five in a row stop the step with nothing installed.
+  const blip = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 4);
+  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15 45 135')) faults.push(`does not ride out four failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
+  const outage = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 5);
+  if (outage.status === 0 || outage.installed !== undefined || outage.ran || outage.fetched.length !== 5) {
+    faults.push(`goes on after five failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
   }
   const riscv = runStalwartStep(step, 'riscv64', STALWART_STAND_IN_SHA256, release);
   if (riscv.status === 0 || riscv.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${riscv.status}`);
+  // The copy a run keeps (2026-11-08: the self-hosted runner got 503 from GitHub's release download for
+  // over half an hour). A run keeps both archives in the tool cache as the pinned bytes; the next run on
+  // that runner fetches nothing and installs from them, hashed as a fetch is; a kept copy that is not the
+  // pinned build stops the run with nothing installed and is removed, so the run after fetches it again.
+  const cache = mkdtempSync(join(atlasScratch, 'stalwart-cache-'));
+  const keptFile = (arch: string): string => join(cache, 'stalwart-cli', version ?? '', `stalwart-cli-${arch}-unknown-linux-gnu.tar.xz`);
+  const keptRight = (arch: string): boolean => existsSync(keptFile(arch)) && readFileSync(keptFile(arch)).equals(STALWART_STAND_IN[arch]!.bytes);
+  const first = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (!(first.status === 0 && STALWART_MACHINES.every(keptRight))) faults.push(`keeps no copy of both archives for the next run: exit ${first.status}\n${first.log}`);
+  const second = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (!(second.status === 0 && second.ran && second.installed === STALWART_STAND_IN.x86_64!.binary && second.fetched.length === 0)) {
+    faults.push(`fetches again, or installs nothing, with both archives kept: exit ${second.status}, fetched ${second.fetched.join(' ') || 'nothing'}\n${second.log}`);
+  }
+  mkdirSync(dirname(keptFile('x86_64')), { recursive: true });
+  writeFileSync(keptFile('x86_64'), 'not the pinned build');
+  const tampered = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (tampered.status === 0 || tampered.installed !== undefined || tampered.ran || existsSync(keptFile('x86_64'))) {
+    faults.push(`goes on past, or keeps, a kept copy that is not the pinned build: exit ${tampered.status}, installed ${tampered.installed !== undefined}, kept ${existsSync(keptFile('x86_64'))}\n${tampered.log}`);
+  }
+  const after = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (!(after.status === 0 && after.ran && after.fetched.join(' ') === urls[0] && STALWART_MACHINES.every(keptRight))) {
+    faults.push(`does not fetch the release again after a kept copy was refused: exit ${after.status}, fetched ${after.fetched.join(' ') || 'nothing'}\n${after.log}`);
+  }
   return faults;
 }
 
@@ -1914,9 +1952,17 @@ describe('the stalwart-cli CI installs: a named release, checked by its sha256 f
     expect(faults(/if \[ "\$said" != /, 'if false && [ "$said" != ')).toMatch(/accepts a binary that calls itself stalwart-cli 1\.0\.99 on x86_64/);
     expect(faults(/(does not call itself \$\{STALWART_CLI_VERSION#v\}\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself stalwart-cli 1\.0\.99 on aarch64/);
     expect(faults('-$native-unknown-linux-gnu.tar.xz" -C', '-x86_64-unknown-linux-gnu.tar.xz" -C')).toMatch(/installs no release on aarch64/);
-    // The retry: none at all, or one that waits for nothing between attempts.
-    expect(faults('for attempt in 1 2 3; do', 'for attempt in 1; do')).toMatch(/does not ride out two failed fetches/);
-    expect(faults(/\n +sleep \$\(\(attempt \* 10 - 5\)\)\n/, '\n')).toMatch(/does not ride out two failed fetches: exit 0, slept never/);
+    // The retry: none at all, the three attempts it had until 2026-11-08, one that waits for
+    // nothing between attempts, or the 5s, 15s, 25s and 35s the old arithmetic would give.
+    expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1; do')).toMatch(/does not ride out four failed fetches/);
+    expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1 2 3; do')).toMatch(/does not ride out four failed fetches/);
+    expect(faults(/\n +sleep \$\(\(5 \* 3 \*\* \(attempt - 1\)\)\)\n/, '\n')).toMatch(/does not ride out four failed fetches: exit 0, slept never/);
+    expect(faults('sleep $((5 * 3 ** (attempt - 1)))', 'sleep $((attempt * 10 - 5))')).toMatch(/does not ride out four failed fetches: exit 0, slept 5 15 25 35/);
+    // The kept copy: never kept, never used, used without its hash read, or left in place once refused.
+    expect(faults('{ mkdir -p "${kept%/*}" && cp "$download" "$kept.$$" && mv -f "$kept.$$" "$kept"; } ||', 'false ||')).toMatch(/keeps no copy of both archives/);
+    expect(faults('if [ -f "$kept" ] && cp "$kept" "$download"; then', 'if false; then')).toMatch(/fetches again, or installs nothing, with both archives kept/);
+    expect(faults('from="the copy an earlier run kept"', 'from="the copy an earlier run kept"; continue')).toMatch(/goes on past, or keeps, a kept copy that is not the pinned build/);
+    expect(faults('rm -f "$kept" || true', 'true')).toMatch(/goes on past, or keeps, a kept copy that is not the pinned build: exit 1, installed false, kept true/);
   });
 
   it('is a routine pin, current while upstream tags no newer release of its major', async () => {
@@ -2184,10 +2230,14 @@ describe('the Trivy the Security Scan runs: a named release from GitHub, checked
     expect(() => trivyPin(mutate(skip, '\n'), 'security-scan')).toThrow(/without skip-setup-trivy: true/);
     expect(() => trivyPin(mutateImage(skip, '\n'), 'image-scan')).toThrow(/without skip-setup-trivy: true/);
     expect(() => trivyPin(mutateImage(/\n( +)skip-setup-trivy: true\n/, '\n$1skip-setup-trivy: false\n'), 'image-scan')).toThrow(/without skip-setup-trivy: true/);
-    expect(() => trivyPin(mutateImage(/\n( +)version: v0\.76\.1\n/, '\n$1version: v0.76.0\n'), 'image-scan')).toThrow(/with version: v0\.76\.0, and installs v0\.76\.1/);
+    // Read from the pin, so a move of the release moves these mutations with it.
+    const pinned = TRIVY.version.replace(/\./g, '\\.');
+    expect(() => trivyPin(mutateImage(new RegExp(`\\n( +)version: ${pinned}\\n`), '\n$1version: v0.0.1\n'), 'image-scan')).toThrow(
+      new RegExp(`with version: v0\\.0\\.1, and installs ${pinned}`),
+    );
     const early = mutate(
       /\n( +)- name: Install Trivy from its GitHub release/,
-      `\n$1- name: Too early\n$1  uses: aquasecurity/trivy-action@${'e'.repeat(40)} # v0.36.0\n$1  with:\n$1    version: v0.76.1\n$1    skip-setup-trivy: true\n$1- name: Install Trivy from its GitHub release`,
+      `\n$1- name: Too early\n$1  uses: aquasecurity/trivy-action@${'e'.repeat(40)} # v0.36.0\n$1  with:\n$1    version: ${TRIVY.version}\n$1    skip-setup-trivy: true\n$1- name: Install Trivy from its GitHub release`,
     );
     expect(() => trivyPin(early, 'security-scan')).toThrow(/before the step that installs Trivy/);
     // The other job is read on its own: a mutation in one leaves the other's reading as it was.

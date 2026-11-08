@@ -63,6 +63,16 @@ Trigger.dev, identity provider or ClickHouse pin.
 
 ### Changed
 
+- **CI's scanner moves to Trivy v0.76.2, and its migration lint to Atlas v1.3.8** (workplan
+  0119), each past the three-day floor on 2026-11-08. Security Scan installs Trivy v0.76.2 from
+  its GitHub release, both architectures checked by the sums the release's checksum file gives,
+  in place of v0.76.1: it backports four dependency moves, golang.org/x/net 0.62.0 and go-jose
+  4.1.6 among them, and none of Trivy's own code changes. CI's `migration-lint` runs Atlas
+  v1.3.8 in place of v1.3.6, each architecture checked by the SHA-256 of `/atlas` in the
+  release's community image on Docker Hub; upstream's public source between the two changes
+  MariaDB's CHECK handling and the Go SDK, not the Postgres paths the lint runs. Nothing deployed
+  changes. An image scan's counts can, as they do with any new scanner. 0119's table of the
+  binaries CI downloads gains the Trivy row it lacked.
 - **The OTA names stay public for now** (workplan 0132 open question 7, the owner's answers of
   2026-11-08). On the mesh only, once testers are on the production names, stays the aim, and the
   outside probe's `ota_names: mesh-only` is its pass condition; the probe stays at `report`.
@@ -94,6 +104,14 @@ Trigger.dev, identity provider or ClickHouse pin.
 
 ### Fixed
 
+- **A night no longer fails because GitHub's release download answers 503** (workplan 0119). The
+  stalwart-cli step that CI's integration tests and both E2E gates run word for word gave up after
+  three attempts, 5 and 15 seconds apart, and on 2026-11-08 the self-hosted runner got 503 for over
+  half an hour; the scheduled E2E (managed) run died there before any test ran. It now makes five
+  attempts, 5, 15, 45 and 135 seconds apart, and a run that has read the pinned sums keeps both
+  archives in the runner's tool cache, so the next run on that runner starts from them, hashed
+  exactly as a fetch is. A kept copy that is not the pinned build stops the run and is removed; a
+  wrong sum is still never retried.
 - **What a press on Deletions, Moves or Failures did is said in Dutch on a Dutch screen**
   (workplan 0159 follow-up 18, #1840), from words both editions share; the English is unchanged.
   The owner read the Dutch, and an acknowledged deletion or move opens with their word, *Keuze
