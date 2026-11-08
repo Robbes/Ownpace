@@ -3196,6 +3196,11 @@ public address, and the mesh keeps everything that never needed one.
 
 ### The OTA names on the mesh only (workplan 0132, open question 7)
 
+**Not now (the owner, later on 2026-11-08):** *"11: c, leave public for now."*
+The OTA names keep answering from the internet until after the first
+invitation; the steps below wait until then, and the probe is dispatched with
+`ota_names` left at `report`.
+
 **Decided 2026-11-08:** once testers are on the production names, which is
 from the first invitation, `app.ota.ownpace.eu`, `id.ota.ownpace.eu` and the
 test site's `www.ota.ownpace.eu` answer on the mesh only, not from the

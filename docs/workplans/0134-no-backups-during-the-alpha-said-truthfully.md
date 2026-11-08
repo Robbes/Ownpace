@@ -6,10 +6,10 @@
 
 **2026-11-08: the tester guide says the copy's 7 days (T2's note).** On the branch
 `claude/ownpace-public-readiness-y7orc6-a7-records`, on the owner's *"Build the recommended for
-alpha 7."*: both guides' *Geen back-ups* / *No backups* bullet now carries the conditions' §6
-sentence, *"Wij bewaren haar tot blijkt dat die update werkt, en nooit langer dan 7 dagen."* (0144,
-Status). So a tester reads the 7 days in the guide too, not only in the two mails and §6. The
-owner's read of the new Dutch is owed (0152 T0).
+alpha 7."*: both guides' *Geen back-ups* / *No backups* bullet now says how long the copy is kept.
+The owner read the Dutch the same day and gave its words: *"Wij bewaren deze tot de update succesvol
+is doorgevoerd, en nooit langer dan 7 dagen."* (0144, Status). So a tester reads the 7 days in the
+guide too, not only in the two mails and §6.
 
 **2026-11-05, records: T0 step 3 reads the API's value from Docker, and live keeps a copy again.**
 Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-distroless-readbacks`. Step 3

@@ -7,13 +7,15 @@
 **2026-11-08: the guide says how long the copy before an update is kept (T1); T5's advice was done
 (T5).** On the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, on the owner's *"Build
 the recommended for alpha 7."* (2026-11-08, about 01:50 UTC).
-- **T1.** *Geen back-ups* and *No backups* gain one sentence each, the Alpha conditions' §6 in
-  their own words: *"Wij bewaren haar tot blijkt dat die update werkt, en nooit langer dan 7
-  dagen."* and *"We keep it until that update is shown to work, and never longer than 7 days."*
-  Both Alpha mails say the 7 days too (*"kept up to 7 days"*, *"die hoogstens 7 dagen wordt
-  bewaard"*). The entry of 2026-10-04 left this to the owner because the Dutch needs the owner's
-  read: that read of the new sentence is owed (0152 T0). `site/site.unit.test.ts` now fails when
-  either guide stops saying the conditions' sentence, or the conditions change it.
+- **T1.** *Geen back-ups* and *No backups* gain one sentence each, on the copy's 7 days. The Dutch
+  is the owner's, given the same day on reading the first draft: *"Wij bewaren deze tot de update
+  succesvol is doorgevoerd, en nooit langer dan 7 dagen."* The English follows it: *"We keep it
+  until the update has been applied successfully, and never longer than 7 days."* The number is the
+  Alpha conditions' §6, and both Alpha mails say the 7 days too (*"kept up to 7 days"*, *"die
+  hoogstens 7 dagen wordt bewaard"*). The entry of 2026-10-04 left this to the owner because the
+  Dutch needs the owner's read (0152 T0): the Dutch is that read; the English, made to follow it,
+  waits for theirs. `site/site.unit.test.ts` now fails when either guide stops saying its sentence,
+  or when the guide's days and §6's part.
 - **T5.** Its row said *Proposed*. The advice before anybody connects, start with an empty
   destination or choose a target folder, has been in the guide since #1439 (merged 2026-10-04,
   `d7ffc16e`), in both languages (`site/pages/nl/alpha-handleiding.md`, *Begin met een lege
@@ -274,7 +276,7 @@ end, no backups apart from one copy before each update, and keep your old accoun
 already says each of them; nothing in it changed. It does not say how long the copy is kept: the
 7 days are in both mails and the conditions §6 only. Adding *"kept up to 7 days"* to both guides
 is an owner item, because the Dutch needs the owner's read. Not done here. *(2026-11-08: added,
-on the owner's "Build the recommended for alpha 7.", in §6's own words; the owner's read is owed:
+on the owner's "Build the recommended for alpha 7.", the Dutch in the owner's own words:
 the entry at the top.)*
 
 **2026-10-04: the spelling is *Alpha*, the guide's Dutch address moved, and the app and the mails

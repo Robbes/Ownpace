@@ -1144,7 +1144,7 @@ backups apart from one copy kept up to 7 days, and keep your old account until y
 what arrived. A tester still meets them in both mails, in the Alpha conditions (accepted on the
 acceptance screen) and in the tester guide. The guide names the one copy before an update, but
 not how long it is kept: the 7 days are in both mails and the conditions §6 (*2026-11-08: and
-in the guide, in §6's words; 0144 T1*). The Billing line
+in the guide, with §6's 7 days; 0144 T1*). The Billing line
 and the request hint still say that nothing is charged. The safety sentences are not shortened
 (0118): both mails keep them, word for word, after the welcome. The note's old first sentence,
 *"Alpha: a small invited group is trying this service out."*, is read as replaced by the

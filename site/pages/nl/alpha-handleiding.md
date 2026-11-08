@@ -57,9 +57,9 @@ uitgenodigd. De Alpha duurt enkele weken.
 - **Geen verplichtingen, aan beide kanten.** U mag op elk moment stoppen. Wij mogen de Alpha
   stoppen of opnieuw laten beginnen. Dat melden wij minstens 7 dagen van tevoren per e-mail. De
   dienst kan haperen.
-- **Geen back-ups.** Alleen vlak voor een update maken wij één kopie. Wij bewaren haar tot blijkt
-  dat die update werkt, en nooit langer dan 7 dagen. Gaan de gegevens van de dienst verloren? Dan
-  koppelt u uw accounts opnieuw en zet u uw migraties opnieuw op. Wat al bij uw nieuwe aanbieder
+- **Geen back-ups.** Alleen vlak voor een update maken wij één kopie. Wij bewaren deze tot de update
+  succesvol is doorgevoerd, en nooit langer dan 7 dagen. Gaan de gegevens van de dienst verloren?
+  Dan koppelt u uw accounts opnieuw en zet u uw migraties opnieuw op. Wat al bij uw nieuwe aanbieder
   staat, blijft daar.
 - **Na de Alpha** gaat de dienst door, onder nieuwe voorwaarden.
 
