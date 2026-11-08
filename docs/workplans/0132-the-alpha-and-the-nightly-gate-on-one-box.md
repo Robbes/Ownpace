@@ -14,19 +14,19 @@ return; git history keeps the old text, and it is not rewritten.
   the self-hosted runner, never by its hardware product name. A quotation of the owner keeps its
   words, with the substitution in square brackets: *"[The machine] has a lot free memory and disk,
   it will fit."* Until now agents were told it, and no file said it or checked it.
-- **The sweep.** At `origin/main` `b832d027`, a case-insensitive whole-word search for the name
-  found 375 lines in 142 tracked files, and none is left. 374 now say the repository's own neutral
+- **The sweep.** At `origin/main` `200185fd`, a case-insensitive whole-word search for the name
+  found 360 lines in 142 tracked files, and none is left. 359 now say the repository's own neutral
   term, each read in context: 9 workflows, 17 of the stacks' files, 20 files in `apps/` and
   `packages/`, 36 under `scripts/` (guard headers among them), 37 workplans and their index, 5 ADR
   files (one a frozen record), 11 other documents, the CHANGELOG, the README, AGENTS.md, 2 E2E tests
   and the site's build. Five test fixtures' host names and a runbook's placeholder got neutral
   names, and the tests that read them pass unchanged. One record (0025 T1) named the self-hosted
   runner itself; it now says "the self-hosted runner". Eighteen quotations of four things the owner
-  said carry the brackets. The 375th line was the O365 lane's runner label (below).
+  said carry the brackets. The 360th line was the O365 lane's runner label (below).
 - **The guard.** `node scripts/machine-product-name.mjs --check`, a step of `docs-hygiene`, so it
   runs on every change. It compares the SHA-256 of each lowercased token, and of each adjacent
   pair for the names of two words, with a list of digests, and names a hit's file, line and
-  column, never the word. It reads 2,886 files and passes over 11 binaries and `pnpm-lock.yaml`,
+  column, never the word. It reads 2,895 files and passes over 11 binaries and `pnpm-lock.yaml`,
   whose names are third-party packages'. It has no exceptions: a hit anywhere fails. Its guard,
   `scripts/a-machine-called-by-its-product-name.unit.test.ts`, has 12 cases, among them one added
   word, and the old runner label put back, each turning a temporary repository red and green

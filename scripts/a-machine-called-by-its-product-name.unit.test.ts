@@ -7,8 +7,8 @@
  * `ownpace-live` is the owner's own machine, and its hardware has a product
  * name. The owner's rule is that public text does not name it: say the
  * machine, the box, the host or the self-hosted runner. On 2026-11-08, at
- * `origin/main` `b832d027`, a case-insensitive whole-word search for its words
- * found 375 lines in 142 tracked files that did: 9 workflows, 17 of the
+ * `origin/main` `200185fd`, a case-insensitive whole-word search for its words
+ * found 360 lines in 142 tracked files that did: 9 workflows, 17 of the
  * stacks' files, 20 files in `apps/` and `packages/`, 36 under `scripts/`
  * (guard headers among them), 37 workplans and their index, 5 ADR files, 11
  * other documents, the CHANGELOG, the README, AGENTS.md, 2 E2E tests and the
@@ -26,7 +26,7 @@
  * on it, which is how `a-convention-two-of-two-hundred-commits-followed`
  * describes the same shape.
  *
- * The sweep changed all 375 lines (workplan 0132's Status, 2026-11-08). Each
+ * The sweep changed all 360 lines (workplan 0132's Status, 2026-11-08). Each
  * was read in context. An owner's quotation keeps its words, with the
  * substitution in square brackets, *"[The machine] has a lot free memory"*.
  * Fixtures got neutral names, and the tests that read them pass unchanged.
@@ -74,7 +74,7 @@
  * WHERE IT RUNS. `docs-hygiene` in `.github/workflows/ci.yml` runs
  * `node scripts/machine-product-name.mjs --check` on every change, docs-only
  * ones included, because `detect-changes` skips `unit-tests` for a change to the
- * workplans alone, and most of the 375 lines were prose. This file runs in
+ * workplans alone, and most of the 360 lines were prose. This file runs in
  * `unit-tests` and imports the same module.
  *
  * WHAT IT CANNOT SEE, so its silence is not read as coverage.
@@ -156,7 +156,7 @@ describe('the list: digests in the detector, an encoding here, and the same word
 
 describe('no file in the tree names it', () => {
   it('reads the whole tree, so an empty listing cannot pass', () => {
-    // 2,886 text files on 2026-11-08, out of 2,898 that git lists.
+    // 2,895 text files on 2026-11-08, out of 2,907 that git lists.
     for (const file of ['CHANGELOG.md', 'AGENTS.md', 'docs/LESSONS.md', 'docs/workplans/README.md', '.github/workflows/ci.yml']) {
       expect(tree.scanned).toContain(file);
     }
