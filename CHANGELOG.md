@@ -4,6 +4,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.7] - 2026-11-08
+
+A press on Deletions, Moves or Failures now says what it did in Dutch on a Dutch
+screen, an acknowledged deletion or move in the owner's words, *Keuze
+vastgelegd.*; and the tester guide says the copy before an update is kept at
+most 7 days. Underneath, a merge no longer runs beside live's Docker socket
+during the alpha: a push runs CI and the repository scan on GitHub's hosted
+arm64 runner, and one repository variable sends them back. CI's scanner moves to
+Trivy v0.76.2 and its migration lint to Atlas v1.3.8, and the self-hosted runner
+keeps the stalwart-cli archives it fetched, so a night no longer fails because
+GitHub's release download answers 503. Trigger.dev's Redis and webapp images
+drop systemd's two libraries, so their scans read 1 critical, 8 high and 0 with
+a fix, and 1, 22 and 14. The app's policy and HSTS are now read where a tester's
+browser gets them: the outside probe proved them on live through the front, and
+live's deploy checks them from the first deploy started from this release. The
+appliance's PGlite moves to 0.5.15, which rejects the commit of an aborted
+transaction where it resolved silently. The OTA names stay public for now, and
+the repository calls the machine the machine. Live's deploy from alpha.6 is
+reversible by the deploy's own rule: no migration moves, nor the Trigger.dev,
+identity provider or ClickHouse pin.
+
 ### Security
 
 - **A merge no longer runs beside live's Docker socket during the alpha** (workplan 0132, open
@@ -34,7 +55,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   answer to it: each header once, with the template's value, a template that states no policy or
   no HSTS refused. The outside probe asks `https://app.ownpace.eu/` from a GitHub-hosted runner,
   through NetBird's proxy and over TLS, against the template at the commit live's own
-  `/version.json` names; it proves the headers from its first dispatch after this merges.
+  `/version.json` names. Its first dispatch after the merge, run 42448301600 on 2026-11-08, proved
+  them on live, on alpha.6's template.
   `deploy-live.sh` asks the same page after each deploy, against the tag's template with live's
   `VITE_OIDC_ISSUER`, and a finding is a deploy that did not take; it runs from the first deploy
   started from this release, since a deploy runs the script of the release it starts from. A
@@ -73,6 +95,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `node scripts/machine-product-name.mjs --check` runs in `docs-hygiene` on every change, compares
   digests rather than the words, has no exceptions, and names the file and line of any return.
   Git history keeps the old text.
+- **PGlite 0.5.15 and lucide-react 1.68.0** (from 0.5.14 and 1.67.0, Dependabot, #1837). PGlite,
+  the appliance's embedded database, now rejects with `TransactionAbortedError` when the commit of
+  an aborted transaction rolls it back, where it resolved silently, and its initdb uses less
+  memory; lucide-react is the web's icons. E2E (self-hosted) on PGlite and E2E (managed) ran the
+  group green on its branch before it merged (runs 42371607496 and 42370309963).
+- **cosign-installer 4.1.3 and the code-scanning upload 4.39.3** (from 4.1.2 and 4.39.2,
+  Dependabot, #1836): the action that installs cosign for the images' and the release's
+  signatures, which still installs the pinned cosign v3.1.4, and the one that uploads the scans'
+  reports.
 
 ### Fixed
 
@@ -86,6 +117,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   wrong sum is still never retried.
 - **What a press on Deletions, Moves or Failures did is said in Dutch on a Dutch screen**
   (workplan 0159 follow-up 18, #1840), from words both editions share; the English is unchanged.
+  The owner read the Dutch, and an acknowledged deletion or move opens with their word, *Keuze
+  vastgelegd.*, where it said *Beslissing vastgelegd.* (#1847).
 
 ## [0.2.0-alpha.6] - 2026-11-07
 

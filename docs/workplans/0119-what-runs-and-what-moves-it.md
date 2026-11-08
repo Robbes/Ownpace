@@ -4,10 +4,40 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, later: what alpha.7 moves, folded.** The fold (0146 Status, 2026-11-08, later),
+whose squash is C, closes alpha.7 with this plan's moves since alpha.6 in it:
+- libsystemd0 and libudev1 out of Trigger.dev's Redis and the webapp (#1846, §3 item 11, on the
+  owner's *"Build the recommended for alpha 7."*), built as
+  `localhost/redis:7.4.12-bookworm-d5301e0623d4` and `localhost/trigger.dev:v4.8.3-42a2fcc298b0`:
+  Security Scan run 42440765278 read Redis at 1 critical, 8 high and 0 with a fix, from 1, 10 and
+  0, and the webapp at 1, 22 and 14, from 1, 24 and 14; E2E (managed) run 42443538787 ran both on
+  the OTA stack, green. It adopts no upstream release: both images keep alpha.6's bases;
+- Dependabot's npm group, #1837 (merged 2026-11-07): PGlite 0.5.15 (npm, 2026-11-03 12:39 UTC)
+  and lucide-react 1.68.0 (2026-11-04 06:10 UTC), green in E2E (self-hosted) on PGlite and E2E
+  (managed) on its branch (runs 42371607496 and 42370309963);
+- Dependabot's actions group, #1836 (merged 2026-11-08): cosign-installer 4.1.3 (its tag on a
+  commit of 2026-11-04 18:25 UTC), which still installs the pinned cosign v3.1.4, and
+  codeql-action's `upload-sarif` 4.39.3 (tagged 2026-11-04 16:49 UTC).
+
+By npm's dates and the tags', each of the four was more than three days old when it merged;
+cosign-installer's tag is lightweight, so its date is its commit's. In it too, both CI only: Trivy
+0.76.2 and Atlas 1.3.8 (#1851, the entry below), and the stalwart-cli download's five attempts and
+the copy the self-hosted runner keeps (#1850, the entry below that), after the scheduled E2E
+(managed) of 2026-11-08 failed on GitHub's release download before any test ran. **Held for after
+the tag**, since nothing merges during the freeze:
+- MinIO's rebuild `869ca317…`, past its three-day floor on 2026-11-10 at 06:54 UTC, in a pull
+  request of its own with its image scan read and E2E (managed) on its branch;
+- pnpm 11.28.x, while npm's `latest-11` names 11.28.9 (read 2026-11-08; `next-11` names 11.28.11,
+  and draft #1792 11.28.10);
+- PostgreSQL 18.7, and Nextcloud 35.0.3 and 34.0.6, all due 2026-11-12;
+- the fixes in Zitadel's, Gatus's, the registry's and Caddy's Go modules, when their projects
+  release (the entry of 2026-11-07, last).
+
 **2026-11-08: Trivy v0.76.2 and Atlas v1.3.8, past their three days.** On branch
-`claude/ownpace-public-readiness-y7orc6-ci-tools-trivy-atlas`, from `main` at `a8c2b9f4` with `main`
-merged at `3b10afd6` (#1850), the two CI tools the entry of 2026-11-07 on BuildKit left behind move.
-Everything below was read on 2026-11-07 and pushed after the later floor, 2026-11-08 at 14:15 UTC.
+`claude/ownpace-public-readiness-y7orc6-ci-tools-trivy-atlas`, merged as #1851 (`afb815e6`), from
+`main` at `a8c2b9f4` with `main` merged at `3b10afd6` (#1850), the two CI tools the entry of
+2026-11-07 on BuildKit left behind move. Everything below was read on 2026-11-07 and pushed after
+the later floor, 2026-11-08 at 14:15 UTC.
 - **Trivy v0.76.2.** Both copies of Security Scan's install step name it, with the sums its
   `trivy_0.76.2_checksums.txt` gives (`Linux-64bit` `bc0fc726…`, `Linux-ARM64` `ab9d51f8…`), and
   each downloaded archive hashes to its sum. The `trivy` in each is a static ELF of its

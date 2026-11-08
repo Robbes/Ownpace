@@ -4,6 +4,68 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, later: alpha.7 is folded, and its nights are counted, not waived (T2, T4).** On the
+branch `claude/ownpace-public-readiness-y7orc6-a7-fold`, from `main` at `aadc032d` (#1848), with
+`main` merged at `afb815e6` (#1851). The fold moves `package.json` and the API contract to
+`0.2.0-alpha.7`, and everything under `[Unreleased]` to `## [0.2.0-alpha.7] - 2026-11-08`, with a
+summary paragraph above it; `[Unreleased]` stays, empty. Two lines are brought up to date as they
+move: the app's headers, which the outside probe proved on live on 2026-11-08 (run 42448301600, 0158
+T4), and the Dutch queue lines, with the owner's *Keuze vastgelegd.* (#1847, which merged without a
+line). Two lines are added for what merged without one: Dependabot's #1837 (PGlite 0.5.15,
+lucide-react 1.68.0) and #1836 (cosign-installer 4.1.3, the code-scanning upload 4.39.3). It adds
+`v0.2.0-alpha.7` as the last of `releases` in `scripts/release-line.json`, the release being
+prepared until Release tags it (T4, `docs/release.md` §1). alpha.7 carries those two, merged after
+alpha.6's commit on 2026-11-07 and 2026-11-08, and #1840 to #1847 (0131's Status of that day), #1850
+and #1851 (0119's), all merged on 2026-11-08; this plan's moves are in 0119's entry of the same day.
+Its squash is C, and the freeze (0141 T14) starts with it: nothing merges to `main` until the tag,
+and no E2E (managed) is dispatched on any branch, nor E2E (self-hosted) on `main`.
+
+**The nights are counted.** The owner, on 2026-11-08: *"0: Tag with first invitation is 7 or even
+later. I did not decide yet"*. alpha.7 may be the tag the first invitation waits for, so it is
+planned with its two counted nights run, not waived (the entry below; 0141 T14). `WAIVER_VERSIONS`
+in `scripts/release-nights.mjs` stays alpha.3 to alpha.6, and the two guards that hold it,
+`a-release-preflight-that-said-yes-too-soon` and `a-tag-that-already-pointed-elsewhere`, refuse a
+waiver for alpha.7 and pass unchanged here. The scheduled E2E (managed) of 2026-11-08, run
+42472273620, ran `aadc032d`, before C, and failed on GitHub's release download before any test, as
+did its one re-run; it counts against nothing. Since #1850 the self-hosted runner keeps the
+stalwart-cli archives it fetched (both of v1.0.14 are kept since run 42477845078), so the nights
+wait on that download only if the kept copies go.
+**Owed before the tag:**
+- C's own push runs on `main`, now on GitHub's hosted arm64 runner (0132 open question 1): CI
+  green, with `lint`, `unit-tests (all)`, `ui-tests`, `integration-tests (ubuntu-24.04-arm)` and
+  `ci-complete` none skipped, and Security Scan green;
+- `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green;
+- **two counted nights on C**, on their schedules (0141 T14, `scripts/release-nights.mjs`). The
+  newest two completed scheduled runs of E2E (managed) on `main` both ran C and are green, the
+  newer at most 30 hours old and at most 30 hours after the older; and between C reaching `main`
+  and the newer of them, the newest four completed scheduled runs of E2E (self-hosted), on
+  Postgres and on PGlite, each ran C and are green. A failed or cancelled night resets the count,
+  and a dispatched run is not a night. With C on `main` before 23:30 UTC, the first night is E2E
+  (self-hosted) on Postgres at 23:30, then on PGlite at 01:30 and E2E (managed) at 03:30 on
+  2026-11-09, and the second is the same a day later: the rule holds from the scheduled E2E
+  (managed) of 2026-11-10 at the earliest. GitHub starts these schedules late: this week it
+  started E2E (managed)'s 03:30 between 10:31 and 11:18 (2026-11-05 to 2026-11-07), and E2E
+  (self-hosted)'s 23:30 and 01:30 at 02:38 and 07:51 (2026-11-08). A dropped schedule moves the
+  tag a night;
+- `scripts/upgrade-drill.sh` on the Docker host, from alpha.6's published image to C's. Both
+  chains are alpha.6's (65 and 59 files; no migration since), so it would report the mechanics
+  only, and whether that pass counts is the owner's to say, as for alpha.5 and alpha.6;
+- then Release: the owner dispatches mode `preflight` for `v0.2.0-alpha.7`, with `waive_nights`
+  empty and `commit` set to C or left empty (empty takes the commit the counted nights ran), then
+  mode `release`, and approves it in the `release` environment; Release then tags C and publishes.
+
+**The O365 lane is not among them:** Release does not read it (neither `release.yml` nor the
+release scripts name it). Its secrets, `O365_CLIENT_ID` and `O365_TENANT_ID`, are not set, and it
+has had no run since run 41418432093 failed at its secrets check on 2026-11-02; it is owed for a
+later alpha (0141 T13). The owner was asked on 2026-11-07 whether it is waived for alpha.6, and has
+not answered yet. **Live's deploy of the tag** starts from alpha.6, and by `deploy-live.sh`'s own
+rule it is reversible: between `59b91458` and C no file of either migration chain moves, nor the
+Trigger.dev (v4.8.3), identity provider (v4.20.1) or ClickHouse (the 26.8 LTS, one digest) pin. Its
+bring-up builds Redis and the webapp under their new names (#1846). It runs alpha.6's script, which
+does not ask the app's headers; the first deploy that does is the next one, started from alpha.7
+(0158 T4). **Held for after the tag**, in 0119's entry: MinIO's rebuild, pnpm 11.28.x, PostgreSQL
+18.7, and Nextcloud 35.0.3 and 34.0.6.
+
 **2026-11-08, records: the first invitation waits for alpha.7 or a later tag (T2, §4).** Docs
 only, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843
 (`d227b15f`). Asked which tag the first invitation waits for, the owner answered at about 01:50 UTC:
