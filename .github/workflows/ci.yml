@@ -460,6 +460,14 @@ jobs:
         # archive of site/ alone. Plain node, no install. The guard is
         # scripts/a-doc-an-assistant-is-sent-to.unit.test.ts.
         run: node scripts/llms-docs.mjs --check
+      - name: No file names the machine by its product name
+        # HERE for the same reason: most of the text that named it was
+        # workplans and runbooks, and a pull request that touches only those
+        # skips `unit-tests`. Every file git lists is read; a hit is printed as
+        # its file, line and column, never the word, since this log is public.
+        # Plain node, no install. The rules, what is skipped and the one line
+        # still owed are in scripts/a-machine-called-by-its-product-name.unit.test.ts.
+        run: node scripts/machine-product-name.mjs --check
 
   fixture-uuid-check:
     name: fixture-uuid-check
