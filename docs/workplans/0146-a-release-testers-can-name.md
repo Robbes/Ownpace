@@ -2,7 +2,17 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-07 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08: live runs `v0.2.0-alpha.6` (T2).** The owner deployed it from the tag on 2026-11-08:
+one run of alpha.4's `deploy-live.sh`, from 00:26 UTC, which took at 00:32:28, one-way on the
+identity provider's line alone (v4.20.0 to v4.20.1). Before it, the owner removed alpha.4's copy
+before the update and ClickHouse's copy by hand; the deploy took a copy before alpha.6, which the
+box checks keep until a pass proves the update. Every check after it passed, and the hold, on from
+about 00:15, came off at about 01:08; 0132's Status of 2026-11-08 has the blocks. Still the owner's
+to answer: whether the O365 lane is recorded as waived for alpha.6 (0141 T13), and which tag the
+first invitation waits for (0131 T5). Held for after the deploy, now moving: Dependabot #1836,
+landing; Trivy 0.76.2 and Atlas 1.3.8 after their floors, 2026-11-08 at 12:50 and 14:15 (0119).
 
 **2026-11-07, last: `v0.2.0-alpha.6` is released, its nights waived, and live takes it as soon
 as possible (T2, T4).** Read from GitHub on 2026-11-07. Times are UTC.

@@ -2,7 +2,81 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-05 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08: live runs `v0.2.0-alpha.6`, and alpha.4's two copies are gone (T6, T9).** The owner
+deployed it on 2026-11-08, before any tester, pasting checked blocks. Times are UTC. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-08, `v0.2.0-alpha.6`: took at 00:32:28 UTC; one-way. The
+  tag is tag object `0b68615c…` on `59b91458` (#1834), cut by Release run 42367456781, which its
+  message names. The owner waived its counted nights, for this version alone (`WAIVER_VERSIONS`;
+  0146 Status, 2026-11-07); the acceptance is the tag message's own line: *Nights waived by Robbes,
+  in their words: "we waive the night counts"*. Its timing is the owner's word of 2026-11-07: *"I
+  waive the waits. We do the alpha release to live as soon as possible."* So it did not wait for
+  alpha.5's MinIO build to pass its three days (2026-11-09 10:15). alpha.5 never ran on live: the
+  run went from alpha.4.
+- **Read-only checks first.** Live's checkout at `v0.2.0-alpha.4`, clean; both box timers active; in
+  live's `.env`, `TRIGGER_IMAGE_TAG=v4.8.3`, `WWW_LIVE=true`, one `COPY_DELETE_WHEN_PROVEN=false`
+  line, no `PGBOUNCER_USERLIST` line and the checkout's userlist file, `OWNPACE_REACHABLE_HOSTS` and
+  `MOLLIE_API_KEY` empty; `deploys.log`'s last line alpha.4's took. The deploy shell's `node` the
+  owner's own v26.13.0, pnpm 11.28.9. The tag annotated, on `59b91458`, with its three message
+  lines; its pins Trigger.dev 4.8.3 (images and SDK), Zitadel v4.20.1, the tasks' base
+  `sha-2886230@sha256:91fec895…` and `FROM node:26.13.0`. Between the tags no migration file moves,
+  nor `deploy-live.sh`, `copy-before-update.sh`, `dump-idp.sh`, `deploy-tasks.sh` or the units;
+  under `deploy/compose` seven files do, and the bring-up gains six comment or `note` lines. Every
+  image the run needed was already on the daemon (the OTA stack's E2E had built and pulled them),
+  Zitadel v4.20.1's index `4817dbd8…`; npm, Docker Hub, ghcr.io, gcr.io and github.com reachable,
+  and the tasks' base readable from ghcr.io without a login. `trigger-redis` still on alpha.4's
+  upstream image (no user of its own, four capabilities), and every file in its `/data` uid 999's.
+- **alpha.4's two copies, removed first** (the alpha.4 entry's last bullet, and *Moving ClickHouse*,
+  *On live*, step 5, done before this deploy: while the copy before alpha.4 was there, the take
+  would have kept it and taken no copy of alpha.4). Read first: the copy's header
+  (`taken=2026-11-04T22:51:27Z`, `before=v0.2.0-alpha.4`, `from=v0.2.0-alpha.3`), its 6 entries each
+  the note's own; ClickHouse's copy volume, created 2026-11-04 22:35:59; ClickHouse 26.8.36.3
+  loading every table, no part detached since the copy. Then, at about 00:16: the copy removed by
+  hand, its 6 files, the directory kept at mode 700 (no pass had proven alpha.4, so the docs' delete
+  did not apply); ClickHouse's copy and the two lists its step 2 wrote removed;
+  `COPY_DELETE_WHEN_PROVEN=true`, one line.
+- **The hold (T6 step 2)** went on at about 00:15:30 UTC, its sentence naming 03:00 Dutch time. The
+  owner's block at 00:21 read one hold, 309 s old, 0 passes in flight, nothing unfinished but the
+  tick (three reads before it were early). The dry run, alpha.4's script, exited 0: one-way, its one
+  line `moves the identity provider pin in managed.yml: ghcr.io/zitadel/zitadel:v4.20.0 ->
+  ghcr.io/zitadel/zitadel:v4.20.1`, and a take of the app's database, the sign-in service's database
+  and the roles, with no `triggerdb`.
+- **The run (T6 steps 3 to 7),** from 00:26, in a terminal session that outlives a dropped
+  connection (`tmux`). One run, alpha.4's `deploy-live.sh`: the copy taken at 2026-11-08T00:29:17Z,
+  `before=v0.2.0-alpha.6`, `from=v0.2.0-alpha.4` (`69f35528`), 5 entries and no `triggerdb`
+  (Trigger.dev's pin did not move); its sign-in part is `dump-idp.sh`'s dump on v4.20.0, 701 entries
+  read back (0135 T7). The bring-up, the tag's own, with Trigger.dev 4.8.3 and the task deployment
+  `20261108.1`; `/api/version` and `/version.json` at `59b91458`, `0.2.0-alpha.6`, `/api/ready` 200,
+  `/api/auth/mode` managed, `NODE_ENV` production; the site rebuilt and healthy; the exposure check
+  `ok`, 40 containers and 35 publishes, each on loopback or an address the allow-list names, and one
+  accepted as not Ownpace's; *the deploy took* at 00:32:28Z, exit 0. `apps/worker/package.json`
+  needed nothing, the tree clean.
+- **The checks after it, with the hold on.** Every service up, none unhealthy, starting or
+  restarting, each on the tag's image: Zitadel v4.20.1, `trigger-redis` on
+  `localhost/redis:7.4.12-bookworm-63d89fa5f426`, `trigger-api` and `trigger-supervisor` on their
+  alpha.6 builds, `trigger-tls` on Caddy 2.11.9, MinIO and `minio-init` on Chainguard's build
+  `aea6c163…`; nothing on an image alpha.6 replaced. All 16 containers with `no-new-privileges`,
+  `drop=[ALL]` but `trigger-api`'s; `trigger-redis` with no capability added (alpha.4's had four),
+  as `999:999`, answering as uid 999, Redis 7.4.12, its append-only file loaded and writing; `apt`,
+  `apt-get`, `mount`, `setpriv` and `mke2fs` absent from `trigger-redis` and `trigger-api`; MinIO's
+  and Zitadel's switches that phone home off. The task row
+  `current|20261108.1|DEPLOYED|4.8.3|4.8.3|26.12.1|2026-11-08 00:31`, the tick 5 times
+  `COMPLETED_SUCCESSFULLY` on 4.8.3, its runners on one image whose Node is v26.13.0 like the api's,
+  with no shell under any of five names. That image's creation time reads 1970-01-01: Trigger.dev
+  4.8.3's CLI builds with `SOURCE_DATE_EPOCH=0` and `rewrite-timestamp=true` (its
+  `deploy/buildImage.js`), so a task image's date says nothing of when it was built. `www-live` ok.
+  The owner read the sign-in service's check on v4.20.1 (the organisations count) and one sign-in of
+  their own as OK.
+- **The lift (T6 step 8)** at about 01:08 UTC. The owner's check at about 01:23 read `yes|0|-1|0`,
+  the box checks' timer running every ten minutes, and the copy's 5 entries kept.
+- **What is left (T9).** No migration has run on live, so nothing has proven alpha.6, and
+  `live-pass-check.sh` does not apply yet; the owner's own migration on live, before any invitation,
+  is the proof. Until then the box checks keep the copy before alpha.6, and the daily duties delete
+  it after its day 6 in any case. The way back is still a deploy of alpha.4 by the same script,
+  which calls it one-way too, on images the machine still has. The alpha.4 entry's last bullet is
+  done: both of its copies went on 2026-11-08, and `COPY_DELETE_WHEN_PROVEN` is `true` again.
 
 **2026-11-05, records: T0 step 5's `NODE_ENV` check reads it from Docker.** Docs only, on the
 branch `claude/ownpace-public-readiness-y7orc6-distroless-readbacks`. Step 5 (*Run the checks*)
