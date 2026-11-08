@@ -259,11 +259,39 @@ describe('CI and the scan on main ran the commit, and ran the suite', () => {
   const run = { id: 39866562875, run_number: 4694, event: 'push', status: 'completed', conclusion: 'success', head_sha: C, head_branch: 'main' };
 
   it('names the jobs it requires', () => {
-    expect(REQUIRED_CI_JOBS).toEqual(['lint', 'unit-tests (all)', 'ui-tests', 'integration-tests (self-hosted)', 'ci-complete']);
+    expect(REQUIRED_CI_JOBS).toEqual([
+      'lint',
+      'unit-tests (all)',
+      'ui-tests',
+      ['integration-tests (ubuntu-24.04-arm)', 'integration-tests (self-hosted)'],
+      'ci-complete',
+    ]);
   });
 
   it('passes run 4694 on 721c6ea8, where every one of them ran', () => {
     expect(ciGreen(run, jobs, C).kind).toBe('pass');
+  });
+
+  // A push runs its one integration leg on GitHub's arm64 runner while ci.yml's switch keeps the push
+  // jobs off the machine (workplan 0132, open question 1, 2026-11-08), and the leg is named after it.
+  const onRunner = (runner: string) =>
+    jobs.map((j) => (j.name === 'integration-tests (self-hosted)' ? { ...j, name: `integration-tests (${runner})` } : j));
+
+  it('passes a push run whose integration leg ran on GitHub’s arm64 runner, and names the leg it read', () => {
+    const hosted = ciGreen(run, onRunner('ubuntu-24.04-arm'), C);
+    expect(hosted.kind).toBe('pass');
+    expect(hosted.sentence).toMatch(/lint, unit-tests \(all\), ui-tests, integration-tests \(ubuntu-24\.04-arm\), ci-complete ran and passed/);
+  });
+
+  it('refuses a run whose only integration leg is amd64: that is not the push’s arm64 leg', () => {
+    expect(ciGreen(run, onRunner('ubuntu-24.04'), C).sentence).toMatch(
+      /integration-tests \(ubuntu-24\.04-arm\) or integration-tests \(self-hosted\) did not run/,
+    );
+  });
+
+  it('refuses a hosted arm64 leg that failed, by its own name', () => {
+    const failed = onRunner('ubuntu-24.04-arm').map((j) => (j.name === 'integration-tests (ubuntu-24.04-arm)' ? { ...j, conclusion: 'failure' } : j));
+    expect(ciGreen(run, failed, C).sentence).toMatch(/integration-tests \(ubuntu-24\.04-arm\) ended failure/);
   });
 
   it('refuses a green run that skipped the unit tests: a docs-only merge reports success over a tree nothing tested', () => {

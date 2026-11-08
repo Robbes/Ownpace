@@ -72,7 +72,15 @@ import { checkRelease } from './release-verify.mjs';
 import { gateBranch } from './release-dispatch.mjs';
 
 export const MODES = ['preflight', 'rehearse', 'rehearse-tag', 'release', 'verify'];
-export const REQUIRED_CI_JOBS = ['lint', 'unit-tests (all)', 'ui-tests', 'integration-tests (self-hosted)', 'ci-complete'];
+/**
+ * The jobs C's push run of CI must have run and passed, each by its name, or by any of the names in
+ * a list. A push runs the integration tests once, on arm64, and that leg is named after its runner:
+ * `integration-tests (ubuntu-24.04-arm)` while ci.yml's push jobs run on GitHub's hosted runner
+ * during the alpha (workplan 0132, open question 1, 2026-11-08), `integration-tests (self-hosted)`
+ * once the repository variable `CI_PUSH_ON_SELF_HOSTED` turns them back. Either is that leg; a pull
+ * request's amd64 leg, `integration-tests (ubuntu-24.04)`, is not.
+ */
+export const REQUIRED_CI_JOBS = ['lint', 'unit-tests (all)', 'ui-tests', ['integration-tests (ubuntu-24.04-arm)', 'integration-tests (self-hosted)'], 'ci-complete'];
 export const EXPECTED_CHECKS = {
   full: [
     'inputs',
@@ -206,14 +214,18 @@ export function ciGreen(run, jobs, commit) {
   if (run.status !== 'completed') return refuse('ci-green', `${name} is ${run.status}`);
   if (run.conclusion !== 'success') return refuse('ci-green', `${name} ended ${run.conclusion}`);
   const problems = [];
-  for (const job of REQUIRED_CI_JOBS) {
-    const found = (jobs ?? []).find((j) => j.name === job);
+  const ran = [];
+  for (const required of REQUIRED_CI_JOBS) {
+    const names = [required].flat();
+    const found = (jobs ?? []).find((j) => names.includes(j.name));
+    const job = found?.name ?? names.join(' or ');
     if (!found) problems.push(`${job} did not run`);
     else if (found.conclusion === 'skipped') problems.push(`${job} was skipped`);
     else if (found.conclusion !== 'success') problems.push(`${job} ended ${found.conclusion}`);
+    else ran.push(job);
   }
   return problems.length === 0
-    ? pass('ci-green', `${name}: ${REQUIRED_CI_JOBS.join(', ')} ran and passed on C`)
+    ? pass('ci-green', `${name}: ${ran.join(', ')} ran and passed on C`)
     : refuse('ci-green', `${name} is green, and ${problems.join('; ')}: the merge before the nights must be one that runs the suite`);
 }
 

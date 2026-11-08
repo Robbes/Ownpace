@@ -3950,7 +3950,8 @@ path is refused):
 **Why (2026-11-03, workplan 0132).** The file used to be the gate checkout's
 `deploy/compose/pgbouncer/userlist.txt`, copied in from here on every run. But
 every workflow of this repository that runs on the runner checks out into that
-same folder, and `ci.yml` does on every push to `main`. Its checkout deleted the
+same folder, and `ci.yml` did on every push to `main` (not during the alpha,
+since 2026-11-08: workplan 0132, open question 1). Its checkout deleted the
 file under the running pooler (02:51 UTC); nothing showed until the Docker
 daemon restarted (03:58), when the container's bind source was missing, Docker
 made a **directory** there, and `pgbouncer` stopped:

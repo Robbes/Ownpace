@@ -6,6 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **A merge no longer runs beside live's Docker socket during the alpha** (workplan 0132, open
+  question 1, answered by the owner on 2026-11-08). A push to `main` ran every job of `ci.yml`
+  and `security-scan.yml` on the self-hosted runner, which shares the machine and its Docker
+  daemon with live and the testers' credentials it stores. None of those jobs needs the machine,
+  so a push now runs them on GitHub's hosted arm64 runner, `ubuntu-24.04-arm`, with the same
+  commands and pins, and a dispatch on a branch runs them there too, to prove that path before a
+  merge. The repository variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends them back, and
+  nothing else does. Release's preflight takes the push's integration leg under either runner's
+  name. The nightly E2E gates still run `main` on the machine. A guard evaluates every workflow's
+  runners for every event and both states of the switch: while it is on, nothing a push starts
+  reaches the self-hosted runner, and no pull request, or dispatch of the two files, ever does.
 - **The app's policy and HSTS are read where a tester's browser gets them** (workplan 0158 T4).
   Since 0158 T1 the app's nginx sends a content security policy, HSTS and three headers beside
   them, but only the image was asked for them, over plain http on loopback, on the OTA stack.
