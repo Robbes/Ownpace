@@ -37,7 +37,7 @@ import { get } from 'node:http';
 import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { envsubst } from './nginx-config.ts';
+import { envsubst } from './nginx-config.mjs';
 
 /** The nginx binary, on the PATH or where Debian and Ubuntu put it. */
 export function nginxBinary(): string | undefined {

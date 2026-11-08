@@ -29,7 +29,11 @@
 #      commit AND its version (0146 T5), and so does /version.json, the web
 #      app's own build (0145: /api/version is the API's, handed on by the web
 #      image, and says nothing of the page it serves; a tag cut before 0145
-#      has no /version.json, and cannot pass), /api/ready answers 200,
+#      has no /version.json, and cannot pass), the app's page / carries the
+#      policy, HSTS and the three beside them exactly as the tag's
+#      apps/web/nginx.conf.template states them (0158 T4: on live through the
+#      front that ends TLS, as a tester's browser gets them; first run by the
+#      script of alpha.7, so by a deploy from it), /api/ready answers 200,
 #      /api/auth/mode answers `managed`, the api container's NODE_ENV is
 #      production (0132 T4, asked as stand-up-live.sh asks it); and runs exposure-check.sh
 #      (0132 T3 (b), on main since #1271), the tag's own copy, which must
@@ -687,6 +691,10 @@ main() {
 
   # ---- The deploy (T6 steps 5 and 6) -----------------------------------------------
   # From here on the checkout has moved, and every way out is logged.
+  # The release this deploy started from: the app's headers are read with its
+  # reader when the tag has none of its own (app_headers_check).
+  local started_at
+  started_at="$(git -C "$REPO_ROOT" rev-parse HEAD)"
   say "checking out ${tag}"
   git -C "$REPO_ROOT" -c advice.detachedHead=false checkout -q --detach "refs/tags/${tag}" ||
     refuse "git checkout --detach ${tag} failed (above)."
@@ -749,6 +757,10 @@ main() {
   else
     failures+=("/version.json: ${code}.")
   fi
+  # The page itself, with the headers a tester's browser gets (workplan 0158
+  # T4): read at the same origin, so on live through the front that ends TLS,
+  # and held to what the tag's template states.
+  app_headers_check "$app_origin" "$started_at"
   if http_get "$app_origin" /api/ready body code; then
     say "  /api/ready: 200"
   else
@@ -1091,6 +1103,62 @@ http_get() {
   _body=''
   rm -f "$tmp"
   return 1
+}
+
+# app_headers_check <origin> <started-at> — the headers the app's page, `/`,
+# arrives with at <origin>, held to what the tag's apps/web/nginx.conf.template
+# states for it (workplan 0158 T4): the policy, HSTS and the three beside them,
+# each once, with the template's value. The template is read as the web
+# image's nginx renders it, with the issuer the image was built with:
+# VITE_OIDC_ISSUER in live's .env, which the bring-up's sign-in setup writes.
+# On live the origin is the public name, so the answer comes through the front
+# that ends TLS, as a browser's does. The reader is the tag's
+# scripts/app-headers.mjs; a tag cut before it (the way back to alpha.6) is
+# read with the copy of the release this deploy started from, out of git's
+# objects, so a rollback is checked and not refused for its age. Each failure
+# goes into main's `failures` (bash's dynamic scope). Never prints the origin
+# or a value that arrived.
+app_headers_check() {
+  local origin="$1" started_at="$2" issuer reader tmp='' hdr http rc out line try=1 where='at the origin in WEB_URL'
+  issuer="$(env_value "$ENV_FILE" VITE_OIDC_ISSUER)"
+  reader="${REPO_ROOT}/scripts/app-headers.mjs"
+  if [ ! -f "$reader" ]; then
+    if ! tmp="$(mktemp -d)" ||
+      ! git -C "$REPO_ROOT" archive --format=tar "$started_at" scripts/app-headers.mjs scripts/nginx-config.mjs | tar -x -C "$tmp"; then
+      [ -z "$tmp" ] || rm -rf "$tmp"
+      failures+=("the app's page: this tag has no scripts/app-headers.mjs, and the copy of ${started_at}, where this deploy started, could not be read (above), so its headers were not checked (workplan 0158 T4).")
+      return
+    fi
+    reader="${tmp}/scripts/app-headers.mjs"
+  fi
+  hdr="$(mktemp)"
+  while :; do
+    rc=0
+    http="$(curl -sS --max-time 20 -o /dev/null -D "$hdr" -w '%{http_code}' "${origin}/" 2>/dev/null)" || rc=$?
+    [ "$rc" -ne 0 ] || [ "$http" != 200 ] || break
+    [ "$try" -lt "$CHECK_TRIES" ] || break
+    try=$((try + 1))
+    sleep "$CHECK_INTERVAL"
+  done
+  if [ "$rc" -ne 0 ]; then
+    failures+=("the app's page: not reached ${where} (curl exit ${rc}: 6 is no such name, 7 no connection, 28 a timeout, 35 or 60 TLS), so its headers were not checked (workplan 0158 T4).")
+  elif [ "$http" != 200 ]; then
+    failures+=("the app's page: answered HTTP ${http:-nothing}, not 200, ${where}, so its headers were not checked (workplan 0158 T4).")
+  else
+    rc=0
+    out="$(node "$reader" "${REPO_ROOT}/apps/web/nginx.conf.template" "$issuer" "$hdr")" || rc=$?
+    if [ "$rc" -eq 0 ]; then
+      say "  the app's page: ${out}"
+    elif [ "$rc" -eq 1 ]; then
+      while IFS= read -r line; do
+        [ -z "$line" ] || failures+=("the app's page ${where}: ${line} (workplan 0158 T4).")
+      done <<<"$out"
+    else
+      failures+=("the app's page: its headers could not be held to the tag's template (node exited ${rc}): ${out//$'\n'/ }")
+    fi
+  fi
+  rm -f "$hdr"
+  [ -z "$tmp" ] || rm -rf "$tmp"
 }
 
 # log_appendable <log> <dry-run> — whether a line could be appended to the log.

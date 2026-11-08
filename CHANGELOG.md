@@ -4,6 +4,43 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The app's policy and HSTS are read where a tester's browser gets them** (workplan 0158 T4).
+  Since 0158 T1 the app's nginx sends a content security policy, HSTS and three headers beside
+  them, but only the image was asked for them, over plain http on loopback, on the OTA stack.
+  `scripts/app-headers.mjs` now says what the page must carry from
+  `apps/web/nginx.conf.template` alone, as the image renders it with the issuer, and holds an
+  answer to it: each header once, with the template's value, a template that states no policy or
+  no HSTS refused. The outside probe asks `https://app.ownpace.eu/` from a GitHub-hosted runner,
+  through NetBird's proxy and over TLS, against the template at the commit live's own
+  `/version.json` names; it proves the headers from its first dispatch after this merges.
+  `deploy-live.sh` asks the same page after each deploy, against the tag's template with live's
+  `VITE_OIDC_ISSUER`, and a finding is a deploy that did not take; it runs from the first deploy
+  started from this release, since a deploy runs the script of the release it starts from. A
+  tag cut before the reader, the way back to alpha.6, is read with the starting release's copy.
+  `scripts/nginx-config.ts` is now `nginx-config.mjs` with its types beside it, unchanged in
+  what it does, so both run it without type stripping.
+
+### Changed
+
+- **The OTA names stay public for now** (workplan 0132 open question 7, the owner's answers of
+  2026-11-08). On the mesh only, once testers are on the production names, stays the aim, and the
+  outside probe's `ota_names: mesh-only` is its pass condition; the probe stays at `report`.
+  NetBird's shared proxy, which serves every name today, has no setting that serves a name to the
+  mesh alone, and the machine reaches the OTA names through it from the internet, so it takes a
+  NetBird proxy of the owner's own or TLS for the three names on the machine
+  (`docs/managed-bring-up.md`, *The OTA names on the mesh only*). The owner chose to leave the names
+  public for now.
+- **The tester guide says how long the copy before an update is kept** (workplans 0144 T1 and 0134):
+  at most 7 days, as the Alpha conditions (§6) and both Alpha mails say, the Dutch in the owner's
+  own words. Until now the guide named the one copy and not its 7 days.
+
+### Fixed
+
+- **What a press on Deletions, Moves or Failures did is said in Dutch on a Dutch screen**
+  (workplan 0159 follow-up 18, #1840), from words both editions share; the English is unchanged.
+
 ## [0.2.0-alpha.6] - 2026-11-07
 
 Nothing changes on a tester's screen. Underneath, the identity provider moves to

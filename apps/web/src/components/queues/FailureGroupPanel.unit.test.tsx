@@ -23,7 +23,9 @@ import { render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import type { ItemFailure } from '@openmig/shared';
+import { decisionEffectFields, failureGroupEffect, type ItemFailure } from '@openmig/shared';
+import { LocaleProvider } from '../../i18n/index.tsx';
+import { STRINGS } from '../../i18n/strings.ts';
 
 interface Refusal {
   readonly error: string;
@@ -236,6 +238,38 @@ describe('the press', () => {
     await waitFor(() => {
       expect(screen.getByText(/Send a domain, an errorContains substring/)).toBeInTheDocument();
     });
+  });
+
+  // What the press did, in the reader's language (workplan 0159 §6 item 18):
+  // the server says it in Dutch too (`effectNl`, from `QUEUE_EFFECTS`).
+  it('says what the press did in Dutch on a Dutch page', async () => {
+    const said = decisionEffectFields(failureGroupEffect('retry', 3));
+    decideFailureGroupMock.mockResolvedValue({
+      status: 'ok',
+      action: 'retry',
+      matched: 3,
+      match: { domain: 'file', errorContains: 'MKCOL' },
+      ...said,
+    });
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <FailureGroupPanel mappingId="m-1" failures={QUEUE} />
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      await userEvent.selectOptions(screen.getByLabelText(STRINGS.nl['failures.group.domain']), 'file');
+      await userEvent.type(screen.getByLabelText(STRINGS.nl['failures.group.error']), 'MKCOL');
+      await userEvent.click(screen.getByRole('button', { name: STRINGS.nl['failures.group.retry'] }));
+
+      expect(await screen.findByText(said.effectNl)).not.toHaveAttribute('lang');
+      expect(screen.queryByText(said.effect)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
   });
 });
 

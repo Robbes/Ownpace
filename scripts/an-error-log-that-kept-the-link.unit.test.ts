@@ -44,7 +44,7 @@ import { createServer, request, type Server } from 'node:http';
 import { connect } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseNginx, type NginxNode } from './nginx-config.ts';
+import { parseNginx, type NginxNode } from './nginx-config.mjs';
 import { aFreePort, nginxBinary, serveTheTemplate, type AppNginx } from './nginx-on-this-machine.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');

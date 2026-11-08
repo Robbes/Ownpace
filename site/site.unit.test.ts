@@ -760,6 +760,44 @@ describe('the tester guide is rendered for the alpha only (workplan 0144 T1)', (
     }
   });
 
+  /**
+   * How long the copy before an update is kept (0134, 2026-11-08): the
+   * conditions §6 bind, and both Alpha mails say 7 days. The guide says it in
+   * the owner's own Dutch of 2026-11-08, the English following it, so not in
+   * §6's sentence; it holds §6's number of days, so a change to §6's days fails
+   * here until the guide follows.
+   */
+  it("says how long the copy before an update is kept, with the Alpha conditions' days", async () => {
+    const SENTENCE = {
+      nl: 'Wij bewaren deze tot de update succesvol is doorgevoerd, en nooit langer dan 7 dagen.',
+      en: 'We keep it until the update has been applied successfully, and never longer than 7 days.',
+    } as const;
+    const CONDITIONS = {
+      nl: {
+        file: 'site/legal/alpha.nl.md',
+        days: /dat die update werkt, en nooit langer dan (\d+) dagen\./,
+        guide: /nooit langer dan (\d+) dagen\./,
+      },
+      en: {
+        file: 'site/legal/alpha.md',
+        days: /that update is shown to work, and never longer than (\d+) days\./,
+        guide: /never longer than (\d+) days\./,
+      },
+    } as const;
+    const pages = await alphaBuild();
+    for (const locale of ['nl', 'en'] as const) {
+      const { file, days, guide } = CONDITIONS[locale];
+      const conditions = read(file).replace(/<!--[\s\S]*?-->/g, '').replace(/\s+/g, ' ');
+      const kept = days.exec(conditions)?.[1];
+      expect(kept, `${file} no longer says how long the copy before an update is kept`).toBeDefined();
+      expect(guide.exec(SENTENCE[locale])?.[1], `the ${locale} guide's days are not ${file}'s`).toBe(kept);
+      const text = body(page(pages, GUIDE[locale])).replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ');
+      expect(text, `the ${locale} guide does not say how long the copy before an update is kept`).toContain(
+        SENTENCE[locale],
+      );
+    }
+  });
+
   it('links nothing that does not answer: a page the alpha build writes, an app route, or the support address', async () => {
     const pages = await alphaBuild();
     const { APP_URL, SUPPORT_EMAIL } = (await import('./prices.mjs')) as unknown as {
