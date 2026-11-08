@@ -77,6 +77,12 @@ overrides:
   # there is the list of externals the self-hosted instance returns, or the CLI's own built-in
   # list, never anybody's input. pnpm applies a parent-scoped entry before a general one, so
   # every other consumer stays on 11. Drop this when a trigger.dev release takes minimatch 11.
+  # And the advisory's code does not run on this path (read 2026-11-08, in the installed
+  # packages). GHSA-g3hv-75wg-m249 is in firstPhasePreProcess(), which minimatch 10.2.6 calls
+  # only when `optimizationLevel >= 2`, and the option's default is 1 (dist/esm/index.js, lines
+  # 332 to 335). trigger.dev 4.8.3 calls `makeRe(externalName)` with no options
+  # (dist/esm/build/externals.js, line 311), its one call into minimatch. A CLI release that
+  # passes optimizationLevel 2 or more reopens it.
   "trigger.dev>minimatch": ^10.2.6
   "glob@>=9.0.0 <14.0.2": ^14.0.3
   "semver@<5.7.2": ^5.7.2
