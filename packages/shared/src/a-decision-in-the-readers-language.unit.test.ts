@@ -283,7 +283,7 @@ describe('what a queue decision says it did', () => {
     expect(QUEUE_EFFECTS).toEqual({
       deletionKept: {
         en: 'Acknowledged. The target keeps its copy and this stops being reported unless the item reappears on the source and vanishes again.',
-        nl: 'Beslissing vastgelegd. De kopie blijft op het nieuwe systeem staan, en dit wordt niet meer gemeld, tenzij het item op het oude systeem terugkomt en weer verdwijnt.',
+        nl: 'Keuze vastgelegd. De kopie blijft op het nieuwe systeem staan, en dit wordt niet meer gemeld, tenzij het item op het oude systeem terugkomt en weer verdwijnt.',
       },
       deletionRemoved: {
         en: 'Removed from the target with no recovery path from here.',
@@ -295,7 +295,7 @@ describe('what a queue decision says it did', () => {
       },
       moveKept: {
         en: 'Acknowledged. Nothing changed on the source or the target; this move stops being reported unless the item moves somewhere else again.',
-        nl: 'Beslissing vastgelegd. Aan geen van beide kanten is iets veranderd; deze verplaatsing wordt niet meer gemeld, tenzij het item weer ergens anders heen wordt verplaatst.',
+        nl: 'Keuze vastgelegd. Aan geen van beide kanten is iets veranderd; deze verplaatsing wordt niet meer gemeld, tenzij het item weer ergens anders heen wordt verplaatst.',
       },
       oldCopyRemoved: {
         en: 'The old copy has been removed from the target. The file itself is still there, under the name and folder the source moved it to — that copy was made before this removal and was checked again just now.',

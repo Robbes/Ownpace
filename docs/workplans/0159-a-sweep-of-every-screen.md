@@ -4,7 +4,14 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
-**2026-11-08: follow-up 18 built, for alpha.7 (#1840, not merged yet).** On Deletions, Moves and
+**2026-11-08, later: the owner read follow-up 18's Dutch (open question 8).** On the thirteen lines
+of #1840, the owner: *"het oude systeem and het nieuwe systeem: ok"*, *"Acknowledged: Keuze"*,
+*"cursors cleared: doorloopt alles opnieuw"* and *"this tool is Ownpace: ok"*. So the two lines that
+open with an acknowledgement, `QUEUE_EFFECTS.deletionKept` and `.moveKept`, now open with *Keuze
+vastgelegd.* where they said *Beslissing vastgelegd.*; every other word stands as built, and the
+English is unchanged.
+
+**2026-11-08: follow-up 18 built, for alpha.7 (#1840, merged the same day as `1a17f911`).** On Deletions, Moves and
 Failures, the line a press leaves where its buttons were was the server's English under a Dutch
 page. Answered 2026-11-08, the owner: *"Build the recommended for alpha 7."* The recommendation
 was to build this into alpha.7. Its new words are the builder's and wait for the owner's reading
@@ -532,3 +539,5 @@ accepted any version (the Status block).
    - the Dutch of the lines a press leaves where the buttons were on Deletions, Moves and Failures
      (#1840, follow-up 18): thirteen lines, eighteen sentences, in `QUEUE_EFFECTS`
      (`operating-contract.ts`), each beside its English, which is unchanged. #1840 lists them.
+     *(2026-11-08: read by the owner; the acknowledgement is* Keuze vastgelegd.*, the rest as
+     built: the Status entry of that day.)*
