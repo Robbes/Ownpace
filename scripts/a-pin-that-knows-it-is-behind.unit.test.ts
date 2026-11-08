@@ -1068,8 +1068,19 @@ function stalwartStep(workflow: string): { run: string; env: Record<string, stri
   return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
 }
 
-/** Run the stalwart-cli step on `machine`, with these sums, a stand-in that says `says`, and the first `fails` fetches failing. */
-function runStalwartStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string, fails = 0): Ran & { slept: string[] } {
+/**
+ * Run the stalwart-cli step on `machine`, with these sums, a stand-in that says `says`, and the first
+ * `fails` fetches failing. `toolCache` is the runner's RUNNER_TOOL_CACHE: a fresh one unless a test
+ * passes the same directory to two runs, as one runner's nights share theirs.
+ */
+function runStalwartStep(
+  step: { run: string; env: Record<string, string> },
+  machine: string,
+  sums: Record<string, string>,
+  says: string,
+  fails = 0,
+  toolCache?: string,
+): Ran & { slept: string[] } {
   const dir = mkdtempSync(join(atlasScratch, 'stalwart-run-'));
   const temp = join(dir, 'runner-temp');
   const served = join(dir, 'served');
@@ -1088,6 +1099,7 @@ function runStalwartStep(step: { run: string; env: Record<string, string> }, mac
       ...step.env,
       ...sums,
       RUNNER_TEMP: temp,
+      RUNNER_TOOL_CACHE: toolCache ?? join(dir, 'tool-cache'),
       GITHUB_PATH: files.path,
       STUB_PREFIX: `${STALWART_CLI_HOST}${step.env.STALWART_CLI_VERSION}/`,
       STUB_SERVED: served,
@@ -1155,6 +1167,29 @@ function stalwartStepFaults(workflow: string): string[] {
   }
   const riscv = runStalwartStep(step, 'riscv64', STALWART_STAND_IN_SHA256, release);
   if (riscv.status === 0 || riscv.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${riscv.status}`);
+  // The copy a run keeps (2026-11-08: the self-hosted runner got 503 from GitHub's release download for
+  // over half an hour). A run keeps both archives in the tool cache as the pinned bytes; the next run on
+  // that runner fetches nothing and installs from them, hashed as a fetch is; a kept copy that is not the
+  // pinned build stops the run with nothing installed and is removed, so the run after fetches it again.
+  const cache = mkdtempSync(join(atlasScratch, 'stalwart-cache-'));
+  const keptFile = (arch: string): string => join(cache, 'stalwart-cli', version ?? '', `stalwart-cli-${arch}-unknown-linux-gnu.tar.xz`);
+  const keptRight = (arch: string): boolean => existsSync(keptFile(arch)) && readFileSync(keptFile(arch)).equals(STALWART_STAND_IN[arch]!.bytes);
+  const first = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (!(first.status === 0 && STALWART_MACHINES.every(keptRight))) faults.push(`keeps no copy of both archives for the next run: exit ${first.status}\n${first.log}`);
+  const second = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (!(second.status === 0 && second.ran && second.installed === STALWART_STAND_IN.x86_64!.binary && second.fetched.length === 0)) {
+    faults.push(`fetches again, or installs nothing, with both archives kept: exit ${second.status}, fetched ${second.fetched.join(' ') || 'nothing'}\n${second.log}`);
+  }
+  mkdirSync(dirname(keptFile('x86_64')), { recursive: true });
+  writeFileSync(keptFile('x86_64'), 'not the pinned build');
+  const tampered = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (tampered.status === 0 || tampered.installed !== undefined || tampered.ran || existsSync(keptFile('x86_64'))) {
+    faults.push(`goes on past, or keeps, a kept copy that is not the pinned build: exit ${tampered.status}, installed ${tampered.installed !== undefined}, kept ${existsSync(keptFile('x86_64'))}\n${tampered.log}`);
+  }
+  const after = runStalwartStep(step, 'x86_64', STALWART_STAND_IN_SHA256, release, 0, cache);
+  if (!(after.status === 0 && after.ran && after.fetched.join(' ') === urls[0] && STALWART_MACHINES.every(keptRight))) {
+    faults.push(`does not fetch the release again after a kept copy was refused: exit ${after.status}, fetched ${after.fetched.join(' ') || 'nothing'}\n${after.log}`);
+  }
   return faults;
 }
 
@@ -1923,6 +1958,11 @@ describe('the stalwart-cli CI installs: a named release, checked by its sha256 f
     expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1 2 3; do')).toMatch(/does not ride out four failed fetches/);
     expect(faults(/\n +sleep \$\(\(5 \* 3 \*\* \(attempt - 1\)\)\)\n/, '\n')).toMatch(/does not ride out four failed fetches: exit 0, slept never/);
     expect(faults('sleep $((5 * 3 ** (attempt - 1)))', 'sleep $((attempt * 10 - 5))')).toMatch(/does not ride out four failed fetches: exit 0, slept 5 15 25 35/);
+    // The kept copy: never kept, never used, used without its hash read, or left in place once refused.
+    expect(faults('{ mkdir -p "${kept%/*}" && cp "$download" "$kept.$$" && mv -f "$kept.$$" "$kept"; } ||', 'false ||')).toMatch(/keeps no copy of both archives/);
+    expect(faults('if [ -f "$kept" ] && cp "$kept" "$download"; then', 'if false; then')).toMatch(/fetches again, or installs nothing, with both archives kept/);
+    expect(faults('from="the copy an earlier run kept"', 'from="the copy an earlier run kept"; continue')).toMatch(/goes on past, or keeps, a kept copy that is not the pinned build/);
+    expect(faults('rm -f "$kept" || true', 'true')).toMatch(/goes on past, or keeps, a kept copy that is not the pinned build: exit 1, installed false, kept true/);
   });
 
   it('is a routine pin, current while upstream tags no newer release of its major', async () => {

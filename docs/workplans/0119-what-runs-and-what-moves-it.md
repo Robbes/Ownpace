@@ -4,22 +4,32 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
-**2026-11-08: the stalwart-cli download waits out about four minutes of GitHub answering 503.** On
-the branch `claude/ownpace-public-readiness-y7orc6-stalwart-cli-retry`. The scheduled E2E (managed)
-run 42472273620 on `main` at `aadc032d` (10:38 UTC) failed in *Install stalwart-cli* before any test
-ran: the amd64 archive came as pinned, then GitHub's release download answered 503 for the arm64 one
-three times, from 10:40:10 to 10:41:39, and the step gave up after its third attempt, having waited
-5 and 15 seconds. Fetched again from outside the run at 10:43, the arm64 archive came with its
-pinned sum, and the run is re-run once, its failure being a download before any test.
-`scripts/release-nights.mjs` counts no night with a failed attempt, so a blip like this one on a
-counted night would reset the count a release waits for. The step, word for word in `ci.yml`,
-`e2e.yml` and `e2e-managed.yml`, now makes five attempts, 5, 15, 45 and 135 seconds apart, and still
-fails loud, with the attempts it made, when the download stays down; a wrong sum is still never
-retried. `a-pin-that-knows-it-is-behind` runs the real step: four failed fetches are waited out with
-exactly those waits, five stop it with nothing installed, and mutations to one attempt, to the three
-it had, to no wait and to the old arithmetic's 5, 15, 25 and 35 seconds each fail it. Put back to
-three attempts in `e2e.yml` alone, three of its tests fail. §2.5's stalwart-cli row names no attempt
-count, so it stays as written.
+**2026-11-08: the stalwart-cli download waits out minutes of GitHub answering 503, and the
+self-hosted runner keeps what it fetched.** On the branch
+`claude/ownpace-public-readiness-y7orc6-stalwart-cli-retry`. The scheduled E2E (managed) run
+42472273620 on `main` at `aadc032d` failed in *Install stalwart-cli* before any test ran: the amd64
+archive came as pinned, then GitHub's release download answered 503 for the arm64 one three times,
+from 10:40:10 to 10:41:39 UTC, and the step gave up after its third attempt, having waited 5 and 15
+seconds. Its one re-run, at 10:52, failed the same way on the amd64 archive (10:53:20 to 10:56:51).
+`scripts/release-nights.mjs` counts no night with a failed attempt, so an outage like this on a
+counted night resets the count a release waits for. The step, word for word in `ci.yml`, `e2e.yml`
+and `e2e-managed.yml`, changes twice. It makes five attempts, 5, 15, 45 and 135 seconds apart, where
+it made three; this branch's first E2E (managed) run (42474317516) still met five 503s on the
+self-hosted runner from 11:08:11 to 11:15:07, while GitHub's hosted runners and this session fetched
+both archives in the same hour. So a run that has read the pinned sum now also keeps each archive in
+the runner's `RUNNER_TOOL_CACHE`, written whole or not at all, and the next run on that runner
+starts from the kept copy, hashed exactly as a fetch is; a kept copy that is not the pinned build
+stops the run like a wrong fetch and is removed, so the run after fetches the release. The nights
+then wait on GitHub's release download only until it has served the self-hosted runner once. A wrong
+sum is still never retried, and a download that stays down still fails loud.
+`a-pin-that-knows-it-is-behind` runs the real step: four failed fetches are waited out with exactly
+those waits and five stop it; a first run keeps both archives as the pinned bytes, a second fetches
+nothing and installs, a planted wrong copy stops the third with nothing installed and is gone, and
+the fourth fetches that archive again. Mutations of the real step each fail it: one attempt, the
+three it had, no wait, the old arithmetic's 5, 15, 25 and 35 seconds, nothing kept, the kept copy
+never used, a kept copy used without its sum read, and a refused copy left in place. Put back in
+`e2e.yml` alone, either change fails three of its tests. §2.5's stalwart-cli row names neither, so
+it stays as written.
 
 **2026-11-08, records: the deploy CLI's minimatch, read; six stale notes dated.** Docs and one
 comment, on the branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844
