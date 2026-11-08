@@ -18,7 +18,11 @@ Two kinds of words render; only the first belongs to this glossary:
   itself: a refusal's `reason`/`reasonNl`, and the line under a decided
   decision, `effect`/`effectNl` (`DECISION_EFFECTS` in `@openmig/shared`,
   in this glossary's words: a dismissed decision is *terzijde gelegd*, never
-  *afgewezen*).
+  *afgewezen*). On Deletions, Moves and Failures the line a press leaves
+  where its buttons were is paired the same way (`QUEUE_EFFECTS`, workplan
+  0159 §6 item 18): its Dutch says *het oude systeem* and *het nieuwe
+  systeem* for the source and the target, *ronde* for a pass, and *verwijderd
+  op het nieuwe systeem*, as the queues' own words do.
 - **Server tokens** — verification verdicts (`PASS`/`FAIL`/`WARN`…), issue
   severities and evidence words (`reported`/`trashed`/`inferred`). Until
   2026-10-18 the chips said the token, in English on a Dutch screen; the

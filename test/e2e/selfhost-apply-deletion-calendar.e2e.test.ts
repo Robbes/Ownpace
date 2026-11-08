@@ -85,6 +85,10 @@ describe('apply — calendar domain (CalDAV/Nextcloud)', () => {
     // given Nextcloud version retains a deleted calendar object is not
     // detectable from the outside, so recoverability is never claimed here.
     expect(body.kind).toBe('deleted');
+    // What it did, in English and in Dutch beside it (workplan 0159 §6 item 18).
+    expect(body.effect).toEqual(expect.stringMatching(/\S/));
+    expect(body.effectNl).toEqual(expect.stringMatching(/\S/));
+    expect(body.effectNl).not.toBe(body.effect);
 
     const after = await fetch(TARGET_HREF, { headers: davAuthHeader(DAV_TARGET_USER, TARGET_DAV_PASSWORD) });
     expect(after.status, 'the event must no longer exist at its target href').toBe(404);

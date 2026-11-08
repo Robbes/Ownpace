@@ -96,6 +96,10 @@ describe('apply — mail domain (JMAP/Stalwart)', () => {
     expect(status, JSON.stringify(body)).toBe(200);
     expect(body.action).toBe('apply');
     expect(['binned', 'deleted']).toContain(body.kind);
+    // What it did, in English and in Dutch beside it (workplan 0159 §6 item 18).
+    expect(body.effect).toEqual(expect.stringMatching(/\S/));
+    expect(body.effectNl).toEqual(expect.stringMatching(/\S/));
+    expect(body.effectNl).not.toBe(body.effect);
 
     const after = messageLocations(MESSAGE_ID);
 
