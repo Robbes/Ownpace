@@ -33,8 +33,8 @@
 #   - e2fsprogs 1.47.0-2+b2, which carries no finding of its own and
 #     pre-depends on libblkid1 and libuuid1, so dpkg refuses to purge those two
 #     while it stays (the webapp's first build, 2026-11-06).
-# So 1, 34 and 0 become 1, 10 and 0 (arithmetic from the report, which the
-# branch's image scan measures). util-linux-extra goes with util-linux, which
+# So 1, 34 and 0 become 1, 10 and 0 (measured on its branch: Security Scan
+# run 42349123410). util-linux-extra goes with util-linux, which
 # hard-depends on it in Debian 12, and libapt-pkg6.0 with apt, its one user
 # here. e2fsprogs goes alone: its libraries (libext2fs2, libss2, libcom-err2)
 # and logsave stay, and need only libc6 and libcom-err2. This image's dpkg

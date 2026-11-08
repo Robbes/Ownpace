@@ -4,12 +4,51 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07, last: the image scan of the alpha.6 tag, and what waits.** Security Scan run
+42368077845 (`image_scans`, on `main` at `59b91458`, the tag's commit, 11:24 to 11:28 UTC) reads,
+by tier: what the internet reaches on live 0 critical, 11 high, 7 with a fix; what live runs
+inside 2, 53 and 30; the appliance 0, 4 and 0. Per image, what moved since this plan's last
+reading:
+- the Trigger.dev webapp reads 1, 24 and 14 where it read 1, 23 and 13 on its branch: goose
+  v3.29.0, the newest goose, carries Go 1.27.2 and `golang.org/x/net` v0.61.0, and the fixes are
+  in 1.27.3 and 0.62.0;
+- Redis reads 1, 10 and 0, as on its branch;
+- MinIO's build of 2026-11-05 (`aea6c163…`) reads 0, 1 and 1 where it read 0, 0 and 0.
+  Chainguard's rebuild of 2026-11-07 at 06:54 UTC (`869ca317…`) is past its three-day floor on
+  2026-11-10 at 06:54, and moves in a pull request of its own, with its image scan read and E2E
+  (managed) on its branch.
+
+The other fixable findings in what live runs are in Go modules of Zitadel v4.20.1, Gatus
+v5.38.0, the registry 3.1.2 and Caddy 2.11.9 (`golang.org/x/net` 0.62.0, `go-jose` 4.1.6 and
+Go's standard library), each the newest release of its project on 2026-11-07 (the Go module
+proxy): they move when their projects release. pgbouncer's are Alpine's musl and zlib in
+`edoburu/pgbouncer`'s build of 2026-10-19, ClickHouse's are Ubuntu's apt, and the supervisor's is
+`cross-spawn` 5.1.0, whose fix is a major. None of them is past what this plan moves by itself.
+
+**2026-11-07: what alpha.6 moves, folded.** The fold (0146 Status, 2026-11-07), whose
+squash is C, closes alpha.6 with this plan's moves since alpha.5 in it:
+- the identity provider on Zitadel v4.20.1 (#1829; 0135 T7), on the owner's yes, after the OTA
+  instance's dump;
+- the Trigger.dev webapp's image without apt, util-linux's eight packages and e2fsprogs (#1823,
+  §3 item 11, extended to it on the owner's yes), and with effect 3.22.4 in place of 3.17.1
+  (#1825): Security Scan run 42263361900 read it at 1 critical, 23 high and 13 with a fix;
+- Trigger.dev's Redis built here, with the same eleven purged, and run as uid 999 from its first
+  process (#1835, §3 item 11, on the owner's word *"Redis purge in 6"*): Security Scan run
+  42349123410 read it at 1 critical, 10 high and 0 with a fix, from 1, 34 and 0;
+- the image build's BuildKit on v0.34.2 (#1832), whose first linux/arm64 build, `main`'s Images
+  run 42339359494, was green;
+- the managed smoke asking the tasks' image of the deployment they run (#1833).
+
+None of them moved before its three-day floor. Held for after the tag: Trivy 0.76.2 and Atlas
+1.3.8, past their floor on 2026-11-08 at 12:50 and 14:15 UTC, and pnpm 11.28.10 (#1792). Live
+takes alpha.6 from alpha.4 (0146 Status, 2026-11-07).
+
 **2026-11-07: Trigger.dev's Redis built here, with the webapp's eleven Debian packages purged
 and redis's own user from its first process (§3 item 11), for alpha.6.** The owner, 2026-11-07:
 *"Redis purge in 6"*. On branch `claude/ownpace-public-readiness-y7orc6-redis-purge`, from `main`
-at `ca2af249`. `managed.yml`'s `trigger-redis` ran `redis:7.4.12-bookworm` by digest, which
-Security Scan run 42330688192 (linux/arm64) read at 1 critical, 34 high and 0 with a fix, 24 of
-the highs in the eight util-linux packages. Now:
+at `ca2af249`; merged as `fdd572df` (#1835). `managed.yml`'s `trigger-redis` ran
+`redis:7.4.12-bookworm` by digest, which Security Scan run 42330688192 (linux/arm64) read at 1
+critical, 34 high and 0 with a fix, 24 of the highs in the eight util-linux packages. Now:
 - **`deploy/compose/redis/Dockerfile`** builds on that digest. Its one RUN as root purges the
   webapp's eleven in the webapp's shape: `dpkg-query -W` of the list first, `dpkg --audit` read
   empty before and after, the six libraries shipped, the two flags and no other force, each
@@ -40,10 +79,14 @@ the highs in the eight util-linux packages. Now:
   each check wrongly in turn, and Dependabot's entry), `a-binary-the-stack-never-runs` (the
   RUN over the stand-in on both platforms, with dpkg's refusals), and the scan, phone-home,
   privilege, database and check-classification guards for the new service shape.
-- **Owed before it merges:** CI on the branch (both `build (redis, …)` legs), the image scan on
-  the branch, and E2E (managed): the bring-up building `localhost/redis`, `trigger-redis`
-  healthy as 999 on the OTA stack's existing `redis_data`, the tasks deploying and running,
-  SMOKE PASS. **Before live takes it from alpha.6's tag:** the read-only check in
+- **Proved on the branch, at `d07f964b`:** CI green, 62 checks, both `build (redis, …)` legs
+  and the image scan of `redis` among them. Security Scan run 42349123410 (linux/arm64) read
+  the build at 1 critical, 10 high and 0 with a fix, from 1, 34 and 0; the critical is zlib1g's
+  CVE-2023-45853, with no fix. E2E (managed) run 42349157615 was green: the OTA host built
+  `localhost/redis:7.4.12-bookworm-63d89fa5f426` on linux/arm64, and the build printed the
+  purge and the start as 999:999; `trigger-redis` was recreated and healthy on the stack's
+  existing `redis_data`; version 20261107.4 deployed with 17 tasks; *verify: done apply:
+  applied*, SMOKE PASS. **Before live takes it from alpha.6's tag:** the read-only check in
   `managed-bring-up.md` on live's running `trigger-redis`, which should print nothing.
 
 **2026-11-07: the managed smoke asks the image of the deployment the tasks run (§3 item 13);
@@ -5369,7 +5412,8 @@ is beside each; none is urgent tonight.
     `redis_data` is uid 999's already, since that entrypoint chowned it at every start, and a
     tag before this runs upstream's image on it again. Not purged: libsystemd0 and libudev1,
     one high each, which only the eleven's apt, libapt-pkg6.0, util-linux and bsdutils depend
-    on here: a twelfth and thirteenth are a decision of their own. Expected 1/10/0.
+    on here: a twelfth and thirteenth are a decision of their own. Measured 1/10/0 on its
+    branch (Security Scan run 42349123410).
     **Revisit** with the triggers above, when the Redis line moves (item 3), and when its base
     leaves Debian 12.
 

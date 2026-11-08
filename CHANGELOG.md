@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.6] - 2026-11-07
+
+Nothing changes on a tester's screen. Underneath, the identity provider moves to
+Zitadel v4.20.1, a patch whose one change this stack meets is in session
+creation. The Trigger.dev webapp built here no longer carries apt or util-linux,
+and swaps a fifth package for the release of its line that fixes it, so its
+image scan reads 1 critical, 23 high and 13 with a fix where it read 1, 49 and
+16. Trigger.dev's Redis is now built here the same way, and runs as its own user
+from its first process: its scan reads 1 critical and 10 high where it read 1
+and 34, none with a fix. The published images are built with BuildKit v0.34.2,
+and the managed smoke asks the tasks' image of the deployment they run.
+
 ### Security
 
 - **The Trigger.dev webapp built here no longer carries apt or util-linux** (workplan 0119
@@ -51,8 +63,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   append-only file in `redis_data` carries over, since the entrypoint chowned it to uid 999 at
   every start; before live takes it, `docker compose -f deploy/compose/managed.yml exec -T -u
   999 trigger-redis find /data ! -user 999` should print nothing (`docs/managed-bring-up.md`).
-  An exec into `trigger-redis` runs as uid 999 from then on. Expected about 1 critical,
-  10 high and 0 with a fix, from 1, 34 and 0 (Security Scan run 42330688192, linux/arm64).
+  An exec into `trigger-redis` runs as uid 999 from then on. Measured on its branch (Security
+  Scan run 42349123410, linux/arm64): 1 critical, 10 high and 0 with a fix, from 1, 34 and 0,
+  and E2E (managed) ran it green on the stack's existing `redis_data`.
 
 ### Changed
 

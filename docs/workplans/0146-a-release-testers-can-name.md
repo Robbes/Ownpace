@@ -4,6 +4,96 @@
 
 ## Status — 2026-11-07 (update this block at the end of every session)
 
+**2026-11-07, last: `v0.2.0-alpha.6` is released, its nights waived, and live takes it as soon
+as possible (T2, T4).** Read from GitHub on 2026-11-07. Times are UTC.
+
+- **C is `59b91458`**, the squash of #1834 (the fold, with the owner's waiver), merged at 07:33 on
+  `fdd572df` (#1835). On it, all green: CI run 42351761098 (`lint`, `unit-tests (all)`,
+  `ui-tests`, `integration-tests (self-hosted)` and `ci-complete` run and passed, 07:33 to
+  08:36), Security Scan run 42351761101, Images run 42351761097, Nextcloud second major run
+  42351761140, and `windows-payload.yml` run 42351792071 (`build win-x64`, `smoke win-x64 on
+  windows-2025`). In the counted nights' place, dispatched on C: E2E (managed) run 42351796872
+  (07:33 to 07:48; version 20261107.5 deployed with 17 tasks, *verify: done apply: applied*,
+  SMOKE PASS), and E2E (self-hosted) on Postgres, run 42353466132 (07:58 to 08:31), and on
+  PGlite, run 42355882383 (08:31 to 08:41). The day's scheduled E2E (managed), run 42364300447,
+  ran C too, from 10:31 to 10:38: Zitadel v4.20.1, version 20261107.6 with 17 tasks, SMOKE PASS.
+- **The upgrade drill** is not reported for alpha.6. Both chains are alpha.5's (65 and 59 files),
+  so it would report the mechanics only, and the preflight lists it as not checked.
+- **Release.** The owner dispatched both runs from their own account, with `commit` set to C and
+  `waive_nights` set to their words. The preflight (run 42367220602, 11:12 to 11:13) refused
+  nothing: CI, Security Scan and the Windows smoke green on C, the names, the changelog (dated
+  2026-11-07) and the API contract agree, the tag free, C the head of `main` with no commit after
+  it, the upgrade gates' 8 and 12 cases passed (7 and 8 of them from alpha.5; mechanics only, 65
+  and 59 migrations on both sides), the nights' refusals notes naming the owner's waiver. It
+  noted, without refusing, 2 critical and 114 high code-scanning alerts open on `main` in 12
+  groups, those of the Trigger.dev webapp and Redis still from before their purges. Release run
+  42367456781, mode `release`, dispatched at 11:16, waited at its approve job until the owner
+  approved, at 11:17; then the gate scan of C (run 42367561051), the tag, the publishing
+  (Security Scan on the tag, run 42367713162; the images, run 42367849593; the Windows zip, run
+  42367849360) and verify all succeeded, the last at 11:23. Verify read the release as a
+  pre-release with `bom.json` (CycloneDX 1.6) and `ownpace-appliance-win-x64-v0.2.0-alpha.6.zip`
+  (its 411 files' sums hold, its `node.exe` v26.13.0 as pinned); `ownpace-api`, `ownpace-web` and
+  `ownpace-selfhost` at `0.2.0-alpha.6` for amd64 and arm64, built from C, signed, `latest` not
+  moved; the tasks' base that C pins (`sha-2886230`), for both platforms, built from an ancestor
+  of C and signed on `main`; and the appliance's `/version` answering the tag's version and
+  commit.
+- **The tag.** `v0.2.0-alpha.6` is tag object `0b68615c…` on `59b91458`, made at 11:19:28. Its
+  message has the lines *Release run: https://github.com/Robbes/Ownpace/actions/runs/42367456781*
+  and *Nights waived by Robbes, in their words: "we waive the night counts"*.
+- **The image scan of the tag**, Security Scan run 42368077845 (`image_scans`, on `main` at C,
+  11:24 to 11:28), by tier: what the internet reaches on live 0 critical, 11 high, 7 with a fix;
+  what live runs inside 2, 53 and 30; the appliance 0, 4 and 0. The webapp reads 1, 24 and 14
+  and Redis 1, 10 and 0; MinIO's build of 2026-11-05 now reads 0, 1 and 1 (0119).
+- **The O365 lane** is not read by Release. alpha.6 is tagged without a run of it, as alpha.4 and
+  alpha.5 were, its secrets still not set. Whether that is recorded as waived for alpha.6 is the
+  owner's to say; it was asked on 2026-11-07 (0141 T13).
+- **Live takes it as soon as possible.** The owner, on 2026-11-07, after the tag: *"I waive the
+  waits. We do the alpha release to live as soon as possible."* So live's deploy no longer waits
+  for alpha.5's MinIO build to pass its three days (2026-11-09 10:15, 0119). It goes from alpha.4
+  in one run of alpha.4's script, which calls it one-way, since the identity provider's pin
+  moves; v4.20.1 has no setup step, so the way back is still a deploy of alpha.4 (0135 T7).
+  alpha.4's two copies are removed first (0132).
+- **Held for after alpha.6, now free:** Dependabot #1836 (cosign-installer 4.1.3, upload-sarif
+  4.39.3) and #1837 (PGlite 0.5.15, lucide-react 1.68.0), opened during the freeze; Trivy 0.76.2
+  and Atlas 1.3.8, past their floor on 2026-11-08 at 12:50 and 14:15; MinIO's rebuild of
+  2026-11-07 at 06:54, past its floor on 2026-11-10 at 06:54 (0119); and pnpm 11.28.10 (#1792),
+  while npm's `latest-11` names 11.28.9.
+
+**2026-11-07: alpha.6 is folded, its nights waived, and live waits for it (T2, T4).** On
+the branch `claude/ownpace-public-readiness-y7orc6-alpha6-fold`, on `main` at `fdd572df`
+(#1835). The fold moves `package.json` and the API contract to `0.2.0-alpha.6`, and everything under
+`[Unreleased]` to `## [0.2.0-alpha.6] - 2026-11-07`, with a summary paragraph above it;
+`[Unreleased]` stays, empty. It adds `v0.2.0-alpha.6` as the last of `releases` in
+`scripts/release-line.json`, the release being prepared until Release tags it (T4,
+`docs/release.md` §1). What alpha.6 carries is in 0119's entry of the same day. Its squash is C,
+and the freeze (0141 T14) starts with it: nothing merges to `main` until the tag, and no E2E
+(managed) is dispatched on any branch, nor E2E (self-hosted) on `main`. **Live waits for
+alpha.6.** The owner, on 2026-11-07, after alpha.5 was released: *"I wait for alpha 6 for
+live"*. Live runs alpha.4 and takes alpha.6 in one step; alpha.5 is not deployed there. Held
+for after alpha.6: Trivy 0.76.2 and Atlas 1.3.8, CI tools past their three-day floor on
+2026-11-08 (0119); and pnpm 11.28.10 (#1792), while npm's `latest-11` names 11.28.9 (read
+2026-11-07 04:08 UTC). **Owed before the tag:**
+- C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
+  `integration-tests (self-hosted)` and `ci-complete` none skipped, and Security Scan green;
+- `windows-payload.yml` dispatched on `main` at C, platform win-x64, with `smoke` green
+  (`windows-smoke-green`);
+- in the counted nights' place, which the owner waived (0141 T14) on 2026-11-07: *"we waive the
+  night counts"*. The fold adds `v0.2.0-alpha.6` to `WAIVER_VERSIONS` with those words, and the
+  two guards that hold the list (`a-release-preflight-that-said-yes-too-soon`,
+  `a-tag-that-already-pointed-elsewhere`) and `docs/release.md` say so. As for alpha.5: E2E
+  (managed), and E2E (self-hosted) on Postgres and on PGlite, dispatched on C and green;
+- `scripts/upgrade-drill.sh` on the Docker host, from alpha.5's published image to C's. Both
+  chains carry what alpha.5 shipped (65 and 59 files, the same at `v0.2.0-alpha.5` and at C), so
+  it reports the mechanics only. Whether that pass counts is the owner's to say, as for alpha.5;
+- Release, mode `preflight`, for `v0.2.0-alpha.6`, then mode `release`, and the owner's approval
+  in the `release` environment; then Release tags C and publishes.
+
+Live's deploy of the tag starts from alpha.4, with a sheet for alpha.4 to alpha.6 that takes a
+dump of live's `zitadel` database before the update (0135 T7), and first asks live's running
+`trigger-redis`, as uid 999, for any file in `/data` that is not uid 999's: none is expected
+(0119 §3 item 11, `docs/managed-bring-up.md`). No image alpha.6 moves merged
+before its three-day floor (0119), so nothing holds that deploy after the tag.
+
 **2026-11-07: `v0.2.0-alpha.5` is released, its nights waived (T2, T4).** Read from GitHub on
 2026-11-07. Times are UTC.
 
