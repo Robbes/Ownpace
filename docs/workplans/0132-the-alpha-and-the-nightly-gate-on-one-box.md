@@ -4,6 +4,63 @@
 
 ## Status — 2026-11-08 (update this block at the end of every session)
 
+**2026-11-08, later: CI's push jobs run on GitHub's hosted arm64 runner for the alpha's weeks
+(open question 1, answered).** Asked with the list of what to build into alpha.7, where this was
+recommended for every job that does not need the machine, the owner answered: *"Build the
+recommended for alpha 7."* Built on branch
+`claude/ownpace-public-readiness-y7orc6-a7-ci-hosted-push`, not merged. Times are UTC.
+
+- **What moves.** None of the push jobs needs the machine: none reads `~/.persistent`, a stack's
+  `.env` or `managed.yml`, and the containers they start are their own. So a push to `main` or a
+  tag runs `ci.yml`'s `detect-changes`, `docs-hygiene`, `fixture-uuid-check`, `migration-lint`,
+  `lint`, `unit-tests`, `ui-tests` and `integration-tests` on `ubuntu-24.04-arm`, and a push to
+  `main` runs `security-scan.yml`'s repository scan there. Same commands, same pins, and still one
+  `unit-tests (all)` leg and one arm64 leg of `migration-lint` and of `integration-tests`.
+  `commit-convention` (pull requests only) and `ci-complete` (it reads results and runs no
+  repository code) stay on `ubuntu-24.04`. A pull request, the weekly schedule, a tag's scan, the
+  image scans and Release's two dispatches keep the runners they had.
+- **One switch turns it back:** the repository variable `CI_PUSH_ON_SELF_HOSTED`. Unset, or
+  anything but `true`, the push jobs stay on GitHub's runner; `true` sends every one of them back
+  to the self-hosted runner and changes nothing else. Both workflows' headers say so. A dispatch
+  runs a push's jobs on the push's runner while the switch is on (for `security-scan.yml`, with
+  its new `push_runner` input), so a branch proves the push path before it merges. It never takes
+  the self-hosted runner, whatever the variable says, since it can run a branch nobody merged.
+- **The guard**, `scripts/a-merge-that-ran-beside-the-socket.unit.test.ts`, evaluates every
+  workflow's runners, matrices and job conditions for every event, every ref a push trigger admits
+  and both states of the switch. While the switch is on, nothing a push starts can run on the
+  self-hosted runner. `true` sends the nine jobs back and moves nothing else. No pull request in
+  any workflow, and no event but a push in these two, reaches the self-hosted runner in either
+  state. A dispatch runs what a push to main runs, on the same runners. It fails closed on a
+  runner it cannot tell. Against `main`'s two workflows it fails on every push job, by name, and
+  each of its mutations of the real files fails with its own message.
+- **What the self-hosted runner gave unasked, and what stands in for it.**
+  - Release's preflight required `integration-tests (self-hosted)` by name. A hosted push run names
+    its leg `integration-tests (ubuntu-24.04-arm)`, so the next release would have been refused.
+    The preflight now takes either name and refuses an amd64 leg; with the old list, its test
+    refuses a hosted run.
+  - The pnpm store on disk: setup-node's `cache: pnpm` restores it on GitHub's runner, as on a pull
+    request. The security scan installs cold, as a pull request's does.
+  - Chromium's cache is keyed on `runner.environment` too. The copy the machine saved under the
+    old key would unpack outside a hosted runner's home (read from actions/cache's code).
+  - The unit tests' cap of four workers is the machine's, and is now keyed on
+    `runner.environment`: on GitHub's runner vitest keeps its default, as a pull request's legs do.
+  - Trivy's database on disk: the scan's `ON_SELF_HOSTED` reads the switch too, so trivy-action's
+    own daily cache is on wherever the scan runs on GitHub's runner.
+  - Docker and buildx are on GitHub's arm64 image. Node 26, pnpm, Trivy, Atlas, stalwart-cli and
+    Chromium are set up or downloaded and checked by the jobs themselves, as on a pull request's
+    arm64 legs. No job here sets a timeout or a service.
+  - A dispatch of `ci.yml` has a concurrency group of its own, so on `main` it cannot take a
+    pending push run's place.
+- **What stays on the machine.** `e2e.yml`, `e2e-managed.yml` and `e2e-live-target.yml` still run
+  `main` there each night, `pnpm install` included, and `e2e-o365.yml` on dispatch. So the path is
+  slower, not gone: a merged change still reaches the machine by the next night.
+- **Proven before the merge** by one dispatch of each workflow on the branch, read in the pull
+  request.
+- **The records** that said a push runs on the machine now say what is true: SECURITY.md, 0131
+  §4, this plan's §1, D1, §4 and open question 1, the runbook's *This box also runs CI*,
+  `docs/testing.md`, `docs/release.md`, the architecture document, the bring-up and
+  `e2e-managed.yml`'s header.
+
 **2026-11-08: live runs `v0.2.0-alpha.6`, and alpha.4's two copies are gone (T6, T9).** The owner
 deployed it on 2026-11-08, before any tester, pasting checked blocks. Times are UTC. No values.
 
@@ -2931,6 +2988,8 @@ names the class of problem as *"CI and production share a Docker daemon"*, and D
 one daemon: live, the OTA stack and the runner. SECURITY.md says of the runner: *"trusted
 workflows only (docker socket + root = RCE risk)"*. Pull requests run on GitHub-hosted runners,
 and a push to `main` runs `ci.yml`'s jobs and `security-scan.yml`'s on the self-hosted one.
+*2026-11-08: not during the alpha. They run on GitHub's hosted arm64 runner, and the repository
+variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends them back (open question 1).*
 `ci.yml` does not reference `managed.yml`. `e2e.yml` brings up the appliance's stack, whose own
 port defaults to loopback (`SELFHOST_BIND`). The dev Stalwart and Nextcloud it starts beside the
 appliance are published on every interface, on free ports it picks, until its cleanup step
@@ -3106,7 +3165,9 @@ now, through one function, T6 (b); see the Status block.)*
   support them. Max 10/20 people"*. So the alpha runs on the reference machine, at
   `app.ota.ownpace.eu` and `id.ota.ownpace.eu`, and CI stays on that machine. That departs from
   the runbook's rule, and this plan records the conditions. **D7 changes the address:** testers
-  use the production names, on `ownpace-live`. The machine, and CI on it, stand.
+  use the production names, on `ownpace-live`. The machine, and CI on it, stand. *2026-11-08:
+  CI's push jobs leave the machine for the alpha's weeks, and its nightlies stay (open question
+  1).*
 - **D2, what is reachable today.** Asked whether ports 5432, 3001, 3090, 3443 and 3126 are
   reachable from outside, whether the database passwords were changed, and whether the live
   identity provider holds other organisations: *"No, these ports are not reachable outside of
@@ -4356,11 +4417,12 @@ known beyond the machine:
    `SECRET_ENCRYPTION_KEY` and the `tr_prod_` key. Runner debug output also prints the whole task
    environment.
 3. **Copies held by code, not by people.** Both stacks' persisted `.env` files sit on a machine
-   where every push to `main` runs a job with access to the Docker socket (SECURITY.md), and where
-   the nightlies run `main` on their schedules. That is not a person
-   holding a credential. It is a path by which a merged change, or a dependency the change pulls
-   in, could read one. The owner's merge is the gate for that path (0131 §4), and it is the reason
-   for open question 1.
+   where the nightlies run `main` on their schedules, in jobs with access to the Docker socket
+   (SECURITY.md). Until 2026-11-08 every push to `main` did too, at once; during the alpha a push
+   runs on GitHub's hosted runner (open question 1). That is not a person holding a credential.
+   It is a path by which a merged change, or a dependency the change pulls in, could read one. The
+   owner's merge is the gate for that path (0131 §4), and it was the reason for open question 1.
+   *Was: a machine where every push to `main` runs a job with access to the Docker socket.*
 
 Live's own values, generated or set by the owner (D8), are in none of the first two kinds, and
 they stay out of them as long as its `.env` never reaches a runner (T1g), its runner logs are never
@@ -4423,13 +4485,26 @@ is generated and has been in no log. On the OTA stack it guards a demo.
 
 ## Open questions
 
-1. **CI's push jobs.** D1 keeps CI on the machine, and D7 keeps it beside live on one Docker
-   daemon. The runbook's first route, GitHub's hosted arm64 runners (free for public
-   repositories), could move just the push jobs of `ci.yml` and `security-scan.yml` off the
-   machine for the alpha's weeks. That would remove the path by which every merge runs at once
-   next to a Docker socket that sits beside testers' credentials. The appliance's nightly, the
-   managed gate on the OTA stack and the live-target lane would still run `main` on the machine
-   on their schedules. Keep the push jobs on the machine, or move them?
+1. **~~CI's push jobs.~~ Answered 2026-11-08: move them, every job that does not need the
+   machine.** Asked with the list of what to build into alpha.7, where this was recommended as
+   *yes: CI's push jobs on GitHub's runners during the alpha weeks, for every job that does not
+   need this machine, so that no merge runs next to live's Docker socket while testers'
+   credentials are there*, the owner answered: *"Build the recommended for alpha 7."* None of the
+   jobs needs the machine, so all of them move. A push runs every job of `ci.yml` and
+   `security-scan.yml` that it starts on GitHub's hosted arm64 runner, `ubuntu-24.04-arm`, and a
+   dispatch on a branch runs the same jobs there, to prove the path before a merge. One switch
+   turns it back after the alpha, and nothing else is needed: the repository variable
+   `CI_PUSH_ON_SELF_HOSTED`, set to `true` (Settings, Secrets and variables, Actions, Variables).
+   `scripts/a-merge-that-ran-beside-the-socket.unit.test.ts` holds both states. The appliance's
+   nightly, the managed gate on the OTA stack and the live-target lane still run `main` on the
+   machine on their schedules (Status, 2026-11-08). The question as it was asked: D1 keeps CI on
+   the machine, and D7 keeps it beside live on one Docker daemon. The runbook's first route,
+   GitHub's hosted arm64 runners (free for public repositories), could move just the push jobs of
+   `ci.yml` and `security-scan.yml` off the machine for the alpha's weeks. That would remove the
+   path by which every merge runs at once next to a Docker socket that sits beside testers'
+   credentials. The appliance's nightly, the managed gate on the OTA stack and the live-target
+   lane would still run `main` on the machine on their schedules. Keep the push jobs on the
+   machine, or move them?
 2. **~~A now, B later?~~ Answered 2026-09-24 by D7: neither.** The gate keeps running, on the
    OTA stack, and testers are on live. The date that *"A few weeks"* (D6) means is 0131 T4's
    question now, not a trigger here. The question as it was asked: Is A (the gate off)

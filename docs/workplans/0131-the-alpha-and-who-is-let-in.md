@@ -1572,13 +1572,16 @@ password before anything migrates (0132 T1b).
 
 **The bridge D7 names is also a gate.** A pull request runs on GitHub-hosted runners (`ci.yml`),
 so a contributor's code does not run on the machine before the owner merges it. After the merge
-it does: a push to `main` runs on the self-hosted runner, and the nightly gates build `main`
-there. SECURITY.md says of that runner: *"trusted workflows only (docker socket + root = RCE
-risk)"*. So the owner's merge is the gate for code, just as the access queue is the gate for
-people. The advice is to keep the self-hosted runner off `pull_request` events, as it is today,
-and to read any change to `.github/workflows/` before merging it with the same care as a change to
-the stack itself. D3's separation is by name on one Docker daemon, so a workflow that runs on that
-runner can reach `ownpace-live` as well as the OTA stack.
+it does, on the nightlies' schedules: the nightly gates build `main` on the self-hosted runner.
+A push to `main` no longer runs there during the alpha. Since 2026-11-08 (0132 open question 1)
+`ci.yml`'s push jobs and `security-scan.yml`'s run on GitHub's hosted arm64 runner, and the
+repository variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends them back. *Was: a push to
+`main` runs on the self-hosted runner.* SECURITY.md says of that runner: *"trusted workflows only
+(docker socket + root = RCE risk)"*. So the owner's merge is the gate for code, just as the access
+queue is the gate for people. The advice is to keep the self-hosted runner off `pull_request`
+events, as it is today, and to read any change to `.github/workflows/` before merging it with the
+same care as a change to the stack itself. D3's separation is by name on one Docker daemon, so a
+workflow that runs on that runner can reach `ownpace-live` as well as the OTA stack.
 
 ## 5. Further work, and where it is planned
 
