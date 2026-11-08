@@ -2,7 +2,26 @@
 
 > **In one line:** Provider consent for testers on `ownpace-live`: its Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, records: Google's seven-day expiry read from Google; the user cap's number not (T1,
+open question 1).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`. `developers.google.com` answers from
+this session, `support.google.com` does not.
+- ✅ **Seven days, verified.** Google's *Refresh token expiration*
+  (https://developers.google.com/identity/protocols/oauth2#expiration, last updated 2026-10-29,
+  read 2026-11-08): an external consent screen whose publishing status is Testing *"is issued a
+  refresh token expiring in 7 days, unless the only OAuth scopes requested are a subset of name,
+  email address, and user profile"*. Every consent here asks for more, so (a) costs the weekly
+  reconnect §3 T1 counts on, and the guide's *about seven days* agrees: no word of it changes.
+- ⚠️ **The cap, still unverified.** Google's developer pages say a user cap applies to an
+  unverified app, and in Testing, and give no number
+  (https://developers.google.com/identity/protocols/oauth2/production-readiness/sensitive-scope-verification#exceptions,
+  last updated 2026-10-30, read 2026-11-08). The number is on `support.google.com`, which this
+  session's network refuses, and so are the 100 test users and whether the cap ever resets.
+`docs/google-oauth-verification.md` §4b quotes both. Open question 6, the sign-in buttons, is
+marked answered the same day: the owner's ops-social-signin (a), of 2026-09-28, which T10 already
+records as its decision.
 
 **2026-11-01, records: #1765 merged, and T2 (a)'s steps are in the tester guide but one.** Docs
 only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-records`. The entry below was written while #1765 was a
@@ -413,6 +432,8 @@ and T11 step 5 adds a dated line there saying what each client holds now.
   lifetime is *"normal — until revoked"*, there is *"no pre-registration; ~100 user cap"*, and
   both show the warning screen. The same section adds: *"⚠️ **Both the seven-day expiry and the
   unverified user cap are UNVERIFIED here**"*. Nobody re-read them for this plan either.
+  *(2026-11-08: the seven-day expiry read from Google, ✅; the cap's number, the 100 test users
+  and the lifetime count below still not readable from here, ⚠️. Status, 2026-11-08.)*
 - The review added one claim from outside knowledge, marked as unverified: that Google counts the
   unverified cap over the project's whole lifetime and does not reset it. It was not verified.
 
@@ -674,7 +695,9 @@ result here, with the dates.
   person who granted it has to grant again. The warning screen stays.
 - **(b) Publish the client to Production, unverified, with the sensitive scopes only.** There is no
   seven-day expiry and no test-user list at Google. The warning screen stays the same, and so does
-  the ~100-user cap. Both figures are unverified. The service itself stays invite-only through
+  the ~100-user cap. Both figures are unverified. *(2026-11-08: the seven-day expiry in Testing
+  is Google's own, read that day; the cap's number is still unverified: Status.)* The service
+  itself stays invite-only through
   live's access queue, so the owner is still the gate (D4). `GOOGLE_ACCOUNT_SCOPE_CLASS` is left
   blank in live's `.env`, so a Google account offers calendar, contacts and tasks. Gmail comes in by
   app password (0089 T7). Whether an unverified Production client can grant a restricted scope at
@@ -1296,7 +1319,10 @@ and in the Status block.
    suggests a Google sign-in was set up or tried on the OTA stack. The repository cannot say
    whether it is in use. If it is Google on live too, live's client carries the sign-in address
    beside the consent's, recorded in ADR-0041 as a second redirect URI, or a second production
-   client carries it alone (T10, T11).
+   client carries it alone (T10, T11). *Answered 2026-09-28, by the owner's ops-social-signin (a)
+   in 0139 (T0 fact 4): email and password only; marked 2026-11-08.* Held since by refusals on
+   live (#1644, merged 2026-10-21; #1765, merged 2026-11-01), and live's `.env` sets no `IDP_*`
+   key, so no provider stays for the owner's own sign-in (T10; Status, 2026-10-31).
 7. **Live's Google client (T11, D5):** a new client, as advised, rather than live's address on the
    test client? And its Google Cloud project: the test client's while live stays in Testing, and a
    new one if live is to leave Testing, as recommended? Or a new project from the start, which

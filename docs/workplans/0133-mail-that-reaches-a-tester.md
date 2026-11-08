@@ -2,7 +2,36 @@
 
 > **In one line:** Real mail for testers on `ownpace-live`: an EU SMTP relay with SPF, DKIM and DMARC for the API, tasks and Zitadel (`setup-zitadel.sh`), Mailpit kept on the OTA stack, no tester before the relay (the by-hand procedure kept, unused), relay as sub-processor.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, records: what Proton publishes about its sending limit (T0).** Docs only, on the
+branch `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`. The entry of 2026-09-28 below
+calls the API's 50 report mails a day a guess below Proton's limit for the login, which nobody had
+looked up. Looked up on 2026-11-08 through a web search: this session's network refuses `proton.me`,
+so the pages were not opened, and what follows is what the search returned from them, in its words,
+not quoted.
+- *Proton Mail sending limits* (https://proton.me/support/email-sending-limits): the Free plan
+  may send 50 mails an hour and 150 a day. On a paid plan the limit changes with the account's
+  reputation, and no number is given. A new address with no reputation yet may get less than the
+  default, and Proton's spam detection stops sending from an account that looks suspicious, at
+  once.
+- *SMTP errors* (https://proton.me/support/smtp-errors), as one search summarised it (a second
+  did not return the page): a refusal 5.4.5 for a user past a daily SMTP relay limit, and one for
+  the customer as a whole, with no threshold named.
+
+SMTP submission needs a paid plan with a custom domain, which `support@ownpace.eu` has. So Proton
+publishes no number for this login, and the 50 stays a guess. What that means:
+- **The 50 a day** counts report mails only (`REPORT_MAIL_PER_DAY`). The same login also sends
+  the identity provider's sign-in and verification codes, the grant mails, the invitations, the
+  notices to the owner and the alerts, which nothing here counts. The one number Proton
+  publishes, the Free plan's 50 an hour, is what 50 reports in one hour would reach by
+  themselves.
+- **On a busy day,** an invitation wave, every mail shares the login's one limit. Past it, Proton
+  refuses the next mails, a tester's sign-in code among them, and nothing here knows the limit
+  before that happens. `report-channel.ts` calls the 50 *"far below what would put the relay's login
+  ... at risk"*; that rests on the same guess.
+- **The owner's step, to make it a number:** ask Proton's support what the SMTP submission limit
+  is for `support@ownpace.eu`, per address and for the organisation, and record it here.
 
 **2026-11-01, records: T5 was done.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-e9-records`. T5's
 row still said *Proposed*. The relay was named in #1317, merged 2026-09-28 at 22:02 UTC
@@ -22,7 +51,9 @@ login the identity provider sends its sign-in codes with. So reports draw on the
 those codes need, and the link door needs no account. The API caps report mails at 50 a day for
 the whole service (`REPORT_MAIL_PER_DAY` in `apps/api/src/services/report-channel.ts`) and gives
 up on a send within about 20 seconds. Proton's own sending limit for the account was not looked
-up, so the 50 is a guess below it, not a measured margin. Live's `.env` also needs
+up, so the 50 is a guess below it, not a measured margin. *(2026-11-08: looked up; Proton
+publishes no number for a paid plan, so it stays a guess: the entry at the top.)*
+Live's `.env` also needs
 `REPORT_MAIL_TO=support@ownpace.eu`.
 
 The owner confirmed the recipients the same day: *"Mail recipients: yes, support@ownpace.eu"*.

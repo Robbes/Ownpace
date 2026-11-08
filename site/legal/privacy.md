@@ -306,7 +306,8 @@
     (privacy-file-connectors (a)).
   - §4.2, §4.6, §9: the list of what was shared belongs to its migration and
     goes when that migration is deleted (privacy-sharing-list (b); the code
-    change is not built, see beside §9).
+    change is not built, see beside §9; 2026-11-08: built since, as #1376,
+    merged 2026-09-29, as the note beside §9 says).
   - §4.6, §9: the people you migrate for (ADR-0050; managed migration 0031,
     merged in #1332): a name, and an address when one is given, kept until
     that person is deleted or the data erased (PURGED_TABLES in
@@ -344,7 +345,8 @@
     copies are gone from live's text (rec-drill (a)); the background tasks'
     records last until the end of the Alpha at the latest
     (privacy-task-records (a)); the sign-in history is kept as long as we run
-    that sign-in service (privacy-signin-history (a), NOT YET CHECKED); support
+    that sign-in service (privacy-signin-history (a), NOT YET CHECKED; 2026-11-08:
+    checked since, on 2026-10-15, as the note beside §9 says); support
     mail and the service's own mail follow "until resolved, then 6 months"
     (privacy-sent-mail-copies (b)).
   - §10: what we hold ourselves, sent in a common file format on request

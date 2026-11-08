@@ -2,7 +2,15 @@
 
 > **In one line:** Sizing the reference machine for the alpha's two stacks: Trigger.dev machine presets, a pass cap in `managed-sync-tick`, per-organisation limits, streamed files to `JmapFileTarget`, a largest-file refusal, plane retention and a measured load rehearsal.
 
-## Status — 2026-10-16 (update this block at the end of every session)
+## Status — 2026-11-08 (update this block at the end of every session)
+
+**2026-11-08, records: two notes caught up with what merged.** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`. The entry of 2026-10-14 said the Start
+screen shows the cap's refusal in English until the web reads `messageNl`: the same pull request,
+#1598 (merged 2026-10-14, `b21a9735`), made `serverMessage` show `messageNl` to a Dutch reader
+(`apps/web/src/services/api.ts`, held by `api.unit.test.ts`). Open question 2 asked whether T3b
+comes before the first invitation: it merged as #1355 on 2026-09-29 (`2ce65461`), so every tag since
+alpha.1 carries it. Both say so now, with their dates.
 
 **2026-10-16: T1's last part, the host in the bring-up.** `docs/managed-bring-up.md`, *Before
 you start*, gains a memory line and a CPU line beside the disk line: about 7 GB for one stack at
@@ -17,7 +25,8 @@ decided the default becomes 6. `DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION` is 6 in
 `apps/api/src/routes/migrations/migration-cap.ts`, which supersedes T0's provisional five. The
 env example and `managed.yml` say 6. The refusal is written for a tester: *"…Finish or delete one
 before you add another, or contact us if you need more at once."* Its Dutch rides beside it as
-`messageNl`. The Start screen shows the English until the web reads that field.
+`messageNl`. The Start screen shows the English until the web reads that field. *(It does since
+the same pull request, #1598, merged 2026-10-14: the entry of 2026-11-08.)*
 `a-migration-past-the-cap.unit.test.ts` holds the 6, the seventh refused, and both sentences.
 
 **2026-10-04: the owner accepted unpruned run rows during the Alpha (0131 T3).** Asked whether
@@ -1796,7 +1805,10 @@ As with the other rows, the owner may instead accept a gap in writing, dated, wi
    yes, for now**, *"accept proposals for now"*.
 2. **T3 for the first invitation.** (a) T3a only, with JMAP files pointed at WebDAV, which is
    recommended and keeps the minimum small. (b) T3b before the first invitation, if the owner
-   expects the first testers to want their files on a JMAP target.
+   expects the first testers to want their files on a JMAP target. *Settled by the build, marked
+   2026-11-08, with no answer recorded: T3b merged as #1355 on 2026-09-29 (`2ce65461`), before any
+   invitation, so a JMAP files target takes a streamed file up to the server's own upload limit
+   in every tag since `v0.2.0-alpha.1`.*
 3. **T5's rule.** (c), small first and then a fair share, is recommended. Or (a) rotation, or (b)
    least progressed first. **Answered 2026-09-27: (c)**, *"5c"*.
 4. **T9's large mailbox and drive.** Does the owner have a large mailbox that is not Gmail, for

@@ -4054,7 +4054,9 @@ you run it again with `--resume`.
 stubs in its guard, `scripts/a-first-bring-up-of-live.unit.test.ts`. It runs
 from the release tag live runs, so that tag has to carry it: cut the release
 (0146 T0) from a commit of `main` that has this script, once the nightly gate
-has run that commit green.
+has run that commit green. *(2026-11-08: run on live since. The owner ran it
+there on 2026-10-07, and its first refusal, a missing `zitadel` role read as a
+wrong password, was fixed in #1545 the same day; workplan 0132's Status.)*
 
 ### Before the script: the owner's steps
 
@@ -5394,11 +5396,18 @@ thing. One script moves it:
    back from it), and when the daily duties' timer is not active (nothing
    would delete the copy). **If it says one-way,** the way back that is not a
    fix and a new tag is the copy the deploy takes.
-4. From `~/ownpace-live`:
+4. From `~/ownpace-live`, **inside `tmux` (or `screen`)**:
 
    ```bash
+   tmux new -s deploy                         # after a drop: tmux attach -t deploy
    ./deploy/compose/deploy-live.sh <tag>
    ```
+
+   Always so from a phone, or over any connection that may drop (live's deploy
+   of 2026-11-08 ran so). A dropped connection hangs up the shell, and the
+   script with it, wherever it is; and a deploy whose identity-provider pin
+   moves is one-way (step 3), so a run stopped halfway has the copy as its way
+   back. Inside `tmux` the run goes on, and `tmux attach -t deploy` shows it.
 
    Right before its checkout it takes **the copy before the update**, into
    `~/.persistent/ownpace-live/copy-before-update`: the app's database, the
@@ -5439,6 +5448,19 @@ thing. One script moves it:
    ```bash
    ./deploy/compose/env-upsert.sh deploy/compose/.env LIVE_PASS_CHECK_MIGRATION=<the migration's id>
    ```
+
+   **A task image dated 1970-01-01 is not a stale image.** Trigger.dev 4.8.3's
+   CLI builds reproducibly (`dist/esm/deploy/buildImage.js` in its package): it
+   passes `SOURCE_DATE_EPOCH=0` to every build, which dates the image's config
+   1970-01-01, and an image it exports to push it writes with
+   `rewrite-timestamp=true`, which rewrites the layers' file times too. So the
+   tasks' image reads 1970-01-01 whatever day it was built: live's deploy of
+   2026-11-08 read it so, on the image it had just built. A check after a
+   deploy tells which image runs by its tag or its digest, or by the
+   deployment's version beside each runner as the managed smoke does, never by
+   a creation date. `scripts/a-task-image-dated-1970.unit.test.ts` reads both
+   settings in the installed CLI, so a CLI move that drops one fails until this
+   is read again.
 6. **The copy goes by itself once the update is proven.** Every ten minutes
    live's box checks run `copy-before-update.sh delete-if-proven` (workplan
    0132 T9). It keeps `delete`'s rule: the last line `deploys.log` has since
@@ -5677,7 +5699,10 @@ is added to that file by hand.
 
 **Not yet run on live.** Live is not stood up (workplan 0132 T1b), so the
 script has run only against the stubs in its guard,
-`scripts/a-deploy-from-a-named-tag.unit.test.ts`.
+`scripts/a-deploy-from-a-named-tag.unit.test.ts`. *(2026-11-08: run on live
+since, by the owner, for every deploy from a tag: `v0.2.0-alpha.2` on
+2026-10-27/28, `v0.2.0-alpha.3` on 2026-10-30 in two runs, `v0.2.0-alpha.4` on
+2026-11-04 and `v0.2.0-alpha.6` on 2026-11-08; workplan 0132's Status.)*
 
 #### The Node in the shell you deploy from
 
@@ -5951,7 +5976,10 @@ runners started from, the one the last deploy built, for its Node, which must
 be the API's, and starts each shell name in it, none of which may start: an
 image that has a shell was not built on the base. An older image a runner of an
 earlier deployment ran (Trigger.dev keeps a run on the version it was triggered
-on) is named there and not asked.
+on) is named there and not asked. *(2026-11-08: since #1833, merged 2026-11-07,
+the smoke tells which image is the deployment's by the deployment, not by when
+it was built: the environment's "current" promotion in Trigger.dev's database,
+and each runner's `TRIGGER_DEPLOYMENT_VERSION`.)*
 
 Until 2026-11-06 the tasks built on `apps/api/Dockerfile`'s FROM image with a
 layer of the config's own (apt, the CLI's trust edits, the package managers
