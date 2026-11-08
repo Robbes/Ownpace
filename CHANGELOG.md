@@ -17,6 +17,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   name. The nightly E2E gates still run `main` on the machine. A guard evaluates every workflow's
   runners for every event and both states of the switch: while it is on, nothing a push starts
   reaches the self-hosted runner, and no pull request, or dispatch of the two files, ever does.
+- **Trigger.dev's Redis and webapp images no longer carry libsystemd0 or libudev1** (workplan
+  0119 §3 item 11, for alpha.7, on the owner's answer of 2026-11-08). Both builds' purge now
+  takes systemd's two libraries too, one high each with no fix in Debian. Only apt,
+  libapt-pkg6.0, util-linux and bsdutils needed them, and those go in the same purge, with the
+  same two flags and no other force, so dpkg would still refuse a package that needs one. After
+  the purge the build fails if a file of a removed library is left, or if any ELF file in the
+  image needs one (its DT_NEEDED). Measured on its branch (Security Scan run 42440765278,
+  linux/arm64): Redis 1 critical, 8 high and 0 with a fix, from 1, 10 and 0; the webapp 1, 22
+  and 14, from 1, 24 and 14.
 - **The app's policy and HSTS are read where a tester's browser gets them** (workplan 0158 T4).
   Since 0158 T1 the app's nginx sends a content security policy, HSTS and three headers beside
   them, but only the image was asked for them, over plain http on loopback, on the OTA stack.
