@@ -42,8 +42,9 @@ merges. Times are UTC.
   paragraph on its base and §2.1's two rows. No test, fixture or guard changes: each reads these
   files, and `git grep` finds neither old digest anywhere else but in dated records.
 - **What it fixes.** Nothing the image scan counts, high and critical: it read neither image at
-  such a finding before, and reads neither at one now. Before: Security Scan run 42368077845
-  (`main`, 2026-11-07, Trivy v0.76.1, linux/arm64) read `nginx` (`www.yml`'s, on `f45171d3…`)
+  such a finding before, and reads neither at one now. Before: Security Scan runs 42368077845
+  (`main`, 2026-11-07) and 42440765278 (2026-11-08, on #1846's branch, whose pins for both were
+  `main`'s), each on Trivy v0.76.1 and linux/arm64, read `nginx` (`www.yml`'s, on `f45171d3…`)
   and `docker-socket-proxy` (built on `2caaf8b1…`) at 0 critical, 0 high and 0 with a fix each.
   After: Security Scan run 42615868745, dispatched on this branch at `c0f02462` (2026-11-09,
   Trivy v0.76.2, linux/arm64, every job on GitHub's runners), reads `nginx` on `9c68ad4f…` and
