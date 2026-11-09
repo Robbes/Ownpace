@@ -8,8 +8,8 @@
 on 2026-11-09. Times are UTC.
 
 - **C is `45375ac2`**, the squash of #1849 (the fold), merged on 2026-11-08 at 14:59 on `afb815e6`
-  (#1851). `main` is at `7898e1c9` (#1860, the waiver), whose first parent is C. On C, all green
-  on 2026-11-08: CI run 42492526476 (`lint`, `unit-tests (all)`, `ui-tests`,
+  (#1851). Release ran from `main` at `7898e1c9` (#1860, the waiver), whose first parent is C. On
+  C, all green on 2026-11-08: CI run 42492526476 (`lint`, `unit-tests (all)`, `ui-tests`,
   `integration-tests (ubuntu-24.04-arm)` and `ci-complete` run and passed, 15:00 to 15:23),
   Security Scan run 42492526489, Images run 42492526680, Nextcloud second major run 42492526475,
   and `windows-payload.yml` run 42492551623 (`build win-x64` and `smoke win-x64 on windows-2025`;
@@ -58,7 +58,8 @@ on 2026-11-09. Times are UTC.
 - **The O365 lane** is not read by Release. alpha.7 is tagged without a run of it, as alpha.4 to
   alpha.6 were. No waiver of it for alpha.7 is recorded; it is owed for a later alpha (0141 T13).
 - **Held for after the tag**, since the freeze ends with it: Dependabot #1852 to #1859, opened on
-  2026-11-09 from 06:21 to 06:37, and what 0119's entry of 2026-11-08, later, holds.
+  2026-11-09 from 06:21 to 06:37, during the freeze, and what 0119's entry of 2026-11-08, later,
+  holds.
 - **Owed:** live's deploy of `v0.2.0-alpha.7`, by the owner.
 
 **2026-11-09: the owner waives alpha.7's counted nights, after its first night passed on C (T2;
