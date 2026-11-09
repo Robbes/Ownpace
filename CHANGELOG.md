@@ -16,6 +16,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and no test draws on a canvas, loads an image, calls `document.open` or parses a page with a
   blocking script. CI is the proof.
 
+### Fixed
+
+- **Security Scan's Trivy download waits out a few minutes of GitHub answering 504** (workplan
+  0119). The install step, word for word in the repository scan and in every image leg, gave up
+  after three attempts, 5 and 15 seconds apart, and on 2026-11-09 GitHub's release download
+  answered 504 to all three in both attempts of a pull request's scan (run 42580533989), so
+  nothing was scanned. It now makes five attempts, 5, 15, 45 and 135 seconds apart, as the
+  stalwart-cli step has since alpha.7, and still fails loud when the download stays down: about
+  200 seconds of refusals are ridden out, and an outage as long as that morning's, on and off from
+  07:37 to 07:50 UTC, still fails the scan, as it failed the stalwart-cli step's five attempts.
+  Every archive is still checked against its pinned SHA-256 before anything is unpacked, one that
+  came after the waits included, and a wrong sum is never retried. CI only; nothing shipped
+  changes.
+
 ## [0.2.0-alpha.7] - 2026-11-08
 
 A press on Deletions, Moves or Failures now says what it did in Dutch on a Dutch

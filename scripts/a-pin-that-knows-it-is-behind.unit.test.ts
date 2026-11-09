@@ -2117,9 +2117,13 @@ function runTrivyStep(step: { run: string; env: Record<string, string> }, machin
  * as `stalwartStepFaults` reads the stalwart-cli step: install and run
  * anything but the native release when both archives are the pinned ones (and
  * fetch both); finish with anything installed, run or on the PATH when either
- * sum is wrong; accept a binary that calls itself another version; give up on
- * one failed fetch, or go on after three; or install anything on a machine no
- * release is pinned for. Empty when the step is right.
+ * sum is wrong, also for an archive that came only after four failed fetches;
+ * accept a binary that calls itself another version; give up before four
+ * failed fetches have been waited out, 5, 15, 45 and 135 seconds apart
+ * (2026-11-09: GitHub's release download answered 504 to all three fetches in
+ * both attempts of a pull request's scan, run 42580533989), or go on after
+ * five; or install anything on a machine no release is pinned for. Empty when
+ * the step is right.
  */
 function trivyStepFaults(workflow: string, job: string): string[] {
   const step = trivyStep(workflow, job);
@@ -2144,11 +2148,20 @@ function trivyStepFaults(workflow: string, job: string): string[] {
     const other = runTrivyStep(step, machine, TRIVY_STAND_IN_SHA256, 'Version: 0.76.99');
     if (other.status === 0) faults.push(`accepts a binary that calls itself Version: 0.76.99 on ${machine}\n${other.log}`);
   }
-  const blip = runTrivyStep(step, 'x86_64', TRIVY_STAND_IN_SHA256, release, 2);
-  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15')) faults.push(`does not ride out two failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
-  const outage = runTrivyStep(step, 'x86_64', TRIVY_STAND_IN_SHA256, release, 3);
-  if (outage.status === 0 || outage.installed !== undefined || outage.ran || outage.fetched.length !== 3) {
-    faults.push(`goes on after three failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
+  // Four failed fetches in a row are waited out, 5, 15, 45 and 135 seconds apart, and the archive the
+  // fifth fetch brings is held to its pinned sum as a first one is; five in a row stop the step with
+  // nothing installed.
+  const blip = runTrivyStep(step, 'x86_64', TRIVY_STAND_IN_SHA256, release, 4);
+  if (!(blip.status === 0 && blip.ran && blip.slept.join(' ') === '5 15 45 135')) faults.push(`does not ride out four failed fetches: exit ${blip.status}, slept ${blip.slept.join(' ') || 'never'}\n${blip.log}`);
+  const late = runTrivyStep(step, 'x86_64', { ...TRIVY_STAND_IN_SHA256, INSTALL_TRIVY_SHA256_AMD64: step.env.INSTALL_TRIVY_SHA256_AMD64 ?? '' }, release, 4);
+  if (late.status === 0 || late.installed !== undefined || late.ran || late.onPath) {
+    faults.push(`goes on past a wrong INSTALL_TRIVY_SHA256_AMD64 fetched after four failed fetches: exit ${late.status}, installed ${late.installed !== undefined}, ran ${late.ran}\n${late.log}`);
+  }
+  const outage = runTrivyStep(step, 'x86_64', TRIVY_STAND_IN_SHA256, release, 5);
+  if (outage.status === 0 || outage.installed !== undefined || outage.ran) {
+    faults.push(`goes on after five failed fetches: exit ${outage.status}, fetched ${outage.fetched.length} times\n${outage.log}`);
+  } else if (outage.fetched.length !== 5) {
+    faults.push(`stops after fetch ${outage.fetched.length}, not the fifth: exit ${outage.status}\n${outage.log}`);
   }
   const riscv = runTrivyStep(step, 'riscv64', TRIVY_STAND_IN_SHA256, release);
   if (riscv.status === 0 || riscv.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${riscv.status}`);
@@ -2261,8 +2274,20 @@ describe('the Trivy the Security Scan runs: a named release from GitHub, checked
     // The whole of what it says, not its first line: Trivy goes on to name its database.
     expect(faults('"${said%%$\'\\n\'*}"', '"$said"')).toMatch(/installs no release on x86_64/);
     expect(faults('_Linux-$native.tar.gz" -C', '_Linux-64bit.tar.gz" -C')).toMatch(/installs no release on aarch64/);
-    expect(faults('for attempt in 1 2 3; do', 'for attempt in 1; do')).toMatch(/does not ride out two failed fetches/);
-    expect(faults(/\n +sleep \$\(\(attempt \* 10 - 5\)\)\n/, '\n')).toMatch(/does not ride out two failed fetches: exit 0, slept never/);
+    // The retry: none at all, the three attempts it had until 2026-11-09, four, a give-up at the
+    // third, one that waits for nothing between attempts, or the 5s, 15s, 25s and 35s the old
+    // arithmetic would give; a sixth attempt; and an archive that came after the waits let through
+    // unhashed, which the runs without a failed fetch never see.
+    expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1; do')).toMatch(/does not ride out four failed fetches: exit 1, slept 5\n/);
+    expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1 2 3; do')).toMatch(/does not ride out four failed fetches: exit 1, slept 5 15 45\n/);
+    expect(faults('for attempt in 1 2 3 4 5; do', 'for attempt in 1 2 3 4; do')).toMatch(/stops after fetch 4, not the fifth: exit 1/);
+    expect(faults('if [ "$attempt" = 5 ]; then', 'if [ "$attempt" = 3 ]; then')).toMatch(/does not ride out four failed fetches: exit 1, slept 5 15\n/);
+    expect(faults(/\n +sleep \$\(\(5 \* 3 \*\* \(attempt - 1\)\)\)\n/, '\n')).toMatch(/does not ride out four failed fetches: exit 0, slept never/);
+    expect(faults('sleep $((5 * 3 ** (attempt - 1)))', 'sleep $((attempt * 10 - 5))')).toMatch(/does not ride out four failed fetches: exit 0, slept 5 15 25 35/);
+    expect(faults(/for attempt in 1 2 3 4 5; do\n([\s\S]*?)"\$attempt" = 5/, 'for attempt in 1 2 3 4 5 6; do\n$1"$attempt" = 6')).toMatch(/goes on after five failed fetches: exit 0/);
+    expect(faults(/(_Linux-\$\{arch\}\.tar\.gz"; then\n)( +)break\n/, '$1$2[ "$attempt" = 1 ] || continue 2\n$2break\n')).toMatch(
+      /goes on past a wrong INSTALL_TRIVY_SHA256_AMD64 fetched after four failed fetches: exit 0/,
+    );
   });
 
   it('is a routine pin, current while upstream tags no newer release of its major', async () => {
