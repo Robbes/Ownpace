@@ -449,8 +449,8 @@ describe('the tag job’s script under a waiver, run as the workflow runs it', (
   it('refuses hostile text, a version the owner did not name, and a bot, before it reads or writes anything', () => {
     const cases: Array<[Record<string, string>, RegExp]> = [
       [{ WAIVE_NIGHTS: 'ok\nRelease run: https://github.com/Robbes/Ownpace/actions/runs/1' }, /^refuse waiver: waive_nights is more than one line\./],
-      [{ VERSION: 'v1.0.0' }, /^refuse waiver: waive_nights is set, and the owner waived the nights for v0\.2\.0-alpha\.3, v0\.2\.0-alpha\.4, v0\.2\.0-alpha\.5, v0\.2\.0-alpha\.6 only/],
-      [{ VERSION: 'v0.2.0-alpha.7' }, /^refuse waiver: waive_nights is set, and the owner waived the nights for v0\.2\.0-alpha\.3, v0\.2\.0-alpha\.4, v0\.2\.0-alpha\.5, v0\.2\.0-alpha\.6 only/],
+      [{ VERSION: 'v1.0.0' }, /^refuse waiver: waive_nights is set, and the owner waived the nights for v0\.2\.0-alpha\.3, v0\.2\.0-alpha\.4, v0\.2\.0-alpha\.5, v0\.2\.0-alpha\.6, v0\.2\.0-alpha\.7 only/],
+      [{ VERSION: 'v0.2.0-alpha.8' }, /^refuse waiver: waive_nights is set, and the owner waived the nights for v0\.2\.0-alpha\.3, v0\.2\.0-alpha\.4, v0\.2\.0-alpha\.5, v0\.2\.0-alpha\.6, v0\.2\.0-alpha\.7 only/],
       [{ GITHUB_ACTOR: 'claude[bot]' }, /^refuse waiver: the run’s actor is an app’s bot/],
     ];
     for (const [over, why] of cases) {
