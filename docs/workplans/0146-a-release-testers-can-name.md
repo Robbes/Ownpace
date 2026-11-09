@@ -24,11 +24,16 @@ migration or product code, and the CHANGELOG is untouched.
   before and after, and the restarted appliance healthy after 4 s. It is mechanics only for the
   schema, since no migration file differs between the two; what it adds is that C's PGlite 0.5.15
   opened the state directory alpha.6's 0.5.14 wrote.
-- **In the other nights' place,** dispatched on `main` at C before this merges, as for alpha.4 to
-  alpha.6: E2E (managed) run 42578932064 and E2E (self-hosted) on PGlite run 42578935549.
-- **Owed before the tag:** those two runs green; then the owner's Release run from their own
-  account, with `commit` set to C and `waive_nights` set to their reason, and their approval in the
-  `release` environment. The freeze ends with the tag.
+- **In the other nights' place,** dispatched on `main` at C before this merged, as for alpha.4 to
+  alpha.6, both green on their first attempt: E2E (managed) run 42578932064, 07:22 to 07:29 UTC,
+  and E2E (self-hosted) on PGlite run 42578935549, 07:22 to 07:35 UTC.
+- **This pull request's Security Scan** met GitHub's release download answering 504 for Trivy, on
+  its first run and its one re-run (07:40 to 07:42 UTC), before anything was scanned; the same
+  download answered 504 from outside GitHub's runners too. It ran again on this commit, once the
+  download answered.
+- **Owed before the tag:** the owner's Release run from their own account, with `commit` set to C
+  and `waive_nights` set to their reason, and their approval in the `release` environment. The
+  freeze ends with the tag.
 
 **2026-11-08, later: alpha.7 is folded, and its nights are counted, not waived (T2, T4).** On the
 branch `claude/ownpace-public-readiness-y7orc6-a7-fold`, from `main` at `aadc032d` (#1848), with
