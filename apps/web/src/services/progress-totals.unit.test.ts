@@ -5,7 +5,7 @@
  * GB"*. Each case is one sentence of the plan.
  */
 import { describe, it, expect } from 'vitest';
-import { bytesOfAbout, progressTotals, wholePercent } from './progress-totals.ts';
+import { barWidth, bytesOfAbout, progressTotals, wholePercent } from './progress-totals.ts';
 
 const GB = 1024 ** 3;
 const MB = 1024 ** 2;
@@ -65,6 +65,34 @@ describe("the bar's value for a screen reader", () => {
     expect(wholePercent(0.996)).toBe(99);
     expect(wholePercent(1)).toBe(100);
     expect(wholePercent(0)).toBe(0);
+  });
+});
+
+describe("the bar's parts, as they are drawn", () => {
+  /**
+   * TWO DECIMALS, so the width drawn is the width read back. Unrounded, 210 of
+   * 612 was 34.31372549019608%, which jsdom 31 read back as 34.3137%.
+   */
+  it('is a percent to two decimals', () => {
+    expect(barWidth(0, 210 / 612)).toBe('34.31%');
+    expect(barWidth(210 / 612, 210 / 612 + 402 / 612)).toBe('65.69%');
+    expect(barWidth(0, 18_234 / 19_000)).toBe('95.97%');
+  });
+
+  /**
+   * EDGES, NOT PARTS. Rounded on their own, 3.125% and 96.875% are 3.13% and
+   * 96.88%, and the two parts would draw 100.01% of the bar.
+   */
+  it('rounds the edges, so the two parts meet and never pass 100%', () => {
+    const totals = progressTotals({ itemsSynced: 1, itemsAdopted: 31, itemsFound: 32 });
+    if (totals.kind !== 'ofAbout') throw new Error('unreachable');
+    expect(barWidth(0, totals.copiedShare)).toBe('3.13%');
+    expect(barWidth(totals.copiedShare, totals.copiedShare + totals.leftShare)).toBe('96.87%');
+  });
+
+  it('draws none as 0% and all of it as 100%', () => {
+    expect(barWidth(0, 0)).toBe('0%');
+    expect(barWidth(0, 1)).toBe('100%');
   });
 });
 
