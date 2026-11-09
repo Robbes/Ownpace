@@ -659,7 +659,7 @@ jobs:
           set -euo pipefail
           ( cd "dist/${NAME}" && sha256sum --check --strict --quiet SHA256SUMS.txt )
           ( cd dist && zip -qr "${NAME}-${GITHUB_REF_NAME}.zip" "${NAME}" )
-      - uses: softprops/action-gh-release@efb35369e0ad2afab669f228072c1b0d510eae64 # v3.0.3
+      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
         with:
           files: dist/${{ needs.build.outputs.name }}-${{ github.ref_name }}.zip
           prerelease: ${{ contains(github.ref_name, '-') }}
