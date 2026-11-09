@@ -11,7 +11,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   versions on Alpine 3.24.4, where only apk-tools and libapk (3.0.9), `alpine-release` and, in
   nginx, tzdata (2026f) moved. The public site's nginx moves with the web image's, and the
   proxy's build takes a new name, so the next `up` builds it and restarts the proxy once. Kept
-  current, not a security fix: neither image read a high or critical finding before.
+  current, not a security fix: the image scan reads neither at a high or critical finding,
+  before or after.
 
 ## [0.2.0-alpha.7] - 2026-11-08
 
