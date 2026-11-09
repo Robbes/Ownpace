@@ -23,7 +23,7 @@
     "workplans:index": "node scripts/workplan-index.mjs --write"
   },
   "dependencies": {
-    "@azure/msal-node": "^7.1.2",
+    "@azure/msal-node": "^7.2.0",
     "@trigger.dev/core": "4.8.3",
     "@trigger.dev/sdk": "4.8.3",
     "croner": "^11.0.0",
@@ -43,11 +43,11 @@
     "drizzle-orm": "catalog:",
     "esbuild": "^0.28.2",
     "eslint": "10.14.0",
-    "imapflow": "^2.10.0",
+    "imapflow": "^2.10.2",
     "jsdom": "^31.0.0",
     "nodemailer": "^10.3.1",
     "pg": "catalog:",
-    "playwright-core": "^1.64.1",
+    "playwright-core": "^1.65.0",
     "supertest": "^7.3.1",
     "testcontainers": "^12.2.1",
     "tsx": "^4.23.15",
