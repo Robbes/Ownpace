@@ -59,9 +59,18 @@ are UTC.
   not build again. Live takes the new build, and with it the five fetches, with alpha.8, not
   before. On the OTA stack, the first bring-up with this builds the webapp under its new name and
   recreates `trigger-api` once.
-- **Proof.** CI on the pull request, where `images.yml`'s `build (trigger, amd64)` and `build
-  (trigger, arm64)` build the image with the new step. E2E (managed) on this branch: owed. No
-  upstream version moves, so there is no floor to wait for.
+- **Proof.** CI on the pull request, #1866. On `938ac00e`, Images run 42639335648 built
+  `localhost/trigger.dev:v4.8.3-1cf30823ea57` with the five-fetch RUN, on both platforms: `build
+  (trigger, amd64)` (job 129235913394, 14:55:01 to 14:57:39) and `build (trigger, arm64)` (job
+  129235913318, 14:55:03 to 14:57:34). Each leg's log shows the loop in the RUN it ran (step
+  `#8 [5/7]`, not from a cache), and each fetched its asset on the first try and read it as
+  pinned: *goose v3.27.1 at /usr/local/bin/goose is goose v3.29.0's goose_linux_arm64, by its
+  SHA-256 (efdb8f97…), root's and 0755; nothing else in the image changed*, and the same for
+  `goose_linux_x86_64` (`cc56e2f7…`). GitHub's release download answered both times, so the waits
+  themselves are proved only by the guard's runs of the RUN. On the same head, CI run 42639335638
+  (lint, ui-tests, four unit shards, both integration legs), Security Scan run 42639335618 and
+  the committed-artifacts check were green. E2E (managed) on this branch: owed. No upstream
+  version moves, so there is no floor to wait for.
 
 **2026-11-09: Dependabot's round of the day lands, but for the distroless runtime's rebuild, and
 alpha.7's images are read by tier.** Dependabot opened #1852 to #1859 from 06:21 to 06:37, during
