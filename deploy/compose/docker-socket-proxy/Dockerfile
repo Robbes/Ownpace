@@ -79,7 +79,7 @@
 #     leave the line alone.
 #
 # docker-socket-proxy v0.5.0
-FROM haproxy:3.4.7-alpine@sha256:2caaf8b1a1ef67f3f1ea9b721f2821675d3ba4500fb518e23884fecb93e8dbaa
+FROM haproxy:3.4.7-alpine@sha256:5312d37032c079c4937d45ef63758852434351f3b425a3703521fd999837abcf
 
 EXPOSE 2375
 ENV ALLOW_RESTARTS=0 \
