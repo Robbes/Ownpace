@@ -23,6 +23,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   proxy's build takes a new name, so the next `up` builds it and restarts the proxy once. Kept
   current, not a security fix: the image scan reads neither at a high or critical finding,
   before or after.
+- **imapflow 2.10.2, undici 8.12.4, the Microsoft sign-in library 7.2.0, TanStack Query 5.106.1,
+  lucide-react 1.70.0, Vite 8.3.6 and playwright-core 1.65.0** (from 2.10.0, 8.12.3, 7.1.2,
+  5.105.3, 1.68.0, 8.3.5 and 1.64.1, with React Query's devtools; Dependabot, #1853). imapflow
+  is the mail lanes' IMAP client and undici the shared HTTP client; `@azure/msal-node` signs the
+  Microsoft 365 source in; the rest are the web's data fetching, icons and build, and the test
+  browser's driver. Each was more than three days old on npm when it merged, and E2E (managed)
+  and E2E (self-hosted) on Postgres ran the group green on its branch first (runs 42616559484
+  and 42619055546).
+- **docker/login-action 4.8.0 and action-gh-release 3.0.4** (from 4.7.0 and 3.0.3, Dependabot,
+  #1852): the action that signs the images' workflow in to the registry, and the one that makes
+  a release and attaches its BOM and Windows zip, each pinned to its tag's commit; both tags
+  were more than three days old.
 
 ### Fixed
 
