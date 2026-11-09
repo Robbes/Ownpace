@@ -7,8 +7,8 @@
 **2026-11-09: the web image's nginx and the Docker socket proxy's HAProxy on Docker Hub's
 rebuilds of 2026-11-05, past their three days, for alpha.8.** On the branch
 `claude/ownpace-public-readiness-y7orc6-web-proxy-images`, from `main` at `7898e1c9` (#1860) with
-`main` merged at `97f24bcf` (#1861), in place of Dependabot's #1857 (nginx) and #1859 (HAProxy),
-which the owner closes once this merges. Times are UTC.
+`main` merged up to `716c5ff7` (#1862), in place of Dependabot's #1857 (nginx) and #1859
+(HAProxy), which the owner closes once this merges. Times are UTC.
 - **What moved upstream.** Docker Hub pushed `nginx:1.31.8-alpine-slim` again on 2026-11-05: its
   platform images at 19:50 (linux/amd64 `ec64c3fd…`, linux/arm64 `809d5e32…`) and the index
   `9c68ad4f…` at 22:08, ppc64le's image last; riscv64's is still that of 2026-10-24.
@@ -64,6 +64,44 @@ which the owner closes once this merges. Times are UTC.
   refuse; the image scan above, whose `docker-socket-proxy` leg built the proxy from this
   branch's Dockerfile on `5312d370…` with its file check passing. E2E (managed) on this branch:
   owed. E2E (self-hosted) is not: the appliance runs neither image.
+
+**2026-11-09: the Trivy download waits out a few minutes of GitHub answering 504, as the
+stalwart-cli download does.** On the branch
+`claude/ownpace-public-readiness-y7orc6-trivy-install-retry`, from `main` at `12bf3c53` (#1852),
+with `main` merged at `97f24bcf` (#1861). Security Scan run 42580533989, on #1860's first head
+(`3c9afe83`), failed in *Install Trivy from its GitHub release, checked by its sha256* in both of
+its attempts, before anything was scanned: GitHub's release download answered 504 to all three
+fetches of the `Linux-64bit` archive, at 07:40:30, 07:40:35 and 07:40:50 UTC and again at 07:42:12,
+07:42:17 and 07:42:32, and the step gave up each time after waiting 5 and 15 seconds. That morning
+the download refused fetches on and off from 07:37:59, when setup-node's Node got a 504 that its own
+retry got past 28 seconds later, to 07:50:49, when CI run 42580533818's amd64 integration leg gave
+up on stalwart-cli after five refused fetches from 07:47:18, #1850's attempts and waits; its arm64
+leg fetched the same release at 07:46:51 and 07:47:33. #1860's next head (`d71b97a2`) fetched both
+Trivy archives first time at 07:52:45 (run 42581996590). Both copies of the step, in `security-scan`
+and `image-scan`, now make five attempts, 5, 15, 45 and 135 seconds apart
+(`sleep $((5 * 3 ** (attempt - 1)))`, as in the stalwart-cli step), and still fail loud with the
+attempts stated; a wrong sum is still never retried, and each archive is still hashed and compared
+before anything is unpacked. There is no kept copy to fall back on: the scans run on GitHub's hosted
+runners since 2026-11-08 unless `CI_PUSH_ON_SELF_HOSTED` is `true`, and a hosted runner starts each
+job with nothing kept. The waits add up to 200 seconds, so this rides out a refusal of a few
+minutes, not that morning's: the two failed attempts' fifth fetches would have gone at about
+07:43:50 and 07:45:33, inside that window, so neither run was sure to pass with it.
+`a-pin-that-knows-it-is-behind` runs the real step: four failed fetches are waited out with exactly
+those waits, five stop it at the fifth with nothing installed, and the archive the fifth fetch
+brings is refused on a wrong sum, as a first fetch's is. Mutations of the real step each fail it:
+one attempt, the three it had, four, a give-up at the third, no wait, the old arithmetic's 5, 15, 25
+and 35 seconds, a sixth attempt, and an archive that came after the waits let through unhashed,
+which only the new check sees. Broken on disk and put back byte for byte: three attempts in both
+copies fails the run of the step (`does not ride out four failed fetches: exit 1, slept 5 15`), the
+sum read taken out of both fails the file before a test runs
+(`job security-scan's Trivy step never reads a sha256 of what it downloads`), and three attempts in
+`image-scan` alone fails *in both jobs alike* as well. §2.5's Trivy row names neither the attempts
+nor the waits, so it stays as written. Proved on GitHub's hosted runner: Security Scan runs
+42613963109 on `554d7ca5` and 42614277199 on `f6a3b1dc`, each `security-scan` job on `ubuntu-24.04`
+(12:04:23 to 12:05:23 and 12:06:44 to 12:07:49 UTC), ran the five-attempt step, read both archives
+as pinned (`Linux-64bit` `bc0fc726…`, `Linux-ARM64` `ab9d51f8…`) on their first fetch, installed a
+Trivy that says `Version: 0.76.2`, and code scanning accepted its SARIF. GitHub's release download
+answered both times, so the waits themselves are proved by the guard's runs of the step alone.
 
 **2026-11-09: the scan on the alpha.7 tag is the repository scan alone.** Security Scan run
 42606026797, which Release dispatched on the tag `v0.2.0-alpha.7` at C (`45375ac2`), from 11:04 to

@@ -276,8 +276,17 @@ jobs:
       # v0.76.2, built clean from the release's tag commit `3f6334d2`. That
       # it reports `Version: 0.76.2` is this step's own last check.
       #
-      # Retried as the stalwart-cli step in ci.yml is: THREE ATTEMPTS, THEN
-      # FAIL LOUD, and a wrong sum is never retried.
+      # Retried as the stalwart-cli step in ci.yml is: FIVE ATTEMPTS, 5, 15, 45
+      # AND 135 SECONDS APART, THEN FAIL LOUD, and a wrong sum is never retried.
+      # It made three, 5 and 15 seconds apart, until 2026-11-09, when GitHub's
+      # release download answered 504 to all three in both attempts of a pull
+      # request's scan (run 42580533989, 07:40 and 07:42 UTC). The waits add up
+      # to 200 seconds, so an outage about that long is ridden out. That one,
+      # 504s on and off from 07:37 to 07:50, was longer, and the stalwart-cli
+      # step's five attempts gave up in it too: one that long still fails here,
+      # and says so. A GitHub-hosted runner, where this step runs unless the
+      # switch in the header sends a push to main to the self-hosted one, starts
+      # with nothing kept from an earlier run, so it has no copy to fall back on.
       #
       # TO MOVE IT: the release the pin watch's Trivy row names, three days
       # old; INSTALL_TRIVY_VERSION and both sums from that release's
@@ -301,18 +310,18 @@ jobs:
             if [ "$arch" = 64bit ]; then pinned="$INSTALL_TRIVY_SHA256_AMD64"; else pinned="$INSTALL_TRIVY_SHA256_ARM64"; fi
             download="$RUNNER_TEMP/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-$arch.tar.gz"
             rm -f "$download"
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5; do
               if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
                   "https://github.com/aquasecurity/trivy/releases/download/${INSTALL_TRIVY_VERSION}/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-${arch}.tar.gz"; then
                 break
               fi
               echo "::warning::Trivy $INSTALL_TRIVY_VERSION Linux-$arch: download attempt $attempt failed"
-              if [ "$attempt" = 3 ]; then
-                echo "::error::Trivy $INSTALL_TRIVY_VERSION could not be downloaded from its GitHub release after 3 attempts. Nothing was scanned. Either GitHub's release download is unavailable or the release no longer serves this file."
+              if [ "$attempt" = 5 ]; then
+                echo "::error::Trivy $INSTALL_TRIVY_VERSION could not be downloaded from its GitHub release after 5 attempts. Nothing was scanned. Either GitHub's release download is unavailable or the release no longer serves this file."
                 exit 1
               fi
-              # 5s, then 15s, as the stalwart-cli step waits.
-              sleep $((attempt * 10 - 5))
+              # 5s, 15s, 45s, then 135s, as the stalwart-cli step waits.
+              sleep $((5 * 3 ** (attempt - 1)))
             done
             seen="$(sha256sum "$download")"
             seen="${seen%% *}"
@@ -762,8 +771,17 @@ jobs:
       # v0.76.2, built clean from the release's tag commit `3f6334d2`. That
       # it reports `Version: 0.76.2` is this step's own last check.
       #
-      # Retried as the stalwart-cli step in ci.yml is: THREE ATTEMPTS, THEN
-      # FAIL LOUD, and a wrong sum is never retried.
+      # Retried as the stalwart-cli step in ci.yml is: FIVE ATTEMPTS, 5, 15, 45
+      # AND 135 SECONDS APART, THEN FAIL LOUD, and a wrong sum is never retried.
+      # It made three, 5 and 15 seconds apart, until 2026-11-09, when GitHub's
+      # release download answered 504 to all three in both attempts of a pull
+      # request's scan (run 42580533989, 07:40 and 07:42 UTC). The waits add up
+      # to 200 seconds, so an outage about that long is ridden out. That one,
+      # 504s on and off from 07:37 to 07:50, was longer, and the stalwart-cli
+      # step's five attempts gave up in it too: one that long still fails here,
+      # and says so. A GitHub-hosted runner, where this step runs unless the
+      # switch in the header sends a push to main to the self-hosted one, starts
+      # with nothing kept from an earlier run, so it has no copy to fall back on.
       #
       # TO MOVE IT: the release the pin watch's Trivy row names, three days
       # old; INSTALL_TRIVY_VERSION and both sums from that release's
@@ -787,18 +805,18 @@ jobs:
             if [ "$arch" = 64bit ]; then pinned="$INSTALL_TRIVY_SHA256_AMD64"; else pinned="$INSTALL_TRIVY_SHA256_ARM64"; fi
             download="$RUNNER_TEMP/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-$arch.tar.gz"
             rm -f "$download"
-            for attempt in 1 2 3; do
+            for attempt in 1 2 3 4 5; do
               if curl --proto '=https' --tlsv1.2 -sSfL -o "$download" \
                   "https://github.com/aquasecurity/trivy/releases/download/${INSTALL_TRIVY_VERSION}/trivy_${INSTALL_TRIVY_VERSION#v}_Linux-${arch}.tar.gz"; then
                 break
               fi
               echo "::warning::Trivy $INSTALL_TRIVY_VERSION Linux-$arch: download attempt $attempt failed"
-              if [ "$attempt" = 3 ]; then
-                echo "::error::Trivy $INSTALL_TRIVY_VERSION could not be downloaded from its GitHub release after 3 attempts. Nothing was scanned. Either GitHub's release download is unavailable or the release no longer serves this file."
+              if [ "$attempt" = 5 ]; then
+                echo "::error::Trivy $INSTALL_TRIVY_VERSION could not be downloaded from its GitHub release after 5 attempts. Nothing was scanned. Either GitHub's release download is unavailable or the release no longer serves this file."
                 exit 1
               fi
-              # 5s, then 15s, as the stalwart-cli step waits.
-              sleep $((attempt * 10 - 5))
+              # 5s, 15s, 45s, then 135s, as the stalwart-cli step waits.
+              sleep $((5 * 3 ** (attempt - 1)))
             done
             seen="$(sha256sum "$download")"
             seen="${seen%% *}"
