@@ -793,7 +793,7 @@ services:
   # only), why the name carries the hash of its instructions, and how it moves.
   # `never`, as for the databases: no registry serves this name.
   trigger-docker-proxy:
-    image: localhost/docker-socket-proxy:3.4.7-alpine-86292f1f80d6
+    image: localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226
     build: ./docker-socket-proxy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
