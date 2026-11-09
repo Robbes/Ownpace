@@ -70,6 +70,26 @@ export function wholePercent(share: number): number {
   return Math.floor(share * 100);
 }
 
+/**
+ * One part of the bar, from one share to another, as the width it is drawn
+ * at: a percent to two decimals, measured between ROUNDED EDGES.
+ *
+ * Two decimals, because a width is read back the way the engine keeps it, and
+ * engines do not keep the same digits: 210 of 612 is 34.31372549019608%, which
+ * jsdom 30 read back whole and jsdom 31 reads back as 34.3137% (2026-11-09),
+ * so what the strip drew depended on who read it. A hundredth of a percent of
+ * a bar at most 20rem wide is about a thirtieth of a pixel, and two decimals
+ * read back as they were written.
+ *
+ * Edges, not parts: each part starts at the rounded end of the one before it,
+ * so the two still meet, and together they still never pass 100%. Rounded on
+ * their own, 1 copied and 31 left as they were of 32 are 3.125% and 96.875%,
+ * which round to 3.13% and 96.88%: 100.01% of the bar.
+ */
+export function barWidth(from: number, to: number): string {
+  return `${(Math.round(to * 10_000) - Math.round(from * 10_000)) / 100}%`;
+}
+
 const UNITS = ['B', 'KB', 'MB', 'GB', 'TB'] as const;
 
 /** The largest unit `bytes` reaches, by `formatBytes`'s steps of 1024. */
