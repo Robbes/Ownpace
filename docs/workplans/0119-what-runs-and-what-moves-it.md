@@ -34,7 +34,12 @@ disk and put back byte for byte: three attempts in both copies fails the run of 
 ride out four failed fetches: exit 1, slept 5 15`), the sum read taken out of both fails the file
 before a test runs (`job security-scan's Trivy step never reads a sha256 of what it downloads`),
 and three attempts in `image-scan` alone fails *in both jobs alike* as well. §2.5's Trivy row names
-neither the attempts nor the waits, so it stays as written.
+neither the attempts nor the waits, so it stays as written. Proved on GitHub's hosted runner, on
+`554d7ca5`: Security Scan run 42613963109's `security-scan` job, on `ubuntu-24.04` from 12:04:23 to
+12:05:23 UTC, ran the five-attempt step, read both archives as pinned (`Linux-64bit` `bc0fc726…`,
+`Linux-ARM64` `ab9d51f8…`) on their first fetch, installed a Trivy that says `Version: 0.76.2`, and
+code scanning accepted its SARIF. GitHub's release download answered that time, so the waits
+themselves are proved by the guard's runs of the step alone.
 
 **2026-11-08, later: what alpha.7 moves, folded.** The fold (0146 Status, 2026-11-08, later),
 whose squash is C, closes alpha.7 with this plan's moves since alpha.6 in it:
