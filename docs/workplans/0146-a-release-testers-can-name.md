@@ -4,6 +4,63 @@
 
 ## Status — 2026-11-09 (update this block at the end of every session)
 
+**2026-11-09, later: `v0.2.0-alpha.7` is released, its nights waived (T2, T4).** Read from GitHub
+on 2026-11-09. Times are UTC.
+
+- **C is `45375ac2`**, the squash of #1849 (the fold), merged on 2026-11-08 at 14:59 on `afb815e6`
+  (#1851). `main` is at `7898e1c9` (#1860, the waiver), whose first parent is C. On C, all green
+  on 2026-11-08: CI run 42492526476 (`lint`, `unit-tests (all)`, `ui-tests`,
+  `integration-tests (ubuntu-24.04-arm)` and `ci-complete` run and passed, 15:00 to 15:23),
+  Security Scan run 42492526489, Images run 42492526680, Nextcloud second major run 42492526475,
+  and `windows-payload.yml` run 42492551623 (`build win-x64` and `smoke win-x64 on windows-2025`;
+  its attach runs on a tag only, so it was skipped).
+- **Before the release**, as the entry below has it. The first counted night's E2E (self-hosted)
+  on Postgres ran C on its schedule: run 42553317318, from 02:52:50 to 02:58:33, green on its
+  first attempt. In the nights' place, dispatched on `main` at C at 07:22: E2E (managed) run
+  42578932064 (07:22 to 07:29; version 20261109.1 deployed, *verify: done apply: applied*, SMOKE
+  PASS) and E2E (self-hosted) on PGlite run 42578935549 (07:22 to 07:35), both green. On the
+  owner's *"Waive the waiting, and give me next commands."*, #1860 merged at 08:13. The scheduled
+  E2E (self-hosted) on PGlite after that, run 42586974196 (08:34 to 08:40), ran `main` at
+  `7898e1c9`, whose tree is C's but for #1860's six files, and was green. The owner's upgrade
+  drill from alpha.6 to C passed, `DRILL PASSED`: mechanics only, since no migration file differs
+  between the two (65 and 59 on both sides). GitHub's release download answering 504 for #1860's
+  own Security Scan is in that pull request's records commit, `d71b97a2`.
+- **Release.** The owner dispatched both runs from their own account, with `commit` set to C and
+  `waive_nights` set to *Waive the waiting*. The preflight (run 42600924217, 10:26:45 to 10:27:37)
+  refused nothing: CI run #5376, Security Scan run #5452 and the Windows smoke of windows-payload
+  run #35 green on C; the names, the changelog (dated 2026-11-08) and the API contract agree; the
+  tag free; C on `main`'s first-parent line, with one commit after it (#1860); the upgrade gates'
+  8 and 12 cases passed (7 and 8 of them from alpha.6; mechanics only, 65 and 59 migrations on
+  both sides); the nights' refusals notes naming the owner's waiver; the upgrade drill listed as
+  not checked. It noted, without refusing, 2 critical and 64 high code-scanning alerts open on
+  `main` in 13 groups, every one an image's (0119). Release run 42605474898, mode `release`,
+  dispatched at 11:00:27, refused nothing in its own preflight and waited at its approve job
+  until the owner approved in the `release` environment (the job ran 11:01:58 to 11:02:01); then
+  the gate scan of C (run 42605726499), the tag (11:03:52 to 11:04:12), the publishing (Security
+  Scan on the tag, run 42606026797; the Windows zip, run 42606277795; the images, run
+  42606277394) and verify (11:11:22 to 11:12:03) all succeeded, and the run completed at
+  11:12:04. Verify read the release as a pre-release with `bom.json` (CycloneDX 1.6) and
+  `ownpace-appliance-win-x64-v0.2.0-alpha.7.zip` (its 411 files' sums hold, its `node.exe`
+  v26.13.0 as pinned); `ownpace-api`, `ownpace-web` and `ownpace-selfhost` at `0.2.0-alpha.7` for
+  amd64 and arm64, built from C, signed, `latest` not moved; the tasks' base that C pins
+  (`sha-2886230`), for both platforms, built from an ancestor of C and signed on `main`; and the
+  appliance's `/version` answering the tag's version and commit.
+- **The tag.** `v0.2.0-alpha.7` is tag object `db38802d…` on `45375ac2`, made by
+  `github-actions[bot]` at 11:04:07. Its message has the lines
+  *Release run: https://github.com/Robbes/Ownpace/actions/runs/42605474898*,
+  *Proved by: CI run #5376, Security Scan run #5452 on main, windows-payload run #35; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/42605726499* and
+  *Nights waived by Robbes, in their words: "Waive the waiting"*.
+- **The release** is a pre-release, published at 11:05:24 by the scan on the tag, with `bom.json`
+  (2091649 bytes) and `ownpace-appliance-win-x64-v0.2.0-alpha.7.zip` (49988346 bytes).
+- **The scan on the tag**, run 42606026797, is the repository scan alone, as Release dispatches
+  it; no scan of the images had run since the tag when this was read (0119).
+- **The O365 lane** is not read by Release. alpha.7 is tagged without a run of it, as alpha.4 to
+  alpha.6 were. No waiver of it for alpha.7 is recorded; it is owed for a later alpha (0141 T13).
+- **Held for after the tag**, since the freeze ends with it: Dependabot #1852 to #1859, opened on
+  2026-11-09 from 06:21 to 06:37, and what 0119's entry of 2026-11-08, later, holds.
+- **Owed:** live's deploy of `v0.2.0-alpha.7`, by the owner.
+
 **2026-11-09: the owner waives alpha.7's counted nights, after its first night passed on C (T2;
 0141 T14).** The owner, on 2026-11-09: *"Waive the waiting, and give me next commands."*
 `v0.2.0-alpha.7` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs` with those words, beside

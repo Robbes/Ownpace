@@ -2,7 +2,18 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-09 (update this block at the end of every session)
+
+**2026-11-09, records: alpha.7 is tagged without the O365 lane, and with its nights waived (T13
+(a), T14).** Docs only. `v0.2.0-alpha.7` was tagged on 2026-11-09 at 11:04 UTC without a run of
+`e2e-o365.yml` (0146, Status of that day, later): the lane has had no run since 41418432093, which
+stopped at its secrets check on 2026-11-02 (read from GitHub). Release does not read the lane. No
+waiver of it is recorded for alpha.7, and the question asked on 2026-11-07, whether it is recorded
+as waived for alpha.6, has no answer recorded. It is owed for a later alpha, as before: the
+secrets, as `docs/test-tenant.md` lists them, and a green run. **T14:** the owner waived alpha.7's
+counted nights on 2026-11-09, after the first night's E2E (self-hosted) on Postgres passed on C
+(0146, Status of that day), so it is tagged with them waived, as alpha.3 to alpha.6 were, not with
+both run as the entry below planned.
 
 **2026-11-08, records: open question 1 answered, and the invitation's tag (T2, T14).** Docs only,
 on the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843 (`d227b15f`). The
