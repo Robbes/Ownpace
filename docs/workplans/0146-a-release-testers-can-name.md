@@ -2,7 +2,38 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-09 (update this block at the end of every session)
+
+**2026-11-09: the owner waives alpha.7's counted nights, after its first night passed on C (T2;
+0141 T14).** The owner, on 2026-11-09: *"Waive the waiting, and give me next commands."*
+`v0.2.0-alpha.7` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs` with those words, beside
+alpha.3 to alpha.6. The two guards that hold the list, `a-release-preflight-that-said-yes-too-soon`
+and `a-tag-that-already-pointed-elsewhere`, name it, with `v0.2.0-alpha.8` now the version a waiver
+is refused for, and `docs/release.md` lists it. Nothing here reaches an image, a compose file, a
+migration or product code, and the CHANGELOG is untouched.
+- **C stays `45375ac2`, the fold's squash.** Release reads `WAIVER_VERSIONS` from `main`'s own
+  scripts, and tags a commit on `main`'s first-parent line (`candidateOnMain` in
+  `scripts/release-preflight.mjs`; `docs/release.md`, *When the owner waives the nights*), so this
+  pull request's squash is not C. C's push runs on `main` (CI run 42492526476, Security Scan run
+  42492526489) and its Windows smoke (windows-payload run 42492551623), green on 2026-11-08, stand
+  as they are.
+- **What ran on C before the waiver.** The first counted night's E2E (self-hosted) on Postgres, on
+  its schedule: run 42553317318, 02:52 to 02:58 UTC, green on its first attempt, with both
+  stalwart-cli archives from the copy an earlier run kept (#1850). And the owner's upgrade drill on
+  the Docker host, `scripts/upgrade-drill.sh v0.2.0-alpha.6` at C: `DRILL PASSED`, the same mapping
+  before and after, and the restarted appliance healthy after 4 s. It is mechanics only for the
+  schema, since no migration file differs between the two; what it adds is that C's PGlite 0.5.15
+  opened the state directory alpha.6's 0.5.14 wrote.
+- **In the other nights' place,** dispatched on `main` at C before this merged, as for alpha.4 to
+  alpha.6, both green on their first attempt: E2E (managed) run 42578932064, 07:22 to 07:29 UTC,
+  and E2E (self-hosted) on PGlite run 42578935549, 07:22 to 07:35 UTC.
+- **This pull request's Security Scan** met GitHub's release download answering 504 for Trivy, on
+  its first run and its one re-run (07:40 to 07:42 UTC), before anything was scanned; the same
+  download answered 504 from outside GitHub's runners too. It ran again on this commit, once the
+  download answered.
+- **Owed before the tag:** the owner's Release run from their own account, with `commit` set to C
+  and `waive_nights` set to their reason, and their approval in the `release` environment. The
+  freeze ends with the tag.
 
 **2026-11-08, later: alpha.7 is folded, and its nights are counted, not waived (T2, T4).** On the
 branch `claude/ownpace-public-readiness-y7orc6-a7-fold`, from `main` at `aadc032d` (#1848), with

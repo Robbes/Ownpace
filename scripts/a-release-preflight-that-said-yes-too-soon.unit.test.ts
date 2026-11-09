@@ -84,7 +84,7 @@
  * and nothing is made.
  *
  * The review of 2026-10-30 narrowed it. It is taken only for a version in
- * `WAIVER_VERSIONS` (alpha.3, alpha.4, alpha.5 and alpha.6, the ones the owner named), each a pre-release,
+ * `WAIVER_VERSIONS` (alpha.3, alpha.4, alpha.5, alpha.6 and alpha.7, the ones the owner named), each a pre-release,
  * and never from an app's bot, whose name the tag would put on the owner's
  * words. A run that refused before it read the nights says so, never that
  * they were waived. The check step's `waived` output says whether it used
@@ -713,6 +713,7 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
   const V4 = 'v0.2.0-alpha.4';
   const V5 = 'v0.2.0-alpha.5';
   const V6 = 'v0.2.0-alpha.6';
+  const V7 = 'v0.2.0-alpha.7';
   const refusedAt = (lines: Line[], check: string) => lines.filter((l) => l.kind === 'refuse' && l.check === check);
   /** Every full check but the nights, passed. */
   const passing = (): Line[] =>
@@ -785,20 +786,21 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
   // The review of 2026-10-30: the owner waived the nights for alpha.3, "No
   // one is in the alpha yet". Not for every release after it: alpha.4 is
   // there by the owner's words of 2026-11-03, alpha.5 by those of
-  // 2026-11-06, alpha.6 by those of 2026-11-07, and nothing else.
+  // 2026-11-06, alpha.6 by those of 2026-11-07, alpha.7 by those of
+  // 2026-11-09, and nothing else.
   it('is taken only for a version the owner named, each a pre-release', () => {
-    expect(WAIVER_VERSIONS).toEqual([V3, V4, V5, V6]);
+    expect(WAIVER_VERSIONS).toEqual([V3, V4, V5, V6, V7]);
     for (const v of WAIVER_VERSIONS) {
       const semver = parseSemVer(v.slice(1));
       expect(semver, v).not.toBeNull();
       expect(semver!.prerelease.length, `${v} is a pre-release, one no tester runs yet`).toBeGreaterThan(0);
     }
-    for (const version of ['v1.0.0', 'v0.3.0', 'v0.2.0-alpha.7', 'v0.2.0-alpha.2', 'v0.2.0-alpha.3+x', 'v0.2.0-alpha.4+x', 'v0.2.0-alpha.5+x', 'v0.2.0-alpha.6+x', '', undefined]) {
+    for (const version of ['v1.0.0', 'v0.3.0', 'v0.2.0-alpha.8', 'v0.2.0-alpha.2', 'v0.2.0-alpha.3+x', 'v0.2.0-alpha.4+x', 'v0.2.0-alpha.5+x', 'v0.2.0-alpha.6+x', 'v0.2.0-alpha.7+x', '', undefined]) {
       for (const mode of WAIVER_MODES) {
         const { waiver, lines } = readWaiver({ text: WORDS, mode, actor: OWNER, version });
         expect(waiver, `${String(version)} ${mode}`).toBeNull();
         expect(refusedAt(lines, 'waiver').map((l) => l.sentence)).toEqual([
-          `waive_nights is set, and the owner waived the nights for ${V3}, ${V4}, ${V5}, ${V6} only, not for this version: ` +
+          `waive_nights is set, and the owner waived the nights for ${V3}, ${V4}, ${V5}, ${V6}, ${V7} only, not for this version: ` +
             'dispatch it again with waive_nights empty, or first add the version to WAIVER_VERSIONS with the owner’s words',
         ]);
       }
@@ -955,7 +957,7 @@ describe('the owner’s waiver of the nights (the owner, 2026-10-30, for alpha.3
   });
 
   it('refuses a waiver for a version the owner did not name before anything is read, and from a bot', async () => {
-    const overs: Array<Record<string, string>> = [{ VERSION: 'v1.0.0' }, { VERSION: 'v0.2.0-alpha.7' }, { GITHUB_ACTOR: 'claude[bot]' }];
+    const overs: Array<Record<string, string>> = [{ VERSION: 'v1.0.0' }, { VERSION: 'v0.2.0-alpha.8' }, { GITHUB_ACTOR: 'claude[bot]' }];
     for (const over of overs) {
       const asked: string[] = [];
       const { lines, out } = await resolveStep(recording(asked), resolveEnv({ COMMIT_INPUT: C, WAIVE_NIGHTS: WORDS, ...over }));
