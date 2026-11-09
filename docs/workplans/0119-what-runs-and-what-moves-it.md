@@ -4,11 +4,53 @@
 
 ## Status — 2026-11-09 (update this block at the end of every session)
 
+**2026-11-09: Dependabot's round of the day lands, but for the distroless runtime's rebuild, and
+alpha.7's images are read by tier.** Dependabot opened #1852 to #1859 from 06:21 to 06:37, during
+the freeze, which the tag ended at 11:04. Times are UTC.
+- **The actions group, #1852:** `docker/login-action` 4.7.0 to 4.8.0 (images.yml's registry
+  login) and `softprops/action-gh-release` 3.0.3 to 3.0.4 (the release the tag's scan makes and
+  the Windows zip it is given), each pinned to its tag's commit, as upstream's git reads: the
+  first a lightweight tag on a commit of 2026-11-05 at 12:54, the second a tag of 14:25 that day,
+  both past three days. Its first CI run's `build (trigger, arm64)` failed when goose's GitHub
+  release download did not answer at 06:2x (a single attempt; the entry below on Trivy lists
+  it); brought up to `main`, every check passed, and it merged at 11:52 (`12bf3c53`).
+- **The npm group, #1853:** `@azure/msal-node` 7.1.2 to 7.2.0, imapflow 2.10.0 to 2.10.2,
+  playwright-core 1.64.1 to 1.65.0, undici 8.12.3 to 8.12.4, TanStack Query and its devtools
+  5.105.3 to 5.106.1, lucide-react 1.68.0 to 1.70.0 and Vite 8.3.5 to 8.3.6, each published on
+  npm from 2026-11-04 13:27 to 2026-11-06 06:15, past pnpm's 4,320 minutes. On its head
+  `dd6cd42c`, E2E (managed) run 42616559484 (12:23 to 12:30; version 20261109.3,
+  *verify: done apply: applied*, the task lane's 2 VTODO rows, the large file's hash matching,
+  SMOKE PASS) and E2E (self-hosted) on Postgres run 42619055546 (12:41 to 12:46; five domains
+  synced, every sampled checksum matching) were green, and it merged at 12:47 (`4697b18c`).
+- **jsdom 31.0.0**, Dependabot's #1854, merged as #1863 (`80bd01eb`, 13:02) with the one change
+  it needed (the CHANGELOG); **nginx's and HAProxy's rebuilds**, #1857 and #1859, as #1864 (the
+  entry below). #1854, #1857 and #1859 are closed as superseded.
+- **Held: the distroless runtime's rebuild.** `gcr.io/distroless/nodejs26-debian13:nonroot` at
+  `33c86a63…`, which Dependabot opened as #1855 (the API), #1856 (the appliance) and #1858 (the
+  tasks' base), was uploaded on 2026-11-08 at 21:55:16 (gcr.io's tag list), so it is past three
+  days on 2026-11-11 at 21:55. Each of the three is red alone, since the guards hold the three
+  FROM lines to one string; they move together after the floor, with E2E (self-hosted) on both
+  backends and E2E (managed), and the tasks' base follows as #1816 and #1824 did.
+- **Held: pnpm.** npm's `latest-11` still names 11.28.9 (read at 11:3x; `next-11` names 11.28.11),
+  so #1792 stays a draft.
+- **The day's E2E (managed).** Its 03:30 cron was created at 11:55, eight and a half hours late,
+  and run 42612782635 ran `main` at `12bf3c53` green (11:55 to 12:02; *verify: done apply:
+  applied*, the task lane's 2 VTODO rows, the large file's hash matching, SMOKE PASS).
+- **alpha.7's images by tier.** Security Scan run 42615868745, dispatched with `image_scans` on
+  #1864's branch (Trivy v0.76.2, every job on GitHub's runners), also read the published images:
+  `ownpace-api` and `ownpace-selfhost` at `0.2.0-alpha.7` (Debian 13.7) at 0 critical, 2 high
+  and 2 with a fix each, `ownpace-web` at `0.2.0-alpha.7` at 0, 0 and 0, and the tasks' base at
+  `sha-2886230` at 0, 2 and 2; the stacks' Redis build at 1, 8 and 0 and Trigger.dev's at 1, 22
+  and 14. By tier: production-public, 7 images, 0, 11 and 11; production-internal, 13 images, 2,
+  50 and 33; shipped, 3 images, 0, 4 and 4. It is the first reading of alpha.7's own images (the
+  entry on the scan on the tag, below, has none).
+
 **2026-11-09: the web image's nginx and the Docker socket proxy's HAProxy on Docker Hub's
 rebuilds of 2026-11-05, past their three days, for alpha.8.** On the branch
 `claude/ownpace-public-readiness-y7orc6-web-proxy-images`, from `main` at `7898e1c9` (#1860) with
 `main` merged up to `716c5ff7` (#1862), in place of Dependabot's #1857 (nginx) and #1859
-(HAProxy), which the owner closes once this merges. Times are UTC.
+(HAProxy), both closed as superseded when this merged, as #1864 (`e0ea8c91`, 13:51). Times are
+UTC.
 - **What moved upstream.** Docker Hub pushed `nginx:1.31.8-alpine-slim` again on 2026-11-05: its
   platform images at 19:50 (linux/amd64 `ec64c3fd…`, linux/arm64 `809d5e32…`) and the index
   `9c68ad4f…` at 22:08, ppc64le's image last; riscv64's is still that of 2026-10-24.
@@ -62,8 +104,13 @@ rebuilds of 2026-11-05, past their three days, for alpha.8.** On the branch
 - **Proof.** CI on the pull request, where `images.yml` builds the web image and `build
   (docker-socket-proxy)` builds the proxy on the new base and asks it what it must allow and
   refuse; the image scan above, whose `docker-socket-proxy` leg built the proxy from this
-  branch's Dockerfile on `5312d370…` with its file check passing. E2E (managed) on this branch:
-  owed. E2E (self-hosted) is not: the appliance runs neither image.
+  branch's Dockerfile on `5312d370…` with its file check passing. E2E (managed) on this branch,
+  run 42627917536 (13:43 to 13:50, on `6cd3e249`, the head that merged), green: the web image
+  built on `9c68ad4f…`, `trigger-docker-proxy` up as
+  `localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226`, version 20261109.4 deployed,
+  *verify: done apply: applied*, the task lane's 2 VTODO rows copied, the large file's hash
+  matching its source, SMOKE PASS. E2E (self-hosted) is not owed: the appliance runs neither
+  image.
 
 **2026-11-09: the Trivy download waits out a few minutes of GitHub answering 504, as the
 stalwart-cli download does.** On the branch
