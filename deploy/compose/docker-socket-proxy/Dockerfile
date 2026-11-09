@@ -13,10 +13,10 @@
 # linux/arm64) read 0 critical and 6 high findings in it, all 6 fixed in a
 # newer Alpine package. Read from the two images' package databases
 # (linux/arm64, 2026-10-30), the packages that differ between that base and
-# this one are apk-tools and libapk 3.0.6 to 3.0.8, ca-certificates 20260611
-# to 20261020, libcrypto3 and libssl3 (openssl) 3.5.7 to 3.5.9, musl and
-# musl-utils 1.2.6-r2 to -r3, pcre2 10.47 to 10.49 and zlib 1.3.2-r0 to -r1.
-# Upstream's image had exactly 3.4.2-alpine's packages.
+# 3.4.7's build of 2026-10-24 were apk-tools and libapk 3.0.6 to 3.0.8,
+# ca-certificates 20260611 to 20261020, libcrypto3 and libssl3 (openssl) 3.5.7
+# to 3.5.9, musl and musl-utils 1.2.6-r2 to -r3, pcre2 10.47 to 10.49 and zlib
+# 1.3.2-r0 to -r1. Upstream's image had exactly 3.4.2-alpine's packages.
 #
 # WHAT IT IS. Upstream's own Dockerfile at the tag v0.5.0
 # (github.com/Tecnativa/docker-socket-proxy, commit 2e118a0c), with the two
@@ -25,12 +25,17 @@
 # Apache-2.0, as this repository's is. Two things differ, and nothing else:
 #
 #   1. The base. Upstream's FROM is `haproxy:3.4.2-alpine`, by tag alone. This
-#      one is the newest release of the same line, 3.4.7, on Alpine 3.24.3, by
-#      the digest of its index, pushed by Docker Hub on 2026-10-24 17:56 UTC and
-#      taken on 2026-10-30, past the three-day floor (CONTRIBUTING.md). Its
-#      platforms include linux/amd64 and linux/arm64. The base's user,
-#      entrypoint, command, working directory and stop signal are the same at
-#      3.4.2 and 3.4.7, read from the registry on 2026-10-30.
+#      one is the newest release of the same line, 3.4.7, by the digest of its
+#      index: Docker Hub's rebuild of the tag on Alpine 3.24.4, whose index it
+#      pushed on 2026-11-05 at 23:56 UTC, taken on 2026-11-09, past the
+#      three-day floor (CONTRIBUTING.md). Its platforms include linux/amd64 and
+#      linux/arm64. Against the tag's build of 2026-10-24 on Alpine 3.24.3,
+#      taken on 2026-10-30, the rebuild moves alpine-release, apk-tools and
+#      libapk (3.0.8 to 3.0.9) and nothing else but the build's own
+#      `.haproxy-rundeps` marker, on both platforms; HAProxy is the same 3.4.7
+#      source. The base's user, entrypoint, command, working directory and
+#      stop signal are the same at 3.4.2 and 3.4.7, read from the registry on
+#      2026-10-30, and the rebuild's again on 2026-11-09.
 #   2. One RUN, after the two COPY lines, that checks both files by SHA-256 and
 #      the entrypoint's executable bit. The name managed.yml builds this under
 #      hashes this file's instruction lines and nothing else (THE NAME, below),
@@ -79,7 +84,7 @@
 #     leave the line alone.
 #
 # docker-socket-proxy v0.5.0
-FROM haproxy:3.4.7-alpine@sha256:2caaf8b1a1ef67f3f1ea9b721f2821675d3ba4500fb518e23884fecb93e8dbaa
+FROM haproxy:3.4.7-alpine@sha256:5312d37032c079c4937d45ef63758852434351f3b425a3703521fd999837abcf
 
 EXPOSE 2375
 ENV ALLOW_RESTARTS=0 \

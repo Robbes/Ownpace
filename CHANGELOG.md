@@ -4,6 +4,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The web image's nginx and the Docker socket proxy's HAProxy move to Docker Hub's rebuilds of
+  2026-11-05** (workplan 0119): `nginx:1.31.8-alpine-slim` and `haproxy:3.4.7-alpine`, the same
+  versions on Alpine 3.24.4, where only apk-tools and libapk (3.0.9), `alpine-release` and, in
+  nginx, tzdata (2026f) moved. The public site's nginx moves with the web image's, and the
+  proxy's build takes a new name, so the next `up` builds it and restarts the proxy once. Kept
+  current, not a security fix: neither image read a high or critical finding before.
+
 ## [0.2.0-alpha.7] - 2026-11-08
 
 A press on Deletions, Moves or Failures now says what it did in Dutch on a Dutch
