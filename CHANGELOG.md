@@ -6,6 +6,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **jsdom 31.0.0** (from 30.1.3, Dependabot's #1854 with the one change it needed), the DOM the
+  web's unit tests run in, and in no shipped code. Its new CSS engine reads a width back to six
+  significant digits where 30 kept every digit, so the live progress bar now draws each of its
+  two parts as a percent to two decimals, measured between rounded edges, which jsdom 30 and 31
+  both read back as drawn: 210 of 612 copied is 34.31%, where the unrounded 34.31372549019608%
+  read back as 34.3137%. The rounding moves an edge by less than a thirtieth of a pixel. Its
+  other changes reach nothing here: nothing installs its canvas backend, now `@napi-rs/canvas`,
+  and no test draws on a canvas, loads an image, calls `document.open` or parses a page with a
+  blocking script. CI is the proof.
+
 - **The web image's nginx and the Docker socket proxy's HAProxy move to Docker Hub's rebuilds of
   2026-11-05** (workplan 0119): `nginx:1.31.8-alpine-slim` and `haproxy:3.4.7-alpine`, the same
   versions on Alpine 3.24.4, where only apk-tools and libapk (3.0.9), `alpine-release` and, in

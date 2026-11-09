@@ -369,8 +369,11 @@ describe('of about how many', () => {
     render(<LiveProgress domains={[row({ domain: 'contact', state: 'completed', itemsSynced: 210, itemsFailed: 0, itemsAdopted: 402, itemsFound: 612 })]} />);
     const parts = screen.getByRole('progressbar').children;
     expect(parts).toHaveLength(2);
-    expect((parts[0] as HTMLElement).style.width).toBe(`${(210 / 612) * 100}%`);
-    expect((parts[1] as HTMLElement).style.width).toBe(`${(402 / 612) * 100}%`);
+    // 210 and 402 of 612, each a percent to two decimals (`barWidth`): the
+    // widths the strip drew, read back alike by jsdom 30 and jsdom 31.
+    // Unrounded, jsdom 31 read the first back as 34.3137%.
+    expect((parts[0] as HTMLElement).style.width).toBe('34.31%');
+    expect((parts[1] as HTMLElement).style.width).toBe('65.69%');
   });
 
   it('says what happened to the rest on one line', () => {

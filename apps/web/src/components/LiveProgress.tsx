@@ -44,7 +44,7 @@ import { DOMAIN_STRING_KEY } from '../i18n/domain-words.ts';
 import PausedBecause from './PausedBecause.tsx';
 import { Hint } from './Hint.tsx';
 import { SendItToUs } from './SendItToUs.tsx';
-import { bytesOfAbout, progressTotals, wholePercent } from '../services/progress-totals.ts';
+import { barWidth, bytesOfAbout, progressTotals, wholePercent } from '../services/progress-totals.ts';
 
 export const DOMAIN_KEY = DOMAIN_STRING_KEY satisfies Record<
   DomainStatusReport['domain'],
@@ -236,7 +236,9 @@ const LiveProgress: React.FC<{
                 // are in the new system too. Never above 100%: the total grows
                 // with what arrived. Its value is the line above, said in words.
                 // A line of its own: a capped width on the bar itself would let
-                // it sit beside a short first line.
+                // it sit beside a short first line. Each part's width is a
+                // percent to two decimals between rounded edges (`barWidth`),
+                // so it reads back as it was drawn.
                 <div className="basis-full">
                   <div
                     role="progressbar"
@@ -247,9 +249,12 @@ const LiveProgress: React.FC<{
                     aria-valuetext={count}
                     className="flex h-2 w-full max-w-xs overflow-hidden rounded-full bg-gray-200"
                   >
-                    <div className="bg-[#0E4F4A]" style={{ width: `${totals.copiedShare * 100}%` }} />
+                    <div className="bg-[#0E4F4A]" style={{ width: barWidth(0, totals.copiedShare) }} />
                     {totals.leftShare > 0 && (
-                      <div className="bg-[#7FD4C1]" style={{ width: `${totals.leftShare * 100}%` }} />
+                      <div
+                        className="bg-[#7FD4C1]"
+                        style={{ width: barWidth(totals.copiedShare, totals.copiedShare + totals.leftShare) }}
+                      />
                     )}
                   </div>
                 </div>
