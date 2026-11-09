@@ -6,9 +6,9 @@
 
 **2026-11-09: the web image's nginx and the Docker socket proxy's HAProxy on Docker Hub's
 rebuilds of 2026-11-05, past their three days, for alpha.8.** On the branch
-`claude/ownpace-public-readiness-y7orc6-web-proxy-images`, from `main` at `7898e1c9` (#1860), in
-place of Dependabot's #1857 (nginx) and #1859 (HAProxy), which the owner closes once this
-merges. Times are UTC.
+`claude/ownpace-public-readiness-y7orc6-web-proxy-images`, from `main` at `7898e1c9` (#1860) with
+`main` merged at `97f24bcf` (#1861), in place of Dependabot's #1857 (nginx) and #1859 (HAProxy),
+which the owner closes once this merges. Times are UTC.
 - **What moved upstream.** Docker Hub pushed `nginx:1.31.8-alpine-slim` again on 2026-11-05: its
   platform images at 19:50 (linux/amd64 `ec64c3fd…`, linux/arm64 `809d5e32…`) and the index
   `9c68ad4f…` at 22:08, ppc64le's image last; riscv64's is still that of 2026-10-24.
@@ -64,6 +64,21 @@ merges. Times are UTC.
   refuse; the image scan above, whose `docker-socket-proxy` leg built the proxy from this
   branch's Dockerfile on `5312d370…` with its file check passing. E2E (managed) on this branch:
   owed. E2E (self-hosted) is not: the appliance runs neither image.
+
+**2026-11-09: the scan on the alpha.7 tag is the repository scan alone.** Security Scan run
+42606026797, which Release dispatched on the tag `v0.2.0-alpha.7` at C (`45375ac2`), from 11:04 to
+11:05 UTC, ran its `security-scan` job and skipped the image legs, since Release passes
+`image_scans: false` (the workflow's header). Trivy v0.76.2 installed with both its sums as pinned
+and wrote 617 bytes of SARIF, which code scanning accepted; `pnpm audit` listed one advisory,
+moderate and dev only, minimatch 10.2.6's GHSA-g3hv-75wg-m249 (the entry of 2026-11-08, records),
+and nothing high or critical; and the job made the release, with `bom.json` (0146, Status of
+2026-11-09, later). The gate scan of C, run 42605726499, from 11:02 to 11:03, read the same. So
+there is no reading of alpha.7's images by tier, as there was of alpha.6's from run 42368077845,
+dispatched on `main` after that tag (the entry of 2026-11-07, last): when this was read, no scan
+of the images had run on `main` since that one. The code-scanning alerts the preflight noted open
+on `main`, 2 critical and 64 high in 13 groups, every one an image's, come from scans of `main`
+before #1846 merged, so Redis's and the webapp's are not yet their purged builds' (the entry
+below).
 
 **2026-11-08, later: what alpha.7 moves, folded.** The fold (0146 Status, 2026-11-08, later),
 whose squash is C, closes alpha.7 with this plan's moves since alpha.6 in it:
