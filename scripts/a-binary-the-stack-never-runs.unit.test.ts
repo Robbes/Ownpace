@@ -214,7 +214,21 @@
  *    Since 2026-11-08 both purge libsystemd0 and libudev1 too, thirteen, and
  *    check after the purge that no file of a removed library is left and no
  *    ELF file needs one (DT_NEEDED), over stand-in ELF files a dynamic loader
- *    would read: 64- and 32-bit, either byte order.
+ *    would read: 64- and 32-bit, either byte order;
+ *  - GOOSE'S FETCH, MADE AGAIN (2026-11-09): GitHub's release download
+ *    answered 504 to the one fetch goose's RUN made, and a pull request's
+ *    `build (trigger, arm64)` failed on it (CI run 42572585094). The RUN now
+ *    makes a fetch that did not answer, or answered with an error, again, up
+ *    to five fetches, 5, 15, 45 and 135 seconds apart, as CI's stalwart-cli
+ *    and Trivy steps do. It is run over the stand-in, whose sleep only logs
+ *    what it was asked to wait and whose registry answers a host's first
+ *    fetches as GitHub did: four failures in a row are waited out with exactly
+ *    those waits and the fifth's file goes in, held to its SHA-256 as a first
+ *    fetch's is; five stop it with nothing changed and the advice to run the
+ *    same tag again; and a file of another SHA-256, or one that is gone, is
+ *    never fetched again. One fetch, three or four, a give-up at the third, no
+ *    wait, other waits, a sixth, a late file let through unhashed, and a wrong
+ *    or gone file fetched again each fail it.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -973,11 +987,14 @@ function tscProblems(args: string): string[] {
  * tarball or asset that is gone (404, 410) exits 4 and the RUN says so; neither
  * prints fail()'s advice to drop the replacement, which on live's tag checkout
  * would send the operator to edit a file. Only another exit is fail()'s.
+ * `between`, a pattern, is what stands between the fetch's exit and the `case`
+ * that routes it: nothing, or the rest of the loop that fetches again
+ * (goose's since 2026-11-09, GOOSE_LOOP_TAIL).
  */
-function fetchProblems(args: string, file: string, who: string): string[] {
+function fetchProblems(args: string, file: string, who: string, between = ''): string[] {
   const problems: string[] = [];
   const target = file.replace(/[$.]/g, '\\$&');
-  if (!new RegExp(`node -e "fetch\\(process\\.argv\\[1\\]\\)\\.then\\(async \\(r\\) => \\{ if \\(!r\\.ok\\) \\{ [^"\\n]*process\\.exit\\(r\\.status === 404 \\|\\| r\\.status === 410 \\? 4 : 3\\); \\}[^"\\n]*\\}, \\(e\\) => \\{ [^"\\n]*process\\.exit\\(3\\); \\}\\)" "\\$url" "${target}" && st=0 \\|\\| st=\\$\\?; \\s*case "\\$st" in 0\\) ;; 3\\) unreachable "\\$url" ;; 4\\) gone "\\$url" ;; \\*\\) fail `).test(args)) {
+  if (!new RegExp(`node -e "fetch\\(process\\.argv\\[1\\]\\)\\.then\\(async \\(r\\) => \\{ if \\(!r\\.ok\\) \\{ [^"\\n]*process\\.exit\\(r\\.status === 404 \\|\\| r\\.status === 410 \\? 4 : 3\\); \\}[^"\\n]*\\}, \\(e\\) => \\{ [^"\\n]*process\\.exit\\(3\\); \\}\\)" "\\$url" "${target}" && st=0 \\|\\| st=\\$\\?; ${between}\\s*case "\\$st" in 0\\) ;; 3\\) unreachable "\\$url" ;; 4\\) gone "\\$url" ;; \\*\\) fail `).test(args)) {
     problems.push(`${who} does not tell a host that did not answer (exit 3, unreachable) or a file that is gone (exit 4, gone) from a move upstream`);
   }
   if (!/(?:^|[;\s])unreachable\(\) \{ echo "\$me: \$1 did not answer, or answered with an error \(above\); nothing was changed, and upstream did not move\. Run the bring-up, or deploy-live\.sh, with the same tag again once it answers[^"\n]*" >&2; exit 1; \}/.test(args)) {
@@ -1128,6 +1145,22 @@ function tableProblems(name: Name, text: string): string[] {
 const gooseRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])goose=\/usr\/local\/bin\/goose;/.test(r.args));
 
 /**
+ * goose's fetch, made again (2026-11-09: GitHub's release download answered
+ * 504 to the one fetch the RUN made, and a pull request's build failed on it,
+ * CI run 42572585094): the rest of the loop the fetch is made in, from its
+ * exit to the `case` that routes it. A fetch that exited 3 (no answer, or an
+ * error) is made again until the fifth, after a wait that starts at 5 seconds
+ * and is multiplied by 3 each time (the RUN's dash has no `**`); any other
+ * exit, and the fifth's, leave the loop for the `case`, and what was fetched
+ * is hashed after it. That the waits are 5, 15, 45 and 135 seconds, and the
+ * rest, is proved by running the RUN (`gooseRetryFaults`); this is the shape
+ * that run reads.
+ */
+const GOOSE_LOOP_TAIL = String.raw`\s*if \[ "\$st" != 3 \] \|\| \[ "\$attempt" = 5 \]; then break; fi; \s*echo "\$me: \$url did not answer, or answered with an error \(above\), at fetch \$attempt of 5;[^"\n]*" >&2; \s*sleep "\$delay"; \s*delay=\$\(\(delay \* 3\)\); \s*done;`;
+/** The loop's head and the fetch it makes, then GOOSE_LOOP_TAIL. */
+const GOOSE_LOOP = new RegExp(String.raw`(?:^|[;\s])delay=5; \s*for attempt in 1 2 3 4 5; do \s*node -e "fetch\(process\.argv\[1\]\)[^\n]*" "\$url" "\$tmp/goose" && st=0 \|\| st=\$\?; ` + GOOSE_LOOP_TAIL);
+
+/**
  * What is wrong with the webapp's goose RUN (REPLACED, kind 'binary'), in words;
  * empty when it holds. The old file is checked before anything is fetched, the
  * fetched one before it is moved into place, and the proofs come after the move.
@@ -1190,7 +1223,13 @@ function gooseProblems(name: Name, text: string): string[] {
     problems.push("goose's RUN's state() does not read every other entry of the image (owner and mode, and the size and times of each entry that is not a directory)");
   }
   if (vars.get('top') !== '/') problems.push(`goose's RUN's top= is ${vars.get('top') ?? 'not there'}, not /`);
-  problems.push(...fetchProblems(args, '$tmp/goose', "goose's RUN"));
+  const loop = GOOSE_LOOP.test(args);
+  if (!loop) {
+    problems.push(
+      "goose's RUN does not make a fetch that did not answer, or answered with an error, again: up to five fetches, 5, 15, 45 and 135 seconds apart, and every other exit out of the loop to the case that routes it",
+    );
+  }
+  problems.push(...fetchProblems(args, '$tmp/goose', "goose's RUN", loop ? GOOSE_LOOP_TAIL : ''));
   return problems;
 }
 
@@ -1208,6 +1247,12 @@ interface Tree {
   readonly registry?: Readonly<Record<string, Buffer>>;
   /** A host of the stand-in registry that does not answer ('unreachable'), or answers every request with this HTTP status. */
   readonly answers?: Readonly<Record<string, 'unreachable' | number>>;
+  /**
+   * A host's first answers, one per fetch and in order, before it answers as `answers` and the
+   * registry say: each 'unreachable' (no answer) or an HTTP status. A release download that
+   * answers 504 for a while, then serves the file (2026-11-09).
+   */
+  readonly firstAnswers?: Readonly<Record<string, ReadonlyArray<'unreachable' | number>>>;
   /**
    * The stand-in's own trees, integrity and hashes, which take the real ones' place in the RUNs (`build`):
    * dompurify's, each swap table row's by package name, and goose's new release.
@@ -2121,6 +2166,10 @@ function sandbox(tree: Tree): Sandbox {
     mkdirSync(join(root, 'registry', host), { recursive: true });
     writeFileSync(join(root, 'registry', host, '.answer'), String(answer));
   }
+  for (const [host, answers] of Object.entries(tree.firstAnswers ?? {})) {
+    mkdirSync(join(root, 'registry', host), { recursive: true });
+    writeFileSync(join(root, 'registry', host, '.first'), answers.map((a) => `${a}\n`).join(''));
+  }
   // mktemp's directory, inside the sandbox, so a RUN that fails leaves nothing behind.
   mkdirSync(join(root, 'tmp'));
   for (const home of ['/root', '/home/node']) mkdirSync(join(fs, home), { recursive: true });
@@ -2142,18 +2191,23 @@ function sandbox(tree: Tree): Sandbox {
     writeFileSync(join(bin, cmd), `#!/bin/sh\nexec '${process.execPath}' '${join(root, 'dpkg.cjs')}' ${cmd} "$@"\n`, { mode: 0o755 });
   }
   writeFileSync(join(bin, 'dumb-init'), DUMB_INIT_STAND_IN, { mode: 0o755 });
+  // And sleep is ALWAYS the stand-in's: it logs the seconds it was asked to
+  // wait and returns at once, so a RUN's waits are read here, never waited
+  // (goose's fetch waits up to 200 seconds in all, 2026-11-09).
+  writeFileSync(join(bin, 'sleep'), `#!/bin/sh\nprintf '%s %s\\n' sleep "$*" >> "$TOOL_LOG"\n`, { mode: 0o755 });
   // And no apt at all: the webapp's purge removes it, so a RUN that calls it fails, here as in the image.
   for (const cmd of ['apt', 'apt-get']) {
     writeFileSync(join(bin, cmd), `#!/bin/sh\nprintf '%s %s\\n' ${cmd} "$*" >> "$TOOL_LOG"\necho "${cmd}: the stand-in has no apt, and the image has none after its purge" >&2\nexit 3\n`, { mode: 0o755 });
   }
   for (const [name, script] of Object.entries(tree.tools ?? {})) writeFileSync(join(bin, name), script, { mode: 0o755 });
   // Node itself, told the platform it is asked about, and with no network: a
-  // fetch is answered from the stand-in registry, or with a 404.
+  // fetch is logged, then answered by the host's next first answer, if one is
+  // left, by its constant answer, or from the stand-in registry, or with a 404.
   writeFileSync(
     join(bin, 'preload.cjs'),
     [
       "for (const k of ['platform', 'arch']) { const v = process.env['FAKE_' + k.toUpperCase()]; if (v) Object.defineProperty(process, k, { value: v }); }",
-      "globalThis.fetch = async (url) => { const fs = require('fs'); const path = require('path'); const u = new URL(String(url)); const reg = process.env.FAKE_REGISTRY || '/nonexistent'; const a = path.join(reg, u.hostname, '.answer'); if (fs.existsSync(a)) { const answer = fs.readFileSync(a, 'utf8'); if (answer === 'unreachable') throw Object.assign(new TypeError('fetch failed'), { cause: new Error('getaddrinfo ENOTFOUND ' + u.hostname) }); return new Response('stand-in', { status: Number(answer) }); } const f = path.join(reg, u.hostname, u.pathname); return fs.existsSync(f) ? new Response(fs.readFileSync(f)) : new Response('not in the stand-in registry', { status: 404 }); };",
+      "globalThis.fetch = async (url) => { const fs = require('fs'); const path = require('path'); const u = new URL(String(url)); const reg = process.env.FAKE_REGISTRY || '/nonexistent'; if (process.env.FETCH_LOG) fs.appendFileSync(process.env.FETCH_LOG, String(url) + '\\n'); let answer = null; const first = path.join(reg, u.hostname, '.first'); if (fs.existsSync(first)) { const left = fs.readFileSync(first, 'utf8').split('\\n').filter(Boolean); if (left.length > 0) { answer = left[0]; fs.writeFileSync(first, left.slice(1).map((l) => l + '\\n').join('')); } } const a = path.join(reg, u.hostname, '.answer'); if (answer === null && fs.existsSync(a)) answer = fs.readFileSync(a, 'utf8'); if (answer !== null) { if (answer === 'unreachable') throw Object.assign(new TypeError('fetch failed'), { cause: new Error('getaddrinfo ENOTFOUND ' + u.hostname) }); return new Response('stand-in', { status: Number(answer) }); } const f = path.join(reg, u.hostname, u.pathname); return fs.existsSync(f) ? new Response(fs.readFileSync(f)) : new Response('not in the stand-in registry', { status: 404 }); };",
       '',
     ].join('\n'),
   );
@@ -2221,6 +2275,7 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
         PNPM_LOG: join(box.root, 'pnpm.log'),
         COREPACK_LOG: join(box.root, 'corepack.log'),
         TOOL_LOG: join(box.root, 'tools.log'),
+        FETCH_LOG: join(box.root, 'fetches.log'),
         FAKE_DPKG: join(box.root, 'dpkg.json'),
         FAKE_ROOT: box.fs,
         LANG: 'C',
@@ -2230,6 +2285,18 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
     if (r.status !== 0) return { status: r.status ?? -1, out, left: walk(box.fs, box.fs), pnpm: pnpmCalls(box) };
   }
   return { status: 0, out, left: walk(box.fs, box.fs), pnpm: pnpmCalls(box) };
+}
+
+/** Every URL the RUNs' node fetched, in order, whatever it was answered. */
+function fetchesOf(box: Sandbox): string[] {
+  const file = join(box.root, 'fetches.log');
+  return existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter(Boolean) : [];
+}
+
+/** Every wait the RUNs asked the stand-in's sleep for, as they asked it, in order. */
+function waitsOf(box: Sandbox): string[] {
+  const file = join(box.root, 'tools.log');
+  return existsSync(file) ? readFileSync(file, 'utf8').split('\n').filter((l) => l.startsWith('sleep ')).map((l) => l.slice('sleep '.length)) : [];
 }
 
 function pnpmCalls(box: Sandbox): Run['pnpm'] {
@@ -3488,6 +3555,99 @@ describe('the swap table replaces five packages in the webapp and one in the sup
   });
 });
 
+/** goose's RUN as it was until 2026-11-09: its loop taken out, the one fetch in its place. */
+const oneGooseFetch = (text: string) => {
+  const once = text.replace(/ {4}delay=5; \\\n {4}for attempt in 1 2 3 4 5; do \\\n {6}(node -e [^\n]*) \\\n(?: {6}[^\n]*\n)*? {4}done; \\\n/, '    $1 \\\n');
+  expect(once, "goose's RUN has no loop to take out").not.toBe(text);
+  return once;
+};
+
+/**
+ * What is wrong with how goose's RUN rides out GitHub's release download not
+ * answering, run over the stand-in on linux-x64; empty when it holds. On
+ * 2026-11-09 the download answered 504 to the one fetch the RUN made, and a
+ * pull request's `build (trigger, arm64)` failed on it (CI run 42572585094).
+ * Four fetches in a row that do not answer, or answer with an error, are made
+ * again 5, 15, 45 and 135 seconds later, each saying which of the five it was,
+ * and the fifth's file goes in; what the fifth brings is held to its SHA-256
+ * as a first fetch's is; a fifth that fails stops it with nothing changed and
+ * the advice to run the same tag again; and nothing else is fetched again:
+ * not a file of another SHA-256, not one that is gone.
+ */
+function gooseRetryFaults(text: string): string[] {
+  const plat = 'linux-x64';
+  const base = treeOf('trigger.dev', plat);
+  const { url, asset } = GOOSE.assets[plat];
+  const host = new URL(url).hostname;
+  const pinned = sha256(STAND_IN_GOOSE_NEW);
+  // Other bytes that say the same version: only the SHA-256 can refuse them.
+  const other = standInExecutable(`${GOOSE.said}${GOOSE.to}\n\n`);
+  /** The same entries, in whatever order the directories were read. */
+  const same = (a: Map<string, string>, b: Map<string, string>) => a.size === b.size && [...a].every(([k, v]) => b.get(k) === v);
+  const run = (first: ReadonlyArray<'unreachable' | number>, served: Buffer | null = STAND_IN_GOOSE_NEW) => {
+    const registry = { ...base.registry };
+    if (served) registry[url] = served;
+    else delete registry[url];
+    return withSandbox({ ...base, registry, firstAnswers: { [host]: first } }, (box) => {
+      const before = snapshot(box);
+      const r = build(text, box, { ...gooseOnly, plat });
+      const after = snapshot(box);
+      const fetched = fetchesOf(box).filter((u) => u === url).length;
+      const slept = waitsOf(box).join(' ');
+      return {
+        ...r,
+        fetched,
+        slept,
+        says: `exit ${r.status}, ${fetched === 1 ? '1 fetch' : `${fetched} fetches`}, slept ${slept || 'never'}`,
+        unchanged: same(after, before),
+        onlyGoose: same(without(after, GOOSE.path), without(before, GOOSE.path)),
+        installed: readFileSync(join(box.fs, GOOSE.path)).equals(STAND_IN_GOOSE_NEW),
+      };
+    });
+  };
+  const faults: string[] = [];
+  // Four in a row, of both kinds, waited out; the fifth's file goes in, and nothing else changes.
+  const blip = run(['unreachable', 504, 503, 'unreachable']);
+  if (!(blip.status === 0 && blip.installed && blip.onlyGoose && blip.fetched === 5 && blip.slept === '5 15 45 135')) {
+    faults.push(`does not ride out four fetches that failed: ${blip.says}\n${blip.out}`);
+  } else {
+    for (const [n, wait] of [[1, 5], [2, 15], [3, 45], [4, 135]] as const) {
+      if (!blip.out.includes(`${url} did not answer, or answered with an error (above), at fetch ${n} of 5; nothing was changed, and it is fetched again in ${wait} seconds.`)) {
+        faults.push(`does not say that fetch ${n} of 5 failed, and how long it waits for the next\n${blip.out}`);
+      }
+    }
+  }
+  // A file of another SHA-256 after four that failed: refused as a first fetch's is, and never fetched again.
+  const late = run([504, 504, 504, 504], other);
+  if (late.status === 0 || late.installed || !late.unchanged) {
+    faults.push(`goes on past a file of another SHA-256 that came after four fetches that failed: ${late.says}, the image ${late.unchanged ? 'unchanged' : 'changed'}\n${late.out}`);
+  } else if (late.fetched > 5) {
+    faults.push(`fetches a file of another SHA-256 again, after four fetches that failed: ${late.says}\n${late.out}`);
+  } else if (late.fetched < 5) {
+    faults.push(`stops before the fifth fetch, which brings a file of another SHA-256: ${late.says}\n${late.out}`);
+  } else if (!late.out.includes(`${url} is ${sha256(other)}, not ${pinned}, goose ${GOOSE.to}'s ${asset} as its release published it; nothing was changed.`)) {
+    faults.push(`does not refuse, by its SHA-256, a file that came after four fetches that failed: ${late.says}\n${late.out}`);
+  }
+  // Five in a row: stopped at the fifth, nothing changed, and the advice to run the same tag again, only that.
+  const outage = run([504, 'unreachable', 504, 'unreachable', 504]);
+  if (outage.status === 0 || outage.installed || !outage.unchanged) {
+    faults.push(`goes on after five fetches that failed: ${outage.says}\n${outage.out}`);
+  } else if (outage.fetched !== 5 || outage.slept !== '5 15 45 135') {
+    faults.push(`does not stop at the fifth fetch that failed, 5, 15, 45 and 135 seconds after the others: ${outage.says}\n${outage.out}`);
+  } else if (
+    !outage.out.includes(`${url} did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers`) ||
+    /re-read|drop the/.test(outage.out)
+  ) {
+    faults.push(`does not say, after the fifth fetch that failed, to run the same tag again, and only that\n${outage.out}`);
+  }
+  // Nothing else is fetched again: a file of another SHA-256 at the first fetch, a file that is gone.
+  const wrong = run([], other);
+  if (wrong.status === 0 || wrong.installed || !wrong.unchanged || wrong.fetched !== 1 || wrong.slept !== '') faults.push(`fetches a file of another SHA-256 again: ${wrong.says}\n${wrong.out}`);
+  const gone = run([], null);
+  if (gone.status === 0 || !gone.unchanged || gone.fetched !== 1 || gone.slept !== '' || !gone.out.includes(`${url} is gone (above)`)) faults.push(`fetches a file that is gone again: ${gone.says}\n${gone.out}`);
+  return faults;
+}
+
 describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream builds, root's and executable", () => {
   const webapp = dockerfiles['trigger.dev'];
 
@@ -3523,6 +3683,11 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
     expect(problems(dropLine(webapp, /^ {6}\*\) fail "this is \$plat; goose/))).toEqual(["goose's RUN does not refuse a platform it pins no asset for"]);
     expect(problems(webapp.replace('goose_from=v3.27.1;', 'goose_from=v3.27.3;'))).toEqual(["goose's RUN's goose_from= is v3.27.3, not v3.27.1"]);
     expect(problems(webapp.replace(/\n(# Still as root: goose)/, '\nUSER node\n$1'))).toEqual(["goose's RUN runs as node, not root"]);
+    // The one fetch it made until 2026-11-09, and a loop that never waits (gooseRetryFaults runs the loop).
+    const noRetry =
+      "goose's RUN does not make a fetch that did not answer, or answered with an error, again: up to five fetches, 5, 15, 45 and 135 seconds apart, and every other exit out of the loop to the case that routes it";
+    expect(problems(oneGooseFetch(webapp))).toEqual([noRetry]);
+    expect(problems(dropLine(webapp, /^ {6}sleep "\$delay"; \\$/))).toEqual([noRetry, "goose's RUN does not tell a host that did not answer (exit 3, unreachable) or a file that is gone (exit 4, gone) from a move upstream"]);
   });
 
   for (const plat of PLATFORMS) {
@@ -3615,6 +3780,48 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
       expect(run.out).toContain(`${box.fs}${GOOSE.path} is not goose v3.29.0's goose_linux_arm64 after the move.`);
     });
   });
+
+  it('rides out four fetches GitHub does not answer, or answers with an error, 5, 15, 45 and 135 seconds apart, and fetches nothing else again (2026-11-09)', () => {
+    expect(gooseRetryFaults(webapp)).toEqual([]);
+  });
+
+  /** The webapp's text with `from` (in goose's RUN alone, as each of these is) put as `to`. */
+  const swapped = (from: string | RegExp, to: string) => (text: string) => {
+    const out = typeof from === 'string' ? text.replace(from, () => to) : text.replace(from, to);
+    expect(out, `${String(from)} matched nothing`).not.toBe(text);
+    return out;
+  };
+  const slips: ReadonlyArray<[string, (text: string) => string, RegExp]> = [
+    // The one fetch it made until 2026-11-09, and a loop of one.
+    ['the one fetch it made until 2026-11-09', oneGooseFetch, /does not ride out four fetches that failed: exit 1, 1 fetch, slept never\n/],
+    ['a loop of one fetch', swapped('for attempt in 1 2 3 4 5; do', 'for attempt in 1; do'), /does not ride out four fetches that failed: exit 1, 1 fetch, slept 5\n/],
+    // The three the stalwart-cli and Trivy steps made until 2026-11-08 and 2026-11-09, four, and a give-up at the third.
+    ['three fetches', swapped('for attempt in 1 2 3 4 5; do', 'for attempt in 1 2 3; do'), /does not ride out four fetches that failed: exit 1, 3 fetches, slept 5 15 45\n/],
+    ['four fetches', swapped('for attempt in 1 2 3 4 5; do', 'for attempt in 1 2 3 4; do'), /does not ride out four fetches that failed: exit 1, 4 fetches, slept 5 15 45 135\n/],
+    ['a give-up at the third', swapped('[ "$attempt" = 5 ]; then break; fi;', '[ "$attempt" = 3 ]; then break; fi;'), /does not ride out four fetches that failed: exit 1, 3 fetches, slept 5 15\n/],
+    // No wait between fetches, and waits that grow by ten seconds, not three times.
+    ['no wait between fetches', swapped(/\n {6}sleep "\$delay"; \\\n/, '\n'), /does not ride out four fetches that failed: exit 0, 5 fetches, slept never\n/],
+    ['waits of 5, 15, 25 and 35 seconds', swapped('delay=$((delay * 3));', 'delay=$((delay + 10));'), /does not ride out four fetches that failed: exit 0, 5 fetches, slept 5 15 25 35\n/],
+    ['a sixth fetch', swapped(/for attempt in 1 2 3 4 5; do([\s\S]*?)"\$attempt" = 5 \]/, 'for attempt in 1 2 3 4 5 6; do$1"$attempt" = 6 ]'), /goes on after five fetches that failed: exit 0, 6 fetches/],
+    // A file that came after a fetch that failed, let through unhashed: the image changes before anything refuses it.
+    [
+      'a file that came after a failed fetch let through unhashed',
+      swapped('[ "$got" = "$goose_sha256" ] || fail', '{ [ "$attempt" != 1 ] || [ "$got" = "$goose_sha256" ]; } || fail'),
+      /goes on past a file of another SHA-256 that came after four fetches that failed: exit 1, 5 fetches, slept 5 15 45 135, the image changed\n/,
+    ],
+    // A file of another SHA-256, and one that is gone, fetched again as though the host had not answered.
+    [
+      'a file of another SHA-256 fetched again',
+      swapped('if [ "$st" != 3 ] ||', `if [ "$st" = 0 ] && [ "$(sha256sum "$tmp/goose" | cut -d' ' -f1)" != "$goose_sha256" ]; then st=3; fi; if [ "$st" != 3 ] ||`),
+      /fetches a file of another SHA-256 again: exit 1, 5 fetches, slept 5 15 45 135\n/,
+    ],
+    ['a file that is gone fetched again', swapped('if [ "$st" != 3 ] ||', 'if { [ "$st" != 3 ] && [ "$st" != 4 ]; } ||'), /fetches a file that is gone again: exit 1, 5 fetches, slept 5 15 45 135\n/],
+  ];
+  for (const [what, mutate, fault] of slips) {
+    it(`fails, run over the stand-in, with ${what}`, () => {
+      expect(gooseRetryFaults(mutate(webapp)).join('\n')).toMatch(fault);
+    });
+  }
 });
 
 describe("the webapp's last RUN as root purges the Debian packages nothing here runs, and dpkg's own refusals stop it (0119 §3 item 11, 2026-11-06)", () => {

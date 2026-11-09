@@ -38,6 +38,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **The Trigger.dev webapp's image build waits out a few minutes of GitHub's release download not
+  answering** (workplan 0119). The build puts goose v3.29.0's release binary in place of the
+  goose upstream builds, and fetched it from GitHub once: on 2026-11-09 that fetch was answered
+  504, and a pull request's `build (trigger, arm64)` failed on it (CI run 42572585094). A fetch
+  that does not answer, or answers with an error, is now made again, up to five fetches, 5, 15,
+  45 and 135 seconds apart, as the stalwart-cli and Trivy downloads are; a download that stays
+  down longer still stops the build, with nothing changed and the advice to run the same tag
+  again. What comes is still held to its pinned SHA-256, the fifth fetch's as the first's, and a
+  wrong sum, or a file that is gone, is never fetched again. Nothing that runs changes, but the
+  image takes a new name, `localhost/trigger.dev:v4.8.3-1cf30823ea57`, so the next `up` builds
+  it and recreates `trigger-api` once. Live takes it with alpha.8, not before.
 - **Security Scan's Trivy download waits out a few minutes of GitHub answering 504** (workplan
   0119). The install step, word for word in the repository scan and in every image leg, gave up
   after three attempts, 5 and 15 seconds apart, and on 2026-11-09 GitHub's release download
