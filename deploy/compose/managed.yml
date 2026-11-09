@@ -442,7 +442,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-42a2fcc298b0
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-1cf30823ea57
     build:
       context: ./trigger.dev
       args:

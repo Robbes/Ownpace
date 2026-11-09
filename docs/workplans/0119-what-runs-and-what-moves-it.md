@@ -4,6 +4,65 @@
 
 ## Status — 2026-11-09 (update this block at the end of every session)
 
+**2026-11-09: the goose download in Trigger.dev's webapp build waits out a few minutes of GitHub's
+release download not answering, as the stalwart-cli and Trivy downloads do.** On the branch
+`claude/ownpace-public-readiness-y7orc6-goose-retry`, from `main` at `f1341c10` (#1865). Times
+are UTC.
+- **What it fixes.** #1852's first CI run, 42572585094, failed in `build (trigger, arm64)` (job
+  129013098616, 06:22:04 to 06:23:56): the webapp's goose RUN fetched `goose_linux_arm64` from
+  goose v3.29.0's GitHub release once, GitHub's release download answered it `HTTP 504` at
+  06:23:53, and the RUN stopped as it should, with *did not answer, or answered with an error
+  (above); nothing was changed, and upstream did not move*. One such answer failed the build;
+  brought up to `main`, the same pull request built and merged (the entry below).
+- **The change.** The RUN's one fetch, the same `node -e` fetch byte for byte, is made in a loop
+  of up to five, 5, 15, 45 and 135 seconds apart, the shape #1850 gave the stalwart-cli download
+  and #1862 Security Scan's Trivy install; the wait is multiplied by three after each one, since
+  the RUN's dash has no `**`. Only node's exit 3, a fetch that did not answer or answered with an
+  error, is made again, and each one that fails says which of the five it was. A file that is
+  gone (404, 410: exit 4) and any other exit leave the loop at once for the same `case` as
+  before, so every failure message and its advice is as it was. The file is hashed after the
+  loop, the fifth fetch's as the first's, and a wrong SHA-256 stops the build at once with
+  nothing changed: it is never fetched again. The version and platform it picks, both pins, and
+  every check before the fetch and after the move are unchanged. The waits add up to 200
+  seconds; GitHub refusing for longer still stops the build, with nothing changed and the advice
+  to run the same tag again. The Dockerfile's header says so (*FIVE FETCHES*).
+- **The name.** The loop's lines are instruction lines, so the build's name moves: `managed.yml`'s
+  `trigger-api` runs `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-1cf30823ea57` (was
+  `-42a2fcc298b0`), moved by the `sed` `a-binary-the-stack-never-runs` printed. `git grep
+  42a2fcc298b0` finds the old name only in this plan's dated records. What runs in the image is
+  as before.
+- **The guard.** `a-binary-the-stack-never-runs` holds the loop's shape, with the fetch and the
+  `case` it was held to before, and runs the RUN over its stand-in, whose `sleep` now only logs
+  what it is asked to wait and whose registry can answer a host's first fetches as GitHub did.
+  Four failed fetches in a row (no answer, 504, 503, no answer) are waited out with exactly 5,
+  15, 45 and 135 seconds, and the fifth's file goes in with nothing else changed; a file of
+  another SHA-256 that still says v3.29.0, after four failed fetches, is refused by its sum with
+  nothing changed and is not fetched a sixth time; five failed fetches stop it at the fifth, with
+  nothing changed and the advice to run the same tag again; a wrong sum or a file that is gone at
+  the first fetch is fetched once, with no wait. Each mutation of the RUN fails it: the one fetch
+  it made, a loop of one, three or four, a give-up at the third, no wait, waits of 5, 15, 25 and
+  35, a sixth fetch, a file that came after a failed fetch let through unhashed, and a wrong or a
+  gone file fetched again.
+- **Broken on disk and put back byte for byte.** The real Dockerfile was broken twice, the guard
+  run against each, and the file put back from a copy (`cmp` equal, SHA-256 `090bb079…` both
+  times). One fetch (`for attempt in 1; do`) failed 17 of its 96 tests, among them *goose's RUN
+  does not make a fetch that did not answer, or answered with an error, again* and *does not ride
+  out four fetches that failed: exit 1, 1 fetch, slept 5*. The sum skipped for a file that came
+  after a failed fetch (`{ [ "$attempt" != 1 ] || [ "$got" = "$goose_sha256" ]; } || fail`) failed
+  7, among them *does not check, after the fetch and before the move, the fetched file's SHA-256*
+  and *goes on past a file of another SHA-256 that came after four fetches that failed: exit 1, 5
+  fetches, slept 5 15 45 135, the image changed*; every run with no failed fetch still passed, so
+  only the new run sees that one. Both broke the two tests of `managed.yml`'s name too, since the
+  broken lines hash into it.
+- **When live takes it.** Live deploys tags. It runs `v0.2.0-alpha.7` from tonight, and it
+  already has that tag's build, `localhost/trigger.dev:v4.8.3-42a2fcc298b0`, which compose does
+  not build again. Live takes the new build, and with it the five fetches, with alpha.8, not
+  before. On the OTA stack, the first bring-up with this builds the webapp under its new name and
+  recreates `trigger-api` once.
+- **Proof.** CI on the pull request, where `images.yml`'s `build (trigger, amd64)` and `build
+  (trigger, arm64)` build the image with the new step. E2E (managed) on this branch: owed. No
+  upstream version moves, so there is no floor to wait for.
+
 **2026-11-09: Dependabot's round of the day lands, but for the distroless runtime's rebuild, and
 alpha.7's images are read by tier.** Dependabot opened #1852 to #1859 from 06:21 to 06:37, during
 the freeze, which the tag ended at 11:04. Times are UTC.

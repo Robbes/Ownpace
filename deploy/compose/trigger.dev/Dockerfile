@@ -364,7 +364,24 @@
 # keeps a version others depend on: if goose's is gone, a machine that holds
 # this image's name keeps it, and a pull request moves the replacement to a
 # release whose assets are there, or drops it (docs/managed-bring-up.md,
-# Upgrading Trigger.dev).
+# Upgrading Trigger.dev). goose's RUN asks a host that does not answer five
+# times before it stops (FIVE FETCHES, below).
+#
+# FIVE FETCHES, 5, 15, 45 AND 135 SECONDS APART (since 2026-11-09). goose's
+# RUN made one fetch, and on 2026-11-09 at 06:23:53 UTC GitHub's release
+# download answered it 504: a pull request's `build (trigger, arm64)` failed
+# on it (CI run 42572585094, job 129013098616). Now a fetch that did not
+# answer, or answered with an error (node's exit 3), is made again, up to five
+# fetches with 5, 15, 45 and 135 seconds between them, as CI's stalwart-cli
+# and Trivy downloads are (#1850, #1862), and each one that fails says which
+# of the five it was. Nothing else is fetched again: a file that is gone
+# (exit 4) and any other failure stop the build at once, as before. What the
+# fetch brings is hashed once the loop is done, the fifth's as the first's,
+# and a wrong SHA-256 stops the build at once with nothing changed: it is
+# never fetched again. The waits add up to 200 seconds, so a refusal about
+# that long is ridden out; a longer one still stops the build, with nothing
+# changed and the advice to run the same tag again. The wait is multiplied by
+# three after each one, since the RUN's shell is dash, which has no `**`.
 #
 # THE MODE. Trivy 0.76.1 reads the modules of a Go binary only when the file
 # is executable. The triage of 2026-11-03 first read 0 findings in goose,
@@ -1109,7 +1126,14 @@ RUN set -eu; \
     tmp="$(mktemp -d)"; \
     state() { { find "$top" -xdev \( -path "$tmp" -o -path "$goose" \) -prune -o -type d -exec stat -c '%n %u:%g %a' {} + ; find "$top" -xdev \( -path "$tmp" -o -path "$goose" \) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' {} + ; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }; \
     before="$(state)"; \
-    node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/goose" && st=0 || st=$?; \
+    delay=5; \
+    for attempt in 1 2 3 4 5; do \
+      node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/goose" && st=0 || st=$?; \
+      if [ "$st" != 3 ] || [ "$attempt" = 5 ]; then break; fi; \
+      echo "$me: $url did not answer, or answered with an error (above), at fetch $attempt of 5; nothing was changed, and it is fetched again in $delay seconds." >&2; \
+      sleep "$delay"; \
+      delay=$((delay * 3)); \
+    done; \
     case "$st" in 0) ;; 3) unreachable "$url" ;; 4) gone "$url" ;; *) fail "$url could not be fetched (node exits $st); nothing was changed." ;; esac; \
     got="$(sha256sum "$tmp/goose" | cut -d' ' -f1)"; \
     [ "$got" = "$goose_sha256" ] || fail "$url is $got, not $goose_sha256, goose $goose_to's $asset as its release published it; nothing was changed."; \
