@@ -90,9 +90,15 @@ digest, and the old pin's the same way. Times are UTC.
   as above. Its other rows that read behind are not this move's: the identity provider
   (v4.20.2), which has its own issue, and Mailpit (v1.33.1) and Atlas (v1.3.9), beside MinIO in
   the summary issue.
-- **Owed.** The image scan, Security Scan dispatched with `image_scans` on the branch, which
-  should name neither CVE-2026-116591 finding, and E2E (managed) on the branch. It merges on
-  green, and live takes it from the first release tag that carries it.
+- **Proved on the branch, and merged** *(recorded after the merge)*. Security Scan run
+  42773747239, dispatched with `image_scans` on the branch's head `1a589f2c` (07:13 to 07:16),
+  reads `869ca317…` at 0 critical, 0 high and 0 with a fix: neither CVE-2026-116591 finding.
+  E2E (managed) run 42775533819 on that head, 07:28 to 07:36, pulled it, recreated `minio` and
+  `minio-init` (`minio` healthy, `minio-init` making `store/packets` on the volume that carried
+  over), then version 20261110.1, *deployed with 17 detected tasks*, *verify: done apply:
+  applied*, the task lane's 2 VTODO rows, the large file's hash matching, SMOKE PASS. With CI's
+  checks green on the same head, #1870 merged at 07:37 (`5486b1be`). Live takes it from the
+  first release tag that carries it, alpha.8's.
 
 **2026-11-10: #1866's E2E (managed), run on its branch before the merge, is recorded, and live's
 deploy of alpha.7 is still to come.** Times are UTC.
