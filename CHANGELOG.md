@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **Trigger.dev's object store runs Chainguard's MinIO build of 2026-11-07, a security fix**
+  (workplan 0119, 0146 T7): the week's image scan of 2026-11-09 found two highs in the build
+  before it, whose MinIO server and `mc` client link github.com/klauspost/compress 1.18.7 and
+  1.18.5, and Wolfi's rebuilds move both to 1.20.2 for CVE-2026-116591 (GHSA-fpmh-frq8-7rj8),
+  where two-block frames make the library panic. It is the same MinIO release and the same `mc`,
+  each at the same commit, with that one module moved and no source changed, on glibc 2.44 with
+  four fixes from its release branch, none of them for security. Nothing a stack sets changes;
+  the next bring-up pulls it, and the data volume carries over.
+
 ### Changed
 
 - **jsdom 31.0.0** (from 30.1.3, Dependabot's #1854 with the one change it needed), the DOM the

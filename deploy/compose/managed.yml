@@ -922,36 +922,43 @@ services:
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
   # nothing else, rebuilt about daily, so this is `latest` by an index digest:
-  # aea6c163749e…, built 2026-11-05 19:11 UTC and pushed as `latest` on
-  # 2026-11-06 at 10:15 UTC, with linux/amd64 and linux/arm64 in it, taken on
-  # 2026-11-06 for alpha.5, before its three-day floor (2026-11-09 10:15 UTC),
-  # on the owner's instruction of that day: "Dont wait for timelines if
-  # validated order works. Alpha is not live yet and will not be before 12th
-  # of November". The floor guards what live runs, and live takes this digest
-  # from the alpha.5 tag, past it. Not a security fix: the digest before it,
-  # 3b6e40c30ecd… (built 2026-10-29, taken 2026-10-31 for CVE-2026-116587,
-  # #1762), read 0 critical, 0 high and 0 with a fix in the week's scan of
-  # 2026-11-02, and nothing this one moves names an advisory. Against it, the
-  # server and its client are the same files byte for byte, in the same two
-  # layers on each architecture: Wolfi's `minio` 0.20261023.200651-r2, the
-  # fork's RELEASE.2026-10-23T20-06-51Z at commit 76c06ff1, built with Go
-  # 1.27.3 on go-jose 4.1.6 and golang.org/x/net 0.62.0, and `mc`
-  # 0.20250813.083541-r27; bash is /bin/sh, as before. What moved is the base
-  # under them, 11 of the image's 23 packages (their apk databases, both
-  # architectures): glibc 2.44-r11 → -r13, four fixes from glibc's 2.44
-  # branch, none of them for security; ncurses 6.6.20261024 → 6.6.20261031,
-  # upstream's weekly snapshot; and rebuilds of brotli, pcre2, acl and attr
-  # at the same upstream versions. The image config differs in its dates and
-  # layer ids alone. The fork's release before RELEASE.2026-10-23T20-06-51Z,
+  # 869ca3178831…, built 2026-11-07 03:27 UTC and pushed as `latest` on
+  # 2026-11-07 at 06:54 UTC, with linux/amd64 and linux/arm64 in it, taken on
+  # 2026-11-10, past its three-day floor (06:54 UTC that day). A security
+  # fix: the week's scan of 2026-11-09 read the digest before it,
+  # aea6c163749e… (built 2026-11-05, taken 2026-11-06 for alpha.5, #1826), at
+  # 0 critical, 2 high and 2 with a fix, both CVE-2026-116591
+  # (GHSA-fpmh-frq8-7rj8), a panic on two-block frames in
+  # github.com/klauspost/compress before 1.20.2: one in Wolfi's `minio`
+  # 0.20261023.200651-r2, fixed in -r3, and one in `mc`
+  # 0.20250813.083541-r27, fixed in -r28. This one carries -r3 and -r28.
+  # Against aea6c163749e…, each binary is rebuilt from the same source with
+  # that one module moved: `go version -m`, read off each binary on both
+  # architectures without running it, differs in klauspost/compress alone,
+  # 1.18.7 → 1.20.2 in the server and 1.18.5 → 1.20.2 in `mc`. The server is
+  # still the fork's RELEASE.2026-10-23T20-06-51Z at commit 76c06ff1, built
+  # with Go 1.27.3 on go-jose 4.1.6 and golang.org/x/net 0.62.0, and `mc`
+  # still 0.20250813.083541 at commit 7394ce0d; bash is /bin/sh, as before.
+  # The one other move is glibc 2.44-r13 → -r14, with its POSIX locale and
+  # ld-linux: four fixes from glibc's 2.44 branch, three to arm64's
+  # vectorised log1p, log1pf and tanf and one to a test, none of them for
+  # security. That is 5 of the image's 23 packages (their apk databases, both
+  # architectures), and the image config differs in its dates and layer ids
+  # alone. The fork's release before RELEASE.2026-10-23T20-06-51Z,
   # RELEASE.2026-09-22T19-25-18Z in d88920d6a50b… (2026-10-22, #1692), differs
   # from it in go.mod and go.sum (nine modules, golang.org/x/net 0.60.0,
   # x/crypto 0.57.0 and klauspost/compress 1.18.7 among them) and in its
-  # VulnCheck workflow's Go: no line under cmd/ or internal/ changed. The
-  # weekly pin watch (idp-pin-watch.mjs) says when `latest` has moved on; a
-  # move is a pull request with the new digest's scan read and E2E (managed)
-  # on its branch. Trigger.dev's own digest from its move of 2026-09-28 still
-  # resolved on 2026-10-24, so an old digest stays pullable for weeks at
-  # least; if the free image goes, build the fork's tag here (0119 §3 item 5).
+  # VulnCheck workflow's Go: no line under cmd/ or internal/ changed. `latest`
+  # has moved on since, to 616286de6ef3… (pushed 2026-11-09 12:29 UTC, the
+  # fork's next release) and then fb893e36fc36… (pushed 2026-11-10 06:03
+  # UTC, that release on glibc 2.44-r15 and libgcc 16.2.0-r3), neither taken
+  # here: their floors end 2026-11-12 12:29 and 2026-11-13 06:03 UTC. The
+  # weekly pin watch (idp-pin-watch.mjs) says when `latest`
+  # has moved on; a move is a pull request with the new digest's scan read
+  # and E2E (managed) on its branch. Trigger.dev's own digest from its move
+  # of 2026-09-28 still resolved on 2026-10-24, so an old digest stays
+  # pullable for weeks at least; if the free image goes, build the fork's tag
+  # here (0119 §3 item 5).
   #
   # NOT A TAG SWAP. Each difference was read off the image itself (its config
   # and last layer, both architectures) and Chainguard's locked config
@@ -971,7 +978,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:aea6c163749e1caca37f907976dcf337177ddf5f558808f2aa591618fd3a6eef
+    image: chainguard/minio:latest@sha256:869ca3178831d9f521ea02258a0f0d4fbc1e9f84302e707514e1f861b860865d
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -1052,7 +1059,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:aea6c163749e1caca37f907976dcf337177ddf5f558808f2aa591618fd3a6eef
+    image: chainguard/minio:latest@sha256:869ca3178831d9f521ea02258a0f0d4fbc1e9f84302e707514e1f861b860865d
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging
