@@ -27,6 +27,15 @@
  *   `apps/selfhost/Dockerfile` names, both read at the commit), so a zip whose
  *   `node.exe` and `SHA256SUMS.txt` were swapped together after the build is
  *   refused (#1780's review). A tag from before 2026-11-01 gets a note.
+ * - **The downloads** of both (2026-11-10). GitHub's release download
+ *   answered 504 for minutes on 2026-11-09, and the verify fetched each asset
+ *   once: a 504 for `bom.json` was refused as "not a CycloneDX SBOM
+ *   (unreadable)", and one for the zip was unpacked as the zip, so the job
+ *   died on unzip's exception. Each is now fetched up to five times, 5, 15,
+ *   45 and 135 seconds apart, as CI's stalwart-cli and Trivy downloads and
+ *   the webapp's goose fetch are (#1850, #1862, #1866), and only for no
+ *   answer, a file cut short, a 5xx or a 429; never for a file that is gone
+ *   (404, 410), any other answer, or a body its own check refuses.
  * - **The images:** each of `ownpace-{api,web,selfhost}` at `X.Y.Z` is an
  *   index with `linux/amd64` and `linux/arm64`, whose revision label is the
  *   commit; `sha-<commit>` is the same index; `latest` is withheld from a
@@ -51,6 +60,14 @@
  * reasons), the real index of `ownpace-selfhost:0.2.0-alpha.1`, and a complete
  * release whose body is built from `security-scan.yml`'s own template, so the
  * count of generated blocks is tied to what the workflow writes.
+ *
+ * And the downloads, run over a stand-in for GitHub's release download and a
+ * sleep that only records what it is asked to wait: four fetches that fail,
+ * one of each kind, are waited out with exactly 5, 15, 45 and 135 seconds,
+ * each saying which of the five it was, and the fifth's body is the one
+ * judged; five stop at the fifth with a refusal that names the asset and what
+ * GitHub answered; a file that is gone, any other answer, and a body that is
+ * not JSON or not a zip are fetched once, with no wait.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -85,8 +102,11 @@ import {
   APPLIANCE_NODES,
   pinnedRuntimeIn,
   checkRuntime,
+  checkAssets,
+  downloadAsset,
 } from './release-verify.mjs';
-import type { Release } from './release-verify.mjs';
+import type { Asset, Release } from './release-verify.mjs';
+import type { Line } from './release-github.mjs';
 import { NODE_RUNTIMES, NODE_RUNTIME_SHA256, nodeRuntimeVersion } from './package-appliance.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -220,6 +240,178 @@ describe('the SBOM and the zip', () => {
 
   it('names the zip as windows-payload.yml does', () => {
     expect(zipName('v0.2.0-alpha.1')).toBe('ownpace-appliance-win-x64-v0.2.0-alpha.1.zip');
+  });
+});
+
+describe("bom.json and the zip, downloaded: a few minutes of GitHub's release download not answering are waited out (2026-11-10)", () => {
+  // On 2026-11-09 GitHub's release download answered 504 on and off from 07:37 to 07:50 UTC, and at
+  // 06:23; the stalwart-cli, Trivy and goose downloads each failed on it and now fetch again (#1850,
+  // #1862, #1866), and this job fetched each asset once.
+  const [bom, zip] = complete().assets as [Asset, Asset];
+  const BOM = JSON.stringify({ bomFormat: 'CycloneDX', specVersion: '1.6', metadata: { component: { version: '0.2.0-alpha.2' } } });
+  const only = (asset: Asset): Release => complete({ assets: [asset] });
+  const readAt = async (): Promise<string | null> => null;
+  const noted = (check: string, sentence: string): Line => ({ kind: 'note', check, sentence });
+  const literally = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+  type Answer = number | 'no answer' | 'timeout' | 'cut off' | { status: number; retryAfter: string };
+
+  /**
+   * GitHub's release download, stood in for: one answer per fetch, in order, and once they are spent
+   * `file` itself, as it is served again after an outage. Every fetch, every wait (in seconds) and every
+   * line said on the way is recorded; nothing is waited for real.
+   */
+  function releaseDownload(answers: Answer[], file = BOM) {
+    const fetched: string[] = [];
+    const slept: number[] = [];
+    const said: Line[] = [];
+    const fetchImpl = async (url: string): Promise<Response> => {
+      fetched.push(url);
+      const answer = answers[fetched.length - 1];
+      if (answer === undefined) return new Response(file);
+      // What Node's fetch throws for no answer at all, and for none within fetchOk's 120 seconds.
+      if (answer === 'no answer') throw Object.assign(new TypeError('fetch failed'), { cause: new Error('getaddrinfo ENOTFOUND github.com') });
+      if (answer === 'timeout') throw new DOMException('The operation was aborted due to timeout', 'TimeoutError');
+      // A 200 whose connection closes before the end of the file, as undici reports it.
+      if (answer === 'cut off') {
+        const body = new ReadableStream<Uint8Array>({
+          start(c) {
+            c.enqueue(new TextEncoder().encode(file.slice(0, 10)));
+            c.error(Object.assign(new TypeError('terminated'), { cause: new Error('other side closed') }));
+          },
+        });
+        return new Response(body);
+      }
+      if (typeof answer === 'number') return new Response('stand-in', { status: answer });
+      return new Response('stand-in', { status: answer.status, headers: { 'Retry-After': answer.retryAfter } });
+    };
+    const sleep = async (ms: number) => {
+      slept.push(ms / 1000);
+    };
+    return { fetched, slept, said, seams: { fetchImpl, sleep, say: (l: Line) => void said.push(l) } };
+  }
+
+  it('waits out four fetches that failed, one of each kind, 5, 15, 45 and 135 seconds apart, each saying which of the five it was, and judges the fifth body', async () => {
+    const gh = releaseDownload(['no answer', 504, 'timeout', 'cut off']);
+    const got = await downloadAsset(bom, 'sbom', gh.seams);
+    expect(got.body?.toString('utf8')).toBe(BOM);
+    expect(gh.fetched).toEqual(Array(5).fill(bom.browser_download_url));
+    expect(gh.slept).toEqual([5, 15, 45, 135]);
+    expect(gh.said).toEqual([
+      noted('sbom', 'bom.json: GitHub did not answer (getaddrinfo ENOTFOUND github.com) at fetch 1 of 5; it is fetched again in 5 seconds'),
+      noted('sbom', 'bom.json: GitHub answered HTTP 504 at fetch 2 of 5; it is fetched again in 15 seconds'),
+      noted('sbom', 'bom.json: GitHub did not answer within 120 seconds at fetch 3 of 5; it is fetched again in 45 seconds'),
+      noted('sbom', 'bom.json: GitHub answered HTTP 200 and stopped before the end of the file (other side closed) at fetch 4 of 5; it is fetched again in 135 seconds'),
+    ]);
+    // The job's own path: the SBOM the fifth fetch brought is judged as a first fetch's is.
+    const job = releaseDownload([503, 504, 503, 504]);
+    expect(await checkAssets(only(bom), V, readAt, job.seams)).toEqual([checkBom(JSON.parse(BOM), V)]);
+    expect(job.slept).toEqual([5, 15, 45, 135]);
+  });
+
+  it('stops at the fifth fetch that failed, and refuses a download that failed as one, naming the asset and what GitHub answered', async () => {
+    const gh = releaseDownload([504, 504, 504, 504, 504]);
+    const lines = await checkAssets(only(bom), V, readAt, gh.seams);
+    expect(gh.fetched).toHaveLength(5);
+    expect(gh.slept).toEqual([5, 15, 45, 135]);
+    expect(lines).toEqual([
+      {
+        kind: 'refuse',
+        check: 'sbom',
+        sentence:
+          "bom.json could not be downloaded: GitHub answered HTTP 504 at each of 5 fetches, 5, 15, 45 and 135 seconds apart. This is not a verdict on bom.json, which was never read: run verify on the tag again once GitHub's release download answers",
+      },
+    ]);
+    expect(gh.said.map((l) => l.sentence)).toEqual([
+      'bom.json: GitHub answered HTTP 504 at fetch 1 of 5; it is fetched again in 5 seconds',
+      'bom.json: GitHub answered HTTP 504 at fetch 2 of 5; it is fetched again in 15 seconds',
+      'bom.json: GitHub answered HTTP 504 at fetch 3 of 5; it is fetched again in 45 seconds',
+      'bom.json: GitHub answered HTTP 504 at fetch 4 of 5; it is fetched again in 135 seconds',
+      'bom.json: GitHub answered HTTP 504 at fetch 5 of 5; it is not fetched again',
+    ]);
+    // Answers of different kinds are named fetch by fetch.
+    const mixed = releaseDownload([503, 'no answer', 429, 'timeout', 504]);
+    expect((await downloadAsset(bom, 'sbom', mixed.seams)).reason).toBe(
+      "bom.json could not be downloaded: in 5 fetches, 5, 15, 45 and 135 seconds apart, GitHub answered HTTP 503 at fetch 1, did not answer (getaddrinfo ENOTFOUND github.com) at fetch 2, answered HTTP 429 at fetch 3, did not answer within 120 seconds at fetch 4 and answered HTTP 504 at fetch 5. This is not a verdict on bom.json, which was never read: run verify on the tag again once GitHub's release download answers",
+    );
+    // The zip alike: a refusal that names it, where unzip's exception ended the job.
+    const z = releaseDownload([504, 504, 504, 504, 504]);
+    const zipped = await checkAssets(only(zip), V, readAt, z.seams);
+    expect(z.fetched).toEqual(Array(5).fill(zip.browser_download_url));
+    expect(z.slept).toEqual([5, 15, 45, 135]);
+    expect(zipped).toEqual([
+      {
+        kind: 'refuse',
+        check: 'zip-sums',
+        sentence: `${zipName(V)} could not be downloaded: GitHub answered HTTP 504 at each of 5 fetches, 5, 15, 45 and 135 seconds apart. This is not a verdict on ${zipName(V)}, which was never read: run verify on the tag again once GitHub's release download answers`,
+      },
+    ]);
+  });
+
+  it('fetches a file that is gone (404, 410) once, with no wait, and says it is gone', async () => {
+    for (const [asset, check] of [[bom, 'sbom'], [zip, 'zip-sums']] as const) {
+      for (const status of [404, 410]) {
+        const gh = releaseDownload([status]);
+        expect(await checkAssets(only(asset), V, readAt, gh.seams), `${asset.name}, ${status}`).toEqual([
+          {
+            kind: 'refuse',
+            check,
+            sentence: `${asset.name} is gone from its own address: GitHub answered HTTP ${status} for ${asset.browser_download_url}, though the release lists it as uploaded. A file that is gone is not fetched again, and nothing in it was checked`,
+          },
+        ]);
+        expect(gh.fetched).toHaveLength(1);
+        expect(gh.slept).toEqual([]);
+        expect(gh.said).toEqual([]);
+      }
+    }
+  });
+
+  it('fetches any other answer once, with no wait: a wait does not change a 400, a 401 or a 403', async () => {
+    for (const status of [400, 401, 403]) {
+      const gh = releaseDownload([status]);
+      expect((await downloadAsset(zip, 'zip-sums', gh.seams)).reason).toBe(
+        `${zipName(V)} could not be downloaded: GitHub answered HTTP ${status} for ${zip.browser_download_url}, an answer a wait does not change, so it was not fetched again and nothing in it was checked`,
+      );
+      expect(gh.fetched).toHaveLength(1);
+      expect(gh.slept).toEqual([]);
+    }
+  });
+
+  it('fetches a 200 whose body is not JSON once, and the SBOM check refuses it; a zip that is not a zip, likewise', async () => {
+    const page = '<!DOCTYPE html><title>Not the file</title>';
+    const gh = releaseDownload([], page);
+    expect(await checkAssets(only(bom), V, readAt, gh.seams)).toEqual([
+      { kind: 'refuse', check: 'sbom', sentence: 'bom.json is not a CycloneDX SBOM (unreadable)' },
+    ]);
+    expect(gh.fetched).toHaveLength(1);
+    expect(gh.slept).toEqual([]);
+    // Unpacked for real: a body unzip cannot open is refused by name, where its exception ended the job.
+    const z = releaseDownload([], page);
+    expect(await checkAssets(only(zip), V, readAt, z.seams)).toEqual([
+      {
+        kind: 'refuse',
+        check: 'zip-sums',
+        sentence: expect.stringMatching(new RegExp(`^${literally(zipName(V))} could not be unpacked \\(.+\\), so nothing in it was checked$`)),
+      },
+    ]);
+    expect(z.fetched).toHaveLength(1);
+    expect(z.slept).toEqual([]);
+  });
+
+  it('makes a 429 again, as a 5xx, and waits a Retry-After that asks for longer than the wait due, up to 135 seconds', async () => {
+    const gh = releaseDownload([{ status: 429, retryAfter: '60' }, { status: 503, retryAfter: '600' }, 429, { status: 503, retryAfter: '1' }]);
+    expect((await downloadAsset(bom, 'sbom', gh.seams)).body?.toString('utf8')).toBe(BOM);
+    expect(gh.fetched).toHaveLength(5);
+    expect(gh.slept).toEqual([60, 135, 45, 135]);
+  });
+
+  it('is what the job runs, over fetchOk and its 120 seconds a fetch, with real waits', () => {
+    const verify = read('scripts/release-verify.mjs');
+    expect(verify).toContain('{ fetchImpl = (url) => fetchOk(url), sleep = (ms) => delay(ms), say = sayNow } = {}');
+    expect(verify).toContain("headers: { 'User-Agent': 'ownpace-release', ...headers }, signal: globalThis.AbortSignal.timeout(120_000)");
+    expect(verify).toContain('checkAssets(release, version, atCommit(client, commit))');
+    // No asset is fetched past the helper, as both were until 2026-11-10.
+    expect(verify).not.toMatch(/fetchOk\(\w+\.browser_download_url\)/);
   });
 });
 
