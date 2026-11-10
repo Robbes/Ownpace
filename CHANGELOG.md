@@ -49,6 +49,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Release's verify waits out a few minutes of GitHub's release download not answering, and says
+  what it answered** (workplan 0146). It fetched `bom.json` and the Windows zip from the release
+  once each: a `bom.json` answered with an error was refused as *not a CycloneDX SBOM*, and an
+  error page for the zip was unpacked as the zip, so the job ended on unzip's exception and
+  reported nothing else, not the release, the images or `/version`. On 2026-11-09 GitHub's
+  release download answered 504 on and off for thirteen minutes. Each is now fetched up to five
+  times, 5, 15, 45 and 135 seconds apart, as the stalwart-cli, Trivy and goose downloads are, when
+  GitHub did not answer, sent less than the whole file, or answered a 5xx or a 429 (a longer
+  Retry-After is honored, up to 135 seconds), and each failed fetch says which of the five it
+  was. One that still fails is refused as a download, naming the file and what GitHub answered,
+  and the other checks still run. A file that is gone (404, 410) or any other answer is refused
+  at once, and a body is never fetched again: one that is not JSON, or not a zip, is refused by
+  its own check, as a line. Release only; nothing shipped changes.
 - **The Trigger.dev webapp's image build waits out a few minutes of GitHub's release download not
   answering** (workplan 0119). The build puts goose v3.29.0's release binary in place of the
   goose upstream builds, and fetched it from GitHub once: on 2026-11-09 that fetch was answered

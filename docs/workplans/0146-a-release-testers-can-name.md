@@ -2,7 +2,67 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-09 (update this block at the end of every session)
+## Status — 2026-11-10 (update this block at the end of every session)
+
+**2026-11-10: Release's verify waits out a few minutes of GitHub's release download not answering
+for `bom.json` and the Windows zip, and says what it answered (T2).** On the branch
+`claude/ownpace-public-readiness-y7orc6-release-verify-retry`, from `main` at `ea537679` (#1868);
+not merged. Times are UTC.
+- **What was wrong.** `scripts/release-verify.mjs`, Release's `verify` job and its `mode=verify`,
+  fetched each asset from its own download address once. A `bom.json` answered with an error was
+  refused as *bom.json is not a CycloneDX SBOM (unreadable)*, the SBOM's verdict on a file never
+  read, and a 200 that was not JSON threw out of the job; the zip's answer was never looked at, so
+  an error page was written as `payload.zip` and the job died on unzip's exception, *refuse
+  verify: Command failed: unzip …*, the one line it printed: the release's own lines were never
+  reported, and the images, the tasks' base and `/version` never checked. Run against `main`'s
+  file with a stand-in fetch, a 504 for `bom.json` gave that line after one fetch, and a 504 for
+  the zip and an HTML 200 for `bom.json` each threw. On 2026-11-09 GitHub's release download
+  answered 504 on and off from 07:37:59 to 07:50:49, and at 06:23:53, and failed CI's stalwart-cli
+  download, Security Scan's Trivy install and the webapp's goose fetch (0119's entries of that
+  day); alpha.7's verify ran at 11:11, after it, and met none of it.
+- **The change.** Both downloads go through one helper, `downloadAsset`: up to five fetches, 5,
+  15, 45 and 135 seconds apart, the wait multiplied by three each time, the shape #1850, #1862 and
+  #1866 gave the other three, each fetch still bounded by `fetchOk`'s 120 seconds. A fetch is made
+  again only when GitHub did not answer, sent less than the whole file, or answered a 5xx or a
+  429, and each that fails says which of the five it was as it happens (a `note` line, and a
+  `::warning::` inside Actions). A 429 is made again because it is GitHub saying *not now* about a
+  file it has, which is what a wait is for, and a Retry-After that asks for longer than the wait
+  due is waited instead, up to 135 seconds (AGENTS.md's hard rule 4). Never again: a file that is
+  gone (404, 410), refused at once as *gone from its own address*; any other answer, refused at
+  once with its status; and a body, judged by its own check: a `bom.json` that is not JSON is
+  refused as *not a CycloneDX SBOM (unreadable)*, and a zip unzip cannot open as *could not be
+  unpacked (unzip exits 9: …)*, a line where it was an exception. After the fifth, under `sbom` or
+  `zip-sums`, the check the file stood for: *bom.json could not be downloaded: GitHub answered HTTP
+  504 at each of 5 fetches, 5, 15, 45 and 135 seconds apart. This is not a verdict on bom.json,
+  which was never read: run verify on the tag again once GitHub's release download answers*. The
+  waits add up to 200 seconds; with the 120 each fetch may take, a download that never answers is
+  given up after about thirteen minutes, and both after about twenty-seven, inside the job's 45.
+  The ghcr.io reads are as they were.
+- **The guard.** `a-release-page-with-no-sbom` runs the helper and `checkAssets` over a stand-in
+  for the release download and a sleep that only records: four failed fetches, one of each kind
+  (no answer, 504, none within 120 seconds, a file cut short), are waited out with exactly 5, 15,
+  45 and 135 seconds, and the fifth's body is the one judged; five 504s stop at the fifth with the
+  refusal above, for both assets; a 404 or a 410 is fetched once, with no wait, and refused as
+  gone; a 400, 401 or 403 once; a 200 that is not JSON, or not a zip, once, and refused by its own
+  check; a 429 is made again, and a longer Retry-After waited, up to 135 seconds.
+- **Broken on disk and put back byte for byte** (`cmp` equal, SHA-256 `51cebb8b…` each time),
+  against its 30 tests: a loop of one, a give-up at the third, no wait and the old arithmetic's 5,
+  15, 25 and 35 seconds each failed 3; a 404 retried, a sixth fetch, a Retry-After not read,
+  unzip's exception let through, and a body that is not JSON thrown as `res.json()` threw it, 1
+  each; a 429 not made again, 2. One more is a slip this branch made first: a fetch that threw
+  carries no Retry-After, and `Math.min(undefined, …)` made its wait `NaN`, which Node's timer runs
+  as about a millisecond. Put back on disk, it failed 2 (*expected [ NaN, 15, NaN, NaN ] to deeply
+  equal [ 5, 15, 45, 135 ]*).
+- **Waited for real.** `checkAssets` with its own `fetchOk`, `delay` and notes, against a local
+  stand-in for the release download: a `bom.json` answered 503 four times was fetched at 0.0, 5.1,
+  20.1, 65.1 and 200.9 seconds and its fifth body passed the SBOM check; a zip answered 504 five
+  times was fetched at 201.0, 206.0, 221.0, 266.0 and 401.0 seconds and refused as a download,
+  each failed fetch said as a note and a `::warning::`. `main`'s file, run as the job runs it
+  against a stand-in for the API and the download that served `bom.json` and answered the zip
+  504, printed *refuse verify: Command failed: unzip …* and nothing else.
+- **Owed:** CI on the pull request. The waits are proved over stand-ins only, by the guard and the
+  run above, until a verify run meets GitHub's release download failing. `docs/release.md` §3 says
+  what verify checks, not how it downloads, so it stays as written.
 
 **2026-11-09, later: `v0.2.0-alpha.7` is released, its nights waived (T2, T4).** Read from GitHub
 on 2026-11-09. Times are UTC.
