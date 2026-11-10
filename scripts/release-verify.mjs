@@ -21,6 +21,12 @@
  *   since this job checks out the ref it was dispatched on). The zip's own
  *   list could be swapped with the binary; the commit cannot (#1780's review).
  *   A tag from before those sums were committed (2026-11-01) gets a note.
+ * - **The downloads** of both, from GitHub's release download, which
+ *   answered 504 for minutes on 2026-11-09: up to five fetches each, 5, 15,
+ *   45 and 135 seconds apart, as CI's stalwart-cli and Trivy downloads and
+ *   the webapp's goose fetch make them (#1850, #1862, #1866), and only for
+ *   no answer, a file cut short, a 5xx or a 429; one that still fails is
+ *   refused as a download, with what GitHub answered (`downloadAsset`).
  * - **The images** `ghcr.io/robbes/ownpace-{api,web,selfhost}` at `X.Y.Z`:
  *   an index with linux/amd64 and linux/arm64, its revision label the
  *   commit, `sha-<commit>` the same index, `latest` withheld from a
@@ -55,7 +61,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
 import { pathToFileURL } from 'node:url';
-import { github, pass, refuse, note, report, short } from './release-github.mjs';
+import { github, pass, refuse, note, render, report, short } from './release-github.mjs';
 import { nodeRuntimeVersion } from './package-appliance.mjs';
 import { TASK_BASE_CONFIG, TASK_BASE_LINE, taskBasePin } from './idp-pin-watch.mjs';
 
@@ -282,6 +288,118 @@ async function fetchOk(url, headers = {}) {
   return res;
 }
 
+/** "a", "a and b", "a, b and c". */
+const listed = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
+
+/** Why a fetch failed: Node's fetch puts the network's own reason in the error's cause. */
+const causeOf = (err) => String(err?.cause?.message ?? err?.message ?? err);
+
+/**
+ * A failed fetch, said when it fails: the lines print only at the end, and
+ * the waits between fetches run to minutes. Inside Actions it is a
+ * `::warning::` too, as a failed attempt of the stalwart-cli and Trivy
+ * downloads is.
+ */
+function sayNow(l, actions = process.env.GITHUB_ACTIONS === 'true') {
+  console.log(render(l));
+  if (actions) console.log(`::warning::${l.check}: ${l.sentence}`);
+}
+
+/**
+ * One fetch of an asset: the bytes, when GitHub sent the whole file, or what
+ * it answered (`said`, after "GitHub"), whether a wait can change that
+ * (`again`), whether the file is gone, and the Retry-After it asked for, in
+ * milliseconds.
+ */
+async function fetchOnce(fetchImpl, url) {
+  let res;
+  try {
+    res = await fetchImpl(url);
+  } catch (err) {
+    return { again: true, said: err?.name === 'TimeoutError' ? 'did not answer within 120 seconds' : `did not answer (${causeOf(err)})` };
+  }
+  if (res.ok) {
+    try {
+      return { body: Buffer.from(await res.arrayBuffer()) };
+    } catch (err) {
+      const how = err?.name === 'TimeoutError' ? 'had not sent the whole file within 120 seconds' : `stopped before the end of the file (${causeOf(err)})`;
+      return { again: true, said: `answered HTTP ${res.status} and ${how}` };
+    }
+  }
+  // Not the file: its body is discarded unread, so its connection is not held open through the wait.
+  await res.body?.cancel().catch(() => {});
+  const asked = Number(res.headers.get('retry-after'));
+  return {
+    again: res.status >= 500 || res.status === 429,
+    gone: res.status === 404 || res.status === 410,
+    said: `answered HTTP ${res.status}`,
+    retryAfter: Number.isFinite(asked) && asked > 0 ? asked * 1_000 : 0,
+  };
+}
+
+/**
+ * ONE ASSET OF THE RELEASE, DOWNLOADED (2026-11-10): `{ body }`, its bytes,
+ * or `{ reason }`, why there are none, as the sentence of a refuse line.
+ *
+ * GitHub's release download answered 504 on and off from 07:37 to 07:50 UTC
+ * on 2026-11-09, and at 06:23. CI's stalwart-cli download, Security Scan's
+ * Trivy install and the webapp's goose fetch each failed on it, and each now
+ * fetches again (#1850, #1862, #1866). This fetched each asset once: a 504
+ * for bom.json was refused as "not a CycloneDX SBOM (unreadable)", the wrong
+ * words for a download that failed, and one for the zip was written out as
+ * the zip, so the job died on unzip's exception and reported nothing else.
+ *
+ * Now up to five fetches, 5, 15, 45 and 135 seconds apart, the wait
+ * multiplied by three each time, as theirs are, and only when GitHub did not
+ * answer (no answer at all, or none within fetchOk's 120 seconds), sent less
+ * than the whole file, or answered a 5xx or a 429. A 429 belongs with them:
+ * it is GitHub saying "not now" about a file it has, which is what a wait is
+ * for, and a Retry-After in seconds that asks for longer than the wait due is
+ * waited instead, up to 135 seconds (AGENTS.md hard rule 4). Each fetch that
+ * fails says which of the five it was, as it happens (`say`). Never fetched
+ * again: a file that is gone (404, 410) and any other answer, which a wait
+ * does not change, and a body that came whole, which its own check judges
+ * after this returns: one that fails it is refused as it is. The waits add
+ * up to 200 seconds; with each fetch's 120, a download that never answers is
+ * given up after about thirteen minutes, and both after about twenty-seven,
+ * inside the job's 45.
+ *
+ * `fetchImpl`, `sleep` and `say` are the seams the guard uses.
+ */
+export async function downloadAsset(asset, check, { fetchImpl = (url) => fetchOk(url), sleep = (ms) => delay(ms), say = sayNow } = {}) {
+  const { name, browser_download_url: url } = asset;
+  const failed = [];
+  const waited = [];
+  let wait = 5_000;
+  for (let attempt = 1; attempt <= 5; attempt += 1) {
+    const answer = await fetchOnce(fetchImpl, url);
+    if (answer.body) return { body: answer.body };
+    if (!answer.again) {
+      return {
+        reason: answer.gone
+          ? `${name} is gone from its own address: GitHub ${answer.said} for ${url}, though the release lists it as uploaded. A file that is gone is not fetched again, and nothing in it was checked`
+          : `${name} could not be downloaded: GitHub ${answer.said} for ${url}, an answer a wait does not change, so it was not fetched again and nothing in it was checked`,
+      };
+    }
+    failed.push(answer.said);
+    if (attempt === 5) {
+      say(note(check, `${name}: GitHub ${answer.said} at fetch ${attempt} of 5; it is not fetched again`));
+      break;
+    }
+    const ms = Math.max(wait, Math.min(answer.retryAfter ?? 0, 135_000));
+    say(note(check, `${name}: GitHub ${answer.said} at fetch ${attempt} of 5; it is fetched again in ${ms / 1000} seconds`));
+    await sleep(ms);
+    waited.push(ms / 1000);
+    wait *= 3;
+  }
+  const answers = failed.every((s) => s === failed[0])
+    ? `GitHub ${failed[0]} at each of ${failed.length} fetches, ${listed(waited)} seconds apart`
+    : `in ${failed.length} fetches, ${listed(waited)} seconds apart, GitHub ${listed(failed.map((s, i) => `${s} at fetch ${i + 1}`))}`;
+  return {
+    reason: `${name} could not be downloaded: ${answers}. This is not a verdict on ${name}, which was never read: run verify on the tag again once GitHub's release download answers`,
+  };
+}
+
 /** One image's registry: manifests by tag or digest, and blobs. */
 async function registryOf(image) {
   const name = `robbes/ownpace-${image}`;
@@ -336,34 +454,63 @@ async function runtimeLine(hashOf, readAt) {
   }
 }
 
-async function checkAssets(release, version, readAt) {
+/**
+ * bom.json and the zip, each downloaded by `downloadAsset` and then judged by
+ * its own check: the SBOM's, or the zip's unpacking, its sums and its
+ * node.exe. A download that failed is refused as one, under the check it
+ * stood for. `seams` reach `downloadAsset`; the guard passes its own.
+ */
+export async function checkAssets(release, version, readAt, seams = {}) {
   const lines = [];
   const asset = (name) => (release?.assets ?? []).find((a) => a.name === name && a.state === 'uploaded');
   const bom = asset('bom.json');
   if (bom) {
-    const res = await fetchOk(bom.browser_download_url);
-    lines.push(checkBom(res.ok ? await res.json() : null, version));
+    const got = await downloadAsset(bom, 'sbom', seams);
+    lines.push(got.reason ? refuse('sbom', got.reason) : checkBom(asJson(got.body), version));
   }
   const zip = asset(zipName(version));
   if (zip) {
-    const dir = mkdtempSync(join(tmpdir(), 'release-zip-'));
+    const got = await downloadAsset(zip, 'zip-sums', seams);
+    lines.push(...(got.reason ? [refuse('zip-sums', got.reason)] : await zipLines(got.body, version, readAt)));
+  }
+  return lines;
+}
+
+/** bom.json's bytes as JSON, decoded as `res.json()` decoded them; null when they are not JSON, which checkBom refuses as unreadable. */
+function asJson(body) {
+  try {
+    return JSON.parse(new globalThis.TextDecoder().decode(body));
+  } catch {
+    return null;
+  }
+}
+
+/** The zip's own lines, from the bytes downloaded: unpacked, its SHA256SUMS.txt, and its node.exe. */
+async function zipLines(body, version, readAt) {
+  const lines = [];
+  const dir = mkdtempSync(join(tmpdir(), 'release-zip-'));
+  try {
+    writeFileSync(join(dir, 'payload.zip'), body);
     try {
-      const res = await fetchOk(zip.browser_download_url);
-      writeFileSync(join(dir, 'payload.zip'), Buffer.from(await res.arrayBuffer()));
       run('unzip', ['-q', join(dir, 'payload.zip'), '-d', join(dir, 'out')]);
-      const sums = walk(join(dir, 'out')).find((f) => f.endsWith('SHA256SUMS.txt'));
-      if (!sums) {
-        lines.push(refuse('zip-sums', `${zipName(version)} holds no SHA256SUMS.txt`));
-      } else {
-        const root = join(dir, 'out', dirname(sums));
-        const hashOf = (file) =>
-          existsSync(join(root, file)) ? createHash('sha256').update(readFileSync(join(root, file))).digest('hex') : null;
-        lines.push(verifySums(readFileSync(join(dir, 'out', sums), 'utf8'), hashOf));
-        lines.push(await runtimeLine(hashOf, readAt));
-      }
-    } finally {
-      rmSync(dir, { recursive: true, force: true });
+    } catch (err) {
+      // unzip names the file on its first line, then says why ("End-of-central-directory signature not found").
+      const why = String(err?.stderr ?? '').replace(/^\[[^\]\n]*\]\s*/, '').replace(/\s+/g, ' ').trim().split('. ')[0];
+      const said = err?.status != null && why ? `unzip exits ${err.status}: ${why}` : String(err?.message ?? err).split('\n')[0];
+      return [refuse('zip-sums', `${zipName(version)} could not be unpacked (${said}), so nothing in it was checked`)];
     }
+    const sums = walk(join(dir, 'out')).find((f) => f.endsWith('SHA256SUMS.txt'));
+    if (!sums) {
+      lines.push(refuse('zip-sums', `${zipName(version)} holds no SHA256SUMS.txt`));
+    } else {
+      const root = join(dir, 'out', dirname(sums));
+      const hashOf = (file) =>
+        existsSync(join(root, file)) ? createHash('sha256').update(readFileSync(join(root, file))).digest('hex') : null;
+      lines.push(verifySums(readFileSync(join(dir, 'out', sums), 'utf8'), hashOf));
+      lines.push(await runtimeLine(hashOf, readAt));
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
   }
   return lines;
 }

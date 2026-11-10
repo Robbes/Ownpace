@@ -49,6 +49,26 @@ export declare function versionExec(name: string, node: string): string[];
 export declare function pinnedRuntimeIn(packagerText: string | null, version: string, platform: string): string | null;
 export declare function checkRuntime(seen: string | null, pinned: string | null, nodeVersion: string | null): Line;
 
+/** One asset as downloaded: its bytes, or why there are none, as the sentence of a refuse line. */
+export type Download = { body: Buffer; reason?: undefined } | { body?: undefined; reason: string };
+
+/** The seams of the downloads, which the guard fills: the fetch, the wait, and where a failed fetch is said. */
+export interface DownloadSeams {
+  fetchImpl?: (url: string) => Promise<Response>;
+  sleep?: (ms: number) => Promise<unknown>;
+  say?: (line: Line) => void;
+}
+
+/** Up to five fetches of an asset, 5, 15, 45 and 135 seconds apart, for no answer, a file cut short, a 5xx or a 429 only (2026-11-10). */
+export declare function downloadAsset(asset: Pick<Asset, 'name' | 'browser_download_url'>, check: string, seams?: DownloadSeams): Promise<Download>;
+/** bom.json and the zip, downloaded and each judged by its own check. */
+export declare function checkAssets(
+  release: Release | null,
+  version: string,
+  readAt: (path: string) => Promise<string | null>,
+  seams?: DownloadSeams,
+): Promise<Line[]>;
+
 /** The tasks' prebuilt base, at the digest the tagged commit's `trigger.config.ts` pins (workplan 0119 §3 item 13). */
 export interface TaskBasePin {
   ref: string;
