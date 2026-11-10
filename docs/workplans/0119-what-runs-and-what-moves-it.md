@@ -2,7 +2,18 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-09 (update this block at the end of every session)
+## Status — 2026-11-10 (update this block at the end of every session)
+
+**2026-11-10: #1866's E2E (managed), run on its branch before the merge, is recorded, and live's
+deploy of alpha.7 is still to come.** Times are UTC.
+- **#1866's E2E (managed).** Run 42644617684, dispatched on the branch at `efef8e2e`, was green
+  from 15:26:02 to 15:33:58 on 9 Nov, and #1866 merged after it (`9fb73fdf`). What it read is in
+  #1866's entry below, where it was owed.
+- **Live.** Its deploy of `v0.2.0-alpha.7`, planned for the night of 9 Nov, did not start: the
+  owner put it off, and no hold was started. Live still runs `v0.2.0-alpha.6`. #1866's entry
+  below said live runs alpha.7 from that night, and now says it did not. Nothing else in these
+  records moves: the deploy takes the tag's build, `localhost/trigger.dev:v4.8.3-42a2fcc298b0`,
+  which the box still has, and #1866's five fetches reach live with alpha.8.
 
 **2026-11-09: the goose download in Trigger.dev's webapp build waits out a few minutes of GitHub's
 release download not answering, as the stalwart-cli and Trivy downloads do.** On the branch
@@ -54,7 +65,8 @@ are UTC.
   fetches, slept 5 15 45 135, the image changed*; every run with no failed fetch still passed, so
   only the new run sees that one. Both broke the two tests of `managed.yml`'s name too, since the
   broken lines hash into it.
-- **When live takes it.** Live deploys tags. It runs `v0.2.0-alpha.7` from tonight, and it
+- **When live takes it.** Live deploys tags. It runs `v0.2.0-alpha.7` from tonight *(2026-11-10:
+  not from that night: the owner put the deploy off, and live runs alpha.6 until it)*, and it
   already has that tag's build, `localhost/trigger.dev:v4.8.3-42a2fcc298b0`, which compose does
   not build again. Live takes the new build, and with it the five fetches, with alpha.8, not
   before. On the OTA stack, the first bring-up with this builds the webapp under its new name and
@@ -69,8 +81,14 @@ are UTC.
   `goose_linux_x86_64` (`cc56e2f7…`). GitHub's release download answered both times, so the waits
   themselves are proved only by the guard's runs of the RUN. On the same head, CI run 42639335638
   (lint, ui-tests, four unit shards, both integration legs), Security Scan run 42639335618 and
-  the committed-artifacts check were green. E2E (managed) on this branch: owed. No upstream
-  version moves, so there is no floor to wait for.
+  the committed-artifacts check were green. E2E (managed) on this branch *(recorded on
+  2026-11-10)*: run 42644617684, on `efef8e2e` from 15:26:02 to 15:33:58, green. It built
+  `localhost/trigger.dev:v4.8.3-1cf30823ea57` on the box with the five-fetch RUN (step
+  `#9 [5/7]`, not from a cache), whose first fetch of `goose_linux_arm64` answered and was read
+  as pinned, as above; recreated `trigger-api` once; and went on to version 20261109.5,
+  *deployed with 17 detected tasks*, *verify: done apply: applied*, the task lane's 2 VTODO
+  rows, the large file's hash matching, SMOKE PASS. No upstream version moves, so there is no
+  floor to wait for.
 
 **2026-11-09: Dependabot's round of the day lands, but for the distroless runtime's rebuild, and
 alpha.7's images are read by tier.** Dependabot opened #1852 to #1859 from 06:21 to 06:37, during
