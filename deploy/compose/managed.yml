@@ -950,8 +950,10 @@ services:
   # x/crypto 0.57.0 and klauspost/compress 1.18.7 among them) and in its
   # VulnCheck workflow's Go: no line under cmd/ or internal/ changed. `latest`
   # has moved on since, to 616286de6ef3… (pushed 2026-11-09 12:29 UTC, the
-  # fork's next release), which is not taken here: its floor ends 2026-11-12
-  # 12:29 UTC. The weekly pin watch (idp-pin-watch.mjs) says when `latest`
+  # fork's next release) and then fb893e36fc36… (pushed 2026-11-10 06:03
+  # UTC, that release on glibc 2.44-r15 and libgcc 16.2.0-r3), neither taken
+  # here: their floors end 2026-11-12 12:29 and 2026-11-13 06:03 UTC. The
+  # weekly pin watch (idp-pin-watch.mjs) says when `latest`
   # has moved on; a move is a pull request with the new digest's scan read
   # and E2E (managed) on its branch. Trigger.dev's own digest from its move
   # of 2026-09-28 still resolved on 2026-10-24, so an old digest stays
