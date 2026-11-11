@@ -6,6 +6,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The API, the appliance and the tasks' base run on Google's distroless Node 26 build of
+  2026-11-08, a security fix** (workplan 0119): `gcr.io/distroless/nodejs26-debian13:nonroot`
+  at `33c86a63…`, in all three images at once, in place of Dependabot's three pull requests,
+  one per image, each of which failed alone. It carries Debian's security update of zlib1g,
+  1:1.3.dfsg+really1.3.1-1+deb13u1, the version the week's image scan of 2026-11-09 names as
+  the fix for the two highs it read in every image on the digest before it (CVE-2026-76844 and
+  CVE-2026-85091). Nothing else in the image changed: the same Node 26.13.0, byte for byte, on
+  Debian 13.7, the same user and entrypoint. The managed tasks take it with the tasks' base
+  that `main` publishes from this, in a pull request of its own.
+
 - **Trigger.dev's object store runs Chainguard's MinIO build of 2026-11-07, a security fix**
   (workplan 0119, 0146 T7): the week's image scan of 2026-11-09 found two highs in the build
   before it, whose MinIO server and `mc` client link github.com/klauspost/compress 1.18.7 and

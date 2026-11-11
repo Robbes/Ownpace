@@ -122,8 +122,12 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # stage's /usr/local/bin/node byte for byte (sha256 e32e2d16... on amd64,
 # c8c57216... on arm64). At Node 26.13.0 they are again one file, and
 # nodejs.org's own binary, read out of both images' layers on 2026-10-31
-# (0adde40d... on amd64, 66f4a883... on arm64); this digest was uploaded
-# 2026-10-28 21:35 UTC.
+# (0adde40d... on amd64, 66f4a883... on arm64). This digest, uploaded
+# 2026-11-08 21:55 UTC, is Google's rebuild for Debian's security update of
+# zlib1g (1:1.3.dfsg+really1.3.1-1+deb13u1), the one package it moves: the
+# version the image scan of 2026-11-09 names as the fix for both high findings
+# it read in the digest before it. Its Node is that same file on both
+# platforms, read out of its layers on 2026-11-11 (workplan 0119).
 #
 # THE SAME NODE VERSION AS THE FROM NODE LINE ABOVE, CHECKED, NOT ASSUMED. The
 # managed tasks run this distroless's Node, from the prebuilt base built at this
@@ -157,7 +161,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store \
 # moves. The tag names no Node version; the image's name names the major, so a
 # new Node major is a new name, which is an edit somebody makes.
 # scripts/an-api-image-with-nothing-to-exec.unit.test.ts holds all of the above.
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:9b945e92c1b5463a4b75f11e8417515e4bea7355f6adfd79ec220fbbe905dda8 AS runtime
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:33c86a63859efc2ebd88ea0a355863582ec6f1220d048de62baffb2584e709b3 AS runtime
 ENV NODE_ENV=production
 # Surfaced by GET /version (buildIdentity in @openmig/core).
 ARG GIT_SHA=unknown
