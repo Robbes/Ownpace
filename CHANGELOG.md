@@ -17,6 +17,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The test stack's mail catcher is Mailpit v1.33.1** (workplan 0146 T11 (a), 0119), from
+  v1.33.0: the patch kept current, past its three-day floor, with no finding of the image scan's
+  to clear. It is built with the same Go 1.27.3 and golang.org/x/net 0.62.0, on Alpine 3.24.4,
+  and its image takes Alpine's zlib 1.4, a security upgrade (CVE-2026-4738) of a library the
+  static binary never loads. Its HTML check fetches at most ten of the stylesheets a message
+  links, 5 MiB in all, where it fetched every one, up to 5 MiB each, and still only when asked;
+  its SMTP server refuses a message it cannot parse, with a 554, where it accepted it and kept
+  nothing. Its release check is still off, read again at v1.33.1, and nothing else it sends
+  changed. It adds no schema step, so v1.33.0 still opens the kept `mailpit.db`. Live runs no
+  catcher.
 - **jsdom 31.0.0** (from 30.1.3, Dependabot's #1854 with the one change it needed), the DOM the
   web's unit tests run in, and in no shipped code. Its new CSS engine reads a width back to six
   significant digits where 30 kept every digit, so the live progress bar now draws each of its

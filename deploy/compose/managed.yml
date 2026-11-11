@@ -2155,16 +2155,22 @@ services:
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
   #
-  # v1.33.0 (pushed 2026-10-31T02:30Z, three days old 2026-11-03T02:30Z;
-  # workplan 0119, Status 2026-11-03) is the minor kept current, not a fix
-  # for a finding the image scan reports: the same Go 1.27.3 and Alpine 3.24.3
-  # as v1.32.0, with golang.org/x/net 0.62.0, whose HTML parser fixes
-  # CVE-2026-78661 (quadratic work on many short text runs; Mailpit parses
-  # every caught HTML message with it) and CVE-2026-97045. What it adds stays
-  # off here: Rspamd is asked only when MP_ENABLE_RSPAMD names a server, and
-  # the new Subject prefix acts only on a relay or a forward; this file sets
-  # none of the three. It adds no schema step, so a rollback is the v1.32.0
-  # digest.
+  # v1.33.1 (pushed 2026-11-07T23:54Z, three days old 2026-11-10T23:54Z;
+  # workplan 0119, Status 2026-11-11) is the patch kept current, not a fix
+  # for a finding the image scan reports: the same Go 1.27.3 and
+  # golang.org/x/net 0.62.0 as v1.33.0, on Alpine 3.24.4, with zlib 1.4,
+  # Alpine's security upgrade for CVE-2026-4738, which /mailpit, a static
+  # binary, never loads. Its HTML check fetches at most 10 of the stylesheets
+  # a message links, 5 MiB in all, and still only when its API is asked; its
+  # SMTP server answers 554 to a message it cannot parse, where it dropped it.
+  # Nothing else it sends by default changed. It adds no schema step, so a
+  # rollback is the v1.33.0 digest.
+  #
+  # v1.33.0 (2026-11-03) was the minor kept current: golang.org/x/net 0.62.0,
+  # whose HTML parser fixes CVE-2026-78661 (Mailpit parses every caught HTML
+  # message with it) and CVE-2026-97045. What it added stays off here: Rspamd
+  # is asked only when MP_ENABLE_RSPAMD names a server, and the Subject prefix
+  # acts only on a relay or a forward; this file sets none of the three.
   #
   # v1.32.0 (2026-10-25, 0146 T11 (a)) closed GHSA-379p-g4f4-hq5h (high,
   # every version to v1.31.6): an image attachment whose EXIF directories
@@ -2175,7 +2181,7 @@ services:
   # CVE-2026-111943 in `crypto/x509`, and its first start applied
   # `internal/storage/schemas/1.32.0.sql` to mailpit.db.
   mailpit:
-    image: axllent/mailpit:v1.33.0@sha256:9b3a463be15354c0f0eba91697d80e3e0d8a5623ef0e627cacc836bc17fd5231
+    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
     logging: *logging
@@ -2220,8 +2226,8 @@ services:
       MP_DATABASE: /data/mailpit.db
       # NO RELEASE CHECK (workplan 0139, 2026-09-28). Whenever its page asks
       # for the server's info, Mailpit (internal/stats/stats.go, read at v1.31.6
-      # and again at v1.32.0 and v1.33.0) asks GitHub for its newest release.
-      # Live runs no catcher; this is the test stack's.
+      # and again at v1.32.0, v1.33.0 and v1.33.1) asks GitHub for its newest
+      # release. Live runs no catcher; this is the test stack's.
       # `scripts/a-service-that-phones-home.unit.test.ts`.
       MP_DISABLE_VERSION_CHECK: "true"
     ports:
