@@ -287,9 +287,9 @@ export function verifySha256(bytes, expected, what) {
  * same for a maintainer.
  */
 export const NODE_RUNTIME_SHA256 = {
-  'v26.13.0': {
-    'win-x64': '14319838b3f355e0398c13569a90270bce4fc68f25189f58c59b03dadae0e6d5',
-    'win-arm64': '4c9baa047c4ae555050179f25a63153f1c962af32e2aad97735fb550750c5e7a',
+  'v26.13.1': {
+    'win-x64': 'f5109dc868ec38703ad8f305e0aceece717cb60d4889873f434017af4e96cccb',
+    'win-arm64': '00edc356a01d7fe586beebe7519bb1acdff9dd62064ce4cf12ff1ed4a8d1810e',
   },
 };
 

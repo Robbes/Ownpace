@@ -5885,11 +5885,11 @@ one of these; none needs `sudo`:
     PREFIX="$HOME/.local/node-26"   # a directory you own; replaced as a whole
     ARCH=arm64                      # or x64
     cd "$(mktemp -d)"
-    curl -fsSLO "https://nodejs.org/dist/v26.13.0/node-v26.13.0-linux-${ARCH}.tar.xz"
-    curl -fsSLO https://nodejs.org/dist/v26.13.0/SHASUMS256.txt
-    grep " node-v26.13.0-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
+    curl -fsSLO "https://nodejs.org/dist/v26.13.1/node-v26.13.1-linux-${ARCH}.tar.xz"
+    curl -fsSLO https://nodejs.org/dist/v26.13.1/SHASUMS256.txt
+    grep " node-v26.13.1-linux-${ARCH}.tar.xz\$" SHASUMS256.txt | sha256sum -c -
     rm -rf "$PREFIX" && mkdir -p "$PREFIX"
-    tar -xJf "node-v26.13.0-linux-${ARCH}.tar.xz" -C "$PREFIX" --strip-components=1
+    tar -xJf "node-v26.13.1-linux-${ARCH}.tar.xz" -C "$PREFIX" --strip-components=1
     echo node_26_installed )
   ```
 
