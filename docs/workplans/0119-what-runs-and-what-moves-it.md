@@ -40,7 +40,9 @@ are UTC.
   at 16:42:28 on 2026-11-11 and the announcement published at 16:45. Each pin is inside its
   three-day floor: the release's files until 2026-11-14 16:42, the Node tag's index until 19:27
   that day and distroless's until 21:17. A security fix is the floor's one exception
-  (CONTRIBUTING.md): taking it, or the merge waiting until 2026-11-14 21:17, is the owner's call.
+  (CONTRIBUTING.md), and the owner took it on 2026-11-12 at about 12:53, asked to choose between
+  that and the merge waiting until 2026-11-14 21:17: *"Node now."* So it merges inside its
+  floors, once its branch is proved as below.
 - **The Node image, read, against `5adad64f…`.** Both platforms are built on the same
   `debian:trixie-slim` (the index's base annotations: amd64 `7378260c…`, arm64 `24a01011…`), and
   the bottom layer is the same blob (amd64 `37fb86c2…`, arm64 `acd43e9b…`); the three above it
@@ -138,11 +140,12 @@ are UTC.
   hold its Node to the `FROM node:` line's, red by name at the tasks' Node only (above).
   windows-payload dispatched on the branch: `build win-x64` must log the pinned `f5109dc8…`, as
   the committed list gives it, signed by `5BE8A3F6…`, and `smoke` start that `node.exe` on
-  Windows Server 2025. The floor, the owner's (above). Then the second change: `TASK_BASE_IMAGE`
-  moves to the tasks' base Images publishes from `main` after this merges, in a pull request of
-  its own with E2E (managed) green on its branch, as #1874 followed #1873. The week's image scan
-  reads these images once `main` publishes `edge` from this, and `trigger-task-base` once the
-  pin moves. Live takes both from the first release tag that carries them.
+  Windows Server 2025. The floor: taken on the owner's word (above). Then the second change:
+  `TASK_BASE_IMAGE` moves to the tasks' base Images publishes from `main` after this merges, in a
+  pull request of its own with E2E (managed) green on its branch, as #1874 followed #1873. The
+  week's image scan reads these images once `main` publishes `edge` from this, and
+  `trigger-task-base` once the pin moves. Live takes both from the first release tag that
+  carries them.
 
 **2026-11-12, recorded: live runs alpha.7's pins.** The owner deployed `v0.2.0-alpha.7` (tagged
 2026-11-09 on `45375ac2`) to live on 2026-11-10, from alpha.6 in one run of alpha.6's script,
