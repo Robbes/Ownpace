@@ -2,7 +2,104 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-10 (update this block at the end of every session)
+## Status — 2026-11-11 (update this block at the end of every session)
+
+**2026-11-11: the distroless Node 26 runtime moves to Google's build of 2026-11-08, past its
+three-day floor, in the API, the appliance and the tasks' base at once, for Debian's security
+update of zlib1g**, on the branch `claude/ownpace-public-readiness-y7orc6-distroless-33c86a63`,
+from `main` at `122c86a0` (#1871). Read from each platform's index, manifest, config and layers in
+gcr.io's registry, without a login, every blob checked against its digest, and the old pin's the
+same way; nothing read was run. Times are UTC.
+- **The move.** `gcr.io/distroless/nodejs26-debian13:nonroot` by the index digest `33c86a63…`
+  (linux/amd64 `cdfc2ea4…`, linux/arm64 `3c857b5b…`), uploaded 2026-11-08 at 21:55:16 (gcr.io's
+  tag list, `timeUploadedMs`, read at 22:13 today), so past its floor at 21:55 today. Its tags
+  are three `nonroot-<hash>` ones now, and `9b945e92…`, the pin since Dependabot's #1778
+  (2026-11-03), is tagged `update-available-9b945e92…`. The three FROM lines move in one change,
+  `apps/api/Dockerfile`'s runtime stage, `apps/selfhost/Dockerfile`'s and
+  `apps/worker/task-image/Dockerfile`'s `distroless` stage, because they are one string:
+  `an-appliance-with-nothing-to-exec` holds the appliance's to the API's, and
+  `a-task-base-the-cli-builds-nothing-into` the tasks' base's. So Dependabot's three pull requests
+  of 2026-11-09, one per directory (#1855 the API, #1856 the appliance, #1858 the tasks' base; the
+  entry of that day, *Held: the distroless runtime's rebuild*), are each red alone on the unit
+  tests. This change supersedes them, and the owner closes them after it merges. Dependabot's
+  `images` group takes a version's move to every directory at once (#1641, Node 24.21.0 to
+  24.22.0), but not a digest-only move, which it opens alone in each directory (#1588 to #1590
+  for the Node image's digest, #1778 for this one when the API alone ran it): while the three
+  lines are one string, a distroless rebuild moves by hand. The comments by the FROM lines say so,
+  and give this digest's date and reading.
+- **A security fix, past its floor.** The week's scan, Security Scan run 42642704967 (from 15:14
+  on 2026-11-09, on `main` at `f1341c10`, linux/arm64, Trivy v0.76.2), read every image on this
+  runtime at 0 critical, 2 high and 2 with a fix, by its report the same package in each:
+  *`zlib1g` 1:1.3.dfsg+really1.3.1-1+b1 → 1:1.3.dfsg+really1.3.1-1+deb13u1, high, 2 findings:
+  CVE-2026-76844, CVE-2026-85091 (debian 13.7)*, in `ownpace-api-edge` and `ownpace-api-release`
+  (production-public; `edge` and `0.2.0-alpha.7`), `trigger-task-base` (production-internal, the
+  pin `sha-2886230@sha256:91fec895…`), and `ownpace-selfhost-edge` and `ownpace-selfhost-release`
+  (shipped). `postgres-selfhost`, the appliance's Postgres, is Alpine 3.24.3's, at 0, 0 and 0,
+  and not on this runtime. This build carries zlib1g 1:1.3.dfsg+really1.3.1-1+deb13u1 on both
+  platforms, the version the scan names as the fix for both. Past its floor, it needs no
+  exception.
+- **The package, read in the image.** zlib1g's `changelog.Debian.gz` opens with *zlib
+  (1:1.3.dfsg+really1.3.1-1+deb13u1) trixie-security; urgency=high*, a non-maintainer upload by
+  Debian's Security Team dated 2026-11-01: *"Check for negative lengths in crc32_combine
+  functions (CVE-2026-27171)"* and *"Fix buffer overflow bug in non-blocking gzwrite
+  (CVE-2026-85091)"*. The scan's CVE-2026-85091 is the second. Its CVE-2026-76844 is not named
+  there, and CVE-2026-27171 is not in the scan: the scan's data puts the fix for both of its
+  findings at this version, and Debian's security tracker, which would say which upload fixes
+  CVE-2026-76844, could not be reached from this session. The first scan of an image built on
+  this digest settles it (*Owed*, below). `+b1` was a binary-only rebuild of 2024 (*"Rebuild for
+  PAC/BTI support"*), whose own changelog the new layer no longer carries.
+- **What is inside, against `9b945e92…`.** On each platform 22 of the 23 layers are the same
+  blobs. The one that differs is zlib1g's (amd64 `cac2ae01…` → `208bf18b…`, arm64 `8072b5a0…` →
+  `18656c54…`), and in it, file by file, only `libz.so.1.3.1`, the changelog, the dpkg record and
+  its md5sums differ, and the rebuild's changelog (`changelog.Debian.<arch>.gz`) is gone. The 15
+  dpkg records under `/var/lib/dpkg/status.d/`, the same on both platforms, are the same packages
+  at the same versions but zlib1g: base-files 13.8+deb13u7, ca-certificates 20250419+deb13u1
+  (the version the tasks' base build holds its build stage's to), gcc-14-base, libatomic1,
+  libgcc-s1, libgomp1 and libstdc++6 14.2.0-19, libc6 2.41-12+deb13u4, libssl3t64
+  3.5.7-1~deb13u3, libzstd1 1.5.7+dfsg-1, media-types 13.0.0, netbase 6.5, and tzdata and
+  tzdata-legacy 2026f-0+deb13u1, on Debian 13.7 (`/etc/debian_version`). The Node layer is the
+  same blob (amd64 `0036073a…`, arm64 `f6b80202…`): `/nodejs/bin/node` is byte for byte the file
+  `9b945e92…` and `a51c5d63…` carry, sha256 `0adde40d…` on amd64 and `66f4a883…` on arm64,
+  nodejs.org's own (the entry of 2026-10-31), and Node 26.13.0 by its own strings, read without
+  running it: its release URLs name `v26.13.0`
+  (`…/release/v26.13.0/node-v26.13.0-headers.tar.gz`), it holds no other `v26.x.y`, and its
+  codename is Lithium; the image has no `node_version.h`. The config differs in that one layer
+  id and nothing else: user 65532, working directory `/home/nonroot`, entrypoint
+  `/nodejs/bin/node`, `PATH` and `SSL_CERT_FILE` as before, every date 1970-01-01. Nothing a
+  stack sets or a check asks changes: the API's, the appliance's and the tasks' Node is still the
+  `FROM node:` line's 26.13.0, and the way back is the old digest.
+- **Not taken: `767ffb7e…`.** `nonroot` moved on at 21:17:15 today to `767ffb7e…` (linux/amd64
+  `3edff83b…`, linux/arm64 `a0e5a4f1…`), read the same way at 22:19: the same 15 packages, and a
+  new Node layer (amd64 `a9ff3c4d…`, arm64 `ca8836e9…`) whose `/nodejs/bin/node` names
+  `v26.13.1`, nodejs.org's security release of 2026-11-10 (its `index.json`, read at 22:20). Its
+  floor ends 2026-11-14 at 21:17. It is the bigger move: a new Node version, which takes the four
+  `FROM node:` lines with it (Docker Hub pushed `node:26.13.1-trixie-slim`, index `e6bedef2…`,
+  at 19:27 today), and the Windows payload's `node.exe` sums and the tasks' base, and it is the
+  owner's to decide; not this change.
+- **Proved on the branch.** The 22 unit test files that name the digest, distroless or one of the
+  three Dockerfiles pass (975 tests), among them `an-appliance-with-nothing-to-exec`,
+  `a-task-base-the-cli-builds-nothing-into`, `an-api-image-with-nothing-to-exec`,
+  `a-base-image-that-carried-what-nothing-runs` and `a-gate-on-a-version-nothing-ships`, and so
+  do the 17 others that read the CHANGELOG, a plan or the plans' index (477 tests). With the old
+  digest left in the appliance's FROM line, `an-appliance-with-nothing-to-exec` is red
+  (*apps/selfhost/Dockerfile and apps/api/Dockerfile run on different distroless images*), and
+  left in the tasks' base's, `a-task-base-the-cli-builds-nothing-into` is
+  (*apps/worker/task-image/Dockerfile's distroless is the API's*); both files were put back from
+  copies, `cmp` equal. The docs checks pass (`lessons.mjs`, `adr-operative.mjs`,
+  `workplan-index.mjs`, `conflict-markers.mjs`, `llms-docs.mjs` and `machine-product-name.mjs`,
+  each with `--check`). No image was built here.
+- **Owed, after the owner's deploy of live,** for which `main` is held; the branch goes up as a
+  draft. CI's checks on the branch, Images among them, which builds the API, the web and the
+  appliance from it for linux/amd64 and builds and starts the tasks' base; E2E (self-hosted) on
+  Postgres and on PGlite, which build the appliance on this digest and ask its Node; and E2E
+  (managed), whose bring-up builds the API on it and whose smoke asks the API's Node. An image
+  scan dispatched on the branch reads Ownpace's images as published (`edge` and the release) and
+  the tasks' base as the config pins it (`scripts/image-scan.mjs`), none of which this branch
+  moves, so the first scan to read this digest is the one after `main` publishes `edge` from it,
+  and `trigger-task-base`'s the one after the pin moves. That is the second change, as #1824
+  followed #1816: `apps/worker/trigger.config.ts` moves to the tasks' base Images publishes from
+  `main` after this merges, in a pull request of its own with E2E (managed) on its branch. Live
+  takes both from the first release tag that carries them.
 
 **2026-11-10: MinIO's digest moves to Chainguard's build of 2026-11-07, past its three-day floor,
 as a security fix for CVE-2026-116591 in its compress library (0146 T7)**, on the branch
@@ -4963,7 +5060,7 @@ is who moves it after T1.
 | Image | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
 | `node` (26-trixie-slim since 2026-10-31; 24-trixie-slim from 0146 T12; 24-slim before) | `apps/api` (its build stage only, since 0146 T13), `apps/web`, `apps/selfhost` (its build stage only, since 2026-11-06, §3 item 12) Dockerfiles; the managed tasks, which build on it (`apps/worker/trigger.config.ts`, 0146 T14, #1716); the Windows payload's node.exe follows `apps/selfhost` | 26.13.0-trixie-slim by index digest `5adad64f…`, Debian 13.7 (2026-11-06, the tag's rebuild of 2026-11-05 with apt 3.0.4: Status, 2026-11-06; `e4db4c91…` from 2026-10-31, the move to Node 26: Status, 2026-10-31; 24.22.1-trixie-slim by `43b9ba11…` from 0146 T12, 2026-10-25; 24.22.1-slim, Debian 12.15, from 2026-10-21, the October security release; digest `6f7b03f7…` with no tag at the audit, 24.20.0-slim from T2) | 26.13.0-trixie-slim (Node 26.13.0 'Lithium', LTS from 2026-10-28; the tag's index pushed 2026-10-28 23:41 UTC); the tag's digest moves as more architectures land (ppc64le at 17:39 UTC on 2026-10-21) and Dependabot offers each move | current: the pin is the tag's index | Dependabot `docker`, which keeps the `-trixie-slim` suffix and moves the payload with it since 2026-10-21, minor and patch only; the major and the Debian release by hand (§2.4) | **T2** — and T1 gives it its tag; Debian 13, and no package manager in the api and selfhost runtimes, from 0146 T12; Node 26 from 2026-10-31, with corepack 0.36.0 from npm in the build stages (§2.4) |
-| `gcr.io/distroless/nodejs26-debian13` (`nonroot`; `nodejs24-debian13` until 2026-10-31) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13; `apps/selfhost/Dockerfile`'s, the same line (one string, `an-appliance-with-nothing-to-exec`), since 2026-11-06 (§3 item 12) | the `nonroot` tag by index digest `a51c5d63…`, Debian 13 and Node 26.13.0, nodejs.org's binary byte for byte on amd64 and arm64 (uploaded 2026-10-28 21:35 UTC; taken 2026-10-31 with the `node` row's 26.13.0; `nodejs24-debian13` by `cb606325…`, Node 24.22.1, uploaded 2026-10-23 23:31 UTC, from 0146 T13) | the tag's index, as read 2026-10-31 22:30 UTC; `nonroot` moved on to `9b945e92…` at 2026-10-31 23:45 UTC, a rebuild whose amd64 image differs only in the two tzdata layers (`tzdata`, `tzdata-legacy`; the Node layer `0036073a…` the same), past its floor at 2026-11-03 23:45 UTC, read 2026-11-01 | current: the tag's newest is a tzdata rebuild inside its floor | Dependabot `docker`, digest moves only (the tag names no version); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25) |
+| `gcr.io/distroless/nodejs26-debian13` (`nonroot`; `nodejs24-debian13` until 2026-10-31) | `apps/api/Dockerfile`'s runtime stage, since 0146 T13; `apps/selfhost/Dockerfile`'s, the same line (one string, `an-appliance-with-nothing-to-exec`), since 2026-11-06 (§3 item 12); `apps/worker/task-image/Dockerfile`'s `distroless` stage, the same line again (`a-task-base-the-cli-builds-nothing-into`), since 2026-11-06 (§3 item 13), which the managed tasks run through the base `apps/worker/trigger.config.ts` pins | the `nonroot` tag by index digest `33c86a63…`, Debian 13.7 and Node 26.13.0, nodejs.org's binary byte for byte on amd64 and arm64 (uploaded 2026-11-08 21:55 UTC, taken 2026-11-11 in all three lines at once, past its floor, as a security fix: Google's rebuild for Debian's security update of zlib1g, 1:1.3.dfsg+really1.3.1-1+deb13u1, the one package it moves, which the week's scan of 2026-11-09 names as the fix for the two highs it read in `9b945e92…`; Status, 2026-11-11). Before it `9b945e92…` (uploaded 2026-10-31 23:45 UTC, a tzdata rebuild, taken 2026-11-03 by Dependabot's #1778, when the API alone ran it), `a51c5d63…` (uploaded 2026-10-28 21:35 UTC; taken 2026-10-31 with the `node` row's 26.13.0) and `nodejs24-debian13` by `cb606325…`, Node 24.22.1, uploaded 2026-10-23 23:31 UTC, from 0146 T13 | the tag's index `767ffb7e…`, uploaded 2026-11-11 21:17 UTC, as read at 22:13 UTC that day: the same packages, and Node 26.13.1, nodejs.org's security release of 2026-11-10, inside its floor until 2026-11-14 21:17 UTC and not taken (Status, 2026-11-11) | one rebuild, with a new Node, inside its floor | Dependabot `docker`, digest moves only (the tag names no version), one pull request per directory, each red alone while the three lines are one string, so a rebuild moves by hand in one pull request (2026-11-11, for #1855, #1856 and #1858); a new Node major or Debian is a new image name, by hand. Its Node version must be the `node` row's: the managed smoke stops otherwise, so a rebuild with a new Node moves with that row, the Windows payload's `node.exe` and the tasks' base, the owner's call | **0146 T13**: no shell, `printenv` or package manager, Node at `/nodejs/bin/node` off PATH; 0 critical and 0 high (Trivy 0.76.1, 2026-10-25); at `9b945e92…` 0, 2 and 2 in every image on it, zlib1g's CVE-2026-76844 and CVE-2026-85091 (Trivy 0.76.2, Security Scan run 42642704967, 2026-11-09), the fix for which this digest carries |
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `9c68ad4f…` (2026-11-09, Docker Hub's rebuild of the tag on Alpine 3.24.4, where of its 21 packages only alpine-release, apk-tools and libapk (3.0.9) and tzdata (2026f) moved: 0 critical, 0 high and 0 fixable, Security Scan run 42615868745, linux/arm64; Status, 2026-11-09); `f45171d3…` from 2026-10-25 (0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring); 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed again on 2026-11-05 at 22:08 UTC over its rebuilds of 19:50 UTC (amd64 and arm64 among them; riscv64's image is still that of 2026-10-24), before that on 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
 | `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31) | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, the managed stacks' base too, since 2026-10-31, from Dependabot's #1744; `77f58511…` from its move of 2026-09-24 before that; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it; a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); since 2026-10-31 the build also takes brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions, the base's only findings once gosu is gone (Status, 2026-10-31); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.6-alpine by digest `10a5c69a…` (upstream's rebuild of 2026-10-26, since 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4) | 18.6 (2026-08-13), newest digest `10a5c69a…`; 18.7 is due 2026-11-12 | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and prints the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a base that already carries brotli-libs 1.2.1-r0 or libcurl 8.23.0-r0 fails the build until the RUN drops that package, and a version Alpine's mirror no longer serves fails it until the RUN's version moves, in a PR of its own | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
