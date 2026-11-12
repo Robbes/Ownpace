@@ -101,6 +101,104 @@ same way; nothing read was run. Times are UTC.
   `main` after this merges, in a pull request of its own with E2E (managed) on its branch. Live
   takes both from the first release tag that carries them.
 
+**2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built
+on a branch, not merged (0146 T11 (a); the pin watch's #1671).** On the branch
+`claude/ownpace-public-readiness-y7orc6-mailpit-1-33-1`, from `main` at `122c86a0` (#1871); not
+merged, and E2E (managed) is owed on it before it can be, dispatched once the live deploy the
+owner has under way is done. Times are UTC.
+- **The pin.** `axllent/mailpit:v1.33.1@sha256:aef2aacc…` in `managed.yml`, the index digest
+  Docker Hub's tag listing gives and a HEAD of the tag on `registry-1.docker.io` returns (with an
+  anonymous token from `auth.docker.io`), read 2026-11-11 at 00:15: an OCI index of linux/amd64
+  `c95e8356…`, linux/arm64 `6bb6d703…` and linux/386 `496dcbca…`, with three attestations;
+  `latest` names the same digest. Every manifest, config and layer read here was checked against
+  its digest. The phone-home guard pins the same reference; `managed-bring-up.md`'s *Nothing
+  phones home* row, the inventory row (§2.1) and the example in `idp-pin-watch.mjs`'s comment
+  move with it.
+- **Three days.** The tag was pushed at 2026-11-07T23:54:05Z (Docker Hub's `tag_last_pushed`;
+  upstream's annotated tag `v1.33.1` is from 23:37:22Z, on its release merge `3bc38efc`, the
+  amd64 image's config from 23:41:46Z and the arm64's from 23:53:55Z), so its floor ended
+  2026-11-10T23:54Z, before this branch was built.
+- **Why, and why it is not a security fix.** The pin watch's run of 2026-11-09 (42656618662,
+  16:37, on `main` at `9fb73fdf`) read v1.33.0 behind v1.33.1 and updated its summary issue
+  (#1671, 0146 T8), which lists it; run on `main`'s files today at 00:22, without `--issue`, it
+  reads the same. The week's image scan (Security Scan run 42642704967, 2026-11-09, linux/arm64)
+  read v1.33.0 at 0 critical, 0 high and 0 with a fix, so there is no finding to clear. Read off
+  both platforms' layers, nothing run: `/mailpit` is built with go1.27.3, as v1.33.0's is (`go
+  version -m`: `vcs.revision` `3bc38efc`, `config.Version=v1.33.1`, `CGO_ENABLED=0`), and is
+  static (no interpreter and no dynamic section, by `readelf`). Against v1.33.0's amd64 binary,
+  five of its 51 modules moved, as `go.mod` says: gomarkdown to its commit of 2026-11-07,
+  spf13/pflag 1.0.10 → 1.1.0, vanng822/go-premailer 1.37.0 → 1.38.0 (whose one change is its own
+  `go.mod`'s golang.org/x/net 0.59.0 → 0.62.0, the x/net Mailpit already built with),
+  modernc.org/sqlite 1.61.0 → 1.62.0 and modernc.org/libc 1.79.1 → 1.80.1; x/net 0.62.0, x/crypto
+  0.58.0, the `go 1.26.0` line and every build setting but the version and the revision are the
+  same. The base is Alpine 3.24.4 (`/etc/alpine-release`), where v1.33.0's is 3.24.3, and against
+  v1.33.0's amd64 image 5 of its 17 packages moved, at the same versions on both of v1.33.1's
+  platforms: alpine-release, apk-tools and libapk 3.0.8 → 3.0.9, tzdata 2026e → 2026f, and zlib
+  1.3.2-r1 → 1.4-r0, which the image's own `apk upgrade` took.
+  Alpine's zlib 1.4-r0 is *main/zlib: security upgrade to 1.4* (aports `bdf501c8`, 2026-11-06
+  18:22), whose APKBUILD names CVE-2026-4738 for it. Its severity was not read: the advisory
+  databases are outside this session's reach, and the week's scan counts high and critical
+  alone. Nothing the container runs loads it: its entrypoint and its healthcheck are the static
+  `/mailpit`.
+- **Read:** Mailpit's `CHANGELOG.md` at v1.33.1 and `git diff v1.33.0 v1.33.1` (17 commits, 15
+  without the two merges), for anything that makes a connection. Lines are v1.33.1's.
+  - The release check is as it was: `internal/stats/stats.go` is the same file at v1.31.6,
+    v1.32.0, v1.33.0 and v1.33.1, and `cmd/root.go` did not change, so `MP_DISABLE_VERSION_CHECK`
+    still answers `"disabled"` (`stats.go:100`) before the request at `:116`, read at
+    `root.go:208` with `getEnabledFromEnv` (`:468`), as `1`, `true` or `yes`. Its library,
+    `axllent/ghru/v2`, is v2.2.3 at all four.
+  - The HTML check changed, and still fetches only when asked: the stylesheets a caught message
+    links are fetched only for `GET /api/v1/message/{id}/html-check` (`server/apiv1/other.go:63`),
+    and not at all under `--block-remote-css-and-fonts`. It now fetches each address once and at
+    most 10 of them (`internal/htmlcheck/css.go:140`, `:190`), 5 MiB in all (`:137`), where it
+    fetched every one, up to 5 MiB each, and each download takes the request's context (`:238`),
+    so a caller that goes away stops it. The commit (`6924c1b6`) credits an outside reporter;
+    Mailpit's notes list it under Fix, not Security.
+  - Nothing else that makes a connection changed. Rspamd and SpamAssassin, the link check, the
+    webhook, the screenshot proxy, the relay and the forward (`internal/rspamd`,
+    `internal/spamassassin`, `internal/linkcheck`, `server/webhook`, `server/handlers`,
+    `internal/smtpd/relay.go` and `forward.go`), `config/config.go` and `server/server.go` are the
+    same at both tags, and the diff outside the tests adds no request, dial or client. The
+    release and thumbnail endpoints also take `latest` as the ID (#768); a release still goes
+    out only through the relay an operator configures (`server/apiv1/release.go:170`).
+  - `managed.yml` gives `mailpit` the same five variables (`MP_SMTP_AUTH_ACCEPT_ANY`,
+    `MP_SMTP_AUTH_ALLOW_INSECURE`, `MP_MAX_MESSAGES`, `MP_DATABASE`, `MP_DISABLE_VERSION_CHECK`),
+    no `command` and no `env_file`: nothing turns Rspamd, a relay, a forward or a webhook on.
+- **What the gate reads.** The API the smoke and `setup-zitadel.sh` call (`GET /api/v1/messages`,
+  `GET /api/v1/search`) keeps its handlers: `server/apiv1/messages.go` changes `DeleteMessages`
+  alone (#766: a body that is not JSON is a 400, where it deleted every message; an empty body
+  still does), which nothing here calls, and `internal/storage/search.go` and `/mailpit readyz`,
+  the healthcheck (`cmd/readyz.go`), did not change. One thing the stack's own mail meets is new:
+  a message the parser cannot read is answered *554 5.6.0 Unable to parse message*
+  (`internal/storage/messages.go:39`, written as it is by `internal/smtpd/smtpd.go:665`), where
+  it was answered 250 and nothing was kept (#764), so such a message now fails at its sender
+  instead of going missing. Address headers with display names in other charsets now parse
+  (#763), recipients missing from the headers are added to an existing Bcc, where they were
+  dropped (`e028bfbb`), and RFC 2231 file names in other charsets decode (#767).
+- **No schema step.** v1.33.1's `internal/storage/schemas` is v1.33.0's tree, the newest script
+  still `1.32.0.sql`, and its SQLite driver, modernc.org/sqlite 1.62.0, keeps SQLite 3.54.1, as
+  1.61.0 had it (the driver's `CHANGELOG.md` at v1.62.0), so the kept `mailpit.db` opens as it is
+  and the way back is the v1.33.0 digest.
+- **Proved here:** the 145 unit test files that read a file this changes or name Mailpit pass
+  (4,604 tests), among them `a-service-that-phones-home` (40), `a-pin-that-knows-it-is-behind`
+  (121), `an-image-nobody-scanned` (65), `a-float-nothing-ever-pulled` (10) and
+  `the-mail-the-issuer-could-not-send` (25); the 27 that name Mailpit (1,032 tests), the 115 that
+  read `managed.yml` (4,065) and the 13 that name the pin watch (477) are among them. With
+  v1.33.0's reference left in the guard's pin, `a-service-that-phones-home` fails on the Mailpit
+  row alone (*Re-read what the new version sends by default, then move this row*; 1 failed, 39
+  passed), and the file was put back from its copy, `cmp` equal. The docs checks pass
+  (`lessons.mjs`, `adr-operative.mjs`, `workplan-index.mjs`, `conflict-markers.mjs`,
+  `llms-docs.mjs` and `machine-product-name.mjs`, each with `--check`), and so does ESLint on the
+  two scripts this changes. The pin watch, run on the branch at 00:46 (`idp-pin-watch.mjs`
+  without `--issue`), reads *"axllent/mailpit v1.33.1 v1.33.1 current"*. Its other rows that read
+  behind are not this move's: the identity provider (v4.20.2) and Trigger.dev (v4.8.4), which the
+  watch reports apart, and MinIO's rebuild (`fb893e36…`, inside its floor until 2026-11-13 06:03)
+  and Atlas (v1.3.9), the summary issue's other two rows. **Not proved here:** a stack running
+  v1.33.1. That is E2E (managed) on the branch, on the OTA stack, where Mailpit is the catcher
+  every mail assertion of the smoke reads; owed before the merge, once the live deploy under way
+  is done. A nightly on `main` between that run and the merge starts v1.33.0 again on the same
+  `mailpit.db`, the way back above.
+
 **2026-11-10: MinIO's digest moves to Chainguard's build of 2026-11-07, past its three-day floor,
 as a security fix for CVE-2026-116591 in its compress library (0146 T7)**, on the branch
 `claude/ownpace-public-readiness-y7orc6-minio-869ca317`, from `main` at `ea537679` (#1868). Read
@@ -5076,7 +5174,7 @@ is who moves it after T1.
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.1 (2026-11-07, #1829, for alpha.6 on the owner's yes, after the OTA instance's dump and E2E (managed) run 42331851832 on the branch: ten commits after v4.20.0, no advisory and no setup step; the Status entry of 2026-11-06, and 0135's of 2026-11-07); v4.20.0 before it (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.5 before it (2026-10-22, #1651, `721c6ea8`, three security fixes read commit by commit), v4.19.4 before that (2026-10-05, #1528, `502c52fa`), and v4.19.2 before those (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.1 (2026-11-03, read 2026-11-06) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `axllent/mailpit` | `managed.yml` | v1.33.0 by digest `9b3a463b…` (2026-11-03, the minor kept current, no finding to clear; merged as #1796 at 02:51 UTC, `21fa6ff8`, after E2E (managed) run 41566706312 was green on its head, in alpha.4: Status, 2026-11-03, records; *was:* on the branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-33-0`, not merged, E2E (managed) owed); v1.32.0 by digest `0790692b…` before it (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.0 (2026-10-31, pushed 02:30 UTC; also `latest` on 2026-11-03), digest `9b3a463b…` | current — *was:* one minor, inside its three-day floor until 2026-11-03 02:30 UTC (Status, 2026-10-31) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
+| `axllent/mailpit` | `managed.yml` | v1.33.1 by digest `aef2aacc…` (2026-11-11, the patch kept current, past its floor, no finding to clear; on the branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-33-1`, not merged, E2E (managed) owed: Status, 2026-11-11); v1.33.0 by digest `9b3a463b…` before it (2026-11-03, the minor kept current; merged as #1796 at 02:51 UTC, `21fa6ff8`, after E2E (managed) run 41566706312 was green on its head, in alpha.4: Status, 2026-11-03, records); v1.32.0 by digest `0790692b…` before that (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.1 (2026-11-07, pushed 23:54 UTC; also `latest` on 2026-11-11), digest `aef2aacc…` | current — *was:* one patch behind, read by the pin watch on 2026-11-09, inside its three-day floor until 2026-11-10 23:54 UTC (Status, 2026-11-11) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `515c072e…` since 2026-11-01, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC, three days old on 2026-10-31; what `34-apache` named that day, read on mirror.gcr.io and Docker Hub), whose Debian and PHP 8.5.12 layers are the same blobs as the demo's 35.0.2 `e0b1a2af…`, with libbrotli's fix for the critical CVE-2026-111497; before it `1f9212ad…` (PHP 8.5.12) from 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
