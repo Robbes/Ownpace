@@ -4,13 +4,14 @@
 
 ## Status — 2026-11-12 (update this block at the end of every session)
 
-**2026-11-12: both Postgres builds take Alpine's krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 at
-build, with brotli-libs and libcurl, for the 19 highs the image scan read in them today; built on a
-branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-postgres-krb5-libxslt`,
-from `main` at `b05fb1b3` (#1878). For alpha.8, on the owner's word the same day: *"Postgres
-yes"*. Read from Docker Hub's registry without a login, each blob checked against its digest; from
-the public git of Alpine's aports, MIT krb5, PostgreSQL, Trigger.dev and Zitadel, each at the
-branch or tag named; and from the scan's job logs. Nothing read was run. Times are UTC.
+**2026-11-12: both Postgres builds take Alpine's krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 at build,
+with brotli-libs and libcurl, for the 19 highs the image scan read in them today; built on a branch,
+not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-postgres-krb5-libxslt`, from
+`main` at `b05fb1b3` (#1878), with `main` at `2b101fc7` (#1879) merged in since. For alpha.8, on the
+owner's word the same day: *"Postgres yes"*. Read from Docker Hub's registry without a login, each
+blob checked against its digest; from the public git of Alpine's aports, MIT krb5, PostgreSQL,
+Trigger.dev and Zitadel, each at the branch or tag named; and from the scan's job logs. Nothing read
+was run. Times are UTC.
 - **What the scan read.** Security Scan run 43209163374 (dispatched 11:26 on #1877's branch,
   Trivy v0.76.2, linux/arm64, image scans) read `postgres-managed` and `postgres-selfhost`, both
   `localhost/postgres:18.6-alpine-1af6bb314e8d` on Alpine 3.24.3, at 0 critical, 19 high and 19
@@ -110,6 +111,29 @@ branch or tag named; and from the scan's job logs. Nothing read was run. Times a
   `postgres-selfhost` without those 19 findings. Then live takes the name from alpha.8, which
   rebuilds and restarts both databases once, and an appliance's first `up -d` after alpha.8
   builds it, from Alpine's mirror.
+
+**2026-11-12: the tasks' base moves to the one `main` published from #1878, on Node 26.13.1
+(§3 item 13).** On the branch `claude/ownpace-public-readiness-y7orc6-task-base-b05fb1b`, from
+`main` at `b05fb1b3` (#1878), the second change that entry names. Read from GHCR and gcr.io
+without a login; times are UTC.
+- **The pin.** `apps/worker/trigger.config.ts` names
+  `ghcr.io/robbes/ownpace-task-base:sha-b05fb1b@sha256:444d3833…` as `TASK_BASE_IMAGE`, `edge`
+  when read at 14:00: both tags name the index `444d3833…`, of linux/amd64 `53128b51…`,
+  linux/arm64 `4b8c8211…` and two attestations. `main` published it from `b05fb1b3` (Images run
+  43232128938, `build (task-base)` 13:56:35 to 13:59:17). Until now the pin was
+  `sha-335fd51@sha256:4c4c6baa…` (#1874), on distroless `33c86a63…` and Node 26.13.0.
+- **What moves.** On both platforms its first 23 layers are distroless `767ffb7e…`'s, by digest
+  (gcr.io's manifests, read at the same time), and 6 are its own, 29 in all, as at `sha-335fd51`.
+  So for the tasks what moves is Node, to 26.13.1, the file #1878 read as nodejs.org's own; the
+  Debian 13.7 packages are the same. GHCR's blobs, the configs with their revision label among
+  them, are refused to this session (`pkg-containers.githubusercontent.com`), so the label, the
+  signature by `images.yml`'s identity on `refs/heads/main` and the pull on both platforms are
+  this pull request's `task-base pin` job's to read; Release's verify reads them again at the tag.
+- **Owed:** CI on the branch, its `task-base pin` job among them, and E2E (managed) dispatched on
+  it, green: its smoke reads the Node of the newest image the runners started from against
+  `apps/api/Dockerfile`'s FROM node line, v26.13.1, the check E2E (managed) on `main` is red at
+  since #1878 merged. The week's image scan then reads `trigger-task-base` at the new pin. Live
+  takes it from the first release tag that carries it.
 
 **2026-11-12: Node moves to 26.13.1, nodejs.org's security release of 2026-11-11, in the four
 `FROM node:` lines, the distroless runtime's three and the Windows payload's `node.exe` sums, in
@@ -253,6 +277,21 @@ are UTC.
   week's image scan reads these images once `main` publishes `edge` from this, and
   `trigger-task-base` once the pin moves. Live takes both from the first release tag that
   carries them.
+- **Proved on the branch, and merged** *(recorded after the merge)*. On the head `ad39a7c4`: CI
+  green (32 checks passed, 7 skipped, Trivy neutral; Images' builds among them, and the
+  `task-base pin` job warning, as written for this case, *the tasks' base runs Node v26.13.0, and
+  apps/api/Dockerfile names v26.13.1*); E2E (self-hosted) on Postgres, run 43225247856 (13:13:34
+  to 13:19:40), and on PGlite, run 43227976613 (13:30:44 to 13:35:33), both green;
+  windows-payload run 43222803500, green, whose build logged *Node v26.13.1 win-x64/node.exe:
+  pinned sha256 f5109dc8… … as the committed SHASUMS256.txt lists it, signed by 5BE8A3F6…* and
+  whose smoke on Windows Server 2025 read *.\node.exe --version: v26.13.1* and the appliance
+  answering `/ui`, `/status` and `/version` 200 on both starts, and run 43222808561, which built
+  win-arm64. E2E (managed) run 43230528528 (13:46:40 to 13:54:20) red by name at its one check,
+  as written above: its preflights found */nodejs/bin/node v26.13.1 runs in the API container,
+  the Dockerfile's Node*, version 20261112.5 *deployed with 17 detected tasks*, *verify: done
+  apply: applied*, and the one reason listed *the tasks' Node is not the API's*, the tasks on Node
+  v26.13.0, the pin. #1878 merged at 13:56:30 (`b05fb1b3`), on the owner's word for the floor
+  (above); the second change is the entry above.
 
 **2026-11-12, recorded: live runs alpha.7's pins.** The owner deployed `v0.2.0-alpha.7` (tagged
 2026-11-09 on `45375ac2`) to live on 2026-11-10, from alpha.6 in one run of alpha.6's script,
