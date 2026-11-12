@@ -49,6 +49,15 @@ without a login; times are UTC.
   `apps/api/Dockerfile`'s FROM node line, v26.13.1, the check E2E (managed) on `main` is red at
   since #1878 merged. The week's image scan then reads `trigger-task-base` at the new pin. Live
   takes it from the first release tag that carries it.
+- **Proved on the branch, and merged** *(recorded after the merge)*. CI on the head `d51eeb27` was
+  green: 28 checks passed, 4 were skipped, Trivy neutral. Its `task-base pin` job read the pin,
+  *built from b05fb1b310885b8812644cc9a6537780da2cfa39, Node v26.13.1: apps/api/Dockerfile's*,
+  and cosign verified `images.yml`'s signature on `refs/heads/main`. E2E (managed) run
+  43236184278 on that head, 14:20:41 to 14:28:21, built the tasks FROM the new base, then version
+  20261112.6, *deployed with 17 detected tasks*, the runners' image `827ff8746079` on Node
+  v26.13.1, the API's, with no shell under any of five names, *verify: done apply: applied*,
+  SMOKE PASS. #1879 merged at 14:29:46 (`2b101fc7`), so E2E (managed) on `main` is green at the
+  tasks' Node again.
 
 **2026-11-12: Node moves to 26.13.1, nodejs.org's security release of 2026-11-11, in the four
 `FROM node:` lines, the distroless runtime's three and the Windows payload's `node.exe` sums, in
