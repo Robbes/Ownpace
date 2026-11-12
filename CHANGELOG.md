@@ -14,8 +14,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   same file as that image's and nodejs.org's own, on amd64 and arm64. Nothing else in either
   image moved: the same Debian 13.7 packages and npm, the same user and entrypoint. The Windows
   zip's `node.exe` is checked against v26.13.1's sums, which the release's signed list gives. The
-  managed tasks take it with the tasks' base `main` publishes from this, in a pull request of its
-  own; until then they run 26.13.0, and the managed smoke says so by name.
+  managed tasks take it with the tasks' base `main` published from it (`sha-b05fb1b`), whose pin
+  moves in a pull request of its own.
 
 - **The API, the appliance and the tasks' base run on Google's distroless Node 26 build of
   2026-11-08, a security fix** (workplan 0119): `gcr.io/distroless/nodejs26-debian13:nonroot`
