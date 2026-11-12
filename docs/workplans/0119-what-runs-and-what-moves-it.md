@@ -4,6 +4,22 @@
 
 ## Status — 2026-11-12 (update this block at the end of every session)
 
+**2026-11-12, recorded: live runs alpha.7's pins.** The owner deployed `v0.2.0-alpha.7` (tagged
+2026-11-09 on `45375ac2`) to live on 2026-11-10, from alpha.6 in one run of alpha.6's script,
+which took at 14:21:09 UTC, reversible (0132's Status, 2026-11-12, has the deploy). The two builds
+it moves were already on the shared daemon, the OTA stack's E2E (managed) having built them, so
+the run built none. After it, read on live on 2026-11-12: `trigger-redis` on
+`localhost/redis:7.4.12-bookworm-d5301e0623d4` and `trigger-api` on
+`localhost/trigger.dev:v4.8.3-42a2fcc298b0` (#1846), `libsystemd0` and `libudev1` not installed in
+either, and `apt`, `apt-get`, `mount`, `setpriv` and `mke2fs` absent; `trigger-redis` as `999:999`
+with no capability added, Redis 7.4.12; the rest on the pins alpha.7 does not move
+(`trigger-supervisor` `v4.8.3-9fa6db37008b`, Caddy 2.11.9, Zitadel v4.20.1, MinIO `aea6c163…`); no
+container unhealthy, starting or restarting, and none on an image alpha.7 replaced. The task
+deployment `20261110.1` on the prebuilt base (#1824; Node v26.13.0, no shell), and the tick
+`COMPLETED_SUCCESSFULLY` on 4.8.3. What `main` has merged since the tag reaches live with the next
+one, not before: among it MinIO's `869ca317…` (#1870), the fix of CVE-2026-116591 that the
+`aea6c163…` live runs still lacks, and the webapp's five-fetch goose download (#1866).
+
 **2026-11-12: the tasks' base moves to the one `main` published from #1873, on the distroless
 build of 2026-11-08, so the managed tasks take Debian's zlib1g fix too (§3 item 13).** On the
 branch `claude/ownpace-public-readiness-y7orc6-task-base-335fd51`, from `main` at `335fd51b`
@@ -26,6 +42,15 @@ branch `claude/ownpace-public-readiness-y7orc6-task-base-335fd51`, from `main` a
   `apps/api/Dockerfile`'s FROM node line, and finds no shell in it. The week's image scan then
   reads `trigger-task-base` at the new pin. Live takes it from the first release tag that carries
   it.
+- **Proved on the branch, and merged** *(recorded after the merge)*. CI on the head `e9b52041`
+  (`main` at `b9b3a2f2`, #1872, merged in) was green: 28 checks passed, 4 were skipped, Trivy
+  neutral. Its `task-base pin` job read the pin, *built from
+  335fd51b6f0aa60afc146211337eb97e8fb5d71a, Node v26.13.0: apps/api/Dockerfile's*, and cosign
+  verified `images.yml`'s signature on `refs/heads/main`. E2E (managed) run 43200817199 on that
+  head, 10:29:30 to 10:37:09, built the tasks FROM the new base, then version 20261112.3,
+  *deployed with 17 detected tasks*, the runners' image `56c0ca8c2f5a` on Node v26.13.0, the
+  API's, with no shell under any of five names, *verify: done apply: applied*, SMOKE PASS. #1874
+  merged at 10:39:01 (`778fd847`).
 
 **2026-11-11: the distroless Node 26 runtime moves to Google's build of 2026-11-08, past its
 three-day floor, in the API, the appliance and the tasks' base at once, for Debian's security
@@ -123,6 +148,15 @@ same way; nothing read was run. Times are UTC.
   followed #1816: `apps/worker/trigger.config.ts` moves to the tasks' base Images publishes from
   `main` after this merges, in a pull request of its own with E2E (managed) on its branch. Live
   takes both from the first release tag that carries them.
+- **Proved on the branch, and merged** *(recorded after the merge)*. On the head `b9526b93`, after
+  the owner's deploy of live: CI green (Images' builds among them; 30 checks passed, 4 skipped,
+  Trivy neutral); E2E (self-hosted) on Postgres, run 43187683692 (09:00:50 to 09:06:48), and on
+  PGlite, run 43190197011 (09:17:49 to 09:22:28); E2E (managed) run 43192420441 (09:33:03 to
+  09:41:00), whose api was built on `33c86a63…`, then version 20261112.1, *deployed with 17
+  detected tasks*, the runners' image on Node v26.13.0, the API's, *verify: done apply:
+  applied*, SMOKE PASS. #1873 merged at 09:42:19 (`335fd51b`), and Dependabot's #1855, #1856
+  and #1858 were closed as superseded. The second change, the tasks' base, is #1874 (the entry
+  above).
 
 **2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built
 on a branch, not merged (0146 T11 (a); the pin watch's #1671).** On the branch
@@ -221,6 +255,14 @@ owner has under way is done. Times are UTC.
   every mail assertion of the smoke reads; owed before the merge, once the live deploy under way
   is done. A nightly on `main` between that run and the merge starts v1.33.0 again on the same
   `mailpit.db`, the way back above.
+- **Proved on the branch, and merged** *(recorded after the merge)*. `main` at `335fd51b` (#1873)
+  was merged into the branch first, keeping both of 0119's entries of 2026-11-11, #1873's on top.
+  On that head, `f155e8c9`: CI green (28 checks passed, 4 skipped, Trivy neutral), and E2E
+  (managed) run 43196912718, 10:03:23 to 10:11:05, which pulled
+  `axllent/mailpit:v1.33.1@sha256:aef2aacc…`, recreated and started `ownpace-managed-mailpit`,
+  then version 20261112.2, *deployed with 17 detected tasks*, *verify: done apply: applied*,
+  SMOKE PASS, every mail assertion of the smoke read from v1.33.1. #1872 merged at 10:12:31
+  (`b9b3a2f2`).
 
 **2026-11-10: MinIO's digest moves to Chainguard's build of 2026-11-07, past its three-day floor,
 as a security fix for CVE-2026-116591 in its compress library (0146 T7)**, on the branch

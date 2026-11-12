@@ -2,7 +2,18 @@
 
 > **In one line:** The managed app tells the browser which scripts may run in it, where it may send, that no page may frame it, that it is reached over HTTPS only, and that no request carries its address as a Referer; and the sign-in moves out of the browser's storage.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-12 (update this block at the end of every session)
+
+**2026-11-12, recorded: T4's reader, run on live by hand after alpha.7's deploy.** Live's deploy
+of `v0.2.0-alpha.7` on 2026-11-10 ran alpha.6's `deploy-live.sh`, the checkout's, which has no
+headers check (0132's Status, 2026-11-12). So, with the hold still on, the owner ran the tag's
+own reader on 2026-11-12, as alpha.7's script runs it after a bring-up: `scripts/app-headers.mjs`
+over the tag's `apps/web/nginx.conf.template`, the issuer read from live's `.env` with
+`env-read.sh`'s `env_value`, as the script reads it, on the answer of `https://app.ownpace.eu/`
+through the front that ends TLS, as a tester's browser gets it. The page answered 200 and the
+reader printed `Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options,
+X-Frame-Options, Referrer-Policy, as the template states them`, exit 0. `deploy-live.sh`'s own
+read runs first at live's next deploy, the first started from alpha.7.
 
 **2026-11-08, later, recorded: T4's first proof through the front.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-a7-records-2`. The owner dispatched *Exposure probe* on
