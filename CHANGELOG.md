@@ -6,6 +6,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The identity provider moves to Zitadel v4.20.2, a security fix** (workplan 0135 T7, 0119):
+  its go-jose moves from 4.1.4 to 4.1.7, the fix of CVE-2026-116587, which the week's image
+  scans have read in Zitadel since 2026-11-02, in the library that parses the signing keys an
+  identity provider is handed. A password change in an organisation with no notification policy
+  no longer stops Zitadel's mail handler. No setup step, so the database's schema stays where
+  v4.20.1 left it and the way back is v4.20.1. Signing in is unchanged: the stack serves
+  Zitadel's own login, whose code did not move.
+
 - **The API, the appliance and the tasks' base run on Google's distroless Node 26 build of
   2026-11-08, a security fix** (workplan 0119): `gcr.io/distroless/nodejs26-debian13:nonroot`
   at `33c86a63…`, in all three images at once, in place of Dependabot's three pull requests,
