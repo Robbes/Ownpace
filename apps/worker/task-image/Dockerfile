@@ -38,17 +38,21 @@
 #
 # WHAT IT IS BUILT FROM. The runtime is the API's: distroless Node at the
 # digest apps/api/Dockerfile's runtime stage names (Node 26.13.0 there, read
-# 2026-11-06). The build stage is the image apps/api/Dockerfile builds FROM,
-# Debian 13: apt installs `ca-certificates` and `dumb-init` there, the trust
+# 2026-11-06, and at the digest below on 2026-11-11). The build stage is the
+# image apps/api/Dockerfile builds FROM, Debian 13: apt installs
+# `ca-certificates` and `dumb-init` there, the trust
 # edits are made there, and only the bundle, dumb-init, the two account files,
 # dumb-init's dpkg record and an empty home leave it. dumb-init needs no
 # library but the C library, which distroless carries (the build refuses one
 # that needs more). Its dpkg record goes where distroless keeps one per
 # package (/var/lib/dpkg/status.d), so a scan reads its version.
 # distroless's `ca-certificates` record stays: its
-# version is the build stage's (20250419+deb13u1 on 2026-11-06), and the build
-# below refuses another. Both digests move with apps/api/Dockerfile's, by
-# Dependabot in one group, and the guard holds them equal.
+# version is the build stage's (20250419+deb13u1 on 2026-11-06, and
+# distroless's the same at the digest below, read 2026-11-11), and the build
+# below refuses another. Both digests move with apps/api/Dockerfile's, and the
+# guard holds them equal: Dependabot's group takes a version's move to every
+# directory at once, but a digest-only move comes alone in each, red until one
+# pull request moves them together (workplan 0119, 2026-11-11).
 #
 # NOTHING RUNS IN THE RUNTIME STAGE: it has no shell to run it with. It is
 # distroless's own files with five COPY lines over them, and its user, PATH,
@@ -63,7 +67,7 @@
 # build stage installs, the certificates) reaches the tasks only with that
 # pin; one to these comments changes no layer.
 
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:9b945e92c1b5463a4b75f11e8417515e4bea7355f6adfd79ec220fbbe905dda8 AS distroless
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:33c86a63859efc2ebd88ea0a355863582ec6f1220d048de62baffb2584e709b3 AS distroless
 
 FROM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS build
 RUN apt-get update \
