@@ -51,25 +51,27 @@
  *    directory (args, a target or a Dockerfile of its own would be inputs the
  *    name does not carry). The context holds the Dockerfile alone, and nothing
  *    reads it but the builder. What the build reads from outside it is the
- *    base, by its digest, and since 2026-10-31 (workplan 0119) two packages
- *    from Alpine's signed repository, brotli-libs and libcurl for two
- *    findings no digest of the base had fixed, as deploy/compose/goaccess's
- *    `apk add` takes its packages from the same repository. Each at the
- *    exact version the instruction line names, so the line still says what
- *    is built, or the build fails: an `apk add` here takes `--no-cache` and
- *    `name=version-rN` and nothing else (no floor, no `--upgrade`, which
- *    moves the named packages' dependencies too, and no other repository or
- *    an unsigned one), and apk does nothing else here but compare versions
- *    (no `upgrade`, `update`, `del` or `fix`). apk is read wherever the shell
- *    could run it, by its path, after `if`, `{`, `!`, `xargs` or a quote, and
- *    in a heredoc, not only where a command starts (the review of #1758,
- *    2026-10-31, got six such forms past the first reading). The RUN is run
- *    here too, on a stand-in apk: it takes the two versions and nothing else,
- *    refuses a base that carries a fix already, and when apk cannot install
- *    them says what to do in words an appliance's operator can act on (reach
- *    Alpine's mirror, or update Ownpace to its newest release), since Alpine
- *    keeps only the newest build of a package and a release's exact versions
- *    stop being served. The RUN is temporary, until PostgreSQL 18.7;
+ *    base, by its digest, and since 2026-10-31 (workplan 0119) packages from
+ *    Alpine's signed repository for findings no digest of the base had
+ *    fixed, brotli-libs and libcurl, and since 2026-11-12 krb5-libs and
+ *    libxslt too, as deploy/compose/goaccess's `apk add` takes its packages
+ *    from the same repository. Each at the exact version the instruction
+ *    line names, so the line still says what is built, or the build fails:
+ *    an `apk add` here takes `--no-cache` and `name=version-rN` and nothing
+ *    else (no floor, no `--upgrade`, which moves the named packages'
+ *    dependencies too, and no other repository or an unsigned one), and apk
+ *    does nothing else here but compare versions (no `upgrade`, `update`,
+ *    `del` or `fix`). apk is read wherever the shell could run it, by its
+ *    path, after `if`, `{`, `!`, `xargs` or a quote, and in a heredoc, not
+ *    only where a command starts (the review of #1758, 2026-10-31, got six
+ *    such forms past the first reading). The RUN is run here too, on a
+ *    stand-in apk: it takes the four versions and nothing else, refuses a
+ *    base that carries any of the four fixes already, and when apk cannot
+ *    install them says what to do in words an appliance's operator can act
+ *    on (reach Alpine's mirror, or update Ownpace to its newest release),
+ *    since Alpine keeps only the newest build of a package and a release's
+ *    exact versions stop being served. The RUN is temporary, until
+ *    PostgreSQL 18.7;
  *  - Dependabot reads the Dockerfile, in a docker entry of its own that never
  *    offers a major (pg_upgrade is the owner's): a new digest or 18.x of the
  *    base arrives as its pull request, which fails here until the three names
@@ -306,8 +308,8 @@ function apkProblems(text: string): string[] {
  * A stand-in for apk in the RUN's shell: `version -t` compares as apk does
  * for the versions the tests give it, and `add` either takes the named
  * versions into the package database, takes one package more besides
- * (`more`), or fails as apk fails when the mirror no longer serves a version
- * (`unserved`). Every call is logged.
+ * (`more`, the one APK_STUB_MORE names), or fails as apk fails when the
+ * mirror no longer serves a version (`unserved`). Every call is logged.
  */
 const APK_STUB = String.raw`const fs = require('node:fs');
 const [command, ...args] = process.argv.slice(2);
@@ -323,7 +325,7 @@ if (command === 'add') {
     process.exit(1);
   }
   const pins = args.filter((a) => !a.startsWith('-'));
-  if (process.env.APK_STUB_MODE === 'more') pins.push('zlib=1.3.2-r2');
+  if (process.env.APK_STUB_MODE === 'more') pins.push(process.env.APK_STUB_MORE);
   let db = fs.readFileSync(process.env.APK_STUB_DB, 'utf8');
   for (const pin of pins) {
     const [name, version] = pin.split('=');
@@ -336,15 +338,33 @@ process.stderr.write('the stand-in apk has no ' + command + '\n');
 process.exit(2);
 `;
 
-/** The base's packages as the RUN reads them, from /lib/apk/db/installed. */
-const BASE_PACKAGES = { 'brotli-libs': '1.2.0-r1', libcurl: '8.22.0-r0', musl: '1.2.6-r3', zlib: '1.3.2-r1' };
+/**
+ * The base's packages as the RUN reads them, from /lib/apk/db/installed: the
+ * four it moves at the versions `10a5c69a…` carries (read from its amd64 and
+ * arm64 layers, 2026-11-12), and three it must leave alone, krb5-conf among
+ * them, the one package krb5-libs declares it depends on (an aport of its own,
+ * 1.0-r2 in the base and in 3.24-stable alike).
+ */
+const BASE_PACKAGES = {
+  'brotli-libs': '1.2.0-r1',
+  'krb5-conf': '1.0-r2',
+  'krb5-libs': '1.22.2-r1',
+  libcurl: '8.22.0-r0',
+  libxslt: '1.1.43-r3',
+  musl: '1.2.6-r3',
+  zlib: '1.3.2-r1',
+};
+
+/** What the RUN installs, each at its exact version (FOUR OF ALPINE'S SECURITY UPDATES). */
+const PINS = { 'brotli-libs': '1.2.1-r0', 'krb5-libs': '1.22.3-r0', libcurl: '8.23.0-r0', libxslt: '1.1.43-r4' };
 
 /**
  * Runs the Dockerfile's package RUN as the builder hands it to /bin/sh, on a
- * package database of `base` and the stand-in apk: what it exited with, what
- * it said, what it asked apk and what it left installed.
+ * package database of `base` and the stand-in apk (which, in `more`, also
+ * moves `more`): what it exited with, what it said, what it asked apk and
+ * what it left installed.
  */
-function runPackages(dockerfile: string, mode: 'ok' | 'more' | 'unserved', base: Record<string, string> = BASE_PACKAGES) {
+function runPackages(dockerfile: string, mode: 'ok' | 'more' | 'unserved', base: Record<string, string> = BASE_PACKAGES, more = 'zlib=1.3.2-r2') {
   const runs = instructionLines(dockerfile).filter((l) => /^RUN\s/.test(l) && /\bapk add\b/.test(l));
   expect(runs, 'no single RUN takes the packages').toHaveLength(1);
   const dir = mkdtempSync(join(tmpdir(), 'apk-run-'));
@@ -359,7 +379,14 @@ function runPackages(dockerfile: string, mode: 'ok' | 'more' | 'unserved', base:
     writeFileSync(join(dir, 'log'), '');
     const ran = spawnSync('sh', ['-c', script], {
       encoding: 'utf8',
-      env: { PATH: `${join(dir, 'bin')}:${process.env['PATH'] ?? ''}`, LC_ALL: 'C', APK_STUB_MODE: mode, APK_STUB_DB: join(dir, 'installed'), APK_STUB_LOG: join(dir, 'log') },
+      env: {
+        PATH: `${join(dir, 'bin')}:${process.env['PATH'] ?? ''}`,
+        LC_ALL: 'C',
+        APK_STUB_MODE: mode,
+        APK_STUB_MORE: more,
+        APK_STUB_DB: join(dir, 'installed'),
+        APK_STUB_LOG: join(dir, 'log'),
+      },
     });
     const installed = Object.fromEntries([...readFileSync(join(dir, 'installed'), 'utf8').matchAll(/^P:(.+)\nV:(.+)$/gm)].map((m) => [m[1]!, m[2]!]));
     return { status: ran.status, stderr: ran.stderr, asked: readFileSync(join(dir, 'log'), 'utf8'), installed, left: readdirSync(join(dir, 'tmp')) };
@@ -475,10 +502,13 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     for (const line of ['COPY postgresql.conf /etc/postgresql/', 'ADD https://example.org/x.tar.gz /tmp/', 'COPY --from=busybox:1.37 /bin/busybox /bin/', 'RUN --mount=type=bind,target=/src true']) {
       expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${line}\n$1`)), line).toEqual([expect.stringContaining(`\`${line}\` reads files or an image`)]);
     }
-    // Alpine's packages (0119, 2026-10-31): each at the exact version the line names, and nothing that moves with the day.
-    const pinned = 'apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0 ||';
-    expect(real, 'the Dockerfile no longer takes the two packages this guard was written for').toContain(pinned);
+    // Alpine's packages (0119, 2026-10-31 and 2026-11-12): each at the exact version the line names, and nothing that moves with the day.
+    const pinned = 'apk add --no-cache brotli-libs=1.2.1-r0 krb5-libs=1.22.3-r0 libcurl=8.23.0-r0 libxslt=1.1.43-r4 ||';
+    expect(real, 'the Dockerfile no longer takes the four packages this guard was written for').toContain(pinned);
+    expect(pinned, 'the line is not PINS').toBe(`apk add --no-cache ${Object.entries(PINS).map(([name, version]) => `${name}=${version}`).join(' ')} ||`);
     const apk = (to: string) => dockerfileProblems(real.replace(pinned, to));
+    expect(apk(pinned.replace('krb5-libs=1.22.3-r0', "'krb5-libs>=1.22.3-r0'"))).toEqual([expect.stringContaining('takes `krb5-libs>=1.22.3-r0`, not one exact version')]);
+    expect(apk(pinned.replace('libxslt=1.1.43-r4', 'libxslt'))).toEqual([expect.stringContaining('takes `libxslt`, not one exact version')]);
     expect(apk("apk add --no-cache 'brotli-libs>=1.2.1-r0' libcurl=8.23.0-r0 ||")).toEqual([expect.stringContaining('takes `brotli-libs>=1.2.1-r0`, not one exact version')]);
     expect(apk('apk add --no-cache brotli-libs libcurl=8.23.0-r0 ||')).toEqual([expect.stringContaining('takes `brotli-libs`, not one exact version')]);
     expect(apk('apk add --no-cache brotli-libs=1.2.1-r0 libcurl~8.23 ||')).toEqual([expect.stringContaining('takes `libcurl~8.23`, not one exact version')]);
@@ -512,14 +542,15 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
     expect(dockerfileProblems(moved)).toEqual(['USER 70:70 comes before the rm, which needs root']);
   });
 
-  it("the packages' RUN takes exactly the two versions, and says what to do when it cannot (the review of #1758)", () => {
+  it("the packages' RUN takes exactly the four versions, and says what to do when it cannot (the review of #1758)", () => {
+    const named = Object.entries(PINS).map(([name, version]) => `${name}=${version}`).join(' ');
     for (const file of [DOCKERFILE, APPLIANCE_DOCKERFILE]) {
       const dockerfile = read(file);
       const ok = runPackages(dockerfile, 'ok');
       expect(ok.stderr, file).toBe('');
       expect(ok.status, file).toBe(0);
-      expect(ok.asked, file).toContain('add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0\n');
-      expect(ok.installed, file).toEqual({ ...BASE_PACKAGES, 'brotli-libs': '1.2.1-r0', libcurl: '8.23.0-r0' });
+      expect(ok.asked, file).toContain(`add --no-cache ${named}\n`);
+      expect(ok.installed, file).toEqual({ ...BASE_PACKAGES, ...PINS });
       expect(ok.left, `${file}: the RUN leaves files in /tmp`).toEqual([]);
       // Alpine's mirror no longer serves a version, or cannot be reached: apk's error, then the
       // build's own words for whoever runs it, an appliance's operator above all.
@@ -528,7 +559,7 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
       expect(unserved.stderr, file).toContain('ERROR: unable to select packages:');
       const said = unserved.stderr.slice(unserved.stderr.indexOf('breaks: world'));
       for (const words of [
-        "Alpine's brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed",
+        "Alpine's brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0 and libxslt 1.1.43-r4 could not be installed",
         "cannot reach Alpine's mirror, dl-cdn.alpinelinux.org",
         'the mirror no longer serves those versions',
         'update Ownpace to its newest release (docs/selfhost-quickstart.md, Troubleshooting)',
@@ -536,14 +567,20 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
         expect(said, `${file}: the failure does not say "${words}"`).toContain(words);
       }
       expect(unserved.stderr, file).not.toContain('changed more than');
-      // Anything else moved, or the base carries a fix already.
-      const more = runPackages(dockerfile, 'more');
-      expect(more.status, file).toBe(1);
-      expect(more.stderr, file).toContain('The install changed more than brotli-libs and libcurl');
-      const fixed = runPackages(dockerfile, 'ok', { ...BASE_PACKAGES, libcurl: '8.23.0-r0' });
-      expect(fixed.status, file).toBe(1);
-      expect(fixed.stderr, file).toContain("The base's libcurl is '8.23.0-r0', not older than 8.23.0-r0: upstream's image carries that fix.");
-      expect(fixed.asked, `${file}: it installed before it refused`).not.toMatch(/^add /m);
+      // Anything else moved, krb5-libs' own dependency krb5-conf as much as any other package.
+      for (const extra of ['zlib=1.3.2-r2', 'krb5-conf=1.0-r3']) {
+        const more = runPackages(dockerfile, 'more', BASE_PACKAGES, extra);
+        expect(more.status, `${file}, ${extra}`).toBe(1);
+        expect(more.stderr, `${file}, ${extra}`).toContain('The install changed more than brotli-libs, krb5-libs, libcurl and libxslt');
+        expect(more.stderr, `${file}, ${extra}`).toContain(`Installed: ${Object.entries({ ...PINS, [extra.split('=')[0]!]: extra.split('=')[1]! }).map(([n, v]) => `${n}=${v}`).sort().join(' ')}.`);
+      }
+      // The base carries a fix already, any of the four: refused before anything is installed.
+      for (const [name, version] of Object.entries(PINS)) {
+        const fixed = runPackages(dockerfile, 'ok', { ...BASE_PACKAGES, [name]: version });
+        expect(fixed.status, `${file}, ${name}`).toBe(1);
+        expect(fixed.stderr, `${file}, ${name}`).toContain(`The base's ${name} is '${version}', not older than ${version}: upstream's image carries that fix.`);
+        expect(fixed.asked, `${file}, ${name}: it installed before it refused`).not.toMatch(/^add /m);
+      }
     }
   });
 

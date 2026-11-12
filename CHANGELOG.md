@@ -6,6 +6,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **Both Postgres builds take Alpine's krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4, which clears
+  their 19 highs** (workplan 0119): the image scan of 2026-11-12 read 16 highs in krb5-libs
+  1.22.2-r1 (CVE-2026-40355, CVE-2026-40356, CVE-2026-71199, CVE-2026-71200 and 12 more, fixed by
+  MIT krb5 1.22.3) and 3 in libxslt 1.1.43-r3 (CVE-2026-9947, CVE-2026-87636, CVE-2026-125350),
+  in the managed stacks' database image and the appliance's, where the week's scan of 2026-11-09
+  read none; no digest of `postgres:18.6-alpine` carries the fixes yet. The RUN that takes
+  brotli-libs and libcurl takes these two as well, at exactly those versions from Alpine's signed
+  repository, and still refuses a build that changes anything else. Almost certainly out of
+  anybody's reach here: only contrib's xml2 loads libxslt, and nothing creates that extension;
+  the server does load krb5-libs, but nothing signs in with Kerberos, the image has no keytab,
+  and only the stack's own containers and the host's loopback can reach the database. Both builds
+  are now named `localhost/postgres:18.6-alpine-a084eda5bf7a`, so every Postgres, the appliance's
+  too, is rebuilt and restarted once, from Docker Hub and Alpine's mirror as since alpha.4. When
+  the build cannot install the packages, its message now names all four (the self-host
+  quickstart's Troubleshooting).
+
 - **Node 26.13.1, nodejs.org's security release of 2026-11-11, in the API, the appliance, the
   tasks' base, the web build and the Windows zip** (workplan 0119): nine fixes rated High, in
   http2 and TLS, among eighteen. The four `node:` build stages move to
