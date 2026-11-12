@@ -2,7 +2,30 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-11 (update this block at the end of every session)
+## Status — 2026-11-12 (update this block at the end of every session)
+
+**2026-11-12: the tasks' base moves to the one `main` published from #1873, on the distroless
+build of 2026-11-08, so the managed tasks take Debian's zlib1g fix too (§3 item 13).** On the
+branch `claude/ownpace-public-readiness-y7orc6-task-base-335fd51`, from `main` at `335fd51b`
+(#1873). Read from GHCR and gcr.io without a login; times are UTC.
+- **The pin.** `apps/worker/trigger.config.ts` names
+  `ghcr.io/robbes/ownpace-task-base:sha-335fd51@sha256:4c4c6baa…` as `TASK_BASE_IMAGE`, `edge`
+  when read at 09:50: both tags name the index `4c4c6baa…`, of linux/amd64 `44f0a574…`,
+  linux/arm64 `382cd477…` and two attestations. `main` published it from `335fd51b` (Images run
+  43193824491, `build (task-base)` 09:42:25 to 09:43:19). Until now the pin was
+  `sha-2886230@sha256:91fec895…` (#1824), built on `9b945e92…`.
+- **What moves.** On both platforms its first 23 layers are distroless `33c86a63…`'s, by digest
+  (gcr.io's manifests, read at the same time), and 6 are its own, 29 in all. So for the tasks the
+  one package that moves is zlib1g, to `1:1.3.dfsg+really1.3.1-1+deb13u1` (the entry below); Node
+  is 26.13.0, the same file. GHCR's blobs, the configs with their revision label among them, are
+  refused to this session (`pkg-containers.githubusercontent.com`), so the label, the signature by
+  `images.yml`'s identity on `refs/heads/main` and the pull on both platforms are this pull
+  request's `task-base pin` job's to read; Release's verify reads them again at the tag.
+- **Owed:** CI on the branch, its `task-base pin` job among them, and E2E (managed) dispatched on
+  it, whose smoke reads the Node of the newest image the runners started from against
+  `apps/api/Dockerfile`'s FROM node line, and finds no shell in it. The week's image scan then
+  reads `trigger-task-base` at the new pin. Live takes it from the first release tag that carries
+  it.
 
 **2026-11-11: the distroless Node 26 runtime moves to Google's build of 2026-11-08, past its
 three-day floor, in the API, the appliance and the tasks' base at once, for Debian's security

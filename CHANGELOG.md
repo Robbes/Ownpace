@@ -14,7 +14,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the fix for the two highs it read in every image on the digest before it (CVE-2026-76844 and
   CVE-2026-85091). Nothing else in the image changed: the same Node 26.13.0, byte for byte, on
   Debian 13.7, the same user and entrypoint. The managed tasks take it with the tasks' base
-  that `main` publishes from this, in a pull request of its own.
+  `main` published from it (`sha-335fd51`), whose pin moves in a pull request of its own.
 
 - **Trigger.dev's object store runs Chainguard's MinIO build of 2026-11-07, a security fix**
   (workplan 0119, 0146 T7): the week's image scan of 2026-11-09 found two highs in the build
