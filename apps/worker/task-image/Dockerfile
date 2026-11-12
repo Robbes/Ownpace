@@ -37,18 +37,18 @@
 # write a RUN into the base or the runtime stage fails it (item 13's revisit).
 #
 # WHAT IT IS BUILT FROM. The runtime is the API's: distroless Node at the
-# digest apps/api/Dockerfile's runtime stage names (Node 26.13.0 there, read
-# 2026-11-06, and at the digest below on 2026-11-11). The build stage is the
-# image apps/api/Dockerfile builds FROM, Debian 13: apt installs
-# `ca-certificates` and `dumb-init` there, the trust
-# edits are made there, and only the bundle, dumb-init, the two account files,
+# digest apps/api/Dockerfile's runtime stage names (Node 26.13.1 at the digest
+# below, read 2026-11-12; 26.13.0 before it, read 2026-11-06 and 2026-11-11).
+# The build stage is the image apps/api/Dockerfile builds FROM, Debian 13:
+# apt installs `ca-certificates` and `dumb-init` there, the trust edits are
+# made there, and only the bundle, dumb-init, the two account files,
 # dumb-init's dpkg record and an empty home leave it. dumb-init needs no
 # library but the C library, which distroless carries (the build refuses one
 # that needs more). Its dpkg record goes where distroless keeps one per
 # package (/var/lib/dpkg/status.d), so a scan reads its version.
 # distroless's `ca-certificates` record stays: its
 # version is the build stage's (20250419+deb13u1 on 2026-11-06, and
-# distroless's the same at the digest below, read 2026-11-11), and the build
+# distroless's the same at the digest below, read 2026-11-12), and the build
 # below refuses another. Both digests move with apps/api/Dockerfile's, and the
 # guard holds them equal: Dependabot's group takes a version's move to every
 # directory at once, but a digest-only move comes alone in each, red until one
@@ -67,9 +67,9 @@
 # build stage installs, the certificates) reaches the tasks only with that
 # pin; one to these comments changes no layer.
 
-FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:33c86a63859efc2ebd88ea0a355863582ec6f1220d048de62baffb2584e709b3 AS distroless
+FROM gcr.io/distroless/nodejs26-debian13:nonroot@sha256:767ffb7e2ffa9f4280f1af7b99f7f0a1cafb79d0dcc0e0d3aba43843748008a5 AS distroless
 
-FROM node:26.13.0-trixie-slim@sha256:5adad64f9a1fca2d51972caa65983634c8a774eb300d72b20f7f2a0f60368072 AS build
+FROM node:26.13.1-trixie-slim@sha256:e6bedef217677b276c591795e169840edd9096dbf13f29df8ef8d1856b8820bc AS build
 RUN apt-get update \
   && apt-get install -y --no-install-recommends ca-certificates dumb-init \
   && rm -rf /var/lib/apt/lists/*

@@ -6,7 +6,7 @@
 
 **2026-11-12: the pin to v4.20.2, a security fix, built on a branch, not merged (T7).** On branch
 `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-2`, from `main` at `778fd847` (#1874), with
-`main` at `5e3d1f92` (#1876) merged in since. The pin watch's issue #1867 names v4.20.2, tagged on upstream's v4.x branch on 2026-11-09 at 06:23
+`main` at `2b101fc7` (#1879) merged in since. The pin watch's issue #1867 names v4.20.2, tagged on upstream's v4.x branch on 2026-11-09 at 06:23
 UTC; GHCR's index is `d7ffdecf…` (linux/amd64 `b95794a4…`, linux/arm64 `197794a0…`). Read commit
 by commit (`git log v4.20.1..v4.20.2`, six commits, 20 files):
 - **A security fix in what runs here: go-jose 4.1.4 → 4.1.7 (80d2281a, #13025).** `go.mod` moves

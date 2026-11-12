@@ -14,6 +14,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   v4.20.1 left it and the way back is v4.20.1. Signing in is unchanged: the stack serves
   Zitadel's own login, whose code did not move.
 
+- **Node 26.13.1, nodejs.org's security release of 2026-11-11, in the API, the appliance, the
+  tasks' base, the web build and the Windows zip** (workplan 0119): nine fixes rated High, in
+  http2 and TLS, among eighteen. The four `node:` build stages move to
+  `node:26.13.1-trixie-slim` (`e6bedef2…`), and the runtime the API, the appliance and the
+  tasks' base share to Google's distroless build of 2026-11-11 (`767ffb7e…`), whose Node is the
+  same file as that image's and nodejs.org's own, on amd64 and arm64. Nothing else in either
+  image moved: the same Debian 13.7 packages and npm, the same user and entrypoint. The Windows
+  zip's `node.exe` is checked against v26.13.1's sums, which the release's signed list gives. The
+  managed tasks take it with the tasks' base `main` published from it (`sha-b05fb1b`), whose pin
+  moves in a pull request of its own.
+
 - **The API, the appliance and the tasks' base run on Google's distroless Node 26 build of
   2026-11-08, a security fix** (workplan 0119): `gcr.io/distroless/nodejs26-debian13:nonroot`
   at `33c86a63…`, in all three images at once, in place of Dependabot's three pull requests,
