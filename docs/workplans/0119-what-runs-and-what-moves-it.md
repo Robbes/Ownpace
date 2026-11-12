@@ -6,7 +6,8 @@
 
 **2026-11-12: the identity provider moves to Zitadel v4.20.2, a security fix, built on a branch,
 not merged (0135 T7).** On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-2`, from
-`main` at `778fd847` (#1874); 0135's Status of the same day reads its six commits. Times are UTC.
+`main` at `778fd847` (#1874), with `main` at `5e3d1f92` (#1876) merged in since; 0135's Status of
+the same day reads its six commits. Times are UTC.
 - **Why.** `go.mod` moves `github.com/go-jose/go-jose/v4` from 4.1.4 to 4.1.7 (80d2281a), the fix
   of CVE-2026-116587, which the week's image scans have read in Zitadel's binary since 2026-11-02
   (the entry of that day). An identity provider parses JWKs, so it may be reachable. T7's seven
@@ -15,10 +16,16 @@ not merged (0135 T7).** On the branch `claude/ownpace-public-readiness-y7orc6-zi
   before (GHCR's index `d7ffdecf…`: linux/amd64 `b95794a4…`, linux/arm64 `197794a0…`), with the
   commits read beside it. `a-service-that-phones-home` holds the same reference, and its row
   reads `cmd/defaults.yaml` as unchanged at v4.20.2. No setup step, so the way back is v4.20.1.
+- **The image scan of the branch.** Security Scan run 43209163374, dispatched on the branch at
+  11:26 with `image_scans` (Trivy, linux/arm64), read `ghcr.io/zitadel/zitadel:v4.20.2` at 0
+  critical and 1 high, with a fix: `golang.org/x/net` v0.61.0 → 0.62.0 (CVE-2026-78661, in
+  `app/zitadel`). The scheduled scan of 2026-11-09 (run 42642704967) read v4.20.1 at 0 critical
+  and 2 high, both with a fix, CVE-2026-116587 in go-jose v4.1.4 one of them. So v4.20.2 clears
+  CVE-2026-116587, and x/net's high waits for a later release of Zitadel's. CI on the branch's
+  head `1dceed52` was green.
 - **Owed before a merge:** the owner's dump of the OTA instance's `zitadel` database with
-  `./deploy/compose/dump-idp.sh` (§3 item 2); then E2E (managed) on the branch, and an image
-  scan of the branch, which reads the pinned v4.20.2 and should no longer name CVE-2026-116587.
-  Live takes it from the first release tag that carries it, by 2026-11-16.
+  `./deploy/compose/dump-idp.sh` (§3 item 2); then E2E (managed) on the branch. Live takes it
+  from the first release tag that carries it, by 2026-11-16.
 
 **2026-11-12, recorded: live runs alpha.7's pins.** The owner deployed `v0.2.0-alpha.7` (tagged
 2026-11-09 on `45375ac2`) to live on 2026-11-10, from alpha.6 in one run of alpha.6's script,
@@ -202,6 +209,13 @@ same way; nothing read was run. Times are UTC.
   applied*, SMOKE PASS. #1873 merged at 09:42:19 (`335fd51b`), and Dependabot's #1855, #1856
   and #1858 were closed as superseded. The second change, the tasks' base, is #1874 (the entry
   above).
+- **The first image scan to read it** *(recorded later)*. Security Scan run 43209163374,
+  dispatched on 2026-11-12 at 11:26 on the branch of the Zitadel move (the entry of that day),
+  read what `main` has published since the merges: `ownpace-api:edge`, `ownpace-selfhost:edge`
+  and the tasks' base `sha-335fd51@sha256:4c4c6baa…`, each at 0 critical and 0 high, where the
+  scan of 2026-11-09 read each at 2 high, zlib1g's CVE-2026-76844 and CVE-2026-85091. So
+  `deb13u1` clears both, CVE-2026-76844 too, which its changelog does not name. The images of
+  the tag, `0.2.0-alpha.7`, keep the two until a later tag.
 
 **2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built
 on a branch, not merged (0146 T11 (a); the pin watch's #1671).** On the branch
