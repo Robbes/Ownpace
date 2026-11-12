@@ -35,6 +35,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **CI's migration lint moves to Atlas v1.3.9** (workplan 0119), past its three-day floor on
+  2026-11-12, each architecture checked by the SHA-256 of `/atlas` in the release's community
+  image on Docker Hub. Its one upstream commit since v1.3.8 changes Atlas's skills and docs and
+  none of its code, so the lint runs as it did. Nothing deployed changes.
 - **The test stack's mail catcher is Mailpit v1.33.1** (workplan 0146 T11 (a), 0119), from
   v1.33.0: the patch kept current, past its three-day floor, with no finding of the image scan's
   to clear. It is built with the same Go 1.27.3 and golang.org/x/net 0.62.0, on Alpine 3.24.4,

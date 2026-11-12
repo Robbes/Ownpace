@@ -2,7 +2,83 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-12 (update this block at the end of every session)
+
+**2026-11-10 to 2026-11-12: live runs `v0.2.0-alpha.7`, reversible over alpha.6 (T6, T9).** The
+owner deployed it on 2026-11-10, before any tester, pasting checked blocks, and ran the checks
+after it on 2026-11-12. Times are UTC. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-10, `v0.2.0-alpha.7`: took at 14:21:09 UTC; reversible.
+  The tag is tag object `db38802d…` on `45375ac2` (#1849, the fold), cut on 2026-11-09 at 11:04:07
+  by Release run 42605474898, which its message names with *Proved by: CI run #5376, Security Scan
+  run #5452 on main, windows-payload run #35* and the gate scan, run 42605726499. The owner waived
+  its counted nights, for this version alone (`WAIVER_VERSIONS`, #1860; 0146's Status,
+  2026-11-09); the acceptance is the tag message's own line: *Nights waived by Robbes, in their
+  words: "Waive the waiting"*. alpha.7 carries #1846 (Redis's and the webapp's purge take
+  `libsystemd0` and `libudev1` too), #1845 (`deploy-live.sh` reads the app's headers through the
+  front after each deploy, 0158 T4) and #1841 (the machine's product name out of the repository's
+  text), with the other alpha.7 pull requests of 2026-11-08 (0146's Status, 2026-11-08, later).
+- **Read-only checks first** (2026-11-10, from about 14:01). Live's checkout at
+  `v0.2.0-alpha.6`, clean; both box timers active; in live's `.env` one
+  `COPY_DELETE_WHEN_PROVEN=true` line; `deploys.log`'s last line alpha.6's took; the copy before
+  alpha.6 (taken 2026-11-08T00:29:17Z, `before=v0.2.0-alpha.6`, `from=v0.2.0-alpha.4`) at mode 700
+  with its 5 entries, and no ClickHouse copy volume. The deploy shell's `node` the owner's own
+  v26.13.0, pnpm 11.28.9. The tag annotated, on `45375ac2`, with its four message lines; its pins
+  Trigger.dev 4.8.3 (images and SDK), Zitadel v4.20.1, the tasks' base `sha-2886230@sha256:91fec895…`
+  and `FROM node:26.13.0`, the version `0.2.0-alpha.7`. Between the tags no migration file moves,
+  nor `copy-before-update.sh`, `dump-idp.sh`, the units, the api's and the web's Dockerfiles or the
+  worker's packages; under `deploy/compose` 19 files do, of which four change more than comments:
+  `deploy-live.sh` (45 lines, the headers check), `managed.yml` (4), `redis/Dockerfile` (9) and
+  `trigger.dev/Dockerfile` (9). The two builds alpha.7 moves,
+  `localhost/redis:7.4.12-bookworm-d5301e0623d4` and `localhost/trigger.dev:v4.8.3-42a2fcc298b0`,
+  were already on the shared daemon, the OTA stack's E2E (managed) having built them, so the run
+  built none. npm, Docker Hub, ghcr.io, gcr.io and github.com reachable, and the tasks' base
+  readable from ghcr.io without a login.
+- **The hold (T6 step 2)** went on at 14:11, its sentence naming 16:30 Dutch time. The owner's
+  first read of it came 20 seconds after (one hold, 0 passes in flight), too early for the drain's
+  five minutes; the read after them was clean. The dry run, alpha.6's script, exited 0:
+  reversible over alpha.6, since between the two tags no migration file and none of the
+  Trigger.dev, identity-provider and ClickHouse pins moves; the copy before alpha.6 kept, on its
+  day 3, its update not proven.
+- **The run (T6 steps 3 to 7),** from about 14:18, in a terminal session that outlives a dropped
+  connection (`tmux`). One run, alpha.6's `deploy-live.sh`, the checkout's: reversible, so it took
+  no copy, and kept the one before alpha.6. The bring-up, the tag's own, with Trigger.dev 4.8.3 and
+  the task deployment `20261110.1`; `/api/version` and `/version.json` at `45375ac2`,
+  `0.2.0-alpha.7`; the exposure check `ok`, 40 containers and 35 publishes, each on loopback or an
+  address the allow-list names, and one accepted as not Ownpace's; *the deploy took* at
+  14:21:09Z, exit 0. `apps/worker/package.json` needed nothing, the tree clean.
+- **The checks after it, with the hold on (T6 step 7),** ran on 2026-11-12 from about 07:00, when
+  the owner came back to them; the hold stayed on in between. Every service up, none unhealthy,
+  starting or restarting, each on the tag's image: `trigger-redis` on
+  `localhost/redis:7.4.12-bookworm-d5301e0623d4` and `trigger-api` on
+  `localhost/trigger.dev:v4.8.3-42a2fcc298b0`, the rest on the pins alpha.7 does not move
+  (`trigger-supervisor` `v4.8.3-9fa6db37008b`, `trigger-tls` Caddy 2.11.9, Zitadel v4.20.1, MinIO
+  on Chainguard's `aea6c163…`); nothing on an image alpha.7 replaced. All 16 containers with
+  `no-new-privileges`, `drop=[ALL]` but `trigger-api`'s;
+  `trigger-redis` as `999:999` with no capability added, answering as uid 999, Redis 7.4.12, its
+  append-only file loaded and writing; `apt`, `apt-get`, `mount`, `setpriv` and `mke2fs` absent
+  from `trigger-redis` and `trigger-api`, and `libsystemd0` and `libudev1` not installed in either
+  (#1846). The tasks' runners and the current deployment, `20261110.1`, on one image, whose Node is
+  v26.13.0 like the api's, with no shell under any of five names, and no runner left of an older
+  deployment. The task row `current|20261110.1|DEPLOYED|4.8.3|4.8.3|26.12.1|2026-11-10 14:20`, the
+  tick 4 times in five minutes `COMPLETED_SUCCESSFULLY` on 4.8.3. `www-live` ok. Through the front,
+  the app's page answered 200 with its policy, HSTS and the three beside them as the tag's
+  template states them, read by the tag's own `scripts/app-headers.mjs` with live's issuer (0158
+  T4), and the owner signed in.
+- **The lift (T6 step 8)** at 07:55:49 on 2026-11-12, by the hold's own row (started 2026-11-10
+  14:11:13), so the hold was on for 41 hours and 45 minutes. The owner's check at about 11:00 read
+  `yes|0|-1|0`, no hold open and no pass in flight; the box checks' timer running every ten
+  minutes, its next run eight minutes away; and the copy's 5 entries kept.
+- **What is left (T9).** No migration has run on live, so nothing has proven alpha.6 or alpha.7,
+  and `live-pass-check.sh` does not apply yet; the owner's own migration on live, before any
+  invitation, is the proof. The box checks keep the copy before alpha.6 until then, and the daily
+  duties delete it in any case: its last day starts on 2026-11-12 at 23:29 (five days less an hour
+  after its take), the duty of 2026-11-13 fails on it and mails, as it should, and the duty of
+  2026-11-14 deletes it. On that last day every take refuses but a deploy of alpha.4, the release
+  the copy holds, so a deploy, and a way back to alpha.6, waits until the copy is gone. The way
+  back is a deploy of alpha.6 by alpha.7's script, reversible, on the images the machine still
+  has. The next deploy runs alpha.7's own script, which reads the app's headers through the front
+  after the bring-up.
 
 **2026-11-08, later still, recorded: the outside probe passes, and reads the app's headers through
 the front for the first time (T3 (c); 0158 T4, 0135 T1, 0139 T10).** Docs only, on the branch

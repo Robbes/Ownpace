@@ -20,6 +20,51 @@ not merged (0135 T7).** On the branch `claude/ownpace-public-readiness-y7orc6-zi
   scan of the branch, which reads the pinned v4.20.2 and should no longer name CVE-2026-116587.
   Live takes it from the first release tag that carries it, by 2026-11-16.
 
+**2026-11-12, recorded: live runs alpha.7's pins.** The owner deployed `v0.2.0-alpha.7` (tagged
+2026-11-09 on `45375ac2`) to live on 2026-11-10, from alpha.6 in one run of alpha.6's script,
+which took at 14:21:09 UTC, reversible (0132's Status, 2026-11-12, has the deploy). The two builds
+it moves were already on the shared daemon, the OTA stack's E2E (managed) having built them, so
+the run built none. After it, read on live on 2026-11-12: `trigger-redis` on
+`localhost/redis:7.4.12-bookworm-d5301e0623d4` and `trigger-api` on
+`localhost/trigger.dev:v4.8.3-42a2fcc298b0` (#1846), `libsystemd0` and `libudev1` not installed in
+either, and `apt`, `apt-get`, `mount`, `setpriv` and `mke2fs` absent; `trigger-redis` as `999:999`
+with no capability added, Redis 7.4.12; the rest on the pins alpha.7 does not move
+(`trigger-supervisor` `v4.8.3-9fa6db37008b`, Caddy 2.11.9, Zitadel v4.20.1, MinIO `aea6c163…`); no
+container unhealthy, starting or restarting, and none on an image alpha.7 replaced. The task
+deployment `20261110.1` on the prebuilt base (#1824; Node v26.13.0, no shell), and the tick
+`COMPLETED_SUCCESSFULLY` on 4.8.3. What `main` has merged since the tag reaches live with the next
+one, not before: among it MinIO's `869ca317…` (#1870), the fix of CVE-2026-116591 that the
+`aea6c163…` live runs still lacks, and the webapp's five-fetch goose download (#1866).
+
+**2026-11-12: CI's migration lint moves to Atlas v1.3.9, past its three-day floor.** On the
+branch `claude/ownpace-public-readiness-y7orc6-atlas-1-3-9`, from `main` at `778fd847` (#1874).
+Read from Docker Hub's registry without a login, every blob checked against its digest, nothing
+run. Times are UTC.
+- **The move.** `ci.yml`'s `migration-lint` names v1.3.9, with the SHA-256 of `/atlas` in each
+  architecture's image of `arigaio/atlas:1.3.9-community@sha256:a14ba44b…` (pushed 2026-11-09
+  09:29:16, so past its floor since today at 09:29): amd64 `53a032b5…` (manifest `6025bc1e…`, its
+  last layer `7b1a9a6f…`), arm64 `c51b4335…` (`e9008c15…`, `41afe425…`). The same reading of
+  v1.3.8's amd64 image gives the sum pinned before, `819846b0…`, so the method reproduces the pin
+  it replaces. Both binaries are static ELF builds by Go 1.26.10, as v1.3.8's, whose build
+  information names version v1.3.9 and upstream commit `90dacfc6c25f` (2026-11-05 16:34): clean
+  for amd64, `vcs.modified=true` for arm64, as before.
+- **What changes in it: nothing that runs here.** Upstream's public git holds one commit between
+  v1.3.8's `06ecb0780451` and `90dacfc6`, *skills: update drivers (#3827)*, which touches 77 files,
+  all under `skills/`, `doc/` and `.claude-plugin/`. So the docker driver, the Postgres driver and
+  the migrate package `migration-lint` runs are v1.3.8's, and the dev URL's reading of the docker
+  driver (§2.5's dev-database row) holds. It moves because the pin watch lists it behind (its
+  summary issue, #1671), and a pin kept current is the policy; it fixes nothing.
+- **Owed:** CI on the branch. Its two `migration-lint` legs, amd64 and arm64 on GitHub's hosted
+  runners, are the first read of `atlasbinaries.com`'s bytes against these sums, since that host
+  is refused to this session; each must say *as pinned* and print `atlas community version
+  v1.3.9`.
+- **Proved on the branch, and merged** *(recorded after the merge)*. CI on the head `87d6e0e8`,
+  run 43203678501 (10:49 to 11:01), was green: 17 checks passed, 3 were skipped, Trivy neutral.
+  Each of its two `migration-lint` legs, on `ubuntu-24.04` and on `ubuntu-24.04-arm`, printed
+  *Atlas v1.3.9 linux/amd64: sha256 53a032b5…, as pinned.*, *Atlas v1.3.9 linux/arm64: sha256
+  c51b4335…, as pinned.* and `atlas community version v1.3.9`, and linted the migrations green.
+  #1875 merged at 11:09:40 (`9978b854`).
+
 **2026-11-12: the tasks' base moves to the one `main` published from #1873, on the distroless
 build of 2026-11-08, so the managed tasks take Debian's zlib1g fix too (§3 item 13).** On the
 branch `claude/ownpace-public-readiness-y7orc6-task-base-335fd51`, from `main` at `335fd51b`
@@ -42,6 +87,15 @@ branch `claude/ownpace-public-readiness-y7orc6-task-base-335fd51`, from `main` a
   `apps/api/Dockerfile`'s FROM node line, and finds no shell in it. The week's image scan then
   reads `trigger-task-base` at the new pin. Live takes it from the first release tag that carries
   it.
+- **Proved on the branch, and merged** *(recorded after the merge)*. CI on the head `e9b52041`
+  (`main` at `b9b3a2f2`, #1872, merged in) was green: 28 checks passed, 4 were skipped, Trivy
+  neutral. Its `task-base pin` job read the pin, *built from
+  335fd51b6f0aa60afc146211337eb97e8fb5d71a, Node v26.13.0: apps/api/Dockerfile's*, and cosign
+  verified `images.yml`'s signature on `refs/heads/main`. E2E (managed) run 43200817199 on that
+  head, 10:29:30 to 10:37:09, built the tasks FROM the new base, then version 20261112.3,
+  *deployed with 17 detected tasks*, the runners' image `56c0ca8c2f5a` on Node v26.13.0, the
+  API's, with no shell under any of five names, *verify: done apply: applied*, SMOKE PASS. #1874
+  merged at 10:39:01 (`778fd847`).
 
 **2026-11-11: the distroless Node 26 runtime moves to Google's build of 2026-11-08, past its
 three-day floor, in the API, the appliance and the tasks' base at once, for Debian's security
@@ -139,6 +193,15 @@ same way; nothing read was run. Times are UTC.
   followed #1816: `apps/worker/trigger.config.ts` moves to the tasks' base Images publishes from
   `main` after this merges, in a pull request of its own with E2E (managed) on its branch. Live
   takes both from the first release tag that carries them.
+- **Proved on the branch, and merged** *(recorded after the merge)*. On the head `b9526b93`, after
+  the owner's deploy of live: CI green (Images' builds among them; 30 checks passed, 4 skipped,
+  Trivy neutral); E2E (self-hosted) on Postgres, run 43187683692 (09:00:50 to 09:06:48), and on
+  PGlite, run 43190197011 (09:17:49 to 09:22:28); E2E (managed) run 43192420441 (09:33:03 to
+  09:41:00), whose api was built on `33c86a63…`, then version 20261112.1, *deployed with 17
+  detected tasks*, the runners' image on Node v26.13.0, the API's, *verify: done apply:
+  applied*, SMOKE PASS. #1873 merged at 09:42:19 (`335fd51b`), and Dependabot's #1855, #1856
+  and #1858 were closed as superseded. The second change, the tasks' base, is #1874 (the entry
+  above).
 
 **2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built
 on a branch, not merged (0146 T11 (a); the pin watch's #1671).** On the branch
@@ -237,6 +300,14 @@ owner has under way is done. Times are UTC.
   every mail assertion of the smoke reads; owed before the merge, once the live deploy under way
   is done. A nightly on `main` between that run and the merge starts v1.33.0 again on the same
   `mailpit.db`, the way back above.
+- **Proved on the branch, and merged** *(recorded after the merge)*. `main` at `335fd51b` (#1873)
+  was merged into the branch first, keeping both of 0119's entries of 2026-11-11, #1873's on top.
+  On that head, `f155e8c9`: CI green (28 checks passed, 4 skipped, Trivy neutral), and E2E
+  (managed) run 43196912718, 10:03:23 to 10:11:05, which pulled
+  `axllent/mailpit:v1.33.1@sha256:aef2aacc…`, recreated and started `ownpace-managed-mailpit`,
+  then version 20261112.2, *deployed with 17 detected tasks*, *verify: done apply: applied*,
+  SMOKE PASS, every mail assertion of the smoke read from v1.33.1. #1872 merged at 10:12:31
+  (`b9b3a2f2`).
 
 **2026-11-10: MinIO's digest moves to Chainguard's build of 2026-11-07, past its three-day floor,
 as a security fix for CVE-2026-116591 in its compress library (0146 T7)**, on the branch
@@ -5339,7 +5410,7 @@ it updates itself when GitHub asks it to: watched, nothing owed.
 
 | Tool | Where | Pinned | Newest | Distance | Moves by | Decision |
 |---|---|---|---|---|---|---|
-| Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on hosted arm64 for a push to `main` (since 2026-11-08; the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`) | v1.3.8 from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `819846b0…`, arm64 `ce12859d…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.8-community@sha256:31cc9431…`, read through the registry's digests (2026-11-07), the same reading that gives v1.3.6's two sums from its image. Before it v1.3.6 (from 2026-11-01; amd64 `bb6e8167…`, arm64 `723e4cac…`), and before that `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC on 2026-11-01) | v1.3.8 (Docker Hub, 2026-11-05 14:15 UTC): Ariga's official build (`-tags=official`, version v1.3.8), whose Go build information names upstream commit `06ecb0780451` of 2026-11-03, clean for amd64 while arm64 reports `vcs.modified=true`, as v1.3.6's did. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
+| Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on hosted arm64 for a push to `main` (since 2026-11-08; the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`) | v1.3.9 (from 2026-11-12, #1875) from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `53a032b5…`, arm64 `c51b4335…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.3.9-community@sha256:a14ba44b…`, read through the registry's digests (2026-11-12), the same reading that gives v1.3.8's amd64 sum from its image. Before it v1.3.8 (from 2026-11-08, #1851; amd64 `819846b0…`, arm64 `ce12859d…`), v1.3.6 (from 2026-11-01; amd64 `bb6e8167…`, arm64 `723e4cac…`), and before that `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC on 2026-11-01) | v1.3.9 (Docker Hub, 2026-11-09 09:29 UTC): Ariga's official build (`-tags=official`, version v1.3.9, Go 1.26.10), whose Go build information names upstream commit `90dacfc6c25f` of 2026-11-05, clean for amd64 while arm64 reports `vcs.modified=true`, as v1.3.6's and v1.3.8's did; the one commit after v1.3.8's moves only `skills/`, `doc/` and `.claude-plugin/`. Upstream's git tags stop at v1.3.0 (2026-07-29), so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
 | `node.exe`, the Windows payload's Node (win-x64; win-arm64 by dispatch) | `scripts/package-appliance.mjs` `--with-node`, run by `windows-payload.yml` on a dispatch and on every release tag, whose zip the release attaches | since 2026-11-01, the version `apps/selfhost/Dockerfile` names, v26.13.0, from `nodejs.org` by name, its bytes checked against the SHA-256 committed in `NODE_RUNTIME_SHA256` (win-x64 `14319838…`, 100,097,864 bytes; win-arm64 `4c9baa04…`, 88,331,080), sums of `node.exe` itself and not of the release's `.zip`. Before anything is fetched, `gpgv` checks the release's own `SHASUMS256.txt`, committed with its `.sig` in `scripts/node-release/`, against the Node.js release keyring committed beside it (`gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`, 2026-09-01, blob `bae91a9c…`): good, by primary key `C82FA3AE…`, and giving the same two sums. Read twice more: the release announcement's clear-signed list in nodejs/nodejs.org (good, by the same key, the same 34 lines) and each `node.exe` downloaded and hashed (2026-11-01). Until then: checked only against a `SHASUMS256.txt` fetched from the same directory as the binary, with no signature read | v26.13.0 (the Dockerfile's; the image's version is the `node` row's in §2.1) | current | Dependabot's image pull request moves the Dockerfile's version and cannot move the sums: `a-runtime-only-its-own-host-vouched-for` fails it until the release's `SHASUMS256.txt` and `.sig` and the two sums are pushed to it (the commands are above `NODE_RUNTIME_SHA256` and in `docs/windows-appliance-runbook.md`). The keyring moves by hand, with the commit and blob id in `NODE_RELEASE_KEYS`, when the pin watch's summary issue lists a newer nodejs/release-keys commit whose `gpg-only-active-keys/pubring.kbx` differs (its `Node.js release keys` row, weekly, since #1780's review: a key retired, revoked, added or given a new expiry), or when a release is signed by a key not in it (the build says so). A key that expired after it signed does not stop the build; one revoked, or expired before it signed, does | shipped to every Windows install, and held to the tagged commit's sum by the release's `verify` job (since #1780's review); `pnpm test` needs `gpgv`; the owner's Windows 11 check of a zip on 26.13.0, owed since 2026-10-31, was dropped by the owner on 2026-11-02 and replaced by `windows-payload.yml`'s `smoke` job, Phases 1 and 2 of the Windows runbook on `windows-2025`, which the release attach needs (Status, 2026-11-02; proven once it runs green) |
 | stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, hosted arm64 for a push since 2026-11-08, the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
 | Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.6-alpine@sha256:10a5c69a…/dev`: the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest (2026-11-01). Atlas's docker driver (`FromURL` at v1.3.6's commit, unchanged at v1.3.8's) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed` | CI only; the major is the deployments' (that guard's older rule) |
