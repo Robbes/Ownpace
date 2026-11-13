@@ -1042,6 +1042,20 @@ A CLI older than 4.8.3 can still log in until the webapp's
 `CLI_LOGIN_LEGACY_UNTIL`, 2027-01-01 by default, which `managed.yml` does not
 set.
 
+**From 4.8.4 a login lapses after 90 days unused** (Trigger.dev v4.8.4, workplan
+0119). `managed.yml` sets `CLI_LOGIN_IDLE_TIMEOUT_DAYS: "90"` on `trigger-api`,
+the owner's choice of 2026-11-13; upstream's default is 7, and live's deploys
+can be further apart than that. A login stores the limit with the token it
+mints, so a change of the setting reaches only the logins after it. Each use of
+the token renews it, at most once every five minutes; a lapsed token is never
+renewed, and only a new login replaces it. A token minted before v4.8.4 has no
+limit and never lapses, so a stack's remembered `TRIGGER_ACCESS_TOKEN` from
+before the move keeps working. A lapsed token is refused with *"Your CLI login
+expired because it wasn't used for a while"*; the failure table says what to
+do (`personalAccessToken.server.ts` and `plugins/src/personalAccessTokenExpiry.ts`
+at v4.8.5). A token made on the dashboard gets a fixed expiry instead from
+4.8.4 (90 days unless chosen otherwise), and one made before keeps none.
+
 **Verify:** `pnpm -C apps/worker exec trigger whoami --profile <name>` — and read
 its OUTPUT, not its exit code, which is 0 either way (below).
 
@@ -3365,8 +3379,8 @@ refuses a `COMPOSE_FILE` in the shell.
 
 | Service | What it sent by default | The switch | Read at |
 |---|---|---|---|
-| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6, v4.8.1 and v4.8.3 |
-| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6, v4.8.1 and v4.8.3; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
+| `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5 |
+| `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win. Since 2026-11-01 its one network, `trigger-event-store`, is `internal` too, so a report would have no route out | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable`; for 26.8.36.3, which has no public tag, the `config.xml` in the image itself (byte for byte `v26.8.34.13-lts`'s) and those two files at `v26.8.34.13-lts` (2026-11-02; read the same way for 26.3.62.3, option 1, on 2026-11-01) |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z`, where none of the four changed, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
@@ -3399,7 +3413,17 @@ preloads the same CA filter. v4.8.3 changes `app/root.tsx` again, to hand the
 page an admin origin from `ADDITIONAL_LOGIN_ORIGINS` when that is set (it is
 not here) and `APP_ORIGIN` otherwise, and `env.server.ts`, whose new keys name
 no third party; the entrypoint, the Dockerfile and the other three files are
-v4.8.1's.
+v4.8.1's. v4.8.5, read with v4.8.4 on 2026-11-13, runs both images on Node
+24.22.3, Node's November security release. Its `telemetry.server.ts`,
+`root.tsx` and entrypoint are v4.8.3's. `postAuth.server.ts` refuses a disabled
+account's sign-in, then identifies as before, through the client the opt-out
+leaves unmade. `usePostHog.ts` adds a read of the first visit PostHog stored,
+which reads nothing while PostHog is not loaded; its one caller sends it on
+Trigger.dev's own cloud only, to Attio, off while `ATTIO_API_KEY` is unset.
+`env.server.ts`'s new keys name no third party. One route new in v4.8.4,
+`/api/v1/trusted-deploys/*`, fetches GitHub's signing keys from
+`token.actions.githubusercontent.com` to check a bearer token a caller sends:
+only on such a request, and nothing here sends one.
 
 `trigger-tls` has no telemetry; its one default that leaves the machine is
 automatic HTTPS, which asks a public certificate authority, and
@@ -3491,12 +3515,12 @@ on an arm64 runner and scans what it built, under the name it always had,
 `goaccess`.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16,
-4.7.2, 4.7.6, 4.8.1 and 4.8.3 its `src/telemetry/tracing.ts` is gone, and no
+4.7.2, 4.7.6, 4.8.1, 4.8.3 and 4.8.5 its `src/telemetry/tracing.ts` is gone, and no
 exporter of its own was found; its one PostHog client (4.5.16 had none) is the
 MCP server's feedback tool (`src/mcp/telemetry.ts`), which `deploy` never
 starts. The one host 4.8.3's `dist/esm` names that 4.8.1's did not is
 `http://127.0.0.1`, the loopback its new login listens on for the browser's
-answer.
+answer. 4.8.5's `dist/esm` names the same hosts as 4.8.3's.
 The integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
 starts on a CI runner, are not switched.
 
@@ -4856,6 +4880,7 @@ journal of whatever ran it), 2 refused.
 | The seed or a host-run script talks to the wrong Postgres | On a shared host, `localhost:5432` may belong to something else entirely — this stack's Postgres is published wherever `POSTGRES_PORT` says | The `demo` phase asks `docker compose port postgres 5432` rather than trusting a default. For your own commands, do the same |
 | `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `pnpm -C apps/worker exec trigger login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile> --no-browser` from the checkout's root, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
 | `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `pnpm -C apps/worker exec trigger logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json`. **Until 2026-08-31 this symptom had a SECOND cause with the same appearance**: the detector piped `whoami`'s output into `grep -q`, which exits at the first match, so under `set -o pipefail` a long-enough answer killed the producer with SIGPIPE and the pipeline returned 141 for a match that had SUCCEEDED. Verified and fixed — it now reads from a here-string — so on a current checkout this row's cause is the only one left |
+| `deploy-tasks.sh`, or the CLI, says **`Your CLI login expired because it wasn't used for a while`** | From Trigger.dev v4.8.4 the token a CLI login mints stops working after `CLI_LOGIN_IDLE_TIMEOUT_DAYS` days without use: 90 here (`managed.yml`, the owner's choice of 2026-11-13), 7 by upstream's default. The remembered `TRIGGER_ACCESS_TOKEN` is such a token when it was minted on v4.8.4 or later. A use renews it; a lapsed one is never renewed (*7. `login`*) | Log in again, as *7. `login`* says, with `--no-browser`: `pnpm -C apps/worker exec trigger logout --profile <name>`, then `pnpm -C apps/worker exec trigger login -a http://localhost:<TRIGGER_PORT> --profile <name> --no-browser`. Then `./deploy/compose/trigger-remember-token.sh --force`, which puts the new token in `.env` in place of the lapsed one. The message's own advice, `npx trigger.dev@latest login`, is not for here: the CLI is the lockfile's |
 | `trigger-supervisor` is `Restarting`, its log says **`Unable to read worker token from file: EACCES … /home/node/shared/worker_token`**, and `up` aborts with `container <project>-trigger-supervisor is unhealthy` | trigger-api bootstraps the worker token into the shared volume as **root, mode 0600**; the supervisor reads it as **node**. On a FRESH `trigger_shared` volume — first install, or after a `down -v` — it cannot open its own credential. Everything else reports healthy, so the stack looks fine while dequeuing nothing | `docker compose -f deploy/compose/managed.yml exec -u 0 trigger-api chown node:node /home/node/shared/worker_token`, then `docker compose -f deploy/compose/managed.yml restart trigger-supervisor`. **chown, not `chmod 644`** — the token is a credential and root bypasses permissions anyway. `bootstrap-managed.sh`'s `trigger` phase now does this between trigger-api and the supervisor, so a fresh volume no longer needs the manual step |
 | `set-task-env.sh` fails **`Invalid or Missing API key`** against a `proj_…` ref that looks right | Same cause, other credential: `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in `.env` belong to the destroyed instance. `bootstrap-managed.sh`'s `account` phase **short-circuits when both are already set** (it cannot tell a stale value from a good one), so re-running bring-up never replaces them | `./deploy/compose/trigger-credentials.sh --write` — it reads the ref and the prod key out of the INSTANCE and upserts both, overwriting whatever `.env` held. Then re-run `set-task-env.sh` |
 | A config fix to `pgbouncer.ini` seems to change nothing — same error after pulling | `pgbouncer.ini` is a bind mount read once at start-up, and `up -d` does not recreate a container whose spec has not changed, so the old process keeps running the old file | `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `--only data` now does this automatically when the container is unhealthy |
@@ -6367,28 +6392,28 @@ chooses the copy. npm lists 18 advisories against 10.33.2 and none against
 10.34.9; none of the 18 is reachable here (each needs an install, a patch
 command, a registry request or workspace files an attacker wrote), so it is
 hygiene, not a security fix, and it goes when upstream's `packageManager` moves
-past 10.33.2 (the build then refuses, *upstream moved pnpm: drop the swap*). The
-webapp's build also replaces dompurify 3.4.13's files with
-3.4.17's, the release that fixes the critical GHSA-cg2g-xh64-v4q7: it fetches
-the tarball from the npm registry when it builds, refuses it unless its sha512
-is the one npm published, and proves nothing else in the image changed
-(nothing here loads dompurify; its header says why). Since 2026-11-03 the
-webapp's build also removes TypeScript 7's native compiler (`lib/tsc` of
-`@typescript/typescript-<platform>` 7.0.2, which nothing here runs: the package
-`typescript` exports only its version), replaces goose v3.27.1, which the
-entrypoint runs for the ClickHouse migrations, with goose v3.29.0's release
-binary, fetched from GitHub by its SHA-256 and made root's and executable,
-and puts undici 6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and
-systeminformation 5.33.19 in place of the releases of the same major they fix,
-by the sha512 npm published; the supervisor's build does the same for its
-systeminformation. Since 2026-11-06 (for alpha.6) the webapp's build also puts
-effect 3.22.4 in place of 3.17.1 the same way: of the three copies of effect the
-image scan reads (CVE-2026-32887, fixed in 3.20.0), the one whose requirer takes
-the fix, the workspace's own `@trigger.dev/schema-to-json` (`^3`), which nothing
-in `trigger-api` loads. `@prisma/config` pins the other two exactly, so they
-stay, and so does body-parser 2.3.0: 2.4.0 needs an iconv-lite newer than the
-0.7.2 pnpm linked for it. So the webapp's build reaches github.com as well as
-the npm registry. Since 2026-11-06 (for alpha.6, workplan 0119 §3 item 11) the
+past 10.33.2 (the build then refuses, *upstream moved pnpm: drop the swap*).
+Since 2026-11-03 the webapp's build also removes TypeScript 7's native compiler
+(`lib/tsc` of `@typescript/typescript-<platform>` 7.0.2, which nothing here
+runs: the package `typescript` exports only its version) and replaces goose
+v3.27.1, which the entrypoint runs for the ClickHouse migrations, with goose
+v3.29.0's release binary, fetched from GitHub by its SHA-256 and made root's
+and executable. **Until Trigger.dev v4.8.5 the builds also replaced packages
+upstream had not fixed** (2026-11-13, for alpha.8): from 2026-10-30 dompurify
+3.4.13's files with 3.4.17's, the release that fixes the critical
+GHSA-cg2g-xh64-v4q7; from 2026-11-03 undici 6.29.1, follow-redirects 1.16.2,
+body-parser 1.20.9 and systeminformation 5.33.19 in place of the releases of
+the same major they fix, and the supervisor's systeminformation; from
+2026-11-06 effect 3.22.4 in place of 3.17.1. Each was fetched from the npm
+registry by the sha512 npm published, and each build proved nothing else in
+the image changed. From v4.8.4 upstream's own overrides take those releases,
+and its lockfile at v4.8.5 resolves dompurify 3.4.17, undici 6.29.1,
+follow-redirects 1.16.2, body-parser 1.20.9 and 2.4.0, systeminformation
+5.33.19 and effect 3.21.2 alone. So the RUNs that swapped them went, with their
+rows in the guard, and the two copies of effect and body-parser 2.3.0, which no
+swap here could reach, are fixed too. So the webapp's build reaches github.com,
+for goose, and the npm registry, for pnpm 10.34.9 alone, and the supervisor's
+the npm registry alone. Since 2026-11-06 (for alpha.6, workplan 0119 §3 item 11) the
 webapp's build ends, as root, by purging eleven Debian packages nothing in
 `trigger-api` runs or loads, as the appliance and the tasks' base purge theirs:
 apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages
@@ -6596,7 +6621,7 @@ never reads as "nothing newer", nor as an older newest.
 > moved, move with it, tag and digest, in the same pull request, proven by
 > E2E (managed) on its branch; ClickHouse's data moves forward only. The weekly
 > pin watch says the same while the two differ (its ClickHouse issue, workplan
-> 0146 T8). At v4.7.6, v4.7.7, v4.8.1 and v4.8.3 both say `26.2.19.43@sha256:c2f26055…`.
+> 0146 T8). At v4.7.6, v4.7.7, v4.8.1, v4.8.3 and v4.8.5 both say `26.2.19.43@sha256:c2f26055…`.
 > ClickHouse's `SECURITY.md` has not supported 26.2 since its last patch
 > (2026-05-21); the owner accepted that for the Alpha on 2026-10-23, with the
 > exposure and the revisit triggers in workplan 0119 §3 item 9. One fired on
@@ -6677,7 +6702,7 @@ never reads as "nothing newer", nor as an older newest.
 > that owns a stored payload, since the new store starts empty. The hold, and
 > `deploy-live.sh` under it, count Ownpace's own passes only. This reads
 > Trigger.dev's runs that have not finished, the non-final statuses of
-> v4.7.6's `TaskRunStatus` (v4.8.3 has the same nine), among the rows that
+> v4.7.6's `TaskRunStatus` (v4.8.3 and v4.8.5 have the same nine), among the rows that
 > changed in the last 24 hours, and prints no secret. It is the drain read
 > before any restart or move of a stack's Trigger.dev, the host's Docker
 > included:
@@ -6784,13 +6809,13 @@ on every run (phase 5 above).
 **ClickHouse's pin is ahead of Trigger.dev's, on purpose** (workplan 0119 §3
 item 9, option 2, the owner's decision of 2026-11-02): 26.8.36.3-lts,
 `clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…` (Docker's tag has no
-`-lts`), amd64 and arm64, where Trigger.dev v4.8.3 still pins 26.2.19.43.
+`-lts`), amd64 and arm64, where Trigger.dev v4.8.3 still pins 26.2.19.43, and v4.8.5 too.
 ClickHouse no longer supports 26.2, and CVE-2026-116366 (critical: code
 execution with no password, for anybody who reaches the server) has no 26.2
 fix; 26.8.36.3 is the LTS release that carries it. Before the move, every
 change of 26.3 (read for option 1 on 2026-11-01, and crossed on the way),
 26.4, 26.5, 26.6, 26.7 and 26.8, and every 26.8 patch note to 26.8.34.13, was
-read against Trigger.dev v4.8.3's 55 migrations (numbered to 056), the queries
+read against Trigger.dev v4.8.3's 55 migrations (numbered to 056; v4.8.5 adds none and changes none), the queries
 its ClickHouse package and its query language print, the settings it passes,
 goose's and the Node client's use of HTTP, and the files `managed.yml` mounts
 into `config.d` (0119 §3 item 9 has the list). One change stops the schema, on

@@ -35,9 +35,10 @@ import { defineConfig } from '@trigger.dev/sdk';
  * below sets the build manifest's `image.base` to it and adds NO LAYER, so the
  * CLI builds nothing into it: the base stage of the Containerfile it writes is
  * `FROM <this> AS base` with one ENV line, and the runtime stage is `FROM base
- * AS final` with no RUN (trigger.dev 4.8.3, `generateNodeContainerfile` in
- * `dist/esm/deploy/buildImage.js`). A layer, even one ENV line, would make the
- * CLI write its apt repair into the base stage, which has no shell to run it:
+ * AS final` with no RUN (trigger.dev 4.8.3 and 4.8.5,
+ * `generateNodeContainerfile` in `dist/esm/deploy/buildImage.js`). A layer,
+ * even one ENV line, would make the CLI write its apt repair into the base
+ * stage, which has no shell to run it:
  * `scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts` runs the
  * installed CLI's own generator on this config and fails on one.
  *
@@ -80,23 +81,25 @@ const TASK_BASE_IMAGE =
 const TASK_BASE = 'task-base';
 
 /**
- * The CLI's own build-stage image for `node-26` at trigger.dev 4.8.3
+ * The CLI's own build-stage image for `node-26` at trigger.dev 4.8.5
  * (`BUILD_IMAGE['node-26']` in `dist/esm/deploy/buildImage.js`; Docker Hub's
- * `26-bookworm-build-20261021-000000-40f241b`, pushed 2026-10-22 08:03 UTC,
- * Node 26.12.1 in its amd64 and arm64 configs): its runtime image with
+ * `26-bookworm-build-20261111-000000-9cbcf9c`, pushed 2026-11-12 00:03 UTC,
+ * Node 26.13.1 in its amd64 and arm64 configs): its runtime image with
  * python3, make and g++. Named as the manifest's `image.buildBase`, the CLI's
  * build stage starts FROM it, so `npm i` (the externals below) and the indexer
  * run there and never on the base, which has no shell; with no build base and
- * a layer the CLI would build that stage FROM the base. It was `node-24`'s,
- * `…@sha256:34a3f455…`, until the runtime moved to 26 on 2026-10-31. It moves
- * with the CLI and with the runtime's major, read from the new version's
- * `buildImage.js` (workplan 0119 §2; the version gate fails on a CLI move until
- * it is read again, and on a major this image does not name); a stale one
- * still builds, since only `node_modules` and `index.json` leave the stage,
- * and the tasks run the base's Node, not this one's.
+ * a layer the CLI would build that stage FROM the base. At 4.8.3 and 4.8.4 it
+ * was `…@sha256:86d5a599…` (`26-bookworm-build-20261021-000000-40f241b`, Node
+ * 26.12.1), and `node-24`'s, `…@sha256:34a3f455…`, until the runtime moved to
+ * 26 on 2026-10-31. It moves with the CLI and with the runtime's major, read
+ * from the new version's `buildImage.js` (workplan 0119 §2; the version gate
+ * fails on a CLI move until it is read again, and on a major this image does
+ * not name); a stale one still builds, since only `node_modules` and
+ * `index.json` leave the stage, and the tasks run the base's Node, not this
+ * one's.
  */
 const TASK_BUILD_IMAGE =
-  'triggerdotdev/node:26-bookworm-build@sha256:86d5a599fc69a81e15c1276440702144cd3d857258fdaf78f8c9b864768c1ab9';
+  'triggerdotdev/node:26-bookworm-build@sha256:d9d5fcf3fef64b235b901a343d1fb6e9723c8521ac4e2f9a36a90c94874b3300';
 
 export default defineConfig({
   // Resolved on the DEPLOYING machine, where deploy-tasks.sh guards that the
@@ -112,7 +115,7 @@ export default defineConfig({
   // two together; it was 24 until 2026-10-31 (workplan 0119 §2.4). It is set
   // explicitly because without it the CLI takes the server project's default
   // runtime, or else its own `node`, which in the 4.5.16 CLI is
-  // triggerdotdev/node:21-bookworm (in 4.8.3, triggerdotdev/node:24-bookworm):
+  // triggerdotdev/node:21-bookworm (in 4.8.5, triggerdotdev/node:24-bookworm):
   // the tasks ran Node 21 until this line.
   // For node-26 the CLI would build on triggerdotdev/node:26-bookworm; the
   // extension below names the prebuilt base instead, and the build stage

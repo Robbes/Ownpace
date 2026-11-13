@@ -15,7 +15,8 @@
  * it; `apps/worker/trigger.config.ts` names it by its `sha-<commit>` tag and
  * index digest (`TASK_BASE_IMAGE`) and adds no layer; and the CLI must write
  * no RUN on it. Read at trigger.dev
- * 4.8.3 (`generateNodeContainerfile` and `parseGenerateOptions` in
+ * 4.8.3, and again at 4.8.5, whose `buildImage.js` differs only in its
+ * image digests (`generateNodeContainerfile` and `parseGenerateOptions` in
  * `dist/esm/deploy/buildImage.js`):
  *
  * - The manifest's `image.base` is the first stage, `FROM <base> AS base`, and
