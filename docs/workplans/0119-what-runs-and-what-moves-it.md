@@ -185,8 +185,8 @@ layers, every blob checked against its digest, and `869ca317…`, `db3f583f…`,
 - **Owed before the merge,** none of it this branch's to do: the image scan of the new digest,
   Security Scan dispatched with `image_scans` on the branch; E2E (managed) on the branch's head,
   which pulls the new digest on the OTA stack and recreates `minio` and `minio-init` on the volume
-  that carries over; and CI. The session's lead dispatches both, merges on green and closes #1881.
-  Live takes it from alpha.8's tag.
+  that carries over; and CI. Both are dispatched on the branch, the merge follows on green, and
+  #1881 is closed. Live takes it from alpha.8's tag.
 
 **2026-11-13: hono 4.13.18 and `@hono/node-server` 2.1.7 under the deploy CLI, by two overrides, so
 `pnpm audit` reads minimatch alone again; built on a branch, not merged (for alpha.8).** On the
