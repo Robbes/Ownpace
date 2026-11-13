@@ -2,7 +2,106 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-13 (update this block at the end of every session)
+## Status — 2026-11-14 (update this block at the end of every session)
+
+**2026-11-14: alpha.8 is folded, its counted nights and the three-day floors inside them waived in
+the owner's words (T2, T4).** On the branch `claude/ownpace-public-readiness-y7orc6-alpha8-fold`,
+drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889), while other changes for alpha.8 were
+still open (below). Read from git, from GitHub and from the scripts named; times are UTC.
+- **The fold.** `package.json` and the API contract say `0.2.0-alpha.8`, and everything under
+  `[Unreleased]` moves to `## [0.2.0-alpha.8] - 2026-11-14`, the day the fold merges, under a
+  summary paragraph; `[Unreleased]` stays, empty. `scripts/release-line.json` lists
+  `v0.2.0-alpha.8` as the last of `releases`, the release being prepared until Release tags it
+  (T4, `docs/release.md` §1). On the branch `node scripts/release-names-agree.mjs v0.2.0-alpha.8`
+  passes, and so do the preflight's own `changelogFolded` and `openapiAgrees`, imported from
+  `scripts/release-preflight.mjs` and run over the branch's files.
+- **Four entries are brought up to date as they move,** because the release page links this
+  section at the tag, where it cannot be corrected later:
+  - Node 26.13.1 and the distroless build of 2026-11-08 are one entry. The second said the
+    images run `33c86a63…` on Node 26.13.0, which no release does: alpha.7 ran the digest
+    before it, and alpha.8 runs `767ffb7e…` on Node 26.13.1, which carries the same zlib1g fix;
+  - with it, the tasks' base, which both entries said *moves in a pull request of its own*, is
+    named as pinned: `sha-b05fb1b` (#1879), after `sha-335fd51` (#1874);
+  - the goose download's entry (#1866) no longer names
+    `localhost/trigger.dev:v4.8.3-1cf30823ea57`, an image no release runs (alpha.7's
+    `managed.yml` names `…-42a2fcc298b0`, and `main`'s the v4.8.5 build), nor a goose version
+    in the present tense;
+  - PostgreSQL 18.7's entry says what it left out: the appliance on PGlite, which is what the
+    Windows zip runs, stays on the PostgreSQL 18.6 that PGlite embeds (0119's Status of the same
+    day).
+
+  No line is added. Of the 27 commits on `main`'s first-parent line after alpha.7's commit, 19
+  have a line; the eight without are six records pull requests (#1861, #1865, #1868, #1871,
+  #1876, #1886) and the two waivers of counted nights (#1860 for alpha.7, #1885 for alpha.8),
+  as alpha.5's waiver (#1830) had none.
+- **The counted nights are waived** (0141 T14). The owner, on 2026-11-13 at 12:04: *"Yes, waive
+  alpha.8's waiting nights."* (the entry below; on `main` since #1885, `ce8eb4f4`). The fold
+  touches neither `scripts/release-nights.mjs`, its two guards nor `docs/release.md`.
+- **The three-day floors inside them are waived.** The owner, on 2026-11-13 at 19:26: *"Waive
+  all waiting time."* It is read as waiving, for alpha.8, the three days a release waits before
+  this repository takes it (CONTRIBUTING.md). Of what was merged when this was drafted, one
+  change leans on it: hono 4.13.18 and `@hono/node-server` 2.1.7 (#1889), both of 2026-11-11,
+  whose floor passes on 2026-11-14 at 09:11. The other changes merged inside a floor each have
+  the owner's word of their own, quoted in 0119's entries: Node 26.13.1 (#1878, 2026-11-12)
+  and PostgreSQL 18.7 (#1882, 2026-11-13) under the floor's exception for a security fix, and
+  Trigger.dev v4.8.5 (#1883, 2026-11-13).
+- **Still open when this was drafted,** on 2026-11-13 at 22:00, each to land with its own
+  records and its own CHANGELOG line: MinIO's newest Chainguard build (#1890), the pooler built
+  here with five Alpine packages (#1891), Atlas v1.3.10 in CI (#1888), and two without a pull
+  request yet, goose v3.30.1 in the Trigger.dev webapp's image and the registry pinned by its
+  index digest. None is in the list above. The plan in the entry below, MinIO on Saturday after
+  its floor and then the fold, is replaced by this one.
+- **C and the freeze.** The fold merges last. Its squash is C, and the freeze (0141 T14) starts
+  with it: nothing merges to `main` until the tag, and no E2E (managed) is dispatched on any
+  branch. `docs/release.md` §1 asks for the fold before 23:30, so that the appliance nightly's
+  runs of that night are on C; no night is counted for alpha.8, so that hour binds nothing.
+- **Owed before the tag:**
+  - C's own push runs on `main`: CI green, with `lint`, `unit-tests (all)`, `ui-tests`,
+    `integration-tests (ubuntu-24.04-arm)` and `ci-complete` none skipped, and Security Scan
+    green;
+  - `windows-payload.yml` dispatched on `main` while `main` is still at C, platform win-x64,
+    with `smoke` green;
+  - in the counted nights' place, as for alpha.4 to alpha.6: E2E (managed), and E2E
+    (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at a time, each
+    run's commit read back as C;
+  - Security Scan dispatched on `main` at C with the image scans, after C's own push run of
+    it has completed (the two share one concurrency group, `security-scan-<ref>`), so that
+    what code scanning holds, and the preflight prints as notes, is what alpha.8 ships;
+  - then the owner's Release run from their own account: mode `preflight` for
+    `v0.2.0-alpha.8`, with `commit` set to C and `waive_nights` set to their sentence of 12:04,
+    then mode `release` with the same, and their approval in the `release` environment.
+    Release then scans C once more, tags it and publishes.
+- **The upgrade drill** (`scripts/upgrade-drill.sh` on the Docker host, from alpha.7's
+  published image to C's; `docs/release.md` §1). `git diff --stat v0.2.0-alpha.7 cdb80bc6` over
+  `packages/ledger/migrations` and `packages/managed/migrations` prints nothing: 65 and 59
+  files on both sides, and PGlite is 0.5.15 on both. So the drill would report the mechanics
+  only, a pass `docs/release.md` does not count, and Release lists it as not checked. For
+  alpha.7 the owner ran it, and it showed one thing the gates did not, PGlite 0.5.15 opening
+  what 0.5.14 wrote (the entry of 2026-11-09); for alpha.8 nothing is named that a run would
+  add. Whether it is run is the owner's to say, as for alpha.5 to alpha.7: if it is, in a clone
+  of its own at C, after C's E2E runs are done, and a failed run of a drill that proves the
+  mechanics only does not hold the tag. What the drill does not reach either way: it runs the
+  appliance on PGlite, and E2E (self-hosted) starts on fresh volumes, so the appliance's
+  Postgres server going from 18.6 to 18.7 on a kept volume is exercised by no gate. It is a
+  minor release of one major, and no tester runs an appliance.
+- **Live's deploy of the tag** starts from alpha.7, so it runs alpha.7's `deploy-live.sh`. By
+  its rule (`git show v0.2.0-alpha.7:deploy/compose/deploy-live.sh`, *ONE-WAY OR REVERSIBLE*)
+  a deploy is one-way when a file of either migration chain differs, or the Trigger.dev,
+  identity-provider or ClickHouse pin in `managed.yml` moves. Its own `differences`, run here
+  over `v0.2.0-alpha.7` and `main` at `cdb80bc6`, prints two lines: the Trigger.dev pin
+  v4.8.3 to v4.8.5, and the identity provider's v4.20.1 to v4.20.2. No migration file, and no
+  ClickHouse line. So it will call the deploy one-way, where alpha.7's was reversible, and
+  take the copy before the update with `--trigger`: the app's database, the sign-in service's
+  with the server's roles, and the task runner's. The way back is that copy, or forward. It
+  is also the first deploy whose script reads the app's headers itself (0158 T4).
+- **Zitadel v4.20.3.** Upstream published it on 2026-11-13, and the pin watch opened issue
+  #1887 for it at 19:29:35: a security release in the sign-in path this stack serves. alpha.8
+  as folded carries v4.20.2. A pull request for v4.20.3 is being prepared; it needs the
+  owner's dump of the OTA instance before any run on it, and waits for the owner's decision.
+- **The O365 lane is not among what is owed:** Release does not read it. The owner waived it
+  for alpha.8, and for alpha.6 and alpha.7, on 2026-11-12; 0141's Status of 2026-11-14 quotes
+  the question and the answer, and says what the waiver did not weigh. The lane stays owed
+  for a later alpha (0141 T13).
 
 **2026-11-13: the owner waives alpha.8's counted nights, before its fold (T2; 0141 T14).** Asked at
 about 09:04 UTC whether they waive alpha.8's waiting nights, as for alpha.3 to alpha.7, the owner
@@ -18,7 +117,8 @@ the CHANGELOG is untouched.
   stack, planned for Saturday morning, ran that afternoon, then E2E (managed) on its branch (0119's
   Status, 2026-11-13, records). alpha.8 is planned for Saturday 2026-11-14: MinIO's newer Chainguard
   build after its floor, then the fold. C is the fold's squash, which carries this list, and
-  Release reads it from `main`'s own scripts.
+  Release reads it from `main`'s own scripts. *(2026-11-14: that plan changed with the owner's
+  words of 19:26 that evening; the entry above.)*
 - **In the nights' place,** as for alpha.4 to alpha.7: E2E (managed) and E2E (self-hosted) on
   Postgres and on PGlite, dispatched on `main` at C, beside C's push runs and its Windows smoke.
 - **Owed before the tag:** the owner's Release run from their own account, with `commit` set to C
@@ -32,7 +132,8 @@ between the two tags. It moved two builds, `trigger-redis` and `trigger-api`, to
 2026-11-12, and the hold, on from 14:11 on 2026-11-10, came off at 07:55:49 on 2026-11-12; 0132's Status of
 2026-11-12 has the blocks. So the entry of 2026-11-09's *Owed* is done. Still the owner's to
 answer: whether the O365 lane is recorded as waived for alpha.6 and alpha.7 (0141 T13), and the
-first invitation's date, which waits for alpha.7 or a later tag (0131 T5). What `main` has merged
+first invitation's date, which waits for alpha.7 or a later tag (0131 T5). *(The lane: answered
+later that day, waived; 0141's Status of 2026-11-14.)* What `main` has merged
 since the tag, MinIO's `869ca317…` (#1870) among it, reaches live with the next tag (0119).
 
 **2026-11-11: T11 (a) again, Mailpit v1.33.0 → v1.33.1 on the test stack, past its floor, built

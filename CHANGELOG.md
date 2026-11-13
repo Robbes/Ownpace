@@ -4,6 +4,30 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.8] - 2026-11-14
+
+alpha.8 is a security release for the managed stacks and the appliance; nothing
+a tester does changes. The identity provider moves to Zitadel v4.20.2, for a
+finding in the library that parses signing keys. Every Postgres server moves to
+PostgreSQL 18.7, the security release of 2026-11-12, which also clears the 19
+highs the image scan read in 18.6's base; the appliance on PGlite, which is what
+the Windows zip runs, has no server and stays on the PostgreSQL 18.6 that PGlite
+embeds. Node moves to 26.13.1, nodejs.org's security release, in the API, the
+appliance, the tasks' base, the web build and the Windows zip, on Google's
+distroless build that also carries Debian's zlib1g fix. Trigger.dev moves to
+v4.8.5, on Node 24.22.3 and with v4.8.4's hardening, and its object store's
+MinIO is a rebuild past a finding in its compress library. Under the deploy CLI,
+hono and `@hono/node-server` move past seven advisories, so `pnpm audit` reads
+one again, the one kept on purpose. Kept current beside them: the web image's
+nginx and the socket proxy's HAProxy, the test stack's Mailpit, CI's Atlas,
+jsdom, and Dependabot's npm and actions groups. Release's verify, the webapp's
+goose download and the scan's Trivy download now wait out a few minutes of
+GitHub's release download not answering. Live's deploy from alpha.7 is one-way
+by the deploy's own rule: the identity provider's and Trigger.dev's pins move,
+and no migration does. That deploy first takes its copy before the update, with
+three dumps: the app's database, the sign-in service's with the server's roles,
+and the task runner's.
+
 ### Security
 
 - **`pnpm audit` reads one advisory again, the one kept on purpose: hono 4.13.18 and
@@ -53,7 +77,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   carry the two fixes the build has taken from Alpine's mirror since alpha.4, so the build takes
   nothing from Alpine's mirror any more, and needs Docker Hub alone. musl and ICU did not move, so
   text sorts as before. Both builds are now named `localhost/postgres:18.7-alpine-2d3b1894d8f1`,
-  so every Postgres, the appliance's too, is rebuilt and restarted once. No REINDEX is needed:
+  so every Postgres server, the appliance's too, is rebuilt and restarted once. The appliance on
+  PGlite, which is what the Windows zip runs, has no Postgres server and stays on PostgreSQL 18.6:
+  PGlite 0.5.15 embeds it, and so does 0.5.16, the newest, so no PGlite release carries 18.7 yet.
+  There the database runs inside the appliance's own process and listens on no port, so a cancel
+  request has no connection to arrive on, and the SQL it runs is the appliance's own: almost
+  certainly out of anybody's reach there too. No REINDEX is needed:
   18.7 asks for one after the update of btree indexes on `bpchar` columns and of `gist_trgm_ops`
   indexes, and no database here has either. The two GIN indexes here, Trigger.dev's
   `TaskRun_runTags_idx` and Zitadel's `unique_constraints_owners_gin`, need one only if corruption
@@ -72,25 +101,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Zitadel's own login, whose code did not move.
 
 - **Node 26.13.1, nodejs.org's security release of 2026-11-11, in the API, the appliance, the
-  tasks' base, the web build and the Windows zip** (workplan 0119): nine fixes rated High, in
-  http2 and TLS, among eighteen. The four `node:` build stages move to
-  `node:26.13.1-trixie-slim` (`e6bedef2…`), and the runtime the API, the appliance and the
-  tasks' base share to Google's distroless build of 2026-11-11 (`767ffb7e…`), whose Node is the
-  same file as that image's and nodejs.org's own, on amd64 and arm64. Nothing else in either
-  image moved: the same Debian 13.7 packages and npm, the same user and entrypoint. The Windows
-  zip's `node.exe` is checked against v26.13.1's sums, which the release's signed list gives. The
-  managed tasks take it with the tasks' base `main` published from it (`sha-b05fb1b`), whose pin
-  moves in a pull request of its own.
-
-- **The API, the appliance and the tasks' base run on Google's distroless Node 26 build of
-  2026-11-08, a security fix** (workplan 0119): `gcr.io/distroless/nodejs26-debian13:nonroot`
-  at `33c86a63…`, in all three images at once, in place of Dependabot's three pull requests,
-  one per image, each of which failed alone. It carries Debian's security update of zlib1g,
-  1:1.3.dfsg+really1.3.1-1+deb13u1, the version the week's image scan of 2026-11-09 names as
-  the fix for the two highs it read in every image on the digest before it (CVE-2026-76844 and
-  CVE-2026-85091). Nothing else in the image changed: the same Node 26.13.0, byte for byte, on
-  Debian 13.7, the same user and entrypoint. The managed tasks take it with the tasks' base
-  `main` published from it (`sha-335fd51`), whose pin moves in a pull request of its own.
+  tasks' base, the web build and the Windows zip, on Google's distroless build, which also
+  carries Debian's zlib1g fix** (workplan 0119): nine fixes rated High, in http2 and TLS, among
+  eighteen. The four `node:` build stages move to `node:26.13.1-trixie-slim` (`e6bedef2…`), and
+  the runtime the API, the appliance and the tasks' base share to Google's distroless build of
+  2026-11-11, `gcr.io/distroless/nodejs26-debian13:nonroot` at `767ffb7e…`, whose Node is the
+  same file as that image's and nodejs.org's own, on amd64 and arm64. The runtime came in two
+  steps. Google's build of 2026-11-08 (`33c86a63…`) was taken first, in all three images at
+  once, in place of Dependabot's three pull requests, one per image, each of which failed
+  alone: it carries Debian's security update of zlib1g, 1:1.3.dfsg+really1.3.1-1+deb13u1, the
+  version the week's image scan of 2026-11-09 names as the fix for the two highs it read in
+  every image on alpha.7's digest (CVE-2026-76844 and CVE-2026-85091), on the same Node 26.13.0,
+  byte for byte. The build of 2026-11-11 is that build with Node 26.13.1. Nothing else moved in
+  either step: the same Debian 13.7 packages, the same npm in the build stages, the same user
+  and entrypoint. The Windows zip's `node.exe` is checked against v26.13.1's sums, which the
+  release's signed list gives. The managed tasks run on it too: their base is pinned to the one
+  `main` published from the second step (`sha-b05fb1b`), after the one from the first
+  (`sha-335fd51`).
 
 - **Trigger.dev's object store runs Chainguard's MinIO build of 2026-11-07, a security fix**
   (workplan 0119, 0146 T7): the week's image scan of 2026-11-09 found two highs in the build
@@ -163,16 +190,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   at once, and a body is never fetched again: one that is not JSON, or not a zip, is refused by
   its own check, as a line. Release only; nothing shipped changes.
 - **The Trigger.dev webapp's image build waits out a few minutes of GitHub's release download not
-  answering** (workplan 0119). The build puts goose v3.29.0's release binary in place of the
-  goose upstream builds, and fetched it from GitHub once: on 2026-11-09 that fetch was answered
-  504, and a pull request's `build (trigger, arm64)` failed on it (CI run 42572585094). A fetch
+  answering** (workplan 0119). The build puts goose's own release binary, v3.29.0's then, in
+  place of the goose upstream builds, and fetched it from GitHub once: on 2026-11-09 that fetch
+  was answered 504, and a pull request's `build (trigger, arm64)` failed on it (CI run
+  42572585094). A fetch
   that does not answer, or answers with an error, is now made again, up to five fetches, 5, 15,
   45 and 135 seconds apart, as the stalwart-cli and Trivy downloads are; a download that stays
   down longer still stops the build, with nothing changed and the advice to run the same tag
   again. What comes is still held to its pinned SHA-256, the fifth fetch's as the first's, and a
-  wrong sum, or a file that is gone, is never fetched again. Nothing that runs changes, but the
-  image takes a new name, `localhost/trigger.dev:v4.8.3-1cf30823ea57`, so the next `up` builds
-  it and recreates `trigger-api` once. Live takes it with alpha.8, not before.
+  wrong sum, or a file that is gone, is never fetched again. Nothing that runs changes. The
+  image's name moved with it, and moves again with Trigger.dev v4.8.5, above: the first `up` on
+  a name the machine has not built builds it and recreates `trigger-api` once.
 - **Security Scan's Trivy download waits out a few minutes of GitHub answering 504** (workplan
   0119). The install step, word for word in the repository scan and in every image leg, gave up
   after three attempts, 5 and 15 seconds apart, and on 2026-11-09 GitHub's release download

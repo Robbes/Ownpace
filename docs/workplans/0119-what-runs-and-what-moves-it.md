@@ -2,7 +2,113 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-13 (update this block at the end of every session)
+## Status — 2026-11-14 (update this block at the end of every session)
+
+**2026-11-14: what alpha.8 moves, folded; the owner's checks after Trigger.dev v4.8.5; the
+appliance on PGlite stays on PostgreSQL 18.6; and the four Go binaries whose findings wait for
+upstream, read for reach.** The fold (0146 Status, 2026-11-14), whose squash is C, closes alpha.8.
+Drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889); times are UTC.
+- **Merged, and in alpha.8,** this plan's moves since alpha.7's commit, each with its entry below:
+  - the identity provider on Zitadel v4.20.2 (#1877; 0135 T7), for CVE-2026-116587;
+  - both Postgres images on PostgreSQL 18.7 (#1882), whose base carries the four Alpine packages
+    the build took until then (#1880, and the two since alpha.4);
+  - Node 26.13.1 in the four build stages, the distroless runtime and the Windows zip (#1878), on
+    Google's distroless build of 2026-11-11, after its build of 2026-11-08 (#1873), with the
+    tasks' base moved to `main`'s build of each (#1874, #1879);
+  - Trigger.dev v4.8.5 (#1883), and its webapp's goose download waiting out GitHub's release
+    download (#1866);
+  - MinIO's Chainguard build of 2026-11-07, `869ca317…` (#1870);
+  - hono 4.13.18 and `@hono/node-server` 2.1.7 under the deploy CLI (#1889; the entry below
+    names its merge at its end);
+  - kept current: the web image's nginx and the socket proxy's HAProxy (#1864), Mailpit v1.33.1
+    (#1872), Atlas v1.3.9 (#1875), jsdom 31.0.0 (#1863), Dependabot's npm group (#1853) and
+    actions group (#1852), and the Trivy download's five attempts (#1862).
+- **Inside a three-day floor, each on the owner's word,** quoted in its entry: Node 26.13.1
+  (2026-11-12, *"Node now."*) and PostgreSQL 18.7 (2026-11-13) under the floor's exception for a
+  security fix; Trigger.dev v4.8.5 (2026-11-13, *"3. Continue, work autonomously"*, to the
+  option that waived its three days); and hono's two (2026-11-13 at 19:26, *"Waive all waiting
+  time."*).
+- **Open when this was drafted,** on 2026-11-13 at 22:00, each with an entry of its own to come
+  with its merge: MinIO's newest Chainguard build (#1890), the pooler built here with five
+  Alpine packages (#1891), Atlas v1.3.10 in CI (#1888), goose v3.30.1 in the Trigger.dev
+  webapp's image, and the registry pinned by its index digest. Zitadel v4.20.3, published on
+  2026-11-13 (issue #1887), is not in alpha.8 as folded: its pull request waits for the owner's
+  dump of the OTA instance and their decision (0146's entry).
+- **The appliance on PGlite stays on PostgreSQL 18.6.** #1882's entry moves both Postgres images;
+  the appliance's other engine does not move. PGlite 0.5.15, which the lockfile pins and the
+  Windows zip runs (`scripts/windows/run-appliance.ps1` sets `SELFHOST_PERSISTENCE=pglite`),
+  embeds PostgreSQL 18.6: its `pglite.wasm` holds *"PostgreSQL 18.6 (PGlite 0.5.15)"*, read in
+  the installed package. npm's newest, 0.5.16 (2026-11-09 at 16:30), holds *"PostgreSQL 18.6
+  (PGlite 0.5.16)"*, read in its tarball, unpacked and not run; PostgreSQL 18.7 is dated
+  2026-11-12, so no PGlite release carries it. Why that is tolerable, read and inferred:
+  `deploy/selfhost/compose.pglite.yml`'s header says PGlite runs in-process, with no second
+  container and no port (read), and no socket server for it is in the source (grep). So the one
+  fix that needs no sign-in, a cancel request sent over a connection (CVE-2026-116322), has
+  nothing to arrive on, and the others need a role running crafted SQL, where the appliance's
+  own code is the only client (inferred). It moves when a PGlite release embeds 18.7, which
+  Dependabot's npm group brings. The CHANGELOG's PostgreSQL 18.7 entry says so too.
+- **The owner's checks on the OTA stack after Trigger.dev v4.8.5's merge,** which the entry of
+  2026-11-13, records, lists as owed: done on 2026-11-13 at about 16:15, all passing. These are
+  the owner's readings, relayed; none was read from this side:
+  - in `trigger-api`'s environment, read inside the container, `CLI_LOGIN_IDLE_TIMEOUT_DAYS=90`
+    and `ADMIN_API_ENABLED=false`;
+  - a request to the admin API answers 404, which is consistent with it being off and proves no
+    more than that;
+  - the two unrevoked personal access tokens, both minted before the upgrade, have no
+    `expiresAt` and no `idleTimeoutSeconds` set, so neither lapses;
+  - `_prisma_migrations` from `20261028` on has 14 rows, each finished and none rolled back:
+    the twelve of v4.8.4 and v4.8.5, and two of v4.8.3 that the date bound includes;
+  - the task runner's database dumps rotate, the newest seven kept (`trigger-version.sh`), so
+    the dump taken before v4.8.5 needs no step to delete it.
+- **The four Go binaries whose findings wait for upstream, read for reach on 2026-11-13,** so
+  that the next reader does not redo it. Security Scan run 43492635512 (`main` at `331222af`,
+  19:29 to 19:32, linux/arm64, with the image scans) reads 16 high findings in them, 15 with a
+  fix: Gatus 5, the registry 8, Caddy 2 (1 with a fix) and Zitadel 1. *Not in the binary* is
+  read from the linux/arm64 binary itself: its modules with `go version -m`, and its function
+  names counted by package (`strings`). A name in a binary shows what is linked, not what is
+  called, so *not reached* rests on the configuration and upstream's source, and says where it
+  is inferred. Gatus v5.38.0, registry 3.1.2 and Caddy 2.11.9 are their projects' newest tags
+  (`git ls-remote`), so no release carries a fix.
+  - **Gatus v5.38.0**, the public status page (binary sha256 `09633c3a…`, go1.27.3). Not in
+    the binary, 3: `golang.org/x/net/html` (CVE-2026-78661), `golang.org/x/image/vp8l`
+    (CVE-2026-46603) and klauspost/compress's `s2` (CVE-2026-63209), no name of any. In it and
+    not reached, 2: go-jose v4 (CVE-2026-116587), linked through go-oidc for `security.oidc`,
+    which `gatus.yaml` does not set; and `x/net/http2` (CVE-2026-78669), linked through the
+    gRPC and Google clients, while every endpoint in `gatus.yaml` is an http(s) URL that Go's
+    own net/http fetches (inferred from upstream's source and the configuration). Upstream's
+    master moves x/net to v0.61.0 alone, which would clear one of the five.
+  - **The registry, `registry:3.1.2`**, which holds the tasks' images (binary sha256
+    `f235c545…`, go1.26.8: upstream's release binary of 2026-09-24, which every rebuild of the
+    tag carries). Not in the binary, 2: `x/net/html` and `s2`. Not reached, 5: go-jose, used
+    by token authentication, which is not configured; HTTP/2 (CVE-2026-78669, counted in x/net
+    and in the standard library), not served without TLS, h2c being off; crypto/tls's ECH
+    (CVE-2026-97031), with no TLS listener; and x509 (CVE-2026-111943), with no outbound TLS
+    configured (inferred). **Reached, 1:** CVE-2026-78667, a Range header of many small ranges
+    that burns CPU in `http.ServeContent` on a blob GET (`registry/storage/blobserver.go`). It
+    can be sent from the host's loopback port and from the stack's own containers on its
+    network, where the registry takes no sign-in by design, so whoever can send it can already
+    push and delete images. Upstream's main has go-jose 4.1.6 and compress 1.18.7, unreleased;
+    the four standard-library findings go with the Go a release is built with.
+  - **Caddy 2.11.9**, the task runner's TLS front, on the loopback and the mesh (binary sha256
+    `762d7763…`, go1.27.3). Both findings are in the binary, and neither is reached by this
+    Caddyfile, which is `tls internal` and `reverse_proxy` alone: `x/net/html`
+    (CVE-2026-78661) has one importer found, smallstep's cli-utils, which parses the step
+    CLI's own help text; go-jose v3 v3.0.5, which has no fixed version, comes with smallstep's
+    CA code, for an ACME server and provisioners this front does not configure (inferred from
+    the directives; not every caller was traced). Upstream's master has x/net v0.62.0 and no
+    go-jose v3 line, unreleased.
+  - **Zitadel v4.20.2**, public: `golang.org/x/net` v0.61.0 (CVE-2026-78661, in
+    `x/net/html`). **Its binary was not read:** ghcr's blobs are refused to this session. Read
+    from source at the tag instead: Zitadel's own code imports x/net's `http2`, `h2c`,
+    `httpguts` and `context`, never `html`, and nine of its dependencies do not import it
+    either; which module links the package, if any, is not read. v4.20.3, the v4.x branch and
+    main all keep x/net v0.61.0, so no release clears it, v4.20.3 included.
+
+  A build from source was weighed for each and left: it would put a Go toolchain and a compile
+  into every deploy, for findings nothing reaches, and run a binary upstream never tested. One
+  follow-up for a later alpha: both of the registry's clients address its loopback port, so it
+  may not need to sit on the stack's network at all (inferred from `managed.yml`; it needs E2E
+  (managed)).
 
 **2026-11-13: hono 4.13.18 and `@hono/node-server` 2.1.7 under the deploy CLI, by two overrides, so
 `pnpm audit` reads minimatch alone again; built on a branch, not merged (for alpha.8).** On the
@@ -104,6 +210,10 @@ installed packages; nothing downloaded was run. Times are UTC.
 - **The CLI's row in §2.5** still read 4.8.3; it names 4.8.5 (#1883) and these two entries now.
 - **Owed before the merge:** CI on the head, and E2E (managed) on the head, because the deploy
   CLI's resolved tree changes.
+  *(Recorded after the merge, 2026-11-14, read from GitHub:)* on the head `835d6764`, CI run
+  43509190842 (21:16 to 21:30) and Security Scan run 43509191175 were green, and E2E (managed)
+  run 43511420513 (21:31 to 21:39) was green: *Version 20261113.6 deployed with 17 detected
+  tasks*, SMOKE PASS. It merged as #1889 at 21:40:34 (`cdb80bc6`).
 
 **2026-11-13, records: the day's moves are merged, Trigger.dev v4.8.5 last, after the owner's
 steps on the OTA stack a day early, and the nights waiver for alpha.8 is on `main` (T3; 0146 T16).**
@@ -146,7 +256,8 @@ GitHub and from the owner's output on 2026-11-13; times are UTC.
 - **Owed:**
   - the owner's checks after the merge: `printenv` in `trigger-api` reading 90 and false, every
     unrevoked token minted before the upgrade with no `expiresAt` and no `idleTimeoutSeconds`, and
-    the twelve migrations finished and not rolled back;
+    the twelve migrations finished and not rolled back; *(done that day at about 16:15, all
+    passing: the entry of 2026-11-14)*
   - live's deploy of alpha.8, which is one-way and takes the copy with `triggerdb`'s dump.
 
 **2026-11-13: Trigger.dev v4.8.3 → v4.8.5, for alpha.8, before its three-day floor on the owner's
