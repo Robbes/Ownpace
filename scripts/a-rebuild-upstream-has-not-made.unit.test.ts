@@ -56,7 +56,15 @@
  *    another platform, a pooler that never answers, a package at its old
  *    version, process 1 as root or as a shell, no pool), and must fail each;
  *  - Dependabot reads the directory in an entry of its own, which leaves a
- *    major to the owner. Its pull request is where the way out shows.
+ *    major to the owner. Its pull request is where the way out shows for a
+ *    newer PgBouncer. A rebuild of the same PgBouncer is tagged `-p<n+1>`,
+ *    which Dependabot does not propose: the pin watch lists it and says it
+ *    is moved by hand (`a-pin-that-knows-it-is-behind`).
+ *
+ * TAKING A PACKAGE OUT, once upstream's image carries it (the Dockerfile's
+ * header, THE WAY OUT): out of the RUN and out of PINS below in one change.
+ * With the RUN alone changed, the Dockerfile's checks here ask for the
+ * package back; they say so now.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -88,6 +96,9 @@ const PINS: Readonly<Record<string, string>> = {
   zlib: '1.4-r0',
 };
 const NAMED = Object.entries(PINS).map(([name, version]) => `${name}=${version}`);
+/** Said where the RUN and PINS disagree: the way out changes both, and so does a moved version. */
+const PINS_MOVE_TOO =
+  "Where the RUN is right (a package upstream's image carries now was taken out, or a version moved), PINS in this file names the same packages and versions: change it with the RUN, and then the cases here that name that package";
 
 /**
  * The base's packages as the RUN reads them, from /lib/apk/db/installed: the
@@ -196,8 +207,8 @@ function dockerfileProblems(text: string): string[] {
   // The packages' RUN names the five once, the same in each of its three lists.
   if (!/^RUN set -eu;/.test(packages)) problems.push('the packages\' RUN does not start with `set -eu;`: a check that fails could be passed by');
   const listed = /\bfor pin in ([^;]*); do\b/.exec(packages)?.[1]?.trim().split(/\s+/) ?? [];
-  if (JSON.stringify(listed) !== JSON.stringify(NAMED)) problems.push(`the RUN checks ${JSON.stringify(listed)} against the base, not ${NAMED.join(' ')}`);
-  if (!packages.includes(`apk add --no-cache ${NAMED.join(' ')} ||`)) problems.push(`the RUN's apk add does not take ${NAMED.join(' ')}, each at its exact version`);
+  if (JSON.stringify(listed) !== JSON.stringify(NAMED)) problems.push(`the RUN checks ${JSON.stringify(listed)} against the base, not ${NAMED.join(' ')}. ${PINS_MOVE_TOO}`);
+  if (!packages.includes(`apk add --no-cache ${NAMED.join(' ')} ||`)) problems.push(`the RUN's apk add does not take ${NAMED.join(' ')}, each at its exact version. ${PINS_MOVE_TOO}`);
   // The proof names the release the FROM does, and the client the first RUN installs.
   if (!/^RUN set -eu;/.test(proof)) problems.push('the last RUN does not start with `set -eu;`');
   if (!proof.includes('[ "$who" = postgres:70 ] ||')) problems.push('the last RUN does not hold its user to postgres:70');

@@ -88,6 +88,17 @@
  * ghcr, or when no signature is listed for it. This holds each of those, the
  * notes beside them, and that a read it cannot make is an error and not
  * current.
+ *
+ * A TAG DEPENDABOT DOES NOT PROPOSE (workplan 0119, 2026-11-13, on review of
+ * the pooler's build). An image built here that is behind said "Dependabot
+ * reads this one too: take its pull request". For the pooler that pull
+ * request never comes in the case its build waits for. edoburu/pgbouncer tags
+ * a rebuild of the same PgBouncer `-p<n+1>` (v1.24.1-p0 and then -p1;
+ * v1.23.1 up to -p3), and Dependabot proposes only a tag that ends as the
+ * pin does: `v1.26.2-p0` for `v1.26.1-p0`, never `v1.26.1-p1`. So where the
+ * newest tag ends otherwise than the pin, the line says the move is made by
+ * hand. This holds that on the pooler's real pin, and that a newer PgBouncer
+ * and every other image built here keep Dependabot's line.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -144,12 +155,14 @@ import {
   baseImageOf,
   builtImage,
   builtNote,
+  byHandNote,
   channelNote,
   CLICKHOUSE_INTENDED,
   clickhouseRow,
   clickhouseSupport,
   compareTags,
   comparePin,
+  endingOf,
   fileInTgz,
   gitBlobId,
   issueBody,
@@ -1492,6 +1505,38 @@ describe('the routine pins, in one summary issue', () => {
     const { gh, calls } = fakeGh([OTHER]);
     expect(keepIssue(summary, gh, TITLES.routine)).toBe('opened');
     expect(calls).toEqual([['issue', 'create', '--title', TITLES.routine, '--body', summary.body]]);
+  });
+
+  it("says a rebuild upstream tags `-p<n+1>` is moved by hand: Dependabot proposes no tag that ends otherwise than the pin", async () => {
+    // edoburu/pgbouncer rebuilds one PgBouncer as v1.24.1-p0 and then v1.24.1-p1. That rebuild is the way out of
+    // the pooler's build, and Dependabot opens no pull request for it, so the line must not point at one.
+    const dockerfile = 'deploy/compose/pgbouncer/Dockerfile';
+    const pgbouncer = builtImage(REAL, COMPOSE, readImages(MANAGED).find((i) => i.repo === 'localhost/pgbouncer')!)!.base;
+    const rebuilt = pgbouncer.tag.replace(/-p(\d+)$/, (_all, build: string) => `-p${Number(build) + 1}`);
+    expect(rebuilt, `${pgbouncer.tag} does not end in -p<n>`).not.toBe(pgbouncer.tag);
+    expect([endingOf('v1.26.1-p0'), endingOf('v1.26.1-p1'), endingOf('v1.26.2-p0')]).toEqual(['-p0', '-p1', '-p0']);
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'edoburu/pgbouncer': rebuilt })));
+    const row = rows.find((r) => r.name === 'edoburu/pgbouncer')!;
+    expect(row).toMatchObject({ pin: pgbouncer.tag, newest: rebuilt, state: 'behind', notes: [byHandNote(dockerfile, pgbouncer.tag, rebuilt)] });
+    const line = (summaryOf(rows, status).body ?? '').split('\n').find((l) => l.startsWith('- `edoburu/pgbouncer`')) ?? '';
+    expect(line).toContain(
+      `newest **${rebuilt}**; Dependabot reads \`${dockerfile}\` and proposes only tags that end as the pin does, \`${endingOf(pgbouncer.tag)}\`, so never this one, which ends \`${endingOf(rebuilt)}\`: move the FROM to it by tag and digest by hand`,
+    );
+    expect(line, 'a pull request nobody opens').not.toContain('take its pull request');
+    // Every other image built here ends in letters alone, or in nothing, so a newer tag of its shape ends the same
+    // and stays Dependabot's; the pooler's ending is the one with a number in it.
+    const endings = new Map<string, string>();
+    for (const file of COMPOSE_FILES) {
+      for (const image of readImages(REAL.read(file)!)) {
+        const built = builtImage(REAL, file, image);
+        if (built) endings.set(built.base.repo, endingOf(built.base.tag));
+      }
+    }
+    expect(
+      [...endings].filter(([, ending]) => /\d/.test(ending)),
+      'the bases built here whose tag ends in a number: a newer tag of one may end otherwise, which Dependabot does not propose. Read how its upstream tags a rebuild, and name it here',
+    ).toEqual([['edoburu/pgbouncer', endingOf(pgbouncer.tag)]]);
+    expect([endingOf('18.7-alpine'), endingOf('7.4.12-bookworm'), endingOf('v4.8.5')]).toEqual(['-alpine', '-bookworm', '']);
   });
 
   it('names one cosign in every workflow that installs it: the release that signs is the release that checks', () => {

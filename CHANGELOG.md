@@ -20,7 +20,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   1.2.6-r3 and zlib 1.4-r0 from Alpine's signed repository, at exactly those versions. PgBouncer
   1.26.1, its user, its entrypoint and its command are upstream's. The pooler is built and restarts
   once at the deploy; the build reaches Alpine's mirror as well as Docker Hub, once per machine and
-  name, and goes again once upstream's image carries the five. The two PostgreSQL packages were
+  name, and goes again once upstream's image carries the five. A newer PgBouncer arrives as
+  Dependabot's pull request; upstream's rebuild of the same one, tagged `-p<n+1>`, does not, so
+  the weekly pin watch names it and says it is moved by hand. The two PostgreSQL packages were
   taken inside their three-day floor, on the owner's waiver.
 
 - **Trigger.dev moves to v4.8.5, whose webapp and supervisor run on Node 24.22.3, Node's security

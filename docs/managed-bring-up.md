@@ -5245,38 +5245,53 @@ PgBouncer itself, its `pgbouncer.ini`, its userlist, its user (uid 70), its
 entrypoint and its healthcheck are as they were.
 
 - **The first `up` builds it, and the pooler restarts once.** The bring-up's
-  data phase (`up_wait pgbouncer`) finds no image of that name and builds it,
-  pulling the pinned base from Docker Hub when the machine does not have it
-  and the five packages from Alpine's mirror (`dl-cdn.alpinelinux.org`), then
-  recreates `pgbouncer` because its image changed: the OTA stack at the E2E
-  (managed) run of the branch or the next nightly gate, live inside
-  `deploy-live.sh`'s hold and drain, from the tag. Every client connection
-  drops for the seconds of the restart, and the app's pools open new ones. A
-  deploy that also replaces `postgres` recreates the pooler anyway (the data
-  phase, a pooler that outlived its database), so on such a deploy this adds
-  no restart. `pull_policy: never`, as for the databases.
+  data phase finds no image of that name at its first `up` of the pooler (the
+  forced recreate after a replaced `postgres`, else `up_wait pgbouncer`) and
+  builds it, pulling the pinned base from Docker Hub when the machine does not
+  have it and the five packages from Alpine's mirror
+  (`dl-cdn.alpinelinux.org`), then recreates `pgbouncer` because its image
+  changed: the OTA stack at the E2E (managed) run of the branch or the next
+  nightly gate, live inside `deploy-live.sh`'s hold and drain, from the tag.
+  Every client connection drops for the seconds of the restart, and the app's
+  pools open new ones. A deploy that also replaces `postgres` recreates the
+  pooler anyway (the data phase, a pooler that outlived its database), so on
+  such a deploy this adds no restart. `pull_policy: never`, as for the
+  databases.
 - **When the build cannot take the packages.** Alpine keeps only its newest
   build of a package in a stable branch. Once it moves one of the five again,
   a machine that does not have the image cannot build it: `up` stops at the
-  build, before it recreates anything, with the Dockerfile's own message
-  (*the mirror no longer serves those versions*). A machine that has the image
-  is not touched, and live and the OTA stack share one Docker daemon, so the
-  name the OTA stack built is there for live's deploy of the same Dockerfile.
-  The remedy is a pull request that moves the version the Dockerfile names, or
-  takes the build out.
-- **Moving it, and taking it out.** A newer tag or digest of upstream's image
-  is Dependabot's pull request (the directory's own entry, never a major), and
-  the pin watch's summary issue lists it. Its build stops where the new base
-  already carries one of the five, and names it: take that package out of the
-  Dockerfile's RUN. Once the RUN names none, `pgbouncer` goes back to
-  `edoburu/pgbouncer:<tag>@<digest>` in `managed.yml`, and the Dockerfile, its
-  job, its Dependabot entry and its guard go (the Dockerfile's header, THE WAY
-  OUT). Until then `scripts/a-rebuild-upstream-has-not-made.unit.test.ts`
-  prints the `sed` that moves `managed.yml`'s image line when an instruction
-  changed; `build (pgbouncer, amd64)` and `build (pgbouncer, arm64)`
-  (`images.yml`) build it, hold its configuration to upstream's, start it as
-  `managed.yml` does and ask it with the healthcheck's command; and its E2E
-  (managed) is dispatched like any pin's.
+  build, before it recreates the pooler, with the Dockerfile's own message
+  (*the mirror no longer serves those versions*). On a deploy that also
+  replaces `postgres`, the database has been replaced by then (the data phase
+  brings `postgres` up first), so that deploy did not take. A machine that has
+  the image is not touched, and live and the OTA stack share one Docker
+  daemon, so the name the OTA stack built is there for live's deploy of the
+  same Dockerfile. So neither stack is where it shows first. That is where the
+  image is built afresh: the weekly image scan's `pgbouncer` leg (Mondays at
+  06:00 UTC, on `main`), which then has nothing to scan, leaves no report and
+  fails its run, and `build (pgbouncer, amd64)` and `build (pgbouncer, arm64)`
+  on a pull request that touches `deploy/`. The remedy is a pull request that
+  moves the version the Dockerfile names, or takes the build out.
+- **Moving it, and taking it out.** Upstream's next image comes one of two
+  ways. A newer PgBouncer, tagged `v<x.y.z>-p0`, or the pinned tag under a new
+  digest is Dependabot's pull request (the directory's own entry, never a
+  major). A rebuild of the same PgBouncer is tagged `-p<n+1>`, as `v1.24.1-p1`
+  and `v1.23.1-p1` to `-p3` were, and Dependabot opens no pull request for it:
+  it proposes only tags that end as the pinned one does, `-p0`. Only the pin
+  watch's summary issue lists that tag, and says it is moved by hand, in a
+  pull request of its own that moves the Dockerfile's FROM by tag and digest.
+  Either build stops where the new base already carries one of the five, and
+  names it: take that package out of the Dockerfile's RUN, and out of `PINS`
+  in the guard, which otherwise asks for it back. Once the RUN names none,
+  `pgbouncer` goes back to `edoburu/pgbouncer:<tag>@<digest>` in
+  `managed.yml`, and the Dockerfile, its job, its Dependabot entry and its
+  guard go (the Dockerfile's header, THE WAY OUT). Until then
+  `scripts/a-rebuild-upstream-has-not-made.unit.test.ts` prints the `sed`
+  that moves `managed.yml`'s image line when an instruction changed;
+  `build (pgbouncer, amd64)` and `build (pgbouncer, arm64)` (`images.yml`)
+  build it, hold its configuration to upstream's, start it as `managed.yml`
+  does and ask it with the healthcheck's command; and its E2E (managed) is
+  dispatched like any pin's.
 - **Rolling back to a tag before this runs upstream's image again**,
   `edoburu/pgbouncer:v1.26.1-p0`; `up` pulls it when the machine no longer has
   it.

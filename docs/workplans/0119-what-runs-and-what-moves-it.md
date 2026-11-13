@@ -24,15 +24,15 @@ image was built: this session has no Docker. Times are UTC.
   postgresql-client`) 2026-09-30, reused by the build of 2026-10-19. Both hold the same 25
   packages, the five at the versions the scan names.
 - **What loads them.** `readelf -d` on both platforms' files: `/usr/bin/pgbouncer` needs libevent,
-  libssl, libcrypto and musl, not libpq and not zlib. libpq is needed by the 17 programs of the
-  client, psql among them; zlib by apk and by pg_dump and six more of those programs, not by
-  psql. In this repository every `exec` into the container runs psql against the container's own
-  pooler, on its loopback, port 6432: `managed.yml`'s healthcheck (every 15 seconds),
-  `db-roles.sh`, `rehearse-capacity.sh`, `e2e-managed.yml` and the bring-up guide's check. musl's
-  fix is in `regcomp()` (the patch in aports: *regex: avoid int overflow in regcomp*), which
-  takes a pattern; PgBouncer 1.26.1 compiles three of its own, for the admin console
-  (`src/admin.c`), and the entrypoint's grep and sed theirs. So all 79 are almost certainly out
-  of anybody's reach here, as the Postgres image's were (#1880).
+  libssl, libcrypto and musl, not libpq and not zlib. libpq is needed by 17 of the client's 18
+  programs, psql among them (pg_verifybackup is the one without it); zlib by apk and by pg_dump and
+  six more of those programs, not by psql. In this repository every `exec` into the container runs
+  psql against the container's own pooler, on its loopback, port 6432: `managed.yml`'s healthcheck
+  (every 15 seconds), `db-roles.sh`, `rehearse-capacity.sh`, `e2e-managed.yml` and the bring-up
+  guide's check. musl's fix is in `regcomp()` (the patch in aports: *regex: avoid int overflow in
+  regcomp*), which takes a pattern; PgBouncer 1.26.1 compiles three of its own, for the admin
+  console (`src/admin.c`), and the entrypoint's grep and sed theirs. So all 79 are almost certainly
+  out of anybody's reach here, as the Postgres image's were (#1880).
 - **The versions, and what could not be read.** Alpine's index was not read:
   `dl-cdn.alpinelinux.org` and Alpine's other hosts are refused to this session. aports'
   `3.24-stable` has postgresql18 18.7-r0 since 2026-11-12 22:44:44 (`33a57d3`), musl 1.2.6-r3 since
@@ -68,38 +68,99 @@ image was built: this session has no Docker. Times are UTC.
   mounted) and ask it with the healthcheck's own command; then read the five from the running
   image's package database, process 1 as pgbouncer and uid 70, and SHOW POOLS. Dependabot reads
   the directory in an entry of its own (never a major). The image scan builds the context under
-  the name `pgbouncer` and the pin watch compares its FROM, both without a change of code. The
-  bring-up says it is a build. `scripts/a-rebuild-upstream-has-not-made.unit.test.ts` is the
+  the name `pgbouncer`, without a change of code, and the pin watch compares its FROM; what its
+  line says about a tag Dependabot does not propose is new (the review, below). The bring-up
+  says it is a build. `scripts/a-rebuild-upstream-has-not-made.unit.test.ts` is the
   guard: the Dockerfile's shape, the first RUN on a stand-in apk and package database, the second
   on stand-ins for `id`, `pgbouncer` and `psql`, the name with the `sed` that moves it, and the
   job's step against a stub docker answering wrongly ten ways.
 - **The risk taken, as #1880 took it.** A build reaches Alpine's mirror as well as Docker Hub,
   once per machine and name. The day Alpine moves one of the five again, a machine without the
   name cannot build it, and `up` stops at the build with the RUN's message; a machine that has
-  it is not touched. The remedy is a pull request that moves the version, or the way out.
-- **The way out.** Upstream's next image is Dependabot's pull request. Its build stops where the
-  new base carries one of the five; that package comes out of the RUN, and when none is left
-  `pgbouncer` runs `edoburu/pgbouncer:<tag>@<digest>` again and the build, its job, its entry and
-  its guard are deleted (the Dockerfile's header).
+  it is not touched, so neither stack shows it. It shows first where the image is built afresh:
+  the weekly image scan's `pgbouncer` leg (Mondays at 06:00 UTC, on `main`), where a failed
+  build leaves no report and fails the run, and `build (pgbouncer, …)` on a pull request that
+  touches `deploy/`. The remedy is a pull request that moves the version, or the way out.
+- **The way out** is upstream's next image, which comes one of two ways. A newer PgBouncer,
+  tagged `v<x.y.z>-p0`, or the pinned tag under a new digest is Dependabot's pull request. A
+  rebuild of the same PgBouncer is tagged `-p<n+1>`, and Dependabot opens no pull request for
+  it (the review, below): the pin watch's summary issue lists it and says it is moved by hand,
+  in a pull request of its own. Either build stops where the new base carries one of the five;
+  that package comes out of the RUN and of the guard's `PINS`, and when none is left `pgbouncer`
+  runs `edoburu/pgbouncer:<tag>@<digest>` again and the build, its job, its entry and its guard
+  are deleted (the Dockerfile's header).
 - **Live.** The service's image name changes, so the deploy that carries this builds the image
   where the machine does not have it and recreates `pgbouncer` once, inside the deploy's hold:
   every client connection drops for the seconds of the restart and the app's pools reconnect.
   The alpha.8 deploy replaces `postgres` too (18.6 to 18.7), which recreates the pooler already
   (`bootstrap-managed.sh`, a pooler that outlived its database), so this adds no restart to it.
-- **Proved here.** The 154 unit test files that name a path this changes (`managed.yml`, `images.yml`,
-  `dependabot.yml`, `bootstrap-managed.sh`, the bring-up guide, the CHANGELOG, this plan, LESSONS,
-  the pin watch, the image scan) ran: 5,034 of 5,035 tests passed. The one failure was
-  `a-privilege-no-service-uses`, which wanted the job's container, `pooler-built`, named among
-  the `docker exec` targets; it is named now, and that guard, the new one and the LESSONS check
-  pass (344 tests). Mutation-checked on the real files, each restored and equal by `cmp`: a stale
-  name on `managed.yml`'s image line fails 4 of the new guard's 12 tests; zlib dropped from the
-  Dockerfile's `apk add` fails 7; the job's loop over the image's configuration without `User`
-  fails 2; `USER root` left as the image's user fails 6. ESLint on the eight changed TypeScript
-  and script files, `tsc --noEmit -p .` and the six docs checks (`--check`) pass.
+  That forced recreate (line 1501) is then the first `up` of the pooler, after `postgres` is
+  already replaced (line 1405): a build that failed there would leave a deploy that did not
+  take. Live shares its Docker daemon with the OTA stack, which builds the same name first, so
+  the deploy should build nothing and reach neither Docker Hub nor Alpine for it. For the sheet,
+  before the hold: `docker image inspect` of the name in the tag's `managed.yml`; absent, stop
+  and find out why. Afterwards: `pgbouncer` healthy on the `localhost/` image, and
+  `psql --version` in it says 18.7.
+- **Proved here.** The 154 unit test files that name a path this changes (`managed.yml`,
+  `images.yml`, `dependabot.yml`, `bootstrap-managed.sh`, the bring-up guide, the CHANGELOG, this
+  plan, LESSONS, the pin watch, the image scan) ran: 5,034 of 5,035 tests passed. The one failure
+  was `a-privilege-no-service-uses`, which wanted the job's container, `pooler-built`, named
+  among the `docker exec` targets; it is named now, and that guard, the new one and the LESSONS
+  check pass (344 tests). Mutation-checked on the real files, each restored and equal by `cmp`:
+  a stale name on `managed.yml`'s image line fails 4 of the new guard's 12 tests; zlib dropped
+  from the Dockerfile's `apk add` fails 7; the job's loop over the image's configuration without
+  `User` fails 2; `USER root` left as the image's user fails 6. ESLint on the eight changed
+  TypeScript and script files, `tsc --noEmit -p .` and the six docs checks (`--check`) pass.
+- **Reviewed the same day, and corrected** in a second commit. Each finding was checked first,
+  and each held.
+  - **Dependabot does not propose upstream's rebuild.** Docker Hub's 32 tags show how upstream
+    rebuilds one PgBouncer: v1.24.1-p0 and then -p1, v1.24.0-p1, v1.23.1-p1 to -p3, v1.23.0-p1,
+    1.21.0-p1 and -p2, 1.19.1-p1. Read in Dependabot's source (dependabot-core at `6f880ece`,
+    committed 2026-11-13 at 16:06:51; `docker/lib/dependabot/docker/tag.rb` and
+    `update_checker.rb`): a tag is a version and a suffix, `comparable_to?` wants the suffixes
+    equal, and only comparable tags are candidates. Its patterns, copied by hand into a script
+    of this session and run there (nothing of the clone was run), read `v1.26.1-p0` as 1.26.1
+    with `-p0`, `v1.26.1-p1` as not comparable with it, and `v1.26.2-p0` as comparable. So this
+    entry, the Dockerfile's header, Dependabot's entry, the guide and the row were wrong to call
+    upstream's next image Dependabot's pull request, and the pin watch's line for an image built
+    here that is behind said *take its pull request*. All say both ways now. The pin watch
+    (`endingOf` and `byHandNote` in `scripts/idp-pin-watch.mjs`) says the move is made by hand
+    wherever the newest tag ends otherwise than the pin; of the bases built here only the
+    pooler's tag ends in a number, and `a-pin-that-knows-it-is-behind` holds both. **Not read:**
+    what GitHub's hosted Dependabot does beyond that source, and whether it holds digest-only
+    updates back (`docker_digest_only_update_suppression` there), in which case a re-push of the
+    pinned tag opens no pull request either. The FROM's digest keeps a re-push out of every
+    build all the same.
+  - **The way out named the RUN alone.** With zlib taken out of the RUN's lists, as the header
+    said, 7 of the guard's 12 tests failed and asked for the package back; with the guard's
+    `PINS` changed too and the name moved, 3 failed, in the guard's own cases that name zlib.
+    The header and Dependabot's entry name `PINS` now, and the guard's two messages point there.
+  - **"Before it recreates anything"** in the guide was true of one `up`, not of a deploy:
+    `phase_data` brings `postgres` up first (`bootstrap-managed.sh` line 1405), and the pooler's
+    first `up` is the forced recreate after a replaced database (line 1501), else
+    `up_wait pgbouncer` (line 1509). The guide says so, and where a moved Alpine package first
+    shows (the risk, above; `security-scan.yml`'s build step and report check, `images.yml`'s
+    `paths:`).
+  - **Slips.** 17 of the client's 18 programs link libpq, not "the 17 programs": `readelf -d`
+    again on both platforms' package layer (`2c59e6fa…` and `7ce63688…`, each equal to its
+    digest). Six guards that named the pulled image or the job changed, not five.
+  - **Proved.** The instruction lines of the Dockerfile are as they were (`diff`), so the name
+    is still `db1368bd0eb6`. The 70 unit test files that name a path the correction changes, or
+    read the records, pass (3,034 tests), run after this entry was written. Mutations, each
+    restored and equal by `cmp`: the pin watch saying Dependabot's line for every image
+    built here fails the new test, 1 of that guard's 122; an ending read without its number
+    fails the same one; zlib out of the RUN alone still fails 7 of the pooler's guard's 12, and
+    both of its messages about the RUN now name `PINS`. ESLint on the four changed script
+    files, `tsc --noEmit -p .` and the six docs checks pass.
 - **Owed before the merge:** `build (pgbouncer, amd64)` and `build (pgbouncer, arm64)` green on
   the pull request, which is where it shows that Alpine serves the five to both platforms; the
   image scan dispatched on the branch, reading `pgbouncer` at 0 with a fix; and E2E (managed) on
   the head, which asserts the pooler's mode and runs everything through it.
+- **Owed after the merge:** the image scan dispatched on `main`, and its run named here beside
+  the branch's. A scan uploads one category per image for the ref it runs on, so the 79 alerts
+  of `trivy-image-pgbouncer` stay open on `main` until a scan of `main` uploads it again. The
+  next scheduled one is Monday 2026-11-16 at 06:00 UTC, and until then the release preflight
+  prints the 79 for `main`.
 
 **2026-11-13, records: the day's moves are merged, Trigger.dev v4.8.5 last, after the owner's
 steps on the OTA stack a day early, and the nights waiver for alpha.8 is on `main` (T3; 0146 T16).**
@@ -6001,7 +6062,7 @@ is who moves it after T1.
 | `nginx` | `apps/web/Dockerfile` runtime, `deploy/compose/www.yml` | 1.31.8-alpine-slim by digest `9c68ad4f…` (2026-11-09, Docker Hub's rebuild of the tag on Alpine 3.24.4, where of its 21 packages only alpine-release, apk-tools and libapk (3.0.9) and tzdata (2026f) moved: 0 critical, 0 high and 0 fixable, Security Scan run 42615868745, linux/arm64; Status, 2026-11-09); `f45171d3…` from 2026-10-25 (0146 T12a: the same nginx package and base layers as -alpine, without its dynamic modules, curl and the 51 packages they bring); 1.31.8-alpine `1ef7ca94…` from 2026-10-23, 1.31.7-alpine `892bb215…` the day before that, 1.27-alpine at the audit, 1.30-alpine from T2, `1.31-alpine` floating from #813, which no build or `up` ever pulled again) | 1.31.8-alpine-slim, its index pushed again on 2026-11-05 at 22:08 UTC over its rebuilds of 19:50 UTC (amd64 and arm64 among them; riscv64's image is still that of 2026-10-24), before that on 2026-10-24 19:51 UTC to add riscv64 over the amd64 and arm64 images pushed 2026-10-22 01:50 UTC; 1.31.8 itself: four bug fixes and one change (changes.xml, 2026-10-21) on Alpine 3.24.3, which fixes the two high CVEs 1.31.7's image carries on 3.24.2 (libexpat CVE-2026-77214, libx11 CVE-2026-88806); 1.31.7 (2026-10-14) fixed five: CVE-2026-15176, CVE-2026-93479, CVE-2026-95101, CVE-2026-97629 and CVE-2026-97205 | current | Dependabot `docker` for the Dockerfile; `www.yml` by hand after it, and the pin watch (0146 T8) says when the two differ | **T2** took 1.30-alpine, the stable line; #813 moved the web image to 1.31 the same morning and the line is mainline since, because Dependabot cannot express "stable" (the odd minor is always the higher version); `www.yml` follows; -alpine-slim since 2026-10-25 (0146 T12a), because nothing here loads what -alpine adds and the scan counts it |
 | `postgres` (self-host) | `deploy/selfhost/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `deploy/selfhost/compose.yml` since 0146 T15b (#1719, merged 2026-10-28, `fb0fea2e`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); from 2026-10-31 the build also took brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions (Status, 2026-10-31), and from 2026-11-12 krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 the same way (Status, 2026-11-12), until a base carried the four fixes; since 2026-11-13, on its branch, 18.7's base carries all four, so the build takes nothing from Alpine's mirror (Status, 2026-11-13) | 18.7-alpine by digest `75dcac3d…` since 2026-11-13, on its branch, the managed stacks' base too (the tag pushed 2026-11-12 22:18 UTC, inside its three-day floor until 2026-11-15 22:18, under the security exception on the owner's word, Status); `10a5c69a…` (18.6, upstream's rebuild of 2026-10-26) from 2026-10-31, from Dependabot's #1744; `77f58511…` from its move of 2026-09-24 before that; `d3e1620b…` from T2, digest `9a8afca5…` = 18.4-alpine with no tag at the audit | 18.7 (2026-11-12), `75dcac3d…` (read 2026-11-13, Status) | current | Dependabot `docker` on `/deploy/selfhost/postgres` (its own entry, no major; `docker-compose` before T15b, which now ignores `localhost/postgres`), whose PR fails `a-database-started-as-root` until compose.yml's image line moves, and prints the `sed` that moves it; a new minor's release notes are read for REINDEX advice before it merges (18.7's: none needed here, Status 2026-11-13) | **T2** — a patch upgrades in place; `e2e.yml`'s restart-resume proves it |
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); from 2026-10-31 the build also took brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions (Status, 2026-10-31), and from 2026-11-12 krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 the same way (Status, 2026-11-12), until a base carried the four fixes; since 2026-11-13, on its branch, 18.7's base carries all four, so the build takes nothing from Alpine's mirror (Status, 2026-11-13); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.7-alpine by digest `75dcac3d…` since 2026-11-13, on its branch (the tag pushed 2026-11-12 22:18 UTC, inside its three-day floor until 2026-11-15 22:18, under the security exception on the owner's word, Status); `10a5c69a…` (18.6, upstream's rebuild of 2026-10-26) from 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4 | 18.7 (2026-11-12), `75dcac3d…` (read 2026-11-13, Status) | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and `a-gate-on-a-version-nothing-ships` until ci.yml's dev URL moves, each printing the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a new minor's release notes are read for REINDEX advice against the two databases' indexes before it merges (18.7's: none needed, Status 2026-11-13) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
-| `edoburu/pgbouncer` | `deploy/compose/pgbouncer/Dockerfile`'s FROM, built as `localhost/pgbouncer:<tag>-<hash>` by `managed.yml` (`pgbouncer`) since 2026-11-13: upstream's image with five Alpine packages at the versions that carry their fixes (libpq and postgresql18-client 18.7-r0, musl and musl-utils 1.2.6-r3, zlib 1.4-r0), until upstream's image carries them; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | v1.26.1-p0 by digest `488422e3…` (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2): 0 critical, 79 high and 79 fixable as pulled, all in those five packages (Security Scan run 43492635512, linux/arm64, 2026-11-13); the build's scan is owed on the branch (the Status entry of 2026-11-13) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream; its package layer is of 2026-09-30 | current | Dependabot (the directory's own entry, never a major), and the pin watch's summary issue when it is behind (0146 T8); that pull request is where the build goes again, once upstream's image carries the five | **T2** — stateless; the managed gate proves it |
+| `edoburu/pgbouncer` | `deploy/compose/pgbouncer/Dockerfile`'s FROM, built as `localhost/pgbouncer:<tag>-<hash>` by `managed.yml` (`pgbouncer`) since 2026-11-13: upstream's image with five Alpine packages at the versions that carry their fixes (libpq and postgresql18-client 18.7-r0, musl and musl-utils 1.2.6-r3, zlib 1.4-r0), until upstream's image carries them; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | v1.26.1-p0 by digest `488422e3…` (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2): 0 critical, 79 high and 79 fixable as pulled, all in those five packages (Security Scan run 43492635512, linux/arm64, 2026-11-13); the build's scan is owed on the branch (the Status entry of 2026-11-13) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream; its package layer is of 2026-09-30 | current | Dependabot for a newer PgBouncer's `-p0` tag, or the pinned tag under a new digest (the directory's own entry, never a major); by hand, from the pin watch's summary issue (0146 T8), for upstream's rebuild of the same PgBouncer, a `-p<n+1>` tag, which Dependabot does not propose; either pull request is where the build goes again, once upstream's image carries the five | **T2** — stateless; the managed gate proves it |
 | `redis` | `deploy/compose/redis/Dockerfile`'s FROM, built as `localhost/redis:<tag>-<hash>` by `managed.yml` (`trigger-redis`) since 2026-11-07: the eleven Debian packages nothing there runs purged, as uid 999 from its first process (§3 item 11); `pull_policy: never` (`managed.yml` itself until then) | 7.4.12-bookworm by digest `2e3eb114…` (2026-11-06, the tag's rebuild of 2026-11-05 with apt 2.6.2: Status, 2026-11-06); `b6b6e3dc…` from 2026-10-30 (a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch or a rebuild by Dependabot's pull request (the directory's own entry, since 2026-11-07), which the pin watch lists too | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
 | `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084); since 2026-11-13 (for alpha.8; merged as #1883 on 2026-11-13, `46b7c953`; Status, 2026-11-13) at v4.8.5, whose lockfile resolves the fixed releases itself, the dompurify RUN and both swap tables are gone, and the removals, goose's RUN, tsc's removal, pnpm 10.34.9 and the purge stay: 1/19/11 and 0/1/1, as Security Scan run 43395816323 measured on the branch | v4.8.5 (2026-11-13, for alpha.8, before its three-day floor on the owner's waiver: Status, 2026-11-13; v4.8.3 from 2026-10-31, v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.5 (2026-11-12) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; v4.8.4 twelve Prisma migrations, all additive, and v4.8.5 none, with no ClickHouse migration in either; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `d9d5fcf3…`, trigger.dev 4.8.5's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261111-000000-9cbcf9c`, pushed 2026-11-12 00:03 UTC; Node 26.13.1; since 2026-11-13, Status; `86d5a599…`, 4.8.3's and 4.8.4's, `26-bookworm-build-20261021-000000-40f241b`, Node 26.12.1, before; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, before that) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26, 2026-10-31 and 2026-11-13) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |

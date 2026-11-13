@@ -302,11 +302,19 @@ updates:
   # for alpha.8): edoburu's PgBouncer image with five Alpine packages at the
   # versions that carry their fixes, which managed.yml builds as
   # `localhost/pgbouncer:<tag>-<12 hex>`, the hex being the hash of the
-  # Dockerfile's instructions. This pull request, a newer tag or a new digest
-  # in the FROM, is the way out of that build, and fails on purpose until the
-  # file is read again. Its build stops where the new base already carries one
-  # of the five, and says which: take it out of the RUN, and the whole build
-  # out once the RUN names none (the Dockerfile's header, THE WAY OUT). A newer
+  # Dockerfile's instructions. This pull request is one of the two ways out of
+  # that build: a newer PgBouncer, tagged `v<x.y.z>-p0`, or the pinned tag
+  # under a new digest. The other never comes from here. Upstream tags a
+  # rebuild of the same PgBouncer `-p<n+1>` (v1.24.1-p1; v1.23.1-p1 to -p3),
+  # and Dependabot proposes only tags that end as the pinned one does, `-p0`
+  # (read in dependabot-core at 6f880ece on 2026-11-13, docker's tag.rb,
+  # `comparable_to?`). The pin watch's summary issue lists that tag and says
+  # it is moved by hand, in a pull request of its own (the Dockerfile's
+  # header, THE WAY OUT). Either pull request fails on purpose until the file
+  # is read again. Its build stops where the new base already carries one of
+  # the five, and says which: take it out of the RUN and out of PINS in
+  # scripts/a-rebuild-upstream-has-not-made.unit.test.ts, which otherwise
+  # asks for it back, and the whole build out once the RUN names none. A newer
   # PgBouncer stops at the last RUN, which asks pgbouncer for the FROM's
   # release: read its NEWS first, as managed.yml's comment did for 1.26.1. A
   # changed instruction moves the name, and

@@ -81,15 +81,37 @@
 # And Alpine keeps only its newest build of a package: the day it moves one
 # of the five again, a machine without this name cannot build it, and `up`
 # stops at the build with the RUN's message. A machine that has the name is
-# not touched. The remedy is a pull request that moves the version here,
-# which moves the name, or THE WAY OUT.
+# not touched, so neither stack shows it. It shows first where the image is
+# built afresh: the weekly image scan's pgbouncer leg (security-scan.yml,
+# Mondays at 06:00 UTC, on main), which then has no image to scan, writes no
+# report and fails its run; and images.yml's `build (pgbouncer, …)` on a
+# pull request that touches deploy/. The remedy is a pull request that moves
+# the version here, which moves the name, or THE WAY OUT.
 #
-# THE WAY OUT. Dependabot reads this directory (.github/dependabot.yml, its
-# own entry) and the pin watch its FROM. A newer tag or digest of upstream's
-# image is a pull request whose build fails here until this file is read
-# again: when the new base carries a package at the version named, the first
-# RUN says so by name. Take that package out of the RUN's three lists. Once
-# the lists are empty, upstream's image carries all five, and the whole build
+# THE WAY OUT is upstream's next image, and it comes one of two ways.
+#   - A newer PgBouncer, `v1.26.2-p0`, is Dependabot's pull request: it reads
+#     this directory (.github/dependabot.yml, its own entry). So is this tag
+#     pushed again under a new digest, by Dependabot's source, which can also
+#     hold a digest-only update back behind a switch whose state on GitHub
+#     was not read; the pin watch compares tags and sees no re-push.
+#   - A rebuild of the same PgBouncer is a new tag, `v1.26.1-p1`, as
+#     v1.24.1-p1 and v1.23.1-p1 to -p3 were (Docker Hub's tag list, read
+#     2026-11-13). Dependabot opens no pull request for it: it proposes only
+#     tags that end as the pinned one does, `-p0` (read on 2026-11-13 in
+#     dependabot-core at 6f880ece, docker/lib/dependabot/docker/tag.rb,
+#     `comparable_to?`; not run), and where a newer PgBouncer has a `-p1`
+#     too, it proposes the `-p0`. Only the pin watch's summary issue lists
+#     such a tag, and says it is moved by hand: a pull request of its own
+#     that moves this FROM's tag and digest, and then managed.yml's image
+#     line, by the `sed` the guard's failure prints.
+# Either pull request fails here until this file is read again: when the new
+# base carries a package at the version named, the first RUN says so by
+# name. Take that package out of the RUN, its three lists and the two
+# messages that name the five, and out of the guard in the same change:
+# scripts/a-rebuild-upstream-has-not-made.unit.test.ts holds the RUN to its
+# own list, PINS, and until that loses the package too its failures ask for
+# the package back; then they name its cases that still mention it. Once the
+# lists are empty, upstream's image carries all five, and the whole build
 # goes: managed.yml's pgbouncer runs `edoburu/pgbouncer:<tag>@<digest>`
 # again, without `build:` and `pull_policy:`, and this file, its job in
 # images.yml, its Dependabot entry and its guard are deleted.
