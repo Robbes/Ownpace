@@ -4,6 +4,107 @@
 
 ## Status — 2026-11-13 (update this block at the end of every session)
 
+**2026-11-13: hono 4.13.18 and `@hono/node-server` 2.1.7 under the deploy CLI, by two overrides, so
+`pnpm audit` reads minimatch alone again; built on a branch, not merged (for alpha.8).** On the
+branch `claude/ownpace-public-readiness-y7orc6-hono-overrides`, from `main` at `331222af` (#1886).
+Read from npm's registry, upstream's tags and commits (shallow clones), the npm tarballs and the
+installed packages; nothing downloaded was run. Times are UTC.
+- **What `pnpm audit` read on `main`:** 8 advisories, 7 moderate and 1 low, none high. The gate's
+  own two steps (`pnpm audit --audit-level=moderate --json`, read by `node
+  scripts/audit-advisories.mjs --fail-at=high`) listed 7 and exited 0. Seven are on one path,
+  `apps/worker > trigger.dev > @modelcontextprotocol/sdk` 1.32.2:
+  - hono 4.13.14: GHSA-4m76-xfj5-7975, GHSA-h7mg-cq63-vhpq, GHSA-46wx-v44x-9hh2 and
+    GHSA-4h7h-rv7c-7m2v (moderate) and GHSA-3gg2-335m-rxc6 (low), all fixed in 4.13.16;
+  - `@hono/node-server` 2.1.5: GHSA-qv5m-9pm6-hqp3 and GHSA-jpvv-r467-5p4w (moderate), both fixed
+    in 2.1.6.
+
+  The eighth is the CLI's minimatch 10.2.6, kept on purpose (the entry of 2026-11-02 on the CLI).
+- **Dependabot could not move them.** Its two security updates of 2026-11-13 on `01f1769c`, runs
+  43394725868 (hono) and 43394725353 (`@hono/node-server`), failed at 08:39 with
+  `dependency_file_not_resolvable`. Neither package is a direct dependency, so pnpm, which
+  Dependabot runs with the release-age floor off, resolved the newest release (4.13.18, 2.1.8),
+  above the one Dependabot asked for (4.13.17, 2.1.6), and it stopped there. Read in the logs of
+  jobs 131782779207 and 131782777674.
+- **The two entries,** in `pnpm-workspace.yaml` with the reason beside them:
+  `"hono@>=4.0.0 <4.13.18": ^4.13.18` and `"@hono/node-server@>=2.0.0 <2.1.7": ^2.1.7`. Each is
+  scoped to the one major the SDK's range (`hono: ^4.11.4`, `@hono/node-server: ^1.19.9 ||
+  ^2.0.5`) and the lockfile are on. Without an entry pnpm leaves the lockfile where it is: with
+  hono's entry dropped the audit lists hono's five again, with the other dropped
+  `@hono/node-server`'s two.
+- **Why past the advisories' fixes, hono by two releases and `@hono/node-server` by one.**
+  Upstream merged five more fixes in a later release of each package: four in hono 4.13.18, two
+  releases past 4.13.16, and one in `@hono/node-server` 2.1.7, one past 2.1.6. Each is one
+  release past what the three-day floor picks by itself. The five are read as security fixes
+  from their title, *"Merge commit from fork"*, which 4.13.16's five advisory fixes also carry
+  (one per advisory above, matched by the files each changes), and from upstream's own words in
+  four of them. That the forks are private advisory forks, and that the one without such words
+  (`b0af6bb`) was handled as a security issue, is inferred. No advisory names them yet: npm's
+  database had none when it was read (2026-11-13, 19:42).
+  - hono 4.13.17 (2026-11-07 04:56:44), the release after the fix, holds none: its 18 commits
+    are 16 fixes whose titles carry a pull-request number, a chore and the version's own, none
+    a fork merge.
+  - hono 4.13.18 (2026-11-11 08:54:02) merges four: `validator()` matches the Content-Type's
+    media type alone, where a differently written parameter skipped validation (`b0af6bb`, which
+    has its title and its tests alone); `bodyLimit` keeps one growing buffer, because *"keeping
+    every chunk lets a body sent in tiny chunks exhaust memory"* (`9aeb45b`); `mount()` no longer
+    forwards *"an unintended suffix past parent authorization"*, a dot segment or a malformed
+    percent escape (`b982c02`); and `serveStatic` refuses a path whose second decode differs
+    under `allowPercentInPath`, where the new test reads *"Should not bypass authentication
+    through a second decode"* (`c7ff08f`).
+  - `@hono/node-server` 2.1.7 (2026-11-11 09:10:34) merges one, the same `serveStatic` second
+    decode, whose new test begins with the same words (`cc42986`).
+  - `@hono/node-server` 2.1.8 (2026-11-12 12:42:49) is five fixes from public pull requests: a
+    `duplex` getter that throws on Node 26.11 and later, and four on response bodies (one that
+    fails early, late HTTP/2 ones, one whose client has gone, and a promise kept per chunk).
+    None of them is a fork merge, so it is not taken before its floor.
+
+  So the floors are 4.13.18 and 2.1.7. With the floors at the advisories' fixes, pnpm's three-day
+  floor resolved hono 4.13.17 (2026-11-07) and `@hono/node-server` 2.1.6 (2026-11-02) by itself
+  (measured), which would have left those five fixes out.
+- **Inside the three-day floor, on the owner's waiver.** On 2026-11-13 at 19:26 the owner wrote:
+  *"Waive all waiting time."* Both versions are in `minimumReleaseAgeExclude` under a dated
+  comment with those words. The floor passes 2026-11-14 at 09:11; after it both entries may be
+  removed, and the lockfile stays as it is. Without them pnpm exits 1 and names the two: when it
+  resolves (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`) and on a frozen install
+  (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`), both measured.
+- **None of this code runs here** (read in the installed packages):
+  - the CLI's entry imports `commands/mcp.js` on every command (`dist/esm/cli/index.js`, line 20),
+    and that file takes the SDK's `server/mcp.js` and `server/stdio.js`: `trigger mcp` speaks
+    stdio (`StdioServerTransport`, line 71), not HTTP;
+  - the SDK imports `@hono/node-server` in `server/streamableHttp.js` and, with hono, in one
+    example (`examples/server/honoWebStandardStreamableHttp.js`), and neither file is on a path
+    from what the CLI imports;
+  - under a resolve hook, `trigger deploy --help` resolved 963 modules, 16 of them the SDK's,
+    none of them hono's or `@hono/node-server`'s, the same set before and after;
+  - the scripts here run `whoami` (`trigger-cli-lib.sh`) and `deploy` (`deploy-tasks.sh`, line
+    401), and print `login` and `logout` lines for the operator; nothing runs `trigger mcp` or
+    `install-mcp`.
+
+  Overridden anyway: dev tooling is no reason on its own (the esbuild entry in the overrides).
+- **What moved.** `pnpm install` changed 22 lines of the lockfile, 12 added and 10 removed, and
+  nothing else: the two entries in its `overrides`; `hono@4.13.14` to `hono@4.13.18` and
+  `@hono/node-server@2.1.5` to `2.1.7`, each package and snapshot, with the sha512 npm serves
+  (the same as the downloaded tarballs'); the SDK's two references; and `@hono/node-server`'s peer
+  range, `^4 || ^5.0.0-0`, which pnpm writes as `^4.13.18` under the hono entry. No package is
+  added or removed. Neither package has a dependency or an install script.
+- **Proved here:**
+  - after it `pnpm audit` lists one advisory, minimatch's; the gate's two steps read *"1 listed
+    (0 info, 0 low, 1 moderate, 0 high, 0 critical)"*, exit 0;
+  - a second `pnpm install` leaves the lockfile byte-identical, and a frozen install passes;
+  - `pnpm -C apps/worker exec trigger --version` prints 4.8.5, and the SDK's
+    `server/streamableHttp.js`, the one file outside the examples that takes
+    `@hono/node-server`, loads on 2.1.7;
+  - mutations, each file restored and compared afterwards: one override dropped, the lockfile
+    kept, and a frozen install exits 1 (`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`); the exclude
+    entries dropped, and a frozen install exits 1 and names both versions; an exclude entry
+    naming `hono@4.13.17`, and `a-gate-that-was-never-switched-on` fails on it.
+- **Not read:** GitHub's advisory database and OSV (neither could be reached from this session),
+  and this repository's Dependabot alerts (not readable with the token used). *"No advisory"*
+  above is the answer of npm's bulk advisory endpoint, the one `pnpm audit` asks.
+- **The CLI's row in §2.5** still read 4.8.3; it names 4.8.5 (#1883) and these two entries now.
+- **Owed before the merge:** CI on the head, and E2E (managed) on the head, because the deploy
+  CLI's resolved tree changes.
+
 **2026-11-13, records: the day's moves are merged, Trigger.dev v4.8.5 last, after the owner's
 steps on the OTA stack a day early, and the nights waiver for alpha.8 is on `main` (T3; 0146 T16).**
 On the branch `claude/ownpace-public-readiness-y7orc6-trigger-485-records`: docs only. Read from
@@ -6050,7 +6151,7 @@ it updates itself when GitHub asks it to: watched, nothing owed.
 | binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
 | Trivy, the scanner every image-scan figure in this plan comes from | `.github/workflows/security-scan.yml`: the repository scan (`security-scan`: hosted arm64 for a push to `main` since 2026-11-08 and for a dispatch with `push_runner`, the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`; hosted amd64 for a pull request, the weekly schedule and any other dispatch) and every image leg (`image-scan`: the schedule, and a dispatch with `image_scans`; hosted arm64 for an image built here, hosted amd64 for one read from its registry). One install step, word for word in both jobs, which `a-pin-that-knows-it-is-behind` holds together and runs under bash with `curl` stubbed | v0.76.2 from its GitHub release by name, `trivy_<version>_Linux-64bit.tar.gz` (`bc0fc726…`) and `trivy_<version>_Linux-ARM64.tar.gz` (`ab9d51f8…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `trivy_0.76.2_checksums.txt` gives, and each archive's own (2026-11-07). Both trivy-action steps name the same release and install nothing (`skip-setup-trivy`). Before it v0.76.1: by this step from 2026-11-04, and before that by trivy-action's own `setup-trivy`, which fetched the archive from `get.trivy.dev` with only the checksum file from GitHub | v0.76.2 (git tag `3f6334d2`, 2026-11-05 11:50 UTC; assets uploaded 12:50 UTC; three days old on 2026-11-08) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its Trivy row, against upstream's git tags): the version and both sums in both copies of the step, and `version:` on each trivy-action step, in one pull request, as the step's header says; Dependabot moves trivy-action, not the engine it runs | CI only, never deployed. A move can change an image's counts with nothing shipped changing, so each reading in this plan names its Trivy |
 | BuildKit (`moby/buildkit`) | `.github/workflows/images.yml`, `build`: `docker/setup-buildx-action`'s `driver-opts: image=…` for its `docker-container` driver, in the same job | `v0.34.2@sha256:c5f8862f…` (2026-11-07), what `buildx-stable-1`, buildx's own default and Docker's stable channel, named that day (pushed 2026-11-03); `v0.33.1@sha256:cec9f139…` from 2026-11-01 (pushed 2026-09-30) until then. Before it that default | `buildx-stable-1` = `latest` = v0.34.2 (2026-11-07); v0.35.0-rc1 (2026-11-05) is a release candidate | current | by hand, when the pin watch's summary issue says `buildx-stable-1` names another digest: the release that carries it, three days old | CI only: what builds every published image. The channel, not the newest release, because the channel is the build Docker stands behind for buildx |
-| The Trigger.dev deploy CLI (`trigger.dev`, npm) | `deploy/compose/deploy-tasks.sh` (`deploy`, from E2E (managed), the OTA stack's updates and live's deploys) and `trigger-cli-lib.sh` (`whoami`, for the bring-up's `login` phase and `deploy-tasks.sh`); the login lines `bootstrap-managed.sh`, `deploy-tasks.sh` and `stand-up-live.sh` print | since 2026-11-02, `apps/worker`'s devDependency at exactly the `@trigger.dev/sdk` version beside it (4.8.3), from the lockfile, run as `pnpm -C apps/worker exec trigger …`, with the four overrides and the build denial the Status entry of that day names. Before it `npx -y "trigger.dev@<sdk version>"`: the version pinned and nothing under it, fetched at run time outside the lockfile, the three-day floor, the overrides and the build approvals | 4.8.3 (2026-10-30 12:25:49 UTC) | current | with the SDK and the images, by `trigger-version.sh pin`, which moves it since that day; Dependabot ignores it by name; `bootstrap-managed.unit.test.ts` fails a manifest where it is not the image tag, and `deploy-tasks.sh` and the `login` phase refuse an installed CLI that is not the SDK's version | runs on the hosts and the E2E runner, never shipped in an image: the api and web installs filter it out, and the appliance's build stage installs it and its runtime stage copies only `/payload` |
+| The Trigger.dev deploy CLI (`trigger.dev`, npm) | `deploy/compose/deploy-tasks.sh` (`deploy`, from E2E (managed), the OTA stack's updates and live's deploys) and `trigger-cli-lib.sh` (`whoami`, for the bring-up's `login` phase and `deploy-tasks.sh`); the login lines `bootstrap-managed.sh`, `deploy-tasks.sh` and `stand-up-live.sh` print | since 2026-11-02, `apps/worker`'s devDependency at exactly the `@trigger.dev/sdk` version beside it (4.8.5 since 2026-11-13, #1883; 4.8.3 before), from the lockfile, run as `pnpm -C apps/worker exec trigger …`, with the four overrides and the build denial the Status entry of that day names, and since 2026-11-13 (for alpha.8; Status, 2026-11-13) two more, which hold hono at 4.13.18 or later and `@hono/node-server` at 2.1.7 or later under its `@modelcontextprotocol/sdk`, for seven advisories in code no command here loads. Before it `npx -y "trigger.dev@<sdk version>"`: the version pinned and nothing under it, fetched at run time outside the lockfile, the three-day floor, the overrides and the build approvals | 4.8.5 (2026-11-12 00:42:11 UTC) | current | with the SDK and the images, by `trigger-version.sh pin`, which moves it since that day; Dependabot ignores it by name; `bootstrap-managed.unit.test.ts` fails a manifest where it is not the image tag, and `deploy-tasks.sh` and the `login` phase refuse an installed CLI that is not the SDK's version | runs on the hosts and the E2E runner, never shipped in an image: the api and web installs filter it out, and the appliance's build stage installs it and its runtime stage copies only `/payload` |
 
 What these replaced, as recorded here on 2026-11-01 before the change: `stalwart-cli` from its
 newest release by its installer script, the dev database from `docker://postgres/18/dev`, binfmt's
