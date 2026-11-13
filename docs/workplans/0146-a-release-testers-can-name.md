@@ -2,7 +2,25 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-12 (update this block at the end of every session)
+## Status — 2026-11-13 (update this block at the end of every session)
+
+**2026-11-13: the owner waives alpha.8's counted nights, before its fold (T2; 0141 T14).** Asked at
+about 09:04 UTC whether they waive alpha.8's waiting nights, as for alpha.3 to alpha.7, the owner
+answered at about 12:04 UTC: *"Yes, waive alpha.8's waiting nights."* `v0.2.0-alpha.8` joins
+`WAIVER_VERSIONS` in `scripts/release-nights.mjs` with those words, beside alpha.3 to alpha.7. The
+two guards that hold the list, `a-release-preflight-that-said-yes-too-soon` and
+`a-tag-that-already-pointed-elsewhere`, name it, with `v0.2.0-alpha.9` now the version a waiver is
+refused for, and `docs/release.md` lists it. `readWaiver` takes the sentence as written, its
+apostrophe too. Nothing here reaches an image, a compose file, a migration or product code, and
+the CHANGELOG is untouched.
+- **Before the fold, so C is still to come.** alpha.8 is planned for Saturday 2026-11-14: Trigger.dev
+  v4.8.5 (#1883, T16) after the owner's steps on the OTA stack and E2E (managed) on its branch, and
+  MinIO's newer Chainguard build after its floor, then the fold. C is the fold's squash, which
+  carries this list, and Release reads it from `main`'s own scripts.
+- **In the nights' place,** as for alpha.4 to alpha.7: E2E (managed) and E2E (self-hosted) on
+  Postgres and on PGlite, dispatched on `main` at C, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** the owner's Release run from their own account, with `commit` set to C
+  and `waive_nights` set to the same sentence, and their approval in the `release` environment.
 
 **2026-11-12: live runs `v0.2.0-alpha.7` (T2).** The owner deployed it from the tag on 2026-11-10:
 one run of alpha.6's `deploy-live.sh`, from about 14:18 UTC, which took at 14:21:09, reversible

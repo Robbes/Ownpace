@@ -250,12 +250,14 @@ was alpha.5, on 2026-11-06: *"Waive the nights, continue"* (0146, Status of
 same runs dispatched on C. The fifth was alpha.7, on 2026-11-09, after its first
 counted night had passed on C: *"Waive the waiting, and give me next commands."*
 (0146, Status of 2026-11-09), with E2E (managed) and E2E (self-hosted) on PGlite
-dispatched on C beside that night's Postgres run. It replaces the tag pushed by
-hand for that case, so the order above holds.
+dispatched on C beside that night's Postgres run. The sixth was alpha.8, on
+2026-11-13, before its fold: *"Yes, waive alpha.8's waiting nights."* (0146,
+Status of 2026-11-13). It replaces the tag pushed by hand for that case, so the
+order above holds.
 
 **Which versions.** Only those in `WAIVER_VERSIONS` in
 `scripts/release-nights.mjs`, each there with the owner's words and the day:
-today `v0.2.0-alpha.3`, `v0.2.0-alpha.4`, `v0.2.0-alpha.5`, `v0.2.0-alpha.6` and `v0.2.0-alpha.7`. A waiver for any other version is refused. The
+today `v0.2.0-alpha.3`, `v0.2.0-alpha.4`, `v0.2.0-alpha.5`, `v0.2.0-alpha.6`, `v0.2.0-alpha.7` and `v0.2.0-alpha.8`. A waiver for any other version is refused. The
 next one is a pull request that adds its version there, quoting the owner,
 merged before the dispatch; the guard holds that each is a pre-release.
 
