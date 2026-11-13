@@ -7,9 +7,9 @@
 # and then runs gosu (/usr/local/bin/gosu) once, to become uid 70 for good.
 # gosu 1.19 is built with Go 1.24.6, and Trivy v0.76.1 counts the Go standard
 # library in it as this image's one critical (CVE-2025-68121, fixed in Go
-# 1.24.13 and 1.25.7) on linux/arm64 (2026-10-26). The newest 18.6-alpine
-# digest ships the same gosu, so no move of the pin fixes it; removing gosu
-# does. docker-entrypoint.sh runs gosu only when it starts as root (`id -u`
+# 1.24.13 and 1.25.7) on linux/arm64 (2026-10-26). PostgreSQL 18.7's image
+# (2026-11-12) ships the same gosu, so no move of the pin fixes it; removing
+# gosu does. docker-entrypoint.sh runs gosu only when it starts as root (`id -u`
 # is 0), so started as uid 70 it never does.
 #
 # WHAT A START AS UID 70 MEANS FOR AN APPLIANCE.
@@ -38,41 +38,22 @@
 # THE BASE IS THE APPLIANCE'S OWN PIN, by exact version and index digest.
 # Until 2026-10-31 it was the digest compose.yml ran before this file
 # (77f58511…), so removing gosu was the only change an appliance's first `up`
-# made to its database. Since then it is upstream's rebuild of 2026-10-26
-# (10a5c69a…), the managed stacks' base too, taken with the RUN below, so the
-# two Dockerfiles have the same instructions and build under one name. A new
-# base is a move of its own, which Dependabot offers for this directory (its
-# own `docker` entry, never a major). E2E (self-hosted) runs nightly and on
-# dispatch, never on a pull request, so it is dispatched on that pull
-# request's branch before it merges.
+# made to its database. Then it was upstream's rebuild of 2026-10-26
+# (10a5c69a…), and since 2026-11-13 it is PostgreSQL 18.7 (75dcac3d…), the
+# managed stacks' base too each time, so the two Dockerfiles have the same
+# instructions and build under one name. A new base is a move of its own,
+# which Dependabot offers for this directory (its own `docker` entry, never a
+# major). E2E (self-hosted) runs nightly and on dispatch, never on a pull
+# request, so it is dispatched on that pull request's branch before it merges.
 # The move from 77f58511… took Alpine 3.24.2 to 3.24.3: musl 1.2.6-r2 to
-# 1.2.6-r3, OpenSSL 3.5.8 to 3.5.9 and a few libraries more, with ICU at
-# 78.1-r0 in both, so the database's collation is untouched.
-#
-# FOUR OF ALPINE'S SECURITY UPDATES (workplan 0119, 2026-10-31 and
-# 2026-11-12), UNTIL POSTGRESQL 18.7 CARRIES THEM: brotli-libs 1.2.1-r0
-# (CVE-2026-111497, critical) and libcurl 8.23.0-r0 (CVE-2026-92392, high),
-# the base's only findings once gosu was gone, and since 2026-11-12 krb5-libs
-# 1.22.3-r0 and libxslt 1.1.43-r4, for the 19 highs (16 and 3) the image scan
-# read that day and not on 2026-11-09. No digest of 18.6-alpine carries all
-# four. The RUN is temporary, until an 18.7 image whose base carries them
-# (18.7 was due 2026-11-12; Docker Hub listed none that day). It takes exactly
-# those versions from Alpine's signed repository, fails before it installs
-# once the base carries any of the fixes, and fails unless those four
-# packages are all it changed. When apk cannot install them it fails with a
-# message for the appliance's operator: reach Alpine's mirror, or, once the
-# mirror no longer serves those versions, update Ownpace to its newest
-# release (docs/selfhost-quickstart.md, Troubleshooting).
-# Nothing the appliance runs loads libcurl, brotli's decoder or libxslt (only
-# libpq-oauth links libcurl, and only contrib's xml2, which nothing creates,
-# links libxslt). The server does load krb5-libs, and a client's GSSAPI
-# encryption request reaches its GSS-API code before pg_hba.conf is
-# consulted; but nothing here signs in with Kerberos, the image has no
-# keytab, and compose.yml publishes no port of the database's, so only a
-# container on its compose network, the app's, can connect at all.
-# An appliance's first `up` after the release that moves the name now reaches
-# Alpine's mirror (dl-cdn.alpinelinux.org) as well as Docker Hub.
-# deploy/compose/postgres/Dockerfile's header has the rest.
+# 1.2.6-r3, OpenSSL 3.5.8 to 3.5.9 and a few libraries more. The move to 18.7
+# took 3.24.3 to 3.24.4, with musl at 1.2.6-r3 in both. ICU is 78.1-r0 in all
+# three, so the database's collation is untouched.
+# From 2026-10-31 to 2026-11-13 a RUN here also took four of Alpine's security
+# updates from Alpine's mirror (workplan 0119). 18.7's base carries all four,
+# so that RUN is gone, and an appliance's first `up` after the release that
+# moves the name needs Docker Hub alone again. 18.7's notes asked for no
+# REINDEX of anything the appliance's database holds.
 #
 # THE NAME. compose.yml builds this as `localhost/postgres:<base tag>-<12
 # hex>`, the hex being the SHA-256 of this file's instruction lines (comments
@@ -89,37 +70,10 @@
 # to deploy/compose/postgres/Dockerfile's instructions but for the FROM; no
 # parser directive, COPY, ADD or --mount, which the hash would not cover, and
 # no package but at the exact version the instruction line names.
-FROM postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5
+FROM postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73
 
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.
 RUN rm /usr/local/bin/gosu
-
-# brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0 and libxslt
-# 1.1.43-r4, exactly, from Alpine's signed repository, and nothing else (the
-# header above).
-RUN set -eu; \
-    installed() { awk '/^P:/ { name = substr($0, 3) } /^V:/ { print name "=" substr($0, 3) }' /lib/apk/db/installed | sort; }; \
-    for pin in brotli-libs=1.2.1-r0 krb5-libs=1.22.3-r0 libcurl=8.23.0-r0 libxslt=1.1.43-r4; do \
-      name="${pin%%=*}"; fixed="${pin#*=}"; \
-      have="$(installed | awk -F= -v name="$name" '$1 == name { print $2 }')"; \
-      if [ -z "$have" ] || [ "$(apk version -t "$have" "$fixed")" != '<' ]; then \
-        echo "The base's ${name} is '${have}', not older than ${fixed}: upstream's image carries that fix. Take ${name} out of this RUN, and the RUN and its paragraph in the header out once it names none." >&2; \
-        exit 1; \
-      fi; \
-    done; \
-    installed > /tmp/apk-before; \
-    apk add --no-cache brotli-libs=1.2.1-r0 krb5-libs=1.22.3-r0 libcurl=8.23.0-r0 libxslt=1.1.43-r4 || { \
-      echo "Alpine's brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0 and libxslt 1.1.43-r4 could not be installed (the error above). If this machine cannot reach Alpine's mirror, dl-cdn.alpinelinux.org, let it and run the same command again. If it can, the mirror no longer serves those versions, and this release's database image can no longer be built: update Ownpace to its newest release (docs/selfhost-quickstart.md, Troubleshooting)." >&2; \
-      exit 1; \
-    }; \
-    installed > /tmp/apk-after; \
-    added="$(awk 'NR == FNR { was[$0] = 1; next } !($0 in was)' /tmp/apk-before /tmp/apk-after)"; \
-    gone="$(awk 'NR == FNR { now[$0] = 1; next } !($0 in now) { sub(/=.*/, ""); print }' /tmp/apk-after /tmp/apk-before)"; \
-    rm /tmp/apk-before /tmp/apk-after; \
-    if [ "$added" != "$(printf 'brotli-libs=1.2.1-r0\nkrb5-libs=1.22.3-r0\nlibcurl=8.23.0-r0\nlibxslt=1.1.43-r4')" ] || [ "$gone" != "$(printf 'brotli-libs\nkrb5-libs\nlibcurl\nlibxslt')" ]; then \
-      echo "The install changed more than brotli-libs, krb5-libs, libcurl and libxslt, or took other versions of them. Installed: $(echo $added). Replaced or removed: $(echo $gone)." >&2; \
-      exit 1; \
-    fi
 
 # uid 70's home is /var/lib/postgresql, the data volume. An interactive psql or
 # shell in the container would leave its history there, kept for as long as the
