@@ -6,6 +6,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The identity provider moves to Zitadel v4.20.3, whose eight fixes read as security fixes,
+  one of them in the sign-in the stack serves** (workplan 0135 T7, 0119): Zitadel's own login now
+  issues an authorization code only once the sign-in is complete and binds it to the person who
+  completed it, and the token endpoint refuses a code whose sign-in was not finished or that
+  names somebody else. A public host header that is not a plain host name is answered 400 before
+  a password-reset, invite or verification link is built from it; nothing here sends that
+  header. A password check through the session API follows the organisation's login policy, and
+  finishing a sign-in through that API always needs the `session.link` permission; here only the
+  gate's smoke calls either, and it is expected to meet both. The other four fixes are in
+  Zitadel's separate login application, which does not run here. Upstream's advisories could not
+  be read when this was written, so no severity and no CVE id is named. No setup step is
+  expected, so the database's schema stays where v4.20.2 left it: read from upstream's diff, not
+  run. A person in the middle of signing in when the provider restarts on it signs in again,
+  once. The tag's tip commit is of 2026-11-13 at 11:55 UTC, inside the three-day floor until
+  2026-11-16 at 11:55 at the earliest, and it is taken under the floor's exception for a security
+  fix.
+
 - **Trigger.dev moves to v4.8.5, whose webapp and supervisor run on Node 24.22.3, Node's security
   release of 2026-11-11** (workplan 0119): nine fixes rated High, in http, http2 and tls. It also
   takes v4.8.4's hardening: a malformed Host header is refused, a rotated API key in its grace
