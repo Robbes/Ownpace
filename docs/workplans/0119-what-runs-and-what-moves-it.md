@@ -4,8 +4,52 @@
 
 ## Status — 2026-11-13 (update this block at the end of every session)
 
+**2026-11-13, records: the day's moves are merged, Trigger.dev v4.8.5 last, after the owner's
+steps on the OTA stack a day early, and the nights waiver for alpha.8 is on `main` (T3; 0146 T16).**
+On the branch `claude/ownpace-public-readiness-y7orc6-trigger-485-records`: docs only. Read from
+GitHub and from the owner's output on 2026-11-13; times are UTC.
+- **Merged, each after its runs were green on its head,** so each is in alpha.8:
+  - #1878, Node 26.13.1, on 2026-11-12 at 13:56:30 (`b05fb1b3`), and #1879, the tasks' base on it,
+    at 14:29:46 (`2b101fc7`);
+  - #1877, Zitadel v4.20.2, at 06:32:38 (`c1db4c6a`), after E2E (managed) run 43378243641, 06:22 to
+    06:30;
+  - #1880, krb5-libs and libxslt, at 07:43:28 (`eebbdb98`), after E2E (managed) run 43384679816 and
+    E2E (self-hosted) run 43386951935;
+  - #1882, PostgreSQL 18.7, at 08:37:40 (`01f1769c`), after E2E (managed) run 43391256775 and
+    E2E (self-hosted) on Postgres run 43393721627;
+  - #1883, Trigger.dev v4.8.5, at 13:24:28 (`46b7c953`), below;
+  - #1885, the owner's waiver of alpha.8's counted nights, at 13:41:59 (`ce8eb4f4`; 0146).
+
+  The five entries below that said *built on a branch, not merged* name the merge now.
+- **`main` is green on them.** Its scheduled E2E (managed) of the day, run 43416255755 on `01f1769c`,
+  11:20 to 11:27, passed with Zitadel v4.20.2 and PostgreSQL 18.7. Its push runs on `46b7c953` and
+  `ce8eb4f4` (CI, Images, Security Scan) are green.
+- **Trigger.dev v4.8.5 on the OTA stack, a day early.** The owner's steps were planned for Saturday
+  morning. At their *"Start"*, at about 12:22, after that scheduled run had passed, they ran them
+  that afternoon:
+  - the hold, and the drain down to one pending `managed-sync-tick`;
+  - a verified dump, `triggerdb-20261113T125726Z-before-v4.8.5.sql.gz` (194M on disk, 2.7G of SQL),
+    the way back;
+  - `trigger-supervisor` and `trigger-api` stopped, `TRIGGER_IMAGE_TAG=v4.8.5` in the persisted
+    `.env`, and the hold lifted.
+
+  Then E2E (managed) run 43431128070 ran on the branch's head `3ba3118e`, 13:09 to 13:18, green:
+  - both images were built from ghcr's v4.8.5 index digests and ran healthy;
+  - CLI 4.8.5 deployed it: *Version 20261113.5 deployed with 17 detected tasks*;
+  - the restore drill read *round trip proved: 153 tables, 2 project(s)*: 151 on v4.8.3, plus the
+    two tables the migrations add;
+  - *verify: done apply: applied*, **SMOKE PASS**.
+
+  It was merged 6 minutes later. The entry below said the steps were for Saturday and the scan's
+  numbers were expected; it names both now.
+- **Owed:**
+  - the owner's checks after the merge: `printenv` in `trigger-api` reading 90 and false, every
+    unrevoked token minted before the upgrade with no `expiresAt` and no `idleTimeoutSeconds`, and
+    the twelve migrations finished and not rolled back;
+  - live's deploy of alpha.8, which is one-way and takes the copy with `triggerdb`'s dump.
+
 **2026-11-13: Trigger.dev v4.8.3 → v4.8.5, for alpha.8, before its three-day floor on the owner's
-waiver; built on a branch, not merged.** On the branch
+waiver; built on a branch, merged as #1883 (`46b7c953`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-4-8-5`, from `main` at `c1db4c6a` (#1877), with
 `main` at `01f1769c` (#1882) merged in since. It skips v4.8.4: one move, one way, one window on the
 OTA stack. Read from upstream's tags, npm's registry,
@@ -113,30 +157,37 @@ Docker Hub and ghcr's manifests, without a login; nothing read was run. Times ar
   its rows and tests moved; now 80, all green. ESLint on the changed guards, `tsc --noEmit`, and
   the six docs checks pass. No image was built here: that is the branch's
   `build (trigger, amd64|arm64)`.
-- **Owed, in this order.** (1) CI on the branch, and `build (trigger, amd64)` and `build (trigger,
-  arm64)` green on its head; then Security Scan dispatched on the branch, which measures what the
-  arithmetic says: about 1 critical, 19 high and 11 with a fix for the webapp's build (1, 22 and 14
-  for alpha.7's, Security Scan run 42440765278, less effect's two and body-parser 2.3.0's), and 0, 1
-  and 1 for the supervisor's (cross-spawn 5.1.0). (2) The owner's steps on the OTA stack, on
-  Saturday 2026-11-14 in the morning, with no E2E (managed) queued or running: the hold and the
-  drain; `trigger-version.sh backup before-v4.8.5`; `trigger-supervisor` and `trigger-api` stopped;
+- **Proved on the branch,** on its head `3ba3118e` (`main` at `01f1769c`, #1882, merged in). Every
+  workflow run on it passed: 57 checks, and 4 skipped. `build (trigger, amd64)` (job 131786095765)
+  and `build (trigger, arm64)` (job 131786095933) built the webapp from the v4.8.5 base with the
+  removal RUN, goose v3.29.0 by its SHA-256, the purge and the offline-pnpm check, and no swap RUN.
+  Security Scan run 43395816323, dispatched on the branch with image scans (Trivy v0.76.2,
+  linux/arm64), read what the arithmetic said: 1 critical, 19 high and 11 with a fix for the
+  webapp's build (1, 22 and 14 for alpha.7's, Security Scan run 42440765278, less effect's two and
+  body-parser 2.3.0's), and 0, 1 and 1 for the supervisor's (cross-spawn 5.1.0).
+- **Then, in this order** (the first three done on 2026-11-13; the entry above has the runs).
+  (1) The owner's steps on the OTA stack, planned for Saturday morning and brought forward to the
+  Friday afternoon, with no E2E (managed) queued or running: the hold and the drain;
+  `trigger-version.sh backup before-v4.8.5`; `trigger-supervisor` and `trigger-api` stopped;
   `TRIGGER_IMAGE_TAG=v4.8.5` in the persisted `.env` with `env-upsert.sh`, and in the checkout's
-  `.env` too where it is a copy; the hold lifted. No ClickHouse copy is needed this time. (3) E2E
+  `.env` too where it is a copy; the hold lifted. No ClickHouse copy is needed this time. (2) E2E
   (managed) on the branch, dispatched by the session, not the owner: it builds both images, migrates
-  `triggerdb`, redeploys the tasks with CLI 4.8.5, smokes and drills. (4) The merge, before the next
-  scheduled E2E (managed) on `main` (it has started between about 09:50 and 10:20): `main` at
-  v4.8.3 against a `.env` at v4.8.5 stops at its bring-up. (5) After it, on the OTA stack:
-  `printenv` in `trigger-api` reads 90 and false, `/admin/api` answers 404, and every unrevoked
+  `triggerdb`, redeploys the tasks with CLI 4.8.5, smokes and drills. (3) The merge, before the next
+  scheduled E2E (managed) on `main` (13:24:28, `46b7c953`). Its cron says 03:30, but GitHub has started it much later: on
+  the last two Saturdays at 09:51 (2026-10-31) and 10:31 (2026-11-07). `main` at v4.8.3 against
+  a `.env` at v4.8.5 stops at its bring-up. (4) Owed: after it, on the OTA stack: `printenv` in
+  `trigger-api` reads 90 and false, which is what proves both settings (a 404 from `/admin/api`
+  alone would not, since a route that is not there answers 404 too), and every unrevoked
   token minted before the upgrade has no `expiresAt` and no `idleTimeoutSeconds`. Live takes it from
   the alpha.8 tag: the hold and the drain, `TRIGGER_IMAGE_TAG=v4.8.5` in live's `.env`, then
   `deploy-live.sh v0.2.0-alpha.8` after its dry run, which says one-way and takes the copy with the
   `triggerdb` dump; its builds reach github.com (goose) and the npm registry (pnpm 10.34.9) only.
-  Then the same three checks, the hold lifted and `live-pass-check.sh`. The way back on the OTA
+  Then the same checks, the hold lifted and `live-pass-check.sh`. The way back on the OTA
   stack is `trigger-version.sh restore` of the `before-v4.8.5` dump, with the `.env` back to v4.8.3
   and the branch unmerged; on live, the copy before the update.
 
 **2026-11-13: both Postgres images move to PostgreSQL 18.7, by `postgres:18.7-alpine`'s index
-digest, and the package RUN comes out; built on a branch, not merged.** On the branch
+digest, and the package RUN comes out; built on a branch, merged as #1882 (`01f1769c`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-postgres-18-7`, from `main` at `eebbdb98` (#1880). Read from
 Docker Hub's registry and tag API without a login, each blob checked against its digest; from the
 public git of docker-library/postgres, docker-library/official-images, Trigger.dev and Zitadel, each
@@ -254,7 +305,7 @@ Times are UTC.
 
 **2026-11-12: both Postgres builds take Alpine's krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 at build,
 with brotli-libs and libcurl, for the 19 highs the image scan read in them today; built on a branch,
-not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-postgres-krb5-libxslt`, from
+merged as #1880 (`eebbdb98`).** On the branch `claude/ownpace-public-readiness-y7orc6-postgres-krb5-libxslt`, from
 `main` at `b05fb1b3` (#1878), with `main` at `c1db4c6a` (#1877) merged in since. For alpha.8, on the
 owner's word the same day: *"Postgres yes"*. Read from Docker Hub's registry without a login, each
 blob checked against its digest; from the public git of Alpine's aports, MIT krb5, PostgreSQL,
@@ -373,7 +424,7 @@ was run. Times are UTC.
   (`eebbdb98`). Its RUN came out again with PostgreSQL 18.7, the entry above.
 
 **2026-11-12: the identity provider moves to Zitadel v4.20.2, a security fix, built on a branch,
-not merged (0135 T7).** On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-2`, from
+merged as #1877 (`c1db4c6a`) (0135 T7).** On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-2`, from
 `main` at `778fd847` (#1874), with `main` at `2b101fc7` (#1879) merged in since; 0135's Status of
 the same day reads its six commits. Times are UTC.
 - **Why.** `go.mod` moves `github.com/go-jose/go-jose/v4` from 4.1.4 to 4.1.7 (80d2281a), the fix
@@ -438,7 +489,7 @@ without a login; times are UTC.
 
 **2026-11-12: Node moves to 26.13.1, nodejs.org's security release of 2026-11-11, in the four
 `FROM node:` lines, the distroless runtime's three and the Windows payload's `node.exe` sums, in
-one change, before its three-day floor; built on a branch, not merged.** On the branch
+one change, before its three-day floor; built on a branch, merged as #1878 (`b05fb1b3`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-node-26-13-1`, from `main` at `5e3d1f92` (#1876). Read
 from Docker Hub's and gcr.io's registries without a login, each platform's index, manifest,
 config and every layer, each blob checked against its digest and each layer's contents against
@@ -5855,7 +5906,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); from 2026-10-31 the build also took brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions (Status, 2026-10-31), and from 2026-11-12 krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 the same way (Status, 2026-11-12), until a base carried the four fixes; since 2026-11-13, on its branch, 18.7's base carries all four, so the build takes nothing from Alpine's mirror (Status, 2026-11-13); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.7-alpine by digest `75dcac3d…` since 2026-11-13, on its branch (the tag pushed 2026-11-12 22:18 UTC, inside its three-day floor until 2026-11-15 22:18, under the security exception on the owner's word, Status); `10a5c69a…` (18.6, upstream's rebuild of 2026-10-26) from 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4 | 18.7 (2026-11-12), `75dcac3d…` (read 2026-11-13, Status) | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and `a-gate-on-a-version-nothing-ships` until ci.yml's dev URL moves, each printing the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a new minor's release notes are read for REINDEX advice against the two databases' indexes before it merges (18.7's: none needed, Status 2026-11-13) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `deploy/compose/redis/Dockerfile`'s FROM, built as `localhost/redis:<tag>-<hash>` by `managed.yml` (`trigger-redis`) since 2026-11-07: the eleven Debian packages nothing there runs purged, as uid 999 from its first process (§3 item 11); `pull_policy: never` (`managed.yml` itself until then) | 7.4.12-bookworm by digest `2e3eb114…` (2026-11-06, the tag's rebuild of 2026-11-05 with apt 2.6.2: Status, 2026-11-06); `b6b6e3dc…` from 2026-10-30 (a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch or a rebuild by Dependabot's pull request (the directory's own entry, since 2026-11-07), which the pin watch lists too | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084); since 2026-11-13 (for alpha.8; branch `claude/ownpace-public-readiness-y7orc6-trigger-4-8-5`, Status, 2026-11-13) at v4.8.5, whose lockfile resolves the fixed releases itself, the dompurify RUN and both swap tables are gone, and the removals, goose's RUN, tsc's removal, pnpm 10.34.9 and the purge stay: about 1/19/11 and 0/1/1 expected | v4.8.5 (2026-11-13, for alpha.8, before its three-day floor on the owner's waiver: Status, 2026-11-13; v4.8.3 from 2026-10-31, v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.5 (2026-11-12) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; v4.8.4 twelve Prisma migrations, all additive, and v4.8.5 none, with no ClickHouse migration in either; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084); since 2026-11-13 (for alpha.8; merged as #1883 on 2026-11-13, `46b7c953`; Status, 2026-11-13) at v4.8.5, whose lockfile resolves the fixed releases itself, the dompurify RUN and both swap tables are gone, and the removals, goose's RUN, tsc's removal, pnpm 10.34.9 and the purge stay: 1/19/11 and 0/1/1, as Security Scan run 43395816323 measured on the branch | v4.8.5 (2026-11-13, for alpha.8, before its three-day floor on the owner's waiver: Status, 2026-11-13; v4.8.3 from 2026-10-31, v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.5 (2026-11-12) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; v4.8.4 twelve Prisma migrations, all additive, and v4.8.5 none, with no ClickHouse migration in either; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `d9d5fcf3…`, trigger.dev 4.8.5's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261111-000000-9cbcf9c`, pushed 2026-11-12 00:03 UTC; Node 26.13.1; since 2026-11-13, Status; `86d5a599…`, 4.8.3's and 4.8.4's, `26-bookworm-build-20261021-000000-40f241b`, Node 26.12.1, before; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, before that) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26, 2026-10-31 and 2026-11-13) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
