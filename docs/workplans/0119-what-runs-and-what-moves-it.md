@@ -4,6 +4,134 @@
 
 ## Status — 2026-11-13 (update this block at the end of every session)
 
+**2026-11-13: goose v3.29.0 → v3.30.1 in the Trigger.dev webapp's build, for alpha.8, before its
+three-day floor on the owner's waiver; built on a branch, not merged.** On the branch
+`claude/ownpace-public-readiness-y7orc6-goose-3-30-1`, from `main` at `331222af` (#1886). Read from
+goose's, clickhouse-go's, ch-go's and Trigger.dev's tags and from goose's release, without a
+login; nothing read was run. Times are UTC.
+- **What it clears.** Security Scan run 43492635512, dispatched on `main` at `331222af` with
+  `image_scans` (19:29 to 19:32, Trivy, linux/arm64), read
+  `localhost/trigger.dev:v4.8.5-3cabc0a7c796` at 1 critical, 19 high and 11 with a fix. Two of the
+  11 are in `usr/local/bin/goose`, v3.29.0's release binary: `golang.org/x/net` v0.61.0 → 0.62.0
+  (CVE-2026-78661) and Go's `stdlib` v1.27.2 → 1.27.3 (CVE-2026-111943). The entry of 2026-11-07,
+  *last*, left both waiting for a goose release on newer modules; v3.29.0 was the newest then.
+- **The decision, as the owner gave it.** On 2026-11-13 at 19:26: *"Waive all waiting time."* So
+  the three-day floor does not hold v3.30.1 back for alpha.8. Its floor ends on 2026-11-15 at
+  14:02:55, three days after the later of its two assets was uploaded.
+- **What v3.30.1 is.** `git ls-remote` reads `v3.30.1` at `ded3331f` (`v3.30.0` at `8ac452db`,
+  `v3.29.0` at `8b457ba3`), and the Go module proxy dates it 2026-11-12 13:48:17, the commit's
+  time. The release's two assets were downloaded twice, at 21:26 and 21:34, and hashed, the same
+  both times and as the release's `checksums.txt` lists them:
+  - `goose_linux_arm64`, 41,287,840 bytes (the size v3.29.0's had), `a34264b9…`, `Last-Modified`
+    14:02:55;
+  - `goose_linux_x86_64`, 43,774,112 bytes, `18e32a18…`, `Last-Modified` 14:02:52.
+
+  `go version -m` reads both alike, the architecture aside: built with Go 1.27.4, CGO off, from
+  `ded3331f` unmodified, with `-X main.version=v3.30.1`; `golang.org/x/net` v0.62.0, `x/crypto`
+  v0.58.0, `x/text` v0.44.0, clickhouse-go v2.51.0, ch-go v0.75.0, `klauspost/compress` v1.20.4,
+  grpc v1.85.0. `readelf` reads each as a static ELF executable, with no interpreter and no
+  dynamic section, and no byte of either names one of the eight libraries the purge removes.
+  Neither was run.
+- **What changed in goose, v3.29.0 to v3.30.1** (`git diff` of the tags: 13 commits, 26 files).
+  - **The same, byte for byte:** `cmd/goose`, `internal/dialects/clickhouse.go`, `database/`,
+    and `goose.go`, `up.go`, `migrate.go`, `migration.go`, `migration_sql.go`, `db.go` and
+    `dialect.go`. So the command, what it reads of `GOOSE_DRIVER`, `GOOSE_DBSTRING` and
+    `GOOSE_MIGRATION_DIR`, every query on `goose_db_version` and the path `goose up` takes are
+    v3.29.0's.
+  - **Changed beneath `goose up`:** `internal/sqlparser/parser.go`, which reads a migration file
+    when it is applied (`migration.go:223`), and never one that is applied already. Its line
+    buffer starts small and grows to the same 4 MiB limit, where it was 4 MiB from a pool. The
+    last word of a line is found with `strings.FieldsSeq`, where a word scanner split it, over
+    the same white space (bufio's `isSpace` and `unicode.IsSpace` list the same code points,
+    read in Go 1.24.7's source). Under `-- +goose ENVSUB ON` a line is expanded by `interpolate`
+    v0.2.0, which keeps a `$` that starts no variable name (goose's changelog).
+  - **Trigger.dev's 55 ClickHouse migrations at v4.8.5** (`internal-packages/clickhouse/schema`,
+    numbered to 056): none says ENVSUB, the longest line is 180 bytes, none has a carriage
+    return, and the only bytes outside ASCII are box-drawing characters in three files'
+    comments. So none of the parser's changes reaches them.
+  - **Not on its path:** the Provider's sorting of SQL-only sources and its locker
+    (`provider_collect.go`, `lock/`), which the command does not use; `goose validate`
+    (`internal/migrationstats`); a container image upstream now publishes; CI and the README.
+  - **`go.mod`:** no module joins or leaves; clickhouse-go, pgx, interpolate, two other drivers,
+    `x/sync` and sqlite move.
+- **What changed in clickhouse-go, v2.49.0 to v2.51.0** (`git diff` of the tags: ten source
+  files outside tests and examples). `conn_http.go`, `conn_http_exec.go`, `conn_http_query.go`
+  and `clickhouse_std.go`, the HTTP connection and `database/sql`'s Exec and Query, are the same.
+  What changed:
+  - batch inserts under `WithAsync` and `AppendV4IPs`, neither of which goose calls, and a
+    watchdog only a native batch uses;
+  - a NULL scanned into a destination that cannot hold one is an error now, and
+    `goose_db_version`'s four columns are not Nullable;
+  - a DSN that does not parse no longer puts its password in the error;
+  - the version in the User-Agent goose sends ClickHouse: `clickhouse-go/2.51.0`, on
+    `go/1.27.4`.
+
+  ch-go v0.74.0 → v0.75.0 changes nothing under `proto/` or `compress/`.
+- **The entrypoint, read again.** `docker/scripts/entrypoint.sh` at Trigger.dev's tag `v4.8.5`
+  (`d412e08a`) is `2c6a4986…`, the build's pinned `entrypoint_sha256`. With `CLICKHOUSE_URL` set
+  it exports `GOOSE_DRIVER=clickhouse`, `GOOSE_DBSTRING` (the URL as it is, since `managed.yml`'s
+  names `secure=false`) and `GOOSE_MIGRATION_DIR`, and runs `/usr/local/bin/goose up`. Upstream's
+  `docker/Dockerfile` still builds goose v3.27.1, so `goose_from` stays.
+- **The change.** In `deploy/compose/trigger.dev/Dockerfile`: `goose_to=v3.30.1` and the two
+  `goose_sha256` values. Every check before the fetch and after the move, and the five fetches,
+  are as they were. Its header says what v3.29.0 left, what v3.30.1 is, what changed beneath
+  `goose up`, and that it is taken before its floor on the owner's waiver. `managed.yml`'s
+  `trigger-api` runs `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-1c2ba0d89644` (was
+  `-3cabc0a7c796`), moved by the `sed` `a-binary-the-stack-never-runs` printed. `git grep
+  3cabc0a7c796` finds the old name only in dated records. `docs/managed-bring-up.md`,
+  `managed.yml`'s comments and the two other guards that name the goose
+  (`a-service-that-phones-home`, `an-essential-nothing-runs`) say v3.30.1.
+- **The guard, and its floor test.** `a-binary-the-stack-never-runs`' REPLACED row names v3.30.1,
+  its two assets, their sizes and sums, and now carries the day it was taken and the waiver it
+  stands on. The test that said *past its floor* compared a fixed day with the day of
+  publication: it would be false here, and moving the day forward would have hidden that. Its
+  place is taken by `floorProblems`:
+  - a release is past its three-day floor at the start of the day it was taken, or the row
+    quotes a waiver of the owner's applied to that release by name, and the Dockerfile's header
+    carries the same words, their day and the time the floor ends;
+  - a waiver applied to v3.30.1 does not carry over to a later release, so a later move inside
+    its floor fails again until it is past its floor or a waiver is quoted for it;
+  - a waiver a release does not need is dropped, and a day that has not come is refused.
+
+  The new test holds each: the row without its waiver; a later release inside its floor, under
+  v3.30.1's waiver and under none; that release past its floor, which passes with no waiver and
+  fails with the old one; a waiver by name without the header's sentence; v3.29.0's row as it
+  was, which passes; a move dated 2026-11-16; other words, or another end of the floor, in the
+  header; a waiver dated before the release or after the move; and one with no words. 80 tests
+  to 81.
+- **Broken on disk and put back byte for byte.** Each mutation was made in the real file, the
+  guard run, and the file put back from a copy (`cmp` equal). Failed tests of 81:
+  - the waiver dropped from the row, 2: *inside its three-day floor, which ends
+    2026-11-15T14:02:55Z, and the row quotes no waiver of the owner's for it*;
+  - the waiver applied to another release, 2: *does not carry over to another release*;
+  - the move dated 2026-11-16 with no waiver, 2: *a day that has not come*;
+  - other words in the header's quote, 1: *the Dockerfile's header does not say*;
+  - `goose_to` left at v3.29.0, 41: *goose's RUN's goose_to= is v3.29.0, not v3.30.1*, and every
+    run of the RUN over the stand-in;
+  - linux-arm64's sum left at v3.29.0's, 5: *does not pin linux-arm64's goose_linux_arm64 by
+    a34264b9…*;
+  - and before the name moved, 2, with the `sed`.
+- **Expected, not measured.** No Trivy was at hand where this was built, and the OSV API is
+  outside this session's reach. By arithmetic from run 43492635512: 1 critical, 17 high and 9
+  with a fix, if Trivy reads nothing new in v3.30.1's modules.
+- **Run here.** The unit project over the 229 test files that read a changed path: 229 passed,
+  6141 tests and 19 skipped. After two edits to comments, the 31 of them that read the
+  Dockerfile, the three guards or every tracked file ran again: 1356 tests passed. ESLint on the
+  three changed guards, `tsc --noEmit`, the six docs checks and the commit convention pass. No
+  image was built: there is no Docker here.
+- **When each stack takes it.** The name is new, and compose builds an image only where its name
+  is missing. The OTA stack builds it at the first E2E (managed) with it, fetching the asset
+  from GitHub, and recreates `trigger-api` once. Live takes it with alpha.8: the two stacks
+  share one Docker daemon, so live's deploy finds the image E2E (managed) built there, and
+  builds it itself only if the name is missing. Trigger.dev v4.8.4 and v4.8.5 add no ClickHouse
+  migration, so live's `goose up` should find all 55 applied and parse none: inferred from the
+  tags, not read on live.
+- **Owed before the merge:**
+  - CI on the pull request, with images.yml's `build (trigger, amd64)` and `build (trigger,
+    arm64)`, which fetch the real assets, hold them to their sums and run `goose -version`;
+  - the image scan dispatched on the branch, for the measured numbers;
+  - E2E (managed) on the head, where `goose up` runs against the OTA stack's ClickHouse.
+
 **2026-11-13, records: the day's moves are merged, Trigger.dev v4.8.5 last, after the owner's
 steps on the OTA stack a day early, and the nights waiver for alpha.8 is on `main` (T3; 0146 T16).**
 On the branch `claude/ownpace-public-readiness-y7orc6-trigger-485-records`: docs only. Read from
@@ -5906,7 +6034,7 @@ is who moves it after T1.
 | `postgres` (managed ×2, dev) | `deploy/compose/postgres/Dockerfile`'s FROM, built as `localhost/postgres:<tag>-<hash>` by `managed.yml` and `dev.yml` since 0146 T15 (#1717, merged 2026-10-28, `6f9af7f2`: gosu removed, started as uid 70; `pull_policy: never`, built only where the name is missing); from 2026-10-31 the build also took brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 from Alpine's signed repository at exactly those versions (Status, 2026-10-31), and from 2026-11-12 krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 the same way (Status, 2026-11-12), until a base carried the four fixes; since 2026-11-13, on its branch, 18.7's base carries all four, so the build takes nothing from Alpine's mirror (Status, 2026-11-13); the Testcontainers setup starts the same FROM as uid 70; `db-roles.sh` and `stand-up-live.sh` read `managed.yml`'s | 18.7-alpine by digest `75dcac3d…` since 2026-11-13, on its branch (the tag pushed 2026-11-12 22:18 UTC, inside its three-day floor until 2026-11-15 22:18, under the security exception on the owner's word, Status); `10a5c69a…` (18.6, upstream's rebuild of 2026-10-26) from 2026-10-31, from Dependabot's #1745; `898c60cb…` from 2026-10-22; `18-alpine` floating before, never pulled by anything, §4 | 18.7 (2026-11-12), `75dcac3d…` (read 2026-11-13, Status) | current | Dependabot's PR on the Dockerfile (its own `docker` entry, no major; #1717's second review), which fails `a-database-started-as-root` until the three image lines move, and `a-gate-on-a-version-nothing-ships` until ci.yml's dev URL moves, each printing the `sed` that moves them; or by hand, in its own PR, when the pin watch's summary issue lists a newer 18.x or the image scan counts fixable findings in the digest (0146 T8); a new minor's release notes are read for REINDEX advice against the two databases' indexes before it merges (18.7's: none needed, Status 2026-11-13) | **pinned 2026-10-22** (§4); a minor upgrades in place, a major (`pg_upgrade`) is the owner's |
 | `edoburu/pgbouncer` | `managed.yml` | v1.26.1-p0 (2026-10-21, for the three CVEs this stack's `pgbouncer.ini` is open to from v1.25.2, and a fourth it probably is not; v1.24.1-p1 at the audit, v1.25.2-p0 from T2) | v1.26.1-p0 (2026-10-19), index `488422e3…`, no git tag upstream | current | by hand, in its own PR, when the pin watch's summary issue says it is behind (0146 T8; Dependabot reads no file in `deploy/compose`) | **T2** — stateless; the managed gate proves it |
 | `redis` | `deploy/compose/redis/Dockerfile`'s FROM, built as `localhost/redis:<tag>-<hash>` by `managed.yml` (`trigger-redis`) since 2026-11-07: the eleven Debian packages nothing there runs purged, as uid 999 from its first process (§3 item 11); `pull_policy: never` (`managed.yml` itself until then) | 7.4.12-bookworm by digest `2e3eb114…` (2026-11-06, the tag's rebuild of 2026-11-05 with apt 2.6.2: Status, 2026-11-06); `b6b6e3dc…` from 2026-10-30 (a security release, before its floor under the floor's exception: Status, 2026-10-30); before it 7.4.11-bookworm by digest `44960b31…` (2026-10-22; `7.4-bookworm` floating from 2026-10-21, `7-alpine` on Alpine 3.21 before) | 8.8.2-alpine | one major | owner for a major; a 7.4 patch or a rebuild by Dependabot's pull request (the directory's own entry, since 2026-11-07), which the pin watch lists too | **§3** — the licence changed at 7.4, which is the line this is pinned on; 8 *adds* AGPLv3; Valkey is the BSD drop-in. The facts and a recommendation in item 3 |
-| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084); since 2026-11-13 (for alpha.8; merged as #1883 on 2026-11-13, `46b7c953`; Status, 2026-11-13) at v4.8.5, whose lockfile resolves the fixed releases itself, the dompurify RUN and both swap tables are gone, and the removals, goose's RUN, tsc's removal, pnpm 10.34.9 and the purge stay: 1/19/11 and 0/1/1, as Security Scan run 43395816323 measured on the branch | v4.8.5 (2026-11-13, for alpha.8, before its three-day floor on the owner's waiver: Status, 2026-11-13; v4.8.3 from 2026-10-31, v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.5 (2026-11-12) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; v4.8.4 twelve Prisma migrations, all additive, and v4.8.5 none, with no ClickHouse migration in either; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
+| `ghcr.io/triggerdotdev/trigger.dev` + `supervisor` | `managed.yml` ×2, `managed.env.example`, every `@trigger.dev/*` in the root, `apps/worker` and `packages/scheduler` `package.json`, and since 2026-11-02 the deploy CLI `trigger.dev`, `apps/worker`'s devDependency (§2.5's row); since 0146 T16 (#1722, alpha.3) the FROM, by tag and index digest, of `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`, which `managed.yml` builds as `localhost/trigger.dev` and `localhost/supervisor` without files nothing here runs (depot's and esbuild's binaries, the copy of pnpm the service's user does not run, and since the owner's decision of 2026-10-27 the tar in the copy it does run: 8 criticals to 2, 2 to 0); since 2026-10-30, an alpha.3 addition, the webapp's build also puts dompurify 3.4.17's files, fetched by the sha512 npm published, in place of 3.4.13's, which nothing here loads: 2 to 1; since 2026-10-31 (alpha.4, #1763, merged 2026-11-01) both builds also remove npm, which Node bundles and nothing here runs, and the rest of node-gyp's tree in the copy each service runs, under tar's risk: twelve fixable highs in each image (Status, 2026-10-31, later); since 2026-11-02 (#1794, merged 2026-11-02 at 22:12 UTC, `b5137b4f`, for alpha.4: 1/89/57 and 0/2/2 measured on its branch, Security Scan run 41527113857; Status, 2026-11-02; *was:* a draft) both builds run pnpm 10.34.9, installed by the sha512 npm published, in place of upstream's 10.33.2, with `packageManager` rewritten to name it, until upstream's moves past 10.33.2 (hygiene: none of 10.33.2's 18 advisories is reachable here); since 2026-11-03 (a draft for alpha.4, branch `claude/ownpace-public-readiness-y7orc6-trigger-goose-tsc-swaps`; Status, 2026-11-03) the webapp's build also removes TypeScript 7's native compiler, which nothing here runs, puts goose v3.29.0's release binary, by its SHA-256, root's and executable, in place of the v3.27.1 upstream builds, and swaps undici, follow-redirects, body-parser and systeminformation for the release of their own major that fixes each, by npm's sha512, and the supervisor's its systeminformation: about 1/46/14 and 0/1/1 expected, the rest waiting on upstream (#5084); since 2026-11-13 (for alpha.8; merged as #1883 on 2026-11-13, `46b7c953`; Status, 2026-11-13) at v4.8.5, whose lockfile resolves the fixed releases itself, the dompurify RUN and both swap tables are gone, and the removals, goose's RUN, tsc's removal, pnpm 10.34.9 and the purge stay: 1/19/11 and 0/1/1, as Security Scan run 43395816323 measured on the branch; since 2026-11-13 (for alpha.8, branch `claude/ownpace-public-readiness-y7orc6-goose-3-30-1`, not merged; Status, 2026-11-13, *goose v3.29.0 → v3.30.1*) the release binary that replaces goose is v3.30.1's, built on Go 1.27.4 and `golang.org/x/net` v0.62.0, past the two highs the scan of `main` read in v3.29.0's, and taken before its three-day floor on the owner's waiver: about 1/17/9 expected, not measured | v4.8.5 (2026-11-13, for alpha.8, before its three-day floor on the owner's waiver: Status, 2026-11-13; v4.8.3 from 2026-10-31, v4.8.1 from 2026-10-25, v4.7.6 from 2026-10-23, v4.7.2 before it, v4.5.12 at the audit) | v4.8.5 (2026-11-12) | current | `trigger-version.sh` only, which moves the two FROMs and the builds' names too (0146 T16), never their `read_at`: a move reads the Dockerfiles again at the new release, and its pull request's `build (trigger, amd64|arm64)` is green before any window; the pin watch keeps an issue open while a newer tag is in both images (0146 T8), and fails while a FROM is not the pin. Back to an older version: the checkout that pinned it, never a `pin` backwards | **§3, pinned** — one way (at v4.7.6: twelve Prisma migrations and ClickHouse 049 to 054; v4.8.1 adds none; v4.8.3 six Prisma migrations and ClickHouse 055 and 056; v4.8.4 twelve Prisma migrations, all additive, and v4.8.5 none, with no ClickHouse migration in either; the status block); the gate run in the owner's window applies it, not the merge. Dependabot told to leave every `@trigger.dev/*` alone, and `trigger.dev` since 2026-11-02, and it reads no file in `deploy/compose` |
 | `triggerdotdev/node` (26-bookworm-build since 2026-10-31; 24-bookworm-build before) | `apps/worker/trigger.config.ts` (`TASK_BUILD_IMAGE`, the tasks' build stage; 0146 T14, #1716) | by digest `d9d5fcf3…`, trigger.dev 4.8.5's `BUILD_IMAGE['node-26']` (Docker Hub's `26-bookworm-build-20261111-000000-9cbcf9c`, pushed 2026-11-12 00:03 UTC; Node 26.13.1; since 2026-11-13, Status; `86d5a599…`, 4.8.3's and 4.8.4's, `26-bookworm-build-20261021-000000-40f241b`, Node 26.12.1, before; `34a3f455…`, 4.8.1's and 4.8.3's `node-24`, before that) | what the pinned CLI names for the config's runtime | none while they agree | by hand, with each Trigger.dev move and each Node major, read from the CLI's `deploy/buildImage.js` (the Status entries of 2026-10-26, 2026-10-31 and 2026-11-13) | not shipped: only `node_modules` and `index.json` leave the stage, so a stale one still builds; its Node is not the tasks' |
 | `clickhouse/clickhouse-server` | `managed.yml` | 26.8.36.3-lts by digest `d426d2f6…`, §3 item 9's option 2, the owner's decision of 2026-11-02, with two files that travel with it (`clickhouse-merge-tree.xml`, `clickhouse-users-profile.xml`), merged as #1785 on 2026-11-02 (`0b16a82e`); the OTA stack runs it since E2E (managed) run 41400187583 (06:29 to 06:39 UTC), and live runs 26.2.19.43 until a tag carries it (alpha.4) — *was:* 26.2.19.43 by digest; 26.8.36.3-lts on the branch `claude/ownpace-public-readiness-y7orc6-clickhouse-26-8`, not merged (2026-11-02; #1782, option 1, 26.3.62.3-lts, superseded) | 26.8.36.3 (2026-10-26), the LTS release with the fix for CVE-2026-116366; 26.2 has none | ahead of Trigger.dev's pin on purpose — *was:* behind until that branch merges | by hand, with Trigger.dev; the pin watch keeps an issue open while it differs from what Trigger.dev's own compose pins (0146 T8), unless the pair is recorded as intended (`CLICKHOUSE_INTENDED`, since #1785); one way, the volume copied first (`managed-bring-up.md`, *Moving ClickHouse*) | **§3 item 9, taken 2026-11-02: 26.8.36.3-lts**, ahead of Trigger.dev's 26.2.19.43 on purpose, merged as #1785; live keeps 26.2, out of ClickHouse's support and **accepted for the Alpha** on 2026-10-23, until a tag carries it. Since 2026-11-01 (CVE-2026-116366, critical, no 26.2 fix) on an internal network only `trigger-api` shares (#1774, merged 2026-11-01, §3 item 9; a container on `ownpace-network` could still join it through the socket proxy until 0136 T4's first bullet, merged as #1784 on 2026-11-02, `2cae9602`), which stays after the move |
 | `registry` | `managed.yml` | 3.1.2 (2026-10-21; 3.1.1 from #825) | 3.1.2 (2026-09-29) | current | by hand for patches and minors, when the pin watch's summary issue says (0146 T8); a major stays the owner's | **§3, taken** — the "configuration rewrite" did not reach a service that mounts no config file |
