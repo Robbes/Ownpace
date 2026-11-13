@@ -5008,7 +5008,7 @@ fix.
 **Both PostgreSQL databases run a build of the official image, without gosu,
 as uid 70** (workplan 0146 T15, 2026-10-26). `postgres` and `trigger-db` run
 `localhost/postgres:<base tag>-<12 hex>`, which compose builds from
-`deploy/compose/postgres/Dockerfile`: the pinned `postgres:18.6-alpine` digest
+`deploy/compose/postgres/Dockerfile`: the pinned `postgres:18.7-alpine` digest
 with `/usr/local/bin/gosu` removed and `USER 70:70`. gosu was the image's one
 critical finding and 25 of its 26 highs (Go 1.24.6's standard library), and the
 entrypoint runs it only when the container starts as root; started as uid 70,
@@ -5020,16 +5020,12 @@ the user gosu dropped to, it never does. What that means for you:
   their image changed: the OTA stack at the E2E (managed) run of the branch or
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
-  `up` pulled the image before), runs one `rm`, and since 2026-10-31 takes two
-  of Alpine's security updates, brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0, at
-  exactly those versions, from Alpine's mirror (`dl-cdn.alpinelinux.org`), so
-  the box must reach it as well as Docker Hub, as the visit count's GoAccess
-  build already does. Once Alpine's mirror stops serving those exact versions,
-  a machine without the name cannot build it, and says so: the Dockerfile's
-  header says what to move. That RUN is temporary, until PostgreSQL 18.7 (due
-  about 2026-11-12) carries both fixes. The services say `pull_policy:
-  never`, since no registry serves the name: `docker compose pull` passes
-  them by, and `up` builds without asking one.
+  `up` pulled the image before), runs one `rm`, and needs no package mirror.
+  From 2026-10-31 to 2026-11-13 it also took four of Alpine's security
+  updates from Alpine's mirror (`dl-cdn.alpinelinux.org`), until PostgreSQL
+  18.7's image carried them (workplan 0119). The
+  services say `pull_policy: never`, since no registry serves the name:
+  `docker compose pull` passes them by, and `up` builds without asking one.
 - **After that it is built again only when the Dockerfile changes**, which
   changes the name, **as long as nothing asks for a build.** `up --build`
   builds every service in its scope that has a `build:`, dependencies
@@ -5074,7 +5070,8 @@ the user gosu dropped to, it never does. What that means for you:
   first.
 - **Rolling back to a tag before this runs the official image again, as
   root.** Its entrypoint finds the volumes uid 70's, as it left them, and
-  starts; the data format is the same PostgreSQL 18.6.
+  starts on PostgreSQL 18.6, which reads what 18.7 wrote: a minor never
+  changes the data format.
 - **Two failures, and what they mean.** A container that exits with
   `exec: gosu: not found` was started as root (a `user:` or `-u 0` on the
   service itself): remove it. One that exits with
@@ -5096,6 +5093,9 @@ the user gosu dropped to, it never does. What that means for you:
   ADD or `--mount`, and a `build:` with args or a target. The integration
   tests start the same FROM. The pin watch reports a newer tag of the FROM,
   and the weekly image scan builds the Dockerfile and scans what it built.
+  Before it merges, read the new minor's release notes for REINDEX advice
+  against the indexes the two databases hold: 18.7's named none of theirs
+  (workplan 0119, 2026-11-13).
 
 The appliance (`deploy/selfhost/compose.yml`) runs a build of its own since
 workplan 0146 T15b, the same day: `deploy/selfhost/postgres/Dockerfile`, these

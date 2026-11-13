@@ -190,7 +190,10 @@
  * itself, tag and digest (Atlas's docker driver hands the whole tag to `docker
  * run`), and this holds it to `deploy/compose/postgres/Dockerfile`'s FROM: a
  * Dependabot pull request that moves the FROM fails here, printing the `sed`
- * that moves the dev URL with it.
+ * that moves the dev URL with it. That `sed` moves the `--dev-url` line and
+ * nothing else (2026-11-13, the move to 18.7): it matched any
+ * `docker://postgres/…/dev`, so it also rewrote the comment above that line,
+ * which records the floating URL the lint used before.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -495,7 +498,7 @@ function devUrlFaults(ci: string, dockerfile: string): string[] {
     .map(
       (tag) =>
         `migration-lint's dev database postgres:${tag} is not ${STACKS_POSTGRES}'s FROM (${base.ref}). Move it with: ` +
-        `sed -i 's#docker://postgres/[^/"]*/dev#docker://postgres/${pinned}/dev#' .github/workflows/ci.yml`,
+        `sed -i 's#--dev-url "docker://postgres/[^/"]*/dev#--dev-url "docker://postgres/${pinned}/dev#' .github/workflows/ci.yml`,
     );
 }
 
@@ -503,12 +506,12 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
   const deployed = DEPLOYMENTS.flatMap((file) => {
     const image = (parseYaml(read(file)) as { services?: { postgres?: { image?: unknown } } }).services?.postgres
       ?.image;
-    // managed.yml's is the build `localhost/postgres:18.6-alpine-<hash>` since
-    // 0146 T15, whose tag starts with its base's.
+    // managed.yml's is the build `localhost/postgres:18.7-alpine-<hash>` (a
+    // build since 0146 T15), whose tag starts with its base's.
     const m = typeof image === 'string' ? /^(?:localhost\/)?postgres:(\d+)[.\-@]/.exec(image) : null;
     return m ? [{ file, major: Number(m[1]) }] : [];
   });
-  // The tag part of each dev URL: `18.6-alpine@sha256:…` since 2026-11-01, `18` before.
+  // The tag part of each dev URL: `18.7-alpine@sha256:…` (the stacks' base, tag and digest, since 2026-11-01), `18` before.
   const devTags = [...read('.github/workflows/ci.yml').matchAll(/--dev-url\s+"docker:\/\/postgres\/(\d[^/"\s]*)\/[^"]*"/g)].map((m) => m[1]!);
   const linted = devTags.map((tag) => Number(/^\d+/.exec(tag)![0]));
 
@@ -543,13 +546,29 @@ describe('migration-lint replays onto the Postgres major the deployments run', (
     const base = dockerfileBase(read(STACKS_POSTGRES));
     const pinned = `${base.tag}@${base.digest}`;
     expect(ci, `ci.yml's dev URL is not docker://postgres/${pinned}/dev`).toContain(`docker://postgres/${pinned}/dev`);
-    for (const tag of ['18', '18-alpine', base.tag, `18.6@${base.digest}`, `${base.tag}@sha256:${'0'.repeat(64)}`]) {
+    for (const tag of ['18', '18-alpine', base.tag, `${base.tag.replace(/-alpine$/, '')}@${base.digest}`, `${base.tag}@sha256:${'0'.repeat(64)}`]) {
       const faults = devUrlFaults(ci.replace(`docker://postgres/${pinned}/dev`, `docker://postgres/${tag}/dev`), read(STACKS_POSTGRES));
       expect(faults.join('\n'), tag).toMatch(/is not deploy\/compose\/postgres\/Dockerfile's FROM .*sed -i/);
     }
     // And the other way round: the FROM moved by Dependabot, the dev URL left behind.
     const moved = read(STACKS_POSTGRES).replace(base.digest, `sha256:${'1'.repeat(64)}`);
     expect(devUrlFaults(ci, moved).join('\n')).toMatch(new RegExp(`docker://postgres/${base.tag}@sha256:${'1'.repeat(64)}/dev`));
+    // The sed it prints moves the dev URL, and nothing else: the comment above the line keeps the URL it records.
+    const sed = /Move it with: (sed -i .*)$/m.exec(devUrlFaults(ci, moved).join('\n'))?.[1];
+    expect(sed, 'the failure gives no sed').toBeTruthy();
+    const scratch = mkdtempSync(join(tmpdir(), 'dev-url-'));
+    try {
+      mkdirSync(join(scratch, '.github/workflows'), { recursive: true });
+      writeFileSync(join(scratch, '.github/workflows/ci.yml'), ci);
+      const ran = spawnSync('sh', ['-c', sed!], { cwd: scratch, encoding: 'utf8' });
+      expect(ran.status, ran.stderr).toBe(0);
+      const after = readFileSync(join(scratch, '.github/workflows/ci.yml'), 'utf8');
+      expect(devUrlFaults(after, moved), 'the sed the failure gives does not move the dev URL').toEqual([]);
+      const changed = ci.split('\n').filter((line, i) => after.split('\n')[i] !== line);
+      expect(changed, 'the sed changed more than the --dev-url line').toEqual([expect.stringMatching(/^\s*--dev-url "docker:\/\/postgres\//)]);
+    } finally {
+      rmSync(scratch, { recursive: true, force: true });
+    }
     // No dev URL at all is not a pass.
     expect(devUrlFaults(ci.replaceAll('--dev-url', '--url'), read(STACKS_POSTGRES))).toEqual(['ci.yml names no --dev-url "docker://postgres/…"']);
   });

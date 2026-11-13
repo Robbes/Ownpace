@@ -692,7 +692,7 @@ jobs:
           # this line moves too; the failure prints the `sed` that moves it.
           atlas migrate lint \
             --dir "file://$staged" \
-            --dev-url "docker://postgres/18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5/dev?search_path=public" \
+            --dev-url "docker://postgres/18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73/dev?search_path=public" \
             --latest 999
 
   lint:

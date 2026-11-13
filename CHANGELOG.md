@@ -18,6 +18,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   database one way, with twelve additive changes, so the way back is the dump taken before it.
   Taken before its three-day floor, on the owner's waiver.
 
+- **Both Postgres images move to PostgreSQL 18.7, the security release of 2026-11-12, which also
+  clears the 19 highs the image scan read in their base** (workplan 0119): PostgreSQL's notes list
+  53 security fixes, under 52 CVE ids. One needs no sign-in: a crafted cancel request could crash
+  the server and restart it (CVE-2026-116322), for anybody who can open a TCP connection to the
+  database, which here is the stack's own containers and the host's loopback. The rest need a
+  signed-in role running crafted SQL (among them use-after-frees, buffer overruns, an index plan
+  that could lead to running code, CVE-2026-116331, and row security checked too late in
+  `INSERT … ON CONFLICT`, CVE-2026-120154), or are in client tools, pg_dump and pg_restore among
+  them, which the backups here run (CVE-2026-116318, CVE-2026-116314). The managed stacks' two
+  databases and the appliance's build on `postgres:18.7-alpine` (`75dcac3d…`), on Alpine 3.24.4.
+  Its krb5-libs 1.22.3 and libxslt 1.1.43-r4 clear the 19 highs the image scan of 2026-11-12 read
+  in the 18.6 base: 16 in krb5-libs 1.22.2-r1 (CVE-2026-40355, CVE-2026-40356, CVE-2026-71199,
+  CVE-2026-71200 and 12 more) and 3 in libxslt 1.1.43-r3 (CVE-2026-9947, CVE-2026-87636,
+  CVE-2026-125350), all almost certainly out of anybody's reach here. Its brotli-libs and libcurl
+  carry the two fixes the build has taken from Alpine's mirror since alpha.4, so the build takes
+  nothing from Alpine's mirror any more, and needs Docker Hub alone. musl and ICU did not move, so
+  text sorts as before. Both builds are now named `localhost/postgres:18.7-alpine-2d3b1894d8f1`,
+  so every Postgres, the appliance's too, is rebuilt and restarted once. No REINDEX is needed:
+  18.7 asks for one after the update of btree indexes on `bpchar` columns and of `gist_trgm_ops`
+  indexes, and no database here has either. The two GIN indexes here, Trigger.dev's
+  `TaskRun_runTags_idx` and Zitadel's `unique_constraints_owners_gin`, need one only if corruption
+  is suspected, and nothing suggests it. Nothing here takes incremental backups, which 18.7 says
+  not to trust: every copy is a `pg_dump`. The image was pushed 2026-11-12 at 22:18 UTC, inside
+  the three-day floor until 2026-11-15 at 22:18. The owner took the floor's security exception on
+  2026-11-13: *"PostgreSQL 18.7 in current next alpha (8?)"*, and *"And, waive the days for wait
+  on Postgress"*.
+
 - **The identity provider moves to Zitadel v4.20.2, a security fix** (workplan 0135 T7, 0119):
   its go-jose moves from 4.1.4 to 4.1.7, the fix of CVE-2026-116587, which the week's image
   scans have read in Zitadel since 2026-11-02, in the library that parses the signing keys an
