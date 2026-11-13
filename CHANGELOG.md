@@ -6,6 +6,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The identity provider moves to Zitadel v4.20.2, a security fix** (workplan 0135 T7, 0119):
+  its go-jose moves from 4.1.4 to 4.1.7, the fix of CVE-2026-116587, which the week's image
+  scans have read in Zitadel since 2026-11-02, in the library that parses the signing keys an
+  identity provider is handed. A password change in an organisation with no notification policy
+  no longer stops Zitadel's mail handler. No setup step, so the database's schema stays where
+  v4.20.1 left it and the way back is v4.20.1. Signing in is unchanged: the stack serves
+  Zitadel's own login, whose code did not move.
+
 - **Node 26.13.1, nodejs.org's security release of 2026-11-11, in the API, the appliance, the
   tasks' base, the web build and the Windows zip** (workplan 0119): nine fixes rated High, in
   http2 and TLS, among eighteen. The four `node:` build stages move to
