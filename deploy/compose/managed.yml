@@ -415,18 +415,14 @@ services:
     # nothing here runs them. Since 2026-11-02 root's pnpm is 10.34.9 in place
     # of upstream's 10.33.2, installed by the sha512 npm published, with
     # packageManager rewritten to name it (hygiene, not a security fix; its
-    # header says why). It also replaces dompurify 3.4.13's
-    # files with 3.4.17's, fetched from the npm registry and refused unless their
-    # sha512 is the one npm published (nothing here loads dompurify; the copy
-    # the scan reads is the fixed one). Since 2026-11-03 it also removes
-    # TypeScript 7's native compiler, which nothing here runs, replaces
+    # header says why). From 2026-10-30 it also replaced dompurify's files, and
+    # from 2026-11-03 four more packages' (effect's from 2026-11-06), each by
+    # the release of the same major that fixes it; since Trigger.dev v4.8.5
+    # upstream ships those releases itself, and both swaps are gone (its
+    # header, WHAT UPSTREAM NOW SHIPS FIXED). Since 2026-11-03 it also removes
+    # TypeScript 7's native compiler, which nothing here runs, and replaces
     # goose v3.27.1, which the entrypoint runs, with goose v3.29.0's release
-    # binary from GitHub by its SHA-256, and puts undici 6.29.1,
-    # follow-redirects 1.16.2, body-parser 1.20.9 and systeminformation
-    # 5.33.19 in place of the releases they fix, by the sha512 npm published
-    # (since 2026-11-06 effect 3.22.4 too, in place of the 3.17.1 the
-    # workspace's schema-to-json links; its header says why the other two
-    # copies of effect, and body-parser 2.3.0, stay);
+    # binary from GitHub by its SHA-256;
     # so its build reaches github.com as well as the npm registry. Since
     # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
     # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
@@ -442,7 +438,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.3}-1cf30823ea57
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-3cabc0a7c796
     build:
       context: ./trigger.dev
       args:
@@ -527,6 +523,19 @@ services:
       # Misc
       PORT: 3000
       APP_LOG_LEVEL: info
+      # A CLI LOGIN LAPSES AFTER 90 DAYS UNUSED, NOT 7. The owner, 2026-11-13:
+      # "90, admin off, MFA no." From Trigger.dev v4.8.4 the token a CLI or MCP
+      # login mints stops working after this many days without use (default
+      # 7; 0 turns it off). Each use renews it; a lapsed one is only replaced,
+      # by a new login (docs/managed-bring-up.md, step 7). Each token keeps the
+      # value it was minted with, and those minted before v4.8.4 never lapse.
+      # Live's deploys can be more than 7 days apart.
+      CLI_LOGIN_IDLE_TIMEOUT_DAYS: "90"
+      # NO ADMIN API (Trigger.dev v4.8.4). The owner, 2026-11-13: "90, admin
+      # off, MFA no." Off, every /admin/api route answers 404, whatever the
+      # credential. Nothing here calls it. The admin dashboard has its own
+      # switch, which this leaves alone.
+      ADMIN_API_ENABLED: "false"
       # NOTHING GOES TO TRIGGER.DEV'S ANALYTICS, OR PRISMA'S (privacy §8; the
       # owner, 2026-09-28, ops-telemetry (a): "Switch it off everywhere";
       # workplan 0139). Three reports, read at v4.5.16, and upstream documents
@@ -565,8 +574,8 @@ services:
       # runs, corepack downloads pnpm from the npm registry, unannounced and
       # unscanned, at every start; with this it refuses, and the start fails
       # with "Network access disabled by the environment" instead. Corepack
-      # reads it before any fetch (corepack 0.36.0, Node 24.22.1's:
-      # corepack.cjs:13142).
+      # reads it before any fetch (corepack 0.36.0, Node 24.22.1's and
+      # 24.22.3's, the same file: corepack.cjs:13142).
       COREPACK_ENABLE_NETWORK: "0"
     ports:
       # Plain HTTP, and the deploy CLI and its image build ask it on 127.0.0.1
@@ -643,11 +652,13 @@ services:
   # they test against is the only version this stack has evidence about.
   #
   # AHEAD OF THEIR PIN ON PURPOSE: option 2 of workplan 0119 §3 item 9, the
-  # owner's decision of 2026-11-02. Trigger.dev v4.8.3 still pins 26.2.19.43,
+  # owner's decision of 2026-11-02. Trigger.dev v4.8.3 still pins 26.2.19.43
+  # (and v4.8.5 does too: its docker/ compose is v4.8.3's),
   # a line ClickHouse no longer supports, and CVE-2026-116366 (critical: code
   # execution with no password) has no 26.2 fix. 26.8.36.3-lts carries it.
   # Read release by release from 26.3 to 26.8, and every 26.8 patch note to
-  # 26.8.34.13, against v4.8.3's 55 migrations (numbered to 056), its queries
+  # 26.8.34.13, against v4.8.3's 55 migrations (numbered to 056; v4.8.5 adds
+  # none and changes none), its queries
   # and the settings it passes (docs/managed-bring-up.md, "Moving
   # ClickHouse"): one change stops a schema on an EMPTY volume (from 26.7 an
   # AggregatingMergeTree refuses migration 022's errors_v1 at CREATE), and
@@ -832,11 +843,12 @@ services:
     # Built here as trigger-api is (deploy/compose/supervisor/Dockerfile):
     # upstream's image without root's copy of pnpm, with node's pnpm 10.34.9 in
     # place of 10.33.2 (since 2026-11-02), without node-gyp's tree (tar was in
-    # it) in node's, and without npm; since 2026-11-03 with systeminformation
-    # 5.33.19 in place of 5.31.7, by the sha512 npm published. No `user:`, so
+    # it) in node's, and without npm (from 2026-11-03 until v4.8.5, which
+    # ships 5.33.19 itself, it also put systeminformation 5.33.19 in place of
+    # 5.31.7). No `user:`, so
     # it runs as the image's node, whose copy its CMD runs and the Dockerfile
     # keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.3}-9fa6db37008b
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.5}-9c532368504f
     build:
       context: ./supervisor
       args:
@@ -2464,7 +2476,7 @@ networks:
   # 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The
   # clickhouse service above ran 26.2, which ClickHouse's SECURITY.md lists as
   # unsupported, so no fix will come for it, and Trigger.dev still pins it at
-  # v4.8.3. The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
+  # v4.8.3 (and at v4.8.5). The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
   # (§3 item 9, option 2), and this network stays as it is. Who can
   # reach the server is this file's, and until this network it was everybody:
   # every service on ownpace-network, the internet-facing ones included (the

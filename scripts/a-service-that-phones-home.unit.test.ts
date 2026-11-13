@@ -10,8 +10,8 @@
  * read at the version this repository pins; five are switched off, and
  * Nextcloud is not yet:
  *
- *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6, v4.8.1 and
- *    v4.8.3), three ways.
+ *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6, v4.8.1, v4.8.3
+ *    and v4.8.5), three ways.
  *    Its server's PostHog identified
  *    the user by id, email and name at every sign-in (`services/postAuth.server.ts`
  *    calls `telemetry.user.identify`, `services/telemetry.server.ts`) and sent
@@ -56,7 +56,24 @@
  *    keys (login origins and checks, queue and webhook metrics, a deployment
  *    index store that falls back to `OBJECT_STORE_*` and is off by default,
  *    ClickHouse reader limits) name no third party. pnpm there is upstream's
- *    10.33.2.
+ *    10.33.2. At v4.8.5 (read 2026-11-13, with v4.8.4, six commits before it)
+ *    telemetry.server.ts, root.tsx and the entrypoint are v4.8.3's;
+ *    postAuth.server.ts first refuses a sign-in to a disabled account, then
+ *    identifies as before, through the client the opt-out leaves unmade;
+ *    usePostHog.ts adds `readPostHogFirstTouch`, which reads nothing while
+ *    PostHog is not loaded, as it never is with the key empty, and whose one
+ *    caller, `confirm-basic-details.tsx`, sends it on Trigger.dev's own cloud
+ *    only, to Attio, off without `ATTIO_API_KEY` (a third party below); the
+ *    Dockerfile moves only its Node base, to 24.22.3; and `env.server.ts`'s new
+ *    keys (CLI login and token expiry, an admin API switch, API key IP ranges,
+ *    card checks and billing for Trigger.dev's own cloud, run engine and alert
+ *    limits) name no third party. One route new in v4.8.4,
+ *    `/api/v1/trusted-deploys/*`, fetches GitHub's signing keys
+ *    (`token.actions.githubusercontent.com`,
+ *    `services/trustedDeploys/github.server.ts`) to check a bearer token a
+ *    caller sends, before it looks up any grant: only on such a request, and
+ *    nothing here sends one. prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1
+ *    are unchanged.
  *  - ZITADEL (v4.19.2) sends a "service ping" once a day to
  *    `https://zitadel.com/api/ping`: the version, and the id, creation date and
  *    domains of every instance, and with `ResourceCount` the number of users,
@@ -214,7 +231,7 @@
  * trigger-supervisor's builds refuse it), but a container keeps the environment
  * it was started with until a deploy recreates it, which is why
  * `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run on the
- * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6, 4.8.1 and 4.8.3
+ * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6, 4.8.1, 4.8.3 and 4.8.5
  * `packages/cli-v3/src/telemetry/tracing.ts` is gone, and `handleTelemetry` in
  * `src/cli/common.ts` only runs the command, so no exporter of its own was
  * found; its one PostHog client is the MCP server's feedback tool
@@ -398,7 +415,7 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   SESSION_SECRET: 'a secret; names no host',
   MAGIC_LINK_SECRET: 'a secret; names no host',
   ENCRYPTION_KEY: 'a secret; names no host',
-  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2, v4.7.6, v4.8.1 and v4.8.3 does not read it',
+  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5 does not read it',
   MANAGED_WORKER_SECRET: 'a secret; names no host',
   APP_ORIGIN: "the dashboard's own origin",
   LOGIN_ORIGIN: "the dashboard's own origin",
@@ -424,8 +441,30 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   POSTHOG_PROJECT_KEY: "the switch for the dashboard's PostHog, empty",
   CHECKPOINT_DISABLE: "the switch for Prisma's checkpoint at every start",
   COREPACK_ENABLE_NETWORK:
-    "\"0\" stops corepack fetching pnpm from the npm registry when the build left no copy for the user that runs (corepack 0.36.0, Node 24.22.1's: corepack.cjs:13142, before any fetch); it reaches nothing (0146 T16)",
+    "\"0\" stops corepack fetching pnpm from the npm registry when the build left no copy for the user that runs (corepack 0.36.0, Node 24.22.1's and 24.22.3's: corepack.cjs:13142, before any fetch); it reaches nothing (0146 T16)",
+  CLI_LOGIN_IDLE_TIMEOUT_DAYS: 'how many days a CLI login may go unused before it lapses (v4.8.4, personalAccessToken.server.ts); names no host',
+  ADMIN_API_ENABLED: '"false" makes every /admin/api route answer 404 before any authentication (v4.8.4, services/adminApi.server.ts); names no host',
 });
+
+/**
+ * TWO KEYS THE OWNER CHOSE, held here because this file reads every key
+ * `trigger-api` sets. The owner, 2026-11-13, for Trigger.dev v4.8.5: *"90, admin
+ * off, MFA no."* From v4.8.4 a CLI login lapses after `CLI_LOGIN_IDLE_TIMEOUT_DAYS`
+ * days unused (upstream's default 7), and `/admin/api` answers unless
+ * `ADMIN_API_ENABLED` is off (upstream's default on). Dropped or taken from a
+ * `.env`, either is upstream's default again, and nothing would say so.
+ */
+export const WEBAPP_CHOSEN: Readonly<Record<string, string>> = Object.freeze({
+  CLI_LOGIN_IDLE_TIMEOUT_DAYS: '90',
+  ADMIN_API_ENABLED: 'false',
+});
+
+/** The owner's two webapp keys, each written in the file at its chosen value. */
+export function chosenProblems(env: Record<string, string>): string[] {
+  return Object.entries(WEBAPP_CHOSEN).flatMap(([key, want]) =>
+    exactly(env, key, want).map((p) => `${p}: the owner chose ${key}: "${want}" on 2026-11-13`),
+  );
+}
 
 /** Trigger.dev's webapp: both halves of its PostHog and Prisma's checkpoint off, and no key nobody has read. */
 export function webappProblems(env: Record<string, string>): string[] {
@@ -589,7 +628,7 @@ interface Row {
  * held to the Dockerfile's FROM, without its digest: a version move is still
  * a re-read.
  */
-const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.3';
+const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.5';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.2';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7';
@@ -657,14 +696,14 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     why:
       "PostHog from the server at every sign-in (id, email, name) and on user, organisation and project creation, PostHog in " +
       "the dashboard's browser with the signed-in user's id and email, and Prisma's checkpoint to checkpoint.prisma.io at every " +
-      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6, v4.8.1 and v4.8.3; ' +
+      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5; ' +
       'prisma 6.14.0 CLI.ts and utils/checkpoint.ts); built here from that image, with files deleted and nothing added that runs',
     holds: (svc, entry) => {
       const { from, problems } = builtFrom(svc, entry);
       if (from !== undefined && from !== TRIGGER_WEBAPP) {
         problems.push(`built FROM ${from}, and its defaults were read at ${TRIGGER_WEBAPP}: re-read what the new version sends by default, then move TRIGGER_WEBAPP`);
       }
-      return [...problems, ...webappProblems(environmentOf(svc))];
+      return [...problems, ...webappProblems(environmentOf(svc)), ...chosenProblems(environmentOf(svc))];
     },
   },
   'deploy/compose/managed.yml:zitadel': {
@@ -787,7 +826,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:trigger-supervisor': {
     readAt: 'build',
     why:
-      "its settings at v4.7.2, v4.7.6, v4.8.1 and v4.8.3 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
+      "its settings at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
       "the local distrust-cas.cjs) have no analytics or error report; it sends its traces to the webapp's " +
       'own /otel and serves its metrics on its own loopback; built here from ghcr.io/triggerdotdev/supervisor with a copy of pnpm deleted (0146 T16)',
     holds: (svc, entry) => {
@@ -1077,6 +1116,19 @@ describe('the checks refuse what a regression would write', () => {
     expect(webappProblems({ ...OFF, SENTRY_DSN: '' })).toHaveLength(1);
     expect(webappProblems({ ...OFF, DEPOT_TOKEN: 'x', ALERT_RESEND_API_KEY: 'x' })).toHaveLength(2);
     expect(webappProblems({ ...OFF, A_KEY_NOBODY_READ: 'x' })).toHaveLength(1);
+  });
+
+  it("the webapp: the owner's two keys dropped, changed, or taken from the .env", () => {
+    const CHOSEN = { CLI_LOGIN_IDLE_TIMEOUT_DAYS: '90', ADMIN_API_ENABLED: 'false' };
+    expect(chosenProblems(CHOSEN)).toEqual([]);
+    expect(chosenProblems({})).toHaveLength(2);
+    expect(chosenProblems({ CLI_LOGIN_IDLE_TIMEOUT_DAYS: '90' })).toHaveLength(1);
+    expect(chosenProblems({ ADMIN_API_ENABLED: 'false' })).toHaveLength(1);
+    expect(chosenProblems({ ...CHOSEN, ADMIN_API_ENABLED: 'true' })).toHaveLength(1);
+    expect(chosenProblems({ ...CHOSEN, CLI_LOGIN_IDLE_TIMEOUT_DAYS: '7' })).toHaveLength(1);
+    expect(chosenProblems({ ...CHOSEN, ADMIN_API_ENABLED: '${ADMIN_API_ENABLED:-false}' })).toHaveLength(1);
+    // Each key also has its reason, so the webapp's own check passes it.
+    expect(Object.keys(WEBAPP_CHOSEN).filter((k) => !(k in WEBAPP_KEYS))).toEqual([]);
   });
 
   it("the webapp: Prisma's checkpoint left on, emptied, or taken from the .env", () => {

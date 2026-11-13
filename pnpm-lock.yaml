@@ -60,11 +60,11 @@ importers:
         specifier: ^7.2.0
         version: 7.2.0
       '@trigger.dev/core':
-        specifier: 4.8.3
-        version: 4.8.3(supports-color@10.2.2)(zod@4.6.7)
+        specifier: 4.8.5
+        version: 4.8.5(supports-color@10.2.2)(zod@4.6.7)
       '@trigger.dev/sdk':
-        specifier: 4.8.3
-        version: 4.8.3(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)
+        specifier: 4.8.5
+        version: 4.8.5(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)
       croner:
         specifier: ^11.0.0
         version: 11.0.0
@@ -367,8 +367,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
       '@trigger.dev/sdk':
-        specifier: 4.8.3
-        version: 4.8.3(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)
+        specifier: 4.8.5
+        version: 4.8.5(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)
       croner:
         specifier: 11.0.0
         version: 11.0.0
@@ -383,8 +383,8 @@ importers:
         specifier: ^2.10.2
         version: 2.10.2
       trigger.dev:
-        specifier: 4.8.3
-        version: 4.8.3(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2)
+        specifier: 4.8.5
+        version: 4.8.5(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2)
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@opentelemetry/api@1.9.1)(@types/node@26.6.6)(@vitest/coverage-v8@5.1.0)(jsdom@31.0.0(@noble/hashes@1.8.0))(vite@8.3.6(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(tsx@4.23.15)(yaml@2.9.1))
@@ -512,8 +512,8 @@ importers:
         specifier: workspace:*
         version: link:../shared
       '@trigger.dev/sdk':
-        specifier: 4.8.3
-        version: 4.8.3(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)
+        specifier: 4.8.5
+        version: 4.8.5(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)
       croner:
         specifier: 11.0.0
         version: 11.0.0
@@ -690,8 +690,8 @@ packages:
   '@drizzle-team/brocli@0.10.2':
     resolution: {integrity: sha512-z33Il7l5dKjUgGULTqBsQBQwckHh5AbIuxhdsIxDDiZAzBOrZO6q9ogcWC65kU382AfynTfgNumVcNIjuIua6w==}
 
-  '@electric-sql/client@1.0.14':
-    resolution: {integrity: sha512-LtPAfeMxXRiYS0hyDQ5hue2PjljUiK9stvzsVyVb4nwxWQxfOWTSF42bHTs/o5i3x1T4kAQ7mwHpxa4A+f8X7Q==}
+  '@electric-sql/client@1.3.0':
+    resolution: {integrity: sha512-6pVQOBmocDBj5diGCOcyekL9gsa2Kk3j/eN3fytzLYKxqUguvuojMisoYPexHgOchJlcMzR6qpJTYj42npWWxw==}
 
   '@electric-sql/pglite@0.5.15':
     resolution: {integrity: sha512-ERZWgaRTxueGV4cvL1tfpAOzFCWTXoUtbCBqnf2FhHDVs/so9eAKaanvrwWF9Dntx7BYsmFQujVQ0/B4S8Mmiw==}
@@ -1710,8 +1710,8 @@ packages:
     peerDependencies:
       '@testing-library/dom': '>=7.21.4'
 
-  '@trigger.dev/build@4.8.3':
-    resolution: {integrity: sha512-4KohHZdx0urxL96zisBAqvL4J4uKZ5u4rejWYyE8UkxDdOviR1YD3nxVmbYN4lWnpHEGxue116ZZrRoZr0+1MQ==}
+  '@trigger.dev/build@4.8.5':
+    resolution: {integrity: sha512-IJtmb6WCg9wG46MABOCmi9SNlZxT888CG6lIPF5/Ct2SJBULzTbKo99wHnnrVcNfN0hEXH3FwLtqTGdYRE/vPQ==}
     engines: {node: '>=18.20.0'}
     peerDependencies:
       '@typescript/typescript6': ^6.0.0
@@ -1722,14 +1722,14 @@ packages:
       typescript:
         optional: true
 
-  '@trigger.dev/core@4.8.3':
-    resolution: {integrity: sha512-V/7nOgnshOMMIUQ392wKAojLmE1t/xuod7WOnFE5s62d2IhnOaYGLBFtN0WnuNQP/GVxmRVGARwRv8j43XH0XA==}
+  '@trigger.dev/core@4.8.5':
+    resolution: {integrity: sha512-3frwtaBtLz08uZyzxucVCHpd8Qd6Vek559/qREb78MKQMg3pd4LsmOeZjbKR0aINMtUztl6BmwRiBOYQxEc5fQ==}
     engines: {node: '>=18.20.0'}
     peerDependencies:
       zod: ^4.6.7
 
-  '@trigger.dev/schema-to-json@4.8.3':
-    resolution: {integrity: sha512-bmEdNExiuLEP+Mirj6J1oJ748VOlcWIRGVmGvJR0u40H5dqYA0I3qx2RHiF9KjR4Tk5fVi/fE60CakUireUQUA==}
+  '@trigger.dev/schema-to-json@4.8.5':
+    resolution: {integrity: sha512-NswblLBhHV5K9CDlP8uUbjnyZ4KAyNABEZhiyeJNDcc1IAczYMj+AvN+5yoS+nudztr/g5Af3RdzfG9BdZXoAQ==}
     engines: {node: '>=18.20.0'}
     peerDependencies:
       '@sinclair/typebox': '>=0.34.30'
@@ -1750,8 +1750,8 @@ packages:
       valibot:
         optional: true
 
-  '@trigger.dev/sdk@4.8.3':
-    resolution: {integrity: sha512-0IkDT/mjRXVhRaaXEMlCbqb0YwafgUW75LvkVQMLe3w1L0sO/+Ud/YjNjQqrl8foZO1w2a+a08NEueyNKu9reg==}
+  '@trigger.dev/sdk@4.8.5':
+    resolution: {integrity: sha512-pcBthE8C2NYyvLAAuawGC0kRBwF8DZjjkiDkXZjMD6RVFdaO0oTi2zjx9VqIMEGfPWM8vOmUIWyvQNkYL9WJ7Q==}
     engines: {node: '>=18.20.0'}
     peerDependencies:
       '@ai-sdk/otel': '>=1.0.0-0 <2'
@@ -4410,8 +4410,8 @@ packages:
     resolution: {integrity: sha512-BcDSDW+SIGWVOns1Zm6Yg91q9AEj7eaID0QDY9oIqJD1A8dscNwMcl9Sms2DeuWCNov1X0/oXanHGYQBSLwZsg==}
     engines: {node: ^22.14.0 || >=24.0.0}
 
-  trigger.dev@4.8.3:
-    resolution: {integrity: sha512-4Ut5OOnAs5C2z9ePQu7CpRi0QSODfi4stFDlmvI7DzkgsNNHf6mwc+tiTGzF0V/KMSBuhNvZPGNYEOX76mr0mA==}
+  trigger.dev@4.8.5:
+    resolution: {integrity: sha512-7OOsudSCJLUhnOq76XgNIS2cejhIIjH/7KnwXSjvHbg1gHyzHfS74nBUpPRphTwS5Daote9l+weh0cMsyvU0eg==}
     engines: {node: '>=18.20.0'}
     hasBin: true
 
@@ -4883,7 +4883,7 @@ snapshots:
 
   '@drizzle-team/brocli@0.10.2': {}
 
-  '@electric-sql/client@1.0.14':
+  '@electric-sql/client@1.3.0':
     dependencies:
       '@microsoft/fetch-event-source': 2.0.1
     optionalDependencies:
@@ -5711,10 +5711,10 @@ snapshots:
     dependencies:
       '@testing-library/dom': 10.4.1
 
-  '@trigger.dev/build@4.8.3(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2)(magicast@0.3.5)(supports-color@10.2.2)(zod@4.6.7)':
+  '@trigger.dev/build@4.8.5(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2)(magicast@0.3.5)(supports-color@10.2.2)(zod@4.6.7)':
     dependencies:
       '@prisma/config': 6.19.3(magicast@0.3.5)
-      '@trigger.dev/core': 4.8.3(supports-color@10.2.2)(zod@4.6.7)
+      '@trigger.dev/core': 4.8.5(supports-color@10.2.2)(zod@4.6.7)
       mlly: 1.8.2
       pkg-types: 1.3.1
       tinyglobby: 0.2.17
@@ -5729,10 +5729,10 @@ snapshots:
       - utf-8-validate
       - zod
 
-  '@trigger.dev/core@4.8.3(supports-color@10.2.2)(zod@4.6.7)':
+  '@trigger.dev/core@4.8.5(supports-color@10.2.2)(zod@4.6.7)':
     dependencies:
       '@bugsnag/cuid': 3.2.2
-      '@electric-sql/client': 1.0.14
+      '@electric-sql/client': 1.3.0
       '@google-cloud/precise-date': 4.0.0
       '@jsonhero/path': 1.0.21
       '@opentelemetry/api': 1.9.1
@@ -5767,10 +5767,10 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@trigger.dev/schema-to-json@4.8.3(supports-color@10.2.2)(zod@4.6.7)':
+  '@trigger.dev/schema-to-json@4.8.5(supports-color@10.2.2)(zod@4.6.7)':
     dependencies:
       '@sodaru/yup-to-json-schema': 2.0.1
-      '@trigger.dev/core': 4.8.3(supports-color@10.2.2)(zod@4.6.7)
+      '@trigger.dev/core': 4.8.5(supports-color@10.2.2)(zod@4.6.7)
       effect: 3.22.4
       zod: 4.6.7
       zod-to-json-schema: 3.25.2(zod@4.6.7)
@@ -5779,11 +5779,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@trigger.dev/sdk@4.8.3(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)':
+  '@trigger.dev/sdk@4.8.5(react@19.3.1)(supports-color@10.2.2)(zod@4.6.7)':
     dependencies:
       '@opentelemetry/api': 1.9.1
       '@opentelemetry/semantic-conventions': 1.41.1
-      '@trigger.dev/core': 4.8.3(supports-color@10.2.2)(zod@4.6.7)
+      '@trigger.dev/core': 4.8.5(supports-color@10.2.2)(zod@4.6.7)
       uncrypto: 0.1.3
       zod: 4.6.7
     optionalDependencies:
@@ -8524,7 +8524,7 @@ snapshots:
     dependencies:
       punycode: 2.3.1
 
-  trigger.dev@4.8.3(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2):
+  trigger.dev@4.8.5(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2):
     dependencies:
       '@babel/parser': 7.29.9
       '@clack/prompts': 0.11.0
@@ -8534,9 +8534,9 @@ snapshots:
       '@opentelemetry/api-logs': 0.219.0
       '@opentelemetry/instrumentation': 0.219.0(@opentelemetry/api@1.9.1)(supports-color@10.2.2)
       '@s2-dev/streamstore': 0.25.0(supports-color@10.2.2)
-      '@trigger.dev/build': 4.8.3(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2)(magicast@0.3.5)(supports-color@10.2.2)(zod@4.6.7)
-      '@trigger.dev/core': 4.8.3(supports-color@10.2.2)(zod@4.6.7)
-      '@trigger.dev/schema-to-json': 4.8.3(supports-color@10.2.2)(zod@4.6.7)
+      '@trigger.dev/build': 4.8.5(@typescript/typescript6@6.0.2)(@typescript/typescript6@6.0.2)(magicast@0.3.5)(supports-color@10.2.2)(zod@4.6.7)
+      '@trigger.dev/core': 4.8.5(supports-color@10.2.2)(zod@4.6.7)
+      '@trigger.dev/schema-to-json': 4.8.5(supports-color@10.2.2)(zod@4.6.7)
       ansi-escapes: 7.3.0
       braces: 3.0.3
       c12: 1.11.2(magicast@0.3.5)

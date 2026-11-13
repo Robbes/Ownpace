@@ -134,8 +134,9 @@
  * every tenant's mailbox and calendar credentials during a pass and are HTTPS
  * clients, and nothing moved their Node: Dependabot ignores `@trigger.dev/*`,
  * and upstream rebuilt that image only when it chose to (issue #1669, the pin
- * watch's record of it). CLI 4.7.7, 4.8.1 and 4.8.3 name a rebuild on 24.22.1
- * (`…@sha256:3cdc8242…`), which is when upstream chose to.
+ * watch's record of it). CLI 4.7.7, 4.8.1, 4.8.3 and 4.8.4 name a rebuild on
+ * 24.22.1 (`…@sha256:3cdc8242…`), which is when upstream chose to, and 4.8.5
+ * one on 24.22.3 (`…@sha256:5e793c37…`, Node's November security release).
  *
  * From #1689 the deploy config copied the Node binary out of the very image
  * `apps/api/Dockerfile` builds FROM over the base image's, and from workplan
@@ -645,9 +646,9 @@ async function buildFor(target: BuildContext['target']): Promise<{ layers: Build
 
 /**
  * SHA-256 of the eight `EMSIGN_COMPROMISE_REJECTED_INTERMEDIATES` of
- * trigger.dev 4.8.3 (`dist/esm/deploy/emsignRejectedIntermediates.js`, the same
- * file as 4.8.1's), each as the CLI writes it (its `pemLines`, a newline after
- * each), in file-name order: the bytes the vendored files must be.
+ * trigger.dev 4.8.5 (`dist/esm/deploy/emsignRejectedIntermediates.js`, the same
+ * file as 4.8.1's and 4.8.3's), each as the CLI writes it (its `pemLines`, a
+ * newline after each), in file-name order: the bytes the vendored files must be.
  */
 const CLI_REJECTED_SHA256 = 'f4b2b13e9429b1beeda72e78bd7c48a13c0556c2c33ab77236eac90d187832ac';
 const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
@@ -660,7 +661,7 @@ const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
  * CLI reaches the tasks only by hand, through a new base and a new pin. A
  * Trigger.dev move fails here until they have been read again.
  */
-const CLI_READ_AT = '4.8.3';
+const CLI_READ_AT = '4.8.5';
 
 /** The DER certificate at the head of a `TRUSTED CERTIFICATE` PEM, without OpenSSL's trust settings after it. */
 function certificateOf(pem: string): X509Certificate {
@@ -712,11 +713,11 @@ describe('the tasks run on the prebuilt base, pinned by tag and index digest', (
     expect(manifest.image?.instructions).toEqual([]);
   });
 
-  it("the eight rejected intermediates the base copies are trigger.dev 4.8.3's bytes, each whole", () => {
+  it(`the eight rejected intermediates the base copies are trigger.dev ${CLI_READ_AT}'s bytes, each whole`, () => {
     const files = readdirSync(join(REPO_ROOT, REJECTED_DIR)).sort();
     expect(files).toHaveLength(8);
     const pems = files.map((f) => read(`${REJECTED_DIR}/${f}`));
-    expect(createHash('sha256').update(pems.join('')).digest('hex'), `${REJECTED_DIR} is not trigger.dev 4.8.3's list`).toBe(
+    expect(createHash('sha256').update(pems.join('')).digest('hex'), `${REJECTED_DIR} is not trigger.dev ${CLI_READ_AT}'s list`).toBe(
       CLI_REJECTED_SHA256,
     );
     for (const [i, pem] of pems.entries()) {
