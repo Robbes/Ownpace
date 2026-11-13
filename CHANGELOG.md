@@ -103,6 +103,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The registry that holds the tasks' images is pinned by its index digest, so both stacks run
+  the copy the image scan reads** (workplan 0119): `registry:3.1.2@sha256:82f6ff4a…`, Docker
+  Hub's rebuild of 2026-11-05 on Alpine 3.24.4. Docker Hub builds an official image again under
+  the same tag when its base moves, and nothing here pulls an image the machine already has. So
+  by the tag alone the stacks kept the copy pulled first, in October, while the image scan read
+  whatever the tag named on the day of the scan. Which copy that was cannot be read any more.
+  The registry itself does not change: every build of the tag carries the same file,
+  distribution v3.1.2, and only the Alpine packages under it differ. The first bring-up with
+  this pulls the image once and restarts the registry; the task images it holds stay on its
+  volume. Kept current and made true to the scan, not a security fix: the eight high findings
+  the scan reads are in the registry's own binary and stay until distribution releases. The
+  index was last pushed 2026-11-11 at 23:38 UTC, inside the three-day floor until 2026-11-14 at
+  23:38, so it is taken on the owner's waiver of 2026-11-13: *"Waive all waiting time."* A guard
+  now fails when the line loses its digest. `busybox:1.38` stays by its tag: four scripts run
+  the same image by that tag, so it moves with them, in a change of its own.
 - **CI's migration lint moves to Atlas v1.3.9** (workplan 0119), past its three-day floor on
   2026-11-12, each architecture checked by the SHA-256 of `/atlas` in the release's community
   image on Docker Hub. Its one upstream commit since v1.3.8 changes Atlas's skills and docs and

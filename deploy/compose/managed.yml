@@ -763,8 +763,33 @@ services:
   # 3.1.2 (2026-10-21) changes none of that: config-dev.yml, the filesystem
   # driver and tracing/ are as they were at v3.1.1, and its security fix is in
   # the registry's client, which only a pull-through cache uses.
+  #
+  # BY TAG AND INDEX DIGEST SINCE 2026-11-13 (workplan 0119), by tag alone
+  # until then. Docker Hub builds its official images again under the same
+  # tag when their base moves, and nothing here pulls an image the machine
+  # already has, so the stacks kept the copy pulled first, in October, while
+  # the image scan read the tag as Docker Hub served it on the day of each
+  # scan. Which copy that was is unread: Docker Hub keeps a tag's last push
+  # alone, and nothing recorded the image a stack ran. The digest is
+  # 82f6ff4a7f98…, the index Docker Hub serves for `3.1.2`, last pushed
+  # 2026-11-11 at 23:38 UTC, when riscv64's image landed; its linux/amd64
+  # (52b489ad8e6f…) and linux/arm64 (f3d00d4a9323…) images are the rebuild
+  # of 2026-11-05. Read off both, every blob checked against its sha256 and
+  # nothing run: Alpine 3.24.4 with 17 packages, and bin/registry is
+  # distribution v3.1.2 at commit 3220848f, built with Go 1.26.8: upstream's
+  # release file, which the image's build checks by its sha256. The image's
+  # Dockerfile has not moved since 2026-09-24, when it took v3.1.2, so every
+  # build of this tag carries that binary and a rebuild moves the Alpine
+  # under it. NOT A SECURITY FIX: the image scan of 2026-11-13 read the tag,
+  # which named this index, at 0 findings in Alpine's packages and 8 high in
+  # bin/registry (go-jose 4.1.4, klauspost/compress 1.18.4, golang.org/x/net
+  # 0.59.0 and Go 1.26.8), and those stay until distribution releases:
+  # v3.1.2 is its newest tag. A rebuild or a release moves by a pull request
+  # with the new digest read the same way;
+  # `scripts/a-float-nothing-ever-pulled.unit.test.ts` holds the digest, and
+  # this comment to it.
   trigger-registry:
-    image: registry:3.1.2
+    image: registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
     restart: unless-stopped
     logging: *logging
