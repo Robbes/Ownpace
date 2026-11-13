@@ -39,11 +39,15 @@ digest; nothing read was run. Times are UTC.
   tree at v1.3.6's commit, v1.3.8's and this one, and the dev URL's reading of the docker driver
   (§2.5's dev-database row) holds. It moves because the pin watch lists it behind, and a pin kept
   current is the policy.
-- **Why upstream released it: not read.** The image's `org.opencontainers.image.revision` label
-  moved from `5314a229…` to `76e2273d…`, and upstream's public git serves neither commit (*not
-  our ref*), so what moved between the two releases is not public. Upstream's release notes were
-  not read: their site and download host are refused to this session, and upstream's git tags
-  stop at v1.3.0.
+- **Why upstream released it: not read, and not public.** Each image carries a provenance
+  statement, attached to its index and read by its digest. v1.3.10's, for both architectures, and
+  v1.3.9's amd64 one say the same: the image was built by a dispatch of a release workflow, the
+  version its input, in a repository the statement marks private, at the revision the image's
+  `org.opencontainers.image.revision` label names, on the same distroless base (`d75cdd72…`).
+  That revision moved from `5314a229…` to `76e2273d…`, and upstream's public git serves neither
+  (*not our ref*). So what moved between the two releases is in that repository, and the public
+  commit the community binary names did not move. Upstream's release notes were not read: their
+  site and download host are refused to this session, and upstream's git tags stop at v1.3.0.
 - **A correction to the entry of 2026-11-12 below.** It says the one commit after v1.3.8's
   touches 77 files *all under `skills/`, `doc/` and `.claude-plugin/`*. Read again today, the 77
   are 76 under `skills/` and `.claude-plugin/marketplace.json`, and none is under `doc/`. Its
