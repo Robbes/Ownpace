@@ -105,7 +105,7 @@
  *    route off the machine. The switch stays, and stays held here: a network
  *    is one line of a compose file away from having a route again.
  *  - MINIO (Chainguard's build since 0146 T7, the fork's
- *    `RELEASE.2026-10-23T20-06-51Z`, read at `RELEASE.2026-09-22T19-25-18Z`,
+ *    `RELEASE.2026-11-12T01-15-23Z`, read at `RELEASE.2026-09-22T19-25-18Z`,
  *    whose code it shares; read first at Bitnami's 2025.5.24) asks
  *    `dl.min.io` for the newest release at every start, with a User-Agent that
  *    carries the OS, the architecture, `docker`, its version and the CPU's
@@ -633,20 +633,25 @@ const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.2';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7';
 /**
- * Chainguard's MinIO (0146 T7): `latest` by the index digest it had on
- * 2026-11-07, taken 2026-11-10, past its floor, for CVE-2026-116591 in
- * klauspost/compress (0119 Status). Its `minio` and `mc` are rebuilt from the
- * source of the digest before it, `aea6c163…` (taken 2026-11-06), with that
- * one module moved to 1.20.2 and nothing else in `go version -m`, so the code
- * read here did not change. The server is the fork's
- * `RELEASE.2026-10-23T20-06-51Z`, Wolfi's -r3 (go-jose 4.1.6,
- * golang.org/x/net 0.62.0); its cmd/ and internal/ are those of
- * `RELEASE.2026-09-22T19-25-18Z`, read at that tag of `chainguard-forks/minio`
- * (the two differ in go.mod, go.sum and a CI workflow alone); its mc is
- * `RELEASE.2025-08-13T08-35-41Z`.
+ * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
+ * 2026-11-13 at 20:19 UTC, taken that day for alpha.8, inside its three-day
+ * floor on the owner's waiver (0119 Status, 2026-11-13). The server is the
+ * fork's `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b, Wolfi's
+ * 0.20261112.011523-r0, built with Go 1.27.4 (go-jose 4.1.7,
+ * golang.org/x/net 0.62.0); its mc is
+ * `RELEASE.2025-08-13T08-35-41Z`, Wolfi's -r29, the source and modules of the
+ * digest before it, `869ca317…` (taken 2026-11-10), rebuilt on Go 1.27.4.
+ * Between 76c06ff1, that digest's release, and a60e2a7b the fork changed
+ * go.mod, go.sum, CI scripts and a workflow, the Makefile's tidy check, two
+ * debugging tools and one test file, so its cmd/ and internal/ are still
+ * those of `RELEASE.2026-09-22T19-25-18Z`, read at that tag of
+ * `chainguard-forks/minio`. The four files read there (`cmd/server-main.go`,
+ * `cmd/common-main.go`, `cmd/update.go` and
+ * `internal/config/callhome/callhome.go`) are the same git blobs at the new
+ * tag, so the code read here did not change.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:869ca3178831d9f521ea02258a0f0d4fbc1e9f84302e707514e1f861b860865d';
+  'chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926';
 const MAILPIT =
   'axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce';
 /**
@@ -727,7 +732,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     why:
       'a release check to dl.min.io at every start, its User-Agent carrying OS, architecture, version and CPU ' +
       "(cmd/server-main.go, cmd/update.go, cmd/common-main.go at chainguard-forks/minio's RELEASE.2026-09-22T19-25-18Z, " +
-      'the same files at RELEASE.2026-10-23T20-06-51Z; ' +
+      'the same files at RELEASE.2026-10-23T20-06-51Z and RELEASE.2026-11-12T01-15-23Z; ' +
       'first read at RELEASE.2025-05-24T17-08-30Z, the Bitnami image this replaced)',
     holds: (svc) => {
       const env = environmentOf(svc);

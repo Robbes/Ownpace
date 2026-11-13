@@ -103,6 +103,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-13** (workplan
+  0119, 0146 T7): the fork's MinIO release RELEASE.2026-11-12T01-15-23Z, whose server code is that
+  of the releases before it, built with Go 1.27.4 and go-jose 4.1.7, and the `mc` client rebuilt on
+  Go 1.27.4, on glibc 2.44 with three fixes from its release branch, the one for CVE-2026-84243
+  among them, libgcc rebuilt and ncurses' snapshot of 2026-11-07. Kept current, not a
+  security fix: the image scan of 2026-11-13 read the build before it at 0 critical and 0 high,
+  and neither fix it carries reaches this stack. Go 1.27.4's net/http fix (CVE-2026-97054) needs a
+  request body past MinIO's 5 TiB limit, and the glibc one a `LANGUAGE` variable no service sets.
+  The release check is still off, read again at the new release, and nothing a stack sets changes;
+  the next bring-up pulls it, and the data volume carries over. Taken before its three-day floor,
+  on the owner's waiver.
 - **CI's migration lint moves to Atlas v1.3.9** (workplan 0119), past its three-day floor on
   2026-11-12, each architecture checked by the SHA-256 of `/atlas` in the release's community
   image on Docker Hub. Its one upstream commit since v1.3.8 changes Atlas's skills and docs and
