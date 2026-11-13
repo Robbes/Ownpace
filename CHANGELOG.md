@@ -6,6 +6,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **`pnpm audit` reads one advisory again, the one kept on purpose: hono 4.13.18 and
+  `@hono/node-server` 2.1.7 under the deploy CLI** (workplan 0119). Seven advisories, six moderate
+  and one low, reached the tree on one path, the MCP library the Trigger.dev deploy CLI brings
+  (`@modelcontextprotocol/sdk` 1.32.2), which had hono 4.13.14 and `@hono/node-server` 2.1.5:
+  GHSA-4m76-xfj5-7975, GHSA-h7mg-cq63-vhpq, GHSA-46wx-v44x-9hh2, GHSA-4h7h-rv7c-7m2v and
+  GHSA-3gg2-335m-rxc6 in hono, GHSA-qv5m-9pm6-hqp3 and GHSA-jpvv-r467-5p4w in `@hono/node-server`.
+  Two overrides in `pnpm-workspace.yaml` move them, with the reason beside them. They go past
+  the advisories' fixes (4.13.16 and 2.1.6), hono by two releases and `@hono/node-server` by one,
+  because upstream merged four more fixes in hono 4.13.18 and one more in `@hono/node-server`
+  2.1.7. Those five are read as security fixes from their commit title, "Merge commit from fork",
+  which the five advisory fixes of hono 4.13.16 also carry, and from upstream's own words in four
+  of them; no advisory in npm's database names them yet. Both are from 2026-11-11, so they are
+  taken before their three-day floor, on the owner's waiver. Nothing shipped changes, and none
+  of this code runs here: the CLI runs on the host for `whoami` and `deploy`, its MCP server
+  speaks stdio, and no command of it loads either package. What is left is minimatch 10.2.6
+  under the same CLI, kept because the CLI does not start on minimatch 11. Both entries go once
+  the CLI's MCP library asks for these releases itself.
+
 - **Trigger.dev moves to v4.8.5, whose webapp and supervisor run on Node 24.22.3, Node's security
   release of 2026-11-11** (workplan 0119): nine fixes rated High, in http, http2 and tls. It also
   takes v4.8.4's hardening: a malformed Host header is refused, a rotated API key in its grace
