@@ -39,7 +39,10 @@
  *               image had; Trigger.dev's Redis without the Debian packages
  *               nothing here runs, as uid 999, since 2026-11-07,
  *               deploy/compose/redis, under the name `redis` the pulled
- *               image had), so its leg builds that
+ *               image had; the pooler, edoburu's image with five Alpine
+ *               packages at the versions that carry their fixes, since
+ *               2026-11-13, deploy/compose/pgbouncer, under the name
+ *               `pgbouncer` the pulled image had), so its leg builds that
  *               directory for linux/arm64 and scans what it built
  *               (`context`); the Dockerfile must be there;
  *             - every image a script in deploy/compose or deploy/selfhost

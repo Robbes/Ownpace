@@ -1104,3 +1104,148 @@ jobs:
         run: |
           docker rm -f redis-upstream redis-built || true
           docker volume rm redis-carry-over || true
+
+  # THE POOLER BUILT HERE, ON BOTH PLATFORMS, ON A PULL REQUEST (workplan 0119,
+  # 2026-11-13, for alpha.8). managed.yml's pgbouncer runs
+  # `localhost/pgbouncer:<tag>-<hash>`, which compose builds on the machine
+  # from deploy/compose/pgbouncer: edoburu's image at its pinned digest, with
+  # five Alpine packages at the versions that carry their fixes. Nothing
+  # publishes it, so the matrix above never builds it, and without this job
+  # the first build of a pull request that moved it would be the branch's E2E
+  # (managed). The packages are Alpine's builds for each platform, so both
+  # build, natively: the box is arm64, GitHub's runners amd64. This job is
+  # also where it shows that Alpine's mirror serves the versions the
+  # Dockerfile names, to both.
+  #
+  # It builds the directory under the name managed.yml gives it, whose own
+  # RUNs take the five at their exact versions, refuse a base that carries one
+  # already and anything else that moved, and start pgbouncer and psql as
+  # upstream's user. It checks the image's user, entrypoint, command, working
+  # directory, ports and environment are upstream's. Then it starts the image
+  # as managed.yml runs pgbouncer: read-only, /tmp in memory, every capability
+  # dropped, no-new-privileges, managed.yml's pgbouncer.ini mounted where the
+  # pooler reads it, and a userlist with a password made here. No database is
+  # behind it, and none is needed: it asks the pooler's own admin console,
+  # with the command managed.yml's healthcheck runs, word for word. Then it
+  # reads the five from the running image's package database, at the versions
+  # the Dockerfile names; process 1 must be pgbouncer, as uid 70; and SHOW
+  # POOLS must list the console's own pool. The job exits with the verdict of
+  # every check, and the guard runs this step against a stub docker that
+  # answers each check wrongly in turn. On a pull request only, publishing
+  # nothing. Held by scripts/a-rebuild-upstream-has-not-made.unit.test.ts.
+  pgbouncer:
+    name: build (pgbouncer, ${{ matrix.arch }})
+    if: github.event_name == 'pull_request'
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Build the pooler as managed.yml names it, and ask it as its healthcheck does
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          # The reference compose builds, read from managed.yml's one image line for it, the base its Dockerfile names, and the packages its RUN names.
+          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/pgbouncer:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml)"
+          if [ -z "$ref" ] || [ "$(wc -l <<<"$ref")" != 1 ]; then
+            echo "::error::managed.yml names no single localhost/pgbouncer image: '${ref}'"
+            exit 1
+          fi
+          base="$(sed -n 's/^FROM[[:space:]]\{1,\}\(edoburu\/pgbouncer:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/pgbouncer/Dockerfile)"
+          if [ -z "$base" ] || [ "$(wc -l <<<"$base")" != 1 ]; then
+            echo "::error::deploy/compose/pgbouncer/Dockerfile names no single edoburu/pgbouncer FROM: '${base}'"
+            exit 1
+          fi
+          pins="$(sed -n 's/^[[:space:]]*for pin in \(.*\); do \\$/\1/p' deploy/compose/pgbouncer/Dockerfile)"
+          if [ -z "$pins" ] || [ "$(wc -l <<<"$pins")" != 1 ]; then
+            echo "::error::deploy/compose/pgbouncer/Dockerfile names no single list of packages: '${pins}'"
+            exit 1
+          fi
+          echo "::group::${ref}: deploy/compose/pgbouncer on ${base}"
+          docker pull --quiet "$base"
+          docker build --pull --progress=plain --tag "$ref" deploy/compose/pgbouncer
+          echo "::endgroup::"
+          # The image's configuration is upstream's: its user above all, and what it starts.
+          for field in User Entrypoint Cmd WorkingDir ExposedPorts Env; do
+            built="$(docker image inspect --format "{{json .Config.${field}}}" "$ref")"
+            upstream="$(docker image inspect --format "{{json .Config.${field}}}" "$base")"
+            if [ "$built" != "$upstream" ]; then
+              echo "::error::${ref}'s ${field} is ${built}, and upstream's is ${upstream}: the build must keep the image's configuration"
+              exit 1
+            fi
+          done
+          platform="$(docker image inspect --format '{{.Os}}/{{.Architecture}}' "$ref")"
+          if [ "$platform" != "linux/${ARCH}" ]; then
+            echo "::error::${ref} is ${platform}, not linux/${ARCH}: this leg did not take its own platform's packages"
+            exit 1
+          fi
+          # A userlist as ensure-env-secrets.sh writes it, with a password made here.
+          password="$(openssl rand -hex 16)"
+          printf '"pgbouncer_auth" "%s"\n' "$password" > "$RUNNER_TEMP/userlist.txt"
+          chmod 644 "$RUNNER_TEMP/userlist.txt"
+          # As managed.yml runs pgbouncer: read-only, /tmp in memory, no capability, no new privileges.
+          docker run -d --name pooler-built \
+            --read-only --tmpfs /tmp \
+            --security-opt no-new-privileges:true --cap-drop ALL \
+            -e PGBOUNCER_AUTH_PASSWORD="$password" \
+            -v "$PWD/deploy/compose/pgbouncer/pgbouncer.ini:/etc/pgbouncer/pgbouncer.ini:ro" \
+            -v "$RUNNER_TEMP/userlist.txt:/etc/pgbouncer/userlist.txt:ro" \
+            "$ref" >/dev/null
+          # managed.yml's healthcheck, word for word, until it passes or 30 seconds are gone.
+          healthcheck="PGPASSWORD=\${PGBOUNCER_AUTH_PASSWORD} psql -h 127.0.0.1 -p 6432 -U pgbouncer_auth -d pgbouncer -c 'SHOW POOLS' >/dev/null 2>&1 || exit 1"
+          healthy=no
+          for attempt in $(seq 1 30); do
+            if docker exec pooler-built sh -c "$healthcheck"; then
+              healthy=yes
+              break
+            fi
+            sleep 1
+          done
+          if [ "$healthy" != yes ]; then
+            echo "::error::the pooler did not pass managed.yml's healthcheck within 30 seconds"
+            exit 1
+          fi
+          # The five packages, as the running image's package database has them.
+          have="$(docker exec pooler-built awk '/^P:/ { name = substr($0, 3) } /^V:/ { print name "=" substr($0, 3) }' /lib/apk/db/installed || true)"
+          for pin in $pins; do
+            if ! grep -qxF "$pin" <<<"$have"; then
+              echo "::error::${ref} does not carry ${pin}, which its Dockerfile names"
+              exit 1
+            fi
+          done
+          # Process 1 is the pooler, as upstream's user: the entrypoint handed over to its command.
+          uid="$(docker exec pooler-built awk '/^Uid:/ { print $2 }' /proc/1/status || true)"
+          comm="$(docker exec pooler-built cat /proc/1/comm || true)"
+          if [ "$uid" != 70 ] || [ "$comm" != pgbouncer ]; then
+            echo "::error::process 1 is '${comm}' as uid '${uid}', not pgbouncer as uid 70, upstream's postgres"
+            exit 1
+          fi
+          # SHOW POOLS' rows, as E2E (managed) reads them: the admin console's own pool is always one.
+          pools="$(docker exec pooler-built sh -c 'PGPASSWORD="$PGBOUNCER_AUTH_PASSWORD" psql -X -h 127.0.0.1 -p 6432 -U pgbouncer_auth -d pgbouncer -tAc "SHOW POOLS"' || true)"
+          if ! grep -q '^pgbouncer|' <<<"$pools"; then
+            echo "::error::SHOW POOLS did not list the admin console's own pool: '${pools}'"
+            exit 1
+          fi
+          client="$(docker exec pooler-built psql --version || true)"
+          echo "${ref}: ${platform}, $(docker image inspect --format '{{.Id}}, user {{.Config.User}}' "$ref"); ${pins}; process 1 is ${comm} as uid ${uid}, and ${client} asked it"
+
+      - name: The pooler's log, when it did not come up as it should
+        if: failure()
+        run: docker logs pooler-built || true
+
+      - name: Remove the pooler
+        if: always()
+        run: docker rm -f pooler-built || true

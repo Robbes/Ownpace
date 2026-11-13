@@ -5233,6 +5233,54 @@ append-only file are as they were.
   the digest those tags pin: it finds `/data` uid 999's, as the build left it,
   and drops to 999 as before; `up` pulls it when the machine no longer has it.
 
+**The pooler is a build here too, until upstream rebuilds its image** (workplan
+0119, 2026-11-13, for alpha.8). `pgbouncer` runs
+`localhost/pgbouncer:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/pgbouncer`: `edoburu/pgbouncer:v1.26.1-p0` at the digest its
+Dockerfile pins, with five Alpine packages at the versions that carry their
+fixes: libpq and postgresql18-client 18.7-r0, musl and musl-utils 1.2.6-r3,
+and zlib 1.4-r0. As pulled, the image held 79 high findings in those five (the
+image scan of 2026-11-13), and upstream had not rebuilt it since 2026-10-19.
+PgBouncer itself, its `pgbouncer.ini`, its userlist, its user (uid 70), its
+entrypoint and its healthcheck are as they were.
+
+- **The first `up` builds it, and the pooler restarts once.** The bring-up's
+  data phase (`up_wait pgbouncer`) finds no image of that name and builds it,
+  pulling the pinned base from Docker Hub when the machine does not have it
+  and the five packages from Alpine's mirror (`dl-cdn.alpinelinux.org`), then
+  recreates `pgbouncer` because its image changed: the OTA stack at the E2E
+  (managed) run of the branch or the next nightly gate, live inside
+  `deploy-live.sh`'s hold and drain, from the tag. Every client connection
+  drops for the seconds of the restart, and the app's pools open new ones. A
+  deploy that also replaces `postgres` recreates the pooler anyway (the data
+  phase, a pooler that outlived its database), so on such a deploy this adds
+  no restart. `pull_policy: never`, as for the databases.
+- **When the build cannot take the packages.** Alpine keeps only its newest
+  build of a package in a stable branch. Once it moves one of the five again,
+  a machine that does not have the image cannot build it: `up` stops at the
+  build, before it recreates anything, with the Dockerfile's own message
+  (*the mirror no longer serves those versions*). A machine that has the image
+  is not touched, and live and the OTA stack share one Docker daemon, so the
+  name the OTA stack built is there for live's deploy of the same Dockerfile.
+  The remedy is a pull request that moves the version the Dockerfile names, or
+  takes the build out.
+- **Moving it, and taking it out.** A newer tag or digest of upstream's image
+  is Dependabot's pull request (the directory's own entry, never a major), and
+  the pin watch's summary issue lists it. Its build stops where the new base
+  already carries one of the five, and names it: take that package out of the
+  Dockerfile's RUN. Once the RUN names none, `pgbouncer` goes back to
+  `edoburu/pgbouncer:<tag>@<digest>` in `managed.yml`, and the Dockerfile, its
+  job, its Dependabot entry and its guard go (the Dockerfile's header, THE WAY
+  OUT). Until then `scripts/a-rebuild-upstream-has-not-made.unit.test.ts`
+  prints the `sed` that moves `managed.yml`'s image line when an instruction
+  changed; `build (pgbouncer, amd64)` and `build (pgbouncer, arm64)`
+  (`images.yml`) build it, hold its configuration to upstream's, start it as
+  `managed.yml` does and ask it with the healthcheck's command; and its E2E
+  (managed) is dispatched like any pin's.
+- **Rolling back to a tag before this runs upstream's image again**,
+  `edoburu/pgbouncer:v1.26.1-p0`; `up` pulls it when the machine no longer has
+  it.
+
 ### A Nextcloud major on the OTA stack
 
 Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5). A major

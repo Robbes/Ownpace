@@ -781,7 +781,15 @@ const BUILT_POSTGRES: Row = {
 export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:postgres': BUILT_POSTGRES,
   'deploy/compose/managed.yml:trigger-db': BUILT_POSTGRES,
-  'deploy/compose/managed.yml:pgbouncer': { readAt: 'edoburu/pgbouncer', why: NONE('PgBouncer') },
+  'deploy/compose/managed.yml:pgbouncer': {
+    readAt: 'build',
+    why: `${NONE('PgBouncer')}; built here since 2026-11-13 from edoburu's image, with five Alpine packages moved to the versions that carry their fixes and nothing added that runs`,
+    holds: (svc, entry) => {
+      const { from, problems } = builtFrom(svc, entry);
+      if (from !== undefined && repositoryOf(from) !== 'edoburu/pgbouncer') problems.push(`built FROM ${from}, not edoburu/pgbouncer: read what it sends by default`);
+      return problems;
+    },
+  },
   'deploy/compose/managed.yml:trigger-redis': {
     readAt: 'build',
     why: `${NONE('Redis')}; built here since 2026-11-07 from the official redis image, with eleven Debian packages purged (thirteen since 2026-11-08) and nothing added that runs`,

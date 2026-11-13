@@ -6,6 +6,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The managed stack's pooler is built here on upstream's image, with five Alpine packages at the
+  versions that carry their fixes, which clears its 79 highs** (workplan 0119): the image scan of
+  2026-11-13 read `edoburu/pgbouncer:v1.26.1-p0` at 79 high findings, every one fixed in Alpine: 38
+  each in libpq and postgresql18-client 18.6-r0 (PostgreSQL 18.7's fixes: CVE-2026-6460,
+  CVE-2026-6467, CVE-2026-14661, CVE-2026-18447 and 34 more), one each in musl and musl-utils
+  1.2.6-r2 (CVE-2026-107891) and one in zlib 1.3.2-r0 (CVE-2026-85091). Upstream's newest image is
+  of 2026-10-19, on packages of 2026-09-30, so no pin clears them. PgBouncer links neither libpq
+  nor zlib; psql, which the healthcheck runs against the container's own pooler, is what loads
+  libpq, so all 79 are almost certainly out of anybody's reach here. `managed.yml`'s pgbouncer now
+  runs `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`, built from `deploy/compose/pgbouncer`:
+  upstream's image by digest, with libpq and postgresql18-client 18.7-r0, musl and musl-utils
+  1.2.6-r3 and zlib 1.4-r0 from Alpine's signed repository, at exactly those versions. PgBouncer
+  1.26.1, its user, its entrypoint and its command are upstream's. The pooler is built and restarts
+  once at the deploy; the build reaches Alpine's mirror as well as Docker Hub, once per machine and
+  name, and goes again once upstream's image carries the five. The two PostgreSQL packages were
+  taken inside their three-day floor, on the owner's waiver.
+
 - **Trigger.dev moves to v4.8.5, whose webapp and supervisor run on Node 24.22.3, Node's security
   release of 2026-11-11** (workplan 0119): nine fixes rated High, in http, http2 and tls. It also
   takes v4.8.4's hardening: a malformed Host header is refused, a rotated API key in its grace

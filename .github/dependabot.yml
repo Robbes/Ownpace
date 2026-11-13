@@ -21,8 +21,9 @@
 # deploy/compose/postgres/Dockerfile (its entry below), the Docker socket proxy's since
 # 2026-10-30, the FROM of deploy/compose/docker-socket-proxy/Dockerfile (its entry below), the
 # dashboard's TLS front's since 2026-10-31, the FROM of deploy/compose/caddy/Dockerfile (its
-# entry below), and Trigger.dev's Redis's since 2026-11-07, the FROM of
-# deploy/compose/redis/Dockerfile (its entry below). The appliance's PostgreSQL is a build
+# entry below), Trigger.dev's Redis's since 2026-11-07, the FROM of
+# deploy/compose/redis/Dockerfile (its entry below), and the pooler's since 2026-11-13, the FROM
+# of deploy/compose/pgbouncer/Dockerfile (its entry below). The appliance's PostgreSQL is a build
 # too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
 # file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
 # that Dockerfile (in deploy/selfhost it reads only setup-stalwart.sh's Stalwart pin).
@@ -296,6 +297,36 @@ updates:
         update-types: ["version-update:semver-major"]
     commit-message:
       prefix: chore(redis)
+
+  # The pooler (deploy/compose/pgbouncer/Dockerfile, workplan 0119, 2026-11-13,
+  # for alpha.8): edoburu's PgBouncer image with five Alpine packages at the
+  # versions that carry their fixes, which managed.yml builds as
+  # `localhost/pgbouncer:<tag>-<12 hex>`, the hex being the hash of the
+  # Dockerfile's instructions. This pull request, a newer tag or a new digest
+  # in the FROM, is the way out of that build, and fails on purpose until the
+  # file is read again. Its build stops where the new base already carries one
+  # of the five, and says which: take it out of the RUN, and the whole build
+  # out once the RUN names none (the Dockerfile's header, THE WAY OUT). A newer
+  # PgBouncer stops at the last RUN, which asks pgbouncer for the FROM's
+  # release: read its NEWS first, as managed.yml's comment did for 1.26.1. A
+  # changed instruction moves the name, and
+  # scripts/a-rebuild-upstream-has-not-made.unit.test.ts fails until
+  # managed.yml's image line moves too; the failure prints the `sed`. Push both
+  # to the pull request's branch, and dispatch E2E (managed) on it: every
+  # query of the app goes through this pooler. A major is the owner's.
+  - package-ecosystem: docker
+    directory: "/deploy/compose/pgbouncer"
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: Etc/UTC
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: edoburu/pgbouncer
+        update-types: ["version-update:semver-major"]
+    commit-message:
+      prefix: chore(pgbouncer)
 
   # The self-host stack's images (workplan 0119 T1). Dependabot's compose fetcher
   # reads only the files directly in a directory whose names match

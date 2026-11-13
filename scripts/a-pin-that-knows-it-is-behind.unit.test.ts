@@ -1472,7 +1472,8 @@ describe('the routine pins, in one summary issue', () => {
   });
 
   it("names what is behind: an image newer on its registry, and the Trivy the scan runs", async () => {
-    const pgbouncer = readImages(MANAGED).find((i) => i.repo === 'edoburu/pgbouncer')!;
+    // The pooler is built here since 2026-11-13, so its pin is its Dockerfile's FROM.
+    const pgbouncer = builtImage(REAL, COMPOSE, readImages(MANAGED).find((i) => i.repo === 'localhost/pgbouncer')!)!.base;
     const newer = pgbouncer.tag.replace(/(\d+)-p(\d+)$/, (_all, patch: string) => `${Number(patch) + 9}-p0`);
     const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'edoburu/pgbouncer': newer, trivy: 'v0.99.0', cosign: 'v3.99.0' })));
     const behind = rows.filter((r) => r.state === 'behind');
@@ -1483,7 +1484,8 @@ describe('the routine pins, in one summary issue', () => {
     ]);
     const summary = summaryOf(rows, status);
     expect(summary.state).toBe('behind');
-    expect(summary.body).toContain(`- \`edoburu/pgbouncer\` (deploy/compose/managed.yml): ${pgbouncer.tag}, newest **${newer}**`);
+    expect(summary.body).toContain(`- \`edoburu/pgbouncer\` (deploy/compose/pgbouncer/Dockerfile, deploy/compose/managed.yml): ${pgbouncer.tag}, newest **${newer}**`);
+    expect(behind[0]!.notes).toEqual([builtNote('deploy/compose/pgbouncer/Dockerfile')]);
     if (!TRIVY_NAMED) expect(summary.body).toMatch(/no version: named, so trivy-action \S+'s default/);
     expect(summary.body).toContain(`- \`cosign\` (${COSIGN_FILES.join(', ')}): ${COSIGN_NAMED}, newest **v3.99.0**`);
     expect(summary.body).not.toContain('Also known');

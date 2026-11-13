@@ -597,6 +597,9 @@ export const TARGETS: Readonly<Record<string, string | null>> = {
   // container of its own on a volume of its own, never a service of the three files.
   '.github/workflows/images.yml|$name': null,
   '.github/workflows/images.yml|redis-upstream': null,
+  // And the pooler's (0119, 2026-11-13): the build started as managed.yml runs pgbouncer, with
+  // no capability, as a container of its own; what it execs there (sh, awk, cat, psql) runs as uid 70.
+  '.github/workflows/images.yml|pooler-built': null,
 };
 
 /** The capabilities a service's container has, read from its file: a list when it drops ALL, else null. */
