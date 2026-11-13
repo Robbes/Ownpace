@@ -30,10 +30,11 @@ layers, every blob checked against its digest, and `869ca317…`, `db3f583f…`,
   `331222af` on 2026-11-13 at 19:29, all images, linux/arm64) reads `869ca317…` at 0 critical, 0
   high and 0 with a fix, so this move clears no finding. It does carry fixes published since
   `869ca317…` was built, none of which reaches this stack: Go 1.27.4's net/http fix for
-  CVE-2026-97054, in the server and in `mc`, and Wolfi's backport of glibc's fix for CVE-2026-84243
-  (both below). That scan rated neither as high or critical in `869ca317…`, which has neither fix,
-  and #1881's scan read `db3f583f…` at 0, 0 and 0 (Security Scan run 43257282965), so the same is
-  expected of this digest. Its own scan is owed (below).
+  CVE-2026-97054, in the server and in `mc`, and glibc's fix for CVE-2026-84243, which Wolfi's
+  package carried as a patch from -r16 and which is in glibc's own 2.44 branch at the commit -r18 is
+  built from (both below). That scan rated neither as high or critical in `869ca317…`, which has
+  neither fix, and #1881's scan read `db3f583f…` at 0, 0 and 0 (Security Scan run 43257282965), so
+  the same is expected of this digest. Its own scan is owed (below).
 - **What is inside, against `869ca317…`.** 8 of the 23 packages moved, the same on both platforms
   (their apk databases): `minio` 0.20261023.200651-r3 → 0.20261112.011523-r0; `mc`
   0.20250813.083541-r28 → -r29; `glibc-2.44`, `glibc-2.44-locale-posix` and `ld-linux-2.44` 2.44-r14
