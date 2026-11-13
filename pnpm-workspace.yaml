@@ -319,6 +319,48 @@ overrides:
   #     8.0.2. Drop it when @trigger.dev/build asks for a @prisma/config that does.
   "deepmerge-ts@<8.0.0": ^8.0.2
   #
+  # 2026-11-13. hono and `@hono/node-server`: seven advisories (six MODERATE, one LOW), all
+  # DEV-ONLY and all on one path, apps/worker > trigger.dev (the deploy CLI, 4.8.5) >
+  # `@modelcontextprotocol/sdk` 1.32.2. The SDK asks for `hono: ^4.11.4` and
+  # `@hono/node-server: ^1.19.9 || ^2.0.5`; the lockfile held 4.13.14 and 2.1.5.
+  #   hono, all five fixed in 4.13.16 (2026-11-01):
+  #     GHSA-4m76-xfj5-7975  mount() can forward a path past middleware scoped inside the prefix
+  #     GHSA-h7mg-cq63-vhpq  RegExpRouter skips wildcard middleware for some route sets
+  #     GHSA-46wx-v44x-9hh2  csrf() does not check a hyperlink-auditing (text/ping) request
+  #     GHSA-4h7h-rv7c-7m2v  validator('form') skips a multipart request with extra parameters
+  #     GHSA-3gg2-335m-rxc6  (LOW) the css helper does not escape a split closing tag
+  #   `@hono/node-server`, both fixed in 2.1.6 (2026-11-02):
+  #     GHSA-qv5m-9pm6-hqp3  an ECONNRESET during an asynchronous WebSocket upgrade ends the process
+  #     GHSA-jpvv-r467-5p4w  a backslash in the request path is read as a path separator
+  # The two floors are one release higher than the advisories', 4.13.18 and 2.1.7 (both
+  # 2026-11-11), because upstream fixed more there, with no advisory in npm's database on
+  # 2026-11-13 (read in upstream's commits between the tags and in the npm tarballs). hono
+  # 4.13.18 merges four fixes from its private advisory forks, as 4.13.16 merged the five above:
+  # validator() matching the Content-Type's media type alone, so a differently written parameter
+  # no longer skips validation; bodyLimit keeping one buffer, where a body sent in tiny chunks
+  # could exhaust memory; mount() no longer forwarding a suffix past the parent's authorization,
+  # or a dot segment or a malformed percent escape; and serveStatic refusing a path whose second
+  # decode differs under allowPercentInPath. `@hono/node-server` 2.1.7 merges one, the same
+  # serveStatic second decode. 2.1.8 (2026-11-12) is five fixes from public pull requests, none
+  # handled as a security issue, so it is not taken before its floor. The two versions taken are
+  # inside the cooldown below: see their minimumReleaseAgeExclude entries.
+  # None of this code runs here (read 2026-11-13, in the installed packages). The CLI's entry
+  # imports commands/mcp.js on every command (dist/esm/cli/index.js, line 20), and that file
+  # takes the SDK's server/mcp.js and server/stdio.js: `trigger mcp` speaks stdio
+  # (StdioServerTransport, line 71), not HTTP. The SDK imports `@hono/node-server` in
+  # server/streamableHttp.js alone and hono in one example, and neither file is on a path from
+  # what the CLI imports: `trigger deploy --help` resolved 963 modules, 16 of them the SDK's,
+  # none of them hono's. The scripts here run `whoami` and `deploy` and nothing else
+  # (trigger-cli-lib.sh, deploy-tasks.sh). Overridden anyway: dev tooling is no reason on its own
+  # (the esbuild entry above).
+  # Each entry is scoped to the one major the SDK's range and the lockfile are on, so no consumer
+  # leaves its own range. pnpm writes the hono entry over the peer range of
+  # `@hono/node-server` as well (`^4 || ^5.0.0-0` reads `^4.13.18` in the lockfile). Drop both
+  # when the SDK the CLI brings asks for these releases or later itself, or no longer brings the
+  # two packages. Workplan 0119, Status of 2026-11-13.
+  "hono@>=4.0.0 <4.13.18": ^4.13.18
+  "@hono/node-server@>=2.0.0 <2.1.7": ^2.1.7
+  #
   # libxmljs2 is NOT INSTALLED, on purpose. It is optional for the CycloneDX SBOM tool (an
   # optional dependency of cyclonedx-npm and an optional peer of cyclonedx-library), which uses it
   # for one thing: validating an XML SBOM against its schema. The security scan writes JSON
@@ -399,3 +441,17 @@ minimumReleaseAgeExclude:
   - "@trigger.dev/schema-to-json@4.8.5"
   - "@trigger.dev/sdk@4.8.5"
   - trigger.dev@4.8.5
+  # 2026-11-13. hono 4.13.18 and `@hono/node-server` 2.1.7, the two overrides of that day, taken
+  # before their three-day floor on the owner's waiver for alpha.8. At 19:26 UTC the owner wrote:
+  # "Waive all waiting time." The reason: each carries security fixes that the newest release
+  # past the floor, hono 4.13.17 and `@hono/node-server` 2.1.6, does not (the overrides' comment
+  # lists them). It covers these two versions and nothing else: the lockfile takes no other
+  # package with them. npm published them at 08:54:02 and 09:10:34 UTC on 2026-11-11 (pnpm's
+  # frozen check reads 08:50:42 and 09:07:07 UTC for them), so the floor passes 2026-11-14
+  # 09:11 UTC. Without these entries pnpm exits 1 and names these two: when it resolves
+  # (ERR_PNPM_NO_MATURE_MATCHING_VERSION) and on a frozen install
+  # (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). After the floor both may be removed, and the
+  # lockfile stays as it is. The next move of either package must remove its entry: the guard
+  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
+  - hono@4.13.18
+  - "@hono/node-server@2.1.7"
