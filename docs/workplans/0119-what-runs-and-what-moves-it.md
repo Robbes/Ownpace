@@ -31,23 +31,32 @@ installed packages; nothing downloaded was run. Times are UTC.
   ^2.0.5`) and the lockfile are on. Without an entry pnpm leaves the lockfile where it is: with
   hono's entry dropped the audit lists hono's five again, with the other dropped
   `@hono/node-server`'s two.
-- **Why one release past the advisories' fixes.** Upstream fixed more security issues in the next
-  release of each, with no advisory in npm's database when it was read (2026-11-13, 19:42):
-  - hono 4.13.18 (2026-11-11 08:54:02) merges four fixes from its private advisory forks
-    (*"Merge commit from fork"*, as 4.13.16's five, one per advisory above): `validator()` matches
-    the Content-Type's media type alone, where a differently written parameter skipped validation
-    (`b0af6bb`); `bodyLimit` keeps one growing buffer, because *"keeping every chunk lets a body
-    sent in tiny chunks exhaust memory"* (`9aeb45b`); `mount()` no longer forwards *"an
-    unintended suffix past parent authorization"*, a dot segment or a malformed percent escape
-    (`b982c02`); and `serveStatic` refuses a path whose second decode differs under
-    `allowPercentInPath`, where the new test reads *"Should not bypass authentication through a
-    second decode"* (`c7ff08f`).
+- **Why past the advisories' fixes, hono by two releases and `@hono/node-server` by one.**
+  Upstream merged five more fixes in a later release of each package: four in hono 4.13.18, two
+  releases past 4.13.16, and one in `@hono/node-server` 2.1.7, one past 2.1.6. Each is one
+  release past what the three-day floor picks by itself. The five are read as security fixes
+  from their title, *"Merge commit from fork"*, which 4.13.16's five advisory fixes also carry
+  (one per advisory above, matched by the files each changes), and from upstream's own words in
+  four of them. That the forks are private advisory forks, and that the one without such words
+  (`b0af6bb`) was handled as a security issue, is inferred. No advisory names them yet: npm's
+  database had none when it was read (2026-11-13, 19:42).
+  - hono 4.13.17 (2026-11-07 04:56:44), the release after the fix, holds none: its 18 commits
+    are 16 fixes whose titles carry a pull-request number, a chore and the version's own, none
+    a fork merge.
+  - hono 4.13.18 (2026-11-11 08:54:02) merges four: `validator()` matches the Content-Type's
+    media type alone, where a differently written parameter skipped validation (`b0af6bb`, which
+    has its title and its tests alone); `bodyLimit` keeps one growing buffer, because *"keeping
+    every chunk lets a body sent in tiny chunks exhaust memory"* (`9aeb45b`); `mount()` no longer
+    forwards *"an unintended suffix past parent authorization"*, a dot segment or a malformed
+    percent escape (`b982c02`); and `serveStatic` refuses a path whose second decode differs
+    under `allowPercentInPath`, where the new test reads *"Should not bypass authentication
+    through a second decode"* (`c7ff08f`).
   - `@hono/node-server` 2.1.7 (2026-11-11 09:10:34) merges one, the same `serveStatic` second
-    decode (`cc42986`).
+    decode, whose new test begins with the same words (`cc42986`).
   - `@hono/node-server` 2.1.8 (2026-11-12 12:42:49) is five fixes from public pull requests: a
     `duplex` getter that throws on Node 26.11 and later, and four on response bodies (one that
     fails early, late HTTP/2 ones, one whose client has gone, and a promise kept per chunk).
-    Upstream handled none as a security issue, so it is not taken before its floor.
+    None of them is a fork merge, so it is not taken before its floor.
 
   So the floors are 4.13.18 and 2.1.7. With the floors at the advisories' fixes, pnpm's three-day
   floor resolved hono 4.13.17 (2026-11-07) and `@hono/node-server` 2.1.6 (2026-11-02) by itself
@@ -62,8 +71,9 @@ installed packages; nothing downloaded was run. Times are UTC.
   - the CLI's entry imports `commands/mcp.js` on every command (`dist/esm/cli/index.js`, line 20),
     and that file takes the SDK's `server/mcp.js` and `server/stdio.js`: `trigger mcp` speaks
     stdio (`StdioServerTransport`, line 71), not HTTP;
-  - the SDK imports `@hono/node-server` in `server/streamableHttp.js` alone and hono in one
-    example, and neither file is on a path from what the CLI imports;
+  - the SDK imports `@hono/node-server` in `server/streamableHttp.js` and, with hono, in one
+    example (`examples/server/honoWebStandardStreamableHttp.js`), and neither file is on a path
+    from what the CLI imports;
   - under a resolve hook, `trigger deploy --help` resolved 963 modules, 16 of them the SDK's,
     none of them hono's or `@hono/node-server`'s, the same set before and after;
   - the scripts here run `whoami` (`trigger-cli-lib.sh`) and `deploy` (`deploy-tasks.sh`, line
@@ -82,7 +92,8 @@ installed packages; nothing downloaded was run. Times are UTC.
     (0 info, 0 low, 1 moderate, 0 high, 0 critical)"*, exit 0;
   - a second `pnpm install` leaves the lockfile byte-identical, and a frozen install passes;
   - `pnpm -C apps/worker exec trigger --version` prints 4.8.5, and the SDK's
-    `server/streamableHttp.js`, the one file that takes `@hono/node-server`, loads on 2.1.7;
+    `server/streamableHttp.js`, the one file outside the examples that takes
+    `@hono/node-server`, loads on 2.1.7;
   - mutations, each file restored and compared afterwards: one override dropped, the lockfile
     kept, and a frozen install exits 1 (`ERR_PNPM_LOCKFILE_CONFIG_MISMATCH`); the exclude
     entries dropped, and a frozen install exits 1 and names both versions; an exclude entry
