@@ -927,14 +927,9 @@ export async function startTestEnvironment(skipStalwart: boolean = false, skipNe
   // digest, started as its postgres user (uid 70) as the stacks' build is: the
   // entrypoint then never reaches gosu, and initdb makes this container's new
   // volume as uid 70, the way every new volume of the stacks is made
-  // (scripts/a-database-started-as-root.unit.test.ts). The build removes gosu
-  // and takes four of Alpine's updates: brotli-libs and libcurl, which only
-  // libpq-oauth loads and no test connects with; libxslt, which only contrib's
-  // xml2 loads and no test creates; and krb5-libs, which the server loads and
-  // no test signs in with. So pulling its base runs the same server, on the
-  // base's older copies of those libraries, and keeps every run from building
-  // an image.
-  const postgresContainer = await new GenericContainer('postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b20143e6024532edadfb5')
+  // (scripts/a-database-started-as-root.unit.test.ts). The build only removes
+  // gosu, so pulling its base keeps every run from building an image.
+  const postgresContainer = await new GenericContainer('postgres:18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73')
     .withUser('70:70')
     .withExposedPorts(5432)
     .withEnvironment({

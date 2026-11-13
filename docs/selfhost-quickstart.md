@@ -273,17 +273,13 @@ docker compose -f deploy/selfhost/compose.yml up -d
 ```
 
 The first start builds the database's image, which takes a few seconds:
-compose pulls the official `postgres:18.6-alpine` image by the digest
+compose pulls the official `postgres:18.7-alpine` image by the digest
 `deploy/selfhost/postgres/Dockerfile` pins, removes gosu from it (a critical
 finding a scanner reports in that image, which needs gosu only to drop from
-root), takes four of Alpine's security updates at exact versions (brotli-libs,
-libcurl and libxslt, which the database server does not load, and krb5-libs,
-the Kerberos library it loads and nothing here signs in with) from Alpine's
-mirror, `dl-cdn.alpinelinux.org`, and starts it as PostgreSQL's own user,
-uid 70. So the first start needs Docker Hub and Alpine's mirror (see
-Troubleshooting if that build stops). No registry serves the built image's
-name, so nothing ever pulls it, and no login is needed. Then Postgres comes up
-and passes its healthcheck → the app applies the ledger migrations under an
+root), and starts it as PostgreSQL's own user, uid 70. So the first start
+needs Docker Hub, and nothing else. No registry serves the built image's name,
+so nothing ever pulls it, and no login is needed. Then Postgres comes up and
+passes its healthcheck → the app applies the ledger migrations under an
 advisory lock → the app becomes healthy. Check it:
 
 ```sh
@@ -886,23 +882,22 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   builds with the engine's classic builder where the engine still has one:
   the Dockerfile needs nothing BuildKit adds.
 - **`up` stops while it builds the database's image, saying `Alpine's
-  brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0 and libxslt
-  1.1.43-r4 could not be installed`:** the build takes those four of Alpine's
-  packages, at exactly those versions, from Alpine's mirror (a release before
-  2026-11-12 names two of them, `brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0`,
-  and the same holds for it). If this machine cannot reach
-  `dl-cdn.alpinelinux.org` (a firewall, a proxy, no network), let it, and run
-  `up -d` again. If it can, Alpine's mirror no longer serves those versions:
-  it keeps only the newest build of a package, so this release's database
-  image can no longer be built on a machine that does not have it yet (a new
-  install, an update that moves its name, or after `docker image prune -a`).
-  Update Ownpace to its
-  newest release (*Upgrades*, above: back up, check out its tag, pull, `up -d`),
-  which takes newer versions or a PostgreSQL image that carries them; if
-  yours is the newest already, the next release moves them. A machine that
-  already has the image keeps running it, and nothing here removes it. The
-  build takes these packages only until a PostgreSQL 18.7 image carries their
-  fixes (18.7 was due 2026-11-12).
+  brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed`** (or
+  naming four, `brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0
+  and libxslt 1.1.43-r4`): that is an older release, 0.2.0-alpha.4 to
+  0.2.0-alpha.7, or a checkout from before PostgreSQL 18.7. Its database's
+  build took those packages, at exactly those versions, from Alpine's mirror,
+  until a PostgreSQL image carried their fixes. 18.7's image does, so a
+  newer release's build takes nothing from Alpine's mirror. If this machine
+  cannot reach `dl-cdn.alpinelinux.org` (a firewall, a proxy, no network), let
+  it, and run `up -d` again. If it can, Alpine's mirror no longer serves those
+  versions: it keeps only the newest build of a package, so that release's
+  database image can no longer be built on a machine that does not have it
+  yet (a new install, an update that moves its name, or after `docker image
+  prune -a`). Update Ownpace to its newest release (*Upgrades*, above: back
+  up, check out its tag, pull, `up -d`), whose build needs Docker Hub alone.
+  A machine that already has the image keeps running it, and nothing here
+  removes it.
 - **The database exits with `exec: gosu: not found`:** something starts the
   database as root (a `user:` on the `postgres` service, or `-u 0` on a `run`
   that starts the server rather than another command). Remove it: the image
