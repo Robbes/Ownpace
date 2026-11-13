@@ -7,7 +7,7 @@
 **2026-11-12: both Postgres builds take Alpine's krb5-libs 1.22.3-r0 and libxslt 1.1.43-r4 at build,
 with brotli-libs and libcurl, for the 19 highs the image scan read in them today; built on a branch,
 not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-postgres-krb5-libxslt`, from
-`main` at `b05fb1b3` (#1878), with `main` at `2b101fc7` (#1879) merged in since. For alpha.8, on the
+`main` at `b05fb1b3` (#1878), with `main` at `c1db4c6a` (#1877) merged in since. For alpha.8, on the
 owner's word the same day: *"Postgres yes"*. Read from Docker Hub's registry without a login, each
 blob checked against its digest; from the public git of Alpine's aports, MIT krb5, PostgreSQL,
 Trigger.dev and Zitadel, each at the branch or tag named; and from the scan's job logs. Nothing read
@@ -112,6 +112,38 @@ was run. Times are UTC.
   rebuilds and restarts both databases once, and an appliance's first `up -d` after alpha.8
   builds it, from Alpine's mirror.
 
+**2026-11-12: the identity provider moves to Zitadel v4.20.2, a security fix, built on a branch,
+not merged (0135 T7).** On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-2`, from
+`main` at `778fd847` (#1874), with `main` at `2b101fc7` (#1879) merged in since; 0135's Status of
+the same day reads its six commits. Times are UTC.
+- **Why.** `go.mod` moves `github.com/go-jose/go-jose/v4` from 4.1.4 to 4.1.7 (80d2281a), the fix
+  of CVE-2026-116587, which the week's image scans have read in Zitadel's binary since 2026-11-02
+  (the entry of that day). An identity provider parses JWKs, so it may be reachable. T7's seven
+  days run from the tag, 2026-11-09 at 06:23, to 2026-11-16.
+- **The pin.** `managed.yml`'s `zitadel` names `ghcr.io/zitadel/zitadel:v4.20.2`, by tag as
+  before (GHCR's index `d7ffdecf…`: linux/amd64 `b95794a4…`, linux/arm64 `197794a0…`), with the
+  commits read beside it. `a-service-that-phones-home` holds the same reference, and its row
+  reads `cmd/defaults.yaml` as unchanged at v4.20.2. No setup step, so the way back is v4.20.1.
+- **The image scan of the branch.** Security Scan run 43209163374, dispatched on the branch at
+  11:26 with `image_scans` (Trivy, linux/arm64), read `ghcr.io/zitadel/zitadel:v4.20.2` at 0
+  critical and 1 high, with a fix: `golang.org/x/net` v0.61.0 → 0.62.0 (CVE-2026-78661, in
+  `app/zitadel`). The scheduled scan of 2026-11-09 (run 42642704967) read v4.20.1 at 0 critical
+  and 2 high, both with a fix, CVE-2026-116587 in go-jose v4.1.4 one of them. So v4.20.2 clears
+  CVE-2026-116587, and x/net's high waits for a later release of Zitadel's. CI on the branch's
+  head `1dceed52` was green.
+- **Owed before a merge:** the owner's dump of the OTA instance's `zitadel` database with
+  `./deploy/compose/dump-idp.sh` (§3 item 2); then E2E (managed) on the branch. Live takes it
+  from the first release tag that carries it, by 2026-11-16.
+- **Proved on the branch, and merged** *(recorded after the merge)*. The owner ran
+  `./deploy/compose/dump-idp.sh` on the OTA stack on 2026-11-13, with its identity provider on
+  v4.20.1: it dumped the `zitadel` database as the set `20261113T061939Z` and read 701 entries back
+  (§3 item 2). CI on the head `44412986` was green: 27 checks passed, 4 were skipped, Trivy neutral.
+  E2E (managed) run 43378243641 on that head, 06:22:28 to 06:30:01, pulled
+  `ghcr.io/zitadel/zitadel:v4.20.2` and brought the OTA stack's identity provider up on it, which
+  reported ready on its own readiness signal; then version 20261113.1, *deployed with 17 detected
+  tasks*, *verify: done apply: applied*, SMOKE PASS. #1877 merged at 06:32:38 (`c1db4c6a`). The dump
+  set is deleted once `main`'s first scheduled E2E (managed) on v4.20.2 is green.
+
 **2026-11-12: the tasks' base moves to the one `main` published from #1878, on Node 26.13.1
 (§3 item 13).** On the branch `claude/ownpace-public-readiness-y7orc6-task-base-b05fb1b`, from
 `main` at `b05fb1b3` (#1878), the second change that entry names. Read from GHCR and gcr.io
@@ -134,6 +166,15 @@ without a login; times are UTC.
   `apps/api/Dockerfile`'s FROM node line, v26.13.1, the check E2E (managed) on `main` is red at
   since #1878 merged. The week's image scan then reads `trigger-task-base` at the new pin. Live
   takes it from the first release tag that carries it.
+- **Proved on the branch, and merged** *(recorded after the merge)*. CI on the head `d51eeb27` was
+  green: 28 checks passed, 4 were skipped, Trivy neutral. Its `task-base pin` job read the pin,
+  *built from b05fb1b310885b8812644cc9a6537780da2cfa39, Node v26.13.1: apps/api/Dockerfile's*,
+  and cosign verified `images.yml`'s signature on `refs/heads/main`. E2E (managed) run
+  43236184278 on that head, 14:20:41 to 14:28:21, built the tasks FROM the new base, then version
+  20261112.6, *deployed with 17 detected tasks*, the runners' image `827ff8746079` on Node
+  v26.13.1, the API's, with no shell under any of five names, *verify: done apply: applied*,
+  SMOKE PASS. #1879 merged at 14:29:46 (`2b101fc7`), so E2E (managed) on `main` is green at the
+  tasks' Node again.
 
 **2026-11-12: Node moves to 26.13.1, nodejs.org's security release of 2026-11-11, in the four
 `FROM node:` lines, the distroless runtime's three and the Windows payload's `node.exe` sums, in
@@ -475,6 +516,13 @@ same way; nothing read was run. Times are UTC.
   applied*, SMOKE PASS. #1873 merged at 09:42:19 (`335fd51b`), and Dependabot's #1855, #1856
   and #1858 were closed as superseded. The second change, the tasks' base, is #1874 (the entry
   above).
+- **The first image scan to read it** *(recorded later)*. Security Scan run 43209163374,
+  dispatched on 2026-11-12 at 11:26 on the branch of the Zitadel move (the entry of that day),
+  read what `main` has published since the merges: `ownpace-api:edge`, `ownpace-selfhost:edge`
+  and the tasks' base `sha-335fd51@sha256:4c4c6baa…`, each at 0 critical and 0 high, where the
+  scan of 2026-11-09 read each at 2 high, zlib1g's CVE-2026-76844 and CVE-2026-85091. So
+  `deb13u1` clears both, CVE-2026-76844 too, which its changelog does not name. The images of
+  the tag, `0.2.0-alpha.7`, keep the two until a later tag.
 
 **2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built
 on a branch, not merged (0146 T11 (a); the pin watch's #1671).** On the branch
@@ -5554,7 +5602,7 @@ is who moves it after T1.
 | `haproxy` (the Docker socket proxy's base; `tecnativa/docker-socket-proxy:v0.5.0` itself until 2026-10-30) | `deploy/compose/docker-socket-proxy/Dockerfile`'s FROM, built as `localhost/docker-socket-proxy:<tag>-<hash>` by `managed.yml` (`trigger-docker-proxy`) since 2026-10-30: upstream's v0.5.0 Dockerfile, `haproxy.cfg` and entrypoint byte for byte (commit `2e118a0c`), the base the only change; `pull_policy: never`, built only where the name is missing | 3.4.7-alpine by index digest `5312d370…` (pushed 2026-11-05 23:56 UTC over the amd64 and arm64 rebuilds of 20:58, Alpine 3.24.4, where only alpine-release, apk-tools and libapk (3.0.9) moved, on the same HAProxy source; taken 2026-11-09, built as `localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226`: 0 critical and 0 high built, Security Scan run 42615868745, linux/arm64; Status, 2026-11-09); `2caaf8b1…` from 2026-10-30 (pushed 2026-10-24 17:56 UTC, Alpine 3.24.3; 0 critical and 0 high built, Security Scan run 41012325563, and Security Scan run 42368077845 on 2026-11-07); before it upstream's image, built once on 2026-07-27 on 3.4.2-alpine (Alpine 3.24.1), 0 critical and 6 high on 2026-10-29 | 3.4.7 (2026-10-24); docker-socket-proxy v0.5.0 (2026-07-27) | current | Dependabot `docker`, its own entry, for 3.4 patches and digests; a docker-socket-proxy release by hand, when the pin watch's summary issue lists it (against upstream's tags) | another HAProxy line (3.5, 3.6) is the owner's, taken with a docker-socket-proxy release; Dependabot ignores HAProxy's minors and majors |
 | `chainguard/minio` (0146 T7, #1692; `bitnamilegacy/minio` 2025.5.24-debian-12-r5 until alpha.2) | `managed.yml` (`minio`, `minio-init`) | `latest` by index digest `869ca317…` (built 2026-11-07 03:27 UTC, pushed as `latest` 2026-11-07 06:54 UTC, taken 2026-11-10, past its floor, as a security fix: the week's scan of 2026-11-09 read CVE-2026-116591, in klauspost/compress, twice in `aea6c163…`, high and with a fix; Status, 2026-11-10): Wolfi's `minio` 0.20261023.200651-r3 (the fork's RELEASE.2026-10-23T20-06-51Z) and `mc` -r28, the same source as before it rebuilt with that one module at 1.20.2, on glibc 2.44-r14. Before it `aea6c163…` (built 2026-11-05, taken 2026-11-06 for alpha.5 before its floor, on the owner's instruction, the same `minio` and `mc` as `3b6e40c3…` on a rebuilt base, #1826), `3b6e40c3…` (built 2026-10-29, taken 2026-10-31 under the security-fix exception for CVE-2026-116587, #1762), `268d68a2…` (built 2026-10-25, taken 2026-10-28, #1726) and `d88920d6…`, the fork's RELEASE.2026-09-22T19-25-18Z, from #1692 | `latest` `fb893e36…` since 2026-11-10 06:03 UTC (built 2026-11-09 20:44 UTC: `616286de…`, pushed 2026-11-09 12:29 UTC with Wolfi's `minio` 0.20261109.001040-r0, the fork's next release, and ncurses 6.6.20261107, on glibc 2.44-r15 and libgcc 16.2.0-r3), inside its floor until 2026-11-13 06:03 UTC and not taken (Status, 2026-11-10) | two rebuilds, `616286de…` inside its three-day floor until 2026-11-12 12:29 UTC and `fb893e36…` until 2026-11-13 06:03 UTC | by hand when the pin watch says `latest` was rebuilt, once three days old (0146 T8) | **§3, taken 2026-10-23** — Chainguard's maintained build replaced the frozen Bitnami image in alpha.2 (item 5) |
 | `caddy` | `deploy/compose/caddy/Dockerfile`'s FROM, built as `localhost/caddy:<tag>-<hash>` by `managed.yml` (`trigger-tls`) since 2026-10-31: upstream's image with curl removed, and the eight libraries only curl needed; `pull_policy: never`, built only where the name is missing (`managed.yml` itself until then) | 2.11.9-alpine by digest `0bbb055b…` (#1828; the index of 2026-11-06; its linux/amd64 image of 2026-11-05 20:52 UTC and linux/arm64 of 23:52, Alpine 3.24.4, Go 1.27.3, go-jose v4 4.1.6): 0 critical, 1 high and 0 fixable built, the go-jose v3 one, which has no fix (Security Scan run 42251249950, linux/arm64; the Status entry of 2026-11-06, the move to 2.11.9); before it 2.11.8-alpine by digest `f6228111…` (#1815, merged 2026-11-06; its images of 2026-11-04 20:52 UTC, Alpine 3.24.3): 0 critical, 2 high and 1 fixable built (Security Scan run 42143936608, linux/arm64); before that 2.11.7-alpine by digest `eb4d35b7…` (2026-10-22): 1 critical, 9 high and 9 fixable as pulled (Security Scan run 41130684117), 0, 7 and 6 built (Security Scan run 41161126144, linux/arm64; the Status entry of 2026-10-31) | 2.11.9 | current | Dependabot `docker`, its own entry since 2026-10-31, every 2.x release and digest; its build stops with "re-read the header" until the packages it removes are read again (before it: by hand, when the pin watch listed a newer 2.x or the image scan counted fixable findings) | **pinned 2026-10-22** (§4); a major is the owner's, and Dependabot ignores it. The move from 2.11.4 crosses the breaking changes 2.11.6 lists (in the code since 2.11.5): request headers capped at 16 KiB (431 above it), one-minute idle read and write timeouts, header names with a `.` dropped. Checked against `trigger-tls.Caddyfile` (`default_sni`, `tls internal`, `reverse_proxy trigger-api:3000` over HTTP), which sets none of them; the path to watch after the nightly is the dashboard over the mesh |
-| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.1 (2026-11-07, #1829, for alpha.6 on the owner's yes, after the OTA instance's dump and E2E (managed) run 42331851832 on the branch: ten commits after v4.20.0, no advisory and no setup step; the Status entry of 2026-11-06, and 0135's of 2026-11-07); v4.20.0 before it (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.5 before it (2026-10-22, #1651, `721c6ea8`, three security fixes read commit by commit), v4.19.4 before that (2026-10-05, #1528, `502c52fa`), and v4.19.2 before those (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.1 (2026-11-03, read 2026-11-06) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
+| `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.2 (2026-11-12, a security fix: go-jose 4.1.4 → 4.1.7 for CVE-2026-116587, the scans' high since 2026-11-02; six commits after v4.20.1 and no setup step; after the owner's dump of the OTA instance and E2E (managed) on its branch; the Status entry of 2026-11-12, and 0135's); v4.20.1 before it (2026-11-07, #1829, for alpha.6 on the owner's yes, after the OTA instance's dump and E2E (managed) run 42331851832 on the branch: ten commits after v4.20.0, no advisory and no setup step; the Status entry of 2026-11-06, and 0135's of 2026-11-07); v4.20.0 before it (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.5 before it (2026-10-22, #1651, `721c6ea8`, three security fixes read commit by commit), v4.19.4 before that (2026-10-05, #1528, `502c52fa`), and v4.19.2 before those (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.2 (tagged 2026-11-09, read 2026-11-12) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason | 1.38 (1.38.0) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.33.1 by digest `aef2aacc…` (2026-11-11, the patch kept current, past its floor, no finding to clear; on the branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-33-1`, not merged, E2E (managed) owed: Status, 2026-11-11); v1.33.0 by digest `9b3a463b…` before it (2026-11-03, the minor kept current; merged as #1796 at 02:51 UTC, `21fa6ff8`, after E2E (managed) run 41566706312 was green on its head, in alpha.4: Status, 2026-11-03, records); v1.32.0 by digest `0790692b…` before that (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.1 (2026-11-07, pushed 23:54 UTC; also `latest` on 2026-11-11), digest `aef2aacc…` | current — *was:* one patch behind, read by the pin watch on 2026-11-09, inside its three-day floor until 2026-11-10 23:54 UTC (Status, 2026-11-11) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |

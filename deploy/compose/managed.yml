@@ -1326,7 +1326,27 @@ services:
     # admin API, cmd/ready and login v1's UI are unchanged, so the three
     # facts above, the service ping's default, the lockout and the privacy
     # policy's fields hold at v4.20.1.
-    image: ghcr.io/zitadel/zitadel:v4.20.1
+    #
+    # v4.20.2 (tagged 2026-11-09), from the weekly pin watch (issue #1867):
+    # six commits after v4.20.1 on upstream's v4.x branch. A security fix in
+    # what runs here: go.mod moves github.com/go-jose/go-jose/v4 from 4.1.4
+    # to 4.1.7 (80d2281a), the fix of CVE-2026-116587, which the week's image
+    # scans have read in Zitadel's binary since 2026-11-02; an identity
+    # provider parses JWKs, so it may be reachable, as a denial of service.
+    # One more server fix this stack meets: a password change in an
+    # organisation with no notification policy no longer panics the
+    # notification handler and wedges its projection (03170a6a); the stack
+    # sends Zitadel's password-change mail (0135 T6). Not in what runs here:
+    # the Redis cache connector's index keys (d23ae5c7; no ZITADEL_CACHES is
+    # set), login v2's session cookie and node-forge (apps/login), and a
+    # build retry. No setup step: cmd/, internal/setup, internal/command,
+    # internal/query, internal/repository, internal/eventstore, internal/api
+    # (login v1 and the console's server) and console/ are unchanged, still
+    # toolchain go1.26.10, so the schema stays at v4.19.4's step 80 and the
+    # way back is the v4.20.1 tag. cmd/defaults.yaml is unchanged, so the
+    # service ping's default, the lockout and the privacy policy's fields
+    # hold at v4.20.2.
+    image: ghcr.io/zitadel/zitadel:v4.20.2
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging
