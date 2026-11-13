@@ -88,8 +88,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-13** (workplan
   0119, 0146 T7): the fork's MinIO release RELEASE.2026-11-12T01-15-23Z, whose server code is that
   of the releases before it, built with Go 1.27.4 and go-jose 4.1.7, and the `mc` client rebuilt on
-  Go 1.27.4, on glibc 2.44 with two fixes from its release branch and Wolfi's backport of the fix
-  for CVE-2026-84243, libgcc rebuilt and ncurses' snapshot of 2026-11-07. Kept current, not a
+  Go 1.27.4, on glibc 2.44 with three fixes from its release branch, the one for CVE-2026-84243
+  among them, libgcc rebuilt and ncurses' snapshot of 2026-11-07. Kept current, not a
   security fix: the image scan of 2026-11-13 read the build before it at 0 critical and 0 high,
   and neither fix it carries reaches this stack. Go 1.27.4's net/http fix (CVE-2026-97054) needs a
   request body past MinIO's 5 TiB limit, and the glibc one a `LANGUAGE` variable no service sets.

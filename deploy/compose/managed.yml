@@ -934,10 +934,10 @@ services:
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
   # nothing else, rebuilt about daily, so this is `latest` by an index digest:
-  # 96b6cf3e1408…, dated 2026-11-12 22:13 UTC in its configs and pushed as
-  # `latest` on 2026-11-13 at 01:29 UTC, with linux/amd64 and linux/arm64 in
+  # ddfab4c402bf…, dated 2026-11-13 16:01 UTC in its configs and pushed as
+  # `latest` on 2026-11-13 at 20:19 UTC, with linux/amd64 and linux/arm64 in
   # it, taken that day for alpha.8, inside its three-day floor (which ends
-  # 2026-11-16 01:29 UTC), on the owner's waiver of 2026-11-13: "Waive all
+  # 2026-11-16 20:19 UTC), on the owner's waiver of 2026-11-13: "Waive all
   # waiting time." Kept current, not a security fix: Security Scan run
   # 43492635512 (2026-11-13) read the digest before it, 869ca3178831… (built
   # 2026-11-07, taken 2026-11-10 for CVE-2026-116591, #1870), at 0 critical
@@ -952,22 +952,24 @@ services:
   # its handler set a header. `mc` is 0.20250813.083541-r29: the same source,
   # at commit 7394ce0d, and the same modules as -r28, rebuilt on Go 1.27.4
   # for that CVE; bash is /bin/sh, as before. The base moves glibc 2.44-r14
-  # → -r17, with its POSIX locale and ld-linux: two fixes from glibc's 2.44
-  # branch, for nftw's read errors and for how arm64's vector maths archive
-  # is built, and Wolfi's backport of the fix for CVE-2026-84243 in gettext,
-  # which nothing here reaches (the two Go binaries load no libc, and no
-  # service sets LANGUAGE or a locale); libgcc 16.2.0-r2 → -r3, rebuilt for
-  # a test; and ncurses 6.6.20261031 → 6.6.20261107, upstream's weekly
-  # snapshot. That is 8 of the image's 23 packages (their apk databases, both
-  # architectures), and the image config differs in its dates and layer ids
-  # alone. The fork's releases since RELEASE.2026-09-22T19-25-18Z, in
+  # → -r18, with its POSIX locale and ld-linux: three fixes from glibc's
+  # 2.44 branch, for nftw's read errors, for how arm64's vector maths archive
+  # is built and for CVE-2026-84243 in gettext, which nothing here reaches
+  # (the two Go binaries load no libc, and no service sets LANGUAGE or a
+  # locale); libgcc 16.2.0-r2 → -r3, rebuilt for a test; and ncurses
+  # 6.6.20261031 → 6.6.20261107, upstream's weekly snapshot. That is 8 of
+  # the image's 23 packages (their apk databases, both architectures), and
+  # the image config differs in its dates and layer ids alone. The fork's
+  # releases since RELEASE.2026-09-22T19-25-18Z, in
   # d88920d6a50b… (2026-10-22, #1692), differ from it in go.mod and go.sum,
   # CI scripts, the Makefile's tidy check, two debugging tools under docs/
   # and one test file: no line under cmd/ or internal/ that the server is
-  # built from changed. The two builds before it were never taken:
+  # built from changed. The three builds before it were never taken:
   # db3f583fa491… (pushed 2026-11-11, the fork's RELEASE.2026-11-10T21-18-11Z,
-  # drafted as #1881 and closed for this one) and 786cb11d340b… (pushed
-  # 2026-11-12), this one's `minio` and `mc` byte for byte, on glibc 2.44-r16.
+  # drafted as #1881 and closed for this one); 786cb11d340b… (pushed
+  # 2026-11-12), this one's `minio` and `mc` byte for byte, on glibc
+  # 2.44-r16; and 96b6cf3e1408… (pushed 2026-11-13 at 01:29 UTC), the same
+  # two on glibc 2.44-r17, which `latest` left while this move was tested.
   # The weekly pin watch (idp-pin-watch.mjs) says when `latest` has moved
   # on; a move is a pull request with the new digest's scan read and E2E
   # (managed) on its branch. Trigger.dev's own digest from its move of
@@ -993,7 +995,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:96b6cf3e14084d3427ec46de10c2873af61b945ad9272eec266cfc8df551cba5
+    image: chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -1075,7 +1077,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:96b6cf3e14084d3427ec46de10c2873af61b945ad9272eec266cfc8df551cba5
+    image: chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging

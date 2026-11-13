@@ -634,10 +634,11 @@ const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7';
 /**
  * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
- * 2026-11-13, taken that day for alpha.8, inside its three-day floor on the
- * owner's waiver (0119 Status, 2026-11-13). The server is the fork's
- * `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b, Wolfi's 0.20261112.011523-r0,
- * built with Go 1.27.4 (go-jose 4.1.7, golang.org/x/net 0.62.0); its mc is
+ * 2026-11-13 at 20:19 UTC, taken that day for alpha.8, inside its three-day
+ * floor on the owner's waiver (0119 Status, 2026-11-13). The server is the
+ * fork's `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b, Wolfi's
+ * 0.20261112.011523-r0, built with Go 1.27.4 (go-jose 4.1.7,
+ * golang.org/x/net 0.62.0); its mc is
  * `RELEASE.2025-08-13T08-35-41Z`, Wolfi's -r29, the source and modules of the
  * digest before it, `869ca317…` (taken 2026-11-10), rebuilt on Go 1.27.4.
  * Between 76c06ff1, that digest's release, and a60e2a7b the fork changed
@@ -650,7 +651,7 @@ const CLICKHOUSE =
  * tag, so the code read here did not change.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:96b6cf3e14084d3427ec46de10c2873af61b945ad9272eec266cfc8df551cba5';
+  'chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926';
 const MAILPIT =
   'axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce';
 /**
