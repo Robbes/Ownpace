@@ -6,6 +6,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **Trigger.dev moves to v4.8.5, whose webapp and supervisor run on Node 24.22.3, Node's security
+  release of 2026-11-11** (workplan 0119): nine fixes rated High, in http, http2 and tls. It also
+  takes v4.8.4's hardening: a malformed Host header is refused, a rotated API key in its grace
+  window can no longer read the key that replaced it, and re-enrolling a second factor asks for the
+  current code. Upstream now ships the fixed releases of dompurify, undici, follow-redirects,
+  body-parser, systeminformation and effect itself, so the builds here no longer swap them in, and
+  the two copies of effect and the copy of body-parser no swap could reach are fixed too. A CLI
+  login made from now on lapses after 90 days unused (upstream's default is 7), and logins made
+  before never lapse; Trigger.dev's admin API is switched off. The upgrade migrates Trigger.dev's
+  database one way, with twelve additive changes, so the way back is the dump taken before it.
+  Taken before its three-day floor, on the owner's waiver.
+
 - **Both Postgres images move to PostgreSQL 18.7, the security release of 2026-11-12, which also
   clears the 19 highs the image scan read in their base** (workplan 0119): PostgreSQL's notes list
   53 security fixes, under 52 CVE ids. One needs no sign-in: a crafted cancel request could crash

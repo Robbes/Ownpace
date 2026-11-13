@@ -1,36 +1,37 @@
 # Trigger.dev's webapp as upstream publishes it, by tag and index digest, with
-# files deleted that no process of this stack ever runs, and one package's
-# files replaced by the release that fixes it (workplan 0146 T16; the owner's
-# decisions of 2026-10-26, "Both": an issue upstream, and this build until
-# upstream ships the fixes, and of 2026-10-27: tar out of the copy of pnpm that
-# runs, too). Since 2026-10-31, npm and the rest of node-gyp's tree in that
-# copy go as well, under the one risk the owner accepted for tar (THE HIGHS
-# NOTHING RUNS, below). Since 2026-11-02 the copy of pnpm that runs is 10.34.9,
-# npm's latest-10, in place of upstream's 10.33.2: hygiene, not a security fix
-# (WHAT IS REPLACED: PNPM, below). Since 2026-11-03 (the owner's mandate: the
-# time before alpha.4's fold goes to the findings a release fixes), TypeScript
-# 7's native compiler binary goes too (WHAT GOES), goose is v3.29.0's release
-# binary in place of the v3.27.1 upstream builds (WHAT IS REPLACED: GOOSE), and
-# four packages are the same major's release that fixes them (WHAT IS
-# REPLACED: FIVE PACKAGES): about 89 high findings become 46, and 57 with a fix
-# become 14 (WHAT STAYS says what is left, and why). Since 2026-11-06 (for
-# alpha.6, workplan 0119 §3 item 11, confirmed by the owner on 2026-11-07), the
-# last RUN as root purges eleven Debian packages nothing here runs or loads
-# (thirteen since 2026-11-08, below): apt, libapt-pkg6.0, the eight
-# util-linux builds and e2fsprogs, which pre-depends on two of them (THE
+# files deleted that no process of this stack ever runs (workplan 0146 T16; the
+# owner's decisions of 2026-10-26, "Both": an issue upstream, and this build
+# until upstream ships the fixes, and of 2026-10-27: tar out of the copy of
+# pnpm that runs, too). Since 2026-10-31, npm and the rest of node-gyp's tree
+# in that copy go as well, under the one risk the owner accepted for tar (THE
+# HIGHS NOTHING RUNS, below). Since 2026-11-02 the copy of pnpm that runs is
+# 10.34.9, npm's latest-10, in place of upstream's 10.33.2: hygiene, not a
+# security fix (WHAT IS REPLACED: PNPM, below). Since 2026-11-03 (the owner's
+# mandate: the time before alpha.4's fold goes to the findings a release
+# fixes), TypeScript 7's native compiler binary goes too (WHAT GOES), and goose
+# is v3.29.0's release binary in place of the v3.27.1 upstream builds (WHAT IS
+# REPLACED: GOOSE). From 2026-10-30, and with four more packages from
+# 2026-11-03, this build also replaced packages' files by the release that
+# fixes each; since v4.8.5 (2026-11-13, for alpha.8) upstream ships those
+# releases itself, and the two RUNs that swapped them are gone (WHAT UPSTREAM
+# NOW SHIPS FIXED). With the swaps, about 89 high findings became 46, and 57
+# with a fix became 14 (WHAT STAYS says what is left, and why). Since
+# 2026-11-06 (for alpha.6, workplan 0119 §3 item 11, confirmed by the owner on
+# 2026-11-07), the last RUN as root purges eleven Debian packages nothing here
+# runs or loads (thirteen since 2026-11-08, below): apt, libapt-pkg6.0, the
+# eight util-linux builds and e2fsprogs, which pre-depends on two of them (THE
 # DEBIAN PACKAGES NOTHING RUNS): 49 high findings become about 23, and 16
 # with a fix about 14. The branch's scan of that image read 1 critical, 24
-# high and 14 with a fix (Security Scan run 42213975717). Since the same day
-# a fifth package is swapped with the four:
-# effect 3.17.1 by 3.22.4, the one of effect's three copies whose requirer's
-# range takes the fix (WHAT IS REPLACED: FIVE PACKAGES), so 24 become 23, and
-# 14 become 13 (Security Scan run 42263361900, of the image with both). Since
-# 2026-11-08 (for alpha.7) the purge takes libsystemd0 and libudev1 too,
-# systemd's two libraries, which nothing left needs once apt and util-linux
-# are gone: the scan of the alpha.6 tag read 1, 24 and 14 (Security Scan run
-# 42368077845, one more in goose v3.29.0's golang.org/x/net), and the two take
-# 2 highs off it (THE DEBIAN PACKAGES NOTHING RUNS): 1, 22 and 14 on the branch
-# that took them (Security Scan run 42440765278).
+# high and 14 with a fix (Security Scan run 42213975717). The same day effect
+# 3.17.1 joined the swaps (24 became 23, and 14 became 13: Security Scan run
+# 42263361900). Since 2026-11-08 (for alpha.7) the purge takes libsystemd0 and
+# libudev1 too, systemd's two libraries, which nothing left needs once apt and
+# util-linux are gone: the scan of the alpha.6 tag read 1, 24 and 14 (Security
+# Scan run 42368077845, one more in goose v3.29.0's golang.org/x/net), and the
+# two take 2 highs off it (THE DEBIAN PACKAGES NOTHING RUNS): 1, 22 and 14 on
+# the branch that took them (Security Scan run 42440765278). At v4.8.5 about 1,
+# 19 and 11 are expected (WHAT STAYS), on upstream's Node 24.22.3 base, Node's
+# November security release.
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -47,9 +48,9 @@
 #     REPLACED: PNPM).
 # Two were left after those: zlib1g (CVE-2023-45853, no fix in Debian), which
 # stays, and dompurify 3.4.13 (GHSA-cg2g-xh64-v4q7, fixed in 3.4.17), whose
-# files the second RUN as root replaces with 3.4.17's (WHAT IS REPLACED:
-# DOMPURIFY, below). So 8 become 1. The binaries are the same Go builds on
-# amd64.
+# files this build replaced with 3.4.17's from 2026-10-30, and which upstream
+# resolves as 3.4.17 itself since v4.8.4 (WHAT UPSTREAM NOW SHIPS FIXED). So 8
+# become 1. The binaries are the same Go builds on amd64.
 #
 # THE HIGHS NOTHING RUNS. The image scan of the image built here at v4.8.3,
 # Security Scan run 41159641513 (Trivy 0.76.1, linux/arm64, 2026-10-31), read 1
@@ -62,7 +63,10 @@
 #     CVE-2026-109869, CVE-2026-87018). The same six are in
 #     node:24.22.1-bookworm-slim, the FROM of upstream's runner stage, and in
 #     node:24.22.1-alpine, the supervisor's, by the same digests at v4.8.1 and
-#     v4.8.3.
+#     v4.8.3. At v4.8.5 the FROMs are node:24.22.3-bookworm-slim and
+#     node:24.22.3-alpine, and Node 24.22.3 bundles the same npm 11.19.1, with
+#     the same brace-expansion 5.0.9 and undici 6.28.0 (read 2026-11-13 in
+#     both images' layers by digest, on both platforms).
 #   - node-gyp's tree in root's copy of pnpm,
 #     /root/.cache/node/corepack/v1/pnpm/10.33.2/dist/node_modules:
 #     brace-expansion 2.1.0 (CVE-2026-102276, CVE-2026-102278, CVE-2026-13149,
@@ -83,8 +87,8 @@
 # branch's own scan read exactly that (Security Scan run 41527113857).
 #
 # WHAT GOES, AND WHY NOTHING RUNS IT. Read in upstream's source at v4.8.1, again
-# at v4.8.3, and in the published packages, whose sha512 is the one
-# pnpm-lock.yaml names:
+# at v4.8.3 and at v4.8.5, and in the published packages, whose sha512 is the
+# one pnpm-lock.yaml names:
 #   - @depot/cli's binary. Loading @depot/cli (lib/main.js) defines functions
 #     and reads DEPOT_BINARY_PATH as a string; the binary is looked up only
 #     inside depot(...), through depotBinaryPath() and generateBinPath(). The
@@ -112,7 +116,8 @@
 #     root's copy, of the version packageManager names, for every pnpm in
 #     docker/scripts/entrypoint.sh: the migrations of @trigger.dev/database,
 #     the run-ops databases and the dashboard agent. Nothing execs into
-#     trigger-api as node. Corepack 0.36.0 (Node 24.22.1's) finds the copy
+#     trigger-api as node. Corepack 0.36.0 (Node 24.22.1's, and 24.22.3's, the
+#     same corepack.cjs byte for byte) finds the copy
 #     under $HOME/.cache/node/corepack (getCorepackHomeFolder) and reuses it by
 #     its .corepack file alone (installVersion), never fetching it again while
 #     that file is there.
@@ -161,7 +166,8 @@
 #     The entrypoint's pnpm runs three migration scripts that call neither.
 #     The build checks that those three are all any file of the copy outside
 #     dist/node_modules names of it, before it removes anything.
-#   - npm 11.19.1, which Node 24.22.1 bundles: /usr/local/lib/node_modules/npm,
+#   - npm 11.19.1, which Node 24.22.1 bundles, and 24.22.3 at v4.8.5:
+#     /usr/local/lib/node_modules/npm,
 #     and Node's two links to it, /usr/local/bin/npm and /usr/local/bin/npx. No
 #     process of this stack runs either. The entrypoint runs pnpm, goose, node
 #     and its own scripts; the migrations are `prisma migrate deploy` and `node
@@ -240,7 +246,7 @@
 # image whose packageManager is not pnpm@10.33.2 (upstream moved: THE WAY OUT)
 # or that has a copy of 10.34.9 already, and runs `corepack install -g
 # pnpm@10.34.9+sha512.<the sha512 npm published>` as root: corepack fetches
-# the tarball from the npm registry, as the dompurify RUN does, and refuses
+# the tarball from the npm registry and refuses
 # other bytes ("Mismatch hashes", writing nothing); with a hash it checks no
 # signature, so the build does not depend on corepack's built-in npm keys. It
 # writes the copy and lastKnownGood.json, nothing else. The RUN then checks
@@ -257,57 +263,26 @@
 # node-gyp-bin entry, which name 10.34.9's directory (build/server.js, a
 # bundle, was not read for them).
 #
-# WHAT IS REPLACED: DOMPURIFY 3.4.13'S FILES BY 3.4.17'S. Trivy 0.76.1 reads
-# GHSA-cg2g-xh64-v4q7 (critical: with SAFE_FOR_TEMPLATES, template expressions
-# split across nodes survive in an attached shadow root's content, in the DOM
-# output modes) and GHSA-mrv2-3pqr-j5jr (high) in
-# node_modules/.pnpm/dompurify@3.4.13/node_modules/dompurify. 3.4.17 fixes
-# both; npm published it 2026-10-12 12:41 UTC and lists no advisory against
-# it. Two packages require dompurify (upstream's pnpm-lock.yaml at read_at):
-#   - posthog-js 1.407.3, which the webapp imports (app/hooks/usePostHog.ts).
-#     Its entry points, dist/main.js and dist/module.js, carry no DOMPurify. Its
-#     one require('dompurify') is in lib/src/extensions/product-tours, which no
-#     entry point loads: the browser takes product tours from PostHog's own
-#     host, and only once PostHog starts, which managed.yml's
-#     POSTHOG_PROJECT_KEY: "" stops (a-service-that-phones-home holds it). Its
-#     dist/product-tours.js bundles DOMPurify 3.3.2 into its own file, which
-#     Trivy does not read and nothing here serves.
-#   - mermaid 11.16.1, through streamdown 2.5.0 (the dashboard's markdown).
-#     streamdown 2.5.0 imports no mermaid: it draws a diagram only through the
-#     @streamdown/mermaid plugin, which the webapp neither installs nor passes.
-# So no process of this stack loads dompurify, and the replacement changes no
-# code that runs. It makes the one copy the scan reads, and any later load,
-# the release that fixes it. The build checks the half it can see: no file
-# under apps/webapp/build or apps/webapp/public carries DOMPurify (its
-# trusted-types attribute, data-tt-policy-suffix, which every copy carries) or
-# imports dompurify or mermaid by name. Between the two published tarballs,
-# 3.4.13 to 3.4.17 changes no API either caller uses. The 24 file names are
-# the same. The entry points and exports are unchanged (main, module, browser,
-# types and exports), and require() of either CJS build gives the same keys.
-# package.json differs only in the version, its scripts and its
-# devDependencies (rollup became rolldown). The type declarations differ in the
-# order of one import, and the CJS ones drop `export { _default as default }`
-# and keep `export = _default`. The code changes are in src/purify.ts's
-# sanitising internals (the fixes), the helpers src/utils.ts adds for them, and
-# src/attrs.ts, which allows two more SVG attributes, pointer-events and
-# vector-effect.
-#
-# HOW IT IS REPLACED, AND PROVED. The second RUN as root fetches
-# dompurify-3.4.17.tgz from the npm registry, as the API image's build fetches
-# its packages, and refuses it unless its sha512 is the integrity npm
-# published. Before it changes anything it checks: the directory is the
-# published 3.4.13, file for file (from_tree: the SHA-256 of the sorted list
-# of each file's SHA-256 and path); the only links to it are posthog-js's,
-# mermaid's and pnpm's hoisted one; no other dompurify/package.json is in the
-# image; and the webapp's build, as above. It unpacks the tarball apart, checks
-# it is the published 3.4.17 (to_tree), gives it the old directory's owner,
-# and puts it in the old one's place. Then it proves the directory is to_tree;
-# that no other path in the image was added or removed, and no other file
-# changed, since a marker it made before the fetch; and that from posthog-js's
-# and mermaid's own directories, require('dompurify') and import('dompurify')
-# both load 3.4.17 from it. The directory keeps pnpm's name, dompurify@3.4.13,
-# and pnpm's records (pnpm-lock.yaml, node_modules/.pnpm/lock.yaml) keep
-# 3.4.13: nothing here installs, and Trivy reads package.json in an image.
+# WHAT UPSTREAM NOW SHIPS FIXED (since 2026-11-13, Trigger.dev v4.8.5). From
+# 2026-10-30 to 2026-11-13 this build also replaced six packages' files with
+# the release of the same major that fixes each, fetched from the npm registry
+# by the sha512 npm published: dompurify 3.4.13 by 3.4.17 (GHSA-cg2g-xh64-v4q7,
+# critical, and GHSA-mrv2-3pqr-j5jr), and undici 6.29.0, follow-redirects
+# 1.16.0, body-parser 1.20.6, systeminformation 5.31.7 and effect 3.17.1 by
+# 6.29.1, 1.16.2, 1.20.9, 5.33.19 and 3.22.4. Since v4.8.4 upstream's root
+# package.json overrides each of them (dompurify ^3.4.17, undici ^6.29.1,
+# follow-redirects ^1.16.2, express 4's body-parser ^1.20.9, systeminformation
+# ^5.33.16, effect ^3.20.0, and body-parser 2's ^2.4.0). Its lockfile at v4.8.5
+# resolves dompurify 3.4.17, undici 6.29.1, follow-redirects 1.16.2,
+# body-parser 1.20.9 and 2.4.0, systeminformation 5.33.19 and effect 3.21.2
+# alone. So both RUNs that swapped them went, with their rows in the guard,
+# as THE WAY OUT said: each refuses a tree without the version it replaces.
+# The supervisor's systeminformation RUN went the same way. The overrides also
+# fix three copies this build could not swap: effect 3.16.12 and 3.18.4, which
+# @prisma/config pinned exactly, and body-parser 2.3.0. This is the npm half of
+# what triggerdotdev/trigger.dev#5084 asked for. Nothing in this build fetches
+# from the npm registry now but pnpm 10.34.9, which corepack installs (WHAT IS
+# REPLACED: PNPM).
 #
 # WHAT IS REPLACED: GOOSE v3.27.1 BY v3.29.0 (since 2026-11-03). Upstream's
 # Dockerfile builds /usr/local/bin/goose with `go install
@@ -341,7 +316,8 @@
 # locker and timestamp column), `goose create` and `env`, and dependency
 # upgrades.
 #
-# HOW GOOSE IS REPLACED, AND PROVED. The fourth RUN as root reads the old file
+# HOW GOOSE IS REPLACED, AND PROVED. goose's RUN, the second as root (the
+# fourth until v4.8.5), reads the old file
 # first: a file, an ELF, one name (a second would keep it, and Trivy reads no
 # hard link), root's and 0755 as upstream's builder stage leaves it, and
 # `goose -version` saying v3.27.1 (anything else: upstream moved goose, THE
@@ -356,8 +332,8 @@
 # name, that it says v3.29.0, and that no other path of the image was added,
 # removed or changed. The image build needs github.com reachable as well as
 # the npm registry, wherever it builds: CI, the OTA stack's runner and the
-# live host. A fetch that fails is no move upstream, and none of these RUNs
-# (dompurify's, the five packages', goose's) says it is: a host that does not
+# live host. A fetch that fails is no move upstream, and goose's RUN does not
+# say it is (nor did the two RUNs that went at v4.8.5): a host that does not
 # answer, or answers with an error, stops the build with nothing changed and
 # the advice to run the same tag again once it answers; a file that is gone
 # (404, 410) says so. GitHub lets a release's owner delete an asset, where npm
@@ -390,187 +366,29 @@
 # and a scan of a binary taken out of an image is no proof unless the copy
 # kept it (chmod +x first).
 #
-# WHAT IS REPLACED: FIVE PACKAGES (four since 2026-11-03, the fifth since
-# 2026-11-06), each by the release of the same major that fixes it, in its
-# directory under pnpm's name for the old version, as dompurify's is. The
-# four: undici 6.29.0 by 6.29.1 (3 highs:
-# CVE-2026-87018, CVE-2026-109383, CVE-2026-109869; npm lists 5 advisories
-# against 6.29.0, 3 high, and none against 6.29.1), follow-redirects 1.16.0
-# by 1.16.2 (3 highs, npm's 3 advisories, fixed by 1.16.2), body-parser
-# 1.20.6 by 1.20.9 (1 high, GHSA-27r3-jxmh-p828) and systeminformation 5.31.7
-# by 5.33.19 (1 high, GHSA-3f7j-7jwc-fxfj, a Windows command injection; npm
-# lists 3 against 5.31.7). Each new release is npm's newest of its line,
-# published 2026-10-15, 2026-10-25, 2026-10-22 and 2026-10-30, each past its
-# three-day floor. The code a server here could load changes as the fixes
-# say, and nothing a caller uses: undici's agent, h1 and h2 clients keep a
-# TLS option they dropped, and its fetch, EventSource and WebSocket bound
-# what they buffer; follow-redirects strips credentials for array-form
-# headers and escapes its sensitiveHeaders; body-parser checks a charset
-# before it decompresses and drains what is left (1.20.7 moved qs to
-# ~6.16.0, which upstream's override already gives it: qs 6.16.1); and
-# systeminformation's are its fixes, sanitising what it hands its shell
-# commands (Windows above all), and new fields. The file names are the same
-# in each pair; no package.json gains an exports, module or type field, so
-# require and import load the same main; and every dependency the new
-# body-parser declares is one pnpm linked for 1.20.6, at a version its range
-# takes. Who requires each, at read_at (pnpm-lock.yaml): undici 6.29.0,
-# @remix-run/node 2.17.5 and
-# @ai-sdk/provider-utils 4.0.56; follow-redirects, axios 1.20.0 (through
-# @slack/web-api); body-parser 1.20.6, express 4.20.0, the webapp's server;
-# systeminformation, @opentelemetry/host-metrics 0.38.3, which loads
-# systeminformation/lib/network only, and which the webapp starts only in
-# setupMetrics() while INTERNAL_OTEL_METRIC_EXPORTER_ENABLED is not its
-# default "0" (managed.yml does not set it). The server loads them from
-# node_modules: build/server.js is esbuild without --bundle, and Vite's SSR
-# build keeps node_modules external (the webapp's own workspace packages
-# aside, whose dependencies stay external too, and the CJS packages its
-# noExternal names, none of which requires these four); the one bundle,
-# build/otlpTransformWorker.cjs, reaches none of them. Other versions of two
-# of them stay, by major: undici 5.29.0 and body-parser 2.3.0 (WHAT STAYS).
-# The fifth, since 2026-11-06: effect 3.17.1 by 3.22.4. Security Scan run
-# 42213975717 (Trivy 0.76.1, linux/arm64) read CVE-2026-32887 (high; npm's
-# GHSA-38f7-945m-qr2g, Effect's AsyncLocalStorage context lost or mixed up in
-# its fibers under concurrent load, below 3.20.0) in three copies: 3.16.12,
-# 3.17.1 and 3.18.4. npm lists none against 3.20.0, 3.21.2 or 3.22.4. Who
-# requires each, at read_at (pnpm-lock.yaml, and each requirer's package.json
-# as npm published it or as the workspace has it):
-#   - 3.16.12, @prisma/config 6.14.0 (prisma 6.14.0's, which the migrations
-#     run), and 3.18.4, @prisma/config 6.19.0 (@trigger.dev/build's): each
-#     pins it exactly, "effect": "3.16.12" and "3.18.4", so neither copy may
-#     hold another release, and both stay (WHAT STAYS);
-#   - 3.17.1, packages/schema-to-json alone (@trigger.dev/schema-to-json
-#     4.8.3, "effect": "^3"), whose range takes 3.22.4. Its link is in that
-#     package's own node_modules, not in the store, so the swap reads the
-#     workspace's packages for links too (HOW THE FIVE ARE SWAPPED).
-# 3.22.4 is npm's newest 3.x (its tag prev; latest is 4.x), published
-# 2026-10-22 20:49 UTC, past its floor: the newest of its line, as the other
-# four are, rather than 3.20.0, the lowest that fixes it, since npm lists
-# nothing against either and nothing here loads the copy (below). It declares
-# 3.17.1's dependencies, @standard-schema/spec ^1.0.0 and fast-check ^3.23.1,
-# which the 1.0.0 and 3.23.2 pnpm linked for 3.17.1 meet. Between the two
-# tarballs: the same main, module, types and sideEffects, and no type field;
-# the exports gain ./Graph, ./HashRing and ./PartitionedSemaphore and keep
-# the other 176 as they were; 31 files come (those three modules and
-# internal/stackTraceLimit) and none goes. The one caller,
-# packages/schema-to-json/src/index.ts, imports JSONSchema from "effect" and
-# calls JSONSchema.make(schema), which 3.22.4 keeps (it takes an optional
-# second argument). And no process here loads the copy, as with dompurify:
-# @trigger.dev/schema-to-json exports only dist/, which the image does not
-# have (upstream's .dockerignore leaves out every dist, and the runner stage
-# copies the dist of the two databases, trigger-sdk and core alone), and its
-# one importer is the CLI's two index workers (packages/cli-v3, there through
-# the dashboard agent's devDependency, WHAT GOES), which index tasks in the
-# CLI's dev session or a task's image, never in the webapp. The webapp's own
-# effect is 3.21.2 ("^3.21.2", fixed already), imported by
-# app/services/metadata/updateMetadata.server.ts alone, which Vite's SSR
-# build keeps external, and the one bundle reaches no effect. Its mark is
-# effect_internal_function, which effect's Utils carries in every release
-# read here and no file of upstream's source has.
-# Not taken (2026-11-06): effect 3.16.12 and 3.18.4, pinned exactly (above);
-# and body-parser 2.3.0 (CVE-2026-111181, GHSA-27r3-jxmh-p828, fixed in
-# 2.4.0), express 5.2.1's under @modelcontextprotocol/sdk 1.32.1, whose
-# "^2.2.1" takes 2.4.0. 2.4.0 raises three ranges, and of what pnpm linked for
-# 2.3.0, content-type 2.1.0 meets ^2.1.0 and qs 6.16.1 meets ^6.16.1, but
-# iconv-lite 0.7.2, the lockfile's only 0.7, is outside ^0.7.3: the new
-# release would load a dependency its range refuses.
-#
-# HOW THE FIVE ARE SWAPPED, AND PROVED. The third RUN as root holds one table,
-# rows(), a row per package: its name, both versions, both trees (tree(), as
-# dompurify's), the integrity npm published for the new tarball, a mark of
-# the package's own code, what to load, and who requires it (name@version).
-# Before it fetches anything it checks every row: the directory is the
-# published old release, file for file, pnpm's own node_modules in it aside
-# (A PACKAGE PNPM INSTALLED, below); the packages that link it are the
-# ones read, found by the links themselves (pnpm's directory name for a
-# requirer carries its peers), and pnpm's hoisted link may be one more; no
-# other package.json of that name and that version is in the image (other
-# versions stay); and the webapp's build carries none of the package's own
-# strings (undici:request:create, ERR_FR_TOO_MANY_REDIRECTS,
-# entity.parse.failed, `cat /sys/class/net/`, effect_internal_function),
-# which no file of upstream's source has, so a copy bundled there would show.
-# The links are read in two places (A PACKAGE OF THE WORKSPACE, below): in the
-# store, each directory of node_modules/.pnpm, and in the workspace, every
-# directory under the one that holds node_modules/.pnpm (/triggerdotdev), a
-# node_modules aside, that links the package from its own node_modules; a
-# requirer is named by its package.json either way. It then fetches all five
-# tarballs from the npm registry, refuses any whose sha512 is not npm's,
-# unpacks each apart and checks it is the published new release, file for
-# file, and only then swaps the five directories. After, it proves each is
-# the new release, that no other path was added or removed and no other file
-# changed (a stat of every entry outside them, before and after: owner,
-# mode, size and times), that every dependency the new release declares
-# loads from its directory, and that from every requirer's own directory
-# require.resolve lands in the swapped directory and require loads it, on
-# the image's Node. pnpm's records keep the old versions, as dompurify's do.
-#
-# A PACKAGE PNPM INSTALLED IS NOT ITS TARBALL. pnpm links a package's own bin
-# into the package's directory, node_modules/.bin, as a shim that names the
-# absolute paths of the install: systeminformation's directory holds
-# node_modules/.bin/systeminformation. So the trees of the swap table leave
-# a package's node_modules out (no published tarball here has one, and the
-# RUN refuses a tarball that does), and the RUN carries the old directory's
-# node_modules over to the new release before the swap and proves it
-# unchanged after. Found by running the first draft over a tree pnpm 10.33.2
-# installed, which it failed on systeminformation; dompurify has no bin.
-#
-# A PACKAGE OF THE WORKSPACE LINKS FROM ITS OWN NODE_MODULES (2026-11-06).
-# pnpm links a workspace package's dependencies from that package's own
-# node_modules into the store: effect 3.17.1's one link is
-# /triggerdotdev/packages/schema-to-json/node_modules/effect, and no directory
-# of node_modules/.pnpm links it. Until 2026-11-06 the table read the store
-# alone, so a row whose requirer is a package of the workspace would read
-# "linked from: nothing", and a package of the workspace that linked one of
-# the four would have gone unseen. The lockfile has none: of the workspace's
-# packages, only apps/webapp (effect 3.21.2) and packages/schema-to-json
-# (3.17.1) depend by name on one of the five. Read by installing, with pnpm
-# 10.33.2 on Node 24.22.1, a workspace with schema-to-json's, the webapp's
-# and @trigger.dev/build's effect, and running effect's row over it with the
-# real tarball: with the store alone it said "linked from: nothing"; with the
-# workspace read too it swapped, and the other three copies of effect stayed
-# as they were. A first install there hard-linked from a store on the same file
-# system, and the state proof refused the swap: effect's copies share most of
-# their files (2499 of 3.17.1's 2691 contents are 3.16.12's), and removing
-# the old directory changes the ctime of every inode it shares. Upstream's
-# build installs from a BuildKit cache mount, another mount, so pnpm copies,
-# and CI's build of the four proved the image shares no inode across
-# packages: undici 6.29.0 has 45 contents of 5.29.0's, and its swap changed
-# nothing outside. The install the row ran over copied, as the image's did.
-#
-# WHAT STAYS, and why (2026-11-03; triggerdotdev/trigger.dev#5084 asks
-# upstream for all of it). Expected after this build, by arithmetic from
-# Security Scan run 41586744506's report: 1 critical, 46 high, 14 with a fix.
-#   - zlib1g's critical (CVE-2023-45853, no fix in Debian) and the 32 highs
-#     of Debian 12's packages without a fix, which come with upstream's base.
-#   - goose's one, Go's CVE-2026-111943, until a goose release on Go 1.27.3.
+# WHAT STAYS, and why (2026-11-03; read again at v4.8.5 on 2026-11-13;
+# triggerdotdev/trigger.dev#5084 asks upstream for all of it). Expected at
+# v4.8.5, by arithmetic from the scan of the image built for alpha.7 (Security
+# Scan run 42440765278: 1 critical, 22 high, 14 with a fix): 1 critical, about
+# 19 high and about 11 with a fix, the three that go being effect 3.16.12's and
+# 3.18.4's and body-parser 2.3.0's (WHAT UPSTREAM NOW SHIPS FIXED). The
+# branch's image scan measures it.
+#   - zlib1g's critical (CVE-2023-45853) and 8 highs of Debian 12's packages,
+#     none with a fix, which come with upstream's base: two more of zlib1g's,
+#     and one each in gzip, libacl1, libtinfo6, ncurses-base, ncurses-bin and
+#     perl-base (since 2026-11-08: THE DEBIAN PACKAGES NOTHING RUNS).
+#   - goose's two: Go's CVE-2026-111943 and one in its golang.org/x/net, until
+#     a goose release on newer modules.
 #   - in the webapp's dependencies, where only a new major fixes them, or a
-#     requirer pins the version exactly: effect 3.16.12 and 3.18.4
-#     (CVE-2026-32887, fixed in 3.20.0; exact pins of @prisma/config 6.14.0
-#     and 6.19.0) and 3.17.1 (packages/schema-to-json's own, until
-#     2026-11-06: below); undici 5.29.0
-#     (5 highs, @connectrpc/connect-node's; fixed in 6) and its
-#     @fastify/busboy 2.1.1 (fixed in 3); turbo-stream 2.4.1 (fixed in 3; an
-#     exact pin of @remix-run/react and server-runtime 2.17.5); deepmerge-ts
-#     7.1.5 (fixed in 8; @prisma/config's); cross-spawn 5.1.0 (fixed in 6;
-#     spawndamnit's, under the root's @changesets/cli); and body-parser
-#     2.3.0 (express 5's; 2.4.0 needs iconv-lite ^0.7.3, and pnpm linked
-#     0.7.2 for it).
-# Since 2026-11-06 the 24 util-linux highs go (THE DEBIAN PACKAGES NOTHING
-# RUNS), and of Debian's packages the critical and 9 highs stay, none with a
-# fix: zlib1g's two (CVE-2023-45853 the critical), and one each in gzip,
-# libacl1, libsystemd0, libtinfo6, libudev1, ncurses-base, ncurses-bin and
-# perl-base. This purge was read for apt's and util-linux's packages alone.
-# The branch's scan of the purged image (Security Scan run 42213975717) read
-# 1 critical, 24 high and 14 with a fix. Since the same day effect 3.17.1
-# goes too (WHAT IS REPLACED: FIVE PACKAGES), so 13 with a fix are left, the
-# count Security Scan run 42263361900 read (the list is by arithmetic):
-# goose's one, undici 5.29.0's five, @fastify/busboy 2.1.1's,
-# turbo-stream 2.4.1's, deepmerge-ts 7.1.5's, cross-spawn 5.1.0's, effect
-# 3.16.12's and 3.18.4's (pinned exactly) and body-parser 2.3.0's (read
-# again, and not taken: 2.4.0 needs iconv-lite ^0.7.3). Since 2026-11-08
-# libsystemd0's high and libudev1's go too, and of Debian's packages the
-# critical and 8 highs stay, none with a fix: zlib1g's three (CVE-2023-45853
-# the critical), and one each in gzip, libacl1, libtinfo6, ncurses-base,
-# ncurses-bin and perl-base.
+#     requirer pins the version exactly: undici 5.29.0 (5 highs,
+#     @connectrpc/connect-node's; fixed in 6) and its @fastify/busboy 2.1.1
+#     (fixed in 3); turbo-stream 2.4.1 (fixed in 3; an exact pin of
+#     @remix-run/react and server-runtime 2.17.5); deepmerge-ts 7.1.5 (fixed in
+#     8; @prisma/config's); and cross-spawn 5.1.0 (fixed in 6; spawndamnit's,
+#     under the root's @changesets/cli).
+# Until v4.8.5 effect 3.16.12 and 3.18.4 (CVE-2026-32887, exact pins of
+# @prisma/config 6.14.0 and 6.19.0) and body-parser 2.3.0 (2.4.0 needs
+# iconv-lite ^0.7.3, and pnpm linked 0.7.2 for it) stayed too.
 #
 # THE DEBIAN PACKAGES NOTHING RUNS (since 2026-11-06, for alpha.6; workplan
 # 0119 §3 item 11, the owner's decision of 2026-11-03 for the appliance and the
@@ -579,7 +397,8 @@
 # by the owner on 2026-11-07; libsystemd0 and libudev1 since 2026-11-08, for
 # alpha.7, on the owner's answer that day, "Build the recommended for alpha
 # 7.", where the recommendation for these two was yes). Upstream's runner
-# stage is node:24.22.1-bookworm-slim (Debian 12.15) with openssl,
+# stage is node:24.22.3-bookworm-slim since v4.8.5 (node:24.22.1-bookworm-slim
+# before; both Debian 12.15) with openssl,
 # netcat-openbsd and ca-certificates from apt. Security Scan run 42143936608
 # (Trivy 0.76.1, linux/arm64, 2026-11-06) read this image at 1 critical, 49
 # high and 16 with a fix. Of those:
@@ -612,9 +431,13 @@
 # depend on stays (libc6, libcap2, libgcrypt20, liblz4-1, liblzma5 and
 # libzstd1): dpkg purges only what it is given. Debian 12.15's dpkg status
 # (node:24.22.1-bookworm-slim, linux/arm64, read 2026-11-06, and on both
-# platforms on 2026-11-08 by its layers' digests, which are this image's first
-# five) has 88 packages installed, no other installed package that depends
-# on one of the thirteen, and none that depends on e2fsprogs. libsystemd0 and
+# platforms on 2026-11-08 by its layers' digests; node:24.22.3-bookworm-slim's,
+# whose five layers are this image's first five at v4.8.5, read the same way
+# on both platforms on 2026-11-13) has 88 packages installed, no other
+# installed package that depends on one of the thirteen, and none that depends
+# on e2fsprogs. At 24.22.3 the
+# 88 are 24.22.1's, but for apt and libapt-pkg6.0 at 2.6.2 (2.6.1 before) and
+# tzdata at 2026f (2026c before). libsystemd0 and
 # libudev1 are Priority optional, neither Essential nor protected, and run no
 # maintainer script, only ldconfig's trigger. The runner stage's own layer
 # (openssl, netcat-openbsd, ca-certificates and their libraries, and `apt-get
@@ -653,7 +476,11 @@
 #     libapt-pkg.so.6.0.0 need either, all six purged with their packages, and
 #     no other ELF file but the two libraries themselves names either; node
 #     24.22.1 there needs libdl, libstdc++, libm, libgcc_s, libpthread, libc
-#     and ld-linux. In the published files the next bullet reads, fetched
+#     and ld-linux. The same holds in node:24.22.3-bookworm-slim, v4.8.5's
+#     base, read by each ELF file's dynamic section on 2026-11-13 (694 and 695
+#     ELF files again; on each platform 58 need one of the eight libraries
+#     below, each a file of one of the thirteen; node 24.22.3 needs what
+#     24.22.1 does). In the published files the next bullet reads, fetched
 #     again by their publishers' hashes (goose's two assets, prisma's five
 #     engines by the sha256 binaries.prisma.sh publishes, and sentry-cli's two
 #     builds, bufferutil's linux-x64 prebuild and rollup's linux-x64-gnu and
@@ -759,9 +586,9 @@
 # READ AT ONE RELEASE. Why each removal is safe was read in upstream's source at
 # read_at (below): the depot gate, what build/server.js imports, the entrypoint
 # and the copies of pnpm. A release that keeps @depot/cli 0.0.1-cli.2.80.0 and
-# esbuild 0.23.0 at the same paths (4.7.6, 4.8.0, 4.8.1 and 4.8.3 all do) would
-# pass every path check here while code this stack reaches started to run one
-# of them. So the build refuses any other version than read_at, and
+# esbuild 0.23.0 at the same paths (4.7.6, 4.8.0, 4.8.1, 4.8.3 and 4.8.5 all
+# do) would pass every path check here while code this stack reaches started
+# to run one of them. So the build refuses any other version than read_at, and
 # `trigger-version.sh pin` leaves read_at where it is: a version move's pull
 # request is red (here, in `build (trigger, …)` and in E2E (managed)) until
 # someone reads the reasons again at the new release and moves read_at, and
@@ -773,14 +600,14 @@
 # its packageManager is pnpm@10.33.2 (the one the swap replaces, WHAT IS
 # REPLACED: PNPM), and it runs on linux-arm64 or linux-x64; npm's and
 # corepack's directories name no version, so their package.json must say
-# 11.19.1 and 0.36.0, Node 24.22.1's. Each file is tested before a plain
+# 11.19.1 and 0.36.0, Node 24.22.3's at v4.8.5 as they were 24.22.1's. Each
+# file is tested before a plain
 # `rm`, never `rm -f`, and checked gone after. A Trigger.dev that moves
 # @depot/cli, esbuild, TypeScript 7, pnpm or Node, or drops one, fails here
 # and names the path: re-read this header against it, and drop the removal
-# upstream fixed. Each replacement names the version it replaces the same
-# way (dompurify 3.4.13, goose v3.27.1, and the five packages' old versions
-# and their requirers), and fails by name when upstream moves it: drop that
-# replacement (THE WAY OUT). The purge names its thirteen packages and eight
+# upstream fixed. The replacement names the version it replaces the same
+# way (goose v3.27.1), and fails by name when upstream moves it: drop it
+# (THE WAY OUT). The purge names its thirteen packages and eight
 # libraries the same way: `dpkg-query -W` stops the build on a base that
 # renames or drops one, and `dpkg-query -L` on one that no longer ships a
 # library (THE DEBIAN PACKAGES NOTHING RUNS). A pull request that touches
@@ -806,23 +633,17 @@
 # upstream's.
 #
 # THE WAY OUT. The owner filed the issue that asks upstream for these fixes,
-# triggerdotdev/trigger.dev#5084 (workplan 0146 T16). Upstream's fix for
-# dompurify is the override in its root package.json, `"dompurify@>=3 <3.4.13":
-# "^3.4.13"` at v4.8.1 and still at v4.8.3, raised to 3.4.17 with its
-# lockfile. When a `pin` to a release that fixed one of these fails its check,
-# delete that removal and its row in the guard's REMOVED table; a release that
-# moves dompurify past 3.4.13 fails the replacement on its path, and the
-# replacement and its REPLACED row go the same way. TypeScript 7's tsc goes
+# triggerdotdev/trigger.dev#5084 (workplan 0146 T16). Its npm half shipped in
+# v4.8.4: the overrides in upstream's root package.json fix dompurify and the
+# five packages this build swapped, and at v4.8.5 their two RUNs went (WHAT
+# UPSTREAM NOW SHIPS FIXED). When a `pin` to a release that fixed one of the
+# rest fails its check, delete that removal and its row in the guard's
+# REMOVED table. TypeScript 7's tsc goes
 # out with its REMOVED row when upstream's lockfile no longer resolves
 # typescript 7.0.2 (or drops the peer that brings it). When upstream's
-# Dockerfile moves goose past v3.27.1, the fourth RUN fails ("upstream moved
+# Dockerfile moves goose past v3.27.1, goose's RUN fails ("upstream moved
 # goose: drop the replacement"): delete that RUN and goose's REPLACED row,
-# and read the new goose's findings in the scan. When upstream moves one of
-# the five packages (a version, or who requires it), the third RUN fails on
-# that row: delete the row here (and in the supervisor's table, for
-# systeminformation) and its REPLACED row, and the RUN with the last row.
-# effect's row goes the same way when upstream's lockfile gives
-# packages/schema-to-json another effect (any 3.x from 3.20.0 fixes it).
+# and read the new goose's findings in the scan.
 # When upstream's
 # packageManager moves past pnpm@10.33.2, the first RUN fails, "upstream moved
 # pnpm: drop the swap": delete the swap in both Dockerfiles (pm_upstream,
@@ -843,7 +664,7 @@
 # `pin`ned backwards: its checks hold for read_at only, so going back to an
 # older release means running the checkout that pinned it (a revert of the
 # move, or the older release's tag), whose own Dockerfile and name come with it.
-FROM ghcr.io/triggerdotdev/trigger.dev:v4.8.3@sha256:54aa67fa90cd1fc88ce11ae670e6dbb8f12d2ba8b39e839e882d9e32bb8bdb1f
+FROM ghcr.io/triggerdotdev/trigger.dev:v4.8.5@sha256:6e6d38a94699b93a9be63deb5a8646d5c36fc0e5af60fb9047c5d5ec16e3e92c
 
 # Given by managed.yml from the .env, empty when the .env sets none. It only refuses.
 ARG TRIGGER_IMAGE_TAG
@@ -853,7 +674,7 @@ USER root
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read this file's header against the new tag, or drop the removal upstream fixed." >&2; exit 1; }; \
-    read_at=v4.8.3; \
+    read_at=v4.8.5; \
     core="v$(node -p "require('/triggerdotdev/packages/core/package.json').version")"; \
     if [ -n "${TRIGGER_IMAGE_TAG:-}" ] && [ "$TRIGGER_IMAGE_TAG" != "$core" ]; then \
       echo "$me: the .env names TRIGGER_IMAGE_TAG=$TRIGGER_IMAGE_TAG, and this checkout builds Trigger.dev $core. Either set TRIGGER_IMAGE_TAG=$core in the .env, or run a checkout that pins $TRIGGER_IMAGE_TAG: the release that ran it, or a move to it (trigger-version.sh pin $TRIGGER_IMAGE_TAG, docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; \
@@ -907,14 +728,14 @@ RUN set -eu; \
     [ -d "$unused/dist/node_modules/tar" ] || fail "$unused/dist/node_modules/tar is not there: node's copy of pnpm no longer carries tar."; \
     [ -f "$replaced/.corepack" ] || fail "$replaced/.corepack is not there: root's copy of pnpm $pm_upstream, which this file replaces with $pnpm_to, is not where it was."; \
     [ ! -e "$kept" ] || fail "$kept is there already: corepack would reuse it by its .corepack file alone, unchecked, so this file installs pnpm $pnpm_to only where no copy is."; \
-    [ -f "$npm_dir/package.json" ] || fail "$npm_dir is not there: Node's npm is not where Node 24.22.1 puts it."; \
-    [ "$(node -p "require('$npm_dir/package.json').version")" = 11.19.1 ] || fail "$npm_dir is not npm 11.19.1, Node 24.22.1's, which this file was read for."; \
+    [ -f "$npm_dir/package.json" ] || fail "$npm_dir is not there: Node's npm is not where Node 24.22.3 puts it."; \
+    [ "$(node -p "require('$npm_dir/package.json').version")" = 11.19.1 ] || fail "$npm_dir is not npm 11.19.1, Node 24.22.3's, which this file was read for."; \
     [ ! -e "$npm_dir/npmrc" ] || fail "$npm_dir/npmrc is there: pnpm reads it as its builtin configuration (@pnpm/npm-conf), so without npm pnpm would be configured otherwise."; \
     [ "$(readlink "$npm_link")" = ../lib/node_modules/npm/bin/npm-cli.js ] || fail "$npm_link is not Node's link to npm's bin/npm-cli.js."; \
     [ "$(readlink "$npx_link")" = ../lib/node_modules/npm/bin/npx-cli.js ] || fail "$npx_link is not Node's link to npm's bin/npx-cli.js."; \
     into="$(find /usr/local/bin -type l -exec sh -c 'for link; do case "$(readlink -f "$link")" in "$0"/*) echo "$link" ;; esac; done' "$(readlink -f "$npm_dir")" {} + | LC_ALL=C sort | tr '\n' ' ')"; \
     [ "$into" = "$npm_link $npx_link " ] || fail "these link into $npm_dir: ${into:-nothing}, not npm and npx alone."; \
-    [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "$corepack_dir is not corepack 0.36.0, Node 24.22.1's, which runs every pnpm here."; \
+    [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "$corepack_dir is not corepack 0.36.0, Node 24.22.3's, which runs every pnpm here."; \
     corepack install -g "pnpm@$pnpm_to+sha512.$pnpm_to_sha512" || fail "corepack did not install pnpm $pnpm_to by the sha512 npm published for it; nothing is removed yet."; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack is not there after the install: corepack put pnpm $pnpm_to elsewhere."; \
     [ "$(node -p "require('$kept/package.json').version")" = "$pnpm_to" ] || fail "$kept is not pnpm $pnpm_to."; \
@@ -946,158 +767,6 @@ RUN set -eu; \
     [ "$(cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version)" = 10.34.9 ] || fail "as root, the user trigger-api runs as, pnpm 10.34.9 does not start offline."; \
     (cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter @trigger.dev/database exec node -e 0) || fail "as root, pnpm without node-gyp's tree does not run a command in @trigger.dev/database offline, as the entrypoint's migrations need."; \
     echo "$me: removed both names of depot and esbuild, TypeScript 7.0.2's tsc, node's copy of pnpm, root's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten), node-gyp's tree from root's and npm; corepack 0.36.0 stays, and as root pnpm $pnpm_to starts and runs a workspace command offline."
-
-# Still as root: dompurify 3.4.13's files replaced by 3.4.17's, as npm published
-# them (WHAT IS REPLACED: DOMPURIFY and HOW IT IS REPLACED, above).
-RUN set -eu; \
-    me=deploy/compose/trigger.dev/Dockerfile; \
-    fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED against this image, or drop the replacement if upstream moved dompurify." >&2; exit 1; }; \
-    unreachable() { echo "$me: $1 did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers: nothing here needs editing (docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; exit 1; }; \
-    gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
-    s=/triggerdotdev/node_modules/.pnpm; \
-    pkg="$s/dompurify@3.4.13/node_modules/dompurify"; \
-    from=3.4.13; \
-    from_tree=e9c42f84de69a3769f574e05d9a17d919029a5b1bace0609737e9a9b7e9539d5; \
-    to=3.4.17; \
-    to_tree=595c3084456d2b111dbb14e16bf1462ecff273316170067b0a95a1cc5f0ff809; \
-    url=https://registry.npmjs.org/dompurify/-/dompurify-3.4.17.tgz; \
-    integrity=sha512-B/pSlYVHQ58kqISD/yDjuJ1yfzI34m1gF4lAod2bwSRhiN4K5Cl3H8Af7hqB2PmTL911tdEudnnXn5FnhRoz0w==; \
-    posthog="$s/posthog-js@1.407.3/node_modules/posthog-js"; \
-    mermaid="$s/mermaid@11.16.1/node_modules/mermaid"; \
-    webapp=/triggerdotdev/apps/webapp; \
-    top=/; \
-    version() { node -p "require(process.argv[1] + '/package.json').version" "$1"; }; \
-    files() { (cd "$1" && find . -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum); }; \
-    tree() { files "$1" | sha256sum | cut -d' ' -f1; }; \
-    [ -f "$pkg/package.json" ] || fail "$pkg is not there."; \
-    [ "$(version "$pkg")" = "$from" ] || fail "$pkg is dompurify $(version "$pkg"), not $from."; \
-    [ -z "$(find "$pkg" ! -type f ! -type d)" ] || fail "$pkg holds more than files and directories."; \
-    [ "$(tree "$pkg")" = "$from_tree" ] || { files "$pkg" >&2; fail "$pkg is not the published dompurify $from, file for file (above)."; }; \
-    for d in "$posthog" "$mermaid"; do [ -f "$d/package.json" ] || fail "$d is not there."; done; \
-    links="$(find "$s" -maxdepth 3 -name dompurify ! -path "$pkg" | LC_ALL=C sort | tr '\n' ' ')"; \
-    [ "$links" = "$s/mermaid@11.16.1/node_modules/dompurify $s/node_modules/dompurify $s/posthog-js@1.407.3/node_modules/dompurify " ] || fail "dompurify is linked from: $links; this file was read for posthog-js 1.407.3's, mermaid 11.16.1's and pnpm's hoisted link."; \
-    for l in $links; do { [ -L "$l" ] && [ "$(readlink -f "$l")" = "$(readlink -f "$pkg")" ]; } || fail "$l is not a link to $pkg."; done; \
-    copies="$(find "$top" -xdev -path '*/dompurify/package.json' -type f)"; \
-    [ "$copies" = "$pkg/package.json" ] || fail "dompurify's package.json is at: $copies; this file replaces $pkg alone."; \
-    for d in "$webapp/build/client" "$webapp/build/server" "$webapp/public"; do [ -d "$d" ] || fail "$d is not there: the webapp's build is not where it was read."; done; \
-    found="$(grep -rlF data-tt-policy-suffix "$webapp/build" "$webapp/public")" && st=0 || st=$?; \
-    [ "$st" = 1 ] || fail "the webapp's own build carries DOMPurify (grep exits $st): ${found:-}. A copy bundled there is not the package this replaces."; \
-    found="$(grep -rlE "(from|import\(|require\()[[:space:]]*[\"'](dompurify|mermaid)[\"']" "$webapp/build")" && st=0 || st=$?; \
-    [ "$st" = 1 ] || fail "the webapp's own build imports dompurify or mermaid (grep exits $st): ${found:-}. This file was read for a webapp that loads neither."; \
-    tmp="$(mktemp -d)"; \
-    marker="$tmp/marker"; \
-    : > "$marker"; \
-    paths() { find "$top" -xdev \( -path "$tmp" -o -path "$pkg" \) -prune -o -print | LC_ALL=C sort | sha256sum; }; \
-    before="$(paths)"; \
-    node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/dompurify.tgz" && st=0 || st=$?; \
-    case "$st" in 0) ;; 3) unreachable "$url" ;; 4) gone "$url" ;; *) fail "$url could not be fetched (node exits $st); nothing was changed." ;; esac; \
-    got="$(node -p "'sha512-' + require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64')" "$tmp/dompurify.tgz")"; \
-    [ "$got" = "$integrity" ] || fail "$url is $got, not $integrity, the integrity npm published for dompurify $to; nothing was changed."; \
-    mkdir "$tmp/unpacked"; \
-    tar -xzf "$tmp/dompurify.tgz" -C "$tmp/unpacked" --no-same-owner; \
-    new="$tmp/unpacked/package"; \
-    [ "$(version "$new")" = "$to" ] || fail "$url unpacks to dompurify $(version "$new"), not $to; nothing was changed."; \
-    { [ -z "$(find "$new" ! -type f ! -type d)" ] && [ "$(tree "$new")" = "$to_tree" ]; } || { files "$new" >&2; fail "$url unpacks to other files than the published dompurify $to (above); nothing was changed."; }; \
-    chown -R "$(stat -c %u:%g "$pkg/package.json")" "$new"; \
-    rm -r "$pkg"; \
-    mv "$new" "$pkg"; \
-    { [ "$(version "$pkg")" = "$to" ] && [ "$(tree "$pkg")" = "$to_tree" ]; } || fail "$pkg is not the published dompurify $to after the swap."; \
-    [ "$(paths)" = "$before" ] || fail "a path outside $pkg was added or removed while it was replaced."; \
-    changed="$(find "$top" -xdev \( -path "$tmp" -o -path "$pkg" \) -prune -o ! -type d -cnewer "$marker" -print)"; \
-    [ -z "$changed" ] || fail "outside $pkg, these changed while it was replaced: $changed"; \
-    rm -r "$tmp"; \
-    for d in "$posthog" "$mermaid"; do \
-      (cd "$d" && node -e "const fs = require('fs'); const p = fs.realpathSync(require.resolve('dompurify')); const v = require('dompurify').version; console.log('require(dompurify): ' + p + ' ' + v); if (p !== fs.realpathSync(process.argv[1] + '/dist/purify.cjs.js') || v !== process.argv[2]) process.exit(1);" "$pkg" "$to") || fail "from $d, require('dompurify') does not load $to from $pkg."; \
-      (cd "$d" && node --input-type=module -e "import { realpathSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; const p = realpathSync(fileURLToPath(import.meta.resolve('dompurify'))); const v = (await import('dompurify')).default.version; console.log('import(dompurify): ' + p + ' ' + v); if (p !== realpathSync(process.argv[1] + '/dist/purify.es.mjs') || v !== process.argv[2]) process.exit(1);" "$pkg" "$to") || fail "from $d, import('dompurify') does not load $to from $pkg."; \
-    done; \
-    echo "$me: dompurify $from's files at $pkg are $to's, as npm published them ($integrity); nothing else in the image changed; from posthog-js and mermaid, require and import load $to."
-
-# Still as root: undici, follow-redirects, body-parser, systeminformation and
-# effect replaced by the release of the same major that fixes each, as npm
-# published them (WHAT IS REPLACED: FIVE PACKAGES and HOW THE FIVE ARE SWAPPED,
-# above).
-RUN set -eu; \
-    me=deploy/compose/trigger.dev/Dockerfile; \
-    fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED: FIVE PACKAGES against this image, or drop the row of a package upstream moved (THE WAY OUT)." >&2; exit 1; }; \
-    unreachable() { echo "$me: $1 did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers: nothing here needs editing (docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; exit 1; }; \
-    gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
-    s=/triggerdotdev/node_modules/.pnpm; \
-    bundles="/triggerdotdev/apps/webapp/build /triggerdotdev/apps/webapp/public"; \
-    top=/; \
-    rows() { \
-      "$@" undici 6.29.0 461a038ab5fca6268e250cf431688e279c51688d51f486769a9d9c7114ae5448 6.29.1 5f8644a9bf69a2c6aac6cef3f750832a3ff2b7a1f0d6d55d105abc4456cba6fb sha512-EvRlUt/QqAEvXdQeRMYUfwOQsfzpDztykrG2owGEE/rBOBoYv9uF39ZzsNDh4lTFHhTr2XOZjKkYgueD12ZmGA== 'undici:request:create' undici @ai-sdk/provider-utils@4.0.56 @remix-run/node@2.17.5; \
-      "$@" follow-redirects 1.16.0 374847280f34dd2d9f043d5e8b158655915ec22c8f24f58e35e790baa6c7ee41 1.16.2 a6296098bcf909250254ddc221f6350dbd95e88957d86b035b615de6ceb103e4 sha512-/kVP2U8z596Ia0gwFrwyIeo74ta5aVmSeU1FfAUMAmcEP5EP7zydmag3SLiN64NaRKef3lxsq7i/g7ltJQDGow== 'ERR_FR_TOO_MANY_REDIRECTS' follow-redirects axios@1.20.0; \
-      "$@" body-parser 1.20.6 a4878aa94c0d147225571b3d8daa52abe187aa0843f82d39e650b68bb3e60b56 1.20.9 d44d0e9caa1723ff88fb3b05a305cc57efdb6d63a4cf05847f6172557af6b737 sha512-FISIQxV5u91Y9gvuFq3q/tA/qTqLJn3AhRcEvyozyhJTh5OBFFtv827AdHU7Rbyct4r+Ba1/99oFa1Y3yuFsdw== 'entity.parse.failed' body-parser express@4.20.0; \
-      "$@" systeminformation 5.31.7 77226a7b179b8ebd183348773c2f8505c10b1cc0825036541983037cda8be543 5.33.19 dc01111094ab84ace2da139f1c6e612a888c4d275cb993740f7a520b7851bb38 sha512-Zm7wGeCG7PqfvzegMJIzrxICopWqYCeLATVmvxOOci1isLcNVKgY4Fr0hhYQzvc7cgtK3377jQVChTFAnznOiA== 'cat /sys/class/net/' systeminformation,systeminformation/lib/network @opentelemetry/host-metrics@0.38.3; \
-      "$@" effect 3.17.1 3fdbdbcf4b43e82d5631ed580db16b9431d04677ada179ed34a27043d8a23ccd 3.22.4 b7d6b7cbae9262a2e258136292e231646ba675df4e965dd38136cd266d8ac9af sha512-RNshu7AXVxxDh6aS4lothhJ+QoZ4xSykbWNaaVdvDN72RMyVwhCGdALkyl1TbEydgAmRIdD1eTyJqBUGwSBGDA== 'effect_internal_function' effect @trigger.dev/schema-to-json@4.8.3; \
-    }; \
-    version() { node -p "require(process.argv[1] + '/package.json').version" "$1"; }; \
-    files() { (cd "$1" && find . -path ./node_modules -prune -o -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum); }; \
-    own() { if [ -d "$1/node_modules" ]; then (cd "$1/node_modules" && find . ! -type d -exec sha256sum {} + | LC_ALL=C sort); fi; }; \
-    tree() { files "$1" | sha256sum | cut -d' ' -f1; }; \
-    state() { { find "$top" -xdev \( $prune \) -prune -o -type d -exec stat -c '%n %u:%g %a' {} + ; find "$top" -xdev \( $prune \) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' {} + ; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }; \
-    who="const fs = require('fs'); const path = require('path'); const [s, pkg, name] = process.argv.slice(1); const real = fs.realpathSync(pkg); const out = []; for (const d of fs.readdirSync(s)) { if (d === 'node_modules') continue; const nm = path.join(s, d, 'node_modules'); let st; try { st = fs.lstatSync(path.join(nm, name)); } catch { continue; } if (!st.isSymbolicLink() || fs.realpathSync(path.join(nm, name)) !== real) continue; const own = []; for (const e of fs.readdirSync(nm)) { for (const x of e.startsWith('@') ? fs.readdirSync(path.join(nm, e)).map((y) => e + '/' + y) : [e]) { const p = path.join(nm, x); if (!fs.lstatSync(p).isSymbolicLink() && fs.existsSync(path.join(p, 'package.json'))) own.push(p); } } if (own.length !== 1) { out.push('unknown ' + nm); continue; } const j = JSON.parse(fs.readFileSync(path.join(own[0], 'package.json'), 'utf8')); out.push(j.name + '@' + j.version + ' ' + own[0]); } const walk = (d) => { const l = path.join(d, 'node_modules', name); let st; try { st = fs.lstatSync(l); } catch { st = null; } if (st && st.isSymbolicLink() && fs.realpathSync(l) === real) { const j = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8')); out.push(j.name + '@' + j.version + ' ' + d); } for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory() && e.name !== 'node_modules') walk(path.join(d, e.name)); }; walk(path.dirname(path.dirname(s))); if (out.length) console.log(out.sort().join('\n'));"; \
-    same="const fs = require('fs'); const [n, v, ...files] = process.argv.slice(1); for (const f of files) { let j; try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { console.log('unreadable:' + f); continue; } if (j.name === n && j.version === v) console.log(f); }"; \
-    deps="const fs = require('fs'); const path = require('path'); const real = fs.realpathSync(process.argv[1]); const j = JSON.parse(fs.readFileSync(path.join(real, 'package.json'), 'utf8')); for (const d of Object.keys(j.dependencies || {})) { const p = fs.realpathSync(require.resolve(d, { paths: [real] })); require(p); console.log('dependency ' + d + ': ' + p); }"; \
-    load="const fs = require('fs'); const path = require('path'); const [pkg, name, to, list] = process.argv.slice(1); const specs = list.split(','); const real = fs.realpathSync(pkg); const pj = fs.realpathSync(require.resolve(name + '/package.json')); const v = require(name + '/package.json').version; if (pj !== path.join(real, 'package.json') || v !== to) { console.error('require(' + name + '/package.json) is ' + pj + ' ' + v); process.exit(1); } for (const sp of specs) { const p = fs.realpathSync(require.resolve(sp)); if (!p.startsWith(real + path.sep)) { console.error('require(' + sp + ') resolves ' + p); process.exit(1); } const m = require(sp); for (const k of Object.keys(m)) void m[k]; console.log('require(' + sp + '): ' + p + ' ' + v); }"; \
-    check() { \
-      name=$1; from=$2; from_tree=$3; mark=$7; shift 8; pkg="$s/$name@$from/node_modules/$name"; \
-      [ -f "$pkg/package.json" ] || fail "$pkg is not there."; \
-      [ "$(version "$pkg")" = "$from" ] || fail "$pkg is $name $(version "$pkg"), not $from."; \
-      [ -z "$(find "$pkg" -path "$pkg/node_modules" -prune -o ! -type f ! -type d -print)" ] || fail "$pkg holds more than files and directories (pnpm's own node_modules in it aside)."; \
-      [ "$(tree "$pkg")" = "$from_tree" ] || { files "$pkg" >&2; fail "$pkg is not the published $name $from, file for file (above)."; }; \
-      found="$(node -e "$who" "$s" "$pkg" "$name")" || fail "the packages that link $pkg could not be read."; \
-      [ "$(printf '%s\n' "$found" | cut -d' ' -f1 | LC_ALL=C sort -u | tr '\n' ' ')" = "$(printf '%s\n' "$@" | LC_ALL=C sort -u | tr '\n' ' ')" ] || fail "$name $from is linked from: ${found:-nothing}; this file was read for $*."; \
-      if [ -L "$s/node_modules/$name" ] && [ "$(readlink -f "$s/node_modules/$name")" = "$(readlink -f "$pkg")" ]; then echo "$me: pnpm hoists $name $from too: $s/node_modules/$name"; fi; \
-      copies="$(find "$top" -xdev -type f -path "*/$name/package.json" -exec node -e "$same" "$name" "$from" {} +)" || fail "the copies of $name could not be read."; \
-      [ "$copies" = "$pkg/package.json" ] || fail "$name $from's package.json is at: ${copies:-nowhere}; this file replaces $pkg alone (other versions of $name stay)."; \
-      found="$(grep -rlF -e "$mark" $bundles)" && st=0 || st=$?; \
-      [ "$st" = 1 ] || fail "the webapp's own build carries $name's $mark (grep exits $st): ${found:-}. A copy bundled there is not the package this replaces."; \
-    }; \
-    pruned() { prune="$prune -o -path $s/$1@$2/node_modules/$1"; }; \
-    fetched() { \
-      name=$1; from=$2; to=$4; to_tree=$5; want=$6; pkg="$s/$name@$from/node_modules/$name"; url="https://registry.npmjs.org/$name/-/$name-$to.tgz"; \
-      node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/$name.tgz" && st=0 || st=$?; \
-      case "$st" in 0) ;; 3) unreachable "$url" ;; 4) gone "$url" ;; *) fail "$url could not be fetched (node exits $st); nothing was changed." ;; esac; \
-      got="$(node -p "'sha512-' + require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64')" "$tmp/$name.tgz")"; \
-      [ "$got" = "$want" ] || fail "$url is $got, not $want, the integrity npm published for $name $to; nothing was changed."; \
-      mkdir "$tmp/$name"; \
-      tar -xzf "$tmp/$name.tgz" -C "$tmp/$name" --no-same-owner || fail "$url does not unpack; nothing was changed."; \
-      new="$tmp/$name/package"; \
-      [ "$(version "$new")" = "$to" ] || fail "$url unpacks to $name $(version "$new"), not $to; nothing was changed."; \
-      [ ! -e "$new/node_modules" ] || fail "$url unpacks a node_modules of its own; nothing was changed."; \
-      { [ -z "$(find "$new" ! -type f ! -type d)" ] && [ "$(tree "$new")" = "$to_tree" ]; } || { files "$new" >&2; fail "$url unpacks to other files than the published $name $to (above); nothing was changed."; }; \
-      chown -R "$(stat -c %u:%g "$pkg/package.json")" "$new"; \
-      own "$pkg" > "$tmp/$name.own"; \
-    }; \
-    swapped() { if [ -e "$s/$1@$2/node_modules/$1/node_modules" ]; then mv "$s/$1@$2/node_modules/$1/node_modules" "$tmp/$1/package/node_modules" || fail "pnpm's node_modules in $s/$1@$2/node_modules/$1 could not be moved to the new release."; fi; rm -r "$s/$1@$2/node_modules/$1" || fail "$s/$1@$2/node_modules/$1 could not be removed."; mv "$tmp/$1/package" "$s/$1@$2/node_modules/$1" || fail "the new $1 could not be moved to $s/$1@$2/node_modules/$1."; }; \
-    proven() { \
-      name=$1; from=$2; to=$4; to_tree=$5; pkg="$s/$name@$from/node_modules/$name"; \
-      { [ "$(version "$pkg")" = "$to" ] && [ "$(tree "$pkg")" = "$to_tree" ]; } || fail "$pkg is not the published $name $to after the swap."; \
-      [ "$(own "$pkg")" = "$(cat "$tmp/$name.own")" ] || fail "$pkg/node_modules, pnpm's own (a bin shim), is not what it was before the swap."; \
-    }; \
-    loaded() { \
-      name=$1; from=$2; to=$4; specs=$8; pkg="$s/$name@$from/node_modules/$name"; \
-      node -e "$deps" "$pkg" || fail "a dependency $name $to declares does not load from $pkg."; \
-      found="$(node -e "$who" "$s" "$pkg" "$name")" || fail "the packages that link $pkg could not be read."; \
-      [ -n "$found" ] || fail "nothing links $pkg after the swap."; \
-      for r in $(printf '%s\n' "$found" | cut -d' ' -f2); do \
-        (cd "$r" && node -e "$load" "$pkg" "$name" "$to" "$specs") || fail "from $r, $name does not load $to from $pkg."; \
-      done; \
-    }; \
-    for d in $bundles; do [ -d "$d" ] || fail "$d is not there: the build is not where it was read."; done; \
-    rows check; \
-    tmp="$(mktemp -d)"; \
-    prune="-path $tmp"; \
-    rows pruned; \
-    before="$(state)"; \
-    rows fetched; \
-    rows swapped; \
-    rows proven; \
-    [ "$(state)" = "$before" ] || fail "outside the swapped directories, a path was added or removed, or an entry's owner, mode, size or times changed, while they were replaced."; \
-    rm -r "$tmp"; \
-    rows loaded; \
-    echo "$me: undici 6.29.0, follow-redirects 1.16.0, body-parser 1.20.6, systeminformation 5.31.7 and effect 3.17.1 are 6.29.1, 1.16.2, 1.20.9, 5.33.19 and 3.22.4, as npm published them; nothing else in the image changed; from every requirer, require loads the new release."
 
 # Still as root: goose v3.27.1 replaced by goose v3.29.0's release binary
 # (WHAT IS REPLACED: GOOSE and HOW GOOSE IS REPLACED, above).

@@ -151,7 +151,12 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    either kind; v4.8.3 adds six Prisma migrations, columns, an index and the drop of a table only
    the logs-search projector wrote, and ClickHouse 055 and 056, which change a setting of
    `task_events_search_v2` and drop `task_events_search_v1` with its view, both filled only by
-   the ClickHouse event store this stack does not use, so the list below holds):
+   the ClickHouse event store this stack does not use; v4.8.4 adds twelve Prisma migrations,
+   columns, indexes, an enum value and two tables of trusted deploys, none of which holds a
+   run, among them `api_keys.last_used_ip`, the address an additional API key made on
+   the dashboard was last used from (the scripts here use the environment's own key, which is
+   not in that table); v4.8.5 adds none, and neither adds a ClickHouse migration, so the list
+   below holds):
    - **`triggerdb`**, its database: the runs, their payloads, outputs and errors, and their log
      events (`EVENT_REPOSITORY_DEFAULT_STORE` is not set, so they are kept there).
    - **ClickHouse**, although runs are not copied there (`RUN_REPLICATION_ENABLED` is not set,
