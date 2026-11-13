@@ -937,8 +937,8 @@ services:
   # ddfab4c402bf…, dated 2026-11-13 16:01 UTC in its configs and pushed as
   # `latest` on 2026-11-13 at 20:19 UTC, with linux/amd64 and linux/arm64 in
   # it, taken that day for alpha.8, inside its three-day floor (which ends
-  # 2026-11-16 20:19 UTC), on the owner's waiver of 2026-11-13: "Waive all
-  # waiting time." Kept current, not a security fix: Security Scan run
+  # 2026-11-16 20:19 UTC), on the owner's waiver of 2026-11-13 ("Waive all
+  # waiting time."). Kept current, not a security fix: Security Scan run
   # 43492635512 (2026-11-13) read the digest before it, 869ca3178831… (built
   # 2026-11-07, taken 2026-11-10 for CVE-2026-116591, #1870), at 0 critical
   # and 0 high. The server is the fork's RELEASE.2026-11-12T01-15-23Z at
