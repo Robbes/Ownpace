@@ -53,13 +53,15 @@ digest; nothing read was run. Times are UTC.
   are 76 under `skills/` and `.claude-plugin/marketplace.json`, and none is under `doc/`. Its
   conclusion stands: none of Atlas's code. `ci.yml`'s header, the Atlas row and the CHANGELOG
   line say it this way now.
-- **Proved here.** The 68 unit test files that read `ci.yml`, the CHANGELOG, the plans or the pin
-  watch pass, 2,003 tests. The pin watch's Atlas row, run alone against Docker Hub's tag list,
-  reads v1.3.10 *current* on the branch and v1.3.9 *behind* on `main`. The guard,
-  `a-pin-that-knows-it-is-behind`, still bites: each of four mutations of the step fails it, and
-  `ci.yml` was restored and compared after each. They are one sum pinned for both architectures,
-  the version set to `latest`, the line that stops on a refused sum removed, and the exit after a
-  wrong version line removed.
+- **Proved here.** The 68 unit test files that name `ci.yml`, the CHANGELOG, the plans or the pin
+  watch pass, 2,003 tests, and so do five more that read every workflow by listing
+  `.github/workflows`, 285 tests. A test can read these files without naming them, so the 73 are
+  not all that read the change: the whole suite is the pull request's CI. The pin watch's Atlas
+  row, run alone against Docker Hub's tag list, reads v1.3.10 *current* on the branch and v1.3.9
+  *behind* on `main`. The guard, `a-pin-that-knows-it-is-behind`, still bites: each of four
+  mutations of the step fails it, and `ci.yml` was restored and compared after each. They are
+  one sum pinned for both architectures, the version set to `latest`, the line that stops on a
+  refused sum removed, and the exit after a wrong version line removed.
 - **Owed:** CI on the pull request. Its two `migration-lint` legs, amd64 and arm64 on GitHub's
   hosted runners, are the first read of `atlasbinaries.com`'s bytes against these sums, since that
   host is refused to this session; each must say *as pinned* for both architectures and print
