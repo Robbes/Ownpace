@@ -40,30 +40,56 @@
 # scan (scripts/image-scan.mjs) builds this file and scans what it built. That
 # pull request moves the name below too.
 #
-# TWO OF ALPINE'S SECURITY UPDATES, TAKEN AT BUILD (workplan 0119,
-# 2026-10-31), UNTIL POSTGRESQL 18.7 CARRIES THEM. This RUN is temporary: it
-# comes out with the move to an 18.7 image (due about 2026-11-12) whose base
-# carries both fixes, and the check below says when that is. With gosu gone,
-# Trivy v0.76.1 reads two findings in the base, on arm64 and amd64 alike, and
-# both have a fix in Alpine 3.24:
+# FOUR OF ALPINE'S SECURITY UPDATES, TAKEN AT BUILD (workplan 0119,
+# 2026-10-31 and 2026-11-12), UNTIL POSTGRESQL 18.7 CARRIES THEM. This RUN is
+# temporary: it comes out with the move to an 18.7 image whose base carries
+# all four fixes, and the check below says when that is. 18.7 was due
+# 2026-11-12, and Docker Hub listed no 18.7-alpine at 14:24 UTC that day.
+# With gosu gone, Trivy v0.76.1 read two findings in the base on 2026-10-31,
+# on arm64 and amd64 alike, each with a fix in Alpine 3.24:
 #   - brotli-libs 1.2.0-r1, CVE-2026-111497 (critical, an out-of-bounds write
 #     in brotli's decoder), fixed in 1.2.1-r0;
 #   - libcurl 8.22.0-r0, CVE-2026-92392 (high, a use-after-free in HTTP/2
 #     uploads), fixed in 8.23.0-r0.
 # Upstream's rebuild of 2026-10-26, the FROM above, re-pushed the index over
-# the same images of 2026-10-22, and 18.7 is due 2026-11-12, so no move of the
-# pin clears them yet. Only libpq-oauth (/usr/local/lib/libpq-oauth-18.so, the
-# client's OAuth flow) links libcurl, and only libcurl links brotli's decoder.
-# Nothing here connects with OAuth, so nothing these stacks run loads either:
-# the RUN clears two findings, not a hole anybody here could reach. It
-# upgrades both and deletes nothing, because the image's .postgresql-rundeps
-# needs so:libcurl.so.4.
+# the same images of 2026-10-22, so no move of the pin cleared them. Only
+# libpq-oauth (/usr/local/lib/libpq-oauth-18.so, the client's OAuth flow)
+# links libcurl, and only libcurl links brotli's decoder. Nothing here
+# connects with OAuth, so nothing these stacks run loads either.
+# The image scan of 2026-11-12 (Trivy v0.76.2, linux/arm64) read 19 highs
+# more, where the week's scan of 2026-11-09 had read none, each fixed in
+# Alpine's 3.24-stable since 2026-11-10:
+#   - krb5-libs 1.22.2-r1, 16 findings (CVE-2026-40355, CVE-2026-40356,
+#     CVE-2026-71199, CVE-2026-71200 and 12 more), fixed in 1.22.3-r0, MIT
+#     krb5 1.22.3 (2026-11-09);
+#   - libxslt 1.1.43-r3, 3 findings (CVE-2026-9947, CVE-2026-87636,
+#     CVE-2026-125350), fixed in 1.1.43-r4.
+# The newest 18.6-alpine (9ba53c7d…, pushed 2026-11-11, its images of
+# 2026-11-05) carries neither. libxslt is as the two above: only contrib's
+# xml2 (/usr/local/lib/postgresql/pgxml.so) links it, and nothing here
+# creates that extension. krb5-libs is not: postgres and libpq link its
+# GSS-API library, so every postgres process loads it, and a client's GSSAPI
+# encryption request on a TCP connection reaches gss_accept_sec_context()
+# before pg_hba.conf is consulted. Nothing here signs in with Kerberos
+# (pg_hba.conf is the image's own: the socket and the loopback trust, every
+# other host scram-sha-256), the image has no keytab, realm or NegoEx
+# mechanism, and MIT's notes put most of 1.22.3's fixes in the KDC, kadmind,
+# libgssrpc or a ticket's checks, which nothing here runs or reaches without a
+# keytab. What is left is denial of service, for a client that can open a
+# TCP connection to the database: this stack's containers, and what reaches a
+# published port (managed.yml's postgres on the host's loopback and
+# POSTGRES_BIND, trigger-db on none; dev.yml's, a development stack's, on
+# every interface). So the RUN clears findings almost certainly out of
+# anybody's reach here, but krb5's, unlike libcurl's, are in code the server
+# loads. It upgrades all four and deletes nothing, because the image's
+# .postgresql-rundeps needs so:libcurl.so.4, so:libgssapi_krb5.so.2 and
+# so:libxslt.so.1.
 #
 # The RUN takes them from Alpine's own repository, the base's
 # /etc/apk/repositories, which apk checks against the index Alpine signs with
 # the keys in the base, at the exact versions it names: never a floor, so a
 # later day cannot build anything else under the same name. It fails loudly
-#   - before it installs, when the base's brotli-libs or libcurl is no older
+#   - before it installs, when the base's copy of any of the four is no older
 #     than its fixed version. Upstream's image carries that fix then: take the
 #     package out of the RUN, and the RUN and this paragraph out once it names
 #     none. Dependabot's pull request that moves the FROM is where that shows;
@@ -72,12 +98,13 @@
 #     as this box's. Either the machine cannot reach Alpine's mirror, and the
 #     same command goes through once it can, or the mirror no longer serves
 #     those versions. Alpine keeps only the newest build of a package in a
-#     stable branch, so once it moves either one, a machine without this name
-#     cannot build it, anywhere: an appliance then updates Ownpace to its
+#     stable branch, so once it moves any of the four, a machine without this
+#     name cannot build it, anywhere: an appliance then updates Ownpace to its
 #     newest release, and here a pull request of its own moves the version,
 #     which moves the name, or the FROM to a base that carries the fix;
-#   - after it installs, unless exactly those two packages changed, to exactly
-#     those versions, and nothing else was installed, upgraded or removed.
+#   - after it installs, unless exactly those four packages changed, to
+#     exactly those versions, and nothing else was installed, upgraded or
+#     removed.
 # What it costs: a build reaches Alpine's mirror (dl-cdn.alpinelinux.org) as
 # well as Docker Hub. That is once per machine and name (THE NAME, below):
 # the box's `up` where the name is missing, and an appliance's first `up`
@@ -100,7 +127,7 @@
 # instruction to the builder) and no COPY, ADD or --mount (they read files the
 # hash does not cover), and `build:` names this directory and nothing more.
 # What the build reads from outside them is the base, by its digest, and the
-# RUN's two packages, from Alpine's signed repository at the exact versions
+# RUN's four packages, from Alpine's signed repository at the exact versions
 # the instruction line names (as deploy/compose/goaccess's `apk add` takes
 # its packages from the same repository); the RUN refuses anything else.
 #
@@ -124,11 +151,12 @@ FROM postgres:18.6-alpine@sha256:10a5c69a83035ab5239f5620d708520e8b28f5aa1f2b201
 # A plain rm: a base without gosu fails here, and this file has nothing left to do.
 RUN rm /usr/local/bin/gosu
 
-# brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0, exactly, from Alpine's signed
-# repository, and nothing else (TWO OF ALPINE'S SECURITY UPDATES, above).
+# brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0 and libxslt
+# 1.1.43-r4, exactly, from Alpine's signed repository, and nothing else (FOUR
+# OF ALPINE'S SECURITY UPDATES, above).
 RUN set -eu; \
     installed() { awk '/^P:/ { name = substr($0, 3) } /^V:/ { print name "=" substr($0, 3) }' /lib/apk/db/installed | sort; }; \
-    for pin in brotli-libs=1.2.1-r0 libcurl=8.23.0-r0; do \
+    for pin in brotli-libs=1.2.1-r0 krb5-libs=1.22.3-r0 libcurl=8.23.0-r0 libxslt=1.1.43-r4; do \
       name="${pin%%=*}"; fixed="${pin#*=}"; \
       have="$(installed | awk -F= -v name="$name" '$1 == name { print $2 }')"; \
       if [ -z "$have" ] || [ "$(apk version -t "$have" "$fixed")" != '<' ]; then \
@@ -137,16 +165,16 @@ RUN set -eu; \
       fi; \
     done; \
     installed > /tmp/apk-before; \
-    apk add --no-cache brotli-libs=1.2.1-r0 libcurl=8.23.0-r0 || { \
-      echo "Alpine's brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed (the error above). If this machine cannot reach Alpine's mirror, dl-cdn.alpinelinux.org, let it and run the same command again. If it can, the mirror no longer serves those versions, and this release's database image can no longer be built: update Ownpace to its newest release (docs/selfhost-quickstart.md, Troubleshooting)." >&2; \
+    apk add --no-cache brotli-libs=1.2.1-r0 krb5-libs=1.22.3-r0 libcurl=8.23.0-r0 libxslt=1.1.43-r4 || { \
+      echo "Alpine's brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0 and libxslt 1.1.43-r4 could not be installed (the error above). If this machine cannot reach Alpine's mirror, dl-cdn.alpinelinux.org, let it and run the same command again. If it can, the mirror no longer serves those versions, and this release's database image can no longer be built: update Ownpace to its newest release (docs/selfhost-quickstart.md, Troubleshooting)." >&2; \
       exit 1; \
     }; \
     installed > /tmp/apk-after; \
     added="$(awk 'NR == FNR { was[$0] = 1; next } !($0 in was)' /tmp/apk-before /tmp/apk-after)"; \
     gone="$(awk 'NR == FNR { now[$0] = 1; next } !($0 in now) { sub(/=.*/, ""); print }' /tmp/apk-after /tmp/apk-before)"; \
     rm /tmp/apk-before /tmp/apk-after; \
-    if [ "$added" != "$(printf 'brotli-libs=1.2.1-r0\nlibcurl=8.23.0-r0')" ] || [ "$gone" != "$(printf 'brotli-libs\nlibcurl')" ]; then \
-      echo "The install changed more than brotli-libs and libcurl, or took other versions of them. Installed: $(echo $added). Replaced or removed: $(echo $gone)." >&2; \
+    if [ "$added" != "$(printf 'brotli-libs=1.2.1-r0\nkrb5-libs=1.22.3-r0\nlibcurl=8.23.0-r0\nlibxslt=1.1.43-r4')" ] || [ "$gone" != "$(printf 'brotli-libs\nkrb5-libs\nlibcurl\nlibxslt')" ]; then \
+      echo "The install changed more than brotli-libs, krb5-libs, libcurl and libxslt, or took other versions of them. Installed: $(echo $added). Replaced or removed: $(echo $gone)." >&2; \
       exit 1; \
     fi
 

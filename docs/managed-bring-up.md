@@ -4995,16 +4995,17 @@ the user gosu dropped to, it never does. What that means for you:
   their image changed: the OTA stack at the E2E (managed) run of the branch or
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
-  `up` pulled the image before), runs one `rm`, and since 2026-10-31 takes two
-  of Alpine's security updates, brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0, at
-  exactly those versions, from Alpine's mirror (`dl-cdn.alpinelinux.org`), so
-  the box must reach it as well as Docker Hub, as the visit count's GoAccess
-  build already does. Once Alpine's mirror stops serving those exact versions,
-  a machine without the name cannot build it, and says so: the Dockerfile's
-  header says what to move. That RUN is temporary, until PostgreSQL 18.7 (due
-  about 2026-11-12) carries both fixes. The services say `pull_policy:
-  never`, since no registry serves the name: `docker compose pull` passes
-  them by, and `up` builds without asking one.
+  `up` pulled the image before), runs one `rm`, and takes Alpine's security
+  updates at exactly the versions it names, from Alpine's mirror
+  (`dl-cdn.alpinelinux.org`): since 2026-10-31 brotli-libs 1.2.1-r0 and
+  libcurl 8.23.0-r0, and since 2026-11-12 krb5-libs 1.22.3-r0 and libxslt
+  1.1.43-r4. So the box must reach it as well as Docker Hub, as the visit
+  count's GoAccess build already does. Once Alpine's mirror stops serving those
+  exact versions, a machine without the name cannot build it, and says so: the
+  Dockerfile's header says what to move. That RUN is temporary, until a
+  PostgreSQL 18.7 image (18.7 was due 2026-11-12) carries the four fixes. The
+  services say `pull_policy: never`, since no registry serves the name:
+  `docker compose pull` passes them by, and `up` builds without asking one.
 - **After that it is built again only when the Dockerfile changes**, which
   changes the name, **as long as nothing asks for a build.** `up --build`
   builds every service in its scope that has a `build:`, dependencies
