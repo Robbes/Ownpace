@@ -17,6 +17,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The release-age exceptions that alpha.8's waivers added are gone, their floors passed**
+  (workplan 0119): `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` no longer names Trigger.dev
+  v4.8.5's five packages (floor passed 2026-11-15 00:43 UTC) or hono 4.13.18 and
+  `@hono/node-server` 2.1.7 (2026-11-14 09:11 UTC), each taken inside pnpm's three days, waived
+  for alpha.8. The lockfile does not change, and a frozen install passes the
+  floor without them. Four entries remain.
 - **GoAccess, which counts the site's visits, is built on Alpine 3.24.4** (workplan 0119; from
   3.24.3, Dependabot, #1892): both stages of `deploy/compose/goaccess/Dockerfile` start from
   `alpine:3.24.4` by tag and digest, whose base differs from 3.24.3's in apk-tools and libapk
