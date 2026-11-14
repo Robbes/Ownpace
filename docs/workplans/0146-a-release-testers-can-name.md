@@ -6,8 +6,9 @@
 
 **2026-11-14: alpha.8 is folded, its counted nights and the three-day floors inside them waived in
 the owner's words (T2, T4).** On the branch `claude/ownpace-public-readiness-y7orc6-alpha8-fold`,
-drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889), while other changes for alpha.8 were
-still open (below). Read from git, from GitHub and from the scripts named; times are UTC.
+drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889), with `main` merged at `5ca5fc94`
+(#1888) on 2026-11-14 at 07:54, after the changes that were open then had merged
+(below). Read from git, from GitHub and from the scripts named; times are UTC.
 - **The fold.** `package.json` and the API contract say `0.2.0-alpha.8`, and everything under
   `[Unreleased]` moves to `## [0.2.0-alpha.8] - 2026-11-14`, the day the fold merges, under a
   summary paragraph; `[Unreleased]` stays, empty. `scripts/release-line.json` lists
@@ -15,7 +16,7 @@ still open (below). Read from git, from GitHub and from the scripts named; times
   (T4, `docs/release.md` §1). On the branch `node scripts/release-names-agree.mjs v0.2.0-alpha.8`
   passes, and so do the preflight's own `changelogFolded` and `openapiAgrees`, imported from
   `scripts/release-preflight.mjs` and run over the branch's files.
-- **Four entries are brought up to date as they move,** because the release page links this
+- **Seven entries are brought up to date as they move,** because the release page links this
   section at the tag, where it cannot be corrected later:
   - Node 26.13.1 and the distroless build of 2026-11-08 are one entry. The second said the
     images run `33c86a63…` on Node 26.13.0, which no release does: alpha.7 ran the digest
@@ -28,29 +29,51 @@ still open (below). Read from git, from GitHub and from the scripts named; times
     in the present tense;
   - PostgreSQL 18.7's entry says what it left out: the appliance on PGlite, which is what the
     Windows zip runs, stays on the PostgreSQL 18.6 that PGlite embeds (0119's Status of the same
-    day).
+    day);
+  - the first of the two MinIO entries (#1870) is titled by the finding it cleared, and names
+    the newer build (#1890) as the one alpha.8 runs, so the two do not both say what runs;
+  - Zitadel v4.20.2's entry (#1877) is titled the same way, by CVE-2026-116587, and names
+    v4.20.3 (#1897) as the one alpha.8 runs;
+  - goose v3.30.1's entry (#1895) gives what the image scan of its branch read, 1 critical, 17
+    high and 9 with a fix, where it said what the scan was expected to read.
 
-  No line is added. Of the 27 commits on `main`'s first-parent line after alpha.7's commit, 19
+  No line is added. Of the 33 commits on `main`'s first-parent line after alpha.7's commit, 25
   have a line; the eight without are six records pull requests (#1861, #1865, #1868, #1871,
   #1876, #1886) and the two waivers of counted nights (#1860 for alpha.7, #1885 for alpha.8),
   as alpha.5's waiver (#1830) had none.
 - **The counted nights are waived** (0141 T14). The owner, on 2026-11-13 at 12:04: *"Yes, waive
   alpha.8's waiting nights."* (the entry below; on `main` since #1885, `ce8eb4f4`). The fold
   touches neither `scripts/release-nights.mjs`, its two guards nor `docs/release.md`.
-- **The three-day floors inside them are waived.** The owner, on 2026-11-13 at 19:26: *"Waive
-  all waiting time."* It is read as waiving, for alpha.8, the three days a release waits before
-  this repository takes it (CONTRIBUTING.md). Of what was merged when this was drafted, one
-  change leans on it: hono 4.13.18 and `@hono/node-server` 2.1.7 (#1889), both of 2026-11-11,
-  whose floor passes on 2026-11-14 at 09:11. The other changes merged inside a floor each have
-  the owner's word of their own, quoted in 0119's entries: Node 26.13.1 (#1878, 2026-11-12)
-  and PostgreSQL 18.7 (#1882, 2026-11-13) under the floor's exception for a security fix, and
-  Trigger.dev v4.8.5 (#1883, 2026-11-13).
-- **Still open when this was drafted,** on 2026-11-13 at 22:00, each to land with its own
-  records and its own CHANGELOG line: MinIO's newest Chainguard build (#1890), the pooler built
-  here with five Alpine packages (#1891), Atlas v1.3.10 in CI (#1888), and two without a pull
-  request yet, goose v3.30.1 in the Trigger.dev webapp's image and the registry pinned by its
-  index digest. None is in the list above. The plan in the entry below, MinIO on Saturday after
-  its floor and then the fold, is replaced by this one.
+- **The three-day floors inside them are waived.** The owner, on 2026-11-13 at 19:26: *"Waive all
+  waiting time."* It is read as waiving, for alpha.8, the three days a release waits before this
+  repository takes it (CONTRIBUTING.md). Of what was merged when this was drafted, one change leans
+  on it: hono 4.13.18 and `@hono/node-server` 2.1.7 (#1889), both of 2026-11-11, whose floor passes
+  on 2026-11-14 at 09:11. Of what merged after the draft, each leans on it, as its own entry says:
+  MinIO's build pushed 2026-11-13 (#1890), the pooler's two PostgreSQL packages (#1891), goose
+  v3.30.1 (#1895), the registry's index of 2026-11-11 (#1896) and Atlas v1.3.10 (#1888). The other
+  changes merged inside a floor each have the owner's word of their own, quoted in 0119's entries:
+  Node 26.13.1 (#1878, 2026-11-12), PostgreSQL 18.7 (#1882, 2026-11-13) and Zitadel v4.20.3 (#1897,
+  2026-11-14) under the floor's exception for a security fix, and Trigger.dev v4.8.5 (#1883,
+  2026-11-13).
+- **Merged after the draft, and in alpha.8,** each after its runs were green on its head, with
+  its own records and its own CHANGELOG line:
+  - #1890, MinIO's newest Chainguard build, `ddfab4c4…`, on 2026-11-13 at 22:05:33
+    (`58d9589a`), after E2E (managed) run 43515025222, 21:56 to 22:04;
+  - #1891, the pooler built here on upstream's image with five Alpine packages, on 2026-11-14
+    at 03:30:34 (`fd9b81d7`), after E2E (managed) run 43518635869, 22:21 to 22:30; the image
+    scan dispatched on `main` at `fd9b81d7`, run 43553857669, reads the pooler at 0, 0 and 0;
+  - #1895, goose v3.30.1 in the Trigger.dev webapp's image, on 2026-11-14 at 04:07:56
+    (`43dfc312`), after E2E (managed) run 43554236779, 03:57 to 04:06;
+  - #1896, the registry pinned by its index digest, on 2026-11-14 at 04:39:54
+    (`1a426a19`), after E2E (managed) run 43556945852, 04:30 to 04:37;
+  - #1897, Zitadel v4.20.3, on 2026-11-14 at 07:31:10 (`0b870941`), after the owner's
+    dump of the OTA instance, E2E (managed) run 43559644844, 05:03 to 05:11, and the owner's
+    hand check on the OTA stack;
+  - #1888, Atlas v1.3.10 in CI's migration lint, on 2026-11-14 at 07:53:44
+    (`5ca5fc94`), after CI run 43572092769, both lint legs *as pinned*.
+
+  The plan in the entry below, MinIO on Saturday after its floor and then the fold, is replaced
+  by this one.
 - **C and the freeze.** The fold merges last. Its squash is C, and the freeze (0141 T14) starts
   with it: nothing merges to `main` until the tag, and no E2E (managed) is dispatched on any
   branch. `docs/release.md` §1 asks for the fold before 23:30, so that the appliance nightly's
@@ -72,7 +95,7 @@ still open (below). Read from git, from GitHub and from the scripts named; times
     then mode `release` with the same, and their approval in the `release` environment.
     Release then scans C once more, tags it and publishes.
 - **The upgrade drill** (`scripts/upgrade-drill.sh` on the Docker host, from alpha.7's
-  published image to C's; `docs/release.md` §1). `git diff --stat v0.2.0-alpha.7 cdb80bc6` over
+  published image to C's; `docs/release.md` §1). `git diff --stat v0.2.0-alpha.7 5ca5fc94` over
   `packages/ledger/migrations` and `packages/managed/migrations` prints nothing: 65 and 59
   files on both sides, and PGlite is 0.5.15 on both. So the drill would report the mechanics
   only, a pass `docs/release.md` does not count, and Release lists it as not checked. For
@@ -88,16 +111,21 @@ still open (below). Read from git, from GitHub and from the scripts named; times
   its rule (`git show v0.2.0-alpha.7:deploy/compose/deploy-live.sh`, *ONE-WAY OR REVERSIBLE*)
   a deploy is one-way when a file of either migration chain differs, or the Trigger.dev,
   identity-provider or ClickHouse pin in `managed.yml` moves. Its own `differences`, run here
-  over `v0.2.0-alpha.7` and `main` at `cdb80bc6`, prints two lines: the Trigger.dev pin
-  v4.8.3 to v4.8.5, and the identity provider's v4.20.1 to v4.20.2. No migration file, and no
+  over `v0.2.0-alpha.7` and `main` at `5ca5fc94`, prints two lines: the Trigger.dev pin
+  v4.8.3 to v4.8.5, and the identity provider's v4.20.1 to v4.20.3. No migration file, and no
   ClickHouse line. So it will call the deploy one-way, where alpha.7's was reversible, and
   take the copy before the update with `--trigger`: the app's database, the sign-in service's
-  with the server's roles, and the task runner's. The way back is that copy, or forward. It
+  with the server's roles, and the task runner's. The way back is that copy, or forward.
+  The pooler and the registry move too, by lines that rule does not read: the pooler is
+  recreated on an image built here, which the deploy builds in its data phase, from Docker Hub
+  and Alpine's mirror, when its name is not on the machine yet; the registry is recreated on
+  the digest, pulled from Docker Hub when the machine does not have it. It
   is also the first deploy whose script reads the app's headers itself (0158 T4).
-- **Zitadel v4.20.3.** Upstream published it on 2026-11-13, and the pin watch opened issue
-  #1887 for it at 19:29:35: a security release in the sign-in path this stack serves. alpha.8
-  as folded carries v4.20.2. A pull request for v4.20.3 is being prepared; it needs the
-  owner's dump of the OTA instance before any run on it, and waits for the owner's decision.
+- **Zitadel v4.20.3.** Upstream published it on 2026-11-13, and the pin watch opened issue #1887
+  for it at 19:29:35: a security release in the sign-in path this stack serves. alpha.8 takes it,
+  on the owner's word of 2026-11-14, *"A"*, given after their dump of the OTA instance on v4.20.2:
+  #1897, merged after E2E (managed) on its head and the owner's hand check on the OTA stack (0135's
+  Status).
 - **The O365 lane is not among what is owed:** Release does not read it. The owner waived it
   for alpha.8, and for alpha.6 and alpha.7, on 2026-11-12; 0141's Status of 2026-11-14 quotes
   the question and the answer, and says what the waiver did not weigh. The lane stays owed

@@ -4,14 +4,14 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
-**2026-11-14, records: the owner waived the O365 lane for alpha.6, alpha.7 and alpha.8 (T13
-(a)).** Docs only, with alpha.8's fold (0146, Status of the same day); the earlier releases'
-records of this came after their tags. On 2026-11-12 at 13:11 UTC the owner was asked, beside two
-other questions: *"One record for the release: the O365 lane. Its secrets still aren't set, so it
-can't run. It doesn't block the release. Shall I record it as waived for alpha.8, and for alpha.6
-and alpha.7, which are still unanswered?"* At 14:06 UTC they answered: *"Postgres yes, MinIO yes,
-O365 waived."* Postgres and MinIO were the two other questions, the Postgres package fix and
-MinIO's newest build for alpha.8 (0119). The answer is three words, the reply the question
+**2026-11-14, records: the owner waived the O365 lane for alpha.6, alpha.7 and alpha.8 (T13 (a)).**
+Docs only, with alpha.8's fold (0146, Status of the same day); alpha.4's waiver was recorded before
+its tag (#1795), alpha.5's after it (#1831). On 2026-11-12 at 13:11 UTC the owner was asked, beside
+two other questions: *"One record for the release: the O365 lane. Its secrets still aren't set, so
+it can't run. It doesn't block the release. Shall I record it as waived for alpha.8, and for
+alpha.6 and alpha.7, which are still unanswered?"* At 14:06 UTC they answered: *"Postgres yes,
+MinIO yes, O365 waived."* Postgres and MinIO were the two other questions, the Postgres package fix
+and MinIO's newest build for alpha.8 (0119). The answer is three words, the reply the question
 offered, and it is read as covering the three releases the question names.
 - **alpha.6 and alpha.7: waived after the fact.** They were tagged on 2026-11-07 and 2026-11-09
   without a run of `e2e-o365.yml`, and the entries below say no waiver was on record then. Each

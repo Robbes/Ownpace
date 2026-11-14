@@ -7,33 +7,34 @@
 **2026-11-14: what alpha.8 moves, folded; the owner's checks after Trigger.dev v4.8.5; the
 appliance on PGlite stays on PostgreSQL 18.6; and the four Go binaries whose findings wait for
 upstream, read for reach.** The fold (0146 Status, 2026-11-14), whose squash is C, closes alpha.8.
-Drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889); times are UTC.
+Drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889), with `main` merged at `5ca5fc94`
+(#1888); times are UTC.
 - **Merged, and in alpha.8,** this plan's moves since alpha.7's commit, each with its entry below:
-  - the identity provider on Zitadel v4.20.2 (#1877; 0135 T7), for CVE-2026-116587;
+  - the identity provider on Zitadel v4.20.2 (#1877; 0135 T7), for CVE-2026-116587, and then
+    v4.20.3 (#1897), on the owner's word of 2026-11-14, for its fixes on login v1's paths;
   - both Postgres images on PostgreSQL 18.7 (#1882), whose base carries the four Alpine packages
     the build took until then (#1880, and the two since alpha.4);
   - Node 26.13.1 in the four build stages, the distroless runtime and the Windows zip (#1878), on
     Google's distroless build of 2026-11-11, after its build of 2026-11-08 (#1873), with the
     tasks' base moved to `main`'s build of each (#1874, #1879);
   - Trigger.dev v4.8.5 (#1883), and its webapp's goose download waiting out GitHub's release
-    download (#1866);
-  - MinIO's Chainguard build of 2026-11-07, `869ca317…` (#1870);
-  - hono 4.13.18 and `@hono/node-server` 2.1.7 under the deploy CLI (#1889; the entry below
-    names its merge at its end);
-  - kept current: the web image's nginx and the socket proxy's HAProxy (#1864), Mailpit v1.33.1
-    (#1872), Atlas v1.3.9 (#1875), jsdom 31.0.0 (#1863), Dependabot's npm group (#1853) and
-    actions group (#1852), and the Trivy download's five attempts (#1862).
+    download (#1866), and goose v3.30.1 in that image (#1895);
+  - MinIO's Chainguard build of 2026-11-07, `869ca317…` (#1870), and then its newest,
+    `ddfab4c4…`, pushed 2026-11-13 (#1890);
+  - the pooler built here on upstream's image, with five Alpine packages (#1891), which the
+    image scan of `main` at `fd9b81d7` (run 43553857669) reads at 0, 0 and 0;
+  - hono 4.13.18 and `@hono/node-server` 2.1.7 under the deploy CLI (#1889);
+  - kept current: the registry pinned by its index digest (#1896), the web image's nginx and the
+    socket proxy's HAProxy (#1864), Mailpit v1.33.1 (#1872), Atlas v1.3.9 (#1875) and then
+    v1.3.10 (#1888), jsdom 31.0.0 (#1863), Dependabot's npm group (#1853) and actions group
+    (#1852), and the Trivy download's five attempts (#1862).
 - **Inside a three-day floor, each on the owner's word,** quoted in its entry: Node 26.13.1
   (2026-11-12, *"Node now."*) and PostgreSQL 18.7 (2026-11-13) under the floor's exception for a
   security fix; Trigger.dev v4.8.5 (2026-11-13, *"3. Continue, work autonomously"*, to the
-  option that waived its three days); and hono's two (2026-11-13 at 19:26, *"Waive all waiting
-  time."*).
-- **Open when this was drafted,** on 2026-11-13 at 22:00, each with an entry of its own to come
-  with its merge: MinIO's newest Chainguard build (#1890), the pooler built here with five
-  Alpine packages (#1891), Atlas v1.3.10 in CI (#1888), goose v3.30.1 in the Trigger.dev
-  webapp's image, and the registry pinned by its index digest. Zitadel v4.20.3, published on
-  2026-11-13 (issue #1887), is not in alpha.8 as folded: its pull request waits for the owner's
-  dump of the OTA instance and their decision (0146's entry).
+  option that waived its three days); and, on 2026-11-13 at 19:26, *"Waive all waiting time."*:
+  hono's two, MinIO's build pushed 2026-11-13, the pooler's two PostgreSQL packages, goose
+  v3.30.1, the registry's index of 2026-11-11 and Atlas v1.3.10. Zitadel v4.20.3 (2026-11-14,
+  *"A"*) is taken under the floor's exception for a security fix.
 - **The appliance on PGlite stays on PostgreSQL 18.6.** #1882's entry moves both Postgres images;
   the appliance's other engine does not move. PGlite 0.5.15, which the lockfile pins and the
   Windows zip runs (`scripts/windows/run-appliance.ps1` sets `SELFHOST_PERSISTENCE=pglite`),
@@ -57,7 +58,7 @@ Drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889); times are UTC.
   - the two unrevoked personal access tokens, both minted before the upgrade, have no
     `expiresAt` and no `idleTimeoutSeconds` set, so neither lapses;
   - `_prisma_migrations` from `20261028` on has 14 rows, each finished and none rolled back:
-    the twelve of v4.8.4 and v4.8.5, and two of v4.8.3 that the date bound includes;
+    the twelve v4.8.4 brought (v4.8.5 adds none), and two of v4.8.3 that the date bound includes;
   - the task runner's database dumps rotate, the newest seven kept (`trigger-version.sh`), so
     the dump taken before v4.8.5 needs no step to delete it.
 - **The four Go binaries whose findings wait for upstream, read for reach on 2026-11-13,** so
@@ -79,7 +80,8 @@ Drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889); times are UTC.
     master moves x/net to v0.61.0 alone, which would clear one of the five.
   - **The registry, `registry:3.1.2`**, which holds the tasks' images (binary sha256
     `f235c545…`, go1.26.8: upstream's release binary of 2026-09-24, which every rebuild of the
-    tag carries). Not in the binary, 2: `x/net/html` and `s2`. Not reached, 5: go-jose, used
+    tag carries). Since #1896 the pin names the index that binary was read in, `82f6ff4a…`.
+    Not in the binary, 2: `x/net/html` and `s2`. Not reached, 5: go-jose, used
     by token authentication, which is not configured; HTTP/2 (CVE-2026-78669, counted in x/net
     and in the standard library), not served without TLS, h2c being off; crypto/tls's ECH
     (CVE-2026-97031), with no TLS listener; and x509 (CVE-2026-111943), with no outbound TLS
@@ -102,7 +104,8 @@ Drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889); times are UTC.
     from source at the tag instead: Zitadel's own code imports x/net's `http2`, `h2c`,
     `httpguts` and `context`, never `html`, and nine of its dependencies do not import it
     either; which module links the package, if any, is not read. v4.20.3, the v4.x branch and
-    main all keep x/net v0.61.0, so no release clears it, v4.20.3 included.
+    main all keep x/net v0.61.0, so no release clears it, v4.20.3 included, which alpha.8 runs
+    (#1897).
 
   A build from source was weighed for each and left: it would put a Go toolchain and a compile
   into every deploy, for findings nothing reaches, and run a binary upstream never tested. One
@@ -110,8 +113,8 @@ Drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889); times are UTC.
   may not need to sit on the stack's network at all (inferred from `managed.yml`; it needs E2E
   (managed)).
 
-**2026-11-13: CI's migration lint moves to Atlas v1.3.10, inside its three-day floor on the
-owner's waiver; built on a branch, not merged.** On the branch
+**2026-11-13: CI's migration lint moves to Atlas v1.3.10, inside its three-day floor on the owner's
+waiver; built on a branch, merged as #1888 (`5ca5fc94`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-atlas-1-3-10`, from `main` at `331222af` (#1886). Read from
 Docker Hub's registry and upstream's public git without a login, every blob checked against its
 digest; nothing read was run. Times are UTC.
@@ -174,12 +177,17 @@ digest; nothing read was run. Times are UTC.
   `atlas community version v1.3.10`, and lint the migrations green. If the host serves other
   bytes than the image holds, the step stops before anything is made executable and prints the
   sum it saw.
+  *(Recorded after the merge, 2026-11-14, read from GitHub:)* on the head `74a5bc06`, CI run
+  43572092769 (07:39 to 07:51) was green, and both `migration-lint` legs said *as pinned* for
+  both architectures, printed `atlas community version v1.3.10` and linted the 124
+  migrations green. It merged as #1888 at 07:53:44 (`5ca5fc94`).
 
 **2026-11-13: the identity provider's pin moves to Zitadel v4.20.3 on a branch, taken into alpha.8
-by the owner on 2026-11-14 after their dump of the OTA instance: built, not merged yet (0135 T7).** On the branch
-`claude/ownpace-public-readiness-y7orc6-zitadel-4-20-3`, from `main` at `331222af` (#1886); 0135's
-Status of the same day reads its twelve commits. Read from upstream's public git and GHCR's
-manifests, without a login; nothing read was run. Times are UTC.
+by the owner on 2026-11-14 after their dump of the OTA instance: built, merged as #1897
+(`0b870941`) (0135 T7).** On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-3`,
+from `main` at `331222af` (#1886); 0135's Status of the same day reads its twelve commits. Read
+from upstream's public git and GHCR's manifests, without a login; nothing read was run. Times are
+UTC.
 - **Why.** The pin watch's issue #1887 (2026-11-13 at 19:29:35) names v4.20.3, twelve commits
   after v4.20.2. Eight are fixes cherry-picked in one batch that read as security fixes;
   upstream's release notes and advisories were refused to this session, so no severity and no CVE
@@ -217,6 +225,15 @@ manifests, without a login; nothing read was run. Times are UTC.
   (managed) on v4.20.3 is green (0135's Status).
 - **Owed before a merge, in this order:** CI on the pull request and the image scan on the
   branch; E2E (managed) on the branch's head; the owner's hand check; the merge.
+  *(Recorded after the merge, 2026-11-14, read from GitHub and relayed:)* `main` at `1a426a19` was
+  merged in as `b5b2039f`. The image scan dispatched there, run 43558643544, read
+  `ghcr.io/zitadel/zitadel:v4.20.3` at 0 critical, 1 high and 1 with a fix, the x/net high
+  v4.20.2 had. CI run 43558594786 (04:50 to 05:02) was green, and E2E (managed) run 43559644844
+  (05:03 to 05:11) was green: the bring-up pulled v4.20.3 and recreated the identity provider on
+  it, `setup-zitadel.sh` found it ready with one organisation, *Version 20261114.3 deployed with
+  17 detected tasks*, SMOKE PASS. The owner's hand check on the OTA stack, asked at 05:12, one
+  sign-in through login v1 and one forgot-password mail read in the mail catcher and its link
+  opened, was answered *"OK"*, relayed at 07:29. It merged as #1897 at 07:31:10 (`0b870941`).
 - **Live.** Live runs `v0.2.0-alpha.7` on v4.20.1, and alpha.8's deploy is already one-way and
   already takes the provider's dump in its copy, since #1877 moved this pin. With this change in
   the same release, live goes from v4.20.1 to v4.20.3 in one step, which the OTA instance never
@@ -224,7 +241,7 @@ manifests, without a login; nothing read was run. Times are UTC.
 
 **2026-11-13: the tasks' image registry is pinned by tag and index digest,
 `registry:3.1.2@sha256:82f6ff4a…`, so the stacks run the copy the image scan reads; built on a
-branch, not merged (for alpha.8).** On the branch
+branch, merged as #1896 (`1a426a19`) (for alpha.8).** On the branch
 `claude/ownpace-public-readiness-y7orc6-registry-digest`, from `main` at `cdb80bc6` (#1889). Read
 from Docker Hub's tag API and registry without a login, Docker's official-images list, the image's
 Dockerfile repository, upstream's tags and `main` (shallow clones) and this repository's run logs;
@@ -363,12 +380,18 @@ every blob was checked against its digest, and nothing downloaded was run. Times
   the branch, which should read `registry` by the digest at 0, 8 and 8; and E2E (managed) on the
   head, which pulls the digest, recreates the registry on the OTA stack and deploys the tasks
   through it.
+  *(Recorded after the merge, 2026-11-14, read from GitHub:)* the image scan dispatched on
+  `ea5a5450`, run 43553977907, read `registry:3.1.2@sha256:82f6ff4a7f98…` at 0, 8 and 8; on the
+  head `1f07c865`, CI run 43555816272 (04:16 to 04:29) was green, and E2E (managed) run
+  43556945852 (04:30 to 04:37) was green: compose pulled `registry:3.1.2@sha256:82f6ff4a…` and
+  recreated the registry at 04:31, before the tasks were deployed, and *Version 20261114.2
+  deployed with 17 detected tasks*, SMOKE PASS. It merged as #1896 at 04:39:54 (`1a426a19`).
 
 **2026-11-13: goose v3.29.0 → v3.30.1 in the Trigger.dev webapp's build, for alpha.8, before its
-three-day floor on the owner's waiver; built on a branch, not merged.** On the branch
-`claude/ownpace-public-readiness-y7orc6-goose-3-30-1`, from `main` at `331222af` (#1886). Read from
-goose's, clickhouse-go's, ch-go's and Trigger.dev's tags and from goose's release, without a
-login; nothing read was run. Times are UTC.
+three-day floor on the owner's waiver; built on a branch, merged as #1895 (`43dfc312`).** On the
+branch `claude/ownpace-public-readiness-y7orc6-goose-3-30-1`, from `main` at `331222af` (#1886).
+Read from goose's, clickhouse-go's, ch-go's and Trigger.dev's tags and from goose's release,
+without a login; nothing read was run. Times are UTC.
 - **What it clears.** Security Scan run 43492635512, dispatched on `main` at `331222af` with
   `image_scans` (19:29 to 19:32, Trivy, linux/arm64), read
   `localhost/trigger.dev:v4.8.5-3cabc0a7c796` at 1 critical, 19 high and 11 with a fix. Two of the
@@ -491,15 +514,23 @@ login; nothing read was run. Times are UTC.
     arm64)`, which fetch the real assets, hold them to their sums and run `goose -version`;
   - the image scan dispatched on the branch, for the measured numbers;
   - E2E (managed) on the head, where `goose up` runs against the OTA stack's ClickHouse.
+  *(Recorded after the merge, 2026-11-14, read from GitHub:)* on the head `c75d0ad2`, CI run
+  43553020790 (03:42 to 03:56) was green, and its `build (trigger, amd64)` and `build (trigger,
+  arm64)` each said *goose v3.27.1 at /usr/local/bin/goose is goose v3.30.1's* asset *by its
+  SHA-256*, which the build prints only after the asset's `goose -version` says v3.30.1; the
+  image scan dispatched on the branch, run 43553063066, read
+  `localhost/trigger.dev:v4.8.5-1c2ba0d89644` at 1 critical, 17 high and 9 with a fix, as
+  expected; and E2E (managed) run 43554236779 (03:57 to 04:06) was green: *Version 20261114.1
+  deployed with 17 detected tasks*, SMOKE PASS. It merged as #1895 at 04:07:56 (`43dfc312`).
 
 **2026-11-13: the pooler is built here on upstream's image, with five Alpine packages at the
-versions that carry their fixes, for the 79 highs the scan read in it; built on a branch, not
-merged.** On the branch `claude/ownpace-public-readiness-y7orc6-pgbouncer-packages`, from `main` at
-`331222af` (#1886). Read from Docker Hub's tag API and registry without a login, and from
-`mirror.gcr.io` for the manifests Docker Hub's rate limit refused, each manifest and blob checked
-against its digest; from the public git of Alpine's aports (`3.24-stable` at `fb7df047`) and of
-PgBouncer (`pgbouncer_1_26_1`, `f03e9bf2`); and from this repository. Nothing read was run, and no
-image was built: this session has no Docker. Times are UTC.
+versions that carry their fixes, for the 79 highs the scan read in it; built on a branch, merged as
+#1891 (`fd9b81d7`).** On the branch `claude/ownpace-public-readiness-y7orc6-pgbouncer-packages`,
+from `main` at `331222af` (#1886). Read from Docker Hub's tag API and registry without a login, and
+from `mirror.gcr.io` for the manifests Docker Hub's rate limit refused, each manifest and blob
+checked against its digest; from the public git of Alpine's aports (`3.24-stable` at `fb7df047`)
+and of PgBouncer (`pgbouncer_1_26_1`, `f03e9bf2`); and from this repository. Nothing read was run,
+and no image was built: this session has no Docker. Times are UTC.
 - **The finding.** The image scan of `main` (Security Scan run 43492635512, 19:29, Trivy,
   linux/arm64) read `pgbouncer`, `edoburu/pgbouncer:v1.26.1-p0` on Alpine 3.24.2, at 0 critical,
   79 high and 79 with a fix, in five packages: libpq 18.6-r0 and postgresql18-client 18.6-r0, 38
@@ -649,10 +680,20 @@ image was built: this session has no Docker. Times are UTC.
   of `trivy-image-pgbouncer` stay open on `main` until a scan of `main` uploads it again. The
   next scheduled one is Monday 2026-11-16 at 06:00 UTC, and until then the release preflight
   prints the 79 for `main`.
+  *(Recorded after the merge, 2026-11-14, read from GitHub:)* on the head `2f92a463`, CI run
+  43516518100 (22:06 to 22:20 on 2026-11-13) was green, with `build (pgbouncer, amd64)` and
+  `build (pgbouncer, arm64)`; the image scan dispatched on `a68b131b`, run 43512138899, read
+  `pgbouncer` at 0, 0 and 0; and E2E (managed) run 43518635869 (22:21 to 22:30) was green:
+  *Version 20261113.8 deployed with 17 detected tasks*, SMOKE PASS, with the pooler on
+  `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`. It merged as #1891 at 03:30:34 on 2026-11-14
+  (`fd9b81d7`). The scan of `main` was not left to Monday: Security Scan dispatched there with
+  the image scans, run 43553857669 (03:52 to 03:56), read the pooler at 0, 0 and 0 and
+  uploaded `trivy-image-pgbouncer` (its upload step: *Successfully uploaded results*), which
+  closes the 79 on `main`; the code scanning list itself is not readable from this session.
 
 **2026-11-13: MinIO's digest moves to Chainguard's newest build, `ddfab4c4…`, the fork's
 RELEASE.2026-11-12T01-15-23Z, for alpha.8, inside its three-day floor on the owner's waiver (0146
-T7); built on a branch, not merged.** On the branch
+T7); built on a branch, merged as #1890 (`58d9589a`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-minio-newest`, from `main` at `331222af` (#1886). It ports
 draft #1881's one commit (`84f30d49`, the move to `db3f583f…`, built on 2026-11-12 and waiting for
 its floor) and moves every line on to the digest `latest` holds now, so #1881 is closed in its
@@ -833,12 +874,17 @@ layers, every blob checked against its digest, and `869ca317…`, `db3f583f…`,
   which pulls the new digest on the OTA stack and recreates `minio` and `minio-init` on the volume
   that carries over; and CI. Both are dispatched on the branch, the merge follows on green, and
   #1881 is closed. Live takes it from alpha.8's tag.
+  *(Recorded after the merge, 2026-11-14, read from GitHub:)* on the head `19515fba`, CI run
+  43513015394 (21:42 to 21:55) was green; the image scan dispatched on `693bf2ef`, run
+  43510895222, read `minio` at 0, 0 and 0; and E2E (managed) run 43515025222 (21:56 to 22:04)
+  was green: *Version 20261113.7 deployed with 17 detected tasks*, SMOKE PASS. It merged as
+  #1890 at 22:05:33 on 2026-11-13 (`58d9589a`).
 
 **2026-11-13: hono 4.13.18 and `@hono/node-server` 2.1.7 under the deploy CLI, by two overrides, so
-`pnpm audit` reads minimatch alone again; built on a branch, not merged (for alpha.8).** On the
-branch `claude/ownpace-public-readiness-y7orc6-hono-overrides`, from `main` at `331222af` (#1886).
-Read from npm's registry, upstream's tags and commits (shallow clones), the npm tarballs and the
-installed packages; nothing downloaded was run. Times are UTC.
+`pnpm audit` reads minimatch alone again; built on a branch, merged as #1889 (`cdb80bc6`) (for
+alpha.8).** On the branch `claude/ownpace-public-readiness-y7orc6-hono-overrides`, from `main` at
+`331222af` (#1886). Read from npm's registry, upstream's tags and commits (shallow clones), the npm
+tarballs and the installed packages; nothing downloaded was run. Times are UTC.
 - **What `pnpm audit` read on `main`:** 8 advisories, 7 moderate and 1 low, none high. The gate's
   own two steps (`pnpm audit --audit-level=moderate --json`, read by `node
   scripts/audit-advisories.mjs --fail-at=high`) listed 7 and exited 0. Seven are on one path,
@@ -934,7 +980,7 @@ installed packages; nothing downloaded was run. Times are UTC.
 - **The CLI's row in §2.5** still read 4.8.3; it names 4.8.5 (#1883) and these two entries now.
 - **Owed before the merge:** CI on the head, and E2E (managed) on the head, because the deploy
   CLI's resolved tree changes.
-  *(Recorded after the merge, 2026-11-14, read from GitHub:)* on the head `835d6764`, CI run
+  *(Recorded after the merge, read from GitHub on 2026-11-13:)* on the head `835d6764`, CI run
   43509190842 (21:16 to 21:30) and Security Scan run 43509191175 were green, and E2E (managed)
   run 43511420513 (21:31 to 21:39) was green: *Version 20261113.6 deployed with 17 detected
   tasks*, SMOKE PASS. It merged as #1889 at 21:40:34 (`cdb80bc6`).
