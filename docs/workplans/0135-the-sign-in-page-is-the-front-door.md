@@ -4,6 +4,19 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
+**2026-11-14, later: alpha.8 is tagged with v4.20.3, and `main`'s first scheduled E2E (managed) on
+it is green (T7).** `main`'s first scheduled E2E (managed) on v4.20.3, run 43586708026 on
+`20a1c0e1`, the tag's commit, from 10:44 to 10:51 UTC, was green: version 20261114.5 with 17
+detected tasks, *verify: done apply: applied*, SMOKE PASS, the identity provider on
+`ghcr.io/zitadel/zitadel:v4.20.3`. So the dump set `20261114T040734Z` (the dump, the roles file and
+the note) goes from the OTA stack's dump directory, as the entry below says: the owner was sent the
+command at 10:52 UTC, and the deletion is theirs to report. `v0.2.0-alpha.8` was tagged at 10:02
+UTC (0146). Live takes v4.20.3 from it, in one step from v4.20.1, by 2026-11-16 at 06:23 UTC, the
+seven days for v4.20.2's fix, which v4.20.3 carries. Live's copy before that update holds live's
+own dump, taken on v4.20.1 by `copy-before-update.sh`, which runs `dump-idp.sh` into it. alpha.7's
+deploy script calls the deploy one-way, since the provider's pin moves; neither v4.20.2 nor v4.20.3
+has a setup step, so the provider's way back is v4.20.1 (read from the diffs, not run).
+
 **2026-11-13: the pin to v4.20.3, eight fixes that read as security fixes, two of them on paths
 people here take; built on a branch, taken into alpha.8 by the owner on 2026-11-14 after their dump
 of the OTA instance, merged as #1897 (`0b870941`) (T7).** On branch
