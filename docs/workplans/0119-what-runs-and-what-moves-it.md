@@ -4,6 +4,151 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
+**2026-11-14, latest: the demo's, the dev stack's and the integration tier's Nextcloud move to
+35.0.3 and the second-major fixture to 34.0.6, each inside its three-day floor, which is waived for
+alpha.9; CI's Nextcloud legs and E2E (managed) on the branch owed.** Drafted from `main` at
+`fd0cad0e`. Read between 20:59 and 21:22 UTC from Docker Hub's registry and its tag API,
+nextcloud/server's git tags and the scan's report log; times are UTC.
+
+- **Why.** Security Scan run 43583806230 (10:08 to 10:11) reads the test-only
+  `nextcloud:35.0.2-apache@sha256:e0b1a2af…` at 8 critical, 379 high and 193 with a fix, and its
+  report job names the eight: CVE-2026-119618 in `apache2`, `apache2-bin`, `apache2-data` and
+  `apache2-utils` 2.4.69-1~deb13u1 (fixed in 2.4.71-1~deb13u1); CVE-2026-42216 and
+  CVE-2026-42217 in `libopenexr-3-1-30` 3.1.13-2 (fixed in 3.2.12-1~deb13u1); CVE-2026-99083 in
+  `linux-libc-dev` 6.12.113-1 (fixed in 6.12.115-2; 6.12.117-1 clears all 56 of that package's
+  findings); and CVE-2026-6653 in `libxml2`, with no fix.
+- **The new pins.** `35.0.3-apache` names the index `8a7a65b8bae8…`, the tag pushed at 01:54:42
+  (its linux/amd64 image `f5a6d4827685…` at 01:53:28, linux/arm64 `1059f89e8a1a…` at 01:53:30);
+  `34.0.6-apache` names `3031e7f87baa…`, pushed at 01:52:58 (amd64 `8ece0c2332f5…`, arm64
+  `f01db3987605…`). Each lists linux/amd64, linux/arm/v5, linux/arm/v7, linux/arm64/v8,
+  linux/386, linux/ppc64le and linux/s390x, each with its attestation, and no riscv64 yet:
+  `35-apache` (`8041f246…`) and `34-apache` (`25d07d30…`) hold the same seven images beside
+  35.0.2's and 34.0.5's riscv64 of 2026-11-09. So each tag's index most likely moves again when
+  its riscv64 lands, its amd64 and arm64 images staying (inferred, not read). Both builds are of
+  2026-11-13, 22:12 to 22:20, on PHP 8.5.12, and their first fourteen layers are, on both
+  architectures, exactly `php:8.5.12-apache-trixie`'s build of 2026-11-05, which that tag still
+  names (last pushed 2026-11-06 01:03).
+- **The old pins had been rebuilt under their tags.** `35.0.2-apache` names `786c102155d2…` and
+  `34.0.5-apache` `d8ad0b77c863…` since 2026-11-09 13:50, their amd64 and arm64 images rebuilt on
+  2026-11-05 on that same PHP build; nothing here pinned either. `e0b1a2af…` and `515c072e…` still
+  resolve by digest.
+- **Read off the images** (amd64 and arm64 of each, and amd64 of both old pins: the layer of
+  Nextcloud's last `apt-get`, which holds the final `/var/lib/dpkg/status`, streamed with every
+  manifest, config and blob checked against its sha256; nothing run, and no daemon here). 35.0.3
+  and 34.0.6 carry the same 283 packages on amd64 and 282 on arm64, at the same versions, and
+  against the old pins twelve move, the same twelve in both lines: `libopenexr-3-1-30` 3.1.13-2 →
+  3.2.12-1~deb13u1, `linux-libc-dev` 6.12.113-1 → 6.12.115-2, `apt` and `libapt-pkg7.0` 3.0.3 →
+  3.0.4, ImageMagick's four 8:7.1.1.43+dfsg1-1+deb13u12 → +deb13u14, `libpq5` 17.11 → 17.12,
+  `zlib1g` and `zlib1g-dev` 1:1.3.dfsg+really1.3.1-1+b1 → +deb13u1, and `tzdata` 2026e → 2026f.
+  `apache2` and its three stay 2.4.69-1~deb13u1, installed by the PHP base, and `libxml2` stays
+  2.12.7+dfsg+really2.9.14-2.1+deb13u3. By the scan's own fixed versions, then, both images carry
+  the fixes for 3 of the 8 criticals (libopenexr's two and CVE-2026-99083) and not for 5
+  (CVE-2026-119618 in the four apache2 packages, and libxml2's). Of the old pin's 16 fixable
+  packages, 11 are at or past the version the list names, the four apache2 ones are not, and
+  `linux-libc-dev` is at its critical's fix (6.12.115-2), short of the 6.12.117-1 that clears all
+  56. The new counts are the branch's scan's to read (owed). In Nextcloud's own vendor tree 35.0.3 has `symfony/http-foundation` v7.4.21 (the list's
+  CVE-2026-108082 is fixed in 7.4.19) and 34.0.6 v6.4.49; sabre/dav 4.7.0, sabre/vobject 4.5.6,
+  sabre/http 5.1.12 and sabre/xml 2.2.11 are unchanged in both lines. The entrypoint
+  (`ec00e04f…`), `opcache-recommended.ini` (still `opcache.jit=1255`, so `nextcloud-php.ini`'s
+  `zz-` mount still decides), the igbinary ini (`session.upload_progress.enabled=0`) and the
+  Apache body-limit and remoteip files are the old pins' byte for byte.
+- **Upstream**, read from nextcloud/server's git tags and the commits between them: v35.0.2
+  `ba900af9` → v35.0.3 `7764ef49` (tagged 2026-11-12 14:06; 464 commits, 175 merged pull
+  requests) and v34.0.5 `77e3cab1` → v34.0.6 `d8ccb997` (tagged 17:04; 397 and 140). GitHub's
+  release page and API for that repository and nextcloud.com could not be reached from where this
+  was read, so no release note and no advisory was read; what follows is from the pull requests'
+  titles, and from the diff where it says so. Against what the stack calls:
+  - *CalDAV.* In the diff: the property index keeps 4-byte characters in parameters where the
+    database stores them (the search index only; the 254-byte cut stays), and old sync tokens are
+    pruned as configured: the comparison took the retention, a duration, for a time, so nothing
+    was ever pruned, and now changes older than `syncTokensRetentionDays` (60, at least 7) beyond
+    the newest `totalNumberOfSyncTokensToKeep` (10000) go when the background job runs. A token
+    older than that is refused, and both sources then read the whole collection
+    (`calendar-query`, `addressbook-query`) on any answer but 207, which is safe: a cursor is
+    never authoritative here. Also in the diff: which instance an iTip mail describes
+    (`EventComparisonService` is gone), not whether one is sent, and the writer's
+    SCHEDULE-AGENT=CLIENT keeps migrated events off that path. By title: read-only calendar
+    delegates lose write-properties.
+  - *CardDAV*, in the diff: a truncated sync-collection answer is now detected on every database.
+    SQLite, which `dev.yml` and the integration tier run, does not count a SELECT's rows, so an
+    incremental read past `carddav_sync_request_truncation` (2500) answered as complete, with the
+    current token, and the rest was never sent; the demo's Postgres counted them before. The
+    sources send no `<D:limit>`, count only a 404 as a removal and keep the returned token, so a
+    truncated answer is continued by the next pass. No suite here makes 2500 changes.
+  - *WebDAV and files*, by title: a `.part` file's move or rename in a masked storage, WebDAV
+    pagination headers, no quota check on a read, uploads with an empty MIME type, and NFC names
+    from the Node API (its commit says storage and listings were NFC already). In the diff, 35.0.3
+    alone: `localstorage.min_free_space`, 100 MiB by default, so local storage reports that much
+    less free space and an upload is refused that much sooner on a full disk; and ChunkingV2
+    refuses server-side encryption (off here; on local storage the writer's v2-shaped upload is
+    assembled by the v1 path anyway, which is also why 34.0.6's sliding expiry of a v2 session
+    does not reach it).
+  - *Sharing*, the OCS verb, by title: share-attribute resolution, unified sharing's states and
+    instances stored as ints, share expiry kept, and, in the diff, `share_external.id` without
+    its auto-increment.
+  - *Hardening that reads as security fixes*, by title, ids unread: public-share sessions bound
+    to the password hash and public paths aligned (no public link here), logins with NUL bytes
+    refused, a regenerated session no longer replaced by a stale request, a timeout and size limit
+    for remote avatars, canonical SVG paths only for themed icons, one answer for an expired and
+    an invalid lost-password token, and a new CA bundle. The phone-home facts hold:
+    `config.sample.php` differs only by the new option, and the update check's, the announcements
+    crawler's and the connectivity check's files are 35.0.2's, as are `lib/private/Updater.php`,
+    `core/Command/Upgrade.php` and `core/Command/Status.php` (by the images' file hashes).
+- **A patch is one way, like a major.** The entrypoint compares `OC_Version`'s four parts
+  (35.0.2.2 → 35.0.3.2, 34.0.5.1 → 34.0.6.2): on an installed volume the newer image copies its
+  code in and runs `occ upgrade`, and an older one refuses the volume afterwards (*"the version of
+  the data … is higher than the docker image version … and downgrading is not supported"*).
+  35.0.3's upgrade moves the dav app 2.0.0 → 2.0.1 with `Version1039Date20260408000001`, which
+  drops `calendars.default_alarm` only where 35.0.2's `…000000` has not, and 35.0.2's did, so on
+  the demo it is a no-op (read, not run); files_sharing's `Version33000Date20251030081948` is
+  renamed `…081949` and returns early once `share_external.id` has no auto-increment. The
+  bring-up reads the version from `occ status` (`nextcloud_upgrade_done`), so nothing there
+  moves.
+- **Where that is a step.** Live runs no Nextcloud: the service starts only with `--with-demo`,
+  which `deploy-live.sh`, `stand-up-live.sh` and the bring-up's live-marker check refuse, and what
+  the entry below read on live names no Nextcloud. The self-host E2E removes
+  `ownpace-dev-nextcloud` before each run, and the integration tier and the second-major leg start
+  a new container each time. A developer's `dev.yml` volume upgrades at its next `up`, one way.
+  **The OTA stack's demo is the one place it is a step:** E2E (managed) on the branch is
+  its upgrade to 35.0.3, and from then `main`'s nightly and any other branch's E2E (managed),
+  still on 35.0.2, are red at `up_wait nextcloud` until it merges. So `docs/managed-bring-up.md`,
+  *A Nextcloud major on the OTA stack*, holds for this patch from its step 2: not between two
+  counted nights, the migrations that write into the demo paused, the run dispatched only when the
+  branch is otherwise ready, the merge before the next nightly is created (03:30), and `occ
+  status` read after it (`"versionstring":"35.0.3"`, `"maintenance":false`,
+  `"needsDbUpgrade":false`). Whether to take that section's copies for a patch, or to count on a
+  fresh demo as the way back, is open.
+- **The floor.** Both tags are inside their three-day floor (CONTRIBUTING.md), which ends
+  2026-11-17 at 01:54:42 (35.0.3) and at 01:52:58 (34.0.6) and is waived for alpha.9;
+  `managed.yml`, `nextcloud-second-major.yml` and the changelog say so beside each pin. No guard
+  asks a compose or workflow image to say it.
+- **Changed:** the four pins (`managed.yml`, `dev.yml`, the Testcontainers default and
+  `NEXTCLOUD_IMAGE`) and their comments; §2.1's two Nextcloud rows and §4's second-major bullet;
+  the changelog's *Security*. Left as written: the flip of 2026-10-26 in
+  `a-nextcloud-the-demo-does-not-run`'s header, the dated 35.0.2 reads in
+  `docs/managed-bring-up.md`'s major section, and `an-image-nobody-scanned`'s tier fixture, a
+  stand-in whose other rows are not current either.
+- **Proved here**, with no container runtime: the unit tests that read the changed files (128 in
+  the unit project and 1 in `unit-browser`), the nineteen guards that read the changelog, the
+  workplans and the repository's text (conflict markers, addresses, product names, counts,
+  releases), and then the whole unit project (1103 files, 16988 tests passed and 33 skipped by
+  their own conditions, none of them in the files above), all green; `lessons.mjs` and
+  `workplan-index.mjs` current, and ESLint clean on the Testcontainers setup. Each guard that
+  holds a Nextcloud pin fails on one mutation of the real file, restored after:
+  `a-float-nothing-ever-pulled` on a digest one hex digit off in `managed.yml` (*"dev.yml runs …
+  while managed.yml runs …"*) and on 35.0.2 for 35.0.3 in the Testcontainers default;
+  `a-nextcloud-the-demo-does-not-run` on 35.0.6 for 34.0.6 in `NEXTCLOUD_IMAGE` (*"the same major
+  as …"*); and `a-pin-that-knows-it-is-behind` on a digest one digit short (the row refuses the
+  line, *"not nextcloud by a numbered tag and its index digest"*) and on the same 35.0.6. None can
+  tell a wrong digest of the right shape, given to all three Nextcloud lines alike, from the
+  tag's: the pulls in CI and E2E (managed) are that check.
+- **Owed:** CI on the pull request (the integration tier on 35.0.3, on amd64 and arm64);
+  *Nextcloud second major* on the pull request, whose `pull_request` paths include the workflow
+  and the Testcontainers setup, both changed, against 34.0.6, which fails on a skipped test or a
+  server that is not 34.0.6; Security Scan dispatched on the branch, for the new counts; and E2E
+  (managed) on the branch, the demo's one-way upgrade above, then the merge before the next
+  nightly.
+
 **2026-11-14, later still, recorded: live runs alpha.8's pins; #1892, #1894 and #1893, held for after
 the tag, merged.** The owner deployed `v0.2.0-alpha.8` (tagged 2026-11-14 on `20a1c0e1`) to live the
 same day, from alpha.7 in one run of alpha.7's script, which took at 15:05:12 UTC, one-way (0132's
@@ -6996,8 +7141,8 @@ is who moves it after T1.
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason; read again on 2026-11-13 with the registry's pin and left, because the scripts run the same image by its tag (Status, 2026-11-13) | 1.38 (1.38.0), its index `a46257e0…` pushed 2026-10-28 22:58 UTC (read 2026-11-13) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
 | `axllent/mailpit` | `managed.yml` | v1.33.1 by digest `aef2aacc…` (2026-11-11, the patch kept current, past its floor, no finding to clear; merged 2026-11-12 as #1872, `b9b3a2f2`, after E2E (managed) run 43196912718 on its head: Status, 2026-11-11); v1.33.0 by digest `9b3a463b…` before it (2026-11-03, the minor kept current; merged as #1796 at 02:51 UTC, `21fa6ff8`, after E2E (managed) run 41566706312 was green on its head, in alpha.4: Status, 2026-11-03, records); v1.32.0 by digest `0790692b…` before that (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.1 (2026-11-07, pushed 23:54 UTC; also `latest` on 2026-11-11), digest `aef2aacc…` | current — *was:* one patch behind, read by the pin watch on 2026-11-09, inside its three-day floor until 2026-11-10 23:54 UTC (Status, 2026-11-11) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
-| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.2 (2026-10-15) on PHP 8.5.12; 35.0.3 due 2026-11-12 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
-| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.5-apache by digest `515c072e…` since 2026-11-01, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC, three days old on 2026-10-31; what `34-apache` named that day, read on mirror.gcr.io and Docker Hub), whose Debian and PHP 8.5.12 layers are the same blobs as the demo's 35.0.2 `e0b1a2af…`, with libbrotli's fix for the critical CVE-2026-111497; before it `1f9212ad…` (PHP 8.5.12) from 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.5; 34.0.6 due 2026-11-12 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
+| `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.3-apache by digest `8a7a65b8…` (2026-11-14: pushed 01:54:42 UTC with linux/amd64 and linux/arm64 and no riscv64 yet, on `php:8.5.12-apache-trixie`'s build of 2026-11-05; inside its floor, which ends 2026-11-17 01:54:42 UTC and is waived for alpha.9; the fixes for 3 of the scan's 8 criticals, libopenexr's two and CVE-2026-99083, not apache2's CVE-2026-119618; one way, a patch as a major: Status, 2026-11-14, latest); before it 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.3 (tagged 2026-11-12) on PHP 8.5.12, read 2026-11-14 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
+| `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.6-apache by digest `3031e7f8…` since 2026-11-14 (pushed 01:52:58 UTC with linux/amd64 and linux/arm64; inside its floor, which ends 2026-11-17 01:52:58 UTC and is waived for alpha.9; its first fourteen layers 35.0.3's, its Debian packages 35.0.3's version for version: Status, 2026-11-14, latest); before it 34.0.5-apache by digest `515c072e…` from 2026-11-01, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC, three days old on 2026-10-31; what `34-apache` named that day, read on mirror.gcr.io and Docker Hub), whose Debian and PHP 8.5.12 layers are the same blobs as the demo's 35.0.2 `e0b1a2af…`, with libbrotli's fix for the critical CVE-2026-111497; before it `1f9212ad…` (PHP 8.5.12) from 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.6 (tagged 2026-11-12), read 2026-11-14 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
 
 Ignored by name in the new Dependabot entries, so that a green tick cannot make these
@@ -8062,6 +8207,9 @@ is beside each; none is urgent tonight.
   of the same major in the summary issue, with how it moves. Read against Docker Hub on
   2026-11-06 it is current, 34.0.5 of 2535 tags listed; 34.0.6 was due 2026-11-12. *(2026-11-08:
   still due, on 2026-11-12; the pin stays 34.0.5 until 34.0.6 ships and passes its floor.)*
+  *(2026-11-14: 34.0.6, tagged upstream on 2026-11-12, reached Docker Hub on 2026-11-14 at 01:52:58
+  UTC and is pinned the same day, inside its floor, which is waived for alpha.9: the Status entry
+  of 2026-11-14, latest.)*
 - **ClickHouse** is not checked against anything but Trigger.dev's own compose, and that
   is by design; the version that rejected a migration is the reason it is pinned at all. That
   pin, 26.2, has been out of ClickHouse's support since 2026-05-21: accepted for the Alpha, with

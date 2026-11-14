@@ -2417,10 +2417,11 @@ services:
   # The demo's DAV target, brought up with the OTA stack every night
   # (--with-demo, which both live scripts refuse). Its update check, app store,
   # announcements feed and connectivity check are on by default
-  # (config.sample.php at stable34, the same at v35.0.2), and are NOT switched
-  # off yet: a hook that set them false made the demo's first CalDAV write
-  # answer 500 (workplan 0139, 2026-09-29). It holds fixtures, never a tester's
-  # data. `scripts/a-service-that-phones-home.unit.test.ts` lists it as left on.
+  # (config.sample.php at stable34, the same at v35.0.2 and v35.0.3), and are
+  # NOT switched off yet: a hook that set them false made the demo's first
+  # CalDAV write answer 500 (workplan 0139, 2026-09-29). It holds fixtures,
+  # never a tester's data. `scripts/a-service-that-phones-home.unit.test.ts`
+  # lists it as left on.
   #
   # NEXTCLOUD 35 FROM THE PULL REQUEST THAT MOVED IT (workplan 0119 T5, written
   # 2026-10-26), 34 before. A major moves ONE WAY: the first `up` with this pin
@@ -2432,8 +2433,30 @@ services:
   # nextcloud_upgrade_done). What puts it back is in docs/managed-bring-up.md,
   # *A Nextcloud major on the OTA stack*. The other major, 34, runs in CI only
   # (.github/workflows/nextcloud-second-major.yml).
+  #
+  # 35.0.3 SINCE 2026-11-14, 35.0.2 before, AND A PATCH MOVES ONE WAY TOO: the
+  # image's entrypoint compares the whole version (35.0.2.2 with 35.0.3.2),
+  # runs `occ upgrade` at the first `up` (the dav app moves 2.0.0 → 2.0.1), and
+  # refuses an older image on the volume from then on, so that section's order
+  # holds for a patch as for a major. The pin is 35.0.3-apache by its index
+  # digest 8a7a65b8bae8…, pushed on 2026-11-14 at 01:54:42 UTC with
+  # linux/amd64 and linux/arm64 in it and no riscv64 yet (`35-apache` holds
+  # 35.0.2's riscv64 beside these two, so the tag's index most likely moves
+  # again when riscv64's lands): Nextcloud 35.0.3 on PHP 8.5.12, on
+  # php:8.5.12-apache-trixie's build of 2026-11-05. Taken the same day, inside
+  # its three-day floor (which ends 2026-11-17 at 01:54:42 UTC), which is
+  # waived for alpha.9. Read off both images, every blob checked against its
+  # sha256 and nothing run: of the eight criticals the image scan of
+  # 2026-11-14 read in e0b1a2af52c8…, it carries the fixes for three,
+  # libopenexr-3-1-30 3.2.12-1~deb13u1 (CVE-2026-42216, CVE-2026-42217) and
+  # linux-libc-dev 6.12.115-2 (CVE-2026-99083), and apt 3.0.4, ImageMagick's
+  # deb13u14, libpq5 17.12, zlib1g's deb13u1 and symfony/http-foundation
+  # 7.4.21 besides. Not apache2's: 2.4.69-1~deb13u1 still, installed by the
+  # PHP base, so CVE-2026-119618 (fixed in 2.4.71-1~deb13u1) waits for that
+  # base's rebuild and Nextcloud's after it, and libxml2's CVE-2026-6653 has
+  # no fix.
   nextcloud:
-    image: nextcloud:35.0.2-apache@sha256:e0b1a2af52c82c07b7a0e8e59878bd8769e704447734d5d238a836982f51b9c8
+    image: nextcloud:35.0.3-apache@sha256:8a7a65b8bae82a79568fec2ed9cf3e374a1944eda2a22ebe130d79463336fee3
     container_name: ${COMPOSE_PROJECT_NAME}-nextcloud
     restart: unless-stopped
     logging: *logging

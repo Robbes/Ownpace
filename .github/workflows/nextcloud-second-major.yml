@@ -95,20 +95,18 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     env:
-      # 34.0.5-apache by upstream's rebuild of 2026-10-28 (Docker Hub push
-      # 16:51 UTC, three days old on 2026-10-31; what `34-apache` and `34.0.5`
-      # name on 2026-11-01, read on mirror.gcr.io and Docker Hub alike). Its
-      # Debian and PHP 8.5.12 layers, the first fourteen, are the same blobs
-      # as the demo's 35.0.2 pin `e0b1a2af…`, the rebuild that took libbrotli's
-      # fix for the critical CVE-2026-111497 (0119, Status of 2026-10-30).
-      # Before it `1f9212ad…`, the rebuild of 2026-10-23 17:17 UTC, the digest
-      # the demo, the dev stack and the integration tier pinned before they
-      # moved to 35.0.2 (#1678, 0119 §4). The leg ran 35.0.1 from 2026-10-25
-      # and 35.0.2 from 2026-10-26, and flipped to 34 in the pull request that
-      # moved the demo (workplan 0119, T5). By hand: Dependabot reads no
-      # workflow env; the pin watch's row "nextcloud, the second major" reads
-      # this line, so 34.0.6 (due 2026-11-12) is reported in its summary issue.
-      NEXTCLOUD_IMAGE: nextcloud:34.0.5-apache@sha256:515c072ea1cf82ece3503f301fdf75dd5a7148abcc8fa10aaefd5ec56643b703
+      # 34.0.6-apache by its index digest, pushed on 2026-11-14 at 01:52:58 UTC
+      # with linux/amd64 and linux/arm64 in it (`34-apache`'s index holds the
+      # same two, beside 34.0.5's riscv64), and taken the same day, inside its
+      # three-day floor (which ends 2026-11-17 at 01:52:58 UTC), which is
+      # waived for alpha.9. Its first fourteen layers, Debian and PHP 8.5.12,
+      # are the same blobs as the demo's 35.0.3 pin `8a7a65b8…`
+      # (php:8.5.12-apache-trixie's build of 2026-11-05), and its Debian
+      # packages are 35.0.3's, version for version. Before it `515c072e…`,
+      # 34.0.5 by upstream's rebuild of 2026-10-28. By hand: Dependabot reads
+      # no workflow env; the pin watch's row "nextcloud, the second major"
+      # reads this line and reports a newer 34.x in its summary issue.
+      NEXTCLOUD_IMAGE: nextcloud:34.0.6-apache@sha256:3031e7f87baaceb863a755921ebf463bc26ea71855c07ad7858e2ae25a5a0ad7
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
