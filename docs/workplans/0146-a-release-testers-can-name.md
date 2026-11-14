@@ -4,6 +4,75 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
+**2026-11-14, later: `v0.2.0-alpha.8` is released, its nights waived (T2, T4).** Read from GitHub
+on 2026-11-14. Times are UTC.
+
+- **C is `20a1c0e1`**, the squash of #1898 (the fold), merged at 08:42:44 on `5ca5fc94` (#1888).
+  Its tree is that of the fold's head, `3018c7c2`, on which CI run 43575947075 was green (08:27 to
+  08:40). On C, all green: CI run 43577113412 (`lint`, `unit-tests (all)`, `ui-tests`,
+  `integration-tests (ubuntu-24.04-arm)` and `ci-complete` run and passed, 08:42 to 09:06),
+  Security Scan run 43577113453, Images run 43577113467, Nextcloud second major run 43577113489,
+  and `windows-payload.yml` run 43577136445 (`build win-x64` and `smoke win-x64 on windows-2025`;
+  its attach runs on a tag only, so it was skipped).
+- **In the counted nights' place**, dispatched on `main` at C, one at a time, each at least ten
+  minutes after the run before it ended: E2E (managed) run 43577181256 (08:43 to 08:51; version
+  20261114.4 deployed with 17 detected tasks, *verify: done apply: applied*, SMOKE PASS, the
+  identity provider on `ghcr.io/zitadel/zitadel:v4.20.3`), and E2E (self-hosted) on Postgres, run
+  43578602986 (09:02 to 09:07), and on PGlite, run 43579944467 (09:18 to 09:23), all green.
+- **The image scan of C**, Security Scan run 43577138736 (`image_scans`, on `main` at C, 08:43 to
+  08:46), by tier (critical, high, with a fix): what the internet reaches on live 0, 8 and 8; what
+  live runs inside 2, 38 and 21; the appliance 0, 2 and 2. The appliance's two, and two of the
+  eight, are in alpha.7's release images, which alpha.8's replace (below); the two criticals are
+  zlib1g's in Redis and the Trigger.dev webapp, with no fix yet (0119).
+- **The upgrade drill** is not reported for alpha.8. Both chains are alpha.7's (65 and 59 files),
+  so it would report the mechanics only, and the preflight lists it as not checked.
+- **Release.** The owner dispatched the three runs from their own account, with `commit` set to C
+  and `waive_nights` set to *Yes, waive alpha.8's waiting nights.* for the two on alpha.8. The
+  preflight, run 43580742904 (#26, 09:28:55 to 09:29:43), refused nothing: CI run #5485, Security
+  Scan run #5578 and the Windows smoke of windows-payload run #39 green on C; the names, the
+  changelog (dated 2026-11-14) and the API contract agree; the tag free; C the head of `main`, with
+  no commit after it; the upgrade gates' 8 and 12 cases passed (7 and 8 of them from alpha.7;
+  mechanics only, 65 and 59 migrations on both sides); the nights' refusals notes naming the
+  owner's waiver; the upgrade drill listed as not checked. It noted, without refusing, 2 critical
+  and 48 high code-scanning alerts open on `main` in 10 groups, every one an image's (0119). The
+  owner then ran mode `verify` on `v0.2.0-alpha.7`, run 43580877553 (#27, 09:30:35 to 09:31:36),
+  and every check passed, so the verifier's downloads that retry (#1869) had run on a real tag
+  before this one. Release run 43583062424 (#28), mode `release`, dispatched at 09:58:54, refused
+  nothing in its own preflight and waited at its approve job until the owner approved in the
+  `release` environment (the job ran 10:00:14 to 10:00:17); then the gate scan of C (run
+  43583188358, on `release-gate/v0.2.0-alpha.8`), the tag (10:02:07 to 10:02:29), the publishing
+  (Security Scan on the tag, run 43583375963; the images, run 43583522258; the Windows zip, run
+  43583529443) and verify (10:06:44 to 10:07:19) all succeeded, and the run completed at 10:07:19.
+  Verify read the release as a pre-release with `bom.json` (CycloneDX 1.6) and
+  `ownpace-appliance-win-x64-v0.2.0-alpha.8.zip` (its 411 files' sums hold, its `node.exe` v26.13.1
+  as pinned); `ownpace-api`, `ownpace-web` and `ownpace-selfhost` at `0.2.0-alpha.8` for amd64 and
+  arm64, built from C, signed, `latest` not moved; the tasks' base that C pins (`sha-b05fb1b`), for
+  both platforms, built from an ancestor of C and signed on `main`; and the appliance's `/version`
+  answering the tag's version and commit.
+- **The tag.** `v0.2.0-alpha.8` is tag object `2332d217…` on `20a1c0e1`, made by
+  `github-actions[bot]` at 10:02:25. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/43583062424*, *Proved by: CI run #5485, Security
+  Scan run #5578 on main, windows-payload run #39; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/43583188358* and *Nights waived by Robbes, in
+  their words: "Yes, waive alpha.8's waiting nights."*
+- **The release** is a pre-release, published at 10:03:52 by the scan on the tag, with `bom.json`
+  (2056686 bytes) and `ownpace-appliance-win-x64-v0.2.0-alpha.8.zip` (49952966 bytes).
+- **The image scan after the tag**, Security Scan run 43583806230 (`image_scans`, on `main` at C,
+  10:08 to 10:11), reads alpha.8's own images, `ownpace-api`, `ownpace-web` and `ownpace-selfhost`
+  at `0.2.0-alpha.8`, at 0, 0 and 0. By tier: what the internet reaches on live 0, 6 and 6; what
+  live runs inside 2, 38 and 21; the appliance 0, 0 and 0 (0119).
+- **The O365 lane** is not read by Release. alpha.8 is tagged without a run of it, under the
+  owner's waiver for alpha.6, alpha.7 and alpha.8 (0141 T13, the entries of the same day).
+- **Held for after the tag**, since the freeze ends with it: Dependabot #1892 (goaccess's Alpine
+  3.24.4), #1893 (the minor-and-patch group, 19 updates) and #1894 (`@cyclonedx/cyclonedx-npm`
+  7.0.0, a major), opened on 2026-11-14 from 03:31 to 03:38, during the freeze; pnpm 11.28.10
+  (#1792), while npm's `latest-11` still names 11.28.9; and the test-only images' findings that
+  have a fix (0119).
+- **Owed:** live's deploy of `v0.2.0-alpha.8`, by the owner, by 2026-11-16 at 06:23, 0135 T7's
+  seven days for v4.20.2's fix, which v4.20.3 carries; and the deletion of the OTA instance's dump
+  of 2026-11-14, now that `main`'s first scheduled E2E (managed) on v4.20.3, run 43586708026, is
+  green: the owner's, with the command sent (0135 T7).
+
 **2026-11-14: alpha.8 is folded, its counted nights and the three-day floors inside them waived in
 the owner's words (T2, T4).** On the branch `claude/ownpace-public-readiness-y7orc6-alpha8-fold`,
 drafted on 2026-11-13 from `main` at `cdb80bc6` (#1889), with `main` merged at `5ca5fc94`
