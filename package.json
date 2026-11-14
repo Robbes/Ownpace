@@ -30,7 +30,7 @@
     "jmap-jam": "^0.13.8"
   },
   "devDependencies": {
-    "@cyclonedx/cyclonedx-npm": "^6.0.1",
+    "@cyclonedx/cyclonedx-npm": "^7.0.0",
     "@eslint/js": "10.0.1",
     "@types/node": "^26.6.6",
     "@types/pg": "catalog:",
