@@ -1,6 +1,6 @@
 # Running the self-host appliance on Windows — a runbook for the owner
 
-**Status:** written 2026-08-06 by someone who had never run any of it; what has been run since, by the owner and (Phases 1 and 2, from 2026-11-02) by CI, is below.
+**Status:** Phases 1 to 3 have been run on Windows 11, and CI runs Phases 1 and 2; the installer (Phase 4) has not started.
 **Owns:** workplan [0015](./workplans/0015-native-windows-installer.md) T3.
 **Read first:** [ADR-0027](./adr/0027-windows-packaging-shell.md) — and its
 **second update**, which replaces the Windows Service with a scheduled task, [ADR-0019](./adr/0019-packaging-runtime-targets.md).
@@ -9,11 +9,8 @@
 
 ## Why this document exists
 
-This runbook was written when **nobody had ever run the appliance on Windows at
-all**, and it was ordered by what was unknown, cheapest and most load-bearing
-first. Much of that is now answered, and the header is corrected rather than
-left standing, because a stale "nobody has run this" sends the next reader off
-to re-prove settled things — which is exactly what it did on 2026-08-13.
+It takes the appliance onto a Windows machine phase by phase, ordered by what
+was unknown, cheapest and most load-bearing first.
 
 **What has actually been run, on real Windows 11 Home:**
 
@@ -29,20 +26,14 @@ So the remaining unknown is the installer itself, plus whatever a clean VM says
 about a machine that has never had a developer toolchain on it. Everything
 above it has an evidence file behind it, not a prediction.
 
-**Phases 1 and 2 have a CI job since 2026-11-02; the rest still need a Windows
-machine.** The owner, that day: "I wont do windows...". So the by-hand check of
-each new zip (owed for Node 26.13.0) became `smoke`, a job of
-`.github/workflows/windows-payload.yml` that runs on a GitHub-hosted
-`windows-2025` runner (Windows Server 2025, x64) after `build`, against the very
-upload `build` made, for win-x64. On a release tag the zip is attached by a
-`release` job that needs `smoke`, so a zip that failed it is never attached.
-What it runs is under each phase below (*In CI*). **It is proven only once it
-has run green**: when this was written it had not run at all, and its first
-run is a dispatch of the workflow on its branch. *(2026-11-02: that first run,
-windows-payload run 41434382108, was green, and the job reached `main` the
-same day in #1789; workplan 0119's Status of that day.)* Before a release, Release's
-preflight refuses the commit unless a dispatched run on that commit had
-`smoke` green (`docs/release.md` §1).
+**Phases 1 and 2 run in CI; the rest still need a Windows machine.** The check
+of each new zip is `smoke`, a job of `.github/workflows/windows-payload.yml`
+that runs on a GitHub-hosted `windows-2025` runner (Windows Server 2025, x64)
+after `build`, against the very upload `build` made, for win-x64. On a release
+tag the zip is attached by a `release` job that needs `smoke`, so a zip that
+failed it is never attached. What it runs is under each phase below (*In CI*).
+Before a release, Release's preflight refuses the commit unless a dispatched
+run on that commit had `smoke` green (`docs/release.md` §1).
 
 **What a run on `windows-2025` stands in for.** It is Windows Server 2025,
 build 26100, the build Windows 11 24H2 shares (the runner image reports OS
@@ -64,9 +55,7 @@ in `scripts/windows/` (`run-appliance`, `install-task` and the rest are not
 started by the job, so a change to them is still verified only by somebody
 running it); Phases 3 and 4; SmartScreen; Windows 11 itself; and win-arm64,
 which `build` stages on a dispatch and the job skips (GitHub does host Windows
-on arm64, `windows-11-arm`, so it could be added). Where a phase has not been
-run, this document says so rather than sounding confident; where it has, the
-date and the result are stated so the difference is visible.
+on arm64, `windows-11-arm`, so it could be added).
 
 ---
 
@@ -76,10 +65,8 @@ Whatever happens, the useful artefact is the same. `scripts/windows/collect-evid
 writes one file with the versions, the listening ports, the data directory
 layout, the last 60 lines of the appliance log (read as UTF-8, so no mojibake),
 a `GET /status` snapshot, and the ACL — never the contents — of `secrets.cmd`.
-Those last three were added on 2026-08-09 because every diagnosis round that
-night needed exactly them, one extra round trip each. Run it after whichever
-phase you reach and send `windows-evidence.txt`. That is enough to act on
-without a back-and-forth.
+Run it after whichever phase you reach and send `windows-evidence.txt`. That is
+enough to act on without a back-and-forth.
 
 If a phase fails, **stop there and send it** — the later phases assume the
 earlier ones worked, and diagnosing phase 3 on a broken phase 1 wastes your time
@@ -89,15 +76,9 @@ rather than mine.
 
 ## Phase 0 — prerequisites: none
 
-**Nothing to install on the Windows machine.** Not Node, not pnpm, not Git.
-
-An earlier version of this runbook asked for all three, then for Node alone.
-Both were wrong, and the correction is recorded rather than quietly applied
-because the mistake is the instructive part: it made you install a *developer*
-toolchain to test a product whose entire premise (0015: *"end users never
-touching bash, a Linux filesystem or Docker"*) is that none of it is needed. The
-owner uninstalled Node from the laptop to make the point, which is the right
-test of the requirement.
+**Nothing to install on the Windows machine.** Not Node, not pnpm, not Git: the
+product's premise is that end users never touch bash, a Linux filesystem or
+Docker, so testing it needs no *developer* toolchain either.
 
 | Need | Why |
 |---|---|
@@ -106,7 +87,7 @@ test of the requirement.
 That is the list.
 
 **Use PowerShell, not `cmd`.** Every command here is PowerShell — `cmd.exe` has
-no `Copy-Item`, and the first run of this runbook lost time to exactly that.
+no `Copy-Item`.
 
 **Windows blocks unsigned scripts by default**, so **use the `.cmd` wrappers**:
 
@@ -122,12 +103,11 @@ machine's stored policy, and you should not either: telling an owner to run
 `Set-ExecutionPolicy RemoteSigned` weakens their machine permanently in order to
 read a diagnostic file.
 
-This is worth noticing rather than only working around. **An MSI that shipped
-PowerShell scripts would hit the same wall on a customer's machine**, which is an
-argument for the installer doing its work natively — and a second, concrete
-reason for T4 code signing beyond SmartScreen.
+**An MSI that shipped PowerShell scripts would hit the same wall on a customer's
+machine**, which is an argument for the installer doing its work natively — and
+a second, concrete reason for T4 code signing beyond SmartScreen.
 
-**Owner decision, 2026-08-06: the payload ships its own Node runtime.**
+**The payload ships its own Node runtime.**
 `pnpm package:appliance --with-node win-x64` stages `node.exe` beside
 `start.mjs`, and everything here runs it as `.\node.exe`. The alternative —
 requiring Node and having the installer detect, prompt for or side-install it —
@@ -135,29 +115,25 @@ is a terminal-shaped problem wearing a dialog box, which is the thing 0015
 exists to avoid.
 
 What it costs, stated plainly: the payload goes from **28.8 MB to 117.3 MB**
-(`node.exe` win-x64 is 88.5 MB). It compresses well in an MSI, and it means a
-runtime we are now responsible for patching — so the version is pinned to the
-self-host image's Node: `scripts/package-appliance.mjs` reads the
+(`node.exe` win-x64 is 88.5 MB). Node 26's `node.exe` is 100,097,864 bytes
+(95.5 MiB) at 26.13.0 against 93,915,464 at 24.22.1, so the payload grows by
+about 6 MB. It compresses well in an MSI, and it means a runtime we are now
+responsible for patching — so the version is pinned to the self-host image's
+Node: `scripts/package-appliance.mjs` reads the
 `FROM node:<x.y.z>-slim` line of `apps/selfhost/Dockerfile` and refuses one
 without an exact version. Dependabot's image PR moves both, so a bump is still
-a visible edit somebody reviews, not a silent float. (Until 2026-10-21 it was a
-constant of its own, `v24.19.0`, which nothing moved.) The Node line moved to 26
-on 2026-10-31 (workplan 0119 §2.4), and with it `node.exe`: 100,097,864 bytes
-(95.5 MiB) at 26.13.0 against 93,915,464 at 24.22.1, so the payload grows by about
-6 MB. Node 26 keeps Windows x64 at Tier 1 (its `BUILDING.md`); its `node.exe` had
-not yet run on Windows here when it moved, and the Windows 11 check of the first
-zip built on it is the owner's. *(2026-11-02: the owner dropped that check, and
-`smoke`, above, started 26.13.0's `node.exe` on Windows Server 2025 in its stead,
-in windows-payload run 41434382108.)*
+a visible edit somebody reviews, not a silent float. Node 26 keeps Windows x64
+at Tier 1 (its `BUILDING.md`), and `smoke`, above, starts its `node.exe` on
+Windows Server 2025.
 
 The download is **checked against a SHA-256 committed in this repository**, and
 a mismatch stops the build. We would be shipping somebody else's binary to
 customers; an unverified download is a supply-chain hole with a progress bar.
-Until 2026-11-01 the sum came from the release's `SHASUMS256.txt`, fetched from
-the same `nodejs.org` directory as `node.exe`, so whatever could change the one
-could change the other (workplan 0119 §2.5). Now `scripts/package-appliance.mjs`
-holds the sum of each platform's `node.exe` for the one version the Dockerfile
-names (`NODE_RUNTIME_SHA256`), and reads it before it fetches anything. Beside
+A sum fetched from the same `nodejs.org` directory as `node.exe` would not do:
+whatever could change the one could change the other. So
+`scripts/package-appliance.mjs` holds the sum of each platform's `node.exe` for
+the one version the Dockerfile names (`NODE_RUNTIME_SHA256`), and reads it
+before it fetches anything. Beside
 it, `scripts/node-release/` holds that release's own `SHASUMS256.txt` and its
 signature `SHASUMS256.txt.sig`, and the Node.js release keyring, byte for byte
 `gpg-only-active-keys/pubring.kbx` of
@@ -243,12 +219,8 @@ Select-String -Path .\start.mjs -Pattern 'const BUILD ='
 ```
 
 That must match the build stamp in the run summary. **Run this again after every
-copy.** On 2026-08-07 the workflow double-zipped its own artefact, so the
-download contained a single `.zip` rather than the payload; `Copy-Item <dir>\*`
-copied that one file into the install directory, reported success, and the
-machine went on running the previous payload. A copy that silently moved nothing
-looks exactly like a copy that worked, and this line is the only thing that
-tells them apart.
+copy**: a copy that silently moved nothing looks exactly like a copy that
+worked, and this line is the only thing that tells them apart.
 
 `SHA256SUMS.txt` inside the payload covers every file. Windows has no
 `sha256sum`; from the payload directory:
@@ -277,9 +249,9 @@ should match the commit in the run summary — then `[pglite] ready`, the
 migration lines (below), and `[appliance] listening on http://127.0.0.1:8080`.
 (`Run it with:  .\node.exe start.mjs   (nothing to install)` is the last line of
 the *packager's* output when it stages the payload, not something `start.mjs`
-prints; this paragraph said otherwise until 2026-11-02.)
+prints.)
 
-**This is still the right test, not merely the convenient one.** An MSI hands a
+**This is the right test, not merely the convenient one.** An MSI hands a
 Windows machine a directory built somewhere else, so building on a Linux runner
 and running on the laptop exercises the *relocatable* property the way the
 product actually uses it — and running `.\node.exe` exercises the *shipped*
@@ -341,8 +313,8 @@ nothing checked out beside it. Its step summary has a row for each check, and
 each check fails the job:
 
 - **As downloaded:** `start.mjs`, `appliance.mjs`, `node.exe`, `package.json` and
-  `SHA256SUMS.txt` at the top (the double-zipped artefact above would fail
-  here), no `data\` yet; the `const BUILD =` stamp naming the run's commit (its
+  `SHA256SUMS.txt` at the top (a double-zipped artefact would fail here), no
+  `data\` yet; the `const BUILD =` stamp naming the run's commit (its
   first twelve characters, as `start.mjs` prints it) and the root
   `package.json`'s version; `.\node.exe --version`, called by its path because
   the runner has a Node of its own on `PATH`, equal to the version the build
@@ -364,8 +336,8 @@ each check fails the job:
 **The stop is a hard one.** The job stops the process it started, by its own
 handle, with `Kill()`, which is `TerminateProcess`: `start.mjs`'s
 `SIGINT`/`SIGTERM` handler does not run. So the second start proves the database
-survives a hard stop (as `Stop-Process -Force` showed on 2026-08-07, Phase 3),
-not that `Ctrl+C` closed it cleanly. Each wait is bounded (180 s for a first
+survives a hard stop (as `Stop-Process -Force` showed in Phase 3), not that
+`Ctrl+C` closed it cleanly. Each wait is bounded (180 s for a first
 start, 120 s for the second, 15 s for each request; a first start took 5 s on
 Linux), the step that starts it is bounded at 18 minutes and the job at 30,
 and when a check fails or a step runs out of time, the job keeps every start's
@@ -410,7 +382,7 @@ valuable test needs a real source and target, and that is what the machine is fo
 |---|---|
 | 1 — does the payload run | **No.** `.\node.exe start.mjs` boots PGlite, migrates itself and serves `/ui` with no mapping configured. That is the whole test. |
 | 2 — data directory | **No.** Same, from a different directory. |
-| 3 — Windows Service | Registration, boot survival and a clean `Stop-Service`: **no**. The *mid-sync shutdown* test: **yes** — you cannot interrupt a sync that is not running. |
+| 3 — Task Scheduler | Registration, boot survival and a clean stop: **no**. The *mid-sync shutdown* test: **yes** — you cannot interrupt a sync that is not running. |
 | 4 — installer | Not for the build. Yes for an end-to-end smoke after installing. |
 
 So do not stand anything up before Phase 1. If the payload does not boot, a
@@ -422,10 +394,10 @@ Keep Stalwart (and Nextcloud, if you want the DAV domains) **on the machine**,
 started with `deploy/selfhost/setup-stalwart.sh` (idempotent), and run the
 appliance on the laptop, pointing its mapping at the machine's NetBird address.
 
-**Publish it on that address, because the default is loopback.** Since
-workplan 0132 T3, `setup-stalwart.sh` publishes both ports on `STALWART_BIND`,
+**Publish it on that address, because the default is loopback.**
+`setup-stalwart.sh` publishes both ports on `STALWART_BIND`,
 which is `127.0.0.1` unless set: its accounts and passwords are in this
-repository. Before that it published with no bind address, on every interface.
+repository.
 Run it on the machine with the NetBird address, and the script asks that same
 address when it provisions:
 
@@ -449,22 +421,21 @@ Two things not to confuse:
 - `SELFHOST_BIND` in `deploy/selfhost/compose.yml` binds the *appliance's* port
   to loopback in the Docker deployment. Irrelevant here — the Windows appliance
   is not in Docker, and its equivalent is the `HOST` variable.
-- The self-signed certificate is expected, and since 2026-08-09 the mapping
-  must SAY so: put `"tlsVerify": false` on the source (and on an `imap-dav`
-  target, if you use one). Certificate verification now defaults ON — the
-  connectors used to skip it for everyone, dev and production alike, which
-  meant a production mailbox's credentials went to whatever answered the
-  socket. A TLS rejection against the dev Stalwart therefore means the mapping
-  is missing `"tlsVerify": false`; the error names the field. A TLS rejection
-  against a REAL mail server is a finding — do not work around it.
+- The self-signed certificate is expected, and the mapping must SAY so: put
+  `"tlsVerify": false` on the source (and on an `imap-dav` target, if you use
+  one). Certificate verification defaults ON, so a TLS rejection against the
+  dev Stalwart means the mapping is missing `"tlsVerify": false`; the error
+  names the field. A TLS rejection against a REAL mail server is a finding —
+  do not work around it.
 
 ### What "mid-sync shutdown" actually means
 
-Seed the source, start a mapping, and while it is copying, `Stop-Service
-OpenMigrateAppliance`. Then start it again. The appliance must come back, the
-ledger must be intact, and a re-run must not duplicate what was already copied —
-that is hard rule 1, and it is the property `selfhost-restart-resume.e2e.test.ts`
-proves on Linux and nothing has ever proved on Windows.
+Seed the source, start a mapping, and while it is copying, stop the task
+(`Stop-ScheduledTask -TaskName OpenMigrateAppliance`, as in Phase 3). Then
+start it again. The appliance must come back, the ledger must be intact, and a
+re-run must not duplicate what was already copied — that is hard rule 1, and it
+is the property `selfhost-restart-resume.e2e.test.ts` proves on Linux and
+nothing has ever proved on Windows.
 
 **This is the test I care most about**, because it is where the Windows-specific
 risk was thought to live. Windows services receive no POSIX signals, so a
@@ -520,9 +491,9 @@ cd "C:\Program Files\OpenMigrateTest\scripts"
 .\install-task.cmd -PayloadPath "C:\Program Files\OpenMigrateTest"
 ```
 
-**`/XF service-launch.cmd` and the re-run are both load-bearing, and the reason
-is a defect this runbook caused on 2026-08-13.** `install-task.ps1` *generates*
-`service-launch.cmd` into the payload directory at install time — it carries
+**`/XF service-launch.cmd` and the re-run are both load-bearing.**
+`install-task.ps1` *generates* `service-launch.cmd` into the payload directory
+at install time — it carries
 `SELFHOST_PGLITE_DIR`, `CONFIG_DIR`, `HOST`, `PORT`, the call to `secrets.cmd`
 and the log redirect, because **a Task Scheduler action carries no environment
 of its own**. So it is a file that exists in every INSTALL and in no PAYLOAD,
@@ -532,19 +503,18 @@ and `/MIR` deletes precisely those. The task's `Execute` target *is* that file:
 Execute : C:\Program Files\OpenMigrateTest\service-launch.cmd
 ```
 
-An upgrade run without `/XF` deleted it and left the task pointing at nothing —
-`Test-Path` on it returned `False` and the appliance could not start. Robocopy
-had announced the deletion, in the one line that matters among four lines of
-summary:
+An upgrade run without `/XF` deletes it and leaves the task pointing at nothing:
+`Test-Path` on it returns `False` and the appliance cannot start. Robocopy
+announces the deletion in one line among its summary:
 
 ```
 *EXTRA File                715        C:\Program Files\OpenMigrateTest\service-launch.cmd
 ```
 
 **Read the `*EXTRA` list on the `/L` dry run before the real one.** With `/MIR`
-it is not a curiosity, it is the delete list — and the other two extras that day
-(`ui\assets\index-*.js` and `.css`) were stale hashed bundles that *should* go,
-which is what makes the third easy to skim past.
+it is not a curiosity, it is the delete list — and the extras beside it are
+usually stale hashed bundles (`ui\assets\index-*.js` and `.css`) that *should*
+go, which is what makes the launcher easy to skim past.
 
 `/XF` keeps the file; re-running `install-task.cmd` regenerates it against the
 new payload and re-registers the task. Both, not either — the launcher hard-codes
@@ -563,21 +533,17 @@ Waiting 30 seconds... Retrying...
 
 `Stop-ScheduledTask` on its own is **not enough** — it asks the task to stop and
 returns before the process is gone. `Stop-Process -Force` is closer but still
-returns before Windows has released the file handle, which cost a 30-second
-robocopy stall on 2026-08-09 even with it. `WaitForExit` is the part that
-actually waits.
+returns before Windows has released the file handle, so robocopy can still
+stall for 30 seconds. `WaitForExit` is the part that actually waits.
 
 **The `Where-Object` path filter matters too.** A bare `Get-Process node` returns
 every node process on the machine, including ones this upgrade has no business
-touching, and on 2026-08-13 `Kill()` threw `Toegang geweigerd` on one of them —
-alarming, and unrelated to the appliance, whose own node had already exited via
-`Stop-ScheduledTask`. Filtering on the payload's own `node.exe` kills what the
-upgrade is actually replacing and leaves the rest of the machine alone.
+touching. Filtering on the payload's own `node.exe` kills what the upgrade is
+actually replacing and leaves the rest of the machine alone.
 
 Robocopy exit codes **0–7 are success**; 8 or above is a real failure. The
-`Select-String` must print a stamp matching the build you meant to install —
-run it after every copy, not once. A copy that silently moved nothing looks
-exactly like a copy that worked.
+`Select-String` must print a stamp matching the build you meant to install,
+after every copy.
 
 **Why `robocopy /MIR` and not `Copy-Item -Recurse`.** Two reasons, and the
 first is the one that bites quietly:
@@ -598,9 +564,7 @@ first is the one that bites quietly:
 
 **Note the `/XD data`.** If you have already run the payload in place it has a
 `data\` directory beside `start.mjs` holding a real PGlite database, and a plain
-recursive copy takes it with you — the first run of this on 2026-08-07 put
-157.2 MB into Program Files where the build had staged 117.3 MB, the difference
-being a database that should never have been there. With `/MIR` the exclusion
+recursive copy takes it with you, into Program Files. With `/MIR` the exclusion
 matters twice over: without it, mirroring would also DELETE that database when
 the source has no `data\`. A real installer copies a freshly built payload and
 never sees either problem, but it is worth knowing that the two directories are
@@ -628,11 +592,6 @@ account owns — on Windows C:\ProgramData\OpenMigrate\ — and keep it OUT of
 the install directory so an upgrade or uninstall cannot take the migration
 ledger with it.
 ```
-
-That message is new (2026-08-06). Before it, this failed as a permissions error
-from inside PGlite naming a path nobody chose — the same failure, reported as
-something else. If you see the *old* behaviour, you are running a payload built
-before that change; rebuild.
 
 If it instead **succeeds**, that is worth knowing too — it would mean your
 account has non-default write access to Program Files, and the test says nothing.
@@ -676,7 +635,7 @@ as said above, a pass there says nothing.
 
 Only once Phases 1 and 2 pass.
 
-**Owner decision, 2026-08-07: a scheduled task, not a Windows Service.** The
+**A scheduled task, not a Windows Service.** The
 reasoning is in [ADR-0027](./adr/0027-windows-packaging-shell.md)'s second
 update; the short version is that Node cannot be a Service on its own, every
 wrapper that fixes that is a dormant third-party binary we would vendor and
@@ -700,9 +659,8 @@ what makes a wrapper unnecessary rather than merely inconvenient.
 
 ### Install
 
-The scripts ship **inside the payload**, under `scripts\`. You do not need a
-checkout, git, or anything else on the Windows machine — that was true of Phases
-1 and 2 and is now true of Phase 3 as well.
+The scripts ship **inside the payload**, under `scripts\`. As in Phases 1 and 2,
+you need no checkout, git, or anything else on the Windows machine.
 
 From an **elevated** prompt (both scripts declare `#Requires -RunAsAdministrator`):
 
@@ -715,24 +673,6 @@ Each `.cmd` is a wrapper that runs its `.ps1` sibling with
 `-ExecutionPolicy Bypass`, because stock Windows policy is `Restricted` and
 refuses a `.ps1` outright. They must stay in the same directory; the payload
 ships them that way and a test asserts it.
-
-<details>
-<summary>If you are on a payload from before 2026-08-07</summary>
-
-Those predate the scripts being staged. The repository is public, so fetch them
-without cloning:
-
-```powershell
-$dst  = "$env:USERPROFILE\ownpace-scripts"
-$base = "https://raw.githubusercontent.com/Robbes/Ownpace/main/scripts/windows"
-New-Item -ItemType Directory -Force $dst | Out-Null
-foreach ($f in 'install-task.ps1','install-task.cmd','uninstall-task.ps1','uninstall-task.cmd',
-                'run-appliance.ps1','run-appliance.cmd','collect-evidence.ps1','collect-evidence.cmd') {
-  Invoke-WebRequest "$base/$f" -OutFile (Join-Path $dst $f)
-}
-```
-
-</details>
 
 It creates `C:\ProgramData\OpenMigrate\{pglite,config,logs}`, grants the run-as
 account Modify on them, writes a readable `service-launch.cmd` into the payload
@@ -772,19 +712,17 @@ set TARGET_JMAP_PASSWORD=...
 
 Then restart the task and confirm the log says `loaded 1 mapping(s)`.
 
-**If you installed before 2026-08-09, that file is read-only even to you.** The
-ACL granted Administrators `R`, so editing the file the script had just told you
-to fill in failed with `Toegang tot het pad ... is geweigerd` from an elevated
-shell. Fixed in `install-task.ps1` (Administrators now get `M`), but an existing
-file keeps the ACL it was given. Repair it once, elevated:
+**If you installed before 2026-08-09, that file is read-only even to you**:
+`install-task.ps1` then granted Administrators `R`, so editing it fails with an
+access-denied error even from an elevated shell. It grants `M` now, but an
+existing file keeps the ACL it was given. Repair it once, elevated:
 
 ```powershell
 icacls 'C:\ProgramData\OpenMigrate\config\secrets.cmd' /grant '*S-1-5-32-544:(M)'
 ```
 
-If that is itself refused, you are not the owner — `takeown /f` the file first.
-Read-only for Administrators never protected anything (an administrator can take
-ownership and re-grant at will); it only broke the documented workflow.
+If that is itself refused, you are not the file's owner — `takeown /f` the file
+first.
 
 ### What to check
 
@@ -815,8 +753,8 @@ Start-Sleep 15
 Get-Content C:\ProgramData\OpenMigrate\logs\appliance.log -Tail 12
 ```
 
-The log's first line names the build (`[appliance] build 0.1.0-rc.1 (…)`), which
-is how you tell an installed copy from a test copy without guessing.
+The log's first line names the build (`[appliance] build <version> (<commit>)`),
+which is how you tell an installed copy from a test copy without guessing.
 
 Then the things only a real machine can answer:
 
@@ -866,42 +804,32 @@ What it must do, all of which Phases 1–3 will have established:
 - Run `install-task.ps1`, or do what it does: create the data directories,
   grant the run-as account Modify, write the launcher, register the At-Startup
   task with `ExecutionTimeLimit` zero.
-- Create a Start-menu shortcut to the operating UI — **and pick a port first,
-  because there are currently two.** **ANSWERED — and it went the other way from
-  the suggestion this paragraph used to make, which is why the paragraph is
-  rewritten rather than left standing.** The appliance uses **8080**:
+- Create a Start-menu shortcut to the operating UI, on **8080**:
   `install-task.ps1` defaults `-Port 8080`, `apps/selfhost/src/index.ts` and the
   payload's `start.mjs` default to 8080, and the Start-menu shortcut and the
-  task's description both follow that (they interpolate `$Port` now, so passing
-  `-Port` no longer produces a shortcut that lies). The **8081** in
+  task's description both follow that (they interpolate `$Port`, so passing
+  `-Port` gives a shortcut that matches). The **8081** in
   `deploy/selfhost/compose.yml` is the DOCKER deployment's convention and stays
   as it is — the two do not collide, because nobody runs both on one machine.
   ADR-0027's `localhost:8081` example was written against the compose
   convention, not the installer's.
-
-  Proven on the owner's machine 2026-08-13: `[appliance] listening on
-  http://127.0.0.1:8080`, with the shortcut and `GET /status` both reaching it.
 - Uninstall: run `uninstall-task.ps1`, delete Program Files content, and
   **leave `C:\ProgramData\OpenMigrate` alone** — that is the customer's
   migration ledger, and hard rule 2 says we do not delete data the owner did not
   ask us to delete. Offer it as an explicit checkbox, defaulted off.
 
-**That open question is now closed** (owner decision, 2026-08-06): the payload
-ships its own Node runtime, so the MSI installs a directory that runs on a
-machine with nothing on it. See Phase 0 for what it costs and how it is
-verified. Nothing in the installer needs to detect, prompt for or bundle Node.
+The payload ships its own Node runtime, so the MSI installs a directory that
+runs on a machine with nothing on it (Phase 0 says what it costs and how it is
+verified). Nothing in the installer needs to detect, prompt for or bundle Node.
 
 ---
 
 ## A note on what I have and have not done
 
 I wrote every command here by reading the code, before any of it had been run;
-the table at the top says what the owner has run since, and on what date. The
+the table at the top says what has been run since, and on what date. The
 `.ps1` files were written the same way, with no Windows in my environment. They
 are short and readable on purpose, so you can see what they do before running
-them. Since 2026-11-02 CI has a Windows runner for Phases 1 and 2 (*In CI*,
-under each), which starts `.\node.exe start.mjs` and none of the `.ps1` files.
-
-The one thing I am confident about without a Windows machine is the Phase 2 data
-directory defect, because it follows from reading `start.mjs` against the fact
-that `C:\Program Files` is not writable. Everything else is a prediction.
+them. CI's Windows runner for Phases 1 and 2 (*In CI*, under each) starts
+`.\node.exe start.mjs` and none of the `.ps1` files. What the table does not
+list is still a prediction.

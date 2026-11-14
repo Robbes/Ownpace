@@ -16,9 +16,9 @@ an address we cannot leak, and you already know who the person is.
 
 **One link per person.** A link is made for a person, not for a migration: one grant link for all
 of their migrations, which asks each Google account of theirs once, and one progress link where
-they follow all of them (ADR-0035, amended 2026-09-29). A migration's page makes no link of its
-own any more (the owner, 2026-10-03). A migration's link sent before then keeps working until it
-expires: see [Links sent before](#links-sent-before).
+they follow all of them (ADR-0035). A migration's page makes no link of its own. A migration's
+link sent before that changed keeps working until it expires: see
+[Links sent before](#links-sent-before).
 
 ## Issuing one
 

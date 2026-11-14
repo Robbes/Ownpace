@@ -26,7 +26,7 @@ wake anyone.
   when a row stays red for three minutes, and again when it is green again, where `ALERT_ENABLED`
   is `true` (0142 T1): on live, once 0133's relay carries its mail. Live is not stood up or
   deployed without it: `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose
-  `ALERT_ENABLED` is not `true` (0142 T0; the owner, 2026-10-04). The mail names the row below.
+  `ALERT_ENABLED` is not `true`. The mail names the row below.
   On the OTA stack it is off, and the page has to be looked at.
 - **The machine's own mail** (0142 T3), from live's checkout, through the same relay to the same
   `ALERT_TO`: a failed run of the daily duties, systemd's `OnFailure=`; and, every ten minutes,
@@ -83,8 +83,8 @@ terminates TLS for the public names, not with a service. The page runs on the sa
 3. **Stop it spreading.**
    - **If other testers could be touched, or anything could be removed,** start the hold on live,
      with a sentence in Dutch. It is on the operator's first support screen, under *Hold new
-     passes*. It stops scheduled passes, and it is shown to every signed-in tester. Since 0132 T6
-     (b) it also refuses what a tester starts by hand, *Sync now* among it, until it is lifted
+     passes*. It stops scheduled passes, and it is shown to every signed-in tester. It also
+     refuses what a tester starts by hand, *Sync now* among it, until it is lifted
      ([`managed-bring-up.md`](./managed-bring-up.md), *Draining first*).
    - **So that nothing starts again when the hold is lifted,** ask the affected tester to pause the
      migration (*Pauzeren*, *Pause* in English, on the migrations list or the migration's page),

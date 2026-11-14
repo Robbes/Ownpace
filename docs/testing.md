@@ -18,11 +18,6 @@ Two exceptions, both because the subject is not a single file:
 - **A `__tests__/` directory is FIXTURES ONLY**, never tests. `apps/api/src/__tests__/` holds
   `seed-membership.ts`, a shared seed helper (see `docs/rls-guide.md`).
 
-Stated here because it had drifted: until 2026-08-13, four of `apps/web`'s fifteen page tests sat
-in `src/__tests__/` while eleven were colocated, and the split was still spreading — one of the
-four was added the same day as a colocated sibling. A convention nobody has written down is a
-convention that is already half-abandoned.
-
 ## Test pyramid
 - **Unit** (vitest): pure logic — reconcile decisions, idempotency keying, special-use/folder
   mapping, Pattern S/D resolution. No I/O.
@@ -31,7 +26,7 @@ convention that is already half-abandoned.
   programmatically — **Postgres**, **Stalwart v0.16.27 (official image, two-phase
   startup: recovery-mode provisioning, then normal serving)**, and **Nextcloud** (CalDAV/CardDAV/
   WebDAV target). No env vars or pre-running dev stack required; ports are dynamic. Tests exercise
-  the ledger, the IMAP/JMAP/imap-dav mail path, and — since issue #114 — the CalDAV/CardDAV/WebDAV
+  the ledger, the IMAP/JMAP/imap-dav mail path, and the CalDAV/CardDAV/WebDAV
   **target-write** path (see "Multi-domain target-write coverage" below), all with the
   idempotency + delta property (first pass creates N, second pass creates 0).
 - **UI** (vitest + real Chromium): a browser smoke over the **built** web bundle, served from an
@@ -60,8 +55,8 @@ pnpm test
 pnpm test:integration
 ```
 Testcontainers manages everything: fresh Postgres (the base of the stacks' build,
-`deploy/compose/postgres/Dockerfile`, started as its postgres user, uid 70, as the stacks start it;
-workplan 0146 T15), fresh Stalwart (two-phase: recovery-mode
+`deploy/compose/postgres/Dockerfile`, started as its postgres user, uid 70, as the stacks start
+it), fresh Stalwart (two-phase: recovery-mode
 provisioning of `dev.local` + `source@dev.local` / `target@dev.local` via `stalwart-cli apply`,
 then a normal-mode container on the same data volume), schema migration, and teardown including
 volume cleanup. In normal mode Stalwart binds IMAPS 993, HTTPS 443, SMTPS 465 and POP3S 995,
@@ -95,14 +90,12 @@ than the whole unit suite — but it is the only tier that sees what a user sees
 
 Black-box gate against a real running appliance (`deploy/selfhost/compose.yml`): seed real
 sources, start the appliance, run a pass, `docker compose restart app`, run again, assert the
-per-domain ledger item count did **not** grow (zero duplicates). Originally mail-only (workplan
-0010 T5); extended by the issue #114 follow-up to also cover **calendar** and **contacts**
-against a real cross-account Nextcloud pair (`e2e-source` → `e2e-target`, provisioned by
+per-domain ledger item count did **not** grow (zero duplicates). It covers mail, **calendar**,
+**contacts** and **WebDAV files**: the fixture enables **all four domains**, the DAV ones against
+a real cross-account Nextcloud pair (`e2e-source` → `e2e-target`, provisioned by
 `deploy/selfhost/setup-nextcloud-users.sh`, seeded by `test/e2e/seed-dav-source.mjs`) — proving
 the restart-resume property for the DAV domains, not just that they *can* write (that's
-`packages/core/src/dav-sync.integration.test.ts`, proven in CI). **WebDAV files are in this
-gate too** (since 2026-07-27 — an earlier revision of this doc said "deferred" long after it
-stopped being true): the fixture enables **all four domains**.
+`packages/core/src/dav-sync.integration.test.ts`, proven in CI).
 `test/e2e/selfhost-restart-resume.e2e.test.ts` iterates over whatever domains are enabled in
 `test/e2e/fixtures/selfhost-restart-resume.mapping.json` (`E2E_DOMAINS` env overrides the
 list).
@@ -110,10 +103,10 @@ list).
 The workflow takes two **dispatch inputs**: `seed_count` (items seeded per domain; default 5)
 and `persistence` (`postgres` | `pglite` — the latter runs the whole gate on the appliance's
 embedded-PGlite shape via `deploy/selfhost/compose.pglite.yml`; both backends are expected to
-agree domain-for-domain, and did at the 0016 close).
+agree domain-for-domain).
 
 On the Postgres backend the appliance's database is the build of
-`deploy/selfhost/postgres/Dockerfile`, started as uid 70 (workplan 0146 T15b). The workflow
+`deploy/selfhost/postgres/Dockerfile`, started as uid 70. The workflow
 builds `app` by name and runs `up` without `--build`, so the database's image is built only when
 the runner has no image of its name, which is the run after its Dockerfile changed; the backup and
 restore drill then starts it on a new volume, which initialises as uid 70.
@@ -134,13 +127,10 @@ restore drill then starts it on a new volume, which initialises as uid 70.
 
 ## Property Testing Patterns
 
-> **Note (2026-08-02).** This section was previously written against
-> `GenericSyncEngine`, which was deleted with `runUnifiedSync` in PR #38. The
-> real sync implementation is `packages/core/src/domain-sync.ts` —
-> `runDomainSync` plus the per-domain wrappers (`runCalendarSync`,
-> `runContactSync`, `runFileSync`; design in `docs/design/domain-sync.md`) —
-> and the canonical property test for it is
-> `packages/core/src/dav-sync.integration.test.ts`.
+The sync implementation is `packages/core/src/domain-sync.ts` — `runDomainSync`
+plus the per-domain wrappers (`runCalendarSync`, `runContactSync`, `runFileSync`;
+design in `docs/design/domain-sync.md`) — and the canonical property test for it
+is `packages/core/src/dav-sync.integration.test.ts`.
 
 ### The idempotency property — the shape that is actually tested
 
@@ -160,8 +150,8 @@ in-memory source** (isolating the leg under test) feeds seeded items through
 to Nextcloud, with no manual `connect()` — the lazy-connect path is part of
 what is under test (it masked bugs #112/#113; see below).
 
-**The IMAP/DAV mail family has an integration-tier test again since
-2026-09-22**, in a different shape from the DAV domains':
+**The IMAP/DAV mail family has an integration-tier test** in a different shape
+from the DAV domains':
 `packages/orchestration/src/imap-dav-target.integration.test.ts` drives
 `buildDeps` to an `imap-dav` target, writes a message to a real Stalwart, and
 checks BY COUNT on the server, with an independent IMAP client, that a second
@@ -171,9 +161,7 @@ second pass instead of appending a duplicate"), against a **fake imapflow
 client**, and the e2e gate adds real-server evidence
 (`test/e2e/selfhost-restart-resume.e2e.test.ts`,
 `test/e2e/selfhost-apply-deletion-mail.e2e.test.ts`, both against a real
-Stalwart). This list cited `apps/worker/src/imap-dav-target.integration.test.ts`
-until 2026-08-13; that file was deleted by commit `4cac2bd` when imap-simple was
-dropped, and its cases were carried into the unit suite above.
+Stalwart).
 
 Reindex/adoption (ADR-0020 — wiped ledger, target reindex, next pass adopts
 instead of duplicating) is covered by `apps/worker/src/jmap-reindex.integration.test.ts`
@@ -194,33 +182,28 @@ Use the `*.unit.test.ts` / `*.integration.test.ts` naming convention:
 - `packages/core/src/dav-sync.integration.test.ts` - **target-write** coverage for all three DAV
   domains (see "Multi-domain target-write coverage" below).
 
-### Multi-domain target-write coverage (issue #114)
+### Multi-domain target-write coverage
 
-Chasing the 0010 T5 gate surfaced two production "target was never connected" bugs
-(`JmapTargetWriter` #112, `ImapDavMailTarget` #113) that shipped undetected because the DAV
-source-only tests above never exercised the **write** side (`upsertCalendarEvent`/`upsertContact`/
-`upsertFile`) against a real target, and the only test that did (`o365-scenario.e2e.test.ts`) runs
-`dryRun: true` and is secret-gated (never in CI). `packages/core/src/dav-sync.integration.test.ts`
-closes that gap: a synthetic in-memory source (isolating the untested leg) feeds N seeded
+The DAV source-only tests above never exercise the **write** side (`upsertCalendarEvent`/
+`upsertContact`/`upsertFile`) against a real target, and the only other test that does
+(`o365-scenario.e2e.test.ts`) runs `dryRun: true` and is secret-gated (never in CI). Two
+"target was never connected" bugs (`JmapTargetWriter` #112, `ImapDavMailTarget` #113) shipped
+through that gap. `packages/core/src/dav-sync.integration.test.ts` closes it: a synthetic
+in-memory source (isolating the untested leg) feeds N seeded
 calendar events / contacts / files through `runCalendarSync` / `runContactSync` / `runFileSync`
 into a **real** `CalDAVTargetWriter` / `CardDAVTargetWriter` / `WebDAVTargetWriter` writing to
 Nextcloud, with **no manual `connect()`** (there's no `connect()` on the `*TargetWriter`
 interfaces — this is what masked #112/#113). Each domain asserts: first pass creates N (N>0),
 second pass creates 0, and the items are read back from Nextcloud via the real source connector.
-The IMAP/DAV mail equivalent (the second mail family, alongside JMAP) is at this tier too, since
-2026-09-22: `packages/orchestration/src/imap-dav-target.integration.test.ts` parses a mapping
+The IMAP/DAV mail equivalent (the second mail family, alongside JMAP) is at this tier too:
+`packages/orchestration/src/imap-dav-target.integration.test.ts` parses a mapping
 with an `imap-dav` mail target, lets `buildDeps` dispatch it, and writes through `ensureMailbox` +
 `upsertEmail` to a real Stalwart. It checks with an INDEPENDENT IMAP client that the message
 landed, and BY COUNT on the server that a second `upsertEmail` adopts rather than appends — one
 message, not the N-item pass shape above. `packages/connectors/src/imapflow-dav-target.unit.test.ts`
-still carries the same N / 0-on-rerun property one tier down — "adopts on a second pass instead of
+carries the same N / 0-on-rerun property one tier down — "adopts on a second pass instead of
 appending a duplicate", asserting `created: false`, `adopted: true`, and a mailbox still holding one
 message — against a **fake imapflow client**.
-
-The gap had a history. `apps/worker/src/imap-dav-target.integration.test.ts` was deleted by commit
-`4cac2bd` when imap-simple was dropped (workplan 0032); its commit message records that the
-writer's cases were carried over "plus two more", which was true of the CASES and not of the TIER,
-until the orchestration test above put a real server back under this target.
 
 ### Native Connector Property Tests
 
@@ -367,9 +350,7 @@ beforeEach(async () => {
 ### Unique accounts per test (advanced)
 
 For true isolation, a test file would start its own Stalwart container with unique accounts.
-**No helper for that exists today.** The sample that stood here imported `generateTestAccounts`
-and `startStalwartIsolated` from `@openmig/testing`, and neither has ever been in the repository.
-What `@openmig/testing` does export is `startTestEnvironment` / `stopTestEnvironment`
+**No helper for that exists today.** What `@openmig/testing` does export is `startTestEnvironment` / `stopTestEnvironment`
 (`packages/testing/src/testcontainers-setup.ts`), which start the whole shared stack, not one
 Stalwart per file.
 
@@ -383,7 +364,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 
 ## CI mapping (.github/workflows)
 - `ci.yml` — `detect-changes -> docs-hygiene + fixture-uuid-check + migration-lint + lint +
-  unit-tests (parallel) -> integration-tests` (unit-tests stopped waiting for lint on 2026-10-05);
+  unit-tests (parallel) -> integration-tests`;
   on a pull request `unit-tests` is split over four hosted runners (`vitest --shard=N/4`, about
   6 minutes instead of 11), and on a push it is one run, on arm64 like every push job (GitHub's
   `ubuntu-24.04-arm` during the alpha, the self-hosted runner otherwise; see Runners below);
@@ -391,34 +372,30 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   that the canonical docs exist; **`fixture-uuid-check`** enforces unique test-fixture UUIDs
   across the tree (the remediation from `docs/test-fixture-uuid-collision-audit.md` — a colliding
   tenant or mapping UUID pasted into a new test fails CI by name rather than causing cross-test
-  bleed); **`migration-lint`** (ADR-0017, built 2026-08-02) replays BOTH migration chains —
+  bleed); **`migration-lint`** replays BOTH migration chains —
   `packages/ledger/migrations`, then `packages/managed/migrations` renumbered above it, staged as
   one directory in the order a managed deployment applies them — with Atlas against a disposable
   dockerized Postgres (the base the stacks build on, `deploy/compose/postgres/Dockerfile`'s FROM
-  by tag and digest, since 2026-11-01) and fails on destructive schema changes — runs only when either migration
+  by tag and digest) and fails on destructive schema changes — runs only when either migration
   directory (or the workflow) changes, on a pull request on hosted amd64 and arm64 (the Atlas
-  each runs is its own download, pinned by its SHA-256; 2026-11-01) and on a push on arm64;
-  **`commit-convention`** (2026-09-21) reads the commit subjects a pull request ADDS and requires
-  the Conventional Commits prefix CONTRIBUTING.md and the pull-request template both already
-  mandated. Measured the day it was built: two of the last two hundred subjects on `main`
-  followed it, and both were dependabot's — the rule was documented in two places and enforced by
-  nothing. It runs on `pull_request` only and never re-judges history, so those hundred-odd prose
-  subjects stay as they are and no branch is rewritten to go green; merge commits are exempt by
-  parent count, because merging the base branch in is how a conflict is resolved here.
+  each runs is its own download, pinned by its SHA-256) and on a push on arm64;
+  **`commit-convention`** reads the commit subjects a pull request ADDS and requires the
+  Conventional Commits prefix CONTRIBUTING.md and the pull-request template mandate. It runs on
+  `pull_request` only and never re-judges history, so older prose subjects on `main` stay as
+  they are and no branch is rewritten to go green; merge commits are exempt by parent count,
+  because merging the base branch in is how a conflict is resolved here.
 - `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
   and on main) — `pnpm test:ui`, after `lint`, running while `unit-tests` does.
 - `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
-  GitHub-hosted runners, it also scans every container image the stacks run (workplan 0146 T8):
+  GitHub-hosted runners, it also scans every container image the stacks run:
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
   images the scripts name, the tasks' image, and Ownpace's three images at `:edge` and at the
   newest release tag, all as linux/arm64 (`scripts/image-scan.mjs list`). The tasks' image,
   `trigger-task-base`, is the prebuilt base `apps/worker/trigger.config.ts` pins
-  (`TASK_BASE_IMAGE`, workplan 0119 §3 item 13, since 2026-11-06), read from GHCR as published,
-  since a task deploy adds the task code to it and nothing else (on the base image the pinned
-  Trigger.dev CLI names when the config names none). From workplan 0146 T10 until then its leg
-  built the `base` stage a deploy built from the config's own layers (`image-scan.mjs
-  containerfile`, gone with them). A leg that builds an image a script or a compose file builds
+  (`TASK_BASE_IMAGE`), read from GHCR as published, since a task deploy adds the task code to it
+  and nothing else (on the base image the pinned Trigger.dev CLI names when the config names
+  none). A leg that builds an image a script or a compose file builds
   here checks out under `src/`: Trivy reads a `.trivyignore` and a `trivy.yaml` from its working
   directory unless told otherwise, so on that leg too it reads none of the repository's, and a file
   at the root can never drop a finding from code scanning. Report only: each image's findings go to code scanning under
@@ -431,8 +408,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   configuration behind in code scanning with its alerts open; delete it on the code scanning tool
   status page (the Security tab, Code scanning, Tool status). An image a compose file builds here,
   `localhost/<name>` from `<name>/Dockerfile` beside it (the Postgres of `managed.yml` and
-  `dev.yml`, workplan 0146 T15, the appliance's, T15b, and Trigger.dev's webapp and supervisor in
-  `managed.yml`, T16), has no registry to be read from: its leg checks the commit out under
+  `dev.yml`, the appliance's, and Trigger.dev's webapp and supervisor in `managed.yml`), has no
+  registry to be read from: its leg checks the commit out under
   `src/`, builds the directory natively on GitHub's arm64 runner and scans what it built, under
   the name the pulled image had (`postgres-managed`, `postgres-selfhost`, `trigger.dev`,
   `supervisor`).
@@ -440,25 +417,23 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `[self-hosted, linux, arm64]` (the machine); brings up Stalwart via
   `deploy/selfhost/setup-stalwart.sh` (the two-phase recovery→normal bring-up — not a
   `docker compose` service, since compose can't express that transition for one service), seeds
-  the source over IMAPS, builds + starts the self-host appliance, and runs the workplan 0010 T5
-  restart-resume idempotency gate, then tears down. Installs `stalwart-cli` itself (same install
+  the source over IMAPS, builds + starts the self-host appliance, and runs the restart-resume
+  idempotency gate, then tears down. Installs `stalwart-cli` itself (same install
   step as `integration-tests`, see below) since it drives `setup-stalwart.sh`'s provisioning phase.
-- `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition gate
-  (workplan 0084), run against a long-lived configured stack, so it does not prove bring-up from
-  scratch.
-- **Before a release tag, and so before a deploy to live** (workplan 0141 T14, the owner's rule
-  of 2026-09-27, read strictly since 2026-10-23): the newest two *scheduled* runs of
-  `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
+- `e2e-managed.yml` — nightly (03:30 UTC) and on dispatch, on the machine: the managed-edition
+  gate, run against a long-lived configured stack, so it does not prove bring-up from scratch.
+- **Before a release tag, and so before a deploy to live** (workplan 0141 T14): the newest
+  two *scheduled* runs of `e2e-managed.yml` on `main` both ran the commit being tagged and are green on every attempt,
   with no night missing, and the four scheduled `e2e.yml` runs of those nights ran it and are
   green too. A dispatched run does not count, and a red scheduled run starts the count again.
   T14 is the one statement of it; `scripts/release-nights.mjs` reads it, and the Release
   workflow refuses to tag a commit it does not hold for. A tag pushed by hand is the owner's
   break-glass, with the acceptance written in the deploy log.
 - `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the machine: the soft lane against
-  a target we do not host (workplan 0105 T4). Red means investigate; it never runs on a pull
-  request, so it blocks nothing.
-- `e2e-o365.yml` — dispatch only, on the machine: the secret-gated real-tenant O365 e2e (workplan
-  0008 T7); the tenant and its secrets are in `docs/test-tenant.md`.
+  a target we do not host. Red means investigate; it never runs on a pull request, so it blocks
+  nothing.
+- `e2e-o365.yml` — dispatch only, on the machine: the secret-gated real-tenant O365 e2e; the
+  tenant and its secrets are in `docs/test-tenant.md`.
 - `clock-watch.yml` — daily (06:41 UTC) and on dispatch, on a GitHub-hosted runner: the clocks
   nothing else warns about. It reads the certificates `app.`, `id.` and `status.ownpace.eu`
   serve; `www.ownpace.eu`'s and its `security.txt` `Expires` once the repository variable
@@ -469,39 +444,36 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   are reported, never counted, and a clock it could not read fails the run and leaves an open
   issue as it is. Its log names names and dates, never an address.
 - `exposure-probe.yml` — dispatch only, never scheduled, on a GitHub-hosted runner: the probe
-  from outside (workplan 0132 T3). It tries every port the two stacks, the site and the demo
-  publish, derived from the files, on the addresses the production and OTA names resolve to, and
-  passes when only 443 answers on the production names, over TLS, with live's issuer, and each of
-  `app.`, `id.`, `status.` and `www.ownpace.eu` answers a visitor's first page itself, not
-  NetBird's sign-in (workplan 0139, item 8), and live's form that founds an organisation,
-  `/ui/login/register/org` at `id.ownpace.eu`, answers 404 (workplan 0135 T1). Its log names
-  names and ports, never an address.
+  from outside. It tries every port the two stacks, the site and the demo publish, derived from
+  the files, on the addresses the production and OTA names resolve to, and passes when only 443
+  answers on the production names, over TLS, with live's issuer, and each of `app.`, `id.`,
+  `status.` and `www.ownpace.eu` answers a visitor's first page itself, not a sign-in page in
+  front of it, and live's form that founds an organisation, `/ui/login/register/org` at
+  `id.ownpace.eu`, answers 404. Its log names names and ports, never an address.
 - `idp-pin-watch.yml` — weekly (Mondays 06:23 UTC) and on dispatch, on a GitHub-hosted runner:
-  every pin Dependabot cannot see, each against its upstream (workplan 0135 T7 (b), 0146 T8). The
+  every pin Dependabot cannot see, each against its upstream. The
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
   Trigger.dev against the newest tag both its images carry (`trigger-version.sh probe`);
   ClickHouse against the one Trigger.dev's own compose file pins; the tasks' Node against Node's
-  newest security release, while `trigger.config.ts` names no base of its own (it took the API
-  image's Node from issue #1669, built on that image from 0146 T14, and names the prebuilt base
-  since 2026-11-06, so that row reports current); `packageManager` against the newest pnpm of its
-  major; and the
-  TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
+  newest security release, while `trigger.config.ts` names no base of its own (it names the
+  prebuilt base, so that row reports current); `packageManager` against the newest pnpm of its
+  major; and the TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
   busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs, the Atlas
   release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
-  image's tags on Docker Hub, since upstream's git tags stop at v1.3.0; 2026-11-01), the stalwart-cli
+  image's tags on Docker Hub, since upstream's git tags stop at v1.3.0), the stalwart-cli
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
   tags), the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), and the tasks'
   prebuilt base `trigger.config.ts` pins (against main's `edge` by each platform's layers, since
   its digest moves on every merge while its layers do not: behind when they differ, or when the
-  pinned index or its signature is gone; 2026-11-06) share one summary issue; another image a script there runs is not compared (none today: `db-roles.sh`
-  reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
+  pinned index or its signature is gone) share one summary issue; another image a script there
+  runs is not compared (none today: `db-roles.sh` reads its client from `managed.yml`). Against a registry a tag is compared, never a digest: a
   rebuild under the same tag is the image scan's to report. The exception is `www.yml`'s nginx,
   which is compared with `apps/web/Dockerfile`'s FROM by tag and digest, so a digest-only move of
-  the web image's base lists `www.yml` too. It moves nothing: each issue gives the route, and the
-  move is the owner's call. A row that cannot read its upstream, or finds its pin ahead of every
+  the web image's base lists `www.yml` too. It moves nothing: each issue gives the route for the
+  move. A row that cannot read its upstream, or finds its pin ahead of every
   tag listed, fails the run and never closes an issue.
   The cosign `images.yml` signs with and `release.yml`'s verify job checks with is a routine row
   too, since both steps name it (`cosign-release:`) and Dependabot moves only the installer: the
@@ -516,23 +488,23 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   on `v*` tags. On such a pull request only, `build (postgres)` also brings up `dev.yml`'s
   postgres and then the appliance's on a runner without their images, so compose builds
   `deploy/compose/postgres` and `deploy/selfhost/postgres`, and checks each runs as uid 70
-  without gosu (workplan 0146 T15, T15b); it publishes nothing. The appliance's starts on the
+  without gosu; it publishes nothing. The appliance's starts on the
   volume an existing appliance has, one the official image initialised as root, and must read
   back the row written there. And `build (trigger, amd64)` and `build (trigger, arm64)` build
   `deploy/compose/trigger.dev` and `deploy/compose/supervisor`, upstream's Trigger.dev images with
   files deleted that never run here, natively on each platform, after checking the base's user,
   command and entrypoint are the ones the Dockerfiles read, and check the result keeps upstream's
-  user, command, entrypoint and working directory (workplan 0146 T16). Each removal fails the
+  user, command, entrypoint and working directory. Each removal fails the
   build by name when its path is not there, and each Dockerfile refuses another release than its
   `read_at`, so the pull request of a Trigger.dev move is red there until the Dockerfiles are
   read again. The build job's fourth leg, `build (task-base)`, is the managed tasks' prebuilt
-  base, `apps/worker/task-image/Dockerfile` (workplan 0119 §3 item 13): on a pull request that
+  base, `apps/worker/task-image/Dockerfile`: on a pull request that
   touches its directory it builds for amd64, then starts the image as the Trigger.dev CLI's
   runtime stage starts it (`dumb-init node`, as `node`, with the API image's Node and the CLI's
   eight rejected intermediates in its bundle) and checks no shell starts in it; on `main` it is
   published for both platforms as `ghcr.io/robbes/ownpace-task-base:edge` and `sha-<commit>`
   and signed by digest. A tag builds none. `apps/worker/trigger.config.ts` names one of them by its
-  `sha-<commit>` tag and index digest (`TASK_BASE_IMAGE`, since 2026-11-06), and the job
+  `sha-<commit>` tag and index digest (`TASK_BASE_IMAGE`), and the job
   `task-base pin` checks that pin on a pull request: it pulls it anonymously for both platforms,
   checks its revision label is the commit its tag names, starts it to read its Node (a warning, not
   a failure, when it is not `apps/api/Dockerfile`'s, since the base built at a new Node is
@@ -543,7 +515,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   cannot run, runs the pin job's step against a stand-in docker, jq and cosign, and runs the
   managed smoke's question to the image the last deploy built (its Node the API's, and no shell).
 - `script-images.yml` — the images a script builds for itself (today GoAccess, which
-  `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`, #1675): an
+  `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`): an
   arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
   the workflow, Dependabot's move of its Alpine pin included. It pushes nothing.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
@@ -572,18 +544,14 @@ and when it does succeed, each of its outputs (`any_changed`, `migrations_change
 exactly `true` or `false`, because a missing or empty one reads as "nothing changed" to
 `SHOULD_RUN` and to every gated job's own `if:` alike. So a docs-only change, where
 `detect-changes` succeeded and said `false`, passes with the test jobs skipped and named in the
-summary, and so does a push, where `commit-convention` does not run. Until 2026-10-05 the rule
-was a list of failure words — `failure` or `cancelled` — and during GitHub's incident "delays in
-assigning GitHub-hosted runners" that evening a job no runner picked up reached `ci-complete` as
-**`abandoned`**, a value GitHub's documentation for `needs.<job_id>.result` does not list; the
-failing step was skipped and four runs, on three pull requests, showed green with gates that
-should have run never run — lint and some or all of the unit-test shards in three of them,
-`detect-changes` and `commit-convention` in the fourth. `ci-complete` carries no
+summary, and so does a push, where `commit-convention` does not run. A list of failure words
+would not do: GitHub has reported a job no runner picked up as **`abandoned`**, a value its
+documentation for `needs.<job_id>.result` does not list. `ci-complete` carries no
 `continue-on-error` and its deciding step no `if:`, and a guard refuses either. Changing a job's
 `if:` or `needs:`, adding a job, or adding an output to `detect-changes` means changing
 `ci-complete` in the same commit:
 `scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts` runs `ci-complete`'s steps
-against the runs recorded that evening, recorded green runs, and every event and change, and goes
+against recorded runs, that `abandoned` one among them, and every event and change, and goes
 red when the two disagree.
 
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
@@ -596,14 +564,13 @@ and the other three workflows have a `paths:` filter — so a docs-only PR block
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`.
 
-**No `pull_request` trigger filters by base branch**, and that is now a guard rather than a
-convention — `every-pr-gets-checked.unit.test.ts`. The three PR workflows carried
-`branches: [main]` until 2026-08-23, which meant a pull request opened against any other branch
-produced *no checks at all*. That is the same "Expected — waiting for status to be reported" trap
-as the paragraph above, reached from the other direction and harder to see: a stacked pull request
-reports nothing, and when the branch beneath it merges GitHub retargets it to `main` with a
-`pull_request.edited` event, which is not in the default activity set — so still nothing runs, and
-only a fresh push escapes. A `paths:` filter stays allowed because a workflow it skips is one whose
+**No `pull_request` trigger filters by base branch**, and a guard holds that —
+`every-pr-gets-checked.unit.test.ts`. A `branches: [main]` filter gives a pull request opened
+against any other branch *no checks at all*. That is the same "Expected — waiting for status to be
+reported" trap as the paragraph above, reached from the other direction and harder to see: a
+stacked pull request reports nothing, and when the branch beneath it merges GitHub retargets it
+to `main` with a `pull_request.edited` event, which is not in the default activity set — so still
+nothing runs, and only a fresh push escapes. A `paths:` filter stays allowed because a workflow it skips is one whose
 subject the PR did not touch, and the honest response is to leave that check out of branch
 protection. A `branches:` filter cannot be rescued that way: the check is required and unreportable.
 
@@ -615,24 +582,20 @@ that true.
 Runners: on a pull request every `ci.yml` job is GitHub-hosted, with integration on both
 `ubuntu-24.04` and `ubuntu-24.04-arm` for every code-changing pull request; after merge to `main`
 the same jobs run once, on arm64. During the alpha that is GitHub's hosted `ubuntu-24.04-arm`, for
-`security-scan.yml`'s push scan too (the owner, 2026-11-08, workplan 0132 open question 1), and a
+`security-scan.yml`'s push scan too, and a
 dispatch of either on a branch runs its push jobs there, to prove that path before a merge. The
 repository variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends the push jobs back to the
-self-hosted arm64 runner, where they ran until then;
-`scripts/a-merge-that-ran-beside-the-socket.unit.test.ts` holds both states. Image builds are
+self-hosted arm64 runner; `scripts/a-merge-that-ran-beside-the-socket.unit.test.ts` holds both
+states. Image builds are
 GitHub-hosted, and e2e runs only on the self-hosted runner, which executes trusted workflows only.
 The `integration-tests` job,
 `e2e.yml` and `e2e-managed.yml` install `stalwart-cli` as a host binary for their provisioning
 phases, by one step word for word: a named release (v1.0.14), each architecture's archive checked
-by its SHA-256 before anything is unpacked, and the version the binary prints (2026-11-01; until
-then the installer of whatever release was newest, piped to `sh`).
+by its SHA-256 before anything is unpacked, and the version the binary prints.
 
-**The second Nextcloud major** (workplan 0119, Status of 2026-10-25 and of 2026-10-26). The
-integration tier, the dev stack and the demo run Nextcloud 35 from the pull request that moved them
-(T5, written 2026-10-26), and the leg runs 34, which a customer who has not upgraded still runs;
-before it they ran 34 and the leg ran 35, so that the code was proven against 35 before the demo
-moved. `nextcloud-second-major.yml`
-runs the suites that read a `NEXTCLOUD_` variable (found by `scripts/nextcloud-suites.mjs`: WebDAV,
+**The second Nextcloud major.** The integration tier, the dev stack and the demo run Nextcloud
+35, and the leg runs 34, which a customer who has not upgraded still runs.
+`nextcloud-second-major.yml` runs the suites that read a `NEXTCLOUD_` variable (found by `scripts/nextcloud-suites.mjs`: WebDAV,
 CalDAV, CardDAV, the DAV sync, the chunked upload and the share verb) against the image its
 `NEXTCLOUD_IMAGE` names, pinned by tag and digest, without Stalwart, on a GitHub-hosted runner: on a
 push to `main` that touches `packages/**`, `apps/**` or the test setup, weekly, on demand, and on a
@@ -642,14 +605,14 @@ the one the tag names, and a report with a skipped test fails it too. Locally, t
 `NEXTCLOUD_IMAGE=<ref> SKIP_STALWART=true pnpm exec vitest run --project integration
 --no-file-parallelism $(node scripts/nextcloud-suites.mjs)`.
 
-## Appendix — untested seams (verified against the tree, 2026-08-02; re-verified 2026-09-24)
+## Appendix — untested seams (verified against the tree, 2026-09-24)
 
 What has **no** dedicated test, stated here so it is a fact in the repo rather
 than a rediscovery. This list is the honest complement to the coverage above;
 each entry is a candidate for a workplan, not a promise.
 
 - **The Trigger.dev task wrappers** (`apps/worker/src/jobs/*.ts`, fourteen
-  task files at the 2026-09-24 re-check).
+  task files when checked).
   The logic inside them is tested through extracted seams —
   `packages/orchestration/src/sync-due.unit.test.ts` proves the tick's
   due-evaluation, `cutover-preparation.integration.test.ts` drives
@@ -658,8 +621,7 @@ each entry is a candidate for a workplan, not a promise.
   apply/verify logic lives in `@openmig/core` with its own suites — but the
   `schemaTask` wrappers themselves (payload schemas, `configure()` wiring,
   error paths) execute only in live smokes (`deploy/compose/smoke-managed.sh`,
-  which `e2e-managed.yml` runs nightly). The 0022 cutover's in-runner API-URL
-  bug lived exactly in that untested layer.
+  which `e2e-managed.yml` runs nightly).
 - **Web pages with no jsdom suite of their own**: `Invitations`, `NotFound`,
   `RedirectUris`. (`ReportProblem` is covered by
   `a-report-that-reaches-a-person.unit.test.tsx`; every other page has a
@@ -671,14 +633,3 @@ each entry is a candidate for a workplan, not a promise.
 - **Mollie billing**: the webhook handler IS covered
   (`invoice-billing.integration.test.ts`, incl. double-delivery no-op) — but
   against a **mocked Mollie client**; no test speaks the real Mollie API.
-
-Removed from this list since the 2026-08-01 review: `managed-scheduler.ts`
-(deleted outright, 0022 T4) and the Mollie webhook handler (its coverage was
-found, not added — the review overcounted). Removed at the 2026-09-24
-re-check: `build-deps-from-mapping.ts` and `enabled-domains.ts`, both now in
-`packages/orchestration/src` with `build-deps-from-mapping.unit.test.ts` and
-`enabled-domains.unit.test.ts`; the pages and services that gained suites
-(`Billing`, `CreateMapping`, `Dashboard`, `Failures`, `Login`, `Mappings`,
-`Moves`, `Tenants`; `billing-service`, `mapping-service`,
-`operating-service`); and `OperatorDashboard`, `Settings` and
-`mapping-store`, which no longer exist.

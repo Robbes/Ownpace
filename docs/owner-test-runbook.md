@@ -56,10 +56,9 @@ Everything else: test through the app, exactly as you prefer.
 
 > **Done 2026-09-16 and 17.** The probe measured all twelve (policy, type) combinations. The
 > verdicts are in workplan 0042 T3 and in `EXPORT_STABILITY`, and a format can be chosen per
-> kind. The two unstable combinations were refused per file until 2026-09-23: since #1083 a
-> document is exported again only when Drive's modified time for it moves, and a renamed one
-> is paired by its Drive id, so neither is refused any more (ADR-0046, amended). The probe
-> remains the way to re-take a verdict.
+> kind. A document is exported again only when Drive's modified time for it moves, and a
+> renamed one is paired by its Drive id, so neither unstable combination is refused
+> (ADR-0046). The probe remains the way to re-take a verdict.
 
 Follow [`google-workspace-setup.md`](./google-workspace-setup.md) §1–4 once: Cloud
 project, Drive API, consent screen, OAuth client, and the refresh token via the
@@ -380,8 +379,8 @@ refused with.
 
 ## Stage 7 — the cutover gate on real data (workplan 0009, ~10 min, the machine)
 
-The cutover's state machine is proved on Postgres and, since 0009 T12, pressed
-nightly on the managed stack. What no gate can prove is the one thing that
+The cutover's state machine is proved on Postgres and pressed nightly on the
+managed stack. What no gate can prove is the one thing that
 depends on YOUR data: whether the §20 completeness gate PASSES over a real
 mapping — a domain that cannot be read reports `NOT_VERIFIABLE` and blocks,
 and that has never been asked of real volumes.
@@ -389,7 +388,7 @@ and that has never been asked of real volumes.
 **This touches no DNS and stops nothing.** `start-cutover` opens a ledger and
 `verify` reads; the sync keeps running; only `execute --yes` (not run here)
 stops the passes and asks for the MX switch, and Ownpace never switches it
-itself (owner decision 2026-07-16: verify-only DNS). The runbook the operator
+itself (DNS is verify-only). The runbook the operator
 follows for the switch is `runbook`'s output; that is the manual, not this.
 
 ```sh
@@ -457,8 +456,8 @@ one of them.
    **Expect:** A sees Dutch and B sees English. The amber note at the top of the page says
    *"Welkom bij de Alpha! Probeer Ownpace rustig aan uit, en help anderen makkelijker over te
    stappen naar Europese alternatieven."* for A and *"Welcome to the Alpha! Try Ownpace at your
-   own pace, and help others move to European alternatives more easily."* for B (the owner's
-   welcome of 2026-10-04, and its English translation). After it come only two links, each
+   own pace, and help others move to European alternatives more easily."* for B. After it come
+   only two links, each
    opening a new tab: *Voorwaarden voor de Alpha* · *Handleiding voor de Alpha* for A, and
    *Alpha conditions* · *Guide to the Alpha* for B. No note means live's web bundle
    was not built for the alpha (`VITE_OWNPACE_STAGE`, `apps/web/src/services/stage.ts`). Press

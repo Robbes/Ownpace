@@ -5,27 +5,20 @@ dispatched from `main` in the Actions tab. It reads the record, waits for the
 owner's approval, scans the exact commit, cuts the annotated tag itself, and
 then publishes in an order that holds: Security Scan on the tag first (the
 release, its body and `bom.json`), and the images and the Windows zip only once
-that scan is green. A tag pushed by hand still works exactly as before, and is
-the break-glass path (§2), with the gap it always had.
-
-Why it exists: `v0.2.0-alpha.1` was pushed by hand on 2026-10-06, and the four
-workflows a tag fires ran side by side. Its Security Scan (run 37523297841)
-failed at the advisory gate, so the release has no generated body and no
-`bom.json`, while the images were already pushed and signed and the zip was
-attached to a release `windows-payload.yml` had made (workplan 0146, Status of
-2026-10-23).
+that scan is green. A tag pushed by hand still works: it is the break-glass
+path (§2), with its gap.
 
 The **root `package.json` is the version source** (workspace packages
-stay `0.0.0` deliberately — they are never published individually). The
+stay `0.0.0`: they are never published individually). The
 `/version` endpoints and the Windows build stamp both read it.
 `apps/api/docs/openapi.yaml`'s `info.version` is a copy, held to it by
 `scripts/a-release-that-names-itself.unit.test.ts`, so the bump below names
 both.
 
-**Pre-release ended with `v0.2.0-alpha.1`** (ADR-0045, workplan 0146 T3): a
-migration a release shipped is never edited, renamed, squashed or deleted, and
-`scripts/squash-migrations.sh` refuses. `scripts/release-line.json` names that
-tag and lists every release; the fold adds the new one (below).
+**Pre-release ended with `v0.2.0-alpha.1`**: a migration a release shipped is
+never edited, renamed, squashed or deleted, and `scripts/squash-migrations.sh`
+refuses. `scripts/release-line.json` names that tag and lists every release;
+the fold adds the new one (below).
 
 ## 1. Before the tag
 
@@ -34,8 +27,8 @@ one line per check, `pass` or `refuse`, every reason at once):
 
 - The inputs, and that it was dispatched from `main`.
 - The commit C is on `main`'s first-parent line. Left empty, C is the commit
-  the counted nights ran (below). Under the owner's waiver of the nights it is
-  given, never empty (§2, *When the owner waives the nights*).
+  the counted nights ran (below). Under a waiver of the nights it is given,
+  never empty (§2, *When the owner waives the nights*).
 - The tag is free, or is an annotated tag Release itself made at C (a re-run);
   no branch is named like it.
 - The names agree: the candidate's own `scripts/release-names-agree.mjs`, and
@@ -50,11 +43,11 @@ one line per check, `pass` or `refuse`, every reason at once):
   named after its runner: `integration-tests (ubuntu-24.04-arm)` while CI's
   push jobs run on GitHub's runner during the alpha, `integration-tests
   (self-hosted)` once the repository variable `CI_PUSH_ON_SELF_HOSTED` turns
-  them back (`ci.yml`'s header; workplan 0132, open question 1).
-- **C's payload ran on Windows** (since 2026-11-02): the newest dispatched run
-  of `windows-payload.yml` on C is green and its `smoke` job passed, which
-  starts the win-x64 payload on a hosted `windows-2025` runner (Phases 1 and 2
-  of the [Windows runbook](./windows-appliance-runbook.md)). A win-arm64 run is
+  them back (`ci.yml`'s header).
+- **C's payload ran on Windows:** the newest dispatched run of
+  `windows-payload.yml` on C is green and its `smoke` job passed, which starts
+  the win-x64 payload on a hosted `windows-2025` runner (Phases 1 and 2 of the
+  [Windows runbook](./windows-appliance-runbook.md)). A win-arm64 run is
   green with `smoke` skipped, and is refused. Release runs the workflow again
   on the tag, but only after Security Scan has made the release page and
   beside the images, so this is the run that shows a Windows failure while
@@ -75,9 +68,9 @@ one line per check, `pass` or `refuse`, every reason at once):
   `two-chains.unit.test.ts` is not an upgrade proof and is not counted: it
   adopts a database that predates the managed chain. On a pull request, with
   no `UPGRADE_FROM_REF`, each gate starts from two releases: its chain's
-  oldest supported one and the newest one in `scripts/release-line.json`
-  (workplan 0146 T4), and the managed chain's proof runs on Postgres 18 as
-  well, in the integration suite
+  oldest supported one and the newest one in `scripts/release-line.json`,
+  and the managed chain's proof runs on Postgres 18 as well, in the
+  integration suite
   (`packages/managed/src/migrate-upgrade.integration.test.ts`). By hand, after
   `git fetch origin tag <previous-tag>`:
   - **the shared chain's gate:**
@@ -122,31 +115,19 @@ one line per check, `pass` or `refuse`, every reason at once):
       Windows payload → Run workflow on `main`, `platform` win-x64, while
       `main` is at C (the freeze keeps it there), and see its `smoke` job
       green. The preflight refuses C without it. Nobody needs a Windows
-      machine for it: the owner's by-hand check of the zip on Windows 11 ended
-      on 2026-11-02 ("I wont do windows...").
+      machine for it.
 - [ ] `scripts/upgrade-drill.sh` on a Docker host (the box): previous
       release image, real volumes, swap to HEAD in place, healthy after a
-      further restart. The drill says when it is vacuous (tag == HEAD, or the
-      chain has no new migration) — a vacuous pass does not count, and the
-      drill compares the ledger chain only. Release lists it as not checked.
-      **Not applicable for `v0.2.0-alpha.2`** (workplan 0146, 2026-10-23).
-      The drill upgrades the appliance, which applies the shared chain only,
-      and that chain is the same 65 files, byte for byte, in
-      `v0.2.0-alpha.1` and on `main`: from alpha.1 the drill, and the shared
-      chain's unit gate, would exercise no migration, and each says so. The
-      alpha is managed-only, so no tester runs an appliance. What moved is the
-      managed chain (46 files in alpha.1, 59 on `main`), and its proof is the
-      managed chain's upgrade test above, which the preflight runs. If a
-      shared migration lands before the tag, the drill applies again. What it
-      alone would still show is an appliance opening a PGlite directory
-      alpha.1's image wrote, across PGlite 0.5.8 to 0.5.10: the appliance's
-      question, for the first release an appliance tester runs.
+      further restart. The drill upgrades the appliance, so it applies and
+      compares the shared (ledger) chain only; the managed chain's proof is
+      its upgrade test above, which the preflight runs. The drill says when
+      it is vacuous (tag == HEAD, or the chain has no new migration), and a
+      vacuous pass does not count. Release lists it as not checked.
 - [ ] **Before the first non-demo tenant beyond the alpha** (not per release,
       but check it here because this list is what gets read): CI and the live
       managed stack are not on the same machine — see the operator runbook,
-      "This box also runs CI". The alpha is the one exception, by the owner's
-      decision of 2026-09-24: `ownpace-live` runs on the reference machine
-      beside the OTA stack and CI, under
+      "This box also runs CI". The alpha is the one exception: `ownpace-live`
+      runs on the reference machine beside the OTA stack and CI, under
       [workplan 0132](./workplans/0132-the-alpha-and-the-nightly-gate-on-one-box.md)'s
       conditions (names per project on one Docker daemon; the gate refuses
       live's `.env`; live moves only by hand, from a tag). Demo data and a
@@ -159,14 +140,14 @@ one line per check, `pass` or `refuse`, every reason at once):
 ## 2. The tag: dispatch Release
 
 1. **Any day:** Actions → Release → Run workflow, `version` set
-   (`v0.2.0-alpha.2`), `mode=preflight`. It writes nothing. Its summary lists
+   (`v<X.Y.Z>`), `mode=preflight`. It writes nothing. Its summary lists
    every refusal.
 2. **After the fold and two green nights on it:** the same, `mode=release`,
    `commit` empty. The preflight runs again, and the run waits at the
    **approve** job until you approve it in the `release` environment. That
-   click is the say-so workplan 0025 T2 asks for, recorded with your name and
-   the time. It is a record and a guard against accidents, not a boundary:
-   anyone with write access can still push a tag by hand.
+   click is the say-so, recorded with your name and the time. It is a record
+   and a guard against accidents, not a boundary: anyone with write access
+   can still push a tag by hand.
 3. After the approval it runs, in this order:
    - **gate scan:** a branch `release-gate/<tag>` at exactly C, Security Scan
      dispatched on it (`image_scans: false`) and waited for, the branch
@@ -230,30 +211,16 @@ section in `CHANGELOG.md`, and a tag SemVer orders at or below a release
 already tagged. `images.yml`, `security-scan.yml` and `windows-payload.yml` run
 the same check as their first step after the checkout (in `windows-payload.yml`,
 in `build` and again in `release`, the job that attaches), so a tag whose names
-disagree publishes nothing (workplan 0146 T2). Run it with the commit you are
-about to tag checked out: it reads `package.json` and `CHANGELOG.md` from the
-working tree. Once a newer release is tagged, a re-run or a dispatch of an
-older tag's workflows is refused by the same rule, because that tag now sorts
-below one that exists. Cut a new tag instead of re-running an old one.
+disagree publishes nothing. Run it with the commit you are about to tag
+checked out: it reads `package.json` and `CHANGELOG.md` from the working tree.
+Once a newer release is tagged, a re-run or a dispatch of an older tag's
+workflows is refused by the same rule, because that tag now sorts below one
+that exists. Cut a new tag instead of re-running an old one.
 
 ### When the owner waives the nights
 
-The owner's call, and only for a release no tester runs yet. The first was
-alpha.3, on 2026-10-30: *"I approve alpha.3 tag now, we skip the waiting days.
-No one is in the alpha yet."* (workplan 0146, Status of 2026-10-30). The second
-was alpha.4, on 2026-11-03: *"Just make it without waitings, I can run E2e or you
-do so yourself."* (0146, Status of 2026-11-04), with E2E (managed) and E2E
-(self-hosted) on both backends dispatched on C in the nights' place. The third
-was alpha.5, on 2026-11-06: *"Waive the nights, continue"* (0146, Status of
-2026-11-06), with the same runs dispatched on C. The fourth was alpha.6, on
-2026-11-07: *"we waive the night counts"* (0146, Status of 2026-11-07), with the
-same runs dispatched on C. The fifth was alpha.7, on 2026-11-09, after its first
-counted night had passed on C: *"Waive the waiting, and give me next commands."*
-(0146, Status of 2026-11-09), with E2E (managed) and E2E (self-hosted) on PGlite
-dispatched on C beside that night's Postgres run. The sixth was alpha.8, on
-2026-11-13, before its fold: *"Yes, waive alpha.8's waiting nights."* (0146,
-Status of 2026-11-13). It replaces the tag pushed by hand for that case, so the
-order above holds.
+The owner waives them only for a release no tester runs yet. A waiver replaces
+the tag pushed by hand for that case, so the order above holds.
 
 **Which versions.** Only those in `WAIVER_VERSIONS` in
 `scripts/release-nights.mjs`, each there with the owner's words and the day:
@@ -324,11 +291,11 @@ git tag -a v<X.Y.Z> -m "Ownpace v<X.Y.Z>"
 git push origin v<X.Y.Z>
 ```
 
-Its gap is the one alpha.1 fell into: the four workflows run side by side,
-nothing waits for the scan, a red scan leaves the release without its body and
-`bom.json` while the images and the zip ship, and CI runs beside them without
-holding anything back. Write the acceptance in the deploy log, and run
-Release with `mode=verify` on the tag afterwards.
+Its gap: the four workflows run side by side, nothing waits for the scan, a
+red scan leaves the release without its body and `bom.json` while the images
+and the zip ship, and CI runs beside them without holding anything back. Write
+the acceptance in the deploy log, and run Release with `mode=verify` on the tag
+afterwards.
 
 A hyphenated version (`v0.2.0-rc.1`) is a SemVer pre-release: the GitHub
 release is marked prerelease and **`latest` image tags are withheld**
@@ -341,15 +308,15 @@ time the `latest` channel exists — check it appeared.
 |---|---|---|
 | `security-scan.yml` | the GitHub release, first under Release, with its generated body (pull lines, verify one-liner, changelog link) and `bom.json` (CycloneDX SBOM) | published, the pre-release flag right, exactly one generated block, the changelog link, `bom.json` attached, CycloneDX, naming the version |
 | `images.yml` | `ownpace-{api,web,selfhost}:<X.Y.Z>` multi-arch on GHCR, cosign-signed by digest | linux/amd64 and linux/arm64, the revision label C, `sha-<C>` the same index, `latest` withheld from a pre-release, and `cosign verify` by digest with the exact identity `https://github.com/Robbes/Ownpace/.github/workflows/images.yml@refs/tags/<tag>` and then the documented one: `cosign verify ghcr.io/robbes/ownpace-selfhost:<X.Y.Z> --certificate-identity-regexp '^https://github\.com/Robbes/(open-migrate|ownpace|Ownpace)/' --certificate-oidc-issuer https://token.actions.githubusercontent.com` |
-| `windows-payload.yml` | `ownpace-appliance-win-x64-v<X.Y.Z>.zip` attached to the release by its `release` job, only after its `smoke` job ran that payload on a hosted `windows-2025` runner (Phases 1 and 2 of the Windows runbook, since 2026-11-02) (unsigned — SmartScreen prompt documented in the runbook) | attached, its `SHA256SUMS.txt` holds for every file, and its `node.exe` hashes to the sum the tagged commit pins (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, read at the commit; a tag from before 2026-11-01 gets a note) |
+| `windows-payload.yml` | `ownpace-appliance-win-x64-v<X.Y.Z>.zip` attached to the release by its `release` job, only after its `smoke` job ran that payload on a hosted `windows-2025` runner (Phases 1 and 2 of the Windows runbook) (unsigned — SmartScreen prompt documented in the runbook) | attached, its `SHA256SUMS.txt` holds for every file, and its `node.exe` hashes to the sum the tagged commit pins (`NODE_RUNTIME_SHA256` in `scripts/package-appliance.mjs`, read at the commit; a tag from before 2026-11-01 gets a note) |
 
 And `GET /version` on the selfhost image, started on PGlite: the version and C.
 
 `images.yml` builds no `ownpace-task-base` on a tag. The managed tasks' prebuilt base is
-published from `main` only, as `edge` and `sha-<commit>` (workplan 0119 §3 item 13), and a
-release carries it as the digest its `apps/worker/trigger.config.ts` names (`TASK_BASE_IMAGE`,
-since 2026-11-06): so the OTA stack, which deploys `main`, and live, which deploys the tag, run
-the same bytes. `verify` reads that line at C through the API and checks the base it names:
+published from `main` only, as `edge` and `sha-<commit>`, and a release carries it as the
+digest its `apps/worker/trigger.config.ts` names (`TASK_BASE_IMAGE`): so the OTA stack, which
+deploys `main`, and live, which deploys the tag, run the same bytes. `verify` reads that line
+at C through the API and checks the base it names:
 `ghcr.io/robbes/ownpace-task-base` at that index digest has linux/amd64 and linux/arm64; its
 revision label starts with the commit its `sha-` tag names and is an ancestor of C (the compare
 API); and `cosign verify` passes by digest with the exact identity
@@ -364,8 +331,7 @@ holds nothing back.
 
 **Who creates the release.** Under Release, Security Scan on the tag, before
 anything else ships. Under a hand-pushed tag, whichever of Security Scan and
-`windows-payload.yml` attaches first: for alpha.1 it was
-`windows-payload.yml`, with no body.
+`windows-payload.yml` attaches first.
 
 **The half-published state.** Security Scan attaches the body and `bom.json`
 before its last step, which fails the run when Trivy or the SARIF upload
@@ -389,18 +355,11 @@ that really fails on Windows fails the same way every time: read the
 before the tag; the tag's run builds the payload again from the same
 commit, so what is left to fail there is mostly the runner.
 
-**`mode=verify` on an existing tag.** `v0.2.0-alpha.1` refuses: its tag's
-scan failed before the SBOM step, so it has no `bom.json`, and nothing
-regenerates one (a re-run fails the same way on the tag's lockfile). Its
-body is the standard text (what *Compose release body* in
-`security-scan.yml` writes) without its last sentence, which says the
-attached `bom.json` is the build's SBOM, and a note on that failed scan that
-says `bom.json` is missing, pasted in by the owner by hand: a session does not
-edit releases (the owner's answer of 2026-10-23). Leaving that sentence out
-does not change what verify says about the body: it finds the block by its
-`cosign verify` line and checks the changelog link. The owner pasted it on
-2026-10-23; since then verify refuses only the missing `bom.json`.
-`v0.1.0-rc.1` refuses: no generated body and no Windows zip.
+**`mode=verify` on an existing tag.** `v0.2.0-alpha.1` refuses only its
+missing `bom.json`: its tag's scan failed before the SBOM step, and nothing
+regenerates one (a re-run fails the same way on the tag's lockfile). The owner
+pasted a note saying so into its body by hand, since a session does not edit
+releases. `v0.1.0-rc.1` refuses: no generated body and no Windows zip.
 
 ## 4. After
 
@@ -412,17 +371,14 @@ does not change what verify says about the body: it finds the block by its
 
 ## 5. Deploying a release to ownpace-live
 
-`ownpace-live`, the stack testers use, runs release tags and nothing else
-(workplan 0146 T5). The procedure is
-[workplan 0132](./workplans/0132-the-alpha-and-the-nightly-gate-on-one-box.md)
-T6, *one way to deploy live, from a tag*, and its script is
+`ownpace-live`, the stack testers use, runs release tags and nothing else. Its
+script is
 `deploy/compose/deploy-live.sh <tag>`, run from `~/ownpace-live` with the hold
 on and the drain done. The steps, and what the script refuses and checks, are
 in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 *`ownpace-live`: a release tag, with `deploy-live.sh`*.
 
-- [ ] **From `v0.2.0-alpha.4` on, the shell you deploy from runs Node 26**
-      (workplan 0119 §2.4, the owner's decision of 2026-10-31). In that shell,
+- [ ] **The shell you deploy from runs Node 26.** In that shell,
       as yourself, in `~/ownpace-live`: `command -v node` names the node the
       deploy runs on and `node -v` says `v26.x`; `pnpm -v` says the version
       `package.json`'s `packageManager` names (any pnpm that runs it there is
@@ -435,31 +391,30 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       whose `secure_path` finds the system's node. The script runs `pnpm
       install`, the task deploy and the site build on that node, and pnpm
       only warns (`Unsupported engine`) below `engines` and goes straight on
-      to the rebuild. **For the deploy to alpha.4 the reading is the check:**
-      that deploy runs alpha.3's `deploy-live.sh`, which reads no Node. From
-      the deploy after it, the script refuses a node below the tag's
-      `engines` by itself, before anything moves, naming the node's path and
-      version. The readings and the steps are in
+      to the rebuild; the script itself refuses a node below the tag's
+      `engines`, before anything moves, naming the node's path and version.
+      A deploy started from a checkout of `v0.2.0-alpha.3` or earlier runs
+      that release's script, which reads no Node: there the reading is the
+      check. The readings and the steps are in
       [managed-bring-up.md](./managed-bring-up.md#the-node-in-the-shell-you-deploy-from).
 - [ ] The tag is the one §2 made: annotated, on origin, and the root
       `package.json` at its commit says the tag without its `v`. The script
       refuses anything else: *"live runs releases: name a release tag"*.
-- [ ] Its commit is one the nightly gate ran green, as workplan 0141 T14
-      reads it. Release refused to tag otherwise, and the tag's message names
-      the Release run and the runs that proved it: cite that in the deploy
-      log. A tag cut under the owner's waiver says so in its message
+- [ ] Its commit is one the nightly gate ran green (§1, *The nights*).
+      Release refused to tag otherwise, and the tag's message names the
+      Release run and the runs that proved it: cite that in the deploy log.
+      A tag cut under a waiver says so in its message
       (*Nights waived by …*): cite that line as the acceptance. A tag pushed
       by hand carries no such proof, and the owner accepts fewer in writing in
       the deploy log.
-- [ ] Its commit has `deploy/compose/exposure-check.sh` (on `main` since
-      #1271), and live's `.env` has `EXPOSURE_ALLOW` naming every address,
-      other than loopback, that a container on the machine is published on on
-      purpose, and, when containers that are not Ownpace's publish beyond
-      loopback, `EXPOSURE_NOT_OURS` naming them. A tag without the script
-      cannot pass the exposure check, and neither can a machine with such an
-      address or container the lists leave out, nor a tag whose script
-      predates `EXPOSURE_NOT_OURS` (workplan 0132's Status of 2026-10-05) on a
-      machine that needs it: the deploy does not take.
+- [ ] Its commit has `deploy/compose/exposure-check.sh`, and live's `.env`
+      has `EXPOSURE_ALLOW` naming every address, other than loopback, that a
+      container on the machine is published on on purpose, and, when
+      containers that are not Ownpace's publish beyond loopback,
+      `EXPOSURE_NOT_OURS` naming them. A tag without the script cannot pass
+      the exposure check, and neither can a machine with such an address or
+      container the lists leave out, nor a tag whose script predates
+      `EXPOSURE_NOT_OURS` on a machine that needs it: the deploy does not take.
 - [ ] With the hold on and the drain done, `deploy-live.sh --dry-run <tag>`
       said one-way or reversible, and moved nothing. If one-way, and you want
       a way back that is not forward, dump live's database then, before the
@@ -468,12 +423,11 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
       commit and version, `/api/ready` answers 200, `/api/auth/mode` answers
       `managed`, and the exposure check passed.
       **The deploy from `v0.2.0-alpha.2` (or earlier) to `v0.2.0-alpha.3` (or
-      later) runs twice** (workplan 0146 T13, the owner's decision of
-      2026-10-26). The first run is alpha.2's script, the copy the checkout had
-      before it moved, and it asks the api container with `printenv`, which
-      the distroless API has not got. Live moves to the tag, and that run
-      prints this, then that the copy before this update is kept and that
-      the deploy is logged as `did-not-take`, and exits 3:
+      later) runs twice.** The first run is alpha.2's script, the copy the
+      checkout had before it moved, and it asks the api container with
+      `printenv`, which the distroless API has not got. Live moves to the tag,
+      and that run prints this, then that the copy before this update is kept
+      and that the deploy is logged as `did-not-take`, and exits 3:
 
       ```text
       [deploy-live] the deploy did not take: v0.2.0-alpha.3 is checked out, and
@@ -493,15 +447,16 @@ in [managed-bring-up.md](./managed-bring-up.md#updating-a-running-deployment),
 
       For the alpha.2 to alpha.3 deploy, keep the copy before the update once
       the second run says it took, before a pass can prove the update: it is
-      live's only quick way back from the Trigger.dev images built here
-      (workplan 0146 T16). Delete it by hand with
-      `./deploy/compose/copy-before-update.sh delete` once the task runner has
-      run real work for a few days, and set the key back before the next deploy
-      ([managed-bring-up.md](./managed-bring-up.md#the-deploy-from-alpha2-to-alpha3-runs-twice)):
+      live's only quick way back from the Trigger.dev images built here.
 
       ```bash
       ./deploy/compose/env-upsert.sh deploy/compose/.env COPY_DELETE_WHEN_PROVEN=false
       ```
+
+      Delete it by hand with `./deploy/compose/copy-before-update.sh delete`
+      once the task runner has run real work for a few days, and set the key
+      back before the next deploy
+      ([managed-bring-up.md](./managed-bring-up.md#the-deploy-from-alpha2-to-alpha3-runs-twice)).
 - [ ] Read whether it called the deploy one-way or reversible before lifting
       the hold, which you do yourself. During the alpha a bad deploy is fixed
       forward, with a fix and a new `alpha.N` tag; a reversible one can also be
@@ -525,9 +480,9 @@ GitHub-hosted runners only.
 
 That is the only one. Two notes beside it:
 
-- **Optional, and not now: a tag ruleset** (the owner's answer of
-  2026-10-23). Release does not need one. It would be a ruleset on
-  `refs/tags/v*` with *Restrict updates* and *Restrict deletions*, you as the
+- **Optional, and not now: a tag ruleset.** Release does not need one. It
+  would be a ruleset on `refs/tags/v*` with *Restrict updates* and *Restrict
+  deletions*, you as the
   bypass actor, so that a published tag, which `deploy-live.sh` trusts,
   cannot be moved or deleted. Without it, anyone with write access can move
   or delete a tag (Release never does), and `deploy-live.sh` still refuses a
@@ -539,7 +494,7 @@ That is the only one. Two notes beside it:
   attach to the release separately, after it is published; with immutability
   on, the second attach would fail.
 
-## Known deferred (owner decisions, tracked in workplans)
+## Known deferred (tracked in workplans)
 
 - Code signing for the Windows payload — 0025 T6 / 0015 T4.
 - MSI packaging — 0015 T3.

@@ -737,7 +737,6 @@ describe('every live-deploy procedure says the deploy from alpha.2 or earlier ru
     // twice", and says the rest close by: the same words elsewhere in the file
     // are not this step's.
     expect(flat(text.slice(Math.max(0, at - 200), at)), `${file}: the step names the deploys it is for`).toMatch(/\balpha\.2\b/);
-    expect(flat(text.slice(at, at + 200)), `${file}: whose decision, next to it`).toMatch(/the owner's decision of 2026-10-26/i);
     // A step told in one bullet (the runbook, the CHANGELOG) ends with it.
     const ends = ['\n- ', '\n\n'].map((s) => text.indexOf(s, at)).filter((i) => i >= 0);
     const near = flat(text.slice(Math.max(0, at - 200), quotes > 0 ? at + 1500 : Math.min(...ends, text.length)));

@@ -5,16 +5,13 @@ coherence matrices (`SOURCE_TYPE_DOMAINS` / `TARGET_TYPE_DOMAINS` in
 `packages/shared/src/target-domains.ts`) — the same tables *Start a migration* offers destinations from and
 the create API refuses against. When this document and the code disagree, the code is right
 and this file has a bug; the per-domain detail links the ADR or workplan that carries each
-decision. Last reconciled: 2026-09-22.
+decision.
 
-**What ✅ means here, and what it does not.** Three Google sources moved from ⏳ to ✅ on
-2026-09-22 because the marker was measuring the wrong thing: ⏳ reads "awaiting first contact
-with reality", and `gmail`, `google-calendar` and `google-contacts` have been run against the
-owner's real Google account routinely for weeks. The document had simply not been told. What
-that evidence does NOT cover is a SECOND account — another org's sharing policy, scopes a user
+**What ✅ means here, and what it does not.** `gmail`, `google-calendar` and `google-contacts`
+are ✅ because they have been run against the owner's real Google account routinely. That
+evidence does NOT cover a SECOND account — another org's sharing policy, scopes a user
 declines, a Workspace admin's restrictions — so each row says so rather than letting ✅ imply
-more than one person has ever used it. The Microsoft Graph rows stay ⏳: nothing here changes
-what is known about those.
+more than one person has ever used it. The Microsoft Graph rows are ⏳.
 
 Legend: ✅ migrates · 🔁 detected & reported, owner decides (never acted on silently) ·
 ⏳ built, awaiting first contact with reality (owner runbook stage named) ·
@@ -75,7 +72,7 @@ Not (yet) migrated:
 
 | | generic CalDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`caldav`) | ⏳ Graph (`graph-calendar`) — WIRED in workplan 0054 (before it, the config parsed but could not build: the connector had no call site); **workplan 0059 fixed a delta loop that re-requested page one forever on any calendar with more than one page, and the `/$delta` path Graph does not serve**; appliance mapping files; shared mailbox via `source.mailbox` | ✅ CalDAV with OAuth (`google-calendar`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
+| **Source** | ✅ (`caldav`) | ⏳ Graph (`graph-calendar`), wired in workplan 0054; appliance mapping files; shared mailbox via `source.mailbox` | ✅ CalDAV with OAuth (`google-calendar`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
 | **Target** | ✅ CalDAV only | — | 🚫 never a target |
 
 Also a target: **Soverin** (`soverin`, workplan 0106 T4a+T4b) — the first provider-named
@@ -84,11 +81,11 @@ contact mappings through the same writers the protocol kinds use (mail via the s
 `mailHost`, see Email). What the account actually answers per face is measured and stored
 (the 0106 qualification), never assumed.
 
-Also a target: **Nextcloud** (`nextcloud`, 2026-09-07) — the second **account** kind, and the
+Also a target: **Nextcloud** (`nextcloud`) — the second **account** kind, and the
 one a person is most likely to be running themselves: one connection row carrying calendars,
-address books, files *and* task lists through the same DAV writers the protocol kinds use.
-Before it, the same Nextcloud had to be described three times — as `caldav`, `carddav` and
-`webdav` — each retyping the same URL, username and password. **No email face**: Nextcloud
+address books, files *and* task lists through the same DAV writers the protocol kinds use,
+instead of a `caldav`, a `carddav` and a `webdav` connection each retyping the same URL,
+username and password. **No email face**: Nextcloud
 Mail is an IMAP *client*, not a server, so a Nextcloud carries no mailbox to write into.
 The file face resolves its own root, since Nextcloud serves files at
 `…/remote.php/dav/files/{username}/` while calendars and address books sit under
@@ -96,10 +93,10 @@ The file face resolves its own root, since Nextcloud serves files at
 
 Also a source: **Google** (`google`, workplan 0106 T3b) — the same account shape on the
 grant side. One connection row, one OAuth grant, several faces: **calendars, contacts and
-tasks today** (tasks over Google's Tasks API since workplan 0126). Mail and files are absent
+tasks today** (tasks over Google's Tasks API, workplan 0126). Mail and files are absent
 for a reason that is Google's rather than ours — it prices `calendar` and `carddav` as
-*sensitive* scopes (brand verification, free), and `tasks.readonly` too (the console confirmed it
-on 2026-09-23, `google-oauth-verification.md`), and Gmail's `https://mail.google.com/` and `drive.readonly` as
+*sensitive* scopes (brand verification, free), and `tasks.readonly` too
+(`google-oauth-verification.md`), and Gmail's `https://mail.google.com/` and `drive.readonly` as
 *restricted*, needing an annual third-party security assessment. Asking for all five in one
 consent would push the managed client into that tier for every customer, including one who
 only wanted their contacts. So
@@ -123,11 +120,11 @@ partitions accounts across hundreds of hosts, answering the home set with an abs
 naming yours — which is why every DAV href is normalised host-preservingly (0115 T1).
 
 Also a source: **Microsoft 365** (`microsoft`, workplan 0114) — the third account kind, and
-the asymmetry with `google` runs the **other way**. It carried **all four faces from the
-first day** — mail, calendars, contacts and OneDrive — because Microsoft's delegated read
+the asymmetry with `google` runs the **other way**. It carries **mail, calendars, contacts and
+OneDrive**, because Microsoft's delegated read
 scopes over the signed-in user's own data (`Mail.Read`, `Calendars.Read`, `Contacts.Read`,
 `Files.Read`) carry no equivalent of Google's restricted tier and its annual third-party
-security assessment — and a **fifth since 0114 T9: Microsoft To Do**, which Graph serves at
+security assessment — and a **fifth face, Microsoft To Do**, which Graph serves at
 `/me/todo/lists` under `Tasks.Read` and `graph-todo-source` reads, building the `VTODO` the
 task domain expects (title, notes, status, importance, due and start dates, completion,
 categories, checklist, recurrence). `oauth2` and `graph` **stay and
@@ -141,13 +138,12 @@ shadow-sync **update path** rewrites an event the source changed — unless the 
 was edited there, which is detected and left alone (`conflicted`, hard rule 2). Deletions
 arrive as **`reported` evidence** (the DAV sync answer names the removed object), the
 strongest class, and `apply` may follow them through per owner decision.
-**From Microsoft 365, the update path only since 2026-09-23.** Graph's listing carried no
-version, so an event edited in Outlook after its first copy was skipped on every pass. It now
-carries Graph's `changeKey`. A copy made before that records its version on the next pass,
-and the next real edit is the one that is copied.
+**From Microsoft 365** the update path reads Graph's `changeKey`. A copy made before
+2026-09-23, when the listing carried no version, records its version on the next pass, and
+the next real edit is the one that is copied.
 
 Not (yet) migrated:
-- 🚫 **JMAP as a calendar target** — parked by owner decision (workplan 0031 T1): recurring
+- 🚫 **JMAP as a calendar target** — parked (workplan 0031 T1): recurring
   events cannot round-trip over JMAP yet, and a target that flattens a series into single
   events is data loss wearing a green checkmark. CalDAV is the calendar target until that
   changes upstream.
@@ -178,7 +174,7 @@ because the API has none. A task deleted in Google goes to the Deletions queue.
 
 | | generic CardDAV | Microsoft 365 | Google |
 |---|---|---|---|
-| **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`) — wired in workplan 0054, same story as calendars, **including the same page-one-forever delta loop and `/$delta` path, both fixed in workplan 0059**; appliance mapping files; shared via `source.mailbox`. **Photos only since 2026-09-23**: Graph lists a contact without its photo, and nothing fetched it, so every Microsoft contact arrived without one (owner's report). The photo is now read per card when the card is written. A card copied before that has none until the contact changes in Outlook (after one pass on the new version, which records each card's version and rewrites nothing); a new contact brings its photo at once. The owner chose not to re-copy the older cards (2026-09-24: *"I'll just add a new contact with photo"*) | ✅ CardDAV with OAuth (`google-contacts`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
+| **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`), wired in workplan 0054, as calendars; appliance mapping files; shared via `source.mailbox`. **Photos**: Graph lists a contact without its photo, so the photo is read per card when the card is written. A card copied before 2026-09-23 has none until the contact changes in Outlook (after one pass on the new version, which records each card's version and rewrites nothing), and older cards are not re-copied; a new contact brings its photo at once | ✅ CardDAV with OAuth (`google-contacts`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
 Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`) and **Nextcloud**
@@ -193,8 +189,8 @@ root the way Soverin's are.
 
 What migrates: contacts as **vCards** (photos ride inside), with the same
 update/conflict/adoption behaviour as calendars, incremental sync, and `reported` deletion
-evidence with the owner-decided `apply`. From Microsoft 365 the update path works only since
-2026-09-23, for the reason given under Calendars.
+evidence with the owner-decided `apply`. From Microsoft 365, a copy made before 2026-09-23
+picks up the update path as under Calendars.
 
 Not (yet) migrated:
 - 🚫 **Distribution lists / contact groups as mappings** — same refusal and reason as
@@ -206,15 +202,15 @@ Not (yet) migrated:
 
 | | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 | Dropbox | Box |
 |---|---|---|---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable since workplans 0049/0051; bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, wired in workplan 0054; **workplan 0058 fixed three defects that made it unable to migrate a real drive** — a natural key read from a `path` field Graph never returns, which flattened every file onto the root; a folder listing that never recursed and omitted the root; and `isRename` comparing the same phantom field); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test, 0054 T4c corrected); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (*Start a migration*'s **Show shared folders** + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back; the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable (workplans 0049/0051); bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, workplan 0054); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (*Start a migration*'s **Show shared folders** + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back; the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
 | **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
 Also a target: **JMAP files** (workplan 0031 T3). A file larger than 8 MB arrives as a stream, and
-is uploaded as one (0143 T3b; until then it was refused, 0143 T3a). A file larger than the server
-takes in one upload (its session's `maxSizeUpload`) is refused before a byte is read, with a
-sentence that names the file, its size and the server's limit, and waits for a person.
+is uploaded as one. A file larger than the server takes in one upload (its session's
+`maxSizeUpload`) is refused before a byte is read, with a sentence that names the file, its
+size and the server's limit, and waits for a person.
 
-**The largest file, on managed: 10 GB** (`LARGEST_FILE_MB`, workplan 0143 T4). A pass may run an
+**The largest file, on managed: 10 GB** (`LARGEST_FILE_MB`). A pass may run an
 hour and a file is copied in one go, so a listed file larger than that is refused before a byte is
 read, and parked for a person with a sentence that names the file and its size and says to copy it
 by hand. The Failures page files it as *too large*. The appliance has no such limit.
@@ -226,9 +222,9 @@ Every other file store in this table is read over a published API; this one cann
 the Apple card answers the file face with **no, and a sentence** — the distinction being
 that a `?` means *we could not find out* and a **no** means *we found out*. The only route
 to those files is the customer's own Data & Privacy export at `privacy.apple.com`, which
-Apple hands to the person and not to us; teaching this product to accept such an archive is
-workplan 0116, and an archive with a date on it is a different shape of thing to a live
-account.
+Apple hands to the person and not to us. Reading such an archive is the export archive's job
+(below, where its Apple reader is not built yet), and an archive with a date on it is a
+different shape of thing to a live account.
 
 **A file source that is not an account: the EXPORT ARCHIVE** (`archive`, workplan 0116 T1).
 Every column in the table above is a live service reached with a credential. This one is a
@@ -241,9 +237,8 @@ not a connection kind of its own, so a third export is a new reader and nothing 
 
 It **connects, tests and measures** — how many distinct items, how many bytes, how many
 folders, and the date range the export covers, which is what somebody wants before committing
-to a multi-gigabyte import — and since 0116 T5/T6 it **migrates**: albums become folders under
-the target root, a photo in several albums is written under each (0112 decision 5), a photo in
-none lands under its year, edited versions and motion clips are distinct files beside their
+to a multi-gigabyte import — and it **migrates**: albums become folders under the target
+root, a photo in several albums is written under each, a photo in none lands under its year, edited versions and motion clips are distinct files beside their
 originals, and one manifest at the root carries everything the export knew about every item.
 Idempotency is the file domain's own ledger rule applied to the archive: a second import
 writes nothing, a later export in the series writes only what is new. Two properties hold
@@ -252,22 +247,20 @@ cannot be opened reads as **unknown with the reason** and never as an empty arch
 archive is a **snapshot with a date** — so an archive import **only ever adds**. The source
 declares itself a snapshot (`FileSource.snapshot`) and the sync loop's absence-counting is off
 for it, so nothing is inferred, reported or even suspected from an item's absence between two
-exports. The Google reader is built (0116 T3a); the Apple reader is deliberately absent rather than
+exports. The Google reader is built; the Apple reader is deliberately absent rather than
 stubbed, because a stub answering "0 items" is indistinguishable from an export that really was
-empty. An Apple export was opened on 2026-09-17 and its shape written down (0116 T3b), so the
-reader is no longer blocked on seeing one — it is blocked on a second export, because the first
-could not show how a multi-part download splits, what an iWork package arrives as, or which
-timezone its dates are in. The import is gated
-end to end in the self-host E2E (0116 T10): a fixture Takeout imported into the real Nextcloud,
-placement and the manifest read back, a second pass writing nothing. On the managed edition an
-archive has to arrive through a cloud this product reads or an upload — its run containers
-share no disk with the API (0116 T4). Not yet: taken-time and GPS written into the copy's EXIF
-(0112 T3), and reading a zip without extracting it (0116 D7).
+empty. It waits for a second Apple export: the one opened so far could not show how a
+multi-part download splits, what an iWork package arrives as, or which timezone its dates are
+in. The import is gated end to end in the self-host E2E: a fixture Takeout imported into the
+real Nextcloud, placement and the manifest read back, a second pass writing nothing. On the
+managed edition an archive has to arrive through a cloud this product reads or an upload — its
+run containers share no disk with the API. Not yet: taken-time and GPS written into the copy's
+EXIF, and reading a zip without extracting it.
 
 What migrates: file **bytes, verbatim**, hashed (`contentHash`) so unchanged files are never
 re-sent and changed ones are updated (with the same edited-on-target conflict protection);
 the folder tree; optional `targetFolderPrefix` to merge several sources into one account
-(merge is the default — owner decision 2026-08-16) or keep a subfolder per source.
+(merge is the default) or keep a subfolder per source.
 
 The file domain is where **relocations** live, because its natural key is the path: a moved
 or renamed file is 🔁 detected by content-hash correlation and may be **applied** — the old
@@ -276,7 +269,7 @@ copy removed only after the target itself confirms the bytes exist under the new
 extra gates (ADR-0031: unique pairing, survived-a-pass, breaker-decides-for-the-pass,
 per-pass cap, `system:auto-apply` audit rows, digest narration). A renamed or moved **Google
 document** exported as Office or OpenDocument has other bytes in every export, so it is paired
-by its **Drive id** instead (ADR-0030, amended 2026-09-23): its old copy is removed only when
+by its **Drive id** instead (ADR-0030): its old copy is removed only when
 the new one is the same Drive document, written by this migration and confirmed on the target,
 and only by a person, never unattended. Deletions: a file in the
 source's **bin** is positive evidence, reported at once; an emptied bin falls back to
@@ -304,11 +297,10 @@ Not (yet) migrated:
 - ⏳ **Google Docs / Sheets / Slides / Drawings** — left behind by default, each named with the
   reason: they have no bytes, only exports. An owner chooses a format **per kind**
   (OpenDocument, Microsoft Office or PDF), and **every format carries every kind**. All twelve
-  (policy, type) combinations were measured on a real tenant (workplan 0042 T3, 2026-09-16 and
-  17), and two differ between two exports of an unchanged document: Slides as `.pptx` and Docs
-  as `.odt`. They were refused for that until 2026-09-23 and are copied since (ADR-0046,
-  amended): a document is exported again only when Drive's modified time for it moves (#1083),
-  and a renamed one is paired by its Drive id (ADR-0030, amended), so no rewrite and no
+  (policy, type) combinations were measured on a real tenant (workplan 0042 T3), and two
+  differ between two exports of an unchanged document: Slides as `.pptx` and Docs as `.odt`.
+  They are copied all the same: a document is exported again only when Drive's modified time
+  for it moves, and a renamed one is paired by its Drive id (ADR-0030), so no rewrite and no
   deletion report depends on the bytes. Drive **shortcuts** are refused (pointers, not files).
 - 🚫 **Sharing permissions / ACLs, version history, comments, stars** — the file's bytes
   and place migrate; its social metadata does not. The Finish screen's **permissions
@@ -325,7 +317,7 @@ Not (yet) migrated:
 rather than as one row:
 
 - ✅ **A shared drive (Google)** is a first-class root: `rootFolderId` names it by id
-  (browsable since workplan 0049), and the connector always sends the two query parameters
+  (browsable, workplan 0049), and the connector always sends the two query parameters
   without which the Drive API *pretends a shared drive is empty* — the silent-empty-pass
   failure that guard exists for is documented on the connector itself.
 - ⏳ **A shared mailbox or a shared mailbox's calendar (M365)** is an ordinary mapping via
@@ -360,8 +352,8 @@ rather than as one row:
   two mappings migrating the same shared item produce two independent copies — one per
   account, exactly like every other item. A migration copies data; it does not re-plumb
   collaboration.
-- ✅ **Re-creating a share on the target is now an owner decision, per grant** (ADR-0032,
-  accepted; workplan 0052): every inventoried grant is a row on the **Sharing checklist**
+- ✅ **Re-creating a share on the target is an owner decision, per grant** (ADR-0032;
+  workplan 0052): every inventoried grant is a row on the **Sharing checklist**
   — apply it through the target's own share API (Nextcloud OCS first; the target then
   sends its own invitation, so the invite IS the notification and Ownpace never
   mails third parties), tick it off as done by hand, or skip it deliberately. Applies are
@@ -373,7 +365,7 @@ rather than as one row:
   person-grants (`viaLink` — "anyone with the link can edit" is the one to catch before
   cutover), and rights that *could not be read* named as such — `not_discoverable` is a
   different value from "none found" (hard rule 9). It lands in the Finish screen's
-  **permissions handover** document and, since ADR-0032, feeds the Sharing checklist's
+  **permissions handover** document and feeds the Sharing checklist's
   rows — the handover stays the substitute for a full ACL translator, which remains
   deliberately unbuilt. Coverage, honestly, per source: **M365**
   calendar sharing is scanned (application permissions required); OneDrive/SharePoint
@@ -403,12 +395,12 @@ These hold across all object types, and are features rather than gaps:
 
 | Gap | Status | Where it is tracked |
 |---|---|---|
-| Gmail / Google Calendar / Google Contacts against a SECOND real Google account (another organisation's sharing policy, declined scopes, Workspace admin restrictions) — the owner's own account has run all three routinely, ✅ since 2026-09-22 (see the note at the top) | ⏳ one account proven | Owner runbook Stages 5–6 |
-| Google-native file export (Docs/Sheets/Slides) | ⏳ every format carries every kind since 2026-09-23 (ADR-0046, amended); unproven beyond the measured tenant | Stage 1; workplan 0042 T6 |
+| Gmail / Google Calendar / Google Contacts against a SECOND real Google account (another organisation's sharing policy, declined scopes, Workspace admin restrictions) — the owner's own account has run all three routinely (see the note at the top) | ⏳ one account proven | Owner runbook Stages 5–6 |
+| Google-native file export (Docs/Sheets/Slides) | ⏳ every format carries every kind; unproven beyond the measured tenant | Stage 1; workplan 0042 T6 |
 | JMAP calendar target | 🚫 parked (recurrence round-trip) | workplan 0031 T1 |
-| Drive loose shared *files* (shared folders root a mapping since 0051; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
+| Drive loose shared *files* (shared folders root a mapping; shortcuts are refused loudly) | ⛔ not enumerated | Shared content section above; workplan 0051 |
 | Sharing checklist: live Nextcloud OCS proof (digest counts, report section and confirm-once addresses shipped) | ⏳ rides the owner runbook | ADR-0032; workplan 0052 T6 |
-| M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable on managed as the Microsoft 365 account's faces since workplan 0114, and through *Start a migration* since the wizard retired, 0153 D5 (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
+| M365 calendar / contacts / OneDrive / To Do against a real tenant — reachable on managed as the Microsoft 365 account's faces, through *Start a migration* (delegated: the signed-in user's own data; another user's store still needs `oauth2`/`graph` with application permissions) | ⏳ wired; a live connection Test, no migration measured | workplans 0054, 0114 |
 | A shared mailbox (Pattern S) copied from a real tenant — `source.mailbox` over Graph, with application permissions and an administrator's consent; the Microsoft 365 account's delegated grant reads the signed-in person's own mailbox only | ⏳ built, not yet copied from a real shared mailbox; the scope manifest shows it under *Partial* | workplan 0027 T0; workplan 0141 T10 |
 | Dropbox against a real account | ⏳ built, unproven | workplan 0055 T3(a) |
 | Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and *Start a migration* asks for it on *What moves?* with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
@@ -424,24 +416,23 @@ These hold across all object types, and are features rather than gaps:
 
 ## Live proofs
 
-What a source has done against a real account, written down (workplan 0141 T1). Both doors tag a
-source card or a provider's tile, a face on *What moves?* and Google's whole-domain option
-*Experimental* from one table, `SOURCE_PROOFS` in `packages/shared/src/front-door.ts` (workplan
-0131 T2). A verdict there says proven only by naming a row below. A change to one goes into the
+What a source has done against a real account, written down. Both doors tag a source card or a
+provider's tile, a face on *What moves?* and Google's whole-domain option *Experimental* from
+one table, `SOURCE_PROOFS` in `packages/shared/src/front-door.ts`. A verdict there says proven
+only by naming a row below. A change to one goes into the
 same pull request as the change to the other, and a face whose connector is rebuilt goes back to
 experimental in the pull request that rebuilds it. The Email table's ✅ for `oauth2` and `graph`
-says the reader is built; no run behind it is recorded (0141 §1), so both cards carry the tag
-until one is (0148 D5). A shared mailbox (Pattern S) has a verdict of its own,
+says the reader is built; no run behind it is recorded, so both cards carry the tag until one
+is. A shared mailbox (Pattern S) has a verdict of its own,
 `SOURCE_PROOFS.sharedMailbox`, and no tag: the scope manifest shows *Shared mailboxes* under
-*Partial* until a row here with the kind `shared-mailbox` and the face `email` records one copied
-(0141 T10).
+*Partial* until a row here with the kind `shared-mailbox` and the face `email` records one
+copied.
 
 **What counts as a live proof.** All seven:
 
-1. **The product's own path:** *Start a migration* on `ownpace-live` (the wizard, before it
-   retired: 0153 D5), or on the OTA stack where a sitting needs it, or the appliance with a
-   mapping file, through the product's own connector for that kind and face. A harness with a
-   client of its own does not count.
+1. **The product's own path:** *Start a migration* on `ownpace-live`, or on the OTA stack
+   where a sitting needs it, or the appliance with a mapping file, through the product's own
+   connector for that kind and face. A harness with a client of its own does not count.
 2. **A real account at the provider,** with data a person made. A fixture does not count. A server
    we run counts only as *a server we run*, and the row says so.
 3. **A completed pass:** it ended `completed`, not paused, failed or stopped.
@@ -468,8 +459,8 @@ None yet. *Account* is one of: *the owner's own*, *a second account*, *a tester'
 ### Proven before this record
 
 These ran against a real account, or for `imap` against a server we run, before this record
-existed. The repository says what ran and where, and does not hold the counts 0141 T1 asks for,
-so *Counts* says "not recorded" where they were not. The table only shrinks: a face leaves it
+existed. The repository says what ran and where, and does not hold the counts a recorded proof
+needs, so *Counts* says "not recorded" where they were not. The table only shrinks: a face leaves it
 when a recorded proof replaces its row, and a new proof goes in the table above
 (`scripts/a-proof-that-was-written-down.unit.test.ts`).
 

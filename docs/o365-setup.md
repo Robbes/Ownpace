@@ -39,11 +39,10 @@ contacts, OneDrive) — **in your own tenant, registered by you**.
 ## Overview
 
 > **`/{tenant-id}/`, not `/common/`.** Every Microsoft endpoint below takes the customer's own
-> directory (tenant) ID. `/common/` is the multi-tenant endpoint, and per the owner decision of
-> 2026-08-09 (0026 T3 row 14) **there is no multi-tenant app**: each customer registers their own
-> Entra app in their own tenant and consents to it there. The code has always built the
-> tenant-specific form (`apps/api/src/routes/permissions.ts`, `apps/selfhost/src/index.ts`); this
-> document said `/common/` in four places until 2026-08-13.
+> directory (tenant) ID. `/common/` is the multi-tenant endpoint, and **there is no multi-tenant
+> app**: each customer registers their own Entra app in their own tenant and consents to it
+> there. The code builds the tenant-specific form (`apps/api/src/routes/permissions.ts`,
+> `apps/selfhost/src/index.ts`).
 
 Ownpace uses **an Entra application you register in your own tenant**.
 This approach:
