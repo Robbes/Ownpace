@@ -461,6 +461,16 @@ describe('which images it scans', () => {
     expect(queue?.floating).toBe(false);
     expect(REAL.read('deploy/compose/redis/Dockerfile')).toMatch(/^FROM redis:/m);
     expect(images.filter((i) => /redis/.test(i.name)).map((i) => i.name), 'one scan of Redis, under its old name').toEqual(['redis']);
+    // The pooler built here with five Alpine packages at the versions that
+    // carry their fixes (2026-11-13, for alpha.8) keeps the name, and so the
+    // category and the issue, that `edoburu/pgbouncer` had.
+    const pooler = images.find((i) => i.name === 'pgbouncer');
+    expect(pooler?.ref, 'the pooler is pulled from a registry again').toMatch(/^localhost\/pgbouncer:v\d+\.\d+\.\d+-p\d+-[0-9a-f]{12}$/);
+    expect(pooler?.context).toBe('deploy/compose/pgbouncer');
+    expect(pooler?.where).toBe('deploy/compose/managed.yml');
+    expect(pooler?.floating).toBe(false);
+    expect(REAL.read('deploy/compose/pgbouncer/Dockerfile')).toMatch(/^FROM edoburu\/pgbouncer:/m);
+    expect(images.filter((i) => /pgbouncer/.test(i.name)).map((i) => i.name), 'one scan of the pooler, under its old name').toEqual(['pgbouncer']);
     // Every other image is pulled, and carries no context.
     for (const image of images.filter((i) => !i.ref.startsWith(BUILT_HERE))) expect(image.context, image.name).toBeUndefined();
     // And the Postgres images built here are these two. Other images built
@@ -616,12 +626,14 @@ describe('which images it scans', () => {
 
   it('keeps every name when a pin moves, so its SARIF category and its issue stay the same', async () => {
     const managedYml = REAL.read('deploy/compose/managed.yml')!;
-    const pgbouncer = readImages(managedYml).find((i) => i.repo === 'edoburu/pgbouncer')!;
-    const to = `${pgbouncer.repo}:v99.0.0-p0`;
-    expect(to, 'the pin would not move, so this case would prove nothing').not.toBe(pgbouncer.ref);
+    // Trigger.dev's registry: an image this stack still pulls by its tag (the
+    // pooler, this case's example until 2026-11-13, is built here now).
+    const registry = readImages(managedYml).find((i) => i.repo === 'registry')!;
+    const to = `${registry.repo}:99.0.0`;
+    expect(to, 'the pin would not move, so this case would prove nothing').not.toBe(registry.ref);
     const before = await imagesToScan(REAL, fakeNet());
-    const moved = await imagesToScan(withFiles({ 'deploy/compose/managed.yml': repin(managedYml, pgbouncer.repo, to) }), fakeNet());
-    expect(moved.find((i) => i.ref === to)?.name).toBe(before.find((i) => i.ref === pgbouncer.ref)?.name);
+    const moved = await imagesToScan(withFiles({ 'deploy/compose/managed.yml': repin(managedYml, registry.repo, to) }), fakeNet());
+    expect(moved.find((i) => i.ref === to)?.name).toBe(before.find((i) => i.ref === registry.ref)?.name);
     expect(moved.map((i) => i.name)).toEqual(before.map((i) => i.name));
   });
 
