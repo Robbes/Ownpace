@@ -1,52 +1,9 @@
 # Row-Level Security (RLS) Guide
 
-> Rewritten 2026-08-02 (workplan 0021 T3). The previous version of this guide
-> predated the entire enforcement model — it taught raw `SET app.current_tenant`
-> with no role drop, named a `pnpm test:rls` command that does not exist, and
-> its table list was stale. Everything below is written against the code:
-> `packages/ledger/src/db.ts` (`withTenant`), `packages/ledger/src/driver.ts`
-> (`LedgerDriver.role`), and migrations `0001`–`0004`.
->
-> Updated 2026-09-27 ([workplan 0138](./workplans/0138-tasks-under-row-security.md)
-> T5, step 1): which connections row security binds today and which it does
-> not, the task plane among the second, and the table list asked of the catalog.
-> Then, the same day, for 0138 T3 step 1: the task upload no longer carries
-> `DIRECT_DATABASE_URL` (§2's `set-task-env.sh` row). And on 2026-09-28 for
-> 0138 T1 step 1: the builders build on the job's pool, the ledger, cursor and
-> verification stores a pass builds run each statement inside `withTenant`
-> (`tenantScopedDb`, §3), what is left outside a scope is named (the task row
-> under "Where row security holds today"), and no task changed the role it
-> connects as. Later the same day, for 0138 T1 step 2: the eight per-tenant
-> tasks and the standalone worker connect as `app_user` (`openTaskPools`,
-> `apps/worker/src/jobs/task-pools.ts`), their audit key is read on a pool of
-> one of the owner's, and the task row is three rows now.
->
-> Updated 2026-09-28 (0138 T6): the permission report and the sharing rescan
-> read as `app_user` inside `withTenant`, like every other route, so no route
-> reads tenant data on the owner's connection. A request still reaches the
-> owner in two places, for the audit pseudonym key only, through `index.ts`'s
-> pool of one (its row under "Where row security holds today").
->
-> Updated 2026-09-28 (0138 T2): the digest, the drift detector and group
-> discovery are split in two. Their one question across organisations, which
-> ones are active, is read on the owner's connection by `activeOrganisations`
-> (`task-pools.ts`), ids only; everything they read or write for one
-> organisation is in that organisation's scope on the tenant pool, `app_user`.
-> The three jobs that span organisations whole (the tick, retention, the purge)
-> are the only tasks left on the owner's connection for tenant data, until T3
-> step 2.
->
-> Updated 2026-09-28 (0138 T3 step 2): no task connects as the owner any more.
-> The three jobs that span organisations whole, the split jobs' list and every
-> task's audit key connect as the system role, `ownpace_system`
-> (`SYSTEM_DATABASE_URL`, managed migration 0033): `BYPASSRLS`, which their
-> questions across organisations need, and the grants their statements need,
-> and no superuser, no role or database of its own, a member of no role and
-> no role a member of it. `set-task-env.sh` uploads its URL, and, in a run of
-> its own after the tasks are deployed, deletes the owner's `DATABASE_URL` and
-> `DIRECT_DATABASE_URL` from the task environment; the bring-up and
-> `set-task-env.sh` itself refuse to upload the URL when Postgres says the role
-> is a superuser, may create roles, or shares a membership either way (§2).
+> Written against the code: `packages/ledger/src/db.ts` (`withTenant`),
+> `packages/ledger/src/driver.ts` (`LedgerDriver.role`), the migrations, and,
+> for the managed tasks, `apps/worker/src/jobs/task-pools.ts`
+> (`openTaskPools`, `activeOrganisations`).
 
 ## What RLS buys here
 
@@ -60,7 +17,7 @@ everything the digest, the drift detector and group discovery read for one
 organisation, yes; the three managed jobs that span organisations whole (the
 sync tick, retention, the purge of closed organisations), no: they connect as
 the system role, which bypasses row security on the tables it is granted and is
-not a superuser (0138 T3 step 2). The next section says which, and
+not a superuser. The next section says which, and
 [workplan 0138](./workplans/0138-tasks-under-row-security.md) says what is left
 (its T3 step 3, parked). The self-host appliance runs the **same schema and
 the same policies**, and its `withTenant` scopes drop to `app_user`, but its
@@ -69,8 +26,7 @@ ledger and cursor stores run outside them (the next section).
 ## Where row security holds today
 
 Checked against the code and against a database with both migration chains
-applied, 2026-09-27, and the task rows again on 2026-09-28 (0138 T1 step 2, T2
-for the three jobs split in two, and T3 step 2 for the system role).
+applied (2026-09-27, the task rows again on 2026-09-28).
 Postgres never applies row security to a superuser,
 `FORCE` or not, and the managed edition's database owner is a superuser (§2).
 On an owner connection, `withTenant` still sets `app.current_tenant`, but
@@ -80,18 +36,18 @@ organisations, and the same question as `app_user` counted one.
 
 | path | connects as | row security |
 | --- | --- | --- |
-| The API's request path: `getDbPool()` (`apps/api/src/middleware/auth.ts`) on `APP_DATABASE_URL`, its tenant queries inside `withTenant` / `withTenantDb`. Every route, the permission report and the sharing rescan (`apps/api/src/routes/permissions.ts`) included since 2026-09-28 (0138 T6); until then that file opened its own pool on `DATABASE_URL` | `app_user` | **in force** |
+| The API's request path: `getDbPool()` (`apps/api/src/middleware/auth.ts`) on `APP_DATABASE_URL`, its tenant queries inside `withTenant` / `withTenantDb`. Every route, the permission report and the sharing rescan (`apps/api/src/routes/permissions.ts`) included | `app_user` | **in force** |
 | The API's operator screens: the `support_*` views (managed migrations `0009` onward) | `app_user`, but a view runs with its owner's rights, and its owner is the owner | **passed by design**: the operator check written into each view is the only net, and `packages/managed/src/support-views.unit.test.ts` checks every view has it |
 | The API's migrations and its audit key pool (`auditKeyPool`, `apps/api/src/index.ts`), on `DIRECT_DATABASE_URL`, or `DATABASE_URL` when that is unset. The key pool is reached from the request path in two places: the audit line printed after an audit event commits (the export sink, `auditExportOn`), and the operator's audit download (`GET /api/support/audit-export`, `routes/support.ts`, through `apps/api/src/audit-key.ts`). Each keeps the key once it has read it, and reads it again only after a read that failed | the owner; the key pool is one connection | not needed: the migrations change the schema, and the key pool reads `deployment_key` only, which holds no tenant's rows |
-| **The eight per-tenant Trigger.dev tasks** (`run-delta-sync`, `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`, `run-cutover`, `run-rollback`), and the standalone worker (`apps/worker/src/index.ts`): the tenant pool `openTaskPools` builds (`apps/worker/src/jobs/task-pools.ts`) on `APP_DATABASE_URL`, and the builders they hand it to (`buildDepsFromMapping`, `buildDomainDepsFromMapping`, `createLedgerVerificationReader`) | `app_user`, since 0138 T1 step 2 (2026-09-28). `openTaskPools` refuses to start without `APP_DATABASE_URL` and never falls back to `DATABASE_URL`. Every store and read a pass makes runs inside `withTenant` for its tenant: the ledger, cursor and verification stores on `tenantScopedDb`, the helper reads (`enabledDomains`, `stoppedDomains`, `targetProviderKey`, the rollback's mapping name, the step before each data type), the organisation's own `tenant` row, which the step and both builders read to refuse a closed organisation (`organisationIsOpen`, 0085 T2; outside a scope `app_user` would find no row there, and every pass would stop as closed), and the run, status, receipt, cutover and confirmation writes in scopes of their own. Two things it touches need no scope and have none: the rate and byte budgets (`plainDb`: their tables have no row security, by design) and the operator's log page's events (`app_event`, which `app_user` may insert into and not read) | **in force** |
-| The same tasks' audit key: `openTaskPools`'s second pool, on `SYSTEM_DATABASE_URL` | the system role, `ownpace_system` (not a superuser; 0138 T3 step 2, the owner until then); one connection, closed a second after its last use | not needed: it reads `deployment_key` only, which holds no tenant's rows and which ledger migration 0062 closes to `app_user`; managed migration 0033 grants it to the system role. It is the API's audit key pool, in a task |
-| **The six scheduled jobs split in two** (`managed-digest`, `managed-drift-detect`, `managed-group-discovery`, 0138 T2; `managed-cadence-email`, 0157 T7, and `managed-month-invoices` and `managed-invoice-push`, 0111 slices 4 and 5, split from the start), everything they read or write for one organisation: the tenant pool `openTaskPools` builds, opened in the run and ended in `afterwards` | `app_user`, since 0138 T2 (2026-09-28). Each organisation's reads and writes run in its own scope: the digest's organisation row (name and notification settings), recipients, migrations, their queues through the ledger, pending decisions, last send and the audit row recording this one; the drift detector's coverage, Microsoft sources, dismissed decisions, standing preset and the decisions it raises and closes; group discovery's source connections, the groups it records and the decisions it raises; the slower-cadence mail's tier, its migrations on the automatic cadence with their data types, last visit and person, the steps already said (managed 0043, claimed and cleared), and its owners, admins and notification settings; the month invoices' language, the paths held (the true-up writes the month's peak), what the month bills, the prices agreed, the month's invoices and the draft a run makes, then a year's credit and draws, the notice that it runs out (managed 0057, claimed once), and the owners, admins and notification settings it goes to; the push's drafts, claimed one at a time (managed 0047), the invoice details and the latest VIES answer, and each draft written back, numbered. `withTenant` for a job's own reads, `tenantScopedDb` for the ledger, decision, preset and group stores. The operator's log page's events go to the same pool (`app_event`, insert only), the audit lines to the key's pool below | **in force**. `apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts` runs each job's per-organisation half on the pools it opens, as `app_user`, for two organisations; the month invoices' half runs over PGlite as `app_user` in `packages/managed/src/a-month-invoiced-in-advance.unit.test.ts` (another organisation's month is neither read nor written) and `apps/worker/src/jobs/a-month-invoiced-in-its-own-words.unit.test.ts`; the push's in `packages/managed/src/a-draft-numbered-by-the-books.unit.test.ts` and `apps/worker/src/jobs/a-draft-pushed-once.unit.test.ts` |
-| The same four jobs' one question across organisations: `activeOrganisations` (`task-pools.ts`), on `SYSTEM_DATABASE_URL` | the system role, `ownpace_system` (the owner until 0138 T3 step 2); one connection, closed before it answers | not needed: one statement, the ids of the active organisations (`SELECT id FROM tenant WHERE status = 'active'`), no other column and no other table. It first asks whether its connection sees every organisation, and refuses when it does not: on `app_user`, with no organisation set, `tenant` answers no row, and a job handed that empty list would visit nobody and call it a quiet morning; the system role sees them because it has `BYPASSRLS`. Until T2 each of the three read its list and every organisation's rows on its own owner pool, and group discovery's list was every source connection across organisations, with its config |
-| **The three scheduled Trigger.dev jobs** that span organisations whole (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`) | the system role, `ownpace_system`, since 0138 T3 step 2: each builds its pool from `SYSTEM_DATABASE_URL` and refuses without it, never `DATABASE_URL`. `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS`, a member of no role and no role a member of it, and the grants their statements need (managed migration 0033, and 0035 for `person_link`, which 0034 made after it): what the tick reads across organisations, what retention prunes, and what the purge reads, updates and deletes, each table the purge only empties readable by its `tenant_id` alone. The tick reads every organisation's `tenant.status` in one statement to start no pass for a closed one (`AN_OPEN_ORGANISATION_WHERE`, 0085 T2), which on `app_user` would find no organisation open. Until step 2 the owner, a superuser | **not in force**, by design: `BYPASSRLS` reads past the policies on the tables it is granted, and the separation between organisations rests on each query's own tenant filter. What step 2 changed is that no run holds a superuser's credential: no program on the server, no file of the server's, no other role changed, no permanent table made or altered (a temporary one, which lives and dies with its session, as PUBLIC may on every database), and no table read that the jobs do not ask for, whoever the grant was written to, PUBLIC included |
+| **The eight per-tenant Trigger.dev tasks** (`run-delta-sync`, `run-discovery`, `run-verification`, `run-confirmation`, `run-apply-deletion`, `run-apply-relocation`, `run-cutover`, `run-rollback`), and the standalone worker (`apps/worker/src/index.ts`): the tenant pool `openTaskPools` builds (`apps/worker/src/jobs/task-pools.ts`) on `APP_DATABASE_URL`, and the builders they hand it to (`buildDepsFromMapping`, `buildDomainDepsFromMapping`, `createLedgerVerificationReader`) | `app_user`. `openTaskPools` refuses to start without `APP_DATABASE_URL` and never falls back to `DATABASE_URL`. Every store and read a pass makes runs inside `withTenant` for its tenant: the ledger, cursor and verification stores on `tenantScopedDb`, the helper reads (`enabledDomains`, `stoppedDomains`, `targetProviderKey`, the rollback's mapping name, the step before each data type), the organisation's own `tenant` row, which the step and both builders read to refuse a closed organisation (`organisationIsOpen`, 0085 T2; outside a scope `app_user` would find no row there, and every pass would stop as closed), and the run, status, receipt, cutover and confirmation writes in scopes of their own. Two things it touches need no scope and have none: the rate and byte budgets (`plainDb`: their tables have no row security, by design) and the operator's log page's events (`app_event`, which `app_user` may insert into and not read) | **in force** |
+| The same tasks' audit key: `openTaskPools`'s second pool, on `SYSTEM_DATABASE_URL` | the system role, `ownpace_system` (not a superuser); one connection, closed a second after its last use | not needed: it reads `deployment_key` only, which holds no tenant's rows and which ledger migration 0062 closes to `app_user`; managed migration 0033 grants it to the system role. It is the API's audit key pool, in a task |
+| **The six scheduled jobs split in two** (`managed-digest`, `managed-drift-detect`, `managed-group-discovery`, `managed-cadence-email`, `managed-month-invoices` and `managed-invoice-push`), everything they read or write for one organisation: the tenant pool `openTaskPools` builds, opened in the run and ended in `afterwards` | `app_user`. Each organisation's reads and writes run in its own scope: the digest's organisation row (name and notification settings), recipients, migrations, their queues through the ledger, pending decisions, last send and the audit row recording this one; the drift detector's coverage, Microsoft sources, dismissed decisions, standing preset and the decisions it raises and closes; group discovery's source connections, the groups it records and the decisions it raises; the slower-cadence mail's tier, its migrations on the automatic cadence with their data types, last visit and person, the steps already said (managed 0043, claimed and cleared), and its owners, admins and notification settings; the month invoices' language, the paths held (the true-up writes the month's peak), what the month bills, the prices agreed, the month's invoices and the draft a run makes, then a year's credit and draws, the notice that it runs out (managed 0057, claimed once), and the owners, admins and notification settings it goes to; the push's drafts, claimed one at a time (managed 0047), the invoice details and the latest VIES answer, and each draft written back, numbered. `withTenant` for a job's own reads, `tenantScopedDb` for the ledger, decision, preset and group stores. The operator's log page's events go to the same pool (`app_event`, insert only), the audit lines to the key's pool below | **in force**. `apps/worker/src/jobs/a-job-that-reads-each-organisation-as-itself.integration.test.ts` runs each job's per-organisation half on the pools it opens, as `app_user`, for two organisations; the month invoices' half runs over PGlite as `app_user` in `packages/managed/src/a-month-invoiced-in-advance.unit.test.ts` (another organisation's month is neither read nor written) and `apps/worker/src/jobs/a-month-invoiced-in-its-own-words.unit.test.ts`; the push's in `packages/managed/src/a-draft-numbered-by-the-books.unit.test.ts` and `apps/worker/src/jobs/a-draft-pushed-once.unit.test.ts` |
+| The same four jobs' one question across organisations: `activeOrganisations` (`task-pools.ts`), on `SYSTEM_DATABASE_URL` | the system role, `ownpace_system`; one connection, closed before it answers | not needed: one statement, the ids of the active organisations (`SELECT id FROM tenant WHERE status = 'active'`), no other column and no other table. It first asks whether its connection sees every organisation, and refuses when it does not: on `app_user`, with no organisation set, `tenant` answers no row, and a job handed that empty list would visit nobody and call it a quiet morning; the system role sees them because it has `BYPASSRLS` |
+| **The three scheduled Trigger.dev jobs** that span organisations whole (`managed-sync-tick`, `managed-retention`, `managed-purge-closed`) | the system role, `ownpace_system`: each builds its pool from `SYSTEM_DATABASE_URL` and refuses without it, never `DATABASE_URL`. `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS`, a member of no role and no role a member of it, and the grants their statements need (managed migration 0033, and 0035 for `person_link`, which 0034 made after it): what the tick reads across organisations, what retention prunes, and what the purge reads, updates and deletes, each table the purge only empties readable by its `tenant_id` alone. The tick reads every organisation's `tenant.status` in one statement to start no pass for a closed one (`AN_OPEN_ORGANISATION_WHERE`, 0085 T2), which on `app_user` would find no organisation open | **not in force**, by design: `BYPASSRLS` reads past the policies on the tables it is granted, and the separation between organisations rests on each query's own tenant filter. No run holds a superuser's credential: no program on the server, no file of the server's, no other role changed, no permanent table made or altered (a temporary one, which lives and dies with its session, as PUBLIC may on every database), and no table read that the jobs do not ask for, whoever the grant was written to, PUBLIC included |
 | The appliance's `withTenant` scopes (`apps/selfhost/src/index.ts`) | the bundled image's owner or PGlite's `postgres`, dropping to `app_user` with `SET LOCAL ROLE` | **in force** |
 | The appliance's `PgLedger` and `PgCursorStore`, over `persistenceBackend.db` | the bundled image's owner or PGlite's `postgres`, both superusers | not in force; the appliance holds one organisation, so there is nothing to separate |
 | The scripts in §2's table | the owner | not in force, by nature: they act across tenants at the machine |
-| The commands an operator runs with their own `DATABASE_URL`: the cutover CLI (`apps/worker/src/cli/index.ts`), the appliance's `forget-me` (`apps/selfhost/src/forget-me.ts`), and the two Drive measurements (`scripts/drive-export-stability.ts`, `scripts/drive-share-inheritance.ts`) | whatever that URL names (`forget-me` on PGlite: PGlite's `postgres`); none of them sets a role | **not in force** on a superuser's URL (the managed owner, the bundled image's owner, PGlite's `postgres`): each query's own filter, on a tenant or on one connection's id, is what separates. On an ordinary owner the `FORCE`d policies do apply, which is why the CLI calls the cutover store inside `withTenant`, and why the stores its `reindex` builds are tenant-scoped since 0138 T1 step 1 |
+| The commands an operator runs with their own `DATABASE_URL`: the cutover CLI (`apps/worker/src/cli/index.ts`), the appliance's `forget-me` (`apps/selfhost/src/forget-me.ts`), and the two Drive measurements (`scripts/drive-export-stability.ts`, `scripts/drive-share-inheritance.ts`) | whatever that URL names (`forget-me` on PGlite: PGlite's `postgres`); none of them sets a role | **not in force** on a superuser's URL (the managed owner, the bundled image's owner, PGlite's `postgres`): each query's own filter, on a tenant or on one connection's id, is what separates. On an ordinary owner the `FORCE`d policies do apply, which is why the CLI calls the cutover store inside `withTenant`, and why the stores its `reindex` builds are tenant-scoped |
 
 What that means in the managed edition: the database stops a query that forgets
 its tenant in the API, in a per-tenant task and in the per-organisation half of
@@ -112,7 +68,7 @@ builds them on `app_user` and checks they see one organisation, that the
 writes read back, that an audit event still prints its line, and that a
 closed organisation's pass stops while an open one's runs). The audit
 export reads its key, which `app_user` may not, on a pool of one of the
-system role's (the owner's until T3 step 2), and nothing else goes there:
+system role's, and nothing else goes there:
 `openTaskPools` hands a task the tenant pool and its end, and keeps the key's
 pool for the sink.
 `scripts/a-pass-that-opened-the-owners-pool.unit.test.ts` fails if a file in
@@ -164,7 +120,7 @@ owner's, as `app_user`, on no pool but the tenant pool and the audit key's,
 one connection at a time; the list names the active ones and refuses on
 `app_user`; and the jobs' own statements outside a scope find nothing. It
 runs the halves, not the tasks' `run` bodies, which the static rules above
-hold. Since T3 step 2 the same guard's rule 8 holds who reads which URL across
+hold. The same guard's rule 8 holds who reads which URL across
 organisations: the three jobs that span them and `task-pools.ts` read
 `SYSTEM_DATABASE_URL` and no other database URL, the operator's CLI and
 `direct-url.ts`, which never run in a task, never read it, and no other file
@@ -227,18 +183,17 @@ database roles"):
 - `APP_DATABASE_URL` → `app_user`. **The request path, always.** The API reads
   and writes tenant data through this, so row security is in force on its
   queries ("Where row security holds today"). **The eight per-tenant
-  Trigger.dev tasks use it too**, since 0138 T1 step 2: `openTaskPools` builds
+  Trigger.dev tasks use it too**: `openTaskPools` builds
   their tenant pool on it and on nothing else, and refuses to start without it.
   So do the digest, the drift detector and group discovery for everything they
-  read or write about one organisation, since 0138 T2. The three jobs that span
+  read or write about one organisation. The three jobs that span
   organisations whole do not: they are the system role's (below).
 - `DATABASE_URL` → the DB owner. **Not the request path.** No route opens a
-  pool on it (the permission report and the sharing rescan did until
-  2026-09-28, 0138 T6); in the API it serves the migrations and the audit key's
+  pool on it; in the API it serves the migrations and the audit key's
   pool of one when `DIRECT_DATABASE_URL` is unset (the table above). It is for
   the acts performed AT THE MACHINE by whoever runs the
   deployment — the ones that by their nature span tenants, or precede one
-  existing. **No Trigger.dev task holds it** since workplan 0138 T3 step 2:
+  existing. **No Trigger.dev task holds it**:
   `set-task-env.sh` uploads nothing composed from it and deletes the names it
   went up under (`DATABASE_URL`, `DIRECT_DATABASE_URL`) from the task
   environment. At the machine, these hold it:
@@ -252,8 +207,8 @@ database roles"):
 | `deploy/compose/live-pass-check.sh` | live's pass check (workplan 0132 T9): `psql` over the `postgres` container's socket, as `POSTGRES_USER`, without composing a URL. SELECTs only: the open holds; the named migration's organisation, status and selected data types; whether an active owner of that organisation is a platform operator; the passes in flight across every organisation; and that migration's run rows by `orchestrator_ref`. It prints counts, times and the Trigger.dev run id, never a row's content. The pass itself is pressed inside the `api` container as `app_user`, under row security (`apps/api/src/scripts/live-pass.ts`) |
 | `deploy/compose/rotate-db-passwords.sh` | acts as the owner without composing a URL: `psql` over the database container's socket, as `POSTGRES_USER`, to list the login roles and to `ALTER ROLE` the owner and `app_user` to `.env`'s values (`--sync`, `--rotate`; the functions are `db-roles.sh`'s, which the bring-up's `data` phase calls on every run). It asks each password over the stack's network and through PgBouncer, and prints no value (workplan 0132 T2; `docs/managed-bring-up.md`, "Changing the database passwords"). With `--with-trigger-stores` it also sets `trigger-db`'s role `trigger` over that container's socket, as itself: Trigger.dev's own database, which holds no tenant rows |
 
-`deploy/compose/set-task-env.sh` held it until 0138 T3 step 2 and holds it no
-more: it uploads two database URLs into the Trigger.dev task environment,
+`deploy/compose/set-task-env.sh` does not hold it: it uploads two database
+URLs into the Trigger.dev task environment,
 beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run of every
 task receives both. `SYSTEM_DATABASE_URL` (composed as
 `TASK_SYSTEM_DATABASE_URL`, from the system role's name and `.env`'s
@@ -262,18 +217,18 @@ that span organisations whole connect with it**; the three split jobs (the
 digest, the drift detector, group discovery) read their list of organisations
 on it, ids only; and every task that opens `openTaskPools` reads it for the
 audit key's pool of one. `APP_DATABASE_URL` is `app_user`: the eight per-tenant
-tasks read and write tenant data through it since 0138 T1 step 2, and the three
-split jobs every organisation's rows since 0138 T2. Until T3 step 1 it also
-uploaded `DIRECT_DATABASE_URL`, the owner straight to `postgres:5432`, and
-until step 2 `DATABASE_URL`, the owner through the pooler; it deletes both from
-the store now, in a run of its own (`set-task-env.sh --forget-owner-names`)
-that the bring-up makes only after `deploy-tasks.sh` has put the new tasks in
-place, so a deploy that fails leaves the old tasks the URL they read, and that
-run fails when the list it reads back still holds either (`docs/managed-bring-up.md`, "The owner's names in the task
-environment").
+tasks read and write tenant data through it, and the three split jobs every
+organisation's rows. `set-task-env.sh` deletes the owner's two names, `DIRECT_DATABASE_URL`
+(the owner straight to `postgres:5432`) and `DATABASE_URL` (the owner through
+the pooler), from the store, since an older task environment may still hold
+them, in a run of its own (`set-task-env.sh --forget-owner-names`) that the
+bring-up makes only after `deploy-tasks.sh` has put the new tasks in place, so
+a deploy that fails leaves the old tasks the URL they read, and that run fails
+when the list it reads back still holds either (`docs/managed-bring-up.md`,
+"The owner's names in the task environment").
 
-- `SYSTEM_DATABASE_URL` → **the system role, `ownpace_system`** (0138 T3 step
-  2, managed migration 0033). **The jobs that span organisations, and nothing
+- `SYSTEM_DATABASE_URL` → **the system role, `ownpace_system`** (managed
+  migration 0033). **The jobs that span organisations, and nothing
   else**: the sync tick, retention and the purge of closed organisations for
   everything, the split jobs' list of organisations, and every task's audit key.
   `LOGIN NOSUPERUSER NOCREATEROLE NOCREATEDB NOREPLICATION BYPASSRLS`, a member
@@ -409,7 +364,7 @@ the tenant, each set transaction-locally by its own helper in `db.ts`:
 command, on the tenant. `person_migration`'s adds to it that a row it writes
 names a migration of that tenant (managed `0031`). Its key already holds the
 person to that tenant, and a key is checked past row security, so the policy is
-what holds the migration. `legal_acceptance` (managed `0032`, workplan 0139 T3)
+what holds the migration. `legal_acceptance` (managed `0032`)
 has SELECT and INSERT only, on the tenant, and an insert must name one of that
 tenant's members; UPDATE and DELETE are revoked from `app_user` as well, so a
 record of what somebody accepted cannot be rewritten on the request path. It
@@ -417,8 +372,7 @@ has no key to `tenant_member`, on purpose: removing a member leaves their rows,
 which the organisation keeps until its data is erased (privacy §9's row), and
 a member invited back is not asked again for a version they accepted there.
 The erasure purge is the one deleter (`PURGED_TABLES`): the rows go with the
-organisation, the owner's answer to 0139 open question 4 on 2026-09-29. Read
-the policies themselves in
+organisation. Read the policies themselves in
 `pg_policies`; this paragraph is a map, not the contract.
 
 None of this binds a superuser. "Where row security holds today" says which
@@ -450,7 +404,7 @@ cutover job, the rollback job and the operator CLI read those two through
 `tenantCutoverStore` (`packages/ledger/src/cutover-store.ts`), which runs every
 call inside `withTenant`; the API's cutover door reads them through
 `withTenantDb`. Inside `withTenant` is not the same as under the policies: it
-is under them on `app_user`, which the two jobs connect as since 0138 T1 step 2,
+is under them on `app_user`, which the two jobs connect as,
 and not on a superuser's connection, which the CLI has when its operator's URL
 is the owner's ("Where row security holds today").
 
@@ -477,7 +431,7 @@ creates the table, is the only exemption the guard accepts.
 
 ## Beyond the row filter: the membership gate
 
-Since workplan 0020 T1, a verified JWT signature is not an authorization:
+A verified JWT signature is not an authorization:
 `authenticate` confirms the `(tenantId, sub)` claim against an ACTIVE
 `tenant_member` **row** (probed inside `withTenant`, so RLS scopes the lookup
 — a forged tenant claim finds no row and gets 403), and the caller's role
@@ -595,11 +549,9 @@ ROLLBACK;
   connection path, add the in-force proof for it.
 - **The owner URL in the request path.** Everything works, nothing is
   isolated. `APP_DATABASE_URL` exists so this is a configuration you can
-  grep for. The three managed jobs that span organisations whole were in this
-  state until 0138 T3 step 2 and are past the policies still, on the system
-  role, which is no superuser; the digest, the drift detector and group
-  discovery were until 0138 T2, and the permission report's pool was until
-  0138 T6 (all 2026-09-28; "Where row security holds today").
+  grep for. The three managed jobs that span organisations whole are past the
+  policies by design, on the system role, which is no superuser ("Where row
+  security holds today").
 - **Session-level context.** `SET app.current_tenant` without `LOCAL`
   survives the transaction and rides the pooled connection into another
   request. `withTenant` uses transaction-local everything; keep it that way.

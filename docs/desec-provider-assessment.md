@@ -2,15 +2,15 @@
 
 > ⚠️ **HISTORICAL — THE CODE THIS ASSESSES NO LONGER EXISTS.**
 > `packages/core/src/dns-provider-desec.ts`, the ~950-line DNS write path this document
-> evaluates, was **deleted on 2026-08-05** by commit `4f05136` (workplan 0026 T3 row 20):
-> the owner decision of 2026-07-16 made the product's DNS posture **verify-only**, and an
-> unwired write path is a liability rather than a head start. So the recommendation below —
+> evaluates, was **deleted on 2026-08-05** by commit `4f05136`: the product's DNS posture is
+> **verify-only**, and an unwired write path is a liability rather than a head start. So the
+> recommendation below —
 > including "Owner ratification required" — is answered and closed: no provider was chosen,
 > because none is needed. `docs/dns-management.md` is the live deliverability story and MX
 > cutover is a documented manual step.
 >
 > Kept for the reasoning trail (`docs/README.md`'s rule): the provider comparison is still
-> the right analysis if DNS writes are ever revisited (banner added 2026-08-13).
+> the right analysis if DNS writes are ever revisited.
 ## What it does
 
 `packages/core/src/dns-provider-desec.ts` implements the `DnsProvider` interface using deSEC's REST API v1.
@@ -76,7 +76,7 @@ The `DnsProvider` interface abstraction allows swapping implementations without 
 - `apps/worker/src/jobs/run-cutover.ts:128`
 - `apps/worker/src/jobs/run-rollback.ts:77`
 
-Per ADR-0002 and review finding C2, the first DNS provider choice is an **owner decision**, not an agent decision. This implementation was done unilaterally without owner approval.
+Per ADR-0002 and review finding C2, choosing the first DNS provider is the owner's call, not an agent's.
 
 ## Recommendation
 

@@ -1,9 +1,8 @@
 # The two O365 tenants, and which one you are allowed to break
 
-**Owner decision 2026-08-10: the two-tenant strategy.** One real tenant that
-proves the product against reality, one synthetic tenant that coders may
-freely experiment on — because until this document, the project had only the
-first, and "test tenant" was a dangerously misleading name for it.
+**The two-tenant strategy.** One real tenant that proves the product against
+reality, one synthetic tenant that coders may freely experiment on. "Test
+tenant" is a dangerously misleading name for the first.
 
 ## Tenant A — the real tenant (read-only, owner-held)
 

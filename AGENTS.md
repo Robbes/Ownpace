@@ -6,7 +6,7 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
 
 ## Session protocol (mandatory)
 1. **Start:** read the arch doc, then the active workplan in `docs/workplans/` — its top **Status block** is ground truth for done/open. Trust it; never redo completed tasks. To find which plan covers something, scan the generated index in [`docs/workplans/README.md`](docs/workplans/README.md): one row per plan, with its one-line summary and the markers its task table carries.
-   **Then grep [`docs/LESSONS.md`](docs/LESSONS.md) for every file you are about to edit.** It is generated from the guards in `scripts/`, indexed BY PATH, and each entry is a defect that actually happened to this repository. The knowledge was always in those headers; what was missing was a route from "I am about to touch this file" to "here is what is already known about it" — on 2026-09-01 an agent reconstructed `docs/rls-guide.md` §1–2 from the migrations without ever finding the guide, and was saved from shipping a vacuous Postgres probe only because `the-check-postgres-never-made` happened to be adjacent to something else it was reading.
+   **Then grep [`docs/LESSONS.md`](docs/LESSONS.md) for every file you are about to edit.** It is generated from the guards in `scripts/`, indexed BY PATH, and each entry is a defect that actually happened to this repository.
 2. **Plan:** create a task-tracker list before coding; keep it updated. Parallel subagents may do read-only audits; conclusions still need quoted evidence.
 3. **Evidence-first:** never claim something works without pasting proof (test run, logs, wire dialogue). Quote errors verbatim before proposing fixes.
 4. **Docker hygiene:** manual debug `docker run` uses `--rm` or is removed before session end.
@@ -38,8 +38,7 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
   to "simplify" it: `--cache` alone keys on mtime, which every checkout
   invalidates. Every `.ts` in the repo is inside a
   tsconfig, so lint and `pnpm typecheck` both cover the GATES themselves and not
-  only the shipped source — that gap once hid 29 real errors, including a
-  function the integration teardown imports and calls that was never exported.
+  only the shipped source.
   `test/ui` is its own project because it needs DOM lib (a `lib` is
   program-wide, so it cannot be widened centrally); `pnpm typecheck` runs it as
   a second `tsc`. Do not narrow either scope back to `packages`/`apps`.
@@ -71,7 +70,7 @@ Before any Stalwart or integration-test work: read `docs/stalwart-integration-fi
 - **The OTA stack runs out of `~/ownpace-managed`** on its host, matching the
   default project name `managed.yml` pins; a second stack sets its own with
   `COMPOSE_PROJECT_NAME` in its `.env`, and every container, volume and network
-  is named after the project (workplan 0132 T1). Reach a service with
+  is named after the project. Reach a service with
   `docker compose -f deploy/compose/managed.yml exec <service>`, never a fixed
   container name. Any command you hand somebody to run against the OTA stack
   starts there — see
@@ -91,28 +90,28 @@ operative bullets points into it; never bulk-read `docs/adr/`, and never `docs/a
 (the frozen record of consolidated ADRs, ADR-0051). Statuses live in the register
 (`docs/adr/README.md`). After amending an operative section, regenerate:
 `node scripts/adr-operative.mjs --write` — it refuses a section over budget (ADR-0051).**
-- TypeScript, Node 26 (24 until 2026-10-31; workplan 0119 §2.4), pnpm workspaces monorepo (ADR-0002); Apache-2.0 (ADR-0001).
+- TypeScript, Node 26, pnpm workspaces monorepo (ADR-0002); Apache-2.0 (ADR-0001).
 - `Scheduler` interface: in-process croner (self-host) / Trigger.dev (managed) (ADR-0004).
 - Ledger: **Postgres everywhere** — managed Postgres+RLS (managed) / bundled small Postgres (self-host), one schema (ADR-0016, **ADR-0023** supersedes the SQLite option in ADR-0010); self-host may run embedded PGlite instead of a Postgres server (ADR-0028); migrations are hand-written numbered SQL applied at startup by `runMigrations` (ADR-0045) and linted by Atlas in CI (ADR-0017). **No SQLite** — do not reintroduce a second dialect.
-- Engines: **JS-native, all of them. No Perl, no Python, no external binaries.** JMAP writer (jmap-jam) for JMAP; `imapflow` for IMAP; DAV (CalDAV/CardDAV/WebDAV) is this repository's own client over `fetch` (`packages/connectors`, `packages/engines`) — no `webdav` or `ical.js` package is installed. The imapsync/vdirsyncer/rclone shell-outs this line used to name are **gone** — see ADR-0019's update note, "there are no shell-out engines left", and ADR-0007's status line (ADR-0007/0018/0019).
-- O365: per-customer single-tenant Entra app (the multi-tenant app was retired 2026-08-09 — ADR-0006's second update); IMAP+OAuth2 primary, Graph fallback.
-- Target provisioning: RETRACTED (ADR-0008, owner decision 2026-08-02) — the owner supplies existing-account credentials; provisioning guidance lives in docs, not an interface.
+- Engines: **JS-native, all of them. No Perl, no Python, no external binaries.** JMAP writer (jmap-jam) for JMAP; `imapflow` for IMAP; DAV (CalDAV/CardDAV/WebDAV) is this repository's own client over `fetch` (`packages/connectors`, `packages/engines`) — no `webdav` or `ical.js` package is installed. There are no shell-out engines left: imapsync, vdirsyncer and rclone are **gone** (ADR-0007/0018/0019).
+- O365: per-customer single-tenant Entra app, no multi-tenant app (ADR-0006's second update); IMAP+OAuth2 primary, Graph fallback.
+- Target provisioning: RETRACTED (ADR-0008) — the owner supplies existing-account credentials; provisioning guidance lives in docs, not an interface.
 
 ## Repo map (top level; don't trust paths blindly — verify before editing)
 - `docs/` — all documentation: `architecture/` (source of truth), `adr/`, `workplans/` (Status blocks), canonical docs incl. `stalwart-integration-fix.md`, `testing.md`.
-- `packages/` — `core` (reconcile+idempotency), `ledger`, `connectors`, `engines`, `orchestration` (`runAllDomains` plus discovery/verify/apply across domains — a library since workplan 0040, used by `apps/api`, `apps/worker` and `apps/selfhost`), `scheduler`, `shared`, `testing`, and `managed` — **the one managed-only package** (ADR-0036). Everything else here is loaded by both editions; `managed` is loaded by `apps/api` and `apps/worker` and by nothing the appliance runs. It carries its own `migrations/` too: the appliance applies `packages/ledger/migrations` only, which is why it has no `invoice`, `tenant_member` or `erasure_record` table.
+- `packages/` — `core` (reconcile+idempotency), `ledger`, `connectors`, `engines`, `orchestration` (`runAllDomains` plus discovery/verify/apply across domains — a library used by `apps/api`, `apps/worker` and `apps/selfhost`), `scheduler`, `shared`, `testing`, and `managed` — **the one managed-only package** (ADR-0036). Everything else here is loaded by both editions; `managed` is loaded by `apps/api` and `apps/worker` and by nothing the appliance runs. It carries its own `migrations/` too: the appliance applies `packages/ledger/migrations` only, which is why it has no `invoice`, `tenant_member` or `erasure_record` table.
 - `apps/` — `api`, `web`, `worker`, `selfhost`.
-- `deploy/` — `compose/` (managed control plane, plus the dev/CI stacks) and `selfhost/` (appliance compose, PGlite and drill overrides). There is no `helm/` or `homeassistant/`; this line named both until 2026-08-13 and neither has ever existed.
+- `deploy/` — `compose/` (managed control plane, plus the dev/CI stacks) and `selfhost/` (appliance compose, PGlite and drill overrides). There is no `helm/` or `homeassistant/`.
 - `scripts/` — the cross-cutting guards (`*.unit.test.ts`, indexed by path in `docs/LESSONS.md`) and build/release helpers; `scripts/windows/` is the Windows appliance launcher.
 - `site/` — the public website and `site/legal/` (privacy, terms, DPA drafts); by design it imports no workspace package (`site/build.mjs` header).
-- `test/` — `e2e/` and `ui/` only. **Integration tests colocate with their source** under `packages/`/`apps/`, as do unit tests; `test/` is for the two tiers that belong to no single package. (`test/fixtures/` and `test/integration/` were empty scaffolds and are gone.)
+- `test/` — `e2e/` and `ui/` only. **Integration tests colocate with their source** under `packages/`/`apps/`, as do unit tests; `test/` is for the two tiers that belong to no single package.
 
 ## Hard rules (each "don't" has its "do")
 1. **Idempotency is sacred.** Re-runs converge: no duplicates, no corruption. Keep the idempotency property tests green; extend them with new behavior.
 2. **Non-destructive by default.** Never auto-delete/overwrite on the target; surface source deletions as user decisions (arch doc §11.1).
 3. **No secrets in the repo.** Use `.env` (gitignored) and `tokenFromEnv`/`passwordFromEnv` references (stored credentials are AES-encrypted under `SECRET_ENCRYPTION_KEY`; there is no vault — see SECURITY.md); never in code, tests, fixtures, or ADRs.
 4. **Respect provider limits.** Honor 429/`Retry-After`; keep per-tenant/provider concurrency budgets.
-5. **Self-host must keep working.** No managed-only dependency in `packages/` or `apps/selfhost`; orchestration stays behind `Scheduler`. **The one exception is `packages/managed`, which IS managed-only and is named as such** (ADR-0036) — it exists so that everything presuming a CUSTOMER (prices, invoices, seats, closing an account, erasure receipts) has somewhere to live that is not `shared` or `ledger`. Its DDL goes in `packages/managed/migrations`, never the shared chain. The rule is enforced, not remembered: `apps/selfhost/src/no-managed-leakage.unit.test.ts` walks the appliance's real import graph, and it passed for as long as billing lived in the shared packages because its forbidden list said "billing" while the modules were called `pricing`, `usage-metering` and `offboarding`. **Managed-only code that is not named after an invoice still belongs in `packages/managed` or an `apps/` managed app** — add the specifier to that guard when you add the code, and a managed thing hanging off a core table becomes a ROW of its own, never a column.
+5. **Self-host must keep working.** No managed-only dependency in `packages/` or `apps/selfhost`; orchestration stays behind `Scheduler`. **The one exception is `packages/managed`, which IS managed-only and is named as such** (ADR-0036) — it exists so that everything presuming a CUSTOMER (prices, invoices, seats, closing an account, erasure receipts) has somewhere to live that is not `shared` or `ledger`. Its DDL goes in `packages/managed/migrations`, never the shared chain. The rule is enforced, not remembered: `apps/selfhost/src/no-managed-leakage.unit.test.ts` walks the appliance's real import graph, against a list of forbidden specifiers. **Managed-only code that is not named after an invoice still belongs in `packages/managed` or an `apps/` managed app** — add the specifier to that guard when you add the code, and a managed thing hanging off a core table becomes a ROW of its own, never a column.
 6. **Docs discipline.** `docs/` is the only home for documentation; keep the root `.md` allowlist (CONTRIBUTING.md); Apache-2.0 headers on source files.
 7. **Decisions → ADRs** (append-only, or moved word for word to `docs/adr/history/`; supersede, don't delete — except each ADR's `## Operative rules` section, which is amended IN PLACE and regenerated into `OPERATIVE.md`, ADR-0038). An ADR that can no longer be read without reconciling its amendments is consolidated in place — same number and file, rewritten as it stands, its old text moved to `history/` (ADR-0051). Operational findings → a Rule + one-line rationale in the relevant reference doc (e.g. the Stalwart fix doc).
 8. **Gates before "done":** lint + typecheck + unit + relevant integration; update docs.

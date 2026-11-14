@@ -1,6 +1,6 @@
 # Stalwart v0.16.27 Testcontainers Integration — Authoritative Reference
 
-DO NOT deviate from this. DO NOT change the pinned version (v0.16.27 since 2026-10-25) except on
+DO NOT deviate from this. DO NOT change the pinned version (v0.16.27) except on
 the owner's decision, recorded in ADR-0022, with every copy moved in the same change and the
 two-phase run proved on the new tag first — see "Moving the pin" below. DO NOT put
 accounts/domains/listeners in config.json. DO NOT skip the shadow-pass tests. Prior sessions
@@ -24,7 +24,7 @@ The custom image had no special configuration baked in. Switch to the official i
 
 ## Moving the pin
 
-**Rule (2026-10-25, ADR-0022):** the pin moves only on the owner's decision, recorded as a dated
+**Rule (ADR-0022):** the pin moves only on the owner's decision, recorded as a dated
 section of ADR-0022, and only within a minor line upstream calls a binary swap (v0.16.x: *"replace
 the binary (or run `docker pull`)"*); another line starts from upstream's `UPGRADING/` notes. In
 the same change:
@@ -67,9 +67,8 @@ repository:
   capabilities v0.16.10 lists; nothing here reads either.
 
 Proved in the session that made the change, on x86_64 with a local Docker daemon:
-`setup-stalwart.sh` at v0.16.27 with `stalwart-cli` 1.0.13 (the installer's `latest` that
-morning, which CI had run against v0.16.10; CI took 1.0.14 when it was released at 18:14 UTC that
-day, and has named it since 2026-11-01, by release and SHA-256: "Provisioning" below): five upserts, then IMAPS and a JMAP session as the plan's
+`setup-stalwart.sh` at v0.16.27 with `stalwart-cli` 1.0.13 (CI runs 1.0.14, named by release
+and SHA-256: "Provisioning" below): five upserts, then IMAPS and a JMAP session as the plan's
 accounts; the eleven integration files that use Stalwart and not Nextcloud
 (`SKIP_NEXTCLOUD=true`), 44 tests passed; the spike, which still reads `recurrenceRules` refused
 on all three rungs (0031 T1 stays parked); and one data volume made at v0.16.10, then taken to
@@ -102,13 +101,11 @@ Phase 2 (serving): new container, SAME config.json, SAME data volume, NO recover
   normal mode → IMAP/JMAP listeners start automatically with the provisioned accounts present.
 
 ## Provisioning (stalwart-cli as a HOST binary, not a container)
-Install the release CI runs: v1.0.14 since 2026-11-01, `STALWART_CLI_VERSION` in the "Install
+Install the release CI runs: v1.0.14, `STALWART_CLI_VERSION` in the "Install
 stalwart-cli" step of `ci.yml` (integration-tests), `e2e.yml` and `e2e-managed.yml`, one step word
 for word, which fetches `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` from that release and
-refuses it unless its SHA-256 is the one pinned beside the version (workplan 0119). Until then
-all three piped `releases/latest/download/stalwart-cli-installer.sh` to `sh`, whatever release
-was newest. By hand, that release's own installer, which checks the archive against the sum it
-carries:
+refuses it unless its SHA-256 is the one pinned beside the version. By hand, that release's own
+installer, which checks the archive against the sum it carries:
   curl --proto '=https' --tlsv1.2 -LsSf \
     https://github.com/stalwartlabs/cli/releases/download/v1.0.14/stalwart-cli-installer.sh | sh
 The CLI is not the server pin above: it moves by hand when the pin watch's summary issue lists a
@@ -155,8 +152,8 @@ observed to prevent "LOCK: Resource temporarily unavailable" errors:
 
 ## Verified Findings from Integration Testing
 
-**Image**: The official `stalwartlabs/stalwart` image works correctly (v0.16.10, and v0.16.27
-since 2026-10-25). No custom image is needed. The custom image `stalwart-test-custom:latest`
+**Image**: The official `stalwartlabs/stalwart` image works correctly (v0.16.10 and
+v0.16.27). No custom image is needed. The custom image `stalwart-test-custom:latest`
 provided no benefit.
 
 **TLS Ports**: Stalwart in Normal Mode auto-binds TLS listeners:

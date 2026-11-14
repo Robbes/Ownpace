@@ -6,15 +6,13 @@ new mapping will move, waits for you to review and confirm it, then runs on an
 in-process schedule and serves a local status endpoint. It runs **all five
 domains** (mail / calendar / contacts / tasks / files) with the same engines as the
 managed edition, and loads **none** of the managed-only machinery (no Trigger.dev,
-no billing). Container-first per **ADR-0019**; Postgres-backed per **ADR-0023**.
+no billing).
 
-> **Footprint note (ADR-0023, amended by ADR-0028).** Earlier designs imagined an
-> embedded SQLite file. Both editions standardise on Postgres — but since
-> ADR-0028 the appliance can run it **embedded** (PGlite, Postgres compiled to
-> WASM, in-process): same SQL, same migrations, same RLS, no second container,
-> no port. The bundled-Postgres compose below remains the default; the
-> no-Postgres-server shape is one override file away (see "No Postgres server:
-> the PGlite variant" under step 4).
+> **Footprint note.** Both editions run on Postgres, and the appliance can run it
+> **embedded** (PGlite, Postgres compiled to WASM, in-process): same SQL, same
+> migrations, same RLS, no second container, no port. The bundled-Postgres
+> compose below is the default; the no-Postgres-server shape is one override
+> file away (see "No Postgres server: the PGlite variant" under step 4).
 
 ## What you need
 
@@ -105,10 +103,9 @@ Edit `deploy/selfhost/.env`:
   gives up the protection above; say so only if a proxy in front of it checks
   the name instead. The appliance prints what it answers to when it starts.
   Also optional: `SELFHOST_PORT` (the compose files default to `8081`),
-  `SELFHOST_IMAGE` (pin to a release tag — `X.Y.Z` from v0.1.0 on; rc.1 lives only at
-  `ghcr.io/robbes/open-migrate-selfhost` — or a verified
-  `sha256` digest for production; the procedure is in
-  `deploy/selfhost/README.md`, "Image channels").
+  `SELFHOST_IMAGE` (pin to a release tag, `X.Y.Z`, or to a verified `sha256`
+  digest for production; the procedure is in `deploy/selfhost/README.md`,
+  "Image channels").
   (Running the appliance straight from source with `pnpm` and no `PORT` set
   defaults to `8080` — the examples in this guide use the compose port, 8081.)
 
@@ -243,7 +240,7 @@ Three optional settings on the source:
   already copied keeps its format, and the documents of each kind whose format
   changed are copied again under their new names.
 
-**What is not there yet, stated plainly** (workplan 0042):
+**What is not there yet, stated plainly:**
 
 - **Google Docs, Sheets, Slides and Drawings are left behind by default, one
   by one, with the reason** — they are not files and have no bytes.
@@ -251,8 +248,8 @@ Three optional settings on the source:
   instead, for all four with `nativeFilePolicy` or per kind with
   `nativeFilePolicies`, and every format carries every kind. A document is
   exported again only when Drive's modified time for it moves, so an export
-  that differs byte for byte (Slides as `.pptx` and Docs as `.odt` do,
-  measured in workplan 0042 T3) is not re-copied.
+  that differs byte for byte (Slides as `.pptx` and Docs as `.odt` do) is not
+  re-copied.
 - **No incremental delta.** Every pass lists every folder. The ledger still
   makes the second pass copy nothing; it costs a listing, not a re-copy.
 - **Drive's `removed` flag is never trusted** — Google sets it for losing
@@ -292,7 +289,7 @@ appliance runs a read-only, body-free **discovery** pass against your source
 (counting mailboxes/messages, calendars/events, address books/contacts,
 drives/files — never fetching content) and stores the counts.
 
-### No Postgres server: the PGlite variant (ADR-0028)
+### No Postgres server: the PGlite variant
 
 The appliance can run with **no Postgres container at all** — PGlite is
 Postgres compiled to WASM running in-process, so the database becomes a
@@ -311,8 +308,7 @@ guide — ports, config directory, every URL — is identical. Two differences
 that matter:
 
 - **One container instead of two**, and nothing listening on the Postgres
-  port. This is the shape the future native Windows installer ships
-  (workplan 0015).
+  port. This is the shape the future native Windows installer ships.
 - **Backups work differently** — there is no `pg_dump`; see the Backup
   section below.
 
@@ -325,9 +321,8 @@ builds no database image either, since it has no database container.
 **One question worth answering before you start: should your Deleted Items and
 Junk come along?**
 
-By default they do **not**. Almost nobody wants a fresh mailbox pre-loaded with
-mail they threw away, and until this was asked the tool copied it anyway — not
-as a decision, just as what listing every folder did.
+By default they do **not**: almost nobody wants a fresh mailbox pre-loaded with
+mail they threw away.
 
 The confirm screen shows what will be left behind and how many items are in it,
 so it is a choice rather than a surprise. If you keep Deleted Items as an
@@ -355,16 +350,13 @@ is what makes it usable as a signal.
 Mail only for now: calendars and address books have no trash in their listing,
 and the Nextcloud file trashbin lives at an endpoint the tool does not read.
 
-
-
 Open `http://127.0.0.1:8081/` in a browser (or over the LAN if you set
 `SELFHOST_BIND=0.0.0.0`) — the root redirects to the confirm screen at
-`/ui/confirm`, part of the shared operating UI (ADR-0026). For each
-configured mapping you'll see the discovery
-counts as they land, next to the scope manifest — what migrates, what's
-partial, and what's explicitly **not** migrated (SAD §11.2, "no silent
-omissions"). Nothing has been copied yet. Once you're satisfied, click
-**Start migration** — this flips the mapping `paused`→`active` and the
+`/ui/confirm`, part of the shared operating UI. For each configured mapping
+you'll see the discovery counts as they land, next to the scope manifest —
+what migrates, what's partial, and what's explicitly **not** migrated (SAD
+§11.2, "no silent omissions"). Nothing has been copied yet. Once you're
+satisfied, click **Start migration** — this flips the mapping `paused`→`active` and the
 in-process scheduler picks it up on its normal cron from then on.
 
 Once every configured mapping has started, the root opens **Migrations**
@@ -779,7 +771,7 @@ docker run --rm -v ownpace-selfhost_appdata:/data -v "$PWD":/backup alpine \
 docker compose $COMPOSE start app
 ```
 
-> **Recovery (ADR-0020): ledger loss ≠ data loss.** The ledger records what was
+> **Recovery: ledger loss ≠ data loss.** The ledger records what was
 > migrated; the migrated data lives on the **target**. If you lose the ledger,
 > a reindex rebuilds it from the target and the next pass resumes correctly —
 > you don't re-copy everything. Still, backing up the volume saves that rework.
@@ -816,24 +808,22 @@ step 2 keeps the database it had. Do not add `--build` to `up`, and build the
 app by name if you build it from source (`… build app`): a bare `build`
 rebuilds the database's image as well, and restarts the database for nothing.
 
-**The checkout and the app's image go together, from 0.2.0-alpha.5 on.**
-That release's image is distroless: Node at `/nodejs/bin/node`, off its PATH,
-and no shell (workplan 0119 §3 item 12). `compose.yml`'s healthcheck for `app`
-runs that Node by its path, where it ran `CMD-SHELL` before, which needs
-`/bin/sh`. So a `compose.yml` from before alpha.5 on the new image, or this
-`compose.yml` on an image from before it, shows `app` as *unhealthy* while
-`/healthz` answers. Steps 2 and 3 together are the cure: pull the image and
-update the checkout in the same upgrade, and `up -d` recreates `app` with the
-new healthcheck. Your `appdata` volume needs nothing: the image still runs as
-uid 10001. And there is no shell to open in it any more: `docker compose -f
-deploy/selfhost/compose.yml exec app /nodejs/bin/node -e '…'` runs a line of
+**The checkout and the app's image go together.** The image is distroless
+(from 0.2.0-alpha.5): Node at `/nodejs/bin/node`, off its PATH, and no shell.
+`compose.yml`'s healthcheck for `app` runs that Node by its path, where older
+ones ran `CMD-SHELL`, which needs `/bin/sh`. So a `compose.yml` from before
+alpha.5 on a newer image, or this `compose.yml` on an older image, shows `app`
+as *unhealthy* while `/healthz` answers. Steps 2 and 3 together are the cure:
+pull the image and update the checkout in the same upgrade, and `up -d`
+recreates `app` with the new healthcheck. Your `appdata` volume needs nothing:
+the image runs as uid 10001. There is no shell to open in it: `docker compose
+-f deploy/selfhost/compose.yml exec app /nodejs/bin/node -e '…'` runs a line of
 JavaScript there, and the state is in the volume (*Backup*, above).
 
-The upgrade that first brought this build (from an appliance that ran the
-official image as root) needs nothing but step 2 either: the old image's start
-made the data uid 70's on every start, so the database finds it as it left
-it. Going back to an older checkout runs the official image as root again,
-which starts on the same data.
+Upgrading from a release whose database ran the official image as root needs
+nothing but step 2 either: that image made the data uid 70's on every start,
+so the database finds it as it left it. Going back to an older checkout runs
+the official image as root again, which starts on the same data.
 
 Rules of the road (§22.1):
 
@@ -843,8 +833,9 @@ Rules of the road (§22.1):
   startup runner **refuses to start** (the downgrade guard) rather than risk the
   data — roll forward, or restore the matching backup.
 - **Channels.** `edge` is the rolling build from `main` (good for trying it),
-  and every build is also tagged `sha-<commit>`. Release tags (`X.Y.Z`,
-  `latest`) begin with the first release. Pin production to an immutable
+  and every build is also tagged `sha-<commit>`. Each release is tagged
+  `X.Y.Z`; `latest` appears only with the first release that is not a
+  pre-release. Pin production to an immutable
   `sha256` digest so upgrades are deliberate — verify-then-pin procedure in
   [`deploy/selfhost/README.md`](../deploy/selfhost/README.md).
 
@@ -886,9 +877,9 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   naming four, `brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0
   and libxslt 1.1.43-r4`): that is an older release, 0.2.0-alpha.4 to
   0.2.0-alpha.7, or a checkout from before PostgreSQL 18.7. Its database's
-  build took those packages, at exactly those versions, from Alpine's mirror,
-  until a PostgreSQL image carried their fixes. 18.7's image does, so a
-  newer release's build takes nothing from Alpine's mirror. If this machine
+  build takes those packages, at exactly those versions, from Alpine's
+  mirror; a newer release's build, on 18.7's image, which carries their
+  fixes, takes nothing from it. If this machine
   cannot reach `dl-cdn.alpinelinux.org` (a firewall, a proxy, no network), let
   it, and run `up -d` again. If it can, Alpine's mirror no longer serves those
   versions: it keeps only the newest build of a package, so that release's
@@ -911,7 +902,7 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   `.env` to migrate over Microsoft Graph instead. If those variables (plus
   `OAUTH2_TENANT_ID`) are present alongside an IMAP mapping, the appliance
   detects the refusal at run time and falls back to Graph for that run on its
-  own, logging the switch (ADR-0006, workplan 0023).
+  own, logging the switch.
 
 See also: `deploy/selfhost/README.md` (file layout + channels) and
 `docs/workplans/0010-selfhost-edition.md` (design + acceptance).

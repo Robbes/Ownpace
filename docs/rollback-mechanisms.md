@@ -13,10 +13,9 @@ How a cutover is reverted, and — just as importantly — **what rollback does 
 
 There is **one** implementation — `performRollback` in `@openmig/core`
 (`packages/core/src/cutover-rollback.ts`) — and two ways to reach it. Both do exactly the same
-thing in exactly the same order. (Until 2026-09-19 there were two implementations, and the one an
-operator could reach did not resume the sync; workplan 0101 T5 has the finding.) Its other half
-is `enterCutover` in `cutover-lifecycle.ts` ([ADR-0048](./adr/0048-the-mapping-hears-the-cutover.md)):
-what the cutover stops, the rollback resumes.
+thing in exactly the same order. Its other half is `enterCutover` in `cutover-lifecycle.ts`
+([ADR-0048](./adr/0048-the-mapping-hears-the-cutover.md)): what the cutover stops, the rollback
+resumes.
 
 | Entry point | Where | Who uses it |
 |---|---|---|
@@ -61,16 +60,14 @@ performs no restore.
 
 These are deliberate gaps, not bugs. Do not plan a cutover assuming otherwise.
 
-- **DNS records are not restored.** The owner decision of 2026-07-16 is **verify-only DNS**: the
-  stack reads and verifies DNS but never writes it. The deSEC adapter and its ~950-line write path
-  were **deleted** on 2026-08-05 (commit `4f05136`, workplan 0026 T3 row 20), so the reason is
-  *the code does not exist* rather than *it exists and is unwired*. **Revert the MX record
-  manually**, then confirm with the verify-only checks — see [`dns-management.md`](./dns-management.md)
-  and the `runbook` CLI subcommand.
+- **DNS records are not restored.** DNS is **verify-only**: the stack reads and verifies DNS but
+  never writes it, and no code to write it exists at all. **Revert the MX record manually**, then
+  confirm with the verify-only checks — see [`dns-management.md`](./dns-management.md) and the
+  `runbook` CLI subcommand.
 - **Mail delivered to the target is not brought back.** While MX pointed at the target, mail was
   delivered there. The resumed sync runs source → target and will never carry those messages back,
-  and by the owner's definition it is not going to try — that would mean writing to a source this
-  product only ever reads. Recover it from the target by hand if you need it.
+  and it is not going to try — that would mean writing to a source this product only ever reads.
+  Recover it from the target by hand if you need it.
 - **A finished migration is not un-finished.** A mapping in `done` is refused (nothing is written,
   not the ledger either). If the source must be live again, revert MX by hand; resuming the copy
   into that target would need the lifecycle to allow leaving `done`, which it does not today.
