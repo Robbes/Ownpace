@@ -4,6 +4,23 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
+**2026-11-14, last: the owner waives the O365 lane for alpha.9 (T13 (a), T14).** Docs only, before
+alpha.9's fold (0146, Status of the same day). On 2026-11-14 at 21:05 UTC the owner wrote, at the
+end of a message that set Sunday's order: *"I also waive the 0365."* That is read as this lane, the
+one thing the plan calls O365. alpha.9 is to be tagged without a run of `e2e-o365.yml`; Release does
+not read the lane, so the waiver is a record, with no input to set. **T14:** the owner waived
+alpha.9's counted nights at 20:37 UTC the same day (0146), so it is to be tagged with them waived,
+as alpha.3 to alpha.8 were.
+- **What the waiver did not weigh.** alpha.9 carries `@azure/msal-node` 7.2.1, from 7.2.0, in
+  Dependabot's npm group (#1893, merged on 2026-11-14 after alpha.8's tag): the library the product
+  signs Microsoft 365 sources in with (`packages/connectors/src/token-provider.ts`), for which this
+  lane is the proof 0119 names (§3 item 6). The owner's message did not mention it. What ran on the
+  move: E2E (managed) run 43615313143 and E2E (self-hosted) runs 43616994637 on Postgres and
+  43618491945 on PGlite, green on #1893's head, none of which signs in to Microsoft 365. Microsoft
+  365 stays labelled experimental, and no invitation is recorded (0131).
+- **The lane itself stays owed for a later alpha:** its secrets, `O365_CLIENT_ID` and
+  `O365_TENANT_ID`, as `docs/test-tenant.md` lists them, and a green run.
+
 **2026-11-14, later: alpha.8 is tagged without the O365 lane, under the owner's waiver (T13 (a),
 T14).** Docs only. `v0.2.0-alpha.8` was tagged on 2026-11-14 at 10:02 UTC without a run of
 `e2e-o365.yml` (0146, Status of that day, later), under the waiver the entry below records. Read

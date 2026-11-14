@@ -4,6 +4,28 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
+**2026-11-14, last: the owner waives alpha.9's counted nights, before its fold (T2; 0141 T14).** On
+2026-11-14 at 20:37 UTC the owner wrote: *"Anything else we can or need to put in alpha 9? I waive
+all waitings, so we can work efficiently."* At 21:05 UTC they set the order: *"Sunday: ClickHouse,
+Nextcloud and cross-spawn, then the fold and the tag."* The waiting a release has is its counted
+nights, so `v0.2.0-alpha.9` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs` with the first
+message's second sentence, beside alpha.3 to alpha.8. The two guards that hold the list,
+`a-release-preflight-that-said-yes-too-soon` and `a-tag-that-already-pointed-elsewhere`, name it,
+with `v0.2.0-alpha.10` now the version a waiver is refused for, and `docs/release.md` lists it.
+Nothing here reaches an image, a compose file, a migration or product code, and the CHANGELOG is
+untouched.
+- **Before the fold, so C is still to come.** alpha.9 is planned for Sunday 2026-11-15: ClickHouse
+  26.8.37.168, Nextcloud 35.0.3 and the removal of cross-spawn 5.1.0 from both Trigger.dev images,
+  then the fold. C is the fold's squash, which carries this list, and Release reads it from `main`'s
+  own scripts.
+- **In the nights' place,** as for alpha.4 to alpha.8: E2E (managed) and E2E (self-hosted) on
+  Postgres and on PGlite, dispatched on `main` at C, beside C's push runs and its Windows smoke.
+- **The O365 lane** is waived for alpha.9 in the owner's message of 21:05 UTC (0141, Status of
+  2026-11-14).
+- **Owed before the tag:** the owner's Release run from their own account, with `commit` set to C
+  and `waive_nights` set to the same sentence, *I waive all waitings, so we can work efficiently.*,
+  and their approval in the `release` environment.
+
 **2026-11-14, later still: live runs `v0.2.0-alpha.8` (T2).** The owner deployed it from the tag
 the same day: one run of alpha.7's `deploy-live.sh`, from about 15:00 UTC, which took at 15:05:12,
 one-way over alpha.7, since the Trigger.dev pin (v4.8.3 to v4.8.5) and the identity provider's
