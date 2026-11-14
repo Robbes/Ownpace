@@ -4,8 +4,9 @@
  * A CLICKHOUSE WITHOUT THE FILES ITS PIN NEEDS (workplan 0119 §3 item 9,
  * option 2; the review of 2026-11-02).
  *
- * `deploy/compose/managed.yml` pins ClickHouse 26.8.36.3-lts, ahead of the
- * 26.2.19.43 Trigger.dev v4.8.3 pins, for CVE-2026-116366. 26.8 changed
+ * `deploy/compose/managed.yml` pins ClickHouse 26.8.37.168-lts (26.8.36.3-lts
+ * until 2026-11-14), ahead of the 26.2.19.43 Trigger.dev v4.8.3 pins, and
+ * v4.8.5 too, for CVE-2026-116366. 26.8 changed
  * defaults Trigger.dev's schema and writes meet, and two files mounted with
  * the pin put 26.2's back:
  *
@@ -52,9 +53,11 @@
  * named volume, a `${VAR}` path, a whole directory into `config.d`) is a
  * problem rather than something skipped.
  *
- * WHAT THIS DOES NOT HOLD: that 26.8.36.3 creates the schema with the files,
- * or stops at 022 without them. That is a run, owed before the merge (0119
- * §3 item 9); this holds the files to the pin once that run has said so.
+ * WHAT THIS DOES NOT HOLD: that the pinned release creates the schema with
+ * the files, or stops at 022 without them. That is a run: 26.8.36.3's ran
+ * before its merge (0119 §3 item 9), and 26.8.37.168 was read from its
+ * source instead, with no run from an empty volume; this holds the files to
+ * the pin once a run has said so.
  * Each rule is broken on purpose below, on a copy, and must fail.
  */
 

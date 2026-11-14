@@ -324,7 +324,8 @@ describe('the checks prove it, before the hold lifts', () => {
     expect(before).toContain(query);
     // clickhouse-client reads CLICKHOUSE_USER and CLICKHOUSE_PASSWORD from its
     // environment (programs/client/Client.cpp at 26.2, and unchanged at
-    // v26.8.34.13-lts, read for the pinned 26.8.36.3, which has no tag), and the
+    // v26.8.34.13-lts, read for 26.8.36.3 when it had no tag; the same blob at
+    // v26.8.36.3-lts and at v26.8.37.168-lts, the pinned release), and the
     // container has both. A password on a command line is one in `ps`.
     const line = before.slice(before.indexOf('clickhouse-client'), before.indexOf('\n', before.indexOf('clickhouse-client')));
     expect(line, 'the ClickHouse check puts a password on a command line').not.toMatch(/--password|--user/);

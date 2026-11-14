@@ -61,7 +61,8 @@
  *
  * A CLICKHOUSE AHEAD OF TRIGGER.DEV'S ON PURPOSE (workplan 0119 §3 item 9;
  * built 2026-11-01 for option 1, 26.3.62.3, and since the owner's decision of
- * 2026-11-02 option 2, 26.8.36.3). The ClickHouse row kept an issue open "also
+ * 2026-11-02 option 2, 26.8.36.3, and since 2026-11-14 26.8.37.168, a patch
+ * of the same line). The ClickHouse row kept an issue open "also
  * when the stack differs on purpose", so moving ahead for CVE-2026-116366,
  * while Trigger.dev still pins 26.2.19.43, would have kept a nag open that
  * nobody could act on, until it read as noise. `CLICKHOUSE_INTENDED` records the
@@ -711,7 +712,7 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
     expect(none.calls).toEqual([]);
     // The table says intended, never current, with the reason under it.
     const shown = table({ issues: [{ ...row, key: 'clickhouse', name: 'ClickHouse' }], routine: [], status: [] });
-    expect(shown).toMatch(/^ClickHouse\s+26\.8\.36\.3@sha256:d426d2f6…\s+26\.2\.19\.43@sha256:c2f26055…\s+intended$/m);
+    expect(shown).toMatch(/^ClickHouse\s+26\.8\.37\.168@sha256:a5670285…\s+26\.2\.19\.43@sha256:c2f26055…\s+intended$/m);
     expect(shown).toMatch(/differs from Trigger\.dev's pin on purpose/);
   });
 
@@ -749,7 +750,7 @@ describe("ClickHouse, against what Trigger.dev's own compose pins", () => {
       expect(keepIssue(row, gh, TITLES.clickhouse)).toBe('opened');
       expect(calls[0]!.slice(0, 2)).toEqual(['issue', 'create']);
       const shown = table({ issues: [{ ...row, key: 'clickhouse', name: 'ClickHouse' }], routine: [], status: [] });
-      expect(shown).toMatch(/^ClickHouse\s+26\.8\.36\.3@sha256:d426d2f6…\s+\S+\s+ahead$/m);
+      expect(shown).toMatch(/^ClickHouse\s+26\.8\.37\.168@sha256:a5670285…\s+\S+\s+ahead$/m);
     });
   }
 
