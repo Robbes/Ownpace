@@ -2,15 +2,15 @@
 
 > **In one line:** Hardening Zitadel sign-in at `id.ownpace.eu` and the OTA instance via `setup-zitadel.sh`: public organisation registration off, `hasProjectCheck`, organisation counts, MFA and lockout, legal links, Dutch and English copy, release watch, orphan accounts.
 
-## Status — 2026-11-13 (update this block at the end of every session)
+## Status — 2026-11-14 (update this block at the end of every session)
 
 **2026-11-13: the pin to v4.20.3, eight fixes that read as security fixes, two of them on paths
-people here take; built on a branch, taken into alpha.8 by the owner on 2026-11-14 after their
-dump of the OTA instance, not merged yet (T7).**
-On branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-3`, from `main` at
-`331222af` (#1886). The pin watch's issue #1887, opened on 2026-11-13 at 19:29:35, names v4.20.3.
-Read from upstream's public git (`git ls-remote`, a blobless fetch of the two tags) and GHCR's
-manifests, without a login; nothing read was run. Times are UTC.
+people here take; built on a branch, taken into alpha.8 by the owner on 2026-11-14 after their dump
+of the OTA instance, merged as #1897 (`0b870941`) (T7).** On branch
+`claude/ownpace-public-readiness-y7orc6-zitadel-4-20-3`, from `main` at `331222af` (#1886). The pin
+watch's issue #1887, opened on 2026-11-13 at 19:29:35, names v4.20.3. Read from upstream's public
+git (`git ls-remote`, a blobless fetch of the two tags) and GHCR's manifests, without a login;
+nothing read was run. Times are UTC.
 - **What v4.20.3 is.** `refs/tags/v4.20.3` is `a8b256c9…`, the head of upstream's `v4.x` branch,
   twelve commits after v4.20.2 (`dce17d59`), 271 files, 219 of them login v2's (`apps/login`). The
   tag is lightweight, so it carries no date of its own: 2026-11-13 at 11:55:38 (12:55:38 +01:00) is
@@ -136,6 +136,16 @@ manifests, without a login; nothing read was run. Times are UTC.
   2. E2E (managed) on the branch's head, which applies v4.20.3 to the OTA instance;
   3. the owner's hand check on the OTA stack, above;
   4. the merge.
+
+  *(Recorded after the merge, 2026-11-14, read from GitHub and relayed:)* `main` at `1a426a19` was
+  merged in as `b5b2039f`. The image scan dispatched there, run 43558643544, read
+  `ghcr.io/zitadel/zitadel:v4.20.3` at 0 critical, 1 high and 1 with a fix, the x/net high
+  v4.20.2 had. CI run 43558594786 (04:50 to 05:02) was green, and E2E (managed) run 43559644844
+  (05:03 to 05:11) was green: the bring-up pulled v4.20.3 and recreated the identity provider on
+  it, `setup-zitadel.sh` found it ready with one organisation, *Version 20261114.3 deployed with
+  17 detected tasks*, SMOKE PASS. The owner's hand check on the OTA stack, asked at 05:12, one
+  sign-in through login v1 and one forgot-password mail read in the mail catcher and its link
+  opened, was answered *"OK"*, relayed at 07:29. It merged as #1897 at 07:31:10 (`0b870941`).
 
   After it, the dump is deleted once `main`'s first scheduled E2E (managed) on v4.20.3 is green,
   and live takes v4.20.3 from the first release tag that carries it.
