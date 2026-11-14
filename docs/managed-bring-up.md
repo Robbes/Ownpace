@@ -840,11 +840,12 @@ answers its health check, and `trigger-api` starts only after it has exited 0
 `internal`: it has no route off the machine, and nothing else on the stack can
 resolve the name `clickhouse`. The server ran 26.2, which has no fix for
 CVE-2026-116366 (unauthenticated code execution for anybody who can reach it),
-so the network was what protected it. The pin is 26.8.36.3-lts, which carries
-the fix, from the owner's decision of 2026-11-02; a stack runs it from its own
-move (the OTA stack since its E2E (managed) run in the owner's window on
-2026-11-02; live from its deploy of the first release tag that carries it,
-alpha.4: *Moving ClickHouse*, below), and the network stays.
+so the network was what protected it. The pin is the 26.8 LTS line, which
+carries the fix: 26.8.36.3-lts from 2026-11-02, and 26.8.37.168-lts, a patch
+of the same line, since 2026-11-14. A stack runs 26.8 from its own move (the
+OTA stack since its E2E (managed) run in the owner's window on 2026-11-02;
+live from its deploy of the first release tag that carries it, alpha.4:
+*Moving ClickHouse*, below), and the network stays.
 `trigger-api` reaches it there for its migrations and its `CLICKHOUSE_URL`, and
 keeps `ownpace-network` for everything else. To ask ClickHouse something, run
 `clickhouse-client` inside its container with `docker compose exec`, as
@@ -3400,7 +3401,7 @@ refuses a `COMPOSE_FILE` in the shell.
 | `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5 |
 | `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
-| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win. Since 2026-11-01 its one network, `trigger-event-store`, is `internal` too, so a report would have no route out | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable`; for 26.8.36.3, which has no public tag, the `config.xml` in the image itself (byte for byte `v26.8.34.13-lts`'s) and those two files at `v26.8.34.13-lts` (2026-11-02; read the same way for 26.3.62.3, option 1, on 2026-11-01) |
+| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win. Since 2026-11-01 its one network, `trigger-event-store`, is `internal` too, so a report would have no route out | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable`; for 26.8.36.3, which had no public tag then, the `config.xml` in the image itself (byte for byte `v26.8.34.13-lts`'s) and those two files at `v26.8.34.13-lts` (2026-11-02; read the same way for 26.3.62.3, option 1, on 2026-11-01); for 26.8.37.168, the `config.xml` in both platforms' images, byte for byte `v26.8.37.168-lts`'s, and those two files the same blobs at that tag (2026-11-14) |
 | `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z` and `RELEASE.2026-11-12T01-15-23Z`, where none of the four changed, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
 | `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6, and again at v1.32.0, v1.33.0 and v1.33.1 |
 | `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`, and again at `v35.0.2` when the demo moved to 35 (workplan 0119 T5); `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` and `stable35` |
@@ -6702,7 +6703,8 @@ never reads as "nothing newer", nor as an older newest.
 > ClickHouse was then `clickhouse/clickhouse-server:26.2.19.43`, pinned **by
 > digest**, which is what upstream's own compose file ran for that release and
 > therefore the only ClickHouse the migration had been proved against (the pin
-> is 26.8.36.3 since workplan 0119 §3 item 9, option 2, below).
+> is 26.8.36.3 from workplan 0119 §3 item 9, option 2, below, and 26.8.37.168
+> since 2026-11-14).
 > `bootstrap-managed.unit.test.ts` refuses any `latest` in `managed.yml` from
 > here on, so this cannot happen quietly a second time.
 >
@@ -6718,8 +6720,9 @@ never reads as "nothing newer", nor as an older newest.
 > (2026-05-21); the owner accepted that for the Alpha on 2026-10-23, with the
 > exposure and the revisit triggers in workplan 0119 §3 item 9. One fired on
 > 2026-11-01 (CVE-2026-116366, no 26.2 fix), and with option 2 there (the
-> owner's decision, 2026-11-02) the pin is 26.8.36.3, ahead of upstream's 26.2
-> on purpose; a stack runs it from its own move: *Moving ClickHouse*, below, has
+> owner's decision, 2026-11-02) the pin is 26.8, ahead of upstream's 26.2 on
+> purpose (26.8.36.3, and 26.8.37.168 since 2026-11-14); a stack runs it from
+> its own move: *Moving ClickHouse*, below, has
 > what was read, the two files that travel with the pin, the copy first and the
 > way back.
 >
@@ -6899,12 +6902,13 @@ on every run (phase 5 above).
 ### Moving ClickHouse
 
 **ClickHouse's pin is ahead of Trigger.dev's, on purpose** (workplan 0119 §3
-item 9, option 2, the owner's decision of 2026-11-02): 26.8.36.3-lts,
-`clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f6…` (Docker's tag has no
-`-lts`), amd64 and arm64, where Trigger.dev v4.8.3 still pins 26.2.19.43, and v4.8.5 too.
+item 9, option 2, the owner's decision of 2026-11-02): the 26.8 LTS line, since
+2026-11-14 26.8.37.168-lts, `clickhouse/clickhouse-server:26.8.37.168@sha256:a5670285…`
+(Docker's tag has no `-lts`), amd64 and arm64, and from 2026-11-02 until then
+`26.8.36.3@sha256:d426d2f6…`, where Trigger.dev v4.8.3 still pins 26.2.19.43, and v4.8.5 too.
 ClickHouse no longer supports 26.2, and CVE-2026-116366 (critical: code
 execution with no password, for anybody who reaches the server) has no 26.2
-fix; 26.8.36.3 is the LTS release that carries it. Before the move, every
+fix; 26.8.36.3 is the LTS release that first carried it. Before the move, every
 change of 26.3 (read for option 1 on 2026-11-01, and crossed on the way),
 26.4, 26.5, 26.6, 26.7 and 26.8, and every 26.8 patch note to 26.8.34.13, was
 read against Trigger.dev v4.8.3's 55 migrations (numbered to 056; v4.8.5 adds none and changes none), the queries
@@ -6983,6 +6987,28 @@ Besides the volume, the mounted `clickhouse-merge-tree.xml` stops a 26.2 or
 file. 26.3's off switch for the first of the four
 (`propagate_types_serialization_versions_to_nested_types` at 0) would undo only
 that one, so it is not taken.
+
+**A patch within 26.8 is read the same way: 26.8.36.3 to 26.8.37.168
+(2026-11-14).** The tag comparison
+`v26.8.36.3-lts..v26.8.37.168-lts` is 137 backported pull requests and 30
+commits of the release branch's own, in 805 files (master's
+`docs/changelogs/v26.8.37.168-lts.md` lists three of them), read against the
+same migrations, queries and settings and the files below. None changes how a
+part, a skip index or a table's metadata is written, the default of a setting
+the two files set, or the code their headers cite, so 26.8.36.3 reads what
+26.8.37.168 writes, and pinning 26.8.36.3 again, both files still mounted, is
+the way back for this move (read in the source; no downgrade was run). What a
+stack meets: `query_metric_log`, which no file here turns off, gains three
+columns and is renamed once if the volume has one, which both releases take;
+new checks at `CREATE` only (a text bloom-filter index's total size, the
+functions and grants behind keys, TTLs and indexes, an explicit storage
+policy), which Trigger.dev's 55 migrations pass by their text, with no run
+from an empty volume on 26.8.37.168 to show it; and reads that refuse a
+corrupt `LowCardinality` column or bloom-filter granule. The steps below are
+the 26.2 to 26.8 move's, as it ran: step 2 refuses a server that is not
+26.2.19.43, and the copy is named `_before_26_8`, so a copy for a move within
+26.8 needs both lines changed. *On live*, below, takes a copy for any change
+of the pin, and `deploy-live.sh` calls any move of this image line one-way.
 
 **On the OTA stack, in the owner's window.** Done on 2026-11-02 (workplan
 0119's Status of that day): steps 1 and 3 at about 03:35 UTC, step 2's list at

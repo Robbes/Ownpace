@@ -8,7 +8,9 @@
      v26.2.19.43-stable; read again for 26.3.62.3 on 2026-11-01, and for
      26.8.36.3 on 2026-11-02, each time the file in the image itself, which is
      byte for byte v26.3.60.2-lts's and v26.8.34.13-lts's: neither security
-     release has a public tag) sets
+     release had a public tag then; and for 26.8.37.168 on 2026-11-14, the
+     file in both platforms' images, byte for byte v26.8.37.168-lts's, which
+     differs from v26.8.36.3-lts's, public since, in one comment) sets
 
          <send_crash_reports>
              <enabled>true</enabled>
@@ -20,10 +22,11 @@
      reads send_crash_reports.enabled with `false`, and BaseDaemon.cpp reads
      send_logical_errors the same way (both unchanged at v26.3.60.2-lts but
      for a macOS build guard, and at v26.8.34.13-lts but for that guard and an
-     include). It is the shipped file that turns both on, so a file in
-     config.d, merged over it, turns both off again. The image's own
+     include; the same two files at v26.8.36.3-lts and v26.8.37.168-lts). It
+     is the shipped file that turns both on, so a file in config.d, merged
+     over it, turns both off again. The image's own
      config.d/docker_related_config.xml, merged too, says nothing of crash
-     reports at any of the three, and is the same file in all three images.
+     reports at any of the four, and is the same file in all four images.
 
      A file of its own rather than a line in clickhouse-override.xml, which is
      upstream's tuning verbatim and says so.

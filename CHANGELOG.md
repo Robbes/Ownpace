@@ -14,6 +14,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   pulls through its port on 127.0.0.1, as before. This also keeps CVE-2026-78667 (Go 1.26.8's
   `net/http`, in the registry's binary until distribution releases) away from every container. A
   guard holds the file to it, and the smoke finds no such name from the API container.
+- **Trigger.dev's ClickHouse moves to 26.8.37.168-lts, whose Ubuntu base fixes CVE-2026-109518 in
+  apt** (workplan 0119): `clickhouse/clickhouse-server:26.8.37.168` by its index digest
+  `a5670285…`, amd64 and arm64, a patch of the 26.8 LTS line the stack already runs. The image
+  scan read two highs in 26.8.36.3, CVE-2026-109518 in `apt` and `libapt-pkg6.0` 2.4.14; this
+  image carries 2.4.15ubuntu0.1 on both platforms. Nothing in the container runs apt, so neither
+  was reached. The release also brings 137 fixes ClickHouse backported to 26.8, among them a bound
+  on PostgreSQL-protocol messages read before authentication, on a port only `trigger-api` can
+  reach. None changes what ClickHouse writes to its volume or a default the two mounted files
+  set, so 26.8.36.3 can still read the volume (read in the source; no downgrade was run). The next
+  bring-up pulls the image and restarts ClickHouse on its volume. Taken inside its three-day
+  floor, which ends 2026-11-17 at 10:18 UTC and is waived for alpha.9. E2E (managed) on its branch
+  is owed before the merge.
 - **The demo's, the dev stack's and the integration tests' Nextcloud move to 35.0.3, and CI's
   second-major fixture to 34.0.6, which carry the fixes for three of the eight criticals the image
   scan read in the test-only Nextcloud**: `nextcloud:35.0.3-apache@sha256:8a7a65b8…` in

@@ -1278,8 +1278,10 @@ const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''
  * A DIFFERENCE FROM TRIGGER.DEV'S CLICKHOUSE PIN THAT IS ON PURPOSE, recorded
  * in workplan 0119 §3 item 9 (option 2, the owner's decision of 2026-11-02).
  * Trigger.dev v4.8.3 pins 26.2.19.43, which ClickHouse no longer supports, and
- * CVE-2026-116366 has no 26.2 fix; the stack's pin is 26.8.36.3-lts, the LTS
- * release that carries it.
+ * CVE-2026-116366 has no 26.2 fix; the stack's pin is the 26.8 LTS line, which
+ * carries it: 26.8.36.3-lts from 2026-11-02, and 26.8.37.168-lts, a patch of
+ * the same line, since 2026-11-14. Trigger.dev v4.8.5 still pins 26.2.19.43
+ * by the same digest.
  *
  * It holds for this exact pair and nothing else: the row reads it as current
  * (no issue, `intended` in the table, the reason as a note) only while
@@ -1292,9 +1294,9 @@ const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''
  * `null` when the stack follows Trigger.dev's pin again.
  */
 export const CLICKHOUSE_INTENDED = {
-  ours: '26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7',
+  ours: '26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648',
   theirs: '26.2.19.43@sha256:c2f2605585899d5103a0447daadbc0005f362200d5f0fcca7f40db3ca0dd36dd',
-  why: "on purpose (workplan 0119 §3 item 9): Trigger.dev's 26.2 is out of ClickHouse's support and has no fix for CVE-2026-116366, and 26.8.36.3 is the LTS release that carries it, the owner's choice of 2026-11-02",
+  why: "on purpose (workplan 0119 §3 item 9): Trigger.dev's 26.2 is out of ClickHouse's support and has no fix for CVE-2026-116366, and the stack runs the 26.8 LTS line that carries it (26.8.36.3 from 2026-11-02, 26.8.37.168 since 2026-11-14)",
 };
 
 export async function clickhouseRow(repo, net, trigger) {
