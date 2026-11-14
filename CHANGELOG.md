@@ -6,6 +6,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Trigger.dev webapp's goose is v3.30.1's release binary, built past the two high findings
+  the image scan read in v3.29.0's** (workplan 0119). goose runs Trigger.dev's ClickHouse
+  migrations at each start of `trigger-api`. The scan of `main` on 2026-11-13 read
+  CVE-2026-111943 in the Go 1.27.2 its v3.29.0 binary was built with (fixed in 1.27.3) and
+  CVE-2026-78661 in its golang.org/x/net v0.61.0 (fixed in v0.62.0); v3.30.1 is built with Go
+  1.27.4 and x/net v0.62.0. The build still fetches the release's asset from GitHub, refuses any
+  other SHA-256, and proves nothing else in the image changed. What goose sends ClickHouse is
+  unchanged: its command, its ClickHouse dialect and the code `goose up` runs through are
+  v3.29.0's byte for byte, and what changed in its SQL parser reaches none of Trigger.dev's 55
+  ClickHouse migrations. The image takes a new name,
+  `localhost/trigger.dev:v4.8.5-1c2ba0d89644`, so the next `up` builds it and recreates
+  `trigger-api` once. The image scan is expected to read 1 critical, 17 high and 9 with a fix,
+  from 1, 19 and 11. v3.30.1 was published on 2026-11-12 at 14:02 UTC and is inside its
+  three-day floor until 2026-11-15 at 14:02: taken before it on the owner's waiver of
+  2026-11-13, *"Waive all waiting time."*
+
 - **The managed stack's pooler is built here on upstream's image, with five Alpine packages at the
   versions that carry their fixes, which clears its 79 highs** (workplan 0119): the image scan of
   2026-11-13 read `edoburu/pgbouncer:v1.26.1-p0` at 79 high findings, every one fixed in Alpine: 38
