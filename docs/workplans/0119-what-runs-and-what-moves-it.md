@@ -4,8 +4,8 @@
 
 ## Status — 2026-11-13 (update this block at the end of every session)
 
-**2026-11-13: the identity provider's pin moves to Zitadel v4.20.3 on a branch, for the owner's
-decision: built, not merged, applied nowhere (0135 T7).** On the branch
+**2026-11-13: the identity provider's pin moves to Zitadel v4.20.3 on a branch, taken into alpha.8
+by the owner on 2026-11-14 after their dump of the OTA instance: built, not merged yet (0135 T7).** On the branch
 `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-3`, from `main` at `331222af` (#1886); 0135's
 Status of the same day reads its twelve commits. Read from upstream's public git and GHCR's
 manifests, without a login; nothing read was run. Times are UTC.
@@ -39,11 +39,13 @@ manifests, without a login; nothing read was run. Times are UTC.
   the fixes people meet are on. The owner's hand check on the OTA stack after the green run is a
   condition of the merge: one sign-in in a browser, and one forgot-password mail, read in the
   mail catcher and its link opened (0135's Status).
-- **Owed before a merge, in this order:** the owner's decision on which release takes it, alpha.8
-  or alpha.9, which they have not been asked yet; the owner's dump of the OTA instance's
-  `zitadel` database with `./deploy/compose/dump-idp.sh` (§3 item 2); CI on the pull request and
-  the image scan on the branch; E2E (managed) on the branch's head; the owner's hand check; the
-  merge.
+- **The owner's decision and dump, 2026-11-14.** Asked at 04:04 whether alpha.8 or alpha.9 takes
+  it, the owner answered *"A"*: alpha.8. They dumped the OTA instance's `zitadel` database first,
+  on v4.20.2, with `./deploy/compose/dump-idp.sh` (§3 item 2), at 04:07: the set
+  `20261114T040734Z`, 701 entries read back. It is deleted once `main`'s first scheduled E2E
+  (managed) on v4.20.3 is green (0135's Status).
+- **Owed before a merge, in this order:** CI on the pull request and the image scan on the
+  branch; E2E (managed) on the branch's head; the owner's hand check; the merge.
 - **Live.** Live runs `v0.2.0-alpha.7` on v4.20.1, and alpha.8's deploy is already one-way and
   already takes the provider's dump in its copy, since #1877 moved this pin. With this change in
   the same release, live goes from v4.20.1 to v4.20.3 in one step, which the OTA instance never

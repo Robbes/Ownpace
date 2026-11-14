@@ -1399,15 +1399,14 @@ services:
     # cmd/defaults.yaml is v4.20.2's byte for byte, so the three facts
     # above, the service ping's default, the lockout and the privacy
     # policy's fields hold at v4.20.3.
-    # WRITTEN 2026-11-13, BEFORE ANY INSTANCE RAN IT. Owed before this line
-    # merges, in this order: the owner's decision on which release takes
-    # it; the owner's dump of the OTA instance's `zitadel` database with
-    # deploy/compose/dump-idp.sh, on v4.20.2; E2E (managed) on the branch,
-    # which applies it to the OTA instance; and the owner's hand check
-    # there, which that gate cannot make, because its smoke signs in
-    # through a client pinned to login v2: one sign-in in a browser (login
-    # v1), and one forgot-password mail, read in the mail catcher and its
-    # link opened.
+    # The owner took it into alpha.8 on 2026-11-14, and dumped the OTA
+    # instance's `zitadel` database first, on v4.20.2, with
+    # deploy/compose/dump-idp.sh (04:07 UTC, 701 entries read back). This
+    # line merges after E2E (managed) on its branch, which applies it to the
+    # OTA instance, and after the owner's hand check there, which that gate
+    # cannot make, because its smoke signs in through a client pinned to
+    # login v2: one sign-in in a browser (login v1), and one forgot-password
+    # mail, read in the mail catcher and its link opened.
     image: ghcr.io/zitadel/zitadel:v4.20.3
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped

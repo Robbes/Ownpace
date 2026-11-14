@@ -5,7 +5,8 @@
 ## Status — 2026-11-13 (update this block at the end of every session)
 
 **2026-11-13: the pin to v4.20.3, eight fixes that read as security fixes, two of them on paths
-people here take; built on a branch for the owner's decision, not merged, applied nowhere (T7).**
+people here take; built on a branch, taken into alpha.8 by the owner on 2026-11-14 after their
+dump of the OTA instance, not merged yet (T7).**
 On branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-3`, from `main` at
 `331222af` (#1886). The pin watch's issue #1887, opened on 2026-11-13 at 19:29:35, names v4.20.3.
 Read from upstream's public git (`git ls-remote`, a blobless fetch of the two tags) and GHCR's
@@ -117,9 +118,11 @@ manifests, without a login; nothing read was run. Times are UTC.
   floors, written on 2026-11-13 at 19:26, before #1887 was opened and not about this release:
   *"Waive all waiting time."* T7's seven days apply to a security fix in something this stack
   uses: counted the same way, live runs v4.20.3 by 2026-11-20 at 11:55, at the earliest reading.
-- **Which release takes it is the owner's, and they have not been asked yet.** Either alpha.8
-  takes it, or alpha.8 ships v4.20.2 as merged and alpha.9 takes it, on live inside T7's seven
-  days. Nothing on this branch is their decision.
+- **alpha.8 takes it, in the owner's word.** Asked on 2026-11-14 at 04:04 whether alpha.8 takes
+  it (A) or alpha.8 ships v4.20.2 as merged and alpha.9 takes it (B), the owner answered *"A"*.
+  They dumped the OTA instance's `zitadel` database first, on v4.20.2, with
+  `./deploy/compose/dump-idp.sh` in the OTA stack's checkout, at 04:07: the set
+  `20261114T040734Z` (the dump, the roles and the note on the way back), 701 entries read back.
 - **Live.** Live runs `v0.2.0-alpha.7`, on v4.20.1. alpha.8 already moves the provider's pin
   (#1877), so its deploy is already one-way by `deploy-live.sh`'s rule (*"Any move of that image
   line is called one-way, whichever release it names"*), and the copy it takes before the update
@@ -127,15 +130,12 @@ manifests, without a login; nothing read was run. Times are UTC.
   change in the same release, live goes from v4.20.1 to v4.20.3 in one step, which the OTA
   instance never takes: it goes from v4.20.2. The way back on live is forward, a fix and a new
   tag, or the copy. A person in the middle of signing in at the deploy signs in again, once.
-- **Owed before a merge, in this order:**
-  1. the owner's decision on which release takes it;
-  2. the owner's dump of the OTA instance's `zitadel` database, with
-     `./deploy/compose/dump-idp.sh` in the OTA stack's checkout, on v4.20.2;
-  3. CI on the pull request, and the image scan on the branch (as run 43209163374 was for
+- **Owed before a merge, in this order,** after the owner's decision and dump above:
+  1. CI on the pull request, and the image scan on the branch (as run 43209163374 was for
      v4.20.2);
-  4. E2E (managed) on the branch's head, which applies v4.20.3 to the OTA instance;
-  5. the owner's hand check on the OTA stack, above;
-  6. the merge.
+  2. E2E (managed) on the branch's head, which applies v4.20.3 to the OTA instance;
+  3. the owner's hand check on the OTA stack, above;
+  4. the merge.
 
   After it, the dump is deleted once `main`'s first scheduled E2E (managed) on v4.20.3 is green,
   and live takes v4.20.3 from the first release tag that carries it.
