@@ -1,8 +1,13 @@
 <!-- ClickHouse's MergeTree rules kept as 26.2 has them, where 26.8 changed
      them (workplan 0119 §3 item 9, option 2, the owner's decision of
      2026-11-02: 26.8.36.3-lts, ahead of the 26.2.19.43 Trigger.dev v4.8.3
-     pins). Read at v26.8.34.13-lts, the newest public 26.8 tag; 26.8.36.3,
-     a security release, has none.
+     pins; 26.8.37.168-lts since 2026-11-14). Read at v26.8.34.13-lts, the
+     newest public 26.8 tag then; 26.8.36.3, a security release, had none.
+     Read again for 26.8.37.168 on 2026-11-14: each file cited below is the
+     same blob at v26.8.36.3-lts, public since, as at v26.8.34.13-lts, and at
+     v26.8.37.168-lts Statistics.cpp is unchanged and the diffs of the other
+     four (MergeTreeData.cpp, registerStorageMergeTree.cpp, Context.cpp and
+     SettingsChangesHistory.cpp) touch neither setting nor the code cited.
 
      allow_dimensions_outside_sorting_key = 1. From 26.7 the default is
      false (src/Core/SettingsChangesHistory.cpp, the 26.7 MergeTree block),

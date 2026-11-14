@@ -678,8 +678,8 @@ services:
   # owner's decision of 2026-11-02. Trigger.dev v4.8.3 still pins 26.2.19.43
   # (and v4.8.5 does too: its docker/ compose is v4.8.3's),
   # a line ClickHouse no longer supports, and CVE-2026-116366 (critical: code
-  # execution with no password) has no 26.2 fix. 26.8.36.3-lts carries it.
-  # Read release by release from 26.3 to 26.8, and every 26.8 patch note to
+  # execution with no password) has no 26.2 fix. 26.8.36.3-lts carried it
+  # first. Read release by release from 26.3 to 26.8, and every 26.8 patch note to
   # 26.8.34.13, against v4.8.3's 55 migrations (numbered to 056; v4.8.5 adds
   # none and changes none), its queries
   # and the settings it passes (docs/managed-bring-up.md, "Moving
@@ -689,11 +689,26 @@ services:
   # ONE WAY: 26.3 and later write parts 26.2 cannot read (Trigger.dev's JSON
   # and Array columns), and once 26.7 or later has rotated a system log table
   # a server older than 26.3 does not start on the volume at all, so the way
-  # back is the volume copy taken first. The pin watch records the difference
+  # back is the volume copy taken first.
+  #
+  # 26.8.37.168-LTS SINCE 2026-11-14, a patch of the same LTS line, from
+  # 26.8.36.3-lts (d426d2f6…). By its index digest a5670285…, which Docker
+  # Hub pushed as 26.8.37.168 on 2026-11-14 at 10:18 UTC, linux/amd64
+  # (3b517f84…) and linux/arm64 (48262cca…), read off both with every blob
+  # checked against its sha256 and nothing run: its Ubuntu 22.04 base carries
+  # apt and libapt-pkg6.0 2.4.15ubuntu0.1, past CVE-2026-109518, the two
+  # highs the image scan of 2026-11-14 read in 26.8.36.3, which nothing here
+  # reached (nothing in this container runs apt). Taken inside its three-day
+  # floor, which ends 2026-11-17 10:18 UTC and is waived for alpha.9. Between
+  # the two tags, 137 backported pull requests and 30 commits of the release
+  # branch's own: none changes how a part, a skip index or a table's metadata
+  # is written, or a default the two files below set, so 26.8.36.3 reads what
+  # this writes and pinning it back is the way back (read in the source; no
+  # downgrade was run). The pin watch records the difference
   # (CLICKHOUSE_INTENDED in scripts/idp-pin-watch.mjs) and says so again when
   # either side moves.
   clickhouse:
-    image: clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7
+    image: clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-clickhouse
     restart: unless-stopped
     logging: *logging
@@ -2579,7 +2594,8 @@ networks:
   # clickhouse service above ran 26.2, which ClickHouse's SECURITY.md lists as
   # unsupported, so no fix will come for it, and Trigger.dev still pins it at
   # v4.8.3 (and at v4.8.5). The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
-  # (§3 item 9, option 2), and this network stays as it is. Who can
+  # (§3 item 9, option 2), 26.8.37.168-lts since 2026-11-14 (the clickhouse
+  # service above), and this network stays as it is. Who can
   # reach the server is this file's, and until this network it was everybody:
   # every service on ownpace-network, the internet-facing ones included (the
   # web app, the API, the identity provider, the demo Nextcloud), and every
