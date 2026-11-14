@@ -19,6 +19,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   prints the spec version. ajv, xmlbuilder2 and libxmljs2 leave the tool's own manifest and stay as
   optional dependencies of `@cyclonedx/cyclonedx-library` 10.5.0, so its validation still runs. A
   dev tool, in no shipped code; 7.0.0 was published on 2026-11-09.
+- **The npm minor-and-patch group, 19 updates** (workplan 0119; Dependabot, #1893): at run time
+  `@azure/msal-node` 7.2.1, imapflow 2.11.0 and nodemailer 10.5.0 for the connectors (10.5.0 takes
+  in 10.4.1, upstream's security patch release for internationalised recipient domains; the
+  connectors check no recipient domain, so it is read as not reached), `@electric-sql/pglite`
+  0.5.16 for the ledger and the appliance on PGlite (still PostgreSQL 18.6) and jose 6.2.17 for the
+  api; in the web bundle `@tanstack/react-query` 5.107.1, lucide-react 1.72.0, zustand 5.1.0 and
+  axios 1.21.1; and build and test tools (vite 8.3.8, tailwindcss 4.3.5, typescript-eslint 8.72.2
+  and three more). Taken after E2E (managed) and E2E (self-hosted) on Postgres and on PGlite were
+  green on its head.
 
 ## [0.2.0-alpha.8] - 2026-11-14
 

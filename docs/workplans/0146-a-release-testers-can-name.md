@@ -16,8 +16,9 @@ has the blocks. So the first of the *Owed* in the entry below, live's deploy by 
 06:23, is done, about 39 hours inside it. Still the owner's: the second, the deletion of the OTA
 instance's dump of 2026-11-14, to report (0135 T7); the first invitation's date (0131 T5); and the
 migration on live that proves alpha.8 (0132 T9). What `main` has merged since the tag reaches the
-next one: GoAccess's Alpine 3.24.4 (#1892) and `@cyclonedx/cyclonedx-npm` 7.0.0 (#1894), two of the
-three held for after the tag, the second making the next release's `bom.json` CycloneDX 1.7 (0119).
+next one, the three held for after the tag among it: GoAccess's Alpine 3.24.4 (#1892),
+`@cyclonedx/cyclonedx-npm` 7.0.0 (#1894), which makes the next release's `bom.json` CycloneDX 1.7,
+and the npm minor-and-patch group (#1893), after its three E2E runs (0119).
 
 **2026-11-14, later: `v0.2.0-alpha.8` is released, its nights waived (T2, T4).** Read from GitHub
 on 2026-11-14. Times are UTC.
