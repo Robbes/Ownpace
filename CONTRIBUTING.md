@@ -33,10 +33,6 @@ That is enough to make and verify most changes. For the rest:
 - **How the test tiers differ** and which to add to:
   [`docs/testing.md`](./docs/testing.md).
 
-Those live in one place each, on purpose. This file links to them rather than
-repeating them, because a second copy of a command list is a copy that goes stale —
-which is exactly what happened to the mapping example this file used to describe.
-
 ## Opening a pull request
 
 CI must be green. Beyond that, the bar is

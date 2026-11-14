@@ -7,8 +7,7 @@ All project documentation lives here.
   code; when it and the code disagree, the code is right.
 - **`LESSONS.md`** — GENERATED (`node scripts/lessons.mjs --write`). Every cross-cutting guard in
   `scripts/`, indexed **by the file it constrains**, with the one sentence its header opens with.
-  Grep it for a path before editing that path: the guards record defects that actually happened,
-  and until this existed they could only be found by already knowing their names.
+  Grep it for a path before editing that path: the guards record defects that actually happened.
 - **`adr/`** — Architecture Decision Records. `0000-template.md` is the template; decisions are
   numbered and append-only (supersede, don't delete).
 - **`workplans/`** — numbered build slices (one vertical slice per plan). Each workplan carries a
@@ -64,11 +63,11 @@ before live invoices anybody) and `selfhost-ending-the-service.md`.
 A dedicated `guides/` / `runbooks/` split can come later if
 the root grows unwieldy; don't add empty placeholder directories.
 
-Historical notes are banner-marked in place rather than deleted (workplan/ADR policy): e.g.
+Historical notes are banner-marked in place rather than deleted: e.g.
 `unified-sync.md` (⚠️ superseded by `design/domain-sync.md`), `dav-integration-status.md`
 (📄 resolved in 0007), `caldav-sync.md` / `carddav-sync.md` / `webdav-sync.md`
-(⚠️ merged into `dav-sync.md`, 2026-07-27), and `imapsync-bulk-sync.md`
-(⚠️ withdrawn 2026-07-30 — the wrapper it documents was unused and is deleted).
+(⚠️ merged into `dav-sync.md`), and `imapsync-bulk-sync.md`
+(⚠️ withdrawn — the wrapper it documents is deleted).
 
 ## Root Markdown allowlist
 To keep the repo root clean, only these `.md` files are allowed there:

@@ -145,7 +145,7 @@ ERROR: relation "mappings" already exists
 
 **Solution:**
 ```bash
-# The API applies migrations itself at boot (runMigrations, ADR-0045) — restart it;
+# The API applies migrations itself at boot (runMigrations) — restart it;
 # never apply SQL by hand (see "If policies are genuinely missing" above for why).
 docker compose restart api
 
@@ -247,7 +247,7 @@ Login button does nothing or shows error
 # Check API logs
 docker compose logs api
 
-# Managed (ADR-0042): the web's VITE_OIDC_ISSUER must equal the API's JWT_ISSUER byte for
+# Managed: the web's VITE_OIDC_ISSUER must equal the API's JWT_ISSUER byte for
 # byte, and is baked in at BUILD time (rebuild the web image after changing it). JWT_AUDIENCE
 # is the issuer's project id and VITE_OIDC_CLIENT_ID the web app's client id;
 # deploy/compose/setup-zitadel.sh writes all four. The web holds no JWT_SECRET in any mode.
