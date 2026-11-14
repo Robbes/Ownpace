@@ -35,6 +35,7 @@ reading a file drops off its entry by itself.
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
@@ -128,6 +129,7 @@ reading a file drops off its entry by itself.
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
 - [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
@@ -1283,6 +1285,7 @@ reading a file drops off its entry by itself.
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-publish-that-moved-and-a-caller-that-did-not](../scripts/a-publish-that-moved-and-a-caller-that-did-not.unit.test.ts) — A PUBLISH THAT MOVED AND A CALLER THAT STAYED AT LOCALHOST.
+- [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
 - [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [a-retention-the-bring-up-states](../scripts/a-retention-the-bring-up-states.unit.test.ts) — A RETENTION THE BRING-UP STATES (workplan 0134 T1).
@@ -1374,6 +1377,12 @@ reading a file drops off its entry by itself.
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
+
+### `deploy/compose/pgbouncer/Dockerfile`
+
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
+- [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/pgbouncer/setup-auth.sql`
 
@@ -4853,6 +4862,7 @@ Reads:
 - `deploy/compose/dump-idp.sh`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
+- `deploy/compose/pgbouncer/Dockerfile`
 - `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/site-visits.sh`
 - `deploy/compose/smoke-managed.sh`
@@ -5103,6 +5113,17 @@ Reads:
 - `site/pages/en/how-it-works.md`
 - `site/pages/nl/alpha-handleiding.md`
 - `site/pages/nl/hoe-het-werkt.md`
+
+### [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts)
+
+A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
+
+Reads:
+
+- `.github/dependabot.yml`
+- `.github/workflows/images.yml`
+- `deploy/compose/managed.yml`
+- `deploy/compose/pgbouncer/Dockerfile`
 
 ### [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts)
 
@@ -6182,6 +6203,7 @@ Reads:
 - `deploy/compose/docker-socket-proxy/Dockerfile`
 - `deploy/compose/goaccess/Dockerfile`
 - `deploy/compose/managed.yml`
+- `deploy/compose/pgbouncer/Dockerfile`
 - `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/redis/Dockerfile`
 - `deploy/compose/site-visits.sh`

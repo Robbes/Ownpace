@@ -120,6 +120,14 @@ name: ownpace-managed
 # a major). Its name ends in the hash of that file's instructions, and a pull request that changes
 # them fails an-essential-nothing-runs until the name moves with it. `up` builds it where it is
 # missing.
+# pgbouncer runs a local build too since 2026-11-13 (workplan 0119, for alpha.8): edoburu's image
+# at its pinned digest with five Alpine packages at the versions that carry their fixes (libpq,
+# postgresql18-client, musl, musl-utils and zlib: 79 high findings on 2026-11-13, in a base
+# upstream had not rebuilt), whose pin is the FROM of deploy/compose/pgbouncer/Dockerfile by tag
+# and digest, which Dependabot reads (its own entry). Its name ends in the hash of that file's
+# instructions, and a pull request that changes them fails a-rebuild-upstream-has-not-made until
+# the name moves with it. `up` builds it where it is missing, from Docker Hub and Alpine's
+# mirror. It goes back to upstream's image once that carries the five (the Dockerfile's header).
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -262,11 +270,22 @@ services:
   # The image tag has no git tag behind it: edoburu/docker-pgbouncer's tags
   # stop at v1.26.0-p0, this image is its master ("Bump pgbouncer to v1.26.1
   # (#137)"), and its images are pushed by hand, so a tag can be pushed again.
-  # Its index digest, read on 2026-10-21 (pushed 2026-10-19T14:11Z), so that a
-  # re-push can be noticed:
-  #   sha256:488422e38cff912895d0d65d8963fcd306e6ac589a724398b6eb8e294e94d624
+  # Its index digest, read on 2026-10-21 (pushed 2026-10-19T14:11Z) and again
+  # on 2026-11-13, is the FROM of deploy/compose/pgbouncer/Dockerfile since
+  # then, so a re-push is a pull request, never a silent change.
+  #
+  # BUILT HERE SINCE 2026-11-13 (workplan 0119, for alpha.8): that image, with
+  # five Alpine packages at the versions that carry their fixes, because
+  # upstream had not rebuilt it: deploy/compose/pgbouncer/Dockerfile says
+  # which, why nothing here could reach them, what the build risks, and when
+  # the build goes again. PgBouncer itself, its user (postgres, uid 70), its
+  # entrypoint and its command are upstream's. Compose builds it on the first
+  # `up` that finds no image of this name; `never`, as for the databases: no
+  # registry serves this name.
   pgbouncer:
-    image: edoburu/pgbouncer:v1.26.1-p0
+    image: localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6
+    build: ./pgbouncer
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
     restart: unless-stopped
     logging: *logging
