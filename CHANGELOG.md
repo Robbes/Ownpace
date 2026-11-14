@@ -23,6 +23,59 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   2026-11-16 at 11:55 at the earliest, and it is taken under the floor's exception for a security
   fix.
 
+- **The Trigger.dev webapp's goose is v3.30.1's release binary, built past the two high findings
+  the image scan read in v3.29.0's** (workplan 0119). goose runs Trigger.dev's ClickHouse
+  migrations at each start of `trigger-api`. The scan of `main` on 2026-11-13 read
+  CVE-2026-111943 in the Go 1.27.2 its v3.29.0 binary was built with (fixed in 1.27.3) and
+  CVE-2026-78661 in its golang.org/x/net v0.61.0 (fixed in v0.62.0); v3.30.1 is built with Go
+  1.27.4 and x/net v0.62.0. The build still fetches the release's asset from GitHub, refuses any
+  other SHA-256, and proves nothing else in the image changed. What goose sends ClickHouse is
+  unchanged: its command, its ClickHouse dialect and the code `goose up` runs through are
+  v3.29.0's byte for byte, and what changed in its SQL parser reaches none of Trigger.dev's 55
+  ClickHouse migrations. The image takes a new name,
+  `localhost/trigger.dev:v4.8.5-1c2ba0d89644`, so the next `up` builds it and recreates
+  `trigger-api` once. The image scan is expected to read 1 critical, 17 high and 9 with a fix,
+  from 1, 19 and 11. v3.30.1 was published on 2026-11-12 at 14:02 UTC and is inside its
+  three-day floor until 2026-11-15 at 14:02: taken before it on the owner's waiver of
+  2026-11-13, *"Waive all waiting time."*
+
+- **The managed stack's pooler is built here on upstream's image, with five Alpine packages at the
+  versions that carry their fixes, which clears its 79 highs** (workplan 0119): the image scan of
+  2026-11-13 read `edoburu/pgbouncer:v1.26.1-p0` at 79 high findings, every one fixed in Alpine: 38
+  each in libpq and postgresql18-client 18.6-r0 (PostgreSQL 18.7's fixes: CVE-2026-6460,
+  CVE-2026-6467, CVE-2026-14661, CVE-2026-18447 and 34 more), one each in musl and musl-utils
+  1.2.6-r2 (CVE-2026-107891) and one in zlib 1.3.2-r0 (CVE-2026-85091). Upstream's newest image is
+  of 2026-10-19, on packages of 2026-09-30, so no pin clears them. PgBouncer links neither libpq
+  nor zlib; psql, which the healthcheck runs against the container's own pooler, is what loads
+  libpq, so all 79 are almost certainly out of anybody's reach here. `managed.yml`'s pgbouncer now
+  runs `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`, built from `deploy/compose/pgbouncer`:
+  upstream's image by digest, with libpq and postgresql18-client 18.7-r0, musl and musl-utils
+  1.2.6-r3 and zlib 1.4-r0 from Alpine's signed repository, at exactly those versions. PgBouncer
+  1.26.1, its user, its entrypoint and its command are upstream's. The pooler is built and restarts
+  once at the deploy; the build reaches Alpine's mirror as well as Docker Hub, once per machine and
+  name, and goes again once upstream's image carries the five. A newer PgBouncer arrives as
+  Dependabot's pull request; upstream's rebuild of the same one, tagged `-p<n+1>`, does not, so
+  the weekly pin watch names it and says it is moved by hand. The two PostgreSQL packages were
+  taken inside their three-day floor, on the owner's waiver.
+
+- **`pnpm audit` reads one advisory again, the one kept on purpose: hono 4.13.18 and
+  `@hono/node-server` 2.1.7 under the deploy CLI** (workplan 0119). Seven advisories, six moderate
+  and one low, reached the tree on one path, the MCP library the Trigger.dev deploy CLI brings
+  (`@modelcontextprotocol/sdk` 1.32.2), which had hono 4.13.14 and `@hono/node-server` 2.1.5:
+  GHSA-4m76-xfj5-7975, GHSA-h7mg-cq63-vhpq, GHSA-46wx-v44x-9hh2, GHSA-4h7h-rv7c-7m2v and
+  GHSA-3gg2-335m-rxc6 in hono, GHSA-qv5m-9pm6-hqp3 and GHSA-jpvv-r467-5p4w in `@hono/node-server`.
+  Two overrides in `pnpm-workspace.yaml` move them, with the reason beside them. They go past
+  the advisories' fixes (4.13.16 and 2.1.6), hono by two releases and `@hono/node-server` by one,
+  because upstream merged four more fixes in hono 4.13.18 and one more in `@hono/node-server`
+  2.1.7. Those five are read as security fixes from their commit title, "Merge commit from fork",
+  which the five advisory fixes of hono 4.13.16 also carry, and from upstream's own words in four
+  of them; no advisory in npm's database names them yet. Both are from 2026-11-11, so they are
+  taken before their three-day floor, on the owner's waiver. Nothing shipped changes, and none
+  of this code runs here: the CLI runs on the host for `whoami` and `deploy`, its MCP server
+  speaks stdio, and no command of it loads either package. What is left is minimatch 10.2.6
+  under the same CLI, kept because the CLI does not start on minimatch 11. Both entries go once
+  the CLI's MCP library asks for these releases itself.
+
 - **Trigger.dev moves to v4.8.5, whose webapp and supervisor run on Node 24.22.3, Node's security
   release of 2026-11-11** (workplan 0119): nine fixes rated High, in http, http2 and tls. It also
   takes v4.8.4's hardening: a malformed Host header is refused, a rotated API key in its grace
@@ -102,6 +155,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The registry that holds the tasks' images is pinned by its index digest, so both stacks run
+  the copy the image scan reads** (workplan 0119): `registry:3.1.2@sha256:82f6ff4a…`, Docker
+  Hub's rebuild of 2026-11-05 on Alpine 3.24.4. Docker Hub builds an official image again under
+  the same tag when its base moves, and nothing here pulls an image the machine already has. So
+  by the tag alone the stacks kept the copy they pulled first, while the image scan read
+  whatever the tag named on the day of the scan. Which copy that was cannot be read any more.
+  The registry itself does not change: every build of the tag carries the same file,
+  distribution v3.1.2, and only the Alpine packages under it differ. The first bring-up with
+  this pulls the image once and restarts the registry; the task images it holds stay on its
+  volume. Kept current and made true to the scan, not a security fix: the eight high findings
+  the scan reads are in the registry's own binary and stay until distribution releases. The
+  index was last pushed 2026-11-11 at 23:38 UTC, inside the three-day floor until 2026-11-14 at
+  23:38, so it is taken on the owner's waiver of 2026-11-13: *"Waive all waiting time."* A guard
+  now fails when the line loses its digest. `busybox:1.38` stays by its tag: four scripts run
+  the same image by that tag, so it moves with them, in a change of its own.
+
+- **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-13** (workplan
+  0119, 0146 T7): the fork's MinIO release RELEASE.2026-11-12T01-15-23Z, whose server code is that
+  of the releases before it, built with Go 1.27.4 and go-jose 4.1.7, and the `mc` client rebuilt on
+  Go 1.27.4, on glibc 2.44 with three fixes from its release branch, the one for CVE-2026-84243
+  among them, libgcc rebuilt and ncurses' snapshot of 2026-11-07. Kept current, not a
+  security fix: the image scan of 2026-11-13 read the build before it at 0 critical and 0 high,
+  and neither fix it carries reaches this stack. Go 1.27.4's net/http fix (CVE-2026-97054) needs a
+  request body past MinIO's 5 TiB limit, and the glibc one a `LANGUAGE` variable no service sets.
+  The release check is still off, read again at the new release, and nothing a stack sets changes;
+  the next bring-up pulls it, and the data volume carries over. Taken before its three-day floor,
+  on the owner's waiver.
 - **CI's migration lint moves to Atlas v1.3.9** (workplan 0119), past its three-day floor on
   2026-11-12, each architecture checked by the SHA-256 of `/atlas` in the release's community
   image on Docker Hub. Its one upstream commit since v1.3.8 changes Atlas's skills and docs and

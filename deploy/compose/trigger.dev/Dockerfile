@@ -9,8 +9,9 @@
 # security fix (WHAT IS REPLACED: PNPM, below). Since 2026-11-03 (the owner's
 # mandate: the time before alpha.4's fold goes to the findings a release
 # fixes), TypeScript 7's native compiler binary goes too (WHAT GOES), and goose
-# is v3.29.0's release binary in place of the v3.27.1 upstream builds (WHAT IS
-# REPLACED: GOOSE). From 2026-10-30, and with four more packages from
+# is a release binary in place of the v3.27.1 upstream builds: v3.29.0's until
+# 2026-11-13, v3.30.1's since, for alpha.8 (WHAT IS REPLACED: GOOSE). From
+# 2026-10-30, and with four more packages from
 # 2026-11-03, this build also replaced packages' files by the release that
 # fixes each; since v4.8.5 (2026-11-13, for alpha.8) upstream ships those
 # releases itself, and the two RUNs that swapped them are gone (WHAT UPSTREAM
@@ -31,7 +32,9 @@
 # two take 2 highs off it (THE DEBIAN PACKAGES NOTHING RUNS): 1, 22 and 14 on
 # the branch that took them (Security Scan run 42440765278). At v4.8.5 about 1,
 # 19 and 11 are expected (WHAT STAYS), on upstream's Node 24.22.3 base, Node's
-# November security release.
+# November security release; the scan of main on 2026-11-13 read 1, 19 and 11
+# (Security Scan run 43492635512). With goose v3.30.1 about 1, 17 and 9 are
+# expected, goose's two going (WHAT IS REPLACED: GOOSE).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -284,7 +287,8 @@
 # from the npm registry now but pnpm 10.34.9, which corepack installs (WHAT IS
 # REPLACED: PNPM).
 #
-# WHAT IS REPLACED: GOOSE v3.27.1 BY v3.29.0 (since 2026-11-03). Upstream's
+# WHAT IS REPLACED: GOOSE v3.27.1 BY v3.30.1 (by v3.29.0 from 2026-11-03; by
+# v3.30.1 since 2026-11-13, for alpha.8). Upstream's
 # Dockerfile builds /usr/local/bin/goose with `go install
 # github.com/pressly/goose/v3/cmd/goose@v3.27.1` on golang:1.26.10-alpine, and
 # the entrypoint runs it as root at every start of trigger-api: `goose up`
@@ -296,12 +300,28 @@
 # are in packages the binary does not link (of x/crypto its symbol table has
 # md4 alone, and none of x/net's html or dns/dnsmessage, nor compress's s2),
 # and none of the 21 is reachable from `goose up` over plain HTTP to the
-# stack's own ClickHouse. v3.29.0 is goose's latest release (2026-10-11,
-# revision 8b457ba3; its build info: Go 1.27.2, CGO off, x/crypto v0.58.0,
-# x/net v0.61.0, x/text v0.43.0, clickhouse-go v2.49.0, klauspost/compress
-# v1.20.1), and Trivy reads one high in its release binary, Go's own
-# CVE-2026-111943 (crypto/x509, fixed in Go 1.27.3), which needs TLS, and
-# goose here speaks plain HTTP. So 21 become 1. What `goose up` does with
+# stack's own ClickHouse. v3.29.0 was goose's latest release on 2026-11-03
+# (2026-10-11, revision 8b457ba3; its build info: Go 1.27.2, CGO off, x/crypto
+# v0.58.0, x/net v0.61.0, x/text v0.43.0, clickhouse-go v2.49.0,
+# klauspost/compress v1.20.1), and Trivy read one high in its release binary,
+# Go's own CVE-2026-111943 (crypto/x509, fixed in Go 1.27.3), which needs TLS,
+# and goose here speaks plain HTTP. So 21 became 1, and 2 from the scan of
+# 2026-11-07, which read one more in its golang.org/x/net v0.61.0, fixed in
+# v0.62.0 (Security Scan run 42368077845; the scan of main on 2026-11-13, run
+# 43492635512, names it CVE-2026-78661).
+# v3.30.1 (tag at ded3331f, committed 2026-11-12 at 13:48:17 UTC; its two
+# assets uploaded at 14:02:52 and 14:02:55 UTC, their Last-Modified) is built
+# past both fixes. Its build info, read from both assets with `go version -m`
+# on 2026-11-13, neither of them run: Go 1.27.4, CGO off, x/crypto v0.58.0,
+# x/net v0.62.0, x/text v0.44.0, clickhouse-go v2.51.0, klauspost/compress
+# v1.20.4. So 2 are expected to become 0. No scanner read v3.30.1's binary
+# where this was written: the image scan of the branch measures it.
+# v3.30.1 IS TAKEN BEFORE ITS THREE-DAY FLOOR (CONTRIBUTING.md), which ends on
+# 2026-11-15 at 14:02:55 UTC, on the owner's waiver of 2026-11-13: "Waive all
+# waiting time." The guard holds that waiver to v3.30.1 by name: a later goose
+# inside its own floor fails it, until that release is past its floor or a
+# waiver of the owner's is quoted for it.
+# What `goose up` does with
 # upstream's settings is unchanged from v3.27.1 to v3.29.0: GOOSE_DRIVER,
 # GOOSE_DBSTRING, GOOSE_MIGRATION_DIR and `up` read as before
 # (cmd/goose/main.go), and the ClickHouse dialect's queries are the same but
@@ -315,6 +335,30 @@
 # changes are other drivers' (a new one, another's credentials, a third's
 # locker and timestamp column), `goose create` and `env`, and dependency
 # upgrades.
+# From v3.29.0 to v3.30.1 (13 commits, read at both tags on 2026-11-13),
+# cmd/goose, the ClickHouse dialect and every file `goose up` runs through
+# (goose.go, up.go, migrate.go, migration.go, migration_sql.go, db.go,
+# dialect.go, database/) are the same byte for byte. One file beneath them
+# changed, the parser a migration file is read with when it is applied
+# (internal/sqlparser/parser.go): its line buffer starts small and grows to
+# the same 4 MiB limit, where it was 4 MiB from a pool; the last word of a
+# line is found with strings.FieldsSeq in place of a word scanner, over the
+# same white space; and a migration that says `+goose ENVSUB ON` is expanded
+# by interpolate v0.2.0, which keeps a `$` that starts no variable name where
+# v0.0.2 refused it (goose's changelog). None of the 55 ClickHouse
+# migrations upstream ships at v4.8.5 says ENVSUB, their longest line is 180
+# bytes, and a migration that is already applied is not parsed at all
+# (migration.go, run). The rest is
+# the Provider's, which the command does not use (SQL-only sources sorted by
+# version, a locker that stopped waiting), `goose validate`, a container
+# image upstream now publishes, and dependency upgrades; no module joins or
+# leaves go.mod. clickhouse-go moves v2.49.0 to v2.51.0, read at both tags:
+# its HTTP connection, Exec and Query are unchanged, and what changed is batch
+# inserts under WithAsync and IPv4 appends, neither of which goose calls; a
+# NULL scanned into a destination that cannot hold one, now an error, where
+# goose_db_version has no Nullable column; the error of a DSN that does not
+# parse, which no longer carries its password; and the version in the
+# User-Agent it sends ClickHouse.
 #
 # HOW GOOSE IS REPLACED, AND PROVED. goose's RUN, the second as root (the
 # fourth until v4.8.5), reads the old file
@@ -324,12 +368,13 @@
 # WAY OUT). It fetches the release's asset for the platform from GitHub with
 # node's fetch, which follows the redirect to GitHub's release-assets host,
 # and refuses it, with nothing changed, unless its SHA-256 is the one pinned
-# here, read from the release on 2026-11-03 (goose_linux_arm64,
-# 41,287,840 bytes; goose_linux_x86_64, 43,634,848 bytes). It makes the new
+# here, read from the release on 2026-11-13 and equal to its checksums.txt
+# (goose_linux_arm64, 41,287,840 bytes, as v3.29.0's was; goose_linux_x86_64,
+# 43,774,112 bytes). It makes the new
 # file root's and 0755 before it moves it into place: Trivy 0.76.1 skips a Go
 # binary that is not executable (THE MODE, below), and the entrypoint runs it.
 # After the move it proves the path is that file, root's and 0755 with one
-# name, that it says v3.29.0, and that no other path of the image was added,
+# name, that it says v3.30.1, and that no other path of the image was added,
 # removed or changed. The image build needs github.com reachable as well as
 # the npm registry, wherever it builds: CI, the OTA stack's runner and the
 # live host. A fetch that fails is no move upstream, and goose's RUN does not
@@ -377,8 +422,10 @@
 #     none with a fix, which come with upstream's base: two more of zlib1g's,
 #     and one each in gzip, libacl1, libtinfo6, ncurses-base, ncurses-bin and
 #     perl-base (since 2026-11-08: THE DEBIAN PACKAGES NOTHING RUNS).
-#   - goose's two: Go's CVE-2026-111943 and one in its golang.org/x/net, until
-#     a goose release on newer modules.
+#   - goose's two, until 2026-11-13: Go's CVE-2026-111943 and CVE-2026-78661
+#     in its golang.org/x/net. goose v3.30.1 is built past both (WHAT IS
+#     REPLACED: GOOSE), so about 17 high and about 9 with a fix are expected
+#     with it, which the branch's image scan measures.
 #   - in the webapp's dependencies, where only a new major fixes them, or a
 #     requirer pins the version exactly: undici 5.29.0 (5 highs,
 #     @connectrpc/connect-node's; fixed in 6) and its @fastify/busboy 2.1.1
@@ -491,7 +538,9 @@
 #     publisher's hash: node 24.22.1 (nodejs.org's linux-arm64 and linux-x64
 #     builds, which the Node image unpacks) needs libdl, libstdc++, libm,
 #     libgcc_s, libpthread and libc; goose v3.29.0's two release assets are
-#     static; prisma 6.14.0's engines (commit 717184b7, the query engine and
+#     static, and v3.30.1's two, read on 2026-11-13, are too (no interpreter,
+#     no dynamic section, and no byte that names one of the eight libraries);
+#     prisma 6.14.0's engines (commit 717184b7, the query engine and
 #     the schema engine for linux-arm64-openssl-3.0.x and debian-openssl-3.0.x,
 #     and for debian-openssl-1.1.x, the schema's binaryTargets) need libgcc_s
 #     and glibc, and the 3.0.x ones OpenSSL 3. The native code in the
@@ -768,7 +817,7 @@ RUN set -eu; \
     (cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter @trigger.dev/database exec node -e 0) || fail "as root, pnpm without node-gyp's tree does not run a command in @trigger.dev/database offline, as the entrypoint's migrations need."; \
     echo "$me: removed both names of depot and esbuild, TypeScript 7.0.2's tsc, node's copy of pnpm, root's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten), node-gyp's tree from root's and npm; corepack 0.36.0 stays, and as root pnpm $pnpm_to starts and runs a workspace command offline."
 
-# Still as root: goose v3.27.1 replaced by goose v3.29.0's release binary
+# Still as root: goose v3.27.1 replaced by goose v3.30.1's release binary
 # (WHAT IS REPLACED: GOOSE and HOW GOOSE IS REPLACED, above).
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
@@ -777,11 +826,11 @@ RUN set -eu; \
     gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
     goose=/usr/local/bin/goose; \
     goose_from=v3.27.1; \
-    goose_to=v3.29.0; \
+    goose_to=v3.30.1; \
     plat="$(node -p 'process.platform + "-" + process.arch')"; \
     case "$plat" in \
-      linux-arm64) asset=goose_linux_arm64; goose_sha256=efdb8f97176df746cf3970ed40810816a51927da0600b152ac4359ae2b7c0e12;; \
-      linux-x64) asset=goose_linux_x86_64; goose_sha256=cc56e2f75532a4dd52f5ef2d31db0121e91079a9c2617bc0ad4e04e2d41c228b;; \
+      linux-arm64) asset=goose_linux_arm64; goose_sha256=a34264b912b6da50b383ab9199cc78dba124d4f85ca1ae657eaa29a15d8bdc40;; \
+      linux-x64) asset=goose_linux_x86_64; goose_sha256=18e32a18f6b49c45c2ea9ce75445c4d34a0a5f110d1a58e05e464d62a03b15e6;; \
       *) fail "this is $plat; goose $goose_to's release binaries are pinned for linux-arm64 and linux-x64.";; \
     esac; \
     url="https://github.com/pressly/goose/releases/download/$goose_to/$asset"; \

@@ -959,7 +959,7 @@ const lift = (name: string): string => {
 
 describe("nothing builds the databases' image again while the machine has it", () => {
   it('knows every service that runs an image built here, from the compose files', () => {
-    expect([...BUILT_HERE_SERVICES].sort()).toEqual(['postgres', 'trigger-api', 'trigger-db', 'trigger-docker-proxy', 'trigger-redis', 'trigger-supervisor', 'trigger-tls']);
+    expect([...BUILT_HERE_SERVICES].sort()).toEqual(['pgbouncer', 'postgres', 'trigger-api', 'trigger-db', 'trigger-docker-proxy', 'trigger-redis', 'trigger-supervisor', 'trigger-tls']);
   });
 
   it('reads the commands it means, and refuses each way of rebuilding it', () => {
