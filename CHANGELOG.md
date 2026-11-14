@@ -6,6 +6,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The managed stack's pooler is built here on upstream's image, with five Alpine packages at the
+  versions that carry their fixes, which clears its 79 highs** (workplan 0119): the image scan of
+  2026-11-13 read `edoburu/pgbouncer:v1.26.1-p0` at 79 high findings, every one fixed in Alpine: 38
+  each in libpq and postgresql18-client 18.6-r0 (PostgreSQL 18.7's fixes: CVE-2026-6460,
+  CVE-2026-6467, CVE-2026-14661, CVE-2026-18447 and 34 more), one each in musl and musl-utils
+  1.2.6-r2 (CVE-2026-107891) and one in zlib 1.3.2-r0 (CVE-2026-85091). Upstream's newest image is
+  of 2026-10-19, on packages of 2026-09-30, so no pin clears them. PgBouncer links neither libpq
+  nor zlib; psql, which the healthcheck runs against the container's own pooler, is what loads
+  libpq, so all 79 are almost certainly out of anybody's reach here. `managed.yml`'s pgbouncer now
+  runs `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`, built from `deploy/compose/pgbouncer`:
+  upstream's image by digest, with libpq and postgresql18-client 18.7-r0, musl and musl-utils
+  1.2.6-r3 and zlib 1.4-r0 from Alpine's signed repository, at exactly those versions. PgBouncer
+  1.26.1, its user, its entrypoint and its command are upstream's. The pooler is built and restarts
+  once at the deploy; the build reaches Alpine's mirror as well as Docker Hub, once per machine and
+  name, and goes again once upstream's image carries the five. A newer PgBouncer arrives as
+  Dependabot's pull request; upstream's rebuild of the same one, tagged `-p<n+1>`, does not, so
+  the weekly pin watch names it and says it is moved by hand. The two PostgreSQL packages were
+  taken inside their three-day floor, on the owner's waiver.
+
 - **`pnpm audit` reads one advisory again, the one kept on purpose: hono 4.13.18 and
   `@hono/node-server` 2.1.7 under the deploy CLI** (workplan 0119). Seven advisories, six moderate
   and one low, reached the tree on one path, the MCP library the Trigger.dev deploy CLI brings
@@ -118,6 +137,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   23:38, so it is taken on the owner's waiver of 2026-11-13: *"Waive all waiting time."* A guard
   now fails when the line loses its digest. `busybox:1.38` stays by its tag: four scripts run
   the same image by that tag, so it moves with them, in a change of its own.
+
+- **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-13** (workplan
+  0119, 0146 T7): the fork's MinIO release RELEASE.2026-11-12T01-15-23Z, whose server code is that
+  of the releases before it, built with Go 1.27.4 and go-jose 4.1.7, and the `mc` client rebuilt on
+  Go 1.27.4, on glibc 2.44 with three fixes from its release branch, the one for CVE-2026-84243
+  among them, libgcc rebuilt and ncurses' snapshot of 2026-11-07. Kept current, not a
+  security fix: the image scan of 2026-11-13 read the build before it at 0 critical and 0 high,
+  and neither fix it carries reaches this stack. Go 1.27.4's net/http fix (CVE-2026-97054) needs a
+  request body past MinIO's 5 TiB limit, and the glibc one a `LANGUAGE` variable no service sets.
+  The release check is still off, read again at the new release, and nothing a stack sets changes;
+  the next bring-up pulls it, and the data volume carries over. Taken before its three-day floor,
+  on the owner's waiver.
 - **CI's migration lint moves to Atlas v1.3.9** (workplan 0119), past its three-day floor on
   2026-11-12, each architecture checked by the SHA-256 of `/atlas` in the release's community
   image on Docker Hub. Its one upstream commit since v1.3.8 changes Atlas's skills and docs and

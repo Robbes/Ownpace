@@ -3383,7 +3383,7 @@ refuses a `COMPOSE_FILE` in the shell.
 | `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
 | `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win. Since 2026-11-01 its one network, `trigger-event-store`, is `internal` too, so a report would have no route out | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable`; for 26.8.36.3, which has no public tag, the `config.xml` in the image itself (byte for byte `v26.8.34.13-lts`'s) and those two files at `v26.8.34.13-lts` (2026-11-02; read the same way for 26.3.62.3, option 1, on 2026-11-01) |
-| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z`, where none of the four changed, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
+| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z` and `RELEASE.2026-11-12T01-15-23Z`, where none of the four changed, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
 | `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6, and again at v1.32.0, v1.33.0 and v1.33.1 |
 | `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`, and again at `v35.0.2` when the demo moved to 35 (workplan 0119 T5); `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` and `stable35` |
 
@@ -5232,6 +5232,69 @@ append-only file are as they were.
   with the four capabilities its entrypoint takes, `redis:7.4.12-bookworm` by
   the digest those tags pin: it finds `/data` uid 999's, as the build left it,
   and drops to 999 as before; `up` pulls it when the machine no longer has it.
+
+**The pooler is a build here too, until upstream rebuilds its image** (workplan
+0119, 2026-11-13, for alpha.8). `pgbouncer` runs
+`localhost/pgbouncer:<base tag>-<12 hex>`, which compose builds from
+`deploy/compose/pgbouncer`: `edoburu/pgbouncer:v1.26.1-p0` at the digest its
+Dockerfile pins, with five Alpine packages at the versions that carry their
+fixes: libpq and postgresql18-client 18.7-r0, musl and musl-utils 1.2.6-r3,
+and zlib 1.4-r0. As pulled, the image held 79 high findings in those five (the
+image scan of 2026-11-13), and upstream had not rebuilt it since 2026-10-19.
+PgBouncer itself, its `pgbouncer.ini`, its userlist, its user (uid 70), its
+entrypoint and its healthcheck are as they were.
+
+- **The first `up` builds it, and the pooler restarts once.** The bring-up's
+  data phase finds no image of that name at its first `up` of the pooler (the
+  forced recreate after a replaced `postgres`, else `up_wait pgbouncer`) and
+  builds it, pulling the pinned base from Docker Hub when the machine does not
+  have it and the five packages from Alpine's mirror
+  (`dl-cdn.alpinelinux.org`), then recreates `pgbouncer` because its image
+  changed: the OTA stack at the E2E (managed) run of the branch or the next
+  nightly gate, live inside `deploy-live.sh`'s hold and drain, from the tag.
+  Every client connection drops for the seconds of the restart, and the app's
+  pools open new ones. A deploy that also replaces `postgres` recreates the
+  pooler anyway (the data phase, a pooler that outlived its database), so on
+  such a deploy this adds no restart. `pull_policy: never`, as for the
+  databases.
+- **When the build cannot take the packages.** Alpine keeps only its newest
+  build of a package in a stable branch. Once it moves one of the five again,
+  a machine that does not have the image cannot build it: `up` stops at the
+  build, before it recreates the pooler, with the Dockerfile's own message
+  (*the mirror no longer serves those versions*). On a deploy that also
+  replaces `postgres`, the database has been replaced by then (the data phase
+  brings `postgres` up first), so that deploy did not take. A machine that has
+  the image is not touched, and live and the OTA stack share one Docker
+  daemon, so the name the OTA stack built is there for live's deploy of the
+  same Dockerfile. So neither stack is where it shows first. That is where the
+  image is built afresh: the weekly image scan's `pgbouncer` leg (Mondays at
+  06:00 UTC, on `main`), which then has nothing to scan, leaves no report and
+  fails its run, and `build (pgbouncer, amd64)` and `build (pgbouncer, arm64)`
+  on a pull request that touches `deploy/`. The remedy is a pull request that
+  moves the version the Dockerfile names, or takes the build out.
+- **Moving it, and taking it out.** Upstream's next image comes one of two
+  ways. A newer PgBouncer, tagged `v<x.y.z>-p0`, or the pinned tag under a new
+  digest is Dependabot's pull request (the directory's own entry, never a
+  major). A rebuild of the same PgBouncer is tagged `-p<n+1>`, as `v1.24.1-p1`
+  and `v1.23.1-p1` to `-p3` were, and Dependabot opens no pull request for it:
+  it proposes only tags that end as the pinned one does, `-p0`. Only the pin
+  watch's summary issue lists that tag, and says it is moved by hand, in a
+  pull request of its own that moves the Dockerfile's FROM by tag and digest.
+  Either build stops where the new base already carries one of the five, and
+  names it: take that package out of the Dockerfile's RUN, and out of `PINS`
+  in the guard, which otherwise asks for it back. Once the RUN names none,
+  `pgbouncer` goes back to `edoburu/pgbouncer:<tag>@<digest>` in
+  `managed.yml`, and the Dockerfile, its job, its Dependabot entry and its
+  guard go (the Dockerfile's header, THE WAY OUT). Until then
+  `scripts/a-rebuild-upstream-has-not-made.unit.test.ts` prints the `sed`
+  that moves `managed.yml`'s image line when an instruction changed;
+  `build (pgbouncer, amd64)` and `build (pgbouncer, arm64)` (`images.yml`)
+  build it, hold its configuration to upstream's, start it as `managed.yml`
+  does and ask it with the healthcheck's command; and its E2E (managed) is
+  dispatched like any pin's.
+- **Rolling back to a tag before this runs upstream's image again**,
+  `edoburu/pgbouncer:v1.26.1-p0`; `up` pulls it when the machine no longer has
+  it.
 
 ### A Nextcloud major on the OTA stack
 
