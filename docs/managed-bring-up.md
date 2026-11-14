@@ -5317,9 +5317,8 @@ entrypoint and its healthcheck are as they were.
 
 ### A Nextcloud major on the OTA stack
 
-Written on 2026-10-26 for the move from 34 to 35 (workplan 0119 T5). A major
-is the owner's call, and on this stack it is one way. Only the OTA stack's
-demo has a Nextcloud whose data lasts. Live has none (both live scripts refuse
+On this stack a move of Nextcloud's pin is one way, a patch as much as a
+major. Only the OTA stack's demo has a Nextcloud whose data lasts. Live has none (both live scripts refuse
 `--with-demo`), the self-host E2E removes `dev.yml`'s container before every
 run and installs afresh, and the integration tests start a new one each time.
 A developer's `dev.yml` keeps the image's anonymous volume, so its next `up`
@@ -5328,15 +5327,19 @@ upgrades that one too.
 **What moves, and when.** The demo keeps its state in two places that move
 together: the `nextcloud_data` volume (the code, `config.php` and the files)
 and the `nextcloud` database in this stack's Postgres (workplan 0150). The
-first start of a newer major copies its code into the volume and runs
-`occ upgrade` against the database before Apache starts, and the older image
-refuses the volume from then on. One major at a time: 35.0.2 upgrades from
-34.0 and nothing older. On this stack that first start is **E2E (managed) on
+first start of a newer image copies its code into the volume and runs
+`occ upgrade` against the database before Apache starts (the entrypoint
+compares the whole version), and the older image refuses the volume from then
+on. One major at a time: 35 upgrades from 34 and nothing older. On this stack that first start is **E2E (managed) on
 the branch that moves the pin**: the gate brings the branch's `managed.yml` up
 in this project (`bootstrap-managed.sh --from data --with-demo`, then
 `up_wait nextcloud`), so that run is the upgrade, not a test before it. Every
 nightly of `main`, and every other branch's E2E, is red at `up_wait nextcloud`
-from then until the branch merges.
+from then until the branch merges. The blocks below were written for 34 to 35;
+a patch takes them with the version it leaves in place of 34: for 35.0.2 to
+35.0.3, the copies `${project}_nextcloud_data_35_0_2`,
+`~/nextcloud-35.0.2.dump` and `~/nextcloud-35.0.2-apps.txt`, and *Back to 34*
+goes back to 35.0.2.
 
 **The apps it upgrades.** The repository enables none: the demo uses apps that
 ship with Nextcloud and are on by default (dav, files, files_sharing,
@@ -5370,7 +5373,7 @@ after it.
 5. Ask whether it took. A healthy container does not say so: `status.php`
    answers 200 in maintenance mode and with an upgrade still owed. The
    bring-up asks `occ status` after `up_wait nextcloud` and stops on either
-   (its log says `nextcloud healthy (demo DAV backend): 35.0.2, out of
+   (its log says `nextcloud healthy (demo DAV backend): 35.0.3, out of
    maintenance, no upgrade owed` when neither), and these say it again, with
    the apps:
 
@@ -5382,7 +5385,7 @@ after it.
      | diff ~/nextcloud-34-apps.txt -
    ```
 
-   It took when the first says `"versionstring":"35.0.2"`, `"maintenance":false`
+   It took when the first says `"versionstring":"35.0.3"`, `"maintenance":false`
    and `"needsDbUpgrade":false`, the log names no app, and the list differs
    only in versions. An app gone from `Enabled:` was disabled: take its
    release for 35 from the app store, or do without it.
