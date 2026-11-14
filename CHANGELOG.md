@@ -56,6 +56,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   axios 1.21.1; and build and test tools (vite 8.3.8, tailwindcss 4.3.5, typescript-eslint 8.72.2
   and three more). Taken after E2E (managed) and E2E (self-hosted) on Postgres and on PGlite were
   green on its head.
+- **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-14** (workplan
+  0119, 0146 T7): the same MinIO release, RELEASE.2026-11-12T01-15-23Z, rebuilt with
+  OpenTelemetry-Go 1.47.0 and go.yaml.in/yaml/v3 3.0.5, the same `mc` client byte for byte, and
+  glibc and libgcc rebuilt from their same sources, changing no code. Kept current, not a security
+  fix: the image scan of alpha.8's tag read the build before it at 0 critical and 0 high, and Go's
+  vulnerability database names no advisory for a module the rebuild moves. The release check is
+  still off and nothing a stack sets changes; the next bring-up pulls it, and the data volume
+  carries over. Taken before its three-day floor, on the owner's waiver.
 
 ## [0.2.0-alpha.8] - 2026-11-14
 
