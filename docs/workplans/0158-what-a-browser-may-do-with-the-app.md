@@ -2,7 +2,18 @@
 
 > **In one line:** The managed app tells the browser which scripts may run in it, where it may send, that no page may frame it, that it is reached over HTTPS only, and that no request carries its address as a Referer; and the sign-in moves out of the browser's storage.
 
-## Status — 2026-11-12 (update this block at the end of every session)
+## Status — 2026-11-14 (update this block at the end of every session)
+
+**2026-11-14, recorded: T4's read by `deploy-live.sh` itself, at live's deploy of alpha.8.** Live's
+deploy of `v0.2.0-alpha.8` on 2026-11-14 ran alpha.7's `deploy-live.sh`, the checkout's, which has
+the headers check since #1845 (0132's Status, 2026-11-14). So, for the first time at a live deploy,
+the script read the app's headers itself: after the bring-up it asked for the app's page through
+the front that ends TLS, as a tester's browser gets it, and held the answer with the tag's
+`scripts/app-headers.mjs` to the tag's `apps/web/nginx.conf.template`, the issuer read from live's
+`.env`. It printed
+`the app's page: Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, as the template states them`,
+and *the deploy took* at 15:05:12 UTC, exit 0. Until then the probe's dispatch of 2026-11-08 and
+the owner's hand run of 2026-11-12 had read them there. T4's row says so.
 
 **2026-11-12, recorded: T4's reader, run on live by hand after alpha.7's deploy.** Live's deploy
 of `v0.2.0-alpha.7` on 2026-11-10 ran alpha.6's `deploy-live.sh`, the checkout's, which has no
@@ -154,7 +165,7 @@ issuer, 0 violations, and a worker started by hand afterwards was refused with `
 | T1 The headers on the app | ✅ **Built 2026-10-05** | D1 to D10. The policy and four headers on every page, asset and `version.json`; none added to `/api/`; zod without `eval`; the issuer from the build argument; the API at a path of the app's origin. Guarded by the template's reading, a run on the real nginx, the UI suite under the policy, and the smoke's check through the image. |
 | T2 The sign-in out of the browser's storage | 📋 **Proposed: later, a pull request of its own** | §T2. A cookie no script can read, set by the API at sign-in, with a defence against cross-site requests. Until then the policy narrows what an injected script could do with the token (§*What the policy does for the token meanwhile*). |
 | T3 The appliance's screens under a policy | 📋 **Proposed** | The appliance serves the same bundle from Node (`apps/selfhost/src/static-ui.ts`), with `content-type` and `cache-control` only, and its API has no helmet. The same policy fits it, without the sign-in host; it needs its own guard and its own run. Not built here, so this plan stays about the managed image. |
-| T4 The headers seen through NetBird on live | ✅ **Merged** as #1845 on 2026-11-08 (`0536708e`), and its outside half ✅ **proven** the same day: the owner's dispatch of the probe, run 42448301600 on `200185fd`, found `https://app.ownpace.eu/` carrying the policy, HSTS and the three beside them, each once, as the template at `59b91458`, the commit live's `/version.json` names (alpha.6), states them with `https://id.ownpace.eu`: the first proof through the front (Status, 2026-11-08, later). `deploy-live.sh`'s half runs from the first deploy started from alpha.7 — *was:* 🔨 **Built 2026-11-08**, on branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged; 📋 **Proposed** | §T4. `scripts/app-headers.mjs` holds the app's page to its template. The outside probe reads `https://app.ownpace.eu/` through NetBird's proxy, against the template at live's own commit, from its first dispatch after the merge; `deploy-live.sh` reads it after each deploy, against the tag's, from the first deploy started from alpha.7. *Was:* the smoke read them from the image on the gate's stack, over plain http on loopback, and nothing read them at live's https address; `deploy-live.sh` asked `/version.json` there and threw the headers away. |
+| T4 The headers seen through NetBird on live | ✅ **Merged** as #1845 on 2026-11-08 (`0536708e`), and its outside half ✅ **proven** the same day: the owner's dispatch of the probe, run 42448301600 on `200185fd`, found `https://app.ownpace.eu/` carrying the policy, HSTS and the three beside them, each once, as the template at `59b91458`, the commit live's `/version.json` names (alpha.6), states them with `https://id.ownpace.eu`: the first proof through the front (Status, 2026-11-08, later). `deploy-live.sh`'s half ✅ **ran** at live's deploy of alpha.8 on 2026-11-14, the first started from alpha.7: alpha.7's script, the checkout's, printed `the app's page: Content-Security-Policy, Strict-Transport-Security, X-Content-Type-Options, X-Frame-Options, Referrer-Policy, as the template states them` (Status, 2026-11-14) — *was:* `deploy-live.sh`'s half to run from the first deploy started from alpha.7 (2026-11-08 to 2026-11-14); 🔨 **Built 2026-11-08**, on branch `claude/ownpace-public-readiness-y7orc6-a7-headers`, not merged; 📋 **Proposed** | §T4. `scripts/app-headers.mjs` holds the app's page to its template. The outside probe reads `https://app.ownpace.eu/` through NetBird's proxy, against the template at live's own commit, from its first dispatch after the merge; `deploy-live.sh` reads it after each deploy, against the tag's, from the first deploy started from alpha.7. *Was:* the smoke read them from the image on the gate's stack, over plain http on loopback, and nothing read them at live's https address; `deploy-live.sh` asked `/version.json` there and threw the headers away. |
 
 ## The decisions
 

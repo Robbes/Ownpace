@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **GoAccess, which counts the site's visits, is built on Alpine 3.24.4** (workplan 0119; from
+  3.24.3, Dependabot, #1892): both stages of `deploy/compose/goaccess/Dockerfile` start from
+  `alpine:3.24.4` by tag and digest, whose base differs from 3.24.3's in apk-tools and libapk
+  (3.0.9). Live's duty `visits` builds the image again on its first run after the deploy that
+  brings it, which needs Docker Hub, Alpine's package mirrors and GitHub. Kept current, not a
+  security fix: the image scan read GoAccess's image at 0 critical and 0 high before it.
+- **The release's `bom.json` is written by `@cyclonedx/cyclonedx-npm` 7.0.0, as CycloneDX 1.7**
+  (workplan 0119; from 6.0.1, Dependabot, #1894): Security Scan names no spec version, so the SBOM
+  takes 7.0's default, 1.7 where it was 1.6, and the next release's `bom.json` is the first in 1.7.
+  Release's verify checks only the file's format and the version its root component names, and
+  prints the spec version. ajv, xmlbuilder2 and libxmljs2 leave the tool's own manifest and stay as
+  optional dependencies of `@cyclonedx/cyclonedx-library` 10.5.0, so its validation still runs. A
+  dev tool, in no shipped code; 7.0.0 was published on 2026-11-09.
+
 ## [0.2.0-alpha.8] - 2026-11-14
 
 alpha.8 is a security release for the managed stacks and the appliance; nothing

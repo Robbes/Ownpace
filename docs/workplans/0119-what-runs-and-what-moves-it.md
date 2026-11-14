@@ -4,6 +4,59 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
+**2026-11-14, later still, recorded: live runs alpha.8's pins; #1892 and #1894, held for after the
+tag, merged.** The owner deployed `v0.2.0-alpha.8` (tagged 2026-11-14 on `20a1c0e1`) to live the
+same day, from alpha.7 in one run of alpha.7's script, which took at 15:05:12 UTC, one-way (0132's
+Status, 2026-11-14, has the deploy). Every image it needs was already on the shared daemon, the OTA
+stack's E2E (managed) having built or pulled them, but the site's nginx,
+`1.31.8-alpine-slim@sha256:9c68ad4f…` (#1864), which the run pulled, its layers all there already.
+Read on live after it, with the hold on; times are UTC.
+
+- **On alpha.8's pins:** `postgres` and `trigger-db` on
+  `localhost/postgres:18.7-alpine-2d3b1894d8f1`, answering PostgreSQL 18.7, server and binary
+  (#1882); the pooler on `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`, built here (#1891); the
+  identity provider on `ghcr.io/zitadel/zitadel:v4.20.3`, by GHCR's index `1b30fea7ed88…` (#1897);
+  `trigger-api` on `localhost/trigger.dev:v4.8.5-1c2ba0d89644` and `trigger-supervisor` on
+  `localhost/supervisor:v4.8.5-9c532368504f` (#1883), both on Node v24.22.3, read on live for the
+  first time (the sheet had it from upstream's Dockerfile), with the webapp's goose v3.30.1
+  (#1895), and in `trigger-api` no `apt`, `apt-get`, `mount`, `setpriv` or `mke2fs`, and
+  `libsystemd0` and `libudev1` not installed; `trigger-docker-proxy` on
+  `localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226` and the site's nginx on `9c68ad4f…`
+  (#1864); `minio` and `minio-init` on Chainguard's `ddfab4c402bf…` (#1890); and `trigger-registry`
+  on `registry:3.1.2` by `82f6ff4a7f98…` (#1896).
+- **On the pins alpha.8 does not move:** `trigger-redis` on
+  `localhost/redis:7.4.12-bookworm-d5301e0623d4`, `trigger-tls` on
+  `localhost/caddy:2.11.9-alpine-f52a976e646f`, ClickHouse 26.8.36.3 by `d426d2f6…` and Gatus
+  v5.38.0. No container unhealthy or starting.
+- **The tasks:** the deployment `20261114.1` on the prebuilt base `sha-b05fb1b` (#1879; Node
+  v26.13.1, #1878, like the api's; no shell), its runners on one image, built 1970-01-01
+  (`SOURCE_DATE_EPOCH=0`); the tick `COMPLETED_SUCCESSFULLY` on 4.8.5; v4.8.4's 12 Prisma
+  migrations finished on the task runner's database and none rolled back; and in `trigger-api`
+  `CLI_LOGIN_IDLE_TIMEOUT_DAYS=90` and `ADMIN_API_ENABLED=false`, the CLI's token with no expiry
+  and no idle limit. The switches stay off: MinIO's update and call-home, Zitadel's service ping
+  and telemetry, and Trigger.dev's telemetry and checkpoint, with no PostHog key.
+- **Merged after the tag: GoAccess's base, Alpine 3.24.3 → 3.24.4 (#1892, Dependabot's).** Both
+  FROM lines of `deploy/compose/goaccess/Dockerfile` move to `alpine:3.24.4` by tag and digest.
+  Alpine 3.24.4 was pushed on 2026-11-08, and its arm64 base differs from 3.24.3's in apk-tools and
+  libapk, 3.0.8 → 3.0.9; GoAccess's image read 0 critical, 0 high and 0 with a fix before it. Green
+  on its head `c1fc8be4`, with `main` at `cff2b9dc` (#1899) merged in: CI run 43611382087, Images
+  run 43611382049 (with its GoAccess build), *Images the scripts build* run 43611382046 and
+  Security Scan run 43611382114; 35 checks, none failed. Merged at 15:54:22 (`cfa50598`), after the
+  lift. Live's duty `visits` builds the image from the tag live serves, so live takes it with the
+  next tag.
+- **Merged after the tag: `@cyclonedx/cyclonedx-npm` 6.0.1 → 7.0.0 (#1894, Dependabot's),** the dev
+  tool that writes the release's `bom.json`, published 2026-11-09. Its breaking changes: the
+  default CycloneDX spec version moves from 1.6 to 1.7, and ajv, xmlbuilder2 and libxmljs2 leave
+  its own manifest; they stay as optional dependencies of `@cyclonedx/cyclonedx-library` 10.5.0, so
+  its validation still runs. Security Scan's *Generate CycloneDX SBOM* step passes no
+  `--spec-version`, so the next release's `bom.json` is CycloneDX 1.7; Release's verify reads it
+  with `checkBom` (`scripts/release-verify.mjs`), which checks only its `bomFormat` and the version
+  its root component names, and prints `specVersion`. Green on its head `b6d80de6`, with `main` at
+  `cfa50598` (#1892) merged in: CI run 43612710643, Security Scan run 43612710642, whose *Generate
+  CycloneDX SBOM* and *Upload SBOM artifact* steps passed with 7.0.0, and No Committed Artifacts
+  run 43612710647; 20 checks, none failed. Merged at 16:07:54 (`45d74163`). 0146's records of
+  alpha.5 to alpha.8 say CycloneDX 1.6, true of those releases.
+
 **2026-11-14, later: alpha.8 is released; the image scans of C and of its release images; the
 inventory's rows for what merged brought up to date.** Read from GitHub on 2026-11-14; times are
 UTC. `v0.2.0-alpha.8` is tagged on C, `20a1c0e1` (#1898), at 10:02:25 (0146).

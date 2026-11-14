@@ -4,6 +4,21 @@
 
 ## Status — 2026-11-14 (update this block at the end of every session)
 
+**2026-11-14, later still: live runs `v0.2.0-alpha.8` (T2).** The owner deployed it from the tag
+the same day: one run of alpha.7's `deploy-live.sh`, from about 15:00 UTC, which took at 15:05:12,
+one-way over alpha.7, since the Trigger.dev pin (v4.8.3 to v4.8.5) and the identity provider's
+(v4.20.1 to v4.20.3) move between the two tags, and no migration file does. It took the copy before
+the update at 15:01:07, the task runner's dump beside the app's and the sign-in service's,
+restarted both Postgres servers on 18.7 and deployed the tasks as `20261114.1` on 4.8.5; the one
+image it pulled was the site's nginx, every other being on the shared daemon already. Every check
+after it passed, and the hold, on from 13:24:43, came off at 15:37:49; 0132's Status of 2026-11-14
+has the blocks. So the first of the *Owed* in the entry below, live's deploy by 2026-11-16 at
+06:23, is done, about 39 hours inside it. Still the owner's: the second, the deletion of the OTA
+instance's dump of 2026-11-14, to report (0135 T7); the first invitation's date (0131 T5); and the
+migration on live that proves alpha.8 (0132 T9). What `main` has merged since the tag reaches the
+next one: GoAccess's Alpine 3.24.4 (#1892) and `@cyclonedx/cyclonedx-npm` 7.0.0 (#1894), two of the
+three held for after the tag, the second making the next release's `bom.json` CycloneDX 1.7 (0119).
+
 **2026-11-14, later: `v0.2.0-alpha.8` is released, its nights waived (T2, T4).** Read from GitHub
 on 2026-11-14. Times are UTC.
 
