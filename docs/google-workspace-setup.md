@@ -79,9 +79,9 @@ person, no admin needed.
    | Mail | **Gmail API** | IMAP itself needs no API; with this on, the `https://mail.google.com/` scope is listed in the consent screen's scope picker instead of having to be pasted in by hand |
    | Tasks | **Google Tasks API** | Google's tasks are not on its CalDAV; the Tasks face reads this API |
 
-   The owner met the calendar one on 2026-09-02: a Google account connection whose consent
-   had gone through cleanly, refused at Test with *CalDAV API has not been used in project …
-   before or it is disabled* — nothing before that point had said the API existed.
+   Without the calendar one, a Google account connection whose consent went through cleanly
+   is refused at Test with *CalDAV API has not been used in project … before or it is
+   disabled* — and nothing before that point says the API exists.
 
 ## 2. The consent screen
 
@@ -294,11 +294,11 @@ Then keep a note of what you found.
 Two cells differ, for one reason: two exports of the same unchanged file do not come back byte
 for byte the same. A Doc's `.odt` rewrites its `settings.xml` (view settings such as zoom and
 cursor position, not the text), and a deck's `.pptx` changes its relationship files and themes.
-Until 2026-09-23 those two were left behind, because copying them meant copying them again on
-every pass. **They are copied now**: a document is copied again only when Drive says it was
-edited, and a renamed one is recognised by its Drive id, so the bytes decide nothing. Several of the other cells come back as the same content in a re-stamped zip, which
-this product compares by the document's parts rather than by the whole file, so a re-stamp is
-not a change; that is what "the same" means here.
+**They are copied all the same**: a document is copied again only when Drive says it was
+edited, and a renamed one is recognised by its Drive id, so the bytes decide nothing. Several of
+the other cells come back as the same content in a re-stamped zip, which this product compares
+by the document's parts rather than by the whole file, so a re-stamp is not a change; that is
+what "the same" means here.
 
 **Every format carries every kind, and you choose per kind.** Docs can arrive as `.docx` and
 decks as `.odp`, or any other combination. The trade that is left is editability: OpenDocument

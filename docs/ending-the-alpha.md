@@ -7,8 +7,8 @@ and how to tell afterwards that the switch reached every part (*Checks*).
 The alpha is one setting in live's `.env`: `OWNPACE_STAGE=alpha`. Ending it means emptying that
 setting and deploying a release, so that every process reads the new value.
 
-**The OTA stack takes live's stage.** The owner checks a deploy there before it reaches live
-(the owner, 2026-10-05), so OTA runs the alpha as live does. With the stage set, OTA's `.env`
+**The OTA stack takes live's stage.** The owner checks a deploy there before it reaches live,
+so OTA runs the alpha as live does. With the stage set, OTA's `.env`
 also needs `BACKUP_RETENTION_DAYS`: 0 when nothing backs up its database. Left blank, the API
 refuses to start during the alpha. Every other stack (a developer's, CI, every appliance) runs
 without the stage. **Rehearse the switch on the OTA stack:** empty the stage there first, check
@@ -45,17 +45,18 @@ reading the stage fails that guard until it has a line here.
 These are facts from the repository. Each one is a reason **not** to switch yet. Deciding them is
 the owner's job.
 
-1. **The new conditions, and each tester's yes to them.** The owner decided on 2026-09-28 that
-   everything carries on after the alpha under new conditions, which each tester accepts first
-   (workplan 0131 §3 T4, answer (b)). Today the texts a member accepts are the Alpha conditions,
-   the privacy policy and the terms (`packages/managed/src/legal-versions.ts`), and the API asks
+1. **The new conditions, and each tester's yes to them.** Everything carries on after the alpha
+   under new conditions, which each tester accepts first. Today the texts a member accepts are
+   the Alpha conditions, the privacy policy and the terms
+   (`packages/managed/src/legal-versions.ts`), and the API asks
    for them **only while the stage is `alpha`** (`acceptanceAsked` in
    `apps/api/src/conditions-not-accepted.ts`). Emptying the stage as the code stands asks nobody
    anything. So the new conditions, and a gate that asks for them outside the alpha, come first.
    `legal-versions.ts` says the new conditions replace the Alpha's there, and whether the paid
-   service asks at all is workplan 0086's question. 0131 §3 T4 lists the rest of what (b) needs:
-   a restore procedure if the service moves host (0134 T5), the new host in the privacy texts
-   (0139 T5), the run-row retention rule (0143 T6), and the Google test-user entries kept.
+   service asks at all is workplan 0086's question. Workplan 0131 §3 T4 lists the rest of what
+   carrying on needs: a restore procedure if the service moves host (0134 T5), the new host in
+   the privacy texts (0139 T5), the run-row retention rule (0143 T6), and the Google test-user
+   entries kept.
 2. **The invoice.** After the switch a yes is taken and recorded with its price, and the Billing
    page names what the month bills. The month task makes each month's invoice in advance, as a
    draft, from the month `OWNPACE_BILLING_FROM` names (workplan 0111, slice 4,
@@ -65,7 +66,7 @@ the owner's job.
    before leaving Free (decision 14, slice 5e), and a consumer can withdraw (slices 7a to 7c).
    A payment Mollie confirms is booked on its invoice in Moneybird, on the account
    `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names, and paid and late are read back from Moneybird
-   every hour (slice 5f; the owner, 2026-10-11). Every yes is given at an order button that
+   every hour (slice 5f). Every yes is given at an order button that
    says, for a consumer within the fourteen days, that ordering asks us to begin at once, and
    each order is confirmed by email (slice 7e, terms §7): a withdrawal then bills the days
    used. A credit note's amount is made real once the books number it (slice 7d, its second
@@ -82,7 +83,7 @@ the owner's job.
 
    Terms §7 has the lawyer's agreement, and the two Moneybird calls of slice 7d passed in the
    sandbox (`register_payment_creditinvoice` on a credit note crediting part of an open invoice,
-   and a negative payment booked on a credit note; the owner, 2026-10-11, with
+   and a negative payment booked on a credit note, with
    `./deploy/compose/moneybird-money-back-proof.sh`), and so did Mollie's refund in test mode
    (the same script with `refund`). **Before invoices reach customers, live needs its books and
    payments**, each step as *8i. The books and payments* in
@@ -115,10 +116,10 @@ the owner's job.
 3. **Tell the testers, with their numbers.** No yes could be taken during the alpha, so every
    organisation is on Free at the switch: six paths at the same time (each kind of data in a
    migration is one), 150 GB counted from the switch, and one pass a day (ADR-0014). Everything
-   moved during the alpha never counts (the owner, 2026-10-04: *"In total for ever, and the
-   alpha's data doesn't count"*), so every organisation starts at 0 GB counted, and its Billing
-   page shows what the alpha moved on a line of its own. An organisation already running more than Free runs keeps running: a resume never
-   takes a new slot. But it starts nothing new without a yes, and its Billing page says why.
+   moved during the alpha never counts, so every organisation starts at 0 GB counted, and its
+   Billing page shows what the alpha moved on a line of its own. An organisation already
+   running more than Free runs keeps running: a resume never takes a new slot. But it starts
+   nothing new without a yes, and its Billing page says why.
 4. **Do not switch back and forth.** Setting `alpha` again later makes everything moved from then
    on the alpha's again. It never counts, and nothing waits at the ceiling. The yeses already taken
    stay. A trial of the switch belongs on the OTA stack: the
@@ -186,11 +187,9 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ./deploy/compose/bootstrap-managed.sh --from trigger
    ```
 
-   MinIO's store has been `ownpace-live_minio_data_v2` since the release that carries workplan
-   0146 T7, Chainguard's build: alpha.2, whose fold carried its merge (#1692, `0029db4a`). The
-   Bitnami-era `ownpace-live_minio_data` is the owner's to remove after that release's deploy; if
-   `docker volume ls` still lists it here, it holds the packets of the weeks before that release,
-   so remove it in this step too, with `docker volume rm ownpace-live_minio_data`.
+   MinIO's store is `ownpace-live_minio_data_v2`. If `docker volume ls` still lists the older
+   `ownpace-live_minio_data`, it holds the packets of the alpha's first weeks, so remove it in
+   this step too, with `docker volume rm ownpace-live_minio_data`.
 
    A volume `docker volume rm` refuses is one something still holds: see *If a check fails*. The
    bring-up starts the task runner and its stores empty (`trigger-api` applies ClickHouse's
@@ -266,8 +265,8 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    ./deploy/compose/deploy-live.sh <tag>
    ```
 
-   **From `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later, the deploy runs twice**
-   (workplan 0146 T13, the owner's decision of 2026-10-26). When live's checkout is of
+   **From `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later, the deploy runs twice.**
+   When live's checkout is of
    `v0.2.0-alpha.2` or an earlier tag (`git describe --tags` names it) and the tag named here is
    `v0.2.0-alpha.3` or later, the first run is the older script, which asks the api container
    with `printenv`, and the distroless API has none. The stack moves to the tag, and that run

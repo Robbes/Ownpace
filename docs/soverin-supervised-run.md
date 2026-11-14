@@ -28,9 +28,8 @@ Stage 10 points here. What changed, and why:
 - **The source is open.** See *Before the sitting*.
 - **The rest now matches the code.** One Soverin connection carries
   calendars, contacts, mail and tasks (0106 T4, 0113 T5), so step A adds one
-  connection and step D makes one mapping. The connection's Test no longer
-  shows the scheduling verdict (0105 T0, the owner's instruction of
-  2026-09-07), so step E reads it from the audit log. The labels are the
+  connection and step D makes one mapping. The connection's Test does not
+  show the scheduling verdict, so step E reads it from the audit log. The labels are the
   ones on the screen, and the list of migrations is `GET /api/migrations`.
 
 ## Before the sitting

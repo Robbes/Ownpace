@@ -4,7 +4,7 @@ Step-by-step operator procedure for executing and managing a migration
 cutover with the cutover CLI.
 
 > **Read this first — what the tool does and does not do.** The stack's DNS
-> stance is **verify-only** (owner decision 2026-07-16): the CLI reads and
+> stance is **verify-only**: the CLI reads and
 > checks DNS but **never writes it**. Switching the MX record — and reverting
 > it on a rollback — is **your manual step**, guided by the generated DNS
 > runbook (`runbook` subcommand) and confirmed by the CLI's checks. Any older
@@ -297,7 +297,8 @@ it sooner):
 - A migration that was running at `execute` keeps being copied, under the
   after-cutover rules: new items are copied, deletions at the source are not
   mirrored, and a change at the source no longer overwrites a copy already made
-  (counted as `changedAfterCutover`; the owner, 2026-10-05, "Stop overwriting"). `status` prints until when; after that no pass runs,
+  (counted as `changedAfterCutover`). `status` prints until when; after that no
+  pass runs,
   and the migration's own ending (finish, or keep copying in the continuous
   lane) is the Finish page's.
 - A pass that was already running when `execute` landed finishes its copying,
@@ -336,8 +337,7 @@ If issues are detected during cutover or the grace period:
    server.
 5. Document the root cause; plan remediation. A `FAILED` or `ROLLED_BACK`
    cutover can be attempted again with `start-cutover` (`→ PREPARING`,
-   recorded as the next attempt; the trail keeps the first). Until 2026-09-20
-   a rolled-back cutover could not be attempted again without SQL (0009 T8).
+   recorded as the next attempt; the trail keeps the first).
 
 ## Troubleshooting
 
@@ -352,8 +352,8 @@ If issues are detected during cutover or the grace period:
    nameserver too: `dig MX example.com @ns1.provider.example`).
 3. TTL still high? Wait it out or lower it and re-apply.
 4. Retry: `start-cutover` moves a `FAILED` cutover back to `PREPARING`
-   (until 2026-09-20 nothing did — `verify` only advances from `PREPARING`),
-   then `verify`, `approve --yes`, `execute --yes`.
+   (`verify` only advances from `PREPARING`), then `verify`, `approve --yes`,
+   `execute --yes`.
 
    The managed preparation job (`POST /api/migrations/{id}/cutover`, the
    Trigger.dev task `run-cutover`) converges on its own: on `FAILED`,
@@ -364,8 +364,7 @@ If issues are detected during cutover or the grace period:
    would refuse is answered 409 `cutover_refused` on the spot, and a 202
    says what the job will do (`preparation.from`, `resetsToPreparing`,
    `revokesApproval`). A gate FAIL is
-   recorded once and not retried. Until 2026-09-20 a second run on a ready
-   cutover marked it `FAILED`, and from `FAILED` the job could not run at all.
+   recorded once and not retried.
 
    The job's final sync is the ordinary pass, `run-delta-sync`, over every
    data type the migration has. It is queued behind any pass already running
@@ -379,9 +378,7 @@ If issues are detected during cutover or the grace period:
    one stopped before the pass: the gate skips it too. That is recorded once and not retried;
    prepare again once the passes have caught up. A final pass that failed
    outright is recorded the same way: the pass has already been retried by
-   its own task, so the job does not run it again three times over. Until 2026-09-24 the final
-   sync copied mail only, and a migration without mail could not be prepared
-   at all (workplan 0128 T1).
+   its own task, so the job does not run it again three times over.
 
 ### Verification failed
 
@@ -416,4 +413,4 @@ If issues are detected during cutover or the grace period:
   EN/NL user comms (sending them is manual)
 - [Solution Architecture](./architecture/solution-architecture.md) §11
 - [Workplan 0009](./workplans/0009-cutover-integration.md) — cutover
-  integration, incl. the verify-only DNS owner decision
+  integration, incl. the verify-only DNS decision

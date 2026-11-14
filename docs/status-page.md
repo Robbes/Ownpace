@@ -11,7 +11,7 @@ the same stack, on the same machine. When the box is off, the network is gone,
 or Docker has fallen over, the page is off too — and an unreachable status page
 looks identical to a status page nobody has visited.
 
-That is a deliberate trade (owner decision, 2026-08-22) and not an oversight.
+That is a deliberate trade, not an oversight.
 The alternative is a second machine in a different place, which is the right
 answer eventually and is a real cost now: another host to patch, another deploy
 path, another thing to forget. Before there are customers, a page that is honest
@@ -59,8 +59,7 @@ has one is news in itself.
 
 ## Who is told
 
-**The owner, by e-mail, for the Ownpace rows only** (workplan 0142 T1, and the
-owner's choice of channel). A row that stays red for three minutes sends one
+**The owner, by e-mail, for the Ownpace rows only.** A row that stays red for three minutes sends one
 mail, and a second when it has been green twice in a row. Each mail names the
 row's line in [`incident-runbook.md`](./incident-runbook.md), which says what to
 look at first. Sources and Targets are never alerted on: a Google outage is not
@@ -69,8 +68,8 @@ ours to fix, and the page already shows it.
 **It is off unless the stack turns it on.** `ALERT_ENABLED` defaults to `false`.
 Live's `.env` sets it to `true`, and live is not stood up or deployed without it:
 `stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` whose
-`ALERT_ENABLED` is not exactly `true`, because testers are on live (0142 T0;
-the owner, 2026-10-04). The OTA stack leaves it off, because the nightly gate
+`ALERT_ENABLED` is not exactly `true`, because testers are on live. The OTA
+stack leaves it off, because the nightly gate
 recreates its web app and API on schedule. The mail goes through the same
 relay as the product's own (`SMTP_*`), from `NOTIFY_FROM` to `NOTIFY_TO`, unless
 `ALERT_SMTP_*`, `ALERT_FROM` or `ALERT_TO` say otherwise. A stack with no relay
@@ -118,8 +117,7 @@ They are different questions and both are worth asking. `Sign-in` reads
 source it verifies tokens against — so a green there means *the API can still
 check a token*. `Identity provider` asks the provider's own `/debug/ready`
 directly, so it stays meaningful when the API is the thing that is down. Four
-rows that all read one endpoint go dark together, and until 2026-08-25 nothing
-on this page ever named the provider at all.
+rows that all read one endpoint go dark together.
 
 **`Identity provider` asks `/debug/ready`, not the discovery document.** Zitadel
 decides which instance a request is for from its ORIGIN — host *and* port — and

@@ -97,7 +97,3 @@ This maintains **honest failure reporting** while acknowledging the current real
 - Issue #32: DAV + unified-sync suites skipped
 - Stalwart documentation: HTTP listener configuration
 - ADR-0002: Minimal Stalwart config decision
-
----
-
-**Status**: Owner decision required on which option to pursue.
