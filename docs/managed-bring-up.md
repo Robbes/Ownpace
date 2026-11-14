@@ -879,6 +879,24 @@ the smoke asks from both sides (*trigger-registry and trigger-docker-proxy*):
 Docker answers from the supervisor, and the name is unknown in the API
 container.
 
+**The registry is on a network of its own, which nothing else shares**
+(2026-11-14, workplan 0136 T4). `<project>_trigger-task-images` has one member,
+`trigger-registry`, and nothing else on the stack can resolve the name
+`trigger-registry`: not the API, the web app, Zitadel or Nextcloud, and not a
+task run. Nothing needs to. The CLI pushes task images from the host to
+`localhost:${REGISTRY_PORT}`, and the host's Docker daemon pulls a run's image
+from the same address, both through the port the registry publishes on
+127.0.0.1. Until then it was on `ownpace-network`, where every container could
+push task images to it or pull them, with no authentication, and send it
+CVE-2026-78667's request: Go 1.26.8's `net/http`, which distribution v3.1.2 is
+built with and serves every blob through, spends excessive CPU on a `Range`
+header with many small ranges. The network is not `internal`, unlike the two
+above, because the published port is the registry's only way in.
+`scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds the file to it,
+and the smoke asks from both sides (*trigger-registry and
+trigger-docker-proxy*): the registry answers on the loopback port, and the name
+is unknown in the API container.
+
 `trigger-db` comes up first, on its own. Then the phase sets its role
 `trigger` to `.env`'s `TRIGGER_DB_PASSWORD` (`managed.yml`'s fallback when the
 key is empty, which on a real address `load_env` has refused already) over

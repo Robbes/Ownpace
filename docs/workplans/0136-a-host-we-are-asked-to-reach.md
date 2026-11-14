@@ -2,7 +2,60 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-14 (update this block at the end of every session)
+
+**2026-11-14: the task images' registry on a network nothing else shares (T4's registry, built
+ahead of the rest of T4).** On branch `claude/ownpace-public-readiness-y7orc6-registry-network`,
+for alpha.9. T4 stays after the first invitation (§4); this moves one piece of it forward, as
+T4's first bullet was moved on 2026-11-02, and it merges on the owner's word. The image scan of
+2026-11-14 (Security Scan run 43583806230, after the alpha.8 tag) read 27 findings with a fix in
+the images live runs, all high. Read for reach, one of them can be reached, in the registry and
+from inside the stack only. That is CVE-2026-78667 (GO-2026-6609), in the Go 1.26.8 that
+distribution v3.1.2's `bin/registry` is built with: `net/http`'s `ServeContent` spends excessive
+CPU on a `Range` header with many small ranges, and the registry serves every blob through it
+(`registry/storage/blobserver.go`, line 73, at v3.1.2), to whoever asks. The fix is in Go 1.26.9,
+and distribution has not released since v3.1.2. The registry also takes pushes and serves pulls
+with no authentication, and it was on `ownpace-network`. Every container there could push task
+images to it or pull them: the web app, the API, the identity provider and the demo Nextcloud,
+and every task run (`DOCKER_RUNNER_NETWORKS`). These are the images the host's Docker daemon
+starts task runs from.
+
+- **The network.** `managed.yml` declares `trigger-task-images`, a bridge with no `name:`, so
+  each stack gets `<project>_trigger-task-images` (§1, *Two stacks on one machine*).
+  `trigger-registry` leaves `ownpace-network` for it, and nothing else joins it. It is not
+  `internal`: the published port is the registry's only way in, and T4's *Published ports*
+  reads that Docker publishes none for a container whose only network is internal. That
+  reading is not tried here. The registry keeps a route off the machine, as it had, and uses
+  none: no proxy, notification endpoint or token service is configured.
+- **Nobody addresses it by name, read in the file.** `trigger-api` hands the CLI
+  `DEPLOY_REGISTRY_HOST: localhost:${REGISTRY_PORT}`, and `deploy-tasks.sh` builds and pushes
+  on the host's network. The supervisor's `DOCKER_REGISTRY_URL` is the same address, which it
+  puts in the image name it asks the host's daemon to start. Both are the host's loopback,
+  where the port stays published on 127.0.0.1. No service names `trigger-registry` in its
+  environment or waits for it in `depends_on`.
+- **The guard.** `a-network-the-tenant-cannot-see` grows by 31 tests: the network, the
+  registry on it alone with one port on 127.0.0.1, no other member (by `networks:` or a
+  member's namespace), no service that names it or waits for it, no tenant-facing service and
+  no task run beside it, and no script or workflow that joins it by name. Twenty mutations of
+  a parsed copy and six tenant-facing services put on the network each fail it, and so do
+  eight mutations of the file on disk (the registry back on `ownpace-network` or on both, its
+  port on every address, the supervisor's or `trigger-api`'s registry address naming
+  `trigger-registry`, the network not declared or external, the task runs on it). On `main`'s
+  file at `5196618d`, its first test fails with 25 problems, the first two "the network
+  trigger-task-images is not declared" and "trigger-registry is on ownpace-network".
+- **The smoke** asks the registry from both sides, as it asks the proxy and ClickHouse: it
+  answers on the loopback port (as before), and from the API container the name
+  `trigger-registry` must not resolve (ENOTFOUND or EAI_AGAIN), with only the error's code
+  printed. Six new cases in `smoke-managed-verdict` hold the block. `stand-up-live.sh` checks
+  live's `trigger-task-images` network with the other four (D9).
+- **What it stops:** a push, a pull or CVE-2026-78667's request from any other container,
+  whether made by code a task runs or forged through the web app, the API, Zitadel or
+  Nextcloud. **What it does not stop:** code on the host, which reaches the loopback port, and
+  each stack's socket proxy, which can still start a container on any network of the machine,
+  this one included (§1; accepted by D6).
+- **The proof** is E2E (managed) on the branch: the gate pushes the task images through the
+  port, the smoke runs a task whose image the daemon pulls through it, and the smoke finds no
+  such name from the API container.
 
 **2026-11-08, records: open question 1 settled by the build.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`). It asked
@@ -806,9 +859,9 @@ confirmed only in part: the claim that the threat-model decision is open is stal
 | T1 Refuse internal addresses after DNS, on every connection and every redirect | ✅ **done**, merged 2026-09-27: (a)'s three slices (the rule, #1216; every client of a tenant's host going through it, #1223; the rule switched on in the managed API and tasks, #1230) and (b) (the bring-up's network check, #1224); the refusal's Dutch came with T3's screens, merged as #1234; advised before the first invitation (D1) — *was:* 🔨 **Built 2026-09-27**, the third slice not merged | §3. Managed only, on in both stacks. Loopback, private, link-local, CGNAT, unique-local, compose names, and the Docker networks and their gateways (D6): the bring-up refuses to go on if a network on the machine lies outside the ranges. 0132 T3's 127.0.0.1 binds are the other half. One new dependency (`undici`) for the `fetch` half. |
 | T2 An operator allowlist for the demo targets | ✅ **done** in #1230, merged 2026-09-27 (`55ee81c8`), with T1 (a)'s third slice; read empty on live, in its `.env` and API container, 2026-10-29 (Status, 2026-10-31); `deploy-live.sh` refuses live's `.env` when the list names a host, at every deploy after the one to a tag carrying that refusal (#1752, merged 2026-10-31, `fca784f7`; Status, 2026-10-31; *was:* built on branch `claude/ownpace-public-readiness-y7orc6-deploy-live-alpha-refusals`, not merged) — *was:* 🔨 **Built 2026-09-27** with T1 (a)'s third slice, not merged; 📋 **Proposed**, with T1 | §3. Empty on live. The OTA stack, the gate's, names its demo hosts. |
 | T3 A probe answer that says what happened, not what the remote said | ✅ **done**: the answer merged as #1227, the limit as #1228, the screens' half as #1234; the second step (the failures a pass records in our words on the failures queue and the routes beside it, the Check page's report and the apply receipts among them) in #1499, merged 2026-10-05 (`59f04be1`); a share's refusal on apply, in our words in English and Dutch, in #1606, merged 2026-10-16 (`1fc3c0bd`); the Sharing page says a folder press's refused rows, under the folder and in each row, in #1645, merged 2026-10-21 (`f04ec785`) — *was:* the share's refusal on apply not yet (Status, 2026-10-05); the second step 🔨 built 2026-10-05, not merged; the failures route to come; 📋 **Proposed**, advised before the first invitation (D1) | §3. On the managed API: a status and a category, not the remote's body; the full text in a log line with a reference. A per-member limit on tests. The failures route is a second step. |
-| T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation; its first bullet, the socket proxy on a network only the supervisor shares, with its guard, ✅ **merged** as #1784 on 2026-11-02 (`2cae9602`), after E2E (managed) run 41408096908 was green on its head (Status, 2026-11-02, records) — *was:* its first bullet 🔨 built 2026-11-02 on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (2026-11-02) | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
+| T4 The API and the task runners off the control plane's network | 📋 **Proposed**, after the first invitation; its first bullet, the socket proxy on a network only the supervisor shares, with its guard, ✅ **merged** as #1784 on 2026-11-02 (`2cae9602`), after E2E (managed) run 41408096908 was green on its head (Status, 2026-11-02, records); the registry on a network nothing else shares, with its guard rules, 🔨 **built** 2026-11-14 on branch `claude/ownpace-public-readiness-y7orc6-registry-network`, not merged: it merges on the owner's word (Status, 2026-11-14) — *was:* its first bullet 🔨 built 2026-11-02 on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (2026-11-02) | §3. The docker-socket proxy and the Trigger.dev control plane on a network the tenant-facing processes cannot reach, in both stacks. The host rule covers both stacks' `egress` bridges. |
 | T5 No archive "disk" path on the managed edition | ✅ **done** in #1175, merged 2026-09-25; before the first invitation — *was:* 📋 Decided 2026-09-24 (0148 D10) | §3. Five doors refuse it before anything opens the path (add, test-connection, create including a reuse, the stored-row Test, rotation), with a sentence that names the folder in the destination's files (0148 D11). The gate's archive fixture step breaks with it and returns with 0148 T9, which is stacked on this task. The owner first chose to hide the managed archive card (0148 D3), then to label it (0148 D10). |
-| T6 Guard tests for each | ✅ **(a) with each task** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step with its guard and 38 mutations merged as #1499 (2026-10-05); T3's share refusal with `a-share-refused-in-our-words` and 15 mutations merged as #1606 (2026-10-16); the folder press's refused rows with 13 cases and 20 mutations merged as #1645 (2026-10-21); T4's first bullet with `a-network-the-tenant-cannot-see` (37 tests; 12 mutations of the file on disk, and `main`'s file, each failed it) merged as #1784 on 2026-11-02 (`2cae9602`) — *was:* T4's first bullet on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (2026-11-02); T3's second step and share refusal not merged; #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
+| T6 Guard tests for each | ✅ **(a) with each task** (0131 §6, M2 step 5): every pull request of T1, T2 and T3 carries its guard, and the Status block its mutation count; T1 (a)'s third slice with T2 merged as #1230, T3's screens merged as #1234; T3's second step with its guard and 38 mutations merged as #1499 (2026-10-05); T3's share refusal with `a-share-refused-in-our-words` and 15 mutations merged as #1606 (2026-10-16); the folder press's refused rows with 13 cases and 20 mutations merged as #1645 (2026-10-21); T4's first bullet with `a-network-the-tenant-cannot-see` (37 tests; 12 mutations of the file on disk, and `main`'s file, each failed it) merged as #1784 on 2026-11-02 (`2cae9602`); T4's registry adds 31 tests to it (20 mutations and 6 tenant-facing services, each failing it; 8 mutations of the file on disk, and `main`'s file, each failed it), on branch `claude/ownpace-public-readiness-y7orc6-registry-network`, not merged (2026-11-14) — *was:* T4's first bullet on branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-network`, not merged (2026-11-02); T3's second step and share refusal not merged; #1230 not merged; 📋 **Proposed**, with each task | §3. Each code task names the test that fails without it. |
 | T7 The threat model says what is true | ✅ **done** in #1499, merged 2026-10-05 (`59f04be1`), with T3's second step: `solution-architecture.md` v1.14 and `SECURITY.md` (Status block) — *was:* 🔨 **Built 2026-10-05** on T3's second step's branch, not merged; 📋 **Proposed** | §3. §17.1 gets rows for SSRF, exposure (two stacks on one daemon included) and the worker plane. "Egress controls" goes until it exists. |
 
 ## 1. What there is today
@@ -919,13 +972,15 @@ below is on it, except where its row says otherwise. Each stack started from the
 own copy (next part). The other networks are all `internal: true`: `status-probe`, which carries
 the identity provider's name for the status page; `trigger-event-store`, ClickHouse's, since
 2026-11-01; and `trigger-docker-socket`, the socket proxy's, since 2026-11-02 (T4's first bullet,
-#1784, merged 2026-11-02, `2cae9602`).
+#1784, merged 2026-11-02, `2cae9602`). The registry's, `trigger-task-images`, built on 2026-11-14
+on a branch not yet merged (T4; Status, 2026-11-14), is a plain bridge, with the registry alone
+on it.
 
 | On `ownpace-network` | What it is |
 |---|---|
 | `postgres`, `pgbouncer` | The application database and its pooler |
 | `trigger-db`, `trigger-redis`, `clickhouse`, `minio` | Trigger.dev's database, queue, event store and object store (`clickhouse` since 2026-11-01 on `trigger-event-store`, an `internal` network only `trigger-api` shares, instead: 0119 §3 item 9, #1774, merged 2026-11-01, `1be730ec`; the socket proxy could join a container to it until T4's first bullet, #1784, merged 2026-11-02, `2cae9602`) |
-| `trigger-api`, `trigger-supervisor`, `trigger-registry`, `trigger-tls` | Trigger.dev's control plane (`trigger-api` also on `trigger-event-store` since 2026-11-01; `trigger-supervisor` also on `trigger-docker-socket` since 2026-11-02, #1784) |
+| `trigger-api`, `trigger-supervisor`, `trigger-registry`, `trigger-tls` | Trigger.dev's control plane (`trigger-api` also on `trigger-event-store` since 2026-11-01; `trigger-supervisor` also on `trigger-docker-socket` since 2026-11-02, #1784; `trigger-registry` on `trigger-task-images` alone instead, on the branch of 2026-11-14, T4) |
 | `trigger-docker-proxy` | `tecnativa/docker-socket-proxy` with `CONTAINERS: 1`, `IMAGES: 1`, `NETWORKS: 1`, `VOLUMES: 1`, `POST: 1`, in front of the host's Docker socket (since 2026-10-30 `localhost/docker-socket-proxy`, upstream's v0.5.0 built here on a current HAProxy, with the same environment; workplan 0119). Since 2026-11-02 (#1784, `2cae9602`) not on `ownpace-network`: on `trigger-docker-socket`, `internal`, with `trigger-supervisor` alone (T4's first bullet) |
 | `zitadel` | The identity provider |
 | `api`, `web`, `gatus`, `mailpit`, `nextcloud` | The product, the status page, the mail catcher and the demo DAV server |
@@ -1241,6 +1296,13 @@ the file, so both get them, each under its own project's names (0132 T1):
   `internal` network of its own that only `trigger-supervisor` shares, so the rest of the control
   plane does not reach it either. When `control` is built, the proxy keeps that network rather
   than join `control`.
+- **The registry is on a network nothing else shares.** *Built ahead of the rest on 2026-11-14,
+  on branch `claude/ownpace-public-readiness-y7orc6-registry-network` (Status, 2026-11-14), and
+  stricter than this table:* `trigger-registry` is on `trigger-task-images` alone, a plain
+  bridge so that its port stays published on 127.0.0.1, which is how the CLI pushes and the
+  host's daemon pulls. Nobody addresses it by name, so it needs `control` no more than the
+  small network for published ports below. When `control` is built, the registry keeps its
+  own network rather than join `control`.
 - **ClickHouse stays off any network the socket proxy or the supervisor shares** (2026-11-01,
   0119 §3 item 9). Since #1774 it is on `trigger-event-store`, `internal`, with `trigger-api`
   alone, because the 26.2 it runs has an unauthenticated code execution with no fix

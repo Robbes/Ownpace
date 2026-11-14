@@ -1232,6 +1232,28 @@ else
   echo "      nothing in the message naming the registry."
   fail_at
 fi
+# AND FROM THE API CONTAINER, the registry's name must not resolve at all. Since
+# 2026-11-14 it is on `trigger-task-images`, which nothing else joins
+# (managed.yml, at the bottom; workplan 0136 T4). Nobody addresses it by name:
+# the CLI pushes and the host's daemon pulls on the host's loopback, as above.
+# The API container is on ownpace-network with every other service and every
+# task run, so an answer, a refused connection or a timeout means a network it
+# is on knows the name, and every container there can push task images, with no
+# authentication. By the path the preflights found (`$API_NODE`), as for the
+# proxy below. Only the status and the error's code are printed: the message of
+# a refused connection carries the address, and this log is public.
+reg_from_api="$(docker exec "$API_CONTAINER" "$API_NODE" -e \
+  "fetch('http://trigger-registry:5000/v2/').then(r=>{console.log('answered HTTP '+r.status);process.exit(0)}).catch(e=>{console.log((e.cause&&e.cause.code)||e.name);process.exit(1)})" 2>&1)" && reg_rc=0 || reg_rc=$?
+case "$reg_rc:$reg_from_api" in
+  1:ENOTFOUND|1:EAI_AGAIN)
+    echo "trigger-registry: no such name from the API container (${reg_from_api}), so nothing on ownpace-network reaches the task images" ;;
+  *)
+    echo "FAIL: the API container asked trigger-registry:5000 and got '${reg_from_api}' (exit ${reg_rc}), not an unknown name."
+    echo "      Every service on ownpace-network and every task run can then push task"
+    echo "      images to the registry, with no authentication: it must be on"
+    echo "      trigger-task-images alone."
+    fail_at ;;
+esac
 
 # THE DOCKER PROXY publishes no port, and since 2026-11-02 it is on one network,
 # `trigger-docker-socket`, which only the supervisor shares (managed.yml, at the

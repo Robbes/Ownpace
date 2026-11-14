@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The task images' registry is on a network of its own, which nothing else joins** (workplan
+  0136 T4, built ahead of the rest of T4): `trigger-registry` takes pushes and serves pulls with
+  no authentication, and it was on `ownpace-network`. Every container there could push task
+  images to it or pull them, including the web app, the API, Zitadel, Nextcloud and every task
+  run. It is now on `trigger-task-images`, alone. The CLI pushes and the host's Docker daemon
+  pulls through its port on 127.0.0.1, as before. This also keeps CVE-2026-78667 (Go 1.26.8's
+  `net/http`, in the registry's binary until distribution releases) away from every container. A
+  guard holds the file to it, and the smoke finds no such name from the API container.
+
 ### Changed
 
 - **GoAccess, which counts the site's visits, is built on Alpine 3.24.4** (workplan 0119; from

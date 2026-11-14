@@ -1287,7 +1287,7 @@ run_checks() {
   # Live's networks are its own (D9).
   before="${#_f[@]}"
   if nets="$(docker network ls --filter "name=${COMPOSE_PROJECT}_" --format '{{.Name}}')"; then
-    for n in ownpace-network status-probe trigger-event-store trigger-docker-socket; do
+    for n in ownpace-network status-probe trigger-event-store trigger-docker-socket trigger-task-images; do
       grep -qx -- "${COMPOSE_PROJECT}_${n}" <<<"$nets" || _f+=("the network ${COMPOSE_PROJECT}_${n} is not there (workplan 0132 D9).")
     done
   else
