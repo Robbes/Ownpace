@@ -14,7 +14,7 @@ image it pulled was the site's nginx, every other being on the shared daemon alr
 after it passed, and the hold, on from 13:24:43, came off at 15:37:49; 0132's Status of 2026-11-14
 has the blocks. So the first of the *Owed* in the entry below, live's deploy by 2026-11-16 at
 06:23, is done, about 39 hours inside it. Still the owner's: the second, the deletion of the OTA
-instance's dump of 2026-11-14, to report (0135 T7); the first invitation's date (0131 T5); and the
+instance's dump of 2026-11-14, to report (0135 T7; *done that evening*); the first invitation's date (0131 T5); and the
 migration on live that proves alpha.8 (0132 T9). What `main` has merged since the tag reaches the
 next one, the three held for after the tag among it: GoAccess's Alpine 3.24.4 (#1892),
 `@cyclonedx/cyclonedx-npm` 7.0.0 (#1894), which makes the next release's `bom.json` CycloneDX 1.7,

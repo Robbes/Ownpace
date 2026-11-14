@@ -133,7 +133,8 @@ same day. Times are UTC, on 2026-11-14 unless said. No values.
   way back is v4.20.1, with no setup step between them (read from the diffs, not run). v4.20.3 runs
   on live from 15:05:12, about 39 hours before 0135 T7's seven days end (2026-11-16 at 06:23).
   Still the owner's to report: the deletion of the OTA stack's dump set `20261114T040734Z`, the
-  command sent at 10:52 (0135's Status, 2026-11-14, later).
+  command sent at 10:52 (0135's Status, 2026-11-14, later). *(Deleted at about 18:50, with the
+  sets of 2026-10-25 and 2026-11-13: 0135's Status, 2026-11-14, latest.)*
 
 **2026-11-10 to 2026-11-12: live runs `v0.2.0-alpha.7`, reversible over alpha.6 (T6, T9).** The
 owner deployed it on 2026-11-10, before any tester, pasting checked blocks, and ran the checks
