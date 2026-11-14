@@ -1000,42 +1000,38 @@ services:
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
   # nothing else, rebuilt about daily, so this is `latest` by an index digest:
-  # ddfab4c402bf…, dated 2026-11-13 16:01 UTC in its configs and pushed as
-  # `latest` on 2026-11-13 at 20:19 UTC, with linux/amd64 and linux/arm64 in
-  # it, taken that day for alpha.8, inside its three-day floor (which ends
-  # 2026-11-16 20:19 UTC), on the owner's waiver of 2026-11-13 ("Waive all
-  # waiting time."). Kept current, not a security fix: Security Scan run
-  # 43492635512 (2026-11-13) read the digest before it, 869ca3178831… (built
-  # 2026-11-07, taken 2026-11-10 for CVE-2026-116591, #1870), at 0 critical
-  # and 0 high. The server is the fork's RELEASE.2026-11-12T01-15-23Z at
-  # commit a60e2a7b, in Wolfi's `minio` 0.20261112.011523-r0. `go version
-  # -m`, read off each binary on both architectures without running it,
-  # differs from 869ca3178831…'s in go-jose 4.1.6 → 4.1.7, in the thrift
-  # version go.mod asks for (0.23.0 → 0.24.0; Wolfi's build replaces it with
-  # 0.25.0 in both, so that code is the same) and in its Go, 1.27.3 → 1.27.4,
-  # whose net/http fixes CVE-2026-97054: an HTTP/1 server could panic when a
-  # request body passed MaxBytesReader's limit (here 5 TiB and 64 MiB) while
-  # its handler set a header. `mc` is 0.20250813.083541-r29: the same source,
-  # at commit 7394ce0d, and the same modules as -r28, rebuilt on Go 1.27.4
-  # for that CVE; bash is /bin/sh, as before. The base moves glibc 2.44-r14
-  # → -r18, with its POSIX locale and ld-linux: three fixes from glibc's
-  # 2.44 branch, for nftw's read errors, for how arm64's vector maths archive
-  # is built and for CVE-2026-84243 in gettext, which nothing here reaches
-  # (the two Go binaries load no libc, and no service sets LANGUAGE or a
-  # locale); libgcc 16.2.0-r2 → -r3, rebuilt for a test; and ncurses
-  # 6.6.20261031 → 6.6.20261107, upstream's weekly snapshot. That is 8 of
-  # the image's 23 packages (their apk databases, both architectures), and
-  # the image config differs in its dates and layer ids alone. The fork's
-  # releases since RELEASE.2026-09-22T19-25-18Z, in
-  # d88920d6a50b… (2026-10-22, #1692), differ from it in go.mod and go.sum,
-  # CI scripts, the Makefile's tidy check, two debugging tools under docs/
-  # and one test file: no line under cmd/ or internal/ that the server is
-  # built from changed. The three builds before it were never taken:
-  # db3f583fa491… (pushed 2026-11-11, the fork's RELEASE.2026-11-10T21-18-11Z,
-  # drafted as #1881 and closed for this one); 786cb11d340b… (pushed
-  # 2026-11-12), this one's `minio` and `mc` byte for byte, on glibc
-  # 2.44-r16; and 96b6cf3e1408… (pushed 2026-11-13 at 01:29 UTC), the same
-  # two on glibc 2.44-r17, which `latest` left while this move was tested.
+  # 634c989a2f10…, dated 2026-11-14 15:18 UTC in its configs and pushed as
+  # `latest` on 2026-11-14 at 20:10 UTC, with linux/amd64 and linux/arm64 in
+  # it, taken that day for alpha.9, inside its three-day floor (which ends
+  # 2026-11-17 20:10 UTC), on the owner's waiver of 2026-11-14 ("I waive all
+  # waitings, so we can work efficiently."). Kept current, not a security
+  # fix: the image scan of alpha.8's tag commit, Security Scan run
+  # 43583806230 (2026-11-14), read the digest before it, ddfab4c402bf…
+  # (pushed 2026-11-13, taken that day for alpha.8, #1890), at 0 critical,
+  # 0 high and 0 with a fix, and no advisory in Go's vulnerability database
+  # covers a module this build moves at the version it leaves. The server is
+  # still the fork's RELEASE.2026-11-12T01-15-23Z at commit a60e2a7b, now
+  # Wolfi's `minio` 0.20261112.011523-r1. `go version -m`, read off each
+  # binary on both architectures without running it, differs from -r0's in
+  # go.opentelemetry.io/otel and its metric, trace, sdk and sdk/metric
+  # modules, 1.45.0 → 1.47.0, with go.opentelemetry.io/otel/log 1.47.0
+  # added, and in go.yaml.in/yaml/v3, 3.0.4 → 3.0.5; its Go is 1.27.4, as
+  # before. `mc` is the same file byte for byte (0.20250813.083541-r29, at
+  # commit 7394ce0d); bash is /bin/sh, as before. The base moves glibc
+  # 2.44-r18 → -r19, with its POSIX locale and ld-linux, and libgcc 16.2.0-r3
+  # → -r4, each rebuilt from the same source (glibc's 438677ef, GCC 16.2.0):
+  # every file of theirs that differs (19 of glibc's, and libgcc_s.so.1)
+  # differs in the release number it carries and in nothing else, on both
+  # architectures. That is 5 of the image's 23 packages (their apk databases,
+  # both architectures); 7 of its 11 layers are the same blobs, and the image
+  # config differs in its dates and layer ids alone. The fork's releases
+  # since RELEASE.2026-09-22T19-25-18Z, in d88920d6a50b… (2026-10-22,
+  # #1692), differ from it in go.mod and go.sum, CI scripts, the Makefile's
+  # tidy check, two debugging tools under docs/ and one test file: no line
+  # under cmd/ or internal/ that the server is built from changed. One build
+  # lies between ddfab4c402bf… and this one, never taken: 0f9fda72fbc6…
+  # (attested 2026-11-14 at 10:12 UTC), ddfab4c402bf…'s packages but for
+  # glibc 2.44-r19 (its arm64 image's apk database, read that day).
   # The weekly pin watch (idp-pin-watch.mjs) says when `latest` has moved
   # on; a move is a pull request with the new digest's scan read and E2E
   # (managed) on its branch. Trigger.dev's own digest from its move of
@@ -1061,7 +1057,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926
+    image: chainguard/minio:latest@sha256:634c989a2f1029162fc2676c263caa181213b9410449968532f750a6fb77532d
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -1143,7 +1139,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926
+    image: chainguard/minio:latest@sha256:634c989a2f1029162fc2676c263caa181213b9410449968532f750a6fb77532d
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging

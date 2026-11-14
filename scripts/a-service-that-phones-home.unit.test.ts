@@ -643,24 +643,25 @@ const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648';
 /**
  * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
- * 2026-11-13 at 20:19 UTC, taken that day for alpha.8, inside its three-day
- * floor on the owner's waiver (0119 Status, 2026-11-13). The server is the
+ * 2026-11-14 at 20:10 UTC, taken that day for alpha.9, inside its three-day
+ * floor on the owner's waiver (0119 Status, 2026-11-14). The server is the
  * fork's `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b, Wolfi's
- * 0.20261112.011523-r0, built with Go 1.27.4 (go-jose 4.1.7,
- * golang.org/x/net 0.62.0); its mc is
- * `RELEASE.2025-08-13T08-35-41Z`, Wolfi's -r29, the source and modules of the
- * digest before it, `869ca317…` (taken 2026-11-10), rebuilt on Go 1.27.4.
- * Between 76c06ff1, that digest's release, and a60e2a7b the fork changed
+ * 0.20261112.011523-r1, built with Go 1.27.4 (go-jose 4.1.7,
+ * golang.org/x/net 0.62.0): the source of the digest before it, `ddfab4c4…`
+ * (taken 2026-11-13), rebuilt with OpenTelemetry-Go 1.47.0 and
+ * go.yaml.in/yaml/v3 3.0.5. Its mc is `RELEASE.2025-08-13T08-35-41Z`,
+ * Wolfi's -r29, the same file as that digest's. Between 76c06ff1, the
+ * release of `869ca317…` (taken 2026-11-10), and a60e2a7b the fork changed
  * go.mod, go.sum, CI scripts and a workflow, the Makefile's tidy check, two
  * debugging tools and one test file, so its cmd/ and internal/ are still
  * those of `RELEASE.2026-09-22T19-25-18Z`, read at that tag of
  * `chainguard-forks/minio`. The four files read there (`cmd/server-main.go`,
  * `cmd/common-main.go`, `cmd/update.go` and
- * `internal/config/callhome/callhome.go`) are the same git blobs at the new
- * tag, so the code read here did not change.
+ * `internal/config/callhome/callhome.go`) are the same git blobs at
+ * a60e2a7b's tag, so the code read here did not change.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926';
+  'chainguard/minio:latest@sha256:634c989a2f1029162fc2676c263caa181213b9410449968532f750a6fb77532d';
 const MAILPIT =
   'axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce';
 /**
