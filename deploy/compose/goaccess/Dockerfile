@@ -41,7 +41,7 @@
 # builds it on an arm64 runner and scans what it built.
 
 # Build stage
-FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a AS builds
+FROM alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf AS builds
 RUN apk add --no-cache \
     autoconf \
     automake \
@@ -71,7 +71,7 @@ RUN make -j$(nproc) && make DESTDIR=/dist install
 RUN ldd /dist/usr/bin/goaccess && echo "Dependencies checked"
 
 # Runtime stage
-FROM alpine:3.24.3@sha256:be2656061b536c1883c4034790e21d0a09c5aaaf51968b89368a3c0371ea2c9a
+FROM alpine:3.24.4@sha256:f59abe656b692d901e184be3445e084786602108599d2a51d229c0f5a48c71bf
 RUN apk add --no-cache \
     libcrypto3 \
     libintl \
