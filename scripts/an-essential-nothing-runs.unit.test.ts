@@ -281,7 +281,7 @@ const WEBAPP_REASONS: ReadonlyArray<readonly [string, string]> = [
   ["only util-linux's findmnt, lsblk and lslogins, bsdutils' logger, apt's http method and libapt-pkg.so.6.0.0 need either, all six purged with their packages, and no other ELF file but the two libraries themselves names either", 'what links libsystemd.so.0 and libudev.so.1'],
   ['none needs or names either', 'that the published files need neither'],
   ["node 24.22.1 (nodejs.org's linux-arm64 and linux-x64 builds, which the Node image unpacks) needs libdl, libstdc++, libm, libgcc_s, libpthread and libc", "node's libraries"],
-  ["goose v3.29.0's two release assets are static", "goose's"],
+  ["goose v3.29.0's two release assets are static, and v3.30.1's two, read on 2026-11-13, are too (no interpreter, no dynamic section, and no byte that names one of the eight libraries)", "goose's"],
   ["prisma 6.14.0's engines (commit 717184b7", "prisma's engines"],
   ["sentry-cli 2.50.2 (static), bufferutil 4.0.9's linux-x64 prebuild (glibc alone) and rollup 4.60.1's linux-x64-gnu addon (libgcc_s and glibc)", 'the native addons'],
   ['No byte of any of those files names one of the six', 'that none names a purged library'],

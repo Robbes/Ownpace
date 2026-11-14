@@ -94,9 +94,9 @@ name: ownpace-managed
 # image, whose pin is the FROM of deploy/compose/trigger.dev/Dockerfile and
 # deploy/compose/supervisor/Dockerfile by tag and digest, with files deleted that never run here
 # and, since 2026-11-02, pnpm 10.34.9 in place of upstream's 10.33.2; since 2026-11-03 also
-# goose v3.29.0's release binary and four packages at the release that fixes each (the webapp's;
-# a fifth, effect, since 2026-11-06), and systeminformation's (the supervisor's), fetched by the
-# hash their publisher published.
+# a goose release's binary (v3.29.0's; v3.30.1's since 2026-11-13) and, until Trigger.dev v4.8.5,
+# four packages at the release that fixes each (the webapp's; a fifth, effect, from 2026-11-06),
+# and systeminformation's (the supervisor's), fetched by the hash their publisher published.
 # Their names start with the Trigger.dev version, TRIGGER_IMAGE_TAG or its default, as before, and
 # end in the hash of the Dockerfile's instructions; `trigger-version.sh pin` moves both, and
 # nothing builds them while the machine has the name. Dependabot reads neither Dockerfile, on
@@ -440,8 +440,12 @@ services:
     # upstream ships those releases itself, and both swaps are gone (its
     # header, WHAT UPSTREAM NOW SHIPS FIXED). Since 2026-11-03 it also removes
     # TypeScript 7's native compiler, which nothing here runs, and replaces
-    # goose v3.27.1, which the entrypoint runs, with goose v3.29.0's release
-    # binary from GitHub by its SHA-256;
+    # goose v3.27.1, which the entrypoint runs, with a goose release's binary
+    # from GitHub by its SHA-256: v3.29.0's until 2026-11-13, and since then
+    # v3.30.1's, built on Go 1.27.4 and golang.org/x/net v0.62.0, past the two
+    # highs the image scan read in v3.29.0's, and taken before its three-day
+    # floor on the owner's waiver of 2026-11-13, "Waive all waiting time."
+    # (its header, WHAT IS REPLACED: GOOSE);
     # so its build reaches github.com as well as the npm registry. Since
     # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
     # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
@@ -457,7 +461,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-3cabc0a7c796
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-1c2ba0d89644
     build:
       context: ./trigger.dev
       args:
