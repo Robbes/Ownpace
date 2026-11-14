@@ -126,7 +126,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the copy the image scan reads** (workplan 0119): `registry:3.1.2@sha256:82f6ff4a…`, Docker
   Hub's rebuild of 2026-11-05 on Alpine 3.24.4. Docker Hub builds an official image again under
   the same tag when its base moves, and nothing here pulls an image the machine already has. So
-  by the tag alone the stacks kept the copy pulled first, in October, while the image scan read
+  by the tag alone the stacks kept the copy they pulled first, while the image scan read
   whatever the tag named on the day of the scan. Which copy that was cannot be read any more.
   The registry itself does not change: every build of the tag carries the same file,
   distribution v3.1.2, and only the Alpine packages under it differ. The first bring-up with

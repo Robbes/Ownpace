@@ -24,8 +24,9 @@ every blob was checked against its digest, and nothing downloaded was run. Times
 
   So tonight's scan (Security Scan run 43492635512 on `331222af`, job 132117677408, 19:29) read
   Docker Hub's rebuild of 2026-11-05, *alpine 3.24.4* with 17 packages, while the stacks ran the
-  copy pulled first, in October. `a-float-nothing-ever-pulled` could not see it: its test for a
-  float is no digest and fewer than three numbers, and `3.1.2` has three.
+  copy each pulled first, from 2026-10-22, when the pin moved to `3.1.2` (inferred from that and
+  from when each stack next came up, not read on either). `a-float-nothing-ever-pulled` could not
+  see it: its test for a float is no digest and fewer than three numbers, and `3.1.2` has three.
 - **Unread: the copy the stacks hold.** Docker Hub's tag API keeps a tag's last push alone, its
   registry serves no history of a tag, and nothing in the bring-up or the gate records an image
   id (the gate's `compose ps` prints the reference). Both stacks use one Docker daemon (the
@@ -108,7 +109,7 @@ every blob was checked against its digest, and nothing downloaded was run. Times
     for the image and pulls only a missing one (`apps/supervisor/src/workloadManager/docker.ts`
     at v4.8.5, lines 159 to 200). Only the first run of a deployed version not yet pulled would
     meet the gap, and live deploys inside the hold with nothing in flight;
-  - Docker Hub has to answer once on the machine, as it did for the tag in October. After E2E
+  - Docker Hub has to answer once on the machine, as it did for the tag after 2026-10-22. After E2E
     (managed) on this branch the image is on the daemon both stacks use, so live's deploy of
     alpha.8 pulls nothing for it. The copy under the tag stays on the machine until it is pruned.
 - **busybox stays the one float.** `busybox:1.38` (`zitadel-machinekey`, the one-shot chown) was

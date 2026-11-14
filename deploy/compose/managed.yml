@@ -786,7 +786,7 @@ services:
   # BY TAG AND INDEX DIGEST SINCE 2026-11-13 (workplan 0119), by tag alone
   # until then. Docker Hub builds its official images again under the same
   # tag when their base moves, and nothing here pulls an image the machine
-  # already has, so the stacks kept the copy pulled first, in October, while
+  # already has, so the stacks kept the copy they pulled first, while
   # the image scan read the tag as Docker Hub served it on the day of each
   # scan. Which copy that was is unread: Docker Hub keeps a tag's last push
   # alone, and nothing recorded the image a stack ran. The digest is
