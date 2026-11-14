@@ -940,6 +940,9 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
   // resolve in the API container. From the container's name to the `esac` of
   // the second, the first `esac` after it.
   const proxy = smoke.match(/^SUPERVISOR_CONTAINER="\$\{COMPOSE_PROJECT\}-trigger-supervisor"\n[\s\S]*?\nesac$/m)?.[0];
+  // The registry from the API container since 2026-11-14 (workplan 0136 T4):
+  // its name does not resolve there. From the assignment to its `esac`.
+  const registryFromApi = smoke.match(/^reg_from_api="\$\(docker exec[\s\S]*?\nesac$/m)?.[0];
 
   /** Run an extracted block with `curl`/`docker` stubbed onto PATH: everything it printed, the verdict last. */
   function run(block: string, stubs: Record<string, string>, setup = ''): string {
@@ -975,6 +978,7 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
     dockerWithoutHeader: "async () => new Response('OK', { status: 200 })",
     haproxy403: "async () => new Response('Forbidden', { status: 403 })",
     haproxy503: "async () => new Response('Service Unavailable', { status: 503 })",
+    registry: "async () => new Response('{}', { status: 200 })",
     ...Object.fromEntries(
       (['ENOTFOUND', 'EAI_AGAIN', 'ECONNREFUSED', 'UND_ERR_CONNECT_TIMEOUT'] as const).map((code) => [
         code,
@@ -1011,6 +1015,34 @@ describe('the last two services nothing spoke for (0084 T7.1)', () => {
   it('both blocks are extractable — they still exist to test', () => {
     expect(registry).toBeDefined();
     expect(proxy).toBeDefined();
+    expect(registryFromApi).toBeDefined();
+  });
+
+  it.each([['ENOTFOUND'], ['EAI_AGAIN']])("no registry name in the API container (%s) is a pass", (code) => {
+    const out = run(registryFromApi!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[code]!), PROXY_SETUP);
+    expect(out.trim().split('\n').pop()).toBe('FAIL=0');
+    expect(out).toContain(`trigger-registry: no such name from the API container (${code})`);
+  });
+
+  it.each([
+    ['the registry answering it', 'registry', "got 'answered HTTP 200' (exit 0)"],
+    ['a refused connection', 'ECONNREFUSED', "got 'ECONNREFUSED' (exit 1)"],
+    ['a timeout', 'UND_ERR_CONNECT_TIMEOUT', "got 'UND_ERR_CONNECT_TIMEOUT' (exit 1)"],
+  ])("the API container reaching the registry's name, by %s, is a failure, and says so", (_how, answer, got) => {
+    // Anything but an unknown name means a network the API container is on,
+    // ownpace-network, with every other service and every task run, knows it.
+    const out = run(registryFromApi!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS[answer]!), PROXY_SETUP);
+    expect(out.trim().split('\n').pop()).toBe('FAIL=1');
+    expect(out).toContain('FAIL: the API container asked trigger-registry:5000 and got');
+    expect(out).toContain(got);
+    expect(out, 'a message carries the address, and this log is public').not.toContain('<address>');
+  });
+
+  it("asks the registry's name in the API container, by the path the preflights found", () => {
+    // A container the stub does not know exits 95, so another container fails here.
+    expect(verdict(registryFromApi!, dockerRunningTheProbe(ANSWERS.docker!, ANSWERS.ENOTFOUND!), 'COMPOSE_PROJECT=stub API_CONTAINER=other API_NODE=/nodejs/bin/node')).toBe('1');
+    expect(registryFromApi).toContain('docker exec "$API_CONTAINER" "$API_NODE" -e');
+    expect(registryFromApi).toContain("fetch('http://trigger-registry:5000/v2/')");
   });
 
   it('the registry failing to answer at all is a failure', () => {

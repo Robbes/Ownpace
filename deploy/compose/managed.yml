@@ -827,8 +827,11 @@ services:
       - "127.0.0.1:${REGISTRY_PORT:-5000}:5000"
     volumes:
       - registry_data:/var/lib/registry
+    # ON ONE NETWORK, WHICH NOTHING ELSE SHARES (2026-11-14, workplan 0136 T4).
+    # Not ownpace-network: see `trigger-task-images` at the bottom of this file
+    # for why, and how the CLI and the host's daemon still reach it.
     networks:
-      - ownpace-network
+      - trigger-task-images
 
   # The supervisor talks to docker through this proxy rather than holding the
   # raw socket: the whitelist below is exactly what running task containers
@@ -2670,6 +2673,50 @@ networks:
   trigger-docker-socket:
     driver: bridge
     internal: true
+  # ONE MEMBER, REACHED BY THE HOST ALONE: the task images' registry
+  # (2026-11-14, workplan 0136 T4's registry, built ahead of the rest of T4 as
+  # the socket proxy was). The registry takes pushes and serves pulls with no
+  # authentication, and what made that safe was that only this host reached it
+  # (its comment above). Until this network it was on ownpace-network, so every
+  # container there could push images to it and pull them by name: the web app,
+  # the API, the identity provider and the demo Nextcloud, which answer the
+  # internet, and every task run, which the supervisor starts on ownpace-network
+  # (DOCKER_RUNNER_NETWORKS). These are the images the host's Docker daemon
+  # starts task runs from. And its binary is built with Go 1.26.8, whose
+  # net/http has CVE-2026-78667 (GO-2026-6609, fixed in Go 1.26.9): a Range
+  # header with many small ranges makes ServeContent spend excessive CPU, and
+  # the registry serves every blob that way to whoever asks. distribution has
+  # not released since v3.1.2, so the fix waits for upstream.
+  #
+  # Nobody addresses the registry by name. The CLI pushes from the host to
+  # localhost:${REGISTRY_PORT} (trigger-api's DEPLOY_REGISTRY_HOST, which it
+  # hands the CLI; deploy-tasks.sh builds on the host's network), and the host's
+  # daemon pulls a run's image from the same address (the supervisor's
+  # DOCKER_REGISTRY_URL, which names the image it asks the daemon to start).
+  # Both are the host's loopback, where the registry's port is published, and
+  # neither is a container on a network of this file. No service waits for it
+  # in depends_on.
+  #
+  # NOT `internal`, unlike the three above. The published port is the
+  # registry's only way in, and 0136 T4 ("Published ports") reads that Docker
+  # publishes no port for a container whose only network is internal; that
+  # reading is not tried here. So the registry keeps a route off the machine,
+  # as it had on ownpace-network, and uses none: it is configured with no
+  # proxy, notification endpoint or token service.
+  # `scripts/a-network-the-tenant-cannot-see.unit.test.ts` holds the member,
+  # the port's loopback binding and that nothing names the registry as a host.
+  # The gate pushes through the port (deploy-tasks.sh), the smoke runs a task
+  # whose image the daemon pulls through it, and the smoke finds no such name
+  # from the API container.
+  #
+  # What this stops: a push, a pull or CVE-2026-78667's request from any other
+  # container, whether made by code a task runs or forged through the web app,
+  # the API, Zitadel or Nextcloud. What it does not stop: code on the host,
+  # which reaches the loopback port, and the socket proxy's reach. Each stack's
+  # proxy can still start a container on any network of the machine, this one
+  # included (workplan 0132 §1; accepted by 0136 D6).
+  trigger-task-images:
+    driver: bridge
 
 volumes:
   gatus_data:

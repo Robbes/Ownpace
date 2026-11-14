@@ -57,12 +57,39 @@
  * fail. On `main` before this change (`733294a5`), with the proxy on
  * `ownpace-network`, the first test failed, as T6 asks of a guard.
  *
+ * THE REGISTRY, T4's second piece, built ahead of the rest on 2026-11-14.
+ * `trigger-registry` takes pushes and serves pulls of the task images with no
+ * authentication, the images the host's Docker daemon starts task runs from.
+ * It was on `ownpace-network`, so every container there could push or pull
+ * them by name, every task run included, and send it CVE-2026-78667's request
+ * (GO-2026-6609: Go 1.26.8's net/http, which distribution v3.1.2 is built with
+ * and serves every blob through, spends excessive CPU on a Range header with
+ * many small ranges). Nobody addresses it by name: the CLI pushes from the
+ * host and the host's daemon pulls, both through the port it publishes on the
+ * host's loopback. So it is on one network, `trigger-task-images`, with
+ * nobody, and this holds that too:
+ *
+ *  - the network is declared, a bridge, named by its project, not external.
+ *    It is not held to `internal`: the published port is the registry's one
+ *    way in, and T4 ("Published ports") reads that Docker publishes none for
+ *    a container whose only network is internal;
+ *  - the registry is on it and on nothing else, has no `network_mode`, and
+ *    publishes exactly one port, on 127.0.0.1;
+ *  - nothing else is on it, by `networks:` or by a member's namespace;
+ *  - no service names the registry as a host in its environment or waits for
+ *    it in `depends_on`, no tenant-facing service shares a network with it,
+ *    and `DOCKER_RUNNER_NETWORKS` never names its network;
+ *  - nothing else joins it by name, as for the proxy's network.
+ *
+ * Each of those is broken on purpose below too, and must fail.
+ *
  * WHAT THIS DOES NOT HOLD. Code that already runs inside `trigger-supervisor`
  * can still ask the proxy anything its environment allows, and each stack's
  * proxy can still start a container on the other stack's networks (0132 §1;
- * accepted by 0136 D6). The rest of T4, Trigger.dev's plane on a network of
- * its own (`control`) and the host's firewall rule, is not built: when it is,
- * it extends this guard, whose name T4 gave it, rather than adding another.
+ * accepted by 0136 D6), the registry's included. Code on the host reaches the
+ * registry's loopback port. The rest of T4, Trigger.dev's plane on a network
+ * of its own (`control`) and the host's firewall rule, is not built: when it
+ * is, it extends this guard, whose name T4 gave it, rather than adding another.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -83,6 +110,10 @@ export const PROXY = 'trigger-docker-proxy';
 export const CLIENTS: readonly string[] = ['trigger-supervisor'];
 /** The services that answer the internet or a tester: none may share a network with the proxy (T4). */
 export const TENANT_FACING: readonly string[] = ['api', 'web', 'zitadel', 'nextcloud', 'gatus', 'mailpit'];
+/** The task images' registry: reached through the host's loopback, and by no service by name (T4, 2026-11-14). */
+export const REGISTRY = 'trigger-registry';
+/** The registry's one network, which nothing else joins. */
+export const REGISTRY_NETWORK = 'trigger-task-images';
 
 type Networks = string[] | Record<string, unknown> | undefined;
 interface Service {
@@ -262,6 +293,117 @@ export function proxyNetworkProblems(compose: Compose): string[] {
   return problems;
 }
 
+/** A URL or address naming the registry as its host: `http://trigger-registry:5000`, `trigger-registry:5000/trigger/x`. */
+const NAMES_REGISTRY = /(?:\/\/|@)trigger-registry(?::\d+)?(?:[/?]|$)|(?:^|[=\s,])trigger-registry:\d+\b/;
+
+/** Services that name the registry as a host, or wait for it: none should, since both of its users are on the host. */
+export function registryUsersOf(compose: Compose): string[] {
+  const out: string[] = [];
+  for (const [name, svc] of Object.entries(compose.services ?? {})) {
+    if (name === REGISTRY) continue;
+    const deps = svc?.depends_on;
+    const waits = Array.isArray(deps) ? deps.includes(REGISTRY) : deps ? REGISTRY in deps : false;
+    if (waits || envValues(svc).some((v) => NAMES_REGISTRY.test(v))) out.push(name);
+  }
+  return out.sort();
+}
+
+/** A published port bound to the host's loopback: `127.0.0.1:<host>:<container>`, or the long form's host_ip. */
+const onLoopback = (port: unknown): boolean =>
+  typeof port === 'string'
+    ? port.startsWith('127.0.0.1:')
+    : typeof port === 'object' && port !== null && (port as { host_ip?: unknown }).host_ip === '127.0.0.1';
+
+/** Who is on `net`, by `networks:` or by sharing a member's namespace (`network_mode: service:<member>`), to any depth. */
+function membersOn(services: Record<string, Service | null>, net: string): Map<string, string> {
+  const how = new Map<string, string>();
+  for (const [name, svc] of Object.entries(services)) {
+    if (netsOf(svc).includes(net)) how.set(name, `is on ${net}`);
+  }
+  for (let grew = true; grew; ) {
+    grew = false;
+    for (const [name, svc] of Object.entries(services)) {
+      const shared = /^service:(.+)$/.exec(svc?.network_mode ?? '')?.[1];
+      if (shared && how.has(shared) && !how.has(name)) {
+        how.set(name, `shares ${shared}'s network namespace (network_mode: service:${shared}), so it is on ${net}`);
+        grew = true;
+      }
+    }
+  }
+  return how;
+}
+
+/** What is wrong with the registry's network in a parsed managed.yml; empty when nothing is. */
+export function registryNetworkProblems(compose: Compose): string[] {
+  const problems: string[] = [];
+  const services = compose.services ?? {};
+  const declared = compose.networks ?? {};
+
+  if (!(REGISTRY_NETWORK in declared)) {
+    problems.push(`the network ${REGISTRY_NETWORK} is not declared, so the registry has no network of its own`);
+  } else {
+    const n = declared[REGISTRY_NETWORK];
+    if ((n?.driver ?? 'bridge') !== 'bridge') problems.push(`${REGISTRY_NETWORK} is not a bridge network (driver: ${String(n?.driver)})`);
+    if (n?.external) problems.push(`${REGISTRY_NETWORK} is external, so Compose does not make it and anything may have joined it`);
+    if (n?.name !== undefined) problems.push(`${REGISTRY_NETWORK} has a name: of its own, so two stacks on one machine would share it`);
+  }
+
+  const registry = services[REGISTRY];
+  if (!registry) {
+    problems.push(`there is no ${REGISTRY} service`);
+    return problems;
+  }
+  const regNets = netsOf(registry);
+  if (regNets.length !== 1 || regNets[0] !== REGISTRY_NETWORK) {
+    problems.push(
+      `${REGISTRY} is on ${regNets.length ? regNets.join(', ') : 'no network'}; it must be on ${REGISTRY_NETWORK} alone, ` +
+        'or every container on the other network can push task images to it, with no authentication (0136 T4)',
+    );
+  }
+  if (registry.network_mode !== undefined) problems.push(`${REGISTRY} has network_mode: ${registry.network_mode}`);
+  const ports = registry.ports ?? [];
+  if (ports.length !== 1) {
+    problems.push(
+      `${REGISTRY} publishes ${ports.length} ports; it must publish one, on 127.0.0.1, where the CLI pushes and the host's daemon pulls`,
+    );
+  }
+  for (const port of ports) {
+    if (!onLoopback(port)) {
+      problems.push(`${REGISTRY} publishes ${JSON.stringify(port)}, not on 127.0.0.1, so whoever reaches the host can push task images to it`);
+    }
+  }
+
+  for (const net of new Set([...regNets, REGISTRY_NETWORK])) {
+    if (!(net in declared)) {
+      if (net !== REGISTRY_NETWORK) problems.push(`${REGISTRY} is on ${net}, which this file does not declare`);
+      if (net !== 'default') continue;
+    }
+    for (const [m, how] of membersOn(services, net)) {
+      if (m !== REGISTRY) problems.push(`${m} ${how}, a network of ${REGISTRY}'s, which nothing else may be on: take it off`);
+    }
+  }
+  for (const u of registryUsersOf(compose)) {
+    problems.push(
+      `${u} names the registry as a host or waits for it; nothing may: the CLI and the host's daemon reach it on the ` +
+        "host's loopback (localhost:${REGISTRY_PORT}), and a service that needs it by name is a new way in",
+    );
+  }
+
+  for (const t of TENANT_FACING) {
+    if (!(t in services)) continue;
+    const shared = netsOf(services[t]).filter((n) => regNets.includes(n));
+    if (shared.length) problems.push(`${t}, which a tester or the internet reaches, shares ${shared.join(', ')} with ${REGISTRY}`);
+  }
+  const runners = runnerNetworks(compose);
+  for (const k of runners.keys) {
+    if (regNets.includes(k)) problems.push(`DOCKER_RUNNER_NETWORKS names ${k}, a network ${REGISTRY} is on, so every task run can push task images`);
+  }
+  if (runners.entries.some((e) => e === REGISTRY_NETWORK || e.endsWith(`_${REGISTRY_NETWORK}`))) {
+    problems.push(`DOCKER_RUNNER_NETWORKS names ${REGISTRY_NETWORK}, so every task run joins it`);
+  }
+  return problems;
+}
+
 /** The files a script or workflow could join a network from. */
 function joinableFiles(): string[] {
   const out: string[] = [];
@@ -281,29 +423,39 @@ function joinableFiles(): string[] {
   return out.sort();
 }
 
-/** Lines in other files that put a container on the network by name. */
-export function joinsByName(path: string, text: string): string[] {
+/** Lines in other files that put a container on `network`, or in a member's namespace, by name. */
+function joinsNetworkByName(path: string, text: string, network: string, members: readonly string[]): string[] {
   if (path === MANAGED) return [];
   const bare = text
     .split('\n')
     .filter((l) => !/^\s*#/.test(l))
     .join('\n');
-  if (/\.ya?ml$/.test(path) && !path.startsWith('.github/') && bare.includes(NETWORK)) {
-    return [`${path} names ${NETWORK}: a compose file that declares it joins it`];
+  if (/\.ya?ml$/.test(path) && !path.startsWith('.github/') && bare.includes(network)) {
+    return [`${path} names ${network}: a compose file that declares it joins it`];
   }
   const joins = [
     // `docker run --net`/`--network`, with `=` or a space, and the network's name.
-    new RegExp(String.raw`--net(?:work)?[= ]\S*${NETWORK}`),
+    new RegExp(String.raw`--net(?:work)?[= ]\S*${network}`),
     // `docker network connect`, whatever options come before the name.
-    new RegExp(String.raw`\bnetwork\s+connect\b.*${NETWORK}`),
+    new RegExp(String.raw`\bnetwork\s+connect\b.*${network}`),
     // A member's own namespace: `--net container:<project>-trigger-supervisor`,
     // or a compose file's `network_mode: service:trigger-docker-proxy`.
-    new RegExp(String.raw`(?:--net(?:work)?[= ]|network_mode:\s*)["']?(?:container:\S*|service:)(?:${[PROXY, ...CLIENTS].join('|')})\b`),
+    new RegExp(String.raw`(?:--net(?:work)?[= ]|network_mode:\s*)["']?(?:container:\S*|service:)(?:${members.join('|')})\b`),
   ];
   return bare
     .split('\n')
     .filter((l) => joins.some((re) => re.test(l)))
     .map((l) => `${path}: ${l.trim()}`);
+}
+
+/** Lines in other files that put a container on the socket proxy's network by name. */
+export function joinsByName(path: string, text: string): string[] {
+  return joinsNetworkByName(path, text, NETWORK, [PROXY, ...CLIENTS]);
+}
+
+/** Lines in other files that put a container on the registry's network by name. */
+export function joinsRegistryByName(path: string, text: string): string[] {
+  return joinsNetworkByName(path, text, REGISTRY_NETWORK, [REGISTRY]);
 }
 
 const managed = parseYaml(managedYml, { merge: true, logLevel: 'error' }) as Compose;
@@ -554,5 +706,203 @@ describe('each rule fails when it is broken', () => {
     expect(joinsByName('deploy/compose/x.sh', 'if docker exec "$SUPERVISOR_CONTAINER" node -e \\')).toEqual([]);
     expect(joinsByName('deploy/compose/x.sh', '# docker network connect "${P}_trigger-docker-socket" c, never')).toEqual([]);
     expect(joinsByName(MANAGED, managedYml)).toEqual([]);
+  });
+});
+
+describe('the registry is on a network nothing else shares (0136 T4, 2026-11-14)', () => {
+  it('managed.yml holds every rule', () => {
+    expect(registryNetworkProblems(managed)).toEqual([]);
+  });
+
+  it('no service names the registry as a host or waits for it', () => {
+    // Read, not restated: both of its users are on the host.
+    expect(registryUsersOf(managed)).toEqual([]);
+  });
+
+  it("both of its users address it on the host's loopback, where its one port is published", () => {
+    const env = (svc: string) => managed.services?.[svc]?.environment as Record<string, unknown>;
+    expect(env('trigger-api').DEPLOY_REGISTRY_HOST).toBe('localhost:${REGISTRY_PORT:-5000}');
+    expect(env('trigger-supervisor').DOCKER_REGISTRY_URL).toBe('localhost:${REGISTRY_PORT:-5000}');
+    expect(managed.services?.[REGISTRY]?.ports).toEqual(['127.0.0.1:${REGISTRY_PORT:-5000}:5000']);
+  });
+
+  it('nothing outside managed.yml joins its network by name', () => {
+    const found = joinableFiles().flatMap((f) => joinsRegistryByName(f, readFileSync(join(REPO_ROOT, f), 'utf8')));
+    expect(found, 'a container joined to the network by hand is a member Compose does not list').toEqual([]);
+  });
+});
+
+describe("each of the registry's rules fails when it is broken", () => {
+  const copy = (): Compose => structuredClone(managed);
+  const env = (c: Compose, svc: string): Record<string, unknown> => c.services![svc]!.environment as Record<string, unknown>;
+  const mutations: Array<[string, (c: Compose) => void, RegExp]> = [
+    [
+      'the registry back on ownpace-network, as before 2026-11-14',
+      (c) => {
+        c.services![REGISTRY]!.networks = ['ownpace-network'];
+      },
+      /trigger-registry is on ownpace-network;[\s\S]*api is on ownpace-network, a network of trigger-registry's[\s\S]*api, which a tester or the internet reaches, shares ownpace-network with trigger-registry[\s\S]*DOCKER_RUNNER_NETWORKS names ownpace-network, a network trigger-registry is on/,
+    ],
+    [
+      'the registry on its network and ownpace-network',
+      (c) => {
+        c.services![REGISTRY]!.networks = [REGISTRY_NETWORK, 'ownpace-network'];
+      },
+      /trigger-registry is on trigger-task-images, ownpace-network;/,
+    ],
+    [
+      "the registry with no networks: at all, so on Compose's default",
+      (c) => {
+        delete c.services![REGISTRY]!.networks;
+      },
+      /trigger-registry is on default;[\s\S]*trigger-registry is on default, which this file does not declare/,
+    ],
+    [
+      "the registry on the host's network",
+      (c) => {
+        delete c.services![REGISTRY]!.networks;
+        c.services![REGISTRY]!.network_mode = 'host';
+      },
+      /trigger-registry is on no network;[\s\S]*trigger-registry has network_mode: host/,
+    ],
+    [
+      'api on its network',
+      (c) => {
+        c.services!['api']!.networks = ['ownpace-network', REGISTRY_NETWORK];
+      },
+      /api is on trigger-task-images, a network of trigger-registry's[\s\S]*api, which a tester or the internet reaches, shares trigger-task-images/,
+    ],
+    [
+      'the supervisor on its network',
+      (c) => {
+        c.services!['trigger-supervisor']!.networks = ['ownpace-network', 'trigger-docker-socket', REGISTRY_NETWORK];
+      },
+      /trigger-supervisor is on trigger-task-images, a network of trigger-registry's/,
+    ],
+    [
+      "a service in the registry's network namespace",
+      (c) => {
+        c.services!['probe'] = { network_mode: 'service:trigger-registry' };
+      },
+      /probe shares trigger-registry's network namespace \(network_mode: service:trigger-registry\), so it is on trigger-task-images/,
+    ],
+    [
+      'the network not declared',
+      (c) => {
+        delete c.networks![REGISTRY_NETWORK];
+      },
+      /the network trigger-task-images is not declared/,
+    ],
+    [
+      'the network made external',
+      (c) => {
+        c.networks![REGISTRY_NETWORK] = { external: true };
+      },
+      /trigger-task-images is external/,
+    ],
+    [
+      'the network given a name: of its own',
+      (c) => {
+        c.networks![REGISTRY_NETWORK] = { driver: 'bridge', name: 'task-images' };
+      },
+      /trigger-task-images has a name: of its own/,
+    ],
+    [
+      'the network another driver',
+      (c) => {
+        c.networks![REGISTRY_NETWORK] = { driver: 'overlay' };
+      },
+      /trigger-task-images is not a bridge network/,
+    ],
+    [
+      'the port on every address',
+      (c) => {
+        c.services![REGISTRY]!.ports = ['${REGISTRY_PORT:-5000}:5000'];
+      },
+      /trigger-registry publishes "\$\{REGISTRY_PORT:-5000\}:5000", not on 127\.0\.0\.1/,
+    ],
+    [
+      'the port on 0.0.0.0',
+      (c) => {
+        c.services![REGISTRY]!.ports = ['0.0.0.0:5000:5000'];
+      },
+      /trigger-registry publishes "0\.0\.0\.0:5000:5000", not on 127\.0\.0\.1/,
+    ],
+    [
+      'the port in the long form, with no host_ip',
+      (c) => {
+        c.services![REGISTRY]!.ports = [{ target: 5000, published: '5000' }];
+      },
+      /trigger-registry publishes \{"target":5000,"published":"5000"\}, not on 127\.0\.0\.1/,
+    ],
+    [
+      'no port',
+      (c) => {
+        delete c.services![REGISTRY]!.ports;
+      },
+      /trigger-registry publishes 0 ports; it must publish one/,
+    ],
+    [
+      'a second port',
+      (c) => {
+        c.services![REGISTRY]!.ports = ['127.0.0.1:5000:5000', '127.0.0.1:5001:5001'];
+      },
+      /trigger-registry publishes 2 ports; it must publish one/,
+    ],
+    [
+      'the supervisor naming it as its registry',
+      (c) => {
+        env(c, 'trigger-supervisor').DOCKER_REGISTRY_URL = 'trigger-registry:5000';
+      },
+      /trigger-supervisor names the registry as a host or waits for it/,
+    ],
+    [
+      'a service naming it in a URL',
+      (c) => {
+        c.services!['web']!.environment = { REGISTRY: 'http://trigger-registry:5000/v2/' };
+      },
+      /web names the registry as a host or waits for it/,
+    ],
+    [
+      'a service waiting for it',
+      (c) => {
+        c.services!['trigger-api']!.depends_on = { [REGISTRY]: { condition: 'service_started' } };
+      },
+      /trigger-api names the registry as a host or waits for it/,
+    ],
+    [
+      'task runs joined to its network',
+      (c) => {
+        env(c, 'trigger-supervisor').DOCKER_RUNNER_NETWORKS =
+          '${COMPOSE_PROJECT_NAME}_ownpace-network,${COMPOSE_PROJECT_NAME}_trigger-task-images';
+      },
+      /DOCKER_RUNNER_NETWORKS names trigger-task-images, so every task run joins it/,
+    ],
+  ];
+
+  it.each(mutations)('%s', (_label, mutate, why) => {
+    const c = copy();
+    mutate(c);
+    expect(registryNetworkProblems(c).join('\n')).toMatch(why);
+  });
+
+  it.each(TENANT_FACING.map((t) => [t]))("%s, a tenant-facing service, put on the registry's network", (t) => {
+    const c = copy();
+    expect(c.services?.[t], `${t} is not a service of managed.yml`).toBeDefined();
+    c.services![t]!.networks = [...netsOf(c.services![t]), REGISTRY_NETWORK];
+    expect(registryNetworkProblems(c).join('\n')).toMatch(new RegExp(`${t} is on trigger-task-images, a network of trigger-registry's`));
+  });
+
+  it('a script that joins its network by hand is found, and one that only lists it or asks the port is not', () => {
+    expect(joinsRegistryByName('deploy/compose/x.sh', 'docker run --rm --network "${P}_trigger-task-images" img')).toHaveLength(1);
+    expect(joinsRegistryByName('deploy/compose/x.sh', 'docker network connect "${P}_trigger-task-images" c')).toHaveLength(1);
+    expect(joinsRegistryByName('deploy/compose/x.sh', 'docker run --net container:"${P}-trigger-registry" img')).toHaveLength(1);
+    expect(joinsRegistryByName('deploy/compose/x.yml', 'services:\n  probe:\n    network_mode: "service:trigger-registry"')).toHaveLength(1);
+    expect(joinsRegistryByName('deploy/compose/www.yml', 'networks:\n  trigger-task-images:\n    external: true')).toHaveLength(1);
+    expect(
+      joinsRegistryByName('deploy/compose/x.sh', 'for n in ownpace-network status-probe trigger-event-store trigger-docker-socket trigger-task-images; do'),
+    ).toEqual([]);
+    expect(joinsRegistryByName('deploy/compose/x.sh', 'curl -sS "http://127.0.0.1:${REGISTRY_PORT_CHECK}/v2/"')).toEqual([]);
+    expect(joinsRegistryByName(MANAGED, managedYml)).toEqual([]);
   });
 });
