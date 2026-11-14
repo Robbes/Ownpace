@@ -3390,9 +3390,10 @@ refuses a `COMPOSE_FILE` in the shell.
 The entrypoint's other children do not call out: pnpm 10.34.9 (the builds'
 since 2026-11-02, in place of upstream's 10.33.2, which did the same) checks
 for its own update only on `install` and `add`, goose has no network use of its
-own (v3.27.1, and v3.29.0, the build's since 2026-11-03 in place of upstream's,
-whose new code is other drivers' authentication), and the dashboard agent's
-migration is plain drizzle-orm. Nor does
+own (v3.27.1; v3.29.0, the build's from 2026-11-03 in place of upstream's,
+whose new code is other drivers' authentication; and v3.30.1, the build's
+since 2026-11-13, whose command is v3.29.0's byte for byte), and the dashboard
+agent's migration is plain drizzle-orm. Nor does
 corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
 `COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
 the copy of pnpm the other user would run, and tar from the copy theirs runs
@@ -6459,9 +6460,15 @@ past 10.33.2 (the build then refuses, *upstream moved pnpm: drop the swap*).
 Since 2026-11-03 the webapp's build also removes TypeScript 7's native compiler
 (`lib/tsc` of `@typescript/typescript-<platform>` 7.0.2, which nothing here
 runs: the package `typescript` exports only its version) and replaces goose
-v3.27.1, which the entrypoint runs for the ClickHouse migrations, with goose
-v3.29.0's release binary, fetched from GitHub by its SHA-256 and made root's
-and executable. **Until Trigger.dev v4.8.5 the builds also replaced packages
+v3.27.1, which the entrypoint runs for the ClickHouse migrations, with a goose
+release's binary, fetched from GitHub by its SHA-256 and made root's and
+executable: v3.29.0's until 2026-11-13, and v3.30.1's since (for alpha.8),
+which is built on Go 1.27.4 and golang.org/x/net v0.62.0, past the two high
+findings the image scan read in v3.29.0's (CVE-2026-111943 and
+CVE-2026-78661). v3.30.1 was published on 2026-11-12 and taken the next day,
+before its three-day floor, on the owner's waiver of 2026-11-13: "Waive all
+waiting time." What `goose up` sends ClickHouse is unchanged (the Dockerfile's
+header, *WHAT IS REPLACED: GOOSE*). **Until Trigger.dev v4.8.5 the builds also replaced packages
 upstream had not fixed** (2026-11-13, for alpha.8): from 2026-10-30 dompurify
 3.4.13's files with 3.4.17's, the release that fixes the critical
 GHSA-cg2g-xh64-v4q7; from 2026-11-03 undici 6.29.1, follow-redirects 1.16.2,
@@ -6495,8 +6502,9 @@ the host did not answer and upstream did not move: run the same command with
 the same tag again once it answers; nothing in the checkout needs editing, and
 a deploy that stopped there has not taken. **A release asset can disappear:**
 GitHub lets a release's owner delete an asset, where npm keeps a version that
-others depend on, so a later build of a tag depends on goose v3.29.0's assets
-still being there. If one is gone, the build says so (*… is gone*); a machine
+others depend on, so a later build of a tag depends on the assets of the goose
+release it pins still being there (v3.30.1's since 2026-11-13; v3.29.0's for
+the tags from alpha.4 to alpha.7). If one is gone, the build says so (*… is gone*); a machine
 that already holds the image's name keeps running it, since compose builds only
 a name it lacks. Then a pull request moves the goose replacement to a release
 whose assets are there (its URL and SHA-256 per platform, read and hashed as

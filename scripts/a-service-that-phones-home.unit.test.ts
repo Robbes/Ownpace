@@ -36,9 +36,13 @@
  *    upstream's 10.33.2, which did the same) checks for its own update only on
  *    `install` and `add` (`pnpm/src/main.ts`; `dist/pnpm.cjs` of both as npm
  *    published them), goose has no network use of its own (v3.27.1, and
- *    v3.29.0, which the webapp's build runs in its place since 2026-11-03,
+ *    v3.29.0, which the webapp's build ran in its place from 2026-11-03,
  *    whose new code is other drivers' authentication: `cmd/goose` at both
- *    tags), and the dashboard agent's migration is plain drizzle-orm. At
+ *    tags; and v3.30.1, the build's since 2026-11-13, where `cmd/goose` is
+ *    v3.29.0's byte for byte, no module joins or leaves go.mod, and what
+ *    changed is the SQL parser, the Provider's sorting and locker, and
+ *    `goose validate`), and the dashboard agent's migration is plain
+ *    drizzle-orm. At
  *    v4.7.6 (read 2026-10-23) all of that holds: the server's two new events (the dashboard
  *    agent's feedback, a webhooks beta request) go through the same client,
  *    which the opt-out leaves unmade, and only on Trigger.dev's own cloud; the
@@ -629,7 +633,7 @@ interface Row {
  * a re-read.
  */
 const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.5';
-const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.2';
+const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.3';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7';
 /**
@@ -713,7 +717,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:zitadel': {
     readAt: ZITADEL,
-    why: 'a daily service ping with instance domains and resource counts, to zitadel.com (cmd/defaults.yaml at v4.19.2, unchanged at v4.19.4, its ServicePing and Telemetry unchanged at v4.19.5, v4.20.0, v4.20.1 and v4.20.2)',
+    why: 'a daily service ping with instance domains and resource counts, to zitadel.com (cmd/defaults.yaml at v4.19.2, unchanged at v4.19.4, its ServicePing and Telemetry unchanged at v4.19.5, v4.20.0, v4.20.1, v4.20.2 and v4.20.3)',
     holds: (svc) => zitadelProblems(environmentOf(svc)),
   },
   'deploy/compose/managed.yml:clickhouse': {
