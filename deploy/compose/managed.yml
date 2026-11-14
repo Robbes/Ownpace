@@ -1412,7 +1412,56 @@ services:
     # way back is the v4.20.1 tag. cmd/defaults.yaml is unchanged, so the
     # service ping's default, the lockout and the privacy policy's fields
     # hold at v4.20.2.
-    image: ghcr.io/zitadel/zitadel:v4.20.2
+    #
+    # v4.20.3, from the pin watch (issue #1887): twelve commits after
+    # v4.20.2 on upstream's v4.x branch. The tag is lightweight and carries
+    # no date; its tip commit (a8b256c9) was committed 2026-11-13 at 11:55
+    # UTC. Eight of the twelve are fixes cherry-picked in one batch, with no
+    # pull request named, and read as security fixes; upstream's release
+    # notes and advisories could not be read where this was built, so no
+    # severity and no CVE or GHSA id is named here. Two are on paths people
+    # here take. Login v1 issues an authorization code only once the login
+    # is complete and binds it to the user who completed it, and the token
+    # endpoint refuses a code whose request is not done or names another
+    # user (b977f693). A code issued before the upgrade has no binding and
+    # is refused once, so a person in the middle of signing in when the
+    # image moves signs in again. And a public host header
+    # (x-zitadel-public-host, cmd/defaults.yaml's PublicHostHeaders) that is
+    # not a plain host, or has more than one value, is answered 400 before
+    # a password-reset, invite or verification link is built from it, and
+    # an origin stored with a notification is validated the same way
+    # (8ce0ac59). Nothing in this repository sends that header or sets
+    # ZITADEL_PUBLICHOSTHEADERS, as at v4.19.5 above; what the proxy in
+    # front of a fronted stack adds is not in this repository. Two more are
+    # in the session API, which only the smoke calls here. A password check
+    # applies the login policy of the user's organisation (b95ebee0):
+    # setup-zitadel.sh keeps the instance policy at allowUsernamePassword
+    # and removes an organisation's own, and the smoke fails on one.
+    # Finishing an OIDC or SAML request always needs session.link
+    # (de240980): the smoke grants its provisioning user IAM_LOGIN_CLIENT,
+    # the one role that carries it, and never named a login client, so it
+    # met that check before too. The other four of the eight are login
+    # v2's (apps/login, and its texts in internal/query/v2-default.json),
+    # which does not run here. go.mod moves go-chi from v5.2.5 to v5.5.0 and
+    # nothing else: golang.org/x/net stays v0.61.0, so the image scan's one
+    # high with a fix (CVE-2026-78661) stays. No setup step is expected:
+    # cmd/, internal/setup, internal/repository, internal/eventstore,
+    # internal/api/ui (login v1's pages and the console's server),
+    # internal/api/grpc/admin and console/ are unchanged, still toolchain
+    # go1.26.10, and login v1's request gains a field in the JSON it is
+    # stored as, not a column. That is read from the diff, not run.
+    # cmd/defaults.yaml is v4.20.2's byte for byte, so the three facts
+    # above, the service ping's default, the lockout and the privacy
+    # policy's fields hold at v4.20.3.
+    # The owner took it into alpha.8 on 2026-11-14, and dumped the OTA
+    # instance's `zitadel` database first, on v4.20.2, with
+    # deploy/compose/dump-idp.sh (04:07 UTC, 701 entries read back). This
+    # line merges after E2E (managed) on its branch, which applies it to the
+    # OTA instance, and after the owner's hand check there, which that gate
+    # cannot make, because its smoke signs in through a client pinned to
+    # login v2: one sign-in in a browser (login v1), and one forgot-password
+    # mail, read in the mail catcher and its link opened.
+    image: ghcr.io/zitadel/zitadel:v4.20.3
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging
