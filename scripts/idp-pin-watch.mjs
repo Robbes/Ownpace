@@ -190,6 +190,30 @@ export const REBUILD_NOTE =
 export const builtNote = (dockerfile) =>
   `Dependabot reads this one too, in \`${dockerfile}\`: take its pull request, and push to it the \`sed\` its failing test prints for the image lines`;
 
+/**
+ * How a tag ends after its version, where that starts with a letter: `-p0` of
+ * `v1.26.1-p0`, `-alpine` of `18.7-alpine`, nothing of `v4.8.5`. Dependabot
+ * proposes a newer tag only when it ends as the pinned one does (read in
+ * dependabot-core at 6f880ece on 2026-11-13: docker/lib/dependabot/docker/tag.rb
+ * splits a tag into version and suffix, `comparable_to?` wants the suffixes
+ * equal, and update_checker.rb keeps only comparable tags).
+ */
+export const endingOf = (tag) => /-[a-z][a-z0-9.-]*$/i.exec(tag)?.[0] ?? '';
+
+/**
+ * Said instead of `builtNote` where the newest tag ends otherwise than the
+ * pin, so Dependabot opens no pull request for it. edoburu/pgbouncer tags a
+ * rebuild of the same PgBouncer this way: v1.24.1-p0 and then v1.24.1-p1,
+ * v1.23.1-p0 and then -p1, -p2 and -p3 (Docker Hub's tag list, 2026-11-13).
+ * For `v1.26.1-p0` Dependabot proposes `v1.26.2-p0`, never `v1.26.1-p1`, and
+ * where upstream lists both `v1.26.2-p0` and `v1.26.2-p1` it proposes the
+ * older. That rebuild is the way out of the pooler's build
+ * (deploy/compose/pgbouncer/Dockerfile), so this line must not point at a
+ * pull request nobody opens.
+ */
+export const byHandNote = (dockerfile, pin, newest) =>
+  `Dependabot reads \`${dockerfile}\` and proposes only tags that end as the pin does, \`${endingOf(pin)}\`, so never this one, which ends \`${endingOf(newest)}\`: move the FROM to it by tag and digest by hand, in a pull request of its own or on the one Dependabot opened for an older tag, and push to it the \`sed\` its failing test prints for the image lines`;
+
 /** How Stalwart moves, said beside its line in the summary issue: AGENTS.md forbids moving it otherwise. */
 export const STALWART_RULE =
   "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
@@ -1607,7 +1631,10 @@ export async function routineRows(repo, net) {
       }
       const newest = newestLike(image.tag, await tagsFor(image.repo), LINES[image.repo] ?? 1);
       const state = stateOf(image.tag, newest);
-      return { pin: image.tag, newest, state, ...(state === 'behind' && image.dockerfile ? { notes: [builtNote(image.dockerfile)] } : {}) };
+      if (state !== 'behind' || !image.dockerfile) return { pin: image.tag, newest, state };
+      // Whose pull request moves an image built here: Dependabot's, unless the newest tag ends otherwise than the pin.
+      const note = endingOf(newest) === endingOf(image.tag) ? builtNote(image.dockerfile) : byHandNote(image.dockerfile, image.tag, newest);
+      return { pin: image.tag, newest, state, notes: [note] };
     }]);
   }
 

@@ -94,9 +94,9 @@ name: ownpace-managed
 # image, whose pin is the FROM of deploy/compose/trigger.dev/Dockerfile and
 # deploy/compose/supervisor/Dockerfile by tag and digest, with files deleted that never run here
 # and, since 2026-11-02, pnpm 10.34.9 in place of upstream's 10.33.2; since 2026-11-03 also
-# goose v3.29.0's release binary and four packages at the release that fixes each (the webapp's;
-# a fifth, effect, since 2026-11-06), and systeminformation's (the supervisor's), fetched by the
-# hash their publisher published.
+# a goose release's binary (v3.29.0's; v3.30.1's since 2026-11-13) and, until Trigger.dev v4.8.5,
+# four packages at the release that fixes each (the webapp's; a fifth, effect, from 2026-11-06),
+# and systeminformation's (the supervisor's), fetched by the hash their publisher published.
 # Their names start with the Trigger.dev version, TRIGGER_IMAGE_TAG or its default, as before, and
 # end in the hash of the Dockerfile's instructions; `trigger-version.sh pin` moves both, and
 # nothing builds them while the machine has the name. Dependabot reads neither Dockerfile, on
@@ -120,6 +120,14 @@ name: ownpace-managed
 # a major). Its name ends in the hash of that file's instructions, and a pull request that changes
 # them fails an-essential-nothing-runs until the name moves with it. `up` builds it where it is
 # missing.
+# pgbouncer runs a local build too since 2026-11-13 (workplan 0119, for alpha.8): edoburu's image
+# at its pinned digest with five Alpine packages at the versions that carry their fixes (libpq,
+# postgresql18-client, musl, musl-utils and zlib: 79 high findings on 2026-11-13, in a base
+# upstream had not rebuilt), whose pin is the FROM of deploy/compose/pgbouncer/Dockerfile by tag
+# and digest, which Dependabot reads (its own entry). Its name ends in the hash of that file's
+# instructions, and a pull request that changes them fails a-rebuild-upstream-has-not-made until
+# the name moves with it. `up` builds it where it is missing, from Docker Hub and Alpine's
+# mirror. It goes back to upstream's image once that carries the five (the Dockerfile's header).
 # scripts/a-float-nothing-ever-pulled.unit.test.ts refuses a new float; busybox's one-shot
 # chown is the one it names, with its reason.
 #
@@ -262,11 +270,22 @@ services:
   # The image tag has no git tag behind it: edoburu/docker-pgbouncer's tags
   # stop at v1.26.0-p0, this image is its master ("Bump pgbouncer to v1.26.1
   # (#137)"), and its images are pushed by hand, so a tag can be pushed again.
-  # Its index digest, read on 2026-10-21 (pushed 2026-10-19T14:11Z), so that a
-  # re-push can be noticed:
-  #   sha256:488422e38cff912895d0d65d8963fcd306e6ac589a724398b6eb8e294e94d624
+  # Its index digest, read on 2026-10-21 (pushed 2026-10-19T14:11Z) and again
+  # on 2026-11-13, is the FROM of deploy/compose/pgbouncer/Dockerfile since
+  # then, so a re-push is a pull request, never a silent change.
+  #
+  # BUILT HERE SINCE 2026-11-13 (workplan 0119, for alpha.8): that image, with
+  # five Alpine packages at the versions that carry their fixes, because
+  # upstream had not rebuilt it: deploy/compose/pgbouncer/Dockerfile says
+  # which, why nothing here could reach them, what the build risks, and when
+  # the build goes again. PgBouncer itself, its user (postgres, uid 70), its
+  # entrypoint and its command are upstream's. Compose builds it on the first
+  # `up` that finds no image of this name; `never`, as for the databases: no
+  # registry serves this name.
   pgbouncer:
-    image: edoburu/pgbouncer:v1.26.1-p0
+    image: localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6
+    build: ./pgbouncer
+    pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
     restart: unless-stopped
     logging: *logging
@@ -421,8 +440,12 @@ services:
     # upstream ships those releases itself, and both swaps are gone (its
     # header, WHAT UPSTREAM NOW SHIPS FIXED). Since 2026-11-03 it also removes
     # TypeScript 7's native compiler, which nothing here runs, and replaces
-    # goose v3.27.1, which the entrypoint runs, with goose v3.29.0's release
-    # binary from GitHub by its SHA-256;
+    # goose v3.27.1, which the entrypoint runs, with a goose release's binary
+    # from GitHub by its SHA-256: v3.29.0's until 2026-11-13, and since then
+    # v3.30.1's, built on Go 1.27.4 and golang.org/x/net v0.62.0, past the two
+    # highs the image scan read in v3.29.0's, and taken before its three-day
+    # floor on the owner's waiver of 2026-11-13, "Waive all waiting time."
+    # (its header, WHAT IS REPLACED: GOOSE);
     # so its build reaches github.com as well as the npm registry. Since
     # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
     # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
@@ -438,7 +461,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-3cabc0a7c796
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-1c2ba0d89644
     build:
       context: ./trigger.dev
       args:
@@ -763,8 +786,33 @@ services:
   # 3.1.2 (2026-10-21) changes none of that: config-dev.yml, the filesystem
   # driver and tracing/ are as they were at v3.1.1, and its security fix is in
   # the registry's client, which only a pull-through cache uses.
+  #
+  # BY TAG AND INDEX DIGEST SINCE 2026-11-13 (workplan 0119), by tag alone
+  # until then. Docker Hub builds its official images again under the same
+  # tag when their base moves, and nothing here pulls an image the machine
+  # already has, so the stacks kept the copy they pulled first, while
+  # the image scan read the tag as Docker Hub served it on the day of each
+  # scan. Which copy that was is unread: Docker Hub keeps a tag's last push
+  # alone, and nothing recorded the image a stack ran. The digest is
+  # 82f6ff4a7f98…, the index Docker Hub serves for `3.1.2`, last pushed
+  # 2026-11-11 at 23:38 UTC, when riscv64's image landed; its linux/amd64
+  # (52b489ad8e6f…) and linux/arm64 (f3d00d4a9323…) images are the rebuild
+  # of 2026-11-05. Read off both, every blob checked against its sha256 and
+  # nothing run: Alpine 3.24.4 with 17 packages, and bin/registry is
+  # distribution v3.1.2 at commit 3220848f, built with Go 1.26.8: upstream's
+  # release file, which the image's build checks by its sha256. The image's
+  # Dockerfile has not moved since 2026-09-24, when it took v3.1.2, so every
+  # build of this tag carries that binary and a rebuild moves the Alpine
+  # under it. NOT A SECURITY FIX: the image scan of 2026-11-13 read the tag,
+  # which named this index, at 0 findings in Alpine's packages and 8 high in
+  # bin/registry (go-jose 4.1.4, klauspost/compress 1.18.4, golang.org/x/net
+  # 0.59.0 and Go 1.26.8), and those stay until distribution releases:
+  # v3.1.2 is its newest tag. A rebuild or a release moves by a pull request
+  # with the new digest read the same way;
+  # `scripts/a-float-nothing-ever-pulled.unit.test.ts` holds the digest, and
+  # this comment to it.
   trigger-registry:
-    image: registry:3.1.2
+    image: registry:3.1.2@sha256:82f6ff4a7f982960c8aa51617fea3aabc485df6e55cce80d22deb1de36f1bc3c
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-registry
     restart: unless-stopped
     logging: *logging
@@ -934,43 +982,48 @@ services:
   #
   # THE PIN. Chainguard's free tier publishes `latest` and `latest-dev` and
   # nothing else, rebuilt about daily, so this is `latest` by an index digest:
-  # 869ca3178831…, built 2026-11-07 03:27 UTC and pushed as `latest` on
-  # 2026-11-07 at 06:54 UTC, with linux/amd64 and linux/arm64 in it, taken on
-  # 2026-11-10, past its three-day floor (06:54 UTC that day). A security
-  # fix: the week's scan of 2026-11-09 read the digest before it,
-  # aea6c163749e… (built 2026-11-05, taken 2026-11-06 for alpha.5, #1826), at
-  # 0 critical, 2 high and 2 with a fix, both CVE-2026-116591
-  # (GHSA-fpmh-frq8-7rj8), a panic on two-block frames in
-  # github.com/klauspost/compress before 1.20.2: one in Wolfi's `minio`
-  # 0.20261023.200651-r2, fixed in -r3, and one in `mc`
-  # 0.20250813.083541-r27, fixed in -r28. This one carries -r3 and -r28.
-  # Against aea6c163749e…, each binary is rebuilt from the same source with
-  # that one module moved: `go version -m`, read off each binary on both
-  # architectures without running it, differs in klauspost/compress alone,
-  # 1.18.7 → 1.20.2 in the server and 1.18.5 → 1.20.2 in `mc`. The server is
-  # still the fork's RELEASE.2026-10-23T20-06-51Z at commit 76c06ff1, built
-  # with Go 1.27.3 on go-jose 4.1.6 and golang.org/x/net 0.62.0, and `mc`
-  # still 0.20250813.083541 at commit 7394ce0d; bash is /bin/sh, as before.
-  # The one other move is glibc 2.44-r13 → -r14, with its POSIX locale and
-  # ld-linux: four fixes from glibc's 2.44 branch, three to arm64's
-  # vectorised log1p, log1pf and tanf and one to a test, none of them for
-  # security. That is 5 of the image's 23 packages (their apk databases, both
-  # architectures), and the image config differs in its dates and layer ids
-  # alone. The fork's release before RELEASE.2026-10-23T20-06-51Z,
-  # RELEASE.2026-09-22T19-25-18Z in d88920d6a50b… (2026-10-22, #1692), differs
-  # from it in go.mod and go.sum (nine modules, golang.org/x/net 0.60.0,
-  # x/crypto 0.57.0 and klauspost/compress 1.18.7 among them) and in its
-  # VulnCheck workflow's Go: no line under cmd/ or internal/ changed. `latest`
-  # has moved on since, to 616286de6ef3… (pushed 2026-11-09 12:29 UTC, the
-  # fork's next release) and then fb893e36fc36… (pushed 2026-11-10 06:03
-  # UTC, that release on glibc 2.44-r15 and libgcc 16.2.0-r3), neither taken
-  # here: their floors end 2026-11-12 12:29 and 2026-11-13 06:03 UTC. The
-  # weekly pin watch (idp-pin-watch.mjs) says when `latest`
-  # has moved on; a move is a pull request with the new digest's scan read
-  # and E2E (managed) on its branch. Trigger.dev's own digest from its move
-  # of 2026-09-28 still resolved on 2026-10-24, so an old digest stays
-  # pullable for weeks at least; if the free image goes, build the fork's tag
-  # here (0119 §3 item 5).
+  # ddfab4c402bf…, dated 2026-11-13 16:01 UTC in its configs and pushed as
+  # `latest` on 2026-11-13 at 20:19 UTC, with linux/amd64 and linux/arm64 in
+  # it, taken that day for alpha.8, inside its three-day floor (which ends
+  # 2026-11-16 20:19 UTC), on the owner's waiver of 2026-11-13 ("Waive all
+  # waiting time."). Kept current, not a security fix: Security Scan run
+  # 43492635512 (2026-11-13) read the digest before it, 869ca3178831… (built
+  # 2026-11-07, taken 2026-11-10 for CVE-2026-116591, #1870), at 0 critical
+  # and 0 high. The server is the fork's RELEASE.2026-11-12T01-15-23Z at
+  # commit a60e2a7b, in Wolfi's `minio` 0.20261112.011523-r0. `go version
+  # -m`, read off each binary on both architectures without running it,
+  # differs from 869ca3178831…'s in go-jose 4.1.6 → 4.1.7, in the thrift
+  # version go.mod asks for (0.23.0 → 0.24.0; Wolfi's build replaces it with
+  # 0.25.0 in both, so that code is the same) and in its Go, 1.27.3 → 1.27.4,
+  # whose net/http fixes CVE-2026-97054: an HTTP/1 server could panic when a
+  # request body passed MaxBytesReader's limit (here 5 TiB and 64 MiB) while
+  # its handler set a header. `mc` is 0.20250813.083541-r29: the same source,
+  # at commit 7394ce0d, and the same modules as -r28, rebuilt on Go 1.27.4
+  # for that CVE; bash is /bin/sh, as before. The base moves glibc 2.44-r14
+  # → -r18, with its POSIX locale and ld-linux: three fixes from glibc's
+  # 2.44 branch, for nftw's read errors, for how arm64's vector maths archive
+  # is built and for CVE-2026-84243 in gettext, which nothing here reaches
+  # (the two Go binaries load no libc, and no service sets LANGUAGE or a
+  # locale); libgcc 16.2.0-r2 → -r3, rebuilt for a test; and ncurses
+  # 6.6.20261031 → 6.6.20261107, upstream's weekly snapshot. That is 8 of
+  # the image's 23 packages (their apk databases, both architectures), and
+  # the image config differs in its dates and layer ids alone. The fork's
+  # releases since RELEASE.2026-09-22T19-25-18Z, in
+  # d88920d6a50b… (2026-10-22, #1692), differ from it in go.mod and go.sum,
+  # CI scripts, the Makefile's tidy check, two debugging tools under docs/
+  # and one test file: no line under cmd/ or internal/ that the server is
+  # built from changed. The three builds before it were never taken:
+  # db3f583fa491… (pushed 2026-11-11, the fork's RELEASE.2026-11-10T21-18-11Z,
+  # drafted as #1881 and closed for this one); 786cb11d340b… (pushed
+  # 2026-11-12), this one's `minio` and `mc` byte for byte, on glibc
+  # 2.44-r16; and 96b6cf3e1408… (pushed 2026-11-13 at 01:29 UTC), the same
+  # two on glibc 2.44-r17, which `latest` left while this move was tested.
+  # The weekly pin watch (idp-pin-watch.mjs) says when `latest` has moved
+  # on; a move is a pull request with the new digest's scan read and E2E
+  # (managed) on its branch. Trigger.dev's own digest from its move of
+  # 2026-09-28 still resolved on 2026-10-24, so an old digest stays pullable
+  # for weeks at least; if the free image goes, build the fork's tag here
+  # (0119 §3 item 5).
   #
   # NOT A TAG SWAP. Each difference was read off the image itself (its config
   # and last layer, both architectures) and Chainguard's locked config
@@ -990,7 +1043,7 @@ services:
   #     minio-init below makes `packets`.
   # `scripts/an-object-store-with-a-maintainer.unit.test.ts` holds all of it.
   minio:
-    image: chainguard/minio:latest@sha256:869ca3178831d9f521ea02258a0f0d4fbc1e9f84302e707514e1f861b860865d
+    image: chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio
     restart: unless-stopped
     logging: *logging
@@ -1004,14 +1057,15 @@ services:
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD:-very-safe-password}
       # NO RELEASE CHECK AT START (workplan 0139, 2026-09-28; read again at the
       # fork's RELEASE.2026-09-22T19-25-18Z, the same code at
-      # RELEASE.2026-10-23T20-06-51Z). At every start this MinIO asks
-      # dl.min.io for its newest release, and its User-Agent carries the OS,
-      # the architecture, `docker`, its version and the CPU's count, vendor and
-      # model (cmd/server-main.go, cmd/common-main.go, cmd/update.go). `off`
-      # here is the one thing that skips it. Its call-home to SUBNET already
-      # ships off (internal/config/callhome/callhome.go), and is written out so
-      # a stored setting cannot turn it on: the environment wins over MinIO's
-      # own config. `scripts/a-service-that-phones-home.unit.test.ts`.
+      # RELEASE.2026-10-23T20-06-51Z and RELEASE.2026-11-12T01-15-23Z). At
+      # every start this MinIO asks dl.min.io for its newest release, and its
+      # User-Agent carries the OS, the architecture, `docker`, its version and
+      # the CPU's count, vendor and model (cmd/server-main.go,
+      # cmd/common-main.go, cmd/update.go). `off` here is the one thing that
+      # skips it. Its call-home to SUBNET already ships off
+      # (internal/config/callhome/callhome.go), and is written out so a stored
+      # setting cannot turn it on: the environment wins over MinIO's own
+      # config. `scripts/a-service-that-phones-home.unit.test.ts`.
       MINIO_UPDATE: "off"
       MINIO_CALLHOME_ENABLE: "off"
       # The health check's alias. `mc ready` asks the server's own health
@@ -1071,7 +1125,7 @@ services:
   # (getDependencyCondition, pkg/compose/start.go, v2.20.0 to v5.6.1). The
   # bring-up names it beside `minio` all the same, so a failure prints its log.
   minio-init:
-    image: chainguard/minio:latest@sha256:869ca3178831d9f521ea02258a0f0d4fbc1e9f84302e707514e1f861b860865d
+    image: chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-minio-init
     restart: "no"
     logging: *logging
@@ -1358,7 +1412,56 @@ services:
     # way back is the v4.20.1 tag. cmd/defaults.yaml is unchanged, so the
     # service ping's default, the lockout and the privacy policy's fields
     # hold at v4.20.2.
-    image: ghcr.io/zitadel/zitadel:v4.20.2
+    #
+    # v4.20.3, from the pin watch (issue #1887): twelve commits after
+    # v4.20.2 on upstream's v4.x branch. The tag is lightweight and carries
+    # no date; its tip commit (a8b256c9) was committed 2026-11-13 at 11:55
+    # UTC. Eight of the twelve are fixes cherry-picked in one batch, with no
+    # pull request named, and read as security fixes; upstream's release
+    # notes and advisories could not be read where this was built, so no
+    # severity and no CVE or GHSA id is named here. Two are on paths people
+    # here take. Login v1 issues an authorization code only once the login
+    # is complete and binds it to the user who completed it, and the token
+    # endpoint refuses a code whose request is not done or names another
+    # user (b977f693). A code issued before the upgrade has no binding and
+    # is refused once, so a person in the middle of signing in when the
+    # image moves signs in again. And a public host header
+    # (x-zitadel-public-host, cmd/defaults.yaml's PublicHostHeaders) that is
+    # not a plain host, or has more than one value, is answered 400 before
+    # a password-reset, invite or verification link is built from it, and
+    # an origin stored with a notification is validated the same way
+    # (8ce0ac59). Nothing in this repository sends that header or sets
+    # ZITADEL_PUBLICHOSTHEADERS, as at v4.19.5 above; what the proxy in
+    # front of a fronted stack adds is not in this repository. Two more are
+    # in the session API, which only the smoke calls here. A password check
+    # applies the login policy of the user's organisation (b95ebee0):
+    # setup-zitadel.sh keeps the instance policy at allowUsernamePassword
+    # and removes an organisation's own, and the smoke fails on one.
+    # Finishing an OIDC or SAML request always needs session.link
+    # (de240980): the smoke grants its provisioning user IAM_LOGIN_CLIENT,
+    # the one role that carries it, and never named a login client, so it
+    # met that check before too. The other four of the eight are login
+    # v2's (apps/login, and its texts in internal/query/v2-default.json),
+    # which does not run here. go.mod moves go-chi from v5.2.5 to v5.5.0 and
+    # nothing else: golang.org/x/net stays v0.61.0, so the image scan's one
+    # high with a fix (CVE-2026-78661) stays. No setup step is expected:
+    # cmd/, internal/setup, internal/repository, internal/eventstore,
+    # internal/api/ui (login v1's pages and the console's server),
+    # internal/api/grpc/admin and console/ are unchanged, still toolchain
+    # go1.26.10, and login v1's request gains a field in the JSON it is
+    # stored as, not a column. That is read from the diff, not run.
+    # cmd/defaults.yaml is v4.20.2's byte for byte, so the three facts
+    # above, the service ping's default, the lockout and the privacy
+    # policy's fields hold at v4.20.3.
+    # The owner took it into alpha.8 on 2026-11-14, and dumped the OTA
+    # instance's `zitadel` database first, on v4.20.2, with
+    # deploy/compose/dump-idp.sh (04:07 UTC, 701 entries read back). This
+    # line merges after E2E (managed) on its branch, which applies it to the
+    # OTA instance, and after the owner's hand check there, which that gate
+    # cannot make, because its smoke signs in through a client pinned to
+    # login v2: one sign-in in a browser (login v1), and one forgot-password
+    # mail, read in the mail catcher and its link opened.
+    image: ghcr.io/zitadel/zitadel:v4.20.3
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging

@@ -1501,8 +1501,13 @@ phase_data() {
     "${COMPOSE[@]}" up -d --force-recreate --no-deps pgbouncer >/dev/null
   fi
 
+  # pgbouncer is a build here since 2026-11-13 (workplan 0119): edoburu's image
+  # at its pinned digest with five Alpine packages at the versions that carry
+  # their fixes, named after the hash of its Dockerfile's instructions. The
+  # `up` calls here build it where its name is missing, from Docker Hub and
+  # Alpine's mirror, and nothing else does.
   up_wait pgbouncer
-  note "pgbouncer healthy, in transaction mode (auth_query in ${configured_db})"
+  note "pgbouncer healthy, in transaction mode (auth_query in ${configured_db}); a local build of upstream's image with five Alpine packages at their fixed versions (deploy/compose/pgbouncer), built where the machine did not have it yet"
 
   # The two roles, asked the way the stack's containers ask.
   database_roles_proven

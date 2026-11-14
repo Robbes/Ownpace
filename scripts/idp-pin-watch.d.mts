@@ -19,6 +19,10 @@ export declare const COMPARED_ELSEWHERE: Record<string, string>;
 export declare const STALWART_RULE: string;
 export declare const REBUILD_NOTE: string;
 export declare function builtNote(dockerfile: string): string;
+/** How a tag ends after its version, where that starts with a letter: `-p0`, `-alpine`, or nothing. */
+export declare function endingOf(tag: string): string;
+/** Said instead of `builtNote` where the newest tag ends otherwise than the pin: Dependabot does not propose it. */
+export declare function byHandNote(dockerfile: string, pin: string, newest: string): string;
 export declare const STALWART_FILES: string[];
 export declare const GOACCESS_DOCKERFILE: string;
 export declare const SOCKET_PROXY_DOCKERFILE: string;

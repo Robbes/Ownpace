@@ -30,6 +30,58 @@ and the task runner's.
 
 ### Security
 
+- **The identity provider moves to Zitadel v4.20.3, whose eight fixes read as security fixes,
+  one of them in the sign-in the stack serves** (workplan 0135 T7, 0119): Zitadel's own login now
+  issues an authorization code only once the sign-in is complete and binds it to the person who
+  completed it, and the token endpoint refuses a code whose sign-in was not finished or that
+  names somebody else. A public host header that is not a plain host name is answered 400 before
+  a password-reset, invite or verification link is built from it; nothing here sends that
+  header. A password check through the session API follows the organisation's login policy, and
+  finishing a sign-in through that API always needs the `session.link` permission; here only the
+  gate's smoke calls either, and it is expected to meet both. The other four fixes are in
+  Zitadel's separate login application, which does not run here. Upstream's advisories could not
+  be read when this was written, so no severity and no CVE id is named. No setup step is
+  expected, so the database's schema stays where v4.20.2 left it: read from upstream's diff, not
+  run. A person in the middle of signing in when the provider restarts on it signs in again,
+  once. The tag's tip commit is of 2026-11-13 at 11:55 UTC, inside the three-day floor until
+  2026-11-16 at 11:55 at the earliest, and it is taken under the floor's exception for a security
+  fix.
+
+- **The Trigger.dev webapp's goose is v3.30.1's release binary, built past the two high findings
+  the image scan read in v3.29.0's** (workplan 0119). goose runs Trigger.dev's ClickHouse
+  migrations at each start of `trigger-api`. The scan of `main` on 2026-11-13 read
+  CVE-2026-111943 in the Go 1.27.2 its v3.29.0 binary was built with (fixed in 1.27.3) and
+  CVE-2026-78661 in its golang.org/x/net v0.61.0 (fixed in v0.62.0); v3.30.1 is built with Go
+  1.27.4 and x/net v0.62.0. The build still fetches the release's asset from GitHub, refuses any
+  other SHA-256, and proves nothing else in the image changed. What goose sends ClickHouse is
+  unchanged: its command, its ClickHouse dialect and the code `goose up` runs through are
+  v3.29.0's byte for byte, and what changed in its SQL parser reaches none of Trigger.dev's 55
+  ClickHouse migrations. The image takes a new name,
+  `localhost/trigger.dev:v4.8.5-1c2ba0d89644`, so the next `up` builds it and recreates
+  `trigger-api` once. The image scan is expected to read 1 critical, 17 high and 9 with a fix,
+  from 1, 19 and 11. v3.30.1 was published on 2026-11-12 at 14:02 UTC and is inside its
+  three-day floor until 2026-11-15 at 14:02: taken before it on the owner's waiver of
+  2026-11-13, *"Waive all waiting time."*
+
+- **The managed stack's pooler is built here on upstream's image, with five Alpine packages at the
+  versions that carry their fixes, which clears its 79 highs** (workplan 0119): the image scan of
+  2026-11-13 read `edoburu/pgbouncer:v1.26.1-p0` at 79 high findings, every one fixed in Alpine: 38
+  each in libpq and postgresql18-client 18.6-r0 (PostgreSQL 18.7's fixes: CVE-2026-6460,
+  CVE-2026-6467, CVE-2026-14661, CVE-2026-18447 and 34 more), one each in musl and musl-utils
+  1.2.6-r2 (CVE-2026-107891) and one in zlib 1.3.2-r0 (CVE-2026-85091). Upstream's newest image is
+  of 2026-10-19, on packages of 2026-09-30, so no pin clears them. PgBouncer links neither libpq
+  nor zlib; psql, which the healthcheck runs against the container's own pooler, is what loads
+  libpq, so all 79 are almost certainly out of anybody's reach here. `managed.yml`'s pgbouncer now
+  runs `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`, built from `deploy/compose/pgbouncer`:
+  upstream's image by digest, with libpq and postgresql18-client 18.7-r0, musl and musl-utils
+  1.2.6-r3 and zlib 1.4-r0 from Alpine's signed repository, at exactly those versions. PgBouncer
+  1.26.1, its user, its entrypoint and its command are upstream's. The pooler is built and restarts
+  once at the deploy; the build reaches Alpine's mirror as well as Docker Hub, once per machine and
+  name, and goes again once upstream's image carries the five. A newer PgBouncer arrives as
+  Dependabot's pull request; upstream's rebuild of the same one, tagged `-p<n+1>`, does not, so
+  the weekly pin watch names it and says it is moved by hand. The two PostgreSQL packages were
+  taken inside their three-day floor, on the owner's waiver.
+
 - **`pnpm audit` reads one advisory again, the one kept on purpose: hono 4.13.18 and
   `@hono/node-server` 2.1.7 under the deploy CLI** (workplan 0119). Seven advisories, six moderate
   and one low, reached the tree on one path, the MCP library the Trigger.dev deploy CLI brings
@@ -130,10 +182,41 @@ and the task runner's.
 
 ### Changed
 
-- **CI's migration lint moves to Atlas v1.3.9** (workplan 0119), past its three-day floor on
-  2026-11-12, each architecture checked by the SHA-256 of `/atlas` in the release's community
-  image on Docker Hub. Its one upstream commit since v1.3.8 changes Atlas's skills and docs and
-  none of its code, so the lint runs as it did. Nothing deployed changes.
+- **The registry that holds the tasks' images is pinned by its index digest, so both stacks run
+  the copy the image scan reads** (workplan 0119): `registry:3.1.2@sha256:82f6ff4a…`, Docker
+  Hub's rebuild of 2026-11-05 on Alpine 3.24.4. Docker Hub builds an official image again under
+  the same tag when its base moves, and nothing here pulls an image the machine already has. So
+  by the tag alone the stacks kept the copy they pulled first, while the image scan read
+  whatever the tag named on the day of the scan. Which copy that was cannot be read any more.
+  The registry itself does not change: every build of the tag carries the same file,
+  distribution v3.1.2, and only the Alpine packages under it differ. The first bring-up with
+  this pulls the image once and restarts the registry; the task images it holds stay on its
+  volume. Kept current and made true to the scan, not a security fix: the eight high findings
+  the scan reads are in the registry's own binary and stay until distribution releases. The
+  index was last pushed 2026-11-11 at 23:38 UTC, inside the three-day floor until 2026-11-14 at
+  23:38, so it is taken on the owner's waiver of 2026-11-13: *"Waive all waiting time."* A guard
+  now fails when the line loses its digest. `busybox:1.38` stays by its tag: four scripts run
+  the same image by that tag, so it moves with them, in a change of its own.
+
+- **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-13** (workplan
+  0119, 0146 T7): the fork's MinIO release RELEASE.2026-11-12T01-15-23Z, whose server code is that
+  of the releases before it, built with Go 1.27.4 and go-jose 4.1.7, and the `mc` client rebuilt on
+  Go 1.27.4, on glibc 2.44 with three fixes from its release branch, the one for CVE-2026-84243
+  among them, libgcc rebuilt and ncurses' snapshot of 2026-11-07. Kept current, not a
+  security fix: the image scan of 2026-11-13 read the build before it at 0 critical and 0 high,
+  and neither fix it carries reaches this stack. Go 1.27.4's net/http fix (CVE-2026-97054) needs a
+  request body past MinIO's 5 TiB limit, and the glibc one a `LANGUAGE` variable no service sets.
+  The release check is still off, read again at the new release, and nothing a stack sets changes;
+  the next bring-up pulls it, and the data volume carries over. Taken before its three-day floor,
+  on the owner's waiver.
+- **CI's migration lint moves to Atlas v1.3.10** (workplan 0119), from alpha.7's v1.3.8, by way
+  of v1.3.9 on 2026-11-12, which was past its three-day floor. v1.3.10 was published on
+  2026-11-13 and is taken inside its floor, on the owner's word of that day: *"Waive all waiting
+  time."* Each architecture is checked by the SHA-256 of `/atlas` in the release's community
+  image on Docker Hub. v1.3.10 is built from the same upstream commit as v1.3.9, by the same Go
+  with the same dependencies, and that commit's one change since v1.3.8 is to Atlas's skills,
+  its instructions for coding agents, and to none of its code, so the lint runs as it did.
+  Nothing deployed changes.
 - **The test stack's mail catcher is Mailpit v1.33.1** (workplan 0146 T11 (a), 0119), from
   v1.33.0: the patch kept current, past its three-day floor, with no finding of the image scan's
   to clear. It is built with the same Go 1.27.3 and golang.org/x/net 0.62.0, on Alpine 3.24.4,

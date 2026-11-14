@@ -103,14 +103,31 @@
  *    first triage of the webapp's goose read 0 findings, from a copy taken
  *    out of the image without its mode; with the mode, 21. Since 2026-11-03
  *    the webapp's build replaces goose v3.27.1, which upstream builds and the
- *    entrypoint runs as root at every start, with goose v3.29.0's release
- *    binary (REPLACED, kind 'binary'): 21 fixable highs to 1. The RUN checks
+ *    entrypoint runs as root at every start, with a goose release's binary
+ *    (REPLACED, kind 'binary'): v3.29.0's until 2026-11-13, 21 fixable highs
+ *    to 1, then 2 once the scan read one in its golang.org/x/net; v3.30.1's
+ *    since, built past both. The RUN checks
  *    the old file is root's, 0755, with one name, and says v3.27.1; fetches
  *    the release's asset for the platform; refuses any other SHA-256 with
  *    nothing changed; gives the new file root's owner and 0755 before it
- *    moves it into place; and proves it says v3.29.0, and that nothing else
+ *    moves it into place; and proves it says v3.30.1, and that nothing else
  *    changed. Over the stand-in, goose is a minimal executable made here for
  *    the machine that runs this, which prints its version as goose does.
+ *  - A WAIVER IS QUOTED FOR ONE RELEASE, BY NAME (2026-11-13). The test of
+ *    goose's row said "past its floor" and compared a fixed day with the day
+ *    the release was published. goose v3.30.1 was published on 2026-11-12 at
+ *    14:02:55 UTC and taken the day after, for alpha.8, two days before its
+ *    three-day floor ends, on the owner's waiver of 2026-11-13: "Waive all
+ *    waiting time." Moving the fixed day forward would have kept the old
+ *    words and made them false. So the row carries the day it was taken and
+ *    the waiver it stands on, with the release it is applied to, by name,
+ *    and floorProblems holds them: a release is past its floor on the day it
+ *    was taken, or a waiver of the owner's is quoted for that release, in
+ *    words the Dockerfile's header carries with their day. A waiver applied
+ *    to one release does not carry over to another, a day that has not come
+ *    is refused, and a waiver a release no longer needs goes: a later move
+ *    inside its floor fails again until it is past its floor, or a waiver
+ *    is quoted for it by name.
  *  - A PACKAGE PNPM INSTALLED IS NOT ITS TARBALL (2026-11-03 to 2026-11-13).
  *    From 2026-11-03 the webapp's build also swapped undici,
  *    follow-redirects, body-parser and systeminformation for the same major's
@@ -173,7 +190,9 @@
  *    also shows that every check fails before anything is removed when a path
  *    upstream moves is not there;
  *  - REPLACED below equals what the webapp's goose RUN names (both versions,
- *    each platform's asset and SHA-256), and that RUN checks before it
+ *    each platform's asset and SHA-256), its release is past its three-day
+ *    floor or stands on a waiver of the owner's quoted for it by name, and
+ *    that RUN checks before it
  *    changes anything and proves after, in the order held here. Run over the
  *    stand-in, with a stand-in registry and the stand-in's hash in place of
  *    the real one, it moves goose and nothing else; each way upstream or the
@@ -406,8 +425,17 @@ interface BinaryReplacement {
   readonly said: string;
   /** Each platform's release asset: its name, address, size and SHA-256. */
   readonly assets: Readonly<Record<Plat, { readonly asset: string; readonly url: string; readonly bytes: number; readonly sha256: string }>>;
-  /** When the release was published (the three-day floor, CONTRIBUTING.md). */
+  /** When the release was published (the three-day floor, CONTRIBUTING.md): the later of its two assets' upload times. */
   readonly published: string;
+  /** The day (UTC) the build took `to`. The floor is counted to its start, and it is no day that has not come. */
+  readonly taken: string;
+  /**
+   * The owner's waiver the row stands on, only where `to` was taken inside
+   * its floor: the release it is applied to, by name, the day the owner gave
+   * it, and their words. Applied to one release, it covers no other
+   * (floorProblems).
+   */
+  readonly waived?: { readonly release: string; readonly on: string; readonly words: string };
   readonly why: string;
   readonly evidence: string;
 }
@@ -419,16 +447,19 @@ const REPLACED: Readonly<Record<Name, readonly BinaryReplacement[]>> = {
       kind: 'binary',
       path: '/usr/local/bin/goose',
       from: 'v3.27.1',
-      to: 'v3.29.0',
+      to: 'v3.30.1',
       said: 'goose version: ',
       assets: {
-        'linux-arm64': { asset: 'goose_linux_arm64', url: 'https://github.com/pressly/goose/releases/download/v3.29.0/goose_linux_arm64', bytes: 41287840, sha256: 'efdb8f97176df746cf3970ed40810816a51927da0600b152ac4359ae2b7c0e12' },
-        'linux-x64': { asset: 'goose_linux_x86_64', url: 'https://github.com/pressly/goose/releases/download/v3.29.0/goose_linux_x86_64', bytes: 43634848, sha256: 'cc56e2f75532a4dd52f5ef2d31db0121e91079a9c2617bc0ad4e04e2d41c228b' },
+        'linux-arm64': { asset: 'goose_linux_arm64', url: 'https://github.com/pressly/goose/releases/download/v3.30.1/goose_linux_arm64', bytes: 41287840, sha256: 'a34264b912b6da50b383ab9199cc78dba124d4f85ca1ae657eaa29a15d8bdc40' },
+        'linux-x64': { asset: 'goose_linux_x86_64', url: 'https://github.com/pressly/goose/releases/download/v3.30.1/goose_linux_x86_64', bytes: 43774112, sha256: '18e32a18f6b49c45c2ea9ce75445c4d34a0a5f110d1a58e05e464d62a03b15e6' },
       },
-      published: '2026-10-11T17:48:17Z',
-      why: "21 fixable highs in the goose v3.27.1 upstream builds (x/crypto v0.50.0, x/net v0.53.0, x/text v0.36.0, grpc v1.80.0, klauspost/compress v1.18.5), fifteen in packages it does not link, none reachable from `goose up` over plain HTTP to the stack's ClickHouse; v3.29.0's binary leaves Go's CVE-2026-111943, which needs TLS. `goose up` with upstream's GOOSE_DRIVER, GOOSE_DBSTRING and GOOSE_MIGRATION_DIR is unchanged; since v3.28.0 a goose_db_version table that does not exist yet is ordered by version_id, and every stack that ran trigger-api has the table",
+      published: '2026-11-12T14:02:55Z',
+      // A day after it was published, for alpha.8: inside its floor, which ends 2026-11-15 at 14:02:55 UTC.
+      taken: '2026-11-13',
+      waived: { release: 'v3.30.1', on: '2026-11-13', words: 'Waive all waiting time.' },
+      why: "21 fixable highs in the goose v3.27.1 upstream builds (x/crypto v0.50.0, x/net v0.53.0, x/text v0.36.0, grpc v1.80.0, klauspost/compress v1.18.5), fifteen in packages it does not link, none reachable from `goose up` over plain HTTP to the stack's ClickHouse. v3.29.0's binary, the build's from 2026-11-03, left two: Go's CVE-2026-111943 (Go 1.27.2, fixed in 1.27.3), which needs TLS, and CVE-2026-78661 in its golang.org/x/net v0.61.0 (fixed in v0.62.0). v3.30.1's, since 2026-11-13, is built with Go 1.27.4 and x/net v0.62.0, past both. `goose up` with upstream's GOOSE_DRIVER, GOOSE_DBSTRING and GOOSE_MIGRATION_DIR is unchanged: cmd/goose, the ClickHouse dialect and the files `up` runs through are v3.29.0's byte for byte, and what changed in the SQL parser reaches none of upstream's 55 ClickHouse migrations (none says ENVSUB, no line is over 180 bytes); since v3.28.0 a goose_db_version table that does not exist yet is ordered by version_id, and every stack that ran trigger-api has the table",
       evidence:
-        "goose's tags v3.27.1 and v3.29.0 (v3.29.0 at 8b457ba3; cmd/goose/main.go, internal/dialects/clickhouse.go, CHANGELOG.md, #1085); the v3.29.0 release's assets (uploaded 2026-10-11 17:48 UTC, their Last-Modified), downloaded and hashed 2026-11-03, and `-version` of the amd64 one; goose v3.27.1 built as upstream builds it (go install, Go 1.26.10), its `-version` and its symbol table; Trivy 0.76.1 over both, executable; upstream's docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.3 and v4.8.5; managed.yml's CLICKHOUSE_URL; the RUN over a stand-in root with that build and the real release asset, on Node 24.22.1, 2026-11-03",
+        "goose's tags v3.27.1, v3.29.0 (8b457ba3) and v3.30.1 (ded3331f): `git diff v3.29.0 v3.30.1`, 13 commits, with cmd/goose/main.go, internal/dialects/clickhouse.go, internal/sqlparser/parser.go, migration.go, go.mod and CHANGELOG.md read; clickhouse-go's tags v2.49.0 and v2.51.0, and ch-go's v0.74.0 and v0.75.0; the v3.30.1 release's two assets (uploaded 2026-11-12 at 14:02:52 and 14:02:55 UTC, their Last-Modified) and its checksums.txt, downloaded and hashed twice on 2026-11-13, read with `go version -m` and readelf, and never run; upstream's docker/Dockerfile, docker/scripts/entrypoint.sh and 55 ClickHouse migrations at v4.8.5; Security Scan run 43492635512 (main, 2026-11-13), which read the two findings in v3.29.0's binary; managed.yml's CLICKHOUSE_URL. For v3.29.0, on 2026-11-03: its release's assets (uploaded 2026-10-11 17:48 UTC), downloaded and hashed, and `-version` of the amd64 one; goose v3.27.1 built as upstream builds it (go install, Go 1.26.10), its `-version` and its symbol table; Trivy 0.76.1 over both, executable; upstream's docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.3; the RUN over a stand-in root with that build and the real v3.29.0 asset, on Node 24.22.1. No scanner read v3.30.1's binary on 2026-11-13: the image scan reads it in the built image",
     },
   ],
   supervisor: [],
@@ -2554,13 +2585,61 @@ function gooseRetryFaults(text: string): string[] {
   return faults;
 }
 
-describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream builds, root's and executable", () => {
+/** The three-day floor a release waits out before a build takes it (CONTRIBUTING.md; pnpm's minimumReleaseAge counts the same three days). */
+const FLOOR_MS = 3 * 24 * 3600 * 1000;
+
+/**
+ * What is wrong with when a replacing release was taken, in words; empty when
+ * it holds. A release is past its three-day floor at the start of the day it
+ * was taken, or the row quotes a waiver of the owner's for that release, by
+ * name, and the Dockerfile's header carries it: their words, their day and
+ * the time the floor ends. A waiver applied to another release does not carry
+ * over, so a later move inside its floor fails here until it is past its
+ * floor or a waiver is quoted for it; a waiver a release does not need is
+ * dropped, so the row never says more than happened; and `taken` is no day
+ * that has not come (`now`), so the floor is not passed by dating the move
+ * after it.
+ */
+function floorProblems(row: BinaryReplacement, header: string, now = Date.now()): string[] {
+  const day = /^\d{4}-\d{2}-\d{2}$/;
+  const published = Date.parse(row.published);
+  if (Number.isNaN(published)) return [`${row.to}'s published, ${row.published}, is no time`];
+  const taken = day.test(row.taken) ? Date.parse(`${row.taken}T00:00:00Z`) : NaN;
+  if (Number.isNaN(taken)) return [`${row.to}'s taken, ${row.taken}, is no day (YYYY-MM-DD)`];
+  const problems: string[] = [];
+  if (taken > now) problems.push(`${row.to} is said to be taken on ${row.taken}, a day that has not come: the floor is counted to the day the move was made`);
+  const ends = new Date(published + FLOOR_MS).toISOString().replace('.000Z', 'Z');
+  const inside = taken - published <= FLOOR_MS;
+  const w = row.waived;
+  if (!w) {
+    if (inside) problems.push(`${row.to}, published ${row.published}, was taken on ${row.taken}, inside its three-day floor, which ends ${ends}, and the row quotes no waiver of the owner's for it: wait for the floor, or quote the owner's waiver for ${row.to}`);
+    return problems;
+  }
+  if (w.release !== row.to) {
+    problems.push(`the waiver the row quotes is applied to ${w.release}, not ${row.to}: it does not carry over to another release${inside ? `, and ${row.to} is inside its three-day floor until ${ends}` : ', and this one needs none: drop it'}`);
+    return problems;
+  }
+  if (!inside) {
+    problems.push(`${row.to} was past its three-day floor, which ended ${ends}, when it was taken on ${row.taken}: it needs no waiver, drop it`);
+    return problems;
+  }
+  if (!day.test(w.on) || w.on > row.taken || Date.parse(`${w.on}T23:59:59Z`) < published) {
+    problems.push(`the waiver quoted for ${row.to} is dated ${w.on}: it is applied to a release that is out (${row.published}), and given no later than the day the release is taken (${row.taken})`);
+  }
+  if (w.words.trim().length < 10) problems.push(`the waiver quoted for ${row.to} carries no words of the owner's`);
+  const record = `${row.to} IS TAKEN BEFORE ITS THREE-DAY FLOOR (CONTRIBUTING.md), which ends on ${ends.slice(0, 10)} at ${ends.slice(11, 19)} UTC, on the owner's waiver of ${w.on}: "${w.words}"`;
+  if (!header.replace(/\n# ?/g, ' ').includes(record)) problems.push(`the Dockerfile's header does not say: ${record}`);
+  return problems;
+}
+
+describe("goose is v3.30.1's release binary in place of the v3.27.1 upstream builds, root's and executable", () => {
   const webapp = dockerfiles['trigger.dev'];
 
-  it("REPLACED's goose is what its RUN names, past its floor", () => {
+  it("REPLACED's goose is what its RUN names, and past its three-day floor or taken on a waiver of the owner's quoted for it by name", () => {
     expect(gooseProblems('trigger.dev', webapp)).toEqual([]);
     expect(gooseProblems('supervisor', dockerfiles.supervisor)).toEqual([]);
-    expect(Date.parse('2026-11-03T00:00:00Z') - Date.parse(GOOSE.published)).toBeGreaterThan(3 * 24 * 3600 * 1000);
+    // v3.30.1 was taken on 2026-11-13, a day after it was published and two before its floor ends, on the owner's waiver of that day, quoted for it by name.
+    expect(floorProblems(GOOSE, webapp)).toEqual([]);
     for (const plat of PLATFORMS) {
       expect(GOOSE.assets[plat].sha256, plat).toMatch(/^[0-9a-f]{64}$/);
       expect(GOOSE.assets[plat].bytes, plat).toBeGreaterThan(30_000_000);
@@ -2568,7 +2647,47 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
     expect(GOOSE.why.length).toBeGreaterThan(60);
     expect(GOOSE.evidence.length).toBeGreaterThan(30);
     // The header says why, the ClickHouse table's order, the mode, and the way out.
-    for (const s of ['WHAT IS REPLACED: GOOSE', 'ORDER BY (version_id)', 'THE MODE', 'upstream moved goose: drop the replacement', 'CVE-2026-111943']) expect(webapp).toContain(s);
+    for (const s of ['WHAT IS REPLACED: GOOSE', 'ORDER BY (version_id)', 'THE MODE', 'upstream moved goose: drop the replacement', 'CVE-2026-111943', 'CVE-2026-78661']) expect(webapp).toContain(s);
+  });
+
+  it('a goose taken inside its three-day floor is refused unless a waiver of the owner\'s is quoted for that release, by name, and the header carries it', () => {
+    const { waived, ...unwaived } = GOOSE;
+    // The row as it is: inside its floor, so it stands on the waiver alone.
+    expect(Date.parse(`${GOOSE.taken}T00:00:00Z`) - Date.parse(GOOSE.published)).toBeLessThan(FLOOR_MS);
+    expect(waived).toEqual({ release: 'v3.30.1', on: '2026-11-13', words: 'Waive all waiting time.' });
+    expect(floorProblems(unwaived, webapp)).toEqual([
+      "v3.30.1, published 2026-11-12T14:02:55Z, was taken on 2026-11-13, inside its three-day floor, which ends 2026-11-15T14:02:55Z, and the row quotes no waiver of the owner's for it: wait for the floor, or quote the owner's waiver for v3.30.1",
+    ]);
+    // A later move, inside its own floor: the waiver of v3.30.1 does not carry over.
+    const at = Date.parse('2026-12-31T00:00:00Z');
+    const later: BinaryReplacement = { ...GOOSE, to: 'v3.30.2', published: '2026-11-20T09:00:00Z', taken: '2026-11-21' };
+    expect(floorProblems(later, webapp, at)).toEqual([
+      "the waiver the row quotes is applied to v3.30.1, not v3.30.2: it does not carry over to another release, and v3.30.2 is inside its three-day floor until 2026-11-23T09:00:00Z",
+    ]);
+    expect(floorProblems({ ...unwaived, to: later.to, published: later.published, taken: later.taken }, webapp, at)).toEqual([expect.stringContaining("inside its three-day floor, which ends 2026-11-23T09:00:00Z, and the row quotes no waiver of the owner's for it")]);
+    // The same move once it is past its floor: nothing to waive, and the waiver of the release before goes.
+    expect(floorProblems({ ...unwaived, to: later.to, published: later.published, taken: '2026-11-24' }, webapp, at)).toEqual([]);
+    expect(floorProblems({ ...later, taken: '2026-11-24' }, webapp, at)).toEqual(["the waiver the row quotes is applied to v3.30.1, not v3.30.2: it does not carry over to another release, and this one needs none: drop it"]);
+    // Or a waiver quoted for it by name: then the header carries those words for that release, with their day and the floor's end.
+    const named: BinaryReplacement = { ...later, waived: { release: 'v3.30.2', on: '2026-11-21', words: '(a stand-in for words of the owner)' } };
+    const said = 'v3.30.2 IS TAKEN BEFORE ITS THREE-DAY FLOOR (CONTRIBUTING.md), which ends on 2026-11-23 at 09:00:00 UTC, on the owner\'s waiver of 2026-11-21: "(a stand-in for words of the owner)"';
+    expect(floorProblems(named, webapp, at)).toEqual([`the Dockerfile's header does not say: ${said}`]);
+    expect(floorProblems(named, `# ${said.replace(', on the', ', on\n# the')}\n`, at)).toEqual([]);
+    // What held for v3.29.0, the row until 2026-11-13: 22 days old when it was taken, and no waiver.
+    expect(floorProblems({ ...unwaived, to: 'v3.29.0', published: '2026-10-11T17:48:17Z', taken: '2026-11-03' }, webapp)).toEqual([]);
+    // The floor is not passed by dating the move after it, on a day that has not come.
+    expect(floorProblems({ ...unwaived, taken: '2026-11-16' }, webapp, Date.parse('2026-11-13T21:30:00Z'))).toEqual([
+      'v3.30.1 is said to be taken on 2026-11-16, a day that has not come: the floor is counted to the day the move was made',
+    ]);
+    // A waiver the release would not need, other words than the header's, a waiver older than the release or younger than the move, no words.
+    expect(floorProblems({ ...GOOSE, published: '2026-11-01T00:00:00Z' }, webapp)).toEqual(['v3.30.1 was past its three-day floor, which ended 2026-11-04T00:00:00Z, when it was taken on 2026-11-13: it needs no waiver, drop it']);
+    expect(floorProblems(GOOSE, webapp.replace('"Waive all\n# waiting time."', '"Waive the\n# waiting time."'))).toEqual([expect.stringContaining("the Dockerfile's header does not say: v3.30.1 IS TAKEN BEFORE ITS THREE-DAY FLOOR")]);
+    expect(floorProblems(GOOSE, webapp.replace('which ends on\n# 2026-11-15 at 14:02:55 UTC', 'which ends on\n# 2026-11-14 at 14:02:55 UTC'))).toEqual([expect.stringContaining("the Dockerfile's header does not say: ")]);
+    for (const on of ['2026-11-11', '2026-11-14', 'today']) {
+      expect(floorProblems({ ...GOOSE, waived: { ...waived!, on } }, webapp), on).toContainEqual(expect.stringContaining(`the waiver quoted for v3.30.1 is dated ${on}: it is applied to a release that is out`));
+    }
+    expect(floorProblems({ ...GOOSE, waived: { ...waived!, words: ' ' } }, webapp)).toContainEqual("the waiver quoted for v3.30.1 carries no words of the owner's");
+    expect(floorProblems({ ...GOOSE, taken: '13 November' }, webapp)).toEqual(["v3.30.1's taken, 13 November, is no day (YYYY-MM-DD)"]);
   });
 
   it('refuses each way the goose RUN could slip', () => {
@@ -2585,7 +2704,7 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
     // goose's own `before=` (until v4.8.5 the swap table's RUN had one that read the same).
     const at = webapp.indexOf('\n# Still as root: goose');
     expect(problems(webapp.slice(0, at) + moveLine(webapp.slice(at), /^ {4}before="\$\(state\)"; \\$/, /^ {4}chmod 0755 "\$tmp\/goose"; \\$/))).toEqual(["goose's RUN does not check, before it fetches, the image, read"]);
-    expect(problems(webapp.replace(GOOSE.assets['linux-arm64'].sha256, '0'.repeat(64)))).toEqual(["goose's RUN does not pin linux-arm64's goose_linux_arm64 by efdb8f97176df746cf3970ed40810816a51927da0600b152ac4359ae2b7c0e12"]);
+    expect(problems(webapp.replace(GOOSE.assets['linux-arm64'].sha256, '0'.repeat(64)))).toEqual(["goose's RUN does not pin linux-arm64's goose_linux_arm64 by a34264b912b6da50b383ab9199cc78dba124d4f85ca1ae657eaa29a15d8bdc40"]);
     expect(problems(dropLine(webapp, /^ {6}\*\) fail "this is \$plat; goose/))).toEqual(["goose's RUN does not refuse a platform it pins no asset for"]);
     expect(problems(webapp.replace('goose_from=v3.27.1;', 'goose_from=v3.27.3;'))).toEqual(["goose's RUN's goose_from= is v3.27.3, not v3.27.1"]);
     expect(problems(webapp.replace(/\n(# Still as root: goose)/, '\nUSER node\n$1'))).toEqual(["goose's RUN runs as node, not root"]);
@@ -2608,7 +2727,7 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
         // Root's owner, given to the fetched file before it moved into place.
         const chowns = readFileSync(join(box.root, 'tools.log'), 'utf8').split('\n').filter((l) => l.startsWith('chown '));
         expect(chowns).toEqual([expect.stringMatching(new RegExp(`^chown 0:0 ${join(box.root, 'tmp').replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/\\S+/goose$`))]);
-        expect(run.out).toContain(`goose v3.27.1 at ${box.fs}${GOOSE.path} is goose v3.29.0's ${GOOSE.assets[plat].asset}`);
+        expect(run.out).toContain(`goose v3.27.1 at ${box.fs}${GOOSE.path} is goose v3.30.1's ${GOOSE.assets[plat].asset}`);
         expect(readdirSync(join(box.root, 'tmp'))).toEqual([]);
       });
     });
@@ -2631,8 +2750,8 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
       ['an old goose of another release: upstream moved goose', old(later), (fs) => `${fs}${GOOSE.path} says 'goose version: v3.28.0', not goose v3.27.1: upstream moved goose: drop the replacement.`],
       ['an old goose of another owner', { ...base, tools: gooseTools('1000:1000') }, (fs) => `${fs}${GOOSE.path} has 1 name(s), owner `],
       ['a release without the asset', asset(undefined), () => `${url} is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move.`],
-      ['a release asset of other bytes', asset(later), () => `${url} is ${sha256(later)}, not ${sha256(STAND_IN_GOOSE_NEW)}, goose v3.29.0's goose_linux_x86_64 as its release published it; nothing was changed.`],
-      ['a release asset that says another version, by its own hash', asset(later, true), () => "goose v3.29.0's goose_linux_x86_64 says 'goose version: v3.28.0'; nothing was changed."],
+      ['a release asset of other bytes', asset(later), () => `${url} is ${sha256(later)}, not ${sha256(STAND_IN_GOOSE_NEW)}, goose v3.30.1's goose_linux_x86_64 as its release published it; nothing was changed.`],
+      ['a release asset that says another version, by its own hash', asset(later, true), () => "goose v3.30.1's goose_linux_x86_64 says 'goose version: v3.28.0'; nothing was changed."],
       ['the pinned hash, against the stand-in', base, () => `${url} is ${sha256(STAND_IN_GOOSE_NEW)}, not ${GOOSE.assets[plat].sha256}`, { pinnedGoose: true }],
     ];
     for (const [what, tree, said, options] of cases) {
@@ -2663,7 +2782,7 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
     withSandbox(treeOf('trigger.dev', 'linux-riscv64'), (box) => {
       const run = build(webapp, box, { ...gooseOnly, plat: 'linux-riscv64' });
       expect(run.status).not.toBe(0);
-      expect(run.out).toContain("this is linux-riscv64; goose v3.29.0's release binaries are pinned for linux-arm64 and linux-x64.");
+      expect(run.out).toContain("this is linux-riscv64; goose v3.30.1's release binaries are pinned for linux-arm64 and linux-x64.");
     });
   });
 
@@ -2683,7 +2802,7 @@ describe("goose is v3.29.0's release binary in place of the v3.27.1 upstream bui
     withSandbox(base, (box) => {
       const run = build(afterMove('printf x >> /usr/local/bin/goose;'), box, gooseOnly);
       expect(run.status).not.toBe(0);
-      expect(run.out).toContain(`${box.fs}${GOOSE.path} is not goose v3.29.0's goose_linux_arm64 after the move.`);
+      expect(run.out).toContain(`${box.fs}${GOOSE.path} is not goose v3.30.1's goose_linux_arm64 after the move.`);
     });
   });
 
