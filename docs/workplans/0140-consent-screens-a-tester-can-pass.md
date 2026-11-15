@@ -4,8 +4,10 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
-**2026-11-15, measured: the weekly reconnect, once, on the OTA stack's demo (T1), and what it
-found (T2 (b)).** On the branch `claude/ownpace-public-readiness-y7orc6-google-reconnect`, as #1915.
+**2026-11-15, measured: the weekly reconnect, once, on the OTA stack's demo (T1), and what it found
+(T2 (b)).** On the branch `claude/ownpace-public-readiness-y7orc6-google-reconnect`, merged as #1915
+on 2026-11-15 at about 19:07 UTC (`7690dd3b`), after CI run 43725379776 and E2E (managed) run
+43739625368 (17:10 to 17:18 UTC) were green on its head.
 - **Measured.** A Google account on the OTA stack's demo, its consent about a week old, had its
   refresh token refused from 2026-11-14 at about 18:40 UTC: every pass of its migration failed at
   the token request. Google's answer, read at the database by the owner the next day, was

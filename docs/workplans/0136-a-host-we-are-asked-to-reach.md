@@ -4,11 +4,26 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, records: #1915 merged, and live's registry on a network of its own since alpha.9's
+deploy (T3, T4).** Docs only, on the branch
+`claude/ownpace-public-readiness-y7orc6-a9-live-records`; times are UTC. #1915 merged at about 19:07
+(`7690dd3b`), after CI run 43725379776 and E2E (managed) run 43739625368 (17:10 to 17:18) were green
+on its head; the entry below said on the branch, and names the merge now. Live runs
+`v0.2.0-alpha.9`, which carries #1902, since the owner's deploy of 2026-11-15, which took at
+16:29:16 (0132's Status, 2026-11-15). Read on live after it, with the hold on: `trigger-registry` on
+`ownpace-live_trigger-task-images` alone, a network that is not internal and has no other member;
+from the API container the name `trigger-registry` does not resolve (ENOTFOUND), the smoke's check
+by hand, since the bring-up skips the smoke on live; and `trigger-api`'s `DEPLOY_REGISTRY_HOST` and
+the supervisor's `DOCKER_REGISTRY_URL` the same loopback port. Until that deploy live kept the
+registry on `ownpace-network` (the entry of 2026-11-14, records).
+
 **2026-11-15, build: a token endpoint's refusal keeps its words (T3, the second step).** On the
-branch `claude/ownpace-public-readiness-y7orc6-google-reconnect`, as #1915. On the OTA stack a
-Google account's refresh token had expired (seven days in Testing, 0140 D1), and every pass of its
-migration failed at the token request. The run's log said *"Google refused the token request
-(400): the server answered with something that is not a DAV, JMAP or IMAP error."* The ledger held
+branch `claude/ownpace-public-readiness-y7orc6-google-reconnect`, merged as #1915 on 2026-11-15 at
+about 19:07 UTC (`7690dd3b`), after CI run 43725379776 and E2E (managed) run 43739625368 were green
+on its head (the entry above). On the OTA stack a Google account's refresh token had expired (seven
+days in Testing, 0140 D1), and every pass of its migration failed at the token request. The run's
+log said *"Google refused the token request (400): the server answered with something that is not
+a DAV, JMAP or IMAP error."* The ledger held
 Google's `{"error": "invalid_grant", "error_description": "Bad Request"}` and the provider's hint
 behind it, read at the database by the owner the same day. The rule kept neither, for two reasons,
 both closed on the branch. An OAuth 2.0 token endpoint's error response (RFC 6749 §5.2) was no
