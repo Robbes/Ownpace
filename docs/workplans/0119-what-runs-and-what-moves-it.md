@@ -4,6 +4,57 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, latest, recorded: live runs alpha.9's pins, ClickHouse's volume copied by hand before
+its move and removed after it.** The owner deployed `v0.2.0-alpha.9` (tagged 2026-11-15 on
+`2524db42`) to live the same day, from alpha.8 in one run of alpha.8's script, which took at
+16:29:16 UTC, one-way by the ClickHouse pin alone (0132's Status, 2026-11-15, has the deploy). Every
+image it needs was already on the shared daemon, the OTA stack's E2E (managed) having pulled
+ClickHouse's and MinIO's and built both Trigger.dev images on the branches that moved them. Read on
+live after it, with the hold on; times are UTC.
+
+- **ClickHouse 26.8.37.168 (#1906), its volume copied first.** *Moving ClickHouse*, *On live*, with
+  the two lines the ClickHouse entry below names for a move within 26.8: 3b's two files read on
+  26.8.36.3, 35 tables and views and 0 parts detached, and the copy,
+  `ownpace-live_clickhouse_data_v2_before_26_8_37`, made at 16:19:35 with the plane and ClickHouse
+  stopped, the same 7,006 entries and 205,920,268 bytes in files as the volume. So that entry's open
+  question was answered with the copy. `clickhouse` on `26.8.37.168` by `a56702852d7c…`, started at
+  16:26 on its volume, healthy, 0 restarts. Step 4's checks, as on the OTA stack: the version
+  26.8.37.168; `allow_dimensions_outside_sorting_key` 1 and `auto_statistics_types` empty, both
+  changed; `cast_string_to_date_time_mode` and `date_time_input_format` `basic` and
+  `input_format_read_datetime_number_as_raw_value` 1, each changed; every table 3b listed loading,
+  no part detached since, and goose's last migration 56; its crash reports and logical errors not
+  sent. Step 5: the owner removed the copy and 3b's two files the same day, after the same version
+  and load checks again; from then on the way back from 26.8.37.168 is forward, since block 8 of
+  the deploy's sheet has no volume to restore.
+- **MinIO `634c989a…` (#1904):** `minio` running and `minio-init` exited 0, both on `634c989a2f10…`
+  by the digest they were pulled by; MinIO's update and call-home off.
+- **Both Trigger.dev builds without cross-spawn 5.1.0 (#1909):** `trigger-api` on
+  `localhost/trigger.dev:v4.8.5-c3d2ec340994` and `trigger-supervisor` on
+  `localhost/supervisor:v4.8.5-e3631e107ba7`, each on the image of that name; each path of
+  cross-spawn 5.1.0 the removal names gone, two in the webapp and three in the supervisor; both on
+  Node v24.22.3, the webapp's goose v3.30.1, and in `trigger-api` no `apt`, `apt-get`, `mount`,
+  `setpriv` or `mke2fs`, and `libsystemd0` and `libudev1` not installed. Trigger.dev stays v4.8.5,
+  so no Prisma migration ran, and none is unfinished; `CLI_LOGIN_IDLE_TIMEOUT_DAYS=90` and
+  `ADMIN_API_ENABLED=false`, and Trigger.dev's telemetry and checkpoint off with no PostHog key.
+- **The registry on a network of its own (#1902; 0136 T4):** `trigger-registry` on `registry:3.1.2`
+  by `82f6ff4a7f98…`, as before, on `ownpace-live_trigger-task-images` alone, which is not internal
+  and has no other member; from the API container the name `trigger-registry` does not resolve
+  (ENOTFOUND). `DEPLOY_REGISTRY_HOST` and `DOCKER_REGISTRY_URL` name the same loopback port as
+  before.
+- **On the pins alpha.9 does not move:** `postgres` and `trigger-db` on
+  `localhost/postgres:18.7-alpine-2d3b1894d8f1`, both started 2026-11-14 at 15:01, 0 restarts; the
+  pooler on `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`; the identity provider on
+  `ghcr.io/zitadel/zitadel:v4.20.3`; `trigger-docker-proxy` on
+  `localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226`; `trigger-redis` on
+  `localhost/redis:7.4.12-bookworm-d5301e0623d4`; `trigger-tls` on
+  `localhost/caddy:2.11.9-alpine-f52a976e646f`; and Gatus v5.38.0. No container unhealthy or
+  starting.
+- **The api, the web and the tasks,** built from the tag with Dependabot's npm group (#1893): the
+  deployment `20261115.1` on 4.8.5 (runtime 26.13.1), the tick `COMPLETED_SUCCESSFULLY` on it, and,
+  after the lift, the owner's sign-in through the stack's login, which the api's jose 6.2.17 checks.
+  GoAccess's Alpine 3.24.4 (#1892) is not in the deploy: live's duty `visits` builds its image from
+  the tag live serves at its next run.
+
 **2026-11-15, later still: Nextcloud 35.0.3 on the OTA stack's demo and on `main` (#1907), for
 alpha.10.** Read from GitHub on 2026-11-15, and step 5 as read on the OTA stack; times are UTC.
 #1907 merged at 08:58:02 (`fe067273`), after CI and E2E (managed) on its head. That run was the
@@ -12,9 +63,15 @@ demo's one-way upgrade, after the way back was taken, and step 5 read as there a
 move to 35.0.3*, has the runs). `main`'s scheduled E2E (managed), run 43708337672 on `fe067273`
 (11:19 to 11:26), the first on 35.0.3, was green: *Version 20261115.5 deployed with 17 detected
 tasks*, *verify: done apply: applied*, SMOKE PASS, `nextcloud` on 35.0.3 and nothing left
-unhealthy. The copies stay until the move has held a night or two (`docs/managed-bring-up.md`, *A
-Nextcloud major on the OTA stack*). The inventory's two Nextcloud rows say that alpha.10's waiver
-covers their floors, where they said alpha.9's, and the first names the merge.
+unhealthy. The copies stayed until the move had held (`docs/managed-bring-up.md`, *A Nextcloud major
+on the OTA stack*, *Once the move has held for a night or two*): through that run and through E2E
+(managed) run 43739625368, green on #1915's head (17:10 to 17:18). They are gone: at about 19:10 the
+owner ran a block that first read `occ status` on the OTA demo's Nextcloud as 35.0.3, out of
+maintenance mode and with no upgrade pending, and only then removed the three copies taken before
+the move, the volume `<project>_nextcloud_data_35_0_2`, the database's dump `nextcloud-35.0.2.dump`
+and the list of apps `nextcloud-35.0.2-apps.txt`. From then on the way back from 35.0.3 is a fresh
+demo Nextcloud. The inventory's two Nextcloud rows say that alpha.10's waiver covers their floors,
+where they said alpha.9's, and the first names the merge.
 
 **2026-11-15, later: alpha.9 is released; the image scans of C and of its release images; the
 inventory's rows for what merged brought up to date; ClickHouse's step 4 on the OTA stack.** Read from GitHub on 2026-11-15; times are
@@ -82,7 +139,8 @@ closes alpha.9. Drafted on 2026-11-14 from `main` at `6e9fbc8d` (#1908); times a
 - **Live** takes it with alpha.9's tag, one-way by alpha.8's `deploy-live.sh`, whose comparison
   names the ClickHouse pin alone (0146's entry of the same day). The ClickHouse entry's open
   question stands: a copy of its volume with *On live*'s two lines changed for a move within 26.8,
-  or the deploy without one on that entry's reading.
+  or the deploy without one on that entry's reading. *(2026-11-15: the copy, taken by hand before
+  live's deploy: the entry of 2026-11-15, latest.)*
 **2026-11-15: the seven release-age exceptions of alpha.8's waivers removed, their floors
 passed.** `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` named Trigger.dev v4.8.5's five
 packages, `@trigger.dev/build`, `@trigger.dev/core`, `@trigger.dev/schema-to-json`,
@@ -448,8 +506,10 @@ and Trigger.dev's at v4.8.5; nothing read was run. Times are UTC.
   move of the ClickHouse line one-way and asks for a copy of the volume by hand, and
   `managed-bring-up.md`'s *On live* takes one for any change of the pin; its blocks are the
   26.2 → 26.8 move's (step 2 refuses a server that is not 26.2.19.43, and the copy is named
-  `_before_26_8`). **Open before the tag that carries this:** a copy with those two lines
-  changed, or the deploy without one on this reading.
+  `_before_26_8`). **Open before the tag that carries this:** a copy with those two lines changed,
+  or the deploy without one on this reading. *(2026-11-15: the copy, with those two lines changed,
+  taken by hand on live before alpha.9's deploy and removed after it: the entry of 2026-11-15,
+  latest.)*
 - **Changed here.** `managed.yml`'s pin and comments; the read-at lines of the three ClickHouse
   XML files, their history kept; `smoke-managed.sh`'s comment; `CLICKHOUSE_INTENDED`, whose pair
   moves with the pin (Trigger.dev v4.8.5 still pins `26.2.19.43@sha256:c2f26055…`); the pins and
