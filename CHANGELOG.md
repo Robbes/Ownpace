@@ -4,6 +4,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The demo's, the dev stack's and the integration tests' Nextcloud move to 35.0.3, and CI's
+  second-major fixture to 34.0.6, which carry the fixes for three of the eight criticals the image
+  scan read in the test-only Nextcloud** (workplan 0119): `nextcloud:35.0.3-apache@sha256:8a7a65b8…`
+  in `managed.yml`, `dev.yml` and the Testcontainers default, and
+  `nextcloud:34.0.6-apache@sha256:3031e7f8…` in `nextcloud-second-major.yml`, both pushed on
+  2026-11-14. Both carry libopenexr 3.2.12-1~deb13u1 (CVE-2026-42216, CVE-2026-42217) and
+  linux-libc-dev 6.12.115-2 (CVE-2026-99083), with newer apt, ImageMagick, libpq5 and zlib1g, and
+  35.0.3 symfony/http-foundation 7.4.21. Not apache2: its fix for CVE-2026-119618 (2.4.71-1~deb13u1)
+  waits for a rebuild of the PHP image they are built on, and libxml2's CVE-2026-6653 has no fix
+  yet. Upstream's two patch releases fix CalDAV and CardDAV sync (a CardDAV sync truncated on SQLite
+  now says so, and old sync tokens are pruned as configured), sharing and public-share sign-in, and
+  harden logins and sessions. A patch is one way for Nextcloud's data, as a major is: the first
+  start of 35.0.3 upgrades the OTA demo's volume and its database (`occ upgrade`), and 35.0.2
+  refuses them afterwards, so E2E (managed) on the branch is that upgrade and the merge follows it
+  before the next nightly. The branch's image scan read 35.0.3 at 5 critical, 202 high and 10 with a
+  fix, from 35.0.2's 8, 379 and 193. A developer's `dev.yml` Nextcloud upgrades on its next `up`.
+  Live runs no Nextcloud. Both are taken inside their three-day floor, which ends on 2026-11-17 at
+  01:54:42 and 01:52:58 UTC and is waived for alpha.10.
+
 ## [0.2.0-alpha.9] - 2026-11-15
 
 Nothing changes on a tester's screen. Underneath, the task images' registry,
