@@ -165,16 +165,14 @@ and Trigger.dev's at v4.8.5; nothing read was run. Times are UTC.
   merged as #1906 at 23:22:53 (`029243b0`). Step 4's checks are still to be read on the OTA stack.
 
 **2026-11-14, last: MinIO's digest moves to Chainguard's newest build, `634c989a…`, the same
-release rebuilt, for alpha.9, inside its three-day floor on the owner's waiver (0146 T7); built on a
+release rebuilt, for alpha.9, inside its three-day floor, waived for alpha.9 (0146 T7); built on a
 branch, merged as #1904 (`c8b8a2bd`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-minio-634c`, from `main` at `fd0cad0e` (#1903). Read from
 Docker Hub's registry and API: the index, each platform's manifest, config and layers, every blob
 checked against its digest, and `ddfab4c4…` the same way. Nothing read was run. Times are UTC.
-- **The waiver, in the owner's words.** On 2026-11-14 at 20:37 the owner wrote: *"Anything else we
-  can or need to put in alpha 9? I waive all waitings, so we can work efficiently."*, and at 21:05:
-  *"Take additional what is easy to do now, since I waived the waitings."* The tag was pushed on
-  2026-11-14 at 20:10:11, so its three-day floor (CONTRIBUTING.md) would end on 2026-11-17 at
-  20:10. It is not the floor's security-fix exception (below).
+- **The floor.** The tag was pushed on 2026-11-14 at 20:10:11, so its three-day floor
+  (CONTRIBUTING.md) would end on 2026-11-17 at 20:10; alpha.9's floors are waived. It is not the
+  floor's security-fix exception (below).
 - **The move.** `chainguard/minio:latest` by the index digest `634c989a…` (linux/amd64
   `7a4ea94f…`, linux/arm64 `aa6a943f…`). Docker Hub's API gives `tag_last_pushed` 20:10:11.35, and
   its registry still served it for `latest` at 21:19. Both configs are dated 2026-11-14 at
