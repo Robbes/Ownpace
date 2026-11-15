@@ -35,11 +35,12 @@
  * a fourth with the pnpm each service runs (A PNPM SWAPPED IS A PNPM
  * RENAMED), two more with the fixes of 2026-11-03 (A GO BINARY TRIVY
  * READS ONLY WHEN IT CAN RUN, and A PACKAGE PNPM INSTALLED IS NOT ITS
- * TARBALL), and one with effect's of 2026-11-06 (A PACKAGE OF THE WORKSPACE
- * LINKS FROM ITS OWN NODE_MODULES). The third, the sixth and the seventh came
- * with package swaps that went at Trigger.dev v4.8.5 (2026-11-13), whose
- * lockfile resolves each fixed release itself: they are kept below as what
- * happened, and nothing here holds them now.
+ * TARBALL), one with effect's of 2026-11-06 (A PACKAGE OF THE WORKSPACE
+ * LINKS FROM ITS OWN NODE_MODULES), and one with cross-spawn's of 2026-11-14
+ * (A PACKAGE PNPM HOISTED IS LINKED WHERE NO REQUIRER IS). The third, the
+ * sixth and the seventh came with package swaps that went at Trigger.dev
+ * v4.8.5 (2026-11-13), whose lockfile resolves each fixed release itself:
+ * they are kept below as what happened, and nothing here holds them now.
  *
  *  - TRIVY DOES NOT SEE A HARD-LINKED SECOND NAME. The postinstall of
  *    @depot/cli and of esbuild hard-links the platform package's binary over
@@ -161,6 +162,21 @@
  *    every inode it shares; the image's install copies (the four's swap
  *    proved it on CI). Since v4.8.4 upstream's overrides fix all three copies
  *    of effect (3.21.2 alone at v4.8.5), and body-parser 2.3.0 with them.
+ *  - A PACKAGE PNPM HOISTED IS LINKED WHERE NO REQUIRER IS (2026-11-14, for
+ *    alpha.9). Both images carry cross-spawn 5.1.0 (CVE-2024-21538, high,
+ *    fixed in 6.0.6 and 7.0.5), whose one requirer, by upstream's lockfile at
+ *    v4.8.5, is spawndamnit 2.0.0, under the root's @changesets/cli: release
+ *    tooling nothing here runs. Its directory removed alone would leave each
+ *    link into it dangling, and pnpm makes one more than its requirer's: by
+ *    default it hoists every package into node_modules/.pnpm/node_modules, the
+ *    first version its hoister meets, nearest the importers. In the webapp that
+ *    is 7.0.6, which cross-env 7.0.3, an apps/webapp dependency, requires; in
+ *    the supervisor's deploy, where 5.1.0 is the one cross-spawn, it is 5.1.0.
+ *    So each build walks the image for every link into it and refuses one it
+ *    was not read for, removes pnpm's directory for it with each link
+ *    CROSS_SPAWN names where it is there, and proves after that no directory,
+ *    package.json or link of cross-spawn 5.1.0 is left. Over the stand-in,
+ *    both stores are laid out as pnpm lays them by that lockfile.
  *
  * What else is held:
  *  - the Dockerfiles' shape: one FROM, upstream's image by `vX.Y.Z` and index
@@ -210,6 +226,12 @@
  *    slip fails (no rewrite, no read-back, a wrong hash, a copy already
  *    there, an upstream that moved, a package.json naming packageManager
  *    twice, an owner left behind, a copy of another version in either home);
+ *  - CROSS_SPAWN below equals what both removing RUNs name: pnpm's directory
+ *    for cross-spawn 5.1.0 and each link into it they remove where it is
+ *    there. Before anything is removed, the package says cross-spawn 5.1.0,
+ *    the directory holds it and links alone, and the walk of the image finds
+ *    it the one copy with no other link into it; after, nothing of it is
+ *    left. Run over the stand-in, each way that could slip fails;
  *  - managed.yml: each service is `localhost/<name>:${TRIGGER_IMAGE_TAG:-<pin>}-<hash>`
  *    (the hash as #1717's), built from `./<name>` with the version as its one
  *    argument, never pulled, with COREPACK_ENABLE_NETWORK "0" and no HOME,
@@ -292,6 +314,37 @@ const TSC = {
   typescript: `${PNPM}/typescript@7.0.2/node_modules/typescript`,
   prisma: `${PNPM}/prisma@6.14.0_magicast@0.3.5_typescript@7.0.2/node_modules/prisma`,
 } as const;
+
+/** The supervisor's pnpm store, where `pnpm deploy --legacy --prod` put the deployed tree (upstream's apps/supervisor/Containerfile). */
+const SUPERVISOR_PNPM = '/app/apps/supervisor/node_modules/.pnpm';
+
+interface CrossSpawn {
+  /** pnpm's directory for cross-spawn 5.1.0, which the build removes whole. */
+  readonly store: string;
+  /** The package in it, where the scan reads it and the build checks it. */
+  readonly package: string;
+  /** Each link into it the build removes where it is there, by the variable its RUN names it with. */
+  readonly links: Readonly<Record<string, string>>;
+}
+
+/**
+ * cross-spawn 5.1.0 in each image (REMOVED, since 2026-11-14), and the links
+ * pnpm makes to it by upstream's lockfile at v4.8.5: spawndamnit 2.0.0's in
+ * both, and pnpm's hoist in the supervisor's deploy, where 5.1.0 is the one
+ * cross-spawn. The webapp's hoist is 7.0.6's, and stays.
+ */
+const CROSS_SPAWN: Readonly<Record<Name, CrossSpawn>> = {
+  'trigger.dev': {
+    store: `${PNPM}/cross-spawn@5.1.0`,
+    package: `${PNPM}/cross-spawn@5.1.0/node_modules/cross-spawn`,
+    links: { xspawn_link: `${PNPM}/spawndamnit@2.0.0/node_modules/cross-spawn` },
+  },
+  supervisor: {
+    store: `${SUPERVISOR_PNPM}/cross-spawn@5.1.0`,
+    package: `${SUPERVISOR_PNPM}/cross-spawn@5.1.0/node_modules/cross-spawn`,
+    links: { xspawn_hoist: `${SUPERVISOR_PNPM}/node_modules/cross-spawn`, xspawn_link: `${SUPERVISOR_PNPM}/spawndamnit@2.0.0/node_modules/cross-spawn` },
+  },
+};
 
 interface Swap {
   /** The pnpm upstream's packageManager names, and the one both builds run in its place. */
@@ -376,6 +429,16 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       why: "TypeScript 7's native compiler (Go 1.26.4, golang.org/x/text v0.38.0: 15 fixable highs), the one ELF of typescript 7.0.2's platform package, there because typescript 7.0.2 is a resolved peer of prisma 6.14.0, @remix-run/* and class-variance-authority. `typescript` 7.0.2 exports \".\" as lib/version.cjs, which holds no compiler; the binary is reached only through bin/tsc or the unstable API's getExePath, and the image's one caller of the package, prisma's build/index.js, reads `(await import(\"typescript\")).default.version`",
       evidence: "typescript 7.0.2 and @typescript/typescript-linux-x64 and -arm64 7.0.2 as npm published them (package.json exports, lib/version.cjs, lib/getExePath.js, lib/tsc.js, dist/api/options.js; each lib/tsc's SHA-256, one name, no install script); upstream's pnpm-lock.yaml, docker/scripts/entrypoint.sh, apps/webapp and internal-packages at v4.8.3, and the files v4.8.5 changes there (tsc only in @trigger.dev/database's build, dev and typecheck scripts); prisma 6.14.0 build/index.js; the RUN's lines over a tree pnpm 10.33.2 installed, on Node 24.22.1, 2026-11-03",
     },
+    {
+      path: CROSS_SPAWN['trigger.dev'].store,
+      why: "pnpm's directory for cross-spawn 5.1.0 (CVE-2024-21538, high, fixed in 6.0.6 and 7.0.5): the package, and pnpm's links to its three dependencies. Its one requirer is spawndamnit 2.0.0, whose two are @changesets/cli 2.26.2, a dependency of the root package.json, which is why `pnpm install --prod` installs it, and @changesets/git 2.0.0, @changesets/cli's own: release tooling, which only the root's changeset:* scripts run, and nothing here runs those. pnpm hoists cross-spawn 7.0.6 here, so a package that requires cross-spawn without declaring it gets 7.0.6, as before",
+      evidence: "upstream's pnpm-lock.yaml and package.json at v4.8.5 (d412e08a): cross-spawn 5.1.0's one requirer spawndamnit 2.0.0, spawndamnit's two @changesets/cli 2.26.2 and @changesets/git 2.0.0, @changesets/cli in the root's dependencies; cross-env 7.0.3, an apps/webapp dependency, and six more requiring 7.0.6, which pnpm's hoister meets a level nearer the importers; no file of apps/webapp/app, internal-packages, docker/scripts or scripts naming cross-spawn, spawndamnit or @changesets/; docker/Dockerfile's `pnpm install --prod`; Security Scan run 43651014145, by path",
+    },
+    {
+      path: CROSS_SPAWN['trigger.dev'].links.xspawn_link!,
+      why: "spawndamnit 2.0.0's link to cross-spawn 5.1.0, which pnpm makes beside spawndamnit and which would dangle once the package is gone: removed with it where it is there. Nothing here loads spawndamnit: only @changesets/cli and @changesets/git require it",
+      evidence: "pnpm's layout, each package's dependencies linked in its own node_modules in the store; upstream's pnpm-lock.yaml at v4.8.5 (spawndamnit 2.0.0: cross-spawn 5.1.0 and signal-exit 3.0.7; required by @changesets/cli 2.26.2 and @changesets/git 2.0.0 alone)",
+    },
   ],
   supervisor: [
     {
@@ -399,6 +462,21 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       evidence: "pnpm 10.33.2 and 10.34.9 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); apps/supervisor/package.json's start at v4.8.1, v4.8.3 and v4.8.5",
     },
     ...npmRemovals('trigger-supervisor', 'the CMD runs pnpm (through corepack), the entrypoint dumb-init, the healthcheck `node -e`, nothing execs into it but the smoke, by `node -e` too (since 2026-11-02), and the supervisor spawns nothing'),
+    {
+      path: CROSS_SPAWN.supervisor.store,
+      why: "pnpm's directory for cross-spawn 5.1.0 (CVE-2024-21538, high, fixed in 6.0.6 and 7.0.5) in the supervisor's deploy: the package, and pnpm's links to its three dependencies. `pnpm deploy --legacy --prod` put the root package.json's dependencies in it, @changesets/cli 2.26.2 among them, which brings spawndamnit 2.0.0, its one requirer: release tooling the supervisor never runs (its CMD's pnpm runs `node dist/index.js`). Neither the supervisor's own dependencies nor @trigger.dev/core's hold a cross-spawn",
+      evidence: "upstream's apps/supervisor/Containerfile, pnpm-lock.yaml and package.json at v4.8.5 (d412e08a): the closure of the supervisor's, @trigger.dev/core's and the root's dependencies, 568 packages, holds cross-spawn 5.1.0 alone, by spawndamnit 2.0.0 under @changesets/cli, and the supervisor's and core's alone hold none; no file of apps/supervisor/src or packages/core/src naming cross-spawn, spawndamnit or @changesets/; Security Scan run 43651014145, by path",
+    },
+    {
+      path: CROSS_SPAWN.supervisor.links.xspawn_hoist!,
+      why: "pnpm's hoisted link to cross-spawn 5.1.0, the deploy's one cross-spawn, through which a package that requires cross-spawn without declaring it would reach it, and which would dangle once the package is gone: removed with it where it is there. The lockfile names no requirer of cross-spawn in the deploy but spawndamnit, and E2E (managed) runs the supervisor",
+      evidence: "pnpm's default hoist-pattern, `*`, into node_modules/.pnpm/node_modules, the first version its hoister meets; upstream's pnpm-workspace.yaml at v4.8.5 sets no hoist-pattern (its publicHoistPattern names *prisma* alone); upstream's pnpm-lock.yaml at v4.8.5 (no cross-spawn but 5.1.0 in the deploy's closure)",
+    },
+    {
+      path: CROSS_SPAWN.supervisor.links.xspawn_link!,
+      why: "spawndamnit 2.0.0's link to cross-spawn 5.1.0, which would dangle once the package is gone: removed with it where it is there. Nothing the supervisor runs loads spawndamnit: only @changesets/cli and @changesets/git require it",
+      evidence: "pnpm's layout, each package's dependencies linked in its own node_modules in the store; upstream's pnpm-lock.yaml at v4.8.5 (spawndamnit 2.0.0: cross-spawn 5.1.0 and signal-exit 3.0.7; required by @changesets/cli 2.26.2 and @changesets/git 2.0.0 alone)",
+    },
   ],
 };
 
@@ -659,6 +737,7 @@ function shapeProblems(name: Name, text: string): string[] {
   }
   problems.push(...swapProblems(name, removingArgs));
   if (name === 'trigger.dev') problems.push(...tscProblems(removingArgs));
+  problems.push(...xspawnProblems(name, removingArgs));
   return problems;
 }
 
@@ -801,6 +880,80 @@ function tscProblems(args: string): string[] {
     const i = args.search(re);
     if (i < 0 || i < lastRm) problems.push(`no proof, after the removal, ${what}`);
   }
+  return problems;
+}
+
+/**
+ * What the removing RUN's `where` program must do, read in its text: each
+ * fragment, and what it is there for. It walks the image once and prints
+ * every directory pnpm names for cross-spawn 5.1.0, every package.json of it
+ * and every link into pnpm's directory for it.
+ */
+const WHERE_READS: ReadonlyArray<readonly [string, string]> = [
+  ['const s = fs.lstatSync(p);', 'read each entry without following a link'],
+  ['into(path.resolve(d, fs.readlinkSync(p)))', 'find a link by where it points, so that one left dangling is found'],
+  ['(fs.existsSync(p) && into(fs.realpathSync(p)))', 'find a link by what it resolves to'],
+  ["if (e === dir || e.startsWith(dir + '_')) hits.push('directory ' + p);", "find a directory by pnpm's name for the release"],
+  ['j.name === name && j.version === version', 'find a package.json of the release'],
+  ["if (text.includes(JSON.stringify(version))) hits.push('unreadable ' + p);", 'count a package.json that does not parse, and names both, as one of it'],
+  ['if (s.dev === dev) walk(p);', "stay on the image's own file system"],
+  // Not the purge's `read === 0`: an-essential-nothing-runs takes that fragment out where it first occurs, which must be the purge's.
+  ['if (read < 1) process.exit(2);', 'fail when it read no package.json at all'],
+];
+
+/** The walk before the removal, and the check that it found what the RUN removes and nothing more. */
+const WHERE_BEFORE = /found="\$\(node -e "\$where" "\$top" "\$xspawn_store" cross-spawn 5\.1\.0\)" \|\| fail [^\n]*\n\s*\[ "\$found" = "\$want" \] \|\| fail /;
+/** The walk after the removal, and the check that it found nothing. */
+const WHERE_AFTER = /found="\$\(node -e "\$where" "\$top" "\$xspawn_store" cross-spawn 5\.1\.0\)" \|\| fail [^\n]*\n\s*\[ -z "\$found" \] \|\| fail /;
+
+/**
+ * What is wrong with a removing RUN's removal of cross-spawn 5.1.0
+ * (CROSS_SPAWN), in words; empty when it holds. Before anything is removed:
+ * the package is there and says cross-spawn 5.1.0, pnpm's directory for it
+ * holds its node_modules alone, with nothing in that but the package and links,
+ * and the walk of the image finds that directory, one package.json and each
+ * link CROSS_SPAWN names where it is a link, and nothing else. Then the
+ * directory goes with `rm -r`, and each of those links where it is there; and
+ * after the removal the walk finds nothing.
+ */
+function xspawnProblems(name: Name, args: string): string[] {
+  const problems: string[] = [];
+  const cs = CROSS_SPAWN[name];
+  const vars = resolvedAssignments(args);
+  for (const [k, v] of [['xspawn_store', cs.store], ['xspawn', cs.package], ['top', '/'], ...Object.entries(cs.links)] as const) {
+    if (vars.get(k) !== v) problems.push(`the removing RUN's ${k}= is ${vars.get(k) ?? 'not there'}, not ${v}`);
+  }
+  // What the walk must find before the removal: the walk prints its lines sorted, so the links come in the order of their paths.
+  const expected = `directory ${cs.store} ${Object.values(cs.links)
+    .sort()
+    .map((l) => `link ${l} `)
+    .join('')}package ${cs.package}/package.json `;
+  if (vars.get('want') !== expected) problems.push(`the removing RUN's want= is ${vars.get('want') ?? 'not there'}, not ${expected}: pnpm's directory, each link it removes, and the one copy, as the walk prints them`);
+  const firstRm = args.search(/(^|[;\s])rm\s/);
+  const lastRm = Math.max(-1, ...[...args.matchAll(/(^|[;\s])rm\s/g)].map((m) => m.index!));
+  const before: ReadonlyArray<[RegExp, string]> = [
+    [/\[ -f "\$xspawn\/package\.json" \] \|\| fail /, 'that cross-spawn 5.1.0 is where it was read'],
+    [/said="\$\(node -p "const j = require\('\$xspawn\/package\.json'\); j\.name \+ '@' \+ j\.version"\)"; \s*\[ "\$said" = cross-spawn@5\.1\.0 \] \|\| fail /, 'that its package.json says cross-spawn 5.1.0'],
+    [/\[ "\$\(ls -A "\$xspawn_store"\)" = node_modules \] \|\| fail /, "that pnpm's directory for it holds its node_modules alone"],
+    [/held="\$\(cd "\$xspawn_store\/node_modules" && find \. -mindepth 1 -maxdepth 1 ! -type l\)"; \s*\[ "\$held" = \.\/cross-spawn \] \|\| fail /, 'that nothing is in that but the package and links to its dependencies'],
+    [WHERE_BEFORE, 'that, walking the image, it is the one copy, and nothing links into it but what the RUN removes with it'],
+  ];
+  for (const [re, what] of before) {
+    const i = args.search(re);
+    if (i < 0 || (firstRm >= 0 && i > firstRm)) problems.push(`no check, before anything is removed, ${what}`);
+  }
+  for (const k of Object.keys(cs.links)) {
+    const w = `want_${k.slice('xspawn_'.length)}`;
+    if (!new RegExp(`(?:^|[;\\s])${w}=""; if \\[ -L "\\$${k}" \\]; then ${w}="link \\$${k} "; fi;`).test(args)) {
+      problems.push(`the removing RUN does not expect $${k} where it is a link, and only there (${w})`);
+    }
+    if (!new RegExp(`(?:^|[;\\s])if \\[ -L "\\$${k}" \\]; then rm "\\$${k}"; fi;`).test(args)) problems.push(`the removing RUN does not remove $${k} where it is there`);
+  }
+  if (!/(?:^|[;\s])rm -r "\$xspawn_store";/.test(args)) problems.push('the removing RUN does not remove pnpm\'s directory for cross-spawn 5.1.0 (rm -r "$xspawn_store")');
+  const post = args.search(WHERE_AFTER);
+  if (post < 0 || post < lastRm) problems.push('no proof, after the removal, that no directory, package.json or link of cross-spawn 5.1.0 is left');
+  const where = assignments(args).get('where') ?? '';
+  for (const [needle, what] of WHERE_READS) if (!where.includes(needle)) problems.push(`$where does not ${what}`);
   return problems;
 }
 
@@ -1328,7 +1481,47 @@ function dpkgOf(box: Sandbox): { db: DpkgDb; calls: string[] } {
   return { db, calls: log.split('\n').filter((l) => /^dpkg(-query)? /.test(l)) };
 }
 
+/**
+ * cross-spawn in a stand-in's pnpm store, laid out as pnpm lays it out by
+ * upstream's lockfile at v4.8.5: pnpm's directory for 5.1.0, with the package
+ * and its links to its three dependencies; spawndamnit 2.0.0, its one
+ * requirer, with its link to it, and spawndamnit's own hoist; and pnpm's hoist
+ * of cross-spawn, which in the webapp is 7.0.6's (cross-env 7.0.3 requires it,
+ * and both stay) and in the supervisor's deploy 5.1.0's, its one cross-spawn.
+ */
+function crossSpawnTree(name: Name): { files: Record<string, string>; links: Array<{ path: string; target: string }> } {
+  const store = dirname(CROSS_SPAWN[name].store);
+  const pkg = (dir: string, json: Readonly<Record<string, unknown>>) => ({ [`${store}/${dir}/package.json`]: `${JSON.stringify(json)}\n` });
+  const deps = [['lru-cache', '4.1.5'], ['shebang-command', '1.2.0'], ['which', '1.3.1']] as const;
+  const files: Record<string, string> = {
+    ...pkg('cross-spawn@5.1.0/node_modules/cross-spawn', { name: 'cross-spawn', version: '5.1.0', main: 'index.js', dependencies: { 'lru-cache': '^4.0.1', 'shebang-command': '^1.2.0', which: '^1.2.9' } }),
+    [`${CROSS_SPAWN[name].package}/index.js`]: "module.exports = require('./lib/enoent');\n",
+    ...pkg('spawndamnit@2.0.0/node_modules/spawndamnit', { name: 'spawndamnit', version: '2.0.0', dependencies: { 'cross-spawn': '^5.1.0', 'signal-exit': '^3.0.2' } }),
+    ...Object.assign({}, ...deps.map(([n, v]) => pkg(`${n}@${v}/node_modules/${n}`, { name: n, version: v }))),
+  };
+  const links = [
+    ...deps.map(([n, v]) => ({ path: `${CROSS_SPAWN[name].store}/node_modules/${n}`, target: `../../${n}@${v}/node_modules/${n}` })),
+    { path: `${store}/spawndamnit@2.0.0/node_modules/cross-spawn`, target: '../../cross-spawn@5.1.0/node_modules/cross-spawn' },
+    { path: `${store}/node_modules/spawndamnit`, target: '../spawndamnit@2.0.0/node_modules/spawndamnit' },
+  ];
+  if (name === 'trigger.dev') {
+    Object.assign(
+      files,
+      pkg('cross-spawn@7.0.6/node_modules/cross-spawn', { name: 'cross-spawn', version: '7.0.6' }),
+      pkg('cross-env@7.0.3/node_modules/cross-env', { name: 'cross-env', version: '7.0.3', dependencies: { 'cross-spawn': '^7.0.1' } }),
+    );
+    links.push(
+      { path: `${store}/cross-env@7.0.3/node_modules/cross-spawn`, target: '../../cross-spawn@7.0.6/node_modules/cross-spawn' },
+      { path: `${store}/node_modules/cross-spawn`, target: '../cross-spawn@7.0.6/node_modules/cross-spawn' },
+    );
+  } else {
+    links.push({ path: `${store}/node_modules/cross-spawn`, target: '../cross-spawn@5.1.0/node_modules/cross-spawn' });
+  }
+  return { files, links };
+}
+
 function treeOf(name: Name, plat: string): Tree {
+  const xs = crossSpawnTree(name);
   if (name === 'supervisor') {
     return {
       files: {
@@ -1338,9 +1531,10 @@ function treeOf(name: Name, plat: string): Tree {
         ...pnpmCopy('/root', SWAP.from),
         ...pnpmCopy('/home/node', SWAP.from),
         ...NODE_GLOBALS,
+        ...xs.files,
       },
       binaries: [],
-      links: [...NODE_LINKS],
+      links: [...NODE_LINKS, ...xs.links],
       pnpm: PUBLISHED,
     };
   }
@@ -1349,7 +1543,7 @@ function treeOf(name: Name, plat: string): Tree {
   const ts = typescriptTree();
   const goose = GOOSE.assets[plat as Plat];
   return {
-    links: [...NODE_LINKS, ...ts.links!],
+    links: [...NODE_LINKS, ...ts.links!, ...xs.links],
     pnpm: PUBLISHED,
     registry: goose ? { [goose.url]: STAND_IN_GOOSE_NEW } : {},
     standIn: { goose: sha256(STAND_IN_GOOSE_NEW) },
@@ -1369,6 +1563,7 @@ function treeOf(name: Name, plat: string): Tree {
       ...pnpmCopy('/home/node', SWAP.from),
       ...NODE_GLOBALS,
       ...ts.files,
+      ...xs.files,
     },
     binaries: [
       {
@@ -2065,6 +2260,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         [`${COPY('/home/node', SWAP.from)}/dist/node_modules/tar`, `${COPY('/home/node', SWAP.from)}/dist/node_modules/tar`],
         [`${COPY('/root', SWAP.from)}/.corepack`, `${COPY('/root', SWAP.from)}/.corepack`],
         ...npmAndCorepack,
+        [`${CROSS_SPAWN['trigger.dev'].package}/package.json`, `${CROSS_SPAWN['trigger.dev'].package} is not there.`],
       ],
       supervisor: [
         ['/app/package.json', '/app/package.json'],
@@ -2074,6 +2270,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         [`${COPY('/root', SWAP.from)}/dist/node_modules/tar`, `${COPY('/root', SWAP.from)}/dist/node_modules/tar`],
         [`${COPY('/home/node', SWAP.from)}/.corepack`, `${COPY('/home/node', SWAP.from)}/.corepack`],
         ...npmAndCorepack,
+        [`${CROSS_SPAWN.supervisor.package}/package.json`, `${CROSS_SPAWN.supervisor.package} is not there.`],
       ],
     };
     for (const name of NAMES) {
@@ -2489,6 +2686,164 @@ describe("the webapp's build removes TypeScript 7's native compiler by its publi
       expect(run.status).not.toBe(0);
       expect(run.out).toContain(`a depot, esbuild or tsc binary is still there: ${box.fs}${other}`);
     });
+  });
+});
+
+describe('both builds remove cross-spawn 5.1.0 with every link pnpm made to it, and refuse a layout they were not read for (2026-11-14)', () => {
+  it('each removing RUN checks it before anything is removed, removes it with each link CROSS_SPAWN names, and proves after that nothing of it is left', () => {
+    for (const name of NAMES) {
+      expect(xspawnProblems(name, removingRun(dockerfiles[name])!.args), name).toEqual([]);
+      expect(REMOVED[name].map((r) => r.path), name).toEqual(expect.arrayContaining([CROSS_SPAWN[name].store, ...Object.values(CROSS_SPAWN[name].links)]));
+      expect(dockerfiles[name], name).toContain('CVE-2024-21538');
+    }
+    // One walk, the same in both builds.
+    const [webapp, supervisor] = NAMES.map((n) => assignments(removingRun(dockerfiles[n])!.args).get('where'));
+    expect(webapp?.length).toBeGreaterThan(500);
+    expect(supervisor).toBe(webapp);
+    // an-essential-nothing-runs takes `if (read === 0) process.exit(2); ` out of the webapp's text where it first
+    // occurs, to prove the purge's scan needs it; the walk comes first in the file, so it must not hold that text.
+    expect(webapp).not.toContain('if (read === 0)');
+  });
+
+  it('refuses each way the removal could slip, in both builds', () => {
+    for (const name of NAMES) {
+      const real = dockerfiles[name];
+      const cs = CROSS_SPAWN[name];
+      const problems = (text: string) => shapeProblems(name, text);
+      const rmDir = /^ {4}rm -r "\$xspawn_store"; \\$/;
+      // Each check before the removal, dropped.
+      expect(problems(dropLine(real, /^ {4}\[ -f "\$xspawn\/package\.json" \] \|\| fail /)), name).toEqual(['no check, before anything is removed, that cross-spawn 5.1.0 is where it was read']);
+      expect(problems(dropLine(real, /^ {4}\[ "\$said" = cross-spawn@5\.1\.0 \] \|\| fail /)), name).toEqual(['no check, before anything is removed, that its package.json says cross-spawn 5.1.0']);
+      expect(problems(dropLine(real, /^ {4}\[ "\$\(ls -A "\$xspawn_store"\)" = node_modules \]/)), name).toEqual(["no check, before anything is removed, that pnpm's directory for it holds its node_modules alone"]);
+      expect(problems(dropLine(real, /^ {4}\[ "\$held" = \.\/cross-spawn \]/)), name).toEqual(['no check, before anything is removed, that nothing is in that but the package and links to its dependencies']);
+      const walked = 'no check, before anything is removed, that, walking the image, it is the one copy, and nothing links into it but what the RUN removes with it';
+      expect(problems(dropLine(real, /^ {4}\[ "\$found" = "\$want" \]/)), name).toEqual([walked]);
+      // The walk and its check, moved after the removal: they read nothing in time.
+      const late = moveLine(moveLine(real, /^ {4}\[ "\$found" = "\$want" \]/, rmDir), /^ {4}found=.*nothing is removed yet/, rmDir);
+      expect(problems(late), name).toEqual([walked]);
+      // What the walk must find: a link it removes left out of it.
+      expect(problems(real.replace('${want_link}package', 'package')), name).toEqual([expect.stringContaining("the removing RUN's want= is")]);
+      for (const k of Object.keys(cs.links)) {
+        const w = `want_${k.slice('xspawn_'.length)}`;
+        // Expected whether it is a link or not: an image without it would fail, one with something else there would pass the walk.
+        expect(problems(real.replace(`${w}=""; if [ -L "$${k}" ]; then ${w}="link $${k} "; fi;`, `${w}="link $${k} ";`)), `${name}: ${k}`).toEqual([`the removing RUN does not expect $${k} where it is a link, and only there (${w})`]);
+        expect(problems(dropLine(real, new RegExp(`^ {4}if \\[ -L "\\$${k}" \\]; then rm "\\$${k}"; fi; \\\\$`))), `${name}: ${k}`).toEqual([`the removing RUN does not remove $${k} where it is there`]);
+      }
+      // The directory: not removed, or removed with a flag that passes over a path that is not there.
+      const notRemoved = 'the removing RUN does not remove pnpm\'s directory for cross-spawn 5.1.0 (rm -r "$xspawn_store")';
+      expect(problems(dropLine(real, rmDir)), name).toEqual([notRemoved]);
+      expect(problems(real.replace('rm -r "$xspawn_store";', 'rm -rf "$xspawn_store";')), name).toEqual([expect.stringContaining('`rm -f` or `rm -rf`'), notRemoved]);
+      // Another release's paths.
+      expect(problems(real.replace('xspawn_store="$s/cross-spawn@5.1.0";', 'xspawn_store="$s/cross-spawn@5.1.1";')), name).toEqual([
+        `the removing RUN's xspawn_store= is ${cs.store.replace('5.1.0', '5.1.1')}, not ${cs.store}`,
+        `the removing RUN's xspawn= is ${cs.package.replace('5.1.0', '5.1.1')}, not ${cs.package}`,
+        expect.stringContaining("the removing RUN's want= is"),
+      ]);
+      // The proof after the removal: dropped, or moved before the last `rm`.
+      const left = 'no proof, after the removal, that no directory, package.json or link of cross-spawn 5.1.0 is left';
+      expect(problems(dropLine(real, /^ {4}\[ -z "\$found" \]/)), name).toEqual([left]);
+      const early = moveLine(moveLine(real, /^ {4}\[ -z "\$found" \]/, /^ {4}rm -r "\$unused"/), /^ {4}found=.*after the removal \(above\)/, /^ {4}rm -r "\$unused"/);
+      expect(problems(early), name).toEqual([left]);
+      // The walk, doing less than it must.
+      for (const [needle, what] of WHERE_READS) {
+        const less = real.replace(needle, needle === 'if (s.dev === dev) walk(p);' ? 'walk(p);' : '');
+        expect(less, needle).not.toBe(real);
+        expect(problems(less), `${name}: ${needle}`).toEqual([`$where does not ${what}`]);
+      }
+    }
+  });
+
+  it("over the stand-in, a link it names that is not there fails nothing: pnpm's directory goes alone; and the webapp's hoist, 7.0.6's, stays", () => {
+    for (const name of NAMES) {
+      const tree = treeOf(name, 'linux-arm64');
+      const named = Object.values(CROSS_SPAWN[name].links);
+      withSandbox({ ...tree, links: tree.links!.filter((l) => !named.includes(l.path)) }, (box) => {
+        const run = build(dockerfiles[name], box, { tag: 'v4.8.5' });
+        expect(run.status, run.out).toBe(0);
+        const removed = removedBy(box, run);
+        expect(removed, name).toContain(CROSS_SPAWN[name].store);
+        for (const l of named) expect(removed, `${name}: ${l}`).not.toContain(l);
+        expect(run.out).toMatch(/^[1-9]\d* package\.json files read under /m);
+      });
+    }
+    withSandbox(treeOf('trigger.dev', 'linux-x64'), (box) => {
+      const run = build(dockerfiles['trigger.dev'], box, { plat: 'linux-x64', tag: 'v4.8.5' });
+      expect(run.status, run.out).toBe(0);
+      const hoist = join(box.fs, PNPM, 'node_modules/cross-spawn');
+      expect(readlinkSync(hoist)).toBe('../cross-spawn@7.0.6/node_modules/cross-spawn');
+      expect(JSON.parse(readFileSync(join(hoist, 'package.json'), 'utf8'))).toEqual({ name: 'cross-spawn', version: '7.0.6' });
+      expect(run.left).toEqual(expect.arrayContaining([`${PNPM}/cross-env@7.0.3/node_modules/cross-spawn`, `${PNPM}/spawndamnit@2.0.0/node_modules/spawndamnit/package.json`, `${PNPM}/which@1.3.1/node_modules/which/package.json`]));
+      expect(run.out).toContain('cross-spawn 5.1.0 with every link into it');
+    });
+  });
+
+  it('another package at its path, more in its directory, a link it was not read for or a second copy fails it, before anything is removed', () => {
+    for (const name of NAMES) {
+      const tree = treeOf(name, 'linux-arm64');
+      const cs = CROSS_SPAWN[name];
+      const store = dirname(cs.store);
+      const withFiles = (files: Record<string, string>): Tree => ({ ...tree, files: { ...tree.files, ...files } });
+      const withLinks = (links: ReadonlyArray<{ path: string; target: string }>, drop: readonly string[] = []): Tree => ({ ...tree, links: [...tree.links!.filter((l) => !drop.includes(l.path)), ...links] });
+      const others = (fs: string) =>
+        Object.entries(cs.links)
+          .filter(([k]) => k !== 'xspawn_link')
+          .map(([, l]) => `link ${fs}${l} `)
+          .join('');
+      const cases: ReadonlyArray<[string, Tree, (fs: string) => string]> = [
+        ['another release at its path', withFiles({ [`${cs.package}/package.json`]: '{"name":"cross-spawn","version":"5.1.1"}\n' }), (fs) => `${fs}${cs.package} is cross-spawn@5.1.1, not cross-spawn@5.1.0, the release this file removes.`],
+        ['another package at its path', withFiles({ [`${cs.package}/package.json`]: '{"name":"cross-spawn-async","version":"5.1.0"}\n' }), (fs) => `${fs}${cs.package} is cross-spawn-async@5.1.0, not cross-spawn@5.1.0`],
+        ["a file beside pnpm's node_modules", withFiles({ [`${cs.store}/README.md`]: 'x\n' }), (fs) => `${fs}${cs.store} holds more than pnpm's node_modules: README.md node_modules `],
+        ['a package beside it that is no link', withFiles({ [`${cs.store}/node_modules/extra/package.json`]: '{"name":"extra","version":"1.0.0"}\n' }), (fs) => `in ${fs}${cs.store}/node_modules, these are no links: `],
+        ['a requirer it was not read for', withLinks([{ path: `${store}/foreground-child@3.3.1/node_modules/cross-spawn`, target: '../../cross-spawn@5.1.0/node_modules/cross-spawn' }]), (fs) => `link ${fs}${store}/foreground-child@3.3.1/node_modules/cross-spawn `],
+        ["a link in the importer's own node_modules", withLinks([{ path: `${dirname(store)}/cross-spawn`, target: '.pnpm/cross-spawn@5.1.0/node_modules/cross-spawn' }]), (fs) => `link ${fs}${dirname(store)}/cross-spawn `],
+        ['a second copy', withFiles({ '/opt/vendor/cross-spawn/package.json': '{"name":"cross-spawn","version":"5.1.0"}\n' }), (fs) => `package ${fs}/opt/vendor/cross-spawn/package.json `],
+        ['a second copy that does not parse', withFiles({ '/opt/vendor/x/package.json': '{"name": "cross-spawn", "version": "5.1.0",}\n' }), (fs) => `unreadable ${fs}/opt/vendor/x/package.json `],
+        [
+          "spawndamnit's link to another package",
+          withLinks([{ path: cs.links.xspawn_link!, target: '../../which@1.3.1/node_modules/which' }], [cs.links.xspawn_link!]),
+          (fs) => `under ${fs}, cross-spawn 5.1.0 is: directory ${fs}${cs.store} ${others(fs)}package ${fs}${cs.package}/package.json ; this file was read for one copy`,
+        ],
+      ];
+      for (const [what, changed, said] of cases) {
+        withSandbox(changed, (box) => {
+          const run = build(dockerfiles[name], box, { tag: 'v4.8.5' });
+          expect(run.status, `${name}, ${what}: ${run.out}`).not.toBe(0);
+          expect(run.out, `${name}, ${what}`).toContain(said(box.fs));
+          expect(removedBy(box, run), `${name}, ${what}`).toEqual([]);
+          expect(corepackCalls(box), `${name}, ${what}: pnpm was installed before it failed`).toEqual([]);
+        });
+      }
+    }
+    // The webapp's hoist into 5.1.0, which pnpm does not make there by the lockfile: one more link it was not read for.
+    const tree = treeOf('trigger.dev', 'linux-arm64');
+    const hoist = `${PNPM}/node_modules/cross-spawn`;
+    withSandbox({ ...tree, links: tree.links!.map((l) => (l.path === hoist ? { path: hoist, target: '../cross-spawn@5.1.0/node_modules/cross-spawn' } : l)) }, (box) => {
+      const run = build(dockerfiles['trigger.dev'], box, { tag: 'v4.8.5' });
+      expect(run.status, run.out).not.toBe(0);
+      expect(run.out).toContain(`link ${box.fs}${hoist} link ${box.fs}${CROSS_SPAWN['trigger.dev'].links.xspawn_link} `);
+      expect(run.out).toContain('(pnpm hoists cross-spawn 7.0.6 here)');
+      expect(removedBy(box, run)).toEqual([]);
+    });
+  });
+
+  it('anything of cross-spawn 5.1.0 left after the removal fails it: a copy, a directory by its name, a link into it, a package.json that does not parse', () => {
+    for (const name of NAMES) {
+      const store = dirname(CROSS_SPAWN[name].store);
+      const after = (line: string) => insertAfter(dockerfiles[name], /^ {4}rm -r "\$xspawn_store"; \\$/, line);
+      const cases: ReadonlyArray<[string, string, string]> = [
+        ['a copy', `mkdir -p ${store}/x/cross-spawn; printf '%s\\n' '{"name":"cross-spawn","version":"5.1.0"}' > ${store}/x/cross-spawn/package.json;`, `package ${store}/x/cross-spawn/package.json`],
+        ["a directory by pnpm's name for it", `mkdir ${store}/cross-spawn@5.1.0_x;`, `directory ${store}/cross-spawn@5.1.0_x`],
+        ['a link into it, dangling', `ln -s ../cross-spawn@5.1.0/node_modules/cross-spawn ${store}/node_modules/cross-spawn-5;`, `link ${store}/node_modules/cross-spawn-5`],
+        ['a package.json that does not parse', `mkdir -p ${store}/y; printf '%s\\n' '{"name": "cross-spawn", "version": "5.1.0",}' > ${store}/y/package.json;`, `unreadable ${store}/y/package.json`],
+      ];
+      for (const [what, line, hit] of cases) {
+        withSandbox(treeOf(name, 'linux-arm64'), (box) => {
+          const run = build(after(line), box, { tag: 'v4.8.5' });
+          expect(run.status, `${name}, ${what}: ${run.out}`).not.toBe(0);
+          expect(run.out, `${name}, ${what}`).toContain(`after the removal, cross-spawn 5.1.0 is still under ${box.fs}: ${hit.replace(/(^\S+ )/, `$1${box.fs}`)} `);
+        });
+      }
+    }
   });
 });
 

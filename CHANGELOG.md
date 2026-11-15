@@ -26,6 +26,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   bring-up pulls the image and restarts ClickHouse on its volume. Taken inside its three-day
   floor, which ends 2026-11-17 at 10:18 UTC and is waived for alpha.9. E2E (managed) on its branch
   is owed before the merge.
+- **Both Trigger.dev images drop cross-spawn 5.1.0, with every link pnpm made to it** (workplan
+  0119, 0146 T16): the image scan read CVE-2024-21538 (high, a regular-expression denial of
+  service, fixed in 6.0.6 and 7.0.5) once in each, in pnpm's store. Its one requirer is
+  spawndamnit 2.0.0, under the root's `@changesets/cli` 2.26.2, Trigger.dev's release tooling,
+  which neither container runs. Each build removes pnpm's directory for it and spawndamnit's link
+  to it, and in the supervisor pnpm's hoisted link too, since there it is the one cross-spawn; the
+  webapp's hoisted cross-spawn is 7.0.6, which stays. Before anything is removed, each build
+  checks the package is cross-spawn 5.1.0 and, walking the whole image, that it is the one copy and
+  that nothing else links into it; after, that nothing of it is left; a Trigger.dev that moves or
+  drops it stops the build by name. The images take new names,
+  `localhost/trigger.dev:v4.8.5-c3d2ec340994` and `localhost/supervisor:v4.8.5-e3631e107ba7`, so
+  the next `up` builds both and recreates `trigger-api` and `trigger-supervisor` once. Expected,
+  by arithmetic: the webapp at 1 critical, 16 high and 8 with a fix (from 1, 17 and 9), the
+  supervisor at 0, 0 and 0 (from 0, 1 and 1).
 
 ### Changed
 
