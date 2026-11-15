@@ -17,9 +17,9 @@ cross-spawn 5.1.0, which nothing in them runs. Kept current beside them:
 Dependabot's npm group of 19, PGlite 0.5.16 among them, still on PostgreSQL
 18.6, GoAccess's Alpine and the SBOM tool, so this release's `bom.json` is the
 first in CycloneDX 1.7, and the release-age exceptions alpha.8 needed are
-gone, their floors passed. The README and 32 other docs say what holds now.
-Live's deploy from alpha.8 is one-way by the deploy's own rule: the ClickHouse
-pin moves, and no migration does.
+gone, their floors passed. The README, the bring-up guide and 32 other docs
+say what holds now. Live's deploy from alpha.8 is one-way by the deploy's own
+rule: the ClickHouse pin moves, and no migration does.
 
 ### Security
 
@@ -100,14 +100,15 @@ pin moves, and no migration does.
   bring-up pulls it, and the data volume carries over, as E2E (managed) on its branch showed on the
   OTA stack's, green (run 43643803859). Taken inside its three-day floor, which ends 2026-11-17 at
   20:10 UTC and is waived for alpha.9.
-- **The README and 32 other docs say what holds now, without old releases or task numbers**
-  (#1908). Every rule, procedure, command and limit that still holds stays, stated as a rule, and
-  four statements that were wrong are corrected: the Windows runbook's mid-sync test stops the
+- **The README, the managed bring-up guide and 32 other docs say what holds now, without old
+  releases or task numbers** (#1908, #1911). Every rule, procedure, command and limit that still
+  holds stays, stated as a rule, and the statements that were wrong are corrected: the Windows runbook's mid-sync test stops the
   scheduled task `install-task.ps1` registers, not a Windows service that no longer exists; and
   the architecture says each customer registers a single-tenant Entra app in their own tenant
   (ADR-0006), so there is no multi-tenant app to verify, and that the price pays for running and
-  building the service (ADR-0014). Workplans, ADRs and the released sections of this file stay as
-  they were.
+  building the service (ADR-0014); and the bring-up guide no longer says live is still to be stood
+  up or that its legal texts are drafts. Workplans, ADRs and the released sections of this file
+  stay as they were.
 
 ## [0.2.0-alpha.8] - 2026-11-14
 

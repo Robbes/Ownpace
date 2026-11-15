@@ -7,7 +7,7 @@
 **2026-11-15: alpha.9 is folded, its counted nights waived (T2, T4, T7).** On the branch
 `claude/ownpace-public-readiness-y7orc6-fold-alpha-9`, drafted on 2026-11-14 from `main` at
 `6e9fbc8d` (#1908), while three changes for alpha.9 were still open; `main` was merged in at
-`4a782fa3` (#1910) on 2026-11-15, after two of them had merged (below). Read from git, from GitHub
+`f37f9b9c` (#1911) on 2026-11-15, after two of them had merged (below). Read from git, from GitHub
 and from the scripts named; times are UTC.
 - **The fold.** `package.json` and the API contract say `0.2.0-alpha.9`, and everything under
   `[Unreleased]` moves to `## [0.2.0-alpha.9] - 2026-11-15`, the day the fold merges, under a
@@ -25,8 +25,9 @@ and from the scripts named; times are UTC.
   5.1.0's (#1909), which gave the image scan's numbers by arithmetic, names E2E (managed) run
   43661536922 and what its branch's scan measured, the webapp at 1, 20 and 8 and the supervisor at
   0, 0 and 0. One line is added,
-  for #1908: the README and 32 other docs, with the four statements it corrected. Of the 14
-  commits on `main`'s first-parent line after alpha.8's commit, 9 have a line now; the five without
+  for #1908 and #1911: the README, the bring-up guide and 32 other docs, with the statements they
+  corrected. Of the 15 commits on `main`'s first-parent line after alpha.8's commit, 10 have a
+  line now (#1911 shares #1908's); the five without
   are four records pull requests (#1899, #1900, #1901, #1903) and the waiver of alpha.9's counted
   nights (#1905), as alpha.8's (#1885) had none. T7's row names #1904's merge, where it said on a
   branch.
@@ -60,7 +61,7 @@ and from the scripts named; times are UTC.
     holds for it, and the approval in the `release` environment. Release then scans C once more,
     tags it and publishes.
 - **The upgrade drill** (`scripts/upgrade-drill.sh` on the Docker host, from alpha.8's published
-  image to C's; `docs/release.md` §1). `git diff --stat v0.2.0-alpha.8 4a782fa3` over
+  image to C's; `docs/release.md` §1). `git diff --stat v0.2.0-alpha.8 f37f9b9c` over
   `packages/ledger/migrations` and `packages/managed/migrations` prints nothing: 65 and 59 files on
   both sides. So for the schema the drill reports the mechanics only, a pass `docs/release.md` does
   not count, and Release lists it as not checked. What a run would add is PGlite: C's 0.5.16
@@ -68,7 +69,7 @@ and from the scripts named; times are UTC.
   over 0.5.14 (the entry of 2026-11-09); E2E (self-hosted) on PGlite starts on a fresh one. A run
   goes in a clone of its own at C, after C's E2E runs are done.
 - **Live's deploy of the tag** starts from alpha.8, so it runs alpha.8's `deploy-live.sh`. Its own
-  `differences`, run here over `v0.2.0-alpha.8` and `main` at `4a782fa3`, prints one line: the
+  `differences`, run here over `v0.2.0-alpha.8` and `main` at `f37f9b9c`, prints one line: the
   ClickHouse pin, 26.8.36.3 by `d426d2f6…` to 26.8.37.168 by `a5670285…`. No migration file, and
   no Trigger.dev or identity-provider line. So it will call the deploy one-way, take the copy
   before the update without `--trigger` (the app's database, and the sign-in service's with the
