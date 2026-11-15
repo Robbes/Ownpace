@@ -400,10 +400,10 @@ describe('every place that says why this runs at the machine says who else may d
     ['site/legal/privacy.nl.md', passage('site/legal/privacy.nl.md', '- Een zoekopdracht op adres en een download van het logboek', /\n\s*- /)],
   ];
 
-  it("names app_user as the role that cannot, and 0138 T3 step 2's system role as one that can, for the purge, and never by a row's age", () => {
+  it("names app_user as the role that cannot, and the tasks' system role as one that can, for the purge, and never by a row's age", () => {
     for (const [rel, text] of PLACES) {
       expect(text, rel).toMatch(/`app_user`|\bapp_user\b/);
-      expect(text, rel).toMatch(/0138 T3 step 2/);
+      expect(text, rel).toMatch(/\bsystem role\b/);
       expect(text, rel).toMatch(/purge/i);
       expect(text, rel).toMatch(/\bnever by (its |their |a row's )?age\b/i);
     }
