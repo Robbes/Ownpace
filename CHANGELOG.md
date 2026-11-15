@@ -4,6 +4,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.9] - 2026-11-15
+
+Nothing changes on a tester's screen. Underneath, the task images' registry,
+which takes pushes and serves pulls without a sign-in, is on a network of its
+own, so the stack's other containers can no longer push to it, pull from it or
+reach CVE-2026-78667 in its Go. Trigger.dev's ClickHouse moves to 26.8.37.168,
+a patch of its LTS line whose Ubuntu base carries apt's fix, and its object
+store to Chainguard's newest MinIO build, the same release rebuilt; the image
+scan reads both at 0 critical and 0 high. Kept current beside them: Dependabot's
+npm group of 19, PGlite 0.5.16 among them, still on PostgreSQL 18.6, GoAccess's
+Alpine and the SBOM tool, so this release's `bom.json` is the first in
+CycloneDX 1.7. The README and 32 other docs say what holds now. Live's deploy
+from alpha.8 is one-way by the deploy's own rule: the ClickHouse pin moves, and
+no migration does.
+
 ### Security
 
 - **The task images' registry is on a network of its own, which nothing else joins** (workplan
@@ -23,9 +38,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   on PostgreSQL-protocol messages read before authentication, on a port only `trigger-api` can
   reach. None changes what ClickHouse writes to its volume or a default the two mounted files
   set, so 26.8.36.3 can still read the volume (read in the source; no downgrade was run). The next
-  bring-up pulls the image and restarts ClickHouse on its volume. Taken inside its three-day
-  floor, which ends 2026-11-17 at 10:18 UTC and is waived for alpha.9. E2E (managed) on its branch
-  is owed before the merge.
+  bring-up pulls the image and restarts ClickHouse on its volume, as E2E (managed) on its branch
+  did on the OTA stack's, green (run 43651027054), and the image scan of the branch reads it at 0
+  critical and 0 high. Taken inside its three-day floor, which ends 2026-11-17 at 10:18 UTC and is
+  waived for alpha.9.
 
 ### Changed
 
@@ -37,7 +53,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   security fix: the image scan read GoAccess's image at 0 critical and 0 high before it.
 - **The release's `bom.json` is written by `@cyclonedx/cyclonedx-npm` 7.0.0, as CycloneDX 1.7**
   (workplan 0119; from 6.0.1, Dependabot, #1894): Security Scan names no spec version, so the SBOM
-  takes 7.0's default, 1.7 where it was 1.6, and the next release's `bom.json` is the first in 1.7.
+  takes 7.0's default, 1.7 where it was 1.6, and this release's `bom.json` is the first in 1.7.
   Release's verify checks only the file's format and the version its root component names, and
   prints the spec version. ajv, xmlbuilder2 and libxmljs2 leave the tool's own manifest and stay as
   optional dependencies of `@cyclonedx/cyclonedx-library` 10.5.0, so its validation still runs. A
@@ -55,10 +71,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   0119, 0146 T7): the same MinIO release, RELEASE.2026-11-12T01-15-23Z, rebuilt with
   OpenTelemetry-Go 1.47.0 and go.yaml.in/yaml/v3 3.0.5, the same `mc` client byte for byte, and
   glibc and libgcc rebuilt from their same sources, changing no code. Kept current, not a security
-  fix: the image scan of alpha.8's tag read the build before it at 0 critical and 0 high, and Go's
-  vulnerability database names no advisory for a module the rebuild moves. The release check is
-  still off and nothing a stack sets changes; the next bring-up pulls it, and the data volume
-  carries over. Taken before its three-day floor, on the owner's waiver.
+  fix: the image scan reads the build before it, on alpha.8's tag, and this one, on its branch, at
+  0 critical and 0 high, and Go's vulnerability database names no advisory for a module the
+  rebuild moves. The release check is still off and nothing a stack sets changes; the next
+  bring-up pulls it, and the data volume carries over, as E2E (managed) on its branch showed on the
+  OTA stack's, green (run 43643803859). Taken inside its three-day floor, which ends 2026-11-17 at
+  20:10 UTC and is waived for alpha.9.
+- **The README and 32 other docs say what holds now, without old releases or task numbers**
+  (#1908). Every rule, procedure, command and limit that still holds stays, stated as a rule, and
+  four statements that were wrong are corrected: the Windows runbook's mid-sync test stops the
+  scheduled task `install-task.ps1` registers, not a Windows service that no longer exists; and
+  the architecture says each customer registers a single-tenant Entra app in their own tenant
+  (ADR-0006), so there is no multi-tenant app to verify, and that the price pays for running and
+  building the service (ADR-0014). Workplans, ADRs and the released sections of this file stay as
+  they were.
 
 ## [0.2.0-alpha.8] - 2026-11-14
 
