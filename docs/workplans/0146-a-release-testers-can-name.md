@@ -70,16 +70,20 @@ and from the scripts named; times are UTC.
   goes in a clone of its own at C, after C's E2E runs are done.
 - **Live's deploy of the tag** starts from alpha.8, so it runs alpha.8's `deploy-live.sh`. Its own
   `differences`, run here over `v0.2.0-alpha.8` and `main` at `f37f9b9c`, prints one line: the
-  ClickHouse pin, 26.8.36.3 by `d426d2f6…` to 26.8.37.168 by `a5670285…`. No migration file, and
-  no Trigger.dev or identity-provider line. So it will call the deploy one-way, take the copy
-  before the update without `--trigger` (the app's database, and the sign-in service's with the
-  server's roles), and say that the copy holds no ClickHouse volume, which *Moving ClickHouse*'s
-  *On live* copies by hand first. Those blocks are the 26.2 → 26.8 move's (step 2 refuses a server
-  that is not 26.2.19.43, and the copy is named `_before_26_8`), so before the deploy: a copy with
-  both lines changed for a move within 26.8, or the deploy without one, on 0119's reading that
-  26.8.36.3 reads what 26.8.37.168 writes. The registry and MinIO move too, by lines that rule does
-  not read: the registry is recreated on `trigger-task-images` (#1902; 0136 T4), and `minio` and
-  `minio-init` on `634c989a…`.
+  ClickHouse pin, 26.8.36.3 by `d426d2f6…` to 26.8.37.168 by `a5670285…`. No migration file, and no
+  Trigger.dev or identity-provider line. So it will call the deploy one-way and say that the copy
+  before the update holds no ClickHouse volume, which *Moving ClickHouse*'s *On live* copies by hand
+  first. Those blocks are the 26.2 → 26.8 move's (step 2 refuses a server that is not 26.2.19.43,
+  and the copy is named `_before_26_8`), so before the deploy: a copy with both lines changed for a
+  move within 26.8, or the deploy without one, on 0119's reading that 26.8.36.3 reads what
+  26.8.37.168 writes. The registry and MinIO move too, by lines that rule does not read: the
+  registry is recreated on `trigger-task-images` (#1902; 0136 T4), and `minio` and `minio-init` on
+  `634c989a…`. The copy before the update is still the one taken before alpha.8: no migration on
+  live has proven that update (0132 T9), and `copy-before-update.sh take` keeps a copy whose update
+  is not proven and takes no second one. It refuses from that copy's last day, which starts on
+  2026-11-19 at 14:01, but for a deploy of alpha.7, the release it holds, and takes a copy of its
+  own, without `--trigger`, once that one is gone: deleted when proven, or expired, from 2026-11-20
+  at 14:01.
 - **The O365 lane is not among what is owed:** Release does not read it. It is waived for alpha.9
   (0141's Status of 2026-11-14) and stays owed for a later alpha (0141 T13).
 
