@@ -7,8 +7,8 @@
 **2026-11-15: alpha.9 is folded, its counted nights waived (T2, T4, T7).** On the branch
 `claude/ownpace-public-readiness-y7orc6-fold-alpha-9`, drafted on 2026-11-14 from `main` at
 `6e9fbc8d` (#1908), while three changes for alpha.9 were still open; `main` was merged in at
-`f37f9b9c` (#1911) on 2026-11-15, after two of them had merged (below). Read from git, from GitHub
-and from the scripts named; times are UTC.
+`f37f9b9c` (#1911) on 2026-11-15, after two of them had merged; the third is not in alpha.9 (below).
+Read from git, from GitHub and from the scripts named; times are UTC.
 - **The fold.** `package.json` and the API contract say `0.2.0-alpha.9`, and everything under
   `[Unreleased]` moves to `## [0.2.0-alpha.9] - 2026-11-15`, the day the fold merges, under a
   summary paragraph; `[Unreleased]` stays, empty. `scripts/release-line.json` lists
@@ -34,12 +34,13 @@ and from the scripts named; times are UTC.
 - **The counted nights are waived** (0141 T14): on `main` since #1905 (`e767cb50`), the entry
   below. The fold touches neither `scripts/release-nights.mjs`, its two guards nor
   `docs/release.md`.
-- **Merged after the draft:** the removal of cross-spawn 5.1.0 from both Trigger.dev images
-  (#1909, `368d7fc6`, 2026-11-15 at 01:18, after CI, its branch's image scan, run 43660353630, and
-  E2E (managed), run 43661536922, were green on its head) and the release-age clean-up (#1910,
-  `4a782fa3`, at 01:35, after CI); their lines are in the section. **Still open:** Nextcloud
-  35.0.3 and the second-major fixture's 34.0.6 (#1907), whose E2E (managed) is the OTA demo's
-  upgrade; it merges before the fold with its own records and CHANGELOG line.
+- **Merged after the draft:** the removal of cross-spawn 5.1.0 from both Trigger.dev images (#1909,
+  `368d7fc6`, 2026-11-15 at 01:18, after CI, its branch's image scan, run 43660353630, and E2E
+  (managed), run 43661536922, were green on its head) and the release-age clean-up (#1910,
+  `4a782fa3`, at 01:35, after CI); their lines are in the section. **Not in alpha.9:** Nextcloud
+  35.0.3 and the second-major fixture's 34.0.6 (#1907), test-only and green on its pull request. Its
+  E2E (managed) is the OTA demo's one-way upgrade, whose way back is the demo's copies, taken by
+  hand on the OTA stack first; it merges after the tag, with its own records and CHANGELOG line.
 - **C and the freeze.** The fold merges last. Its squash is C, and the freeze (0141 T14) starts
   with it: nothing merges to `main` until the tag, and no E2E (managed) is dispatched on any
   branch. No night is counted for alpha.9, so `docs/release.md` §1's 23:30 binds nothing.

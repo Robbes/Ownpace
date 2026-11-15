@@ -28,8 +28,9 @@ closes alpha.9. Drafted on 2026-11-14 from `main` at `6e9fbc8d` (#1908); times a
   high and 19 with a fix: 26.8.36.3's two highs are gone, and Redis (1, 12 and 0) and the
   Trigger.dev webapp (1, 21 and 9) read four highs more each than on alpha.8's tag, none of the
   eight with a fix.
-- **Still to merge before the fold,** with its own entry and CHANGELOG line: Nextcloud 35.0.3 and
-  the second-major fixture's 34.0.6 (#1907), whose E2E (managed) is the OTA demo's upgrade.
+- **Not in alpha.9:** Nextcloud 35.0.3 and the second-major fixture's 34.0.6 (#1907), test-only and
+  green on its pull request. Its E2E (managed) is the OTA demo's one-way upgrade, whose way back is
+  the demo's copies, taken by hand on the OTA stack first; it merges after the tag.
 - **Live** takes it with alpha.9's tag, one-way by alpha.8's `deploy-live.sh`, whose comparison
   names the ClickHouse pin alone (0146's entry of the same day). The ClickHouse entry's open
   question stands: a copy of its volume with *On live*'s two lines changed for a move within 26.8,
