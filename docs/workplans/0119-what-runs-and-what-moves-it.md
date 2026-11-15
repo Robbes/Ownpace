@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, after the fold: alpha.10 is released, and the image scan after its tag.** Read
+from GitHub on 2026-11-15; times are UTC. `v0.2.0-alpha.10` is tagged on C, `fe0b1be2` (#1918), at
+21:26:26 (0146).
+
+- **After the tag**, Security Scan run 43764223693 (`image_scans`, on `main` at C, 21:32 to 21:35)
+  reads `ownpace-api`, `ownpace-web` and `ownpace-selfhost` at `0.2.0-alpha.10` at 0, 0 and 0. By
+  tier (critical, high, with a fix), as after alpha.9's tag (run 43691517668): what the internet
+  reaches on live 0, 6 and 6; what live runs inside 2, 42 and 17; the appliance 0, 0 and 0. The
+  images with a finding are those of that scan, with the same counts: Zitadel v4.20.3 0, 1 and 1;
+  Gatus 0, 5 and 5; Redis 1, 12 and 0 and the Trigger.dev webapp 1, 20 and 8, the criticals
+  zlib1g's with no fix yet; the registry 0, 8 and 8; Caddy 0, 2 and 1.
+- **The test-only images**, not in production, read 6, 313 and 15, from 9, 493 and 198: Nextcloud
+  35.0.3-apache (`8a7a65b8…`, #1907) reads 5, 203 and 10, from 35.0.2's 8, 383 and 193:
+  libopenexr's two criticals and linux-libc-dev's are gone, and its five are apache2's
+  CVE-2026-119618, in four packages, which waits for the PHP base's rebuild, and libxml2's
+  CVE-2026-6653, with no fix. Stalwart v0.16.27 reads 1, 110 and 5, and Mailpit v1.33.1 0, 0 and
+  0, unchanged.
+- **Live** still runs alpha.9. alpha.10 moves none of its images: the api and web are built from
+  the tag at the deploy, and every other service keeps its pin (the entry below).
+
 **2026-11-15, last: what alpha.10 moves.** The fold for `v0.2.0-alpha.10` (0146's entry of the
 same day) carries #1907 and #1915. #1907 moves the test-only Nextcloud: the OTA demo's, the dev
 stack's and the integration tests' to 35.0.3 by `8a7a65b8…`, and the second-major fixture to

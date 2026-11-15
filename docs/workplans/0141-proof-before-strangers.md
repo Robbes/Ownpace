@@ -4,6 +4,15 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, later: alpha.10 is tagged without the O365 lane (T13 (a), T14).** Docs only.
+`v0.2.0-alpha.10` was tagged on 2026-11-15 at 21:26 UTC without a run of `e2e-o365.yml` (0146,
+Status of that day, after the fold). Release does not read the lane. No waiver of the lane for
+alpha.10 is recorded: the waivers above name alpha.4 to alpha.9. Read from GitHub on 2026-11-15:
+the workflow still has four runs, the newest 41418432093 (2026-11-02, failure at its secrets
+check). The lane stays owed: the secrets, as `docs/test-tenant.md` lists them, and a green run.
+**T14:** alpha.10's counted nights were waived on 2026-11-15 (#1917, 0146), so it is tagged with
+them waived, as alpha.3 to alpha.9 were.
+
 **2026-11-15: alpha.9 is tagged without the O365 lane, under the owner's waiver (T13 (a), T14).**
 Docs only. `v0.2.0-alpha.9` was tagged on 2026-11-15 at 07:41 UTC without a run of
 `e2e-o365.yml` (0146, Status of that day, later), under the waiver the entry below records. Read
