@@ -12,12 +12,14 @@ own, so the stack's other containers can no longer push to it, pull from it or
 reach CVE-2026-78667 in its Go. Trigger.dev's ClickHouse moves to 26.8.37.168,
 a patch of its LTS line whose Ubuntu base carries apt's fix, and its object
 store to Chainguard's newest MinIO build, the same release rebuilt; the image
-scan reads both at 0 critical and 0 high. Kept current beside them: Dependabot's
-npm group of 19, PGlite 0.5.16 among them, still on PostgreSQL 18.6, GoAccess's
-Alpine and the SBOM tool, so this release's `bom.json` is the first in
-CycloneDX 1.7. The README and 32 other docs say what holds now. Live's deploy
-from alpha.8 is one-way by the deploy's own rule: the ClickHouse pin moves, and
-no migration does.
+scan reads both at 0 critical and 0 high. Both Trigger.dev images drop
+cross-spawn 5.1.0, which nothing in them runs. Kept current beside them:
+Dependabot's npm group of 19, PGlite 0.5.16 among them, still on PostgreSQL
+18.6, GoAccess's Alpine and the SBOM tool, so this release's `bom.json` is the
+first in CycloneDX 1.7, and the release-age exceptions alpha.8 needed are
+gone, their floors passed. The README and 32 other docs say what holds now.
+Live's deploy from alpha.8 is one-way by the deploy's own rule: the ClickHouse
+pin moves, and no migration does.
 
 ### Security
 
@@ -42,9 +44,30 @@ no migration does.
   did on the OTA stack's, green (run 43651027054), and the image scan of the branch reads it at 0
   critical and 0 high. Taken inside its three-day floor, which ends 2026-11-17 at 10:18 UTC and is
   waived for alpha.9.
+- **Both Trigger.dev images drop cross-spawn 5.1.0, with every link pnpm made to it** (workplan
+  0119, 0146 T16): the image scan read CVE-2024-21538 (high, a regular-expression denial of
+  service, fixed in 6.0.6 and 7.0.5) once in each, in pnpm's store. Its one requirer is
+  spawndamnit 2.0.0, under the root's `@changesets/cli` 2.26.2, Trigger.dev's release tooling,
+  which neither container runs. Each build removes pnpm's directory for it and spawndamnit's link
+  to it, and in the supervisor pnpm's hoisted link too, since there it is the one cross-spawn; the
+  webapp's hoisted cross-spawn is 7.0.6, which stays. Before anything is removed, each build
+  checks the package is cross-spawn 5.1.0 and, walking the whole image, that it is the one copy and
+  that nothing else links into it; after, that nothing of it is left; a Trigger.dev that moves or
+  drops it stops the build by name. The images take new names,
+  `localhost/trigger.dev:v4.8.5-c3d2ec340994` and `localhost/supervisor:v4.8.5-e3631e107ba7`, so
+  the next `up` builds both and recreates `trigger-api` and `trigger-supervisor` once, as E2E
+  (managed) on its branch did on the OTA stack, green (run 43661536922). The image scan of the
+  branch reads the webapp at 1 critical, 20 high and 8 with a fix (from 1, 21 and 9) and the
+  supervisor at 0, 0 and 0 (from 0, 1 and 1).
 
 ### Changed
 
+- **The release-age exceptions that alpha.8's waivers added are gone, their floors passed**
+  (workplan 0119): `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` no longer names Trigger.dev
+  v4.8.5's five packages (floor passed 2026-11-15 00:43 UTC) or hono 4.13.18 and
+  `@hono/node-server` 2.1.7 (2026-11-14 09:11 UTC), each taken inside pnpm's three days, waived
+  for alpha.8. The lockfile does not change, and a frozen install passes the
+  floor without them. Four entries remain.
 - **GoAccess, which counts the site's visits, is built on Alpine 3.24.4** (workplan 0119; from
   3.24.3, Dependabot, #1892): both stages of `deploy/compose/goaccess/Dockerfile` start from
   `alpine:3.24.4` by tag and digest, whose base differs from 3.24.3's in apk-tools and libapk
