@@ -2,7 +2,26 @@
 
 > **In one line:** Provider consent for testers on `ownpace-live`: its Google OAuth client, test users, Testing or Production, a Microsoft registration ADR and publisher verification, read-only Dropbox scope, Box and Apple as experimental, the sign-in buttons.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-15 (update this block at the end of every session)
+
+**2026-11-15, measured: the weekly reconnect, once, on the OTA stack's demo (T1), and what it
+found (T2 (b)).** On the branch `claude/ownpace-public-readiness-y7orc6-google-reconnect`, as #1915.
+- **Measured.** A Google account on the OTA stack's demo, its consent about a week old, had its
+  refresh token refused from 2026-11-14 at about 18:40 UTC: every pass of its migration failed at
+  the token request. Google's answer, read at the database by the owner the next day, was
+  `invalid_grant` (`Bad Request`) each time, the last at 12:55:21 UTC on 2026-11-15. The owner
+  pressed *Reconnect*, and the migration's next pass started only when the owner pressed *Sync
+  now*, at 13:40 UTC. It carried contacts and calendar on from where they stopped. That is the cost
+  D1 accepted, met once: T1's first measurement on the OTA stack's history.
+- **Found, and fixed on the branch.** The run's log hid Google's words behind *"not a DAV, JMAP or
+  IMAP error"*: an OAuth 2.0 token endpoint's error is now a document the rule keeps, and the
+  provider's hint stands before it (0136 T3). A stored reconnect did not carry the migration on:
+  the failing ladder (0022 T2) had widened its gap to four hours, so a stored rotation now presses
+  *Sync now* for each migration failing on that account, through the button's gates (0065).
+  *Reconnect* asked for every type again, its ticks empty, beside every credential box in plain view:
+  its ticks now start from what the account's last Test measured it carries (every served type but
+  a measured no), and the client pair and the token fold away where the deployment carries the
+  provider's own app, in the add form's words.
 
 **2026-11-08, records: Google's seven-day expiry read from Google; the user cap's number not (T1,
 open question 1).** Docs only, on the branch
