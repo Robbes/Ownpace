@@ -2,7 +2,15 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-11-14 (update this block at the end of every session)
+## Status — 2026-11-15 (update this block at the end of every session)
+
+**2026-11-15: alpha.9 is tagged without the O365 lane, under the owner's waiver (T13 (a), T14).**
+Docs only. `v0.2.0-alpha.9` was tagged on 2026-11-15 at 07:41 UTC without a run of
+`e2e-o365.yml` (0146, Status of that day, later), under the waiver the entry below records. Read
+from GitHub on 2026-11-15: the workflow still has four runs, the newest 41418432093 (2026-11-02,
+failure at its secrets check). Release does not read the lane. It stays owed for a later alpha: the
+secrets, as `docs/test-tenant.md` lists them, and a green run. **T14:** alpha.9's counted nights
+were waived on 2026-11-14 (0146), so it is tagged with them waived, as alpha.3 to alpha.8 were.
 
 **2026-11-14, last: the O365 lane is waived for alpha.9 (T13 (a), T14).** Docs only, before
 alpha.9's fold (0146, Status of the same day). alpha.9 is to be tagged without a run of

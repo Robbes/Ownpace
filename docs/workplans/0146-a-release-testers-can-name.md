@@ -4,6 +4,76 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, later: `v0.2.0-alpha.9` is released, its nights waived (T2, T4).** Read from GitHub
+on 2026-11-15. Times are UTC.
+
+- **C is `2524db42`**, the squash of #1912 (the fold), merged at 04:42:56 on `f37f9b9c` (#1911).
+  Its tree is that of the fold's head, `c634bc3a`, on which CI run 43676990507 was green (04:29 to
+  04:42). On C, all green: CI run 43677968194 (`lint`, `unit-tests (all)`, `ui-tests`,
+  `integration-tests (ubuntu-24.04-arm)` and `ci-complete` run and passed, 04:42 to 05:06),
+  Security Scan run 43677968088, Images run 43677968060, Nextcloud second major run 43677968075,
+  and `windows-payload.yml` run 43677982716 (`build win-x64` and `smoke win-x64 on windows-2025`;
+  its attach runs on a tag only, so it was skipped).
+- **In the counted nights' place**, dispatched on `main` at C, one at a time, each at least ten
+  minutes after the run before it ended: E2E (managed) run 43677991134 (04:43 to 04:50; version
+  20261115.2 deployed with 17 detected tasks, *verify: done apply: applied*, SMOKE PASS, the task
+  runner's ClickHouse on `clickhouse/clickhouse-server:26.8.37.168`), and E2E (self-hosted) on
+  Postgres, run 43679283691 (05:01 to 05:07), and on PGlite, run 43680494900 (05:18 to 05:23),
+  all green.
+- **The image scan of C**, Security Scan run 43677980784 (`image_scans`, on `main` at C, 04:43 to
+  04:46), by tier (critical, high, with a fix): what the internet reaches on live 0, 6 and 6; what
+  live runs inside 2, 42 and 17; the appliance 0, 0 and 0. The release images it reads are
+  alpha.8's, at 0, 0 and 0; the two criticals are zlib1g's in Redis and the Trigger.dev webapp,
+  with no fix yet (0119).
+- **The upgrade drill** (`scripts/upgrade-drill.sh` on the Docker host, from alpha.8's published
+  image to C's; `docs/release.md` §1). The owner ran it on 2026-11-15, in a clone of its own at C,
+  as `./scripts/upgrade-drill.sh v0.2.0-alpha.8`, and reported it OK, the step's OK being the
+  clone's commit, `2524db42`, and `DRILL PASSED`. Both chains are alpha.8's (65 and 59 files), so
+  for the schema it proves the mechanics only, and the preflight lists it as not checked; what it
+  adds is PGlite 0.5.16 opening the state directory alpha.8's 0.5.15 wrote (the entry below).
+- **Release.** The owner dispatched the two runs from their own account, with `commit` set to C
+  and `waive_nights` set to *I waive all waitings, so we can work efficiently.* The preflight, run
+  43690624310 (#29, 07:35:25 to 07:36:20), refused nothing: CI run #5529, Security Scan run #5630
+  and the Windows smoke of windows-payload run #41 green on C; the names, the changelog (dated
+  2026-11-15) and the API contract agree; the tag free; C the head of `main`, with no commit after
+  it; the upgrade gates' 8 and 12 cases passed (7 and 8 of them from alpha.8; mechanics only, 65
+  and 59 migrations on both sides); the nights' refusals notes naming the owner's waiver; the
+  upgrade drill listed as not checked. It noted, without refusing, 2 critical and 48 high
+  code-scanning alerts open on `main` in 6 groups, every one an image's (0119). Release run
+  43690849909 (#30), mode `release`, dispatched at 07:38:33, refused nothing in its own preflight
+  and waited at its approve job until the owner approved in the `release` environment (the job ran
+  07:39:35 to 07:39:40); then the gate scan of C (run 43690942548, on
+  `release-gate/v0.2.0-alpha.9`), the tag (07:41:00 to 07:41:16), the publishing (Security Scan on
+  the tag, run 43691067047; the images, run 43691162921; the Windows zip, run 43691162844) and
+  verify (07:44:26 to 07:45:00) all succeeded, and the run completed at 07:45:00. Verify read the
+  release as a pre-release with `bom.json` (CycloneDX 1.7) and
+  `ownpace-appliance-win-x64-v0.2.0-alpha.9.zip` (its 411 files' sums hold, its `node.exe` v26.13.1
+  as pinned); `ownpace-api`, `ownpace-web` and `ownpace-selfhost` at `0.2.0-alpha.9` for amd64 and
+  arm64, built from C, signed, `latest` not moved; the tasks' base that C pins (`sha-b05fb1b`), for
+  both platforms, built from an ancestor of C and signed on `main`; and the appliance's `/version`
+  answering the tag's version and commit.
+- **The tag.** `v0.2.0-alpha.9` is tag object `d9624fa8…` on `2524db42`, made by
+  `github-actions[bot]` at 07:41:12. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/43690849909*, *Proved by: CI run #5529, Security
+  Scan run #5630 on main, windows-payload run #41; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/43690942548* and *Nights waived by Robbes, in
+  their words: "I waive all waitings, so we can work efficiently."*
+- **The release** is a pre-release, published at 07:42:28 by the scan on the tag, with `bom.json`
+  (2052877 bytes, CycloneDX 1.7, the first) and `ownpace-appliance-win-x64-v0.2.0-alpha.9.zip`
+  (49957218 bytes).
+- **The image scan after the tag**, Security Scan run 43691517668 (`image_scans`, on `main` at C,
+  07:47 to 07:51), reads alpha.9's own images, `ownpace-api`, `ownpace-web` and `ownpace-selfhost`
+  at `0.2.0-alpha.9`, at 0, 0 and 0. By tier, as in the scan of C: what the internet reaches on
+  live 0, 6 and 6; what live runs inside 2, 42 and 17; the appliance 0, 0 and 0 (0119).
+- **The O365 lane** is not read by Release. alpha.9 is tagged without a run of it, under the
+  owner's waiver for alpha.9 (0141, the entries of 2026-11-14 and of this day).
+- **Held for after the tag**, since the freeze ends with it: Nextcloud 35.0.3 and the second-major
+  fixture's 34.0.6 (#1907), whose E2E (managed) is the OTA demo's one-way upgrade (0119).
+- **Owed:** live's deploy of `v0.2.0-alpha.9`, by the owner, before 2026-11-19 at 14:01, when the
+  copy before alpha.8's update enters its last day and `take` refuses all but a deploy of alpha.7
+  (the entry below); before it, the copy of live's ClickHouse volume by hand that *Moving
+  ClickHouse* (`docs/managed-bring-up.md`, *On live*) takes for any move of the pin (0119).
+
 **2026-11-15: alpha.9 is folded, its counted nights waived (T2, T4, T7).** On the branch
 `claude/ownpace-public-readiness-y7orc6-fold-alpha-9`, drafted on 2026-11-14 from `main` at
 `6e9fbc8d` (#1908), while three changes for alpha.9 were still open; `main` was merged in at
