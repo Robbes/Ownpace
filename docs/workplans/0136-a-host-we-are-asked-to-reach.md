@@ -2,7 +2,22 @@
 
 > **In one line:** SSRF defence on managed: connections refuse internal and Docker-network addresses after DNS and on redirects, a demo-host allowlist, probe answers without the remote's body, no archive disk path, the socket proxy off tenant networks.
 
-## Status — 2026-11-14 (update this block at the end of every session)
+## Status — 2026-11-15 (update this block at the end of every session)
+
+**2026-11-15, build: a token endpoint's refusal keeps its words (T3, the second step).** On the
+branch `claude/ownpace-public-readiness-y7orc6-google-reconnect`, as #1915. On the OTA stack a
+Google account's refresh token had expired (seven days in Testing, 0140 D1), and every pass of its
+migration failed at the token request. The run's log said *"Google refused the token request
+(400): the server answered with something that is not a DAV, JMAP or IMAP error."* The ledger held
+Google's `{"error": "invalid_grant", "error_description": "Bad Request"}` and the provider's hint
+behind it, read at the database by the owner the same day. The rule kept neither, for two reasons,
+both closed on the branch. An OAuth 2.0 token endpoint's error response (RFC 6749 §5.2) was no
+document §3 listed: `providerErrorWords` reads one now, for the six codes the RFC registers only,
+and §1 and §3's lists name it. And Google's, Box's and Dropbox's token providers wrote their hint
+after the provider's body, so the body was not the last thing in the message: they write the hint
+first now (`packages/connectors/src/token-refusal.ts`). Stored rows are not rewritten, so a line
+from before reads as it did. Guards: `apps/api/src/a-token-refusal-said-in-its-own-words.unit.test.ts`
+and `packages/connectors/src/a-token-refusal-that-ends-with-the-providers-words.unit.test.ts`.
 
 **2026-11-14, records: T4's registry merged as #1902.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-records-1902`. Read from GitHub on 2026-11-14; times are
@@ -313,8 +328,11 @@ failures a pass records are said in our words, as a Test is. The threat model sa
   three digits from 100: the server picks it, and fetch passes a 600 or a 999 through.
   - Our prose and the status stay: the method, the item's path and the code are ours.
   - What the server sent stays only when it is an error document of a kind §3 lists, in the form
-    the stored text carries it. A WebDAV `error`, Google's JSON error and a JMAP problem document
-    as they came; Google's GData and Sabre's refusal as `davRefusalBody` left them. A stored form
+    the stored text carries it. A WebDAV `error`, Google's JSON error, a JMAP problem document and
+    an OAuth 2.0 token endpoint's error response (RFC 6749 §5.2, one of its six codes; added
+    2026-11-15) as they came; Google's GData and Sabre's refusal as `davRefusalBody` left them. A
+    token provider writes its own hint before the provider's body, so the body is the last thing in
+    the message (`packages/connectors/src/token-refusal.ts`). A stored form
     is matched whole, not by how it starts, and its words carry no markup and no JSON. A GData
     code alone stays only when it is one Google documents. Capped at 300 characters.
   - Anything else reads *"the server answered with something that is not a DAV, JMAP or IMAP
@@ -1250,8 +1268,9 @@ qualification's per-face detail carry:
   the rest), plus `unreachable` for a connection that was refused or never answered;
 - the HTTP status, when there was one;
 - the provider's own words **only when they parse as a provider's error document**: a DAV
-  `d:error`, Google's GData envelope or JSON error document, a JMAP problem document or an IMAP
-  `NO`/`BAD` response line, capped at a few hundred characters. Anything else, such as an HTML
+  `d:error`, Google's GData envelope or JSON error document, a JMAP problem document, an OAuth 2.0
+  token endpoint's error response (RFC 6749 §5.2; added 2026-11-15) or an IMAP `NO`/`BAD` response
+  line, capped at a few hundred characters. Anything else, such as an HTML
   page, a JSON document of some other shape or plain text, is replaced by *"the server answered
   with something that is not a DAV, JMAP or IMAP error"*.
 

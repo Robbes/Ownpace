@@ -1414,6 +1414,24 @@ export interface RevocationOutcome {
   reason?: string;
 }
 
+/**
+ * The answer to a rotation: the probe's, whether the credentials were
+ * replaced, and, once they were, what happened to the migrations that were
+ * failing on this connection (2026-11-15). The server pressed *Sync now* for
+ * each one standing against it for a cause a person had to fix: `resumed`
+ * lists those whose pass started, `notResumed` those a gate refused (an
+ * operator hold, Free's pace, a paused migration, a withdrawn grant), with the
+ * refusal's code as `error` and its English sentence as `reason`, or
+ * `press_failed` with a reference. Both absent on a rotation that stored
+ * nothing, on an older server, and where the server could not read which
+ * migrations were failing; empty when none was.
+ */
+export interface RotationResult extends TestConnectionResult {
+  rotated: boolean;
+  resumed?: Array<{ mappingId: string; runId: string }>;
+  notResumed?: Array<{ mappingId: string; error: string; reason: string }>;
+}
+
 /** The answer to a delete that went through. */
 export interface ConnectionDeleted {
   deleted: true;
@@ -1439,17 +1457,18 @@ export const connectionsApi = {
   },
   /**
    * Replace a connection's credentials in place. Probed first; `rotated:false`
-   * means the probe failed and the OLD credentials were kept.
+   * means the probe failed and the OLD credentials were kept. Once stored, the
+   * migrations failing on it carry on at once (`RotationResult`).
    */
   rotate: async (
     id: string,
     values: Record<string, string>,
-  ): Promise<TestConnectionResult & { rotated: boolean }> => {
+  ): Promise<RotationResult> => {
     const response = await apiClient.put(
       `/connections/${encodeURIComponent(id)}/credentials`,
       { values },
     );
-    return response.data as TestConnectionResult & { rotated: boolean };
+    return response.data as RotationResult;
   },
   /**
    * Delete a connection. The server REFUSES while anything uses it, because

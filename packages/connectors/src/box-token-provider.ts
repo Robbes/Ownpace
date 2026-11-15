@@ -25,6 +25,7 @@
 import { guidedError } from '@openmig/shared';
 import type { OAuth2Token, TokenProvider, TokenStatus } from '@openmig/shared';
 import type { TokenFetch } from './google-token-provider.ts';
+import { tokenRefusalMessage } from './token-refusal.ts';
 
 const BOX_TOKEN_ENDPOINT = 'https://api.box.com/oauth2/token';
 /** Same buffer as the other providers: re-mint well before a pass can outlive the token. */
@@ -126,7 +127,8 @@ export class BoxTokenProvider implements TokenProvider {
     const text = await safeText(response);
     if (!response.ok) {
       const shown = text.slice(0, 500);
-      const message = `Box refused the token request (${response.status}): ${shown}${hintFor(shown)}`;
+      // The hint first and Box's words last (`token-refusal.ts`).
+      const message = tokenRefusalMessage('Box', response.status, shown, hintFor(shown));
       // The app's creation and its authorization are the guide's steps
       // (0148 T7): the handle rides beside the words, which name no file.
       throw shown.includes('unauthorized_client') ? guidedError(message, 'box#connect') : new Error(message);
@@ -163,7 +165,7 @@ export class BoxTokenProvider implements TokenProvider {
 function hintFor(body: string): string {
   if (body.includes('unauthorized_client')) {
     return (
-      ' — "unauthorized_client" from Box usually means the app is NOT AUTHORIZED for this ' +
+      '"unauthorized_client" from Box usually means the app is NOT AUTHORIZED for this ' +
       'enterprise: a Box admin must approve it once in the Admin Console (Apps → Custom Apps ' +
       'Manager → Add app by Client ID), and re-approve it after its scopes change. It can also ' +
       'mean the app was created without "App + Enterprise Access" / user token generation, ' +
@@ -171,11 +173,11 @@ function hintFor(body: string): string {
     );
   }
   if (body.includes('invalid_client')) {
-    return ' — "invalid_client" from Box means the client id or client secret is wrong for this app.';
+    return '"invalid_client" from Box means the client id or client secret is wrong for this app.';
   }
   if (body.includes('invalid_grant')) {
     return (
-      ' — check box_subject_id: it must be the NUMERIC Box user id of the account being ' +
+      '"invalid_grant" from Box: check box_subject_id. It must be the NUMERIC Box user id of the account being ' +
       'migrated (Admin Console → Users & Groups shows it), not an email address.'
     );
   }

@@ -24,7 +24,9 @@
  *
  * *Sync now*'s gates live in `routes/migrations/sync-now.ts` (`pressSyncNow`),
  * which the route and the machine's press for live's pass check
- * (`scripts/live-pass.ts`, workplan 0132 T9) both call.
+ * (`scripts/live-pass.ts`, workplan 0132 T9) both call, and a stored rotation
+ * too, for the migrations failing on the connection it repaired
+ * (`routes/connections.ts`). Held, each of those presses is refused here.
  *
  * ## Asked before the first write
  *

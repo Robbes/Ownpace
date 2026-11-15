@@ -20,8 +20,10 @@
  *
  * - What the server sent stays only when it is an error document of a kind §3
  *   lists, in the form the stored text carries it: a WebDAV `error`, Google's
- *   JSON error document or a JMAP problem document as they came, and Google's
- *   GData and Sabre's refusal as `davRefusalBody` already unwrapped them.
+ *   JSON error document, a JMAP problem document or an OAuth 2.0 token
+ *   endpoint's error response (`invalid_grant`, RFC 6749 §5.2; 2026-11-15) as
+ *   they came, and Google's GData and Sabre's refusal as `davRefusalBody`
+ *   already unwrapped them.
  *   Matched whole, with no markup or JSON in their words, and capped.
  *   Anything else is said as *"the server answered with something that is
  *   not a DAV, JMAP or IMAP error"*. Our prose before it stays: the method,

@@ -3,7 +3,9 @@
 /**
  * *Sync now*'s gates and its one enqueue, shared by `POST /:mappingId/sync`
  * and the machine's press for live's pass check (`scripts/live-pass.ts`;
- * workplan 0132 T9).
+ * workplan 0132 T9). A stored rotation presses it too, for each migration
+ * that was failing on the connection it repaired (`carryOnAfterRotation` in
+ * `routes/connections.ts`, 2026-11-15), and answers each refusal as data.
  *
  * Moved unchanged from the route, so a pass the machine starts is started
  * exactly as the button starts one: the migration read under row security, a

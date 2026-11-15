@@ -101,9 +101,10 @@ export interface ProviderConsent {
   readonly accountMissing: boolean;
   readonly start: () => Promise<void>;
   /**
-   * Forget the ticks and what came back. The door calls it when its question
-   * changes, and when it is shown again, so an old refusal is not drawn (and
-   * announced) as a new one (0145 T4, `ConsentNote`).
+   * Put the ticks back where the door started them (`fixedDomains`,
+   * `initialDomains`, or none) and forget what came back. The door calls it
+   * when its question changes, and when it is shown again, so an old refusal
+   * is not drawn (and announced) as a new one (0145 T4, `ConsentNote`).
    */
   readonly reset: () => void;
   /** Rises by one each time a token lands, so a SECOND consent submits again. */
@@ -135,11 +136,19 @@ export function useProviderConsent(opts: {
    * The faces an account's consent asks for, where the door already asked:
    * *Start a migration* decides them on *What moves?*, so each consent asks
    * for exactly what was ticked (0153 T4, T1 (c)). Left out, the panel offers
-   * its own ticks, starting from none.
+   * its own ticks, starting from `initialDomains`, or from none.
    */
   readonly fixedDomains?: ReadonlyArray<DiscoveryDomain>;
+  /**
+   * Where the panel's own ticks start, for a door that knows what the account
+   * already carries: given the faces this deployment serves for the kind, the
+   * ones to start ticked. *Reconnect* passes it (the owner, 2026-11-15); a new
+   * account has nothing to start from and leaves it out, so its ticks start
+   * from none. Only a face the panel draws can start ticked.
+   */
+  readonly initialDomains?: (served: ReadonlyArray<DiscoveryDomain>) => ReadonlyArray<DiscoveryDomain>;
 }): ProviderConsent {
-  const { role, type, fields, values, onToken, refusalText, fixedDomains } = opts;
+  const { role, type, fields, values, onToken, refusalText, fixedDomains, initialDomains } = opts;
   const { t, locale } = useLocale();
 
   const provider = role === 'source' ? fields.find((f) => f.key === 'refreshToken')?.consent : undefined;
@@ -170,7 +179,23 @@ export function useProviderConsent(opts: {
     ? (providerAccounts?.[type]?.domains ?? PROVIDER_ACCOUNT_DOMAINS[type as ProviderAccountKind] ?? [])
     : [];
 
-  const [domains, setDomains] = React.useState<DiscoveryDomain[]>(() => [...(fixedDomains ?? [])]);
+  // WHERE THE TICKS START: the door's own faces, else what the door says the
+  // account carries, else none. What the door says is kept to the faces
+  // drawn: a tick nobody can see would still be asked for, and the server
+  // refuses a face this deployment does not serve.
+  const startingDomains = (): DiscoveryDomain[] =>
+    fixedDomains !== undefined
+      ? [...fixedDomains]
+      : (initialDomains?.(faces) ?? []).filter((face) => faces.includes(face));
+  // The ticks the person has changed since the door last started them, or
+  // null while they stand where it started them. Until then they are read
+  // again on every render, so they follow facts that arrive after the door
+  // opened: the faces this deployment serves come over the wire, and a Test
+  // rewrites the record *Reconnect* starts from.
+  const [picked, setPicked] = React.useState<DiscoveryDomain[] | null>(null);
+  const domains = picked ?? startingDomains();
+  const setDomains: React.Dispatch<React.SetStateAction<DiscoveryDomain[]>> = (action) =>
+    setPicked((prev) => (typeof action === 'function' ? action(prev ?? startingDomains()) : action));
   const asked = consentAsks(type, domains, faces);
   const [note, setNote] = React.useState<string | null>(null);
   const [redirect, setRedirect] = React.useState<string | null>(null);
@@ -289,7 +314,7 @@ export function useProviderConsent(opts: {
   };
 
   const reset = () => {
-    setDomains([...(fixedDomains ?? [])]);
+    setPicked(null);
     setNote(null);
     setRedirect(null);
     setUnopened(null);
@@ -420,8 +445,9 @@ export const ConsentLines: React.FC<{
   readonly idBase: string;
   /**
    * Whether the refresh-token box is in plain view: no application of the
-   * deployment's folds it away (`AccountForm`'s `folded`). Only then does the
-   * fold say the button fills that box, and that pasting still works.
+   * deployment's folds it away (`AccountForm`'s `folded`, and a row's
+   * *Reconnect* panel's since 2026-11-15). Only then does the fold say the
+   * button fills that box, and that pasting still works.
    */
   readonly tokenInView: boolean;
 }> = ({ provider, asked, idBase, tokenInView }) => {
@@ -614,8 +640,8 @@ export const ProviderConsentPanel: React.FC<{
   /**
    * Whether the door shows the refresh-token box in plain view (`ConsentLines`).
    * Left out, it is wherever no application of the deployment's folds the box
-   * away, which is how the account form draws it; *Replace credentials* shows
-   * every secret box, and says so.
+   * away, which is how the account form draws it. A row's *Reconnect* panel
+   * folds it the same way (the owner, 2026-11-15) and says what it drew.
    */
   readonly tokenInView?: boolean;
 }> = ({ consent, className = 'mt-4', primary = false, tokenInView = !consent.deploymentClient }) => {
