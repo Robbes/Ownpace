@@ -447,6 +447,10 @@ services:
     # floor on the owner's waiver of 2026-11-13, "Waive all waiting time."
     # (its header, WHAT IS REPLACED: GOOSE);
     # so its build reaches github.com as well as the npm registry. Since
+    # 2026-11-14 it also removes cross-spawn 5.1.0 (CVE-2024-21538) and
+    # spawndamnit's link to it, its one requirer, under the root's
+    # @changesets/cli, release tooling nothing here runs (its header, WHAT
+    # GOES). Since
     # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
     # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
     # e2fsprogs, which depends on two of them (workplan 0119
@@ -461,7 +465,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-1c2ba0d89644
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-c3d2ec340994
     build:
       context: ./trigger.dev
       args:
@@ -911,10 +915,12 @@ services:
     # place of 10.33.2 (since 2026-11-02), without node-gyp's tree (tar was in
     # it) in node's, and without npm (from 2026-11-03 until v4.8.5, which
     # ships 5.33.19 itself, it also put systeminformation 5.33.19 in place of
-    # 5.31.7). No `user:`, so
+    # 5.31.7); since 2026-11-14 also without cross-spawn 5.1.0
+    # (CVE-2024-21538) and the links pnpm made to it, spawndamnit's and its
+    # hoist (its header, CROSS-SPAWN 5.1.0). No `user:`, so
     # it runs as the image's node, whose copy its CMD runs and the Dockerfile
     # keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.5}-9c532368504f
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.5}-e3631e107ba7
     build:
       context: ./supervisor
       args:
