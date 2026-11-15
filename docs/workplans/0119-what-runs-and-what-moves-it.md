@@ -2,7 +2,19 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-14 (update this block at the end of every session)
+## Status — 2026-11-15 (update this block at the end of every session)
+
+**2026-11-15: the seven release-age exceptions of alpha.8's waivers removed, their floors
+passed.** `minimumReleaseAgeExclude` in `pnpm-workspace.yaml` named Trigger.dev v4.8.5's five
+packages, `@trigger.dev/build`, `@trigger.dev/core`, `@trigger.dev/schema-to-json`,
+`@trigger.dev/sdk` and `trigger.dev` (#1883), and hono 4.13.18 and `@hono/node-server` 2.1.7
+(#1889), each taken inside the three-day floor, waived for alpha.8 (their entries below). The floors passed on 2026-11-14 at 09:11 UTC (hono's) and on 2026-11-15 at 00:43
+UTC (Trigger.dev's). The seven entries and their two dated comments are removed, and the hono
+overrides' comment says when; the lockfile does not change. Without them `pnpm install
+--frozen-lockfile` passes after the floor, in the worktree and in a fresh copy with no
+`node_modules`, where pnpm verified the whole lockfile against the floor and installed it, and
+`a-gate-that-was-never-switched-on` passes on the four entries left: body-parser 2.4.0,
+socket.io-parser 4.2.7, js-yaml 4.3.2 and esbuild 0.25.12.
 
 **2026-11-14, latest still: cross-spawn 5.1.0 out of both Trigger.dev images, with every link
 pnpm made to it, for alpha.9 (0146 T16); built on a branch, not merged.** On the branch
@@ -1327,7 +1339,7 @@ tarballs and the installed packages; nothing downloaded was run. Times are UTC.
 - **Inside the three-day floor, on the owner's waiver.** On 2026-11-13 at 19:26 the owner wrote:
   *"Waive all waiting time."* Both versions are in `minimumReleaseAgeExclude` under a dated
   comment with those words. The floor passes 2026-11-14 at 09:11; after it both entries may be
-  removed, and the lockfile stays as it is. Without them pnpm exits 1 and names the two: when it
+  removed, and the lockfile stays as it is (removed 2026-11-15: Status, that day). Without them pnpm exits 1 and names the two: when it
   resolves (`ERR_PNPM_NO_MATURE_MATCHING_VERSION`) and on a frozen install
   (`ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION`), both measured.
 - **None of this code runs here** (read in the installed packages):
@@ -1508,7 +1520,8 @@ Docker Hub and ghcr's manifests, without a login; nothing read was run. Times ar
   one dated comment that quotes the owner; `minimumReleaseAge` stays 4320. The one package new to
   the lockfile, `@electric-sql/client` 1.3.0, was published 2025-12-16 and needs none.
   `a-gate-that-was-never-switched-on` fails on the five once the lockfile moves past them, so the
-  next Trigger.dev move removes them.
+  next Trigger.dev move removes them (they came out after the floor instead, on 2026-11-15:
+  Status, that day).
 - **The lockfile** moved six packages and nothing else: the five, 4.8.3 → 4.8.5, and
   `@electric-sql/client` 1.0.14 → 1.3.0 (core's, with the same dependencies), with the sha512 npm
   serves. The CLI's own dependencies are 4.8.3's (esbuild `^0.23.0`, minimatch `^10.2.3`,
