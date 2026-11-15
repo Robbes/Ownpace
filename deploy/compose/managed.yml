@@ -2462,7 +2462,7 @@ services:
   # again when riscv64's lands): Nextcloud 35.0.3 on PHP 8.5.12, on
   # php:8.5.12-apache-trixie's build of 2026-11-05. Taken the same day, inside
   # its three-day floor (which ends 2026-11-17 at 01:54:42 UTC), which is
-  # waived for alpha.9. Read off both images, every blob checked against its
+  # waived for alpha.10. Read off both images, every blob checked against its
   # sha256 and nothing run: of the eight criticals the image scan of
   # 2026-11-14 read in e0b1a2af52c8…, it carries the fixes for three,
   # libopenexr-3-1-30 3.2.12-1~deb13u1 (CVE-2026-42216, CVE-2026-42217) and

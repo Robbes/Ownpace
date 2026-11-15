@@ -99,7 +99,7 @@ jobs:
       # with linux/amd64 and linux/arm64 in it (`34-apache`'s index holds the
       # same two, beside 34.0.5's riscv64), and taken the same day, inside its
       # three-day floor (which ends 2026-11-17 at 01:52:58 UTC), which is
-      # waived for alpha.9. Its first fourteen layers, Debian and PHP 8.5.12,
+      # waived for alpha.10. Its first fourteen layers, Debian and PHP 8.5.12,
       # are the same blobs as the demo's 35.0.3 pin `8a7a65b8…`
       # (php:8.5.12-apache-trixie's build of 2026-11-05), and its Debian
       # packages are 35.0.3's, version for version. Before it `515c072e…`,

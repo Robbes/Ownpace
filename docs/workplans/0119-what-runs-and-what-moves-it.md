@@ -147,7 +147,7 @@ read: this session has no Docker, and the registry's blobs are out of its reach.
 
 **2026-11-14, latest: the demo's, the dev stack's and the integration tier's Nextcloud move to
 35.0.3 and the second-major fixture to 34.0.6, each inside its three-day floor, which is waived for
-alpha.9; CI's Nextcloud legs and E2E (managed) on the branch owed.** Drafted from `main` at
+alpha.10; CI's Nextcloud legs and E2E (managed) on the branch owed.** Drafted from `main` at
 `fd0cad0e`. Read between 20:59 and 21:22 UTC from Docker Hub's registry and its tag API,
 nextcloud/server's git tags and the scan's report log; times are UTC.
 
@@ -187,7 +187,7 @@ nextcloud/server's git tags and the scan's report log; times are UTC.
   (CVE-2026-119618 in the four apache2 packages, and libxml2's). Of the old pin's 16 fixable
   packages, 11 are at or past the version the list names, the four apache2 ones are not, and
   `linux-libc-dev` is at its critical's fix (6.12.115-2), short of the 6.12.117-1 that clears all
-  56. The new counts are the branch's scan's to read (owed). In Nextcloud's own vendor tree 35.0.3 has `symfony/http-foundation` v7.4.21 (the list's
+  56. The branch's image scan (run 43649809180) read 35.0.3 at 5 critical, 202 high and 10 with a fix, from 35.0.2's 8, 379 and 193. In Nextcloud's own vendor tree 35.0.3 has `symfony/http-foundation` v7.4.21 (the list's
   CVE-2026-108082 is fixed in 7.4.19) and 34.0.6 v6.4.49; sabre/dav 4.7.0, sabre/vobject 4.5.6,
   sabre/http 5.1.12 and sabre/xml 2.2.11 are unchanged in both lines. The entrypoint
   (`ec00e04f…`), `opcache-recommended.ini` (still `opcache.jit=1255`, so `nextcloud-php.ini`'s
@@ -260,7 +260,7 @@ nextcloud/server's git tags and the scan's report log; times are UTC.
   `"needsDbUpgrade":false`). Whether to take that section's copies for a patch, or to count on a
   fresh demo as the way back, is open.
 - **The floor.** Both tags are inside their three-day floor (CONTRIBUTING.md), which ends
-  2026-11-17 at 01:54:42 (35.0.3) and at 01:52:58 (34.0.6) and is waived for alpha.9;
+  2026-11-17 at 01:54:42 (35.0.3) and at 01:52:58 (34.0.6) and is waived for alpha.10;
   `managed.yml`, `nextcloud-second-major.yml` and the changelog say so beside each pin. No guard
   asks a compose or workflow image to say it.
 - **Changed:** the four pins (`managed.yml`, `dev.yml`, the Testcontainers default and
