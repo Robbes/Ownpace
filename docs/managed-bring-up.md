@@ -2,10 +2,8 @@
 
 The managed edition is a **multi-tenant service**: Postgres behind PgBouncer, a
 self-hosted **Trigger.dev** instance that is the one execution plane, the API,
-the web app, and the tasks in `apps/worker` deployed onto Trigger.dev. It has
-been stood up by hand more than once, each time from notes that were slightly
-out of date. This document is those notes, kept next to the script that
-executes them.
+the web app, and the tasks in `apps/worker` deployed onto Trigger.dev. This
+document is how to stand it up, kept next to the script that executes it.
 
 - **The script:** [`deploy/compose/bootstrap-managed.sh`](../deploy/compose/bootstrap-managed.sh)
 - **This document:** the same steps in prose, with every dashboard screen
@@ -41,7 +39,7 @@ Two of those are yours. Everything else is one command.
 
 ---
 
-## Cutting over from the pre-rename stack (one time, ADR-0040)
+## Cutting over from the pre-rename stack (one time)
 
 The product was renamed, and with it the compose project, container, network and
 volume names (`open-migrate-*` → `ownpace-*`). **Docker does not follow a rename.**
@@ -88,14 +86,14 @@ docker network ls --filter name=open-migrate
 a different stack from the one this page brings up, not part of the
 `open-migrate*` family being removed above, and still in use.
 
-It was called `openmig-dev-stalwart*` until 2026-08-31, <!-- PRE-RENAME SWEEP --> so a long-lived box may
-show both generations for a while. `e2e.yml` removes the older one itself (the
+Its older name is `openmig-dev-stalwart*`, <!-- PRE-RENAME SWEEP --> so a long-lived box may
+show both generations. `e2e.yml` removes the older one itself (the
 lines marked `PRE-RENAME SWEEP`); you do not need to, and should not reach for
 a wildcard that would take the current one with it.
 
 **Do NOT delete `~/.persistent/open-migrate-managed`.** It holds the stack's `.env`
 — including `SECRET_ENCRYPTION_KEY`, the key that decrypts every stored credential
-in the database — and `userlist.txt`, PgBouncer's, which since 2026-11-03 the
+in the database — and `userlist.txt`, PgBouncer's, which the
 OTA stack's `pgbouncer` mounts from the persisted directory under its new name
 (*PgBouncer's userlist lives in the persisted directory*, below). It lives
 outside the checkout precisely so `actions/checkout`'s clean cannot reach it,
@@ -121,8 +119,7 @@ are **not** product-named and keep their names; nothing above touches them.
 - Linux with **Docker** and **Docker Compose v2** (`docker compose version`).
 - **Node 26+** first on your shell's `PATH`, with **`libatomic1`**, and **pnpm**
   (the seed, the deploy CLI, the site build and the smoke run on the host, not
-  in a container). Node 26
-  since 2026-10-31 (workplan 0119 §2.4): `engines` asks for `>=26`, and every
+  in a container). `engines` asks for `>=26`, and every
   gate runs the host steps on 26. The official Linux binaries of Node 25 and
   later are linked against `libatomic.so.1`, which a host may not have, and
   Node 25 and later ship **no corepack**, so any `pnpm` that runs the version
@@ -138,8 +135,8 @@ are **not** product-named and keep their names; nothing above touches them.
 - **~15 GB free disk.** ClickHouse, MinIO, the Trigger.dev images, the task
   registry and the built API/web images add up; running out midway leaves a
   stack that is partly built and wholly confusing.
-- **Memory: about 7 GB for one stack, and 20 GB for live beside the OTA stack**
-  (workplan 0143 T1). A stack's resident services take about 4 GB. Every
+- **Memory: about 7 GB for one stack, and 20 GB for live beside the OTA stack.**
+  A stack's resident services take about 4 GB. Every
   copying pass runs on the `small-1x` preset, which is enforced: half a CPU and
   0.5 GB. So one stack at its default of 3 passes in flight needs about
   4 + 1.5 GB, plus 20% headroom. Live at 6 beside the OTA stack at 3, with the
@@ -150,17 +147,16 @@ are **not** product-named and keep their names; nothing above touches them.
   other stack's cap × 0.5 GB − the nightly's 2 GB) ÷ 0.5 GB.
 - **CPU: half a CPU per pass in flight**, beside the resident services: at 6 and
   3, that is 4.5 CPUs for passes. The resident services' own figure is still to
-  be measured on the machine (0143 T9); until then these numbers are the plan's,
-  not a measurement.
+  be measured on the machine; until then these numbers are estimates, not
+  measurements.
 - The repository cloned, and `pnpm install --frozen-lockfile` done.
 - **Container output: Docker's default log driver, kept until the container
-  is removed, and the stack's capped by size** (the owner, 2026-09-28,
-  ops-log-driver (a): *"Docker's default, as the text says"*). Docker's
+  is removed, and the stack's capped by size.** Docker's
   default, `json-file`, keeps a container's output with the container, with
   no limit of age or size, until the container is removed, and removes it
   with the container. A service whose image and settings do not change keeps
   its container for months, so every service in `managed.yml` sets `json-file`
-  itself, with a cap (2026-10-21): five files of 20 MB, at most 100 MB a
+  itself, with a cap: five files of 20 MB, at most 100 MB a
   service and 1.8 GB a stack, the oldest lines going first. Two kinds of
   container keep the daemon's driver: the website's (`www.yml` sets no cap,
   because `site-visits.sh` counts visits from the whole of its log) and the
@@ -223,8 +219,8 @@ PgBouncer is deliberately **not** published: it is reached over the compose
 network by name. That is why anything running on the host (the seed, the
 migrations) connects to `postgres:5432`'s published port directly.
 
-**`GET /metrics` on the API port is unauthenticated**, by decision (0026 T3
-row 19): it carries counts and durations only, but the aggregate volume it
+**`GET /metrics` on the API port is unauthenticated**, deliberately: it carries
+counts and durations only, but the aggregate volume it
 reveals is not for the public internet. The web image proxies only `/api/*`,
 so `/metrics` is reachable only on port 3001 itself. Keep 3001 off any public
 interface, and if a reverse proxy does front 3001 directly, do not forward
@@ -252,7 +248,7 @@ one (*Which address a port answers on*, below).
 The API origin the server advertises is fixed in `managed.yml` to
 `http://127.0.0.1:<TRIGGER_PORT>`, and `.env` does not change it. The deploy CLI
 follows that origin after it logs in, so it must not meet a self-signed
-certificate on the way: when it did, deploys died with a bare `Connection
+certificate on the way: when it does, deploys die with a bare `Connection
 error`. Its image build reaches it on loopback, because `deploy-tasks.sh` builds
 on the host's network (`--network host`). So `TRIGGER_BIND` stays empty.
 `localhost` would not do: the CLI rewrites that to `host.docker.internal` for the
@@ -262,14 +258,13 @@ with: `http://127.0.0.1:3090`.
 
 ### Which address a port answers on
 
-Before workplan 0132 T3 seven of these ports, and the site's, had no host address, so
-Docker published them on **every interface** (`0.0.0.0`). Docker writes its own
-firewall rules for a published port, so a host firewall's input rules do not
-close it. And a container reaches every port its host publishes through its
-network's gateway, so on a machine with two stacks each stack's containers
-could reach the other's database (workplan 0132 T1f).
+A port published with no host address answers on **every interface**
+(`0.0.0.0`). Docker writes its own firewall rules for a published port, so a
+host firewall's input rules do not close it. And a container reaches every port
+its host publishes through its network's gateway, so on a machine with two
+stacks each stack's containers could reach the other's database.
 
-Now each port has two entries in `managed.yml`: `127.0.0.1`, fixed, and
+So each port has two entries in `managed.yml`: `127.0.0.1`, fixed, and
 `${<NAME>_BIND:-127.0.0.1}`. Empty, the bind renders the same as the first
 entry and Compose keeps one. Set, it adds that address, and loopback stays,
 because the bring-up, the smoke, the deploy CLI and the seed ask these ports on
@@ -312,7 +307,7 @@ Compose reads the file, and names the key, not the value.
   address the same way: `TRIGGER_TLS_BIND` for the dashboard (*Addressing the
   dashboard*, above), and `STATUS_BIND` for a status page reached over the mesh
   even where no name is routed to it. The OTA stack's status page is reached
-  that way (workplan 0142).
+  that way.
 - **Leave `POSTGRES_BIND`, `API_BIND` and `TRIGGER_BIND` empty.** Nothing off the
   machine needs the database, the API with its unauthenticated `/metrics`, or
   the Trigger.dev API.
@@ -320,9 +315,7 @@ Compose reads the file, and names the key, not the value.
 **The gate's log is public, and a bind is this machine's address.** The nightly
 gate runs here, anybody can read its log, and any signed-in account can
 download its evidence. None of these values is a secret, so GitHub hides none
-of them, and until 2026-09-27 every run printed the mesh address: the PORTS
-column of `docker compose ps`, the bring-up's `dashboard:` note, "External DAV
-ready at", the deploy CLI's links. So what the gate runs names a bind,
+of them. So what the gate runs names a bind,
 `TRIGGER_TLS_HOST`, the dashboard's origins and Nextcloud's trusted domains by
 their KEYS: `ps` without its PORTS column, an origin printed only when its
 host is loopback, the deploy CLI without its links. Behind that, the gate
@@ -333,8 +326,8 @@ filtered: a value becomes the key that holds it (`<MAILPIT_BIND>`), and any
 address in the mesh's range, `100.64.0.0/10`, becomes `<mesh-ip>`. A mask
 covers the gate's log and nothing else, so a new line that prints one of these
 names the key instead. `scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts`
-holds all of it. Runs published before that date keep what they printed; their
-logs can be deleted from the run's page on GitHub.
+holds all of it. Runs published before 2026-09-27 printed the mesh address;
+their logs can be deleted from the run's page on GitHub.
 
 ```bash
 # deploy/compose/.env — 100.64.0.1 is the SHAPE of a mesh address, not yours
@@ -362,16 +355,14 @@ prints can go into a public log.
 
 **Containers on the machine that are not Ownpace's.** The machine also runs
 services of the owner's that have nothing to do with Ownpace, and some of them
-publish on every interface. The owner, 2026-10-05: *"leave the host services
-alone and continue. I just want to be able to bring the live up. The box is
-airgapd behind netbird, so no issue there."* So `EXPOSURE_NOT_OURS` in the same
-`.env` lists those containers by the names `docker ps` prints, matched exactly,
+publish on every interface. `EXPOSURE_NOT_OURS` in the same `.env` lists those
+containers by the names `docker ps` prints, matched exactly,
 separated by commas with no space (`EXPOSURE_NOT_OURS=someones-app,notes-db`),
 and each stack's `.env` carries the same list. For a container named there, a
 port on every interface or on an address `EXPOSURE_ALLOW` does not list is a
 note (*"note: someones-app publishes 5555/tcp on every interface; not Ownpace's,
 accepted in EXPOSURE_NOT_OURS"*), not a failure, and the closing `ok:` line
-counts them. So the check no longer holds every publish on the machine to
+counts them. So the check does not hold every publish on the machine to
 loopback and `EXPOSURE_ALLOW`: those containers' are the owner's to judge. **The
 check refuses an Ownpace container it recognises** (exit 2): a name beginning
 with `ownpace` (every container Ownpace starts here but `dev.yml`'s Postgres is
@@ -386,32 +377,30 @@ Compose and without an `ownpace` name, by hand or by tests (a `docker run` of an
 Ownpace image, the Postgres `scripts/squash-migrations.sh` starts, the CI jobs'
 testcontainers, Trigger.dev's task runs), is not, so list only the owner's own
 services. A listed name that is not running is a note naming the entry by its
-place in the list, never repeating it. Live's `.env` needs the key too, and a
-tag cut before it was added runs a check that ignores it.
+place in the list, never repeating it. Live's `.env` needs the key too.
 
-`deploy-live.sh` (workplan 0132 T6) runs `exposure-check.sh` after each deploy
-of live, and a deploy it fails did not take; T7 will run it daily. Until live stands it is run by hand (T0 step 5). The same question from
-outside is the dispatch-only workflow *Exposure probe*
+`deploy-live.sh` runs `exposure-check.sh` after each deploy of live, and a
+deploy it fails did not take; live's daily duties run it too (*Live's daily
+duties*, below). The same question from outside is the dispatch-only workflow *Exposure probe*
 (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted runner. It needs
 the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
 takes the machine's own public address from the optional secret
 `EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
 `www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
-sign-in answers one of them instead of the service (workplan 0139, item 8;
-*After the script: the owner's steps*, step 5). And it asks live's form that
-founds an organisation, `/ui/login/register/org` at `id.ownpace.eu`, and fails
-unless it answers 404, a redirect included (workplan 0135 T1): the smoke asks
-that page on the OTA stack, and never runs on live. And it reads the headers of
-`https://app.ownpace.eu/` as a tester's browser gets them, and fails unless
-the policy, HSTS and the three beside them arrive once each as the app's
-template states them at the commit live's own `/version.json` names (workplan
-0158 T4). A port the front answers by
-itself, which never reaches the machine, goes in the optional repository
-variable `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine
-during a probe run has shown that nothing arrives (workplan 0132 T3 (c), the
-owner, 2026-10-29). On a production name's address such a port answering is
-then a note, unless it answers as PostgreSQL, which fails; on the machine's own
-address, and on an address only the OTA names resolve to, it fails as before.
+sign-in answers one of them instead of the service (*After the script: the
+owner's steps*, step 5). And it asks live's form that founds an organisation,
+`/ui/login/register/org` at `id.ownpace.eu`, and fails unless it answers 404, a
+redirect included: the smoke asks that page on the OTA stack, and never runs on
+live. And it reads the headers of `https://app.ownpace.eu/` as a tester's
+browser gets them, and fails unless the policy, HSTS and the three beside them
+arrive once each as the app's template states them at the commit live's own
+`/version.json` names. A port the front answers by itself, which never reaches
+the machine, goes in the optional repository variable
+`EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine during a
+probe run has shown that nothing arrives. On a production name's address such a
+port answering is then a note, unless it answers as PostgreSQL, which fails; on
+the machine's own address, and on an address only the OTA names resolve to, it
+fails.
 
 **The OTA site is recreated by hand, and only by hand.** No workflow runs
 `www.yml`, and the bring-up does not start the site (*The public site*, below).
@@ -466,9 +455,6 @@ container with a bind on the mesh address, up, on `127.0.0.1` and that address.
 >    it, then check that `docker ps --format '{{.Names}} {{.Ports}}'` shows
 >    `ownpace-www` on `127.0.0.1` and the front's address, and that the site's
 >    name answers.
->
-> Workplan 0132's Status block records this as the change's merge
-> precondition.
 
 ---
 
@@ -506,7 +492,7 @@ checks whether it is already done.
 `managed.yml` says `name: ownpace-managed`, the OTA stack's compose project, and
 that is only a default. `COMPOSE_PROJECT_NAME` in the `.env` beside it
 overrides it, and the reference machine runs a second stack that way:
-`ownpace-live`, in a checkout of its own (workplan 0132 D7). Two stacks on one
+`ownpace-live`, in a checkout of its own. Two stacks on one
 Docker daemon are kept apart by names, so every name follows the project:
 
 | What | Named | On the OTA stack |
@@ -530,9 +516,9 @@ So a command reaches a stack in one of two ways, and never by a fixed name:
   print have it filled in. One difference: a `.env` that carries live's
   marker, `STACK_KIND=production` (`deploy/compose/stack-kind.sh`), and whose
   project still comes out as `ownpace-managed` is refused, naming the two keys
-  and no value. Live's `.env` sets `COMPOSE_PROJECT_NAME=ownpace-live` (workplan
-  0132 T1b); without that line every script in live's checkout would drive the
-  OTA stack with live's `.env`. A `docker compose` you type yourself does not
+  and no value. Live's `.env` sets `COMPOSE_PROJECT_NAME=ownpace-live`; without
+  that line every script in live's checkout would drive the OTA stack with
+  live's `.env`. A `docker compose` you type yourself does not
   refuse. To ask Compose, from the checkout:
 
   ```bash
@@ -548,31 +534,24 @@ command in the other checkout acts on the first stack. Open a new shell, or
 checkout's `.env` disagree, before its first Compose command
 (`scripts/two-stacks-on-one-box.unit.test.ts` holds each one to that). A
 `docker compose` command you type yourself does not refuse. The same goes for
-`PGBOUNCER_USERLIST` (since 2026-11-03), which only the OTA stack's `.env` sets:
+`PGBOUNCER_USERLIST`, which only the OTA stack's `.env` sets:
 exported from it, a `docker compose up` in live's checkout would recreate live's
 pooler on the OTA stack's userlist. `bootstrap-managed.sh` and
 `ensure-env-secrets.sh` refuse that shell; a command you type does not. A new
 shell clears both (*PgBouncer's userlist lives in the persisted directory*).
 
-Before workplan 0132 T1 the 17 containers had fixed names (`ownpace-db`,
-`trigger-api`, `ownpace-idp`, …). The first bring-up after that change
-recreates the OTA stack's containers under the new names. The volumes keep
-their names, because the project did not change, so no data moves. A habit such
-as `docker exec ownpace-db …` becomes `docker compose -f
-deploy/compose/managed.yml exec postgres …`.
-
 Names keep two stacks apart by configuration. They are not a boundary: each
 stack's `trigger-docker-proxy` holds the host's Docker socket and can start a
-container on any network (workplan 0132 §1).
+container on any network.
 
 ### Reading what the api container was started with
 
-The API image is distroless (workplan 0146 T13): Node and the few libraries it
+The API image is distroless: Node and the few libraries it
 needs, with no shell, no `printenv` and no package manager, and Node at
 `/nodejs/bin/node`, which is not on its `PATH`. A shell, `printenv` or a bare
 `node` exec'd into the api container finds nothing there. So what the API was
 started with is read from Docker, from the stack's checkout, which answers the
-same for the Node image of a tag before T13 (workplan 0146 T13a):
+same for the Node image of `v0.2.0-alpha.2` and earlier:
 
 ```bash
 docker container inspect --format '{{range .Config.Env}}{{println .}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q api)" | grep '^NODE_ENV='
@@ -587,8 +566,8 @@ name, and answers with the image's `ENV` alone.
 
 To ask something from inside the stack's network, as the smoke does, run Node
 by its path: `docker compose -f deploy/compose/managed.yml exec -T api
-/nodejs/bin/node -e '…'` (`/usr/local/bin/node` on the Node image of a tag
-before T13).
+/nodejs/bin/node -e '…'` (`/usr/local/bin/node` on the Node image of
+`v0.2.0-alpha.2` and earlier).
 The scripts do both this way (`api_env` and `api_node` in
 `deploy/compose/smoke-managed.sh`, `api_env` in `deploy-live.sh` and
 `stand-up-live.sh`), and `scripts/an-api-image-with-nothing-to-exec.unit.test.ts`
@@ -630,7 +609,7 @@ first compose command, so a `--from` run that skips this phase is covered too.
 After the first start, `setup-zitadel.sh` keeps the line on the live token's
 own date.
 
-**The five database passwords** (workplan 0132 T2): `POSTGRES_PASSWORD`,
+**The five database passwords**: `POSTGRES_PASSWORD`,
 `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and
 `TRIGGER_DB_PASSWORD` (Trigger.dev's own database, `trigger-db`). The example
 ships them empty, and `ensure-env-secrets.sh` generates each one while its
@@ -655,11 +634,8 @@ On a stack whose volumes exist, change them together with the database:
 [Changing the database passwords](#changing-the-database-passwords) below.
 `managed.yml` keeps a compose default for each of the five (`${KEY:-…}`): the
 refusal is the bring-up's, not compose's, so an empty key on localhost is a
-note and not a compose error.
-`TRIGGER_DB_PASSWORD` joined the four on 2026-10-05 (workplan 0132 T2, step B),
-once the owner had rotated the OTA stack's `trigger-db`, which until then held
-the literal `managed.yml` falls back to. `stand-up-live.sh` generates the five
-for live's new volumes with a list of its own, the same five.
+note and not a compose error. `stand-up-live.sh` generates the five for live's
+new volumes with a list of its own, the same five.
 
 **What it will not decide for you.** It *reports* these and moves on:
 
@@ -674,12 +650,12 @@ for live's new volumes with a list of its own, the same five.
 - `PRICING_*` — integer **cents**, never euros. They are a template for *new*
   tenants; each tenant's agreed prices are pinned in the `tenant_pricing` table
   the first time their money is computed and never follow this file again. That
-  table is created by the MANAGED migration chain (ADR-0036), which the API
+  table is created by the MANAGED migration chain, which the API
   applies after the shared one — an appliance applies only the shared chain and
   has no such table.
 - `SMTP_*` / `NOTIFY_*` — set them all or none. Half-set, the channel stays off
   and names what is missing.
-- `OAUTH2_*` — only for a stack with a Microsoft Graph source or 0028's drift
+- `OAUTH2_*` — only for a stack with a Microsoft Graph source or the drift
   detector. An IMAP-only stack needs none of it.
 - `*_BIND` — the address a port answers on besides `127.0.0.1`. Empty is
   loopback only, which is right for a machine nothing is routed to. A public
@@ -690,8 +666,8 @@ for live's new volumes with a list of its own, the same five.
 - `OWNPACE_REACHABLE_HOSTS` — empty, and on live it stays empty: `stand-up-live.sh`
   and `deploy-live.sh` refuse live's `.env` when it names a host. The API and
   every task run refuse to connect to a host a tester typed when it resolves
-  inside this service's own network, except for the exact names this lists
-  (workplan 0136 T1, T2). An entry admits that name for every organisation on
+  inside this service's own network, except for the exact names this lists.
+  An entry admits that name for every organisation on
   the deployment. The `demo` phase adds the demo's two; nothing else belongs
   here.
 
@@ -735,7 +711,7 @@ docker compose -f deploy/compose/managed.yml up -d --wait pgbouncer
 #   … both roles asked over the stack's network and through the pooler …
 ```
 
-**The two roles match `.env` on every run** (workplan 0132 T2). A role keeps
+**The two roles match `.env` on every run.** A role keeps
 the password it was made with: Postgres reads `POSTGRES_PASSWORD` once, when the
 volume is made, and migration `0001_baseline.sql` creates `app_user` with a
 published password whenever no such role exists. So once Postgres is healthy,
@@ -746,7 +722,7 @@ owner, with the same function `rotate-db-passwords.sh --sync` uses
 (`db-roles.sh`). Once the pooler is up it asks both roles, the way the stack's
 containers do: over the stack's network and through PgBouncer. A role that does
 not open stops the phase. On a stack whose roles already hold `.env`'s values,
-like the OTA stack since its rotation, each is set to the value it has.
+each is set to the value it has.
 
 **No value on a command line.** Each password reaches its container by name,
 from the environment of the one `docker` call that needs it (`-e PGOPTIONS`,
@@ -774,7 +750,7 @@ The password goes to the container by name, as the phase passes its own.
 Anything back, containing `transaction`, is the pooler serving in the right
 mode.
 
-**With `--with-demo`, the demo Nextcloud's database comes first** (workplan 0150). Its first
+**With `--with-demo`, the demo Nextcloud's database comes first.** Its first
 install reads `POSTGRES_*` from `managed.yml` and connects as the role `nextcloud` to the database
 `nextcloud` in this Postgres, so the phase makes both before Nextcloud starts
 (`deploy/compose/nextcloud-db.sh`). A role it makes gets `.env`'s `NEXTCLOUD_DB_PASSWORD`, which
@@ -783,7 +759,7 @@ installed: that Nextcloud connects with the value in its own `config.php`, and c
 under it gives 500s until the two agree again. After Nextcloud answers, the phase says which
 database it uses, and the one step that makes the three agree:
 
-- **Still on SQLite**, an install from before this change: `./deploy/compose/nextcloud-to-postgres.sh --convert`.
+- **Still on SQLite**, an older install: `./deploy/compose/nextcloud-to-postgres.sh --convert`.
 - **On Postgres, with another password in `config.php`**, like the OTA stack, which was moved by
   hand: `./deploy/compose/nextcloud-to-postgres.sh --sync-password`. Nothing reads `.env`'s value
   until a fresh install, so this can wait for a quiet moment.
@@ -807,8 +783,8 @@ whichever is missing to `.env` and keeps anything else listed, before the API
 starts and before the task variables are uploaded. Live never runs this phase,
 so its list stays as its operator wrote it: the script refuses `--with-demo`,
 before anything runs, on a `.env` that carries live's marker or anything that
-could be a slip of it (`STACK_KIND`, `stack_may_be_live` in `stack-kind.sh`;
-workplan 0132 T5). The OTA stack's `.env` carries no such line, so the nightly
+could be a slip of it (`STACK_KIND`, `stack_may_be_live` in `stack-kind.sh`).
+The OTA stack's `.env` carries no such line, so the nightly
 gate's `--with-demo` goes on. The seed:
 
 ```bash
@@ -819,7 +795,7 @@ DIRECT_DATABASE_URL=… JWT_SECRET=… SECRET_ENCRYPTION_KEY=… \
 
 Those exports matter. The seed runs **on the host** and inherits nothing;
 nothing in `apps/api` loads a dotenv file. It also runs the migrations itself —
-**both chains**, shared then managed (ADR-0036), each advisory-locked under its
+**both chains**, shared then managed, each advisory-locked under its
 own key, so racing an API boot is safe — which is why the schema exists before
 the API has ever started. The order is not a preference: every table in the
 managed chain references `public.tenant`.
@@ -832,37 +808,31 @@ Brings up `trigger-db`, `trigger-redis`, `clickhouse`, `minio`,
 `trigger-registry`, `trigger-docker-proxy`, `trigger-api`, `trigger-tls`,
 `trigger-supervisor` and waits for all of them to be **healthy**, not merely
 started. `minio-init`, a one-shot, makes MinIO's `packets` bucket once `minio`
-answers its health check, and `trigger-api` starts only after it has exited 0
-(workplan 0146 T7).
+answers its health check, and `trigger-api` starts only after it has exited 0.
 
-**ClickHouse is on a network of its own, which only `trigger-api` shares**
-(2026-11-01, workplan 0119 §3 item 9). `<project>_trigger-event-store` is
-`internal`: it has no route off the machine, and nothing else on the stack can
-resolve the name `clickhouse`. The server ran 26.2, which has no fix for
-CVE-2026-116366 (unauthenticated code execution for anybody who can reach it),
-so the network was what protected it. The pin is the 26.8 LTS line, which
-carries the fix: 26.8.36.3-lts from 2026-11-02, and 26.8.37.168-lts, a patch
-of the same line, since 2026-11-14. A stack runs 26.8 from its own move (the
-OTA stack since its E2E (managed) run in the owner's window on 2026-11-02;
-live from its deploy of the first release tag that carries it, alpha.4:
-*Moving ClickHouse*, below), and the network stays.
+**ClickHouse is on a network of its own, which only `trigger-api` shares.**
+`<project>_trigger-event-store` is `internal`: it has no route off the machine,
+and nothing else on the stack can resolve the name `clickhouse`. ClickHouse
+26.2 has no fix for CVE-2026-116366 (unauthenticated code execution for anybody
+who can reach it), so there the network is what protects it. The pin is the
+26.8 LTS line, which carries the fix, now 26.8.37.168-lts; the first release
+tag that carries 26.8 is `v0.2.0-alpha.4`. A stack runs 26.8 from its own move
+(*Moving ClickHouse*, below), and the network stays.
 `trigger-api` reaches it there for its migrations and its `CLICKHOUSE_URL`, and
 keeps `ownpace-network` for everything else. To ask ClickHouse something, run
 `clickhouse-client` inside its container with `docker compose exec`, as
 `rotate-db-passwords.sh` does; a container started on
 `<project>_ownpace-network` has no name or route to it, by design. That stops
 a plain request, or one forged through the web app, the API, Zitadel or
-Nextcloud. The other way in was the Docker API: `trigger-docker-proxy` lets
-`POST`, `NETWORKS` and `CONTAINERS` through with no authentication, so while it
-was on `ownpace-network` code running in any container there, a task run
-included, could attach itself or a new container to `trigger-event-store`
-through it (workplan 0136 §1, *What shares the network*). Since 2026-11-02 the
-proxy is on a network of its own, below. The smoke asks from both sides
+Nextcloud. The other way in is the Docker API: `trigger-docker-proxy` lets
+`POST`, `NETWORKS` and `CONTAINERS` through with no authentication, so on
+`ownpace-network` code running in any container there, a task run included,
+could attach itself or a new container to `trigger-event-store` through it.
+So the proxy is on a network of its own, below. The smoke asks from both sides
 (*clickhouse, and who can reach it*).
 
 **The Docker socket proxy is on a network of its own, which only the
-supervisor shares** (2026-11-02, workplan 0136 T4's first bullet).
-`<project>_trigger-docker-socket` is `internal`, and its only members are
+supervisor shares.** `<project>_trigger-docker-socket` is `internal`, and its only members are
 `trigger-docker-proxy` and `trigger-supervisor`, whose `DOCKER_HOST` names the
 proxy. Nothing else on the stack can resolve the name `trigger-docker-proxy`:
 not the API, the web app, Zitadel or Nextcloud, and not a task run, which the
@@ -880,15 +850,15 @@ the smoke asks from both sides (*trigger-registry and trigger-docker-proxy*):
 Docker answers from the supervisor, and the name is unknown in the API
 container.
 
-**The registry is on a network of its own, which nothing else shares**
-(2026-11-14, workplan 0136 T4). `<project>_trigger-task-images` has one member,
+**The registry is on a network of its own, which nothing else shares.**
+`<project>_trigger-task-images` has one member,
 `trigger-registry`, and nothing else on the stack can resolve the name
 `trigger-registry`: not the API, the web app, Zitadel or Nextcloud, and not a
 task run. Nothing needs to. The CLI pushes task images from the host to
 `localhost:${REGISTRY_PORT}`, and the host's Docker daemon pulls a run's image
 from the same address, both through the port the registry publishes on
-127.0.0.1. Until then it was on `ownpace-network`, where every container could
-push task images to it or pull them, with no authentication, and send it
+127.0.0.1. On `ownpace-network` every container could push task images to it
+or pull them, with no authentication, and send it
 CVE-2026-78667's request: Go 1.26.8's `net/http`, which distribution v3.1.2 is
 built with and serves every blob through, spends excessive CPU on a `Range`
 header with many small ranges. The network is not `internal`, unlike the two
@@ -935,8 +905,8 @@ if the instance genuinely has no project does it stop, and then:
    Open it **in the same browser**. Links are single-use and short-lived; if
    one is spent, ask the dashboard for another and run the command again — it
    always prints the newest. `--all` prints every link still in the log buffer.
-   Ask for it **on `TRIGGER_LOGIN_ORIGIN`** too: since Trigger.dev v4.7.4 the
-   link always points there and signs in only the browser session that asked
+   Ask for it **on `TRIGGER_LOGIN_ORIGIN`** too: the link always points there
+   and signs in only the browser session that asked
    for it, so a link asked for through another address (a tunnel to the http
    port, `localhost` where the origin is another host) opens without that
    session and is refused.
@@ -980,9 +950,6 @@ The CLI is `trigger.dev`, a devDependency of `apps/worker` at exactly the
 everything else: the phase runs `pnpm install --frozen-lockfile` before it asks
 the CLI anything, and `bootstrap-managed.unit.test.ts` holds the two versions
 equal. Run it from the checkout's root as `pnpm -C apps/worker exec trigger …`.
-Until 2026-11-02 the scripts fetched it with `npx -y trigger.dev@<version>` at
-run time, and so outside the lockfile, the three-day floor on new releases, the
-overrides and the build approvals in `pnpm-workspace.yaml` (workplan 0119).
 
 ```bash
 # From the checkout's root. If this machine has logged in before, log OUT
@@ -997,8 +964,7 @@ token the CLI just minted into `.env` as `TRIGGER_ACCESS_TOKEN`. From then on
 the CLI's `deploy` reads that variable before it looks at any profile file and
 validates it against the server itself — no browser, no profile, and nothing
 left on the host to go stale. It is the CLI's own documented path for CI, and
-the E2E workflow has used it as a repository secret since #460; what was
-missing was anybody putting one in a real stack's `.env`.
+the E2E workflow uses it as a repository secret.
 
 Run it by hand any time (`./deploy/compose/trigger-remember-token.sh`); it
 declines to overwrite a token `.env` already holds unless you pass `--force`,
@@ -1011,11 +977,10 @@ and it never prints the value.
 > short-circuits with *"You are already logged in"* **without validating it**,
 > so it reports success while `deploy-tasks.sh` still correctly refuses. Only
 > `logout` clears it. If `logout` short-circuits too, delete the profile's
-> entry from that file. (Met twice on the owner's own box; the second time,
-> 2026-09-03, is why the token is now remembered at all.)
+> entry from that file.
 
 **`openmig` is the DEFAULT profile name, not a fixed one.** It is pre-rename
-branding (ADR-0040) kept on purpose — a machine already logged in under it,
+branding kept on purpose — a machine already logged in under it,
 the gate's runner most likely, would be stranded by a default that moved.
 `TRIGGER_CLI_PROFILE` in `.env` overrides it, and the phase then asks for
 whatever you set.
@@ -1025,7 +990,7 @@ is a token stored per profile NAME in `~/.config/trigger/config.json` on the
 host — outside the checkout, untouched by the rename, and invisible to
 anything in this repository. So a stack whose `.env` says `ownpace` while that
 file holds only `openmig` is correct in both halves and refuses anyway; it is
-one browser round trip from agreeing (2026-08-31). The refusal prints the name
+one browser round trip from agreeing. The refusal prints the name
 in use and the default as two separate lines for exactly this reason.
 
 The script prints the exact line with the profile filled in and stops, because
@@ -1034,11 +999,11 @@ is the plain **http api origin**, not the https front.
 
 **The URL it then asks you to open is on the https front**
 (`TRIGGER_LOGIN_ORIGIN`, the `trigger-tls` service), which serves a
-self-signed certificate — and one browser has been seen to fail there where
-another succeeds. See the failure table.
+self-signed certificate — and one browser can fail there where another
+succeeds. See the failure table.
 
-**From 4.8.3 a login is single-use and bound to the terminal that started
-it** (Trigger.dev v4.8.3, workplan 0119), and how the approval comes back
+**From Trigger.dev 4.8.3 a login is single-use and bound to the terminal that
+started it**, and how the approval comes back
 depends on how the login was started. Without `--no-browser`, a CLI that can
 open a browser itself (on macOS, on Windows, or on Linux with `xdg-open`)
 listens on a port of `http://127.0.0.1`, and the page sends the approving
@@ -1055,16 +1020,15 @@ carry `--no-browser`: it prints the address, you open it in a browser here or
 on another machine, and you paste the code the page shows into the terminal
 that is waiting. If that terminal is gone, finish within the ten minutes with
 `pnpm -C apps/worker exec trigger login --code <code> --profile <name>`. Every
-login now mints a token of its own; the tokens minted before stay valid, so a remembered
-`TRIGGER_ACCESS_TOKEN` and a persisted profile keep working across the move.
+login mints a token of its own; tokens minted before 4.8.3 stay valid, so a
+remembered `TRIGGER_ACCESS_TOKEN` and a persisted profile keep working.
 A CLI older than 4.8.3 can still log in until the webapp's
 `CLI_LOGIN_LEGACY_UNTIL`, 2027-01-01 by default, which `managed.yml` does not
 set.
 
-**From 4.8.4 a login lapses after 90 days unused** (Trigger.dev v4.8.4, workplan
-0119). `managed.yml` sets `CLI_LOGIN_IDLE_TIMEOUT_DAYS: "90"` on `trigger-api`,
-the owner's choice of 2026-11-13; upstream's default is 7, and live's deploys
-can be further apart than that. A login stores the limit with the token it
+**From Trigger.dev 4.8.4 a login lapses after 90 days unused.** `managed.yml`
+sets `CLI_LOGIN_IDLE_TIMEOUT_DAYS: "90"` on `trigger-api`; upstream's default is
+7, and live's deploys can be further apart than that. A login stores the limit with the token it
 mints, so a change of the setting reaches only the logins after it. Each use of
 the token renews it, at most once every five minutes; a lapsed token is never
 renewed, and only a new login replaces it. A token minted before v4.8.4 has no
@@ -1085,7 +1049,7 @@ reports a commit rather than `unknown`, then `up -d --wait` without `--build`.
 By name, because `up --build` builds every service in its scope that has a
 `build:`, dependencies included, and the two databases have one (*Both
 PostgreSQL databases run a build of the official image*, below). The API runs
-both migration chains at boot (ADR-0036), shared first.
+both migration chains at boot, shared first.
 
 Without `--with-demo` the services are **named explicitly** rather than swept
 up, so a bare `up` does not start Nextcloud — whose admin password is
@@ -1107,7 +1071,7 @@ trusted domains are `localhost nextcloud`, so the UI answers on
 **A host inside this network is refused.** The API and every task run refuse to
 connect to a host a tester typed when it resolves inside this service's own
 network: loopback, the private ranges, link-local, CGNAT, unique-local, and a
-compose name (workplan 0136 T1). A redirect is checked the same way. The Test
+compose name. A redirect is checked the same way. The Test
 button then says the address is inside our network, without the address. The
 exact names in `OWNPACE_REACHABLE_HOSTS` are admitted, and this phase prints
 what the list holds; on live, nothing. Before the API starts, the phase also
@@ -1179,9 +1143,9 @@ curl -fsS http://localhost:3001/health && curl -fsS http://localhost:3001/versio
 ### 8b. Sign-in — the identity provider *(optional, but the paste box is the alternative)*
 
 Not a `bootstrap-managed.sh` phase, and deliberately separate: a stack is
-usable without it, and skipping it leaves exactly the sign-in that existed
-before ([ADR-0042](./adr/0042-who-holds-the-passwords.md)) — the owner mints a
-token with the seed script and whoever needs one pastes it into `/login`.
+usable without it, and skipping it leaves the paste-box sign-in
+([ADR-0042](./adr/0042-who-holds-the-passwords.md)): the owner mints a token
+with the seed script and whoever needs one pastes it into `/login`.
 
 To have real accounts instead:
 
@@ -1198,10 +1162,9 @@ and a secret shipped to every visitor is not a secret), and writes
 `JWT_AUDIENCE` is the sign-in project's id, written in the same call as the
 issuer. **Never set the issuer without it:** the API refuses to start with
 `JWT_ISSUER` set and `JWT_AUDIENCE` empty, on every `NODE_ENV`, because it
-would accept a token the issuer minted for any project (workplan 0132,
-2026-10-04).
+would accept a token the issuer minted for any project.
 
-**Two doors it keeps shut** (workplan 0135 T1 and T2). Nobody can found an
+**Two doors it keeps shut.** Nobody can found an
 organisation of their own at the provider: the form at
 `/ui/login/register/org` answers 404. And the project admits its own
 organisation only, so an account in any other organisation gets no token for
@@ -1210,13 +1173,13 @@ take; a fresh instance has the first from `managed.yml`. Self-registration
 stays on: it registers people in the project's own organisation, and they
 confirm their address by mail.
 
-**Its languages** (workplan 0135 T6). The sign-in page offers Dutch and English
+**Its languages.** The sign-in page offers Dutch and English
 and no other. `ZITADEL_DEFAULT_LANGUAGE` in `.env`, `nl` or `en`, is its default:
 set `nl` on live, where the testers are. Empty keeps the instance's own. Every run
 sets both and reads them back, and prints them in its summary.
 
-**The notice on its registration and sign-in pages** (workplan 0135 T5, for
-0139 T4). The page where a tester types a name, an address and a password links
+**The notice on its registration and sign-in pages.** The page where a tester
+types a name, an address and a password links
 the privacy policy and the terms: the instance privacy policy's `privacyLink`
 and `tosLink`, which the page's footer shows and its registration form asks to
 accept. Both are made from `VITE_LEGAL_SITE_URL` in `.env`, the key the web
@@ -1229,11 +1192,9 @@ differs, copies its other five fields back as they were, and reads it back on
 the instance and on the project's organisation, whose own policy would stand in
 front of the instance's. It prints both addresses in its summary. A fresh
 instance has them from `managed.yml`. They are always shown, also before the
-texts are published there (the owner, 2026-10-03).
+texts are published there.
 
-**A second factor offered, and a lock after ten wrong passwords** (workplan
-0135 T4; the owner, 2026-10-17: *"Two-factor sign-in: yes. Offer, but not
-requireding."* and *"The lockout limit: I proposed 10 wrong passwords."*). The
+**A second factor offered, and a lock after ten wrong passwords.** The
 login policy forces no second factor (`forceMfa` and `forceMfaLocalOnly` both
 false) and allows two, an authenticator app (TOTP) and a security key (U2F):
 anybody may add one from the provider's console, under their own account, and
@@ -1249,10 +1210,9 @@ wrote nothing, and stops if it did not take. Its summary says both under
 make an address the API trusts, so each of them adds a second factor in the
 console (`/ui/console`, the account's own page, its multi-factor section) and
 signs in once with it to see it asked. That is the owner's step, live
-first (workplan 0135 T4a).
+first.
 
-**The organisation's name** (workplan 0135 open question 8; the owner,
-2026-10-17: *"The sign-in organisation name on live: "Ownpace": yes"*). The
+**The organisation's name.** The
 console and the sign-in page show the first organisation's name, upstream's
 `ZITADEL` unless `ZITADEL_ORG_NAME` in `.env` says otherwise. Live's is
 `Ownpace`: `stand-up-live.sh` writes it there before the provider's first start,
@@ -1263,7 +1223,7 @@ generated domain with the name, so the first user's login name changes from
 `owner@zitadel.<host>` to `owner@ownpace.<host>`; the summary prints the one
 that holds. Testers sign in with their email address, which does not change.
 
-**The mails it sends** (workplan 0135 T6). The five mails a tester can get
+**The mails it sends.** The five mails a tester can get
 from the provider are in Ownpace's words, in Dutch and English: the one after
 registering (Zitadel's *init* mail, which confirms the address), the one after
 changing an address (*verifyemail*), the password reset (*passwordreset*), the
@@ -1314,24 +1274,21 @@ fail if that stops being true.
 > Changing the address later invalidates every live session — it belongs with
 > the other browser-visible addresses in `.env`, decided once.
 
-#### One issuer or two? (owner decision, 2026-09-01)
+#### One issuer or two?
 
-**One, for now.** The reference stack's provider lives at
-`id.ota.ownpace.eu`; production will later live at `id.ownpace.eu`, and that
-will be a **separate provider on the production box**, not a second name for
-this one.
+**One per stack.** The OTA stack's provider lives at `id.ota.ownpace.eu`, and
+live's at `id.ownpace.eu`: a **separate provider**, not a second name for the
+OTA one.
 
-Why not share it across both: the address is inside every token (see the note
-above), so pointing a production stack at the test box's issuer makes the test
-box a dependency of production sign-in and a single blast radius for both. Why
-not stand the second one up today either: it is one `setup-zitadel.sh` run
-whenever the production stack exists, and an issuer with no users on it is a
-thing to keep patched for nothing.
+Why not share one across both: the address is inside every token (see the note
+above), so pointing a production stack at the test stack's issuer makes the
+test stack a dependency of production sign-in and a single blast radius for
+both.
 
 What that means in practice:
 
 - Every upstream OAuth client registered below gets a redirect URI on
-  `id.ota.ownpace.eu` today. It gets a **second** one on `id.ownpace.eu` only if
+  `id.ota.ownpace.eu`. It gets a **second** one on `id.ownpace.eu` only if
   production ever offers that provider: `ownpace-live` offers email and password
   only (*Not on `ownpace-live`*, below). The same client may carry both, or you
   may register a separate client per environment, which
@@ -1345,12 +1302,12 @@ What that means in practice:
 #### Offering Google, Microsoft, GitHub or Apple as a second way in
 
 Optional, and configuration only — nothing in the product knows a provider's
-name (ADR-0042; `no-issuer-lock-in.unit.test.ts` fails the build on one). The
+name (`no-issuer-lock-in.unit.test.ts` fails the build on one). The
 upstream goes into Zitadel, Zitadel still mints the token, and `tenant_member`
 never learns anybody used Google.
 
 **Not on `ownpace-live`.** Live's sign-in page offers email and password only,
-as privacy §4.4, §7 and §8 say (the owner, ops-social-signin (a)), so
+as privacy §4.4, §7 and §8 say, so
 `stand-up-live.sh` and `deploy-live.sh` refuse live's `.env` while any of the
 keys below holds a value (`LIVE_REFUSED_SIGN_IN_KEYS`, `stack-kind.sh`). So
 does `setup-zitadel.sh` itself, run by hand or by `bootstrap-managed.sh`,
@@ -1378,7 +1335,7 @@ nav) shows it beside every other address this deployment needs registered —
 so you can copy it from a second tab while you are in the provider's console,
 rather than from this table. It is a value rather than a path the product
 composes, because the path is the identity provider's own and shipped source
-must not know it (ADR-0042).
+must not know it.
 
 **Our half** is `.env` and a re-run. Fill in the pairs you want — a provider
 with no credentials is simply not offered, and the script says so per provider
@@ -1413,10 +1370,9 @@ base64 -w0 AuthKey_XXXXXXXXXX.p8     # -> IDP_APPLE_PRIVATE_KEY
 **What happens when the address already has an account:** the person is prompted
 to link, on a match of a *verified* email — never a silent merge. When several
 accounts match, Zitadel shows no prompt at all, so the ambiguous case fails
-closed. That decision is set once for every provider and is the reason this was
-built after workplan 0102 T2 rather than alongside it: a provider sign-in that
-minted a second subject would orphan a membership, and the person would be
-locked out of an organisation they are still in.
+closed. That is set once for every provider: a provider sign-in that minted a
+second subject would orphan a membership, and the person would be locked out of
+an organisation they are still in.
 
 **Microsoft addresses are not treated as verified**, deliberately. Entra does not
 say whether it verified an address, and `email_verified` is what binds an
@@ -1518,8 +1474,8 @@ an unexplained error page.
 ### 8c. Somebody who can answer the door *(needed before anybody can be let in)*
 
 Also not a `bootstrap-managed.sh` phase. `access_request` is written by
-strangers and readable by nobody until an **operator** exists (workplan 0093
-T6) — so a deployment with no operators has a queue nobody can read and a
+strangers and readable by nobody until an **operator** exists — so a deployment
+with no operators has a queue nobody can read and a
 front door that only records knocks.
 
 An operator is identified by their OIDC **subject**, not their email, and there
@@ -1562,16 +1518,14 @@ curl -fsS -H "Authorization: Bearer <token>" http://localhost:3001/api/me
 takes it away. Adding somebody twice updates their row rather than failing, so a
 typo is fixed by re-running.
 
-**This block used to read the connection out of `.env` with `grep
-'^DATABASE_URL='`, and that could not work on any stack** — `managed.yml`
-COMPOSES `DATABASE_URL` from `POSTGRES_*` and `DB_HOST` (in the `api` service's
-`environment:`), so the file
-has never carried such a line. The grep returned empty, the assignment
-succeeded, and the script refused for a requirement the reader had just
-apparently met. `operator.sh` is the same answer `seed-managed.sh` already was
-for the seed: a wrapper that composes what a host-run script cannot inherit,
-and that asks compose for the published port rather than assuming 5432 — on the
-reference box this stack's Postgres is on 55432.
+**`.env` carries no `DATABASE_URL` line.** `managed.yml` COMPOSES it from
+`POSTGRES_*` and `DB_HOST` (in the `api` service's `environment:`), so a recipe
+that reads it out of the file gets an empty value, and the script then refuses
+for a requirement the reader seems to have met. `operator.sh` is the same
+answer `seed-managed.sh` is for the seed: a wrapper that composes what a
+host-run script cannot inherit, and that asks compose for the published port
+rather than assuming 5432 — on the reference box this stack's Postgres is on
+55432.
 
 **Why not an email address, and why not a screen.** Keying the appointment on an
 email would mean whoever can register that address becomes an operator. Making
@@ -1586,7 +1540,7 @@ or who presses the enrolment button on their own deployment — acquires a
 membership the product will not let them drop, and correctly so: it refuses
 `Cannot remove yourself from the tenant`. Nobody else in the organisation can
 remove a sole owner either: only an owner may remove an owner, so anyone else
-gets `Only an owner can remove an owner` (workplan 0137 T3 (c)), and
+gets `Only an owner can remove an owner`, and
 `Cannot remove the last owner` still stands behind that.
 Three more sub-commands answer that at the machine, where the removal is a
 platform act rather than a customer one:
@@ -1616,8 +1570,7 @@ puts you back, so that is a decision rather than a discovery.
 **What has drifted, and what to do about it.** A managed deployment accumulates
 states nothing surfaces: an organisation whose only owner was removed, an
 invitation nobody answered, an operator row written before `subjectRefusal`
-existed and holding a token where an address belongs. Every one of those was
-found by somebody eventually reading the right table by hand.
+existed and holding a token where an address belongs.
 
 ```bash
 ./deploy/compose/operator.sh check                       # every question at once
@@ -1631,9 +1584,9 @@ lists every membership whose role is `member` or `viewer` (organisation,
 address, role, status), prints `none` when there is none, and exits non-zero
 while there is one. A declined or removed row grants nothing and is not listed.
 Until every write route names its roles, those two roles promise less than they
-allow, and the product no longer grants them (workplan 0137 T7). Run it on
-`ownpace-live` before the first invitation, from live's own checkout, because
-`operator.sh` drives whichever stack the checkout's `.env` names (0132 D7):
+allow, and the product does not grant them. Run it on `ownpace-live` before the
+first invitation, from live's own checkout, because `operator.sh` drives
+whichever stack the checkout's `.env` names:
 
 ```bash
 cd ~/ownpace-live && ./deploy/compose/operator.sh check role-below-admin
@@ -1659,8 +1612,8 @@ the two operator checks **never print the value they found**: the row is
 identified and acted on by id, and the id is never displayed, because moving a
 credential out of a table and into a scrollback is not a cleanup.
 
-**How many grant links an organisation may hold at once** (workplan 0108 T8
-(d)). As many live grant links as its tier runs migrations at the same time:
+**How many grant links an organisation may hold at once.** As many live grant
+links as its tier runs migrations at the same time:
 Free 1, Small 4, Medium 20, Large 50, Extra large 200, and the largest past the
 end of the table. A customer who needs more for a while, to hand out a week's
 links at once, gets a number of their own:
@@ -1684,7 +1637,7 @@ why it is a question worth asking; `operator-housekeeping.integration.test.ts`
 runs all of them against a real database, because SQL nobody has executed is SQL
 nobody has checked.
 
-**The books** (`operator.sh moneybird`, workplan 0111) are a step of their own:
+**The books** (`operator.sh moneybird`) are a step of their own:
 *8i. The books and payments*, below.
 
 **Verify** — the queue answers, and answers only for them:
@@ -1694,7 +1647,7 @@ curl -fsS -H "Authorization: Bearer <token>" http://localhost:3001/api/access-re
 ```
 
 Once appointed, signing in again lands the operator on **Access requests** in
-the web app (workplan 0093 T7), which is the same queue with buttons on it.
+the web app, which is the same queue with buttons on it.
 
 Granting is `POST /api/access-requests/<id>/grant`, which creates the
 organisation and invites the asker as its owner; they become a real member the
@@ -1720,7 +1673,7 @@ Two different jobs, in two different places:
 | You want to | Where | Why there |
 | --- | --- | --- |
 | See what a customer sees — connections, migrations, what is failing, this month's tier and the evidence for it | **Support**, in Ownpace | It is Ownpace's data. Every read is written to `support_read` against your name, and the screens say so |
-| Change who may act on an organisation, or their role | **Team**, and it belongs to that organisation's owner | Membership *is* authorization (0020 T1). An operator does not hold it, and the roles are theirs to set |
+| Change who may act on an organisation, or their role | **Team**, and it belongs to that organisation's owner | Membership *is* authorization. An operator does not hold it, and the roles are theirs to set |
 | Reset a password, clear a lost second factor, unlock an account locked by ten wrong passwords, disable an account | **The identity provider's console** | Ownpace stores no passwords and never calls the provider's user-management API — ADR-0042's second and third operative rules, and what keeps the issuer swappable |
 
 **Finding somebody.** Support opens with a search box: type part of an email
@@ -1740,7 +1693,7 @@ members, so the third row above is one click rather than a hunt. The link is
 `VITE_IDP_CONSOLE_USER_URL`, which `setup-zitadel.sh` writes; leave it empty and
 the addresses render as plain text rather than as links that go nowhere.
 
-**The log.** Support links to **The log** (workplan 0129): the audit log and the
+**The log.** Support links to **The log**: the audit log and the
 application's own errors and warnings, one timeline, newest first, a hundred
 rows a page. A row is metadata only: time, level, organisation, migration,
 event, error category, reference number and, on an audit row, who acted (the
@@ -1751,9 +1704,9 @@ an error showed them, type it into **Reference**: the row says when, where and
 what kind of error, and the error's text is in the API's or the worker's
 output, on the line carrying the same `[ref …]`. A page that could not read one
 of the API's answers records itself here too, as `web.answer_unreadable` under
-the reference it showed (workplan 0145; `incident-runbook.md`).
+the reference it showed (`incident-runbook.md`).
 
-**Who deleted it** (workplan 0137 T4). Four acts leave an audit row with the
+**Who deleted it.** Four acts leave an audit row with the
 member who did them: deleting a migration (`mapping.deleted`), deleting a
 connection (`connection.deleted`), replacing a connection's account
 (`connection.credentials_replaced`, written when the probe refused the new
@@ -1788,7 +1741,7 @@ SELECT at, actor, action, detail
 Every page of the log you open is recorded in `support_read` with its filters,
 under the organisation it was narrowed to.
 
-**The audit log in your own log store** (workplan 0129 T4). Every audit event
+**The audit log in your own log store**. Every audit event
 is also one JSON line on the output of the process that recorded it, in
 OpenTelemetry's log format: `Body` is the event, `ownpace.audit.actor` who
 acted, `ownpace.audit.id` its row in `audit_log`, and `Resource` says which
@@ -1816,7 +1769,7 @@ Four commands typed at a terminal print no line: the worker's cutover CLI,
 `operator.sh leave`, `operator.sh links` and `operator.sh close`. Their events
 are in `audit_log` like any other, and the download below serves them.
 
-**Lines your log store missed** (0129 T4). A collector that was down, or output
+**Lines your log store missed**. A collector that was down, or output
 rotated away before it was read, does not lose an event: it is still in
 `audit_log`, and an operator downloads it again. Under Support, **The log**
 ends with **Audit export**. Press **Download** with the field empty to fetch
@@ -1830,8 +1783,7 @@ next download starts. An event is served once it is five minutes old; the
 newest ones are the stream's.
 
 The page reads `GET /api/support/audit-export`, which answers an operator's
-sign-in and nothing else (the owner, 2026-09-24: "an operator-only route using
-your own session"): a log store cannot fetch it by itself. Its rows come
+sign-in and nothing else: a log store cannot fetch it by itself. Its rows come
 through `support_audit_export` (managed migration 0026), behind the same
 `platform_operator` check as every support view, so a signed-in person who is
 not an operator gets an empty page. `after` and `limit` (1 to 10,000 lines, a
@@ -1876,14 +1828,14 @@ that outlives one person. The API refuses to leave an organisation with none:
 the last active owner can be neither demoted nor removed. An invitation as
 owner, or a declined one, does not count as an owner, and the count and the
 change are one locked transaction, so two owners demoting each other at once
-cannot both succeed (workplan 0137 T3). Only an owner may make somebody an
+cannot both succeed. Only an owner may make somebody an
 owner, or demote or remove one. An **admin** can do everything an owner can
 except arm a deletion, close the account, make another owner, and demote or
 remove an owner.
 
 ### 8d. The status page *(comes up with the stack)*
 
-`gatus` starts with everything else in the `app` phase (workplan 0094). It
+`gatus` starts with everything else in the `app` phase. It
 listens on `STATUS_PORT` (default `3124`); put it behind the reverse proxy at
 `status.<your domain>` alongside the app.
 
@@ -1891,13 +1843,9 @@ listens on `STATUS_PORT` (default `3124`); put it behind the reverse proxy at
 curl -fsS "http://localhost:${STATUS_PORT:-3124}/health"
 ```
 
-**This section said "starts with everything else" from the day it was written,
-and it was not true.** `gatus` was named nowhere in `bootstrap-managed.sh`, so
-no bring-up had ever started it — the same thing that happened to `zitadel` for
-three weeks, and found the same way, by reading `docker ps` on the machine and
-noticing what was not in it. `scripts/every-service-somebody-starts.unit.test.ts`
-now compares `managed.yml`'s service list against the bring-up's, so a service
-defined and never started fails a test instead of quietly not existing.
+`scripts/every-service-somebody-starts.unit.test.ts` compares `managed.yml`'s
+service list against the bring-up's, so a service defined and never started
+fails a test instead of quietly not existing.
 
 **Read [`status-page.md`](./status-page.md) before you trust a green light.**
 This page runs INSIDE the stack it watches, so it cannot tell you the stack is
@@ -1909,14 +1857,14 @@ page says this itself, in the button beside its heading.
 What it watches is `deploy/compose/gatus.yaml` — in git, reviewed, and edited
 with a restart rather than through a web console.
 
-**Who it tells** (workplan 0142 T1). With `ALERT_ENABLED=true`, a row of the
+**Who it tells.** With `ALERT_ENABLED=true`, a row of the
 Ownpace group that stays red for three minutes sends the owner one e-mail, and a
 second when it is green again. It goes through the product's own relay, from
 `NOTIFY_FROM` to `NOTIFY_TO`, unless `ALERT_SMTP_HOST`, `ALERT_SMTP_PORT`,
 `ALERT_SMTP_USER`, `ALERT_SMTP_PASSWORD`, `ALERT_FROM` or `ALERT_TO` say
 otherwise. Live's `.env` carries `ALERT_ENABLED=true`: testers are on live, so
-`stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` without it
-(workplan 0142 T0; the owner, 2026-10-04). Leave it off on the OTA stack, whose
+`stand-up-live.sh` and `deploy-live.sh` refuse a live `.env` without it. Leave
+it off on the OTA stack, whose
 web app and API the nightly gate recreates on schedule. Apply a change with
 `docker compose -f deploy/compose/managed.yml up -d gatus`.
 `ALERT_SMTP_PORT` must be a number: with a word there the page does not load.
@@ -1935,8 +1883,8 @@ afternoon, so name them once:
 | What it proves | who this person is | what this account let us read |
 | Boundary | [ADR-0042](./adr/0042-who-holds-the-passwords.md): the issuer owns identity, `tenant_member` owns tenancy | [ADR-0041](./adr/0041-who-owns-the-oauth-client.md): the deployment owns its own client |
 
-The same two exist for Microsoft, and the confusion is the same shape (the
-owner, 2026-09-06): `IDP_MICROSOFT_CLIENT_ID` signs people in, `MICROSOFT_OAUTH_CLIENT_ID`
+The same two exist for Microsoft, and the confusion is the same shape:
+`IDP_MICROSOFT_CLIENT_ID` signs people in, `MICROSOFT_OAUTH_CLIENT_ID`
 reads their mailbox, and one Entra registration may serve both when both
 redirect URIs are on it — the sign-in one from the table in §8b, the consent one
 from the app's Redirect URIs page.
@@ -1958,7 +1906,7 @@ application**, and the deployment declares it:
 
 The split is Google's pricing of its own scopes, not a limit of this product.
 Calendar and CardDAV are *sensitive* — brand review, free — and Tasks'
-`tasks.readonly` is believed to be (workplan 0126; the console confirms it). Gmail's
+`tasks.readonly` is believed to be (the console confirms it). Gmail's
 `https://mail.google.com/` and `drive.readonly` are *restricted*, which needs
 an annual third-party security assessment
 ([`google-oauth-verification.md`](./google-oauth-verification.md)). The client
@@ -1991,8 +1939,8 @@ fact is how a screen comes to offer what the server then refuses.
 
 **The public site reads the same line, at its build.** Its Leaving Google page
 says how many Google sign-ins to expect, so the site's build reads this one
-setting from the same `.env` (the owner, 2026-10-18), and a site built before
-you changed it still says the old number: rebuild it as
+setting from the same `.env`, and a site built before you changed it still says
+the old number: rebuild it as
 [the public site's section](#the-public-site-is-a-separate-stack-and-it-must-be-told-which-one-it-is)
 shows. `deploy-live.sh` does that for live on every deploy.
 
@@ -2008,7 +1956,7 @@ GOOGLE_OAUTH_CLIENT_ID=…apps.googleusercontent.com
 GOOGLE_OAUTH_CLIENT_SECRET=…
 ```
 
-**The connection then stores neither** (owner decision, 2026-09-01). It keeps
+**The connection then stores neither.** It keeps
 only the refresh token — the per-account half, the one that says whose data
 this is — and the client is read at the moment a token is minted. Rotating the
 secret at Google is therefore this one edit and a restart, not an edit per
@@ -2067,8 +2015,7 @@ So at Google, once, for the client this deployment uses:
    picker rather than pasted in. A consent goes through without
    any of these; the face whose switch is off refuses its first request with
    `accessNotConfigured`, and *Test connection* shows Google's sentence naming
-   the API and the page (the owner met the CalDAV one on 2026-09-02, after a
-   clean consent).
+   the API and the page.
 2. **APIs & Services → OAuth consent screen.** Add
    `https://mail.google.com/` and `https://www.googleapis.com/auth/drive.readonly`
    to the scopes, beside the calendar, CardDAV and `tasks.readonly` ones.
@@ -2090,7 +2037,7 @@ So at Google, once, for the client this deployment uses:
    the loopback address instead does not help: the redirect is followed by the
    **person's own browser**, so it would send them to port 3001 of whatever
    machine they are sitting at. The consent route refuses this combination up
-   front now, naming the exact string to register — but the fix is here.
+   front, naming the exact string to register — but the fix is here.
 4. **Publishing status.** See the warning below before choosing.
 
 #### The seven days, which is the one that bites later
@@ -2117,7 +2064,7 @@ button — it is not a publishing status to run a customer on.
   face you ticked and Google did not grant shows as a measured no, with the
   remedy: asking is granting, so adding it means re-consenting.
 
-#### The deployment's own Dropbox app (2026-09-02)
+#### The deployment's own Dropbox app
 
 The same idea, for Dropbox: set the pair once and *Connect with Dropbox* appears
 on *Start a migration* and on the Accounts page, with the App key and secret
@@ -2156,7 +2103,7 @@ key names, and a Google connection is never given Dropbox's app. `GET
 which is what the account form reads, on *Start a migration* and the Accounts
 page, before it offers the button.
 
-#### The deployment's own Entra registration (workplan 0114)
+#### The deployment's own Entra registration
 
 The same idea a third time, for Microsoft — and with **one extra value nobody
 else has**, which is where this one goes wrong.
@@ -2290,16 +2237,16 @@ customer-facing version of all of this.
 
 ### 8f. Problem reports — by mail, or your own Zammad
 
-"Report a problem", beside Sign out, sends a customer's report to a person
-(workplan 0130): what they wrote, the page they were on (without any link
+"Report a problem", beside Sign out, sends a customer's report to a person:
+what they wrote, the page they were on (without any link
 secret), the reference and kind of error on their screen, and a screenshot if
 they add one: a PNG or JPEG of up to 5 MB, chosen as a file, dropped on the
 field or pasted anywhere on the page (Ctrl+V or Command+V), with a fold under
 the field that says how to make one on each kind of device. It goes one of two
 ways. While neither is set up, the link is not shown at all.
 
-**By mail, to your support mailbox** (the owner's choice for the alpha,
-2026-09-28). This needs nothing but the mail settings the API already sends
+**By mail, to your support mailbox** (live's way during the alpha). This needs
+nothing but the mail settings the API already sends
 with (`SMTP_*` and `NOTIFY_FROM`, see *Mail: caught, not delivered* below) and
 one address:
 
@@ -2313,11 +2260,11 @@ rules as every other mail the API sends: from `NOTIFY_FROM`, to
 what they wrote and then the facts, one per line: `Page`, `Reference` and
 `Category` when there is one (the error on their screen, which the log page
 finds), `Organisation`, `Build`, then what the API reads from its own records
-in the customer's organisation (workplan 0130 T6): `Role`, `Organisation
+in the customer's organisation: `Role`, `Organisation
 status`, the migration on the page with `Grant`, `Grant link`, a `Data type …`
 line for each data type and the two accounts' providers, `Reference match`,
 `Service hold`, `Scheduler` and `Browser`; then what the customer's browser
-said of itself (0130 T6, Part B), each line only when it was said in its own
+said of itself, each line only when it was said in its own
 shape: `Screen language`, `Time zone` (to turn their "at 14:02" into the log's
 UTC), `Window width`, `App build in the browser` (only when it is not the
 server's build: an old page in front of a newer server), `Failure line` (the
@@ -2347,7 +2294,7 @@ address: `NOTIFY_TO` is your own list, and every signed-in member can open the
 form. Only an address `REPORT_MAIL_TO` names is shown to them.
 
 **The relay is shared.** On live, the API's relay login is the one the identity
-provider sends its sign-in codes with (workplan 0133). So at most 50 report
+provider sends its sign-in codes with. So at most 50 report
 mails a day go out, for the signed-in form and **Report this link** together;
 past that, a report is refused with *try again tomorrow*, and the API's log
 says `report mails a day are used up`. A send the relay does not answer is
@@ -2409,7 +2356,7 @@ form says it cannot tell whether the report arrived: look in the support
 mailbox, or on the helpdesk, before you send it again.
 
 The same settings switch on **Report this link** on the grant and progress
-pages (workplan 0108 T8 (d)). Somebody who doubts a link they were sent tells
+pages. Somebody who doubts a link they were sent tells
 you, not the organisation that sent it. It is titled *Ownpace: a grant link was
 reported* (or *a progress link*). First the facts, one line each: the link's id
 (never the link), the organisation and migration with their ids, who issued the
@@ -2427,15 +2374,15 @@ together, and by mail the day's 50 above.
 
 ### 8g. The alpha note *(only on the stack testers use)*
 
-During the Alpha (workplan 0131 T1), every tester is told so: a
+During the Alpha, every tester is told so: a
 note at the top of every signed-in page and under the title of the sign-in and
 request pages, and a paragraph at the end of the access-granted mail and of
 the invitation mail, in English and Dutch. The note is the owner's welcome;
 each mail's paragraph opens with the same welcome and then says what the Alpha
 means. The note ends with two links, the
 Alpha conditions and the tester guide, in the reader's language; each mail's
-paragraph ends with the same two addresses, in the mail's language (0131 T1
-(b)). It is off unless you set it, and you set it only on the stack testers
+paragraph ends with the same two addresses, in the mail's language. It is off
+unless you set it, and you set it only on the stack testers
 use:
 
 ```
@@ -2456,18 +2403,14 @@ Open the sign-in page: the note is under the title. Empty, or any value but
 `alpha`, is no note and no paragraph. The appliance never shows it.
 
 The same setting decides whether the public site carries the tester guide
-(`/nl/alpha-handleiding.html` and `/alpha-guide.html`, workplan 0144 T1):
+(`/nl/alpha-handleiding.html` and `/alpha-guide.html`):
 `deploy-live.sh` hands live's value to every site build, so with
 `WWW_LIVE=true` the guide is published with the next deploy. Built by hand,
 the site takes the stack's own value from its `.env`, as the site section
-below shows; without it the note's and the mails' guide links are 404s. The
-Dutch address was `/nl/alfa-handleiding.html` until 2026-10-04, when the owner
-chose the spelling *Alpha* (#1439). It had never been published (live's
-`WWW_LIVE` is false, and the OTA site was built without `OWNPACE_STAGE`), so no
-redirect exists.
+below shows; without it the note's and the mails' guide links are 404s.
 
-**The same setting asks for acceptance** (workplan 0139 T3), **once no text is
-still a draft**. With `alpha`, every tester who signs in meets one screen before
+**The same setting asks for acceptance, once no text is still a draft.** With
+`alpha`, every tester who signs in meets one screen before
 any other page: the Alpha conditions, the privacy policy and the terms, each
 linked in their language with its version, and one button. The API records the
 version of each text they accepted, the language and the time, and until they
@@ -2482,23 +2425,18 @@ While any text is a draft (`LEGAL_DRAFTS` in
 `packages/managed/src/legal-versions.ts`), nobody is asked, nothing is refused
 and nothing is recorded, as with the setting off: a draft's number is the one
 its final text will carry, so an acceptance of the draft would be recorded as
-one of the final text. On 2026-09-29 the privacy policy 1.2 and the terms 1.3
-were drafts, so deploying that to live asked nobody; asking starts with the
-release that carries the owner's final texts (workplan 0139, 2026-10-05: the
-final-text pull request, merged after v0.2.0-alpha.1 and released in alpha.2).
-The API's start log says which (`[api] OWNPACE_STAGE=alpha, but … are drafts:
+one of the final text. The API's start log says which (`[api] OWNPACE_STAGE=alpha, but … are drafts:
 nobody is asked …`). The
 links point at the site `VITE_LEGAL_SITE_URL` names, so the texts must be
-served there before the first invitation (0139 T10). Who accepted what is under
+served there before the first invitation. Who accepted what is under
 *Acceptance* in the
 [operator runbook](./operator-runbook.md#acceptance-who-accepted-which-version).
 
 The second line is the alpha's other half: the days the erasure sentence says a
 copy may still hold a closing organisation's data. The alpha takes no backups,
 apart from one copy of live's databases made right before each update and kept
-until that update is proven, never longer than seven days (workplan 0134 open
-question 1 (b), and workplan 0139, the owner's answer rec-copies (a), both of
-2026-09-28), so live sets `7`. `deploy-live.sh` takes the copy
+until that update is proven, never longer than seven days, so live sets `7`.
+`deploy-live.sh` takes the copy
 (`copy-before-update.sh take`, *`ownpace-live`: a release tag, with
 `deploy-live.sh`*), the box checks delete it once the update is proven (an
 hour after the hold was last lifted at the earliest,
@@ -2522,13 +2460,13 @@ A stack that moves from `0` to a number of days later, because it starts
 keeping a copy, does so before the first invitation, or only while no
 organisation closed under `0` still waits for its purge: its erasure record
 keeps the `0` it was given, and a copy taken before that purge would hold its
-rows while the tester was told the erasure is complete (workplan 0134 T0).
+rows while the tester was told the erasure is complete.
 
 ### 8h. A person to write to *(only on the stack testers use)*
 
 A tester who is stuck before signing in cannot reach the report form (8f): it
-needs a session. So the stack testers use names an address a person reads
-(workplan 0144 T6 (a)). With it set, the sign-in, request, callback and
+needs a session. So the stack testers use names an address a person reads.
+With it set, the sign-in, request, callback and
 invitation pages carry one line, *"Stuck? Mail … and name the page you are on.
 Never send a password."*, in English and Dutch, with the address as a mail
 link. Signed in, the sidebar shows *Help: …* where *Report a problem* would be,
@@ -2552,17 +2490,18 @@ Open the sign-in page: the line is above the status link.
 
 Invoices go through two services, each with its keys in `.env`:
 
-- **Moneybird**, the books (workplan 0111): it numbers each invoice, keeps it
+- **Moneybird**, the books: it numbers each invoice, keeps it
   for the retention period, and, on live, e-mails it.
 - **Mollie**, the payments: a customer pays an invoice through it, and what a
-  credit note gives back goes back through it (slice 7d).
+  credit note gives back goes back through it.
 
 **None of this is needed for the alpha**, which invoices nobody. With none of
 these keys set, nothing is asked of either service and everything else runs.
 Live sets them before the alpha ends ([ending-the-alpha.md](./ending-the-alpha.md),
 *Before*, step 2), all but Mollie's key, which goes in with the switch that
 ends it (*The switch*, step 4): while live's stage is `alpha`, `deploy-live.sh`
-refuses its `.env` with `MOLLIE_API_KEY` set (workplan 0131 §3 T3). The OTA stack uses a Moneybird **sandbox** administration
+refuses its `.env` with `MOLLIE_API_KEY` set. The OTA stack uses a Moneybird
+**sandbox** administration
 and Mollie's **test mode**, and is where the proofs in step 6 run.
 
 Run each command below from the stack's own checkout: `./deploy/compose/.env`
@@ -2634,8 +2573,8 @@ and Mollie sends the customer back to `WEB_URL` after paying. With
 
 **4. The account Mollie pays out from.** Each payment through Mollie is booked
 on its invoice in Moneybird, under Mollie's payment id, so Moneybird reminds
-nobody who paid (slice 5f), and each refund is booked on its credit note,
-negative, under the refund's id (slice 7d). Both are booked on one financial
+nobody who paid, and each refund is booked on its credit note,
+negative, under the refund's id. Both are booked on one financial
 account in the administration, the one Mollie pays out from. A new
 administration holds none, and the check prints `Financial accounts (0)`
 until one is made in Moneybird. Once it is there, the check lists it with its
@@ -2668,8 +2607,7 @@ deletes an emptied key from the tasks.
 **6. The proofs, on the OTA stack only.** Each one refuses before asking
 Moneybird or Mollie anything when the checkout's `.env` says
 `NODE_ENV=production` or names no `NODE_ENV`, as live's does: live's books are
-real. All of them passed on the OTA stack on 2026-10-11 (workplan 0111,
-Status).
+real.
 
 ```bash
 ./deploy/compose/operator.sh moneybird proof
@@ -2721,9 +2659,9 @@ lists the books as not proven; give that stack the sandbox's keys, with
 switch: `OWNPACE_BILLING_FROM`, the first month invoiced, written `YYYY-MM`.
 Empty, nobody is invoiced. Set, the hourly `managed-month-invoices` task makes
 each organisation's invoice for a month in advance, as a draft: on its first
-day at the tier it starts on, and after a move up for the difference (workplan
-0111, slice 4), and the hourly `managed-invoice-push` has Moneybird number each
-draft (slice 5), books what Mollie was paid, makes each credit note's money
+day at the tier it starts on, and after a move up for the difference, and the
+hourly `managed-invoice-push` has Moneybird number each draft, books what
+Mollie was paid, makes each credit note's money
 back, and reads paid and late back from Moneybird. Neither runs while
 `OWNPACE_STAGE` is `alpha`. [ending-the-alpha.md](./ending-the-alpha.md) is
 when to set the month, and the
@@ -2744,7 +2682,7 @@ give back* until they are marked given back.
 #   ./deploy/compose/set-task-env.sh --forget-owner-names   # only after a deploy that went through
 ```
 
-**The system role first** (workplan 0138 T3 step 2). The Trigger.dev jobs that
+**The system role first.** The Trigger.dev jobs that
 span organisations (the sync tick, retention, the purge of closed
 organisations), the split jobs' list of organisations and every task's audit
 key connect as `ownpace_system`, which managed migration 0033 creates (the api
@@ -2754,8 +2692,8 @@ is uploaded, the phase asks Postgres what the role is now, and **refuses to go
 on** if it is a superuser, may create roles or databases, replicates, belongs to
 any role, has any role belonging to it, or lacks `BYPASSRLS` or `LOGIN`: every
 run of every task receives its URL. Then it sets `.env`'s `SYSTEM_DB_PASSWORD` (which
-`ensure-env-secrets.sh` generated in phase 2; on a `.env` from before this
-change, brought up from a later phase, as `deploy-live.sh` does with
+`ensure-env-secrets.sh` generated in phase 2; on an older `.env`, brought up
+from a later phase, as `deploy-live.sh` does with
 `--from data`, the phase runs `ensure-env-secrets.sh` itself, which fills in a
 missing secret and never replaces one) on the role, over the database's
 socket, without the value on a command line or in a log, clears every setting
@@ -2765,8 +2703,8 @@ place the password lives. See [The system role](#the-system-role) for a
 refusal and for changing the password. Running `set-task-env.sh` by hand,
 alone, asks Postgres the same question about the role and refuses on the same
 answers, but it does not set the password: it uploads whatever
-`SYSTEM_DB_PASSWORD` says whether or not the role has it yet, so on a stack
-brought up before this change, run the phase instead.
+`SYSTEM_DB_PASSWORD` says whether or not the role has it yet, so where the role
+may not hold it yet, run the phase instead.
 
 **Deploying to a non-production environment.** One Trigger instance can serve a test stack and a
 production stack side by side — a project has several environments, and each has its own secret
@@ -2776,9 +2714,8 @@ key, its own deployed task version and its own runs. To move a stack onto one of
    `deploy/compose/.env` as `TRIGGER_SECRET_KEY`. This is the key the **api** enqueues with.
 2. **Set `TRIGGER_ENV`** in the same file to that environment's name (`prod` is the default).
    **One name does all three** — the deploy target, the task variables, and the key
-   `trigger-credentials.sh` reads. Until 2026-08-31 the other two read `TRIGGER_ENV_SLUG`,
-   so this step moved the deploy alone and this list was the way to find that out; the old
-   name is still honoured, once, out loud.
+   `trigger-credentials.sh` reads. The old name, `TRIGGER_ENV_SLUG`, is still honoured, once,
+   out loud.
 3. **Restart the api** so it picks up the new key:
    `docker compose -f deploy/compose/managed.yml up -d api`
 4. **Re-upload the task environment variables**, which are stored per environment and do not
@@ -2786,9 +2723,9 @@ key, its own deployed task version and its own runs. To move a stack onto one of
    first, as the bring-up does, and uploads nothing on a wrong answer)
 5. **Re-deploy the tasks**: `./deploy/compose/deploy-tasks.sh`
 6. **Forget the owner's names there**, once the deploy has gone through:
-   `./deploy/compose/set-task-env.sh --forget-owner-names`. An environment that was used before
-   workplan 0138 T3 step 2 may still hold `DATABASE_URL`; this deletes it, and fails when the
-   list still holds it. `./deploy/compose/bootstrap-managed.sh --only tasks` does steps 4 to 6.
+   `./deploy/compose/set-task-env.sh --forget-owner-names`. An environment an older version
+   used may still hold `DATABASE_URL`; this deletes it, and fails when the list still holds
+   it. `./deploy/compose/bootstrap-managed.sh --only tasks` does steps 4 to 6.
 
 Steps 1 and 2 must name the **same** environment. If they disagree, nothing errors — the deploy
 succeeds, the enqueue succeeds, and the runs simply never meet a deployed task, leaving a queue
@@ -2811,19 +2748,19 @@ uploads are **in-network** (`pgbouncer:6432` by default), because runners
 join the compose network — `localhost` there would point a task at itself.
 The eight per-tenant tasks (a sync pass and the rest a migration asks for)
 read and write tenant data through `APP_DATABASE_URL`, as `app_user`, and a run
-without it refuses to start, naming it (workplan 0138 T1). So do the digest,
-the drift detector and group discovery, which read each organisation there too
-and read only their list of organisations with `SYSTEM_DATABASE_URL` (workplan
-0138 T2); the other three scheduled jobs connect with `SYSTEM_DATABASE_URL`, and
-every task that opens `openTaskPools` reads its audit key with it (T3 step 2).
+without it refuses to start, naming it. So do the digest, the drift detector
+and group discovery, which read each organisation there too and read only their
+list of organisations with `SYSTEM_DATABASE_URL`; the other three scheduled
+jobs connect with `SYSTEM_DATABASE_URL`, and every task that opens
+`openTaskPools` reads its audit key with it.
 It also uploads `OWNPACE_REACHABLE_HOSTS`, and deletes it from the plane when
 `.env` leaves it empty, so the tasks admit exactly the names the API does; and
 `OWNPACE_STAGE` the same way, so the sync pass holds nothing at an
 organisation's data ceiling during the alpha, when the API takes no yes, and
-holds again from the first run after the alpha ends (workplan 0109 T6).
-**It uploads nothing of the database owner's.** The two names the owner went
-up under, `DATABASE_URL` (until 0138 T3 step 2) and `DIRECT_DATABASE_URL`
-(until step 1), are deleted by its forget run, `set-task-env.sh
+holds again from the first run after the alpha ends.
+**It uploads nothing of the database owner's.** The two names an older version
+uploaded the owner under, `DATABASE_URL` and `DIRECT_DATABASE_URL`, are deleted
+by its forget run, `set-task-env.sh
 --forget-owner-names`, which the phase makes only after `deploy-tasks.sh` has
 gone through, so a deploy that fails leaves the tasks still deployed the URL
 they read; the list that run prints (`owner names forgotten — env now holds:`)
@@ -2849,8 +2786,7 @@ exit.
 
 Only runs with `--with-demo`: it drives the demo tenants. A green CI says
 nothing about whether an enqueue becomes a runner container **on this machine**
-— that lesson cost a whole bring-up session, and this is the step that answers
-it.
+— this is the step that answers it.
 
 > Runner debug logs print the **full task environment** — `SYSTEM_DATABASE_URL`,
 > `APP_DATABASE_URL`, `SECRET_ENCRYPTION_KEY`, the `tr_prod_` key. The smoke's evidence file is
@@ -2877,13 +2813,13 @@ docker compose -f deploy/compose/www.yml up -d
 
 **The test site takes its stack's own `OWNPACE_STAGE`.** With `alpha` in that
 `.env`, the site carries the tester guide, which the app on the same stack
-links from its note and both mails (workplan 0131 T1 (b), 0144 T1). Empty is no
+links from its note and both mails. Empty is no
 guide, and no links to one. Live's site gets live's own value from
 `deploy-live.sh`, below.
 
 **And its own `GOOGLE_ACCOUNT_SCOPE_CLASS`.** With `restricted` in that `.env`,
 the app asks for one Google sign-in, and the site's Leaving Google page says
-one sign-in instead of three (the owner, 2026-10-18). Anything else leaves the
+one sign-in instead of three. Anything else leaves the
 page as it is. Rebuild the site when the value changes: the API follows it on a
 restart, the site on its next build.
 
@@ -2894,9 +2830,8 @@ project. A copy from another checkout is brought up with
 on its `ps`, `logs` and `down`, and has a `WWW_PORT` and a `WWW_BIND` of its
 own in that checkout's `.env`. Not `COMPOSE_PROJECT_NAME`: `www.yml` reads the
 same `.env` as `managed.yml`, where that key names the stack, so a bare command
-in live's checkout would put the site in live's own project (workplan 0139
-T10). Nothing refuses that any more: it used to fail on the OTA site's fixed
-container name, and now succeeds once live's `.env` has its own `WWW_PORT`.
+in live's checkout would put the site in live's own project. Nothing refuses
+that: it succeeds once live's `.env` has its own `WWW_PORT`.
 
 `site/dist` is bind-mounted read-only, so a rebuild is live immediately and no
 restart is needed — because the build **empties** `dist` rather than replacing
@@ -2909,25 +2844,22 @@ the mount (for a second copy, with its own `-p`).
 
 `--public` and `OWNPACE_APP_URL` must agree, and the build refuses if they do
 not: a public build must point at the production app, and a test build must
-not. A `--public` build with unfilled legal placeholders is refused too — the
-output used to claim "every placeholder must be filled" and then publish
-anyway. So is one while a legal page it renders says on its *Version* line
-that it is a draft or not yet published, naming the file (workplan 0139 T2).
-Since the owner's final-text pull request (2026-10-05) none of them does, and
-`--public --check` prints `0 legal page(s) marked draft` and exits 0; until then
-all four did. `--public --check` refuses a draft as well: it prints how many
+not. A `--public` build with unfilled legal placeholders is refused too, and
+so is one while a legal page it renders says on its *Version* line that it is a
+draft or not yet published, naming the file. None of them does, so
+`--public --check` prints `0 legal page(s) marked draft` and exits 0.
+`--public --check` refuses a draft as well: it prints how many
 legal pages are marked draft and exits 1, so a check run before a deploy stops
 what the build would stop. Its last line is still the placeholder count.
 
 **`OWNPACE_APP_URL` has no default and the build refuses without it.** It is
 where every *Request access* button points, and the environment is a domain
-level (workplan 0091). It used to default to production, on the argument that a
-forgotten variable should land on the safe side. On 2026-08-24 the OTA site was
-rebuilt without it, and every button on `www.ota.ownpace.eu` pointed at
-`https://app.ownpace.eu/request-access` — a click on the *test* site filing a
-real access request against the real tenant. The build that forgets is by
-definition the one whose value is not the default, so a default can only ever
-be wrong silently. Neither side is the safe side; being told is.
+level. With production as a default, a test site built without it would point
+every button at `https://app.ownpace.eu/request-access`, and a click on the
+*test* site would file a real access request against the real tenant. The build
+that forgets is by definition the one whose value is not the default, so a
+default can only ever be wrong silently. Neither side is the safe side; being
+told is.
 
 If you are ever unsure which environment a served `dist` was built for, read the
 host out of a *Request access* link in the page source.
@@ -2936,11 +2868,11 @@ host out of a *Request access* link in the page source.
 
 The commands above are the OTA site's (`www.ota.ownpace.eu`, the container
 `ownpace-www`, from `~/ownpace-managed`), and they stay as they are. During the
-alpha the reference machine also serves the production site, `www.ownpace.eu`
-(workplan 0139 T0 fact 6). **That copy is served from live's own checkout, at
+alpha the reference machine also serves the production site, `www.ownpace.eu`.
+**That copy is served from live's own checkout, at
 the release tag, and once `WWW_LIVE=true` switches it on, `deploy-live.sh`
 builds and starts it with every deploy of live.** The texts a tester accepts
-are then the release's (0139 T3), and the footer names that release. A fix to a
+are then the release's, and the footer names that release. A fix to a
 text rides a new tag and a deploy, with the hold, like any other change.
 
 **Only `deploy-live.sh` builds it, and every `docker compose` command for it
@@ -2964,22 +2896,20 @@ on it too.
 **Keep `WWW_LIVE=false` until the legal texts are final.** With it `true`,
 every deploy, and every dry run, test-builds the tag's site with `--public`
 before anything moves, and a site that build refuses stops the whole deploy,
-the app's release with it. Today's texts are refused: they still have unfilled
-placeholders. And every legal text's version line says it is a draft (*draft
-for legal review*, *concept voor juridische toetsing*): a tag whose
-`site/build.mjs` has 0139 T2's draft check refuses that with `--public` by
-itself, and its `--public --check` exits 1 on it too. So with `WWW_LIVE=true`
-and today's texts, `deploy-live.sh` refuses before the checkout, and live does
-not move at all. Switch it on with the first tag whose texts are final.
+the app's release with it. It refuses a text with an unfilled placeholder, or
+whose version line says it is a draft (*draft for legal review*, *concept voor
+juridische toetsing*); `--public --check` counts the placeholders and exits 1
+on a draft. So with
+`WWW_LIVE=true` and such texts, `deploy-live.sh` refuses before the checkout,
+and live does not move at all. Switch it on with the first tag whose texts are
+final.
 
 **Switching it on,** once the texts are final and live stands. It publishes an
 **indexable** site (`--public`: no `noindex`, and `robots.txt` says
-`Allow: /`). That follows the owner's answer to 0139 open question 1, (a), on
-2026-09-28: *"public site: yes, search engine index."* So 0139 T10 (c)'s
-`--no-drafts` is not needed.
+`Allow: /`).
 
 1. The tag. Cut it from a `main` whose `www.yml` names the container after its
-   project (0139 T10 (b)) and whose legal texts are final: no unfilled
+   project and whose legal texts are final: no unfilled
    placeholder, and no version line that says draft. From any checkout, this
    writes nothing, must exit 0, and its last line must say
    `0 unfilled placeholder(s)`:
@@ -3020,7 +2950,7 @@ not move at all. Switch it on with the first tag whose texts are final.
    builds the site in the checkout
    (`OWNPACE_APP_URL=https://app.ownpace.eu OWNPACE_STAGE=<live's> GOOGLE_ACCOUNT_SCOPE_CLASS=<live's> GIT_SHA=<commit> node site/build.mjs --public`,
    where both settings are the values in live's `.env`, never the shell's; with
-   `alpha` the site carries the tester guide, workplan 0144 T1, and with
+   `alpha` the site carries the tester guide, and with
    `restricted` Leaving Google says one Google sign-in),
    brings it up with
    `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env up -d --force-recreate`
@@ -3032,7 +2962,8 @@ not move at all. Switch it on with the first tag whose texts are final.
    site that fails any of that is a deploy that did not take** (exit 3, the
    hold stays on), as any other check: an app on a new release beside the old
    release's texts is not a deploy that took.
-4. Route `www.ownpace.eu` to live's `WWW_PORT` in NetBird, as in 0132 T1e.
+4. Route `www.ownpace.eu` to live's `WWW_PORT` in NetBird, as for live's other
+   names (*Before the script: the owner's steps*, step 3).
    Then dispatch *Exposure probe* with `site_name` set to `required`. Until
    then leave it at `report`, its default: the name points at another host
    before the route, and the probe tries no port on an address of it that is
@@ -3043,12 +2974,6 @@ not move at all. Switch it on with the first tag whose texts are final.
    (`.github/workflows/clock-watch.yml`) reads the name's certificate and its
    `security.txt` `Expires` too; it leaves both alone until then, for the same
    reason.
-
-`deploy-live.sh` runs the copy the checkout had before it moved, so the site
-step runs from the first deploy started from a checkout that already has it. If
-live runs a tag from before this step, deploy the new tag, then run
-`./deploy/compose/deploy-live.sh <that same tag>` once more, the hold still on:
-the checkout is already there, and this time the site comes up.
 
 **Looking at it,** from `~/ownpace-live`, each `docker compose` command with
 the `-p` (`www-live.sh` builds the name itself):
@@ -3074,13 +2999,12 @@ live's copy for a while: switch it off as above, take it down with
 `docker compose -p ownpace-live-www -f deploy/compose/www.yml --env-file deploy/compose/.env down`,
 and delete its visit reports with it,
 `rm -rf ~/.persistent/ownpace-live/site-visits`. Privacy §9 keeps the visit
-totals *"as long as we run this website"* (privacy 1.2, workplan 0139), and
+totals *"as long as we run this website"* (privacy 1.2), and
 nothing else ends them. With `WWW_LIVE` no longer true, the duty `visits` reads
 nothing from then on.
 
-**Counting its visits** (privacy §4.5; the owner, 2026-10-05: *"go with GoAccess
-on the logs and the sentence. id and status we skip for now, no netbird api
-tokens..."*). The visits to `www.ownpace.eu` are counted from the site's own
+**Counting its visits** (privacy §4.5). The visits to `www.ownpace.eu` are
+counted from the site's own
 access log, by GoAccess, as totals that identify nobody. Nothing is added to the
 pages, nothing leaves the machine, `app.`, `id.` and `status.ownpace.eu` are not
 counted, and NetBird's own log is not read (no NetBird API token).
@@ -3096,9 +3020,8 @@ report, from `~/ownpace-live`:
   checkout's `site/legal/privacy.md` or `privacy.nl.md`, the texts the site
   publishes, lack privacy 1.2's §4.5 sentence (*"From these logs we also count
   visits to this website ..."*) or §5's purpose (*"and counting visits in
-  totals"*), outside a comment. Live's duty runs from the tag live serves, so
-  the counting starts with the first deploy of a tag that carries privacy 1.2,
-  and not before; until then the duty `visits` fails, naming the file.
+  totals"*), outside a comment, and the duty `visits` then fails, naming the
+  file.
 - **What it reads:** the output of `ownpace-live-www`'s container, where Docker
   keeps it, the whole of it on every run, so running it twice changes nothing
   (with the `local` log driver, which rotates by size, a report covers what the
@@ -3166,9 +3089,9 @@ scripts, styles and map are inside the file. The run's own lines (how many
 requests came through the public name, and from how many addresses) are in the
 journal with the other duties' (`journalctl --user -u ownpace-box-duties`).
 
-**The image** (#1675). Upstream's `allinurl/goaccess:1.12`, and `latest` with
-it, is built on Alpine 3.20, which Alpine no longer supports, and no upstream
-release has moved off it (2026-10-25). So the script builds GoAccess itself,
+**The image.** Upstream's `allinurl/goaccess:1.12`, and `latest` with it, is
+built on Alpine 3.20, which Alpine no longer supports, and no upstream release
+had moved off it by 2026-10-25. So the script builds GoAccess itself,
 from `deploy/compose/goaccess/Dockerfile`: upstream's own Dockerfile at the tag
 `v1.12`, on a supported Alpine (by tag and digest, its `FROM` lines), with the
 source fetched by the commit the tag names and only the libraries GoAccess
@@ -3193,11 +3116,10 @@ The second line should print `GoAccess - 1.12.`. The image built here is
 scanned every week (*Nothing phones home* says what it sends: nothing).
 
 **The first run on the machine is Docker's own test.** Upstream's image's
-GoAccess (2026-10-06), and on 2026-10-25 GoAccess built from the commit the
-Dockerfile fetches with its own commands (on glibc, not the image's musl), were
-run through the script as an unprivileged user with no network, which is how
-the refusal of `-o` was found; the image the Dockerfile builds, and Docker's own
-`--read-only`, `--network none` and `--cap-drop ALL`, were not.
+GoAccess, and GoAccess built from the commit the Dockerfile fetches with its
+own commands (on glibc, not the image's musl), were run through the script as
+an unprivileged user with no network; the image the Dockerfile builds, and
+Docker's own `--read-only`, `--network none` and `--cap-drop ALL`, were not.
 
 ## What cannot work on a mesh-only host
 
@@ -3227,17 +3149,13 @@ None of this is a defect to fix on the box. It is what a mesh is for. When
 one of these has to work, the piece that needs it moves to a host with a
 public address, and the mesh keeps everything that never needed one.
 
-### The OTA names on the mesh only (workplan 0132, open question 7)
+### The OTA names on the mesh only
 
-**Not now (the owner, later on 2026-11-08):** *"11: c, leave public for now."*
-The OTA names keep answering from the internet until after the first
-invitation; the steps below wait until then, and the probe is dispatched with
-`ota_names` left at `report`.
-
-**Decided 2026-11-08:** once testers are on the production names, which is
-from the first invitation, `app.ota.ownpace.eu`, `id.ota.ownpace.eu` and the
-test site's `www.ota.ownpace.eu` answer on the mesh only, not from the
-internet. The outside probe's pass condition for it is built:
+**From the first invitation, not before.** Once testers are on the production
+names, which is from the first invitation, `app.ota.ownpace.eu`,
+`id.ota.ownpace.eu` and the test site's `www.ota.ownpace.eu` answer on the mesh
+only, not from the internet. Until then they keep answering from the internet,
+and the steps below wait. The outside probe's pass condition for it is built:
 `gh workflow run exposure-probe.yml -f ota_names=mesh-only` fails while any of
 the three answers on 443 from a GitHub-hosted runner, whatever answers, and
 passes a name that no longer resolves. Until the step below is done, dispatch
@@ -3246,8 +3164,8 @@ and fails on none of it.
 
 **NetBird's dashboard has no switch for it, as the names are served today.**
 All of the names, production and OTA, reach the machine through one front,
-NetBird's hosted proxy (the probe's runs of 2026-10-29 found the same two
-addresses behind every name). NetBird-Only Access, the setting that serves a
+NetBird's hosted proxy (the probe's runs found the same two addresses behind
+every name). NetBird-Only Access, the setting that serves a
 name to the peers of the mesh alone, is offered only on a proxy cluster with
 the `Private` capability, and NetBird Cloud's shared clusters do not have it
 (NetBird's documentation, *Reverse Proxy Authentication and Access
@@ -3261,8 +3179,7 @@ the `zitadel` service in `managed.yml`), and
 status page ask that name or `app.ota.ownpace.eu` too. Whatever takes the
 names off the internet has to leave the machine reaching them.
 
-**What it takes, two ways.** Each is the owner's, and workplan 0132's open
-question 7 records which is chosen:
+**What it takes, two ways**, each the owner's to do:
 
 1. **A NetBird proxy of the owner's own, on the mesh.** In NetBird's dashboard,
    *Reverse Proxy*, *Clusters*: a cluster of the account's own (the *Bring Your
@@ -3294,14 +3211,14 @@ answer over TLS, with NetBird's 403. The probe's `mesh-only` does not pass it,
 and no mode of the probe is built for it.
 
 **Either way, Google's test client keeps working for you** on the mesh,
-because Google sends your browser to the callback and never fetches it
-(workplan 0091 T5). What a third party's server would have to reach on the
+because Google sends your browser to the callback and never fetches it. What a
+third party's server would have to reach on the
 OTA names stops, as the section above says.
 
 ## How the containers run
 
-Since 2026-11-03 (workplan 0119; the owner: *"more hardened"*) every service
-of `managed.yml`, the site's `www.yml` and the appliance's `compose.yml` sets
+Every service of `managed.yml`, the site's `www.yml` and the appliance's
+`compose.yml` sets
 `no-new-privileges`: nothing in the container gains a privilege by running a
 setuid binary or one with a file capability. No service here needs that. Those
 that change user do it as root with a system call (ClickHouse's `clickhouse
@@ -3372,24 +3289,23 @@ deploy/compose/managed.yml exec --privileged -u 0 <service> …`, for that one
 command.
 
 **When it reaches a stack.** A changed service is recreated at its next `up`:
-the OTA stack at the next E2E (managed) or gate, live once, at the deploy of
-the release that carries it (alpha.4), inside `deploy-live.sh`'s hold and
-drain. Live runs alpha.3's file until then. Task runs are Trigger.dev's
+the OTA stack at the next E2E (managed) or gate, live at the deploy of the
+release that carries it, inside `deploy-live.sh`'s hold and drain. Task runs are Trigger.dev's
 containers, made by the supervisor through the socket proxy with Trigger.dev's
 own settings, so nothing here reaches them.
 
 **Not set, and why.** No `mem_limit` and no `pids_limit`: there is no
 measurement of any service's peak, ClickHouse and Node size their threads and
 heap from the machine, and a limit set without one turns a busy hour into a
-killed database. The `dev.yml` stack, which only a developer runs, is left as
-it was.
+killed database. The `dev.yml` stack, which only a developer runs, sets none
+of this.
 
 ## Nothing phones home
 
-The privacy policy names every party that receives anything (§7, §8), and for
-the question *ops-telemetry* the owner chose, on 2026-09-28, *"Switch it off
-everywhere"* (workplan 0139). Six images in `managed.yml` reported to, or
-asked, their makers by default until then. Five are switched off here; the
+The privacy policy names every party that receives anything (§7, §8), so what
+an image sends its makers is switched off everywhere. Six images in
+`managed.yml` report to, or ask, their makers by default. Five are switched off
+here; the
 demo's Nextcloud is not yet (*What is left on, and where*, below). Each switch
 is written in the compose file itself, never read from `.env`, so it is the
 same on the OTA stack and on live, and no machine's `.env` can empty it. Live
@@ -3401,20 +3317,19 @@ refuses a `COMPOSE_FILE` in the shell.
 | `trigger-api` | PostHog from the server at every sign-in (the user's id, email and name) and when a user, an organisation or a project is created; and PostHog in the dashboard's browser, which identifies the signed-in user by id and email, under Trigger.dev's own project key | `TRIGGER_TELEMETRY_DISABLED: "1"` stops the server's half only. `POSTHOG_PROJECT_KEY: ""` stops the browser's: the key defaults to Trigger.dev's, and the dashboard starts PostHog whenever it is not empty | `apps/webapp/app/services/telemetry.server.ts`, `services/postAuth.server.ts`, `app/root.tsx`, `app/hooks/usePostHog.ts`, `app/env.server.ts` at v4.5.16, and again at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5 |
 | `trigger-api`, its entrypoint | Prisma's checkpoint to `checkpoint.prisma.io` at every start, from the `prisma migrate deploy` the entrypoint runs: the version, OS, architecture, Node, CI, the command, hashes of the project's and the CLI's paths, the schema's providers and a stored random signature | `CHECKPOINT_DISABLE: "1"`, the only thing the CLI and its client check | `docker/scripts/entrypoint.sh` at v4.5.16, v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5; `packages/cli/src/CLI.ts` and `utils/checkpoint.ts` at prisma 6.14.0; checkpoint-client 1.1.33 |
 | `zitadel` | A "service ping" once a day to `zitadel.com`: the version, each instance's id, creation date and domains, and its count of users, organisations and projects | `ZITADEL_SERVICEPING_ENABLED: "false"`; `ZITADEL_TELEMETRY_ENABLED: "false"` too, which ships off | `cmd/defaults.yaml` at v4.19.2 (*"It's enabled by default"*) |
-| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win. Since 2026-11-01 its one network, `trigger-event-store`, is `internal` too, so a report would have no route out | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable`; for 26.8.36.3, which had no public tag then, the `config.xml` in the image itself (byte for byte `v26.8.34.13-lts`'s) and those two files at `v26.8.34.13-lts` (2026-11-02; read the same way for 26.3.62.3, option 1, on 2026-11-01); for 26.8.37.168, the `config.xml` in both platforms' images, byte for byte `v26.8.37.168-lts`'s, and those two files the same blobs at that tag (2026-11-14) |
-| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z` and `RELEASE.2026-11-12T01-15-23Z`, where none of the four changed, Chainguard's build since workplan 0146 T7 (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
+| `clickhouse` | A report on every crash and logical error to `crash.clickhouse.com` | `clickhouse-no-crash-reports.xml`, mounted into `config.d`, sets both off; the `config.xml` the image ships sets them on. It is the only file ClickHouse merges that speaks of crash reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d` and `conf.d`, in sorted order, so a later one would win. Its one network, `trigger-event-store`, is `internal` too, so a report would have no route out | `programs/server/config.xml`, `src/Daemon/CrashWriter.cpp`, `src/Common/Config/ConfigProcessor.cpp` at `v26.2.19.43-stable`; for 26.8.36.3, which had no public tag then, the `config.xml` in the image itself (byte for byte `v26.8.34.13-lts`'s) and those two files at `v26.8.34.13-lts` (2026-11-02; read the same way for 26.3.62.3 on 2026-11-01); for 26.8.37.168, the `config.xml` in both platforms' images, byte for byte `v26.8.37.168-lts`'s, and those two files the same blobs at that tag (2026-11-14) |
+| `minio` | A release check to `dl.min.io` at every start, its User-Agent carrying the OS, architecture, version and CPU | `MINIO_UPDATE: "off"`; `MINIO_CALLHOME_ENABLE: "off"` too, which ships off | `cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go`, `internal/config/callhome/callhome.go` at `chainguard-forks/minio`'s `RELEASE.2026-09-22T19-25-18Z`, and again at `RELEASE.2026-10-23T20-06-51Z` and `RELEASE.2026-11-12T01-15-23Z`, where none of the four changed, Chainguard's build (first read at `RELEASE.2025-05-24T17-08-30Z`, the Bitnami image it replaced) |
 | `mailpit` (the test stack's catcher; live runs none) | A release check to GitHub whenever its page asks for the server's info | `MP_DISABLE_VERSION_CHECK: "true"` | `internal/stats/stats.go`, `cmd/root.go` at v1.31.6, and again at v1.32.0, v1.33.0 and v1.33.1 |
-| `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`, and again at `v35.0.2` when the demo moved to 35 (workplan 0119 T5); `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` and `stable35` |
+| `nextcloud` (the demo's DAV target, on the OTA stack every night; and `dev.yml`'s) | Its version, PHP version and install time to `updates.nextcloud.com`, the app store at `apps.nextcloud.com`, the announcements feed at `pushfeed.nextcloud.com`, and a connectivity check to four public sites | **None yet.** `updatechecker`, `appstoreenabled` and `has_internet_connection` stay on, Nextcloud's defaults; see *What is left on, and where*, below | `config/config.sample.php` and `apps/settings/lib/SetupChecks/InternetConnectivity.php` at `stable34`, and again at `v35.0.2`; `lib/Cron/Crawler.php` in nextcloud_announcements at `stable34` and `stable35` |
 
-The entrypoint's other children do not call out: pnpm 10.34.9 (the builds'
-since 2026-11-02, in place of upstream's 10.33.2, which did the same) checks
-for its own update only on `install` and `add`, goose has no network use of its
-own (v3.27.1; v3.29.0, the build's from 2026-11-03 in place of upstream's,
-whose new code is other drivers' authentication; and v3.30.1, the build's
-since 2026-11-13, whose command is v3.29.0's byte for byte), and the dashboard
-agent's migration is plain drizzle-orm. Nor does
+The entrypoint's other children do not call out: pnpm 10.34.9 (the builds', in
+place of upstream's 10.33.2, which did the same) checks for its own update only
+on `install` and `add`, goose has no network use of its own (v3.27.1; v3.29.0,
+whose new code is other drivers' authentication; and v3.30.1, the build's,
+whose command is v3.29.0's byte for byte), and the dashboard agent's migration
+is plain drizzle-orm. Nor does
 corepack, which starts every `pnpm`: `trigger-api` and `trigger-supervisor` set
-`COREPACK_ENABLE_NETWORK: "0"` (workplan 0146 T16), because their builds delete
+`COREPACK_ENABLE_NETWORK: "0"`, because their builds delete
 the copy of pnpm the other user would run, and tar from the copy theirs runs
 (*Upgrading Trigger.dev*, below).
 Without a copy for the user that runs, corepack would download pnpm from the
@@ -3433,7 +3348,7 @@ preloads the same CA filter. v4.8.3 changes `app/root.tsx` again, to hand the
 page an admin origin from `ADDITIONAL_LOGIN_ORIGINS` when that is set (it is
 not here) and `APP_ORIGIN` otherwise, and `env.server.ts`, whose new keys name
 no third party; the entrypoint, the Dockerfile and the other three files are
-v4.8.1's. v4.8.5, read with v4.8.4 on 2026-11-13, runs both images on Node
+v4.8.1's. v4.8.5, read with v4.8.4, runs both images on Node
 24.22.3, Node's November security release. Its `telemetry.server.ts`,
 `root.tsx` and entrypoint are v4.8.3's. `postAuth.server.ts` refuses a disabled
 account's sign-in, then identifies as before, through the client the opt-out
@@ -3457,22 +3372,21 @@ the probes `gatus.yaml` lists), `minio-init` (it runs `mc mb`, and mc asks
 and appliance.
 
 **What is left on, and where.** The demo's Nextcloud, in `managed.yml`, and
-the development one in `dev.yml`: their three settings are **not** switched off
-in this change. A hook that set them false before Apache started, at every
-start, was tried on 2026-09-29, and with it the demo's first CalDAV write
-answered 500 in E2E (managed) #215, the branch's run; #216 on main, which
-recreated the same container without the hook, passed. What broke the write,
-one of the three settings or the hook's run itself, is not known: the values
-the hook wrote in #215 are most likely still in `config.php` on the demo's
-volume, which the gate keeps between runs, and nothing here takes them out or
-has looked. This Nextcloud holds fixtures, never a tester's data, and it is
-not on live: the bring-up starts it only with `--with-demo`, which both live
-scripts refuse. A follow-up switches the three off with a check that the
-demo's DAV writes still work. Not by a `*.config.php` mounted into `config/`:
-that makes the directory non-empty before the first install, and the image's
-entrypoint then skips copying its own config files, `smtp.config.php` among
-them, which is what points the demo's Nextcloud at the catcher (0103). And as
-booleans: `--value=false` alone stores the string `"false"`, which PHP reads as
+the development one in `dev.yml`: their three settings are **not** switched
+off. A hook that set them false before Apache started, at every start, made the
+demo's first CalDAV write answer 500 in E2E (managed); the same container,
+recreated without the hook, passed. What broke the write, one of the three
+settings or the hook's run itself, is not known: the values the hook wrote are
+most likely still in `config.php` on the demo's volume, which the gate keeps
+between runs, and nothing here takes them out or has looked. This Nextcloud
+holds fixtures, never a tester's data, and it is not on live: the bring-up
+starts it only with `--with-demo`, which both live scripts refuse. Switching
+the three off needs a check that the demo's DAV writes still work. Not by a
+`*.config.php` mounted into `config/`: that makes the directory non-empty
+before the first install, and the image's entrypoint then skips copying its own
+config files, `smtp.config.php` among them, which is what points the demo's
+Nextcloud at the catcher. And as booleans: `--value=false` alone stores the
+string `"false"`, which PHP reads as
 true.
 
 The demo's Stalwart (v0.16.27), which
@@ -3487,29 +3401,26 @@ and from `cdn.jsdelivr.net` on one an older version made, which keeps the
 addresses it was given (the OTA demo's, made at v0.16.10)
 (`crates/common/src/manager/defaults.rs` and `application.rs`, and
 `SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at v0.16.27;
-the stored addresses read back with `stalwart-cli snapshot` on 2026-10-25).
+the stored addresses read back with `stalwart-cli snapshot`).
 They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on
-the machine (`docs/stalwart-integration-fix.md`). **Left on, as the owner
-preferred on 2026-09-29** (workplan 0139). Asked whether to switch them off or
-keep them, the owner wrote *"Do we need it. And where? Perhaps not in live but
-yes in OTA?"* The Stalwart itself is needed: it is the demo's mail source and
-target, which the nightly gate migrates between. Its three downloads are not:
-nothing here uses its WebUI, spam-filter rules or ASN database (accounts are
-provisioned with `stalwart-cli`, and no SMTP port is published). Where: the
-places above, which hold fixtures only, and not live. The scripted bring-up
+the machine (`docs/stalwart-integration-fix.md`). **Left on.** The Stalwart
+itself is needed: it is the demo's mail source and target, which the nightly
+gate migrates between. Its three downloads are not: nothing here uses its
+WebUI, spam-filter rules or ASN database (accounts are provisioned with
+`stalwart-cli`, and no SMTP port is published). They happen only in the places
+above, which hold fixtures only, and not on live. The scripted bring-up
 starts it only in its demo phase and only with `--with-demo`, which
 `deploy-live.sh` and `stand-up-live.sh` refuse, and `bootstrap-managed.sh`
 refuses on live's `.env` (`scripts/a-demo-on-a-real-address.unit.test.ts`).
-Run by hand, `setup-managed-demo.sh` is not refused on live's `.env` yet; that
-refusal is a follow-up in workplan 0139. So the downloads stay on, as they are.
+Run by hand, `setup-managed-demo.sh` is not refused on live's `.env` yet.
 
 The site's visit count (*Counting its visits*, above) runs GoAccess with
 `docker run`, outside every compose file, from live's checkout once a day.
 GoAccess 1.12 (`github.com/allinurl/goaccess`, its source read at the tag
 `v1.12`, `ef3c4f3c`, and built from that commit by
-`deploy/compose/goaccess/Dockerfile` since 2026-10-25) has no telemetry,
+`deploy/compose/goaccess/Dockerfile`) has no telemetry,
 update check or error report. What in it can reach a
 network is its lookup of hosts' names (`src/gdns.c`, for the hosts panel, which
 `site-visits.sh` ignores) and its WebSocket server (`src/websocket.c`, only with
@@ -3518,9 +3429,7 @@ the same, so nothing could leave if a later version added a report. Its image
 is never pulled (`--pull never`); building it fetches Alpine and its packages
 and GoAccess's source, and nothing else.
 
-**The image's base was past its end of life**
-([#1675](https://github.com/Robbes/Ownpace/issues/1675)), and is built on a
-supported one now (2026-10-25, workplan 0152). Upstream's
+**The image is built on a supported base.** Upstream's
 `allinurl/goaccess:1.12`, and `latest` with it, is built on Alpine 3.20.10,
 which Alpine no longer supports, and upstream's Dockerfile at `master` still
 starts from 3.20, so no upstream release could be waited for. Alpine's own
@@ -3558,12 +3467,10 @@ v4; for Trigger.dev, the entrypoint's children as well as the webapp), then
 moving the row. `trigger-version.sh pin` moves the Trigger.dev tag and does not
 do this for you.
 
-**When it takes effect.** The OTA stack's identity provider has sent the ping
-since it first started, as far as the machine let it out: every v4 release
-carries it. A switch is read when its container starts, so a stack has it once
-Compose has recreated those containers: the OTA stack at its next nightly
-bring-up, and live at its stand-up and every deploy from a tag that contains
-this change, since both run `bootstrap-managed.sh`, which brings each of them
+**When it takes effect.** A switch is read when its container starts, so a
+stack has it once Compose has recreated those containers: the OTA stack at its
+next nightly bring-up, and live at its stand-up and every deploy, since both
+run `bootstrap-managed.sh`, which brings each of them
 up by name. The pull sequence in *Updating a running deployment* does **not**
 do all of it: it brings up `api` and `web`, whose dependencies take in
 `trigger-api`, `clickhouse` and, through `minio-init`, the object store, but
@@ -3618,15 +3525,14 @@ email-change confirmation, a password reset, the invitation to set a first
 password. None of that goes through the API. `setup-zitadel.sh` configures it
 from the same `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASSWORD` and
 `NOTIFY_FROM`, so there is one relay setting rather than two that can drift —
-but it only runs during the `app` phase, so a stack brought up before
-2026-08-25 has an issuer with **no email provider at all**, silently dropping
-every one of those.
+but only during the `app` phase: until that phase has run, the issuer has **no
+email provider at all**, and silently drops every one of those.
 
 Its TLS does not follow `SMTP_SECURE`, which sets the API's transport alone. It
 is on for any relay and off only for the catcher (`SMTP_HOST=mailpit`), because
 the identity provider with TLS off never tries STARTTLS: on 587 it would send the
 relay's login in the clear, or be refused. With TLS on it tries implicit TLS and
-falls back to STARTTLS, which covers 465 and 587 alike (workplan 0133 T2).
+falls back to STARTTLS, which covers 465 and 587 alike.
 
 Until then the failure looks like a broken product rather than an unconfigured
 one: the account is created, the screen says to check your mail, and Mailpit
@@ -3737,13 +3643,13 @@ Two things that stay true after you do it:
 every environment that is not production wants its mail caught rather than
 delivered. A production stack points `SMTP_HOST` at a real relay and never
 starts this service: the bring-up starts it only with `--with-demo`, whose
-Nextcloud sends to it, or while `SMTP_HOST` is `mailpit` (workplan 0133 T3). A
+Nextcloud sends to it, or while `SMTP_HOST` is `mailpit`. A
 catcher still running from before the relay was set is named, with the command
 that stops it, and never stopped by the bring-up: read and delete what it caught
 first.
 
 **A catcher rather than a relay, on purpose.** Every mail the product sends is
-visible in a browser; the gate exercises grant, decline and now request on every
+visible in a browser; the gate exercises grant, decline and request on every
 nightly run, and none of it can reach a real inbox. `NOTIFY_FROM` and
 `NOTIFY_TO` default to `…@ownpace.invalid` — RFC 2606 reserved, so if these ever
 reach a real relay the result is a bounce rather than mail to a stranger.
@@ -3765,44 +3671,32 @@ relay, login and sender, with TLS on whatever `SMTP_SECURE` says. Then apply it:
 and `WEB_URL` is an https origin that is not localhost: every send would report
 `sent`, because it *was* sent — to a server whose job is to keep it.
 
-**Somebody knocking now reaches you.** Until 2026-08-24,
-`POST /api/access-requests` inserted a row, wrote one log line and told nobody:
-the queue was the intended channel, which works exactly as well as somebody's
-habit of opening it. It now sends `access_requested` to `NOTIFY_TO`, carrying
+**Somebody knocking reaches you.** `POST /api/access-requests` sends
+`access_requested` to `NOTIFY_TO`, carrying
 the address, organisation and tier — **not** the applicant's note, which stays
 in the database behind authentication where the queue shows it. When no channel
 is configured the API logs, per request, that nobody was told.
 
 ### Before a relay: passing mail on by hand
 
-Decided 2026-09-24 (workplan 0133 D2): until the stack testers use sends
-through a real relay, you read each tester's mail in that stack's Mailpit and
+Until the stack testers use sends through a real relay, you read each tester's
+mail in that stack's Mailpit and
 pass on what they need. This is a procedure, not a setting.
 
-**Not used on `ownpace-live`.** On 2026-09-28 the owner chose a relay from
-day one (workplan 0133 open question 5: *"mail at the start: real mail relay
-day one."*). Nobody is invited to live until its `.env` names the relay (0133 T3)
-and one outside mailbox has been walked end to end (0133 T4), so no tester's
+**Not used on `ownpace-live`.** Live sends through a real relay from day one.
+Nobody is invited to live until its `.env` names the relay and one outside
+mailbox has been walked end to end, so no tester's
 mail is caught there and nothing below is passed on. `stand-up-live.sh` refuses
 live's `.env` with `SMTP_HOST` empty or `mailpit` (step 6 of *Standing up
 ownpace-live*), so live is never brought up on the catcher. The procedure is
 kept in case that changes.
 
-**Where it would apply.** Only on `ownpace-live`, the stack testers use (0132
-D7), and only while its `.env` names no relay (0133 T3). Since the owner's
-answer, that is never: the relay goes in live's `.env` from the start, so the
-tag live is brought up from must carry 0133 T2 (TLS for the identity provider)
-and 0135 T1 and T2 (so live's identity provider never offers public
-organisation registration, and its project admits its own organisation only).
-Without 0133 T2 the identity provider takes its `tls` from `SMTP_SECURE`, which
-stays empty for a relay on 587: it connects in plain text, a relay that takes a
-login only over TLS refuses it, and the identity provider's codes reach neither
-an inbox nor a catcher while the API's mail arrives. Starting live on the
-catcher and switching at 0133 T3 was the other way, and 0133's open question 5
-recommended it; the owner chose the relay instead. The OTA stack's Mailpit
-never holds a tester's mail: it is the nightly gate's, and the smoke reads it
-every night. Were live ever to run a catcher, it would be its own: since 0132 T1
-(#1233) every container, volume and network is named after its compose project,
+**Where it would apply.** Only on `ownpace-live`, the stack testers use, and
+only while its `.env` names no relay. That is never: the relay goes in live's
+`.env` from the start. The OTA stack's Mailpit never holds a tester's mail: it
+is the nightly gate's, and the smoke reads it every night. Were live ever to run
+a catcher, it would be its own: every container, volume and network is named
+after its compose project,
 so live's catcher would run in live's project beside the OTA stack's, on the
 `MAILPIT_PORT` live's `.env` gives it.
 
@@ -3812,7 +3706,7 @@ that stack's Mailpit, whoever it is addressed to, and none reaches an inbox:
 - the API's, over the compose network to `mailpit:1025`;
 - the tasks', once `set-task-env.sh` has uploaded the SMTP settings. Task runs
   join the network `DOCKER_RUNNER_NETWORKS` names, where `mailpit` resolves:
-  the stack's own `<project>_ownpace-network` since 0132 T1.
+  the stack's own `<project>_ownpace-network`.
   Without the upload the tasks send nothing, and say so in their log;
 - the identity provider's, through the provider `setup-zitadel.sh` made for
   `mailpit:1025`.
@@ -3827,16 +3721,16 @@ mailbox.
 
 | Mail | Sent by, and when | Carries a code | What you do |
 |---|---|---|---|
-| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. Its link ends in `#register=` and the address it was sent to, so the sign-in page offers *Create your account* with that address filled in (workplan 0095 T6, from alpha.3); the address is the one the mail prints, not a code. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the Alpha paragraph from the caught mail word for word, in the language it was sent in, with its two lines after it: the Alpha conditions' address and the tester guide's. |
+| *Ownpace — your access is ready* (`access_granted`; Dutch *uw toegang staat klaar*) | The API, when you grant their request, in the language they asked in | No. It says it is safe to forward. Its link ends in `#register=` and the address it was sent to, so the sign-in page offers *Create your account* with that address filled in; the address is the one the mail prints, not a code. | Forward it to the address it was sent to. Or write them the same three facts yourself (the app's address, the address to register with, and that they must confirm the confirmation mail), and on live copy the Alpha paragraph from the caught mail word for word, in the language it was sent in, with its two lines after it: the Alpha conditions' address and the tester guide's. |
 | *Ownpace — about your request* (`access_declined`; Dutch *over uw aanvraag*) | The API, when you decline with *Email them if you decline* ticked, which is the default | No | Forward it, or untick the box and write them yourself. |
-| *Ownpace — you are invited to join an organisation* (`member_invited`; Dutch *u bent uitgenodigd voor een organisatie*) | The API, when an owner or admin invites them on the Team page, or presses *Send again* on that row, in the organisation's summary language (workplan 0156 T3). During the Alpha it carries the same Alpha paragraph, with the conditions' and the guide's addresses in that language, before the privacy line (0131 T1 (b)). At most 20 a day per organisation, and one invitation at most once in ten minutes | No. It says it is safe to forward. | Forward it to the address it was sent to. |
+| *Ownpace — you are invited to join an organisation* (`member_invited`; Dutch *u bent uitgenodigd voor een organisatie*) | The API, when an owner or admin invites them on the Team page, or presses *Send again* on that row, in the organisation's summary language. During the Alpha it carries the same Alpha paragraph, with the conditions' and the guide's addresses in that language, before the privacy line. At most 20 a day per organisation, and one invitation at most once in ten minutes | No. It says it is safe to forward. | Forward it to the address it was sent to. |
 | Verify your address | The identity provider, when they register, and at a first sign-in with Microsoft (above) | **Yes** | Pass the code on within the hour, by the rule below. |
 | Password reset | The identity provider, when they ask for one | **Yes** | The same. |
 | Password changed | The identity provider, after a reset or any other change of password | No | Nothing to pass on. |
 | Email-change confirmation | The identity provider, to the new address | **Yes** | The same, to the new address. |
 | Add a passkey | The identity provider, when they ask its console for a link to add a passkey on another device | **Yes**, in the button's link | Forward the mail as it is within the hour, by the rule below. |
 | The digest, *what needs your attention* | The tasks, at 08:00 UTC, daily or weekly as the organisation chooses, to its active owners and admins, and only when something waits | No | Nothing. The tester sees the same on screen. |
-| *Ownpace — everything is in step, so we look less often* (`looking_less_often`; Dutch *alles is bijgewerkt, dus we kijken minder vaak*) | The tasks, at 07:30 UTC, to the organisation's active owners and admins, when a migration on *Automatic* stepped down to every 6 hours or once a day since they were last told (workplan 0157 T7) | No | Nothing. Opening the migration brings back the hour, and its page says so. |
+| *Ownpace — everything is in step, so we look less often* (`looking_less_often`; Dutch *alles is bijgewerkt, dus we kijken minder vaak*) | The tasks, at 07:30 UTC, to the organisation's active owners and admins, when a migration on *Automatic* stepped down to every 6 hours or once a day since they were last told | No | Nothing. Opening the migration brings back the hour, and its page says so. |
 
 Each of the four codes lives one hour. In Zitadel v4.17.3's defaults,
 `EmailVerificationCode` and `PasswordVerificationCode` expire after `1h`, and an
@@ -3861,13 +3755,12 @@ or without a relay:
   goes to `NOTIFY_TO`. If the migration is a tester's, tell them yourself.
 
 **Never mailed, relay or not.** A grant link: *"You send the link. We never
-do."* ([grant-links.md](grant-links.md)). An invitation to an organisation
-WAS in this paragraph until 2026-10-03: `members.ts` recorded it and sent
-nothing. Since workplan 0156 T3 it is mailed (the table above), and the Team
-page says when the mail was not sent, so the inviter knows to tell them.
+do."* ([grant-links.md](grant-links.md)). An invitation to an organisation is
+mailed (the table above), and the Team page says when the mail was not sent, so
+the inviter knows to tell them.
 
-**Not sent from any screen today.** The fallback announcement for shares carried
-by hand (0104 T3). `POST /api/migrations/:mappingId/sharing/announce` mails each
+**Not sent from any screen.** The fallback announcement for shares carried
+by hand. `POST /api/migrations/:mappingId/sharing/announce` mails each
 grantee if it is called, and no screen in `apps/web` calls it. (A share applied
 on the *Sharing checklist* is announced by the target's own invite, not by
 Ownpace.)
@@ -3882,10 +3775,7 @@ anywhere else, by chat or by text message, it lets whoever receives it verify
 an address that may not be theirs, and take what was meant for its owner.
 
 **Only codes you are expecting.** Pass on a code only for an address you
-granted and are waiting for. Leave any other code in Mailpit. Until public
-organisation registration is closed at live's identity provider (0135 T0, T1),
-such a code may belong to somebody founding an organisation of their own, and
-passing it on completes the step that 0135 §4 says holds that chain back.
+granted and are waiting for. Leave any other code in Mailpit.
 
 **Be there when they register.** Agree a moment with each tester, watch
 Mailpit while they register, and pass the code on within the hour. If it
@@ -3914,9 +3804,9 @@ curl -fsS --get "http://localhost:${port:?no MAILPIT_PORT in this .env}/api/v1/s
 Read the code itself on Mailpit's web page, through the tunnel above with
 live's port, or at the mesh address if live's `MAILPIT_BIND` names one.
 
-**When it ends.** Once 0133 T3 is done (it waits on T2's TLS for the identity
-provider and on 0135 T0), and T4 has shown a code arriving in an outside inbox,
-the mail reaches testers without you. Then empty live's Mailpit and stop it:
+**When it ends.** Once live's `.env` names the relay, and a code has been
+shown arriving in an outside inbox, the mail reaches testers without you. Then
+empty live's Mailpit and stop it:
 the codes have expired by then, but it still holds testers' addresses and
 grant mails. From live's checkout, with `port` set as in the recipe above:
 
@@ -3926,11 +3816,11 @@ docker compose -p ownpace-live -f deploy/compose/managed.yml stop mailpit
 ```
 
 `-p ownpace-live` names live's project out loud. From live's checkout Compose
-takes it from live's `.env` anyway (0132 T1); `-p` also wins over a shell that
-exported the other stack's name, which would otherwise stop the catcher the
-nightly gate reads. Once live's `SMTP_HOST` names the relay, the bring-up no
-longer starts Mailpit (0133 T3 (b): only with `--with-demo` or
-`SMTP_HOST=mailpit`), and while one still runs it says so on every run. It
+takes it from live's `.env` anyway; `-p` also wins over a shell that exported
+the other stack's name, which would otherwise stop the catcher the nightly gate
+reads. Once live's `SMTP_HOST` names the relay, the bring-up does not start
+Mailpit (only with `--with-demo` or `SMTP_HOST=mailpit`), and while one still
+runs it says so on every run. It
 does not stop it: that is this command, once.
 
 ## The CI runner is a different checkout from wherever you did this by hand
@@ -3944,7 +3834,7 @@ in your manual clone does nothing for a workflow running from there.
 Worse: `actions/checkout` defaults to `clean: true`, which runs `git clean
 -ffdx` before every checkout — the `-x` reaches gitignored files, `.env`
 among them. So even hand-placing `.env` in the runner's checkout once does
-not survive the *next* run. `e2e-managed.yml` now works around this by
+not survive the *next* run. `e2e-managed.yml` works around this by
 persisting the one-time setup **outside** any checkout — at
 `$MANAGED_ENV_PERSIST_DIR` (default `~/.persistent/<project>`, which for the
 gate is `~/.persistent/ownpace-managed`, overridable as a repository variable) — and restoring it into
@@ -3952,7 +3842,7 @@ the checkout at the start of every run, before the refuse-early check.
 Before it copies anything out of that directory, the restore asks
 [`refuse-live-env.sh`](../deploy/compose/refuse-live-env.sh) whose `.env` it is,
 and stops when it carries live's marker, `STACK_KIND=production`, or anything
-that could be a slip of it (workplan 0132 T1g). So a variable pointed at live's
+that could be a slip of it. So a variable pointed at live's
 directory by mistake ends the run there, with nothing copied, written or brought
 up, and the log names the key and the variable, never a value.
 
@@ -3991,25 +3881,19 @@ path is refused):
   A shell that exports another `PGBOUNCER_USERLIST` than the checkout's `.env`
   is refused by both (Compose would follow the shell): open a new shell.
 
-**Why (2026-11-03, workplan 0132).** The file used to be the gate checkout's
-`deploy/compose/pgbouncer/userlist.txt`, copied in from here on every run. But
-every workflow of this repository that runs on the runner checks out into that
-same folder, and `ci.yml` did on every push to `main` (not during the alpha,
-since 2026-11-08: workplan 0132, open question 1). Its checkout deleted the
-file under the running pooler (02:51 UTC); nothing showed until the Docker
-daemon restarted (03:58), when the container's bind source was missing, Docker
-made a **directory** there, and `pgbouncer` stopped:
+**Why not the gate checkout's `deploy/compose/pgbouncer/userlist.txt`.** Every
+workflow of this repository that runs on the runner checks out into that same
+folder, and a checkout deletes the file under the running pooler. Nothing shows
+until the Docker daemon restarts or the host reboots: the container's bind
+source is missing, Docker makes a **directory** there, and `pgbouncer` stops:
 `error mounting ".../pgbouncer/userlist.txt" to rootfs at "/etc/pgbouncer/userlist.txt": ... not a directory`,
-exit 127, with every API call that needs the database behind it. A host reboot
-would have done the same. The copy kept here was stale besides:
-`ensure-env-secrets.sh` rewrote the checkout's file from the `.env`, the `.env`
-was persisted back, and the copy never was, so writing the file from it gave
+exit 127, with every API call that needs the database behind it. A copy kept
+here and copied in goes stale besides: `ensure-env-secrets.sh` rewrites the
+checkout's file from the `.env`, the `.env` is persisted back, and the copy is
+not, so writing the file from it gives
 `password authentication failed for user "pgbouncer_auth"`.
 
-**The first gate run after the change** writes the key, rewrites the file from
-the `.env`, and its bring-up recreates `pgbouncer` once, because the mount's
-source changed. Nothing is yours to do. To see which file the running pooler
-mounts, without printing it:
+To see which file the running pooler mounts, without printing it:
 
 ```bash
 cd ~/ownpace-managed && docker inspect --format '{{range .Mounts}}{{if eq .Destination "/etc/pgbouncer/userlist.txt"}}{{.Source}}{{end}}{{end}}' "$(docker compose -f deploy/compose/managed.yml ps -q pgbouncer)"
@@ -4025,7 +3909,7 @@ new directory and recreates `pgbouncer`.
 Each stack has one `.env`. The operator's checkout of the OTA stack and the
 gate's share one file, which is this section. `ownpace-live` has its own, in
 `~/.persistent/ownpace-live/`, and the gate never restores it: pointed there, it
-refuses before it copies anything (workplan 0132 T1b, T1g).
+refuses before it copies anything.
 
 **Then replace your copy with a link, and do not skip this.** The `cp` above is
 a one-time seed. Left as two files it becomes two *configurations* for one
@@ -4042,47 +3926,43 @@ Only *your* checkout gets the link. The runner's cannot have one — `git clean
 workflow restores a copy at the start of every run and persists it back at the
 end.
 
-**What it costs when they drift** (2026-08-24, workplan 0099). The `zitadel`
-Postgres role's password matched the *runner's* copy. A hand-run bring-up
-presented the other one, and Zitadel — which finds an existing role, logs
-`user already exists, skipping creation`, and does **not** reset its password —
-crash-looped. A crash-looping container is indistinguishable from a slow one
-until the readiness deadline passes, so the answer arrived after 300 seconds of
-silence, and it named a password nobody had changed. The same divergence had
-`ZITADEL_PAT_EXPIRY` in one file describing a token the database did not have.
+**What it costs when they drift.** When the `zitadel` Postgres role's password
+matches one copy and a bring-up presents the other, Zitadel — which finds an
+existing role, logs `user already exists, skipping creation`, and does **not**
+reset its password — crash-loops. A crash-looping container is
+indistinguishable from a slow one until the readiness deadline passes, so the
+answer arrives after 300 seconds of silence, and it names a password nobody
+changed. The same divergence leaves `ZITADEL_PAT_EXPIRY` in one file describing
+a token the database does not have.
 
-Three things now make that loud instead of silent:
+Three things make that loud instead of silent:
 
 - `bootstrap-managed.sh` lists any diverging keys **by name** at the top of
   every phase, including the `--from …` resumes that skip preflight. Names
   only — the values are secrets.
 - It asks the `zitadel` role for its password **before** starting the
   container, so the answer takes a second rather than five minutes — and it
-  asks over the container's **network address**, not the socket. See below:
-  the first version of this check could not fail.
+  asks over the container's **network address**, not the socket, where the
+  check could not fail (below).
 
-**The check that could not fail** (2026-08-24, same day, one bring-up later).
-Both the preflight and `zitadel-db-password.sh` asked with
-`psql -U zitadel` run inside the database container. That connects over the
-**Unix socket**, and the official Postgres image's generated `pg_hba.conf` answers the
-socket and `127.0.0.1` with `trust`: `PGPASSWORD` is never sent and never
-looked at, so the query succeeds with *any* password. Both reported
+**The check that could not fail.** `psql -U zitadel` run inside the database
+container connects over the **Unix socket**, and the official Postgres image's
+generated `pg_hba.conf` answers the socket and `127.0.0.1` with `trust`:
+`PGPASSWORD` is never sent and never looked at, so the query succeeds with
+*any* password, and a check asked that way reports
 
 > the zitadel role accepts the password in .env — nothing to do
 
-three times across two runs — and Zitadel, connecting from its own container,
-matched the appended `host all all all scram-sha-256` line instead and was
-refused with `SQLSTATE 28P01`, five minutes later. The vacuous pass also
-short-circuited the repair: `--sync` exits at the check, so the one command
-that fixes this declined to run on the grounds that there was nothing to fix.
-
-`managed.yml`'s own header had said so since 2026-07-25, about the
-`openmigrate` role — "only a connection from another container's real IP
-exercises the scram-sha-256 rule". Nobody carried it thirty lines down the same
-file. Every query in `zitadel-db-password.sh` now goes to the container's real
-address, refuses to run at all if it cannot resolve one, and **says which
-address it asked over** in the passing message. There is one copy of the
-question, and `bootstrap-managed.sh` calls it.
+while Zitadel, connecting from its own container, matches the appended
+`host all all all scram-sha-256` line instead and is refused with
+`SQLSTATE 28P01`, five minutes later. The vacuous pass also short-circuits the
+repair: `--sync` exits at the check, so the one command that fixes this
+declines to run. As `managed.yml`'s header says about the `openmigrate` role,
+"only a connection from another container's real IP exercises the
+scram-sha-256 rule". So every query in `zitadel-db-password.sh` goes to the
+container's real address, refuses to run at all if it cannot resolve one, and
+**says which address it asked over** in the passing message. There is one copy
+of the question, and `bootstrap-managed.sh` calls it.
 - `env-upsert.sh` **follows the link instead of replacing it**. Its write is
   write-temp-then-rename, and `mv -f tmp link` would silently turn the link
   back into a regular file — re-forking the two on the first `TRIGGER_CLI_PROFILE`
@@ -4099,16 +3979,14 @@ Check the divergence list first. If a second `.env` exists, the role may be
 matching *that* one, and syncing would break the other consumer instead of
 fixing yours.
 
-**What still could not break the link, and what could.** `env-upsert.sh` is now
-the *only* thing that writes `.env`. `ensure-env-secrets.sh` used to write with
-`sed -i`, which replaces a symlink with a regular file and leaves the canonical
-copy **stale** — the 2026-08-24 divergence exactly, reintroduced by the script
-that generates the credentials. It only ran when a key was absent, empty or a
-placeholder, so an established `.env` never tripped it: the link would have
-survived every ordinary bring-up and died on the first feature that added a new
-required secret. `scripts/one-stack-one-env.unit.test.ts` now refuses `sed -i`
-and `mv` aimed at the live `.env` anywhere under `deploy/compose/`, and runs
-`sed -i` against a real symlink to show why.
+**What could break the link.** `env-upsert.sh` is the *only* thing that writes
+`.env`. A `sed -i` replaces a symlink with a regular file and leaves the
+canonical copy **stale**, and in a script that writes only when a key is
+absent, empty or a placeholder it would survive every ordinary bring-up and
+break the link on the first feature that adds a new required secret.
+`scripts/one-stack-one-env.unit.test.ts` refuses `sed -i` and `mv` aimed at the
+live `.env` anywhere under `deploy/compose/`, and runs `sed -i` against a real
+symlink to show why.
 
 The bring-up also reports two files **when they still agree**, not only once
 they have drifted — quiet under CI, where `git clean -ffdx` makes a symlink
@@ -4155,13 +4033,13 @@ sets the token will still print "not logged in" from `whoami` even though
 `deploy` works fine. That asymmetry is the CLI's, not this repo's.
 
 Neither path makes the login *itself* automatable — creating the account
-and project is still the one step that opens a browser (0084 T6). Both only
+and project is still the one step that opens a browser. Both only
 let a credential obtained once survive to the next run.
 
 ## Standing up ownpace-live
 
-`ownpace-live`, the stack testers use, is stood up once and deployed ever after
-(workplan 0132 T1b to T1e). [`deploy-live.sh`](../deploy/compose/deploy-live.sh)
+`ownpace-live`, the stack testers use, is stood up once and deployed ever after.
+[`deploy-live.sh`](../deploy/compose/deploy-live.sh)
 does every deploy after the first and cannot do the first: it reads the hold
 from live's own database, which does not exist yet, and it takes the bring-up's
 two stops for a deploy that did not take. The first bring-up is
@@ -4170,13 +4048,9 @@ guide in order, with the steps only live has around them, each one refusing
 what would be hard to undo. It stops twice for you, as the bring-up does, and
 you run it again with `--resume`.
 
-**Not yet run.** Live is not stood up, and the script has run only against the
-stubs in its guard, `scripts/a-first-bring-up-of-live.unit.test.ts`. It runs
-from the release tag live runs, so that tag has to carry it: cut the release
-(0146 T0) from a commit of `main` that has this script, once the nightly gate
-has run that commit green. *(2026-11-08: run on live since. The owner ran it
-there on 2026-10-07, and its first refusal, a missing `zitadel` role read as a
-wrong password, was fixed in #1545 the same day; workplan 0132's Status.)*
+It runs from the release tag live runs, so that tag has to carry it; every
+release tag does. It has stood live up once, and its guard,
+`scripts/a-first-bring-up-of-live.unit.test.ts`, runs it against stubs.
 
 ### Before the script: the owner's steps
 
@@ -4223,11 +4097,10 @@ No script can do these. The script checks each one before it changes anything.
    publishes (the nine, and any other `*_PORT` a `ports:` entry of
    `managed.yml` names but the demo's `NEXTCLOUD_PORT`) that lies in the range
    and is not reserved, on a resume too, names it with its number, and prints
-   the line that fixes it. Once workplan 0139 T10 lands (on its own branch on
-   2026-09-28), `deploy-live.sh` serves live's copy of `www.ownpace.eu` on
-   `WWW_PORT` while live's `.env` says `WWW_LIVE=true`, and the script asks
-   `WWW_PORT` then too; until then nothing reads `WWW_LIVE`. With live's ports
-   at, say, 40101 to 40109 (example numbers):
+   the line that fixes it. `deploy-live.sh` serves live's copy of
+   `www.ownpace.eu` on `WWW_PORT` while live's `.env` says `WWW_LIVE=true`, and
+   the script asks `WWW_PORT` then too. With live's ports at, say, 40101 to
+   40109 (example numbers):
 
    ```bash
    cat /proc/sys/net/ipv4/ip_local_reserved_ports    # reserved now: keep it
@@ -4241,7 +4114,7 @@ No script can do these. The script checks each one before it changes anything.
    another file in `/etc/sysctl.d` sets the key already, put the line in that
    file instead: `sysctl --system` reads them in name order, and the last to
    set a key wins. Ports below the range need nothing.
-3. **The routes, before the bring-up** (0132 T1e). In NetBird, on the front's
+3. **The routes, before the bring-up.** In NetBird, on the front's
    address and external port 443: `app.ownpace.eu` to live's `WEB_PORT`,
    `id.ownpace.eu` to live's `ZITADEL_PORT`, `status.ownpace.eu` to live's
    `STATUS_PORT`. Before, not after: the bring-up's sign-in setup
@@ -4313,29 +4186,27 @@ No script can do these. The script checks each one before it changes anything.
    every sign-in provider's key empty, the `IDP_*` keys of Google, Microsoft,
    GitHub and Apple (§8b, *Offering Google, Microsoft, GitHub or Apple as a
    second way in*): live's sign-in page offers email and password only, as
-   privacy §4.4, §7 and §8 say (the owner, ops-social-signin (a)), and the
-   script refuses a key that holds a value. `GOOGLE_OAUTH_*`, the consent's
-   pair from the OTA stack's client (workplan 0140 T11), are other keys and
-   stay. Write
+   privacy §4.4, §7 and §8 say, and the script refuses a key that holds a
+   value. `GOOGLE_OAUTH_*`, the consent's pair from the OTA stack's client, are
+   other keys and stay. Write
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses
    such a line. `NODE_ENV=production` is live's mode: `managed.yml` takes no
-   default, and the script refuses anything else (workplan 0132 T4).
+   default, and the script refuses anything else.
    `ALERT_ENABLED=true` turns on the mail a red status row sends you, and the
-   script refuses live without it, since testers are on live (workplan 0142
-   T0). With it on, a row that stays red for three minutes during the bring-up
+   script refuses live without it, since testers are on live. With it on, a row
+   that stays red for three minutes during the bring-up
    mails you: that is expected, and shows mail arrives.
    `BACKUP_RETENTION_DAYS=7` is the most days a dump of live's
-   databases taken before a deploy is kept, which the erasure sentence names
-   (workplan 0134 open question 1 (b)); the script refuses it empty, `0`, or
+   databases taken before a deploy is kept, which the erasure sentence names;
+   the script refuses it empty, `0`, or
    anything but a whole number above 0. `deploy-live.sh` takes that copy before
    each update, and it is deleted once the update is proven, or after six days
-   less an hour by the daily duties (§8g; workplan 0139).
+   less an hour by the daily duties (§8g).
 
    **`TRUST_PROXY=2`** is the number of proxies in front of live's API, and it
    decides whose address the API's log and its request limit take for the
-   caller (privacy §4.5; the owner, 2026-09-28, *"Keep visitors' addresses in
-   all our logs"*). Two stand there: NetBird's reverse proxy, which ends TLS,
+   caller (privacy §4.5). Two stand there: NetBird's reverse proxy, which ends TLS,
    connects to the machine from its own address on the mesh, and sets
    `X-Forwarded-For` to the address the visitor connected from, dropping
    whatever the visitor sent; and the web container's nginx, which appends
@@ -4345,13 +4216,12 @@ No script can do these. The script checks each one before it changes anything.
    which the caller wrote. The script refuses anything but 2 or 3, 3 being for
    a NetBird cluster that adds a hop of its own. Both nginx logs record the
    header NetBird sets as their last field, whatever this says. Whether
-   NetBird's own cluster adds a hop is not in its source; workplan 0132 T3
-   (d)'s check, once live stands, settles it (*After the script*, step 6).
+   NetBird's own cluster adds a hop is not in its source; the check in *After
+   the script*, step 6, settles it.
 
    **`MAX_PASSES_IN_FLIGHT=6`** is live's cap on passes running at once, and the
-   bring-up sets live's task plane to it plus two, 8 (workplan 0143, open
-   questions 7 and 9). The OTA stack runs with 6 as well while it is the only
-   stack on the machine (the owner, 2026-10-03). Once live is stood up, put the
+   bring-up sets live's task plane to it plus two, 8. The OTA stack runs with 6
+   as well while it is the only stack on the machine. Once live is stood up, put the
    OTA stack back to 3, from its own checkout, in a shell with no
    `COMPOSE_PROJECT_NAME` exported (*One shell, one stack*):
 
@@ -4363,7 +4233,7 @@ No script can do these. The script checks each one before it changes anything.
    The second line uploads the cap to the OTA stack's tick, sets its plane to
    5 and deploys its tasks.
 
-   **Mail goes through a real relay from the first day** (workplan 0133): live
+   **Mail goes through a real relay from the first day**: live
    runs no catcher, and the sign-up's verification code is the first mail it
    sends, so *Before a relay: passing mail on by hand* is not for live.
    `SMTP_HOST` is the relay's submission host (Proton Mail's, for one, is
@@ -4422,22 +4292,22 @@ port, because its fix lists it), and a production name that does not resolve.
 **What it does, in order:**
 
 1. Generates `POSTGRES_PASSWORD`, `APP_DB_PASSWORD`, `CLICKHOUSE_PASSWORD`,
-   `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD` (Trigger.dev's own database,
-   0132 T2) with `openssl rand -hex 24`, each one that is empty or a value this
+   `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD` (Trigger.dev's own database)
+   with `openssl rand -hex 24`, each one that is empty or a value this
    repository publishes and whose volume does not exist yet, through
-   `env-upsert.sh --stdin`: on no command line, and never printed (D8). In the
-   same write, `ZITADEL_ORG_NAME=Ownpace` when that key is empty, so the identity
-   provider names its organisation `Ownpace` from its first start (0135 open
-   question 8); a name you set is kept.
+   `env-upsert.sh --stdin`: on no command line, and never printed. In the same
+   write, `ZITADEL_ORG_NAME=Ownpace` when that key is empty, so the identity
+   provider names its organisation `Ownpace` from its first start; a name you
+   set is kept.
 2. `bootstrap-managed.sh --only preflight`, `--only env`, a check that the
-   rendered `DOCKER_RUNNER_NETWORKS` is `ownpace-live_ownpace-network` (D9), and
+   rendered `DOCKER_RUNNER_NETWORKS` is `ownpace-live_ownpace-network`, and
    `--only data`.
 3. Makes sure `app_user` exists with `APP_DB_PASSWORD` before anything
    migrates: the baseline migration creates it with a published password only
-   when it does not exist. Since 0132 T2's code the `data` phase of step 2
-   creates it, and this step finds it there.
-4. Asks live's database over live's own network, as every container does
-   (0132 T2 step 2): the two controls must open, and the three published values
+   when it does not exist. The `data` phase of step 2 creates it, and this
+   step finds it there.
+4. Asks live's database over live's own network, as every container does:
+   the two controls must open, and the three published values
    must not.
 5. `bootstrap-managed.sh --from trigger`. That stops twice, and the script exits
    2 each time, saying what to do:
@@ -4466,8 +4336,8 @@ port, because its fix lists it), and a production name that does not resolve.
 8. Appends the first line of `~/.persistent/ownpace-live/deploys.log`, in
    `deploy-live.sh`'s format: the date, the tag, the commit, `took`, `one-way`.
 9. Copies the five units of *Live's daily duties* to `~/.config/systemd/user`
-   (the duties' pair, the box checks' pair and the mail on a failed run,
-   workplan 0142 T3) and runs `systemctl --user daemon-reload`.
+   (the duties' pair, the box checks' pair and the mail on a failed run) and
+   runs `systemctl --user daemon-reload`.
 10. Prints what is left, below.
 
 It exits 0 when live stands, 1 when it refused (nothing changed), 2 at a stop
@@ -4502,18 +4372,17 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    it is routed to live's front), and fails while NetBird's sign-in answers
    any of them instead: a redirect to NetBird's identity provider, or NetBird's
    own page. **NetBird's sign-in is off on all four before the first
-   invitation** (the owner, 2026-09-28, *"Off everywhere at launch"*; workplan
-   0139, item 8): in NetBird's dashboard, no SSO, password, PIN or header
+   invitation**: in NetBird's dashboard, no SSO, password, PIN or header
    authentication, and no NetBird-Only Access, on any of the four services.
    Only a request from outside the NetBird network shows it. From a peer of
    the account, your laptop on the mesh or the machine, NetBird may let a
    request through its SSO without a sign-in page, so a browser there proves
    nothing, and the probe runs on a GitHub-hosted runner.
    It also fails while `https://id.ownpace.eu/ui/login/register/org`, the form
-   that founds an organisation, answers anything but 404 (workplan 0135 T1):
-   read `disallowPublicOrgRegistration` back on live, and set it if it reads
+   that founds an organisation, answers anything but 404: read
+   `disallowPublicOrgRegistration` back on live, and set it if it reads
    false, with workplan 0135 §4, T0 step 1. And it fails while the app's page
-   arrives without the headers its template states (workplan 0158 T4): a
+   arrives without the headers its template states: a
    policy or HSTS missing, sent twice or changed on the way names the header,
    never what arrived; `curl -sI https://app.ownpace.eu/` from your own
    machine shows what arrived.
@@ -4535,7 +4404,7 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    note, with PostgreSQL's handshake as its tripwire. That tripwire knows
    only PostgreSQL: anything else that answers on a listed port is a note,
    which is why the capture comes first.
-6. **Live's logs name the visitor** (workplan 0132 T3 (d); privacy §4.5).
+6. **Live's logs name the visitor** (privacy §4.5).
    From outside the NetBird network, send one request to the app and one to
    the site, each with a forged header, `192.0.2.1` being a documentation
    address and nobody's:
@@ -4578,7 +4447,7 @@ it says which and logs nothing; fix it and run it again with `--resume`.
      block before the first invitation.
 
    These lines hold your address and NetBird's: paste them nowhere public.
-7. **The test alert** (workplan 0142 T0 step 2). Live runs with
+7. **The test alert.** Live runs with
    `ALERT_ENABLED=true`. From `~/ownpace-live`:
 
    ```bash
@@ -4595,7 +4464,7 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    recovery. The Identity provider row stays quiet. Write the date and the
    outcome in workplan 0142's Status block.
 8. **The record.** The date, the tag and each check's outcome, never a value, in
-   workplan 0132's Status block (T0 step 6).
+   workplan 0132's Status block.
 
 **Not part of the stand-up: the books and payments.** Live runs the alpha,
 which invoices nobody, so the script sets no `MONEYBIRD_*` key and no
@@ -4613,25 +4482,24 @@ of `e2e-managed.yml`'s steps are maintenance: `setup-zitadel.sh` runs the
 identity provider's provisioning token's clock (the token lives seven days, a
 run replaces it in its last three, and past its deadline no successor can be
 minted), and `trigger-version.sh drill` dumps the Trigger.dev database and
-proves the dump loads. CI never touches live (workplan 0132 T1g), so live has
+proves the dump loads. CI never touches live, so live has
 [`box-duties.sh`](../deploy/compose/box-duties.sh), run once a day from
-`~/ownpace-live` by a systemd timer (0132 T7). **The drill is not one of
-them:** it runs on the test stack only, in the gate (workplan 0139, the
-owner's answer rec-drill (a) of 2026-09-28). On live it kept a daily dump of
-the task runner's database, and live keeps one copy of its databases, made
+`~/ownpace-live` by a systemd timer. **The drill is not one of them:** it runs
+on the test stack only, in the gate. On live it would keep a daily dump of the
+task runner's database, and live keeps one copy of its databases, made
 right before an update; `trigger-version.sh` refuses `drill` there. It does
 eight duties, each one whatever the one before it did:
 
 | Duty | What it runs | What it does |
 |---|---|---|
 | `token` | `setup-zitadel.sh --token-only` | The token's clock and nothing else: no secrets generated, the provider not started or reconfigured. It writes `ZITADEL_PAT_EXPIRY`, as every run does. |
-| `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update (workplan 0139), in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days less an hour, whether or not its update was proven, so it is never kept past day 7, even when this run starts late; a dump made there by hand goes by its own age. The run before the one that deletes it keeps it and fails the duty, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
-| `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks (0132 T3). Needs `EXPOSURE_ALLOW` in live's `.env`, and `EXPOSURE_NOT_OURS` where the machine runs containers that are not Ownpace's. |
-| `organisations` | `setup-zitadel.sh --count-organisations` | 0135 T3's count on live's identity provider, read-only. A count that is not one fails the duty. |
-| `site` | `www-live.sh check` | Read-only (0139 T10). Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
-| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, and those of members removed from an organisation 7 or more days ago, as privacy §9 says (0135 T8 and open question 13; the runbook's *Sign-in accounts nobody let in*). A removed member's account stays while the removal is younger than 7 days, or while they are a member again, an operator, or hold an open request or invitation; so does an account of another organisation at the provider or with a role there. More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. A database with no operator row (*Become the operator*, above) removes none and fails the duty too. One that has its operator row back and not its members, after a reset or restore that kept the provider's accounts, is not seen: turn the duties off before such a reset and on again once the members are back (the runbook says how). Its lines name an account's id, never its address. |
-| `searches` | `support-read-prune.sh --delete` | Deletes the support screens' reads recorded with no organisation (a search by address, a download of the audit log, the organisation list, the invoices kept after an erasure, a log page not filtered to one organisation) 12 months after they were recorded, as privacy §4.5 and §9 say (0139 T6; the runbook's *Searches and downloads on the support screens*). As the database's owner: `app_user` cannot delete from that log, and the tasks' system role (0138 T3 step 2) can, for the purge of an erased organisation, but its grant (`SELECT` on `tenant_id`, and `DELETE`) lets it pick rows by organisation, never by age. It stops, deleting nothing, and fails the duty when that connection does not pass row security. It prints a count. |
-| `visits` | `site-visits.sh` | The visits in the log of live's copy of the site, counted by GoAccess as totals that identify nobody (privacy §4.5; the owner's GoAccess decision of 2026-10-05), into one HTML report per container of the site under `~/.persistent/ownpace-live/site-visits/` (*Counting its visits*). Daily because a deploy replaces the container and its log, and what no run counted before then is never counted. GoAccess is given no address and no text a visitor or a link chose, and keeps no database. With `WWW_LIVE` not true it reads nothing and passes; while the checkout's privacy text does not say visits are counted (privacy 1.2, §4.5 and §5) it refuses, and the duty fails. It prints counts, never an address. |
+| `copies` | `copy-before-update.sh expire` | The backstop of the copy made before an update, in `~/.persistent/ownpace-live/copy-before-update`: deleted once it is older than six days less an hour, whether or not its update was proven, so it is never kept past day 7, even when this run starts late; a dump made there by hand goes by its own age. The run before the one that deletes it keeps it and fails the duty, saying to roll back from it today or to delete it (the operator runbook's *The copy before an update*). It reads no database. The copy is **secret-bearing** (testers' data, the provider's password hashes); the scripts make it readable by this account only. |
+| `exposure` | `exposure-check.sh` | Every port any container on the machine publishes, both stacks. Needs `EXPOSURE_ALLOW` in live's `.env`, and `EXPOSURE_NOT_OURS` where the machine runs containers that are not Ownpace's. |
+| `organisations` | `setup-zitadel.sh --count-organisations` | The count of organisations on live's identity provider, read-only. A count that is not one fails the duty. |
+| `site` | `www-live.sh check` | Read-only. Fails when a container of live's project has the compose service `www`, where a `www.yml` command without `-p` puts the site; and, when live's `.env` says `WWW_LIVE=true`, when `ownpace-live-www` is not running and healthy (*`www.ownpace.eu`: live's copy*). |
+| `strays` | `idp-strays.sh --remove --at-most 20` | Removes the sign-in accounts nobody let in, older than 30 days, and those of members removed from an organisation 7 or more days ago, as privacy §9 says (the runbook's *Sign-in accounts nobody let in*). A removed member's account stays while the removal is younger than 7 days, or while they are a member again, an operator, or hold an open request or invitation; so does an account of another organisation at the provider or with a role there. More than 20 at once removes none and fails the duty: run `./deploy/compose/idp-strays.sh` from `~/ownpace-live` to see them, then `--remove` by hand if they are right. A database with no operator row (*Become the operator*, above) removes none and fails the duty too. One that has its operator row back and not its members, after a reset or restore that kept the provider's accounts, is not seen: turn the duties off before such a reset and on again once the members are back (the runbook says how). Its lines name an account's id, never its address. |
+| `searches` | `support-read-prune.sh --delete` | Deletes the support screens' reads recorded with no organisation (a search by address, a download of the audit log, the organisation list, the invoices kept after an erasure, a log page not filtered to one organisation) 12 months after they were recorded, as privacy §4.5 and §9 say (the runbook's *Searches and downloads on the support screens*). As the database's owner: `app_user` cannot delete from that log, and the tasks' system role can, for the purge of an erased organisation, but its grant (`SELECT` on `tenant_id`, and `DELETE`) lets it pick rows by organisation, never by age. It stops, deleting nothing, and fails the duty when that connection does not pass row security. It prints a count. |
+| `visits` | `site-visits.sh` | The visits in the log of live's copy of the site, counted by GoAccess as totals that identify nobody (privacy §4.5), into one HTML report per container of the site under `~/.persistent/ownpace-live/site-visits/` (*Counting its visits*). Daily because a deploy replaces the container and its log, and what no run counted before then is never counted. GoAccess is given no address and no text a visitor or a link chose, and keeps no database. With `WWW_LIVE` not true it reads nothing and passes; while the checkout's privacy text does not say visits are counted (privacy 1.2, §4.5 and §5) it refuses, and the duty fails. It prints counts, never an address. |
 
 It exits 0 when all eight pass, 1 naming every duty that failed, and 2 when it
 refused before any duty: a `.env` without live's marker (the OTA stack's duties
@@ -4641,7 +4509,7 @@ run by hand, or a SIGTERM, stops the running duty, says which, starts no other
 and exits 130 or 143. It prints no value from the `.env`, and this machine's
 addresses in a duty's output, stdout and stderr alike, are replaced by the key
 that holds them. When a run fails, systemd mails you, and when no run
-happens, the box checks do (*Who is told*, below, workplan 0142 T3); the
+happens, the box checks do (*Who is told*, below); the
 journal has what each duty said.
 
 **Until the timer is installed,** run `./deploy/compose/setup-zitadel.sh
@@ -4748,7 +4616,7 @@ OnCalendar=*:0/10
 WantedBy=timers.target
 ```
 
-**Installing them,** once live stands (T1b to T1e), on the machine, as that
+**Installing them,** once live stands, on the machine, as that
 account:
 
 ```bash
@@ -4772,7 +4640,7 @@ systemctl --user list-timers ownpace-box-duties.timer
 systemctl --user start ownpace-box-duties.service
 journalctl --user -u ownpace-box-duties -n 200 --no-pager
 
-# One test mail to ALERT_TO, through the unit a failed run starts (0142 T3).
+# One test mail to ALERT_TO, through the unit a failed run starts.
 systemctl --user start ownpace-tell-owner@test.service
 journalctl --user -u 'ownpace-tell-owner@*' -n 20 --no-pager
 ```
@@ -4791,7 +4659,7 @@ journalctl --user -u 'ownpace-tell-owner@*' -n 20 --no-pager
   does: `TimeoutStartSec` goes from 150 to 170 minutes, eight duties of 20.
   A unit copied before it still runs all eight, and cuts a run short only
   when nearly every duty runs to its 20 minutes. The first tag with the box
-  checks (workplan 0142 T3) does too: `ownpace-box-duties.service` gains its
+  checks does too: `ownpace-box-duties.service` gains its
   `OnFailure=` line, and three units are new, so copy all five, then
   `systemctl --user enable --now ownpace-box-checks.timer` and the test mail.
   `deploy-live.sh` names, after a deploy that took, each unit the tag carries
@@ -4814,13 +4682,13 @@ journalctl --user -u 'ownpace-tell-owner@*' -n 20 --no-pager
   Then nothing deletes the copy before an update, so `copy-before-update.sh
   take` refuses and no deploy moves live until the timer is active again. A
   copy already there stays until you delete it or the timer runs again:
-  delete it by its seventh day yourself (workplan 0134 T0). The box checks
+  delete it by its seventh day yourself. The box checks
   mail *Daily duties late* 26 hours after the last pass, which is the
   reminder to turn it on again.
 
 ### Who is told: a failed run, a run that never came, and the disk
 
-Workplan 0142 T3. Five things reach you by mail, through the relay and the
+Five things reach you by mail, through the relay and the
 addresses the status page's alerts use (*8d*: `ALERT_SMTP_*`, `ALERT_FROM` and
 `ALERT_TO`, falling back to `SMTP_*`, `NOTIFY_FROM` and `NOTIFY_TO`), sent by
 [`tell-owner.sh`](../deploy/compose/tell-owner.sh). It passes curl the relay
@@ -4860,7 +4728,7 @@ Each message has a row under its name in the
 - **The update proven.** The same run asks
   `copy-before-update.sh delete-if-proven` whether the update the copy before
   it was taken for is proven, and that script deletes the copy when it is
-  (workplan 0132 T9; the rule is under step 6 of *`ownpace-live`: a release
+  (the rule is under step 6 of *`ownpace-live`: a release
   tag, with `deploy-live.sh`*, below). A copy it deleted is one mail, *Update
   proven*, naming the tag, the times, the passes and the number of files; the
   files' names are in the journal. The line it answered is kept in
@@ -4895,60 +4763,60 @@ journal of whatever ran it), 2 refused.
 
 | What you see | What it is | What to do |
 | --- | --- | --- |
-| `pgbouncer` exits 127 at a start: `error mounting ".../userlist.txt" to rootfs at "/etc/pgbouncer/userlist.txt": ... not a directory` | The file the pooler mounts was missing when the container started (a Docker restart, a reboot, a recreate), and Docker made an empty **directory** at that path. On the OTA stack on 2026-11-03 the file was the gate checkout's, deleted by `ci.yml`'s checkout; it now lives in the persisted directory (*PgBouncer's userlist lives in the persisted directory*) | In `~/ownpace-managed`, with the `.env` linked: `rmdir` the path the error names, then `./deploy/compose/ensure-env-secrets.sh` (it writes the file from the `.env`'s `PGBOUNCER_AUTH_PASSWORD`, and prints the path, never the password), then `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `bootstrap-managed.sh` now refuses before this can happen to a file `PGBOUNCER_USERLIST` names |
-| `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644` on the file (`deploy/compose/pgbouncer/userlist.txt`, or the one `PGBOUNCER_USERLIST` names), then force-recreate. `ensure-env-secrets.sh` now writes 644 and `--only data` repairs the mode |
+| `pgbouncer` exits 127 at a start: `error mounting ".../userlist.txt" to rootfs at "/etc/pgbouncer/userlist.txt": ... not a directory` | The file the pooler mounts was missing when the container started (a Docker restart, a reboot, a recreate), and Docker made an empty **directory** at that path. On the OTA stack the file lives in the persisted directory, where no checkout deletes it (*PgBouncer's userlist lives in the persisted directory*) | In `~/ownpace-managed`, with the `.env` linked: `rmdir` the path the error names, then `./deploy/compose/ensure-env-secrets.sh` (it writes the file from the `.env`'s `PGBOUNCER_AUTH_PASSWORD`, and prints the path, never the password), then `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `bootstrap-managed.sh` refuses before this can happen to a file `PGBOUNCER_USERLIST` names |
+| `pgbouncer` logs `could not open auth_file … Permission denied`, then `no such user: pgbouncer_auth` | `userlist.txt` was written 0600 by the host user; PgBouncer reads it as a different user inside the container, finds no users, and rejects every login | `chmod 644` on the file (`deploy/compose/pgbouncer/userlist.txt`, or the one `PGBOUNCER_USERLIST` names), then force-recreate. `ensure-env-secrets.sh` writes 644 and `--only data` repairs the mode |
 | The seed or a host-run script talks to the wrong Postgres | On a shared host, `localhost:5432` may belong to something else entirely — this stack's Postgres is published wherever `POSTGRES_PORT` says | The `demo` phase asks `docker compose port postgres 5432` rather than trusting a default. For your own commands, do the same |
-| `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `pnpm -C apps/worker exec trigger login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile> --no-browser` from the checkout's root, then re-run. Fixed at the source in `trigger-cli-lib.sh`, which both scripts now use instead of trusting the exit code |
-| `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `pnpm -C apps/worker exec trigger logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json`. **Until 2026-08-31 this symptom had a SECOND cause with the same appearance**: the detector piped `whoami`'s output into `grep -q`, which exits at the first match, so under `set -o pipefail` a long-enough answer killed the producer with SIGPIPE and the pipeline returned 141 for a match that had SUCCEEDED. Verified and fixed — it now reads from a here-string — so on a current checkout this row's cause is the only one left |
-| `deploy-tasks.sh`, or the CLI, says **`Your CLI login expired because it wasn't used for a while`** | From Trigger.dev v4.8.4 the token a CLI login mints stops working after `CLI_LOGIN_IDLE_TIMEOUT_DAYS` days without use: 90 here (`managed.yml`, the owner's choice of 2026-11-13), 7 by upstream's default. The remembered `TRIGGER_ACCESS_TOKEN` is such a token when it was minted on v4.8.4 or later. A use renews it; a lapsed one is never renewed (*7. `login`*) | Log in again, as *7. `login`* says, with `--no-browser`: `pnpm -C apps/worker exec trigger logout --profile <name>`, then `pnpm -C apps/worker exec trigger login -a http://localhost:<TRIGGER_PORT> --profile <name> --no-browser`. Then `./deploy/compose/trigger-remember-token.sh --force`, which puts the new token in `.env` in place of the lapsed one. The message's own advice, `npx trigger.dev@latest login`, is not for here: the CLI is the lockfile's |
-| `trigger-supervisor` is `Restarting`, its log says **`Unable to read worker token from file: EACCES … /home/node/shared/worker_token`**, and `up` aborts with `container <project>-trigger-supervisor is unhealthy` | trigger-api bootstraps the worker token into the shared volume as **root, mode 0600**; the supervisor reads it as **node**. On a FRESH `trigger_shared` volume — first install, or after a `down -v` — it cannot open its own credential. Everything else reports healthy, so the stack looks fine while dequeuing nothing | `docker compose -f deploy/compose/managed.yml exec -u 0 trigger-api chown node:node /home/node/shared/worker_token`, then `docker compose -f deploy/compose/managed.yml restart trigger-supervisor`. **chown, not `chmod 644`** — the token is a credential and root bypasses permissions anyway. `bootstrap-managed.sh`'s `trigger` phase now does this between trigger-api and the supervisor, so a fresh volume no longer needs the manual step |
+| `deploy-tasks.sh` proceeds past its own login check and then fails with `Unable to validate existing personal access token` / `Invalid or Missing Access Token` | `whoami` exits 0 whether or not you are actually logged in — confirmed from the CLI's own source, an auth failure returns data rather than throwing. A stale profile (e.g. left over after `reset-trigger.sh`) passes the check and only fails once `deploy` tries to use it | `pnpm -C apps/worker exec trigger login -a http://localhost:${TRIGGER_PORT:-3090} --profile <profile> --no-browser` from the checkout's root, then re-run. Both scripts read the output through `trigger-cli-lib.sh` instead of trusting the exit code |
+| `deploy-tasks.sh` says **`Not logged in`** while `trigger.dev login` answers **`You are already logged in`** | The instance's database was destroyed (a wipe, `down -v`, a rename cutover) but the CLI profile at `~/.config/trigger/config.json` is on the HOST and survived it. `login` sees a token in the profile and short-circuits without validating it against the instance, so it reports success for a token whose account no longer exists; `trigger_cli_logged_in()` reads `whoami`'s output properly and correctly says no. **`login` alone cannot fix this** — it never gets far enough to replace the token | `pnpm -C apps/worker exec trigger logout --profile <profile>` **first**, then `login` as above. If `logout` also short-circuits, delete the profile's entry from `~/.config/trigger/config.json` |
+| `deploy-tasks.sh`, or the CLI, says **`Your CLI login expired because it wasn't used for a while`** | From Trigger.dev v4.8.4 the token a CLI login mints stops working after `CLI_LOGIN_IDLE_TIMEOUT_DAYS` days without use: 90 here (`managed.yml`), 7 by upstream's default. The remembered `TRIGGER_ACCESS_TOKEN` is such a token when it was minted on v4.8.4 or later. A use renews it; a lapsed one is never renewed (*7. `login`*) | Log in again, as *7. `login`* says, with `--no-browser`: `pnpm -C apps/worker exec trigger logout --profile <name>`, then `pnpm -C apps/worker exec trigger login -a http://localhost:<TRIGGER_PORT> --profile <name> --no-browser`. Then `./deploy/compose/trigger-remember-token.sh --force`, which puts the new token in `.env` in place of the lapsed one. The message's own advice, `npx trigger.dev@latest login`, is not for here: the CLI is the lockfile's |
+| `trigger-supervisor` is `Restarting`, its log says **`Unable to read worker token from file: EACCES … /home/node/shared/worker_token`**, and `up` aborts with `container <project>-trigger-supervisor is unhealthy` | trigger-api bootstraps the worker token into the shared volume as **root, mode 0600**; the supervisor reads it as **node**. On a FRESH `trigger_shared` volume — first install, or after a `down -v` — it cannot open its own credential. Everything else reports healthy, so the stack looks fine while dequeuing nothing | `docker compose -f deploy/compose/managed.yml exec -u 0 trigger-api chown node:node /home/node/shared/worker_token`, then `docker compose -f deploy/compose/managed.yml restart trigger-supervisor`. **chown, not `chmod 644`** — the token is a credential and root bypasses permissions anyway. `bootstrap-managed.sh`'s `trigger` phase does this between trigger-api and the supervisor, so a fresh volume needs no manual step |
 | `set-task-env.sh` fails **`Invalid or Missing API key`** against a `proj_…` ref that looks right | Same cause, other credential: `TRIGGER_PROJECT_REF` and `TRIGGER_SECRET_KEY` in `.env` belong to the destroyed instance. `bootstrap-managed.sh`'s `account` phase **short-circuits when both are already set** (it cannot tell a stale value from a good one), so re-running bring-up never replaces them | `./deploy/compose/trigger-credentials.sh --write` — it reads the ref and the prod key out of the INSTANCE and upserts both, overwriting whatever `.env` held. Then re-run `set-task-env.sh` |
-| A config fix to `pgbouncer.ini` seems to change nothing — same error after pulling | `pgbouncer.ini` is a bind mount read once at start-up, and `up -d` does not recreate a container whose spec has not changed, so the old process keeps running the old file | `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `--only data` now does this automatically when the container is unhealthy |
-| `pgbouncer` log says `cannot use the reserved "pgbouncer" database as an auth_dbname` | `auth_user` set in the **global** `[pgbouncer]` section governs the admin console too, and the console's database name is reserved — so `auth_query` cannot run and every connection is refused. A per-database `auth_dbname` does not help: the console is not matched by `*` | Fixed by moving `auth_user` onto the `*` entry, where it applies to real databases only. `auth_dbname` there must equal `POSTGRES_DB`; `--only data` refuses if they disagree |
+| A config fix to `pgbouncer.ini` seems to change nothing — same error after pulling | `pgbouncer.ini` is a bind mount read once at start-up, and `up -d` does not recreate a container whose spec has not changed, so the old process keeps running the old file | `docker compose -f deploy/compose/managed.yml up -d --force-recreate pgbouncer`. `--only data` does this automatically when the container is unhealthy |
+| `pgbouncer` log says `cannot use the reserved "pgbouncer" database as an auth_dbname` | `auth_user` set in the **global** `[pgbouncer]` section governs the admin console too, and the console's database name is reserved — so `auth_query` cannot run and every connection is refused. A per-database `auth_dbname` does not help: the console is not matched by `*` | `auth_user` is set on the `*` entry, where it applies to real databases only. `auth_dbname` there must equal `POSTGRES_DB`; `--only data` refuses if they disagree |
 | `pgbouncer` reports `unhealthy` after ~80s, and its own log says the user is not allowed | The healthcheck reads `SHOW POOLS` from the admin console, which PgBouncer refuses to anyone not in `stats_users`/`admin_users` | Fixed in `pgbouncer/pgbouncer.ini` (`stats_users = pgbouncer_auth`). On an older checkout, pull and `--only data` |
 | Any `docker compose` command fails with `required variable X is missing a value` | Compose interpolates the **whole** file before running anything, so one unset variable breaks every command — including ones that never touch the service named in the error. An `.env` that predates the pooler hits this on `PGBOUNCER_AUTH_PASSWORD` | `./deploy/compose/ensure-env-secrets.sh`, then `--only data` to create the matching Postgres role and start the pooler |
-| `pgbouncer` never becomes healthy, complains about a password | `setup-auth.sql` has not run, or ran without `my.pw` set | `--only data`. The SQL now refuses an unset `my.pw` rather than creating a role with no password |
+| `pgbouncer` never becomes healthy, complains about a password | `setup-auth.sql` has not run, or ran without `my.pw` set | `--only data`. The SQL refuses an unset `my.pw` rather than creating a role with no password |
 | Every app connection: `password authentication failed`, though `.env` and the container agree | A volume from a *different* project — compose's project name derived from the directory basename | `managed.yml` pins its project (`name: ownpace-managed`, which `COMPOSE_PROJECT_NAME` in the `.env` beside it overrides). Check `docker volume ls` for a stray `compose_postgres_data` |
-| `trigger.dev login` prints an authorization URL on the https front, and **Firefox** answers *"De pagina verwijst niet op een juiste manier door"* / cannot connect to `<host>:3443`, while **Chromium completes the same URL** — both after clicking through the self-signed-certificate warning | **Observed 2026-08-31 on the machine, and NOT root-caused — do not repeat the following as though it were the cause.** What is known: `trigger-tls` serves a self-signed certificate, the dashboard's session is a `Secure` cookie, and a session cookie that never sticks renders precisely as "isn't redirecting properly". Chromium and Firefox do not agree about what a connection whose certificate was manually overridden may do with cookies. Whether that is what happened here was not established, because the workaround cost nothing | Do the one-time login in Chromium. The token lands in the host's CLI profile and no browser is needed again, so this is one browser choice per machine and blocks nothing. **It says nothing about the PRODUCT's sign-in**, which is Zitadel on a real hostname with a real certificate — if that ever fails in one browser only, it is a different fault and this row is not it |
-| **The product's sign-in never completes.** The right password comes back to the same sign-in page with no error on it; a **wrong** password still says so. Every user, every browser, and Zitadel's own log shows `POST /password` answering **200 with no redirect** — no token, no callback, nothing to see | Until 2026-08-31 `setup-zitadel.sh` turned self-registration on by writing the ORGANISATION's login policy with `POST /management/v1/policies/login`. That is Zitadel's `AddCustomLoginPolicy`: it mints a policy from the body it is handed and leaves the thirteen fields it was not handed at their proto3 defaults — which for the five `Duration` fields is **zero**. `passwordCheckLifetime: 0` means a password check is valid for no time at all, so Zitadel verifies the password, finds the verification already stale, and computes the password step again. The wrong-password path returns before the lifetime is ever consulted, which is why only the CORRECT password loops. The same custom policy shadows the instance policy wholesale, so it also hid the providers `configure_idp` had just put buttons on | Pull, then re-run `./deploy/compose/setup-zitadel.sh`. It now resets the organisation to the instance default and writes the three settings on the INSTANCE policy, echoing every lifetime the instance answered with — and it refuses, naming the field, if any of them is still zero. To repair a box without a checkout: read the token with `docker compose -f deploy/compose/managed.yml run --rm -T zitadel-machinekey cat /machinekey/pat.txt`, then `curl -sS -X DELETE $JWT_ISSUER/management/v1/policies/login -H "Authorization: Bearer $PAT"` — the organisation falls back to the instance default and sign-in works again immediately. **Do not re-run an OLD `setup-zitadel.sh` afterwards**: it would mint the same policy again |
+| `trigger.dev login` prints an authorization URL on the https front, and **Firefox** answers *"De pagina verwijst niet op een juiste manier door"* / cannot connect to `<host>:3443`, while **Chromium completes the same URL** — both after clicking through the self-signed-certificate warning | **Not root-caused — do not repeat the following as though it were the cause.** What is known: `trigger-tls` serves a self-signed certificate, the dashboard's session is a `Secure` cookie, and a session cookie that never sticks renders precisely as "isn't redirecting properly". Chromium and Firefox do not agree about what a connection whose certificate was manually overridden may do with cookies. Whether that is what happened here was not established, because the workaround cost nothing | Do the one-time login in Chromium. The token lands in the host's CLI profile and no browser is needed again, so this is one browser choice per machine and blocks nothing. **It says nothing about the PRODUCT's sign-in**, which is Zitadel on a real hostname with a real certificate — if that ever fails in one browser only, it is a different fault and this row is not it |
+| **The product's sign-in never completes.** The right password comes back to the same sign-in page with no error on it; a **wrong** password still says so. Every user, every browser, and Zitadel's own log shows `POST /password` answering **200 with no redirect** — no token, no callback, nothing to see | An older `setup-zitadel.sh` turned self-registration on by writing the ORGANISATION's login policy with `POST /management/v1/policies/login`. That is Zitadel's `AddCustomLoginPolicy`: it mints a policy from the body it is handed and leaves the thirteen fields it was not handed at their proto3 defaults — which for the five `Duration` fields is **zero**. `passwordCheckLifetime: 0` means a password check is valid for no time at all, so Zitadel verifies the password, finds the verification already stale, and computes the password step again. The wrong-password path returns before the lifetime is ever consulted, which is why only the CORRECT password loops. The same custom policy shadows the instance policy wholesale, so it also hid the providers `configure_idp` had just put buttons on | Pull, then re-run `./deploy/compose/setup-zitadel.sh`. It resets the organisation to the instance default and writes the three settings on the INSTANCE policy, echoing every lifetime the instance answered with — and it refuses, naming the field, if any of them is still zero. To repair a box without a checkout: read the token with `docker compose -f deploy/compose/managed.yml run --rm -T zitadel-machinekey cat /machinekey/pat.txt`, then `curl -sS -X DELETE $JWT_ISSUER/management/v1/policies/login -H "Authorization: Bearer $PAT"` — the organisation falls back to the instance default and sign-in works again immediately. **Do not re-run an OLD `setup-zitadel.sh` afterwards**: it would mint the same policy again |
 | The `login` phase refuses, you run the printed command, it succeeds, and the phase refuses again | Two different things, both true: `TRIGGER_CLI_PROFILE` names the profile the phase asks for, and the CLI stores logins per profile NAME in `~/.config/trigger/config.json` on the host. Setting the variable does not create the login; logging in under the old name does not satisfy the new setting | Read the two lines the refusal prints — `in use` and `default`. Either log in under the name in use, or point the setting at a name the machine already has: `./deploy/compose/env-upsert.sh deploy/compose/.env TRIGGER_CLI_PROFILE=<name>`. Do not delete the other profile to tidy up; the gate's runner may be using it |
 | `trigger-magic-link.sh` finds nothing | The link is only written when one is **requested** | Submit your email on the dashboard's login page first, then re-run |
 | Dashboard loads but the login never completes | `TRIGGER_APP_ORIGIN` / `TRIGGER_LOGIN_ORIGIN` do not match the address the browser is using; the `Secure` cookie is dropped | Set both (and `TRIGGER_TLS_HOST`) to the real address, then `--from trigger` |
 | The CLI's `deploy` dies with a bare `Connection error` | The CLI was pointed at the https front | Log in against `http://localhost:3090` |
-| `deploy` stops in the image build: `[indexer 2/2]` says *Failed to index deployment* and *Failed to fetch environment variables: Connection error* | The build cannot reach the Trigger.dev API. The CLI hands the build the origin the server advertises; it rewrites a `localhost` origin to `host.docker.internal`, the machine's first non-loopback IPv4 address, and the API answers on loopback only (workplan 0132 T3). E2E (managed) #201 stopped here | Fixed on `main` (2026-09-27): `managed.yml` advertises `http://127.0.0.1:<TRIGGER_PORT>`, and `deploy-tasks.sh` builds with `--network host`. On an older checkout, pull, then `docker compose -f deploy/compose/managed.yml up -d trigger-api` and deploy again. Never set `TRIGGER_BIND` for this: it would put the API on that address for everyone who can reach it |
-| `deploy` says `Invalid or Missing Access Token` right after a successful login | `TRIGGER_ACCESS_TOKEN` was set without `TRIGGER_API_URL`, so the CLI validated a self-hosted token against the SaaS cloud | Fixed in `deploy-tasks.sh` (2026-09-03) — it now sets the URL from `TRIGGER_API_ORIGIN` on the deploy itself. On an older checkout: `TRIGGER_API_URL=http://localhost:3090 ./deploy/compose/deploy-tasks.sh` |
-| `git status` shows `apps/worker/package.json` modified after a deploy | The Trigger.dev CLI rewrites the file — usually only stripping its trailing newline | `git diff` it; discard unless it is a real SDK bump. `deploy-tasks.sh` now says so rather than leaving you to find it |
-| `Seed failed: DATABASE_URL, JWT_SECRET, SECRET_ENCRYPTION_KEY are not set` | The seed runs on the host and inherits nothing; nothing in `apps/api` loads a dotenv file | The refusal now names it: `./deploy/compose/seed-managed.sh`, which reads `.env` and asks compose for the published port. This row is the historical spelling — until 2026-08-25 the message named one variable and no remedy, which is how it reached this table instead of the operator |
+| `deploy` stops in the image build: `[indexer 2/2]` says *Failed to index deployment* and *Failed to fetch environment variables: Connection error* | The build cannot reach the Trigger.dev API. The CLI hands the build the origin the server advertises; it rewrites a `localhost` origin to `host.docker.internal`, the machine's first non-loopback IPv4 address, and the API answers on loopback only | `managed.yml` advertises `http://127.0.0.1:<TRIGGER_PORT>`, and `deploy-tasks.sh` builds with `--network host`. On an older checkout, pull, then `docker compose -f deploy/compose/managed.yml up -d trigger-api` and deploy again. Never set `TRIGGER_BIND` for this: it would put the API on that address for everyone who can reach it |
+| `deploy` says `Invalid or Missing Access Token` right after a successful login | `TRIGGER_ACCESS_TOKEN` was set without `TRIGGER_API_URL`, so the CLI validated a self-hosted token against the SaaS cloud | `deploy-tasks.sh` sets the URL from `TRIGGER_API_ORIGIN` on the deploy itself. On an older checkout: `TRIGGER_API_URL=http://localhost:3090 ./deploy/compose/deploy-tasks.sh` |
+| `git status` shows `apps/worker/package.json` modified after a deploy | The Trigger.dev CLI rewrites the file — usually only stripping its trailing newline | `git diff` it; discard unless it is a real SDK bump. `deploy-tasks.sh` says so rather than leaving you to find it |
+| `Seed failed: DATABASE_URL, JWT_SECRET, SECRET_ENCRYPTION_KEY are not set` | The seed runs on the host and inherits nothing; nothing in `apps/api` loads a dotenv file | The refusal names it: `./deploy/compose/seed-managed.sh`, which reads `.env` and asks compose for the published port |
 | Demo owner tokens are rejected by the API | They expire after seven days | Re-run `./deploy/compose/seed-managed.sh` — it is idempotent and mints fresh ones |
 | Supervisor loops on `Snapshot changed inside startRunAttempt`, runs pile up `EXECUTING`, runner containers accumulate | Almost certainly **not** about snapshots. Check `docker compose logs trigger-api` for `Unsupported state or unable to authenticate data` at `PrismaSecretStore.getSecrets` — that is `TRIGGER_ENCRYPTION_KEY` no longer matching the stored secrets | See "Rotating `TRIGGER_ENCRYPTION_KEY`" above. `set-task-env.sh` alone does not fix it |
-| `set-task-env.sh` fails with a bare `Connection error`, and works when re-run | It was run straight after `trigger-api` was recreated, before the webapp was accepting requests | Nothing — it now waits for the webapp before uploading, and says so |
-| A secret in `.env` is a `change-me-…` value and was never generated | `ensure-env-secrets.sh` used to treat any non-empty value as set, so an `.env` copied from an older template kept its shipped placeholders for ever | Re-run `./deploy/compose/ensure-env-secrets.sh` — it now replaces placeholders and prints what to recreate afterwards |
-| `--from trigger` refuses with "Trigger.dev version drift" | `TRIGGER_IMAGE_TAG` and `@trigger.dev/sdk` disagree (0018 T0). Unset, the tag falls back to `managed.yml`'s default, which is easy to miss | Set `TRIGGER_IMAGE_TAG` to `v<sdk version>`, the checkout's version; or run the checkout that pins the tag's version: a move forward with `./deploy/compose/trigger-version.sh pin` and the pull request *Upgrading Trigger.dev* describes, an older version the release that pinned it, never a `pin` backwards. Never the SDK alone: both images are built from the checkout's Dockerfiles (0146 T16) and refuse another version. The refusal prints both ways |
-| The deploy asks "Would you like to apply those updates?" mid-script | `apps/worker/package.json` pins one SDK version and `node_modules` holds another, so the CLI offers to reconcile them — and waits. In CI there is no terminal to answer from | `pnpm install --frozen-lockfile`, then re-run. `deploy-tasks.sh` now refuses up front rather than letting the deploy become interactive |
-| The CLI sits at its version banner for tens of minutes | `npx`'s "Ok to proceed?" install prompt, invisible because output is discarded. The scripts ran the CLI with `npx -y` until 2026-11-02 for that reason | Nothing here runs `npx` any more: the CLI is the lockfile's, `pnpm -C apps/worker exec trigger …`, which asks nothing. By hand, run it that way too |
-| `pnpm -C apps/worker exec trigger …` answers `Command "trigger" not found`, or a script says the deploy CLI is not installed in apps/worker | The checkout was pulled without an install, so the CLI (apps/worker's devDependency since 2026-11-02) is not in its `node_modules`, or is another version than the SDK | `pnpm install --frozen-lockfile` from the checkout's root. The `login` phase and `deploy-tasks.sh` both do it first, so this meets you only by hand |
-| **`<project>-nextcloud` is `Up` but `(unhealthy)`**, `curl` says `Empty reply from server` in under a second, and `nextcloud.log` has written nothing for hours | PHP is SEGFAULTING on every web request. `docker compose -f deploy/compose/managed.yml logs nextcloud` shows `AH00051: child pid … exit signal Segmentation fault (11)` on a metronomic 15-second beat — the healthcheck interval — because the only request arriving is `/status.php` and every one of them kills its worker. Apache writes the access line *after* a response completes, so a crashed child logs nothing at all, which is why `nextcloud.log` looks idle rather than broken. The cause, isolated on the machine 2026-09-13: **PHP's tracing JIT**, which the image's own `opcache-recommended.ini` enables (`opcache.jit=1255`, `jit_buffer_size=8M`). A bulk delete drove a shared bootstrap path hot, it compiled to something that faults, and every request through it afterwards died. It survives `docker restart` because the same trace recompiles | Fixed in the repo: `deploy/compose/nextcloud-php.ini` is mounted as `zz-ownpace-no-jit.ini` and turns the JIT off while leaving opcache on. Pull and force-recreate the service. **To confirm this is what you are looking at**, use the one asymmetry that identifies it: `docker compose -f deploy/compose/managed.yml exec nextcloud php /var/www/html/status.php` returns clean JSON on the CLI (where `opcache.enable_cli=Off`) while the identical file segfaults under Apache. Do NOT reach for the database, the data directory or `integrity:check-core` first — all three were ruled out before the JIT was found |
+| `set-task-env.sh` fails with a bare `Connection error`, and works when re-run | It was run straight after `trigger-api` was recreated, before the webapp was accepting requests | Nothing — it waits for the webapp before uploading, and says so |
+| A secret in `.env` is a `change-me-…` value and was never generated | An older `ensure-env-secrets.sh` treated any non-empty value as set, so an `.env` copied from an older template kept its shipped placeholders | Re-run `./deploy/compose/ensure-env-secrets.sh` — it replaces placeholders and prints what to recreate afterwards |
+| `--from trigger` refuses with "Trigger.dev version drift" | `TRIGGER_IMAGE_TAG` and `@trigger.dev/sdk` disagree. Unset, the tag falls back to `managed.yml`'s default, which is easy to miss | Set `TRIGGER_IMAGE_TAG` to `v<sdk version>`, the checkout's version; or run the checkout that pins the tag's version: a move forward with `./deploy/compose/trigger-version.sh pin` and the pull request *Upgrading Trigger.dev* describes, an older version the release that pinned it, never a `pin` backwards. Never the SDK alone: both images are built from the checkout's Dockerfiles and refuse another version. The refusal prints both ways |
+| The deploy asks "Would you like to apply those updates?" mid-script | `apps/worker/package.json` pins one SDK version and `node_modules` holds another, so the CLI offers to reconcile them — and waits. In CI there is no terminal to answer from | `pnpm install --frozen-lockfile`, then re-run. `deploy-tasks.sh` refuses up front rather than letting the deploy become interactive |
+| The CLI sits at its version banner for tens of minutes | `npx`'s "Ok to proceed?" install prompt, invisible because output is discarded | Nothing here runs `npx`: the CLI is the lockfile's, `pnpm -C apps/worker exec trigger …`, which asks nothing. By hand, run it that way too |
+| `pnpm -C apps/worker exec trigger …` answers `Command "trigger" not found`, or a script says the deploy CLI is not installed in apps/worker | The checkout was pulled without an install, so the CLI (apps/worker's devDependency) is not in its `node_modules`, or is another version than the SDK | `pnpm install --frozen-lockfile` from the checkout's root. The `login` phase and `deploy-tasks.sh` both do it first, so this meets you only by hand |
+| **`<project>-nextcloud` is `Up` but `(unhealthy)`**, `curl` says `Empty reply from server` in under a second, and `nextcloud.log` has written nothing for hours | PHP is SEGFAULTING on every web request. `docker compose -f deploy/compose/managed.yml logs nextcloud` shows `AH00051: child pid … exit signal Segmentation fault (11)` on a metronomic 15-second beat — the healthcheck interval — because the only request arriving is `/status.php` and every one of them kills its worker. Apache writes the access line *after* a response completes, so a crashed child logs nothing at all, which is why `nextcloud.log` looks idle rather than broken. The cause: **PHP's tracing JIT**, which the image's own `opcache-recommended.ini` enables (`opcache.jit=1255`, `jit_buffer_size=8M`). A bulk delete drove a shared bootstrap path hot, it compiled to something that faults, and every request through it afterwards died. It survives `docker restart` because the same trace recompiles | Fixed in the repo: `deploy/compose/nextcloud-php.ini` is mounted as `zz-ownpace-no-jit.ini` and turns the JIT off while leaving opcache on. Pull and force-recreate the service. **To confirm this is what you are looking at**, use the one asymmetry that identifies it: `docker compose -f deploy/compose/managed.yml exec nextcloud php /var/www/html/status.php` returns clean JSON on the CLI (where `opcache.enable_cli=Off`) while the identical file segfaults under Apache. Do NOT reach for the database, the data directory or `integrity:check-core` first — all three were ruled out before the JIT was found |
 | Task runs die instantly, no logs, runner container gone | `DEPLOY_IMAGE_PLATFORM` does not match the host | Fix it in `.env`, `up -d --force-recreate trigger-api` (it is read server-side), then `--from tasks` |
 | Enqueues fail by name; runs land `failed` immediately | `TRIGGER_SECRET_KEY` unset or not a `tr_prod_` key | `--only account`, then `up -d api` |
 | Tasks run but cannot reach the database | The task environment was never uploaded, or holds `localhost` | `./deploy/compose/set-task-env.sh`. Values are read at run start; no redeploy needed |
-| `trigger-credentials.sh` says the schema is not the one it knows | **Two causes, and the second one is not about Trigger.dev at all.** Either a version bump renamed a column — or the check was asked through a pipeline its own consumer could kill. `printf … | grep -qxF "$col"` under `set -o pipefail` returns 141 when grep SUCCEEDS: `grep -q` exits at the first match without draining, the producer dies of SIGPIPE, and pipefail hands back the signal. `PIPESTATUS` is `(141 0)` — the answer was yes | If the refusal names a column you can see in the database, it is the second cause and the checkout predates the fix: every such pipeline now reads from a here-string, and `no-pipeline-its-own-consumer-can-kill.unit.test.ts` fails the build if one comes back. If the column really is gone, it is the first: read the two values from the dashboard by hand — the refusal names both pages |
+| `trigger-credentials.sh` says the schema is not the one it knows | **Two causes, and the second one is not about Trigger.dev at all.** Either a version bump renamed a column — or the check was asked through a pipeline its own consumer could kill. `printf … | grep -qxF "$col"` under `set -o pipefail` returns 141 when grep SUCCEEDS: `grep -q` exits at the first match without draining, the producer dies of SIGPIPE, and pipefail hands back the signal. `PIPESTATUS` is `(141 0)` — the answer was yes | If the refusal names a column you can see in the database, it is the second cause and the checkout predates the fix: every such pipeline reads from a here-string, and `no-pipeline-its-own-consumer-can-kill.unit.test.ts` fails the build if one comes back. If the column really is gone, it is the first: read the two values from the dashboard by hand — the refusal names both pages |
 | Seed fails on `DATABASE_URL … is required` | It is running on the host and inherits nothing | Use the `demo` phase, which exports them from `.env` |
-| `<project>-idp` is `Up N minutes (unhealthy)` — RUNNING, not restarting — and its log is clean right down to `server is listening` | **The container is fine and the probe is not.** The checkout predates the removal of the provider's healthcheck: that probe asked for readiness from inside the container, where nothing listens on the address it built (see the row below). A current checkout cannot produce this, because the service has no healthcheck any more | Pull, then `./deploy/compose/bootstrap-managed.sh --only app`, which recreates the provider without the probe and asks readiness from the host. What the old probe said is in `docker inspect <project>-idp --format '{{json .State.Health}}' \| jq`; the bring-up prints the same as its `what the HEALTHCHECK said` window for any service that has one |
-| `[setup-zitadel] FATAL: it did not become healthy within five minutes`, on a run where the provider is plainly up and serving | **A second waiter, on a health signal that no longer arrives.** `setup-zitadel.sh` polled `"Health":"healthy"` from `docker compose ps`; the identity provider has no healthcheck (see the rows above), so that field is never set and the wait always runs its full five minutes | Fixed: it now asks `/debug/ready` on the published port, the same address the bring-up uses. `nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts` fails the build if any script waits on the health of a service that declares no healthcheck |
+| `<project>-idp` is `Up N minutes (unhealthy)` — RUNNING, not restarting — and its log is clean right down to `server is listening` | **The container is fine and the probe is not.** The checkout predates the removal of the provider's healthcheck: that probe asked for readiness from inside the container, where nothing listens on the address it built (see the row below). A current checkout cannot produce this, because the service has no healthcheck | Pull, then `./deploy/compose/bootstrap-managed.sh --only app`, which recreates the provider without the probe and asks readiness from the host. What the old probe said is in `docker inspect <project>-idp --format '{{json .State.Health}}' \| jq`; the bring-up prints the same as its `what the HEALTHCHECK said` window for any service that has one |
+| `[setup-zitadel] FATAL: it did not become healthy within five minutes`, on a run where the provider is plainly up and serving | **A second waiter, on a health signal that no longer arrives.** `setup-zitadel.sh` polled `"Health":"healthy"` from `docker compose ps`; the identity provider has no healthcheck (see the rows above), so that field is never set and the wait always runs its full five minutes | Fixed: it asks `/debug/ready` on the published port, the same address the bring-up uses. `nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts` fails the build if any script waits on the health of a service that declares no healthcheck |
 | The bring-up prints `the identity provider never became ready at http://localhost:3126/debug/ready` | **The readiness check is asked from the host, not from inside the container**, because `zitadel ready` builds its URL from `ExternalPort` — the address the OUTSIDE reaches Zitadel on — and nothing listens there inside. Here that is a published port; behind netbird it is 443, terminated by something that is not Zitadel | Read the code the message names. `000` means nothing answered at all — check the container is up and the port published. Any other code means Zitadel answered and said no, which is a real not-ready and its log is the next place to look. The timeout is `IDP_READY_TIMEOUT` (default 300s); a first init applies every migration from scratch and a slow disk can need longer |
 | `[setup-zitadel] FATAL: could not read /machinekey/pat.txt (exit 127)` naming `"cat": executable file not found in $PATH` | **The provider's image has no shell and no coreutils.** `docker compose exec -T zitadel cat …` cannot work, and Docker reports that on STDOUT with exit 127 — so a command substitution captures the error message as if it were the file's contents. Before this refusal existed, that sentence was sent to Zitadel as a Bearer token, which answered `illegal base64 data at input byte 3` (byte 3 is the space after `OCI`) and then `Errors.Token.Invalid` | Nothing to do on a current checkout: the token is read off the VOLUME with busybox, via the `zitadel-machinekey` service that already mounts it. If you are reading the file by hand, do the same — `docker run --rm -v <project>_zitadel_machinekey:/m:ro busybox:1.38 cat /m/pat.txt` — and never `exec` into the provider's container, which has no binaries to run |
-| `[setup-zitadel] FATAL: GET /auth/v1/users/me answered HTTP 401` with `Errors.Token.Invalid (AUTH-7fs1e)` | **The token and the database disagree about which instance this is.** `/machinekey/pat.txt` is written at FIRST INIT and belongs to the instance created then. Clearing the zitadel DATABASE while keeping the machinekey VOLUME leaves a token for an instance that no longer exists; clearing the volume while keeping the database leaves no token at all, since init never runs again to write one. E2E (managed) #50 is the first of these. It can equally mean the token **expired**: each one lives `ZITADEL_PAT_LIFETIME_DAYS` (7) days and `setup-zitadel.sh` rotates it inside the last `ZITADEL_PAT_ROTATE_BELOW_DAYS` (3), so an expired token is what a gate that slept past the gap wakes up to — the refusal itself says which cause is in front of you | **The database and the volume go together.** Either keep the instance — sign in at `http://localhost:3126/ui/console` as the first user, read the client id from the Ownpace project's application, and `env-upsert.sh` `JWT_ISSUER` / `JWT_AUDIENCE` (the project's id; never the issuer alone, or the API refuses to start) / `VITE_OIDC_CLIENT_ID` by hand — or start over, which destroys every account it holds: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm <project>_zitadel_machinekey`, then re-run. The `zitadel` ROLE can stay. Both halves, every time |
-| `[setup-zitadel] FATAL:` a call to the identity provider's API refused, naming an HTTP status | **Read the status, they mean different things.** `401` — the provisioning token was not accepted: it **expired** (`setup-zitadel.sh` rotates it before that on every run, so this means the gate slept past the rotation window — mint a new personal access token on the `ownpace-setup` service user in the console and write it over `/machinekey/pat.txt`), or it belongs to an instance that no longer exists, because the zitadel DATABASE was cleared while the machinekey VOLUME was kept (`/machinekey/pat.txt` is written on FIRST INIT). `403` — the token is fine and `ownpace-setup` lacks the grant the call needs, which is a role to add, not a credential to replace. Anything else prints the provider's own words | Follow the remedy the refusal names — 401 sends you to REPROVISIONING at the bottom of `setup-zitadel.sh`, 403 to the console's org roles. Before E2E (managed) #49 all of these printed `could not create the project` and nothing else, because the response body went into `jq -r '.id'` and was discarded; the search above it could not fail at all, since `.result[]?` turns an error into the same empty output a real "no such project" gives |
+| `[setup-zitadel] FATAL: GET /auth/v1/users/me answered HTTP 401` with `Errors.Token.Invalid (AUTH-7fs1e)` | **The token and the database disagree about which instance this is.** `/machinekey/pat.txt` is written at FIRST INIT and belongs to the instance created then. Clearing the zitadel DATABASE while keeping the machinekey VOLUME leaves a token for an instance that no longer exists; clearing the volume while keeping the database leaves no token at all, since init never runs again to write one. It can equally mean the token **expired**: each one lives `ZITADEL_PAT_LIFETIME_DAYS` (7) days and `setup-zitadel.sh` rotates it inside the last `ZITADEL_PAT_ROTATE_BELOW_DAYS` (3), so an expired token is what a gate that slept past the gap wakes up to — the refusal itself says which cause is in front of you | **The database and the volume go together.** Either keep the instance — sign in at `http://localhost:3126/ui/console` as the first user, read the client id from the Ownpace project's application, and `env-upsert.sh` `JWT_ISSUER` / `JWT_AUDIENCE` (the project's id; never the issuer alone, or the API refuses to start) / `VITE_OIDC_CLIENT_ID` by hand — or start over, which destroys every account it holds: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker compose -f deploy/compose/managed.yml exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm <project>_zitadel_machinekey`, then re-run. The `zitadel` ROLE can stay. Both halves, every time |
+| `[setup-zitadel] FATAL:` a call to the identity provider's API refused, naming an HTTP status | **Read the status, they mean different things.** `401` — the provisioning token was not accepted: it **expired** (`setup-zitadel.sh` rotates it before that on every run, so this means the gate slept past the rotation window — mint a new personal access token on the `ownpace-setup` service user in the console and write it over `/machinekey/pat.txt`), or it belongs to an instance that no longer exists, because the zitadel DATABASE was cleared while the machinekey VOLUME was kept (`/machinekey/pat.txt` is written on FIRST INIT). `403` — the token is fine and `ownpace-setup` lacks the grant the call needs, which is a role to add, not a credential to replace. Anything else prints the provider's own words | Follow the remedy the refusal names — 401 sends you to REPROVISIONING at the bottom of `setup-zitadel.sh`, 403 to the console's org roles |
 | `<project>-idp` restarts for ever; the OLDEST line in the failure window is `migration failed … name=34_add_cache_schema error="ERROR: partitioned tables cannot be unlogged (SQLSTATE 0A000)"` | **The identity provider is older than the database it is pointed at.** Zitadel's cache schema created an UNLOGGED PARTITIONED table and PostgreSQL removed support for that, so setup step 34 fails on every attempt and the provider can never finish starting. Not a misconfiguration, and no setting avoids it (zitadel/zitadel#10712) | Nothing to do on a current checkout: the pinned image is above the fix (zitadel/zitadel#11484), and `zitadel-image-matches-postgres.unit.test.ts` fails the build if the two pins are ever moved into a pairing that cannot initialise. If you hit this on an older checkout, raise the Zitadel pin — do not lower Postgres — and then clear the half-written database as the row below describes |
-| `<project>-idp` restarts for ever; the OLDEST line in the bring-up's failure window is `migration failed … name=03_default_instance error="open /machinekey/pat.txt: permission denied"` | **The machinekey volume is not writable by the identity provider.** Docker creates a new named volume's mount point owned by root, and the Zitadel image runs as a non-root user — which the error proves, since root could have written anywhere. `03_default_instance` creates the first human BEFORE the machine account, so while the admin password was being rejected this was never reached; fixing the password is what exposed it | Nothing to do by hand on a current checkout: the bring-up reads the image's own `Config.User` and prepares the volume before starting the provider. `v4.6.2` reports a NAME (`zitadel`), not a uid — so where that happens the bring-up reads the number out of the image's own `/etc/passwd`, the same file Docker resolves the name against, via `docker create` + `docker cp` (no shell in the image is assumed, and nothing is started). It REFUSES only a name that passwd does not explain, and that refusal prints the one-line `docker run` that prepares the volume by hand. Either way the half-written database from the failed attempts still has to be cleared — see the row below |
-| `<project>-idp` restarts for ever; its log ends `migration failed … name=03_default_instance` with `Errors.Instance.Domain.AlreadyExists` and `Key (instance_id, unique_type, unique_field)=(, instance_domain, localhost) already exists` | **Partial state from an earlier failed init.** `03_default_instance` registers the instance domain and THEN creates the first human. If that second half fails — a password the complexity policy rejects, say — Zitadel logs `setup failed, skipping cleanup` and means it: the domain row stays. Every retry re-runs the migration from the top, hits its own leftover row, and dies on a duplicate key that says nothing about the original cause | The `zitadel` database has to go. Nothing depends on it while init has never completed — no users, no clients, no tokens: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker compose -f deploy/compose/managed.yml exec -T postgres sh -lc 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm <project>_zitadel_machinekey`, then re-run the bring-up. The `zitadel` ROLE can stay — `verify user` reuses it with the unchanged `ZITADEL_DB_PASSWORD`. **Clearing it is the second half of the fix, never the whole one.** The duplicate key is what the FIRST failure left behind; if the thing that caused that failure is still in place, the very next bring-up re-poisons the database and reports the same duplicate key — four E2E (managed) runs went that way on 2026-08-23. The bring-up now prints a third log window, every line that reports a failure, oldest first: the OLDEST is the cause and the rest are its echoes. Fix that, then clear |
-| Every authenticated request answers `HTTP 500 {"error":"auth_failed"}`, while `/api/ready` answers 200 and `docker compose ps` shows everything healthy | **The API cannot reach its own issuer, so verification never gets as far as a token.** With `ZITADEL_EXTERNALDOMAIN=localhost` the issuer is `http://localhost:3126` — an address the HOST reaches through the published port and the API container cannot, because inside that container `localhost` is the API. Discovery throws `connect ECONNREFUSED 127.0.0.1:3126`, which is not a JWT error, so it lands in `serverFault` as a 500 rather than a 401. E2E (managed) #52 | Nothing to do on a current checkout: the default is `ownpace-idp`, a network alias on the provider's own container, and the provider listens on the number it publishes so the origin matches from both sides. On a stack initialised under the old value the provider will refuse the new origin — see the `Instance not found` row below. A browser on the same machine needs `127.0.0.1  ownpace-idp` in `/etc/hosts`; a real deployment sets a real hostname and DNS answers for both sides |
-| `[setup-zitadel] FATAL:` a call answered `HTTP 404` with `unable to set instance using origin` / `Instance not found` | **The provider does not serve the origin being presented.** Zitadel resolves which instance a request is for from the request's origin — host AND **port** — and refuses any other. **Check the port before assuming the host is wrong:** `ownpace-idp:8080` and `ownpace-idp:3126` are different origins, and an evening went into concluding that trusted domains cannot work when the real fault was a provider listening on one port and stamping another into its issuer | Nothing to do on a current checkout in the ordinary case: `setup-zitadel.sh` registers `ZITADEL_EXTERNALDOMAIN` as an instance **trusted domain** on every run, which is enough to make an instance answer for an origin it was not initialised with — proved on E2E (managed) #61, on an instance initialised as `localhost` and never re-initialised. It can only do that once it can reach the instance, so if NOTHING the instance knows still resolves, the last resort is to initialise it again; the refusal prints those commands. A provisioning token cannot add an instance *domain*: `POST /admin/v1/domains` answers `404 Not Found` and the System API answers `401 Errors.Token.Invalid` |
-| Sign-in fails at the very first step with `{"error":"invalid_request","error_description":"This client's redirect_uri is http and is not allowed."}` | **The application was provisioned with `devMode:false` against an `http://` WEB_URL.** Zitadel refuses a plaintext redirect URI outright, at `/oauth/v2/authorize`, before any login screen — so the sign-in button could never work, while provisioning reported complete success: project created, application created, client id written to `.env` | Nothing to do on a current checkout: `devMode` is derived from the scheme of `WEB_URL`, and `setup-zitadel.sh` now RECONCILES an application it finds rather than only reading its client id, so an existing stack is put right on the next bring-up |
-| Sign-in completes and then every request is refused with `Missing required claims in token payload` | **The access token carries no email address, and the API requires one.** ADR-0042 narrowed the required claims to `sub` + `email` because invitations are addressed to an email address and a first-time signer-in has no row to look one up in. Zitadel puts user info claims in the ID token and NOT in the access token — measured with `idTokenUserinfoAssertion` both off and on | Nothing to do on a current checkout: the application is provisioned with `idTokenUserinfoAssertion` on, and `apps/web/src/services/oidc.ts` sends the ID token. Its audience is `[client id, project id]` and `JWT_AUDIENCE` is that project id, so the API validates issuer, audience, signature and expiry exactly as it would for an access token |
-| The smoke says `the API cannot reach the issuer at all` on a stack whose issuer is plainly fine | **The check asked with a client the image has not got.** the API's image was a slim Node image then, and is distroless now (workplan 0146 T13) — no curl, no wget, no shell — so `docker exec … curl …` printed `curl: not found`, `\|\| true` swallowed the 127, and the empty string was reported as a verdict about the issuer. The container's own HEALTHCHECK has used `node -e "fetch(...)"` all along, on `/nodejs/bin/node` since workplan 0146 T13 | Nothing to do on a current checkout: the smoke asks with node, by its path in the image (`/nodejs/bin/node`, or `/usr/local/bin/node` on the Node image of a tag before 0146 T13), and keeps "the probe could not run", "the issuer could not be reached" and "the issuer answered X" apart — three facts about three different things (hard rule 10) |
-| The sign-in screen shows the same provider button several times — nine Google buttons after a week of re-runs | Until 2026-09-02 `configure_idp` looked for an existing provider on the deprecated `/admin/v1/idps/_search` list, which does not list the template kind it creates, so every re-run of the app phase added one more. It now reads `/admin/v1/idps/templates/_search`, keeps the oldest, and reports duplicates by count | `./deploy/compose/setup-zitadel.sh --offer-one Google` keeps the **oldest** button (the one your first sign-ins were linked to) and takes the others off the screen by removing their login-policy links — every provider stays, and so does everyone's link to it. The console's **instance** page does the same (Default settings → Login Behaviour and Security → Identity Providers, the 'available' toggle); an organisation-page toggle is undone by the next bring-up, which resets an organisation's own login policy on purpose. The script never deletes a provider. If a Google sign-in then asks to link the account, accept once |
-| The bring-up stops before the API with `N of M Docker networks lie outside the ranges the rule refuses` and `A Docker network on this machine lies outside the ranges a tester's host is refused in` | A network on this machine, this stack's or another stack's, has a subnet or a gateway outside the ranges the rule for a tester's host refuses (workplan 0136 T1 (b)). A host that resolves there would reach this machine through that network's gateway, and the rule would let it through | The `OUTSIDE` lines above the refusal name each network, its compose project, and the subnet or gateway outside. Set the daemon's `default-address-pools` inside `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16` and recreate the network, or remove it if nothing uses it. Then `--from app` |
+| `<project>-idp` restarts for ever; the OLDEST line in the bring-up's failure window is `migration failed … name=03_default_instance error="open /machinekey/pat.txt: permission denied"` | **The machinekey volume is not writable by the identity provider.** Docker creates a new named volume's mount point owned by root, and the Zitadel image runs as a non-root user — which the error proves, since root could have written anywhere. `03_default_instance` creates the first human BEFORE the machine account, so a rejected admin password hides this failure until it is fixed | Nothing to do by hand on a current checkout: the bring-up reads the image's own `Config.User` and prepares the volume before starting the provider. `v4.6.2` reports a NAME (`zitadel`), not a uid — so where that happens the bring-up reads the number out of the image's own `/etc/passwd`, the same file Docker resolves the name against, via `docker create` + `docker cp` (no shell in the image is assumed, and nothing is started). It REFUSES only a name that passwd does not explain, and that refusal prints the one-line `docker run` that prepares the volume by hand. Either way the half-written database from the failed attempts still has to be cleared — see the row below |
+| `<project>-idp` restarts for ever; its log ends `migration failed … name=03_default_instance` with `Errors.Instance.Domain.AlreadyExists` and `Key (instance_id, unique_type, unique_field)=(, instance_domain, localhost) already exists` | **Partial state from an earlier failed init.** `03_default_instance` registers the instance domain and THEN creates the first human. If that second half fails — a password the complexity policy rejects, say — Zitadel logs `setup failed, skipping cleanup` and means it: the domain row stays. Every retry re-runs the migration from the top, hits its own leftover row, and dies on a duplicate key that says nothing about the original cause | The `zitadel` database has to go. Nothing depends on it while init has never completed — no users, no clients, no tokens: `docker compose -f deploy/compose/managed.yml rm -sf zitadel`, then `docker compose -f deploy/compose/managed.yml exec -T postgres sh -lc 'psql -U "$POSTGRES_USER" -d postgres -c "DROP DATABASE IF EXISTS zitadel WITH (FORCE)"'`, then `docker volume rm <project>_zitadel_machinekey`, then re-run the bring-up. The `zitadel` ROLE can stay — `verify user` reuses it with the unchanged `ZITADEL_DB_PASSWORD`. **Clearing it is the second half of the fix, never the whole one.** The duplicate key is what the FIRST failure left behind; if the thing that caused that failure is still in place, the very next bring-up re-poisons the database and reports the same duplicate key. The bring-up prints a third log window, every line that reports a failure, oldest first: the OLDEST is the cause and the rest are its echoes. Fix that, then clear |
+| Every authenticated request answers `HTTP 500 {"error":"auth_failed"}`, while `/api/ready` answers 200 and `docker compose ps` shows everything healthy | **The API cannot reach its own issuer, so verification never gets as far as a token.** With `ZITADEL_EXTERNALDOMAIN=localhost` the issuer is `http://localhost:3126` — an address the HOST reaches through the published port and the API container cannot, because inside that container `localhost` is the API. Discovery throws `connect ECONNREFUSED 127.0.0.1:3126`, which is not a JWT error, so it lands in `serverFault` as a 500 rather than a 401 | Nothing to do on a current checkout: the default is `ownpace-idp`, a network alias on the provider's own container, and the provider listens on the number it publishes so the origin matches from both sides. On a stack initialised under the old value the provider will refuse the new origin — see the `Instance not found` row below. A browser on the same machine needs `127.0.0.1  ownpace-idp` in `/etc/hosts`; a real deployment sets a real hostname and DNS answers for both sides |
+| `[setup-zitadel] FATAL:` a call answered `HTTP 404` with `unable to set instance using origin` / `Instance not found` | **The provider does not serve the origin being presented.** Zitadel resolves which instance a request is for from the request's origin — host AND **port** — and refuses any other. **Check the port before assuming the host is wrong:** `ownpace-idp:8080` and `ownpace-idp:3126` are different origins, so a provider listening on one port and stamping another into its issuer looks like trusted domains not working | Nothing to do on a current checkout in the ordinary case: `setup-zitadel.sh` registers `ZITADEL_EXTERNALDOMAIN` as an instance **trusted domain** on every run, which is enough to make an instance answer for an origin it was not initialised with, even one initialised as `localhost` and never re-initialised. It can only do that once it can reach the instance, so if NOTHING the instance knows still resolves, the last resort is to initialise it again; the refusal prints those commands. A provisioning token cannot add an instance *domain*: `POST /admin/v1/domains` answers `404 Not Found` and the System API answers `401 Errors.Token.Invalid` |
+| Sign-in fails at the very first step with `{"error":"invalid_request","error_description":"This client's redirect_uri is http and is not allowed."}` | **The application was provisioned with `devMode:false` against an `http://` WEB_URL.** Zitadel refuses a plaintext redirect URI outright, at `/oauth/v2/authorize`, before any login screen — so the sign-in button could never work, while provisioning reported complete success: project created, application created, client id written to `.env` | Nothing to do on a current checkout: `devMode` is derived from the scheme of `WEB_URL`, and `setup-zitadel.sh` RECONCILES an application it finds rather than only reading its client id, so an existing stack is put right on the next bring-up |
+| Sign-in completes and then every request is refused with `Missing required claims in token payload` | **The access token carries no email address, and the API requires one.** The required claims are `sub` + `email` because invitations are addressed to an email address and a first-time signer-in has no row to look one up in. Zitadel puts user info claims in the ID token and NOT in the access token — measured with `idTokenUserinfoAssertion` both off and on | Nothing to do on a current checkout: the application is provisioned with `idTokenUserinfoAssertion` on, and `apps/web/src/services/oidc.ts` sends the ID token. Its audience is `[client id, project id]` and `JWT_AUDIENCE` is that project id, so the API validates issuer, audience, signature and expiry exactly as it would for an access token |
+| The smoke says `the API cannot reach the issuer at all` on a stack whose issuer is plainly fine | **The check asked with a client the image has not got.** The API's image has no curl, no wget and no shell, so an older smoke's `docker exec … curl …` printed `curl: not found`, `\|\| true` swallowed the 127, and the empty string was reported as a verdict about the issuer. The container's own HEALTHCHECK uses `node -e "fetch(...)"` | Nothing to do on a current checkout: the smoke asks with node, by its path in the image (`/nodejs/bin/node`, or `/usr/local/bin/node` on the Node image of `v0.2.0-alpha.2` and earlier), and keeps "the probe could not run", "the issuer could not be reached" and "the issuer answered X" apart — three facts about three different things (hard rule 10) |
+| The sign-in screen shows the same provider button several times — nine Google buttons after a week of re-runs | An older `configure_idp` looked for an existing provider on the deprecated `/admin/v1/idps/_search` list, which does not list the template kind it creates, so every re-run of the app phase added one more. The current one reads `/admin/v1/idps/templates/_search`, keeps the oldest, and reports duplicates by count | `./deploy/compose/setup-zitadel.sh --offer-one Google` keeps the **oldest** button (the one your first sign-ins were linked to) and takes the others off the screen by removing their login-policy links — every provider stays, and so does everyone's link to it. The console's **instance** page does the same (Default settings → Login Behaviour and Security → Identity Providers, the 'available' toggle); an organisation-page toggle is undone by the next bring-up, which resets an organisation's own login policy on purpose. The script never deletes a provider. If a Google sign-in then asks to link the account, accept once |
+| The bring-up stops before the API with `N of M Docker networks lie outside the ranges the rule refuses` and `A Docker network on this machine lies outside the ranges a tester's host is refused in` | A network on this machine, this stack's or another stack's, has a subnet or a gateway outside the ranges the rule for a tester's host refuses. A host that resolves there would reach this machine through that network's gateway, and the rule would let it through | The `OUTSIDE` lines above the refusal name each network, its compose project, and the subnet or gateway outside. Set the daemon's `default-address-pools` inside `10.0.0.0/8`, `172.16.0.0/12` or `192.168.0.0/16` and recreate the network, or remove it if nothing uses it. Then `--from app` |
 | `ownpace-api` restarts at start-up, and task runs fail before they connect anywhere, with `OWNPACE_REACHABLE_HOSTS: "<entry>" is not a host name` | The list takes exact host names only: no wildcards, ranges, addresses or ports. A process that cannot read it stops, rather than admit more than the list says | Fix the entry in `.env`, then `docker compose -f deploy/compose/managed.yml up -d api` and `./deploy/compose/set-task-env.sh`. Task variables are read at run start; no redeploy is needed |
 | On the gate's stack, the Test button says the demo Nextcloud or Stalwart is inside our network, the smoke's `test-connection` step fails, or a demo migration's pass fails with `host_inside_our_network` | `OWNPACE_REACHABLE_HOSTS` does not list the name, so the rule refuses it like any other host inside this network | On a demo box, `--from demo` adds the demo's names; or add `nextcloud,stalwart` to `.env` by hand. Then `up -d api` and `./deploy/compose/set-task-env.sh`. On live, add nothing: this is the rule doing its job, and an entry admits that name for every organisation |
 
@@ -4957,7 +4825,7 @@ journal of whatever ran it), 2 refused.
 ## Updating a running deployment
 
 > **The pull that brings `WEB_BIND` into `managed.yml` moves every port to
-> loopback** (workplan 0132 T3). On a stack whose names are routed through a
+> loopback.** On a stack whose names are routed through a
 > front, set `WEB_BIND` and `ZITADEL_BIND` to the address the front connects
 > to, in `.env`, **before** the pull. `STATUS_BIND` too where a status name is
 > routed **or the status page is opened from a laptop over the mesh**, and
@@ -4968,8 +4836,8 @@ journal of whatever ran it), 2 refused.
 > up -d` from the updated checkout. See *Which address a port answers on*, under
 > the ports table in *Before you start*.
 
-**ClickHouse's network changes once, with no step of yours** (2026-11-01,
-workplan 0119 §3 item 9). The first `up` from a checkout that carries it
+**ClickHouse's network changes once, with no step of yours.** The first `up`
+from a checkout that carries it
 creates `<project>_trigger-event-store`, moves `clickhouse` onto it and off
 `ownpace-network`, and recreates `clickhouse` and `trigger-api`, because their
 networks changed. No volume is touched: ClickHouse starts again on
@@ -4978,8 +4846,8 @@ networks changed. No volume is touched: ClickHouse starts again on
 removed first. As at any recreation of `clickhouse`, `trigger-api` cannot reach
 it for the seconds between the two, within the same `up`.
 
-**The socket proxy's network changes once, with no step of yours either**
-(2026-11-02, workplan 0136 T4's first bullet). The first `up` from a checkout
+**The socket proxy's network changes once, with no step of yours either.** The
+first `up` from a checkout
 that carries it creates `<project>_trigger-docker-socket`, moves
 `trigger-docker-proxy` onto it and off `ownpace-network`, adds
 `trigger-supervisor` to it, and recreates both, because their networks changed.
@@ -4997,11 +4865,9 @@ reused by the next move forward, and can be removed by hand once empty with
 `docker network rm <project>_trigger-docker-socket`.
 
 **The stores' and the fronts' images move with the checkout, never with a
-`docker pull`** (workplan 0119 §4, 2026-10-22). Both databases, Trigger.dev's
-Redis, the dashboard's TLS front, the demo's Nextcloud, the site's nginx and the
-web image's base are pinned by exact version and digest. Until then they
-floated within their lines, and nothing pulled them, so each stack ran whatever
-copy the machine had pulled first. A move is a pull request, proven by E2E
+`docker pull`.** Both databases, Trigger.dev's Redis, the dashboard's TLS
+front, the demo's Nextcloud, the site's nginx and the web image's base are
+pinned by exact version and digest. A move is a pull request, proven by E2E
 (managed) on its branch; `up` pulls a digest the machine does not have and
 recreates the service whose image changed. So the OTA stack takes it at its next
 nightly gate (each database restarts once), live at the next `deploy-live.sh` of
@@ -5026,7 +4892,7 @@ fix.
 > having to.
 
 **Both PostgreSQL databases run a build of the official image, without gosu,
-as uid 70** (workplan 0146 T15, 2026-10-26). `postgres` and `trigger-db` run
+as uid 70.** `postgres` and `trigger-db` run
 `localhost/postgres:<base tag>-<12 hex>`, which compose builds from
 `deploy/compose/postgres/Dockerfile`: the pinned `postgres:18.7-alpine` digest
 with `/usr/local/bin/gosu` removed and `USER 70:70`. gosu was the image's one
@@ -5041,9 +4907,9 @@ the user gosu dropped to, it never does. What that means for you:
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
   `up` pulled the image before), runs one `rm`, and needs no package mirror.
-  From 2026-10-31 to 2026-11-13 it also took four of Alpine's security
-  updates from Alpine's mirror (`dl-cdn.alpinelinux.org`), until PostgreSQL
-  18.7's image carried them (workplan 0119). The
+  On `v0.2.0-alpha.4` to `v0.2.0-alpha.7` it also takes Alpine's security
+  updates from Alpine's mirror (`dl-cdn.alpinelinux.org`), which PostgreSQL
+  18.7's image, from alpha.8 on, carries itself. The
   services say `pull_policy: never`, since no registry serves the name:
   `docker compose pull` passes them by, and `up` builds without asking one.
 - **After that it is built again only when the Dockerfile changes**, which
@@ -5077,14 +4943,14 @@ the user gosu dropped to, it never does. What that means for you:
   `pg_hba.conf` trusts, and answers the same: `trigger-version.sh` (backup and
   restore drill), `copy-before-update.sh`, `dump-idp.sh`, `db-roles.sh` and
   `rotate-db-passwords.sh`, the bring-up, `deploy-live.sh`, the smoke and the
-  rows of this document. The container keeps no capability since 2026-11-03
+  rows of this document. The container keeps no capability
   (*How the containers run*), so `-u 0` alone is root without root's powers:
   a repair that needs them is `exec --privileged -u 0`. An interactive `psql` or shell keeps its history in the
   container's `/tmp`, as root's was kept in `/root`, never on the data volume
   (uid 70's home).
 - **The network questions ask with the build.** `db-roles.sh` and
-  `stand-up-live.sh` ask with managed.yml's first postgres image, now the build,
-  which the stack's own `up` made. A checkout pulled ahead of its stack, before
+  `stand-up-live.sh` ask with managed.yml's first postgres image, the build
+  the stack's own `up` made. A checkout pulled ahead of its stack, before
   any `up`, has no such image yet: the question then ends in docker's own
   error, which reads as "cannot tell", never as a verdict. Run the bring-up
   first.
@@ -5114,11 +4980,10 @@ the user gosu dropped to, it never does. What that means for you:
   tests start the same FROM. The pin watch reports a newer tag of the FROM,
   and the weekly image scan builds the Dockerfile and scans what it built.
   Before it merges, read the new minor's release notes for REINDEX advice
-  against the indexes the two databases hold: 18.7's named none of theirs
-  (workplan 0119, 2026-11-13).
+  against the indexes the two databases hold: 18.7's named none of theirs.
 
-The appliance (`deploy/selfhost/compose.yml`) runs a build of its own since
-workplan 0146 T15b, the same day: `deploy/selfhost/postgres/Dockerfile`, these
+The appliance (`deploy/selfhost/compose.yml`) runs a build of its own,
+`deploy/selfhost/postgres/Dockerfile`: these
 instructions on the appliance's own base digest, which its own Dependabot
 entry moves. The guard holds the two Dockerfiles to the same instructions but
 for the FROM, so a change to `deploy/compose/postgres/Dockerfile` is made to
@@ -5131,7 +4996,7 @@ builds its `app` by name and runs `up` without `--build`. What the change
 means for an appliance's own data, a bind mount of a host directory included,
 is in [selfhost-quickstart.md](./selfhost-quickstart.md).
 
-**The Docker socket proxy is a build here too** (workplan 0119, 2026-10-30).
+**The Docker socket proxy is a build here too.**
 `trigger-docker-proxy`, between the Trigger.dev supervisor and the host's
 Docker socket, runs `localhost/docker-socket-proxy:<base tag>-<12 hex>`, which
 compose builds from `deploy/compose/docker-socket-proxy`: Tecnativa's
@@ -5164,7 +5029,7 @@ Docker, and what it may not, is unchanged.
   `tecnativa/docker-socket-proxy:v0.5.0`, with the same environment; `up`
   pulls it when the machine no longer has it.
 
-**The dashboard's TLS front is a build here too** (workplan 0119, 2026-10-31).
+**The dashboard's TLS front is a build here too.**
 `trigger-tls`, the Caddy in front of the Trigger.dev dashboard, runs
 `localhost/caddy:<base tag>-<12 hex>`, which compose builds from
 `deploy/compose/caddy`: Caddy's official `caddy:2.11.9-alpine` at the digest
@@ -5200,16 +5065,16 @@ asks it from the host.
   machine no longer has it. A tag between the two builds Caddy 2.11.7 without
   curl.
 
-**Trigger.dev's Redis is a build here too** (workplan 0119 §3 item 11, for
-alpha.6; the owner, 2026-11-07: *"Redis purge in 6"*). `trigger-redis` runs
+**Trigger.dev's Redis is a build here too**, from `v0.2.0-alpha.6`.
+`trigger-redis` runs
 `localhost/redis:<base tag>-<12 hex>`, which compose builds from
 `deploy/compose/redis`: Redis's official `redis:7.4.12-bookworm` at the digest
 its Dockerfile pins, with the eleven Debian packages the webapp's image purges
 (util-linux's eight, apt, libapt-pkg6.0 and e2fsprogs) purged, and run as uid
 and gid 999 from its first process. 24 of the image's 34 high findings were in
 util-linux's eight, and nothing in this container runs or loads any of the
-eleven. Since 2026-11-08 (for alpha.7) this build and the webapp's purge
-libsystemd0 and libudev1 too, thirteen packages: one high each, and only four of
+eleven. From `v0.2.0-alpha.7` this build and the webapp's also purge
+libsystemd0 and libudev1, thirteen packages: one high each, and only four of
 the eleven depended on them. After the purge the build fails if a file of a
 removed library is left, or if any ELF file in the image needs one (its
 `DT_NEEDED`) or names one. Redis itself, its command, its volume and its
@@ -5225,9 +5090,9 @@ append-only file are as they were.
 - **The data stays where it is, and is already uid 999's.** Upstream's
   entrypoint chowned whatever in `/data` was not uid 999's at every start, and
   the server wrote the rest as 999, so the volume needs nothing: the build
-  starts on it as 999 and reads its append-only file as before. The purge took
-  util-linux's `setpriv`, which that entrypoint used to drop from root, so
-  nothing chowns `/data` any more. To see it before the deploy, on the old
+  starts on it as 999 and reads its append-only file as before. The purge takes
+  util-linux's `setpriv`, with which upstream's entrypoint drops from root, so
+  nothing here chowns `/data`. To see it before the deploy, on the old
   container, this prints nothing:
   `docker compose -f deploy/compose/managed.yml exec -T -u 999 trigger-redis find /data ! -user 999`
   A line it prints, or a `Permission denied`, is a file uid 999 does not own:
@@ -5247,14 +5112,14 @@ append-only file are as they were.
   amd64)` and `build (redis, arm64)` (`images.yml`) build it, start upstream's
   image on a new volume, then the build on that volume, and ask it for uid
   999, PONG and the key written there; its E2E (managed) is dispatched like
-  any pin's. Another major is the owner's call (0119 §3 item 3).
+  any pin's. Another major is the owner's call.
 - **Rolling back to a tag before this runs upstream's image again**, as root
   with the four capabilities its entrypoint takes, `redis:7.4.12-bookworm` by
   the digest those tags pin: it finds `/data` uid 999's, as the build left it,
   and drops to 999 as before; `up` pulls it when the machine no longer has it.
 
-**The pooler is a build here too, until upstream rebuilds its image** (workplan
-0119, 2026-11-13, for alpha.8). `pgbouncer` runs
+**The pooler is a build here too, until upstream rebuilds its image**, from
+`v0.2.0-alpha.8`. `pgbouncer` runs
 `localhost/pgbouncer:<base tag>-<12 hex>`, which compose builds from
 `deploy/compose/pgbouncer`: `edoburu/pgbouncer:v1.26.1-p0` at the digest its
 Dockerfile pins, with five Alpine packages at the versions that carry their
@@ -5560,14 +5425,14 @@ cd ~/ownpace-managed && (
 **The first time is not this:** *Standing up ownpace-live*, above, with
 `stand-up-live.sh`. **On `ownpace-live`, the stack testers use, the pull under
 *The OTA stack* below is never run, and `git pull` never is.** Live runs a release tag and nothing
-else (workplan 0132 T6, 0146 T5), so the build a tester sees, a problem
+else, so the build a tester sees, a problem
 report's build line, the deploy log and the GitHub release all name the same
 thing. One script moves it:
 
 1. **Name the tag.** An annotated `v*` tag on origin, cut as
    [release.md](./release.md) §2 says: by the Release workflow, which refuses a
-   commit the nightly gate has not run green on the OTA stack as workplan 0141
-   T14 reads it, and checks what the tag published. Record the tag, its
+   commit the nightly gate has not run green on the OTA stack, and checks what
+   the tag published. Record the tag, its
    commit, and the Release run its message names. A tag pushed by hand is the
    break-glass path, and the deploy log says why.
 2. **Start the hold**, with a sentence in Dutch, and **wait for the drain**:
@@ -5598,8 +5463,8 @@ thing. One script moves it:
    ./deploy/compose/deploy-live.sh <tag>
    ```
 
-   Always so from a phone, or over any connection that may drop (live's deploy
-   of 2026-11-08 ran so). A dropped connection hangs up the shell, and the
+   Always so from a phone, or over any connection that may drop. A dropped
+   connection hangs up the shell, and the
    script with it, wherever it is; and a deploy whose identity-provider pin
    moves is one-way (step 3), so a run stopped halfway has the copy as its way
    back. Inside `tmux` the run goes on, and `tmux attach -t deploy` shows it.
@@ -5607,7 +5472,7 @@ thing. One script moves it:
    Right before its checkout it takes **the copy before the update**, into
    `~/.persistent/ownpace-live/copy-before-update`: the app's database, the
    sign-in service's database and the roles, and the task runner's database
-   when the tag moves the Trigger.dev pin, each read back (workplan 0139). A
+   when the tag moves the Trigger.dev pin, each read back. A
    copy whose update is not proven yet (a deploy that did not take, run
    again) is kept instead, since it is of what ran before. No copy, no deploy:
    without the daily duties' timer active, or with a kept copy the next daily
@@ -5649,16 +5514,15 @@ thing. One script moves it:
    passes `SOURCE_DATE_EPOCH=0` to every build, which dates the image's config
    1970-01-01, and an image it exports to push it writes with
    `rewrite-timestamp=true`, which rewrites the layers' file times too. So the
-   tasks' image reads 1970-01-01 whatever day it was built: live's deploy of
-   2026-11-08 read it so, on the image it had just built. A check after a
+   tasks' image reads 1970-01-01 whatever day it was built. A check after a
    deploy tells which image runs by its tag or its digest, or by the
    deployment's version beside each runner as the managed smoke does, never by
    a creation date. `scripts/a-task-image-dated-1970.unit.test.ts` reads both
    settings in the installed CLI, so a CLI move that drops one fails until this
    is read again.
 6. **The copy goes by itself once the update is proven.** Every ten minutes
-   live's box checks run `copy-before-update.sh delete-if-proven` (workplan
-   0132 T9). It keeps `delete`'s rule: the last line `deploys.log` has since
+   live's box checks run `copy-before-update.sh delete-if-proven`. It keeps
+   `delete`'s rule: the last line `deploys.log` has since
    the copy was taken says the deploy took (one that did not take after it
    leaves nothing proven), the hold that covered it is lifted, and a pass that
    started after it succeeded, each read from live's database. And it is
@@ -5687,9 +5551,8 @@ thing. One script moves it:
 
 #### The deploy from alpha.2 to alpha.3 runs twice
 
-The owner's decision of 2026-10-26 (workplan 0146 T13): `v0.2.0-alpha.3`
-carries both the readers (T13a), which read the api container's variables from
-Docker, and the distroless API image (T13), which has no shell and no
+`v0.2.0-alpha.3` carries both the readers, which read the api container's
+variables from Docker, and the distroless API image, which has no shell and no
 `printenv`. `deploy-live.sh` runs the copy the checkout had before it moved to
 the tag. So a deploy of `v0.2.0-alpha.3`, or a later tag, started from a
 checkout of `v0.2.0-alpha.2` or an earlier tag (`git describe --tags` in
@@ -5709,7 +5572,7 @@ version: the stack has moved. Then it prints these, its last lines, and exits
 
 Before the first run, set `TRIGGER_IMAGE_TAG=v4.8.1` in live's persisted
 `.env` (*A `.env` that sets `TRIGGER_IMAGE_TAG` moves by hand*, below):
-`v0.2.0-alpha.3` pins Trigger.dev 4.8.1 (#1697), and with v4.7.6 still there
+`v0.2.0-alpha.3` pins Trigger.dev 4.8.1, and with v4.7.6 still there
 the first run's bring-up stops on the version drift instead, before the
 checks that print the lines above.
 
@@ -5718,8 +5581,8 @@ runner's database (`copy-before-update.sh take --trigger`), as for any move of
 the Trigger.dev version, but its reason reads *cannot be compared with it on
 the Trigger.dev pin: managed.yml at one of the two has no image line naming
 it*: alpha.2's script compares image lines, and from alpha.3 on `trigger-api`
-and `trigger-supervisor` run images built on this machine (workplan 0146 T16,
-*Both Trigger.dev images are built here*, below). Its bring-up, the tag's own,
+and `trigger-supervisor` run images built on this machine (*Both Trigger.dev
+images are built here*, below). Its bring-up, the tag's own,
 prints that they are local builds of upstream's v4.8.1; it builds each only if
 the shared daemon does not hold its name yet (the OTA's E2E and nightly build
 them first), in a minute or two from ghcr.io. A failed build of
@@ -5789,15 +5652,14 @@ tag, older ones included.
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
 marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
-`.env` whose `NODE_ENV` is not `production` (workplan 0132 T4) or whose
-`ALERT_ENABLED` is not exactly `true` (workplan 0142 T0: testers are on live,
-so nobody deploys it without alerts), or that sets a sign-in provider's `IDP_*`
-key (live's sign-in page offers email and password only: privacy §4.4, §7 and
-§8, ops-social-signin (a)), or whose `OWNPACE_REACHABLE_HOSTS` names a host
-(live's list stays empty, workplan 0136 T2, whatever the stage), or that sets
+`.env` whose `NODE_ENV` is not `production` or whose `ALERT_ENABLED` is not
+exactly `true` (testers are on live, so nobody deploys it without alerts), or
+that sets a sign-in provider's `IDP_*` key (live's sign-in page offers email and
+password only: privacy §4.4, §7 and §8), or whose `OWNPACE_REACHABLE_HOSTS`
+names a host (live's list stays empty, whatever the stage), or that sets
 `MOLLIE_API_KEY` while its `OWNPACE_STAGE` is `alpha` (nothing is charged during
-the Alpha, and live keeps the key empty until it ends: workplan 0131 §3 T3; it
-goes in with the switch, [ending-the-alpha.md](./ending-the-alpha.md) step 4),
+the Alpha, and live keeps the key empty until it ends; it goes in with the
+switch, [ending-the-alpha.md](./ending-the-alpha.md) step 4),
 those three read as Compose hands them to the app (`KEY=""` is empty,
 `OWNPACE_STAGE="Alpha"` is the Alpha), all named at once, by key, before the
 fetch and any docker call, with any line that sets a key in a form the script
@@ -5823,12 +5685,11 @@ could not take or refused. Then it runs `git fetch --tags origin` and
 `bootstrap-managed.sh --from data`, never with `--with-demo`; the bring-up
 builds the images with the tag's commit as `GIT_SHA`. Then the checks, at the
 origin in `WEB_URL`: `/api/version` names the tag's commit **and** its version,
-and so does `/version.json`, the web app's own build (workplan 0145: a web image
-that did not move beside the API is a deploy that did not take, and a tag cut
-before 0145 has no such file), the app's page `/` carries the policy, HSTS and
+and so does `/version.json`, the web app's own build (a web image that did not
+move beside the API is a deploy that did not take), the app's page `/` carries the policy, HSTS and
 the three beside them once each, as the tag's `apps/web/nginx.conf.template`
-states them with live's `VITE_OIDC_ISSUER` (workplan 0158 T4: on live this is
-the answer through NetBird's proxy, over TLS, as a tester's browser gets it;
+states them with live's `VITE_OIDC_ISSUER` (on live this is the answer through
+NetBird's proxy, over TLS, as a tester's browser gets it;
 `scripts/app-headers.mjs` reads the template, and for a tag cut before it, a
 way back to alpha.6, the copy of the release the deploy started from does; the
 first deploy that checks it is one started from alpha.7, since a deploy runs
@@ -5836,18 +5697,18 @@ the script the checkout had before it moved), `/api/ready` answers 200,
 `/api/auth/mode` answers `managed`,
 `NODE_ENV` is `production` in the api container (read from Docker, the
 container's `.Config.Env` through `docker container inspect`, which answers for
-the Node image and for the distroless one of workplan 0146 T13, which has no
-shell or `printenv` to ask: T13a), and
+the Node image and for the distroless one, which has no shell or `printenv` to
+ask), and
 `exposure-check.sh` passes. With `WWW_LIVE=true` in live's
 `.env` it also builds and serves `www.ownpace.eu` from the tag, before the
 exposure check, and refuses what would stop that before anything moves
 (*`www.ownpace.eu`: live's copy*, under *The public site*); without it, nothing
 about the site runs. **Keep it `false` until the legal texts are final:** with
-today's texts a deploy with it `true` refuses before the checkout, and the app
-does not move either.
+texts that are not, a deploy with it `true` refuses before the checkout, and the
+app does not move either.
 
-**The exposure check needs two things before live's first deploy.** The check is
-on `main` since #1271, and it reads the whole machine: set `EXPOSURE_ALLOW` in
+**The exposure check needs two things before live's first deploy.** The check
+reads the whole machine: set `EXPOSURE_ALLOW` in
 live's `.env` to every address any container on it is published on on purpose
 (*Checking every publish on the machine at once*, under *Which address a port
 answers on*), or it fails for each of them; where the machine runs containers
@@ -5855,9 +5716,7 @@ that are not Ownpace's and publish beyond loopback, set `EXPOSURE_NOT_OURS` to
 their names too (*Containers on the machine that are not Ownpace's*, same
 section). And the tag must be cut from a commit that has
 `deploy/compose/exposure-check.sh`; the script runs the tag's own copy, and
-refuses a tag without one before anything moves. With `EXPOSURE_NOT_OURS` set,
-that copy must be one that reads it (workplan 0132's Status of 2026-10-05): an
-older one ignores the key and fails for each of those containers.
+refuses a tag without one before anything moves.
 
 **`--dry-run`** runs everything up to the checkout (every refusal above, the tag
 fetch, one-way or reversible, by the same comparison, and `copy-before-update.sh
@@ -5897,21 +5756,16 @@ refusal is not a deploy and is not logged. The script checks that it can append
 to the file before the checkout moves; should the line still fail at the end, it
 prints the line for you to add by hand, and its exit still says how the deploy
 went. Anything else worth keeping, such as
-the owner accepting fewer green gate runs than the rule asks (workplan 0141),
-is added to that file by hand.
+the owner accepting fewer green gate runs than the rule asks, is added to that
+file by hand.
 
-**Not yet run on live.** Live is not stood up (workplan 0132 T1b), so the
-script has run only against the stubs in its guard,
-`scripts/a-deploy-from-a-named-tag.unit.test.ts`. *(2026-11-08: run on live
-since, by the owner, for every deploy from a tag: `v0.2.0-alpha.2` on
-2026-10-27/28, `v0.2.0-alpha.3` on 2026-10-30 in two runs, `v0.2.0-alpha.4` on
-2026-11-04 and `v0.2.0-alpha.6` on 2026-11-08; workplan 0132's Status.)*
+It has made every deploy of live from a tag; its guard,
+`scripts/a-deploy-from-a-named-tag.unit.test.ts`, runs it against stubs.
 
 #### The Node in the shell you deploy from
 
-From `v0.2.0-alpha.4` on, the repository is on Node 26 (workplan 0119 §2.4,
-the owner's decision of 2026-10-31): the images, the tasks, every gate, and
-`engines` (`>=26`). The containers bring their own Node. Three steps of
+From `v0.2.0-alpha.4` on, the repository is on Node 26: the images, the tasks,
+every gate, and `engines` (`>=26`). The containers bring their own Node. Three steps of
 `deploy-live.sh` run on the host instead: `pnpm install --frozen-lockfile`,
 the task deploy in the bring-up's `data` phase (`deploy-tasks.sh`, which
 bundles the tasks here with the Trigger.dev CLI), and the site build (`node
@@ -5930,9 +5784,9 @@ that one is what has to be 26. Nothing else on the machine has to move for it:
 
 **What stops a Node below 26.** pnpm does not: pnpm 11.28.9 does not stop an
 install whose `engines` the running Node falls outside. It prints `WARN
-Unsupported engine: wanted: {"node":">=26"}` and installs, exit 0 (measured
-2026-10-31 and again 2026-11-01 on a stand-in project; the repository sets no
-`engineStrict`, which is the owner's to decide), and the deploy goes straight
+Unsupported engine: wanted: {"node":">=26"}` and installs, exit 0 (measured on
+a stand-in project; the repository sets no `engineStrict`, which is the owner's
+to decide), and the deploy goes straight
 on from that install to the bring-up, which redeploys the tasks and rebuilds the
 images. **From the deploy after alpha.4, `deploy-live.sh` refuses it itself**,
 before anything moves and in `--dry-run` too: after its fetch it reads
@@ -6017,7 +5871,7 @@ one of these; none needs `sudo`:
   `~/.bashrc` alone loses to any `node` in `~/.local/bin`: another tool's Node
   linked there stays the one you get. Read it in a new login shell, not the one
   you edited in: `command -v node` names `.local/node-26/bin/node` and
-  `node -v` prints `v26.13.0` (the owner's deploy shell, 2026-11-03).
+  `node -v` prints `v26.13.0` or a later 26.x.
 
 - **Only on a host where nothing else runs on the system's Node**, it can move
   instead. With **NodeSource** (`apt-cache policy nodejs | grep -c
@@ -6031,8 +5885,7 @@ one of these; none needs `sudo`:
   ```
 
   `node_26.x` is the line NodeSource's own setup script for 26 writes:
-  `scripts/deb/setup_26.x` in `nodesource/distributions` (there since
-  2026-05-05; `setup_lts.x` points at 26 since 2026-10-29) writes `URIs:
+  `scripts/deb/setup_26.x` in `nodesource/distributions` writes `URIs:
   https://deb.nodesource.com/node_26.x` with `Suites: nodistro` into
   `nodesource.sources` (read 2026-11-01). If `apt-get update` fails on that line
   all the same, put `node_24.x` back and take one of the three above. The
@@ -6099,9 +5952,8 @@ the tag asks for.
 On the OTA stack (`~/ownpace-managed`) the nightly gate is the deploy: it
 brings `main` up every night.
 
-**Its `.env` carries `NODE_ENV=development`** (workplan 0132 T4; the owner,
-2026-10-04: *"Development, said explicitly"*), so its self-signed test mail keeps
-working: in production the API turns notifications off while
+**Its `.env` carries `NODE_ENV=development`**, so its self-signed test mail
+keeps working: in production the API turns notifications off while
 `SMTP_ALLOW_SELF_SIGNED=true`. `managed.yml` takes no default, and every
 `docker compose -f deploy/compose/managed.yml` call (`ps`, `logs`, `exec`,
 `config`, not only `up`) stops on a `.env` without it, naming the fix. The gate
@@ -6109,17 +5961,16 @@ writes `NODE_ENV=development` into the persisted `.env` when the file gives it
 no value (absent, blank, or a note alone), before it fills the rest from the
 example, and never over a value that is there; its log names the value it found
 or wrote, with a warning when that is not `development`. An OTA `.env` copied
-from the example before this may say `production`: the gate keeps it and warns.
+from an older example may say `production`: the gate keeps it and warns.
 Then set development in the persisted file:
 
 ```bash
 ./deploy/compose/env-upsert.sh ~/.persistent/ownpace-managed/.env NODE_ENV=development
 ```
 
-Until the gate's first run on a `main` that carries this, a hand-run compose
-call in `~/ownpace-managed` needs the line: when that checkout's `.env` is a
-link to the persisted file the gate's run adds it; when it is a copy of its
-own, add it by hand:
+A hand-run compose call in `~/ownpace-managed` needs the line too: when that
+checkout's `.env` is a link to the persisted file, the gate's run adds it; when
+it is a copy of its own, add it by hand:
 
 ```bash
 ./deploy/compose/env-upsert.sh deploy/compose/.env NODE_ENV=development
@@ -6153,8 +6004,8 @@ worker bundles** — in practice `packages/connectors`, `packages/engines`,
 `packages/orchestration`, `packages/shared`, which is most changes that are not
 purely web. When in doubt, run it: it is idempotent and costs a minute.
 And when it moved `TASK_BASE_IMAGE` in `apps/worker/trigger.config.ts`: the
-tasks run on a prebuilt base (workplan 0119 §3 item 13, since 2026-11-06),
-`ghcr.io/robbes/ownpace-task-base`, distroless with dumb-init, the edited CA
+tasks run on a prebuilt base, `ghcr.io/robbes/ownpace-task-base`, distroless
+with dumb-init, the edited CA
 bundle and the `node` user already in it, which `images.yml` builds from
 `apps/worker/task-image/Dockerfile` on `main` and signs, and which the config
 names by its `sha-<commit>` tag and index digest. A task deploy adds the task
@@ -6168,34 +6019,32 @@ managed gate and `deploy-live.sh` run the bring-up from `data`, whose `tasks`
 phase deploys them.
 
 A Dependabot move of `apps/api/Dockerfile`'s `FROM` lines, which comes most
-weeks, no longer reaches the tasks on its own. It moves
+weeks, does not reach the tasks on its own. It moves
 `apps/worker/task-image/Dockerfile` in the same group, `main` publishes a base
 with other layers once it merges, and the tasks follow when `TASK_BASE_IMAGE`
 moves to that base, in a pull request of its own with E2E (managed) on its
 branch. Until then the API runs the new Node and the tasks the old: the weekly
 pin watch lists the pin behind (its row *the tasks' base*), and the managed
-smoke stops on the two Nodes by name. The smoke asks the newest image its
-runners started from, the one the last deploy built, for its Node, which must
-be the API's, and starts each shell name in it, none of which may start: an
-image that has a shell was not built on the base. An older image a runner of an
-earlier deployment ran (Trigger.dev keeps a run on the version it was triggered
-on) is named there and not asked. *(2026-11-08: since #1833, merged 2026-11-07,
-the smoke tells which image is the deployment's by the deployment, not by when
-it was built: the environment's "current" promotion in Trigger.dev's database,
-and each runner's `TRIGGER_DEPLOYMENT_VERSION`.)*
+smoke stops on the two Nodes by name. The smoke asks the current deployment's
+image, which it tells by the deployment rather than by when it was built (the
+environment's "current" promotion in Trigger.dev's database, and each runner's
+`TRIGGER_DEPLOYMENT_VERSION`), for its Node, which must be the API's, and starts
+each shell name in it, none of which may start: an image that has a shell was
+not built on the base. An older image a runner of an earlier deployment ran
+(Trigger.dev keeps a run on the version it was triggered on) is named there and
+not asked.
 
-Until 2026-11-06 the tasks built on `apps/api/Dockerfile`'s FROM image with a
-layer of the config's own (apt, the CLI's trust edits, the package managers
-removed and ten Debian Essentials purged, 0146 T14 and the owner's decision of
-2026-11-03), which needed the Debian archive at the first deploy after each
-move.
+On `v0.2.0-alpha.4` and earlier the tasks build on `apps/api/Dockerfile`'s FROM
+image with a layer of the config's own (apt, the CLI's trust edits, the package
+managers removed and ten Debian Essentials purged), which needs the Debian
+archive at the first deploy after each move.
 
 **`deploy-tasks.sh` installs this checkout's packages first**
-(`pnpm install --frozen-lockfile`, since 2026-09-28). The images install their
-own inside their builds, but the tasks are bundled on this machine from its own
-`node_modules`. Before this step, a pull that changed a dependency rebuilt the
-images and then stopped here: `Could not resolve "undici/…"`, with the api and
-web on the new code and every pass on the old bundle. So `pnpm` must be on this
+(`pnpm install --frozen-lockfile`). The images install their own inside their
+builds, but the tasks are bundled on this machine from its own `node_modules`:
+without the install, a pull that changed a dependency would rebuild the images
+and then stop here, `Could not resolve "undici/…"`, with the api and web on the
+new code and every pass on the old bundle. So `pnpm` must be on this
 machine's PATH; the script refuses by name when it is not.
 
 `set-task-env.sh` is a **different** question and a rarer one. Task containers
@@ -6205,20 +6054,18 @@ A code-only pull does not need it.
 
 ### The owner's names in the task environment
 
-Since workplan 0138 T3 step 2, `set-task-env.sh --forget-owner-names` deletes
-`DATABASE_URL` and `DIRECT_DATABASE_URL` from the plane's store, prints what
-each delete answered, and reads the list back: **when the store still holds
-either name it fails**, with `[set-task-env] FAILED: the task environment still
-holds …`. Both are the database owner, a superuser, and no task deployed since
-step 2 reads either. That run uploads nothing. The bring-up's `tasks` phase
-makes it last, **after `deploy-tasks.sh` has gone through**: the tasks deployed
-before step 2 read `DATABASE_URL` (every per-tenant task for its audit key, and
-the tick, retention and the purge when they load), so the name stays in the
-store until tasks that do not read it are in their place. The first bring-up
-after the pull that brought step 2 does the one-off deletion by itself, on each
-plane it runs against: the OTA stack's (the nightly gate, or `--only tasks` by
-hand in `~/ownpace-managed`), and live's (`deploy-live.sh` of the first tag
-that carries it). Nothing to do by hand unless it fails. The upload run
+`set-task-env.sh --forget-owner-names` deletes `DATABASE_URL` and
+`DIRECT_DATABASE_URL` from the plane's store, prints what each delete answered,
+and reads the list back: **when the store still holds either name it fails**,
+with `[set-task-env] FAILED: the task environment still holds …`. Both are the
+database owner, a superuser, and no current task reads either. That run uploads
+nothing. The bring-up's `tasks` phase makes it last, **after `deploy-tasks.sh`
+has gone through**: older tasks read `DATABASE_URL` (every per-tenant task for
+its audit key, and the tick, retention and the purge when they load), so the
+name stays in the store until tasks that do not read it are in their place.
+The bring-up does the deletion by itself, on each plane it runs against: the
+OTA stack's (the nightly gate, or `--only tasks` by hand in `~/ownpace-managed`),
+and live's (`deploy-live.sh`). Nothing to do by hand unless it fails. The upload run
 (`set-task-env.sh` with no argument) deletes neither name, and says so when the
 store still holds one.
 
@@ -6227,9 +6074,9 @@ stops there and the forget run does not happen: the tasks still deployed keep
 the owner's URL they read and go on running, and the store still holds
 `DATABASE_URL`. Fix what the deploy said, then run the phase again
 (`./deploy/compose/bootstrap-managed.sh --only tasks`), which uploads, deploys
-and then forgets. Do not run the forget run by hand before a deploy of step 2's
-tasks has gone through: every run of the old tasks would then refuse at its
-start, the sync tick's every minute among them.
+and then forgets. Do not run the forget run by hand before a deploy of tasks
+that do not read it has gone through: every run of the old tasks would then
+refuse at its start, the sync tick's every minute among them.
 
 **If the forget run fails**, the delete could not remove a row the store keeps,
 most often one written under an encryption key the store no longer has. Delete
@@ -6256,7 +6103,7 @@ database as the section below says, with that name.
 
 ### The system role
 
-`ownpace_system` (managed migration 0033, workplan 0138 T3 step 2) is what the
+`ownpace_system` (managed migration 0033) is what the
 jobs across organisations connect as: the one role besides the owner that row
 security does not bind, and **not a superuser**. The bring-up's `tasks` phase
 asks for it every run (phase 9, above). Two things can stop it:
@@ -6309,12 +6156,12 @@ itself, as any role can; the next bring-up sets `.env`'s again.
 
 ### Once, after the pull that stopped uploading `DIRECT_DATABASE_URL`
 
-*Since 0138 T3 step 2 `set-task-env.sh --forget-owner-names`, which the
-bring-up runs after every deploy, deletes this name itself (above); what
-follows is the by-hand way it was deleted before, and the check.*
+*`set-task-env.sh --forget-owner-names`, which the bring-up runs after every
+deploy, deletes this name itself (above); what follows is the by-hand way, and
+the check.*
 
-Workplan 0138 T3 step 1 took `DIRECT_DATABASE_URL` out of what `set-task-env.sh`
-uploads. It is the database owner, a superuser, straight to Postgres past the
+`set-task-env.sh` does not upload `DIRECT_DATABASE_URL`. It is the database
+owner, a superuser, straight to Postgres past the
 pooler, and no task reads it. Leaving it out of the upload does not take it out
 of the store: `upload` sends only the variables it is given, and nothing shows
 the platform removing the others. So a plane that received it before keeps
@@ -6327,7 +6174,7 @@ deletes and rewrites only the variables the script uploads, so a leftover
 unreadable secret is enough to stop every run.
 
 On each stack whose plane received it (the OTA stack in `~/ownpace-managed`,
-and `ownpace-live` if its tasks were set up before this change), from that
+and `ownpace-live` if an older version set up its tasks), from that
 stack's checkout:
 
 ```bash
@@ -6376,13 +6223,13 @@ own work — the cursors stay where the last completed folder left them, and the
 next pass carries on — but a customer watching a large migration sees it stop,
 and has no way to tell that from something broken.
 
-So there is a hold (workplan 0022 T2, managed migration 0023). It stops the
+So there is a hold (managed migration 0023). It stops the
 sync tick starting **new** passes; passes already running finish normally,
 which is what makes it a drain rather than a kill. It is on the operator's
 first support screen, under **Hold new passes**, with a box for what customers
 will read.
 
-It also stops what a customer starts by hand (workplan 0132 T6 (b)). While it
+It also stops what a customer starts by hand. While it
 is on, every API request that would start work answers `409 platform_held`
 with your sentence and starts nothing: *Sync now*, *Start*, a cutover's
 preparation, a discovery count, a verification, a confirmation pass, and
@@ -6422,8 +6269,7 @@ was on is the exception, and has to be pressed again: a *Start* refused before
 it began leaves the migration unstarted, and a refused verification or
 confirmation, or a deletion or move to follow through, was never queued.
 
-The hold is platform-wide — there is no per-tenant hold, matching the owner's
-answer of 2026-08-27 on the same question one level up. Every hold is kept,
+The hold is platform-wide — there is no per-tenant hold. Every hold is kept,
 with who started it, who lifted it and what it said, so *"when were we down and
 what did we tell people"* has an answer afterwards.
 
@@ -6454,24 +6300,22 @@ dependency in the root, `apps/worker` and `packages/scheduler` manifests
 (`.env`'s `TRIGGER_IMAGE_TAG`, when set, names the version on that machine,
 and must be the checkout's: the builds refuse another). `--from trigger`
 refuses at bring-up when they disagree, and
-`bootstrap-managed.unit.test.ts` refuses in CI — added after dependabot moved
-the SDK alone, passed all seventeen checks and broke the managed gate.
+`bootstrap-managed.unit.test.ts` refuses in CI, since dependabot can move the
+SDK alone with every other check green.
 
-**Both Trigger.dev images are built here, from upstream's** (workplan 0146
-T16; the owner's decision of 2026-10-26, "Both": an issue upstream, and this
-build until upstream ships the fixes). `deploy/compose/trigger.dev/Dockerfile`
+**Both Trigger.dev images are built here, from upstream's**, until upstream
+ships the fixes an issue there asks for. `deploy/compose/trigger.dev/Dockerfile`
 and `deploy/compose/supervisor/Dockerfile` build on
 `ghcr.io/triggerdotdev/trigger.dev` and `…/supervisor` by tag and index digest,
 and delete only files no process of this stack runs: depot's and esbuild's Go
 binaries (each under both of its names) and node's copy of pnpm in the webapp,
-root's copy of pnpm in the supervisor, and, the owner's decision of
-2026-10-27, tar from the copy each service does run (only pnpm's bundled
-node-gyp requires it, to build a native add-on, and these containers install
-nothing). Since 2026-10-31 the rest of node-gyp's tree goes from that copy
-too, and npm, which Node bundles and nothing here runs, from both images:
-twelve fixable high findings in each, under the same one risk. Since
-2026-11-02 the copy each service runs is pnpm 10.34.9 in place of upstream's
-10.33.2: each build installs it with `corepack install -g` by the sha512 npm
+root's copy of pnpm in the supervisor, and tar from the copy each service
+does run (only pnpm's bundled node-gyp requires it, to build a native add-on,
+and these containers install nothing). The rest of node-gyp's tree goes from
+that copy too, and npm, which Node bundles and nothing here runs, from both
+images: twelve fixable high findings in each, under the same one risk. The copy
+each service runs is pnpm 10.34.9 in place of upstream's 10.33.2: each build
+installs it with `corepack install -g` by the sha512 npm
 published, before it removes anything, then removes 10.33.2 and rewrites the
 root `package.json`'s `packageManager` to `pnpm@10.34.9`, which is how corepack
 chooses the copy. npm lists 18 advisories against 10.33.2 and none against
@@ -6479,45 +6323,42 @@ chooses the copy. npm lists 18 advisories against 10.33.2 and none against
 command, a registry request or workspace files an attacker wrote), so it is
 hygiene, not a security fix, and it goes when upstream's `packageManager` moves
 past 10.33.2 (the build then refuses, *upstream moved pnpm: drop the swap*).
-Since 2026-11-03 the webapp's build also removes TypeScript 7's native compiler
+The webapp's build also removes TypeScript 7's native compiler
 (`lib/tsc` of `@typescript/typescript-<platform>` 7.0.2, which nothing here
 runs: the package `typescript` exports only its version) and replaces goose
 v3.27.1, which the entrypoint runs for the ClickHouse migrations, with a goose
 release's binary, fetched from GitHub by its SHA-256 and made root's and
-executable: v3.29.0's until 2026-11-13, and v3.30.1's since (for alpha.8),
-which is built on Go 1.27.4 and golang.org/x/net v0.62.0, past the two high
-findings the image scan read in v3.29.0's (CVE-2026-111943 and
-CVE-2026-78661). v3.30.1 was published on 2026-11-12 and taken the next day,
-before its three-day floor, on the owner's waiver of 2026-11-13: "Waive all
-waiting time." What `goose up` sends ClickHouse is unchanged (the Dockerfile's
-header, *WHAT IS REPLACED: GOOSE*). **Until Trigger.dev v4.8.5 the builds also replaced packages
-upstream had not fixed** (2026-11-13, for alpha.8): from 2026-10-30 dompurify
-3.4.13's files with 3.4.17's, the release that fixes the critical
-GHSA-cg2g-xh64-v4q7; from 2026-11-03 undici 6.29.1, follow-redirects 1.16.2,
-body-parser 1.20.9 and systeminformation 5.33.19 in place of the releases of
-the same major they fix, and the supervisor's systeminformation; from
-2026-11-06 effect 3.22.4 in place of 3.17.1. Each was fetched from the npm
-registry by the sha512 npm published, and each build proved nothing else in
-the image changed. From v4.8.4 upstream's own overrides take those releases,
-and its lockfile at v4.8.5 resolves dompurify 3.4.17, undici 6.29.1,
-follow-redirects 1.16.2, body-parser 1.20.9 and 2.4.0, systeminformation
-5.33.19 and effect 3.21.2 alone. So the RUNs that swapped them went, with their
-rows in the guard, and the two copies of effect and body-parser 2.3.0, which no
-swap here could reach, are fixed too. So the webapp's build reaches github.com,
-for goose, and the npm registry, for pnpm 10.34.9 alone, and the supervisor's
-the npm registry alone. Since 2026-11-06 (for alpha.6, workplan 0119 §3 item 11) the
-webapp's build ends, as root, by purging eleven Debian packages nothing in
+executable: v3.30.1's (v3.29.0's on alpha.4 to alpha.7), which is built on Go
+1.27.4 and golang.org/x/net v0.62.0, past the two high findings the image scan
+read in v3.29.0's (CVE-2026-111943 and CVE-2026-78661). What `goose up` sends
+ClickHouse is unchanged (the Dockerfile's
+header, *WHAT IS REPLACED: GOOSE*). **On the tags before alpha.8 (Trigger.dev
+before v4.8.5) the builds also replace packages upstream had not fixed**, each
+fetched from the npm registry by the sha512 npm published, with each build
+proving nothing else in the image changed: dompurify 3.4.13's files with
+3.4.17's, the release that fixes the critical GHSA-cg2g-xh64-v4q7; undici
+6.29.1, follow-redirects 1.16.2, body-parser 1.20.9 and systeminformation
+5.33.19 in place of the releases of the same major they fix, and the
+supervisor's systeminformation; and effect 3.22.4 in place of 3.17.1. From
+v4.8.4 upstream's own overrides take those releases, and its lockfile at v4.8.5
+resolves dompurify 3.4.17, undici 6.29.1, follow-redirects 1.16.2, body-parser
+1.20.9 and 2.4.0, systeminformation 5.33.19 and effect 3.21.2 alone, so the
+current builds swap none, and the two copies of effect and body-parser 2.3.0,
+which no swap here could reach, are fixed too. So the webapp's build reaches
+github.com, for goose, and the npm registry, for pnpm 10.34.9 alone, and the
+supervisor's the npm registry alone. From alpha.6 the webapp's build ends, as
+root, by purging eleven Debian packages nothing in
 `trigger-api` runs or loads, as the appliance and the tasks' base purge theirs:
 apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages
 util-linux builds in Debian 12 (24 highs with no fix), and e2fsprogs, which
 depends on two of those and has no finding of its own. So `trigger-api` has no
-apt: nothing installs in it, and a change is a rebuild. Since 2026-11-08 (for
-alpha.7) it purges libsystemd0 and libudev1 too, systemd's two libraries, which
+apt: nothing installs in it, and a change is a rebuild. From alpha.7 it purges
+libsystemd0 and libudev1 too, systemd's two libraries, which
 only apt, libapt-pkg6.0, util-linux and bsdutils needed there. A base where
 something still depends on one of the thirteen stops the build, since dpkg
 refuses without `--force-depends`, and so does one that renamed or dropped one
-of them. Since 2026-11-14 (for alpha.9) both builds also remove cross-spawn
-5.1.0 (CVE-2024-21538, high, fixed in 6.0.6) from pnpm's store, with the links
+of them. From alpha.9 both builds also remove cross-spawn 5.1.0 (CVE-2024-21538,
+high, fixed in 6.0.6) from pnpm's store, with the links
 pnpm made to it: spawndamnit 2.0.0's in both, and in the supervisor pnpm's
 hoist too, where it is the one cross-spawn. Its one requirer is spawndamnit,
 under the root's `@changesets/cli`, release tooling neither container runs;
@@ -6532,8 +6373,8 @@ the same tag again once it answers; nothing in the checkout needs editing, and
 a deploy that stopped there has not taken. **A release asset can disappear:**
 GitHub lets a release's owner delete an asset, where npm keeps a version that
 others depend on, so a later build of a tag depends on the assets of the goose
-release it pins still being there (v3.30.1's since 2026-11-13; v3.29.0's for
-the tags from alpha.4 to alpha.7). If one is gone, the build says so (*… is gone*); a machine
+release it pins still being there (v3.30.1's; v3.29.0's for the tags from
+alpha.4 to alpha.7). If one is gone, the build says so (*… is gone*); a machine
 that already holds the image's name keeps running it, since compose builds only
 a name it lacks. Then a pull request moves the goose replacement to a release
 whose assets are there (its URL and SHA-256 per platform, read and hashed as
@@ -6544,8 +6385,7 @@ The image scan's critical
 findings go from 8 to 1 (zlib1g, which Debian has not fixed) and from 2 to 0.
 The one risk accepted: a `pnpm install` inside `trigger-api` or
 `trigger-supervisor` that builds a native add-on, or a package script there
-that calls node-gyp, would fail; and neither container has `npm` or `npx`
-any more. Each Dockerfile's
+that calls node-gyp, would fail; and neither container has `npm` or `npx`. Each Dockerfile's
 header says why each file is safe to delete, and why the webapp keeps root's
 copy of pnpm and the supervisor node's: `trigger-api` runs `user: root`,
 `trigger-supervisor` as the image's node. `managed.yml` names them
@@ -6628,7 +6468,7 @@ step 9 of *Rolling back from it*).
 
 On the OTA stack, whose drill runs every night, `--latest` is the last drill's
 dump, taken after the upgrade migrated the schema: restore the `before-` backup
-by its file name. On live there is no drill (workplan 0139): `backup`,
+by its file name. On live there is no drill: `backup`,
 `backups` and `restore` use the directory of the copy before an update, and the
 copy `deploy-live.sh` takes before a tag that moves the pin holds that dump
 (*Live's daily duties*).
@@ -6642,8 +6482,8 @@ pinned.
 
 `trigger-version.sh probe [version]` prints that probe's answer alone, the
 tags above the pin newest first, and nothing when nothing newer is published.
-The weekly pin watch (`.github/workflows/idp-pin-watch.yml`, workplan 0146 T8)
-runs it and keeps an issue open while a newer tag is in both images, with this
+The weekly pin watch (`.github/workflows/idp-pin-watch.yml`) runs it and keeps
+an issue open while a newer tag is in both images, with this
 section's route in it. A request that fails reads exactly like a tag that does
 not exist, so `probe` first asks for the tag it starts from and refuses when
 that does not answer, and on the walk upward takes only a 404 as a missing tag:
@@ -6661,11 +6501,11 @@ never reads as "nothing newer", nor as an older newest.
 > claim.
 
 > ⚠️ **Do not upgrade with runs in flight.** Recreating the webapp and
-> supervisor under load left the reference deployment looping on
+> supervisor under load can leave the deployment looping on
 > `Failed to start run … "Snapshot changed inside startRunAttempt"` for every
-> run: nothing reached a task body, and the schedule kept adding one run a
-> minute on top (2026-08-18). Cancelling the backlog through the API did not
-> help — new runs failed identically — so it was the version, not the state.
+> run: nothing reaches a task body, and the schedule keeps adding one run a
+> minute on top. Cancelling the backlog through the API does not help — new
+> runs fail identically — so it is the version, not the state.
 >
 > The order that avoids it:
 >
@@ -6691,29 +6531,19 @@ never reads as "nothing newer", nor as an older newest.
 > and is the right first move when an upgrade goes wrong: the older version
 > has run history behind it and the newer one does not.
 
-> ⚠️ **The four places are not the only thing an upgrade depends on.** The
-> v4.5.12 attempt did all of the above — verified backup, drained queue, all
-> four numbers moved with the tool — and `trigger-api` crash-looped anyway on
-> a dependency none of it looked at:
+> ⚠️ **The four places are not the only thing an upgrade depends on.** A new
+> webapp ships ClickHouse migrations, and a ClickHouse whose SQL dialect
+> rejects one crash-loops `trigger-api` however well the rest was done
+> (verified backup, drained queue, all four numbers moved with the tool):
 >
 > ```
 > Code: 80. DB::Exception: Only literals can be skip index arguments. (version 25.5.2.47)
 > ```
 >
-> `clickhouse` was `bitnamilegacy/clickhouse:latest`. Nothing in the repository
-> said which ClickHouse the stack ran, so nothing could notice it ran one whose
-> SQL dialect rejects a migration the new webapp ships. `bitnamilegacy` is
-> archived and tops out at 25.7.5, so there was no newer tag there to move to.
-> The migration failed closed and the rollback to v4.5.9 was clean — no restore
-> needed — which is the one part that went right.
->
-> ClickHouse was then `clickhouse/clickhouse-server:26.2.19.43`, pinned **by
-> digest**, which is what upstream's own compose file ran for that release and
-> therefore the only ClickHouse the migration had been proved against (the pin
-> is 26.8.36.3 from workplan 0119 §3 item 9, option 2, below, and 26.8.37.168
-> since 2026-11-14).
-> `bootstrap-managed.unit.test.ts` refuses any `latest` in `managed.yml` from
-> here on, so this cannot happen quietly a second time.
+> A floating tag hides which ClickHouse runs, so ClickHouse is pinned **by
+> digest**, and `bootstrap-managed.unit.test.ts` refuses any `latest` in
+> `managed.yml`. The ClickHouse a webapp's migrations are proved against is the
+> one upstream's own compose file runs for that release.
 >
 > **So every Trigger.dev move compares the ClickHouse line too.** Read the
 > `clickhouse` image in upstream's `docker/docker-compose.yml` at the new tag
@@ -6721,20 +6551,18 @@ never reads as "nothing newer", nor as an older newest.
 > against the `clickhouse` service's `image:` in `managed.yml`. When upstream
 > moved, move with it, tag and digest, in the same pull request, proven by
 > E2E (managed) on its branch; ClickHouse's data moves forward only. The weekly
-> pin watch says the same while the two differ (its ClickHouse issue, workplan
-> 0146 T8). At v4.7.6, v4.7.7, v4.8.1, v4.8.3 and v4.8.5 both say `26.2.19.43@sha256:c2f26055…`.
+> pin watch says the same while the two differ (its ClickHouse issue). At
+> v4.7.6, v4.7.7, v4.8.1, v4.8.3 and v4.8.5 both say `26.2.19.43@sha256:c2f26055…`.
 > ClickHouse's `SECURITY.md` has not supported 26.2 since its last patch
-> (2026-05-21); the owner accepted that for the Alpha on 2026-10-23, with the
-> exposure and the revisit triggers in workplan 0119 §3 item 9. One fired on
-> 2026-11-01 (CVE-2026-116366, no 26.2 fix), and with option 2 there (the
-> owner's decision, 2026-11-02) the pin is 26.8, ahead of upstream's 26.2 on
-> purpose (26.8.36.3, and 26.8.37.168 since 2026-11-14); a stack runs it from
+> (2026-05-21), and 26.2 has no fix for CVE-2026-116366, so the pin is 26.8,
+> ahead of upstream's 26.2 on purpose (now 26.8.37.168); a stack runs it from
 > its own move: *Moving ClickHouse*, below, has
 > what was read, the two files that travel with the pin, the copy first and the
 > way back.
 >
-> **The first bring-up after that change starts ClickHouse EMPTY, on purpose.**
-> Bitnami kept its data under `/bitnami/clickhouse` and the official image reads
+> **The first bring-up after the move from Bitnami's image starts ClickHouse
+> EMPTY, on purpose.** Bitnami kept its data under `/bitnami/clickhouse` and the
+> official image reads
 > `/var/lib/clickhouse`; handing one vendor's directory layout to the other is
 > not an upgrade. So the mount moves to a new volume, `clickhouse_data_v2`, and
 > the old `clickhouse_data` is left on disk untouched. What is lost is
@@ -6747,43 +6575,16 @@ never reads as "nothing newer", nor as an older newest.
 > docker volume rm <project>_clickhouse_data
 > ```
 
-> **MinIO was floating too, and told a slightly worse lie.** It was
-> `bitnamilegacy/minio:latest`, and that tag stopped moving on **2025-07-03** at
-> `2025.5.24` — while the repository went on publishing until 2025-08-19 and ends
-> at `2025.7.23-debian-12-r5`. So `latest` was not even bitnamilegacy's last
-> word: it quietly stopped six weeks early, and nothing recorded which MinIO the
-> stack ran.
->
-> It is now pinned to **what was already running** —
-> `bitnamilegacy/minio:2025.5.24-debian-12-r5` by digest. That changes the name
-> of what runs and not the bytes, on a service holding Trigger.dev's packets and
-> run artifacts, so it needs no volume move and no bring-up ceremony. Nothing in
-> `managed.yml` runs `latest` any more, and `bootstrap-managed.unit.test.ts`
-> refuses a new one. A tag that floats within its line is refused since
-> 2026-10-22 by `scripts/a-float-nothing-ever-pulled.unit.test.ts`, which names
-> busybox's as the one left, with its reason.
->
-> **Moving to upstream's `minio/minio` is a separate job**, and it is not a tag
-> swap. Whoever does it needs all four of these:
->
-> 1. `command: server /data --console-address ":9001"` — bitnami's entrypoint
->    supplies this; upstream's does not, and the container exits without it.
-> 2. The data path changes from `/bitnami/minio/data` to `/data`, so a **new
->    volume** and an empty object store, exactly as ClickHouse did.
-> 3. `MINIO_DEFAULT_BUCKETS` **does not exist** upstream. It is a bitnami
->    convenience, and it is what creates the `packets` bucket. Upstream uses a
->    separate `minio-init` service running `mc mb -p local/packets`; without it
->    MinIO comes up healthy and every packet write fails.
-> 4. A healthcheck on `/minio/health/live`, which this service has never had.
->
-> Losing the packets store costs historical large run payloads and outputs — not
-> deployments, which live in the registry, and not the ability to run anything.
-
-> **Since workplan 0146 T7 it is Chainguard's maintained build of the same
-> server**, the owner's answer of 2026-10-23 (*"T7 no, fix already within the
-> alpha"*): `chainguard/minio:latest` by its index digest, because Chainguard's
-> free tier publishes `latest` and `latest-dev` only. The four points above,
-> as they came out, each read off the image itself:
+> **MinIO is Chainguard's maintained build of the same server**:
+> `chainguard/minio:latest` by its index digest, because Chainguard's free tier
+> publishes `latest` and `latest-dev` only. Nothing else in `managed.yml` runs
+> `latest`, and `bootstrap-managed.unit.test.ts` refuses a new one; a tag that
+> floats within its line is refused by
+> `scripts/a-float-nothing-ever-pulled.unit.test.ts`, which names busybox's as
+> the one left, with its reason. Bitnami's image, which ran before, supplied a
+> command, a data path and the `packets` bucket (`MINIO_DEFAULT_BUCKETS`) by
+> itself; this one needs four things of the stack, each read off the image
+> itself:
 >
 > 1. `command: ["server", "/data"]`: the image's entrypoint is the bare
 >    `/usr/bin/minio`. No console address: nothing publishes or reads one.
@@ -6795,12 +6596,15 @@ never reads as "nothing newer", nor as an older newest.
 >    (below).
 > 3. `minio-init`, from the same pinned image (it carries `mc`), runs
 >    `mc mb --ignore-existing` for `packets` once `minio` is healthy, and
->    `trigger-api` waits for it to exit 0.
+>    `trigger-api` waits for it to exit 0. Without the bucket MinIO comes up
+>    healthy and every packet write fails.
 > 4. A health check, upstream's `mc ready local`, which asks the server's
 >    health endpoint without a password.
 >
-> A stack takes it at its next bring-up after the drain a Trigger.dev upgrade
-> needs anyway: nothing `EXECUTING`, and nothing queued, delayed or waiting
+> Losing the packets store costs historical large run payloads and outputs — not
+> deployments, which live in the registry, and not the ability to run anything.
+> A move to a new store's volume takes the drain a Trigger.dev upgrade needs
+> anyway: nothing `EXECUTING`, and nothing queued, delayed or waiting
 > that owns a stored payload, since the new store starts empty. The hold, and
 > `deploy-live.sh` under it, count Ownpace's own passes only. This reads
 > Trigger.dev's runs that have not finished, the non-final statuses of
@@ -6823,11 +6627,10 @@ never reads as "nothing newer", nor as an older newest.
 > request of its own with the new image's scan read and E2E (managed) on its
 > branch.
 >
-> **Why 24 hours.** Without the bound, which it has had since 2026-11-03, the
-> read never emptied on the OTA stack, which keeps eight runs Trigger.dev
-> never finished: six of `managed-sync-tick` in `DEQUEUED`, last
-> changed 2026-09-17, and two of `run-verification` in `PENDING_VERSION`, last
-> changed 2026-08-20 (workplan 0132's Status, 2026-11-03). Nothing that runs
+> **Why 24 hours.** Without the bound the read never empties on the OTA stack,
+> which keeps eight runs Trigger.dev never finished, months old: six of
+> `managed-sync-tick` in `DEQUEUED` and two of `run-verification` in
+> `PENDING_VERSION`. Nothing that runs
 > here goes a day without its row changing. Every task takes
 > `maxDuration: 3600` from `apps/worker/trigger.config.ts` and none sets its
 > own, with three attempts at most and at most a minute between them, so a run
@@ -6871,9 +6674,7 @@ never reads as "nothing newer", nor as an older newest.
 >
 > **Removing the old volume**, once the stack runs on `minio_data_v2` from
 > `main` or a release tag, and the nightly gate or the deploy after the move
-> was green. Not after a branch's E2E alone: until the change is on `main`,
-> `main`'s nightly brings the Bitnami image back on the old volume.
-> Read-only first, from the stack's checkout; the second line must print
+> was green. Read-only first, from the stack's checkout; the second line must print
 > nothing:
 >
 > ```
@@ -6908,16 +6709,15 @@ on every run (phase 5 above).
 
 ### Moving ClickHouse
 
-**ClickHouse's pin is ahead of Trigger.dev's, on purpose** (workplan 0119 §3
-item 9, option 2, the owner's decision of 2026-11-02): the 26.8 LTS line, since
-2026-11-14 26.8.37.168-lts, `clickhouse/clickhouse-server:26.8.37.168@sha256:a5670285…`
-(Docker's tag has no `-lts`), amd64 and arm64, and from 2026-11-02 until then
-`26.8.36.3@sha256:d426d2f6…`, where Trigger.dev v4.8.3 still pins 26.2.19.43, and v4.8.5 too.
+**ClickHouse's pin is ahead of Trigger.dev's, on purpose**: the 26.8 LTS line,
+now 26.8.37.168-lts, `clickhouse/clickhouse-server:26.8.37.168@sha256:a5670285…`
+(Docker's tag has no `-lts`), amd64 and arm64, and `26.8.36.3@sha256:d426d2f6…`
+on the tags from alpha.4 to alpha.8, where Trigger.dev v4.8.3 and v4.8.5 still
+pin 26.2.19.43.
 ClickHouse no longer supports 26.2, and CVE-2026-116366 (critical: code
 execution with no password, for anybody who reaches the server) has no 26.2
 fix; 26.8.36.3 is the LTS release that first carried it. Before the move, every
-change of 26.3 (read for option 1 on 2026-11-01, and crossed on the way),
-26.4, 26.5, 26.6, 26.7 and 26.8, and every 26.8 patch note to 26.8.34.13, was
+change of 26.3, 26.4, 26.5, 26.6, 26.7 and 26.8, and every 26.8 patch note to 26.8.34.13, was
 read against Trigger.dev v4.8.3's 55 migrations (numbered to 056; v4.8.5 adds none and changes none), the queries
 its ClickHouse package and its query language print, the settings it passes,
 goose's and the Node client's use of HTTP, and the files `managed.yml` mounts
@@ -6925,13 +6725,13 @@ into `config.d` (0119 §3 item 9 has the list). One change stops the schema, on
 an empty volume only: from 26.7 an `AggregatingMergeTree` is refused at
 `CREATE` when a column is neither in its `ORDER BY` nor an aggregate state, and
 migration 022's `errors_v1` has three. goose stops there, and `trigger-api`,
-whose entrypoint runs it under `set -e`, crash-loops: the v4.5.12 failure
-(*Upgrading Trigger.dev*, above) from the other side. A table already on a
+whose entrypoint runs it under `set -e`, crash-loops: the failure *Upgrading
+Trigger.dev*, above, warns of, from the other side. A table already on a
 volume is attached, not created, and is not checked, so the OTA stack and live
 never meet it; a new install, `stand-up-live.sh` on a new host and ending the
 alpha's reset do, and `clickhouse-merge-tree.xml` (below) is what lets them
-through (read in the source, and run on 26.8.36.3 from an empty volume on
-2026-11-02: all 55 migrations with it, 022 refused without it; 0119 §3 item 9).
+through (read in the source, and run on 26.8.36.3 from an empty volume: all 55
+migrations with it, 022 refused without it).
 Two more would store data differently on every volume, the OTA stack's and
 live's included: automatic column statistics (26.4) and date parsing on insert
 (26.5 and 26.8); the two files below keep 26.2's behaviour for both. Upstream
@@ -6995,8 +6795,8 @@ file. 26.3's off switch for the first of the four
 (`propagate_types_serialization_versions_to_nested_types` at 0) would undo only
 that one, so it is not taken.
 
-**A patch within 26.8 is read the same way: 26.8.36.3 to 26.8.37.168
-(2026-11-14).** The tag comparison
+**A patch within 26.8 is read the same way: 26.8.36.3 to 26.8.37.168.** The
+tag comparison
 `v26.8.36.3-lts..v26.8.37.168-lts` is 137 backported pull requests and 30
 commits of the release branch's own, in 805 files (master's
 `docs/changelogs/v26.8.37.168-lts.md` lists three of them), read against the
@@ -7017,18 +6817,11 @@ the 26.2 to 26.8 move's, as it ran: step 2 refuses a server that is not
 26.8 needs both lines changed. *On live*, below, takes a copy for any change
 of the pin, and `deploy-live.sh` calls any move of this image line one-way.
 
-**On the OTA stack, in the owner's window.** Done on 2026-11-02 (workplan
-0119's Status of that day): steps 1 and 3 at about 03:35 UTC, step 2's list at
-about 06:20 UTC (it was added in review after the copy, so it was taken with
-ClickHouse started alone on 26.2.19.43 and stopped again), the run 06:29 to
-06:39 UTC, step 4's checks as shown, and the merge (#1785) at 07:17 UTC. The
-copy stays until `main`'s next scheduled E2E (managed) is green, then goes by
-*Once the move has held*, below. *(It went on 2026-11-02 at about 23:05 UTC,
-by that block, after its checks passed: workplan 0119's Status, 2026-11-03.)*
-What follows is the procedure as it ran.
-Before: the pull request's CI
+**On the OTA stack, in the owner's window.** The copy stays until `main`'s
+next scheduled E2E (managed) is green, then goes by *Once the move has held*,
+below. What follows is the procedure as it ran. Before: the pull request's CI
 green; the two runs 0119 §3 item 9 names before the merge done, and as
-expected (they were, 2026-11-02): the migration from an empty volume through
+expected: the migration from an empty volume through
 056 on 26.8.36.3 (with both files mounted; and without
 `clickhouse-merge-tree.xml`, where it stops at 022 with `BAD_ARGUMENTS`), and
 the Errors page's query on 26.8.36.3; and
@@ -7051,8 +6844,7 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    docker compose -f deploy/compose/managed.yml exec -T trigger-db psql -X -At -U trigger -d triggerdb -c "SELECT \"taskIdentifier\", status, count(*) FROM \"TaskRun\" WHERE status IN ('DELAYED','PENDING','PENDING_VERSION','WAITING_FOR_DEPLOY','DEQUEUED','EXECUTING','WAITING_TO_RESUME','RETRYING_AFTER_FAILURE','PAUSED') AND \"updatedAt\" > (now() AT TIME ZONE 'UTC') - interval '24 hours' GROUP BY 1, 2"
    ```
 
-   It counts the rows that changed in the last 24 hours (since 2026-11-03;
-   the window of 2026-11-02 ran the read without that bound). The ones older
+   It counts the rows that changed in the last 24 hours. The ones older
    than that are listed apart by the stale read beside the MinIO pin, above,
    which says why 24 hours; read it once before going on.
 
@@ -7072,8 +6864,7 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    (`ALERT_DISK_FREE_GB` in live's `.env`, 15 GB without it), with a few GB to
    spare. A copy left from an earlier move, such as
    `<project>_clickhouse_data_v2_before_v4_8_3` once its own move has held,
-   goes first, by the block that move gave in #1755's description (*Once the
-   move has held*): the one below, with
+   goes first, by the block *Once the move has held*, below, with
    `docker volume rm "${project}_clickhouse_data_v2_before_v4_8_3"` in place
    of its last two lines.
 
@@ -7184,8 +6975,8 @@ Run from `~/ownpace-managed`; nothing below prints a secret or an address.
    26.2*, below, before anything merges. **Lift the hold first**, once step 3
    has printed `the way back is taken` and before the run is dispatched: the plane is
    stopped, so nothing can start, and while the hold is on the run's own
-   checks are refused (`409 platform_held`), as #1755's first run was (0119's
-   Status records it). A run that fails only on `platform_held` is no reason
+   checks are refused (`409 platform_held`). A run that fails only on
+   `platform_held` is no reason
    to go back to 26.2: lift the hold and dispatch it again. Right before the
    dispatch, Actions → E2E (managed) shows nothing queued or in progress
    (above). Then what runs, what is in force, and what loaded
@@ -7242,8 +7033,8 @@ checkout is of that revert. ClickHouse keeps its own migrations' record
 (`goose_db_version`) in the same volume, so the copy brings that back too; the
 Trigger.dev version and `triggerdb` did not move, so nothing else is restored.
 Without the copy, see
-*The first bring-up after that change starts ClickHouse EMPTY*, above, for
-what an empty store costs.
+*The first bring-up after the move from Bitnami's image starts ClickHouse
+EMPTY*, above, for what an empty store costs.
 
 ```bash
 cd ~/ownpace-managed && (
@@ -7309,8 +7100,7 @@ docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-clien
 and each one it names goes with
 `docker compose -f deploy/compose/managed.yml exec -T clickhouse clickhouse-client --query "DROP TABLE system.<name>"`.
 
-**On live, from the release tag that carries it** (alpha.4: the change merged
-as #1785 on 2026-11-02, before alpha.4's fold). `deploy-live.sh`'s copy before
+**On live, from the release tag that carries it** (alpha.4). `deploy-live.sh`'s copy before
 the update (`copy-before-update.sh take`) holds the app's database
 (`pg_dump`), the sign-in service's database and the server's roles
 (`dump-idp.sh`), and, with `--trigger`, which it passes when the tag moves the
@@ -7321,10 +7111,9 @@ before the deploy. `deploy-live.sh` calls a tag that moves the ClickHouse pin
 one-way, names the move, and says the copy holds no ClickHouse volume
 (`--dry-run` says it too, before anything moves). **The script that runs is the
 checkout's, the release live runs before the deploy**, and only alpha.4's and
-later compare the ClickHouse pin: live's deploy of alpha.4, on 2026-11-04, ran
-alpha.3's, which compares only the Trigger.dev and identity-provider pins, so
-neither its dry run nor its run named the move or the volume (0132 Status,
-2026-11-05). Take the copy whenever the two tags' `managed.yml` pin different
+later compare the ClickHouse pin: alpha.3's compares only the Trigger.dev and
+identity-provider pins, so neither its dry run nor its run names the move or
+the volume. Take the copy whenever the two tags' `managed.yml` pin different
 ClickHouse images, whatever the script says. From `~/ownpace-live`:
 
 1. **The hold on and the drain done**, as for every deploy, then
@@ -7344,8 +7133,8 @@ ClickHouse images, whatever the script says. From `~/ownpace-live`:
    always does. Container by container, ClickHouse healthy first, then
    `trigger-api`: `docker compose start` refuses `trigger-api` with
    `trigger-api is missing dependency minio-init` once the one-shot's
-   container has gone since the last bring-up, as it had on live on
-   2026-11-04, and starts ClickHouse alone. `docker start` starts each
+   container has gone since the last bring-up, and starts ClickHouse alone.
+   `docker start` starts each
    container as it was, recreating nothing; the deploy's bring-up makes
    `minio-init` again:
 
@@ -7381,8 +7170,7 @@ ClickHouse images, whatever the script says. From `~/ownpace-live`:
    migrations, and let the check pass over exactly the tables they drop and
    stop on anything else gone; Trigger.dev's goose record
    (`SELECT max(version_id) FROM default.goose_db_version WHERE is_applied = 1`)
-   names the last migration that ran. Live's check on 2026-11-04 did so: those
-   two gone, every other table loading, none detached, goose at 56.
+   names the last migration that ran.
 4. **The way back** is *Rolling back from it* in `docs/operator-runbook.md`, with
    ClickHouse's volume restored before its step 9 (step 8 says so): the
    *Back to 26.2* block above, with `cd ~/ownpace-live` in place of its first
@@ -7398,16 +7186,15 @@ ClickHouse images, whatever the script says. From `~/ownpace-live`:
 
 ### Changing the database passwords
 
-The OTA stack's database roles were created with values this repository
+A stack's database roles may have been created with values this repository
 contains: `app_user` with `app_password` (the first migration), the owner with
 compose's default or the example's `change-me-openmigrate`. `.env` alone does
 not reach a role that exists, so `deploy/compose/rotate-db-passwords.sh`
-carries a new value to it with `ALTER ROLE` (workplan 0132 T2). It has three
-modes:
+carries a new value to it with `ALTER ROLE`. It has three modes:
 
 | mode | what it does | exit |
 |---|---|---|
-| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Asks `trigger-db`'s role `trigger` over the network: a control first (`.env`'s `TRIGGER_DB_PASSWORD`, or `managed.yml`'s fallback when it is empty), then that fallback, counted like the others. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is workplan 0132 T2 step 5 by hand: `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
+| `--check` (the default) | Changes nothing, and runs on any stack, live included. Lists the login roles (names and flags). Asks the controls, `.env`'s own values, over the stack's network and through PgBouncer. Tries the three shipped Postgres values against the owner **by its real name**, `app_user`, `openmigrate` and `APP_DB_USER`, where each is a login role. Tries ClickHouse's two and MinIO's two in their own containers. Asks `trigger-db`'s role `trigger` over the network: a control first (`.env`'s `TRIGGER_DB_PASSWORD`, or `managed.yml`'s fallback when it is empty), then that fallback, counted like the others. One line per pair, never a value. A role that opens and is neither the owner nor `APP_DB_USER` (the owner's old name, left with `LOGIN`) is not one `--rotate` changes, so for it the advice is, by hand, `ALTER ROLE <name> NOLOGIN`, never `DROP`. | 0 nothing shipped opens; 1 something does; 2 not established |
 | `--sync [--with-trigger-stores]` | Sets `app_user`'s and the owner's passwords to what `.env` holds, in one transaction over the socket, then proves both over the network and through the pooler. Idempotent. The remedy when `.env` and the roles disagree. With `--with-trigger-stores`, `trigger-db`'s role too, over `trigger-db`'s own socket, proven over the network: the remedy when its control is refused. Refuses a stack that may be live (`stack_may_be_live`), before it asks the stack anything. | 0 / 1 / 2 |
 | `--rotate [--with-trigger-stores]` | Makes new values on the machine and changes `.env` and the roles together. With `--with-trigger-stores`, `CLICKHOUSE_PASSWORD`, `MINIO_ROOT_PASSWORD` and `TRIGGER_DB_PASSWORD` too: Trigger.dev's three stores, whose one client is `trigger-api`. ClickHouse and MinIO take theirs when they are recreated; `trigger-db`'s role is set over its own socket after the two roles are proven, proven over the network, and put back with them on a failure. Without the flag it asks `trigger-db` nothing. Refuses on live, in CI, under `set -x`, when `.env` is not the persisted file, while a CI job runs on the machine or E2E (managed) is queued or in progress (asked before it prompts, and again once the project name is typed, before anything is written), when postgres is not healthy (and with the flag, `trigger-db`), when `.env` and the roles already disagree (or `trigger-db` and `.env`), and while a shipped value opens a login role it does not change (it names the role and 0132 T2 step 5). It asks you to type the project name. On any failure, or an interrupt, it puts the old `.env` and the old role passwords back, and says which step failed; a second Ctrl-C does not stop that. If it cannot complete, it keeps the old `.env` beside the persisted one (mode 0600) and says what to run. | 0 / 1 |
 
@@ -7433,9 +7220,9 @@ process that needs it, by name.
    is `REFUSED`, `.env` and the database already disagree: run `--sync` first.
    If an `OPENS` line names a role that is neither the owner nor `app_user`
    (the owner's old name, `openmigrate`, left with `LOGIN` after a rename),
-   take its login away first with the command the check prints (workplan 0132
-   T2 step 5: `ALTER ROLE openmigrate NOLOGIN`, never `DROP`, because it owns
-   the schema); `--rotate` refuses until then. `trigger-db` has a control of
+   take its login away first with the command the check prints
+   (`ALTER ROLE openmigrate NOLOGIN`, never `DROP`, because it owns the
+   schema); `--rotate` refuses until then. `trigger-db` has a control of
    its own; if that is `REFUSED`, run `--sync --with-trigger-stores` first.
 2. **Rotate, at a quiet time.** After that day's gate run has finished, and
    with nothing queued in Actions → E2E (managed):
@@ -7461,8 +7248,8 @@ process that needs it, by name.
    value.
 
 `--sync` and `--rotate` refuse live: its values are made fresh when it is
-stood up and are its own (0132 T1b, D8). `--check` runs on any stack, live
-included; 0132 T0 step 5 runs it there. The gate never runs `--rotate`;
+stood up and are its own. `--check` runs on any stack, live included. The gate
+never runs `--rotate`;
 it may one day run `--check`. The bring-up's `data` phase runs the `--sync`
 function (`deploy/compose/db-roles.sh`) on every run, and refuses a published
 value on a real address. `trigger-db`'s password is `TRIGGER_DB_PASSWORD`. A
@@ -7471,9 +7258,8 @@ new volume takes it at its first initialisation, and on a volume that exists
 sets the role to `.env`'s value on every run. Like the other four, the bring-up
 refuses it on a real address when it is empty or published, and
 `ensure-env-secrets.sh` generates it only while `trigger_db_data` does not
-exist (`stand-up-live.sh` for live's new volume); that is workplan 0132 T2,
-step B. The OTA stack's `.env` holds the value the owner's rotation wrote on
-2026-10-05 (step A, the owner's run).
+exist (`stand-up-live.sh` for live's new volume). The OTA stack's `.env` holds
+the value its rotation wrote.
 
 ### `whoami` says nothing about whether you are logged in
 
@@ -7488,9 +7274,8 @@ whoami --profile X >/dev/null 2>&1   # WRONG — 0 either way
 ```
 
 cannot tell "logged in" from "never logged in" from "token was just revoked".
-This bit the `login` phase and `deploy-tasks.sh`'s own preflight the same day,
-on the same box: both reported "already logged in" against a profile left over
-from before a `reset-trigger.sh`, and the deploy that followed died with
+Such a check reports "already logged in" against a profile left over from
+before a `reset-trigger.sh`, and the deploy that follows dies with
 
 ```
 Error: Unable to validate existing personal access token
@@ -7498,8 +7283,9 @@ Invalid or Missing Access Token
 ```
 
 which reads like a broken deployment rather than a login nobody actually did.
-`trigger-cli-lib.sh`'s `trigger_cli_logged_in()` is the fix both scripts now
-share: run `whoami` for real and look for the `User ID:` line a genuine
+`trigger-cli-lib.sh`'s `trigger_cli_logged_in()` is what the `login` phase and
+`deploy-tasks.sh`'s preflight share: run `whoami` for real and look for the
+`User ID:` line a genuine
 successful lookup prints, regardless of exit code. If you ever call the CLI
 directly in a script, do the same rather than trusting `$?`.
 
@@ -7528,9 +7314,9 @@ plaintext has not changed.** Re-encryption requires a re-write, so any variable
 whose value happens to be identical is quietly left on the old key — while the
 script reports success and lists it among the uploaded names.
 
-On the reference box that was exactly one variable out of four:
-`SECRET_ENCRYPTION_KEY`, whose value had not changed while the three database
-URLs had. Three readable secrets, one unreadable, every run dead.
+One such variable is enough: a `SECRET_ENCRYPTION_KEY` whose value did not
+change stays on the old key while the others are rewritten, and every run
+dies.
 
 Use the force flag, which **deletes** each variable before writing it, so the
 write is a creation and cannot be skipped:
@@ -7627,14 +7413,13 @@ then `up -d`. Every service reads them, so nothing in `managed.yml` is edited.
   `ownpace-live`, the stack testers use, takes none during the alpha and sets
   `7`: one copy of its databases is made right before each update, by
   `deploy-live.sh`, and deleted once the update is proven, or after six days
-  less an hour by the daily duties (workplan 0134 open question 1 (b), workplan
-  0139; §8g).
+  less an hour by the daily duties (§8g).
   [Workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
-  is that decision. It parks building the backups (its T5) until before the
-  first paying customer, or the end of the alpha, whichever comes first.
+  has the reasoning, and parks building the backups until before the first
+  paying customer, or the end of the alpha, whichever comes first.
 - **Anybody's first account.** `setup-zitadel.sh` stands the provider up; it
   does not create people. People are let in through the access-request queue
-  (§8c; workplan 0093 T6/T7, done): once an operator is appointed as §8c
+  (§8c): once an operator is appointed as §8c
   describes, granting a request (`POST /api/access-requests/<id>/grant`)
   creates the organisation and its owner invitation in one transaction, and
   the asker becomes a member the first time they sign in with a verified
