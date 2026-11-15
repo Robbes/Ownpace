@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, later: Testing for the first testers (T1, decided).** The owner, the same evening,
+after the measurement below: *"Google stays in Testing for the first testers: yes"*. So D1 holds:
+each tester's Google addresses are test users of the client live uses first (T0), and a Google
+account reconnects about once a week, which #1915's reconnect, in alpha.10, carries on at once
+(T2 (b)). Leaving Testing, and with it a project of its own (T11), waits for a later choice.
+
 **2026-11-15, measured: the weekly reconnect, once, on the OTA stack's demo (T1), and what it found
 (T2 (b)).** On the branch `claude/ownpace-public-readiness-y7orc6-google-reconnect`, merged as #1915
 on 2026-11-15 at about 19:07 UTC (`7690dd3b`), after CI run 43725379776 and E2E (managed) run
@@ -369,7 +375,7 @@ tester does not wait on them), T3's optional in-app detection, and T8's rewordin
 | Task | Status | Notes |
 |---|---|---|
 | T0 Each Google account a tester connects is a test user of the production client first | ⏳ **Owner**, per tester (D1) | §3. The tester's own account and every account a grant link goes to, listed as test users for the client `ownpace-live` uses (T11). As Google's model is understood here, the list belongs to that client's Google Cloud project, so in the test client's project it is one list for both stacks (T11). |
-| T1 Testing or Production for the production Google client | ⏳ **Owner** (D1 chose Testing) | §3. Measure first, on the OTA stack's history; then confirm Testing knowing it costs a weekly reconnect, or publish to Production unverified with the sensitive scopes only. Recommendation stated. The choice also decides T11's project: leaving Testing means a project of its own. |
+| T1 Testing or Production for the production Google client | ✅ **Decided 2026-11-15** (the owner): Testing for the first testers, *"Google stays in Testing for the first testers: yes"*, after T1's first measurement on the OTA stack the same day (Status, 2026-11-15) — *was:* ⏳ **Owner** (D1 chose Testing) | §3. Measure first, on the OTA stack's history; then confirm Testing knowing it costs a weekly reconnect, or publish to Production unverified with the sensitive scopes only. Recommendation stated. The choice also decides T11's project: leaving Testing means a project of its own. |
 | T2 What a Google tester is told, and a reconnect the page can find | ✅ **(b), the reconnect, done** in #1195, merged 2026-09-26. 📋 **(b) Decided 2026-09-25 (owner)**; (a) 🟡 steps 1 to 3 in the tester guide since #1460, merged 2026-10-04 (`db67747f`; 0144 T1, the Dutch read by the owner 2026-10-17): the Google addresses first, Google's warning, and *Reconnect* after about seven days (`site/pages/nl/alpha-handleiding.md`:67, :112, :119); step 4, a family member's new link, not written, and its check not made (corrected 2026-11-01; *was:* (a) **Proposed** (D1)) | §3. The steps for the tester, and the word on the failure line matching a button that exists. (a), the steps, is the owner's to give. |
 | T3 An "open it in Safari or Chrome" line before Google's screen | ✅ **(a), the line, done** in #1195, merged 2026-09-26. 📋 **(a) Decided 2026-09-25 (owner)**; the optional detection **Proposed** | §3. Google is reported to refuse consent inside an embedded browser (outside knowledge, §1); nothing on the page says what to do. The owner's check from WhatsApp and a mail app is open. |
 | T4 An ADR for the deployment's Microsoft registration | 📋 **Proposed**, recommended now (D2) | §4. ADR-0006's operative rule says the multi-tenant app is retired; the code carries a deployment registration whose authority defaults to `common`. |

@@ -4,6 +4,22 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, last: the fold for `v0.2.0-alpha.10` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.10`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-15, under a summary; [Unreleased] stays, empty. alpha.10 carries what
+`main` merged after alpha.9's tag: Nextcloud 35.0.3 and the second-major fixture's 34.0.6 (#1907,
+test-only), and #1915, a token endpoint's refusal in the provider's own words and a reconnect that
+keeps the account's types, folds the client and carries the migration on.
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.10 (the entry below): E2E (managed) and E2E
+  (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at a time, beside C's push
+  runs and its Windows smoke.
+- **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
+  `waive_nights` set to *I waive the waitings.*, and the approval in the `release` environment.
+- **Live's deploy** from alpha.9: between the two tags no migration file moves, and no pin that live
+  runs (the Nextcloud pin is the OTA demo's; live runs none), so the deploy's own comparison is
+  expected to call it reversible; its dry run says so before the run.
+
 **2026-11-15, latest: alpha.10's counted nights are waived, before its fold (T2).**
 `v0.2.0-alpha.10` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to
 alpha.9, with the waiver's words, *I waive the waitings.*, the owner's of 2026-11-15, which
