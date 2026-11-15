@@ -4,6 +4,23 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, latest: alpha.10's counted nights are waived, before its fold (T2).**
+`v0.2.0-alpha.10` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to
+alpha.9, with the waiver's words, *I waive the waitings.*, the owner's of 2026-11-15, which
+Release's `waive_nights` must carry. The two guards that hold the list,
+`a-release-preflight-that-said-yes-too-soon` and `a-tag-that-already-pointed-elsewhere`, name it,
+with `v0.2.0-alpha.11` now the version a waiver is refused for, and `docs/release.md` lists it.
+Nothing here reaches an image, a compose file, a migration or product code, and the CHANGELOG is
+untouched.
+- **Before the fold, so C is still to come.** alpha.10 carries what `main` merged after alpha.9's
+  tag: Nextcloud 35.0.3 and the second-major fixture's 34.0.6 (#1907, test-only) and #1915, a token
+  endpoint's refusal in the provider's own words and a reconnect that carries the migration on.
+  C is the fold's squash, which carries this list, and Release reads it from `main`'s own scripts.
+- **In the nights' place,** as for alpha.4 to alpha.9: E2E (managed) and E2E (self-hosted) on
+  Postgres and on PGlite, dispatched on `main` at C, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
+  `waive_nights` set to the same words, and the approval in the `release` environment.
+
 **2026-11-15, later still: live runs `v0.2.0-alpha.9` (T2).** The owner deployed it from the tag the
 same day: one run of alpha.8's `deploy-live.sh`, from 16:26 UTC, which took at 16:29:16, one-way
 over alpha.8, since the ClickHouse pin (26.8.36.3 to 26.8.37.168) moves between the two tags, and no
