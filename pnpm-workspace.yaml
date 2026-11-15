@@ -348,7 +348,8 @@ overrides:
   # refusing a path whose second decode differs under allowPercentInPath. `@hono/node-server`'s
   # one is the same serveStatic second decode. 2.1.8 (2026-11-12) is five fixes from public pull
   # requests, none of them a fork merge, so it is not taken before its floor. The two versions
-  # taken are inside the cooldown below: see their minimumReleaseAgeExclude entries.
+  # were taken inside the cooldown below, waived for alpha.8; their floor passed
+  # on 2026-11-14 at 09:11 UTC, and their minimumReleaseAgeExclude entries came out after it.
   # None of this code runs here (read 2026-11-13, in the installed packages). The CLI's entry
   # imports commands/mcp.js on every command (dist/esm/cli/index.js, line 20), and that file
   # takes the SDK's server/mcp.js and server/stdio.js: `trigger mcp` speaks stdio
@@ -428,35 +429,3 @@ minimumReleaseAgeExclude:
   - socket.io-parser@4.2.7
   - js-yaml@4.3.2
   - esbuild@0.25.12
-  # 2026-11-13. Trigger.dev v4.8.5, for alpha.8, taken before its three-day floor on the
-  # owner's waiver of that day. At about 06:57 UTC the owner was offered three options. The
-  # third was "alpha.8 on Saturday: waive 4.8.5's three days, as for Postgres, and do the box
-  # steps Saturday morning". The owner answered: "3. Continue, work autonomously". The reason:
-  # v4.8.5 runs both service images on Node 24.22.3, Node's November security release, and
-  # carries v4.8.4's hardening fixes. It covers v4.8.5 and nothing else: the five v4.8.5
-  # packages the lockfile installs, and no transitive one. The one package new to the lockfile
-  # with them, @electric-sql/client 1.3.0, was published 2025-12-16. npm published the five
-  # between 00:39:16 and 00:42:11 UTC on 2026-11-12, the CLI last (pnpm dates them by their
-  # provenance, 00:37:58 to 00:38:04 UTC), so the floor passes 2026-11-15 00:43 UTC. Without
-  # these entries a frozen install exits 1 and names these five. After the floor, all five may
-  # be removed. The next Trigger.dev move must remove them: the guard
-  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
-  - "@trigger.dev/build@4.8.5"
-  - "@trigger.dev/core@4.8.5"
-  - "@trigger.dev/schema-to-json@4.8.5"
-  - "@trigger.dev/sdk@4.8.5"
-  - trigger.dev@4.8.5
-  # 2026-11-13. hono 4.13.18 and `@hono/node-server` 2.1.7, the two overrides of that day, taken
-  # before their three-day floor on the owner's waiver for alpha.8. At 19:26 UTC the owner wrote:
-  # "Waive all waiting time." The reason: each carries fixes read as security fixes that the newest
-  # release past the floor, hono 4.13.17 and `@hono/node-server` 2.1.6, does not (the overrides'
-  # comment lists them). It covers these two versions and nothing else: the lockfile takes no other
-  # package with them. npm published them at 08:54:02 and 09:10:34 UTC on 2026-11-11 (pnpm's
-  # frozen check reads 08:50:42 and 09:07:07 UTC for them), so the floor passes 2026-11-14
-  # 09:11 UTC. Without these entries pnpm exits 1 and names these two: when it resolves
-  # (ERR_PNPM_NO_MATURE_MATCHING_VERSION) and on a frozen install
-  # (ERR_PNPM_MINIMUM_RELEASE_AGE_VIOLATION). After the floor both may be removed, and the
-  # lockfile stays as it is. The next move of either package must remove its entry: the guard
-  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
-  - hono@4.13.18
-  - "@hono/node-server@2.1.7"

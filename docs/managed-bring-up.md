@@ -6516,7 +6516,14 @@ alpha.7) it purges libsystemd0 and libudev1 too, systemd's two libraries, which
 only apt, libapt-pkg6.0, util-linux and bsdutils needed there. A base where
 something still depends on one of the thirteen stops the build, since dpkg
 refuses without `--force-depends`, and so does one that renamed or dropped one
-of them.
+of them. Since 2026-11-14 (for alpha.9) both builds also remove cross-spawn
+5.1.0 (CVE-2024-21538, high, fixed in 6.0.6) from pnpm's store, with the links
+pnpm made to it: spawndamnit 2.0.0's in both, and in the supervisor pnpm's
+hoist too, where it is the one cross-spawn. Its one requirer is spawndamnit,
+under the root's `@changesets/cli`, release tooling neither container runs;
+the webapp's other cross-spawn, 7.0.6, stays. Each build walks its image
+first, refuses any other copy of it or link into it, and checks after that
+nothing of it is left.
 **When a host does not answer** (or answers with an error) while an
 image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
 hold the image's name yet, the build stops with nothing changed and says that
