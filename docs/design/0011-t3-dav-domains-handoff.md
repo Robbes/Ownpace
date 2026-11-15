@@ -50,5 +50,5 @@ the same connectors from the **DB** `connection.config` + decrypted credentials
 - Per-domain scope lives in `scope_selection`; honor `included`.
 - Stalwart rules per `docs/stalwart-integration-fix.md`; integration tests need Testcontainers.
 
-## Out of scope (owner decisions)
-- DNS provider **writes** stay deferred (verify-only DNS, 2026-07-16).
+## Out of scope
+- DNS provider **writes** stay deferred (DNS is verify-only).

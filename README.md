@@ -1,6 +1,6 @@
 # Ownpace
 
-Low-maintenance, open-source stack to migrate families and small/medium businesses off US cloud (Microsoft 365, Google, iCloud, Dropbox, Box, or another mail provider) to EU sovereign platforms: **Soverin**, **Nextcloud**, a **JMAP** server such as Stalwart, or any IMAP / CalDAV / CardDAV / WebDAV service. Proton is deferred (ADR-0025).
+Low-maintenance, open-source stack to migrate families and small/medium businesses off US cloud (Microsoft 365, Google, iCloud, Dropbox, Box, or another mail provider) to EU sovereign platforms: **Soverin**, **Nextcloud**, a **JMAP** server such as Stalwart, or any IMAP / CalDAV / CardDAV / WebDAV service. Proton is not supported yet.
 
 - **Idempotent** transfers (re-run safely; no duplicates).
 - **Shadow-run** old and new in parallel for as long as you want, then cut over on your schedule.
@@ -12,21 +12,16 @@ Low-maintenance, open-source stack to migrate families and small/medium business
 Published builds — no toolchain needed:
 
 - **Self-host (Docker Compose):** signed multi-arch images on GHCR, one per
-  release, tagged with its version without the `v`:
-  `docker pull ghcr.io/robbes/ownpace-selfhost:0.2.0-alpha.3` is
-  v0.2.0-alpha.3's, and the
+  release: `docker pull ghcr.io/robbes/ownpace-selfhost:<version>`, where
+  `<version>` is the release's tag without the `v`. The
   [releases page](https://github.com/Robbes/Ownpace/releases) lists every
-  release (also `-api` and `-web` for the managed stack; `edge` is the
-  per-merge rolling build). The first release, `0.1.0-rc.1`, was published
-  before the rename (ADR-0040) and exists only at
-  `ghcr.io/robbes/open-migrate-selfhost`. Install guide: [`docs/selfhost-quickstart.md`](./docs/selfhost-quickstart.md);
-  channels + signature verification: [`deploy/selfhost/README.md`](./deploy/selfhost/README.md).
-- **Windows, no Docker:** the appliance payload zip on the
-  [releases page](https://github.com/Robbes/Ownpace/releases) (from
-  `v0.2.0-alpha.1` on; unsigned for now, so SmartScreen prompts once). Runbook:
+  release; the managed stack's images are `-api` and `-web`, and `edge` is the
+  rolling build of `main`. Install guide: [`docs/selfhost-quickstart.md`](./docs/selfhost-quickstart.md);
+  channels and signature verification: [`deploy/selfhost/README.md`](./deploy/selfhost/README.md).
+- **Windows, no Docker:** the appliance payload zip on the releases page,
+  unsigned for now, so SmartScreen prompts once. Runbook:
   [`docs/windows-appliance-runbook.md`](./docs/windows-appliance-runbook.md).
-- Every release carries a CycloneDX SBOM (`bom.json`) but v0.2.0-alpha.1,
-  whose tag's Security Scan failed before the SBOM step; images are
+- Releases carry a CycloneDX SBOM (`bom.json`), and their images are
   cosign-signed by digest. Release procedure: [`docs/release.md`](./docs/release.md).
 
 ## Quickstart (from source)
@@ -86,66 +81,54 @@ get wrong. Self-host operators start from
 [`deploy/selfhost/config/mapping.json.example`](./deploy/selfhost/config/mapping.json.example)
 instead, which documents the same fields plus the appliance's loading rules.
 
-This README deliberately does **not** restate the JSON. It used to, and the copy
-drifted: its `target.baseUrl` read `https://your-jmap-provider.com/jmap`, which is
-the one mistake the examples exist to prevent. **`baseUrl` is the server ROOT** —
-scheme, host, port, no path — because the session URL is built as
-`${baseUrl}/.well-known/jmap` (RFC 8620 §2.2), so a trailing `/jmap` asks for
-`/jmap/.well-known/jmap` and 404s in a way that looks like the server is broken.
+**`baseUrl` is the server root**: scheme, host and port, no path. The session URL
+is built as `${baseUrl}/.well-known/jmap` (RFC 8620 §2.2), so a trailing `/jmap` asks
+for `/jmap/.well-known/jmap` and fails with a 404 that looks like a broken server.
 
 Secrets are referenced by **environment variable name** (`tokenFromEnv`,
 `passwordFromEnv`), never inline, and never committed.
 
 ## Documentation
-Everything lives in [`docs/`](./docs/). Start with the source of truth: [`docs/architecture/solution-architecture.md`](./docs/architecture/solution-architecture.md). Decisions are recorded in [`docs/adr/`](./docs/adr/).
-
-### Key Documentation
-- **Architecture**: [`docs/architecture/solution-architecture.md`](./docs/architecture/solution-architecture.md)
-- **Testing Guide**: [`docs/testing.md`](./docs/testing.md)
-- **Self-host Quickstart**: [`docs/selfhost-quickstart.md`](./docs/selfhost-quickstart.md)
-- **Stalwart Integration**: [`docs/stalwart-integration-fix.md`](./docs/stalwart-integration-fix.md)
-- **Workplans**: [`docs/workplans/`](./docs/workplans/)
-- **Decision Records**: [`docs/adr/`](./docs/adr/)
+Everything lives in [`docs/`](./docs/). Start with the source of truth,
+[`docs/architecture/solution-architecture.md`](./docs/architecture/solution-architecture.md).
+Decisions are recorded in [`docs/adr/`](./docs/adr/), plans and their status in
+[`docs/workplans/`](./docs/workplans/). Also: [testing](./docs/testing.md), the
+[self-host quickstart](./docs/selfhost-quickstart.md) and the
+[Stalwart integration](./docs/stalwart-integration-fix.md).
 
 ## Status
-In alpha since `v0.2.0-alpha.1` (2026-10-06): a free test by invitation. Pre-release has ended,
-so a migration a release shipped is never rewritten (ADR-0045). License: Apache-2.0 (see
-`LICENSE`). "Ownpace" is a trademark of Archico B.V. — the code is free, the name is not; see
-[`TRADEMARK.md`](./TRADEMARK.md).
+In alpha since `v0.2.0-alpha.1` (2026-10-06): a free test by invitation. A database migration
+a release has shipped is never rewritten. License: Apache-2.0 (see `LICENSE`). "Ownpace" is a
+trademark of Archico B.V. — the code is free, the name is not; see [`TRADEMARK.md`](./TRADEMARK.md).
 
 The **migration core** is done and property-tested for idempotency: O365 → JMAP/IMAP-DAV mail,
 plus calendar/contacts/files/tasks domains (`runAllDomains` in `packages/orchestration`) and the
 cutover machine.
 
-The **managed edition** runs on one execution plane (workplan 0022): every job — sync, verify,
-apply, discovery — executes as a deployed Trigger.dev task, started by a scheduled tick; there is
-no worker container. Tenant isolation is enforced at runtime in the API (FORCE RLS through a
-non-owner role + a tenant-membership auth gate), in the eight per-tenant Trigger.dev tasks,
-which connect as the same non-owner role (workplan 0138 T1), and in everything the digest, the
-drift detector and group discovery read for one organisation: they take the list of organisations
-from a connection that sees them all and read each one as itself (workplan 0138 T2). The three
-scheduled jobs that span organisations whole connect as a system role that bypasses row security
-and is not a superuser, shares no membership with any role either way, and holds the grants their
-statements need and no others, a grant to PUBLIC counted among them (workplan 0138 T3 step 2), so
-in those it rests on each query's own tenant filter; no task holds the database
-owner's credential ([`docs/rls-guide.md`](./docs/rls-guide.md) says where row security holds and
-where it does not).
-`apply`/`verify` run asynchronously with receipts, and the compose operator stack is
-live-verified (`docs/operator-runbook.md`, `smoke-managed.sh`).
-Billing is not live yet: the Mollie webhook marks an invoice paid (tested with Mollie mocked),
-but minting an invoice is refused until invoices are raised by tier (workplan 0109 T5), and the
-payment journey has not been walked end to end (workplan 0086 T6).
+The **managed edition** runs every job (sync, verify, apply, discovery) as a deployed Trigger.dev
+task, started by a scheduled tick; there is no worker container. Tenant isolation is enforced at
+runtime: in the API (FORCE RLS through a non-owner role, and a tenant-membership auth gate), in
+the per-tenant tasks, which connect as the same non-owner role, and in the digest, the drift
+detector and group discovery, which read each organisation as itself. The three scheduled jobs
+that span organisations connect as a system role that bypasses row security, is not a superuser
+and holds only the grants their statements need, so there isolation rests on each query's tenant
+filter. No task holds the database owner's credential;
+[`docs/rls-guide.md`](./docs/rls-guide.md) says where row security holds and where it does not.
+`apply` and `verify` run asynchronously with receipts, and the compose operator stack is verified
+live (`docs/operator-runbook.md`, `smoke-managed.sh`). Billing is not live yet: the Mollie webhook
+marks an invoice paid (tested with Mollie mocked), but no invoice is minted until invoices are
+raised by tier, and the payment journey has not been walked end to end.
 
-The **self-host edition** (a single-tenant NAS/Pi appliance) is complete through workplan 0010,
-including the restart-resume idempotency gate across all five domains — and since ADR-0028 it can
-run with **no database server at all** (embedded PGlite, one container; the e2e gate is green on
-both backends). See the [quickstart](./docs/selfhost-quickstart.md) and `deploy/selfhost/`.
+The **self-host edition** is a single-tenant appliance for a NAS, mini-PC or Raspberry Pi, with
+the restart-resume idempotency gate across all five domains. It runs on Postgres or with **no
+database server at all** (embedded PGlite, one container), and the end-to-end gate is green on
+both. See the [quickstart](./docs/selfhost-quickstart.md) and `deploy/selfhost/`.
 
-**Known gaps** (listed in [the feature matrix's open gaps](./docs/feature-matrix.md#the-open-gaps-in-one-place)): DNS
-**writes** are deliberately out of scope — cutover DNS is verify-only, with a generated manual
-runbook (owner decision, 2026-07-16). Rollback therefore does not restore DNS or notify users; see
-[`docs/rollback-mechanisms.md`](./docs/rollback-mechanisms.md). See
-[`docs/workplans/`](./docs/workplans/) for per-slice Status blocks.
+**Known gaps** are listed in
+[the feature matrix's open gaps](./docs/feature-matrix.md#the-open-gaps-in-one-place). DNS
+**writes** are out of scope: cutover DNS is verify-only, with a generated manual runbook, so
+rollback does not restore DNS or notify users (see
+[`docs/rollback-mechanisms.md`](./docs/rollback-mechanisms.md)).
 
 ## How this code is written
 

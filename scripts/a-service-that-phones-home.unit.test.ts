@@ -88,18 +88,23 @@
  *    release has carried the ping (read at v4.0.0, v4.6.2 and v4.17.1), so the
  *    OTA stack's provider has sent it since it first started, as far as the
  *    machine let it out.
- *  - CLICKHOUSE (26.8.36.3) sends a crash report, and a report on a logical
+ *  - CLICKHOUSE (26.8.37.168) sends a crash report, and a report on a logical
  *    error, to `https://crash.clickhouse.com/`: the `config.xml` the image
  *    ships sets `send_crash_reports.enabled` true, although the code's own
  *    default is false (`src/Daemon/CrashWriter.cpp`). Read at
  *    `v26.2.19.43-stable`, again for 26.3.62.3 on 2026-11-01, and again for
  *    26.8.36.3 on 2026-11-02 (workplan 0119 §3 item 9, option 2): neither
- *    security release has a public tag, so the `config.xml` was read out of
- *    each image itself, and is byte for byte `v26.3.60.2-lts`'s and
+ *    security release had a public tag then, so the `config.xml` was read out
+ *    of each image itself, and is byte for byte `v26.3.60.2-lts`'s and
  *    `v26.8.34.13-lts`'s, whose `CrashWriter.cpp`, `BaseDaemon.cpp` and
  *    `ConfigProcessor.cpp` read the keys and merge `config.d` as 26.2.19.43's
  *    did, and the distinct URLs it names outside comments are 26.2.19.43's,
- *    the same eight. A file in `config.d` turns it off,
+ *    the same eight. Read again for 26.8.37.168 on 2026-11-14: the
+ *    `config.xml` out of both platforms' images is byte for byte
+ *    `v26.8.37.168-lts`'s, which differs from `v26.8.36.3-lts`'s (public
+ *    since, and `v26.8.34.13-lts`'s byte for byte) in one comment, so the same
+ *    eight URLs; those three source files are the same blobs at all three
+ *    tags. A file in `config.d` turns it off,
  *    and it must be the only file ClickHouse merges that speaks of crash
  *    reports: it merges every `.xml`, `.conf`, `.yaml` and `.yml` in `config.d`
  *    and `conf.d`, in sorted order, so a later one wins
@@ -635,27 +640,28 @@ interface Row {
 const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.5';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.3';
 const CLICKHOUSE =
-  'clickhouse/clickhouse-server:26.8.36.3@sha256:d426d2f612e1e189c90f9a3f8dcd85a03c6851273833817a296bb327e63aa7a7';
+  'clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648';
 /**
  * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
- * 2026-11-13 at 20:19 UTC, taken that day for alpha.8, inside its three-day
- * floor on the owner's waiver (0119 Status, 2026-11-13). The server is the
+ * 2026-11-14 at 20:10 UTC, taken that day for alpha.9, inside its three-day
+ * floor on the owner's waiver (0119 Status, 2026-11-14). The server is the
  * fork's `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b, Wolfi's
- * 0.20261112.011523-r0, built with Go 1.27.4 (go-jose 4.1.7,
- * golang.org/x/net 0.62.0); its mc is
- * `RELEASE.2025-08-13T08-35-41Z`, Wolfi's -r29, the source and modules of the
- * digest before it, `869ca317…` (taken 2026-11-10), rebuilt on Go 1.27.4.
- * Between 76c06ff1, that digest's release, and a60e2a7b the fork changed
+ * 0.20261112.011523-r1, built with Go 1.27.4 (go-jose 4.1.7,
+ * golang.org/x/net 0.62.0): the source of the digest before it, `ddfab4c4…`
+ * (taken 2026-11-13), rebuilt with OpenTelemetry-Go 1.47.0 and
+ * go.yaml.in/yaml/v3 3.0.5. Its mc is `RELEASE.2025-08-13T08-35-41Z`,
+ * Wolfi's -r29, the same file as that digest's. Between 76c06ff1, the
+ * release of `869ca317…` (taken 2026-11-10), and a60e2a7b the fork changed
  * go.mod, go.sum, CI scripts and a workflow, the Makefile's tidy check, two
  * debugging tools and one test file, so its cmd/ and internal/ are still
  * those of `RELEASE.2026-09-22T19-25-18Z`, read at that tag of
  * `chainguard-forks/minio`. The four files read there (`cmd/server-main.go`,
  * `cmd/common-main.go`, `cmd/update.go` and
- * `internal/config/callhome/callhome.go`) are the same git blobs at the new
- * tag, so the code read here did not change.
+ * `internal/config/callhome/callhome.go`) are the same git blobs at
+ * a60e2a7b's tag, so the code read here did not change.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:ddfab4c402bf32e7701600d16d8c40dbccfab4c4e5340eef4c324394349c7926';
+  'chainguard/minio:latest@sha256:634c989a2f1029162fc2676c263caa181213b9410449968532f750a6fb77532d';
 const MAILPIT =
   'axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce';
 /**
@@ -724,7 +730,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     readAt: CLICKHOUSE,
     why:
       'crash and logical-error reports to crash.clickhouse.com (programs/server/config.xml at v26.2.19.43-stable, ' +
-      "and the image's own for 26.8.36.3, byte for byte v26.8.34.13-lts's); " +
+      "the image's own for 26.8.36.3, byte for byte v26.8.34.13-lts's, and for 26.8.37.168, byte for byte v26.8.37.168-lts's); " +
       'since 2026-11-01 also on an internal network only, with no route out (a-store-every-container-could-reach)',
     holds: (svc, entry) => {
       const { files, problems } = clickhouseMerged(svc, entry.file);

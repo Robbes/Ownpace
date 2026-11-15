@@ -1,7 +1,15 @@
 <!-- ClickHouse's date parsing on insert kept as 26.2 has it, in the default
      profile (workplan 0119 §3 item 9, option 2, the owner's decision of
      2026-11-02: 26.8.36.3-lts, ahead of the 26.2.19.43 Trigger.dev v4.8.3
-     pins). Read at v26.8.34.13-lts (src/Core/SettingsChangesHistory.cpp).
+     pins; 26.8.37.168-lts since 2026-11-14). Read at v26.8.34.13-lts
+     (src/Core/SettingsChangesHistory.cpp), and again at v26.8.37.168-lts on
+     2026-11-14: the three settings and SchemaInferenceUtils.cpp are as they
+     were, and the history adds one 26.8 setting beside them,
+     json_extract_use_cast_string_to_date_time_mode, true by default, under
+     which JSONExtract reads a DateTime by cast_string_to_date_time_mode, as
+     26.8.36.3 always did (src/Functions/FunctionsJSON.cpp). This file leaves
+     it alone: with both basic here either reading is basic, and Trigger.dev
+     calls JSONExtractRaw alone.
 
      date_time_input_format and cast_string_to_date_time_mode = basic. Both
      are best_effort from 26.5. Under it a JSON string such as

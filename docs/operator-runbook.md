@@ -5,15 +5,14 @@ as distinct from a self-host owner running the single-tenant appliance (see
 [`selfhost-quickstart.md`](./selfhost-quickstart.md)). Stack definition:
 [`deploy/compose/managed.yml`](../deploy/compose/managed.yml).
 
-> **Scope note (rewritten 2026-08-01, workplan 0020 T4).** This runbook's managed half now
-> describes the REAL bring-up, verified live: the full compose stack including the Trigger.dev
-> execution plane (registry, supervisor, ClickHouse, MinIO, the TLS front), the scripted task
-> deploy, and `smoke-managed.sh` as the acceptance test. **One execution plane** (workplan
-> 0022, per the 0020 T8 owner decision): syncs are started by the `managed-sync-tick`
-> scheduled task, and every job — sync, verify, apply, discovery — executes as a deployed
-> Trigger.dev task. There is no worker/poller container. The ledger-semantics sections further
-> down ("Items that would not migrate" onward) apply to BOTH editions and illustrate with the
-> appliance's local URLs — see the scope banner there (0021 T2).
+> **Scope.** The managed half describes the real bring-up, verified live: the full compose
+> stack including the Trigger.dev execution plane (registry, supervisor, ClickHouse, MinIO, the
+> TLS front), the scripted task deploy, and `smoke-managed.sh` as the acceptance test. There is
+> **one execution plane**: syncs are started by the `managed-sync-tick` scheduled task, and
+> every job — sync, verify, apply, discovery — executes as a deployed Trigger.dev task. There is
+> no worker/poller container. The ledger-semantics sections further down ("Items that would not
+> migrate" onward) apply to BOTH editions and illustrate with the appliance's local URLs — see
+> the scope banner there.
 
 ## What the operator can and cannot see
 
@@ -24,7 +23,7 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   folder names) is **personal data** under GDPR (§17 metadata nuance); handle it accordingly.
 - **Cannot see:** **message/file content.** The engines move data directly source → target;
   content never flows through the orchestrator or the control-plane DB. Never add a code path that
-  routes content through Trigger.dev payloads or logs (AGENTS.md §12/§17; job payloads carry **ids
+  routes content through Trigger.dev payloads or logs (SAD §12, §17; job payloads carry **ids
   only**).
 - **Roles** (§4/§17): tenant **admin** (controller), **operator** (processor — status/ops, no
   content), **support** (read-only status/logs, no content). The operator role must never gain a
@@ -34,7 +33,7 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
 
 - The right checkout. Every command here acts on the stack whose checkout you run it
   from: on the reference machine, `~/ownpace-managed` for the OTA stack, and
-  `~/ownpace-live` for testers' tenants once that stack stands (workplan 0132 D7, T1b).
+  `~/ownpace-live` for testers' tenants.
   The `docker compose -f deploy/compose/managed.yml …` commands, the `psql` recipes and
   the scripts all take the stack from that checkout's `deploy/compose/.env`. Run from the
   other checkout, a query answers for the other stack's tenants, and a change such as
@@ -45,7 +44,7 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   use workspace `node_modules`; the deploy CLI is `apps/worker`'s devDependency, run as
   `pnpm -C apps/worker exec trigger …` from the checkout's root).
 - A filled-in env file, with every required secret present. The compose file has **no
-  defaults for secrets** (0020 T2) — a missing value fails the `up`, loudly:
+  defaults for secrets** — a missing value fails the `up`, loudly:
   ```
   cd deploy/compose
   cp managed.env.example .env
@@ -56,29 +55,28 @@ This is a core promise of the architecture (SAD §17, §17.1), not just a policy
   ```
   Compose auto-loads `.env` from the compose file's directory. To keep it elsewhere, pass
   `--env-file <path>`. The API also refuses to **boot** in production with a
-  known-placeholder `JWT_SECRET` — with the tenant-membership gate (0020 T1), that secret
-  is the tenancy boundary.
+  known-placeholder `JWT_SECRET` — with the tenant-membership gate, that secret is the
+  tenancy boundary.
 
 ### The database roles (why there are three DB URLs)
 
 Migration `0001_baseline` creates a **non-owner `app_user`** role, and managed migration `0033`
-the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced through the first:
+the **system role, `ownpace_system`**. RLS is enforced through the first:
 
 - `DATABASE_URL` → the DB **owner** (`POSTGRES_USER`). In the postgres image the bootstrap user is a
   **superuser**, which **bypasses RLS even under FORCE**. Not the API's request path: no route
-  opens a pool on it (the permission report and the sharing rescan did until 2026-09-28; workplan
-  0138 T6). The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its
+  opens a pool on it. The API also holds the owner, as `DIRECT_DATABASE_URL`, for its migrations and its
   audit key's one connection, which requests do reach: the audit lines and the operator's audit
   download read the pseudonym key through it, and no tenant's rows. It is held
   by the scripts that act at the machine: `bootstrap-managed.sh` (migrations, and setting the
   system role's password), `seed-managed.sh` (the demo tenants) and `operator.sh` (appointments,
-  memberships, `check`/`clean`). **No Trigger.dev task holds it** since 0138 T3 step 2:
+  memberships, `check`/`clean`). **No Trigger.dev task holds it**:
   `set-task-env.sh` uploads no URL composed from it, and its forget run
   (`set-task-env.sh --forget-owner-names`, which the bring-up makes after `deploy-tasks.sh` has
   gone through) deletes the owner's names from the task environment. `docs/rls-guide.md` §2 carries the full table, and a guard fails if a script
   composes an owner URL without appearing in it.
 - `APP_DATABASE_URL` → the **`app_user`** role. The API connects through this for tenant data, so
-  row-level security is in force on its request path (workplan 0011 T1). If you ever point the
+  row-level security is in force on its request path. If you ever point the
   app at the owner URL, tenant isolation silently disappears — don't.
 - `SYSTEM_DATABASE_URL` → the **system role, `ownpace_system`**, for the Trigger.dev jobs that span
   organisations and nothing else. It is **not a superuser**, may create no role or database, does
@@ -101,33 +99,34 @@ the **system role, `ownpace_system`** (workplan 0138 T3 step 2). RLS is enforced
   scheduled jobs read each organisation as `app_user`, and the three that span organisations whole
   connect as the system role.** `set-task-env.sh` uploads two URLs, `SYSTEM_DATABASE_URL` and
   `APP_DATABASE_URL`, beside `SECRET_ENCRYPTION_KEY` and the optional values, and every run
-  receives both. Since workplan 0138 T1 step 2 the per-tenant tasks (a pass, a discovery, a
+  receives both. The per-tenant tasks (a pass, a discovery, a
   verification, a confirmation, an apply, a cutover's preparation, a rollback) take their pools
   from `openTaskPools` (`apps/worker/src/jobs/task-pools.ts`): tenant data on `APP_DATABASE_URL`,
   under row security, and one connection on `SYSTEM_DATABASE_URL` for the audit export's key
   (`deployment_key`, which `app_user` may not read). A task run without either refuses to start,
   naming it; it never falls back to the owner. The digest, the drift detector and group discovery
-  are split since 0138 T2: each run asks the system role once which organisations are active (ids
+  are split: each run asks the system role once which organisations are active (ids
   only, one connection, closed before it answers; `activeOrganisations`), and reads and writes each
   of them on the same tenant pool, in that organisation's scope. Without `APP_DATABASE_URL` they
   refuse to start too, and on a connection that cannot see every organisation the list refuses
   rather than come back empty. The other three scheduled jobs (the sync tick, retention, the purge
   of closed organisations) connect with `SYSTEM_DATABASE_URL`, and there each query's own tenant
   filter is still what keeps one organisation's rows from another: the system role reads past the
-  policies on the tables it is granted. What changed in T3 step 2 is that no run holds a
-  superuser's credential: none can run a program on the database server, read its files, change a
-  role or alter the schema. The sync tick needs `APP_DATABASE_URL` as well: it imports the pass's
-  task (`run-delta-sync`) to enqueue it, and that module opens its pools when it is loaded, so
-  without it no tick runs. The API's request path, the per-tenant tasks and the three split jobs
-  share `app_user`'s server connections at PgBouncer, and the jobs across organisations the system
+  policies on the tables it is granted. No run holds a superuser's credential: none can run a
+  program on the database server, read its files, change a role or alter the schema. The sync
+  tick needs `APP_DATABASE_URL` as well: it imports the pass's task (`run-delta-sync`) to
+  enqueue it, and that module opens its pools when it is loaded, so without it no tick runs.
+  The API's request path, the per-tenant tasks and the three split jobs share `app_user`'s
+  server connections at PgBouncer, and the jobs across organisations the system
   role's (`pgbouncer.ini`, beside `default_pool_size`, says what that holds). `docs/rls-guide.md`,
   "Where row security holds today", lists every connection and whether the policies bind it.
-  Until 0138 T3, `set-task-env.sh` uploaded the owner too: `DIRECT_DATABASE_URL` (straight to
-  `postgres:5432`) until step 1, `DATABASE_URL` (through the pooler) until step 2. It deletes both
-  names from the store on every run now and fails when the list it reads back still holds either;
-  `docs/managed-bring-up.md`, "The owner's names in the task environment", says what to do then.
+  `set-task-env.sh` deletes the owner's two names, `DIRECT_DATABASE_URL` (straight to
+  `postgres:5432`) and `DATABASE_URL` (through the pooler), from the store on every run, since an
+  older task environment may still hold them, and fails when the list it reads back still holds
+  either; `docs/managed-bring-up.md`, "The owner's names in the task environment", says what to
+  do then.
 
-**The two passwords are `.env`'s, on every run** (workplan 0132 T2). A role keeps the password it
+**The two passwords are `.env`'s, on every run.** A role keeps the password it
 was made with, so the bring-up's `data` phase tells both: before anything migrates it creates
 `app_user` from `APP_DB_PASSWORD` when it does not exist (`0001_baseline` then leaves it alone, and
 makes it with its published `app_password` only when it is absent), sets its password when it does,
@@ -142,16 +141,14 @@ together, and `--sync` sets the roles to `.env`'s values (`docs/managed-bring-up
 database passwords"). With `--with-trigger-stores` both also take Trigger.dev's own database:
 `trigger-db`'s role `trigger` and its `TRIGGER_DB_PASSWORD`, set over `trigger-db`'s socket. The
 bring-up's `trigger` phase sets that role to `.env`'s value on every run, before `trigger-api`
-starts. The owner ran `--rotate --with-trigger-stores` on the OTA stack on 2026-10-05 (workplan
-0132 T2, step A), so its `trigger-db` holds a value of its own, and since step B the bring-up
-refuses the fallback on a real address.
+starts.
 
 ## Start / stop
 
 Bring up the WHOLE stack — the trigger execution plane (registry, docker-proxy, supervisor,
 ClickHouse, MinIO, the TLS front) is not optional garnish: a stack without the supervisor
-accepts every enqueue and executes none of them, and the 2026-08-01 bring-up proved the
-dashboard genuinely queries ClickHouse (its absence killed the webapp process, not a page).
+accepts every enqueue and executes none of them, and the dashboard queries ClickHouse (without
+it the webapp process dies, not a page).
 
 ```bash
 cd deploy/compose
@@ -185,9 +182,9 @@ docker compose -f managed.yml down -v
 **Env changes need a recreate, not a restart.** `docker compose up -d` recreates only
 services whose configuration changed *as compose sees it*; a container that shows
 `Running 0.0s` in the `up` output kept its old environment. After editing `.env` for a
-running service, force it: `docker compose -f managed.yml up -d --force-recreate <service>`
-— the live symptom that teaches this the hard way is changing the `TRIGGER_*_ORIGIN`s and
-getting a white screen from a dashboard still advertising the old origins.
+running service, force it: `docker compose -f managed.yml up -d --force-recreate <service>`.
+Without it, changing the `TRIGGER_*_ORIGIN`s gives a white screen from a dashboard still
+advertising the old origins.
 
 ### Whose address a log line names, and how long it stays
 
@@ -203,12 +200,13 @@ NetBird passes on to us"*). So:
 | `web`, the app's nginx | Last, in quotes (`ownpace_combined` in `apps/web/nginx.conf.template`). The first field is NetBird's. |
 | `www`, the website's nginx | Last, in quotes (`ownpace_site` in `deploy/compose/www-nginx.conf`). The first field is NetBird's. |
 
-Workplan 0132 T3 (d)'s check reads one line of each on live
-([managed-bring-up.md](managed-bring-up.md#after-the-script-the-owners-steps),
-step 6). These lines are personal data: never paste one anywhere public. The
-managed gate filters the container logs it prints into its public job log through
-`own-addresses.sh`, which replaces an nginx line's last field with `<client-ip>`
-as it replaces mesh addresses with `<mesh-ip>`.
+The check in
+[managed-bring-up.md](managed-bring-up.md#after-the-script-the-owners-steps),
+step 6, reads one line of each on live. These lines are personal data: never
+paste one anywhere public. The managed gate filters the container logs it prints
+into its public job log through `own-addresses.sh`, which replaces an nginx
+line's last field with `<client-ip>` as it replaces mesh addresses with
+`<mesh-ip>`.
 
 **How long they stay.** Every container writes with Docker's default log driver,
 `json-file`, which keeps its output until the container is removed: at each
@@ -227,9 +225,8 @@ machine that keeps to it, and `stand-up-live.sh` refuses any other answer; the
 journal would keep every line past its container (managed-bring-up.md, *Before
 you start*, says how to undo that).
 
-**Counting visits to the website** from the `www` log (privacy §4.5; the owner,
-2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip
-for now, no netbird api tokens..."*): `./deploy/compose/site-visits.sh`, from
+**Counting visits to the website** from the `www` log (privacy §4.5):
+`./deploy/compose/site-visits.sh`, from
 `~/ownpace-live`, once a day as the duty `visits` and by hand before a deploy. It
 hands GoAccess only the requests that came through the public name, each address
 replaced by a number that lasts as long as the run, with no query string, no path
@@ -272,7 +269,7 @@ error (`trigger-tls.Caddyfile` documents this). The certificate is internally mi
 the first visit needs the browser's "accept the risk" step. Set `TRIGGER_TLS_BIND` to the
 machine's IP address that `TRIGGER_TLS_HOST` names: the port answers on loopback only until a
 bind adds another, and a bind takes an IPv4 address, never a name, even where the host is one
-(workplan 0132 T3; `docs/managed-bring-up.md`, *Which address a port answers on*).
+(`docs/managed-bring-up.md`, *Which address a port answers on*).
 
 ### Alternative: run apps from source (no image build)
 
@@ -319,12 +316,12 @@ DATABASE_URL="postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@localhost:${POSTG
 # up the seeded mappings within a minute and starts their sync passes on
 # each mapping's own schedule (default */15). Until a mapping's first copy is
 # finished it runs passes back to back instead, at most every 15 minutes,
-# whatever its schedule (workplan 0156 T5).
+# whatever its schedule.
 ```
 
 Use each printed token as `Authorization: Bearer <token>` against the API, or drop it into the web
-app's stored auth token, to sign in as that tenant. **Tokens must belong to seeded members**: since
-the tenant-membership gate (0020 T1), `authenticate` confirms `(tenantId, sub)` against
+app's stored auth token, to sign in as that tenant. **Tokens must belong to seeded members**:
+`authenticate` confirms `(tenantId, sub)` against
 `tenant_member` and takes the role from that row — a hand-minted token with an arbitrary sub gets
 a 403 *by design*, however valid its signature. The seed's members are `seed:demo-owner-a`
 (tenant A) and `seed:demo-owner-b` (tenant B) — the `seed:` prefix marks a subject this system
@@ -332,7 +329,7 @@ wrote rather than one an identity provider minted, so the support screen shows t
 console link instead of sending an operator to a user the provider has never had. The
 **cross-tenant check** is the acceptance centerpiece: tenant
 B's token must never read or affect tenant A's data through any path — verified at the SQL layer
-(RLS) and the HTTP layer (the T1/T2 integration tests).
+(RLS) and the HTTP layer (integration tests).
 
 ## Deploying the Trigger.dev tasks (verify + apply run through these)
 
@@ -344,8 +341,8 @@ workplan 0018.
 
 1. Open the dashboard — `https://$TRIGGER_TLS_HOST:$TRIGGER_TLS_PORT` — and enter an email.
    There is no SMTP: fetch the magic link from the logs and open it in the same browser. Ask
-   for it on that address (`TRIGGER_LOGIN_ORIGIN`): since Trigger.dev v4.7.4 the link points
-   there and signs in only the browser session that asked for it:
+   for it on that address (`TRIGGER_LOGIN_ORIGIN`): the link points there and signs in only the
+   browser session that asked for it:
    ```bash
    ./deploy/compose/trigger-magic-link.sh
    ```
@@ -371,8 +368,7 @@ workplan 0018.
 ```
 
 Idempotent; installs the lockfile first, and with it the deploy CLI, which is `apps/worker`'s
-devDependency at exactly the SDK version (it was fetched with `npx` until 2026-11-02);
-preflights reachability, project ref and login.
+devDependency at exactly the SDK version; preflights reachability, project ref and login.
 On a non-amd64 host set `DEPLOY_IMAGE_PLATFORM` in `.env` (e.g. `linux/arm64`) — the platform
 is decided server-side and handed to the CLI, and a mismatch produces runners that die at
 exec in under a second with `AutoRemove` destroying the evidence.
@@ -398,9 +394,9 @@ Four things send email on managed, all through the operator's own SMTP relay con
   on Monday, or off) and mails that tenant's **active owners and admins** a summary of what is
   waiting: pending drift decisions, the deletions/moves/failures queues, and mappings sitting in
   READY_FOR_CUTOVER. Counted from the same ledger calls the screens read, and read as that tenant,
-  under row security (workplan 0138 T2): only the list of active tenants is read across them.
+  under row security: only the list of active tenants is read across them.
 - **the rollback notice** — only when `run-rollback` is submitted with `notifyUsers: true`.
-- **the first-copy email** (workplan 0154 T7) — once per person, from the pass that finishes the
+- **the first-copy email** — once per person, from the pass that finishes the
   last first copy of their migrations: *everything has arrived*, naming the person and each data
   type, to the tenant's **active owners and admins** in its language. A pass asks only when it has
   just finished a data type's first copy; `person.first_copy_announced_at` (managed migration
@@ -408,7 +404,7 @@ Four things send email on managed, all through the operator's own SMTP relay con
   without SMTP, so switching SMTP on later sends nothing about earlier copies. The pass logs
   `[first-copy] <mapping>: sent`, or `not_yet`, `already`, `nobody`, `no_channel`,
   `no_recipients`. A migration with no person sends none.
-- **`managed-cadence-email`** (workplan 0157 T7) — a scheduled task, daily at **07:30 UTC**.
+- **`managed-cadence-email`** — a scheduled task, daily at **07:30 UTC**.
   A migration with no schedule of its own (*Automatic*) looks every hour for 14 days after
   everything is in step, then every 6 hours, then once a day from day 30. Each morning this
   tells each active organisation's **active owners and admins**, in its language, which of its
@@ -418,23 +414,23 @@ Four things send email on managed, all through the operator's own SMTP relay con
   brings back the hour and deletes the row, and the page says once what it ended. Nothing is
   said on Free outside the alpha, where a migration runs one pass a day whatever its cadence.
   The run logs `{ tenants, free_pace, none, sent, no_channel, no_recipients, failed }`.
-- **`managed-month-invoices`** (workplan 0111, slice 4) — a scheduled task, hourly at **:23**.
+- **`managed-month-invoices`** — a scheduled task, hourly at **:23**.
   It keeps each active organisation's month invoiced in advance. On a month's first day it
   makes a draft for the tier the month starts on, and after a move up a draft for the
   difference, each under `ownpace-{organisation}-m-{YYYY-MM}-{tier}`, in the organisation's
   language. Free makes none. A month a year's credit pays makes no draft: it is drawn from the
-  credit (0111 T11, managed 0056), and only what the credit does not cover is invoiced. While
+  credit, and only what the credit does not cover is invoiced. While
   `OWNPACE_BILLING_FROM` is empty, during the alpha, and before that month, the run says
   `nobody is invoiced` and reads nothing about any organisation. Otherwise it logs
   `{ invoicing, month, tenants, made, drawn, made_elsewhere, in_step, free, nothing_to_add,
   failed, notices }`, and one line per draft it made or month it drew.
   **Its one e-mail:** when a year's credit will not pay all of next month, it tells the
   organisation's **active owners and admins**, in its language, once per year bought: what is
-  left, what next month costs, and that another year can be bought (0111 T11, slice Y3).
+  left, what next month costs, and that another year can be bought.
   `credit_notice` (managed migration 0057) makes it once, claimed with or without SMTP.
   `notices` counts `{ sent, no_channel, no_recipients, failed }`, and a notice claimed and not
   sent is a warning naming the organisation.
-- **`managed-invoice-push`** (workplan 0111, slices 5 to 7d) — a scheduled task, hourly at
+- **`managed-invoice-push`** — a scheduled task, hourly at
   **:41**. For each organisation, in this order:
   1. **Each draft numbered.** Takes each draft to Moneybird, which numbers it, and writes the
      number, the dates and the figures back. A draft is claimed for one attempt (managed 0047);
@@ -442,9 +438,9 @@ Four things send email on managed, all through the operator's own SMTP relay con
      details, say) is said as an error with its reason.
   2. **Each credit note numbered** the same way, once the invoice it corrects is numbered.
   3. **Each payment through Mollie booked** on its invoice in Moneybird, under Mollie's payment
-     id, on the account `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names (slice 5f), so Moneybird
+     id, on the account `MONEYBIRD_FINANCIAL_ACCOUNT_ID_MOLLIE` names, so Moneybird
      reminds nobody who paid. With that key empty, nothing is booked and each run says so.
-  4. **Each credit note's money made real, once** (slice 7d): refunded through Mollie when its
+  4. **Each credit note's money made real, once**: refunded through Mollie when its
      invoice was paid through Mollie and more was paid than is owed now; set against its invoice
      in the books when nothing was paid above that; or **said, for a transfer by hand**, when it
      was paid another way. Without `MOLLIE_API_KEY` in the task environment, a refund waits and
@@ -469,9 +465,9 @@ Four things send email on managed, all through the operator's own SMTP relay con
   | `credit note … credits N cents on invoice …, which was paid, but not through Mollie` | Pay back what was paid above what is owed, by bank transfer, within 14 days of the withdrawal (terms §7), and book it on the credit note in Moneybird. |
   | `Mollie's refund re_… of N cents for credit note … ended failed` (or `canceled`) | The money did not go back. Pay it back by transfer within the same 14 days. If the error says it was booked, take that payment (under the refund's id) off the credit note in Moneybird; otherwise nothing was booked, and nothing will be. |
   | `Mollie's refund re_… is still queued 7 days after it was made` (or `pending`, `processing`) | A queued refund waits until Mollie's balance covers it. Look at the balance in Mollie's dashboard; the 14 days run from the withdrawal. |
-  | `N invoice(s) still drafts two days after they were made` | Said every run while it is true (decision 6's alert). The errors before it, for the same organisation, say why each draft was refused. |
+  | `N invoice(s) still drafts two days after they were made` | Said every run while it is true. The errors before it, for the same organisation, say why each draft was refused. |
 
-  **The three said once reach you twice** (the owner, 2026-10-11), because each error is a line
+  **The three said once reach you twice**, because each error is a line
   on the output of a run whose container is removed when the run ends:
   - **a mail to `NOTIFY_TO`**, in English, with the credit note's and the invoice's numbers, the
     amount and what to do, and the organisation's id, never its name. It goes once, when the push
@@ -519,9 +515,8 @@ Two things carry a price, and they are deliberately not the same thing:
   tenant is offered when it has agreed to nothing yet.
 - **The agreement** — a row in `tenant_pricing`, pinned the first time that tenant's money is
   computed. What the tenant is actually billed at, on every screen, every metered row and every
-  invoice, for as long as it exists. (It was a `tenant.pricing` column until ADR-0036 moved it
-  into the managed edition's own migration chain — an appliance has an owner, not customers, and
-  has no such table at all.)
+  invoice, for as long as it exists. (It is in the managed edition's own migration chain: an
+  appliance has an owner, not customers, and has no such table at all.)
 
 An agreement never follows the template. Raising the list price for new customers is an `.env`
 edit and an api restart; it does not reach into an existing customer's open invoice, and no
@@ -554,9 +549,7 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
 ```
 
 A NULL `pricing` here means **no row**, which is "no agreement yet" — that tenant will be pinned
-to the current template the next time its billing page is opened or its metering runs. It used
-to be a nullable column whose NULL had to be documented as not meaning free; a row that is
-simply absent cannot be misread that way.
+to the current template the next time its billing page is opened or its metering runs.
 
 **Re-price ONE existing tenant** — deliberate, per customer, after you have agreed it with them:
 
@@ -582,68 +575,61 @@ new rates apply to invoices generated from now on.
 The machine is several things at once: the OTA stack (`ownpace-managed`, the
 demo and the nightly gate's target), `ownpace-live` (the stack the alpha's
 testers use), the CI runner for pushes to `main` (not during the alpha: route 1
-below), the e2e runner, and the O365 e2e runner. Sharing it was a reasonable
-arrangement while the only data on it was the demo seed. It stops being
-reasonable the moment a customer's mailbox credentials live here, and the
-reason is not hypothetical — it has already nearly happened twice:
+below), the e2e runner, and the O365 e2e runner. That is acceptable while the
+only data on it is the demo seed, and not once a customer's mailbox
+credentials live here:
 
-- **A drill nearly took a live appliance down.** `container_name` in
+- **CI and production share a Docker daemon.** `container_name` in
   `compose.yml` is a fixed string and `docker compose -p` does not namespace
-  it, so `upgrade-drill.sh` under its own project still tried to create a
-  container named `ownpace-selfhost-app`. The first run only got away
-  with it because no appliance happened to be up. Fixed with
-  `compose.drill.yml`, but the class of problem is "CI and production share a
-  Docker daemon", and that is still true.
+  it, so `upgrade-drill.sh` under its own project tried to create a container
+  named `ownpace-selfhost-app`, the live appliance's name. `compose.drill.yml`
+  fixes that case; the class of problem remains.
 - **The runs contend.** The two nightly e2e crons are staggered by two hours
   for one reason: the runner is a single shared box, and a full stack bring-up
   next to a live one is not free.
-- **The runner can die quietly.** On 2026-09-25 the OOM killer took a process
-  of a job, the runner's listener exited with code 0, and its systemd unit,
-  which had no restart policy, stayed failed for four weeks; a runner started
-  by hand covered for it until it stopped on 2026-10-24, and the nightly
-  queued with nobody to run it (workplan 0132's Status). The unit now carries
-  a drop-in with `Restart=always` and `RestartSec=30`. To check it on the box:
+- **The runner can die quietly.** When the OOM killer takes a job's process,
+  the runner's listener can exit with code 0, and a systemd unit with no
+  restart policy then stays failed while the nightly queues with nobody to
+  run it. The unit carries a drop-in with `Restart=always` and
+  `RestartSec=30`. To check it on the box:
   `systemctl list-units --all 'actions.runner*'` shows the unit and its state,
   and `systemctl show <that unit> -p Restart -p RestartUSec` prints
   `Restart=always` and `RestartUSec=30s`. A job queued for longer than a run
   takes, with nothing in progress, means the runner is down: look here first.
 
 **The rule:** before the first non-demo tenant is onboarded, CI and production
-must not share this machine. Two ways to get there, and the cheaper one only
-became available recently:
+must not share this machine. Two ways to get there:
 
-1. **Move CI off.** The machine was buying two things GitHub-hosted runners could
-   not: arm64 and a warm cache. Arm64 is no longer one of them — GitHub's
-   `ubuntu-24.04-arm` hosted runners are generally available and free for
-   public repositories. What remains is cache/speed, which is worth far less
-   than not sharing a Docker daemon with production. **Done for CI's push
-   jobs for the alpha's weeks** (the owner, 2026-11-08, workplan 0132 open
-   question 1): a push runs every job of `ci.yml` and `security-scan.yml` on
-   `ubuntu-24.04-arm`, and the repository variable `CI_PUSH_ON_SELF_HOSTED`,
-   set to `true`, sends them back. The nightlies still run `main` here, so CI
-   and production still share this machine.
+1. **Move CI off.** GitHub's `ubuntu-24.04-arm` hosted runners give arm64 and
+   are free for public repositories, so what this machine adds is a warm
+   cache, worth far less than not sharing a Docker daemon with production.
+   **Done for CI's push jobs during the alpha:** a push runs every job of
+   `ci.yml` and `security-scan.yml` on `ubuntu-24.04-arm`, and the repository
+   variable `CI_PUSH_ON_SELF_HOSTED`, set to `true`, sends them back. The
+   nightlies still run `main` here, so CI and production still share this
+   machine.
 2. **Move production off**, onto a host that runs no CI at all.
 
-**The alpha is the one exception, by the owner's decision of 2026-09-24**
-([workplan 0132](./workplans/0132-the-alpha-and-the-nightly-gate-on-one-box.md),
-D7). Live runs on this machine beside the OTA stack and CI, for a free,
+**The alpha is the one exception**
+([workplan 0132](./workplans/0132-the-alpha-and-the-nightly-gate-on-one-box.md)
+has the reasoning). Live runs on this machine beside the OTA stack and CI, for a free,
 invite-only alpha of hand-picked testers, under that plan's conditions:
 
 - **Names per project, on one Docker daemon.** Every container, volume and
   network is named after its compose project, and each stack has its own
-  checkout, `.env`, ports, Trigger.dev plane and identity provider (0132 T1 to
-  T1d; [Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches)).
+  checkout, `.env`, ports, Trigger.dev plane and identity provider
+  ([Which stack a command reaches](./managed-bring-up.md#which-stack-a-command-reaches)).
   That keeps the stacks apart by configuration. It is not a security boundary:
   each stack's `trigger-docker-proxy` holds the Docker socket, and so does the
   runner.
 - **The gate refuses live's `.env`.** The nightly managed gate refuses a
   persisted `.env` that carries live's marker, `STACK_KIND=production`, or a
   slip of it, before it copies anything out of that directory
-  (`deploy/compose/refuse-live-env.sh`, 0132 T1g), and no workflow names
+  (`deploy/compose/refuse-live-env.sh`), and no workflow names
   `ownpace-live`. A script in live's checkout whose `.env` carries the marker
   but no `COMPOSE_PROJECT_NAME=ownpace-live` refuses too, rather than acting on
-  the OTA stack (0132 T1b).
-- **Live moves only by hand, from a tag** (0132 T6). The OTA stack keeps
+  the OTA stack.
+- **Live moves only by hand, from a tag.** The OTA stack keeps
   following `main` every night; nothing scheduled deploys live.
 
 Beyond the alpha the rule stands as written: before a paying customer, or any
@@ -654,7 +640,7 @@ the one option that is not.
 ## Backup & restore (§22.1)
 
 `ownpace-live`, the stack testers use, takes no backups during the alpha
-([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md), D1), apart
+([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)), apart
 from one copy made right before each update, kept until the update is proven and never past
 day 7: [The copy before an update](#the-copy-before-an-update-ownpace-live), below. This
 recipe is for a deployment that does. What losing live's machine costs, and what you do then, is
@@ -689,14 +675,13 @@ docker compose -f managed.yml exec -T postgres \
 It dumps the provider's database and the server's roles into `~/ownpace-dumps/<project>/`,
 readable by you alone, and reads the dump back with the server's own `pg_restore --list`.
 On `ownpace-live` it writes into the copy before an update's directory and nowhere else, and
-refuses a `--dir` naming another: the copy `deploy-live.sh` takes already holds that dump
-(workplan 0139). Beside
+refuses a `--dir` naming another: the copy `deploy-live.sh` takes already holds that dump. Beside
 them it writes a note: the image that was running, a fingerprint of the master key the dump needs,
-and the commands that go back to it. It stops and changes nothing (workplan 0135 T7). On the same
+and the commands that go back to it. It stops and changes nothing. On the same
 server, going back replaces the database only: its roles are still there, and restoring them would
 set the provider's database password back to the dumped one. A dump holds the provider's accounts,
 so on the OTA stack delete it once main's first scheduled E2E (managed) on the new pin is green;
-the script says so when it is done, and so does the pin watch's issue (workplan 0146 T8). On live
+the script says so when it is done, and so does the pin watch's issue. On live
 the copy's own rules delete it.
 
 Notes:
@@ -712,9 +697,7 @@ Notes:
 ### The copy before an update (ownpace-live)
 
 What the privacy policy (§9) and the Alpha conditions (§6) promise: one copy, made right before
-each update, kept *"until that update is shown to work, and never longer than 7 days"* (the
-owner's answers rec-copies (a) and rec-drill (a), 2026-09-28;
-[workplan 0139](./workplans/0139-the-legal-gate-for-the-alpha.md)). One script,
+each update, kept *"until that update is shown to work, and never longer than 7 days"*. One script,
 [`copy-before-update.sh`](../deploy/compose/copy-before-update.sh), and one directory,
 `~/.persistent/ownpace-live/copy-before-update`, readable by you alone. It is a directory, not
 a link: every script that writes or deletes there refuses a symbolic link, because the backstop
@@ -732,7 +715,7 @@ would not follow one (mount a larger disk at that path if you need the room).
   prove the previous update and delete its copy, or roll back from it, first. The rollback's own
   deploy, of the note's `from=`, goes ahead.
 - **Deleted once the update is proven**, by live's box checks every ten minutes
-  (`copy-before-update.sh delete-if-proven`, workplan 0132 T9), or by you, from
+  (`copy-before-update.sh delete-if-proven`), or by you, from
   `~/ownpace-live`: `./deploy/compose/copy-before-update.sh delete`. It refuses unless the last
   line `deploys.log` has since the copy was taken says the deploy took (a deploy that did not
   take after one that did leaves nothing proven), the hold that covered that deploy is lifted,
@@ -811,8 +794,7 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
 
    **ClickHouse's volume, only when the update moved the ClickHouse pin** (the two tags'
    `managed.yml` pin different ClickHouse images; `deploy-live.sh` names that move and says the
-   copy holds no ClickHouse volume when the script that ran compares the pin, alpha.4's and
-   later, and alpha.3's, which ran live's deploy of alpha.4, does not): the copy is not in `$C`,
+   copy holds no ClickHouse volume): the copy is not in `$C`,
    because the copy before an update never takes a volume. It is the one taken by hand before
    the deploy, `ownpace-live_clickhouse_data_v2_before_26_8` for the move to 26.8: restore it
    now with the *Back to 26.2* block of `docs/managed-bring-up.md`, *Moving ClickHouse*, with
@@ -858,32 +840,23 @@ gone. Steps 4, 6 and 10 do each of them again; do not skip them.
     nothing deletes it on its own. The removal block of `docs/managed-bring-up.md`, *Moving
     ClickHouse*, with `cd ~/ownpace-live` in place of its first `cd` and `want=26.2.19.43`.
 
-Step 5's command was rehearsed on 2026-09-28 against Postgres 16 with both migration chains
-applied, after a simulated update (a column, a table and a row added): with a session still
-open it stopped at the `DROP DATABASE`; with none, the database came back as dumped, without
-the three, with its owner and `app_user`'s grants. The sign-in service's way back was rehearsed
-the same way for `dump-idp.sh` (its header). Steps 4 and 6 are rehearsed in
+Step 5's command was rehearsed against Postgres 16 with both migration chains applied, after a
+simulated update (a column, a table and a row added): with a session still open it stopped at
+the `DROP DATABASE`; with none, the database came back as dumped, without the three, with its
+owner and `app_user`'s grants. The sign-in service's way back was rehearsed the same way for
+`dump-idp.sh` (its header). Steps 4 and 6 are rehearsed in
 `scripts/one-copy-before-each-update.unit.test.ts` on two PGlite databases with both chains
 applied, the copy's and the one after it: an organisation closed, one reopened, one erased, a
 connection, a migration with its sharing list, a person and a membership deleted, and a grant
 withdrawn after the copy, each done again in a fresh copy of the first. The whole sequence was
-run once on live, on 2026-10-27/28, before any tester: from `v0.2.0-alpha.2` back to
-`v0.2.0-alpha.1`, from the copy `deploy-live.sh` took before alpha.2: steps 1 to 10, and step 11
-as far as lifting the hold. It worked. Step 11's proof could not follow, since live had no
-migration and so no pass ran, and the copy was kept; alpha.2 was deployed again over it
-(workplan 0132, Status, 2026-10-29).
-
-**Live cannot go back to `v0.2.0-alpha.1` this way any more** (2026-10-28). Alpha.1's MinIO
-mounts the Bitnami-era `ownpace-live_minio_data`, and the owner removed that volume after
-alpha.2's deploy (workplan 0146 T7). Steps 5 to 8 restore databases only, so Trigger.dev's
-packet store would not come back as alpha.1 left it. From alpha.2 on, MinIO is on
-`minio_data_v2`, so a rollback to alpha.2 or later is not affected.
+run once on live, before any tester, from the copy `deploy-live.sh` took before an update:
+steps 1 to 10, and step 11 as far as lifting the hold. It worked. Step 11's proof could not
+follow, since live had no migration and so no pass ran.
 
 ## If the machine is lost during the alpha
 
 Live keeps no backups during the alpha, so a lost machine takes with it everything only that
-machine held ([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)
-T3):
+machine held ([workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)):
 
 - live's database: the organisations, their members, connections and stored credentials, the
   migrations and their settings, run history, pending decisions, the audit log and the access
@@ -907,17 +880,14 @@ machine (0134 T4) is what prevents it.
 What you do:
 
 1. Tell each tester, from the list of testers (0134 T4), with the alpha conditions' paragraph on
-   backups (0134 T2).
+   backups.
 2. Bring live up again as 0132 T1b to T1e do, with the copy of live's `.env` if you have one.
    A new identity provider reads its `ZITADEL_PAT_EXPIRY` date once, at its first start, and
-   refuses to start on a date already past. On a tag that carries `seed_pat_expiry`
-   (`deploy/compose/env-read.sh`), the line can stay as it is: the bring-up writes a fresh date
-   into it before that start when it is empty, past or not a date, and keeps one still ahead. On
-   an older tag (`v0.2.0-alpha.1` among them), write a date a week ahead into the line first,
-   `date -u -d '+7 day' +%Y-%m-%dT%H:%M:%SZ`: there the provider starts before anything writes
-   the line, an empty one gets 2026-12-31, and a past one is kept. If the old machine could be in
-   someone else's hands, replace every value instead: nothing depends on the old ones any more,
-   and the OAuth client secrets are replaced in each provider's console.
+   refuses to start on a date already past. The line can stay as it is: the bring-up
+   (`seed_pat_expiry`, `deploy/compose/env-read.sh`) writes a fresh date into it before that
+   start when it is empty, past or not a date, and keeps one still ahead. If the old machine
+   could be in someone else's hands, replace every value instead: nothing depends on the old
+   ones any more, and the OAuth client secrets are replaced in each provider's console.
 3. Do Trigger.dev's one-time steps on live's plane (0132 T1c).
 4. Grant each tester again as they come back.
 5. Record the date and what was lost in 0134's Status block.
@@ -928,8 +898,8 @@ with real data is restored from a backup, never dropped.
 
 ## Upgrade
 
-**Once, before the upgrade that brings `WEB_BIND` into `managed.yml`:** every port now answers on
-loopback unless its `*_BIND` adds an address (workplan 0132 T3). On a stack whose public names are
+**Once, before the upgrade that brings `WEB_BIND` into `managed.yml`:** every port answers on
+loopback unless its `*_BIND` adds an address. On a stack whose public names are
 routed through a front, set `WEB_BIND` and `ZITADEL_BIND` in `.env` to the address the front
 connects to, first, or the names stop answering. `STATUS_BIND` too where a status name is routed
 or the status page is opened over the mesh, and `TRIGGER_TLS_BIND`, the IP address
@@ -940,15 +910,15 @@ updated checkout. A bind on a mesh address also ties the container's start to th
 reboot. `docs/managed-bring-up.md`, *Which address a port answers on*, has the detail and the
 remedy.
 
-**Which stack decides how** (workplan 0132 T6):
+**Which stack decides how:**
 
 - **`ownpace-live`** moves only to a release tag, by hand, with
   `./deploy/compose/deploy-live.sh <tag>` from `~/ownpace-live`: the hold, the drain, the tag, the
   bring-up without the demo, the checks, and then you lift the hold. The steps are in
   `docs/managed-bring-up.md`, *Updating a running deployment*, and `docs/release.md` §5. Never
   `git pull` there. **The deploy from `v0.2.0-alpha.2` or earlier to `v0.2.0-alpha.3` or later
-  runs twice** (workplan 0146 T13, the owner's decision of 2026-10-26): the first run is the older
-  checkout's script, which says `NODE_ENV: the api container could not be asked` and exits 3,
+  runs twice**: the first run is the older checkout's script, which says
+  `NODE_ENV: the api container could not be asked` and exits 3,
   though live has moved to the tag; then `git checkout -- apps/worker/package.json` and the same
   `deploy-live.sh <tag>` again, which says it took. The bring-up's section *The deploy from
   alpha.2 to alpha.3 runs twice* has the exact lines. The tag is cut by the Release workflow
@@ -972,26 +942,25 @@ On either, this is what an upgrade does and does not do:
 4. Roll forward: a fix and a new tag. If a release misbehaves and cannot be fixed forward, restore
    from a backup rather than reversing schema.
 5. A new pin of Trigger.dev, the identity provider, ClickHouse, MinIO, Mailpit or Nextcloud
-   starts with reading what that version sends its makers by default: Zitadel's daily report
-   arrived with v4 and was on until workplan 0139 switched it off (2026-09-28). For Trigger.dev
-   that is the webapp and everything its entrypoint runs: Prisma's migrate sent a checkpoint at
-   every start until `CHECKPOINT_DISABLE` (2026-09-29). The switches are written in `managed.yml`,
+   starts with reading what that version sends its makers by default: Zitadel's daily report,
+   for one, is on unless switched off. For Trigger.dev that is the webapp and everything its
+   entrypoint runs: Prisma's migrate sends a checkpoint at every start unless
+   `CHECKPOINT_DISABLE` is set. The switches are written in `managed.yml`,
    and `scripts/a-service-that-phones-home.unit.test.ts` fails until the row for that image names
    the new version. The demo's Nextcloud has no switch yet: its update check, app store and
-   connectivity check are not switched off in this change. A hook that set them off made the
-   demo's first CalDAV write answer 500 in E2E (managed) #215; #216 on main, which recreated the
-   same container without it, passed. It holds fixtures only and is not on live, and a follow-up
-   switches them off with a check that the demo's DAV writes still work.
+   connectivity check stay on, because a hook that set them off made the demo's first CalDAV
+   write answer 500 in E2E (managed). It holds fixtures only and is not on live; switching them
+   off needs a check that the demo's DAV writes still work.
    `docs/managed-bring-up.md`, *Nothing phones home*, has each switch, where it was read, the
    command that applies it to a running stack, and the check to run after the upgrade.
-6. A deploy that sits on one line for more than ten minutes (live, 2026-10-28: a `docker compose
-   pull -q zitadel` printed "Pulled" in 0.6s and never returned). Compose v5.0.x's progress, drawn
+6. A deploy that sits on one line for more than ten minutes (a `docker compose pull -q zitadel`
+   that printed "Pulled" in 0.6s and never returned, say). Compose v5.0.x's progress, drawn
    in a terminal, can deadlock at the end of a command
    ([docker/compose#13639](https://github.com/docker/compose/issues/13639)), and the nights, with
-   no terminal, never meet it. `bootstrap-managed.sh` and `deploy-live.sh` now set
+   no terminal, never meet it. `bootstrap-managed.sh` and `deploy-live.sh` set
    `COMPOSE_PROGRESS=plain`, and the bring-up pulls that image only when the machine lacks it,
    stopping a pull after `ZITADEL_PULL_TIMEOUT` (600s). A deploy is started by the script of the
-   tag live runs, so until that tag has this, start a deploy as
+   tag live runs, so from a tag whose script lacks it, start a deploy as
    `COMPOSE_PROGRESS=plain ./deploy/compose/deploy-live.sh <tag>`. If one sits anyway, find what
    it waits on from a second terminal, reading only:
    `pgrep -af 'docker[ -](compose|run|create|cp|image)'`. End compose's own process, the line
@@ -1005,10 +974,9 @@ On either, this is what an upgrade does and does not do:
 ## Grant links: who granted what
 
 A grant link (see [grant-links.md](./grant-links.md)) lets somebody connect their own Google
-account to a tenant's migration. Every grant is recorded in `audit_log` (workplan 0108 T8 (d)):
-which link, which account granted, and which destination, with the tenant and the moment as the
-row's own. The owner, on 2026-09-23: *"yes, all those, so auditline, limit and report."* This is
-where to start when somebody reports a link they did not expect.
+account to a tenant's migration. Every grant is recorded in `audit_log`: which link, which
+account granted, and which destination, with the tenant and the moment as the row's own. This
+is where to start when somebody reports a link they did not expect.
 
 ```bash
 docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrate -d openmigrate -c \
@@ -1028,8 +996,8 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
   in is deliberately not kept**: it belongs to somebody who granted nothing, and `audit_log` is
   never pruned. Several refusals on one `linkId` mean the link is being tried by the wrong
   person or with the wrong account.
-- **`mapping.grant_withdrawn`**: the person took the grant back from their progress page
-  (workplan 0108 T8 (c)), actor `progress-link`. `detail` holds `mappingId`, `linkId` (the
+- **`mapping.grant_withdrawn`**: the person took the grant back from their progress page,
+  actor `progress-link`. `detail` holds `mappingId`, `linkId` (the
   progress link it was pressed on) and `atGoogle`: `revoked` when Google confirmed it, including
   a token Google already considered dead, or `not_confirmed` when Google refused or could not be
   reached. Either way the token was deleted here in the same transaction, and
@@ -1040,7 +1008,7 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
 The link id is the part of a grant link's URL before the dot, so a link somebody forwards to you
 can be found in `mapping_link` and in these rows without the rest of it.
 
-**A person's link** (ADR-0035, amended 2026-09-29) is the one an owner makes now, for all of a
+**A person's link** (ADR-0035) is the one an owner makes, for all of a
 person's migrations. Its URL reads `…/grant/p.<link id>.<secret>`, its row is in `person_link`
 (managed), and it writes the same three rows, with `personLinkId` in place of `linkId`: one row
 for each migration its grant landed on, refused on, or was taken back from. A migration's own
@@ -1050,8 +1018,8 @@ person's link made while every account of theirs was connected asks each again
 
 ### When a link is reported
 
-Since 2026-09-24 the person holding a link can report it from the grant page or the progress
-page (workplan 0108 T8 (d)). A report arrives on the helpdesk of bring-up step 8f as a ticket
+The person holding a link can report it from the grant page or the progress page. A report
+arrives on the helpdesk of bring-up step 8f as a ticket
 titled *Ownpace: a grant link was reported*, or *a progress link*, or *a person's grant link* or
 *a person's progress link*. Its one article is an
 internal note. Without a helpdesk, as on live during the alpha, it arrives as a mail to the
@@ -1105,9 +1073,9 @@ their progress page (**Withdraw access**), or in their Google account.
 While the deployment runs the Alpha (`OWNPACE_STAGE=alpha`, which live sets)
 and no text is still a draft, every person who signs in accepts the Alpha
 conditions, the privacy policy and the terms before anything else, and the
-service records it (workplan 0139 T3; terms §1, Alpha conditions §2, privacy
-§4.4). One row per person, text and version, per organisation, with the
-language the screen showed and the time, in `legal_acceptance` (managed
+service records it (terms §1, Alpha conditions §2, privacy §4.4). One row per
+person, text and version, per organisation, with the language the screen
+showed and the time, in `legal_acceptance` (managed
 migration 0032). Until a person has accepted the current versions, adding a
 connection, giving one a new key, creating a migration and issuing a grant link
 answer 409 `conditions_not_accepted`, so none of their access is stored before
@@ -1115,10 +1083,7 @@ it. Without the setting nobody is asked and nothing is refused.
 
 **While any text is a draft, nobody is asked either** (`LEGAL_DRAFTS` in
 `packages/managed/src/legal-versions.ts`). A draft's number is the one its final
-text will carry, so an acceptance of it would be recorded as the final's. On
-2026-09-29 the privacy policy 1.2 and the terms 1.3 were drafts. The owner's
-final-text pull request (workplan 0139, 2026-10-05) drops the draft words and
-sets `LEGAL_DRAFTS` to match; live asks from the release that carries it. The
+text will carry, so an acceptance of it would be recorded as the final's. The
 API says which at start, in its log:
 
 ```bash
@@ -1160,22 +1125,19 @@ docker compose -f deploy/compose/managed.yml exec -T postgres psql -U openmigrat
   a version they accepted there.
 - **Erasure**: the rows go with the organisation (`PURGED_TABLES`), because
   privacy §9 keeps the account, which §4.4 says includes this record, until the
-  data is erased. That is the owner's answer to 0139 open question 4, on
-  2026-09-29: the record is erased with the organisation. The copy before an
-  update can still hold it for at most 7 days, as privacy §9 says of all erased
-  data, and the erasure receipt keeps only how many rows went
+  data is erased. The copy before an update can still hold it for at most 7
+  days, as privacy §9 says of all erased data, and the erasure receipt keeps
+  only how many rows went
   (`purged_counts.legal_acceptance`).
 
 ## Sign-in accounts nobody let in
 
 Anybody can create an account at the sign-in page: organisation registration is
-off (workplan 0135 T1), self-registration is not. Such an account opens nothing
+off, self-registration is not. Such an account opens nothing
 until you grant a request for its address, but the identity provider keeps a
 name, an address, a password hash and sessions for it, and privacy §9 keeps it
 30 days. The account of a member removed from an organisation goes too, 7 days
-after the removal (privacy §9; 0135 open question 13, the owner, 2026-09-29:
-*"Samen number of days"*, and, asked the same as which rule, *"7 days"*). From
-the stack's checkout:
+after the removal (privacy §9). From the stack's checkout:
 
 ```bash
 ./deploy/compose/idp-strays.sh            # lists them; removes nothing
@@ -1185,8 +1147,7 @@ the stack's checkout:
 It lists an account with no membership, no operator row, and no open access
 request or invitation for its address, older than 30 days by the provider's own
 date. An address compares without case. The provider's own members (the first
-human, the organisation's managers) are never listed. Nor are three more
-(2026-09-29):
+human, the organisation's managers) are never listed. Nor are three more:
 
 - **An account that was let in and removed less than 7 days ago.** Removing a
   member, on the Team page or with `operator.sh leave`, deletes the member row
@@ -1194,8 +1155,7 @@ human, the organisation's managers) are never listed. Nor are three more
   `detail.userId` (the Team page's record carries no address); the row's own
   time, `at`, says when. Privacy §9's 30 days are for an account *that we never
   let in*; such an account was let in. The script keeps it while the newest
-  removal recorded for it is younger than 7 days, the erasure window's number,
-  which the owner chose for it on 2026-09-29 (workplan 0135, open question 13).
+  removal recorded for it is younger than 7 days, the erasure window's number.
   From 7 days on it lists it, however young the account itself is, and whether
   or not the provider gives it a creation date: the 7 days count from the
   removal, and the 30 from creation do not apply. Every other condition still
@@ -1253,9 +1213,8 @@ remove them by hand with `--remove`.
 
 ## A sign-in account locked by wrong passwords
 
-Ten wrong passwords in a row lock an account at the identity provider (workplan
-0135 T4b; the owner, 2026-10-17: *"The lockout limit: I proposed 10 wrong
-passwords."*). The count starts again after a correct password or a reset.
+Ten wrong passwords in a row lock an account at the identity provider. The
+count starts again after a correct password or a reset.
 Nothing unlocks it by itself: the provider's lockout policy says the person
 *"has to be unlocked by an administrator afterward"*, which during the alpha is
 you. Anybody who knows a tester's login name can lock that tester out by
@@ -1298,9 +1257,8 @@ an erasure deletes the ones that name the erased organisation. The ones that
 name none stay: a search by address (`people`), a download of the audit log
 (`audit_export`), the organisation list (`tenants`), the invoices kept after an
 erasure (`retained_invoices`), a log page not filtered to one organisation
-(`log`). Privacy §4.5 and §9 delete them 12 months after they were recorded (the
-owner's privacy-search-records (a); workplan 0139 T6). From the stack's
-checkout:
+(`log`). Privacy §4.5 and §9 delete them 12 months after they were recorded.
+From the stack's checkout:
 
 ```bash
 ./deploy/compose/support-read-prune.sh            # counts them; deletes nothing
@@ -1315,8 +1273,8 @@ role every request runs as, cannot delete from this log: 0009 grants it `SELECT`
 and `INSERT` on it and revokes `UPDATE` and `DELETE`, and its row security is
 forced with no policy for `DELETE`. As `app_user`, a `DELETE` answers
 `permission denied for table support_read`. The purge of closed organisations
-deletes an erased organisation's rows; since 0138 T3 step 2 it runs as the
-tasks' system role, `ownpace_system`, whose grant on this log is
+deletes an erased organisation's rows; it runs as the tasks' system role,
+`ownpace_system` (0138 T3 step 2), whose grant on this log is
 `SELECT` on `tenant_id` and `DELETE`: it can pick rows by organisation and never
 by their age (it could still delete every row with no organisation at once), and
 the purge is the only task that deletes here. The 12-month prune picks rows by
@@ -1335,12 +1293,11 @@ without `--delete` once the cause is fixed.
 
 ## Tenant offboarding (GDPR right to erasure, §17)
 
-> ⚠️ **This section was rewritten 2026-08-18 (workplan 0085).** It previously
-> said to `DELETE` the tenant row and let `ON DELETE CASCADE` do the rest.
-> **Do not do that.** The cascade takes `invoice` and `audit_log` with it, and
-> Dutch tax law wants invoices kept for years — so the old instruction traded
-> one legal obligation for another. `DELETE /api/tenants/:tenantId` now returns
-> **410** and names the endpoint below, for the same reason.
+> ⚠️ **Never `DELETE` the tenant row and let `ON DELETE CASCADE` do the rest.**
+> The cascade takes `invoice` and `audit_log` with it, and Dutch tax law wants
+> invoices kept for years, so it trades one legal obligation for another.
+> `DELETE /api/tenants/:tenantId` returns **410** and names the endpoint below,
+> for the same reason.
 
 Ending the service is **commercial**; erasing the data is **legal**. They are
 deliberately not the same button: the first is reversible and routine, the
@@ -1355,8 +1312,8 @@ format, and privacy §4.5 what our support log records about their organisation.
 Until `operator.sh export` exists
 ([workplan 0155](./workplans/0155-the-migration-records-handed-over.md) T2),
 you make it by hand, as below, so that two exports made by hand hold the same
-columns. The texts set no deadline: aim at 7 days from the request (0155 open
-question 6), and the GDPR's month applies to a request under privacy §10.
+columns. The texts set no deadline: aim at 7 days from the request, and the
+GDPR's month applies to a request under privacy §10.
 
 **Before the purge.** The records are the ledger's rows, and the purge deletes
 them (`item` is in `PURGED_TABLES`). A closed organisation keeps them until its
@@ -1628,9 +1585,9 @@ delete `$D` and start step 2 again. The files, and their columns:
   values `item_status_check` allows; a status added to it later comes out bare
   until its words are added here.
 - `reason` is `last_error_category` in words, the fact each category's sentence
-  on the screens states, and `provider_said` is `last_error`, verbatim (0155
-  open question 4, recommended (a)): the provider's own words, which can name an
-  address or a folder of theirs. Both are empty for an item that was placed.
+  on the screens states, and `provider_said` is `last_error`, verbatim: the
+  provider's own words, which can name an address or a folder of theirs. Both
+  are empty for an item that was placed.
 - `last_copied_at` is `last_synced_at`. `repaired` is what we corrected in the
   item's bytes (migration 0052): it names a line, a property and a parameter,
   never a value.
@@ -1652,8 +1609,8 @@ delete `$D` and start step 2 again. The files, and their columns:
   language the words should be is 0155 open question 5; until it is answered,
   say in the mail what each file is.
 
-**3. Pack it, send it, delete it.** The repository has no zip writer (0155 §1),
-so the machine packs it: `zip` when the machine has it (`command -v zip`; a zip
+**3. Pack it, send it, delete it.** The repository has no zip writer, so the
+machine packs it: `zip` when the machine has it (`command -v zip`; a zip
 opens on every computer without anything installed), otherwise `tar`, which
 every machine here has (a `.tar.gz` opens on macOS, Linux and Windows 11):
 
@@ -1711,7 +1668,7 @@ curl -X POST "$API/api/tenants/$TENANT/close" \
 
 **When a tester asks you to close theirs** (terms §11: through the report form
 or the support address, naming a window), you have no owner token of theirs.
-Close it at the machine instead (workplan 0139 T7 (a)):
+Close it at the machine instead:
 
 ```bash
 ./deploy/compose/operator.sh close <tenant-id> 30 \
@@ -1735,8 +1692,7 @@ Syncs and billing stop immediately. Nothing is deleted yet. A window of `0`
 cannot be undone and the response says so (`canReopenUntil: null`); every other
 window can, with `POST /api/tenants/:tenantId/reopen`, until it runs out.
 
-**What stops, and how** (workplan 0085 T2; built 2026-09-28, after the owner
-found a closed organisation still syncing). The close does not touch the
+**What stops, and how.** The close does not touch the
 migrations: each keeps its own status. Everything that would start a pass or
 use the access the organisation gave reads the organisation's status instead,
 so a reopen needs nothing restored.
@@ -1794,7 +1750,7 @@ The response is what you tell the customer. It carries **two dates**:
 | --- | --- |
 | `purgeAfter` | when the **live service** stops holding their data |
 | `backupsExpireAt` | when the last backup that could still contain it ages out — **this is when the erasure completes** |
-| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days the copy of its databases made before an update is kept: `deploy-live.sh` takes it, live's box checks (`copy-before-update.sh delete-if-proven`, 0132 T9) or you delete it once the update is proven, and the daily duties delete it after day 6, [The copy before an update](#the-copy-before-an-update-ownpace-live), workplans 0134 and 0139) |
+| `backupRetentionDays` | this deployment's retention, from `BACKUP_RETENTION_DAYS` (default **7**, which assumes backups exist; `ownpace-live` sets **7**, the most days the copy of its databases made before an update is kept: `deploy-live.sh` takes it, live's box checks (`copy-before-update.sh delete-if-proven`) or you delete it once the update is proven, and the daily duties delete it after day 6: [The copy before an update](#the-copy-before-an-update-ownpace-live)) |
 | `erasureCompletesText` | the same promise as a sentence, `en` and `nl` |
 | `windowDays` | the window they chose |
 | `canReopenUntil` | until when `POST /api/tenants/:tenantId/reopen` works: `purgeAfter`, or `null` for a window of `0` |
@@ -1809,18 +1765,14 @@ is the kind of false a supervisory authority asks about. Backups are not
 edited retrospectively — nobody surgically edits a backup — they **expire**,
 and the wording says exactly that.
 
-**Set `BACKUP_RETENTION_DAYS` to your own number.** The default of 7 is the
-owner's number for a deployment that takes backups, and it assumes they exist.
-Nothing in this repository backs up the application database yet (see
+**Set `BACKUP_RETENTION_DAYS` to your own number.** The default of 7 is for a
+deployment that takes backups, and it assumes they exist. Nothing in this
+repository backs up the application database yet (see
 [Backup & restore](#backup--restore-221)). `ownpace-live`, the stack testers
-use, takes none during the alpha and sets `7` (the owner's answer of
-2026-09-28 to
-[workplan 0134](./workplans/0134-no-backups-during-the-alpha-said-truthfully.md)'s
-open question 1): one copy of its databases is made right before each update,
-by `deploy-live.sh`, and deleted once the update is proven, or after six days
-less an hour by the daily duties, so never past day 7
-([The copy before an update](#the-copy-before-an-update-ownpace-live); workplan
-0139).
+use, takes none during the alpha and sets `7`: one copy of its databases is
+made right before each update, by `deploy-live.sh`, and deleted once the
+update is proven, or after six days less an hour by the daily duties, so never
+past day 7 ([The copy before an update](#the-copy-before-an-update-ownpace-live)).
 If your backups are kept for a month, a deployment left on the default promises
 a date it cannot honour. `0` is a valid answer for a deployment that takes no
 backups, and produces different wording rather than the same date twice. The
@@ -1844,8 +1796,7 @@ leaves `purged_at` NULL — the signal that something owed did not happen.
 **Survives:** the invoices' **numbers**. The books (Moneybird) issue each
 invoice and credit note and keep it for the retention period, so the purge
 deletes our copy of each one they hold, and each draft, and keeps only its
-Moneybird number on the erasure record (workplan 0111 T10, managed 0054; the
-owner: *"delete the copy, keep the numbers"*). Asked *"what about my
+Moneybird number on the erasure record. Asked *"what about my
 invoices?"*, the answer is those numbers, held in Moneybird: the *Invoices kept
 after an erasure* screen lists them per erasure, and Moneybird finds each by
 number. An issued invoice the books do not hold, one from before them, is the
@@ -1909,7 +1860,7 @@ organisation less than 7 days ago (the daily duty removes it 7 days after that
 removal), is an operator, holds an open request or invitation, belongs to
 another organisation at the provider, or holds a membership or grant there.
 
-> **The three decision queues now have a UI as well as these endpoints**
+> **The three decision queues have a UI as well as these endpoints**
 > ([ADR-0026](adr/0026-one-operating-ui-one-contract.md)). The appliance serves
 > it at **`http://127.0.0.1:8081/ui`** — note the `/ui` prefix, which exists
 > because `/deletions`, `/moves` and `/failures` are already JSON endpoints on
@@ -1972,9 +1923,9 @@ the credential or the target is the problem, not the items.
 ### One decision over a whole group
 
 A connector bug parks items by the dozen, and **fixing it unparks nothing** —
-parking is a stored attempt count, and deploying a fix does not lower it. Live
-on 2026-09-11 a non-recursive `MKCOL` left 82 files parked for a defect that no
-longer existed, and the migration reported itself complete over the hole.
+parking is a stored attempt count, and deploying a fix does not lower it. The
+items stay parked for a defect that no longer exists, and the migration can
+report itself complete over the hole.
 
 So the same two answers apply to a selection, in one press. **On the Failures
 screen** there is a "Decide a whole group at once" panel above the two lists:
@@ -2008,8 +1959,8 @@ call that changed nothing — usually a substring that does not occur.
 > `_` match themselves. `(50%).pdf` came out of a real filename, and as a LIKE
 > pattern that needle would match "50" followed by anything.
 
-> **Rule.** Clear a parked group through this route, not with SQL. Retry has
-> always been two things — zero the attempt counts AND drop the mapping's
+> **Rule.** Clear a parked group through this route, not with SQL. Retry is
+> two things — zero the attempt counts AND drop the mapping's
 > cursors (ADR-0020) — and a hand-written `UPDATE item SET attempt_count = 0`
 > is only the first. Without the second the source no longer lists those items
 > as changed, so the next pass copies nothing and the queue looks answered.
@@ -2058,9 +2009,9 @@ Two limits worth knowing:
   target versions of that item diverge from then on, which is exactly what the
   `changedButAdopted` count is telling you.
 
-**After cutover nothing is overwritten at all** (the owner, 2026-10-05: *"Stop
-overwriting"*). Once a data type is in `cutover`, `done` or `continuous`, a
-change at the old system to an item the migration already copied is not written
+**After cutover nothing is overwritten at all.** Once a data type is in
+`cutover`, `done` or `continuous`, a change at the old system to an item the
+migration already copied is not written
 over the copy on the target, whoever owns it: the pass counts it as
 `changedAfterCutover` (both editions' run logs say so), fetches nothing, and
 leaves the ledger's source version where it was. New items are still copied. A
@@ -2136,9 +2087,8 @@ Drawings) gives every such document a new name, because its format is its
 name: `Report.docx` under Office, `Report.odt` under ODF. The next pass copies
 each one under its new name, and the copy made under the old format stays on
 the target. That copy is **not** a deletion: the document is still in Google.
-So it is never counted as one (workplan 0042 T8 (b); the owner, 2026-09-23:
-*"An old copy in Nextcloud is never deleted for you. Deletions lists it as 'an
-earlier export', not as 'deleted in Google'."*).
+So it is never counted as one, and never deleted for you: Deletions lists it as
+*an earlier export*, not as deleted in Google.
 
 | Where | What it tells you |
 |---|---|
@@ -2214,7 +2164,7 @@ before anything is removed:
    the queue is trustworthy either, including the one you are looking at.
 5. **The target actually supports removal.** Not every writer does yet — see
    the table below.
-6. **The item's data type is not past its cutover** (2026-10-05). Once a data
+6. **The item's data type is not past its cutover.** Once a data
    type is in `cutover`, `done` or `continuous`, the old system no longer
    decides what exists there, and `apply` on a deletion or a move recorded
    before it is refused with `after_cutover`; the queue carries `afterCutover`
@@ -2418,7 +2368,7 @@ people still use the old one. At some point the old system stops being the one
 that matters, and the sync should stop with it — otherwise the appliance goes on
 polling a source nobody uses and reporting drift nobody will act on.
 
-> **This sequence is now also a screen** (`/ui/finish`, ADR-0026), which walks
+> **This sequence is also a screen** (`/ui/finish`, ADR-0026), which walks
 > the same five steps and will not offer the finish button until step 4 has been
 > confirmed. Step 4 is the one the appliance cannot check for itself, and the
 > reason the order matters at all: **while a mapping is active, items still
@@ -2432,8 +2382,8 @@ The order that works:
 ```sh
 # 1. Prove the copy is complete. §20 checks counts, checksums and bytes per
 #    domain and tells you whether it is safe to proceed. Start the scan, then
-#    poll the report to a terminal state (the synchronous GET /verify is
-#    retired — 0019 T6; the scan holds no HTTP request open any more):
+#    poll the report to a terminal state (there is no synchronous GET /verify;
+#    the scan holds no HTTP request open):
 curl -sX POST http://127.0.0.1:8081/verify/start | jq
 curl -s http://127.0.0.1:8081/verify/report | jq   # repeat until state is done/failed
 curl -s http://127.0.0.1:8081/verify/report | jq '.report[].canProceedToCutover'
@@ -2481,7 +2431,7 @@ deletions at the old provider are no longer mirrored. To take the migration back
 before its cutover, set `mailbox_mapping.status` back to `active` and restart the
 appliance; to retire the mapping for good, remove it from the config directory.
 
-**Keeping copying after the cutover** (workplan 0128 D4). A migration past its
+**Keeping copying after the cutover.** A migration past its
 cutover (`cutover` or `done`) can go on copying in the continuous lane, all of
 it: `PUT /mappings/{id}` with `{"status": "continuous"}`. Deletions at the old
 provider are no longer mirrored there, and the appliance bills nothing for it.
@@ -2507,7 +2457,7 @@ when that one ends. That also means the pass you get back may have started befor
 you asked, so if you need one that definitely saw a specific change, check the
 result and run it again if not.
 
-**A data type switched off is not in that pass** (workplan 0125 T7). Setting
+**A data type switched off is not in that pass.** Setting
 `domains.<kind>.enabled: false` in a mapping file after it copied something
 removes nothing and is not refused at startup. The copies and their ledger rows
 stay; they just stop following the source. The appliance says so in three places:
@@ -2515,16 +2465,15 @@ stay; they just stop following the source. The appliance says so in three places
 - at startup, one line per such data type: *"acme-mail: domains.calendar is
   switched off. Its 412 copies stay on the target and no longer follow the
   source; switching it back on continues where it stopped."*;
-- `/status` gives it the state `stopped`, with those copies as `itemsSynced`,
-  where it used to say `skipped` (which now means switched off with nothing
-  copied);
+- `/status` gives it the state `stopped`, with those copies as `itemsSynced`
+  (`skipped` means switched off with nothing copied);
 - the Finish screen's step 3 names it, because the final pass leaves it out.
 
 If those copies must be current when you finish, switch it back on and restart:
 the next pass continues where it stopped (new items are copied, edits are picked
 up, deletions at the source are reported), and then finish.
 
-**Stopping one data type without editing the file** (workplan 0128 T4). On a
+**Stopping one data type without editing the file.** On a
 running migration, `POST /mappings/{id}/domains/{kind}/stop` stops one data type
 and `…/resume` starts it again; the managed edition has the same pair under
 `/api/migrations/{id}/domains/{kind}/`. The stop is kept in the database, not in
@@ -2544,7 +2493,7 @@ file switched off has no such mark, and the page says *switched off* for it.
 
 Each stop and resume is in the audit log as `path.status`, with who pressed it.
 
-**Ending or keeping one data type** (workplan 0128 T3). Where a migration ends,
+**Ending or keeping one data type.** Where a migration ends,
 each data type can be ended or kept copying on its own:
 `POST /mappings/{id}/domains/{kind}/end` makes it `done` (its passes stop, and
 what is copied stays), and `…/keep` puts it in the continuous lane, where
@@ -2565,15 +2514,15 @@ above). The migration follows its data types:
 Each move is in the audit log as `path.phase`, with who pressed it, and the
 migration's as `mapping.status` when it moved.
 
-The Finish screen offers the same pair beside each data type (workplan 0128 T5,
-slice 7b): in its last step while the migration is before or in its cutover,
+The Finish screen offers the same pair beside each data type: in its last step
+while the migration is before or in its cutover,
 where step 4, moving mail delivery, is asked for mail only and only mail's
 buttons wait for it; and in *Each data type* once it is `done` or `continuous`.
 `/status` carries what it offers, as each mapping's `endings`: every data type
 with its phase and the presses the door accepts now.
 
 A data type still in its cutover when its grace period ended stopped copying
-then, and waits on its owner (workplan 0128 D7). Its line on the Finish screen
+then, and waits on its owner. Its line on the Finish screen
 says when it ended (`graceEndedAt` on its `endings` row), and the digest names
 it until it is ended or kept copying.
 
@@ -2585,14 +2534,14 @@ steps for a tester's report. The items below are causes it points to.
 
 - **API won't connect / RLS errors on every query:** confirm the API's `APP_DATABASE_URL` is set
   and points at `app_user` (not the owner), and that migration `0001_baseline` ran (the role
-  exists). The per-tenant tasks read it too (workplan 0138 T1 step 2): a pass, discovery,
+  exists). The per-tenant tasks read it too: a pass, discovery,
   verification, confirmation, apply, cutover or rollback run that fails at once with
   *"APP_DATABASE_URL is required"* is a task environment without it, or with it blank, which
   `set-task-env.sh` uploads. **The sync tick fails the same way**, every tick, and with it every
   scheduled sync: it imports `run-delta-sync`, which opens its pools when it is loaded. **So do the
-  digest, the drift detector and group discovery**, each at the start of its daily run (workplan
-  0138 T2). Every task needs `SYSTEM_DATABASE_URL` too, for its audit key, and the jobs that span
-  organisations for everything (0138 T3 step 2): a run that fails at once with
+  digest, the drift detector and group discovery**, each at the start of its daily run. Every
+  task needs `SYSTEM_DATABASE_URL` too, for its audit key, and the jobs that span
+  organisations for everything: a run that fails at once with
   *"SYSTEM_DATABASE_URL is required"* is a task environment without it; re-run the bring-up's
   `tasks` phase, which sets the role's password and uploads it. A run that fails with *"password
   authentication failed for user "ownpace_system""* holds a URL from before the password last
@@ -2604,7 +2553,7 @@ steps for a tester's report. The items below are causes it points to.
   connection that row security binds"* was handed a `SYSTEM_DATABASE_URL` whose role lacks
   `BYPASSRLS`, which the bring-up refuses before it uploads one.
 - **A migration on a daily schedule runs a pass every hour or so:** expected while its first copy
-  is unfinished (workplan 0156 T5; the owner, 2026-10-03). A pass stops itself at 50 minutes, and
+  is unfinished. A pass stops itself at 50 minutes, and
   until every data type it copies has completed a pass (`migration_status.completed_at` set on
   each), the tick starts the next one 15 minutes after the last one started, or at the tick after
   it ends, whatever the schedule says. The tick's summary line counts them as `firstCopies`. Once
@@ -2620,25 +2569,26 @@ steps for a tester's report. The items below are causes it points to.
   `app.current_tenant` set — that's RLS doing its job, not a bug. The request path must go through
   `withTenantDb`/`withTenant`.
 - **Seed prints tokens but sign-in fails:** `JWT_SECRET` used by the seed must equal the API's —
-  and the token's `sub` must be a seeded `tenant_member` (the 0020 T1 gate; arbitrary subs 403).
+  and the token's `sub` must be a seeded `tenant_member` (the tenant-membership gate; arbitrary
+  subs get 403).
 - **Verify/apply enqueues land `failed` with "Could not enqueue":** tasks not deployed, or the
   supervisor is down — run `deploy-tasks.sh`, check `docker ps` for `trigger-supervisor`, then
   `smoke-managed.sh`.
 - **Runner containers die in under a second with no logs:** almost always the image platform —
   set `DEPLOY_IMAGE_PLATFORM` to match `uname -m` and redeploy. `smoke-managed.sh` captures
   runner logs live precisely because `AutoRemove` destroys them.
-- **A failed task run says only a category and a reference:** by design since 2026-09-28
-  (workplan 0134, open question 3 (a)). Trigger.dev keeps a run's error, output and logs with no
+- **A failed task run says only a category and a reference:** by design. Trigger.dev keeps a
+  run's error, output and logs with no
   limit, so no tester's words go there. The error reads, for example, `email sync failed
   (source_refused). Reference 1a2b3c4d.`, and discovery's output keeps a category and a
   reference for a data type it could not count. Find the reference on the operator log page
   (`sync.<data type>.failed`, `discovery.<data type>.failed` or `task.<task id>.failed`), and the
   words in the migration's own run history, where most failures are also written. A task's own
   lines go to its container's output only: `docker logs -f` on the runner while it runs, and
-  gone once `AutoRemove` removes it (0134, open question 6).
+  gone once `AutoRemove` removes it.
 - **Dashboard Runs page is empty while runs exist in postgres:** the runs LIST is served from
-  ClickHouse; without run-replication it renders empty. Cosmetic — ACCEPTED (0020 T7 decision,
-  2026-08-01): the smoke and the DB rows are the operational truth, the Tasks tab still works,
+  ClickHouse; without run-replication it renders empty. Cosmetic, and accepted: the smoke and
+  the DB rows are the operational truth, the Tasks tab still works,
   and enabling replication adds moving parts for a page nobody depends on. Revisit only if the
   Runs page becomes someone's tool. Not an outage. ClickHouse holds run history even so: every
   task process's metrics, each row with its run's id, for 60 days. The end of the Alpha empties
@@ -2646,8 +2596,8 @@ steps for a tester's report. The items below are causes it points to.
   step 3).
 - **White screen / login loop on the dashboard:** two known causes, both env. (1) A missing
   `TRIGGER_TLS_HOST` in `.env` — Caddy falls back to `localhost`, your browser's `Host` header
-  matches no site block, and the response is EMPTY (a white screen, not an error; confirmed
-  live 2026-08-01). (2) Stale origins — the running trigger-api must advertise the SAME
+  matches no site block, and the response is EMPTY (a white screen, not an error). (2) Stale
+  origins — the running trigger-api must advertise the SAME
   origins your browser uses. Either way the fix ends with a recreate:
   `--force-recreate trigger-tls trigger-api` after correcting `.env` (see Start/stop).
 
@@ -2655,31 +2605,27 @@ steps for a tester's report. The items below are causes it points to.
 
 `smoke-managed.sh` says `unhealthy: none`, and that sentence is narrower than
 it sounds: **five of the seventeen long-running services define no
-healthcheck** (six until workplan 0146 T7 gave `minio` one), so
-`docker compose ps` can only say they are *running*. If a red gate points at a
+healthcheck**, so `docker compose ps` can only say they are *running*. If a red gate points at a
 service, this is the map of what proved it and how:
 
 | service | how it is proven |
 |---|---|
 | postgres, pgbouncer, trigger-db, trigger-redis, clickhouse, api, web, mailpit | healthcheck (compose, or the image's own HEALTHCHECK for api and web) — `--wait` blocks on them |
-| nextcloud, trigger-api, trigger-supervisor | compose healthcheck, added 2026-08-19 |
-| trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy; **and asserted by the smoke**: the registry from the host, the proxy from the supervisor, whose `DOCKER_HOST` it is, and, since 2026-11-02, no such name from the API container (the proxy is on `trigger-docker-socket` with the supervisor alone, workplan 0136 T4) |
-| minio | compose healthcheck, `mc ready` (since 0146 T7, Chainguard's build), **and asserted by the smoke** from the API container — see below |
+| nextcloud, trigger-api, trigger-supervisor | compose healthcheck |
+| trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy; **and asserted by the smoke**: the registry from the host, the proxy from the supervisor, whose `DOCKER_HOST` it is, and no such name from the API container (the proxy is on `trigger-docker-socket` with the supervisor alone) |
+| minio | compose healthcheck, `mc ready` (Chainguard's build), **and asserted by the smoke** from the API container — see below |
 | minio-init | a one-shot, not a service that stays up: it makes the `packets` bucket and exits 0, `--wait` waits for that, and `trigger-api` starts only after it |
 | trigger-tls | **asserted by the smoke**, not probed — see below |
 | zitadel | no healthcheck by design (managed.yml): readiness is asked from the host by `wait_for_idp_ready`, and the smoke checks the issuer |
 | gatus | no healthcheck by design (a `FROM scratch` image): the smoke probes `/health` over the published port |
 
-`trigger-tls` has no healthcheck on purpose, and `minio` had none until
-workplan 0146 T7. A compose probe runs INSIDE the image, so under
-`up -d --wait` one naming a binary that image lacks does not misreport — it
-fails the bring-up and takes the stack with it. Nothing in this repository had
-run a command inside `bitnamilegacy/minio` or `caddy:2-alpine`, so there was no
-evidence to write either probe from. The front's image is built here without
-curl since 2026-10-31 (`deploy/compose/caddy`, workplan 0119), so a probe that
-names curl would now certainly fail there. Chainguard's MinIO, which replaced
-Bitnami's, carries `mc`, and its probe is upstream's own `mc ready`, which
-Trigger.dev's compose runs in that image. The smoke asserts both from places
+`trigger-tls` has no healthcheck on purpose. A compose probe runs INSIDE the
+image, so under `up -d --wait` one naming a binary that image lacks does not
+misreport — it fails the bring-up and takes the stack with it. The front's
+image is built here without curl (`deploy/compose/caddy`), so a probe that
+names curl would certainly fail there. Chainguard's MinIO carries `mc`, and
+its probe is upstream's own `mc ready`, which Trigger.dev's compose runs in
+that image. The smoke asserts both from places
 whose tooling is proven, which for `minio` also says that another container on
 the stack network reaches it, as `trigger-api` does:
 
@@ -2703,7 +2649,7 @@ trigger-tls: TLS terminated on 127.0.0.1:3443 (HTTP 200)
 
 ### What the database spends its time on
 
-The managed stack's postgres loads `pg_stat_statements` (workplan 0143 T8): each statement's
+The managed stack's postgres loads `pg_stat_statements`: each statement's
 calls, time and rows since the last reset, with its literal values replaced by placeholders.
 Utility statements are not kept, so a password change never reaches the view. The ten
 statements with the most total time:
@@ -2727,9 +2673,6 @@ phase recreates it.
 
 - Architecture (source of truth): [`architecture/solution-architecture.md`](./architecture/solution-architecture.md) — §4 roles, §16 cost drivers, §17 security/GDPR, §22.1 releases.
 - RLS details: [`rls-guide.md`](./rls-guide.md).
-- Workplans: [`0018`](./workplans/0018-trigger-task-deployment.md) (task deployment, closed with
-  live evidence), [`0020`](./workplans/0020-managed-stack-productionization.md) (this stack's
-  productionization — T8 retired the polling scheduler in favour of the `managed-sync-tick`
-  task, workplan 0022),
-  [`0011`](./workplans/0011-managed-edition-hardening.md) (history).
+- Workplans: [`0018`](./workplans/0018-trigger-task-deployment.md) (task deployment) and
+  [`0020`](./workplans/0020-managed-stack-productionization.md) (this stack's productionization).
 - Deployment overview: [`deployment.md`](./deployment.md).

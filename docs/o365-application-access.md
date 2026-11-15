@@ -10,18 +10,18 @@ as**, and a distribution list has no mailbox at all. Reading them means asking
 Graph for `/users/{address}/...`, which requires *application* permissions and
 an administrator's consent (SAD §14.3, ADR-0006).
 
-**Owner decision 2026-08-03:** grant these on the **test tenant**, scoped by an
-Application Access Policy to named mailboxes. Not tenant-wide.
+Grant these on the **test tenant**, scoped by an Application Access Policy to
+named mailboxes. Not tenant-wide.
 
-**Owner decision 2026-08-04:** add `Calendars.Read`, and **do not** add
-`Files.Read.All`. The reasoning is in *[Two scopes, one
-granted](#two-scopes-one-granted)* below; the short version is that the access
-policy in step 4 narrows the first and cannot narrow the second.
+Add `Calendars.Read`, and **do not** add `Files.Read.All`. The reasoning is in
+*[Two scopes, one granted](#two-scopes-one-granted)* below; the short version
+is that the access policy in step 4 narrows the first and cannot narrow the
+second.
 
 **Practice on the coders' tenant first.** Every step here can be rehearsed
 consequence-free on a synthetic tenant where you are Global Administrator —
-see `docs/test-tenant.md` (owner decision 2026-08-10, two-tenant strategy).
-The run that closes 0027 T0 is the one on the real tenant.
+see `docs/test-tenant.md`. The run that closes 0027 T0 is the one on the real
+tenant.
 
 ---
 
@@ -171,7 +171,7 @@ migrating away from.
 
 0029's permission inventory can read two kinds of sharing through Graph:
 calendar shares and OneDrive/SharePoint shares. They need one scope each, and
-**only the first was granted** (owner decision, 2026-08-04). The asymmetry is
+**only the first is granted**. The asymmetry is
 not about how useful the findings are — it is about what step 4 can reach.
 
 `Calendars.Read` is an **Exchange-family** permission, so the Application

@@ -17,10 +17,10 @@ of* it.
 |---|---|---|
 | **Refusals** | `code` + `reason` (queue actions, apply-deletions), `error` + `hint` (Finish) | The gates' words are the gates' words (hard rule 2's protections, ADR-0024). A translation layer between a refusal and the operator is drift by design. Pinned by test: `i18n.unit.test.tsx` renders a refusal under `nl` and asserts the exact English words + code. |
 | **Failure diagnostics** | `lastError` | Evidence, not copy (hard rule 9). The difference between a 507, a 403 and a parse error is the only thing that tells an operator whether `retry` has any chance of working; summarising or translating it removes exactly that. On managed, the API answers it in its own English for a host a tester typed (workplan 0136 T3, second step, `apps/api/src/failure-answer.ts`): our prose and the status stay, a server's words only as an error document we know. The screen still renders what it is served. |
-| **Operating guidance** | `whatThisMeans`, `howToResolve` | The operator's text, API paths and field names included, deliberately authored once in `@openmig/shared` so the two editions cannot drift (ADR-0026), and served as it is to the API's callers. **The screens do not show it** (the owner, 2026-10-18): a tester read `POST /mappings/{mappingId}/moves/…/keep` under a Dutch heading. They show the customer's version, written the shared-package way (class 4 below, *the queues' guidance*). A web-side translation of either would fork it per language — the one thing the shared contract exists to prevent. |
+| **Operating guidance** | `whatThisMeans`, `howToResolve` | The operator's text, API paths and field names included, deliberately authored once in `@openmig/shared` so the two editions cannot drift (ADR-0026), and served as it is to the API's callers. **The screens do not show it**: a tester would read `POST /mappings/{mappingId}/moves/…/keep` under a Dutch heading. They show the customer's version, written the shared-package way (class 4 below, *the queues' guidance*). A web-side translation of either would fork it per language — the one thing the shared contract exists to prevent. |
 | **Action outcomes** | `effect`, `ifYouNeedToResume` | Written (in the contract, on purpose) to be read verbatim by the person who just clicked. |
-| **Verification findings** | `issues[].message`, `recommendations` | Findings about this run, same footing as `lastError`. On managed, the API answers them by the same rule, and a failed scan's `error` and a failed apply receipt's `error` too (workplan 0136 T3, second step). **Verify says four findings in the client's words** (the owner, 2026-10-18; a Dutch screen showed the server's English under *Problemen*): an issue whose id is `TARGET_FOLDER_MISSING_<type>`, `TARGET_UNREAD_<type>`, `MISSING_<type>` or `CHECKSUM_<type>`, matched whole, gets a sentence in the reader's language with what to do next (`issueSentence` in `apps/web/src/i18n/verdict-words.ts`; class 2 below). Any other finding keeps the server's text. The server's text of every finding, with its id and severity token, and the `recommendations` render as served, in a closed *Technical details* / *Technische details* fold under the list. |
-| **Verdict + evidence tokens** | `PASS`/`WARN`/`FAIL`/`SKIPPED`/`NOT_VERIFIABLE`, an issue's `ERROR`/`WARNING`; `reported`/`trashed`/`inferred`; mapping status words | Server vocabulary an operator may need to quote in a support thread or grep in a log. The TOKEN stays: on the wire, in downloads, and in the title of the chip that shows it. **What the chip says is the client's word** (the owner, 2026-10-18; it said the token, in English on a Dutch screen): *Passed* / *Geslaagd* for `PASS`, *Reported by the source* / *Gemeld door de bron* for `reported`, the rest in `apps/web/src/i18n/GLOSSARY.md`. Its *explanation* is class 2 below. |
+| **Verification findings** | `issues[].message`, `recommendations` | Findings about this run, same footing as `lastError`. On managed, the API answers them by the same rule, and a failed scan's `error` and a failed apply receipt's `error` too (workplan 0136 T3, second step). **Verify says four findings in the client's words**, so a Dutch screen does not show the server's English under *Problemen*: an issue whose id is `TARGET_FOLDER_MISSING_<type>`, `TARGET_UNREAD_<type>`, `MISSING_<type>` or `CHECKSUM_<type>`, matched whole, gets a sentence in the reader's language with what to do next (`issueSentence` in `apps/web/src/i18n/verdict-words.ts`; class 2 below). Any other finding keeps the server's text. The server's text of every finding, with its id and severity token, and the `recommendations` render as served, in a closed *Technical details* / *Technische details* fold under the list. |
+| **Verdict + evidence tokens** | `PASS`/`WARN`/`FAIL`/`SKIPPED`/`NOT_VERIFIABLE`, an issue's `ERROR`/`WARNING`; `reported`/`trashed`/`inferred`; mapping status words | Server vocabulary an operator may need to quote in a support thread or grep in a log. The TOKEN stays: on the wire, in downloads, and in the title of the chip that shows it. **What the chip says is the client's word**, not the token: *Passed* / *Geslaagd* for `PASS`, *Reported by the source* / *Gemeld door de bron* for `reported`, the rest in `apps/web/src/i18n/GLOSSARY.md`. Its *explanation* is class 2 below. |
 
 ## Classes the client localizes
 
@@ -32,8 +32,8 @@ of* it.
    that says it (`one-area-per-key.unit.test.ts`).
 2. **Explanations keyed off stable codes/enums** — lifecycle notes keyed on
    the mapping-status enum, hover help on verdict words, hover titles on
-   evidence badges, and the words on those chips themselves (the owner,
-   2026-10-18). The server's token is the handle; the localized prose sits
+   evidence badges, and the words on those chips themselves. The server's
+   token is the handle; the localized prose sits
    beside it, and a chip that says the client's word keeps the token at the
    end of its title, as *(reported)*. This is the sanctioned path if
    client-side explanation of refusal `code`s is ever wanted — the `reason`
@@ -121,8 +121,7 @@ of* it.
    from there as `waitingForLimit`, with that sentence as `limit`; the
    Sharing page says them under the folder as waiting, not as refused.
 
-   **The queues' guidance is the fifth** (the owner, 2026-10-18, option A of
-   the UX sweep's word choices). *What this means and what you can do* on
+   **The queues' guidance is the fifth.** *What this means and what you can do* on
    Deletions, Moves and Failures says `QUEUE_GUIDANCE` from
    `packages/shared/src/queue-guidance.ts`: what the rows are and what each
    button does, written for the person reading them, English and Dutch side
@@ -133,13 +132,13 @@ of* it.
    label to the dictionary's word for that button, in both languages.
    ADR-0026 stands: the operator's text stays in the contract.
 
-   **What a decision asks is the sixth** (the owner, 2026-10-18). *Needs
+   **What a decision asks is the sixth.** *Needs
    you* / *Wacht op u* says each decision's sentence from
    `packages/shared/src/decision-words.ts`, built from its category and
    detail, English and Dutch side by side (`decisionSummary`), and a new
    mailbox's button says what pressing it does (`NEW_MAILBOX_ANSWER`). The
    detectors store the English as the decision's `summary`, which the
-   notification mail says. **The stored `summary` is now the fallback**: a
+   notification mail says. **The stored `summary` is the fallback**: a
    decision these functions cannot say (another category, or a detail
    without an address) shows it as served, marked `lang="en"`, and another
    category's button is its stored proposal, marked the same way. A shared
@@ -151,8 +150,8 @@ of* it.
    `effectNl` (`decisionEffectFields`). The page says the half in its
    reader's language (`decisionEffectText`). From a server that sent no
    Dutch it shows the English as served, marked `lang="en"`. The item
-   queues' effect lines (Deletions, Moves, Failures) are paired the same way
-   since 2026-11-08 (workplan 0159 §6 item 18): `QUEUE_EFFECTS`, which both
+   queues' effect lines (Deletions, Moves, Failures) are paired the same way:
+   `QUEUE_EFFECTS`, which both
    editions serve as `effect` and `effectNl`, the English unchanged, and
    which the rows say in their reader's half with the same helper
    (`ServedEffect`).
@@ -182,9 +181,7 @@ of* it.
 ## Not translated at all: the operator's screens
 
 ADR-0013 makes what a **customer** reads bilingual. What only the platform
-operator reads is English only (amended 2026-10-11; the owner, *"for me as
-operator English would suffice; multi language is only important for end
-users"*):
+operator reads is English only:
 
 - **The screens:** the support screens, the access queue, the redirect URIs,
   and their three entries in the menu. Their words are in
