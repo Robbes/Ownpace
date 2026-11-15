@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.10] - 2026-11-15
+
+A Google or Microsoft account's *Reconnect* now starts from the types the
+account already carries, folds the client fields away where this service
+carries the provider's own app, and carries on at once the migrations that
+were failing on that account, without waiting for the next attempt or a press
+of *Sync now*. When a provider refuses a token, the run's log keeps the
+provider's own words, after the hint that names the likely cause. Underneath,
+the test-only Nextcloud of the demo, the dev stack and the integration tests
+moves to 35.0.3; live runs no Nextcloud. Live's deploy from alpha.9 moves no
+migration and no pin live runs.
+
 ### Security
 
 - **The demo's, the dev stack's and the integration tests' Nextcloud move to 35.0.3, and CI's

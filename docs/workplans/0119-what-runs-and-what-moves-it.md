@@ -4,6 +4,14 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, last: what alpha.10 moves.** The fold for `v0.2.0-alpha.10` (0146's entry of the
+same day) carries #1907 and #1915. #1907 moves the test-only Nextcloud: the OTA demo's, the dev
+stack's and the integration tests' to 35.0.3 by `8a7a65b8…`, and the second-major fixture to
+34.0.6 by `3031e7f8…`, both inside their three-day floor, which ends on 2026-11-17 and is waived
+for alpha.10. #1915 moves product code alone. Nothing that live runs moves: no image of its fifteen
+services, no Trigger.dev, identity-provider or ClickHouse pin, and no migration file, so live's
+deploy from alpha.9 is expected to be reversible by the deploy's own rule.
+
 **2026-11-15, latest, recorded: live runs alpha.9's pins, ClickHouse's volume copied by hand before
 its move and removed after it.** The owner deployed `v0.2.0-alpha.9` (tagged 2026-11-15 on
 `2524db42`) to live the same day, from alpha.8 in one run of alpha.8's script, which took at
