@@ -36,10 +36,12 @@ import type { Response } from 'express';
 import { eq, and, inArray, or, sql, isNotNull, ne } from 'drizzle-orm';
 import { alias } from 'drizzle-orm/pg-core';
 import * as schema from '@openmig/ledger';
-import { PgLedger } from '@openmig/ledger';
+import { PgLedger, readPathPhases } from '@openmig/ledger';
+import type { PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
 import { HttpTokenRevoker } from '@openmig/connectors';
 import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-credentials';
+import { SELF_HEALING_CATEGORIES } from '@openmig/orchestration/failing-backoff';
 import type { TokenRevoker } from '@openmig/shared';
 import {
   credentialsForProbe,
@@ -75,6 +77,8 @@ import {
   isFailureCategory,
   isFailureSide,
   log,
+  newReference,
+  recordAppEvent,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
 import type {
@@ -87,7 +91,7 @@ import type {
 import { authenticate, getDbPool, withTenantDb } from '../middleware/auth.ts';
 import { refusedAsClosed } from '../closed-organisation.ts';
 import { refusedUntilAccepted } from '../conditions-not-accepted.ts';
-import type { AuthenticatedRequest } from '../types/api.ts';
+import type { Answerable, AuthenticatedRequest } from '../types/api.ts';
 // The SHAPE builders stay the create route's, deliberately: what a connection
 // stores must match what a sync pass reads, and one authority for that is the
 // whole point of workplan 0063's descriptor only describing INPUTS.
@@ -99,7 +103,8 @@ import {
   sourceKindFor,
   targetConnectionConfig,
 } from './migrations/index.ts';
-import { serverFault } from '../server-fault.ts';
+import { pressSyncNow } from './migrations/sync-now.ts';
+import { loggableError, serverFault } from '../server-fault.ts';
 import { probeAnswers, type ProbeAnswers } from '../probe-answer.ts';
 import { refusedOverTestLimit } from '../probe-limit.ts';
 import { withinBudget } from './within-budget.ts';
@@ -385,6 +390,51 @@ export function standingFailuresByConnection(
 }
 
 /**
+ * The rows `standingFailuresByConnection` folds: every categorised
+ * `migration_status` row of this organisation, with the two connections its
+ * migration signs in with (workplan 0094 T5). Read inside the organisation's
+ * own transaction.
+ *
+ * ONE READ FOR TWO QUESTIONS. The list asks it what stands on each card, and
+ * a stored rotation asks it which migrations to carry on
+ * (`carryOnAfterRotation`), so a reconnect presses Sync now for exactly the
+ * migrations the card it was pressed on shows.
+ *
+ * `done` migrations are over: a rotation would fix nothing for them. Paused
+ * ones stay; pausing is what a person does when a pass keeps failing.
+ * Read-only: no column, no migration.
+ */
+export async function readStandingRows(db: PgDatabase, tenantId: string): Promise<StandingRow[]> {
+  const sourceBox = alias(schema.mailbox, 'source_box');
+  const targetBox = alias(schema.mailbox, 'target_box');
+  return db
+    .select({
+      mappingId: schema.mailboxMapping.id,
+      mappingName: schema.mailboxMapping.name,
+      sourceConnectionId: sourceBox.connectionId,
+      targetConnectionId: targetBox.connectionId,
+      domain: schema.migrationStatus.domain,
+      category: schema.migrationStatus.lastErrorCategory,
+      failedSide: schema.migrationStatus.failedSide,
+      asOf: schema.migrationStatus.updatedAt,
+    })
+    .from(schema.migrationStatus)
+    .innerJoin(
+      schema.mailboxMapping,
+      eq(schema.mailboxMapping.id, schema.migrationStatus.mappingId),
+    )
+    .innerJoin(sourceBox, eq(sourceBox.id, schema.mailboxMapping.sourceMailboxId))
+    .leftJoin(targetBox, eq(targetBox.id, schema.mailboxMapping.targetMailboxId))
+    .where(
+      and(
+        eq(schema.migrationStatus.tenantId, tenantId),
+        isNotNull(schema.migrationStatus.lastErrorCategory),
+        ne(schema.mailboxMapping.status, 'done'),
+      ),
+    );
+}
+
+/**
  * A MIGRATION USES THIS MAILBOX — on either side.
  *
  * One definition, because the two places that ask were answering differently.
@@ -463,38 +513,10 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
       // What is STANDING against each connection (workplan 0094 T5): the
       // categorised failure on every domain row of every migration that
       // signs in with it — on the side the pass named, or on both when it
-      // could not; `standingFailuresByConnection` says why. `done` migrations are over: a rotation would fix nothing
-      // for them. Paused ones stay; pausing is what a person does when a
-      // pass keeps failing. Read-only: no column, no migration.
-      const sourceBox = alias(schema.mailbox, 'source_box');
-      const targetBox = alias(schema.mailbox, 'target_box');
-      const standingRows = await db
-        .select({
-          mappingId: schema.mailboxMapping.id,
-          mappingName: schema.mailboxMapping.name,
-          sourceConnectionId: sourceBox.connectionId,
-          targetConnectionId: targetBox.connectionId,
-          domain: schema.migrationStatus.domain,
-          category: schema.migrationStatus.lastErrorCategory,
-          failedSide: schema.migrationStatus.failedSide,
-          asOf: schema.migrationStatus.updatedAt,
-        })
-        .from(schema.migrationStatus)
-        .innerJoin(
-          schema.mailboxMapping,
-          eq(schema.mailboxMapping.id, schema.migrationStatus.mappingId),
-        )
-        .innerJoin(sourceBox, eq(sourceBox.id, schema.mailboxMapping.sourceMailboxId))
-        .leftJoin(targetBox, eq(targetBox.id, schema.mailboxMapping.targetMailboxId))
-        .where(
-          and(
-            eq(schema.migrationStatus.tenantId, tenantId),
-            isNotNull(schema.migrationStatus.lastErrorCategory),
-            ne(schema.mailboxMapping.status, 'done'),
-          ),
-        );
+      // could not; `standingFailuresByConnection` says why, and
+      // `readStandingRows` which migrations are left out.
       const standing = standingFailuresByConnection(
-        standingRows,
+        await readStandingRows(db, tenantId),
         new Set(connections.map((c) => c.id)),
       );
 
@@ -1051,6 +1073,183 @@ async function recordCredentialsReplaced(
   });
 }
 
+/** A migration a stored rotation pressed *Sync now* for, and the run that press started. */
+export interface Resumed {
+  readonly mappingId: string;
+  readonly runId: string;
+}
+
+/**
+ * A migration a stored rotation pressed *Sync now* for that did not start: the
+ * gate's code and sentence as `pressSyncNow` wrote them (`error`, and its
+ * `message` as `reason`), or `press_failed` and a reference when the press
+ * itself failed.
+ */
+export interface NotResumed {
+  readonly mappingId: string;
+  readonly error: string;
+  readonly reason: string;
+}
+
+/** The code and the sentence of a refusal `pressSyncNow` wrote. */
+function refusalOf(body: unknown): { error: string; reason: string } {
+  const { error, message } = (typeof body === 'object' && body !== null ? body : {}) as {
+    error?: unknown;
+    message?: unknown;
+  };
+  return {
+    error: typeof error === 'string' ? error : 'refused',
+    reason: typeof message === 'string' ? message : '',
+  };
+}
+
+/**
+ * The migrations a stored rotation presses *Sync now* for, out of what stands
+ * against the connection: one per migration, however many of its data types
+ * failed, latest failure first, and only for a cause whose remedy is a person.
+ * A rate limit, a spent daily allowance and a network blip
+ * (`SELF_HEALING_CATEGORIES`) are not waiting for a new credential, and keep
+ * their cadence anyway (`failing-backoff.ts`).
+ */
+export function migrationsToCarryOn(standing: ReadonlyArray<StandingFailure>): string[] {
+  const ids = new Set<string>();
+  for (const failure of standing) {
+    if (!SELF_HEALING_CATEGORIES.has(failure.category)) ids.add(failure.mappingId);
+  }
+  return [...ids];
+}
+
+/**
+ * A RECONNECT CARRIES ON THE MIGRATIONS IT WAS FAILING, AT ONCE (2026-11-15).
+ *
+ * Both pages promise it. The Accounts page's row says that once its button is
+ * pressed "the migration then carries on from where it stopped"; a
+ * migration's page says that after Reconnect or Replace credentials "this will
+ * carry on from where it stopped". Nothing kept the promise. On
+ * the OTA stack a Google refresh token expired (a consent screen in Testing
+ * gives seven days), every pass of its migration failed `auth_expired` from
+ * that evening on, and by the next day the failing ladder
+ * (`failing-backoff.ts`) had widened the gap between attempts to four hours,
+ * on its way to one a day: it counts the failed passes since the last success,
+ * and a credential stored in between is not a success. The owner pressed
+ * Reconnect, the row said `connected`, and nothing ran. The ladder's own
+ * comment says a repaired credential resumes "at worst a day later, and
+ * immediately if anybody presses Sync"; the person who just repaired it was
+ * never told that, and should not need to be.
+ *
+ * So a rotation that STORED its credential presses *Sync now* for each
+ * migration standing against this connection, through `pressSyncNow`: the
+ * button's own gates and its one enqueue, so every gate applies as it does to
+ * the button. The migration read under row security, a closed organisation, a
+ * paused migration, a withdrawn grant, Free's pace, and the operator hold
+ * right before the enqueue, on the migration's own partition. A refused probe
+ * stores nothing and presses nothing.
+ *
+ * WHICH MIGRATIONS. The ones the card it was pressed on lists: the same rows
+ * (`readStandingRows`) and the same fold (`standingFailuresByConnection`), so
+ * a failure the pass placed on the other side is not pressed for here, and one
+ * it could not place is, as it is on both cards. Of those, the causes
+ * `migrationsToCarryOn` keeps. And only a migration the tick would run passes
+ * for, asked as the pass itself asks it (`readPathPhases`, its `anyRuns`): one
+ * in its cutover's grace period is, one past it with nothing kept copying is
+ * not, since a pass started for it would stop at its first step. A paused
+ * migration is pressed all the same, and the button's own gate refuses it, so
+ * the answer says why it did not carry on. How many passes one reconnect can
+ * start is bounded as every pass started by hand is: by the organisation's
+ * unfinished migrations, which the cap on migrations per organisation holds
+ * (`migration-cap.ts`; 0143 T2a), and not by the tick's caps on passes in
+ * flight.
+ *
+ * WHAT IT ANSWERS. `resumed`, each migration whose pass was enqueued and the
+ * run it started; `notResumed`, each one a gate refused, with the refusal's
+ * code and sentence as `pressSyncNow` wrote them (an operator hold, Free's
+ * pace, a paused migration, a withdrawn grant). Data beside the rotation's
+ * answer, never instead of it: the credential is stored either way.
+ *
+ * A FAULT HERE IS NOT THE ROTATION'S. A press that throws is logged with a
+ * reference, recorded on the operator's log page, and listed under
+ * `notResumed` as `press_failed` with that reference. A read that throws before
+ * any press leaves both fields out: an absence, never an empty list standing
+ * for "nothing was failing". Neither turns a stored rotation into a 500, and
+ * the tick still carries the migration on by itself, at the ladder's pace.
+ *
+ * No visit is recorded (`visits.ts`): a visit is somebody opening the
+ * migration's page or pressing its button, and it brings an automatic
+ * migration back to hourly for 14 days. A reconnect on the Accounts page is
+ * neither, and the first pass that succeeds ends the ladder's gap by itself.
+ */
+async function carryOnAfterRotation(
+  tenantId: string,
+  connectionId: string,
+): Promise<{ resumed: Resumed[]; notResumed: NotResumed[] } | Record<never, never>> {
+  let waiting: string[];
+  try {
+    waiting = await withTenantDb(tenantId, pool(), async (db) => {
+      const standing =
+        standingFailuresByConnection(await readStandingRows(db, tenantId), new Set([connectionId])).get(
+          connectionId,
+        ) ?? [];
+      const running: string[] = [];
+      for (const mappingId of migrationsToCarryOn(standing)) {
+        const phases = await readPathPhases(db, tenantId, mappingId);
+        if (phases && (phases.anyRuns || phases.status === 'paused')) running.push(mappingId);
+      }
+      return running;
+    });
+  } catch (err) {
+    const reference = newReference();
+    log.error(
+      `[rotate] connection ${connectionId}: the credential is stored, but the migrations failing on it ` +
+        `could not be read, so none was pressed [ref ${reference}]:`,
+      loggableError(err),
+    );
+    void recordAppEvent({ level: 'error', event: 'connection.carry_on_failed', reference, tenantId });
+    return {};
+  }
+
+  const resumed: Resumed[] = [];
+  const notResumed: NotResumed[] = [];
+  for (const mappingId of waiting) {
+    // What the gate wrote, kept instead of sent: the rotation answers for itself.
+    let refusal: unknown;
+    const kept: Answerable = {
+      status: () => ({
+        json: (body) => {
+          refusal = body;
+          return undefined;
+        },
+      }),
+    };
+    try {
+      const pressed = await pressSyncNow(kept, tenantId, mappingId, {}, pool());
+      if (pressed) {
+        resumed.push({ mappingId, runId: pressed.run.id });
+      } else if (refusal === undefined) {
+        // A refusal that wrote nothing is no refusal to report as one.
+        throw new Error('Sync now refused and answered nothing');
+      } else {
+        notResumed.push({ mappingId, ...refusalOf(refusal) });
+      }
+    } catch (err) {
+      const reference = newReference();
+      log.error(
+        `[rotate] connection ${connectionId}: the credential is stored, but Sync now could not be pressed ` +
+          `for migration ${mappingId} [ref ${reference}]:`,
+        loggableError(err),
+      );
+      void recordAppEvent({ level: 'error', event: 'connection.carry_on_failed', reference, tenantId, mappingId });
+      notResumed.push({
+        mappingId,
+        error: 'press_failed',
+        reason:
+          'Something went wrong pressing Sync now for this migration — this is a fault on our side, not ' +
+          `something your input caused. Reference ${reference}: mention it when you contact us.`,
+      });
+    }
+  }
+  return { resumed, notResumed };
+}
+
 /**
  * Replace a connection's credentials in place (workplan 0065).
  *
@@ -1078,6 +1277,12 @@ async function recordCredentialsReplaced(
  * nothing, and so does one whose connection was deleted while the new account
  * was probed: the update finds no row, nothing is stored, and it answers 404.
  * Guard: `an-account-replaced-is-recorded.integration.test.ts`.
+ *
+ * AND WHAT WAS FAILING ON IT CARRIES ON (2026-11-15). Once the new account is
+ * stored, *Sync now* is pressed for each migration standing against this
+ * connection for a cause a person had to fix, and the answer says which
+ * started (`resumed`) and which a gate refused (`notResumed`):
+ * `carryOnAfterRotation`. Guard: `a-reconnect-that-carries-on.unit.test.ts`.
  */
 router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, res: Response) => {
   const startedAt = Date.now();
@@ -1223,6 +1428,12 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
     }
 
+    // The migrations this connection was failing carry on now, rather than at
+    // the failing ladder's next rung. Before the qualification, so the presses
+    // count against the door's budget and the measuring gets what is left
+    // (it answers `qualificationPending` past it); never fails the rotation.
+    const carriedOn = await carryOnAfterRotation(tenantId, id);
+
     // A rotated credential may carry different protocol scopes than the one
     // it replaces (an app-password minted for IMAP only, say) — re-qualify
     // with what is now stored (0106 T0).
@@ -1237,7 +1448,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       answers,
     );
 
-    res.json({ ...probe, rotated: true, ...qualificationField(qualification) });
+    res.json({ ...probe, rotated: true, ...carriedOn, ...qualificationField(qualification) });
   } catch (error) {
     serverFault(res, 'rotate_failed', 'replacing these credentials', error);
   }

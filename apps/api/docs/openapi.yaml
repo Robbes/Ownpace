@@ -1910,6 +1910,42 @@ paths:
                   rotated:
                     type: boolean
                     description: False when the probe failed and the old credentials were kept.
+                  resumed:
+                    type: array
+                    description: |
+                      Once the new credentials are stored, *Sync now* is pressed
+                      for each migration standing against this connection (the
+                      card's `standingFailures`) for a cause a person had to fix,
+                      not a rate limit, a spent daily allowance or a network blip,
+                      and only where the sync tick would run its passes. These are
+                      the ones whose pass was enqueued, with the run it started.
+                      Absent when nothing was stored, and when the server could
+                      not read which migrations were failing (logged with a
+                      reference); empty when none was.
+                    items:
+                      type: object
+                      required: [mappingId, runId]
+                      properties:
+                        mappingId: { type: string, format: uuid }
+                        runId: { type: string }
+                  notResumed:
+                    type: array
+                    description: |
+                      The migrations pressed for whose press did not start a pass,
+                      with what *Sync now* answered: `error` is the refusal's code
+                      as the button's door writes it (`platform_held`,
+                      `free_pace`, `grant_withdrawn`, `account_closed`, `Conflict`
+                      for a paused migration, `Not found` for one deleted
+                      meanwhile) and `reason` its English sentence; `press_failed`
+                      with a reference when the press itself failed. The rotation
+                      stands either way. Absent and empty as for `resumed`.
+                    items:
+                      type: object
+                      required: [mappingId, error, reason]
+                      properties:
+                        mappingId: { type: string, format: uuid }
+                        error: { type: string }
+                        reason: { type: string }
         '400': { description: A missing required field, or a value the schema refuses. }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '429': { $ref: '#/components/responses/TooManyTests' }
