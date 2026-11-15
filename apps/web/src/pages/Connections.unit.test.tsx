@@ -519,10 +519,13 @@ describe('replacing credentials', () => {
     renderPage();
 
     fireEvent.click(await screen.findByText('Reconnect'));
-    // An account kind asks for the faces first; tick one so the button is live.
+    // An account kind asks for faces, and Reconnect starts from what the
+    // account carries (the owner, 2026-11-15): with no record yet, every face
+    // this deployment serves, so the button is live without a tick
+    // (`a-reconnect-that-keeps-its-ticks.unit.test.tsx`).
     const connect = await screen.findByText(STRINGS.en['account.google.connect']);
     await waitFor(() => expect(screen.getAllByRole('checkbox').length).toBeGreaterThan(0));
-    fireEvent.click(screen.getAllByRole('checkbox')[0]!);
+    expect(screen.getAllByRole('checkbox').every((box) => (box as HTMLInputElement).checked)).toBe(true);
     await waitFor(() => expect((connect as HTMLButtonElement).disabled).toBe(false));
     fireEvent.click(connect);
 

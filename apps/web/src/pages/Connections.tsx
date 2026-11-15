@@ -22,7 +22,10 @@ import {
   credentialFieldsFor,
   isFailureCategory,
   formDefaultsFor,
+  qualifiedAnswerFor,
   wizardTypeForConnectionKind,
+  type CredentialField,
+  type DiscoveryDomain,
   type FailureCategory,
 } from '@openmig/shared';
 import { connectionKindName } from '../components/ProviderTile.tsx';
@@ -106,6 +109,45 @@ const CARDS_OF_ONE_KIND: ReadonlyMap<string, ReadonlyArray<{ type: string; nameK
   ],
 ]);
 
+/**
+ * THE FACES A RECONNECT STARTS FROM (the owner, 2026-11-15).
+ *
+ * *Reconnect* on a provider account opened its face ticks empty, so an
+ * account that already carried calendars, contacts and tasks had to be ticked
+ * again, face by face, to replace a token it already had. What the account
+ * carries is on the row: the record its last Test measured (`qualification`,
+ * 0106 T2), which for a Google or Microsoft account is read off the grant
+ * itself. A face the grant does not carry is a measured no; a face it carries
+ * is a yes, or unknown when its service did not answer; and a grant the
+ * provider would not exchange (an expired token, the usual reason to be here)
+ * leaves every face unknown.
+ *
+ * So the ticks start from every face this deployment serves (`served`) but
+ * those the record measured as a no: the rule the product already reads a
+ * record by, where only a measured no constrains anything and unmeasured is
+ * never a wall (0106 T3a). A grant that carried calendars and contacts starts
+ * with exactly those; no record, or nothing measured, starts from every face
+ * served. Either way the ticks stay on screen and can be changed before
+ * anything is asked, and what is asked is exactly what is ticked
+ * (`consentAsks`, and the server after it). A new account has no record and
+ * still starts from none.
+ *
+ * Not the standing failures: they name only the faces a migration failed on,
+ * which is part of what the grant carries, not all of it.
+ */
+function carriedFaces(
+  qualification: ConnectionSummary['qualification'],
+  served: ReadonlyArray<DiscoveryDomain>,
+): ReadonlyArray<DiscoveryDomain> {
+  return served.filter((face) => qualifiedAnswerFor(qualification, face)?.answer !== 'no');
+}
+
+/**
+ * The client pair and the token, which a *Reconnect* panel folds away where
+ * the deployment carries the provider's application (see `Row`).
+ */
+const OWN_CLIENT_KEYS: ReadonlySet<string> = new Set(['clientId', 'clientSecret', 'refreshToken']);
+
 const StatusIcon: React.FC<{ status: ConnectionSummary['status'] }> = ({ status }) => {
   if (status === 'connected') return <CheckCircle2 className="w-4 h-4 text-green-600" />;
   if (status === 'error') return <XCircle className="w-4 h-4 text-red-600" />;
@@ -182,7 +224,59 @@ const Row: React.FC<{
     values: newValues,
     onToken: (refreshToken) => setNewValues((v) => ({ ...v, refreshToken })),
     refusalText,
+    // An account's face ticks start from what it already carries
+    // (`carriedFaces`), and opening or closing the panel puts them back there.
+    initialDomains: (served) => carriedFaces(connection.qualification, served),
   });
+
+  // THE CLIENT FOLDS AWAY HERE TOO (the owner, 2026-11-15). Where this kind
+  // has a consent button and the deployment carries the provider's own
+  // application (ADR-0041), Reconnect is that button: the token comes back
+  // from the provider, and the person never had a client pair. Every box in
+  // plain view above the button asked for what the button supplies. So the
+  // pair and the token fold away as the add form folds them (`AccountForm`'s
+  // `folded`), in its words, and the other ways in, which are nobody's
+  // default (Google's service account key, Gmail's app password), fold under
+  // More options, as the flow folds what a family seldom needs. What the
+  // consent itself needs stays in view: the account, which `knownValues`
+  // fills in. The folds are inside the panel, not instead of it: a box typed
+  // into is kept when its fold closes, and sent like any other.
+  //
+  // Without the deployment's application every box stays in view, as before:
+  // there the person brings their own client, and the button cannot run
+  // without it.
+  const clientFolded =
+    rotateConsent.isGrantKind &&
+    rotateConsent.deploymentClient &&
+    rotatableFields.some((f) => f.key === 'clientId' && f.pairedWith === 'clientSecret');
+  const ownClientFields = clientFolded ? rotatableFields.filter((f) => OWN_CLIENT_KEYS.has(f.key)) : [];
+  const moreFields = clientFolded
+    ? rotatableFields.filter((f) => !f.required && !OWN_CLIENT_KEYS.has(f.key))
+    : [];
+  const fieldsInView = rotatableFields.filter((f) => !ownClientFields.includes(f) && !moreFields.includes(f));
+
+  /** One labelled box of the panel, in view or in a fold. */
+  const fieldBox = (field: CredentialField) => (
+    <label key={field.key} className="text-sm">
+      <span className="block text-gray-700 mb-1">{t(field.labelKey as StringKey)}</span>
+      <input
+        // A numeric field says so (0072): a port asked for in a bare
+        // text box came back as `port: Invalid input: expected
+        // number, received NaN` — a zod path, in English, for a
+        // mistake the input could have prevented.
+        type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
+        inputMode={field.numeric ? 'numeric' : undefined}
+        autoComplete={field.autoComplete ?? (field.secret ? 'new-password' : 'off')}
+        // The example the wizard has always shown, from the same
+        // descriptor (0077) — an App key is a good deal easier to
+        // paste correctly when the box says what one looks like.
+        placeholder={placeholderFor(field)}
+        className="input w-full"
+        value={newValues[field.key] ?? ''}
+        onChange={(e) => setNewValues((v) => ({ ...v, [field.key]: e.target.value }))}
+      />
+    </label>
+  );
 
   /** The server decides whether this is allowed; its refusal is the message. */
   const remove = async () => {
@@ -421,7 +515,9 @@ const Row: React.FC<{
               // Closed or opened, the fold starts without the last consent's
               // answer (0145 T4). The note outlives the fold, and a panel
               // drawn again with a refusal already in it is a new alert: a
-              // screen reader would say a failure nobody just caused.
+              // screen reader would say a failure nobody just caused. And
+              // with the face ticks back where they start, on what the
+              // account carries (`carriedFaces`), not on none.
               rotateConsent.reset();
               setRotating((open) => {
                 // Opening: start from what the connection ALREADY knows
@@ -464,34 +560,29 @@ const Row: React.FC<{
         <div className="mt-3 border-t border-gray-200 pt-3">
           <Hint className="" text={t('connections.rotate.hint')} why={t('connections.rotate.why')} />
           <div className="mt-2 grid gap-3 sm:grid-cols-2">
-            {rotatableFields.map((field) => (
-              <label key={field.key} className="text-sm">
-                <span className="block text-gray-700 mb-1">{t(field.labelKey as StringKey)}</span>
-                <input
-                  // A numeric field says so (0072): a port asked for in a bare
-                  // text box came back as `port: Invalid input: expected
-                  // number, received NaN` — a zod path, in English, for a
-                  // mistake the input could have prevented.
-                  type={field.secret ? 'password' : field.numeric ? 'number' : 'text'}
-                  inputMode={field.numeric ? 'numeric' : undefined}
-                  autoComplete={field.autoComplete ?? (field.secret ? 'new-password' : 'off')}
-                  // The example the wizard has always shown, from the same
-                  // descriptor (0077) — an App key is a good deal easier to
-                  // paste correctly when the box says what one looks like.
-                  placeholder={placeholderFor(field)}
-                  className="input w-full"
-                  value={newValues[field.key] ?? ''}
-                  onChange={(e) =>
-                    setNewValues((v) => ({ ...v, [field.key]: e.target.value }))
-                  }
-                />
-              </label>
-            ))}
+            {fieldsInView.map((field) => fieldBox(field))}
+            {ownClientFields.length > 0 && (
+              <details className="sm:col-span-2 rounded-md border border-gray-200 p-3">
+                <summary className="cursor-pointer text-sm text-gray-700">{rotateConsent.words('ownClient')}</summary>
+                <p className="mt-2 text-sm text-gray-500">{rotateConsent.words('deploymentClient')}</p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                  {ownClientFields.map((field) => fieldBox(field))}
+                </div>
+              </details>
+            )}
+            {moreFields.length > 0 && (
+              <details className="sm:col-span-2 rounded-md border border-gray-200 p-3">
+                <summary className="cursor-pointer text-sm text-gray-700">{t('start.moreOptions')}</summary>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2">{moreFields.map((field) => fieldBox(field))}</div>
+              </details>
+            )}
           </div>
+          {/* The lines under the button say the token box is below only
+              where it is: in view, not folded away. */}
           <ProviderConsentPanel
             consent={rotateConsent}
             className="mt-3"
-            tokenInView={rotatableFields.some((f) => f.key === 'refreshToken')}
+            tokenInView={fieldsInView.some((f) => f.key === 'refreshToken')}
           />
           <button
             type="button"
