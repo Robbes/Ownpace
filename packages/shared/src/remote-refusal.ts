@@ -17,8 +17,9 @@
  * - the provider's own words, ONLY when what it sent is an error document of a
  *   kind we know, as the document itself and not as something inside another
  *   page: Google's GData `errors` or its JSON error document, a WebDAV `error`
- *   (Sabre's, which is Nextcloud's, among them), a JMAP problem document, or an
- *   IMAP `NO` or `BAD` line. Capped. Anything else has no words.
+ *   (Sabre's, which is Nextcloud's, among them), a JMAP problem document, an
+ *   OAuth 2.0 token endpoint's error response (RFC 6749 §5.2), or an IMAP `NO`
+ *   or `BAD` line. Capped. Anything else has no words.
  *
  * The managed API answers from the parts (`apps/api/src/probe-answer.ts`). The
  * MESSAGE does not change: the appliance's owner reads it whole, the ledger
@@ -134,6 +135,39 @@ function jmapProblemWords(parsed: unknown): string | undefined {
 }
 
 /**
+ * The error codes RFC 6749 §5.2 registers for a token endpoint's refusal, and
+ * only those: `{"error":"…"}` with a word of the server's own choosing is how
+ * half the JSON on the internet refuses, while these six are the token
+ * endpoint's own vocabulary, the one Google, Microsoft, Dropbox and Box answer
+ * a refresh in.
+ */
+const OAUTH_TOKEN_ERRORS: ReadonlySet<string> = new Set([
+  'invalid_request',
+  'invalid_client',
+  'invalid_grant',
+  'unauthorized_client',
+  'unsupported_grant_type',
+  'invalid_scope',
+]);
+
+/**
+ * An OAuth 2.0 token endpoint's error response (RFC 6749 §5.2):
+ * `{"error":"invalid_grant","error_description":"Token has been expired or revoked."}`.
+ * Its code, then ` — ` and its description when it sent one. These are the
+ * words a person acts on when a refresh token stops working, and the rule
+ * replaced them with "not a DAV, JMAP or IMAP error" while this kind was not
+ * on the list (2026-11-15).
+ */
+function oauthErrorWords(parsed: unknown): string | undefined {
+  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) return undefined;
+  const { error, error_description: description } = parsed as { error?: unknown; error_description?: unknown };
+  if (typeof error !== 'string' || !OAUTH_TOKEN_ERRORS.has(error)) return undefined;
+  if (description === undefined) return error;
+  if (typeof description !== 'string') return undefined;
+  return description.trim() === '' ? error : `${error} — ${description}`;
+}
+
+/**
  * The provider's own words, when a body is an error document of a kind we
  * know, capped; `undefined` for anything else, which an answer then replaces
  * with a sentence of ours.
@@ -149,7 +183,7 @@ export function providerErrorWords(body: string): string | undefined {
   } catch {
     return undefined;
   }
-  const words = googleJsonWords(parsed) ?? jmapProblemWords(parsed);
+  const words = googleJsonWords(parsed) ?? jmapProblemWords(parsed) ?? oauthErrorWords(parsed);
   return words === undefined ? undefined : capped(words);
 }
 

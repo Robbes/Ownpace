@@ -30,6 +30,7 @@
  */
 
 import type { OAuth2Token, TokenProvider, TokenStatus } from '@openmig/shared';
+import { tokenRefusalMessage } from './token-refusal.ts';
 
 /** Google's token endpoint. Overridable so a test never reaches Google. */
 const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
@@ -184,11 +185,10 @@ export class GoogleTokenProvider implements TokenProvider {
     if (!response.ok) {
       // Google's own words, verbatim (rule 9) — and NOT the request, which
       // carries the client secret and the refresh token. An error message ends
-      // up in logs and in the failures queue an owner reads.
+      // up in logs and in the failures queue an owner reads. The hint first
+      // and Google's words last (`token-refusal.ts`).
       const shown = text.slice(0, 500);
-      throw new Error(
-        `Google refused the token request (${response.status}): ${shown}${hintFor(shown)}`,
-      );
+      throw new Error(tokenRefusalMessage('Google', response.status, shown, hintFor(shown)));
     }
 
     let parsed: GoogleTokenResponse;
@@ -239,7 +239,7 @@ export class GoogleTokenProvider implements TokenProvider {
 function hintFor(body: string): string {
   if (!body.includes('invalid_grant')) return '';
   return (
-    ' — "invalid_grant" from Google means the refresh token is no longer usable. Most likely for ' +
+    '"invalid_grant" from Google means the refresh token is no longer usable. Most likely for ' +
     'a recently set-up personal account: the OAuth consent screen is External with publishing ' +
     'status "Testing", and Google expires such refresh tokens after seven days — set the ' +
     'publishing status to Production (one click) and re-consent. Otherwise: the token was ' +

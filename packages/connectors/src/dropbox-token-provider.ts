@@ -24,6 +24,7 @@
 
 import type { OAuth2Token, TokenProvider, TokenStatus } from '@openmig/shared';
 import type { TokenFetch } from './google-token-provider.ts';
+import { tokenRefusalMessage } from './token-refusal.ts';
 
 const DROPBOX_TOKEN_ENDPOINT = 'https://api.dropboxapi.com/oauth2/token';
 /** Same buffer as the other providers: re-mint well before a pass can outlive the token. */
@@ -121,10 +122,9 @@ export class DropboxTokenProvider implements TokenProvider {
 
     const text = await safeText(response);
     if (!response.ok) {
+      // The hint first and Dropbox's words last (`token-refusal.ts`).
       const shown = text.slice(0, 500);
-      throw new Error(
-        `Dropbox refused the token request (${response.status}): ${shown}${hintFor(shown)}`,
-      );
+      throw new Error(tokenRefusalMessage('Dropbox', response.status, shown, hintFor(shown)));
     }
 
     let parsed: { access_token?: string; expires_in?: number; token_type?: string };
@@ -157,7 +157,7 @@ export class DropboxTokenProvider implements TokenProvider {
 function hintFor(body: string): string {
   if (!body.includes('invalid_grant')) return '';
   return (
-    ' — "invalid_grant" from Dropbox means the refresh token is no longer usable: it was ' +
+    '"invalid_grant" from Dropbox means the refresh token is no longer usable: it was ' +
     'revoked (the app was unlinked from the account), or it was issued by a DIFFERENT app ' +
     'key than the one configured here. Re-run the consent flow for this app to get a new one.'
   );

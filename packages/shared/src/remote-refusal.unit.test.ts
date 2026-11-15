@@ -59,6 +59,18 @@ describe('the words of an error document we know, and of nothing else', () => {
       JSON.stringify({ type: 'urn:ietf:params:jmap:error:limit', status: 400, detail: 'Too many calls.' }),
       'urn:ietf:params:jmap:error:limit — Too many calls.',
     ],
+    [
+      // Google's token endpoint answers a dead refresh token this way, pretty-printed.
+      "an OAuth 2.0 token endpoint's refusal (RFC 6749 §5.2): its code and its description",
+      '{\n  "error": "invalid_grant",\n  "error_description": "Token has been expired or revoked."\n}',
+      'invalid_grant — Token has been expired or revoked.',
+    ],
+    ["an OAuth refusal with only its code", JSON.stringify({ error: 'invalid_client' }), 'invalid_client'],
+    [
+      "an OAuth refusal with an empty description, and the fields Microsoft adds",
+      JSON.stringify({ error: 'unauthorized_client', error_description: ' ', error_codes: [700016], trace_id: 'x' }),
+      'unauthorized_client',
+    ],
   ])('%s', (_what, body, words) => {
     expect(providerErrorWords(body)).toBe(words);
   });
@@ -77,6 +89,10 @@ describe('the words of an error document we know, and of nothing else', () => {
     ['plain text', 'Forbidden: you are not on the office network'],
     ['nothing', ''],
     ['JSON that does not parse', '{"error":'],
+    ['an `error` word outside the six RFC 6749 §5.2 registers', JSON.stringify({ error: 'db_password_wrong', error_description: 'x' })],
+    ['an OAuth code whose description is not a string', JSON.stringify({ error: 'invalid_grant', error_description: { secret: 'x' } })],
+    ['an OAuth refusal followed by anything at all', `${JSON.stringify({ error: 'invalid_grant' })} <html>stack trace</html>`],
+    ['a list, not a document', JSON.stringify([{ error: 'invalid_grant' }])],
   ])('%s: nothing', (_what, body) => {
     expect(providerErrorWords(body)).toBeUndefined();
   });

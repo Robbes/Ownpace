@@ -25,6 +25,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Live runs no Nextcloud. Both are taken inside their three-day floor, which ends on 2026-11-17 at
   01:54:42 and 01:52:58 UTC and is waived for alpha.10.
 
+### Fixed
+
+- **A provider's token refusal keeps its own words on the managed service, after our hint
+  instead of before it** (workplan 0136 T3). A Google account whose refresh token Google no
+  longer honours (an OAuth client in Testing has its tokens expired after seven days) failed
+  every pass with `invalid_grant`, and the run's log on the OTA stack read *"Google refused the
+  token request (400): the server answered with something that is not a DAV, JMAP or IMAP
+  error"*. Two reasons: an OAuth 2.0 token endpoint's error response (RFC 6749 §5.2) was no
+  document the rule kept the words of, and Google's, Box's and Dropbox's token providers wrote
+  their hint after the provider's body, so the body was not the last thing in the message. The
+  rule now keeps the words of such a response, for its six registered codes only, and the
+  providers write the hint first: the log reads *"Google refused the token request: "invalid_grant"
+  from Google means the refresh token is no longer usable. … Google answered (400): invalid_grant —
+  Token has been expired or revoked."* A line stored before this keeps the old answer.
+
 ## [0.2.0-alpha.9] - 2026-11-15
 
 Nothing changes on a tester's screen. Underneath, the task images' registry,
