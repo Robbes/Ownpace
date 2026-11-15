@@ -4,6 +4,65 @@
 
 ## Status — 2026-11-15 (update this block at the end of every session)
 
+**2026-11-15, after the fold: `v0.2.0-alpha.10` is released, its nights waived (T2, T4).** Read
+from GitHub on 2026-11-15. Times are UTC.
+
+- **C is `fe0b1be2`**, the squash of #1918 (the fold), merged at 20:26:02 on `c17b122a` (#1917, the
+  waiver, merged at 20:09:51). Its tree is that of the fold's head, `cf87859b`, on which CI run
+  43756584946 was green (20:10 to 20:25). On C, all green: CI run 43758049797 (`lint`,
+  `unit-tests (all)`, `ui-tests`, `integration-tests (ubuntu-24.04-arm)` and `ci-complete` run and
+  passed, 20:26 to 20:57), Security Scan run 43758049786, Images run 43758049747, Nextcloud second
+  major run 43758049778, and `windows-payload.yml` run 43758101197 (`build win-x64` and
+  `smoke win-x64 on windows-2025`; its attach runs on a tag only, so it was skipped).
+- **In the counted nights' place**, dispatched on `main` at C, one at a time, each at least ten
+  minutes after the run before it ended: E2E (managed) run 43758066920 (20:26 to 20:34; version
+  20261115.7 deployed with 17 detected tasks, *verify: done apply: applied*, SMOKE PASS), and E2E
+  (self-hosted) on Postgres, run 43759740969 (20:44 to 20:49), and on PGlite, run 43761144052
+  (20:59 to 21:05), all green.
+- **Release.** The owner dispatched the two runs from their own account, with `commit` set to C
+  and `waive_nights` set to *I waive the waitings*. The preflight, run 43763257990 (#31, 21:21:44 to
+  21:22:35), refused nothing: CI run #5546, Security Scan run #5651 and the Windows smoke of
+  windows-payload run #43 green on C; the names, the changelog (dated 2026-11-15) and the API
+  contract agree; the tag free; C the head of `main`, with no commit after it; the upgrade gates' 8
+  and 12 cases passed (7 and 8 of them from alpha.9; mechanics only, 65 and 59 migrations on both
+  sides); the nights' refusals notes naming the owner's waiver; the upgrade drill listed as not
+  checked. It noted, without refusing, 2 critical and 48 high code-scanning alerts open on `main`
+  in 6 groups, every one an image's (0119). Release run 43763395814 (#32), mode `release`,
+  dispatched at 21:23:10, refused nothing in its own preflight and waited at its approve job until
+  the owner approved in the `release` environment (the job ran 21:24:10 to 21:24:15); then the gate
+  scan of C (run 43763524263, on `release-gate/v0.2.0-alpha.10`), the tag (21:26:13 to 21:26:30),
+  the publishing (Security Scan on the tag, run 43763722387; the images, run 43763888199; the
+  Windows zip, run 43763884024) and verify (21:30:41 to 21:31:30) all succeeded, and the run
+  completed at 21:31:31. Verify read the release as a pre-release with `bom.json` (CycloneDX 1.7)
+  and `ownpace-appliance-win-x64-v0.2.0-alpha.10.zip` (its 411 files' sums hold, its `node.exe`
+  v26.13.1 as pinned); `ownpace-api`, `ownpace-web` and `ownpace-selfhost` at `0.2.0-alpha.10` for
+  amd64 and arm64, built from C, signed, `latest` not moved; the tasks' base that C pins
+  (`sha-b05fb1b`), for both platforms, built from an ancestor of C and signed on `main`; and the
+  appliance's `/version` answering the tag's version and commit.
+- **The tag.** `v0.2.0-alpha.10` is tag object `b3d6fa9f…` on `fe0b1be2`, made by
+  `github-actions[bot]` at 21:26:26. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/43763395814*, *Proved by: CI run #5546, Security
+  Scan run #5651 on main, windows-payload run #43; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/43763524263* and *Nights waived by Robbes, in
+  their words: "I waive the waitings"*.
+- **The release** is a pre-release, published at 21:27:53 by the scan on the tag, with `bom.json`
+  (2060186 bytes, CycloneDX 1.7, the first) and `ownpace-appliance-win-x64-v0.2.0-alpha.10.zip`
+  (49957759 bytes).
+- **The image scan after the tag**, Security Scan run 43764223693 (`image_scans`, on `main` at C,
+  21:32 to 21:35), reads alpha.10's own images, `ownpace-api`, `ownpace-web` and `ownpace-selfhost`
+  at `0.2.0-alpha.10`, at 0, 0 and 0. By tier (critical, high, with a fix), as after alpha.9's
+  tag: what the internet reaches on live 0, 6 and 6; what live runs inside 2, 42 and 17; the
+  appliance 0, 0 and 0 (0119). The gate scan and the scan on the tag scan the repository, not the
+  images.
+- **The O365 lane** is not read by Release. alpha.10 is tagged without a run of it, and no waiver
+  of the lane for alpha.10 is recorded (0141, this day).
+- **Owed:** live's deploy of `v0.2.0-alpha.10` from alpha.9, by the owner, before 2026-11-19 at
+  14:01, when the copy before alpha.8's update enters its last day and `take` refuses all but a
+  deploy of alpha.7 (the entries below). Between the two tags no migration file moves and none of
+  the Trigger.dev, identity-provider and ClickHouse pins: the comparison of alpha.9's
+  `deploy-live.sh`, run on the two trees, says reversible, and the way back is alpha.9, deployed
+  again with the same script.
+
 **2026-11-15, last: the fold for `v0.2.0-alpha.10` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.10`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
 its section, dated 2026-11-15, under a summary; [Unreleased] stays, empty. alpha.10 carries what
