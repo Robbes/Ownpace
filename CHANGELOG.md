@@ -15,6 +15,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   (run 43825325675); the O365 lane, which signs in with it against a real tenant, has had no run
   since 2026-11-02 (0141 T13 (a)).
 
+### Fixed
+
+- **The operator runbook no longer speaks of a close button** (workplans 0139 T7 and 0144 T8):
+  the app has none yet, so `operator.sh close` is how every close a tester asks for is made. It
+  is the same close as the owner's route, `POST /api/tenants/:tenantId/close`.
+
 ## [0.2.0-alpha.10] - 2026-11-15
 
 A Google or Microsoft account's *Reconnect* now starts from the types the
