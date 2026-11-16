@@ -22,10 +22,14 @@ duties with GoAccess on Alpine 3.24.4.** Times are UTC.
   in `pnpm-workspace.yaml`, so the first changes nothing here. 11.28.10 stops `pnpm store prune`
   from deleting other stores; 11.28.11 fixes frozen installs with `excludeLinksFromLockfile` and
   `pnpm deploy` with dangling symlinks; 11.28.12 also fixes peer-dependency, frozen-lockfile and
-  `nodeLinker: hoisted` cases. The images take it through corepack from `packageManager`, and so
-  does CI; on a host, the pnpm the deploy runs switches itself to it in the checkout
+  `nodeLinker: hoisted` cases. The images take it from `packageManager` through corepack 0.36.0,
+  whose check of npm's signature passes it: npm signed 11.28.12 with the key that signed 11.28.9
+  (`SHA256:DhQ8wR5A…`, both versions' `dist.signatures`). CI takes it from the same field through
+  `pnpm/action-setup`. On a host, the pnpm the deploy runs switches itself to it in the checkout
   (`docs/managed-bring-up.md`, the Node move's step 4), so live's first deploy of a tag with it
-  fetches 11.28.12 there, the first such switch since 11.28.9. CI only; no E2E, as for 11.28.9.
+  fetches 11.28.12 there, the first such switch since 11.28.9. CI on its pull request, and the
+  image builds on `main` after the merge, since the Images workflow builds on a pull request only
+  when a Dockerfile, `deploy/` or the workflow changes; no E2E, as for 11.28.9.
 - **Live's duties, with GoAccess on Alpine 3.24.4.** The record the owner read on live on
   2026-11-16 says the duty run at 13:17:33 passed, every duty with it. It is the first daily run
   since live took a tag with #1892 (alpha.9, on 2026-11-15 at 16:29:16; alpha.10 since 07:02:20
