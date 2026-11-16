@@ -2,7 +2,131 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-15 (update this block at the end of every session)
+## Status — 2026-11-16 (update this block at the end of every session)
+
+**2026-11-16: live runs `v0.2.0-alpha.10`, reversible over alpha.9 (T6, T9).** The owner deployed it
+on 2026-11-16, before any tester, pasting the sheet's checked blocks one at a time, and ran the
+checks after it the same morning. Times are UTC, on 2026-11-16 unless said. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-16, `v0.2.0-alpha.10`: took at 07:02:20 UTC; reversible.
+  The tag is tag object `b3d6fa9f…` on `fe0b1be2` (#1918, the fold), made on 2026-11-15 at 21:26:26
+  by Release run 43763395814, which its message names with *Proved by: CI run #5546, Security Scan
+  run #5651 on main, windows-payload run #43* and the gate scan, run 43763524263. The owner waived
+  its counted nights, for this version alone (`WAIVER_VERSIONS`, #1917; 0146's Status, 2026-11-15,
+  after the fold); the acceptance is the tag message's own line: *Nights waived by Robbes, in their
+  words: "I waive the waitings"*. alpha.10 carries #1915, a token endpoint's refusal in the
+  provider's own words and a reconnect that carries the migration on (0136, 0140), and Nextcloud
+  35.0.3 for the OTA stack's demo (#1907), which live never starts; no pin live runs moves.
+- **Read-only checks first** (0a at about 06:45, before the hold; 0b to 0d during it, until about
+  06:55). As the owner, not root, with live's `.env`: live's checkout at `v0.2.0-alpha.9`, clean;
+  both box timers active; in live's `.env` `TRIGGER_IMAGE_TAG=v4.8.5`, `WWW_LIVE=true`, one
+  `COPY_DELETE_WHEN_PROVEN=true` line, no `PGBOUNCER_USERLIST` line, the userlist being a file in
+  the checkout, and `OWNPACE_REACHABLE_HOSTS` and `MOLLIE_API_KEY` empty; `deploys.log`'s last three
+  lines alpha.7's took reversible (2026-11-10T14:21:09Z), alpha.8's took one-way
+  (2026-11-14T15:05:12Z) and alpha.9's took one-way (2026-11-15T16:29:16Z); the copy before alpha.8
+  at mode 700 with its 6 entries, its note `taken=2026-11-14T15:01:07Z`, `taken_epoch=1794668467`,
+  `before=v0.2.0-alpha.8` and `from=v0.2.0-alpha.7 (45375ac2…)`; the take's own dry run, alpha.9's
+  `copy-before-update.sh take --dry-run v0.2.0-alpha.10`: the copy on day 2 of at most 7 and its
+  update not proven, so kept, no second copy taken and nothing written, exit 0; and no copy volume
+  or ClickHouse list made by hand. The deploy shell's `node` the owner's own v26.13.0, pnpm 11.28.9.
+- **The tag and what it moves.** The tag annotated on origin, on `fe0b1be2`, tag object
+  `b3d6fa9f…`, made on 2026-11-15 at 21:26:26, with its four message lines. Its pins: the version
+  `0.2.0-alpha.10`, pnpm 11.28.9 and node `>=26`; `TRIGGER_IMAGE_TAG:-v4.8.5` twice; every image
+  line in `managed.yml` as at alpha.9: ClickHouse `26.8.37.168@sha256:a5670285…`, Chainguard's MinIO
+  `634c989a…` twice, Gatus v5.38.0, Zitadel v4.20.3, Caddy 2.11.9 `f52a976e646f`, the socket proxy
+  3.4.7 `98bf1b1c7226`, the pooler v1.26.1-p0 `db1368bd0eb6`, PostgreSQL 18.7 `2d3b1894d8f1` twice,
+  Redis 7.4.12 `d5301e0623d4`, the supervisor v4.8.5 `e3631e107ba7`, Trigger.dev v4.8.5
+  `c3d2ec340994` and the registry 3.1.2 by `82f6ff4a…`; the SDK and the CLI 4.8.5; the tasks' base
+  `sha-b05fb1b@sha256:444d3833…`; and `FROM node:26.13.1`. Between the tags no migration file, unit
+  or script under `deploy/compose` moves, nor the api's or the web's Dockerfile, the web's header
+  template, the worker's packages and config, the lockfile or the site, so `deploy-live.sh`, the
+  copy's script and `bootstrap-managed.sh` are alpha.9's. Under `deploy/compose` two files change,
+  `dev.yml` and `managed.yml`, by 2 lines each that are not comments: Nextcloud's move from 35.0.2
+  to 35.0.3 (#1907), the OTA stack's demo, which the bring-up starts only with `--with-demo`, never
+  on live. All 14 images the run needs were on the shared daemon already, nginx's and busybox's
+  among them. The npm registry answered 200 for corepack 0.36.0 and pnpm 11.28.9; Docker Hub's,
+  GitHub's and Google's registries 401, so reachable; and the tasks' base was readable from
+  GitHub's registry without a login.
+- **The hold (T6 step 2)** went on at 06:47:20, by its own row, its Dutch sentence naming 09:15 Dutch
+  time (08:15 UTC). The owner's read at 06:56, about 9 minutes after, was clean: `yes|1|525|0`, one
+  hold, 525 seconds old, and 0 passes in flight, no task run unfinished and none stale. No E2E run
+  was queued or running at 06:57, before block 4 (the two runs still queued were a CI run and a
+  Security Scan run of 2026-08-06, on an old branch): the day's first scheduled E2E (self-hosted),
+  run 43795123661, had run from 02:56 to 03:01, green, and nothing was merged to `main` or
+  dispatched while the hold was on. The dry run, alpha.9's `deploy-live.sh --dry-run
+  v0.2.0-alpha.10`, exited 0: the tag annotated on origin at `fe0b1be2…`; the Node v26.13.0, the tag
+  asking `>=26`; the site test-built, with 0 unfilled placeholders and a `--public` build that
+  passed; the hold on and nothing in flight; over alpha.9 alone, the last deploy that took,
+  *reversible: over each of those, v0.2.0-alpha.10 adds, changes or removes no migration file in
+  either chain, and moves none of the Trigger.dev, identity-provider and ClickHouse pins in
+  managed.yml*; the copy's dry run, with no `--trigger`, the copy before alpha.8 on day 2, kept, and
+  no second copy; a deploy now reversible; stopped before the checkout.
+- **The run (T6 steps 3 to 7).** From about 06:58, in `tmux`, one run, alpha.9's
+  `deploy-live.sh v0.2.0-alpha.10`, the checkout's; `TRIGGER_IMAGE_TAG` stayed v4.8.5, as alpha.10
+  pins it. The tasks deployed as `20261116.1` at 07:01. *The deploy took* at 07:02:20, reversible,
+  exit 0, on the first run: *v0.2.0-alpha.10 (fe0b1be2…) runs, and answered every check*, after the
+  exposure check's ok, then the comparison again, reversible over alpha.9, with *If it misbehaves,
+  v0.2.0-alpha.9 can be deployed again with this script*, the hold still on, and *Logged as took*.
+  The owner sent only that end of its output, so its lines for the take, the bring-up and its
+  checks are not in this record; *answered every check* is the line the script prints only when
+  none of its checks failed. The take is known from the dry run and from the checks after it: it
+  kept the copy before alpha.8, whose note and 6 entries are unchanged, and took no second copy.
+  The tree clean, nothing to put back.
+- **The day's tasks around the run.** Block 4 began before the window given for it, 07:05 to 07:15,
+  between the drift detection's daily run at 07:00 and the cadence mail's at 07:30, so the task
+  deploy at 07:01 came right after the drift detection's run started. That run, on alpha.9's tasks
+  (`20261115.1`), completed successfully from 07:00:00 to 07:00:04, before the new deployment; every
+  other task run of the three hours before it, the hourly ones at :23 and :41 and the group
+  discovery at 06:30, completed successfully on `20261115.1` too.
+- **The checks after it, with the hold on (T6 step 7),** from about 07:07 to about 07:15.
+  `/api/version` and `/version.json` at `fe0b1be2…`, `0.2.0-alpha.10`. All 15 services running,
+  none unhealthy or starting, and `minio-init` exited 0; the api and the web on the images block 4
+  built, up 6 minutes and healthy, every other service up since alpha.9's deploy or before. Each
+  image read from Docker, as at alpha.9: `postgres` and `trigger-db` on
+  `localhost/postgres:18.7-alpine-2d3b1894d8f1`, the pooler on
+  `localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6`, `trigger-redis` on
+  `localhost/redis:7.4.12-bookworm-d5301e0623d4`, `trigger-docker-proxy` on
+  `localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226`, `trigger-api` on
+  `localhost/trigger.dev:v4.8.5-c3d2ec340994`, `trigger-tls` on
+  `localhost/caddy:2.11.9-alpine-f52a976e646f`, `trigger-supervisor` on
+  `localhost/supervisor:v4.8.5-e3631e107ba7`, the identity provider on
+  `ghcr.io/zitadel/zitadel:v4.20.3` and Gatus on v5.38.0, each on the image of that name; ClickHouse
+  on `a56702852d7c…`, `minio` and `minio-init` on `634c989a2f10…` and `trigger-registry` on
+  `82f6ff4a7f98…`, each by the digest it was pulled by. Started after alpha.9's deploy took:
+  `minio-init`, the api and the web, the one-shot every bring-up runs again and the two new builds;
+  the other 13 not since, and 0 restarts among the 16. All 16 containers, live's and the site's,
+  with `no-new-privileges`, `drop=[ALL]` but `trigger-api`'s, each adding only the capabilities the
+  tag's `managed.yml` and `www.yml` give it, and `trigger-redis` none. The switches: MinIO's update
+  and call-home off, Trigger.dev's telemetry and checkpoint off with no PostHog key,
+  `CLI_LOGIN_IDLE_TIMEOUT_DAYS=90` and `ADMIN_API_ENABLED=false`, and ClickHouse's crash reports and
+  logical errors not sent. The tasks' runners on their base (6d): a runner of `20261116.1`, the
+  deployment Trigger.dev calls current, on image `d507dbc39068`, built at the fixed
+  `1970-01-01 00:00 UTC`; the api's Node and the tasks' v26.13.1; in the tasks' image no `sh`,
+  `/bin/sh`, `bash`, `/bin/bash` or `/busybox/sh`; and no container left behind. The task row
+  `current|20261116.1|DEPLOYED|4.8.5|4.8.5|26.13.1|2026-11-16 07:01`; the tick 4 times
+  `COMPLETED_SUCCESSFULLY` on 4.8.5 in five minutes, one more pending for its minute; no Prisma
+  migration unfinished. `www-live` ok. `deploys.log` ends
+  `2026-11-16T07:02:20Z v0.2.0-alpha.10 took reversible`, after alpha.8's and alpha.9's lines; the
+  copy's note as 0a read it, and its 6 entries, among them `dump-idp.sh`'s note, which says the
+  sign-in service ran v4.20.1 when it was taken, its dump (403,680 bytes, 701 entries read back) and
+  its roles file (1,771 bytes), and the task runner's dump before alpha.8 (66,627,544 bytes), the
+  only one; the tree clean. The sign-in service (6f): ready on loopback, still accepting the
+  provisioning token, with 1 organisation, exit 0; the sheet then asks for one sign-in through the
+  stack's login before the lift, and the owner lifted the hold after it, with no failure reported.
+- **The lift (T6 step 8).** Block 7's checks printed `the copy before the update:
+  before=v0.2.0-alpha.8` and `OK: lift the hold`, and the owner lifted it at 07:16:17, by the hold's
+  own row (started 06:47:20), so the hold was on for 28 minutes 57 seconds. The owner's check at
+  about 07:32 read no hold open and no pass in flight; the box checks' timer's last run 2 minutes
+  before, its next 7 minutes away; and the copy's 6 entries kept.
+- **What is left (T9).** No migration has run on live, so nothing has proven alpha.10, and
+  `live-pass-check.sh` does not apply yet (no `LIVE_PASS_CHECK_MIGRATION`); the owner's own
+  migration on live, before any invitation, is the proof. The box checks keep the copy before
+  alpha.8 until then, and the daily duties delete it in any case: its last day starts on 2026-11-19
+  at 14:01, the duty of 2026-11-20 fails on it and mails, as it should, and the duty of 2026-11-21
+  deletes it. On that last day every take refuses but a deploy of alpha.7, the release the copy
+  holds. That copy holds alpha.7's databases, so it is no way back from alpha.10; the way back from
+  alpha.10 is a deploy of alpha.9 with the same script, reversible, since no migration file and
+  none of the three pins differs between the two tags (the sheet's block 8).
 
 **2026-11-15: live runs `v0.2.0-alpha.9`, one-way over alpha.8, by the ClickHouse pin alone (T6,
 T9).** The owner deployed it on 2026-11-15, before any tester, pasting the sheet's checked blocks,

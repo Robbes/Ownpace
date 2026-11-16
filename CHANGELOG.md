@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **`@azure/msal-node` 7.2.2, with `@azure/msal-common` 16.16.2, and `@testing-library/user-event`
+  14.6.10** (workplan 0119; Dependabot, #1920): at run time, the library the connectors sign
+  Microsoft 365 sources in with, whose 7.2.2 sanitises authorization code response payloads the
+  same way across its Node clients and keeps raw exception data from bypassing its PII filter, by
+  upstream's notes; user-event, a test tool, now follows the browser's rule for a form's implicit
+  submission. Both were published on 2026-11-12. Taken after E2E (managed) was green on its head
+  (run 43825325675); the O365 lane, which signs in with it against a real tenant, has had no run
+  since 2026-11-02 (0141 T13 (a)).
+
 ## [0.2.0-alpha.10] - 2026-11-15
 
 A Google or Microsoft account's *Reconnect* now starts from the types the

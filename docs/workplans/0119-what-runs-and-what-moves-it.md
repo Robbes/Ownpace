@@ -2,7 +2,22 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-15 (update this block at the end of every session)
+## Status — 2026-11-16 (update this block at the end of every session)
+
+**2026-11-16, recorded: live runs alpha.10, on alpha.9's pins.** The owner deployed
+`v0.2.0-alpha.10` (tagged 2026-11-15 on `fe0b1be2`) to live on 2026-11-16, from alpha.9 in one run
+of alpha.9's script, which took at 07:02:20 UTC, reversible, as the entry below expected: no image
+of live's fifteen services, no Trigger.dev, identity-provider or ClickHouse pin and no migration
+file moves between the two tags (0132's Status, 2026-11-16, has the deploy). Read on live after it,
+with the hold on: every service on the image the alpha.9 entry below names, each read from Docker,
+ClickHouse, MinIO and the registry by the digest they were pulled by; only the api and the web,
+built from the tag, and `minio-init`, the one-shot, started since alpha.9's deploy, with 0 restarts
+among the sixteen; the tasks deployed anew as `20261116.1` on the base
+`sha-b05fb1b@sha256:444d3833…`, on Node v26.13.1 as the api is, with no shell; MinIO's update and
+call-home, Trigger.dev's telemetry and checkpoint, and ClickHouse's crash reports off, as before.
+On `main` since: Dependabot's npm group, #1920 (`@azure/msal-node` 7.2.2 and
+`@testing-library/user-event` 14.6.10), merged on 2026-11-16 at about 08:06 UTC (`e89f3fb9`) after
+E2E (managed) run 43825325675 was green on its head (07:39 to 07:46 UTC); it reaches the next tag.
 
 **2026-11-15, after the fold: alpha.10 is released, and the image scan after its tag.** Read
 from GitHub on 2026-11-15; times are UTC. `v0.2.0-alpha.10` is tagged on C, `fe0b1be2` (#1918), at

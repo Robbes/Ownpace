@@ -2,7 +2,19 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-15 (update this block at the end of every session)
+## Status — 2026-11-16 (update this block at the end of every session)
+
+**2026-11-16: live runs `v0.2.0-alpha.10` (T2).** The owner deployed it from the tag on
+2026-11-16: one run of alpha.9's `deploy-live.sh`, from about 06:58 UTC, which took at 07:02:20,
+reversible over alpha.9, since between the two tags no migration file moves and none of the
+Trigger.dev, identity-provider and ClickHouse pins does. Nothing was copied by hand; the take kept
+the copy before alpha.8, whose update is not proven, and took no other. After it the api and the
+web run their builds from the tag and the tasks deployed as `20261116.1` on 4.8.5; every other
+service kept its container, and every image the run needed was on the shared daemon already. Every
+check after it passed, and the hold, on from 06:47:20, came off at 07:16:17; 0132's Status of
+2026-11-16 has the blocks. So the *Owed* of the entry below, live's deploy before 2026-11-19 at
+14:01, is done. Still the owner's: the first invitation's date (0131 T5) and the migration on live
+that proves alpha.10 (0132 T9).
 
 **2026-11-15, after the fold: `v0.2.0-alpha.10` is released, its nights waived (T2, T4).** Read
 from GitHub on 2026-11-15. Times are UTC.
