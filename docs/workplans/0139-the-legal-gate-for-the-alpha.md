@@ -2,7 +2,24 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-11-15 (update this block at the end of every session)
+## Status — 2026-11-16 (update this block at the end of every session)
+
+**2026-11-16: the housekeeping check names the close (T7 (a)).** `operator.sh check` on live, read
+by the owner on 2026-11-16, listed the two organisations the owner's own test grants made (on
+2026-10-07 and 2026-10-29), each with one member: the owner invitation nobody claimed. So
+`ownerless-tenant` found nobody to promote and stopped at *"treat this as an abandoned
+organisation"*, and `stale-invitation` offered a `DELETE` of the invitation. Neither named
+`operator.sh close` (T7 (a)), the audited way to end an organisation. And the `DELETE` leads to
+`empty-tenant`, whose `clean` deletes the organisation: on a stack that lets people in by request,
+as live does, every organisation was made by a granted request, and that statement fails on the
+request's foreign key (`ON DELETE RESTRICT`, migration 0007). Read on PGlite with every migration:
+*update or delete on table "tenant" violates RESTRICT setting of foreign key constraint
+"access_request_tenant_fkey"*. Now `empty-tenant` marks an organisation a granted request names,
+its `clean` refuses that one and names the close, and the check prints
+`operator.sh close <tenant-id> 0 --by <your-subject> --reference '…'` for it, for an organisation with
+nobody active, and, from an unanswered invitation, says that closing the organisation takes the
+invitation with it when the invitee is all there is. The purge after a close deletes the request
+first (`offboarding.ts`), and a close is audited (`tenant.closed`); the clean is neither.
 
 **2026-11-15: the owner's approval of the final texts for the Alpha, version 1.0 (T1; D1 as
 amended).** Recorded with its date and the version, as D1's amendment asks. On 2026-11-15 at 14:47

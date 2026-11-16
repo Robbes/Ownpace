@@ -175,6 +175,22 @@ const notASubject = (column: string): string => NOT_A_SUBJECT.split('%COL%').joi
 const plural = (n: number, one: string, many: string): string => `${n} ${n === 1 ? one : many}`;
 
 /**
+ * `empty-tenant`'s `note` when the access request that provisioned the
+ * organisation still names it. Every organisation on a stack that lets people
+ * in by request has one, until the purge after a close deletes it.
+ */
+export const MADE_BY_A_GRANT = 'granted request';
+
+/**
+ * The close an abandoned organisation needs, ready to paste but for the two
+ * values only the operator has: their own subject (`operator.sh list`) and what
+ * they act on. A window of 0, because an organisation nobody uses has nothing
+ * to come back for; `operator.sh close` takes 7, 30 or 90 as well.
+ */
+const closeCommand = (tenantId: string): string =>
+  `./deploy/compose/operator.sh close ${tenantId} 0 --by <your-subject> --reference '<what you act on>'`;
+
+/**
  * Every question `operator.sh check` asks, in the order it asks them.
  *
  * ORDERED BY WHO IS HURT. An ownerless organisation has real people in it who
@@ -223,8 +239,10 @@ export const HOUSEKEEPING_CHECKS: readonly HousekeepingCheck[] = [
           `        UPDATE tenant_member SET role = 'owner', updated_at = now()\n` +
           `         WHERE tenant_id = '${row.id}' AND email = '${row.note.split("'").join("''")}';`
         : 'nobody in it is active, so there is nobody to promote — the members are\n' +
-          '        invited or suspended. Reinstate one first, or treat this as an\n' +
-          '        abandoned organisation.',
+          '        invited or suspended. Reinstate one first, or, when it is abandoned,\n' +
+          '        close it. The purge after its window erases it with its members and\n' +
+          '        the request that made it; a window of 0 cannot be undone:\n' +
+          `        ${closeCommand(row.id)}`,
     // NOT CLEANABLE, and this is the clearest case of why. Picking who becomes
     // the owner of somebody else's organisation is not a tidy-up; it is a
     // decision with a person's name on it, and a script that made it would be
@@ -398,8 +416,10 @@ export const HOUSEKEEPING_CHECKS: readonly HousekeepingCheck[] = [
     remedy: (row) =>
       're-send it, or withdraw it:\n' +
       `        DELETE FROM tenant_member WHERE id = '${row.id}';\n` +
-      '        (check `operator.sh check ownerless-tenant` afterwards if they were\n' +
-      '        the only owner)',
+      '        When they are the only one in it, `ownerless-tenant` lists the\n' +
+      '        organisation too, and closing it there takes the invitation with it.\n' +
+      '        Otherwise run `operator.sh check ownerless-tenant` afterwards: they may\n' +
+      '        have been its only owner.',
     // NOT CLEANABLE. Withdrawing somebody's invitation is a decision — thirty
     // days is a heuristic, not a fact about whether they are coming — and doing
     // it in bulk could leave an organisation with no owner, which is the finding
@@ -423,7 +443,8 @@ export const HOUSEKEEPING_CHECKS: readonly HousekeepingCheck[] = [
     find: `
       SELECT t.id::text AS id,
              t.name     AS label,
-             t.status   AS note,
+             CASE WHEN EXISTS (SELECT 1 FROM access_request ar WHERE ar.tenant_id = t.id)
+                  THEN '${MADE_BY_A_GRANT}' ELSE '' END AS note,
              ((SELECT count(*) FROM mailbox_mapping m WHERE m.tenant_id = t.id)
             + (SELECT count(*) FROM connection c WHERE c.tenant_id = t.id))::int AS count,
              (SELECT count(*) FROM invoice i WHERE i.tenant_id = t.id)::int AS other_count,
@@ -433,14 +454,22 @@ export const HOUSEKEEPING_CHECKS: readonly HousekeepingCheck[] = [
                           WHERE tm.tenant_id = t.id
                             AND tm.status NOT IN ('removed', 'declined'))
        ORDER BY t.created_at`,
-    // count = mappings + connections; otherCount = invoices.
+    // count = mappings + connections; otherCount = invoices; note = MADE_BY_A_GRANT
+    // when the access request that provisioned it still names it, else ''.
     describe: (row) =>
       `${row.label} [${row.id}] — nobody in it, ${plural(row.count, 'mapping/connection', 'mappings/connections')}, ` +
-      `${plural(row.otherCount, 'invoice', 'invoices')}, created ${plural(row.ageDays, 'day', 'days')} ago`,
+      `${plural(row.otherCount, 'invoice', 'invoices')}` +
+      (row.note === MADE_BY_A_GRANT ? ', made for a granted request' : '') +
+      `, created ${plural(row.ageDays, 'day', 'days')} ago`,
     remedy: (row) =>
       row.count === 0 && row.otherCount === 0
-        ? 'it holds nothing — remove it:\n' +
-          '        ./deploy/compose/operator.sh clean empty-tenant --confirm'
+        ? row.note === MADE_BY_A_GRANT
+          ? 'it holds nothing, but the granted request that made it names it, and the\n' +
+            '        database refuses to delete an organisation a granted request names.\n' +
+            '        Close it: the purge after its window erases it and its request together:\n' +
+            `        ${closeCommand(row.id)}`
+          : 'it holds nothing — remove it:\n' +
+            '        ./deploy/compose/operator.sh clean empty-tenant --confirm'
         : 'it holds work. Put somebody back in rather than deleting it:\n' +
           '        BEGIN;\n' +
           `        SELECT set_config('app.current_tenant', '${row.id}', true);\n` +
@@ -454,9 +483,20 @@ export const HOUSEKEEPING_CHECKS: readonly HousekeepingCheck[] = [
       // UPDATE precisely because they must not change after issue. So this
       // removes only a tenant that holds nothing at all: no mapping, no
       // connection, no invoice. Everything else is reported and left alone.
+      //
+      // THE THIRD GATE: the request that made it. Migration 0007 keeps a granted
+      // request's organisation with ON DELETE RESTRICT, so on a stack where every
+      // organisation was granted, as live's is, the DELETE below fails on the
+      // foreign key. The purge after a close deletes the request first
+      // (offboarding.ts), and a close is audited; this clean is neither, so it
+      // refuses and names the close.
       can: (row) =>
         row.count === 0 && row.otherCount === 0
-          ? null
+          ? row.note === MADE_BY_A_GRANT
+            ? 'the granted request that made it names it, and the database refuses to delete an ' +
+              'organisation a granted request names (migration 0007). Close it instead: ' +
+              '`operator.sh check empty-tenant` prints the command.'
+            : null
           : `holds ${plural(row.count, 'mapping/connection', 'mappings/connections')} and ` +
             `${plural(row.otherCount, 'invoice', 'invoices')} — deleting it would cascade them away. ` +
             'Put an owner back instead.',

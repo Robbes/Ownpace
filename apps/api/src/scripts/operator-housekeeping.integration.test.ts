@@ -28,6 +28,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { Pool } from 'pg';
 import {
   checkByKind,
+  MADE_BY_A_GRANT,
   HOUSEKEEPING_CHECKS,
   type HousekeepingRow,
 } from './operator-housekeeping.ts';
@@ -81,8 +82,11 @@ async function findMine(kind: string, ids: readonly string[]): Promise<Housekeep
 async function wipe(): Promise<void> {
   await pool.query(`DELETE FROM platform_operator WHERE user_id = ANY($1::text[])`, [MY_SUBJECTS]);
   // `tenant` cascades to members, connections and everything else this file
-  // makes, but for a sharing list: `share_grant` has no foreign key.
+  // makes, but for a sharing list: `share_grant` has no foreign key. And a
+  // granted request keeps its organisation (ON DELETE RESTRICT, migration
+  // 0007), so it goes first.
   await pool.query(`DELETE FROM share_grant WHERE tenant_id = ANY($1::uuid[])`, [MY_TENANTS]);
+  await pool.query(`DELETE FROM access_request WHERE tenant_id = ANY($1::uuid[])`, [MY_TENANTS]);
   await pool.query(`DELETE FROM tenant WHERE id = ANY($1::uuid[])`, [MY_TENANTS]);
 }
 
@@ -192,6 +196,41 @@ describe('an organisation with nobody in it', () => {
     }
     const { rows } = await pool.query(`SELECT grant_hash FROM share_grant WHERE tenant_id = $1`, [EMPTY_TENANT]);
     expect(rows, 'the organisation went and its leftover sharing list stayed, for good').toEqual([]);
+  });
+
+  it('is found but refused while the granted request that made it names it', async () => {
+    // Every organisation on live was made this way, and the request keeps it:
+    // a plain DELETE fails on the foreign key. The close's purge is the way.
+    await pool.query(`INSERT INTO tenant (id, name) VALUES ($1, $2)`, [
+      EMPTY_TENANT,
+      `${MARK} granted`,
+    ]);
+    await pool.query(
+      `INSERT INTO access_request (email, organisation, state, tenant_id, decided_by, decided_at)
+       VALUES ($1, $2, 'granted', $3, $4, now())`,
+      [`${MARK}-granted@example.test`, `${MARK} granted`, EMPTY_TENANT, GOOD_SUBJECT],
+    );
+
+    const found = await findMine('empty-tenant', [EMPTY_TENANT]);
+    expect(found).toHaveLength(1);
+    expect(found[0]!.note).toBe(MADE_BY_A_GRANT);
+    const check = checkByKind('empty-tenant')!;
+    expect(check.clean!.can(found[0]!)).toContain('migration 0007');
+    expect(check.remedy(found[0]!)).toContain(`operator.sh close ${EMPTY_TENANT} 0`);
+
+    // Why it refuses: the statement it would have run fails on the request.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(`SELECT set_config('app.current_tenant', $1, true)`, [EMPTY_TENANT]);
+      await expect(client.query(check.clean!.sql, [EMPTY_TENANT])).rejects.toThrow(
+        /access_request_tenant_fkey/,
+      );
+    } finally {
+      await client.query('ROLLBACK');
+      client.release();
+    }
+    expect(await findMine('empty-tenant', [EMPTY_TENANT]), 'and it is still there').toHaveLength(1);
   });
 
   it('is found but refused when it holds work', async () => {
