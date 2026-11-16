@@ -4,6 +4,39 @@
 
 ## Status — 2026-11-16 (update this block at the end of every session)
 
+**2026-11-16, in the evening: pnpm 11.28.12, the one `packageManager` line (#1923), and live's
+duties with GoAccess on Alpine 3.24.4.** Times are UTC.
+
+- **pnpm 11.28.12, from 11.28.9.** npm dates it 2026-11-13 at 21:01:02 and names it `latest-11`
+  (read on 2026-11-16 at 20:58; `latest` is 12.21.0, a major and the owner's call, as the pin
+  watch's issue says). It passed the three-day floor at 21:01:02 on 2026-11-16, and its pull
+  request was pushed after that. Under it, `pnpm install --frozen-lockfile` leaves
+  `pnpm-lock.yaml` byte-identical, and `pnpm audit` reads the one advisory that lockfile carries
+  on `main`: GHSA-g3hv-75wg-m249, moderate, on the deploy CLI's minimatch 10.2.6
+  (`trigger.dev>minimatch`), kept on purpose (the entry of 2026-11-08). Read for it: the
+  11.28.10, 11.28.11 and 11.28.12 entries of the package's own `CHANGELOG.md`. 11.28.12 names a
+  security fix: a `${VAR}` placeholder in a registry address in `pnpm-workspace.yaml` or a
+  project's `.npmrc` now fails the command, where pnpm used to ignore the address and resolve from
+  another registry, such as npmjs.org; and the `node-gyp` it bundles no longer ships undici 6,
+  which scanners flag for CVE-2026-84947. This repository has no `.npmrc` and names no registry
+  in `pnpm-workspace.yaml`, so the first changes nothing here. 11.28.10 stops `pnpm store prune`
+  from deleting other stores; 11.28.11 fixes frozen installs with `excludeLinksFromLockfile` and
+  `pnpm deploy` with dangling symlinks; 11.28.12 also fixes peer-dependency, frozen-lockfile and
+  `nodeLinker: hoisted` cases. The images take it from `packageManager` through corepack 0.36.0,
+  whose check of npm's signature passes it: npm signed 11.28.12 with the key that signed 11.28.9
+  (`SHA256:DhQ8wR5A…`, both versions' `dist.signatures`). CI takes it from the same field through
+  `pnpm/action-setup`. On a host, the pnpm the deploy runs switches itself to it in the checkout
+  (`docs/managed-bring-up.md`, the Node move's step 4), so live's first deploy of a tag with it
+  fetches 11.28.12 there, the first such switch since 11.28.9. CI on its pull request, and the
+  image builds on `main` after the merge, since the Images workflow builds on a pull request only
+  when a Dockerfile, `deploy/` or the workflow changes; no E2E, as for 11.28.9.
+- **Live's duties, with GoAccess on Alpine 3.24.4.** The record the owner read on live on
+  2026-11-16 says the duty run at 13:17:33 passed, every duty with it. It is the first daily run
+  since live took a tag with #1892 (alpha.9, on 2026-11-15 at 16:29:16; alpha.10 since 07:02:20
+  on 2026-11-16), so its `visits` duty built GoAccess's image from alpha.10's
+  `deploy/compose/goaccess/Dockerfile`, on `alpine:3.24.4`, and counted the site's visits with it,
+  as the alpha.9 entry below expected.
+
 **2026-11-16, recorded: live runs alpha.10, on alpha.9's pins.** The owner deployed
 `v0.2.0-alpha.10` (tagged 2026-11-15 on `fe0b1be2`) to live on 2026-11-16, from alpha.9 in one run
 of alpha.9's script, which took at 07:02:20 UTC, reversible, as the entry below expected: no image

@@ -14,6 +14,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   submission. Both were published on 2026-11-12. Taken after E2E (managed) was green on its head
   (run 43825325675); the O365 lane, which signs in with it against a real tenant, has had no run
   since 2026-11-02 (0141 T13 (a)).
+- **pnpm is 11.28.12, from 11.28.9** (workplan 0119; the pin watch's #1923): CI and the images
+  take pnpm from `packageManager`, and the pnpm a host deploys with switches itself to it.
+  11.28.12 is the one of the three with a security fix: a `${VAR}` placeholder in a registry
+  address in `pnpm-workspace.yaml` or `.npmrc` now fails the command, where pnpm used to resolve
+  from another registry, and the `node-gyp` it bundles no longer ships undici 6, which scanners
+  flag for CVE-2026-84947. This repository writes no such address. 11.28.10 and 11.28.11 fix the
+  store's prune, frozen installs and `pnpm deploy`. Published on 2026-11-13 and taken after
+  pnpm's three days. The lockfile does not change.
 
 ### Fixed
 
