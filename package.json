@@ -23,7 +23,7 @@
     "workplans:index": "node scripts/workplan-index.mjs --write"
   },
   "dependencies": {
-    "@azure/msal-node": "^7.2.1",
+    "@azure/msal-node": "^7.2.2",
     "@trigger.dev/core": "4.8.5",
     "@trigger.dev/sdk": "4.8.5",
     "croner": "^11.0.0",
