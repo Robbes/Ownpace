@@ -31,6 +31,7 @@ import { fileURLToPath } from 'node:url';
 import {
   checkByKind,
   HOUSEKEEPING_CHECKS,
+  MADE_BY_A_GRANT,
   HOUSEKEEPING_KINDS,
   notCleanableRefusal,
   unknownKindRefusal,
@@ -168,6 +169,25 @@ describe('cleaning is narrower than reporting', () => {
     expect(check.clean!.can(row({ count: 1, otherCount: 1 }))).toContain('cascade');
   });
 
+  it('refuses an organisation its granted request still names, and names the close', () => {
+    // Migration 0007 keeps a granted request's organisation with ON DELETE
+    // RESTRICT, so on live, where every organisation was granted, the clean's
+    // DELETE would fail on the foreign key. The close is the way: its purge
+    // deletes the request first, and it is audited.
+    const check = checkByKind('empty-tenant')!;
+    const granted = row({ note: MADE_BY_A_GRANT });
+    expect(check.clean!.can(granted)).toContain('migration 0007');
+    expect(check.clean!.can(granted)).toContain('Close it instead');
+    const remedy = check.remedy(granted);
+    expect(remedy).toContain(`operator.sh close ${granted.id} 0 --by <your-subject>`);
+    expect(remedy, 'never offers the clean that would fail').not.toContain('clean empty-tenant');
+    expect(check.describe(granted)).toContain('made for a granted request');
+    // And one no request names is as before: it may go.
+    expect(check.clean!.can(row())).toBeNull();
+    expect(check.remedy(row())).toContain('clean empty-tenant --confirm');
+    expect(check.describe(row())).not.toContain('granted');
+  });
+
   it('offers the way back in rather than the delete, when it holds work', () => {
     const check = checkByKind('empty-tenant')!;
     const holding = check.remedy(row({ count: 3 }));
@@ -201,6 +221,17 @@ describe('cleaning is narrower than reporting', () => {
     const none = check.remedy(row({ note: '' }));
     expect(none).not.toContain('UPDATE tenant_member');
     expect(none).toContain('nobody to promote');
+    // An abandoned one is closed, by its id, and the line says what 0 means.
+    expect(none).toContain(`operator.sh close ${row().id} 0 --by <your-subject>`);
+    expect(none).toContain('cannot be undone');
+  });
+
+  it('points an unanswered invitation at the close when it is all there is', () => {
+    const check = checkByKind('stale-invitation')!;
+    const remedy = check.remedy(row({ note: 'Acme Families', ageDays: 40 }));
+    expect(remedy).toContain('DELETE FROM tenant_member');
+    expect(remedy).toContain('`ownerless-tenant` lists the');
+    expect(remedy).toContain('closing it there takes the invitation with it');
   });
 
   it("escapes an address, because somebody's really does have a quote in it", () => {

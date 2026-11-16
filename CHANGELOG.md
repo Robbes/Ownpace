@@ -20,6 +20,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 - **The operator runbook no longer speaks of a close button** (workplans 0139 T7 and 0144 T8):
   the app has none yet, so `operator.sh close` is how every close a tester asks for is made. It
   is the same close as the owner's route, `POST /api/tenants/:tenantId/close`.
+- **`operator.sh check` names the close for an abandoned organisation, and `clean empty-tenant` no
+  longer runs a delete the database refuses** (workplan 0139 T7 (a)): an organisation made by a
+  granted access request cannot be deleted while the request names it (migration 0007), and on a
+  stack that lets people in by request every organisation is one. The clean now refuses such an
+  organisation, and the check prints `operator.sh close <tenant-id> 0 …` for it, for an
+  organisation with nobody active, and, from an unanswered invitation, when the invitee is all
+  there is.
 
 ## [0.2.0-alpha.10] - 2026-11-15
 
