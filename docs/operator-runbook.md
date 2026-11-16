@@ -1679,14 +1679,18 @@ If they asked for their migration records too, make the export first
 (*An export on request*, above): with a window of `0`, the next purge leaves
 nothing to export.
 
-It is the same close the button makes (`closeAccount` in
+It is the same close as the owner's route above (`closeAccount` in
 `apps/api/src/close-account.ts`), and it prints the same answer as the table
 below: both dates, the sentence in English and in Dutch, and what outlives the
 erasure. That is what you send them. It refuses a window outside the list, and a
 subject that is not an appointed operator's (`operator.sh list`). The audit log
 records the close as `tenant.closed`, with you as the actor and the reference
-beside `via: operator`; a close from the button names its owner and
+beside `via: operator`; a close through the owner's route names its owner and
 `via: screen`.
+
+**The app has no close button yet** (workplan 0144 T8, proposed). Until it has
+one, a tester cannot close their organisation from the app, and every close
+they ask for is made with this command.
 
 Syncs and billing stop immediately. Nothing is deleted yet. A window of `0`
 cannot be undone and the response says so (`canReopenUntil: null`); every other
