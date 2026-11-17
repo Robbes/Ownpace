@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.11] - 2026-11-17
+
+An operator can now close and reopen an organisation from its support page:
+for a tester who asks to end their account and cannot press their own Close,
+or for an organisation nobody uses. The list of organisations says which ones
+nobody uses, when each one's latest pass began, and when a closed one is
+erased. Underneath, Trigger.dev's object store moves to Chainguard's newest
+MinIO build, with glibc's fixes for two vulnerabilities, and the Microsoft
+sign-in library and pnpm move on. Live's deploy from alpha.10 is one-way:
+managed migration 0060 adds five columns to the operator's view of
+organisations, so the deploy takes a copy first.
+
 ### Security
 
 - **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-17, with

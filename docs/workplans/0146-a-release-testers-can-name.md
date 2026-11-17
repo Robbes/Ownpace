@@ -4,6 +4,27 @@
 
 ## Status — 2026-11-17 (update this block at the end of every session)
 
+**2026-11-17, last: the fold for `v0.2.0-alpha.11` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.11`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-17, under a summary; [Unreleased] stays, empty. alpha.11 carries what
+`main` merged after alpha.10's tag: `@azure/msal-node` 7.2.2 and `@testing-library/user-event`
+14.6.10 (#1920), the runbook's close (#1922), the housekeeping check's close (#1924), pnpm 11.28.12
+(#1925), the support page's Close and Reopen and the list that says which organisations nobody
+uses, with managed migration 0060 (#1928), and MinIO's build of 2026-11-17, with glibc's fixes for
+CVE-2026-100290 and CVE-2026-115819 (#1929).
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.11 (*A, waive alpha.11's nights*; and on 2026-11-17,
+  *"I waive all waiting time included the nights."*): E2E (managed) and E2E (self-hosted) on
+  Postgres and on PGlite, dispatched on `main` at C, one at a time, beside C's push runs and its
+  Windows smoke.
+- **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
+  `waive_nights` set to *A, waive alpha.11's nights*, and the approval in the `release`
+  environment.
+- **Live's deploy** from alpha.10 is one-way: managed migration 0060 moves, and MinIO's pin with
+  it. The take copies alpha.10's databases only once the copy before alpha.8 is gone: after
+  2026-11-20 at 14:01, when the take deletes it first, or sooner, once a pass of the owner's own
+  migration on live proves the update and the box checks delete it (the entry below).
+
 **2026-11-17, later: every wait before alpha.11's tag is waived, so MinIO moves now and the fold
 follows it (T2, T7).** The owner, on 2026-11-17: *"I waive all waiting time included the
 nights."* The nights were waived already (the entry below). The three-day floor of MinIO's next
