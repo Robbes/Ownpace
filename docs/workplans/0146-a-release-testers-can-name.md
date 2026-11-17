@@ -2,7 +2,30 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-16 (update this block at the end of every session)
+## Status — 2026-11-17 (update this block at the end of every session)
+
+**2026-11-17: alpha.11's counted nights are waived, before its fold, and its plan is set (T2).**
+`v0.2.0-alpha.11` joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to
+alpha.10, with the waiver's words, *A, waive alpha.11's nights*, the owner's of 2026-11-17, which
+Release's `waive_nights` must carry. The two guards that hold the list,
+`a-release-preflight-that-said-yes-too-soon` and `a-tag-that-already-pointed-elsewhere`, name it,
+with `v0.2.0-alpha.12` now the version a waiver is refused for, and `docs/release.md` lists it.
+Nothing here reaches an image, a compose file, a migration or product code, and the CHANGELOG is
+untouched.
+- **The plan, the owner's A of 2026-11-17.** The fold comes after MinIO's rebuild `1ec745a0…`
+  merges, past its three days on 2026-11-19 at 15:08:47 UTC, with its image scan and E2E (managed)
+  on its branch; the tag the same evening; live's deploy on 2026-11-20 after 14:01 UTC. The copy
+  before alpha.8, taken on 2026-11-14 at 15:01:07, is on its last day from 2026-11-19 at 14:01
+  to 2026-11-20 at 14:01 UTC, and on that day every take refuses (0132's Status, 2026-11-16).
+- **What alpha.11 carries so far,** merged after alpha.10's tag: `@azure/msal-node` 7.2.2 and
+  `@testing-library/user-event` 14.6.10 (#1920), the runbook's close (#1922), the housekeeping
+  check's close (#1924) and pnpm 11.28.12 (#1925). Since alpha.10's tag no migration file, compose
+  file, Dockerfile or Trigger.dev file has moved.
+- **In the nights' place,** as for alpha.4 to alpha.10: E2E (managed) and E2E (self-hosted) on
+  Postgres and on PGlite, dispatched on `main` at C, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
+  `waive_nights` set to the same words, and the approval in the `release` environment. The O365
+  lane for alpha.11 was put to the owner on 2026-11-16 and is not answered yet (0141 T13 (a)).
 
 **2026-11-16: live runs `v0.2.0-alpha.10` (T2).** The owner deployed it from the tag on
 2026-11-16: one run of alpha.9's `deploy-live.sh`, from about 06:58 UTC, which took at 07:02:20,
