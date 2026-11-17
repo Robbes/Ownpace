@@ -5,10 +5,11 @@
 ## Status — 2026-11-17 (update this block at the end of every session)
 
 **2026-11-17, last: what alpha.11 moves.** The fold for `v0.2.0-alpha.11` (0146's entry of the
-same day) carries #1920, #1922, #1924, #1925, #1928 and #1929. For live, MinIO's pin moves to
-`59953701…` (#1929, the entry below) and managed migration 0060 (#1928) moves; the Trigger.dev,
+same day) carries #1920, #1922, #1924, #1925, #1928, #1929 and #1931. For live, MinIO's pin moves
+to `59953701…` (#1929, its entry below) and managed migration 0060 (#1928) moves; the Trigger.dev,
 identity-provider and ClickHouse pins do not. So live's deploy from alpha.10 is one-way by the
 deploy's own rule, and pnpm 11.28.12 (#1925) is the pnpm its host switches to in the checkout.
+#1931 changes CI alone: the advisory gate accepts GHSA-fc5q-39xc-vjpf by name (its entry below).
 
 **2026-11-17, in the evening: GHSA-fc5q-39xc-vjpf, a high in picomatch that no release fixes,
 accepted by name to 2026-12-17 at most.** Times are UTC. GitHub's advisory database reviewed

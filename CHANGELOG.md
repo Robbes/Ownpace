@@ -12,7 +12,9 @@ or for an organisation nobody uses. The list of organisations says which ones
 nobody uses, when each one's latest pass began, and when a closed one is
 erased. Underneath, Trigger.dev's object store moves to Chainguard's newest
 MinIO build, with glibc's fixes for two vulnerabilities, and the Microsoft
-sign-in library and pnpm move on. Live's deploy from alpha.10 is one-way:
+sign-in library and pnpm move on. The advisory gate accepts one advisory no
+release fixes yet, a ReDoS in picomatch that only developer tools reach, by
+name and until 2026-12-17 at most. Live's deploy from alpha.10 is one-way:
 managed migration 0060 adds five columns to the operator's view of
 organisations, so the deploy takes a copy first.
 
