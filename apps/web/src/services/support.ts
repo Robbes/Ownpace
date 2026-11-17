@@ -43,6 +43,17 @@ export interface SupportTenant {
    * no migration, and that difference is the interesting part.
    */
   readonly pending_decision_count: number | string;
+  // ---- Whether anybody uses it, and when a closed one goes (managed 0060).
+  /** Its connections, sources and targets. */
+  readonly connection_count: number | string;
+  /** Its ACTIVE members: people who signed in and are in it. An unclaimed invitation is not one. */
+  readonly member_count: number | string;
+  /** When its latest pass began, or null if none ever did. */
+  readonly last_pass_at: string | null;
+  /** When it was closed, or null while it is open. */
+  readonly closed_at: string | null;
+  /** The day the purge erases it, or null while it is open. Reopenable until then. */
+  readonly purge_after: string | null;
 }
 
 export interface SupportConnection {
@@ -269,6 +280,56 @@ export async function listMoneyToGiveBack(): Promise<MoneyToGiveBack[]> {
 /** Mark one paid back by hand, once, in the signed-in operator's name. */
 export async function markMoneyGivenBack(creditNoteId: string): Promise<void> {
   await apiClient.post(`/support/money-to-give-back/${encodeURIComponent(creditNoteId)}/given-back`);
+}
+
+/** One thing that keeps working after the erasure, and where its owner removes it. */
+export interface OutlivingAccess {
+  readonly heading: string;
+  readonly body: string;
+  readonly where: string;
+}
+
+/**
+ * What a close answers (`closeAccount`, the same answer at every door): both
+ * dates, and what to tell the people it was closed for, in both languages.
+ */
+export interface SupportClosedAccount {
+  readonly status: 'closed';
+  /** The day the purge erases it from the live service. */
+  readonly purgeAfter: string;
+  readonly windowDays: number;
+  /** The day the last backup that could hold it ages out. */
+  readonly backupsExpireAt: string;
+  readonly erasureCompletesText: { readonly en: string; readonly nl: string };
+  /** Until when it can be reopened, or null for a window of 0. */
+  readonly canReopenUntil: string | null;
+  /** How many passes in flight the orchestrator was asked to stop. */
+  readonly passesStopped: number;
+  readonly outlivingAccess: {
+    readonly en: ReadonlyArray<OutlivingAccess>;
+    readonly nl: ReadonlyArray<OutlivingAccess>;
+  };
+}
+
+/**
+ * Close an organisation, in the signed-in operator's name, for the request
+ * `reference` names (0139 T7 (b)): the close `operator.sh close` makes,
+ * recorded in the audit log as `tenant.closed`.
+ */
+export async function closeSupportTenant(
+  tenantId: string,
+  close: { windowDays: number; reference: string },
+): Promise<SupportClosedAccount> {
+  const response = await apiClient.post<SupportClosedAccount>(
+    `/support/tenants/${encodeURIComponent(tenantId)}/close`,
+    close,
+  );
+  return response.data;
+}
+
+/** Reopen a closed organisation while its window is open, recorded as `tenant.reopened`. */
+export async function reopenSupportTenant(tenantId: string, reference: string): Promise<void> {
+  await apiClient.post(`/support/tenants/${encodeURIComponent(tenantId)}/reopen`, { reference });
 }
 
 /**

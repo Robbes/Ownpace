@@ -52,6 +52,15 @@
  * line is made from the whole row. `/audit-export` is its one reader, and
  * passes no row through: each leaves as that line, an address or a file name
  * as its pseudonym and an unclassified field left out.
+ *
+ * ## The writes, each its own record
+ *
+ * Three routes here change something rather than read it: the mark that money
+ * was given back, and an organisation's close and reopen (0139 T7 (b)). Each is
+ * its own record of who and when (`money_given_back`; the audit log's
+ * `tenant.closed` and `tenant.reopened`), so none writes a `support_read` row.
+ * The close and the reopen are the one place this file asks "is this an
+ * operator" itself, and why is said where they are.
  */
 
 import { Router } from 'express';
@@ -66,8 +75,22 @@ import {
   auditExportPageQuery,
 } from '@openmig/ledger';
 import type { LedgerDriver, PathState } from '@openmig/ledger';
-import { recordSupportRead, observedTier, listMoneyToGiveBack, markMoneyGivenBack } from '@openmig/managed';
+import {
+  recordSupportRead,
+  observedTier,
+  listMoneyToGiveBack,
+  markMoneyGivenBack,
+  isCloseWindow,
+  CLOSE_WINDOWS_DAYS,
+} from '@openmig/managed';
+import { getTriggerClient } from '@openmig/scheduler';
 import { auditPseudonymKey } from '../audit-key.ts';
+import {
+  NotAnAppointedOperator,
+  REFERENCE_MAX,
+  reopenAsOperator,
+  runCloseCommand,
+} from '../close-account.ts';
 import {
   LOG_FILTERS,
   LOG_PAGE,
@@ -189,7 +212,8 @@ router.get('/tenants', authenticateSubject, async (req: AuthenticatedRequest, re
     const tenants = await withSubject(pool(), userId, async (db) => {
       const result = await db.execute(
         sql`SELECT tenant_id, tenant_name, tenant_status, joined_at,
-                   migration_count, failing_domain_count, pending_decision_count
+                   migration_count, failing_domain_count, pending_decision_count,
+                   connection_count, member_count, last_pass_at, closed_at, purge_after
               FROM public.support_tenants
              ORDER BY tenant_name`,
       );
@@ -237,7 +261,8 @@ router.get(
       const found = await withSubject(pool(), userId, async (db) => {
         const head = await db.execute(
           sql`SELECT tenant_id, tenant_name, tenant_status, joined_at,
-                     migration_count, failing_domain_count, pending_decision_count
+                     migration_count, failing_domain_count, pending_decision_count,
+                     connection_count, member_count, last_pass_at, closed_at, purge_after
                 FROM public.support_tenants WHERE tenant_id = ${tenantId}::uuid`,
         );
         const tenantRows = head.rows as Row[];
@@ -302,6 +327,196 @@ router.get(
       res.json(found);
     } catch (error) {
       serverFault(res, 'support_tenant_failed', 'reading one organisation', error);
+    }
+  },
+);
+
+/**
+ * The reference an operator's close or reopen keeps on its audit row: the
+ * tester's request, or why. Trimmed, required, at most `REFERENCE_MAX`
+ * characters, the rule `operator.sh close` applies to `--reference`.
+ */
+function referenceOf(value: unknown): string | { error: string } {
+  const reference = typeof value === 'string' ? value.trim() : '';
+  if (reference === '') {
+    return { error: 'reference names the request you act on: a ticket, or the date of their mail' };
+  }
+  if (reference.length > REFERENCE_MAX) {
+    return { error: `reference is at most ${REFERENCE_MAX} characters` };
+  }
+  return reference;
+}
+
+/**
+ * An organisation's status, as the signed-in subject's `support_tenants` serves
+ * it, or null: for an id that names no organisation and for a subject who is no
+ * operator alike, because to that subject the view holds no such row.
+ */
+async function statusAsServed(subject: string, tenantId: string): Promise<string | null> {
+  return withSubject(pool(), subject, async (db) => {
+    const found = await db.execute(
+      sql`SELECT tenant_status FROM public.support_tenants WHERE tenant_id = ${tenantId}::uuid`,
+    );
+    const row = found.rows[0] as Row | undefined;
+    return row ? String(row.tenant_status) : null;
+  });
+}
+
+/**
+ * THE OPERATOR CLOSES AN ORGANISATION (workplan 0139 T7 (b)): the support
+ * page's Close, for a tester who asked (terms §11) and cannot press their own,
+ * or an organisation nobody uses.
+ *
+ * It is the close `operator.sh close` makes, through the same function
+ * (`runCloseCommand`, over `closeAccount`): the same dates, the same sentences
+ * in both languages, the same passes asked to stop, and the same audit row,
+ * `tenant.closed` with the operator as its actor and the reference beside
+ * `via: operator`.
+ *
+ * ## Here the database does not decide alone
+ *
+ * Every read on this surface is authorised by the views. A close is a write in
+ * the organisation's own context, where row security lets the organisation's
+ * rows through to anybody, so the subject is asked about twice before it: the
+ * organisation must be on the subject's `support_tenants`, which is an
+ * operator's view and holds only organisations that exist, and
+ * `runCloseCommand` asks `platform_operator` itself, as it does at the
+ * machine. A subject who is not an operator gets the 404 every route here
+ * gives, and nothing is closed.
+ *
+ * ## What it answers
+ *
+ * 400 for a window outside `CLOSE_WINDOWS_DAYS` or a missing reference, before
+ * anything is read. 409 for an organisation that is not open: one closed
+ * already keeps its window, which a reopen undoes, and one being erased cannot
+ * be closed. 200 with the close's own answer, which the page shows: both dates,
+ * and what to tell them, in English and in Dutch.
+ */
+router.post(
+  '/tenants/:tenantId/close',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const operator = req.userId;
+      if (!operator) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const tenantId = oneUuid(req.params.tenantId);
+      if (!tenantId) {
+        return void res.status(400).json({ error: 'Bad request', message: 'tenantId must be one uuid' });
+      }
+      const body = (req.body ?? {}) as { windowDays?: unknown; reference?: unknown };
+      const windowDays = body.windowDays;
+      if (!isCloseWindow(windowDays)) {
+        return void res.status(400).json({
+          error: 'bad_window',
+          message:
+            `windowDays must be one of ${CLOSE_WINDOWS_DAYS.join(', ')}: the days before the erasure. ` +
+            '0 erases at the next purge, and cannot be undone.',
+          allowed: CLOSE_WINDOWS_DAYS,
+        });
+      }
+      const reference = referenceOf(body.reference);
+      if (typeof reference !== 'string') {
+        return void res.status(400).json({ error: 'bad_reference', message: reference.error });
+      }
+
+      const status = await statusAsServed(operator, tenantId);
+      if (status === null) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      if (status !== 'active') {
+        return void res.status(409).json({
+          error: 'not_open',
+          message:
+            status === 'closed'
+              ? 'It is closed already: its window stands until a reopen undoes it'
+              : 'Its erasure has begun, so there is nothing to close',
+        });
+      }
+
+      const closed = await runCloseCommand(
+        pool(),
+        { tenantId, windowDays, by: operator, reference },
+        // Built only when a pass in flight has to be asked to stop.
+        { cancelRun: async (ref) => void (await getTriggerClient().runs.cancel(ref)) },
+      );
+      res.json(closed);
+    } catch (error) {
+      if (error instanceof NotAnAppointedOperator) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      // The purge took it between the read above and the close: a refusal,
+      // said as one, not a fault.
+      const message = error instanceof Error ? error.message : String(error);
+      if (/purge has already started/.test(message)) {
+        return void res.status(409).json({
+          error: 'not_open',
+          message: 'Its erasure has begun, so there is nothing to close',
+        });
+      }
+      serverFault(res, 'support_close_failed', 'closing an organisation', error);
+    }
+  },
+);
+
+/**
+ * The support page's Reopen, while the window is open (0139 T7 (b)): a close
+ * made by mistake, or a tester who changed their mind before the erasure.
+ * `reopenAccount`, the function the owner's Reopen calls, recorded as
+ * `tenant.reopened` under the operator with the reference.
+ *
+ * Asked about twice, as the close is. 409 for an organisation that is not
+ * closed, and for one whose window has run out, which a window of 0 has from
+ * the moment it closed.
+ */
+router.post(
+  '/tenants/:tenantId/reopen',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const operator = req.userId;
+      if (!operator) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const tenantId = oneUuid(req.params.tenantId);
+      if (!tenantId) {
+        return void res.status(400).json({ error: 'Bad request', message: 'tenantId must be one uuid' });
+      }
+      const reference = referenceOf((req.body as { reference?: unknown } | undefined)?.reference);
+      if (typeof reference !== 'string') {
+        return void res.status(400).json({ error: 'bad_reference', message: reference.error });
+      }
+
+      const status = await statusAsServed(operator, tenantId);
+      if (status === null) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      if (status !== 'closed') {
+        return void res.status(409).json({
+          error: 'cannot_reopen',
+          message: status === 'active' ? 'It is open' : 'Its erasure has begun',
+        });
+      }
+
+      await reopenAsOperator(pool(), { tenantId, by: operator, reference });
+      res.json({ status: 'active' });
+    } catch (error) {
+      if (error instanceof NotAnAppointedOperator) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      const message = error instanceof Error ? error.message : String(error);
+      if (/window has already passed|not closed/.test(message)) {
+        return void res.status(409).json({
+          error: 'cannot_reopen',
+          message: 'Its window has run out: the erasure is due, and a reopen can no longer happen',
+        });
+      }
+      serverFault(res, 'support_reopen_failed', 'reopening an organisation', error);
     }
   },
 );

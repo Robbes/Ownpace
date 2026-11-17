@@ -876,6 +876,17 @@ describe('once the owner reopens it, each door answers as it did before the clos
     grantLink = await mintGrantLink();
   });
 
+  it('the reopen is recorded, under the owner and their door (0139 T7 (b))', async () => {
+    // `reopenAccount`, the function the support page's Reopen calls too.
+    const recorded = await rows<{ actor: string; detail: unknown }>(
+      `SELECT actor, detail FROM audit_log
+        WHERE tenant_id = $1 AND action = 'tenant.reopened'
+        ORDER BY at DESC LIMIT 1`,
+      [TENANT],
+    );
+    expect(recorded).toEqual([{ actor: 'owner-sub', detail: { via: 'screen' } }]);
+  });
+
   it.each(OPEN_DOORS().map((d) => [d.name, d] as const))('%s', async (_name, door) => {
     const live = DOORS().find((d) => d.name === door.name)!;
     await resetFor(live);

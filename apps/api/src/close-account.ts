@@ -4,11 +4,13 @@
  * ENDING AN ACCOUNT, THE ONE WAY IT IS DONE (workplan 0139 T7 (a); 0085 T2 to
  * T8).
  *
- * Two doors end an account. The owner presses Close (`POST
+ * Three doors end an account. The owner presses Close (`POST
  * /api/tenants/:tenantId/close`). And a tester who asks the operator to close
- * it, as terms §11 lets them, is closed at the machine (`operator.sh close`).
- * Both are this function, so the two cannot drift: the same dates, the same
- * sentences in both languages, the same grants named, the same passes stopped.
+ * it, as terms §11 lets them, is closed by the operator: at the machine
+ * (`operator.sh close`), or on the organisation's support page (`POST
+ * /api/support/tenants/:tenantId/close`, 0139 T7 (b)). All three are this
+ * function, so they cannot drift: the same dates, the same sentences in both
+ * languages, the same grants named, the same passes stopped.
  *
  * What it does, in order:
  *
@@ -76,9 +78,10 @@ import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { PgLedger, withTenant, type LedgerDriver } from '@openmig/ledger';
 import * as schema from '@openmig/ledger/schema-pg';
-import { closeTenant, type CloseWindowDays } from '@openmig/managed';
+import { closeTenant, reopenTenant, type CloseWindowDays } from '@openmig/managed';
 import {
   accessThatOutlivesErasure,
+  backupRetentionDaysFromEnv,
   erasureNeverTouches,
   erasureScopeText,
   erasureTimeline,
@@ -88,16 +91,23 @@ import {
   type TenantId,
 } from '@openmig/shared';
 
-/** The audit action a close is recorded under, at either door. */
+/** The audit action a close is recorded under, at every door. */
 export const ACCOUNT_CLOSED_ACTION = 'tenant.closed';
+
+/** The audit action a reopen is recorded under, at either door. */
+export const ACCOUNT_REOPENED_ACTION = 'tenant.reopened';
 
 /** A close, as either door asks for it. */
 export interface CloseAccountRequest {
   readonly tenantId: string;
   readonly windowDays: CloseWindowDays;
-  /** Who closed it: the owner's subject at the screen, the operator's at the machine. */
+  /** Who closed it: the owner's subject at their screen, the operator's at theirs or the machine. */
   readonly closedBy: string;
-  /** Which door: the owner's Close, or `operator.sh close`. */
+  /**
+   * Whose door: the owner's Close (`screen`), or an operator's (`operator`),
+   * which is `operator.sh close` and the support page's Close alike. The audit
+   * row's actor says who; the reference says because of what.
+   */
   readonly via: 'screen' | 'operator';
   /** The tester's request the operator acts on (0139 T7 (a)): a ticket, a date. */
   readonly reference?: string;
@@ -203,3 +213,165 @@ export async function closeAccount(
 
 /** What a close answers. */
 export type ClosedAccount = Awaited<ReturnType<typeof closeAccount>>;
+
+/** A reopen, as either door asks for it. */
+export interface ReopenAccountRequest {
+  readonly tenantId: string;
+  /** Who reopened it: the owner's subject, or the operator's. */
+  readonly reopenedBy: string;
+  /** Whose door: the owner's Reopen (`screen`), or the support page's (`operator`). */
+  readonly via: 'screen' | 'operator';
+  /** Why an operator reopened it: the request, or the mistake, it answers. */
+  readonly reference?: string;
+  readonly reopenedAt: Date;
+}
+
+/**
+ * Undo a close while its window is open, and record who did, at either door
+ * (0085 T2; 0139 T7 (b)).
+ *
+ * `reopenTenant` decides whether it may happen: it refuses an organisation that
+ * is not closed, and one whose window has run out, which a window of 0 has from
+ * the start. The audit row is written in the same transaction, after it, so a
+ * refused reopen records nothing and an allowed one cannot go unrecorded.
+ *
+ * Nothing is restored by hand: the close left every migration as it was, and
+ * everything that starts work reads the organisation's status, which this sets
+ * back to `active`.
+ */
+export async function reopenAccount(
+  source: Pool | LedgerDriver,
+  request: ReopenAccountRequest,
+): Promise<void> {
+  const { tenantId } = request;
+  await withTenant(source, tenantId, async (db) => {
+    await reopenTenant(db, tenantId, request.reopenedAt);
+    await new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+      actor: request.reopenedBy,
+      action: ACCOUNT_REOPENED_ACTION,
+      entity: 'tenant',
+      detail: {
+        via: request.via,
+        ...(request.reference !== undefined ? { reference: request.reference } : {}),
+      },
+    });
+  });
+}
+
+/*
+ * THE OPERATOR'S DOOR (0139 T7 (a) and (b)). `operator.sh close` at the
+ * machine, and the support page's Close and Reopen in the API, come here, so
+ * the operator's check is the same at both: the subject a close or a reopen is
+ * recorded under must be an appointed operator's (`platform_operator`). It
+ * lives here, not beside the command's parser in `scripts/operator-close.ts`,
+ * because nothing outside `apps/api/src/scripts` may import from there: a
+ * script is exempt from `scripts/a-route-that-opened-the-owners-pool.unit.test.ts`
+ * as a file the API never loads.
+ */
+
+/** The longest reference a close or a reopen keeps on its audit row. */
+export const REFERENCE_MAX = 200;
+
+/**
+ * The subject a close or a reopen would be recorded under is not an appointed
+ * operator's (`platform_operator`), so nothing was done. Its own class, so the
+ * support route can answer it as every route there answers somebody who may
+ * not see a row (404), without reading the message.
+ */
+export class NotAnAppointedOperator extends Error {
+  constructor(subject: string, nothing: 'closed' | 'reopened') {
+    super(
+      `${subject} is not an appointed operator (operator.sh list), so nothing was ${nothing}. ` +
+        '--by takes your own subject.',
+    );
+    this.name = 'NotAnAppointedOperator';
+  }
+}
+
+/** A close, as the operator asked for it: typed at the machine (`parseCloseCommand`), or sent from the support page. */
+export interface CloseCommand {
+  readonly tenantId: string;
+  readonly windowDays: CloseWindowDays;
+  readonly by: string;
+  readonly reference: string;
+}
+
+/**
+ * Whether `subject` is an appointed operator, asked the way the API asks about
+ * a signed-in person: as that subject. `platform_operator` shows a subject its
+ * own row and nobody else's.
+ */
+async function isAppointedOperator(
+  source: Pool | LedgerDriver,
+  tenantId: string,
+  subject: string,
+): Promise<boolean> {
+  return withTenant(source, tenantId, async (db) => {
+    await db.execute(sql`SELECT set_config('app.current_user', ${subject}, true)`);
+    const found = (await db.execute(
+      sql`SELECT 1 FROM platform_operator WHERE user_id = ${subject}`,
+    )) as unknown as { rows: unknown[] };
+    return found.rows.length > 0;
+  });
+}
+
+/**
+ * Close the organisation, as the operator asked: at the machine over the owner
+ * connection, or from the support page over the API's. A subject that is not
+ * an appointed operator's closes nothing (`NotAnAppointedOperator`): the record
+ * would name somebody who is nobody.
+ */
+export async function runCloseCommand(
+  source: Pool | LedgerDriver,
+  command: CloseCommand,
+  deps: CloseAccountDeps,
+  now: Date = new Date(),
+  env: Readonly<Record<string, string | undefined>> = process.env,
+): Promise<ClosedAccount> {
+  if (!(await isAppointedOperator(source, command.tenantId, command.by))) {
+    throw new NotAnAppointedOperator(command.by, 'closed');
+  }
+  return closeAccount(
+    source,
+    {
+      tenantId: command.tenantId,
+      windowDays: command.windowDays,
+      closedBy: command.by,
+      via: 'operator',
+      reference: command.reference,
+      closedAt: now,
+      backupRetentionDays: backupRetentionDaysFromEnv(env.BACKUP_RETENTION_DAYS),
+    },
+    deps,
+  );
+}
+
+/** A reopen, as the operator asked for it on the support page. */
+export interface ReopenCommand {
+  readonly tenantId: string;
+  readonly by: string;
+  readonly reference: string;
+}
+
+/**
+ * Reopen the organisation, as the operator asked, while its window is open:
+ * `reopenAccount`, the function the owner's Reopen calls, recorded under the
+ * operator with the reference beside `via: operator`. A subject that is not an
+ * appointed operator's reopens nothing (`NotAnAppointedOperator`).
+ */
+export async function reopenAsOperator(
+  source: Pool | LedgerDriver,
+  command: ReopenCommand,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!(await isAppointedOperator(source, command.tenantId, command.by))) {
+    throw new NotAnAppointedOperator(command.by, 'reopened');
+  }
+  await reopenAccount(source, {
+    tenantId: command.tenantId,
+    reopenedBy: command.by,
+    via: 'operator',
+    reference: command.reference,
+    reopenedAt: now,
+  });
+}

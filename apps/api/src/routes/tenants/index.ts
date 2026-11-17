@@ -13,9 +13,8 @@ import { authenticate, requireRole, getDbPool, withTenantDb } from '../../middle
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import membersRoutes from './members.ts';
 import { serverFault } from '../../server-fault.ts';
-import { closeAccount } from '../../close-account.ts';
-import type { PgDatabase } from '@openmig/ledger';
-import { reopenTenant, isCloseWindow, CLOSE_WINDOWS_DAYS } from '@openmig/managed';
+import { closeAccount, reopenAccount } from '../../close-account.ts';
+import { isCloseWindow, CLOSE_WINDOWS_DAYS } from '@openmig/managed';
 import { backupRetentionDaysFromEnv, erasureScopeText } from '@openmig/shared';
 import { eq } from 'drizzle-orm';
 import { getTriggerClient } from '@openmig/scheduler';
@@ -529,6 +528,10 @@ router.post(
  * sets back to `active` (0085 T2). The next tick picks the migrations up. The
  * route goes through `authenticate`, which is why the close is never checked
  * there.
+ *
+ * One function, which the support page's Reopen calls too (0139 T7 (b)): the
+ * same refusal once the window has run out, and the same audit row
+ * (`tenant.reopened`), here naming the owner and `via: screen`.
  */
 router.post(
   '/:tenantId/reopen',
@@ -543,10 +546,14 @@ router.post(
         });
         return;
       }
-      // Same reason as close: the tenant UPDATE needs `app.current_tenant`.
-      await withTenantDb(req.tenantId, getSharedPool(), (tdb) =>
-        reopenTenant(tdb as unknown as PgDatabase, req.tenantId!, new Date()),
-      );
+      // In the organisation's own context, as the close: the tenant UPDATE
+      // needs `app.current_tenant`.
+      await reopenAccount(getSharedPool(), {
+        tenantId: req.tenantId,
+        reopenedBy: req.userId ?? 'unknown',
+        via: 'screen',
+        reopenedAt: new Date(),
+      });
       res.json({ status: 'active' });
     } catch (error) {
       // A closed window is a REFUSAL, not a fault: the caller asked for

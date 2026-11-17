@@ -55,6 +55,20 @@
 import type { RefusalLocale } from './credential-refusals.ts';
 
 /**
+ * The windows a customer may choose before the erasure, in days (owner
+ * decision, 2026-08-18): 0 erases at the next purge and cannot be undone; the
+ * others can be reopened until they run out. Here rather than in
+ * `@openmig/managed`, which re-exports it, so the operator's screen offers the
+ * list the routes accept (0139 T7 (b)).
+ */
+export const CLOSE_WINDOWS_DAYS = [0, 7, 30, 90] as const;
+export type CloseWindowDays = (typeof CLOSE_WINDOWS_DAYS)[number];
+
+export function isCloseWindow(value: unknown): value is CloseWindowDays {
+  return typeof value === 'number' && (CLOSE_WINDOWS_DAYS as readonly number[]).includes(value);
+}
+
+/**
  * The backup retention window used when `BACKUP_RETENTION_DAYS` is blank, in
  * days: the owner's number for a deployment that takes backups (owner
  * decision, 2026-08-18). It assumes backups exist. A deployment with a

@@ -115,6 +115,13 @@ const TENANT = {
   migration_count: '3',
   failing_domain_count: '1',
   pending_decision_count: '2',
+  // Managed 0060. Numbers no other column of the row uses, so the cases that
+  // find a count by its text still find one cell.
+  connection_count: '4',
+  member_count: '5',
+  last_pass_at: '2026-11-17T09:00:00.000Z',
+  closed_at: null,
+  purge_after: null,
 };
 
 const mount = (ui: React.ReactNode, path = '/support', route = '/support') => {

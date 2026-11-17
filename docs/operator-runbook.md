@@ -1668,7 +1668,10 @@ curl -X POST "$API/api/tenants/$TENANT/close" \
 
 **When a tester asks you to close theirs** (terms §11: through the report form
 or the support address, naming a window), you have no owner token of theirs.
-Close it at the machine instead:
+Close it as the operator instead, from its support page or at the machine. On
+the page (Support, the organisation, then *Close this organisation*): choose the
+window, name the request in *Because of*, press *Close…* and confirm; a window
+of `0` asks for the organisation's name as well. At the machine:
 
 ```bash
 ./deploy/compose/operator.sh close <tenant-id> 30 \
@@ -1679,22 +1682,24 @@ If they asked for their migration records too, make the export first
 (*An export on request*, above): with a window of `0`, the next purge leaves
 nothing to export.
 
-It is the same close as the owner's route above (`closeAccount` in
-`apps/api/src/close-account.ts`), and it prints the same answer as the table
+Both are the same close as the owner's route above (`closeAccount` in
+`apps/api/src/close-account.ts`), and both give the same answer as the table
 below: both dates, the sentence in English and in Dutch, and what outlives the
-erasure. That is what you send them. It refuses a window outside the list, and a
-subject that is not an appointed operator's (`operator.sh list`). The audit log
-records the close as `tenant.closed`, with you as the actor and the reference
-beside `via: operator`; a close through the owner's route names its owner and
-`via: screen`.
+erasure. The page shows it and the command prints it; that is what you send
+them. Both refuse a window outside the list, and a subject that is not an
+appointed operator's (`operator.sh list`). The audit log records the close as
+`tenant.closed`, with you as the actor and the reference beside `via: operator`;
+a close through the owner's route names its owner and `via: screen`.
 
-**The app has no close button yet** (workplan 0144 T8, proposed). Until it has
-one, a tester cannot close their organisation from the app, and every close
-they ask for is made with this command.
+**A tester has no Close of their own yet** (workplan 0144 T8, proposed). Until
+they have one, a tester cannot close their organisation from the app, and every
+close they ask for is made by you, from the support page or with this command.
 
 Syncs and billing stop immediately. Nothing is deleted yet. A window of `0`
 cannot be undone and the response says so (`canReopenUntil: null`); every other
-window can, with `POST /api/tenants/:tenantId/reopen`, until it runs out.
+window can be reopened until it runs out: by its owner, with
+`POST /api/tenants/:tenantId/reopen`, or by you, with *Reopen* on its support
+page and the reason. Either reopen is recorded as `tenant.reopened`.
 
 **What stops, and how.** The close does not touch the
 migrations: each keeps its own status. Everything that would start a pass or

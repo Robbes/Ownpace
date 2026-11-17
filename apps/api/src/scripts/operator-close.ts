@@ -9,7 +9,10 @@
  * support address, and choose a window. The Close button needs the
  * organisation's own owner signed in, which the owner is not. So this is how
  * the owner does it: at the machine, over the owner connection, through
- * `closeAccount`, the function the button calls. The two cannot drift.
+ * `runCloseCommand` (`close-account.ts`), which the support page's Close calls
+ * too (T7 (b)), over `closeAccount`, the function the button calls. None of
+ * them can drift. This file is the command's words: what it reads off the
+ * command line, and what it prints.
  *
  * - **The window** is one of `CLOSE_WINDOWS_DAYS`, refused before anything is
  *   read.
@@ -24,12 +27,8 @@
  *   gives.
  */
 
-import type { Pool } from 'pg';
-import { sql } from 'drizzle-orm';
-import { withTenant, type LedgerDriver } from '@openmig/ledger';
-import { CLOSE_WINDOWS_DAYS, isCloseWindow, type CloseWindowDays } from '@openmig/managed';
-import { backupRetentionDaysFromEnv } from '@openmig/shared';
-import { closeAccount, type CloseAccountDeps, type ClosedAccount } from '../close-account.ts';
+import { CLOSE_WINDOWS_DAYS, isCloseWindow } from '@openmig/managed';
+import { REFERENCE_MAX, type CloseCommand, type ClosedAccount } from '../close-account.ts';
 
 export const CLOSE_USAGE = `Usage:
   operator.sh close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>
@@ -37,14 +36,6 @@ export const CLOSE_USAGE = `Usage:
   <window-days>  ${CLOSE_WINDOWS_DAYS.join(', ')}: the days before the erasure. 0 cannot be undone.
   --by           your own subject, as operator.sh list shows it.
   --reference    the tester's request you act on: a ticket, or the date of their mail.`;
-
-/** A close, as the operator typed it. */
-export interface CloseCommand {
-  readonly tenantId: string;
-  readonly windowDays: CloseWindowDays;
-  readonly by: string;
-  readonly reference: string;
-}
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
@@ -84,50 +75,10 @@ export function parseCloseCommand(args: readonly string[]): CloseCommand | { err
   if (reference === '') {
     return { error: `--reference names the tester's request you act on.\n\n${CLOSE_USAGE}` };
   }
-  if (reference.length > 200) return { error: 'The reference is at most 200 characters.' };
-  return { tenantId, windowDays, by, reference };
-}
-
-/**
- * Close the organisation, as the operator asked, over the owner connection.
- * A subject that is not an appointed operator's closes nothing: the record
- * would name somebody who is nobody.
- */
-export async function runCloseCommand(
-  source: Pool | LedgerDriver,
-  command: CloseCommand,
-  deps: CloseAccountDeps,
-  now: Date = new Date(),
-  env: Readonly<Record<string, string | undefined>> = process.env,
-): Promise<ClosedAccount> {
-  // Asked the way the API asks about a signed-in person: as that subject.
-  // `platform_operator` shows a subject its own row and nobody else's.
-  const appointed = await withTenant(source, command.tenantId, async (db) => {
-    await db.execute(sql`SELECT set_config('app.current_user', ${command.by}, true)`);
-    const found = (await db.execute(
-      sql`SELECT 1 FROM platform_operator WHERE user_id = ${command.by}`,
-    )) as unknown as { rows: unknown[] };
-    return found.rows.length > 0;
-  });
-  if (!appointed) {
-    throw new Error(
-      `${command.by} is not an appointed operator (operator.sh list), so nothing was closed. ` +
-        '--by takes your own subject.',
-    );
+  if (reference.length > REFERENCE_MAX) {
+    return { error: `The reference is at most ${REFERENCE_MAX} characters.` };
   }
-  return closeAccount(
-    source,
-    {
-      tenantId: command.tenantId,
-      windowDays: command.windowDays,
-      closedBy: command.by,
-      via: 'operator',
-      reference: command.reference,
-      closedAt: now,
-      backupRetentionDays: backupRetentionDaysFromEnv(env.BACKUP_RETENTION_DAYS),
-    },
-    deps,
-  );
+  return { tenantId, windowDays, by, reference };
 }
 
 /** What `close` prints: what happened, and what to tell the tester, in both languages. */
