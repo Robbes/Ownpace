@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-17 (update this block at the end of every session)
 
+**2026-11-17, last: what alpha.11 moves.** The fold for `v0.2.0-alpha.11` (0146's entry of the
+same day) carries #1920, #1922, #1924, #1925, #1928, #1929 and #1931. For live, MinIO's pin moves
+to `59953701…` (#1929, its entry below) and managed migration 0060 (#1928) moves; the Trigger.dev,
+identity-provider and ClickHouse pins do not. So live's deploy from alpha.10 is one-way by the
+deploy's own rule, and pnpm 11.28.12 (#1925) is the pnpm its host switches to in the checkout.
+#1931 changes CI alone: the advisory gate accepts GHSA-fc5q-39xc-vjpf by name (its entry below).
+
 **2026-11-17, in the evening: GHSA-fc5q-39xc-vjpf, a high in picomatch that no release fixes,
 accepted by name to 2026-12-17 at most.** Times are UTC. GitHub's advisory database reviewed
 GHSA-fc5q-39xc-vjpf (CVE-2026-112366, high, CVSS 4.0 8.7, published 2026-10-19) on 2026-11-17.
@@ -113,6 +120,11 @@ and config and the layers that differ, every blob checked against its digest, an
   date cut from the sentence that names the digest, each file restored byte for byte.
 - **Owed before it merges:** the image scan of the branch and E2E (managed) on its head. Live takes
   it from alpha.11's tag.
+  *(Recorded with the fold, 2026-11-17, read from GitHub:)* on the head `b3de2359`, CI run
+  44132227311 was green; the image scan dispatched there, run 44132218522, read `minio` at
+  0 critical, 0 high and 0 with a fix; and E2E (managed) run 44132225184 (17:00 to 17:09) was green: compose
+  pulled `59953701…` and recreated `minio` and `minio-init`, healthy, *Version 20261117.3 deployed with 17 detected tasks*, SMOKE PASS.
+  It merged as #1929 at 17:18:20 (`74f028a4`).
 
 **2026-11-16, in the evening: pnpm 11.28.12, the one `packageManager` line (#1923), and live's
 duties with GoAccess on Alpine 3.24.4.** Times are UTC.
