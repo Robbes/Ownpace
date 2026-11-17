@@ -55,6 +55,35 @@
  *
  * A row counts as production if ANY path to it is non-dev — the safe direction,
  * since one production path is enough to make it reachable at runtime.
+ *
+ * ## Accepted by name, never by reach
+ *
+ * Once, a high had nothing to move to. On 2026-11-17 GitHub's advisory
+ * database reviewed GHSA-fc5q-39xc-vjpf (CVE-2026-112366), a ReDoS in picomatch
+ * through single-branch repeated extglobs such as `+(*a)`. It covers every
+ * picomatch release (`<=4.0.7`), no release fixes it, and every path to it was
+ * dev tooling. The gate turned every run red, `main`'s included, and with it
+ * the Security Scan that Release runs on the commit it tags. There was no
+ * version to pin.
+ *
+ * `ACCEPTED` is the one way past the line, and it is narrow on purpose. An
+ * entry names one advisory on one package, the severity it was accepted at,
+ * the owner's words, and a last day no more than a month after the day it was
+ * accepted. It lets that row through only while all of the following stay
+ * true, and the gate fails again by itself the day any one of them stops:
+ *
+ *   - No release fixes it. The day "fixed in" names a version, there is
+ *     something to move to, and the gate asks for the move.
+ *   - Every path to it is dev. A production path is a new decision.
+ *   - Its severity is no higher than the one accepted.
+ *   - Its last day has not passed. Another month is another decision, in new
+ *     words.
+ *
+ * An accepted row is still listed, in the table and as an annotation, with its
+ * last day: it is accepted, not hidden. And `dev` is still no discount. No
+ * advisory passes because it is dev-only. The one place the gate reads `dev`
+ * is where a production path ENDS an acceptance, so it can only make the gate
+ * fail.
  */
 
 import { readFileSync } from 'node:fs';
@@ -76,6 +105,67 @@ export function rank(severity) {
 }
 
 /**
+ * The advisories the owner accepted while no release fixes them. "Accepted by
+ * name, never by reach", above, says what an entry is and when it lapses;
+ * `an-advisory-nobody-listed.unit.test.ts` holds each entry to a month at most.
+ *
+ * GHSA-fc5q-39xc-vjpf, read on 2026-11-17: picomatch 4.0.7 under vitest, vite
+ * and typescript-eslint (through tinyglobby), and 2.3.2 under the Trigger.dev
+ * deploy CLI's config loader (`trigger.dev>c12>chokidar`). pnpm reads every
+ * path as dev, and `pnpm why picomatch -r --prod` finds none. The one upstream
+ * pull request the advisory names, picomatch's number 194, was open, and its
+ * author says it leaves `+(*a)` as it was.
+ */
+export const ACCEPTED = [
+  {
+    id: 'GHSA-fc5q-39xc-vjpf',
+    module: 'picomatch',
+    severity: 'high',
+    accepted: '2026-11-17',
+    until: '2026-12-17',
+    words: '',
+  },
+];
+
+/**
+ * Whether the audit names a version that fixes the advisory. pnpm gives no fix
+ * as null, which `collect` makes an empty string; npm's database writes it as
+ * `<0.0.0`, a range no version is in.
+ */
+export function hasFix(patched) {
+  const p = String(patched ?? '').trim();
+  return p !== '' && p !== '<0.0.0';
+}
+
+/** Today as a UTC date, `YYYY-MM-DD`, the form `accepted` and `until` are written in. */
+export function utcDay(now = new Date()) {
+  return now.toISOString().slice(0, 10);
+}
+
+/**
+ * The entry in `accepted` that names this row, and whether it still lets the
+ * row through on `today`. `lapsed` says why an entry that names the row no
+ * longer does, in words an annotation can print. It is empty when the entry
+ * holds, or when no entry names the row.
+ */
+export function acceptance(row, accepted = ACCEPTED, today = utcDay()) {
+  const entry = accepted.find((e) => e.id === row.id && e.module === row.module) ?? null;
+  if (!entry) return { entry, holds: false, lapsed: '' };
+  let lapsed = '';
+  if (hasFix(row.patched)) lapsed = `a release fixes it now (${row.patched}), so take it`;
+  else if (!row.dev) lapsed = 'a production path reaches it now';
+  else if (rank(row.severity) > rank(entry.severity)) {
+    lapsed = `it is ${row.severity} now, above the ${entry.severity} that was accepted`;
+  } else if (today > entry.until) lapsed = `its last day was ${entry.until}`;
+  return { entry, holds: lapsed === '', lapsed };
+}
+
+/** The entries this report has no row for: the advisory left the tree, so the entry can go. */
+export function staleEntries(rows, accepted = ACCEPTED) {
+  return accepted.filter((e) => !rows.some((r) => r.id === e.id && r.module === e.module));
+}
+
+/**
  * Turn `pnpm audit --json` into one row per advisory, worst first.
  *
  * Accepts the parsed object. Anything missing degrades to an empty list rather
@@ -89,6 +179,9 @@ export function collect(report) {
     .map((a) => {
       const findings = Array.isArray(a?.findings) ? a.findings : [];
       return {
+        // The GHSA id, which is what ACCEPTED names. pnpm gives it as
+        // github_advisory_id; the advisory's URL ends with it too.
+        id: String(a?.github_advisory_id ?? String(a?.url ?? '').match(/GHSA(-[0-9a-z]{4}){3}/i)?.[0] ?? ''),
         severity: String(a?.severity ?? 'unknown').toLowerCase(),
         module: a?.module_name ?? '(unnamed)',
         title: a?.title ?? '',
@@ -109,8 +202,11 @@ export function collect(report) {
  *
  * `never` is a real setting, not a disabled one: it means "report, do not
  * block", which is the position the owner takes on an accepted moderate.
+ *
+ * A row an entry in `accepted` still holds for does not count, and only that
+ * row (see "Accepted by name, never by reach", above).
  */
-export function shouldFail(rows, failAt) {
+export function shouldFail(rows, failAt, accepted = ACCEPTED, today = utcDay()) {
   const wanted = String(failAt ?? 'never').toLowerCase();
   if (wanted === 'never') return false;
   const floor = rank(wanted);
@@ -125,36 +221,62 @@ export function shouldFail(rows, failAt) {
         'to report without blocking. Refusing to guess: a typo here would silently disable this gate.',
     );
   }
-  return rows.some((r) => rank(r.severity) >= floor);
+  return rows.some((r) => rank(r.severity) >= floor && !acceptance(r, accepted, today).holds);
 }
 
-/** The markdown table that lands in the job summary. */
-export function renderSummary(rows) {
+/**
+ * The markdown table that lands in the job summary, and under it what
+ * `accepted` says about the rows it names, held or lapsed, and about any entry
+ * this report has no row for.
+ */
+export function renderSummary(rows, accepted = ACCEPTED, today = utcDay()) {
+  const stale = staleEntries(rows, accepted).map(
+    (e) => `- \`${e.id}\` on \`${e.module}\` is accepted, but this report does not list it: its entry can go.`,
+  );
+  const section = (notes) => (notes.length > 0 ? `\n### Accepted by name\n\n${notes.join('\n')}\n` : '');
   if (rows.length === 0) {
-    return '## Advisories\n\nNone at moderate or above.\n';
+    return `## Advisories\n\nNone at moderate or above.\n${section(stale)}`;
   }
   const head =
     '| Severity | Package | Reaches | Installed | Fixed in | Advisory |\n' +
     '| --- | --- | --- | --- | --- | --- |\n';
+  const named = [];
   const body = rows
     .map((r) => {
+      const { entry, holds, lapsed } = acceptance(r, accepted, today);
+      let severity = r.severity;
+      if (entry) {
+        severity = holds ? `${r.severity}, accepted to ${entry.until}` : `${r.severity}, **acceptance lapsed**`;
+        named.push(
+          `- \`${r.id}\` on \`${r.module}\`: accepted on ${entry.accepted} in the owner's words ` +
+            `"${entry.words}", while no release fixes it and every path to it is dev, to ${entry.until}. ` +
+            (holds ? 'It holds.' : `It no longer holds: ${lapsed}.`),
+        );
+      }
       const link = r.url ? `[${r.title.slice(0, 70)}](${r.url})` : r.title.slice(0, 70);
-      return `| ${r.severity} | \`${r.module}\` | ${r.dev ? 'dev only' : '**production**'} | ${
+      return `| ${severity} | \`${r.module}\` | ${r.dev ? 'dev only' : '**production**'} | ${
         r.installed.join(', ') || '?'
       } | ${r.patched || '?'} | ${link} |`;
     })
     .join('\n');
-  return `## Advisories\n\n${head}${body}\n`;
+  return `## Advisories\n\n${head}${body}\n${section([...named, ...stale])}`;
 }
 
-/** One annotation per advisory, so the run page carries them too. */
-export function annotations(rows) {
+/**
+ * One annotation per advisory, so the run page carries them too: `::error::`
+ * at high and above, `::warning::` below it and for a row an entry in
+ * `accepted` still holds for, which says so and names its last day.
+ */
+export function annotations(rows, accepted = ACCEPTED, today = utcDay()) {
   return rows.map((r) => {
-    const level = rank(r.severity) >= rank('high') ? 'error' : 'warning';
+    const { entry, holds, lapsed } = acceptance(r, accepted, today);
+    const level = rank(r.severity) >= rank('high') && !holds ? 'error' : 'warning';
     const where = r.dev ? 'dev only' : 'production';
-    return `::${level}::${r.severity} ${r.module} (${where}): ${r.title} — installed ${
+    const verdict = holds ? `, accepted to ${entry.until} while no release fixes it` : '';
+    const tail = entry && !holds ? ` Its acceptance no longer holds: ${lapsed}.` : '';
+    return `::${level}::${r.severity} ${r.module} (${where})${verdict}: ${r.title} — installed ${
       r.installed.join(', ') || '?'
-    }, fixed in ${r.patched || '?'}. ${r.url}`;
+    }, fixed in ${r.patched || '?'}. ${r.url}${tail}`;
   });
 }
 
@@ -173,20 +295,25 @@ async function main() {
     process.exit(1);
   }
 
+  const today = utcDay();
   const rows = collect(report);
-  for (const line of annotations(rows)) console.log(line);
+  for (const line of annotations(rows, ACCEPTED, today)) console.log(line);
+  for (const e of staleEntries(rows, ACCEPTED)) {
+    console.log(`::notice::${e.id} on ${e.module} is accepted in scripts/audit-advisories.mjs, but this report does not list it: its entry can go.`);
+  }
 
-  const summary = renderSummary(rows);
+  const summary = renderSummary(rows, ACCEPTED, today);
   if (process.env.GITHUB_STEP_SUMMARY) appendFileSync(process.env.GITHUB_STEP_SUMMARY, summary);
   else console.log(summary);
 
   const counts = report?.metadata?.vulnerabilities ?? {};
   const tally = SEVERITY_ORDER.map((s) => `${counts[s] ?? 0} ${s}`).join(', ');
-  console.log(`advisories: ${rows.length} listed (${tally}); failing at "${failAt}".`);
+  const held = rows.filter((r) => acceptance(r, ACCEPTED, today).holds).length;
+  console.log(`advisories: ${rows.length} listed (${tally}); ${held} accepted by name; failing at "${failAt}".`);
 
   let failing;
   try {
-    failing = shouldFail(rows, failAt);
+    failing = shouldFail(rows, failAt, ACCEPTED, today);
   } catch (err) {
     console.log(`::error::${err.message}`);
     process.exit(1);
