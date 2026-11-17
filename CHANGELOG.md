@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-17, with
+  glibc's fixes for CVE-2026-100290 and CVE-2026-115819** (workplan 0119, 0146 T7): glibc
+  2.44-r20 fixes a double free after an allocation failure in `regcomp` and `regexec`, and a
+  double null terminator in the wide `scanf`'s `%s` and `%[`. In this image the shell the object
+  store's one-shot runs loads it; the server and its `mc` client are static and load none. The
+  server moves to the fork's RELEASE.2026-11-16T00-11-40Z, which builds to the same code as the
+  release before it, and `mc` is the same file. Nothing a stack sets changes; the next bring-up
+  pulls it, and the data volume carries over. Taken before its three-day floor, on the owner's
+  waiver.
+
 ### Added
 
 - **An operator closes and reopens an organisation from its support page, and the list of

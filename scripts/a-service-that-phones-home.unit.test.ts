@@ -643,22 +643,24 @@ const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648';
 /**
  * Chainguard's MinIO (0146 T7): `latest` by the index digest it had from
- * 2026-11-14 at 20:10 UTC, taken that day for alpha.9, inside its three-day
- * floor on the owner's waiver (0119 Status, 2026-11-14). The server is the
- * fork's `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b, Wolfi's
- * 0.20261112.011523-r1, built with Go 1.27.4 (go-jose 4.1.7,
- * golang.org/x/net 0.62.0): the source of the digest before it, `ddfab4c4…`
- * (taken 2026-11-13), rebuilt with OpenTelemetry-Go 1.47.0 and
- * go.yaml.in/yaml/v3 3.0.5. Its mc is `RELEASE.2025-08-13T08-35-41Z`,
- * Wolfi's -r29, the same file as that digest's. Between 76c06ff1, the
- * release of `869ca317…` (taken 2026-11-10), and a60e2a7b the fork changed
- * go.mod, go.sum, CI scripts and a workflow, the Makefile's tidy check, two
- * debugging tools and one test file, so its cmd/ and internal/ are still
- * those of `RELEASE.2026-09-22T19-25-18Z`, read at that tag of
- * `chainguard-forks/minio`. The four files read there (`cmd/server-main.go`,
- * `cmd/common-main.go`, `cmd/update.go` and
+ * 2026-11-17 at 04:03 UTC, taken that day for alpha.11, inside its three-day
+ * floor on the owner's waiver (0119 Status, 2026-11-17). The server is the
+ * fork's `RELEASE.2026-11-16T00-11-40Z` at ee9fee07, Wolfi's
+ * 0.20261116.001140-r0, built with Go 1.27.4: the code of the digest before
+ * it, `634c989a…` (the fork's `RELEASE.2026-11-12T01-15-23Z` at a60e2a7b,
+ * taken 2026-11-14), with its release name, commit and build time swapped,
+ * each binary equal to that one's but for those and its two build ids, and
+ * `go version -m` the same but for the main module. Its mc is
+ * `RELEASE.2025-08-13T08-35-41Z`, Wolfi's -r29, the same file as that
+ * digest's. Between 76c06ff1, the release of `869ca317…` (taken
+ * 2026-11-10), and a60e2a7b the fork changed go.mod, go.sum, CI scripts and a
+ * workflow, the Makefile's tidy check, two debugging tools and one test file,
+ * so its cmd/ and internal/ are still those of `RELEASE.2026-09-22T19-25-18Z`,
+ * read at that tag of `chainguard-forks/minio`. The four files read there
+ * (`cmd/server-main.go`, `cmd/common-main.go`, `cmd/update.go` and
  * `internal/config/callhome/callhome.go`) are the same git blobs at
- * a60e2a7b's tag, so the code read here did not change.
+ * a60e2a7b's tag, and ee9fee07 builds to the same code, so the code read here
+ * did not change.
  */
 const MINIO =
   'chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879';
