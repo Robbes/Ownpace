@@ -75,7 +75,8 @@ import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { log } from '@openmig/shared';
 import { describeStanding, parseLinksCommand, runLinksCommand } from './operator-links.ts';
-import { describeClosed, parseCloseCommand, runCloseCommand } from './operator-close.ts';
+import { describeClosed, parseCloseCommand } from './operator-close.ts';
+import { runCloseCommand } from '../close-account.ts';
 import { getTriggerClient } from '@openmig/scheduler';
 import { checkMoneybird, nightlyMoneybird, proveMoneybird } from '@openmig/managed';
 import {
@@ -720,7 +721,8 @@ async function main(): Promise<void> {
 
       case 'close': {
         // A tester's account ended when they ask (0139 T7 (a)), through the
-        // function the Close button calls: operator-close.ts.
+        // function the Close button calls: operator-close.ts reads and prints
+        // it, close-account.ts closes it.
         const command = parseCloseCommand(rest);
         if ('error' in command) throw new Error(command.error);
         const closed = await runCloseCommand(pool, command, {

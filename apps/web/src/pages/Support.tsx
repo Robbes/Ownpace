@@ -1106,7 +1106,7 @@ export const SupportTenantDetail: React.FC = () => {
 
 /* -------------------------------------------------------------- the close */
 
-/** The longest reference the API keeps on the audit row (`REFERENCE_MAX`, `operator-close.ts`). */
+/** The longest reference the API keeps on the audit row (`REFERENCE_MAX`, `close-account.ts`). */
 const REFERENCE_MAX = 200;
 
 /**

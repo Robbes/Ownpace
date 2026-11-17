@@ -90,7 +90,7 @@ import {
   REFERENCE_MAX,
   reopenAsOperator,
   runCloseCommand,
-} from '../scripts/operator-close.ts';
+} from '../close-account.ts';
 import {
   LOG_FILTERS,
   LOG_PAGE,

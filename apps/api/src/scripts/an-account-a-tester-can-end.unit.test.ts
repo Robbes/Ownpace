@@ -35,8 +35,8 @@ import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
 import { runManagedMigrations } from '@openmig/managed';
-import { ACCOUNT_CLOSED_ACTION } from '../close-account.ts';
-import { describeClosed, parseCloseCommand, runCloseCommand, type CloseCommand } from './operator-close.ts';
+import { ACCOUNT_CLOSED_ACTION, runCloseCommand, type CloseCommand } from '../close-account.ts';
+import { describeClosed, parseCloseCommand } from './operator-close.ts';
 
 // UUID family 0139c700-…, unused elsewhere in the repo.
 const BY_BUTTON = '0139c700-e29b-41d4-a716-446655440001';
