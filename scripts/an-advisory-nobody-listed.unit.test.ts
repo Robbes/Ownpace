@@ -47,18 +47,35 @@
  *  5. **Production wins over dev.** A package reached by one prod path and ten
  *     dev paths is production. The opposite default would under-report the
  *     only rows that can reach a customer.
- *  6. **`dev` never reaches the gate.** It is reported, never subtracted. The
- *     owner's rule, verbatim: "i want vulnerabilities out of the product, we
- *     are open source, all is in the open, i dont want vulnerabilities, also
- *     not in dev." A dev-only high blocks exactly like a production one, and
- *     the test below fails if anyone ever wires `dev` into `shouldFail`.
+ *  6. **`dev` never lets anything through.** It is reported, never subtracted.
+ *     The owner's rule, verbatim: "i want vulnerabilities out of the product,
+ *     we are open source, all is in the open, i dont want vulnerabilities,
+ *     also not in dev." A dev-only high blocks exactly like a production one,
+ *     and the test below fails if anyone ever makes `shouldFail` skip a row
+ *     for being dev-only.
+ *  7. **An advisory no release fixes passes only by name, for a month at
+ *     most.** An entry in `ACCEPTED` names the advisory, its package, the
+ *     severity, the owner's words and a last day. The row stays listed, and
+ *     the gate fails again the day a fix is published, a production path
+ *     appears, the severity rises, or the last day passes. Each of those has
+ *     a test below, and so does the month.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SEVERITY_ORDER, rank, collect, shouldFail, renderSummary, annotations } from './audit-advisories.mjs';
+import {
+  SEVERITY_ORDER,
+  ACCEPTED,
+  rank,
+  collect,
+  shouldFail,
+  renderSummary,
+  annotations,
+  staleEntries,
+  utcDay,
+} from './audit-advisories.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const wf = readFileSync(join(here, '..', '.github', 'workflows', 'security-scan.yml'), 'utf8');
@@ -150,7 +167,7 @@ describe('the advisory gate asks for moderates, and names what it finds', () => 
     expect(shouldFail(rows, undefined)).toBe(false);
   });
 
-  it('gates on severity alone — a dev-only high still blocks', () => {
+  it('gates on severity, never on reach — a dev-only high still blocks', () => {
     // The rule this encodes: dev tooling gets no discount. If someone later
     // makes shouldFail() skip dev rows "because they do not ship", this fails.
     const devOnlyHigh = collect({
@@ -215,5 +232,135 @@ describe('the advisory gate asks for moderates, and names what it finds', () => 
     expect(odd).toHaveLength(1);
     expect(rank('apocalyptic')).toBe(-1);
     expect(renderSummary(odd)).toContain('`x`');
+  });
+});
+
+describe('an advisory no release fixes passes by name, for a month at most', () => {
+  /**
+   * GHSA-fc5q-39xc-vjpf as `pnpm audit --json` gave it on 2026-11-17, one path
+   * per installed version. `over` replaces fields, and `findings` the paths.
+   */
+  const picomatch = (over: Record<string, unknown> = {}, findings?: unknown[]) =>
+    collect({
+      advisories: {
+        '1': {
+          github_advisory_id: 'GHSA-fc5q-39xc-vjpf',
+          severity: 'high',
+          module_name: 'picomatch',
+          title: 'picomatch vulnerable to ReDoS through single-branch repeated extglobs',
+          url: 'https://github.com/advisories/GHSA-fc5q-39xc-vjpf',
+          vulnerable_versions: '<=4.0.7',
+          patched_versions: null,
+          findings: findings ?? [
+            { version: '4.0.7', dev: true, paths: ['.>vitest>picomatch'] },
+            { version: '2.3.2', dev: true, paths: ['apps__worker>trigger.dev>c12>chokidar>anymatch>picomatch'] },
+          ],
+          ...over,
+        },
+      },
+    });
+
+  /** An entry of the shape ACCEPTED holds, so these tests outlive any real one. */
+  const granted = [
+    {
+      id: 'GHSA-fc5q-39xc-vjpf',
+      module: 'picomatch',
+      severity: 'high',
+      accepted: '2026-11-17',
+      until: '2026-12-17',
+      words: 'the words that accepted it',
+    },
+  ];
+  const inside = '2026-11-30';
+
+  it('lets the named advisory through while no release fixes it, and still lists it', () => {
+    const rows = picomatch();
+    expect(rows[0]?.id).toBe('GHSA-fc5q-39xc-vjpf');
+    expect(shouldFail(rows, 'high', granted, inside), 'accepted, inside its month').toBe(false);
+    expect(shouldFail(rows, 'high', granted, '2026-12-17'), 'its last day still counts').toBe(false);
+    expect(annotations(rows, granted, inside)[0]).toMatch(
+      /^::warning::high picomatch \(dev only\), accepted to 2026-12-17 while no release fixes it: /,
+    );
+    const summary = renderSummary(rows, granted, inside);
+    expect(summary, 'the row stays in the table').toContain('| high, accepted to 2026-12-17 | `picomatch` |');
+    expect(summary).toContain('### Accepted by name');
+    expect(summary).toContain('"the words that accepted it"');
+    expect(summary).toContain('It holds.');
+  });
+
+  it('fails again the day a release fixes it, and says to take it', () => {
+    const rows = picomatch({ patched_versions: '>=4.0.8' });
+    expect(shouldFail(rows, 'high', granted, inside)).toBe(true);
+    expect(annotations(rows, granted, inside)[0]).toMatch(
+      /^::error::high picomatch \(dev only\): .* Its acceptance no longer holds: a release fixes it now \(>=4\.0\.8\), so take it\.$/,
+    );
+    expect(renderSummary(rows, granted, inside)).toContain('**acceptance lapsed**');
+    // npm's database writes "no release fixes it" as a range no version is in.
+    expect(shouldFail(picomatch({ patched_versions: '<0.0.0' }), 'high', granted, inside)).toBe(false);
+  });
+
+  it('fails again when a production path reaches it', () => {
+    const rows = picomatch({}, [
+      { version: '4.0.7', dev: true, paths: ['.>vitest>picomatch'] },
+      { version: '4.0.7', dev: false, paths: ['apps__api>a-runtime-dependency>picomatch'] },
+    ]);
+    expect(rows[0]?.dev, 'one production path makes it production').toBe(false);
+    expect(shouldFail(rows, 'high', granted, inside)).toBe(true);
+    expect(annotations(rows, granted, inside)[0]).toContain('a production path reaches it now');
+  });
+
+  it('fails again the day after its last day', () => {
+    expect(shouldFail(picomatch(), 'high', granted, '2026-12-18')).toBe(true);
+    expect(annotations(picomatch(), granted, '2026-12-18')[0]).toContain('its last day was 2026-12-17');
+  });
+
+  it('fails again if the advisory is raised above the severity accepted', () => {
+    const rows = picomatch({ severity: 'critical' });
+    expect(shouldFail(rows, 'high', granted, inside)).toBe(true);
+    expect(annotations(rows, granted, inside)[0]).toContain('it is critical now, above the high that was accepted');
+  });
+
+  it('accepts by name only: another advisory on that package, or that advisory on another, still blocks', () => {
+    expect(shouldFail(picomatch({ github_advisory_id: 'GHSA-aaaa-bbbb-cccc' }), 'high', granted, inside)).toBe(true);
+    expect(shouldFail(picomatch({ module_name: 'micromatch' }), 'high', granted, inside)).toBe(true);
+  });
+
+  it('reads the id from the advisory URL when the report gives no github_advisory_id', () => {
+    expect(picomatch({ github_advisory_id: undefined })[0]?.id).toBe('GHSA-fc5q-39xc-vjpf');
+    expect(picomatch({ github_advisory_id: undefined, url: '' })[0]?.id).toBe('');
+  });
+
+  it('names an entry the report no longer lists, so it leaves the list once its advisory has', () => {
+    expect(staleEntries([], granted)).toEqual(granted);
+    expect(staleEntries(picomatch(), granted)).toEqual([]);
+    expect(renderSummary([], granted, inside)).toContain('is accepted, but this report does not list it: its entry can go.');
+  });
+
+  it('counts days in UTC, the way accepted and until are written', () => {
+    expect(utcDay(new Date('2026-11-17T23:59:59Z'))).toBe('2026-11-17');
+    expect(utcDay(new Date('2026-11-18T00:00:00Z'))).toBe('2026-11-18');
+  });
+
+  it("holds every entry in ACCEPTED to one advisory, the owner's words and a month at most", () => {
+    const day = (d: string) => Date.parse(`${d}T00:00:00Z`) / 86_400_000;
+    for (const e of ACCEPTED) {
+      expect(e.id, 'a GHSA id, which is what the report carries').toMatch(/^GHSA(-[0-9a-z]{4}){3}$/);
+      expect(e.module, `${e.id}: the one package`).not.toBe('');
+      expect(rank(e.severity), `${e.id}: a severity npm names`).toBeGreaterThanOrEqual(0);
+      expect(e.accepted, `${e.id}: accepted`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(e.until, `${e.id}: until`).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(e.words.trim(), `${e.id}: the owner's words`).not.toBe('');
+      const span = day(e.until) - day(e.accepted);
+      expect(span, `${e.id}: a last day after the day it was accepted`).toBeGreaterThan(0);
+      expect(span, `${e.id}: a month at most; another month is another decision`).toBeLessThanOrEqual(31);
+    }
+  });
+
+  const picomatchEntry = ACCEPTED.find((e) => e.id === 'GHSA-fc5q-39xc-vjpf');
+  it.runIf(picomatchEntry !== undefined)('the gate reads ACCEPTED when it is given no list', () => {
+    const entry = picomatchEntry!;
+    expect(shouldFail(picomatch(), 'high', undefined, entry.accepted)).toBe(false);
+    const after = new Date(Date.parse(`${entry.until}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
+    expect(shouldFail(picomatch(), 'high', undefined, after)).toBe(true);
   });
 });

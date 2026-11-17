@@ -86,6 +86,13 @@ overrides:
   # (dist/esm/build/externals.js, line 311), its one call into minimatch. A CLI release that
   # passes optimizationLevel 2 or more reopens it.
   "trigger.dev>minimatch": ^10.2.6
+  # picomatch GHSA-fc5q-39xc-vjpf (CVE-2026-112366, HIGH, reviewed 2026-11-17) HAS NO ENTRY HERE,
+  # because no picomatch release fixes it: it covers every one (<=4.0.7), so there is no version to
+  # move to. It reaches 4.0.7 through vitest, vite and typescript-eslint (tinyglobby), and 2.3.2
+  # through the deploy CLI's config loader (trigger.dev>c12>chokidar), every path dev. The owner
+  # accepted it by name in scripts/audit-advisories.mjs (ACCEPTED), to 2026-12-17 at most. The gate
+  # blocks again the day a release fixes it, and then the entry this file needs is the move to that
+  # release. Workplan 0119, Status of 2026-11-17.
   "glob@>=9.0.0 <14.0.2": ^14.0.3
   "semver@<5.7.2": ^5.7.2
   "semver@>=6.0.0 <6.3.1": ^6.3.1
