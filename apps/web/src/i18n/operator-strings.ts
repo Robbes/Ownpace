@@ -339,6 +339,63 @@ export const OPERATOR_STRINGS = {
   'support.money.mark.failed': 'Could not mark it: {message}',
   'support.money.givenBackBy': 'by {who}',
   'support.money.someone': 'an operator no longer listed',
+  // ---- Who uses an organisation, and closing one (workplan 0139 T7 (b);
+  // managed migration 0060). The close is `closeAccount`, the function the
+  // owner's Close and `operator.sh close` call, so its answer's sentences are
+  // the customer's own, in both languages, and are not repeated here.
+  'support.col.people': 'People',
+  'support.col.connections': 'Connections',
+  'support.col.lastPass': 'Last pass',
+  'support.never': 'never',
+  'support.unused.nobody': 'nobody signed in',
+  'support.unused.nothing': 'nothing connected',
+  'support.status.erasedAfter': 'erased after {day}',
+  'support.filter.label': 'Show',
+  'support.filter.all': 'All ({count})',
+  'support.filter.unused': 'Not in use ({count})',
+  'support.filter.closed': 'Closed ({count})',
+  'support.filter.unused.why':
+    'Not in use: open, and nobody has signed in, or nothing is connected and there is no migration. Close one from its page.',
+  'support.filter.none': 'None to show.',
+  'support.close.title': 'Close this organisation',
+  'support.close.intro':
+    'For a tester who asked to end their account and cannot press Close themselves, or an organisation nobody uses. It is the close operator.sh close makes, recorded in the audit log under your name with the request you name.',
+  'support.close.effect':
+    'From the moment it is closed, no new pass starts and nothing is billed; a pass under way finishes the item it is on. The erasure runs when the window is up.',
+  'support.close.window': 'Window before the erasure',
+  'support.close.window.0': 'None: erase at the next purge, within the hour. This cannot be undone.',
+  'support.close.window.n': '{days} days: it can be reopened here until then.',
+  'support.close.reference': 'Because of',
+  'support.close.reference.hint':
+    'The request you act on: a ticket, or the date of their mail. Kept on the audit row, beside your name.',
+  'support.close.arm': 'Close…',
+  'support.close.confirm': 'Close {name} with a window of {days} days?',
+  'support.close.confirm.0': 'Close {name} and erase it at the next purge? This cannot be undone.',
+  'support.close.typeName': 'Type the organisation’s name to confirm',
+  'support.close.yes': 'Yes, close it',
+  'support.close.failed': 'Could not close it: {message}',
+  'support.close.done': 'Closed.',
+  'support.close.done.purge': 'The live service stops holding its data on {when}.',
+  'support.close.done.backups':
+    'The erasure completes on {when}, when the last backup that could hold it ages out.',
+  'support.close.done.reopen': 'It can be reopened here until {when}.',
+  'support.close.done.final': 'A window of 0 cannot be undone.',
+  'support.close.done.passes': 'Passes in flight the orchestrator was asked to stop: {count}.',
+  'support.close.tell': 'What to tell them',
+  'support.close.tell.en': 'In English',
+  'support.close.tell.nl': 'In Dutch',
+  'support.close.idp':
+    'Its people’s sign-in accounts at the identity provider are not part of the erasure: idp-strays.sh finds them once nothing holds them (operator runbook, Sign-in accounts nobody let in).',
+  'support.closed.on': 'Closed on {closed}. The purge erases it after {purge}.',
+  'support.closed.reopenable': 'Until then it can be reopened, and its migrations start again.',
+  'support.closed.final': 'Its window has run out: the next purge erases it, and it can no longer be reopened.',
+  'support.closed.erasing': 'Its erasure is under way.',
+  'support.reopen.reference.hint':
+    'Why: the request, or the mistake, it answers. Kept on the audit row, beside your name.',
+  'support.reopen.arm': 'Reopen…',
+  'support.reopen.confirm': 'Reopen {name}? Its migrations start again at the next tick.',
+  'support.reopen.yes': 'Yes, reopen it',
+  'support.reopen.failed': 'Could not reopen it: {message}',
 } as const;
 
 export type OperatorKey = keyof typeof OPERATOR_STRINGS;

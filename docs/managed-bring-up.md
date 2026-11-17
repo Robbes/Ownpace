@@ -1612,6 +1612,14 @@ the two operator checks **never print the value they found**: the row is
 identified and acted on by id, and the id is never displayed, because moving a
 credential out of a table and into a scrollback is not a cleanup.
 
+**An organisation nobody uses.** Under Support, the list of organisations counts
+each one's active members, connections and migrations, says when its latest pass
+began, and marks an open one nobody signed in to or nothing is connected to;
+*Not in use* shows only those. Each organisation's page ends with *Close this
+organisation*, the close `operator.sh close` makes, audited under your name with
+the request you name (workplan 0139 T7 (b)). It is how to end an organisation a
+granted request made, which `clean empty-tenant` refuses.
+
 **How many grant links an organisation may hold at once.** As many live grant
 links as its tier runs migrations at the same time:
 Free 1, Small 4, Medium 20, Large 50, Extra large 200, and the largest past the

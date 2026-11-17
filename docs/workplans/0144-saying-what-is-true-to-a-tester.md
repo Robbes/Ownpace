@@ -2,7 +2,14 @@
 
 > **In one line:** What a tester is told: a Dutch tester guide, a known-limitations page guarded by the feature matrix, corrected read-only wording on site and grant page, `APPLY_FLAG_WARNING`, a support contact, Request access on sign-in, organisation closure.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-17 (update this block at the end of every session)
+
+**2026-11-17: the operator closes an organisation from its support page (0139 T7 (b)); T8 is
+unchanged.** A tester who asks to end their account is now closed by the operator from the
+organisation's page under Support, or at the machine, through the function the owner's route
+calls (`closeAccount`). T8, the owner's own Close on `Tenants.tsx`, is still proposed, and its
+guard files still fail. The owner's reopen route now records `tenant.reopened`, which T8's Reopen
+would call.
 
 **2026-11-08: the guide says how long the copy before an update is kept (T1); T5's advice was done
 (T5).** On the branch `claude/ownpace-public-readiness-y7orc6-a7-records`, merged as #1843
@@ -1512,7 +1519,8 @@ sees one line at the top: the date of erasure, and that the owner can reopen unt
 says nothing yet about the sign-in account at the identity provider, which erasure does not reach
 today (0139 §1). That line waits for 0135 T8's step and 0139 T7's wording.
 
-**During the alpha** the path is 0139 T7's operator command, and the guide (T1) says so. Whether
+**During the alpha** the path is 0139 T7's: the operator closes it, with the command or from the
+organisation's support page (T7 (b), since 2026-11-17), and the guide (T1) says so. Whether
 the screen should come before the first invitation instead is open question 5.
 
 **Guards.** Each fails today:

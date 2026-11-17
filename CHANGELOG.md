@@ -4,6 +4,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **An operator closes and reopens an organisation from its support page, and the list of
+  organisations says which ones nobody uses** (workplan 0139 T7 (b)): *Close this organisation*
+  takes a window of 0, 7, 30 or 90 days and the request it acts on, arms before it acts, and for a
+  window of 0, which cannot be undone, asks for the organisation's name as well. It is the close
+  `operator.sh close` makes, through the same function (`closeAccount`): the same dates, the same
+  sentences to send in English and in Dutch, and the same audit row, `tenant.closed`, with the
+  operator and the reference beside `via: operator`. While the window is open, *Reopen* undoes it,
+  recorded as `tenant.reopened`; the owner's own reopen is now recorded the same way. The list
+  counts each organisation's active members, connections and migrations, says when its latest pass
+  began and when a closed one is erased, marks an open one nobody signed in to or nothing is
+  connected to, and filters to those (managed migration 0060). A subject who is not an operator
+  closes and reopens nothing, and is told only that there is no such organisation.
+
 ### Changed
 
 - **`@azure/msal-node` 7.2.2, with `@azure/msal-common` 16.16.2, and `@testing-library/user-event`
@@ -25,9 +40,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
-- **The operator runbook no longer speaks of a close button** (workplans 0139 T7 and 0144 T8):
-  the app has none yet, so `operator.sh close` is how every close a tester asks for is made. It
-  is the same close as the owner's route, `POST /api/tenants/:tenantId/close`.
+- **The operator runbook no longer speaks of a close button a tester has** (workplans 0139 T7
+  and 0144 T8): a tester has none yet, so the operator makes every close a tester asks for, with
+  `operator.sh close` or, since the entry under Added, from the organisation's support page. Both
+  are the same close as the owner's route, `POST /api/tenants/:tenantId/close`.
 - **`operator.sh check` names the close for an abandoned organisation, and `clean empty-tenant` no
   longer runs a delete the database refuses** (workplan 0139 T7 (a)): an organisation made by a
   granted access request cannot be deleted while the request names it (migration 0007), and on a

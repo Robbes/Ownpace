@@ -866,6 +866,10 @@ paths:
         The reason the staged flow exists: a mistaken click, a resolved
         dispute, or a bug in the purge spotted before it ran. Refuses with 409
         once the window has passed — there is nothing to come back to.
+
+        Recorded as `tenant.reopened` under the owner with `via: screen`, by
+        `reopenAccount`, the function the support page's reopen calls too
+        (workplan 0139 T7 (b)).
       responses:
         '200':
           description: The tenant is active again.
@@ -7194,6 +7198,108 @@ paths:
         '409':
           description: It was marked before, or it is a late refund, which takes no mark.
 
+  /api/support/tenants/{tenantId}/close:
+    parameters:
+      - name: tenantId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Support]
+      summary: Close an organisation, as the operator, for the request named
+      description: |
+        Workplan 0139 T7 (b): the support page's Close, for a tester who asked
+        to end their account and cannot press their own Close, or an
+        organisation nobody uses. It is the close `operator.sh close` makes,
+        through the same function (`runCloseCommand`, over `closeAccount`):
+        the same answer as the owner's `POST /api/tenants/{tenantId}/close`,
+        and an audit row, `tenant.closed`, with the operator as its actor and
+        the reference beside `via: operator`.
+
+        A close is a write in the organisation's own context, so the subject is
+        asked about twice before it: the organisation must be on the subject's
+        `support_tenants` (an operator's view of organisations that exist), and
+        `platform_operator` must hold the subject. A subject who is not an
+        operator gets the `404` an absent id gets, and nothing is closed.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [windowDays, reference]
+              properties:
+                windowDays:
+                  type: integer
+                  enum: [0, 7, 30, 90]
+                  description: Days before the erasure. 0 erases at the next purge and cannot be undone.
+                reference:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: The request acted on (a ticket, the date of their mail). Trimmed.
+      responses:
+        '200':
+          description: |
+            Closed. The close's own answer: `purgeAfter`, `backupsExpireAt`,
+            `canReopenUntil` (null for a window of 0), `passesStopped`, and
+            `erasureCompletesText` and `outlivingAccess` in English and Dutch.
+          content:
+            application/json:
+              schema: { type: object, additionalProperties: true }
+        '400':
+          description: The tenantId is not a uuid, the window is not one of 0, 7, 30 or 90 (`bad_window`), or the reference is missing or too long (`bad_reference`).
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such organisation, or a subject who is not an operator (the same answer).
+        '409':
+          description: It is not open (`not_open`) — closed already, which a reopen undoes, or being erased.
+
+  /api/support/tenants/{tenantId}/reopen:
+    parameters:
+      - name: tenantId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Support]
+      summary: Reopen a closed organisation, as the operator, while its window is open
+      description: |
+        Workplan 0139 T7 (b): undo a close made by mistake, or one a tester
+        changed their mind about before the erasure. `reopenAccount`, the
+        function the owner's `POST /api/tenants/{tenantId}/reopen` calls,
+        recorded as `tenant.reopened` under the operator with the reference.
+        Asked about twice, as the close is.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reference]
+              properties:
+                reference:
+                  type: string
+                  minLength: 1
+                  maxLength: 200
+                  description: Why it is reopened. Trimmed.
+      responses:
+        '200':
+          description: Reopened.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status: { type: string, enum: [active] }
+        '400':
+          description: The tenantId is not a uuid, or the reference is missing or too long (`bad_reference`).
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such organisation, or a subject who is not an operator (the same answer).
+        '409':
+          description: It is not closed, or its window has run out, which a window of 0 has from the start (`cannot_reopen`).
+
   /api/support/audit-export:
     get:
       tags: [Support]
@@ -7650,6 +7756,34 @@ components:
             migration. Deliberately does not add up with the per-migration
             counts; the difference is the interesting part. A COUNT and never
             the decisions: their summary and detail carry addresses.
+        connection_count:
+          type: integer
+          description: Its connections, sources and targets (managed migration 0060).
+        member_count:
+          type: integer
+          description: |
+            Its ACTIVE members: people who signed in and are in it. An
+            invitation nobody claimed is not counted, so an organisation a
+            granted request made and nobody joined reads 0.
+        last_pass_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            When its latest pass began (its newest `run` row), or null if none
+            ever did. Not the audit log's last line, which the digest writes too.
+        closed_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: When it was closed, or null while it is open.
+        purge_after:
+          type: string
+          format: date-time
+          nullable: true
+          description: |
+            The day the purge erases it, or null while it is open. It can be
+            reopened until then, and never after a window of 0.
     SupportConnection:
       type: object
       description: |

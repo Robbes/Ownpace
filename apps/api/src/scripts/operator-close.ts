@@ -2,14 +2,15 @@
 
 /**
  * `operator.sh close`: A TESTER'S ACCOUNT ENDED WHEN THEY ASK (workplan 0139 T7
- * (a)).
+ * (a)), and the support page's Close and Reopen (T7 (b)).
  *
  * Terms §11 lets a tester end their account. Until the screen for it exists
  * (0144, W14 in 0131 §5), they ask the owner, through the report form or the
  * support address, and choose a window. The Close button needs the
  * organisation's own owner signed in, which the owner is not. So this is how
- * the owner does it: at the machine, over the owner connection, through
- * `closeAccount`, the function the button calls. The two cannot drift.
+ * the owner does it: at the machine, over the owner connection, or on the
+ * organisation's support page, through `closeAccount`, the function the
+ * button calls. None of them can drift.
  *
  * - **The window** is one of `CLOSE_WINDOWS_DAYS`, refused before anything is
  *   read.
@@ -29,7 +30,31 @@ import { sql } from 'drizzle-orm';
 import { withTenant, type LedgerDriver } from '@openmig/ledger';
 import { CLOSE_WINDOWS_DAYS, isCloseWindow, type CloseWindowDays } from '@openmig/managed';
 import { backupRetentionDaysFromEnv } from '@openmig/shared';
-import { closeAccount, type CloseAccountDeps, type ClosedAccount } from '../close-account.ts';
+import {
+  closeAccount,
+  reopenAccount,
+  type CloseAccountDeps,
+  type ClosedAccount,
+} from '../close-account.ts';
+
+/** The longest reference a close or a reopen keeps on its audit row. */
+export const REFERENCE_MAX = 200;
+
+/**
+ * The subject a close or a reopen would be recorded under is not an appointed
+ * operator's (`platform_operator`), so nothing was done. Its own class, so the
+ * support route can answer it as every route there answers somebody who may
+ * not see a row (404), without reading the message.
+ */
+export class NotAnAppointedOperator extends Error {
+  constructor(subject: string, nothing: 'closed' | 'reopened') {
+    super(
+      `${subject} is not an appointed operator (operator.sh list), so nothing was ${nothing}. ` +
+        '--by takes your own subject.',
+    );
+    this.name = 'NotAnAppointedOperator';
+  }
+}
 
 export const CLOSE_USAGE = `Usage:
   operator.sh close <tenant-id> <window-days> --by <your-subject> --reference <the tester's request>
@@ -84,13 +109,35 @@ export function parseCloseCommand(args: readonly string[]): CloseCommand | { err
   if (reference === '') {
     return { error: `--reference names the tester's request you act on.\n\n${CLOSE_USAGE}` };
   }
-  if (reference.length > 200) return { error: 'The reference is at most 200 characters.' };
+  if (reference.length > REFERENCE_MAX) {
+    return { error: `The reference is at most ${REFERENCE_MAX} characters.` };
+  }
   return { tenantId, windowDays, by, reference };
 }
 
 /**
- * Close the organisation, as the operator asked, over the owner connection.
- * A subject that is not an appointed operator's closes nothing: the record
+ * Whether `subject` is an appointed operator, asked the way the API asks about
+ * a signed-in person: as that subject. `platform_operator` shows a subject its
+ * own row and nobody else's.
+ */
+async function isAppointedOperator(
+  source: Pool | LedgerDriver,
+  tenantId: string,
+  subject: string,
+): Promise<boolean> {
+  return withTenant(source, tenantId, async (db) => {
+    await db.execute(sql`SELECT set_config('app.current_user', ${subject}, true)`);
+    const found = (await db.execute(
+      sql`SELECT 1 FROM platform_operator WHERE user_id = ${subject}`,
+    )) as unknown as { rows: unknown[] };
+    return found.rows.length > 0;
+  });
+}
+
+/**
+ * Close the organisation, as the operator asked: at the machine over the owner
+ * connection, or from the support page over the API's. A subject that is not
+ * an appointed operator's closes nothing (`NotAnAppointedOperator`): the record
  * would name somebody who is nobody.
  */
 export async function runCloseCommand(
@@ -100,20 +147,8 @@ export async function runCloseCommand(
   now: Date = new Date(),
   env: Readonly<Record<string, string | undefined>> = process.env,
 ): Promise<ClosedAccount> {
-  // Asked the way the API asks about a signed-in person: as that subject.
-  // `platform_operator` shows a subject its own row and nobody else's.
-  const appointed = await withTenant(source, command.tenantId, async (db) => {
-    await db.execute(sql`SELECT set_config('app.current_user', ${command.by}, true)`);
-    const found = (await db.execute(
-      sql`SELECT 1 FROM platform_operator WHERE user_id = ${command.by}`,
-    )) as unknown as { rows: unknown[] };
-    return found.rows.length > 0;
-  });
-  if (!appointed) {
-    throw new Error(
-      `${command.by} is not an appointed operator (operator.sh list), so nothing was closed. ` +
-        '--by takes your own subject.',
-    );
+  if (!(await isAppointedOperator(source, command.tenantId, command.by))) {
+    throw new NotAnAppointedOperator(command.by, 'closed');
   }
   return closeAccount(
     source,
@@ -128,6 +163,36 @@ export async function runCloseCommand(
     },
     deps,
   );
+}
+
+/** A reopen, as the operator asked for it on the support page. */
+export interface ReopenCommand {
+  readonly tenantId: string;
+  readonly by: string;
+  readonly reference: string;
+}
+
+/**
+ * Reopen the organisation, as the operator asked, while its window is open:
+ * `reopenAccount`, the function the owner's Reopen calls, recorded under the
+ * operator with the reference beside `via: operator`. A subject that is not an
+ * appointed operator's reopens nothing (`NotAnAppointedOperator`).
+ */
+export async function reopenAsOperator(
+  source: Pool | LedgerDriver,
+  command: ReopenCommand,
+  now: Date = new Date(),
+): Promise<void> {
+  if (!(await isAppointedOperator(source, command.tenantId, command.by))) {
+    throw new NotAnAppointedOperator(command.by, 'reopened');
+  }
+  await reopenAccount(source, {
+    tenantId: command.tenantId,
+    reopenedBy: command.by,
+    via: 'operator',
+    reference: command.reference,
+    reopenedAt: now,
+  });
 }
 
 /** What `close` prints: what happened, and what to tell the tester, in both languages. */

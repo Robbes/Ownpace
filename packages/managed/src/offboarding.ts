@@ -50,18 +50,16 @@ import { createHash } from 'node:crypto';
 import {
   DEFAULT_BACKUP_RETENTION_DAYS,
   erasureTimeline,
+  type CloseWindowDays,
   type OrganisationClosure,
   type RevocationOutcome,
 } from '@openmig/shared';
 import { organisationIsOpen, type PgDatabase } from '@openmig/ledger';
 
-/** The windows a customer may choose (owner decision, 2026-08-18). */
-export const CLOSE_WINDOWS_DAYS = [0, 7, 30, 90] as const;
-export type CloseWindowDays = (typeof CLOSE_WINDOWS_DAYS)[number];
-
-export function isCloseWindow(value: unknown): value is CloseWindowDays {
-  return typeof value === 'number' && (CLOSE_WINDOWS_DAYS as readonly number[]).includes(value);
-}
+// The windows a customer may choose, defined in `@openmig/shared` beside the
+// timeline they feed, so the operator's screen offers the list the routes
+// accept (0139 T7 (b)). Re-exported here, where the close's callers import it.
+export { CLOSE_WINDOWS_DAYS, isCloseWindow, type CloseWindowDays } from '@openmig/shared';
 
 /**
  * The tables purged when a tenant is erased, in dependency order.

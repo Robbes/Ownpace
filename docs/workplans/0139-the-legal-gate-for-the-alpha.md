@@ -2,7 +2,29 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-11-16 (update this block at the end of every session)
+## Status — 2026-11-17 (update this block at the end of every session)
+
+**2026-11-17: the support page closes and reopens an organisation, and the list says which ones
+nobody uses (T7 (b)).** Each organisation's support page ends with *Close this organisation*: a
+window of 0, 7, 30 or 90 days and the request it acts on, armed before it acts, and the
+organisation's name typed as well for a window of 0, which cannot be undone.
+`POST /api/support/tenants/:tenantId/close` calls `runCloseCommand`, the function `operator.sh close`
+calls, over `closeAccount`: the same answer, shown on the page with its sentences in English and in
+Dutch, and the same audit row, `tenant.closed`, with the operator and the reference beside
+`via: operator`. While the window is open, *Reopen* undoes it
+(`POST /api/support/tenants/:tenantId/reopen`, through `reopenAccount`), recorded as
+`tenant.reopened` with the reason; the owner's reopen goes through the same function and is now
+recorded too, under the owner and `via: screen`. The subject is asked about twice before either
+write, as the machine asks: the organisation must be on the subject's `support_tenants`, and
+`platform_operator` must hold the subject. A subject who is not an operator writes nothing and gets
+the 404 an absent id gets. The list of organisations now counts each one's active members,
+connections and migrations, says when its latest pass began and when a closed one is erased, marks
+an open one nobody signed in to or nothing is connected to, and filters to those (managed migration
+0060). The two organisations the owner's own test grants made on live (the entry of 2026-11-16) read
+there as nobody signed in and nothing connected. Guards:
+`apps/api/src/routes/an-organisation-the-operator-can-close.unit.test.ts` (PGlite as `app_user`,
+both chains: 20 cases) and `apps/web/src/pages/an-organisation-the-operator-can-close.unit.test.tsx`
+(11), each with the mutations that break it named in the PR.
 
 **2026-11-16: the housekeeping check names the close (T7 (a)).** `operator.sh check` on live, read
 by the owner on 2026-11-16, listed the two organisations the owner's own test grants made (on
@@ -4147,6 +4169,11 @@ terms §11 true in the alpha is an operator command.
   two cannot drift. The command passes the operator's subject as `closedBy`, takes a reference to
   the tester's request, and records both in the audit log. The window must be one of
   `CLOSE_WINDOWS_DAYS`.
+- **(b) The support page's Close and Reopen** (built 2026-11-17): the same close, from the
+  organisation's page under Support, for an operator at a browser rather than at the machine,
+  and a reopen while the window is open. Both go through the functions the routes above call
+  (`runCloseCommand`, `reopenAccount`), and the list of organisations says which ones nobody uses
+  (managed migration 0060). The owner's own screen stays 0144 T8.
 - **The identity provider's account.** The runbook's *Tenant offboarding* gains 0135 T8's step
   after the purge. Until 0135 T8's script exists, the owner removes the account in the console.
 - **The path a tester takes.** T2 says it: ask the owner through the report form or the support

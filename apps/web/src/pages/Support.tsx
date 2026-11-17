@@ -44,7 +44,7 @@
  */
 
 import React from 'react';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
   fetchPlatformPause,
   startPlatformPause,
@@ -52,7 +52,13 @@ import {
 } from '../services/platform-service.ts';
 import { Link, useParams, useSearchParams } from 'react-router';
 import { LifeBuoy, ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
-import { FAILURE_CATEGORIES, isFailureCategory, isFailureSide } from '@openmig/shared';
+import {
+  CLOSE_WINDOWS_DAYS,
+  FAILURE_CATEGORIES,
+  isFailureCategory,
+  isFailureSide,
+  type CloseWindowDays,
+} from '@openmig/shared';
 import {
   listSupportTenants,
   getSupportTenant,
@@ -77,6 +83,9 @@ import {
   listMoneyToGiveBack,
   markMoneyGivenBack,
   type MoneyToGiveBack,
+  closeSupportTenant,
+  reopenSupportTenant,
+  type SupportClosedAccount,
 } from '../services/support.ts';
 import { readApplianceLog } from '../services/operating-service.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
@@ -509,13 +518,40 @@ const PlatformHold: React.FC = () => {
   );
 };
 
+/** What the list's filter offers (0139 T7 (b)). */
+type TenantFilter = 'all' | 'unused' | 'closed';
+
+/**
+ * Why an OPEN organisation reads as not in use, from the counts the list has
+ * (managed migration 0060): nobody signed in, or nothing connected and no
+ * migration. Empty for one in use, and for one that is not open: a closed
+ * organisation's question is when it goes, not whether anybody uses it.
+ */
+function notInUse(tenant: SupportTenant): OperatorScreenKey[] {
+  if (tenant.tenant_status !== 'active') return [];
+  const why: OperatorScreenKey[] = [];
+  if (asCount(tenant.member_count) === 0) why.push('support.unused.nobody');
+  if (asCount(tenant.connection_count) === 0 && asCount(tenant.migration_count) === 0) {
+    why.push('support.unused.nothing');
+  }
+  return why;
+}
+
 export const SupportTenants: React.FC = () => {
   const t = useOperatorT();
   const { dateTime } = useFormatters();
   const { locale } = useLocale();
   const query = useQuery({ queryKey: ['support', 'tenants'], queryFn: listSupportTenants, ...ONCE });
+  // Filtered here, from the one list already read: a filter that asked the
+  // API again would write a read into the log for each choice.
+  const [filter, setFilter] = React.useState<TenantFilter>('all');
 
   const tenants: SupportTenant[] = query.data ?? [];
+  const unused = tenants.filter((tenant) => notInUse(tenant).length > 0);
+  const closed = tenants.filter((tenant) => tenant.tenant_status !== 'active');
+  const shown = filter === 'unused' ? unused : filter === 'closed' ? closed : tenants;
+  // The day, so the columns stay narrow; the time is on hover.
+  const dayOf = (iso: string) => formatDateTime(iso, locale, { timeStyle: undefined });
 
   return (
     <div>
@@ -560,6 +596,30 @@ export const SupportTenants: React.FC = () => {
       <FindAPerson />
 
       {tenants.length > 0 && (
+        <div className="mb-2 flex flex-wrap items-center gap-2 text-sm">
+          <label htmlFor="support-filter" className="text-gray-600">
+            {t('support.filter.label')}
+          </label>
+          <select
+            id="support-filter"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as TenantFilter)}
+            className="rounded-md border border-gray-300 bg-white px-2 py-1 text-gray-900"
+          >
+            <option value="all">{t('support.filter.all', { count: tenants.length })}</option>
+            <option value="unused">{t('support.filter.unused', { count: unused.length })}</option>
+            <option value="closed">{t('support.filter.closed', { count: closed.length })}</option>
+          </select>
+        </div>
+      )}
+      {tenants.length > 0 && filter === 'unused' && (
+        <p className="mb-2 text-sm text-gray-600">{t('support.filter.unused.why')}</p>
+      )}
+      {tenants.length > 0 && shown.length === 0 && (
+        <p className="text-sm text-gray-500">{t('support.filter.none')}</p>
+      )}
+
+      {shown.length > 0 && (
         <div
           className="overflow-x-auto rounded-md border border-gray-200 bg-white"
           tabIndex={0}
@@ -572,15 +632,19 @@ export const SupportTenants: React.FC = () => {
                 <th className="px-3 py-2">{t('support.col.organisation')}</th>
                 <th className="px-3 py-2">{t('support.col.status')}</th>
                 <th className="px-3 py-2">{t('support.col.joined')}</th>
+                <th className="px-3 py-2">{t('support.col.people')}</th>
+                <th className="px-3 py-2">{t('support.col.connections')}</th>
                 <th className="px-3 py-2">{t('support.col.migrations')}</th>
+                <th className="px-3 py-2">{t('support.col.lastPass')}</th>
                 <th className="px-3 py-2">{t('support.col.failing')}</th>
                 <th className="px-3 py-2">{t('support.col.waiting')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-100">
-              {tenants.map((tenant) => {
+              {shown.map((tenant) => {
                 const failing = asCount(tenant.failing_domain_count);
                 const waiting = asCount(tenant.pending_decision_count);
+                const why = notInUse(tenant);
                 return (
                   <tr key={tenant.tenant_id}>
                     <td className="px-3 py-2">
@@ -590,16 +654,38 @@ export const SupportTenants: React.FC = () => {
                       >
                         {tenant.tenant_name}
                       </Link>
+                      {why.length > 0 && (
+                        <span className="mt-0.5 block text-xs text-amber-800">
+                          {why.map((key) => t(key)).join(' · ')}
+                        </span>
+                      )}
                     </td>
-                    <td className="px-3 py-2 text-gray-600">{tenant.tenant_status}</td>
-                    {/* The day, so the column stays narrow; the time is on hover. */}
+                    <td className="px-3 py-2 text-gray-600">
+                      {tenant.tenant_status}
+                      {tenant.purge_after && (
+                        <span
+                          className="block whitespace-nowrap text-xs text-gray-500"
+                          title={dateTime(tenant.purge_after)}
+                        >
+                          {t('support.status.erasedAfter', { day: dayOf(tenant.purge_after) })}
+                        </span>
+                      )}
+                    </td>
                     <td
                       className="whitespace-nowrap px-3 py-2 text-gray-600"
                       title={dateTime(tenant.joined_at)}
                     >
-                      {formatDateTime(tenant.joined_at, locale, { timeStyle: undefined })}
+                      {dayOf(tenant.joined_at)}
                     </td>
+                    <td className="px-3 py-2 text-gray-600">{asCount(tenant.member_count)}</td>
+                    <td className="px-3 py-2 text-gray-600">{asCount(tenant.connection_count)}</td>
                     <td className="px-3 py-2 text-gray-600">{asCount(tenant.migration_count)}</td>
+                    <td
+                      className="whitespace-nowrap px-3 py-2 text-gray-600"
+                      title={tenant.last_pass_at ? dateTime(tenant.last_pass_at) : undefined}
+                    >
+                      {tenant.last_pass_at ? dayOf(tenant.last_pass_at) : t('support.never')}
+                    </td>
                     <td className="px-3 py-2">
                       {failing > 0 ? (
                         <span className="inline-flex items-center gap-1 rounded bg-red-50 px-2 py-0.5 text-red-700">
@@ -1012,6 +1098,326 @@ export const SupportTenantDetail: React.FC = () => {
           </tbody>
         </table>
       </Section>
+
+      <Closure tenant={tenant} />
+    </div>
+  );
+};
+
+/* -------------------------------------------------------------- the close */
+
+/** The longest reference the API keeps on the audit row (`REFERENCE_MAX`, `operator-close.ts`). */
+const REFERENCE_MAX = 200;
+
+/**
+ * After a close or a reopen: the page reads again, and the list is dropped so
+ * that it is read afresh when next opened. Invalidating it would not do: the
+ * list never refetches on mount (`ONCE`), so an invalidated list would come
+ * back showing the organisation as it was.
+ */
+async function readTheChangeBack(client: QueryClient, tenantId: string): Promise<void> {
+  client.removeQueries({ queryKey: ['support', 'tenants'], exact: true });
+  await client.invalidateQueries({ queryKey: ['support', 'tenant', tenantId] });
+}
+
+/**
+ * CLOSING AN ORGANISATION FROM ITS PAGE (workplan 0139 T7 (b)).
+ *
+ * The close `operator.sh close` makes, through the same function on the API
+ * (`closeAccount`): for a tester who asked to end their account and cannot
+ * press their own Close (0144 T8 is that screen, and it is not built), or an
+ * organisation nobody uses. The API decides who may: a subject who is not an
+ * operator gets "not found", and this section is only reached from a page the
+ * same rule already served.
+ *
+ * Arming, as the money mark and the owner's own screen do (0144 T8): choose a
+ * window, name the request, press Close, then confirm. A window of 0 cannot be
+ * undone, so its confirmation also asks for the organisation's name.
+ *
+ * The answer is the close's own, kept on screen after the page reads the
+ * organisation again: both dates, and what to tell them, in English and in
+ * Dutch, from the same sentences the owner's Close answers with.
+ */
+const Closure: React.FC<{ tenant: SupportTenant }> = ({ tenant }) => {
+  const t = useOperatorT();
+  const [answer, setAnswer] = React.useState<SupportClosedAccount | null>(null);
+  return (
+    <section className="mb-6 rounded-md border border-red-200 bg-white p-4" aria-labelledby="support-close-title">
+      <h2
+        id="support-close-title"
+        className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500"
+      >
+        {t('support.close.title')}
+      </h2>
+      {answer && <ClosedAnswer answer={answer} />}
+      {tenant.tenant_status === 'active' ? (
+        <CloseForm tenant={tenant} onClosed={setAnswer} />
+      ) : tenant.tenant_status === 'closed' ? (
+        <ClosedState tenant={tenant} onReopened={() => setAnswer(null)} />
+      ) : (
+        <p className="text-sm text-gray-600">{t('support.closed.erasing')}</p>
+      )}
+    </section>
+  );
+};
+
+const CloseForm: React.FC<{
+  tenant: SupportTenant;
+  onClosed: (answer: SupportClosedAccount) => void;
+}> = ({ tenant, onClosed }) => {
+  const t = useOperatorT();
+  const client = useQueryClient();
+  const [windowDays, setWindowDays] = React.useState<CloseWindowDays | null>(null);
+  const [reference, setReference] = React.useState('');
+  const [armed, setArmed] = React.useState(false);
+  const [typed, setTyped] = React.useState('');
+  const close = useMutation({
+    mutationFn: (days: CloseWindowDays) =>
+      closeSupportTenant(tenant.tenant_id, { windowDays: days, reference: reference.trim() }),
+    onSuccess: async (answer) => {
+      onClosed(answer);
+      setArmed(false);
+      setTyped('');
+      await readTheChangeBack(client, tenant.tenant_id);
+    },
+  });
+  const ready = windowDays !== null && reference.trim() !== '';
+  const confirmed = windowDays !== 0 || typed.trim() === tenant.tenant_name.trim();
+  return (
+    <div className="text-sm">
+      <p className="mb-2 text-gray-700">{t('support.close.intro')}</p>
+      <p className="mb-3 text-gray-600">{t('support.close.effect')}</p>
+      <fieldset className="mb-3" disabled={armed}>
+        <legend className="mb-1 font-medium text-gray-900">{t('support.close.window')}</legend>
+        {CLOSE_WINDOWS_DAYS.map((days) => (
+          <label key={days} className="flex items-start gap-2 py-0.5 text-gray-700">
+            <input
+              type="radio"
+              name="support-close-window"
+              value={days}
+              checked={windowDays === days}
+              onChange={() => setWindowDays(days)}
+              className="mt-1"
+            />
+            <span>{days === 0 ? t('support.close.window.0') : t('support.close.window.n', { days })}</span>
+          </label>
+        ))}
+      </fieldset>
+      <label className="mb-3 block">
+        <span className="block font-medium text-gray-900">{t('support.close.reference')}</span>
+        <span className="block text-gray-600">{t('support.close.reference.hint')}</span>
+        <input
+          type="text"
+          value={reference}
+          maxLength={REFERENCE_MAX}
+          disabled={armed}
+          onChange={(e) => setReference(e.target.value)}
+          className="mt-1 w-full max-w-md rounded-md border border-gray-300 px-2 py-1"
+        />
+      </label>
+      {!armed ? (
+        <button
+          type="button"
+          disabled={!ready}
+          onClick={() => setArmed(true)}
+          className="rounded-md border border-red-300 px-3 py-1 text-red-700 hover:bg-red-50 disabled:opacity-50"
+        >
+          {t('support.close.arm')}
+        </button>
+      ) : (
+        <div className="rounded-md bg-red-50 p-3">
+          <p className="mb-2 font-medium text-red-900">
+            {windowDays === 0
+              ? t('support.close.confirm.0', { name: tenant.tenant_name })
+              : t('support.close.confirm', { name: tenant.tenant_name, days: windowDays ?? '' })}
+          </p>
+          {windowDays === 0 && (
+            <label className="mb-2 block">
+              <span className="block text-red-900">{t('support.close.typeName')}</span>
+              <input
+                type="text"
+                value={typed}
+                autoComplete="off"
+                onChange={(e) => setTyped(e.target.value)}
+                className="mt-1 w-full max-w-md rounded-md border border-red-300 px-2 py-1"
+              />
+            </label>
+          )}
+          <span className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={!confirmed || close.isPending}
+              onClick={() => windowDays !== null && close.mutate(windowDays)}
+              className="rounded-md bg-red-600 px-3 py-1 text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {t('support.close.yes')}
+            </button>
+            <button
+              type="button"
+              disabled={close.isPending}
+              onClick={() => {
+                setArmed(false);
+                setTyped('');
+              }}
+              className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+            >
+              {t('common.cancel')}
+            </button>
+          </span>
+        </div>
+      )}
+      {close.isError && (
+        <p role="alert" className="mt-2 text-red-700">
+          {t('support.close.failed', { message: serverMessage(close.error) })}
+        </p>
+      )}
+    </div>
+  );
+};
+
+/** What the close answered: the dates, and the sentences to send, in both languages. */
+const ClosedAnswer: React.FC<{ answer: SupportClosedAccount }> = ({ answer }) => {
+  const t = useOperatorT();
+  const { dateTime } = useFormatters();
+  return (
+    <div role="status" className="mb-4 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-gray-900">
+      <p className="font-medium">{t('support.close.done')}</p>
+      <p>{t('support.close.done.purge', { when: dateTime(answer.purgeAfter) })}</p>
+      <p>{t('support.close.done.backups', { when: dateTime(answer.backupsExpireAt) })}</p>
+      <p>
+        {answer.canReopenUntil
+          ? t('support.close.done.reopen', { when: dateTime(answer.canReopenUntil) })
+          : t('support.close.done.final')}
+      </p>
+      <p>{t('support.close.done.passes', { count: answer.passesStopped })}</p>
+      <h3 className="mt-3 font-medium">{t('support.close.tell')}</h3>
+      {(['en', 'nl'] as const).map((language) => (
+        <div key={language} className="mt-2">
+          <p className="text-gray-600">
+            {t(language === 'en' ? 'support.close.tell.en' : 'support.close.tell.nl')}
+          </p>
+          {/* Their words, in their language, which a screen reader on this
+              English page should read as that language. */}
+          <div lang={language}>
+            <p>{answer.erasureCompletesText[language]}</p>
+            {answer.outlivingAccess[language].length > 0 && (
+              <ul className="mt-1 list-disc pl-5">
+                {answer.outlivingAccess[language].map((access) => (
+                  <li key={access.heading}>
+                    <span className="font-medium">{access.heading}</span>: {access.body} ({access.where})
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      ))}
+      <p className="mt-3 text-gray-600">{t('support.close.idp')}</p>
+    </div>
+  );
+};
+
+/**
+ * A closed organisation: when, until when, and the Reopen while the window is
+ * open. The window is read from the clock here only to decide whether to
+ * offer the reopen; the API decides whether it happens (`reopenTenant`).
+ */
+const ClosedState: React.FC<{ tenant: SupportTenant; onReopened: () => void }> = ({
+  tenant,
+  onReopened,
+}) => {
+  const t = useOperatorT();
+  const { dateTime } = useFormatters();
+  const reopenable = tenant.purge_after !== null && Date.parse(tenant.purge_after) > Date.now();
+  return (
+    <div className="text-sm">
+      {tenant.closed_at && tenant.purge_after && (
+        <p className="mb-2 text-gray-700">
+          {t('support.closed.on', {
+            closed: dateTime(tenant.closed_at),
+            purge: dateTime(tenant.purge_after),
+          })}
+        </p>
+      )}
+      {reopenable ? (
+        <ReopenForm tenant={tenant} onReopened={onReopened} />
+      ) : (
+        <p className="text-gray-600">{t('support.closed.final')}</p>
+      )}
+    </div>
+  );
+};
+
+const ReopenForm: React.FC<{ tenant: SupportTenant; onReopened: () => void }> = ({
+  tenant,
+  onReopened,
+}) => {
+  const t = useOperatorT();
+  const client = useQueryClient();
+  const [reference, setReference] = React.useState('');
+  const [armed, setArmed] = React.useState(false);
+  const reopen = useMutation({
+    mutationFn: () => reopenSupportTenant(tenant.tenant_id, reference.trim()),
+    onSuccess: async () => {
+      setArmed(false);
+      onReopened();
+      await readTheChangeBack(client, tenant.tenant_id);
+    },
+  });
+  return (
+    <div>
+      <p className="mb-2 text-gray-600">{t('support.closed.reopenable')}</p>
+      <label className="mb-3 block">
+        <span className="block font-medium text-gray-900">{t('support.close.reference')}</span>
+        <span className="block text-gray-600">{t('support.reopen.reference.hint')}</span>
+        <input
+          type="text"
+          value={reference}
+          maxLength={REFERENCE_MAX}
+          disabled={armed}
+          onChange={(e) => setReference(e.target.value)}
+          className="mt-1 w-full max-w-md rounded-md border border-gray-300 px-2 py-1"
+        />
+      </label>
+      {!armed ? (
+        <button
+          type="button"
+          disabled={reference.trim() === ''}
+          onClick={() => setArmed(true)}
+          className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50 disabled:opacity-50"
+        >
+          {t('support.reopen.arm')}
+        </button>
+      ) : (
+        <div className="rounded-md bg-blue-50 p-3">
+          <p className="mb-2 font-medium text-gray-900">
+            {t('support.reopen.confirm', { name: tenant.tenant_name })}
+          </p>
+          <span className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={reopen.isPending}
+              onClick={() => reopen.mutate()}
+              className="rounded-md bg-blue-600 px-3 py-1 text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {t('support.reopen.yes')}
+            </button>
+            <button
+              type="button"
+              disabled={reopen.isPending}
+              onClick={() => setArmed(false)}
+              className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+            >
+              {t('common.cancel')}
+            </button>
+          </span>
+        </div>
+      )}
+      {reopen.isError && (
+        <p role="alert" className="mt-2 text-red-700">
+          {t('support.reopen.failed', { message: serverMessage(reopen.error) })}
+        </p>
+      )}
     </div>
   );
 };
