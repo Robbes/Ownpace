@@ -661,7 +661,7 @@ const CLICKHOUSE =
  * a60e2a7b's tag, so the code read here did not change.
  */
 const MINIO =
-  'chainguard/minio:latest@sha256:634c989a2f1029162fc2676c263caa181213b9410449968532f750a6fb77532d';
+  'chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879';
 const MAILPIT =
   'axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce';
 /**
