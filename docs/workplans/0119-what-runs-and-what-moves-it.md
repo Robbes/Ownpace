@@ -25,15 +25,15 @@ it leaves `+(*a)` as it was.
   every path dev, and `pnpm why picomatch -r --prod` finds none. The API image installs production
   dependencies only, and the self-host image carries the appliance's payload, not the workspace's
   `node_modules`.
-- **What was decided.** Asked whether to accept it until a release fixes it, for a month at most,
-  or to hold alpha.11 and every merge to `main` until then, the owner answered *"OWNER-WORDS-PENDING"*.
+- **What was decided.** Asked whether to accept it until a release fixes it, for a month at most, or
+  to hold alpha.11 and every merge to `main` until then, the owner answered *"A."* the same evening.
   `scripts/audit-advisories.mjs` gains `ACCEPTED`, and this advisory is its one entry: picomatch,
   high, accepted 2026-11-17, last day 2026-12-17, with those words. An entry lets its row through
   only while no release fixes it, every path to it is dev, its severity is no higher than the one
   accepted, and its last day has not passed; the gate blocks again the day any of that stops. The
   row stays in the table and in the annotations, marked accepted with its last day. An entry the
-  report no longer lists is named as one that can go. `pnpm-workspace.yaml` says why picomatch
-  has no override, and `security-scan.yml`'s comment on the gate names the one way past it.
+  report no longer lists is named as one that can go. `pnpm-workspace.yaml` says why picomatch has
+  no override, and `security-scan.yml`'s comment on the gate names the one way past it.
 - **Proved.** `an-advisory-nobody-listed.unit.test.ts`: 24 tests, 11 of them new. Each condition
   that ends an acceptance has a test, as do the id read from the advisory's URL, a stale entry, the
   month and the owner's words. Eight mutations each fail it: a published fix ignored (1 failed),

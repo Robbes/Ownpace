@@ -123,7 +123,7 @@ export const ACCEPTED = [
     severity: 'high',
     accepted: '2026-11-17',
     until: '2026-12-17',
-    words: '',
+    words: 'A.',
   },
 ];
 
