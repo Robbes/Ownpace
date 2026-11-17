@@ -4,6 +4,48 @@
 
 ## Status — 2026-11-17 (update this block at the end of every session)
 
+**2026-11-17, in the evening: GHSA-fc5q-39xc-vjpf, a high in picomatch that no release fixes,
+accepted by name to 2026-12-17 at most.** Times are UTC. GitHub's advisory database reviewed
+GHSA-fc5q-39xc-vjpf (CVE-2026-112366, high, CVSS 4.0 8.7, published 2026-10-19) on 2026-11-17.
+picomatch skips single-branch repeated extglobs such as `+(*)` and `+(*a)` in
+`analyzeRepeatedExtglob` (`lib/parse.js`), so they compile to expressions that backtrack
+exponentially on short crafted strings. The advisory covers every release, `<=4.0.7`. npm's newest
+is 4.0.7 (2026-08-24), and the 2.x line ends at 2.3.2, so there was no version to move to. The one
+upstream pull request the advisory names, picomatch's number 194, was open, and its author says
+it leaves `+(*a)` as it was.
+
+- **What it stopped.** The advisory gate (`pnpm audit`, read by `scripts/audit-advisories.mjs
+  --fail-at=high`) failed on `main` at `74f028a4`, #1929's push (Security Scan run 44135503437,
+  17:18), the first run after the review. It failed the same way on alpha.11's fold (#1930, run
+  44136765565), whose lockfile is `main`'s. Release runs that Security Scan on the commit it tags,
+  so alpha.11 could not be tagged.
+- **Where it reaches**, read with `main`'s lockfile: 4.0.7 through vitest, vite and
+  typescript-eslint (by tinyglobby and fdir), 101 paths, and 2.3.2 through the Trigger.dev deploy
+  CLI's config loader (`trigger.dev>c12>chokidar`, by anymatch and readdirp), 4 paths. pnpm marks
+  every path dev, and `pnpm why picomatch -r --prod` finds none. The API image installs production
+  dependencies only, and the self-host image carries the appliance's payload, not the workspace's
+  `node_modules`.
+- **What was decided.** Asked whether to accept it until a release fixes it, for a month at most, or
+  to hold alpha.11 and every merge to `main` until then, the owner answered *"A."* the same evening.
+  `scripts/audit-advisories.mjs` gains `ACCEPTED`, and this advisory is its one entry: picomatch,
+  high, accepted 2026-11-17, last day 2026-12-17, with those words. An entry lets its row through
+  only while no release fixes it, every path to it is dev, its severity is no higher than the one
+  accepted, and its last day has not passed; the gate blocks again the day any of that stops. The
+  row stays in the table and in the annotations, marked accepted with its last day. An entry the
+  report no longer lists is named as one that can go. `pnpm-workspace.yaml` says why picomatch has
+  no override, and `security-scan.yml`'s comment on the gate names the one way past it.
+- **Proved.** `an-advisory-nobody-listed.unit.test.ts`: 24 tests, 11 of them new. Each condition
+  that ends an acceptance has a test, as do the id read from the advisory's URL, a stale entry, the
+  month and the owner's words. Eight mutations each fail it: a published fix ignored (1 failed),
+  a production path ignored (1), a raised severity ignored (1), the last day ignored (2), the
+  acceptance never read (3), an entry matched by package alone (1), `dev` made a discount (6), and
+  a last day two months out (1). Every mutation was restored byte for byte. The gate run on this
+  day's real `pnpm audit` output exits 0, with picomatch listed as *high, accepted to 2026-12-17*
+  beside the moderate on minimatch 10.2.6 (GHSA-g3hv-75wg-m249).
+- **Owed:** the move to the first picomatch release that fixes it, the day the gate asks for it.
+  The tree carries two lines, 4.x and, under chokidar 3, 2.x; if only 4.x gets a fix, the 2.x
+  path needs its own answer. This entry is read again by 2026-12-17 at the latest.
+
 **2026-11-17: MinIO's digest moves to Chainguard's newest build, `59953701…`, with glibc's two
 security fixes, for alpha.11, inside its three-day floor, waived (0146 T7); built on a branch,
 not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-minio-5995`, from `main` at

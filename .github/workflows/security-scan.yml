@@ -196,13 +196,21 @@ jobs:
       # `findings[].dev`, and the report says where each advisory reaches.
       # That is CONTEXT FOR FIXING IT, NOT A DISCOUNT: this repository is
       # public, so an advisory in the dev tree is as readable — and as real — as
-      # one in the shipped tree. `--fail-at` never consults that flag; it gates
-      # on severity alone, and a dev-only high blocks exactly like any other.
+      # one in the shipped tree. `--fail-at` never lets a row through for that
+      # flag; it gates on severity, and a dev-only high blocks exactly like any
+      # other.
       #
       # --fail-at=high: HIGH and CRITICAL block the merge, MODERATE and LOW are
       # reported and do not. That split is the owner's rule, and it is a
       # severity line, not a prod/dev one. Every advisory is listed either way —
       # what changes at the line is only whether the job exits non-zero.
+      #
+      # ONE WAY PAST THE LINE, AND IT IS BY NAME: an advisory no release fixes
+      # yet, which the owner accepted in `ACCEPTED` (scripts/audit-advisories.mjs)
+      # for a month at most. It stays listed, marked accepted, and blocks again
+      # the day a fix is published, a production path reaches it, its severity
+      # rises, or its last day passes. GHSA-fc5q-39xc-vjpf on picomatch, from
+      # 2026-11-17 to 2026-12-17 (workplan 0119, Status of that day).
       - name: pnpm audit (advisory gate)
         run: |
           pnpm audit --audit-level=moderate --json > pnpm-audit.json || true

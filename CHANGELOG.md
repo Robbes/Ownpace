@@ -6,6 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The advisory gate accepts GHSA-fc5q-39xc-vjpf (CVE-2026-112366, high), a ReDoS in picomatch
+  that no release fixes, by name and to 2026-12-17 at most** (workplan 0119). GitHub's advisory
+  database reviewed it on 2026-11-17. It covers every picomatch release, and this repository
+  reaches it only through developer tools: vitest, vite, typescript-eslint, and the Trigger.dev
+  deploy CLI's config loader. With nothing to move to, it turned every Security Scan red, `main`'s
+  and the one Release runs on the commit it tags. `scripts/audit-advisories.mjs` now keeps a list,
+  `ACCEPTED`, of advisories the owner accepted by name, each for a month at most. The row stays in
+  the report, marked accepted, and the gate blocks again the day a release fixes it, a production
+  path reaches it, its severity rises, or its last day passes.
 - **Trigger.dev's object store runs Chainguard's newest MinIO build, pushed 2026-11-17, with
   glibc's fixes for CVE-2026-100290 and CVE-2026-115819** (workplan 0119, 0146 T7): glibc
   2.44-r20 fixes a double free after an allocation failure in `regcomp` and `regexec`, and a
