@@ -25,7 +25,8 @@ untouched.
   Postgres and on PGlite, dispatched on `main` at C, beside C's push runs and its Windows smoke.
 - **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
   `waive_nights` set to the same words, and the approval in the `release` environment. The O365
-  lane for alpha.11 was put to the owner on 2026-11-16 and is not answered yet (0141 T13 (a)).
+  lane for alpha.11 was put to the owner on 2026-11-16; on 2026-11-17 the owner waived it,
+  *"Waive O365"* (0141 T13 (a)).
 
 **2026-11-16: live runs `v0.2.0-alpha.10` (T2).** The owner deployed it from the tag on
 2026-11-16: one run of alpha.9's `deploy-live.sh`, from about 06:58 UTC, which took at 07:02:20,

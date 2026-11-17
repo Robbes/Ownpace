@@ -2,7 +2,17 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-11-16 (update this block at the end of every session)
+## Status — 2026-11-17 (update this block at the end of every session)
+
+**2026-11-17: the O365 lane is waived for alpha.11, before its tag (T13 (a), T14).** Docs only.
+Asked on 2026-11-16 whether to waive the lane for alpha.11, the owner answered on 2026-11-17:
+*"Waive O365"*. So alpha.11 is tagged under the owner's waiver of the lane, recorded before its
+fold this time, not after the fact as for alpha.10. alpha.11 carries `@azure/msal-node` 7.2.2 (#1920),
+the library the lane signs in with, so a run would have read something new: by upstream's notes its
+7.2.2 sanitises authorization code response payloads the same way across its Node clients and keeps
+raw exception data from bypassing its PII filter. No tester brings a Microsoft 365 source yet. The
+lane stays owed for a later alpha, with its secrets, as `docs/test-tenant.md` lists them, and a
+green run; its newest run is still 41418432093 (2026-11-02).
 
 **2026-11-16: the O365 lane is waived for alpha.10 (T13 (a), T14).** Docs only. `v0.2.0-alpha.10`
 was tagged on 2026-11-15 without a run of `e2e-o365.yml`, and no waiver of the lane for it was
