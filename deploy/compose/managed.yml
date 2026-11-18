@@ -2313,16 +2313,25 @@ services:
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
   #
-  # v1.33.1 (pushed 2026-11-07T23:54Z, three days old 2026-11-10T23:54Z;
-  # workplan 0119, Status 2026-11-11) is the patch kept current, not a fix
-  # for a finding the image scan reports: the same Go 1.27.3 and
-  # golang.org/x/net 0.62.0 as v1.33.0, on Alpine 3.24.4, with zlib 1.4,
-  # Alpine's security upgrade for CVE-2026-4738, which /mailpit, a static
-  # binary, never loads. Its HTML check fetches at most 10 of the stylesheets
-  # a message links, 5 MiB in all, and still only when its API is asked; its
-  # SMTP server answers 554 to a message it cannot parse, where it dropped it.
-  # Nothing else it sends by default changed. It adds no schema step, so a
-  # rollback is the v1.33.0 digest.
+  # v1.34.0 (pushed 2026-11-17T07:07Z, three days old 2026-11-20T07:07Z;
+  # workplan 0119, Status 2026-11-18) is the minor kept current. It fixes
+  # GHSA-v887-64wg-qqc9, which v1.33.1 brought in: one message whose part
+  # header names a media type it cannot parse, with an RFC 2231 parameter,
+  # ended the whole process. A panic in an SMTP session now drops that
+  # connection alone. It is built with Go 1.27.4 (CVE-2026-97054, in the
+  # net/http MaxBytesReader its API uses) on the same Alpine 3.24.4 packages.
+  # What else it can send still waits for a setting this file does not make:
+  # Rspamd, SpamAssassin, a webhook, a relay or a forward; and the HTML
+  # check, link check and screenshot proxy fetch only when their API is
+  # asked. Its first start adds a column to mailpit.db
+  # (internal/storage/schemas/1.34.0.sql) and fills it; v1.33.1 applies only
+  # the scripts it carries and names its columns, so a rollback is still the
+  # v1.33.1 digest.
+  #
+  # v1.33.1 (2026-11-11) was the patch kept current: Alpine 3.24.4, with zlib
+  # 1.4 for CVE-2026-4738, which the static /mailpit never loads; the HTML
+  # check's fetches bounded to 10 stylesheets and 5 MiB; and a 554 for a
+  # message it cannot parse, where it dropped it.
   #
   # v1.33.0 (2026-11-03) was the minor kept current: golang.org/x/net 0.62.0,
   # whose HTML parser fixes CVE-2026-78661 (Mailpit parses every caught HTML
@@ -2339,7 +2348,7 @@ services:
   # CVE-2026-111943 in `crypto/x509`, and its first start applied
   # `internal/storage/schemas/1.32.0.sql` to mailpit.db.
   mailpit:
-    image: axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce
+    image: axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e
     container_name: ${COMPOSE_PROJECT_NAME}-mailpit
     restart: unless-stopped
     logging: *logging
@@ -2384,8 +2393,8 @@ services:
       MP_DATABASE: /data/mailpit.db
       # NO RELEASE CHECK (workplan 0139, 2026-09-28). Whenever its page asks
       # for the server's info, Mailpit (internal/stats/stats.go, read at v1.31.6
-      # and again at v1.32.0, v1.33.0 and v1.33.1) asks GitHub for its newest
-      # release. Live runs no catcher; this is the test stack's.
+      # and again at v1.32.0, v1.33.0, v1.33.1 and v1.34.0) asks GitHub for its
+      # newest release. Live runs no catcher; this is the test stack's.
       # `scripts/a-service-that-phones-home.unit.test.ts`.
       MP_DISABLE_VERSION_CHECK: "true"
     ports:
