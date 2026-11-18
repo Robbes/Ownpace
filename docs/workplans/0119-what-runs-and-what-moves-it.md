@@ -59,9 +59,9 @@ digest; nothing read was run. Times are UTC.
 - **Upstream's git tags.** v1.4.0 is a lightweight tag on `e933d0b7`, the head of upstream's
   `master` today, and the first since v1.3.0 (2026-07-29); v1.3.1 to v1.3.10 have none. So the
   pin watch goes on reading the community image's tags, as `ci.yml`'s header and §2.5's Atlas row
-  now say. Two comments in `scripts/idp-pin-watch.mjs` and one line of `docs/testing.md` still
-  say upstream's git tags stop at v1.3.0, true until 2026-11-17; they are left for a change of
-  their own.
+  now say. The two comments in `scripts/idp-pin-watch.mjs` and the line of `docs/testing.md`
+  that said upstream's git tags stop at v1.3.0, true until 2026-11-17, say now that they miss
+  most releases.
 - **Proved here.** The 68 unit test files that name `ci.yml`, the CHANGELOG, the plans or the pin
   watch, read every tracked file or every workflow, or walk `docs/`, pass, 2,362 tests. A test can
   read these files without naming them, so the 68 are not all that read the change: the whole

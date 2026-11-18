@@ -462,7 +462,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
   busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs, the Atlas
   release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
-  image's tags on Docker Hub, since upstream's git tags stop at v1.3.0), the stalwart-cli
+  image's tags on Docker Hub, since upstream's git tags miss most releases), the stalwart-cli
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
   tags), the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), and the tasks'
