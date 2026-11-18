@@ -109,23 +109,13 @@ export function rank(severity) {
  * name, never by reach", above, says what an entry is and when it lapses;
  * `an-advisory-nobody-listed.unit.test.ts` holds each entry to a month at most.
  *
- * GHSA-fc5q-39xc-vjpf, read on 2026-11-17: picomatch 4.0.7 under vitest, vite
- * and typescript-eslint (through tinyglobby), and 2.3.2 under the Trigger.dev
- * deploy CLI's config loader (`trigger.dev>c12>chokidar`). pnpm reads every
- * path as dev, and `pnpm why picomatch -r --prod` finds none. The one upstream
- * pull request the advisory names, picomatch's number 194, was open, and its
- * author says it leaves `+(*a)` as it was.
+ * Empty since 2026-11-18. Its one entry, GHSA-fc5q-39xc-vjpf on picomatch
+ * (accepted 2026-11-17, the owner's "A.", to 2026-12-17), went the day GitHub
+ * withdrew that advisory: OSV's record of it says withdrawn at 15:38:56 UTC,
+ * and `pnpm audit` no longer lists it. The list stays for the next advisory
+ * the owner accepts by name.
  */
-export const ACCEPTED = [
-  {
-    id: 'GHSA-fc5q-39xc-vjpf',
-    module: 'picomatch',
-    severity: 'high',
-    accepted: '2026-11-17',
-    until: '2026-12-17',
-    words: 'A.',
-  },
-];
+export const ACCEPTED = [];
 
 /**
  * Whether the audit names a version that fixes the advisory. pnpm gives no fix

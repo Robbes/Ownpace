@@ -4,6 +4,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The advisory gate accepts nothing again: GitHub withdrew GHSA-fc5q-39xc-vjpf, the picomatch
+  ReDoS it accepted by name, on 2026-11-18** (workplan 0119). `pnpm audit` no longer lists it, so
+  its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
+  the gate blocks every high as it did before 2026-11-17. The list stays for the next advisory the
+  owner accepts by name.
+
 ### Fixed
 
 - **Release no longer stops when GitHub answers 404 for a run it has just dispatched** (workplan

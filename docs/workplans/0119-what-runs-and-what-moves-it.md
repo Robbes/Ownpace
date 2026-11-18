@@ -4,6 +4,49 @@
 
 ## Status — 2026-11-18 (update this block at the end of every session)
 
+**2026-11-18, last: the alpha.12 round's reading. No release fixes the image scan's highs; three
+pins move after their floors, and four releases are left.** Read on 2026-11-18 from upstream's
+public git (`git ls-remote`, blobless fetches of the tags), Docker Hub's and GHCR's manifests, the
+npm registry and the OSV data dump, without a login; nothing read was run. Times are UTC.
+- **The highs with a fix that the scan after alpha.11's tag read** (run 44260105914, the entry
+  below): no release carries one yet. Gatus v5.38.0, the registry 3.1.2 and Caddy 2.11.9 are still
+  their projects' newest tags. Gatus's `master` of 2026-11-15 has `golang.org/x/net` v0.62.0 and
+  `klauspost/compress` v1.20.3, with go-jose v4.1.4 and `golang.org/x/image` v0.40.0 as before.
+  Zitadel v4.20.4 and v4.20.5 keep `golang.org/x/net` v0.61.0 (CVE-2026-78661). Trigger.dev
+  v4.8.6's `pnpm-lock.yaml` keeps `@fastify/busboy` 2.1.1, deepmerge-ts 7.1.5, turbo-stream 2.4.1
+  and undici 5.29.0, the four that wait on upstream's issue. So the reach reading of 2026-11-13
+  (the four Go binaries, below) stands, and nothing is built from source.
+- **GHSA-fc5q-39xc-vjpf is withdrawn.** GitHub withdrew the picomatch advisory the gate accepted
+  by name on 2026-11-17 (#1931): OSV's record of it, modified at 15:56:12, says withdrawn at
+  15:38:56, and the npm registry's advisory service, which `pnpm audit` reads, no longer lists it.
+  The day's `pnpm audit` lists one advisory, the known moderate in the Trigger.dev CLI's minimatch
+  10.2.6, and the gate printed that the picomatch entry *"can go"*. It goes in this pull request:
+  `ACCEPTED` is empty, a month before the entry's last day of 2026-12-17, and the gate blocks every
+  high again. Its test that read the entry now reads whatever `ACCEPTED` holds.
+- **What moves for alpha.12, each in its own pull request and after its three-day floor, on
+  2026-11-20:** Mailpit v1.34.0 (#1937), Atlas v1.4.0 (#1936), and Zitadel v4.20.4 (#1938). The
+  owner was asked whether the identity provider takes v4.20.4, and Trigger.dev v4.8.6, both their
+  call (issues #1934 and #1935). Their answer, at 20:53: *"1 yes, 2 no"*. They dumped the OTA
+  instance's `zitadel` database for it the same evening (#1938 records the set).
+- **What is left, and why:**
+  - **Trigger.dev v4.8.6** (its tip commit of 12:08), by the owner's *"2 no"* for alpha.12: 155
+    commits after v4.8.5, 15 new Prisma migrations, one way, and none of the four packages above
+    moves. Issue #1935 stays open for a later round.
+  - **Zitadel v4.20.5** (19:17): its one commit changes `apps/login` alone, Login V2, which this
+    stack does not deploy; the server it runs is v4.20.4's. #1938 says the same.
+  - **MinIO's rebuild of `latest`, `7618b82b…`** (pushed at 00:27): against the pinned `59953701…`
+    it moves `glibc-2.44`, `glibc-2.44-locale-posix` and `ld-linux-2.44` from 2.44-r20 to
+    2.44-r22 and nothing else (linux/arm64, the package database of each image's top layer).
+    Wolfi's advisories for glibc name no fix in r21 or r22, and the pin reads 0, 0 and 0. It waits
+    for a rebuild that fixes something.
+  - **The Docker socket proxy's v0.6.0** (tag of 09:25 on 2026-11-17): `haproxy.cfg` and
+    `docker-entrypoint.sh` are the same blobs as v0.5.0's, moved under `system_files/`. Its
+    Dockerfile names `ARG HAPROXY_VERSION=lts`, which is HAProxy 3.4 today, the line this build
+    already runs, and adds `apk upgrade` while the image builds, a network step the build here does
+    not take: its base moves by digest, in Dependabot's pull requests. So the image would not
+    change, and the guard's record of upstream's instructions would stop matching for nothing. The
+    pin watch's row stays behind until a release changes what the proxy does.
+
 **2026-11-18, later, recorded: live runs alpha.11, MinIO's `59953701…` and managed migration 0060
 with it.** The owner deployed `v0.2.0-alpha.11` (tagged 2026-11-18 on `95ccf152`) to live the same
 day, from alpha.10 in one run of alpha.10's script, which took at 09:51:50 UTC, one-way, as the
