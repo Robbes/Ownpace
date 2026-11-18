@@ -2,7 +2,114 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-16 (update this block at the end of every session)
+## Status — 2026-11-18 (update this block at the end of every session)
+
+**2026-11-18: live runs `v0.2.0-alpha.11`, one-way over alpha.10 by managed migration 0060, on a
+copy of alpha.10's databases taken under the owner's waiver (T6, T9).** The owner deployed it on
+2026-11-18, before any tester, pasting the sheet's checked blocks one at a time, and ran the
+checks after it the same morning. Times are UTC, on 2026-11-18 unless said. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-18, `v0.2.0-alpha.11`: took at 09:51:50 UTC; one-way.
+  The tag is tag object `99dbec69…` on `95ccf152` (#1930, the fold), made at 06:52:17 by Release
+  run 44254015396, which its message names with *Proved by: CI run #5572, Security Scan run #5682
+  on main, windows-payload run #45* and the gate scan, run 44254311087. The owner waived its
+  counted nights, for this version alone (`WAIVER_VERSIONS`, #1926; 0146's Status, 2026-11-17);
+  the acceptance is the tag message's own line: *Nights waived by Robbes, in their words: "A,
+  waive alpha.11's nights"*. alpha.11 carries the support page's close and reopen and the list
+  that says which organisations nobody uses, with managed migration 0060 (#1928), MinIO's
+  `59953701…` (#1929), pnpm 11.28.12 (#1925) and the other alpha.11 pull requests (0146's Status,
+  2026-11-17, last).
+- **Why it ran this day: the owner's waiver.** The copy before alpha.8, of alpha.7's databases,
+  taken on 2026-11-14 at 15:01:07, was on its day 4 and its update not proven, in the take's words
+  *the deploy of v0.2.0-alpha.10 took at 2026-11-16T07:02:20Z and its hold is lifted, but no pass
+  that started after it has succeeded yet*. So a take would keep it and take no copy of alpha.10's
+  databases, and that copy could not take live back to alpha.10; the sheet's window was Friday
+  2026-11-20, after that copy's expiry (0146's Status, 2026-11-17). The owner, after the tag: *"I
+  waive the proving, I want to deploy now"*. So the copy before alpha.8 was deleted by hand before
+  block 4 (two bullets below), and block 4's take made a new copy, of alpha.10's databases: the
+  way back from alpha.11, which managed migration 0060 makes one-way. The deploy ran on Wednesday
+  2026-11-18, ahead of the sheet's window, because of that waiver.
+- **Read-only checks first (0a).** The shell as the sheet expects it; live's checkout at
+  `v0.2.0-alpha.10`, clean; both box timers active; live's `.env` as expected; `deploys.log`'s
+  last three lines alpha.8's and alpha.9's took one-way and alpha.10's took reversible; the copy
+  before alpha.8 at mode 700 with its 6 entries and its note; the take's own dry run keeping it, on
+  day 4, exit 0; and no copy volume or ClickHouse list made by hand.
+- **The copy before alpha.8, deleted by hand (a new block 1, destructive, the owner's).** It read
+  the copy's note, `taken=2026-11-14T15:01:07Z` and `before=v0.2.0-alpha.8`, and its 6 files, then
+  deleted the 6 files: the directory left with 0 entries, at mode 700. The take's dry run again: a
+  take would now take the copy before v0.2.0-alpha.11, of the app's database, the sign-in
+  service's database and the roles, exit 0.
+- **The tag and what it moves (0b to 0d).** 0b: the deploy shell's `node` the owner's own
+  v26.13.0, and pnpm 11.28.9, which switches itself to 11.28.12 in alpha.11's checkout. 0c, made
+  to check itself for this deploy, read all 38 of its lines as expected: the tag object, its
+  message and its pins; between the two tags, migration 0060 added and `pnpm-lock.yaml` changed
+  (the comparison's exit 1); 0060's two statements, which replace the view `support_tenants` and
+  its comment; and 4 lines of `managed.yml` that are not comments, MinIO's digest from
+  `634c989a…` to `59953701…` on `minio` and `minio-init`. 13 of the 13 images live ran were on
+  the shared daemon, and MinIO's new digest and busybox 1.38 were there already. No unit or script
+  under `deploy/compose` moves between the tags, nor the web's header template, so
+  `deploy-live.sh`, the copy's script and `bootstrap-managed.sh` are alpha.10's. 0d: the npm
+  registry answered 200 for corepack 0.36.0 and pnpm 11.28.12; Docker Hub's, GitHub's and
+  Google's registries 401, so reachable; and the tasks' base was readable from GitHub's registry
+  without a login, exit 0.
+- **The hold (T6 step 2)** went on at 08:48:14, by its own row, its Dutch sentence naming 12:30
+  Dutch time (11:30 UTC). The owner's read at 09:35, 47 minutes after, was clean: `yes|1|2856|0`,
+  one hold, 2,856 seconds old, and 0 passes in flight, nothing unfinished. The day's two scheduled
+  E2E (self-hosted) runs ran C, both green: run 44238733688 from 04:38 to 04:43, and run
+  44271686156 from 08:59 to 09:04, with the hold on; block 4 waited for that second run to end, so
+  that its exposure check could not overlap it, and no E2E run was queued or running at 09:48.
+  Nothing was merged to `main` from the hold until the checks after the deploy (block 6) were
+  done. The dry run (block 3), which checked its own lines, exited 0: one-way over alpha.10, since
+  the tag adds managed migration 0060; the take would make the copy; no refusal.
+- **The run (T6 steps 3 to 7).** From about 09:48, one run of alpha.10's `deploy-live.sh`, the
+  checkout's. The take deleted no old copy first, the one before alpha.8 being gone already; it
+  dumped the app's database, 939 entries read back, and, with `dump-idp.sh`, the sign-in service's
+  database while it ran Zitadel v4.20.3, 701 entries read back (407,640 bytes, its roles file
+  1,771 bytes); and it took the copy before v0.2.0-alpha.11 at 09:49:21
+  (`taken_epoch=1794995361`), `from=v0.2.0-alpha.10 (fe0b1be2…)`, 5 files, with no task runner's
+  database, since Trigger.dev's pin does not move. Trigger.dev's images and the SDK agree at 4.8.5;
+  `minio` and `minio-init` were recreated on `59953701…`, MinIO's bucket for the packets there;
+  every service up and healthy. The new api applied managed migration 0060 at 09:50, and the tasks
+  deployed as `20261118.1` with 17 detected tasks at 09:51. Its checks: `/api/version` and
+  `/version.json` at `95ccf152…`, `0.2.0-alpha.11`; `/api/ready` 200; the auth mode managed;
+  `NODE_ENV` production; the site running and healthy; the exposure check `ok`, 41 running
+  containers and 35 publishes, each on loopback or an address the allow-list names, and 1 accepted
+  as not Ownpace's. *The deploy took* at 09:51:50, one-way, exit 0. It printed no NOTE: the tree
+  clean, so block 5 had nothing to put back.
+- **The checks after it, with the hold on (T6 step 7),** each as the sheet expects. Both version
+  endpoints at alpha.11's `95ccf152`. `minio` on `59953701…`, and no container on `634c989a…`; all
+  15 services running, and `minio-init` exited 0. All 16 containers, live's and the site's, with
+  `no-new-privileges`, `drop=[ALL]` but `trigger-api`'s, and `trigger-redis` adding none. The
+  switches: MinIO's update and call-home off, telemetry off, `CLI_LOGIN_IDLE_TIMEOUT_DAYS=90` and
+  `ADMIN_API_ENABLED=false`, and ClickHouse's crash reports off. Every image exactly as the tag
+  pins it; started after alpha.10's deploy took: `minio`, `minio-init`, the api and the web, the
+  other twelve not since, and 0 restarts. The tasks' runners (6d): the runners of `20261118.1` on
+  image `eacbbf398672`, and the current deployment, `20261118.1`, on the same image, built at the
+  fixed 1970-01-01; the api's Node and the tasks' v26.13.1; in the tasks' image no `sh`, `/bin/sh`,
+  `bash`, `/bin/bash` or `/busybox/sh`; and no container left behind. The task row
+  `current|20261118.1|DEPLOYED|4.8.5|4.8.5|26.13.1|2026-11-18 09:51`; the tick
+  `COMPLETED_SUCCESSFULLY|4.8.5|5`; no Prisma migration unfinished; managed migration 0060 applied
+  at 09:50, after 0059 on 2026-10-28 at 06:19, and the shared chain's last 0067; `support_tenants`
+  with its 12 columns, 0060's 5 beside the 7 before it; the site's check ok; `deploys.log`'s last
+  lines alpha.9's took one-way, alpha.10's took reversible and alpha.11's took one-way, at
+  09:51:50; and the copy as the take made it. The sign-in service (6f): `setup-zitadel.sh
+  --count-organisations` found it ready, still accepting the provisioning token, with
+  *organisations on this instance: 1*, exit 0; the owner signed in; and the support page's new
+  list showed the two organisations the owner's own test grants made (0139's Status, 2026-11-16)
+  as not in use, each Active. Closing them from that page is the owner's, not yet recorded.
+- **The lift (T6 step 8).** Block 7's checks passed, and the owner lifted the hold at 11:26:43, by
+  the hold's own row (started 08:48:14), so the hold was on for 2 hours 38 minutes 29 seconds. The
+  owner's check at about 11:43 read `yes|0|-1|0`, no hold open and no pass in flight; the last hold
+  from 08:48:14 to 11:26:43; the box checks' timer's next run within 8 minutes; and the copy's
+  directory with its 5 entries, kept, since nothing has proven alpha.11 yet. #1932 merged after,
+  at 11:27:31 (0146's Status, 2026-11-18).
+- **What is left (T9).** Nothing has proven alpha.11 yet; the owner's own migration on live,
+  before any invitation, is the proof. Once a pass proves it, the box checks delete the copy, at
+  least an hour after the lift (`COPY_DELETE_WHEN_PROVEN=true`); otherwise it expires on 2026-11-24
+  at 08:49:21, 6 days less an hour after its take, its last day from 2026-11-23 at 08:49:21, on
+  which every take refuses but a deploy of alpha.10, the release it holds. The copy holds
+  alpha.10's databases, so it is the way back from alpha.11, which managed migration 0060 makes
+  one-way; the copy before alpha.8, of alpha.7's, is gone.
 
 **2026-11-16: live runs `v0.2.0-alpha.10`, reversible over alpha.9 (T6, T9).** The owner deployed it
 on 2026-11-16, before any tester, pasting the sheet's checked blocks one at a time, and ran the

@@ -2,7 +2,16 @@
 
 > **In one line:** Live-account proofs lifting the experimental tag via a Live proofs table (Microsoft 365, Dropbox, Apple, Google Tasks, Soverin), the organiser canary, shared mailboxes, Microsoft-aware detectors, a managed browser walk, the O365 lane, nightly-gate readiness.
 
-## Status — 2026-11-17 (update this block at the end of every session)
+## Status — 2026-11-18 (update this block at the end of every session)
+
+**2026-11-18: alpha.11 is tagged without the O365 lane, under the owner's waiver, and live runs it
+(T13 (a), T14).** Docs only. `v0.2.0-alpha.11` was tagged on 2026-11-18 at 06:52:17 UTC without a
+run of `e2e-o365.yml` (0146, Status of that day), under the waiver the entry below records, the
+owner's *"Waive O365"*. Release does not read the lane. It stays owed for a later alpha: the
+secrets, as `docs/test-tenant.md` lists them, and a green run. **T14:** alpha.11's counted nights
+were waived on 2026-11-17 (#1926, 0146), so it is tagged with them waived, as alpha.3 to alpha.10
+were. Live runs alpha.11 since 2026-11-18 (0132's Status), and with it `@azure/msal-node` 7.2.2
+(#1920), which the lane has not signed in with.
 
 **2026-11-17: the O365 lane is waived for alpha.11, before its tag (T13 (a), T14).** Docs only.
 Asked on 2026-11-16 whether to waive the lane for alpha.11, the owner answered on 2026-11-17:

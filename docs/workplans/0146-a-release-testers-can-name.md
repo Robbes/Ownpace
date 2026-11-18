@@ -2,7 +2,77 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-17 (update this block at the end of every session)
+## Status — 2026-11-18 (update this block at the end of every session)
+
+**2026-11-18, later: live runs `v0.2.0-alpha.11`, one-way, on a copy of alpha.10's databases
+(T2).** The owner deployed it from the tag on 2026-11-18: one run of alpha.10's `deploy-live.sh`,
+from about 09:48 UTC, which took at 09:51:50, one-way over alpha.10 by managed migration 0060,
+while none of the Trigger.dev, identity-provider and ClickHouse pins moves. Under the owner's
+waiver of the proving, *"I waive the proving, I want to deploy now"*, the copy before alpha.8, of
+alpha.7's databases, on its day 4 and not proven, was deleted by hand first, so the take made the
+copy before alpha.11, of alpha.10's databases, at 09:49:21: the way back from alpha.11. The copy
+went by hand, not by its expiry or a proof, so the deploy ran on 2026-11-18, ahead of the window
+the fold's entry below gives it, after 2026-11-20 at 14:01. After it the api and the web run their
+builds from the tag, the new api applied managed migration 0060 at 09:50, `minio` and
+`minio-init` run MinIO's `59953701…`, and the tasks deployed as `20261118.1` on 4.8.5; every other
+service kept its container, and every image the run needed was on the shared daemon already.
+Every check after it passed, and the hold, on from 08:48:14, came off at 11:26:43; 0132's Status
+of 2026-11-18 has the blocks. Still the owner's: the first invitation's date (0131 T5) and the
+migration on live that proves alpha.11 (0132 T9).
+
+**2026-11-18: `v0.2.0-alpha.11` is released, its nights waived (T2, T4).** Read from GitHub on
+2026-11-18. Times are UTC.
+
+- **C is `95ccf152`**, the squash of #1930 (the fold), merged on 2026-11-17 at 18:48:45 on
+  `422497a2` (#1931). Its tree is that of the fold's head, `0ae950a2`. On C, all green: CI run
+  44151855758 (its `ci-complete` passed at 19:15:19), Security Scan run 44151855773, Images run
+  44151855821 and Nextcloud second major run 44151855711.
+- **In the counted nights' place**, waived for alpha.11 (*A, waive alpha.11's nights*, #1926),
+  dispatched on `main` at C, all green: E2E (managed) run 44151918554 (18:49:12 to 18:56:52), then
+  E2E (self-hosted) on Postgres, run 44153420486 (18:57:43 to 19:03:52), and on PGlite, run
+  44154617794 (19:04:25 to 19:09:26), one at a time, each once the run before it had ended green;
+  beside them Security Scan with the image scans, run 44151924706 (29 jobs), and
+  `windows-payload.yml` run 44151931491 (win-x64). The scheduled E2E (self-hosted) runs of
+  2026-11-18 ran C too, both green: run 44238733688 (04:38:32 to 04:43:40) and run 44271686156
+  (08:59:08 to 09:04:32).
+- **Release.** The owner dispatched the runs from their own account and approved in the `release`
+  environment. The preflight, run 44252703669 (06:37 to 06:38), was green. Release run
+  44253031937 (06:40 to 06:41), with `waive_nights` left empty, refused in its own preflight on
+  three nights refusals, each saying that every counted run must run C, and made nothing. Release
+  run 44254015396, with `waive_nights` set to *A, waive alpha.11's nights*: its first attempt
+  (06:48 to 06:53) ran the preflight and waited at its approve job until the owner approved
+  (06:50); then the gate scan of C (run 44254311087, on `release-gate/v0.2.0-alpha.11`, 06:50:25
+  to 06:51:37) and the tag (06:52:17) succeeded. The publish job dispatched Security Scan on the
+  tag, run 44254577153, and its first read of that run answered 404, *GET
+  actions/runs/44254577153 answered 404: Not Found*: GitHub was not yet serving the run the
+  dispatch had just named. So publish stopped, the images and the Windows zip were skipped, and
+  verify failed.
+  The scan run itself started and passed (06:52 to 06:54:00), the release's body and its SBOM
+  attached. The failed jobs were re-run once, the run's second attempt (07:30 to 07:33:37):
+  publish reused the green scan on the tag; the images, run 44259462724 (07:30:50 to 07:31:47),
+  and the Windows zip, run 44259451119 (07:30:45 to 07:32:37), both on the tag, were green; and
+  verify passed.
+- **The tag.** `v0.2.0-alpha.11` is tag object `99dbec69…` on `95ccf152`, made by
+  `github-actions[bot]` at 06:52:17. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/44254015396*, *Proved by: CI run #5572, Security
+  Scan run #5682 on main, windows-payload run #45; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/44254311087* and *Nights waived by Robbes, in
+  their words: "A, waive alpha.11's nights"*.
+- **The image scan after the tag**, Security Scan run 44260105914 (`image_scans`, on `main` at C,
+  07:35:43 to 07:39:10, 29 jobs), reads alpha.11's own images, `ownpace-api`, `ownpace-web` and
+  `ownpace-selfhost` at `0.2.0-alpha.11`, at 0, 0 and 0. By tier (critical, high, with a fix):
+  what the internet reaches on live 0, 6 and 6; what live runs inside 2, 43 and 17; the appliance
+  0, 0 and 0 (0119). The gate scan and the scan on the tag scan the repository, not the images.
+- **The O365 lane** is not read by Release. alpha.11 is tagged without a run of it, under the
+  owner's waiver for alpha.11, *"Waive O365"* (0141, the entries of 2026-11-17 and of this day).
+- **The 404, fixed.** #1932, merged at 11:27:31 (`0b1ec509`), after the checks that followed
+  live's deploy (0132): until a run Release has just dispatched has answered once,
+  `scripts/release-dispatch.mjs` reads it again every five seconds, for five minutes at most,
+  before the job stops; its line is under [Unreleased]. On `main` at `0b1ec509`, all green: CI run
+  44294880775 (11:27 to 11:51), Security Scan run 44294880790, Images run 44294880896 (11:27 to
+  11:32) and the day's scheduled E2E (managed), run 44299915962 (12:01:03 to 12:09:18).
+- **Owed after the tag:** live's deploy from alpha.10, one-way by managed migration 0060; the
+  owner deployed it the same day (the entry above).
 
 **2026-11-17, last: the fold for `v0.2.0-alpha.11` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.11`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
