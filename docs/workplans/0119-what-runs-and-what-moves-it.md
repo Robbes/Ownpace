@@ -69,14 +69,14 @@ dispatched by the owner. Times are UTC.
     releases, now 100 to a page. The only other caller is the `mailpit version` command, which
     nothing here runs.
   - Every other way out changed and stays shut here. Rspamd's start ping and SpamAssassin's checks
-    (`config/config.go:597`, `:588`; SpamAssassin now also over a Unix socket or Postmark, cached
-    and bounded) need `MP_ENABLE_RSPAMD` or `MP_ENABLE_SPAMASSASSIN`; the webhook
-    (`server/webhook/webhook.go:40`, which now reuses its connections) needs `MP_WEBHOOK_URL`; the
-    relay and the forward (now dialled with a 10-second limit, `internal/smtpd/smtpdial.go`) need
-    their settings; and the HTML check, link check and screenshot proxy still fetch only when
-    their API is asked, each bounded further (the proxy's images and fonts to 10 MiB, its own
-    connections closed). The reverse lookup of an SMTP client's address, made before as well, now
-    runs beside the session with a 2-second limit and is kept for 5 minutes
+    (`config/config.go:597`, `:588`; SpamAssassin's checks are now cached and bounded) need
+    `MP_ENABLE_RSPAMD` or `MP_ENABLE_SPAMASSASSIN`; the webhook (`server/webhook/webhook.go:40`,
+    which now reuses its connections) needs `MP_WEBHOOK_URL`; the relay and the forward (now
+    dialled with a 10-second limit, `internal/smtpd/smtpdial.go`) need their settings; and the
+    HTML check, link check and screenshot proxy still fetch only when their API is asked, each
+    bounded further (the proxy's images and fonts to 10 MiB, its own connections closed). The
+    reverse lookup of an SMTP client's address, made before as well, now runs beside the session
+    with a 2-second limit and is kept for 5 minutes, 1 for an address with no name
     (`internal/smtpd/smtpd.go:212`, `hostcache.go`). No package starts a request when it loads.
   - `managed.yml` gives `mailpit` the same five variables (`MP_SMTP_AUTH_ACCEPT_ANY`,
     `MP_SMTP_AUTH_ALLOW_INSECURE`, `MP_MAX_MESSAGES`, `MP_DATABASE`, `MP_DISABLE_VERSION_CHECK`),
@@ -86,14 +86,15 @@ dispatched by the owner. Times are UTC.
     here; and an integer variable it cannot read now stops it starting (`setIntFromEnv`), where it
     was taken as 0, which `"500"` is not.
 - **What the gate reads.** The API the smoke and `setup-zitadel.sh` call (`GET /api/v1/messages`,
-  `GET /api/v1/search`) keeps its handlers (`server/apiv1/messages.go` and `search.go` did not
-  change) and its answer: `messages_count`, and each message's `Subject` and `To` from its stored
-  metadata. A search now refuses more than 100 terms (`internal/storage/search.go:23`) and holds
-  only the page it returns; the smoke asks one term at a time (an address, a run's tag or a quoted
-  phrase), and a bare term is still matched with `SearchText LIKE`, now case-folded where it was
-  lowercased, which is the same for ASCII. An HTML message's search text is still its stripped
-  HTML with its links, from a rewrite of `internal/html2text` that keeps its spacing rules and now
-  also keeps text that is the name of a skipped element. `/mailpit readyz`, the healthcheck, asks
+  `GET /api/v1/search`) keeps its handlers, `GetMessages` and `Search`, both in
+  `server/apiv1/messages.go`, the same blob at both tags, as `server/apiv1/structs.go` is; and its
+  answer: `messages_count`, and each message's `Subject` and `To` from its stored metadata. A
+  search now refuses more than 100 terms (`internal/storage/search.go:23`) and holds only the page
+  it returns; the smoke asks one term at a time (an address, a run's tag or a quoted phrase), and
+  a bare term is still matched with `SearchText LIKE`, now case-folded where it was lowercased,
+  which is the same for ASCII. An HTML message's search text is still its stripped HTML with its
+  links, from a rewrite of `internal/html2text` that keeps its spacing rules and now also keeps
+  text that is the name of a skipped element. `/mailpit readyz`, the healthcheck, asks
   the same address and path, and gives each probe 5 seconds
   (`internal/healthcheck/healthcheck.go:22`), as the compose `timeout` does. SMTP still takes any
   credentials, over plain text too (`internal/smtpd/main.go`); a message whose headers cannot be
@@ -110,7 +111,7 @@ dispatched by the owner. Times are UTC.
   later v1.34.0 fills at its start. Its driver, modernc.org/sqlite 1.62.0, is v1.33.1's. Nothing
   to do before or after.
 - **Proved here:** the 150 unit test files that read a file this changes or name Mailpit pass
-  (4,715 tests), run twice, among them `a-service-that-phones-home` (41),
+  (4,715 tests), among them `a-service-that-phones-home` (41),
   `a-pin-that-knows-it-is-behind` (122), `an-image-nobody-scanned` (65),
   `a-float-nothing-ever-pulled` (11) and `the-mail-the-issuer-could-not-send` (25); the 24 in
   `scripts/` that name Mailpit (972 tests), the 116 that read `managed.yml` (4,108) and the 14
