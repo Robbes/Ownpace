@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **CI's migration lint moves to Atlas v1.4.0** (workplan 0119), from alpha.11's v1.3.10. Docker
+  Hub published it on 2026-11-17 at 15:20 UTC, and it is merged after its three-day floor, which
+  ends on 2026-11-20 at 15:20. Each architecture is checked by the SHA-256 of `/atlas` in the
+  release's community image on Docker Hub. v1.4.0 is built from the upstream commit its git tag
+  names, by the same Go with the same dependencies as v1.3.10. The two upstream commits since
+  v1.3.10's add a section to Atlas's README and two options to `schema clean` in its Go SDK,
+  which the CLI does not import, so the lint and its dev database run as they did. Nothing
+  deployed changes.
+
 ### Fixed
 
 - **Release no longer stops when GitHub answers 404 for a run it has just dispatched** (workplan
