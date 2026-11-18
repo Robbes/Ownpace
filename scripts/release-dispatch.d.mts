@@ -41,7 +41,16 @@ export declare function dispatchRun(
 ): Promise<number>;
 export declare function waitForRun(
   client: Client,
-  options: { id: number; minAttempt?: number; sleep?: Sleep; pollMs?: number; timeoutMs?: number },
+  options: {
+    id: number;
+    minAttempt?: number;
+    sleep?: Sleep;
+    pollMs?: number;
+    timeoutMs?: number;
+    missingMs?: number;
+    missingPollMs?: number;
+    now?: () => Date;
+  },
 ): Promise<Run>;
 export declare function tagStillOurs(client: Client, options: { version: string; sha: string; currentRunId: number | null }): Promise<Line>;
 export declare function publish(
