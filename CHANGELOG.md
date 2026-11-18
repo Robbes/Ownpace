@@ -4,6 +4,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The identity provider moves to Zitadel v4.20.4, a patch whose two server changes this stack
+  meets are in the sign-in providers it can add and in the password check** (workplan 0135 T7,
+  0119). The Google, Microsoft and GitHub sign-ins `setup-zitadel.sh` can add now send a PKCE
+  challenge on top of their client secret, so a code the provider issues is redeemed only by the
+  sign-in that asked for it; Apple's is unchanged. Live offers none of these, only email and
+  password, so there it changes nothing. Where the identity provider reads an account's password
+  state, at sign-in or in a password change or reset, it now reads only the checks since the
+  account's count of wrong passwords was last reset, where it read every check the account ever
+  made; upstream keeps the count, and with it the lockout after ten wrong passwords, as they were.
+  Its other fixes are in Zitadel's separate login application, which does not run here, and in a
+  GitHub Enterprise Server sign-in, which is not configured here. Upstream's advisories could not
+  be read when this was written, and none of its six commits reads as a security fix in what runs
+  here, so it is taken after the three-day floor from its tip commit of 2026-11-17 at 13:38 UTC,
+  not under the floor's exception. No setup step is expected, so the database's schema stays where
+  v4.20.3 left it and the way back is v4.20.3: read from upstream's diff, not run. v4.20.5 is left:
+  its one fix is in that separate login application.
+
 ### Fixed
 
 - **Release no longer stops when GitHub answers 404 for a run it has just dispatched** (workplan
