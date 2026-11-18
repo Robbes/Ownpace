@@ -182,7 +182,10 @@ publisher run that already passed on the tag is reused, one still running is
 waited for, and a failed one has its failed jobs re-run, once, never a fresh
 dispatch (that would rebuild and re-push every image). A dispatch is never
 sent twice: after an error it looks for the run, and when it finds none it
-stops and says so. Re-running the failed jobs is the way back when the tag
+stops and says so. A run it has just dispatched can answer 404 for a moment,
+before every reader of GitHub's API serves it: until the run has answered
+once, Release reads it again every five seconds, for five minutes, and only
+then stops. Re-running the failed jobs is the way back when the tag
 job failed after it made the tag: the tag job then finds its own tag and
 carries on without reading the nights, while a fresh dispatch refuses that
 tag (its run's tag job did not succeed). A fresh dispatch days later is

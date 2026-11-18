@@ -25,6 +25,10 @@
  *   succeeded had already signed.
  * - **Only success is green.** `cancelled` and `skipped` are not, and a run
  *   is read again until it reports the attempt asked for.
+ * - **A run just named can answer 404.** The id a dispatch gives back can
+ *   reach the API's readers a moment after the dispatch returns, so until a
+ *   run has answered once, a 404 is read again, for five minutes at most
+ *   (`waitForRun`; alpha.11's scan on the tag, 2026-11-18).
  * - **The tag, checked before each publisher.** A dispatch names the tag by
  *   its short name, which a branch of that name answers to as well, and the
  *   run's `head_branch` is the same short name either way. So before a
@@ -154,14 +158,50 @@ export async function dispatchRun(client, { workflow, ref, sha, inputs = {}, sin
   );
 }
 
-/** Read a run until it has finished the attempt asked for. */
-export async function waitForRun(client, { id, minAttempt = 1, sleep = (ms) => delay(ms), pollMs = 30_000, timeoutMs = 120 * 60_000 }) {
-  const deadline = Date.now() + timeoutMs;
+/**
+ * Read a run until it has finished the attempt asked for.
+ *
+ * A run the API has just named can answer 404 for a moment: the dispatch
+ * gives its id back before every reader of the API serves it. On 2026-11-18
+ * the publish job dispatched Security Scan on v0.2.0-alpha.11, read run
+ * 44254577153 at once, was told 404 and stopped, while that run started and
+ * passed. So until the run has answered once, a 404 is read again, every
+ * `missingPollMs`, for at most `missingMs`, and then it is an error that says
+ * so. Once the run has answered, a 404 is an error at once.
+ */
+export async function waitForRun(
+  client,
+  {
+    id,
+    minAttempt = 1,
+    sleep = (ms) => delay(ms),
+    pollMs = 30_000,
+    timeoutMs = 120 * 60_000,
+    missingMs = 5 * 60_000,
+    missingPollMs = 5_000,
+    now = () => new Date(),
+  },
+) {
+  const clock = () => now().getTime();
+  const start = clock();
+  const deadline = start + timeoutMs;
+  let answered = false;
   for (;;) {
-    const run = await client.get(`actions/runs/${id}`);
-    if (run?.status === 'completed' && (run.run_attempt ?? 1) >= minAttempt) return run;
-    if (Date.now() > deadline) {
-      throw new Error(`run ${id} had not finished attempt ${minAttempt} after ${Math.round(timeoutMs / 60_000)} minutes (${run?.status})`);
+    const run = await client.get(`actions/runs/${id}`, { allow404: !answered });
+    if (run === null) {
+      if (clock() - start >= missingMs) {
+        throw new Error(
+          `run ${id} still answered 404 ${Math.round(missingMs / 1000)} seconds after it was named: ` +
+            'it may not have started, or this token cannot read it. Look in the Actions tab before this job is re-run',
+        );
+      }
+      await sleep(missingPollMs);
+      continue;
+    }
+    answered = true;
+    if (run.status === 'completed' && (run.run_attempt ?? 1) >= minAttempt) return run;
+    if (clock() > deadline) {
+      throw new Error(`run ${id} had not finished attempt ${minAttempt} after ${Math.round(timeoutMs / 60_000)} minutes (${run.status})`);
     }
     await sleep(pollMs);
   }

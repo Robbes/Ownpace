@@ -4,6 +4,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **Release no longer stops when GitHub answers 404 for a run it has just dispatched** (workplan
+  0146). On 2026-11-18 the publish job dispatched Security Scan on `v0.2.0-alpha.11`, read the run
+  whose id the dispatch gave back, was told 404 and stopped, while the run started and passed; a
+  re-run of the failed job reused that green run and published the release. Until a run has
+  answered once, `scripts/release-dispatch.mjs` now reads it again every five seconds, for five
+  minutes at most; once it has answered, a 404 is still an error at once.
+
 ## [0.2.0-alpha.11] - 2026-11-17
 
 An operator can now close and reopen an organisation from its support page:

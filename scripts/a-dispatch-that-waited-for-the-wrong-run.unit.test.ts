@@ -24,6 +24,11 @@
  * - **Green means success.** `cancelled` and `skipped` are not green. A
  *   run's answer is read again until its attempt is the one asked for, so the
  *   red of the attempt being re-run is not read as its outcome.
+ * - **A run just named can answer 404** (2026-11-18). The publish job
+ *   dispatched Security Scan on `v0.2.0-alpha.11`, read the run whose id the
+ *   dispatch gave back, was told 404 and stopped, while the run started and
+ *   passed. Until a run has answered once, a 404 is read again, for five
+ *   minutes at most; once it has answered, a 404 is an error at once.
  * - **The tag, checked before each publisher** (the review of 2026-10-23).
  *   A dispatch names the tag by its short name, which a branch of the same
  *   name would answer to as well, and the run's `head_branch` could not tell
@@ -233,6 +238,51 @@ describe('waiting', () => {
     const done = await waitForRun(api, { id: 100, minAttempt: 2, sleep: noSleep, pollMs: 1, timeoutMs: 60_000 });
     expect(done).toMatchObject({ conclusion: 'success', run_attempt: 2 });
   });
+
+  // 2026-11-18: the publish job dispatched Security Scan on v0.2.0-alpha.11,
+  // read run 44254577153 at once, was told 404 and stopped; the run itself
+  // started and passed.
+  it('reads a run it was just given again while it answers 404, then waits for it', async () => {
+    const answers: Answer[] = [
+      { status: 404 },
+      { status: 404 },
+      { status: 200, json: run({ status: 'queued', conclusion: null }) },
+      { status: 200, json: run() },
+    ];
+    let n = 0;
+    const slept: number[] = [];
+    const api = fake(() => answers[Math.min(n++, answers.length - 1)]!);
+    const sleep = async (ms: number) => {
+      slept.push(ms);
+    };
+    const done = await waitForRun(api, { id: 100, sleep, pollMs: 30_000, missingPollMs: 5_000 });
+    expect(done).toMatchObject({ status: 'completed', conclusion: 'success' });
+    expect(api.calls.map((c) => c.path)).toEqual(Array(4).fill('actions/runs/100'));
+    expect(slept).toEqual([5_000, 5_000, 30_000]);
+  });
+
+  it('stops when the run still answers 404 once missingMs has passed, and says so', async () => {
+    let t = Date.parse('2026-11-18T06:52:17Z');
+    const now = () => new Date(t);
+    const sleep = async (ms: number) => {
+      t += ms;
+    };
+    // A 500 after many reads turns a loop that never ends into a failure.
+    const api = fake((_call, calls) => (calls.length > 1000 ? { status: 500 } : { status: 404 }));
+    await expect(waitForRun(api, { id: 100, sleep, now, missingMs: 60_000, missingPollMs: 5_000 })).rejects.toThrow(
+      /run 100 still answered 404 60 seconds after it was named/,
+    );
+    // Read at 0, 5, ..., 60 seconds.
+    expect(api.calls).toHaveLength(13);
+  });
+
+  it('once the run has answered, a 404 is an error at once', async () => {
+    const answers: Answer[] = [{ status: 200, json: run({ status: 'in_progress', conclusion: null }) }, { status: 404 }];
+    let n = 0;
+    const api = fake((_call, calls) => (calls.length > 50 ? { status: 500 } : answers[Math.min(n++, answers.length - 1)]!));
+    await expect(waitForRun(api, { id: 100, sleep: noSleep, pollMs: 1 })).rejects.toThrow(/GET actions\/runs\/100 answered 404/);
+    expect(api.calls).toHaveLength(2);
+  });
 });
 
 describe('publishing on the tag', () => {
@@ -296,6 +346,20 @@ describe('publishing on the tag', () => {
     expect(posts(api.calls, '/dispatches')).toHaveLength(1);
     const paths = api.calls.map((c) => `${c.method} ${c.path}`);
     expect(paths.indexOf(`GET git/ref/heads/${V}`)).toBeLessThan(paths.indexOf('POST actions/workflows/images.yml/dispatches'));
+  });
+
+  it('waits through a 404 on its first read of the run it just dispatched, as on alpha.11’s tag', async () => {
+    let reads = 0;
+    const api = onTag((call) => {
+      if (call.method === 'POST') return { status: 200, json: { workflow_run_id: 101 } };
+      if (call.path.startsWith('actions/workflows/')) return { status: 200, json: { workflow_runs: [] } };
+      if (call.path === 'actions/runs/101') return (reads += 1) === 1 ? { status: 404 } : { status: 200, json: run({ id: 101 }) };
+      return { status: 404 };
+    });
+    const lines = await publish(api, opts);
+    expect(lines.map((l) => `${l.kind} ${l.check}`)).toEqual(['pass tag-ref', 'note publish-images', 'pass publish-images']);
+    expect(posts(api.calls, '/dispatches')).toHaveLength(1);
+    expect(reads).toBe(2);
   });
 
   // The review of 2026-10-23: a dispatch on the short name runs a branch of
