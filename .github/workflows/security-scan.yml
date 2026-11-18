@@ -209,8 +209,9 @@ jobs:
       # yet, which the owner accepted in `ACCEPTED` (scripts/audit-advisories.mjs)
       # for a month at most. It stays listed, marked accepted, and blocks again
       # the day a fix is published, a production path reaches it, its severity
-      # rises, or its last day passes. GHSA-fc5q-39xc-vjpf on picomatch, from
-      # 2026-11-17 to 2026-12-17 (workplan 0119, Status of that day).
+      # rises, or its last day passes. It holds none since 2026-11-18: its one
+      # entry, GHSA-fc5q-39xc-vjpf on picomatch, went when GitHub withdrew the
+      # advisory (workplan 0119, Status of 2026-11-17 and 2026-11-18).
       - name: pnpm audit (advisory gate)
         run: |
           pnpm audit --audit-level=moderate --json > pnpm-audit.json || true
