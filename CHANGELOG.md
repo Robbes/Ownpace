@@ -45,6 +45,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Nothing written to Cirrux names a guest or an organiser, because Cirrux emails every guest**
+  (workplan 0160, ADR-0043 amended). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
+  with every attendee and organiser marked `SCHEDULE-AGENT=CLIENT`, as for every target, and
+  Cirrux emailed each attendee an invitation in the mailbox's name, past events included. The
+  invitation it sent had dropped the marker. For a Cirrux target the calendar and task writers now
+  write no `ATTENDEE` and no `ORGANIZER`: each is replaced by a `COMMENT` that names the person,
+  so the copy still says who was there and Cirrux has nobody to email. An email alarm keeps its
+  recipient, and verification compares as before. The connection test, the assessment and the
+  audit row say this for Cirrux, instead of promising what the marker would do. Every other
+  target gets the same bytes as before.
 - **A calendar or task list made at Cirrux is written to where Cirrux keeps it** (workplan 0160).
   With the calendar home found, the next pass into Cirrux, on 2026-11-19, made the source's
   calendar: Cirrux answered 201 and showed it, with the name asked for. Then it refused every

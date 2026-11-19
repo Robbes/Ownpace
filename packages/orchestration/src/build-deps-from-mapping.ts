@@ -29,6 +29,7 @@ import {
   sourceAuthorityFor,
   sourceStillDecides,
   type PathPhaseOf,
+  mailsGuestsItself,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
 import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget, readPathPhases } from '@openmig/ledger';
@@ -864,10 +865,12 @@ export async function buildDomainDepsFromMapping(
         // provider MISSING from there is a failing guard rather than a
         // silent fall-through to DAV.
         source: buildCalendarSourceFromConnection(src, throttleLimiter),
-        target: buildCalendarTarget(calendarTargetEndpoint, targetDeps),
+        // A target that mails guests whatever SCHEDULE-AGENT says gets none
+        // (workplan 0160, `TARGETS_THAT_MAIL_GUESTS`).
+        target: buildCalendarTarget(calendarTargetEndpoint, targetDeps, { mailsGuests: mailsGuestsItself(tgt.kind) }),
         // The verdict, recorded before the mapping's first calendar write
         // (0105 T0) — measured on the SAME endpoint the writer just got.
-        recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps),
+        recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps, tgt.kind),
       } satisfies CalendarSyncDeps,
       HANDED_BY_THE_CALLER,
     );
@@ -884,7 +887,9 @@ export async function buildDomainDepsFromMapping(
       {
         ...common,
         source: buildTaskSourceFromConnection(src, throttleLimiter),
-        target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps),
+        target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps, {
+          mailsGuests: mailsGuestsItself(tgt.kind),
+        }),
       } satisfies CalendarSyncDeps,
       HANDED_BY_THE_CALLER,
     );
