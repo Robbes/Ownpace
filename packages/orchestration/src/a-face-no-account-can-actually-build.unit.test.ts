@@ -106,6 +106,18 @@ const PLAUSIBLE_ROW: Readonly<
     config: { host: 'api.cirrux.co', port: 443, mailHost: 'imap.cirrux.co', mailPort: 993 },
     creds: { username: 'someone@example.com', password: 'the-app-password' },
   },
+  // Soverin's shape with TWO logins (workplan 0161): the servers Infomaniak
+  // publishes, as the pre-filled door stores them, and in the one secret the
+  // account's sync login beside the mailbox's own.
+  infomaniak: {
+    config: { host: 'sync.infomaniak.com', port: 443, mailHost: 'mail.infomaniak.com', mailPort: 993 },
+    creds: {
+      username: 'AB12345',
+      password: 'the-sync-app-password',
+      mailUsername: 'someone@example.com',
+      mailPassword: 'the-mailbox-device-password',
+    },
+  },
 };
 
 /** Build one face of one row, the way a pass would. */
@@ -197,6 +209,19 @@ describe('an account kind\'s mail face connects to its MAIL host', () => {
         mailPort: 993,
       }),
     ).toEqual({ host: 'imap.cirrux.co', port: 993 });
+  });
+
+  it('does the same for an infomaniak row, which signs in to that host with the mailbox’s own login', () => {
+    // Two hosts and two logins (workplan 0161). The host is this rule's; who
+    // signs in is `mailLoginOf`'s, held in `a-mailbox-that-signs-in-apart`.
+    expect(
+      accountMailEndpoint('infomaniak', {
+        host: 'sync.infomaniak.com',
+        port: 443,
+        mailHost: 'mail.infomaniak.com',
+        mailPort: 993,
+      }),
+    ).toEqual({ host: 'mail.infomaniak.com', port: 993 });
   });
 
   it('falls back to the published endpoint when the row stores no host at all', () => {

@@ -427,7 +427,7 @@ export const CreateMappingResponseSchema = z.object({
     // An EXPORT ARCHIVE (workplan 0116 T1; a mapping source since T5/T6).
     'archive',
   ]),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().optional(),
@@ -460,7 +460,7 @@ export interface CreateMappingInput {
     // one since placement and idempotency were built. Its credential is a
     // location, carried in `sourceConfig.provider` and `.path`.
     | 'archive';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud' | 'cirrux';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud' | 'cirrux' | 'infomaniak';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
   sourceConnectionId?: string;
@@ -537,6 +537,14 @@ export interface CreateMappingInput {
     /** soverin only (0106 T4b): the account's mail face — typed, never guessed. */
     mailHost?: string;
     mailPort?: number;
+    /**
+     * The mailbox's own login, for a kind whose mail signs in apart from its
+     * DAV faces (workplan 0161 T1: infomaniak): its address and the password
+     * made for it. Given whole or not at all; `mailPassword` is a secret, sent
+     * only in this body and stored only in the encrypted credential.
+     */
+    mailUsername?: string;
+    mailPassword?: string;
   };
   syncConfig: {
     domains: Array<DiscoveryDomain>;

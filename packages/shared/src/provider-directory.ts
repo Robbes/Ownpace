@@ -87,6 +87,47 @@ export const PROVIDER_DIRECTORY: ReadonlyArray<ProviderDirectoryEntry> = [
       { url: 'https://cirrux.co/help/calendar', seen: '2026-11-19' },
     ],
   },
+  {
+    role: 'target',
+    type: 'infomaniak',
+    // Two servers and TWO logins (workplan 0161). Calendars and contacts:
+    // "Pour l'adresse du serveur, utilisez uniquement sync.infomaniak.com"
+    // (FAQ 1544), with no port or path given. A DAV server named by itself is
+    // HTTPS on 443, and no path means the DAV base URL box stays empty, as
+    // Soverin's and Cirrux's do; the server sends `/.well-known/caldav` and
+    // `/.well-known/carddav` to its own root (302, read the same day), where
+    // the DAV clients look (RFC 6764). Mail: IMAP at `mail.infomaniak.com` on
+    // 993 with SSL (FAQ 2427); its SMTP, 587 or 465, is not used, because this
+    // product writes mail over IMAP.
+    //
+    // Nothing here pre-fills a login, and there are two. The sync login is a
+    // short username such as AB12345, from config.infomaniak.com, with an app
+    // password when two-step validation is on or the account's own password
+    // when it is off (FAQ 1544). The mail login is the full address with the
+    // password made for that address on its Devices tab (FAQ 1321), which an
+    // app password cannot stand in for (FAQ 2855).
+    values: {
+      host: 'sync.infomaniak.com',
+      port: '443',
+      mailHost: 'mail.infomaniak.com',
+      mailPort: '993',
+    },
+    sources: [
+      {
+        url: 'https://www.infomaniak.com/fr/support/faq/2427/synchroniser-les-e-mails-sur-tous-vos-equipements',
+        seen: '2026-11-19',
+      },
+      {
+        url: 'https://www.infomaniak.com/fr/support/faq/1544/synchroniser-contacts-calendar-apps-ios-manuellement-en-carddavcaldav',
+        seen: '2026-11-19',
+      },
+      {
+        url: 'https://www.infomaniak.com/fr/support/faq/1321/ajouter-un-appareil-creer-un-mot-de-passe-mail-depuis-le-service-mail',
+        seen: '2026-11-19',
+      },
+      { url: 'https://www.infomaniak.com/fr/support/faq/2855/gerer-les-mots-de-passe-dapplication', seen: '2026-11-19' },
+    ],
+  },
 ];
 
 const NOTHING: Readonly<Record<string, string>> = Object.freeze({});

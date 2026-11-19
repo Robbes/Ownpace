@@ -250,6 +250,55 @@ const NAMED: ReadonlyArray<{
     },
   },
   {
+    // Workplan 0161 T1: four steps, two logins. Infomaniak's screen words stay
+    // in English in both languages, as its English pages write them (its
+    // Dutch pages serve the English text; the Dutch guide says so).
+    side: 'target',
+    provider: 'infomaniak',
+    slug: 'infomaniak',
+    sections: ['before', 'infomaniak', 'when-test-says'],
+    words: {
+      en: [
+        'config.infomaniak.com',
+        'AB12345',
+        'Application passwords',
+        'Generate an application password',
+        'Mail Service',
+        'Devices',
+        'Add a device',
+        'No user',
+        '16',
+        'This service creates no accounts',
+        'Mail server',
+        'Mail port',
+        'mail.infomaniak.com',
+        '993',
+        'Mailbox address',
+        'Mailbox password',
+        'carries no mail',
+      ],
+      nl: [
+        'config.infomaniak.com',
+        'AB12345',
+        'Application passwords',
+        'Generate an application password',
+        'Mail Service',
+        'Devices',
+        'Add a device',
+        'No user',
+        '16',
+        'Deze dienst maakt zelf geen accounts aan',
+        'Mailserver',
+        'Mailpoort',
+        'mail.infomaniak.com',
+        '993',
+        'Adres van de mailbox',
+        'Wachtwoord van de mailbox',
+        'omvat geen mail',
+      ],
+    },
+  },
+  {
     side: 'source',
     provider: 'graph',
     slug: 'microsoft',
@@ -305,7 +354,7 @@ describe("each new profile names what its card's guide names (0148 T5 (a))", () 
     }
   }
 
-  it.each(['soverin', 'cirrux'])("the %s steps name the mail server the code pre-fills, from the provider directory", (provider) => {
+  it.each(['soverin', 'cirrux', 'infomaniak'])("the %s steps name the mail server the code pre-fills, from the provider directory", (provider) => {
     const values = providerDirectoryEntry('target', provider)?.values;
     expect(values?.mailHost).toBeDefined();
     for (const locale of LOCALES) {
@@ -315,6 +364,14 @@ describe("each new profile names what its card's guide names (0148 T5 (a))", () 
       // The wizard's own labels for the two boxes, as that language shows them.
       expect(steps, locale).toContain(words(locale, 'account.soverinMailHost'));
       expect(steps, locale).toContain(words(locale, 'account.soverinMailPort'));
+    }
+  });
+
+  it('the Infomaniak steps name the two mailbox boxes, as the form labels them in each language (0161 T1)', () => {
+    for (const locale of LOCALES) {
+      const steps = profileText(locale, 'target', 'infomaniak');
+      expect(steps, locale).toContain(words(locale, 'account.mailUsername'));
+      expect(steps, locale).toContain(words(locale, 'account.mailPassword'));
     }
   });
 
@@ -418,6 +475,7 @@ describe("the page shows each new profile's steps and links the card's guide sec
     ['target', 'nextcloud'],
     ['target', 'soverin'],
     ['target', 'cirrux'],
+    ['target', 'infomaniak'],
     ['source', 'oauth2'],
   ];
 
@@ -451,6 +509,7 @@ describe('the administrator question is asked only where a step needs one (0148 
   const HOLDERS_OWN: ReadonlyArray<readonly [SetupSide, string]> = [
     ['source', 'apple'],
     ['target', 'soverin'],
+    ['target', 'infomaniak'],
   ];
 
   // The answer is remembered on the device; no case inherits another's.

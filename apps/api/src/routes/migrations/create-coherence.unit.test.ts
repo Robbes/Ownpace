@@ -146,6 +146,81 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
     });
   });
 
+  describe('infomaniak: the mail face needs the mailbox’s own login (workplan 0161 T1)', () => {
+    // Obvious dummies: no real login is ever written into a test.
+    const sync = { host: 'sync.infomaniak.com', port: 443, username: 'AB12345', password: 'dummy-sync-app-password' };
+    const mailServer = { mailHost: 'mail.infomaniak.com', mailPort: 993 };
+    const mailLogin = { mailUsername: 'someone@example.com', mailPassword: 'dummy-mailbox-device-password' };
+    const withDomains = (targetConfig: Record<string, unknown>, domains: string[]) =>
+      body({ targetType: 'infomaniak', targetConfig, syncConfig: { domains } });
+
+    it('accepts a calendar, contacts and tasks account with the sync login alone', () => {
+      const parsed = CreateMappingSchema.safeParse(withDomains(sync, ['calendar', 'contact', 'task']));
+      expect(parsed.success, parsed.success ? '' : parsed.error.issues.map((i) => i.message).join(' ')).toBe(true);
+    });
+
+    it('with email ticked, demands the mailbox’s login by name, after the mail server', () => {
+      const noLogin = refusalText(withDomains({ ...sync, ...mailServer }, ['email', 'calendar']));
+      expect(noLogin).toContain("An infomaniak target carries email only when the mailbox's own login is stored");
+      expect(noLogin).toContain('targetConfig.mailUsername and targetConfig.mailPassword are missing');
+      // With neither the server nor the login, both are named.
+      const neither = refusalText(withDomains(sync, ['email']));
+      expect(neither).toContain('targetConfig.mailHost is missing');
+      expect(neither).toContain('targetConfig.mailUsername and targetConfig.mailPassword are missing');
+      const parsed = CreateMappingSchema.safeParse(withDomains({ ...sync, ...mailServer, ...mailLogin }, ['email', 'task']));
+      expect(parsed.success, parsed.success ? '' : parsed.error.issues.map((i) => i.message).join(' ')).toBe(true);
+    });
+
+    it('refuses half a mail login whatever is ticked, naming the half that is missing', () => {
+      for (const domains of [['email'], ['calendar']]) {
+        const result = CreateMappingSchema.safeParse(
+          withDomains({ ...sync, ...mailServer, mailUsername: 'someone@example.com' }, domains),
+        );
+        expect(result.success).toBe(false);
+        const issue = result.success ? undefined : result.error.issues.find((i) => i.path.join('.') === 'targetConfig.mailPassword');
+        expect(issue?.message).toContain('mailUsername was sent without mailPassword');
+      }
+      const other = refusalText(withDomains({ ...sync, mailPassword: 'dummy-mailbox-device-password' }, ['calendar']));
+      expect(other).toContain('mailPassword was sent without mailUsername');
+      // And never echoes the password it was sent.
+      expect(other).not.toContain('dummy-mailbox-device-password');
+    });
+
+    it('a reused account is exempt: its stored record may hold the login, and the mail seam refuses by name if not', () => {
+      const reused = CreateMappingSchema.safeParse(
+        body({
+          targetType: 'infomaniak',
+          targetConnectionId: '0161cd00-e29b-41d4-a716-446655440011',
+          targetConfig: { username: 'AB12345', password: '' },
+          syncConfig: { domains: ['email'] },
+        }),
+      );
+      expect(reused.success, reused.success ? '' : reused.error.issues.map((i) => i.message).join(' ')).toBe(true);
+    });
+
+    it('stores the mail server in the connection’s config, and the mail login never', () => {
+      const parsed = CreateMappingSchema.safeParse(withDomains({ ...sync, ...mailServer, ...mailLogin }, ['email']));
+      const config = targetConnectionConfig({ targetType: 'infomaniak', targetConfig: parsed.data!.targetConfig });
+      expect(config).toMatchObject({ host: 'sync.infomaniak.com', port: 443, mailHost: 'mail.infomaniak.com', mailPort: 993 });
+      expect(config).not.toHaveProperty('mailUsername');
+      expect(config).not.toHaveProperty('mailPassword');
+      expect(JSON.stringify(config)).not.toContain('dummy-');
+    });
+
+    it('a kind with one login is never asked for a mailbox login, and Soverin and Cirrux read as before', () => {
+      for (const targetType of ['soverin', 'cirrux']) {
+        const parsed = CreateMappingSchema.safeParse(
+          body({
+            targetType,
+            targetConfig: { host: 'dav.example.nl', port: 443, username: 'a@example.nl', password: 'x', mailHost: 'imap.example.nl', mailUsername: 'stray@example.nl' },
+            syncConfig: { domains: ['email'] },
+          }),
+        );
+        expect(parsed.success, targetType).toBe(true);
+      }
+    });
+  });
+
   it('cirrux + file: a NEW account is refused naming the button; a stored one is the row’s to answer (0160 T5)', () => {
     const cirrux = { host: 'api.cirrux.co', port: 443, username: 'a@example.nl', password: 'x' };
     const msg = refusalText(body({ targetType: 'cirrux', targetConfig: cirrux, syncConfig: { domains: ['file'] } }));

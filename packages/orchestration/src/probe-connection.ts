@@ -27,6 +27,7 @@ import {
   guideOf,
   isCredentialRefusal,
   isProviderAccountKind,
+  mailLoginOf,
   microsoftFaceScope,
   whatHappened,
   type BilingualRefusal,
@@ -684,14 +685,19 @@ async function probeTargetNow(
       };
     }
     if (targetType === 'imap') {
+      // The MAIL face, signed in with the kind's mail login (workplan 0161
+      // T1): an `imap` row's one login, as stored. A kind that signs in to
+      // mail apart never reaches this branch: its headline face is its
+      // calendar (below), and its mail face is the qualification's to measure.
+      const login = mailLoginOf(targetType, creds);
       const source = buildImapSourceFrom(
         {
           host: String(config.host ?? ''),
           port: Number(config.port ?? 993),
           tls: config.useSsl !== false,
-          user: String(config.user ?? creds.username ?? ''),
+          user: String(config.user ?? login.username),
         },
-        { authType: 'LOGIN', password: creds.password },
+        { authType: 'LOGIN', password: login.password },
       );
       const folders = await source.listFolders();
       return {
@@ -707,8 +713,11 @@ async function probeTargetNow(
       // most informative single answer, and the one the scheduling verdict
       // belongs to. The qualification beside it carries the other faces.
       // Every named account target is asked the same way (`cirrux` since
-      // 0160), so the rule is the account table rather than a list of names
-      // here. `nextcloud` is not an account kind, and keeps its file face.
+      // 0160, `infomaniak` since 0161), so the rule is the account table
+      // rather than a list of names here. `nextcloud` is not an account kind,
+      // and keeps its file face. The DAV endpoint signs in with the record's
+      // `username`/`password`, which for infomaniak is the sync login and
+      // never the mailbox's.
       targetType === 'caldav' || isProviderAccountKind(targetType)
         ? new CalDAVSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password })
         : targetType === 'carddav'

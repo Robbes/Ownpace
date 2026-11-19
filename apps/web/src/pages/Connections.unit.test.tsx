@@ -562,6 +562,32 @@ describe('replacing credentials', () => {
     expect(screen.queryAllByText(STRINGS.en['account.sourceClientSecret']).length).toBeGreaterThan(0);
   });
 
+  it('offers an Infomaniak account’s two mailbox boxes together, so a replaced mail login is whole (0161 T1)', async () => {
+    // The mailbox's address is neither required nor secret, so "required or
+    // secret" would offer the new mail password alone, and every door refuses
+    // half a mail login. Read from the descriptor's `loginPairedWith`.
+    list.mockResolvedValue([conn({ kind: 'infomaniak', role: 'target' })]);
+    renderPage();
+    fireEvent.click(await screen.findByText('Replace credentials'));
+
+    expect(screen.getByText(STRINGS.en['account.mailUsername'])).toBeTruthy();
+    expect(screen.getByText(STRINGS.en['account.mailPassword'])).toBeTruthy();
+    // The mailbox password is masked, and nothing pretends to know it.
+    const masked = [...document.querySelectorAll('input[type="password"]')] as HTMLInputElement[];
+    expect(masked.length).toBe(2);
+    expect(masked.every((input) => input.value === '')).toBe(true);
+    // The box is labelled in the form's own words, which the guide quotes.
+    expect(STRINGS.en['account.mailUsername']).toBe('Mailbox address');
+  });
+
+  it('shows no mailbox boxes for a destination that signs in with one login', async () => {
+    list.mockResolvedValue([conn({ kind: 'soverin', role: 'target' })]);
+    renderPage();
+    fireEvent.click(await screen.findByText('Replace credentials'));
+    expect(screen.queryByText(STRINGS.en['account.mailUsername'])).toBeNull();
+    expect(screen.queryByText(STRINGS.en['account.mailPassword'])).toBeNull();
+  });
+
   it('starts from what the connection already knows (0078)', async () => {
     // Rotating an expired secret meant retyping the server address and the
     // account that had not changed. Only NON-SECRET config values arrive —

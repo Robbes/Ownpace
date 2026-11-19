@@ -6,6 +6,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **Infomaniak as a destination** (workplan 0161). An **Infomaniak** card, on *Where does it go?*
+  and on the Accounts page, adds one Infomaniak account for mail, calendars, contacts and tasks,
+  with the servers Infomaniak publishes already in the boxes: `sync.infomaniak.com` on 443 for
+  calendars, contacts and tasks, and `mail.infomaniak.com` on 993 for mail, as read from
+  Infomaniak's help pages (FAQ 2427 and 1544, in French) on 2026-11-19. Infomaniak signs in to
+  the two with different logins, and the card asks for both: the account's sync login, a short
+  username such as AB12345 with an application password (or the account's own password without
+  two-step validation), and, where mail moves, the mailbox's address with the password made for it
+  on the address's Devices tab, since an application password is refused for mail. The mailbox
+  password is stored only in the encrypted credential, every door refuses half a mail login, and
+  *Replace credentials* with the two mail boxes left empty keeps the stored one. Test measures each
+  part with its own login. Files are not part of the card: kDrive's WebDAV has an address of its
+  own per drive and is not offered on every plan, and the Test says so. Until a pass shows that
+  Infomaniak's calendar server sends no invitations, nothing written to it names a guest or an
+  organiser, and an event there that lists a guest is neither rewritten nor deleted, as at
+  Cirrux. The card has a setup checklist, a guide in English and Dutch, and a card on the site's
+  *Where to*. Ledger migration 0069 widens `connection.kind` by `infomaniak`, and touches no row.
+  Not yet run against a live Infomaniak account (0161 T2).
 - ***Who is it for?* chooses you** (workplan 0153 T4; ADR-0050, amended 2026-11-19). When you
   start a migration, your own name is now chosen on its first screen, and you can still pick
   someone else. Say which person you are with *Myself* when adding a person on Migrations, or

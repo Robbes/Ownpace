@@ -351,6 +351,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/connections.ts`
 
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
+- [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `apps/api/src/routes/grant.ts`
@@ -407,6 +408,7 @@ reading a file drops off its entry by itself.
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
+- [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
@@ -434,6 +436,7 @@ reading a file drops off its entry by itself.
 - [a-microsoft-source-found-by-its-faces](../scripts/a-microsoft-source-found-by-its-faces.unit.test.ts) — A MICROSOFT SOURCE FOUND BY ITS FACES (workplan 0141 T11).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
+- [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 
 ### `apps/api/src/routes/platform-status.ts`
 
@@ -2844,6 +2847,7 @@ reading a file drops off its entry by itself.
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [a-face-a-provider-account-cannot-build](../scripts/a-face-a-provider-account-cannot-build.unit.test.ts) — A FACE A PROVIDER ACCOUNT ADVERTISES AND CANNOT BUILD FAILS INSIDE A PASS.
 - [a-kind-with-nowhere-to-live](../scripts/a-kind-with-nowhere-to-live.unit.test.ts) — A PROVIDER ACCOUNT KIND CAN BE DECLARED AND HAVE NOWHERE TO BE STORED.
+- [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 
 ### `packages/shared/src/provider-accounts.unit.test.ts`
 
@@ -5869,6 +5873,17 @@ Reads:
 - `.github/workflows/images.yml`
 - `deploy/compose/docker-socket-proxy/docker-entrypoint.sh`
 - `deploy/compose/managed.yml`
+
+### [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts)
+
+A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
+
+Reads:
+
+- `apps/api/src/routes/connections.ts`
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/api/src/routes/permissions.ts`
+- `packages/shared/src/provider-accounts.ts`
 
 ### [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts)
 

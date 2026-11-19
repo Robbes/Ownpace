@@ -371,6 +371,43 @@ const CIRRUX_TARGET: ReadonlyArray<SetupStep> = [
   },
 ];
 
+/**
+ * The Infomaniak card (workplan 0161 T1): the account, its SYNC login, the
+ * MAIL password made on the address's Devices tab, and, only where mail moves,
+ * the mail server the form pre-fills. Four steps where Soverin and Cirrux have
+ * three, because Infomaniak signs in to mail and to calendars with two
+ * different logins: an app password "ne permettra pas de synchroniser une
+ * adresse mail" (https://www.infomaniak.com/fr/support/faq/2855), and a mail
+ * password has nothing to do with the account's own
+ * (https://www.infomaniak.com/fr/support/faq/2427). The mail password's step
+ * names the screen FAQ 1321 names. None is marked as somebody else's: the
+ * account's holder can do each.
+ */
+const INFOMANIAK_TARGET: ReadonlyArray<SetupStep> = [
+  {
+    key: 'account_exists',
+    titleKey: 'setup.infomaniak.account_exists.title',
+    detailKey: 'setup.infomaniak.account_exists.detail',
+  },
+  {
+    key: 'sync_login',
+    titleKey: 'setup.infomaniak.sync_login.title',
+    detailKey: 'setup.infomaniak.sync_login.detail',
+    yieldsKey: 'setup.infomaniak.sync_login.yields',
+  },
+  {
+    key: 'mail_password',
+    titleKey: 'setup.infomaniak.mail_password.title',
+    detailKey: 'setup.infomaniak.mail_password.detail',
+    yieldsKey: 'setup.infomaniak.mail_password.yields',
+  },
+  {
+    key: 'mail_server',
+    titleKey: 'setup.infomaniak.mail_server.title',
+    detailKey: 'setup.infomaniak.mail_server.detail',
+  },
+];
+
 const JMAP_TARGET: ReadonlyArray<SetupStep> = [
   {
     key: 'account_exists',
@@ -429,6 +466,7 @@ const TARGET_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {
   nextcloud: NEXTCLOUD_TARGET,
   soverin: SOVERIN_TARGET,
   cirrux: CIRRUX_TARGET,
+  infomaniak: INFOMANIAK_TARGET,
 };
 
 /**

@@ -158,6 +158,10 @@ export const TARGET_CARDS = [
   // published servers pre-filled. Its hint says what it does not take, as
   // Nextcloud's does, because a person moving files will look for Drive.
   { id: 'cirrux', name: 'Cirrux', hintKey: 'account.proto.cirrux.hint', guide: 'cirrux#cirrux' },
+  // The same card for Infomaniak (workplan 0161): one account, its servers
+  // pre-filled, and two logins in its one form. Its hint says files are not
+  // among its faces, for the person who will look for kDrive.
+  { id: 'infomaniak', name: 'Infomaniak', hintKey: 'account.proto.infomaniak.hint', guide: 'infomaniak#infomaniak' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export type SourceCard = (typeof SOURCE_CARDS)[number];

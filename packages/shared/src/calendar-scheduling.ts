@@ -92,14 +92,37 @@ export function neutraliseScheduling(icalendar: string): string {
  * keeps no ATTENDEE and no ORGANIZER at all (`withoutGuests`): with nobody
  * invited, a server has nobody to mail.
  *
- * A kind joins this list on the evidence of one invitation it sent; it
- * leaves it only on the evidence of a pass that sent none.
+ * Two kinds are here, for two different reasons. Cirrux joined on the
+ * evidence of the invitations it sent. Infomaniak starts on the list on the
+ * day its kind arrives (workplan 0161), because no pass has been run against
+ * it: its CalDAV server is SabreDAV (`sync.infomaniak.com` answers with
+ * `WWW-Authenticate: Basic realm="sabre/dav"`, read 2026-11-19), which in
+ * Nextcloud was seen to honour `SCHEDULE-AGENT=CLIENT` (workplan 0103), but
+ * nobody has seen what Infomaniak's does with it, and an invitation sent
+ * cannot be taken back. A kind leaves this list only on the evidence of a
+ * pass that sent none: Infomaniak's is 0161 T2.
  */
-export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set(['cirrux']);
+export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set(['cirrux', 'infomaniak']);
 
 /** Does a target of this kind send invitations itself, whatever SCHEDULE-AGENT says? */
 export function mailsGuestsItself(kind: string | undefined): boolean {
   return kind !== undefined && TARGETS_THAT_MAIL_GUESTS.has(kind);
+}
+
+/**
+ * The kinds on `TARGETS_THAT_MAIL_GUESTS` because nobody has tested them, not
+ * because they were seen to mail guests (workplan 0161). The writer treats
+ * the two alike; what a person reads does not. A connection test, an
+ * assessment or an audit row about such a target says that it has not been
+ * tested, and never that it emails guests, which nobody has seen it do. A
+ * kind leaves this set when it leaves the list, or when a pass shows it mails
+ * guests after all.
+ */
+export const TARGETS_UNTESTED_FOR_GUESTS: ReadonlySet<string> = new Set(['infomaniak']);
+
+/** Is this kind kept without guests because it is untested, rather than because it mailed them? */
+export function guestsUntestedAt(kind: string | undefined): boolean {
+  return kind !== undefined && TARGETS_UNTESTED_FOR_GUESTS.has(kind);
 }
 
 /**

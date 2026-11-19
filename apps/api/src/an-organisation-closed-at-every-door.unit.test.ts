@@ -647,8 +647,10 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // question 5), read after the rotation's close, and one since the folder
   // browse reads a saved account's sign-in, after its own. Three more since a
   // Cirrux account's Drive (0160 T5): a rotation keeps its grant, and the
-  // consent's measuring reads the row, after the consent's own close.
-  'routes/connections.ts': 16,
+  // consent's measuring reads the row, after the consent's own close. One more
+  // since a rotation keeps an Infomaniak account's mail login (0161 T1), read
+  // after the rotation's close, as the tenant is.
+  'routes/connections.ts': 17,
   'routes/grant.ts': 2,
   'routes/migrations/account-on-connection.ts': 1,
   // One more since Disconnect Cirrux Drive (0160), which opens the record

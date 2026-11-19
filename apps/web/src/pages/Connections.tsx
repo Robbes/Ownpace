@@ -203,8 +203,11 @@ const Row: React.FC<{
   // client id is neither required nor secret since the deployment may carry
   // the client, and a panel offering the secret alone sent half a pair to a
   // door that now refuses exactly that. The descriptor says which field is
-  // whose partner; this reads it rather than naming Google here.
-  const rotatableFields = allFields.filter((f) => f.required || f.secret || f.pairedWith);
+  // whose partner; this reads it rather than naming Google here. A second
+  // login's halves come together too (`loginPairedWith`, workplan 0161 T1):
+  // Infomaniak's mailbox address is neither required nor secret, and a new
+  // mail password sent without it is half a login, which every door refuses.
+  const rotatableFields = allFields.filter((f) => f.required || f.secret || f.pairedWith || f.loginPairedWith);
   const refusalText = useRefusalText(allFields);
   // AND THE WAY TO OBTAIN ONE (owner, 2026-09-08). A refresh token is the
   // credential most likely to need replacing — it is the one a provider

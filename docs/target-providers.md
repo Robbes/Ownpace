@@ -33,6 +33,7 @@ The IMAP/DAV target family supports migration to European sovereign platforms th
 
 - **Soverin** (Netherlands) - OX-based mail suite
 - **Cirrux** (Netherlands, hosted in Germany) - mail, calendar, contacts, tasks and a Drive
+- **Infomaniak** (Switzerland) - mail, calendar, contacts and tasks, each signed in with its own login
 - **openDesk** (Germany) - Open-Xchange + Nextcloud bundle
 - **Stalwart** - Reference server for development and testing
 - Other IMAP-compatible providers
@@ -211,6 +212,94 @@ one of the two for each kind of data.
 
 ---
 
+## Infomaniak
+
+The `infomaniak` account kind (workplan 0161): Soverin's shape with **two logins**. The account's
+sync login reaches calendars, contacts and task lists over CalDAV and CardDAV; the mailbox's own
+login reaches mail over IMAP. Every value below was read from Infomaniak's help pages on
+2026-11-19, which the site served in French; the FAQ number is named beside each one. ⏳ Built and
+held by unit tests; not yet run against a live Infomaniak account (0161 T2).
+
+The pages: 2427 (`https://www.infomaniak.com/fr/support/faq/2427/synchroniser-les-e-mails-sur-tous-vos-equipements`), 1321
+(`https://www.infomaniak.com/fr/support/faq/1321/ajouter-un-appareil-creer-un-mot-de-passe-mail-depuis-le-service-mail`), 2855
+(`https://www.infomaniak.com/fr/support/faq/2855/gerer-les-mots-de-passe-dapplication`), 1544
+(`https://www.infomaniak.com/fr/support/faq/1544/synchroniser-contacts-calendar-apps-ios-manuellement-en-carddavcaldav`), 2046
+(`https://www.infomaniak.com/fr/support/faq/2046/synchroniser-contacts-calendriers-thunderbird-app-desktop-en-carddavcaldav`), 984
+(`https://www.infomaniak.com/fr/support/faq/984/creer-une-tache-sur-calendar-infomaniak`), 1974
+(`https://www.infomaniak.com/fr/support/faq/1974/importer-des-taches-sur-calendar-infomaniak`), 2302
+(`https://www.infomaniak.com/fr/support/faq/2302/decouvrir-ksync-pour-android`) and 2409 (`https://www.infomaniak.com/fr/support/faq/2409/se-connecter-a-kdrive-par-webdav`).
+
+This document named the IMAP host `imap.infomaniak.com` until 2026-11-19. No page read names
+that host; FAQ 2427 names `mail.infomaniak.com`, and the line under *Other IMAP Providers* is
+corrected.
+
+### Settings
+
+| Face | Server | Port | Username | Password | FAQ |
+|---|---|---|---|---|---|
+| Mail in (IMAP) | `mail.infomaniak.com` | 993 (SSL) | the full email address | the password made for that address on its Devices tab | 2427, 1321 |
+| Mail out (SMTP) | `mail.infomaniak.com` | 587 (STARTTLS); 465 tolerated | the full email address | the same | 2427 |
+| Calendars, contacts | `sync.infomaniak.com` | not given | the sync username, e.g. `AB12345` | an application password with two-step validation, else the account's password | 1544, 2046 |
+| Tasks | the calendars' server | | | | 984, 1974, 2302 |
+| kDrive (WebDAV) | `https://<kDrive ID>.connect.kdrive.infomaniak.com` | | | | 2409 |
+
+- **Mail passwords** "n'ont pas de rapport avec votre mot de passe de connexion à Infomaniak" and
+  "ne peuvent plus être retrouvés après leur premier affichage" (2427). One is made per address:
+  Manager → Service Mail → the domain → the address → *Appareils* (Devices) → *Ajouter un
+  appareil* (Add a device), choosing *Sans utilisateur* (No user); at least 16 characters, shown
+  once, regenerable; "révoquez uniquement le mot de passe concerné … les autres accès à l'adresse
+  mail restent actifs" (1321). A my kSuite user is sent to another page, FAQ 2904, not read.
+- **Application passwords**: "Un mot de passe d'application n'est pas un mot de passe d'appareil -
+  il ne permettra pas de synchroniser une adresse mail". They are what contacts and calendars sync
+  with when two-step validation is on, made and revoked, one by one or all at once, on the
+  Manager's profile page,
+  `https://manager.infomaniak.com/v3/ng/profile/user/connection-history/application-password`
+  (2855).
+- **Contacts and calendars belong to the Infomaniak account**, not to a mail address. The sync
+  username is shown by the configuration assistant at `https://config.infomaniak.com` (a device
+  other than iOS, such as Linux, then the manual-sync tab), and "Pour l'adresse du serveur, utilisez
+  uniquement sync.infomaniak.com" (1544). Thunderbird's page gives the account address as
+  `https://sync.infomaniak.com` with the "nom d'utilisateur court", and a fuller *URL avancée* from
+  the same assistant (2046).
+- **Tasks** (VTODO) are linked to a calendar (984, 1974), and kSync syncs "contacts,
+  calendriers/agendas et tâches" over CardDAV and CalDAV, mail over IMAP (2302). So `task` is a
+  face over CalDAV, on the evidence Cirrux's Reminders were taken on.
+- **The server's own answers**, read without signing in on 2026-11-19: `OPTIONS
+  https://sync.infomaniak.com/` answers 401 with `WWW-Authenticate: Basic realm="sabre/dav"`, so the
+  server is SabreDAV with Basic auth; `/.well-known/caldav` and `/.well-known/carddav` answer 302 to
+  `https://sync.infomaniak.com/`. The form pre-fills `sync.infomaniak.com` on 443 and
+  `mail.infomaniak.com` on 993, and leaves the DAV base URL empty: the DAV clients discover the
+  homes from the root (RFC 6764), as for Soverin and Cirrux.
+
+### Two logins in one secret
+
+The account's one encrypted secret holds `username`/`password`, the sync login, and
+`mailUsername`/`mailPassword`, the mailbox's. Which one a seam signs in with is
+`mailLoginOf`'s answer (`packages/shared/src/provider-accounts.ts`): the mail writer, the
+account's source-side mail face, the qualification's mail face and the probe's mail branch ask it,
+and the DAV faces read the sync login as every DAV face does. Every door builds the secret with
+`targetCredentialRecord`, refuses half a mail login, and demands a whole one by name when email is
+ticked; *Replace credentials* with both mail boxes empty keeps the stored mail login. A row with no
+mail login refuses its mail face by field name, and its qualification says mail was not measured,
+naming `mailUsername`/`mailPassword`.
+
+### Known Quirks
+
+1. **Invitations are untested.** The server is SabreDAV, which in Nextcloud was seen to honour
+   `SCHEDULE-AGENT=CLIENT` (workplan 0103); what Infomaniak's does with it is neither published nor
+   observed, and an invitation sent cannot be taken back. So `infomaniak` is in
+   `TARGETS_THAT_MAIL_GUESTS` from the day the kind arrives: no `ATTENDEE` and no `ORGANIZER` is
+   written, each kept as a `COMMENT`, and a copy there that lists a guest is neither rewritten nor
+   deleted. It leaves the list on the evidence of a pass that sent none (0161 T2).
+2. **kDrive** is "INDISPONIBLE" on kSuite Free, kSuite Standard, my kSuite and my kSuite+
+   (`ik.me`, `etik.com`, `ikmail.com`) (2409, updated 12/11/2026), and its address is one per
+   drive. The `infomaniak` account carries no file face yet, and its Test says why (0161 T3).
+3. **The two usernames differ in shape**: the full address for mail, a short identifier for DAV.
+   Whether CalDAV also takes the account's email address as its username is not tested.
+4. **No published limits** on message size or request rates in the pages read.
+
+---
+
 ## openDesk
 
 ### Provider Details
@@ -339,7 +428,9 @@ The IMAP/DAV target writer is designed to work with any standards-compliant IMAP
 
 ### Infomaniak
 
-- **IMAP Host:** `imap.infomaniak.com`
+- **IMAP Host:** `mail.infomaniak.com` (FAQ 2427; it read `imap.infomaniak.com` until 2026-11-19).
+  The mailbox signs in with its full address and the password made for it; see
+  [Infomaniak](#infomaniak) above.
 - **Port:** 993 (TLS)
 - **Special Folders:** Follows RFC 6154
 

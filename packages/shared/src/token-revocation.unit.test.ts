@@ -63,6 +63,24 @@ describe('revocationCapability', () => {
     expect(drive.reason).not.toContain('rt-held-for-drive');
   });
 
+  it('an Infomaniak account names both places its two passwords are revoked, and no endpoint (0161)', () => {
+    // Not the shared "a password is revoked by changing it": changing the
+    // Infomaniak password ends neither an application password nor a mail
+    // password, which are revoked on their own pages.
+    const cap = revocationCapability('infomaniak', {
+      username: 'AB12345',
+      password: 'dummy-sync-app-password',
+      mailUsername: 'someone@example.com',
+      mailPassword: 'dummy-mailbox-device-password',
+    });
+    expect(cap.revocable).toBe(false);
+    expect(cap.reason).toContain('application passwords page');
+    expect(cap.reason).toContain('https://manager.infomaniak.com/v3/ng/profile/user/connection-history/application-password');
+    expect(cap.reason).toContain('Devices tab');
+    expect(cap.reason).not.toContain('dummy-');
+    expect(cap.reason).not.toContain('someone@example.com');
+  });
+
   it('a Cirrux account’s receipt says where Cirrux ends the Drive sign-in, since no app can (0160)', () => {
     const drive = revocationCapability('cirrux', { username: 'mailbox', password: 'app', driveRefreshToken: 'rt' });
     expect(drive.reason).toContain('Settings → Security');
