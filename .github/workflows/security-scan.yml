@@ -153,6 +153,10 @@ jobs:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No token left in .git/config for the steps after this one (workplan
+          # 0119): the tags' fetch below needs none, this repository being public.
+          persist-credentials: false
 
       # THE TAG, THE VERSION AND THE CHANGELOG NAME ONE RELEASE (workplan 0146
       # T2), checked before anything below installs or publishes. Without it, a

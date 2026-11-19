@@ -68,6 +68,74 @@ vulnerabilities; nothing read was run. Times are UTC.
   run changes: CI's integration jobs start `stalwartlabs/stalwart:v0.16.27` itself, not this
   fixture.
 
+**2026-11-19: the workflow check's nineteen lines. Sixteen are fixed, in nine workflows, and three
+are read as safe and left; on a branch, not pushed.** An outside, read-only check of
+`.github/workflows/` on `646b9de2` read three points: an action from outside this repository is
+pinned to a commit, no workflow has a dangerous trigger, and every permission is as small as its
+job (OWASP's CI/CD Security Cheat Sheet). It named nineteen lines, one for each shape a file had.
+Each was read again on `main` at `81558fd5`, where the one merge since is the site's (#1940), and
+each was still there. On the branch `claude/ownpace-public-readiness-y7orc6-bl-workflows`, from
+`81558fd5`, in four commits:
+- **Pins and triggers: nothing to change.** Every `uses:` is a 40-hex commit, and each of the
+  sixteen actions' commits is the tag its comment names, annotated tags peeled (`git ls-remote`,
+  the same day); `a-tag-the-publisher-can-move` holds the pin and the comment. No workflow has
+  `pull_request_target` or `workflow_run`.
+- **A token nobody chose, six lines.** `ci.yml` (77, its first key after the header), `e2e.yml`
+  (150), `e2e-managed.yml` (129), `e2e-o365.yml` (84), `e2e-live-target.yml` (63) and
+  `no-committed-artifacts.yml` (12) named no permissions, so every job ran on whatever Settings,
+  Actions, General gives the default token. None uses more than the checkout's read: actions/cache
+  and upload-artifact take the runner's own token, nothing pushes, comments or writes a check, and
+  the lanes log in with repository secrets, the machine's persisted `.env` or the dev stack's own
+  passwords. Each now says `contents: read` at the top.
+- **A write every job was handed, one line.** `images.yml` 57: `packages: write` at the top, with
+  `id-token: write` beside it. Seven of its eight jobs set `contents: read` of their own; `build`
+  inherited both and uses both (the ghcr.io login pushes the images, their registry cache and
+  cosign's signatures; cosign signs keyless). Both move onto `build`, which holds exactly what it
+  held, and the top says `contents: read`.
+- **A token left on disk, nine lines and eighteen checkouts.** `images.yml` 102,
+  `security-scan.yml` 155, `windows-payload.yml` 69, `ci.yml` 209, `e2e-live-target.yml` 67,
+  `e2e-managed.yml` 133, `e2e-o365.yml` 95, `e2e.yml` 153 and `no-committed-artifacts.yml` 29 were
+  the first checkout in each file to keep the token in `.git/config`, where every later step can
+  read it; the same files held nine more, `ci.yml`'s other eight jobs and windows-payload's
+  `release`. None of the eighteen jobs pushes with git, and each checkout now says
+  `persist-credentials: false`. The release check's fetch of the tags, in four of them, and
+  detect-changes' fetch of a pull request's head now run without the token, as the exposure
+  probe's fetch of a commit already does: this repository is public. Both fetches, run from a
+  repository with no credentials configured, worked (all twelve `v*` tags, and #1940's head).
+- **Three lines read as safe, and left.** The `actions/setup-node` steps at `images.yml` 97 (107
+  now), `security-scan.yml` 151 and `windows-payload.yml` 65, each the first step of a job that
+  publishes. The pin is v7.1.0's tag; `check-latest: true` is `a-gate-on-a-version-nothing-ships`'
+  rule for all 29 such steps, of which the check named only these; and they restore no cache:
+  they name no `cache:`, they run before the checkout, and setup-node's automatic cache engages
+  only for an npm `packageManager` (v7.1.0's `src/main.ts`), where this one is `pnpm@11.28.12`.
+- **Held by** `scripts/a-token-the-job-never-asked-for.unit.test.ts`, 18 tests. Each rule was
+  broken on the real files and failed: `e2e.yml`'s block taken off, `images.yml` as it is on
+  `main`, a `pull_request_target` trigger added, a job given `write-all`, detect-changes'
+  `persist-credentials` taken off, `cache: pnpm` on `images.yml`'s release-check step, and the
+  root `packageManager` made npm; one setup-node step pointed at its tag failed
+  `a-tag-the-publisher-can-move`. Every mutation was restored byte for byte.
+- **Gates:** `npx vitest run --project unit`, 1108 files, 17083 tests passed and 33 skipped, none
+  of them added here; `npx tsc --noEmit`; eslint on the guard; the six checks (`lessons`,
+  `adr-operative`, `workplan-index`, `conflict-markers`, `llms-docs`, `machine-product-name`);
+  `commit-convention.mjs origin/main HEAD`; and each changed workflow parsed by the `yaml` package,
+  strict, with no error or warning, and by PyYAML. actionlint is not installed here, and nothing
+  was downloaded to run.
+- **Proven after the push**, workflow by workflow: CI, Security Scan, the artifacts check and
+  Images run on the pull request itself (Images because the pull request changes `images.yml`:
+  `build` builds without pushing there, with its new block). Images' push and signing prove
+  themselves on `main` after the merge, and every tag path, the four release checks' fetch among
+  them, at the next tag: Release in `rehearse-tag` mode reaches Security Scan's, though only its
+  names step's log tells a refusal of the name from a failed fetch. windows-payload's `build` and
+  `smoke` and the four E2E lanes prove themselves by a dispatch on the branch. In each job's log,
+  "Set up job" lists the token's permissions.
+- **For the owner:** two jobs still hold a write on every event because `permissions:` cannot
+  depend on the event: `images.yml`'s `build` on a pull request, which builds and pushes nothing
+  (GitHub gives a fork's pull request a read-only token and no OIDC), and Security Scan's job,
+  whose `contents: write` only its tag run's SBOM attach uses. Either narrows only by splitting a
+  job. Security Scan's top still grants `security-events: write`, which no job inherits. And with
+  every workflow naming its token, the repository default (Settings, Actions, General) can be
+  read-only.
+
 **2026-11-18, last: the alpha.12 round's reading. No release fixes the image scan's highs; three
 pins move after their floors, and four releases are left.** Read on 2026-11-18 from upstream's
 public git (`git ls-remote`, blobless fetches of the tags), Docker Hub's and GHCR's manifests, the
