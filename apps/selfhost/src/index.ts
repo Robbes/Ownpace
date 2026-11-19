@@ -2006,9 +2006,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       //
       // `from`/`to` ARE folder paths, unlike everything keyed by hash above.
       // They have to be: "12 items moved" that cannot say where is not a queue
-      // anyone can act on. §17 keeps paths out of METRIC labels, which is a
-      // different store with different retention; this is the operator's own
-      // status surface, the same place `lastError` already goes.
+      // anyone can act on. And a row names its item where the ledger holds a
+      // name (`displayName`, and a relocation's `toDisplayName`), for the same
+      // reason: a row reading `/ renamed` beside a hash cannot be decided on
+      // (found 2026-11-19). §17 keeps paths and names out of METRIC
+      // labels, which is a different store with different retention; this is
+      // the owner's own queue, the same place `lastError` already goes.
       if (req.method === 'GET' && req.url === '/moves') {
         const out: Record<string, MovesQueue> = {};
         for (const m of mappings) {

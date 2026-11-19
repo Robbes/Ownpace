@@ -17,7 +17,7 @@ import {
   type ShareGrantRow,
   classifyFailure,
   isFailureCategory,
-  boundDisplayName,
+  nameOnRow,
   exportAuditEvent,
   type FailureSide,
   type FormerName,
@@ -56,32 +56,37 @@ import type { DiscoveryDomain, FailureCategory } from '@openmig/shared';
  * everything; correctness does not depend on it surviving. See ADR-0020 and workplan T9.
  */
 /**
- * What a failed row is called on the failures queue.
+ * What a row is called on the owner's queues: Failures, Moves and Deletions.
  *
  * The stored name when there is one: an event's SUMMARY, a contact's FN. A
  * FILE stores none, deliberately (`runFileSync`: its key is its path), and
- * this queue serves the path only as its folder (`collection`) beside an
+ * the queues serve the path only as its folder (`collection`) beside an
  * opaque hash. So a file's row named its folder and never the file. The
- * owner's `.htaccess` (2026-09-23) read as a folder path with the file's name
- * only inside the error line, and a refusal that does not quote the path
- * would not have said which file at all.
+ * owner's `.htaccess` (2026-09-23) read as a folder path on Failures with the
+ * file's name only inside the error line, and on 2026-11-19 a file renamed at
+ * the top of a drive read *Files / renamed* on Moves, beside a hash.
  *
  * So for a file the name is read here from the key the row already stores:
  * its last segment, the name a person gave it. That is not an invented name,
- * and it reaches rows written before today. A row whose key was never
- * recorded (`''`, written before 2026-09-12) still has no name, and the
- * screen shows the folder as it did.
+ * nothing is stored for it, and it reaches rows written before it was read. A
+ * row whose key was never recorded (`''`, written before 2026-09-12) still has
+ * no name, and the screen shows the folder as it did. The rule itself is
+ * `nameOnRow` (`@openmig/shared`), which the in-memory ledger reads too.
  */
-function nameOfFailure(row: {
+function named(row: {
   readonly domain: string;
   readonly displayName: string | null;
   readonly naturalKey: string | null;
 }): { readonly displayName?: string } {
-  if (row.displayName) return { displayName: row.displayName };
-  if (row.domain !== 'file' || !row.naturalKey) return {};
-  const name = boundDisplayName(row.naturalKey.split('/').filter(Boolean).pop());
+  const name = nameOnRow(row);
   return name ? { displayName: name } : {};
 }
+
+/**
+ * Keys read per statement by `namesOfKeys`: far inside Postgres's 65,535 bind
+ * parameters, so a whole queue's relocations are named in one or a few reads.
+ */
+const NAMES_CHUNK = 1000;
 
 /**
  * A sharing list refused because its migration is not there, or is another
@@ -870,7 +875,7 @@ export class PgLedger implements Ledger {
       // still the handle for both actions; this is the only thing on the row a
       // person can recognise, and without it this queue asked the owner to act
       // on `926caf98adce563`.
-      ...nameOfFailure(row),
+      ...named(row),
       ...(row.collection ? { collection: row.collection } : {}),
       attempts: row.attemptCount,
       lastError: row.lastError ?? '(no error recorded)',
@@ -1460,6 +1465,11 @@ export class PgLedger implements Ledger {
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
         // What a decided move did on the new system (0159 §6 item 6).
         deletionAppliedAt: schemaPg.item.deletionAppliedAt,
+        // WHAT IT IS CALLED (found 2026-11-19: a row read *Files /
+        // renamed* beside a hash). Read from what this row already holds, by
+        // `named`: the stored name, or a file's last path segment.
+        naturalKey: schemaPg.item.naturalKey,
+        displayName: schemaPg.item.displayName,
       })
       .from(schemaPg.item)
       .where(
@@ -1484,14 +1494,32 @@ export class PgLedger implements Ledger {
         sql`${schemaPg.item.moveAcknowledgedAt} ASC NULLS FIRST, ${schemaPg.item.naturalKeyHash} ASC`,
       );
 
+    // And, for a relocation, what it is called NOW: the name on the row its
+    // new key names, the copy already made there, read for the whole queue at
+    // once (`namesOfKeys`).
+    const newNames = await this.namesOfKeys(
+      tenantId,
+      mappingId,
+      rows.flatMap((r) => (r.movedToNaturalKeyHash ? [r.movedToNaturalKeyHash] : [])),
+    );
+
+    const newNameOf = (r: (typeof rows)[number]): { readonly toDisplayName?: string } => {
+      const name = r.movedToNaturalKeyHash
+        ? newNames.get(`${r.domain}\u0000${r.movedToNaturalKeyHash}`)
+        : undefined;
+      return name ? { toDisplayName: name } : {};
+    };
+
     return rows.map((r) => ({
       domain: r.domain as ItemMove['domain'],
       naturalKeyHash: r.naturalKeyHash,
+      ...named(r),
       from: r.collection,
       to: r.movedToCollection ?? '',
       // Present only for a relocation; its absence is what tells a caller this
       // move cannot be applied (ADR-0030).
       ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
+      ...newNameOf(r),
       ...(r.movedRecordedAt
         ? {
             recordedAt:
@@ -1516,6 +1544,58 @@ export class PgLedger implements Ledger {
         ? { decided: r.deletionAppliedAt ? ('applied' as const) : ('kept' as const) }
         : {}),
     }));
+  }
+
+  /**
+   * The name on each row these keys name, in THIS organisation's migration:
+   * what a relocation's new copy is called, for `listMoves`. Keyed by domain
+   * and key; a key no row of the migration holds, or whose row names nothing
+   * (`nameOnRow`), has no entry.
+   *
+   * By the statement's own tenant and migration, beside row security. The
+   * appliance's ledger runs outside `withTenant`, and the managed jobs that
+   * span organisations connect as a role the policies do not bind
+   * (`docs/rls-guide.md`), so on those connections these filters are what keep
+   * another organisation's name, or another migration's, off a row.
+   *
+   * One read for the whole queue rather than a subquery per row: no index
+   * leads with the key without `item_type`, so a correlated lookup scans the
+   * migration's rows once per move. Measured on Postgres 16, 1,000 moves in a
+   * migration of 50,000 items: 5.0 s as a subquery per move, 18 ms as one read
+   * (2026-11-19). A Map also cannot add a row to the queue, whatever the table
+   * holds. (A subquery inside this file's one-table SELECTs has a second trap:
+   * drizzle writes their columns without the table, so inside
+   * `FROM item AS arrival` an outer column reads as the arrival's own.)
+   */
+  private async namesOfKeys(
+    tenantId: TenantId,
+    mappingId: MappingId,
+    keys: readonly string[],
+  ): Promise<ReadonlyMap<string, string>> {
+    const names = new Map<string, string>();
+    const unique = [...new Set(keys)];
+    for (let at = 0; at < unique.length; at += NAMES_CHUNK) {
+      const rows = await this.db
+        .select({
+          domain: schemaPg.item.domain,
+          naturalKeyHash: schemaPg.item.naturalKeyHash,
+          naturalKey: schemaPg.item.naturalKey,
+          displayName: schemaPg.item.displayName,
+        })
+        .from(schemaPg.item)
+        .where(
+          and(
+            eq(schemaPg.item.tenantId, tenantId),
+            eq(schemaPg.item.mappingId, mappingId),
+            inArray(schemaPg.item.naturalKeyHash, unique.slice(at, at + NAMES_CHUNK)),
+          ),
+        );
+      for (const row of rows) {
+        const name = nameOnRow(row);
+        if (name) names.set(`${row.domain}\u0000${row.naturalKeyHash}`, name);
+      }
+    }
+    return names;
   }
 
   async resolveMove(
@@ -1725,6 +1805,10 @@ export class PgLedger implements Ledger {
         // and a move answered later carries a later time. Compared here, in
         // SQL, because a JavaScript Date keeps milliseconds only.
         removedByRelocation: sql<boolean>`(${schemaPg.item.movedToNaturalKeyHash} IS NOT NULL AND ${schemaPg.item.moveAcknowledgedAt} = ${schemaPg.item.deletionAppliedAt})`,
+        // What it is called, from what the row holds (`named`): a row read
+        // only its folder, so a file at the top of a drive read `/`.
+        naturalKey: schemaPg.item.naturalKey,
+        displayName: schemaPg.item.displayName,
       })
       .from(schemaPg.item)
       .where(
@@ -1773,6 +1857,7 @@ export class PgLedger implements Ledger {
       return {
         domain: r.domain as ItemDeletion['domain'],
         naturalKeyHash: r.naturalKeyHash,
+        ...named(r),
         collection: r.collection,
         absentPasses: r.absentPasses,
         // Reported and trashed both mean confirmed on sight: each is a POSITIVE
@@ -1830,6 +1915,9 @@ export class PgLedger implements Ledger {
         exportedAs: schemaPg.item.supersededByNaturalKeyHash,
         markedAt: schemaPg.item.supersededAt,
         acknowledgedAt: schemaPg.item.deletionAcknowledgedAt,
+        // The earlier copy's own name (`named`), beside its folder.
+        naturalKey: schemaPg.item.naturalKey,
+        displayName: schemaPg.item.displayName,
       })
       .from(schemaPg.item)
       .where(
@@ -1854,6 +1942,7 @@ export class PgLedger implements Ledger {
     return rows.map((r) => ({
       domain: r.domain as EarlierExport['domain'],
       naturalKeyHash: r.naturalKeyHash,
+      ...named(r),
       collection: r.collection,
       exportedAs: r.exportedAs ?? '',
       ...(r.markedAt ? { markedAt: iso(r.markedAt) } : {}),

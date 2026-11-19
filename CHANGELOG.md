@@ -55,6 +55,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Moves and Deletions name the item each row asks about** (workplan 0159): a file renamed at
+  the top of a drive read only `/ renamed` beside an ID and now reads
+  `/report.pdf → report-final.pdf`, a moved file shows its name in both folders, and a message,
+  an event or a contact shows its name, all from what the migration had already recorded.
 - **Nothing written to Cirrux names a guest or an organiser, because Cirrux emails every guest**
   (workplan 0160, ADR-0043 amended). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
   with every attendee and organiser marked `SCHEDULE-AGENT=CLIENT`, as for every target, and
