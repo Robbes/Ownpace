@@ -4,8 +4,72 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`) reports two base
+images with a fixable high or critical (IMG-1), and the Stalwart fixture as a container that runs
+as root (GEN-21). Neither base moves here; the fixture says what it is.** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-images`, PR #1950, from
+`main` at `d6f10278` (#1941; the findings' files are as at `646b9de2`). Read on 2026-11-19 from
+Docker Hub (through Google's mirror of it, without a login), GHCR's tag lists, upstream's source
+at its tags, npm's advisory service, OSV's Debian data and CISA's list of exploited
+vulnerabilities; nothing read was run. Times are UTC.
+- **The Stalwart fixture, `packages/testing/fixtures/stalwart/Dockerfile`.** Nothing builds or
+  runs it: no workflow, compose file, script or test names its directory. It is the
+  `stalwart-test-custom` image of 2026-07-05; the integration tests and both E2E gates start
+  `stalwartlabs/stalwart:v0.16.27` itself (`testcontainers-setup.ts`, `setup-stalwart.sh`), as
+  root on purpose (`docs/stalwart-integration-fix.md`, Round 4). That image runs as its own
+  `stalwart`, uid and gid 2000 (its config's `User`, its `/etc/passwd`), so the fixture never ran
+  as root; its Dockerfile now says `USER 2000:2000`, and its FROM carries the index digest the tag
+  has named since 2026-10-18, `c429b311…`. `a-fixture-that-named-no-user` holds both, and
+  `a-float-nothing-ever-pulled` now holds every Dockerfile git lists to a digest, not only
+  `apps/*`'s. The fix doc's *Moving the pin* says the fixture's digest moves with the tag.
+- **What the scan of `v0.16.27` reads, by its package database** (linux/arm64, the apt layer):
+  five fixable findings, as Trivy's five of 2026-11-15: brotli 1.1.0-2 (CVE-2026-111497, on CISA's
+  list of exploited vulnerabilities, fixed in 1.1.0-2+deb13u1), apt 3.0.3 (CVE-2026-109518, fixed
+  in 3.0.4) and zlib 1:1.3.dfsg+really1.3.1-1 (CVE-2026-27171, CVE-2026-76844 and CVE-2026-85091,
+  fixed in +deb13u1). No v0.16 release follows v0.16.27, and Docker Hub has not rebuilt its tag.
+  Stalwart v1.1.0 (pushed 2026-11-09) and v1.1.1 (2026-11-16 11:47, past its floor today) carry
+  brotli 1.1.0-2+deb13u1 and apt 3.0.4, and zlib unfixed. A move to v1 is another line: the
+  owner's call under ADR-0022, from upstream's `UPGRADING/` notes, with the two-phase run proved on
+  the new tag and every copy moved together. Not taken here.
+- **Trigger.dev's base, `ghcr.io/triggerdotdev/trigger.dev:v4.8.5@sha256:6e6d38a9…`.** A check
+  that reads the FROM sees upstream's image; the build here removes or replaces what nothing runs
+  (the Dockerfile's header), so it sees, as this plan's scans read them: the six criticals in
+  depot's and esbuild's Go binaries and in tar 7.5.13 in both copies of pnpm 10.33.2; pnpm 10.33.2
+  itself (11 highs); npm 11.19.1's and node-gyp's trees (12 fixable highs); TypeScript 7's native
+  compiler (15); goose v3.27.1 (21, replaced by v3.30.1); cross-spawn 5.1.0 (1); and the 26 highs
+  with no fix in util-linux's builds, libsystemd0 and libudev1. The image built here read 1, 20
+  and 8 after alpha.11's tag (run 44260105914). What is left with a fix is four packages, eight
+  highs, each fixed only in a new major: undici 5.29.0 (GHSA-vrm6-8vpv-qv8q, -v9p9-hfj2-hcw8,
+  -2m5v-pch6-74hx, -qrxm-fqhp-jwvm and -vxpw-j846-p89q; fixed in 6.24.0 to 6.29.1) with its
+  `@fastify/busboy` 2.1.1 (GHSA-x8mw-p69m-v3mx, fixed in 3.2.1), turbo-stream 2.4.1
+  (GHSA-rxv8-25v2-qmq8, fixed in 3.0.0) and deepmerge-ts 7.1.5 (GHSA-ggr8-5vv4-36mx, fixed in
+  8.0.0); and zlib1g's critical (CVE-2023-45853), which Debian 12 does not fix.
+- **Which of the four a layer here could take, as #1909 took cross-spawn.** Not turbo-stream,
+  an exact pin of `@remix-run/react` and `server-runtime` 2.17.5, nor deepmerge-ts, `@prisma/config`'s:
+  the webapp and its migrations run both. undici 5.29.0's one requirer, in v4.8.5's lockfile, is
+  `@connectrpc/connect-node` 1.4.0, under `@depot/sdk-node`, which the server bundle imports; its
+  `node-headers-polyfill.js` requires undici when it loads and uses its `Headers` only on Node
+  before 18, and trigger-api runs Node 24.22.3 (read in the published package; not run). So
+  undici 5.29.0 cannot simply go: the require would fail. Pointing that one link at the store's
+  undici 6.29.1 and removing 5.29.0 and `@fastify/busboy` 2.1.1 with it, with the walk #1909
+  made, would take six of the eight. The build's rule since 2026-10-26 removes files nothing runs;
+  this would move a dependency that loads across a major, in place, so it is proposed, to be
+  decided first, and not built.
+- **Trigger.dev v4.8.6**, GHCR's newest tag for the webapp and the supervisor today, keeps all
+  four (its `pnpm-lock.yaml`, which `main`'s equals byte for byte on 2026-11-19) and adds an
+  override that drops cross-spawn 5.1.0, which this build already removes; it still pins pnpm
+  10.33.2 and builds goose v3.27.1. So no release fixes what is left. Trigger.dev stays at v4.8.5.
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,095 tests passed and 33 skipped;
+  before that, the two guards, 14 tests, and the 23 test files that read a changed file, 1,186
+  tests; `tsc --noEmit`, ESLint on the two guards and the six docs checks. On disk, the fixture
+  without its digest fails both guards (4 of 14), and without its USER, with `USER stalwart` or
+  with `USER root` the fixture's (3, 2 and 2 of 3), each file restored byte for byte.
+- **Owed after the push:** CI on the pull request. Nothing builds the fixture, so no image or E2E
+  run changes: CI's integration jobs start `stalwartlabs/stalwart:v0.16.27` itself, not this
+  fixture.
+
 **2026-11-19: the workflow check's nineteen lines. Sixteen are fixed, in nine workflows, and three
-are read as safe and left; on a branch, not pushed.** An outside, read-only check of
+are read as safe and left; merged as #1943 (`1edbdc22`).** An outside, read-only check of
 `.github/workflows/` on `646b9de2` read three points: an action from outside this repository is
 pinned to a commit, no workflow has a dangerous trigger, and every permission is as small as its
 job (OWASP's CI/CD Security Cheat Sheet). It named nineteen lines, one for each shape a file had.
@@ -63,7 +127,10 @@ each was still there. On the branch `claude/ownpace-public-readiness-y7orc6-bl-w
   them, at the next tag: Release in `rehearse-tag` mode reaches Security Scan's, though only its
   names step's log tells a refusal of the name from a failed fetch. windows-payload's `build` and
   `smoke` and the four E2E lanes prove themselves by a dispatch on the branch. In each job's log,
-  "Set up job" lists the token's permissions.
+  "Set up job" lists the token's permissions. On #1943: CI, Security Scan, the artifacts check and
+  Images green on its last head, `7f9fdf5d`, and E2E (managed) run 44568054149 with them; E2E
+  (self-hosted) run 44552758227 and the Windows payload run 44544250125 green on earlier heads
+  whose workflows were the same.
 - **For the owner:** two jobs still hold a write on every event because `permissions:` cannot
   depend on the event: `images.yml`'s `build` on a pull request, which builds and pushes nothing
   (GitHub gives a fork's pull request a read-only token and no OIDC), and Security Scan's job,

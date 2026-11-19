@@ -37,6 +37,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Stalwart test fixture's Dockerfile names its base by digest and its user by number, and
+  the two base images a read-only check reported with a fixable high or critical stay, read and
+  recorded** (workplan 0119). `packages/testing/fixtures/stalwart/Dockerfile`, which nothing here
+  builds, now pins `stalwartlabs/stalwart:v0.16.27` by the digest of its index and says
+  `USER 2000:2000`, the image's own `stalwart`, so a reading of the file no longer takes it for a
+  container that runs as root; every Dockerfile is now held to a digest. The Stalwart image the
+  tests run carries Debian 13's brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited
+  vulnerabilities): no v0.16 release fixes it, Stalwart v1.1 does, and that move is the owner's
+  (ADR-0022). Trigger.dev v4.8.5's own image carries what this repository's build of it removes;
+  four packages with a fix are left in that build, each fixed only in a new major, and v4.8.6
+  fixes none of them. Nothing that runs changes.
 - **The advisory gate accepts nothing again: GitHub withdrew GHSA-fc5q-39xc-vjpf, the picomatch
   ReDoS it accepted by name, on 2026-11-18** (workplan 0119). `pnpm audit` no longer lists it, so
   its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
