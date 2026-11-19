@@ -283,7 +283,7 @@ services:
   # `up` that finds no image of this name; `never`, as for the databases: no
   # registry serves this name.
   pgbouncer:
-    image: localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6
+    image: localhost/pgbouncer:v1.26.1-p0-abd8080fb98b
     build: ./pgbouncer
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer

@@ -89,7 +89,6 @@ export const EXCEPTIONS: Readonly<Record<string, Partial<Record<Rule, string>>>>
     'numeric-user':
       "`USER root` for the one RUN apk needs and `USER postgres` after it, by the name upstream's config gives its user: " +
       "images.yml's build (pgbouncer) holds the built image's User to upstream's, and the RUN after it proves postgres is uid 70",
-    pipefail: "the packages' RUN sorts apk's database through a pipe, and the proof reads pgbouncer's first line through sed",
   },
 
   'deploy/compose/supervisor/Dockerfile': {
