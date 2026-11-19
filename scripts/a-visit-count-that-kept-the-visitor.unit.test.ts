@@ -727,7 +727,7 @@ describe('GoAccess keeps totals: the flags, the image and what it may touch', ()
     expect(docker).toContain('-i');
     expect(line).toMatch(/(^| )--network none( |$)/);
     expect(docker).toContain('--read-only');
-    expect(line, 'the image sets no USER: without this GoAccess runs as root').toMatch(/(^| )--user 65534:65534( |$)/);
+    expect(line, 'the image ends as 65534:65534 since 2026-11-19, and the run says it again: a GoAccess image built before that line ran as root').toMatch(/(^| )--user 65534:65534( |$)/);
     expect(line).toMatch(/(^| )--cap-drop ALL( |$)/);
     expect(line).toMatch(/(^| )--security-opt no-new-privileges( |$)/);
     const reach = docker.filter((a) => /^(-p|-P|--publish|--publish-all|-v|--volume|--mount|--tmpfs|--network=(?!none$)|--net\b|--add-host)/.test(a));

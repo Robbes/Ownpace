@@ -54,6 +54,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The web image runs nginx as its own user from its first process, GoAccess's image ends as
+  nobody, and three more Dockerfiles lose a pipe that could hide a failed command** (workplan
+  0119). A read-only check of the repository read the web image and GoAccess's as containers that
+  run as root, and listed where eight Dockerfiles break hadolint's rules. nginx now starts as uid
+  101 with no capability; managed.yml's web sets `net.ipv4.ip_unprivileged_port_start=0`, so it
+  still listens on port 80, and its health check runs with no shell. GoAccess ends as 65534:65534,
+  the user the visit count already ran it as. The Docker socket proxy stays root, as upstream ships
+  it, and its Dockerfile says why. It and the connection pooler get new image names, which each
+  machine builds at its next deploy, and the tasks' base names its user by number. A new test
+  holds every Dockerfile to six of hadolint's rules, and names each file that breaks one with its
+  reason.
 - **The Trigger.dev dashboard's TLS front runs as its own user, with no capability** (workplan
   0119). A read-only check of the repository read the front's image as a container that runs as
   root, which it did. Caddy now runs as uid 65532: it listens on port 3443, which needs no

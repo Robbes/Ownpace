@@ -41,7 +41,10 @@
 #      hashes this file's instruction lines and nothing else (THE NAME, below),
 #      so the files' hashes are written into one: a file that changes fails the
 #      build until that line moves, and the name moves with it. It adds nothing
-#      to the image.
+#      to the image. Since 2026-11-19 it hashes each file on its own and
+#      compares the hash with the one it names; until then it piped a list
+#      into `sha256sum -c -`, and a RUN with no pipe needs no `pipefail`
+#      (hadolint's DL4006).
 #
 # The rest is upstream's, in upstream's order: the port, every environment
 # variable with its default, the two COPY lines, the server-state file, `USER
@@ -52,6 +55,17 @@
 # socket with managed.yml's environment, and asks it for what the supervisor
 # uses, which Docker must answer, and for every endpoint switch left off, which
 # the proxy must refuse with its own 403.
+#
+# WHY ROOT. `USER root` is upstream's, and stays: HAProxy connects to the
+# host's Docker socket, which is root's and the docker group's at mode 0660,
+# and that group's id differs from host to host. Another user would need each
+# host's docker group id passed in from its .env (`group_add`), on every host
+# and on the runner, for little: whoever can use the socket holds the host
+# either way. What managed.yml gives the proxy instead is no capability,
+# no-new-privileges, a read-only root filesystem and one internal network,
+# which the supervisor alone shares. (This paragraph since 2026-11-19,
+# workplan 0119: a read-only check of the repository read the image as one
+# that runs as root.)
 #
 # THE NAME. managed.yml builds this as
 # `localhost/docker-socket-proxy:<base tag>-<12 hex>`, a name no registry
@@ -120,11 +134,11 @@ ENV ALLOW_RESTARTS=0 \
 COPY docker-entrypoint.sh /usr/local/bin/
 COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg.template
 # Not upstream's: the two files above by SHA-256, so the name covers them (the header).
-RUN printf '%s  %s\n' \
-      2cd4c4414b7693fed10160386b2ba394b6e3bca55c61a773fb5225ea45606059 /usr/local/bin/docker-entrypoint.sh \
-      2de85de4cac6c8ae93de8be68d69b655533a77e1f5170b625e0eed4b126e8b4d /usr/local/etc/haproxy/haproxy.cfg.template \
-    | sha256sum -c - \
-    && test -x /usr/local/bin/docker-entrypoint.sh
+RUN test "$(sha256sum < /usr/local/bin/docker-entrypoint.sh)" = '2cd4c4414b7693fed10160386b2ba394b6e3bca55c61a773fb5225ea45606059  -' \
+      || { echo '/usr/local/bin/docker-entrypoint.sh is not the file this Dockerfile names by its SHA-256' >&2; exit 1; }; \
+    test "$(sha256sum < /usr/local/etc/haproxy/haproxy.cfg.template)" = '2de85de4cac6c8ae93de8be68d69b655533a77e1f5170b625e0eed4b126e8b4d  -' \
+      || { echo '/usr/local/etc/haproxy/haproxy.cfg.template is not the file this Dockerfile names by its SHA-256' >&2; exit 1; }; \
+    test -x /usr/local/bin/docker-entrypoint.sh
 RUN touch /var/lib/haproxy/server-state
 USER root
 CMD ["haproxy", "-f", "/tmp/haproxy.cfg"]

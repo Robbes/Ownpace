@@ -152,8 +152,8 @@ name: ownpace-managed
 # "more hardened"). Every service sets `no-new-privileges`: a process in it
 # cannot gain a privilege by running a setuid binary or one with a file
 # capability. Nothing here needs that: the services that change user
-# (ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's su) do
-# it as root, with a system call, and the rest never change user. All but
+# (ClickHouse's `clickhouse su`, Apache's workers, Nextcloud's su) do it as
+# root, with a system call, and the rest never change user. All but
 # two drop every capability (`cap_drop: [ALL]`) and add back only what their
 # own start-up does as root, each named beside the service with the reason;
 # a service that runs as another user from its first process adds none. The two
@@ -285,7 +285,7 @@ services:
   # `up` that finds no image of this name; `never`, as for the databases: no
   # registry serves this name.
   pgbouncer:
-    image: localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6
+    image: localhost/pgbouncer:v1.26.1-p0-abd8080fb98b
     build: ./pgbouncer
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
@@ -876,7 +876,7 @@ services:
   # only), why the name carries the hash of its instructions, and how it moves.
   # `never`, as for the databases: no registry serves this name.
   trigger-docker-proxy:
-    image: localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226
+    image: localhost/docker-socket-proxy:3.4.7-alpine-a8d771e9f164
     build: ./docker-socket-proxy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
@@ -2172,13 +2172,17 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     logging: *logging
-    # HOW IT RUNS (see the header): nginx's master is root, binds port 80
-    # (NET_BIND_SERVICE; Docker's own sysctl makes it redundant today, and it is
-    # kept so that port 80 does not rest on a daemon default), chowns its temp
-    # directories to nginx (CHOWN), and its workers become nginx (SETUID, SETGID).
+    # HOW IT RUNS (see the header): as nginx's own user, uid 101, from its first
+    # process, master and workers alike (apps/web/Dockerfile, since 2026-11-19),
+    # with no capability. It binds port 80 as that user by the sysctl below,
+    # which Docker sets the same by default; it is said here so that port 80
+    # does not rest on a daemon default. Until then the master ran as root and
+    # kept CHOWN, NET_BIND_SERVICE, SETGID and SETUID.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    cap_add: [CHOWN, NET_BIND_SERVICE, SETGID, SETUID]
+    cap_add: []
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     ports:
       # A ROUTED PORT: the app's public name (`app.…`) leads here through the
       # front. WEB_BIND is set to the front's address in this stack's `.env`,

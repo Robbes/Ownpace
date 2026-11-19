@@ -306,7 +306,8 @@ describe("the base: distroless at the API's digest, and what the runtime stage n
     expect(base).toContain('COPY --from=build /out/etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt');
     expect(base).toContain('COPY --from=build /out/usr/bin/dumb-init /usr/bin/dumb-init');
     expect(base).toContain('COPY --from=build --chown=1000:1000 /out/home/node /home/node');
-    expect(base).toContain('USER node');
+    // node by its number since 2026-11-19 (hadolint's DL3066): the account the build stage adds at 1000:1000.
+    expect(base).toContain('USER 1000:1000');
     expect(base.at(-1)).toBe('ENTRYPOINT ["dumb-init", "node"]');
     const env = base.find((i) => keyword(i) === 'ENV')!;
     const path = /\bPATH=(\S+)/.exec(env)?.[1]?.split(':') ?? [];
@@ -1003,7 +1004,7 @@ describe('each hold fails on the change it is there for (mutations)', () => {
   };
 
   it('a RUN in the base, or a stage that is not the build stage it copies from, is read as one', () => {
-    const withRun = stagesOf(mutate(dockerfile, 'USER node\n', 'USER node\nRUN ["/usr/bin/dumb-init", "--version"]\n'));
+    const withRun = stagesOf(mutate(dockerfile, 'USER 1000:1000\n', 'USER 1000:1000\nRUN ["/usr/bin/dumb-init", "--version"]\n'));
     expect(withRun[2]!.body.map(keyword)).toContain('RUN');
     const fromElsewhere = stagesOf(mutate(dockerfile, 'COPY --from=build /out/usr/bin/dumb-init', 'COPY --from=distroless /out/usr/bin/dumb-init'));
     expect(fromElsewhere[2]!.body.filter((i) => keyword(i) === 'COPY').every((c) => c.startsWith('COPY --from=build '))).toBe(false);
