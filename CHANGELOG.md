@@ -14,6 +14,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   half of *Two numbers decide your tier*, the note above each tier's button, and How it works's
   *What we would tell a friend*. Step 4 is *Check everything at your own pace*, and what cannot be
   moved is *clearly reported*.
+- **How it works names the new home, and says what happens to your address and your apps**
+  (workplan 0152). Step 2 is *Connect your old account and your new home*, and says what the new
+  home is. Step 5 answers *Does my email address change?*: an address on a domain of your own comes
+  along, and one of the old provider's stays behind. It also says which apps take the new account.
+  The home page says Ownpace runs in the Netherlands, in the EU, as the privacy policy says, and a
+  test holds the two together.
 
 ### Security
 

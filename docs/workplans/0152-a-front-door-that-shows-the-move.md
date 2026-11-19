@@ -27,6 +27,17 @@ each of six mutations: a heading reworded, a heading's id dropped, a step droppe
 changed, two steps sharing a picture, a step's link dropped. The wireframe `wf-site-home.svg`
 still draws three; it is the plan's drawing of 2026-10-04.
 
+Four more the same day, in both languages:
+
+- Step 2 is *Connect your old account and your new home* (*Koppel uw oude account en uw nieuwe
+  thuis*). It says what the new home is, so the steps now say where the data goes.
+- Step 5 answers *Does my email address change?* (*Verandert mijn e-mailadres?*). It also says what
+  you use afterwards: the phone's and the computer's own apps, Thunderbird, DAVx⁵ and the Nextcloud
+  apps.
+- *European, all the way down* says Ownpace runs in the Netherlands, in the EU.
+  `site/site.unit.test.ts` holds that to the privacy policy's §7, and fails on each of two
+  mutations: the policy moving the machine, the card dropping the country.
+
 **2026-11-01, records: T5 (c)'s two pull requests were merged, and T6 dates #1317's merge
 2026-09-28.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. The two entries
 below and T5's row named T5 (c)'s branches and not their merges: #1743, every page's address
