@@ -37,6 +37,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Trigger.dev dashboard's TLS front runs as its own user, with no capability** (workplan
+  0119). A read-only check of the repository read the front's image as a container that runs as
+  root, which it did. Caddy now runs as uid 65532: it listens on port 3443, which needs no
+  privilege, and Caddy 2.11.9's binary no longer needs the capability the front kept for 2.11.7.
+  A one-shot gives the front's two volumes to that user before it starts, so the local
+  certificate authority, and a browser's exception for its certificate, stay. Each machine builds
+  the new image at its next deploy. Going back to an earlier release needs the volumes given back
+  to root first; the bring-up guide gives the command.
 - **The advisory gate accepts nothing again: GitHub withdrew GHSA-fc5q-39xc-vjpf, the picomatch
   ReDoS it accepted by name, on 2026-11-18** (workplan 0119). `pnpm audit` no longer lists it, so
   its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
