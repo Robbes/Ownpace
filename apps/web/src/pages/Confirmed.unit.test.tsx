@@ -690,6 +690,28 @@ describe('the confirmed list screen', () => {
     expect(await screen.findByText(/already running/i)).toBeInTheDocument();
   });
 
+  it('says a read of the runs that failed, and presses nothing, rather than watching blind', async () => {
+    // The swallowed-error check of 2026-11-19 (workplan 0006 J). The read before the
+    // press was caught and dropped, so a failure read as "no pass before this
+    // one", the press went ahead, and the watch could take the last pass for
+    // this one: the gap `priorRunId` exists to close.
+    listed.mockResolvedValue({ 'mapping-1': queue() } as never);
+    runs.mockRejectedValue(new Error('the runs could not be read'));
+
+    render(
+      <MemoryRouter>
+        <Confirmed />
+      </MemoryRouter>,
+    );
+    const button = screen.getByRole('button', { name: /Read everything back/i });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+
+    expect(await screen.findByText('the runs could not be read')).toBeInTheDocument();
+    expect(started).not.toHaveBeenCalled();
+    expect(button).toBeEnabled();
+  });
+
   it('does not offer a press it would silently drop', async () => {
     // The appliance's screen is flat, so until the list lands there is no
     // mapping to start a pass on. The button used to be live throughout that

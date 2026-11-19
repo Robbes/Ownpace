@@ -668,10 +668,11 @@ const Confirmed: React.FC = () => {
     // Read the runs BEFORE pressing, so `watch` can tell this pass's row from
     // the one that was already there. A prior run still OPEN is deliberately
     // NOT excluded: that is the pass this press will join rather than replace,
-    // and it is the one to watch.
+    // and it is the one to watch. A read that fails is said, as a failed press
+    // is, and nothing is pressed: without the prior run's id the watch could
+    // take the last pass for this one.
     void fetchRuns(id)
       .then(({ runs }) => runs.find(isConfirm))
-      .catch(() => undefined)
       .then((prior) =>
         startConfirmation(mappingId).then((r) => {
           // `started: false` means a pass was already under way and this

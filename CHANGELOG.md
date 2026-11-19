@@ -75,6 +75,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   re-run of the failed job reused that green run and published the release. Until a run has
   answered once, `scripts/release-dispatch.mjs` now reads it again every five seconds, for five
   minutes at most; once it has answered, a 404 is still an error at once.
+- **Seven places that caught an error and dropped it now say it, or pass it on** (workplan 0006
+  J). *Read everything back* on the confirmed list no longer starts a pass when the read of the
+  runs before it fails: it shows the failure, as a failed press does, because without that read
+  the watch could take the last pass for this one. On the appliance, a request whose body the
+  client cut short, to set a standing answer or to keep a migration copying, is logged as a
+  failed request, where it was answered 400 with nothing in the log; a body that is not JSON keeps
+  its 400. A pass that cannot ask the ledger about a window of items at once says why in its log
+  as it asks about each one on its own. And three things the web app sends without waiting, the
+  visit a migration's page records, the removal of an account a failed check left and the report
+  of an answer a page could not read, still let a failed request go and now throw anything else.
 
 ## [0.2.0-alpha.11] - 2026-11-17
 
