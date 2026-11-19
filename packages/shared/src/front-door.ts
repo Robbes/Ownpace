@@ -65,6 +65,8 @@ export const FRONT_DOOR_GROUPS: Readonly<Record<string, FrontDoorGroup>> = {
   // person naming?" — and they are naming their Nextcloud, once, rather than
   // three transports (2026-09-07).
   nextcloud: 'provider',
+  // A destination people name by its product (workplan 0160), like Soverin.
+  cirrux: 'provider',
   // The Apple ACCOUNT (workplan 0115) — a provider, and a family of exactly
   // one: there is no `icloud` or `apple-mail` kind beside it to collect,
   // because Apple has never published an API one could have been built on.
@@ -238,6 +240,10 @@ export const SOURCE_PROOFS: {
     },
     // Part 1 of `docs/apple-supervised-run.md` and its first pass (0141 T4).
     apple: { email: EXPERIMENTAL, calendar: EXPERIMENTAL, contact: EXPERIMENTAL, task: EXPERIMENTAL },
+    // A destination first (workplan 0160), and as a source in Soverin's
+    // state: orchestration can build its faces, because the account table
+    // serves both roles, and no door offers it as a place to leave.
+    cirrux: { email: EXPERIMENTAL, calendar: EXPERIMENTAL, contact: EXPERIMENTAL, task: EXPERIMENTAL },
   },
   // Parked until a Workspace the owner administers, or a tester who asks (0141 T6).
   wholeDomain: EXPERIMENTAL,
@@ -339,6 +345,9 @@ export const FRONT_DOOR_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
   // Nextcloud's own blue, which the project publishes and uses everywhere —
   // no guess needed, unlike the slate above.
   nextcloud: { kind: 'mark', initial: 'N', background: '#0082c9' },
+  // Neutral zinc, for Soverin's reason: Cirrux's own colour is not one this
+  // file has been told, and a wrong one would be a guess.
+  cirrux: { kind: 'mark', initial: 'C', background: '#3f3f46' },
   apple: { kind: 'mark', initial: 'A', background: '#1d1d1f' },
   // A MARK, because the invariant below is pinned: marks on providers, glyphs
   // on protocols, and mixing them is what re-mixes the levels T1 separated.

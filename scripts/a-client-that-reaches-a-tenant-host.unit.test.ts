@@ -60,6 +60,7 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
   { file: 'apps/api/src/routes/platform-status.ts', uses: 1, host: 'the status page' },
   { file: 'apps/api/src/services/zammad.ts', uses: 2, host: "the operator's Zammad" },
   // A provider's own.
+  { file: 'apps/api/src/routes/migrations/cirrux-consent.ts', uses: 2, host: "Cirrux's token endpoint and its profile" },
   { file: 'apps/api/src/routes/migrations/dropbox-consent.ts', uses: 1, host: "Dropbox's token endpoint" },
   { file: 'apps/api/src/routes/migrations/google-consent.ts', uses: 1, host: "Google's token endpoint" },
   { file: 'apps/api/src/routes/migrations/microsoft-consent.ts', uses: 1, host: "Microsoft's token endpoint" },
@@ -68,6 +69,10 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
   { file: 'apps/worker/src/jobs/managed-group-discovery.ts', uses: 1, host: 'Microsoft Graph' },
   { file: 'packages/connectors/src/box-file-source.ts', uses: 1, host: 'Box' },
   { file: 'packages/connectors/src/box-token-provider.ts', uses: 1, host: "Box's token endpoint" },
+  // Cirrux's API at its fixed origin; the part uploads, at the addresses its
+  // answers name, go through `tenantFetch` (TENANT_CLIENTS).
+  { file: 'packages/connectors/src/cirrux-drive-api.ts', uses: 1, host: "Cirrux's Drive API" },
+  { file: 'packages/connectors/src/cirrux-token-provider.ts', uses: 1, host: "Cirrux's token endpoint" },
   { file: 'packages/connectors/src/dropbox-file-source.ts', uses: 1, host: 'Dropbox' },
   { file: 'packages/connectors/src/dropbox-token-provider.ts', uses: 1, host: "Dropbox's token endpoint" },
   { file: 'packages/connectors/src/google-drive-transport.ts', uses: 1, host: 'Google Drive' },
@@ -102,10 +107,13 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
  * DAV sources and writers, the JMAP clients (the session, the mail target
  * through `http-rate-limit.ts`, and the file and contact targets), the Test
  * button's JMAP and scheduling questions, the qualification's JMAP session,
- * and the API's two clients for an organisation's Nextcloud.
+ * and the API's two clients for an organisation's Nextcloud. And Cirrux
+ * Drive's part uploads: the presigned addresses are named by an answer, not
+ * typed by a tenant, and are held to the same rule all the same.
  */
 const TENANT_CLIENTS = [
   'packages/connectors/src/caldav-source.ts',
+  'packages/connectors/src/cirrux-drive-api.ts',
   'packages/connectors/src/carddav-source.ts',
   'packages/connectors/src/webdav-source.ts',
   'packages/connectors/src/http-rate-limit.ts',

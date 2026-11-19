@@ -14,7 +14,9 @@
  * resuming or keeping a data type; adding, testing or re-keying a connection;
  * listing a saved account's folders, since 0153 open question 5, item 4;
  * the permission report; the sharing rescan and the share applies; and a grant
- * link's consent, which stored a new token and lifted a withdrawal.
+ * link's consent, which stored a new token and lifted a withdrawal. Connecting
+ * Cirrux Drive on an account (0160 T5) asks at its authorize and again at its
+ * callback, as a grant link's consent does.
  *
  * Each of them now answers 409 `account_closed`, with a sentence that names
  * the close and the day the data is removed, and does nothing else. Reading
@@ -616,6 +618,9 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   // Two more since a person's link (0153 T5 (b)): its page and its consent ask too.
   'routes/grant.ts': 4,
   'routes/migrations/google-oauth-routes.ts': 1,
+  // Connect Cirrux Drive (0160 T5): its authorize, and its callback before the
+  // code is exchanged, as a grant link's consent asks.
+  'routes/migrations/cirrux-oauth-routes.ts': 2,
 };
 
 /** How a door asks: answering the refusal itself, or reading it to answer in its own form. */
@@ -629,7 +634,7 @@ const ASKS_AT_ALL = /\b(refusedAsClosed|closedOrganisation|enqueueUnlessHeld|rea
  * credential, or reaching a provider with one. A call, not a definition.
  */
 const USES_STORED_ACCESS =
-  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|migrationInventoryScans|sourceCredentialsFor|createNextcloudShare|exchangeCode|storeGrantedToken|storePersonGrant)\s*\(/g;
+  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|migrationInventoryScans|sourceCredentialsFor|createNextcloudShare|exchangeCode|storeGrantedToken|storePersonGrant|exchangeCirruxCode|storeCirruxDriveGrant|requalifyStoredConnection|mergeKeepingTheDriveGrant)\s*\(/g;
 
 /**
  * Where the API uses the stored access today, counted per file. A new use
@@ -639,13 +644,18 @@ const USES_STORED_ACCESS =
 const USES_BY_FILE: Readonly<Record<string, number>> = {
   // One more since a rotation keeps a Microsoft account's tenant (0153 open
   // question 5), read after the rotation's close, and one since the folder
-  // browse reads a saved account's sign-in, after its own.
-  'routes/connections.ts': 13,
+  // browse reads a saved account's sign-in, after its own. Three more since a
+  // Cirrux account's Drive (0160 T5): a rotation keeps its grant, and the
+  // consent's measuring reads the row, after the consent's own close.
+  'routes/connections.ts': 16,
   'routes/grant.ts': 2,
   'routes/migrations/account-on-connection.ts': 1,
+  'routes/migrations/cirrux-oauth-routes.ts': 3,
   'routes/migrations/google-oauth-routes.ts': 3,
   'routes/migrations/grant-subject.ts': 2,
-  'routes/migrations/index.ts': 3,
+  // One more since the create door reads a reused Cirrux account's Drive
+  // grant (0160 T5), after its own close.
+  'routes/migrations/index.ts': 4,
   'routes/migrations/operating-routes.ts': 3,
   'routes/migrations/person-grant-subject.ts': 2,
   'routes/permissions.ts': 9,

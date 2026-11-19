@@ -55,11 +55,18 @@ export const GRANT_PROVIDER_NAMES: Readonly<Record<GrantProvider, string>> = {
 };
 
 /**
+ * The consents that mint no token for a form: Cirrux Drive's, which the
+ * server stores on the account it was begun for (workplan 0160 T5). Its window
+ * is opened by the same helper, and named in the same sentences.
+ */
+const ACCOUNT_CONSENT_NAMES: Readonly<Record<string, string>> = { cirrux: 'Cirrux' };
+
+/**
  * The provider's name for a sentence, or the key itself when the table has
  * none: a key on screen is a bug report, a blank is a mystery.
  */
 export function consentProviderName(provider: string): string {
-  return (GRANT_PROVIDER_NAMES as Readonly<Record<string, string>>)[provider] ?? provider;
+  return (GRANT_PROVIDER_NAMES as Readonly<Record<string, string>>)[provider] ?? ACCOUNT_CONSENT_NAMES[provider] ?? provider;
 }
 
 /**

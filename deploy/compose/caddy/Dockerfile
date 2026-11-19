@@ -1,6 +1,7 @@
 # The TLS front of the Trigger.dev dashboard (managed.yml's trigger-tls),
 # built here: Caddy's official image at the pinned digest, with curl removed,
-# and with it the libraries only curl pulled in (workplan 0119, 2026-10-31).
+# and with it the libraries only curl pulled in (workplan 0119, 2026-10-31),
+# run as uid and gid 65532, not root, since 2026-11-19 (THE USER, below).
 #
 # WHY. Upstream's image adds curl itself, `apk add --no-cache ca-certificates
 # curl libcap mailcap` (caddy-docker's 2.11/alpine/Dockerfile, since its
@@ -30,7 +31,7 @@
 # own curl, over the published port. `tls internal` needs no network, and the
 # trust store and its tool, ca-certificates, stay.
 #
-# WHAT IT IS. Upstream's image as it is, and one RUN. The RUN checks that the
+# WHAT IT IS. Upstream's image, one RUN and a USER. The RUN checks that the
 # three packages are installed at the versions read above, and stops with
 # "re-read the header" otherwise, because a base whose packages differ is not
 # the one this file was written for. Then `apk del --no-network curl`, which
@@ -39,9 +40,9 @@
 # zstd-libs), and nothing else (ssl_client stays, installed by busybox and
 # libssl3). Then it proves the nine are gone, that upstream's three other
 # packages are still there, that no curl is left on the PATH, and that
-# `caddy version` still prints the release the FROM names. The user, the
-# command, the working directory, the ports and the environment are
-# upstream's: this file sets none of them. On v2.11.7 the image scan read the
+# `caddy version` still prints the release the FROM names. The user is this
+# file's (THE USER, below); the command, the working directory, the ports and
+# the environment are upstream's. On v2.11.7 the image scan read the
 # build at 0 critical and 7 high, 6 of them fixable (Security Scan run
 # 41161126144, linux/arm64, 2026-10-31), all seven in the Caddy binary: Go's
 # standard library v1.26.8 (four), golang.org/x/net v0.59.0 (one) and go-jose
@@ -54,6 +55,35 @@
 # should read 0 critical and 1 high, with no fix, until go-jose v3 has one or
 # Caddy drops it.
 #
+# THE USER (since 2026-11-19, workplan 0119). Upstream's image runs Caddy as
+# root, and so did this one until then: a read-only check of the repository
+# read the file as a container that runs as root (GEN-21), which it was. Caddy
+# needs no root here. It binds 3443, which needs no capability, and writes
+# only below XDG_DATA_HOME and XDG_CONFIG_HOME, in /data/caddy and
+# /config/caddy, which upstream's image makes mode 1777 so that any user may.
+# So the last line runs it as uid and gid 65532, which the image's
+# /etc/passwd does not name and which owns nothing else in it. What root did
+# that it no longer does, read at the digest below on 2026-11-19:
+#   - nothing with the binary's file capability. Upstream's build gives
+#     /usr/bin/caddy cap_net_bind_service as permitted and not effective
+#     (`setcap cap_net_bind_service=+p`, in the image's history and its
+#     layer; 2.11.7's was `+ep`). The kernel refuses to start a binary only
+#     when its file capability is effective and the bounding set lacks it, so
+#     managed.yml's trigger-tls keeps no capability, where it kept
+#     NET_BIND_SERVICE for 2.11.7's;
+#   - install the root of the CA `tls internal` mints into the system's trust
+#     store at start, which only root may write. Nothing in the container
+#     trusts it, and trigger-tls.Caddyfile says skip_install_trust;
+#   - own a stack's volumes. On a stack that ran the front as root,
+#     trigger_tls_data (the CA and its certificate) and trigger_tls_config are
+#     root's, the keys at mode 0600, which 65532 cannot read. managed.yml's
+#     trigger-tls-init, this same image as root with CHOWN and DAC_READ_SEARCH
+#     alone, gives both to 65532 before the front starts, at every `up`; once
+#     they are its, it changes nothing. The CA, and a browser's exception for
+#     its certificate, stay. A tag that ran the front as root needs the two
+#     given back to root before it runs (docs/managed-bring-up.md, "The
+#     dashboard's TLS front is a build here too").
+#
 # THE NAME. managed.yml builds this as `localhost/caddy:<base tag>-<12 hex>`,
 # a name no registry serves, with `pull_policy: never`, as
 # deploy/compose/postgres/Dockerfile's header says for the databases. The
@@ -64,7 +94,7 @@
 # builds it. Nothing builds it while the machine has the name (managed.yml's
 # header). scripts/a-package-the-front-never-runs.unit.test.ts holds the image
 # line to it, and when an instruction changes, its failure prints the `sed`
-# that moves the line. A FROM and a RUN, and nothing else: no parser
+# that moves the line. A FROM, a RUN and a USER, and nothing else: no parser
 # directive, no COPY, no ADD and no --mount, so the name is the content.
 #
 # HOW IT MOVES.
@@ -76,8 +106,9 @@
 #     no longer adds curl. That changes the name, which fails the guard until
 #     managed.yml's image line moves too, and the failure prints the `sed`.
 #     images.yml's `build (caddy)` builds it on the pull request, starts it
-#     with trigger-tls.Caddyfile and asks it for TLS on 3443; then dispatch E2E
-#     (managed) on the branch, whose smoke asks the same front.
+#     with trigger-tls.Caddyfile, no capability and no-new-privileges, and
+#     asks it for TLS on 3443; then dispatch E2E (managed) on the branch,
+#     whose smoke asks the same front.
 #   - Another major: the owner's call, and Dependabot is told to leave it.
 FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
 
@@ -97,3 +128,6 @@ RUN set -eu; \
     if command -v curl; then echo "a curl is still on the PATH: re-read the header" >&2; exit 1; fi; \
     version="$(caddy version)"; \
     case "$version" in v2.11.9|"v2.11.9 "*) ;; *) echo "caddy version printed '$version', not v2.11.9: re-read the header" >&2; exit 1 ;; esac
+
+# Not upstream's: Caddy as uid and gid 65532, not root (THE USER, above).
+USER 65532:65532

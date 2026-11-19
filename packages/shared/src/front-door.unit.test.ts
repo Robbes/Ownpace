@@ -118,7 +118,9 @@ describe('partitionFrontDoor — the one algorithm both doors render', () => {
     // rather than a transport it speaks, which is what the lane is for — and
     // `nextcloud` earns it while serving only protocols this door also lists
     // separately, because the person is naming their Nextcloud, once.
-    expect(p.providers).toEqual(['soverin', 'nextcloud']);
+    // `cirrux` joined on the same reasoning (workplan 0160): a product, not
+    // the IMAP and DAV it is reached over.
+    expect(p.providers).toEqual(['soverin', 'nextcloud', 'cirrux']);
     expect(p.families).toEqual([]);
     expect(p.protocols).toEqual(['jmap', 'imap', 'caldav', 'carddav', 'webdav']);
   });

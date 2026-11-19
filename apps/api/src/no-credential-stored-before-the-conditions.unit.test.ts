@@ -20,6 +20,9 @@
  *  - giving a connection a new key (`PUT /api/connections/{id}/credentials`);
  *  - creating a migration (`POST /api/migrations`), which stores the source's
  *    and the destination's access in the same transaction;
+ *  - connecting Cirrux Drive on a Cirrux account (`POST
+ *    /api/migrations/cirrux/authorize`, workplan 0160 T5), whose callback
+ *    stores the Drive grant on the account and asks before the consent begins;
  *  - issuing a person's grant link (`POST /api/people/{personId}/links`), the
  *    member's door to the access a family member then gives through it (review
  *    of 2026-09-29: the migration may predate the check, or a text may have a
@@ -31,8 +34,11 @@
  * Two places seal a credential and do not ask, each for its reason below: a
  * grant link's consent, whose holder is no party to the terms (terms §1) and
  * whose link was issued behind this check, and the operator's seed.
- * The OAuth callbacks of a member's own consent store nothing: they hand the
- * token back to the wizard, which stores it through one of the three doors.
+ * The OAuth callbacks of a member's own consent store nothing, but one: they
+ * hand the token back to the wizard, which stores it through one of the doors
+ * above. Cirrux's stores the Drive grant itself, on the account its authorize
+ * named, because that token rotates and never goes to a browser (ADR-0052);
+ * the authorize, the member's door to it, asks.
  *
  * This file holds that in four ways, the way `an-organisation-closed-at-every-
  * door` holds the close:
@@ -271,6 +277,8 @@ const ASKS = /\brefusedUntilAccepted\s*\(/g;
 /** The checks the doors make, by file. Pinned, so a check taken out fails. */
 const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/connections.ts': 2,
+  // Connect Cirrux Drive (0160 T5): its authorize, before the consent begins.
+  'routes/migrations/cirrux-oauth-routes.ts': 1,
   'routes/migrations/index.ts': 1,
   // Issuing a PERSON'S grant link (0153 T5 (b)): the member's door to what
   // that person's consent stores (`person-grant-ending.ts` and `grant-ending.ts`,
@@ -278,12 +286,17 @@ const CHECKS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/person-link-routes.ts': 1,
 };
 
-/** Where the API seals a credential to store it: a call, not a definition. */
-const SEALS = /\bSecretStore\.encryptCredentials\s*\(/g;
+/**
+ * Where the API seals a credential to store it: a call, not a definition. With
+ * the one store that seals outside the API on a door's behalf: a Cirrux Drive
+ * grant, sealed beside the account's app password (0160 T5).
+ */
+const SEALS = /\b(?:SecretStore\.encryptCredentials|storeCirruxDriveGrant)\s*\(/g;
 
 /** Every place that seals one today, counted per file. A new one changes a count here. */
 const SEALS_BY_FILE: Readonly<Record<string, number>> = {
   'routes/connections.ts': 2,
+  'routes/migrations/cirrux-oauth-routes.ts': 1,
   'routes/migrations/index.ts': 2,
   'routes/migrations/grant-ending.ts': 1,
   'routes/migrations/person-grant-ending.ts': 1,

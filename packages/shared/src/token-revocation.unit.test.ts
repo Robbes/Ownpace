@@ -49,6 +49,19 @@ describe('revocationCapability', () => {
     },
   );
 
+  it('a Cirrux account says its app password, and its Drive sign-in only when it stores one (0160 T5)', () => {
+    const plain = revocationCapability('cirrux', { username: 'a@example.com', password: 'app' });
+    expect(plain.revocable).toBe(false);
+    expect(plain.reason).toMatch(/password/i);
+    expect(plain.reason).not.toContain('Cirrux Drive');
+    const drive = revocationCapability('cirrux', { username: 'a@example.com', password: 'app', driveRefreshToken: 'rt-held-for-drive' });
+    expect(drive.revocable).toBe(false);
+    expect(drive.reason).toContain('Cirrux Drive sign-in');
+    expect(drive.reason).toContain('our copy was deleted');
+    // The token is never in the sentence that names it.
+    expect(drive.reason).not.toContain('rt-held-for-drive');
+  });
+
   it('an unknown kind is unsupported, never silently fine', () => {
     // A connection kind added later without a decision here must surface as one
     // we do not know how to revoke — which is true, and prompts the decision.

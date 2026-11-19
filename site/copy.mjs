@@ -111,12 +111,22 @@ export const COPY = {
       ['Kept in step until you switch.', 'New mail and changed files keep arriving.'],
       ['A list of what arrived, item by item.', 'And what could not come, with the reason.'],
     ],
-    // How it works, in three steps (T3 (b)): its five folded, linking the whole page.
+    // How it works on the home page: its page's five steps (three until
+    // 2026-11-19, which read as another list than the page's five). Each is
+    // its step's heading on the page, or the heading's words before its dash,
+    // under the picture the heading carries (steps.mjs), and links to that
+    // step (`anchor`, the headings' ids). The lede is the page's first
+    // sentence. scripts/the-hero-is-the-drawing.unit.test.ts holds the home
+    // page and the page in step.
     strip: {
+      lede: 'Five steps, and you decide when each one happens.',
+      anchor: 'step',
       steps: [
-        ['Connect the account you are leaving', 'Ownpace changes nothing there.'],
-        ['We copy, then keep copying', 'Every change arrives in your new home.'],
-        ['Switch when you are ready', 'Check what arrived first. No deadline.'],
+        ['See what you have, before you connect anything', 'Tell us roughly what you are moving, and see what it would cost. No account needed.'],
+        ['Connect your old account and your new home', 'Your new home is an account at a European provider you choose. Ownpace changes nothing in the old one.'],
+        ['We copy, and then we keep copying', 'Every change arrives in your new home, until you switch.'],
+        ['Check everything at your own pace', 'Both accounts keep working. What could not come is clearly reported, with the reason.'],
+        ['Switch when you are ready', 'No deadline. Your old account stays as it is.'],
       ],
       more: 'The whole of How it works',
     },
@@ -139,6 +149,7 @@ export const COPY = {
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
+      cirrux: { name: 'Cirrux', sub: '' },
       jmap: { name: 'A JMAP server', sub: 'such as Stalwart, if you or your provider runs one' },
       protocols: { name: 'Any other provider', sub: 'that uses the usual open standards, named beside each kind of data' },
     },
@@ -165,7 +176,7 @@ export const COPY = {
       whatMoves: 'What moves',
       verdict: { moves: 'Moves', limit: 'Moves, with a limit', no: 'Does not move' },
       goesTo: 'Goes to',
-      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', jmap: 'a JMAP server' },
+      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', cirrux: 'Cirrux', jmap: 'a JMAP server' },
       anyProvider: (protocol) => `any ${protocol} provider`,
       or: 'or',
       experimental: 'Experimental',
@@ -253,17 +264,16 @@ export const COPY = {
       ['Nothing is deleted at the source',
        (p) => `Ever. Your old account is your fallback, and Ownpace leaves it as it is: <a href="${p.readsOnly}">the software has no code that changes or deletes anything at a source</a>. Some permissions allow more than Ownpace uses; How it works says which.`],
       ['European, all the way down',
-       (p) => `Migrating off US cloud through a US service defeats the point. Ownpace runs in the EU, and the software is <a href="${p.repository}">open source</a>, so you can check that rather than trust it.`],
+       (p) => `Migrating off US cloud through a US service defeats the point. Ownpace runs in the Netherlands, in the EU, and the software is <a href="${p.repository}">open source</a>, so you can check that rather than trust it.`],
       ['Or run it yourself',
        'The whole thing is free, open-source software (Apache-2.0). Run it on your own machine and we never see your data, receive no usage data, and have nothing to be trusted with.'],
     ],
     wontTitle: 'What it will not do',
-    wontLede: 'The honest list, in front of the price rather than behind it.',
     wont: [
       ['It does not sync backwards',
        'Data flows old → new. Ownpace never writes to your old account, which is what keeps it a safe place to fall back to.'],
       ['It cannot move everything perfectly',
-       (p) => `Providers differ, and some things do not survive the crossing. <a href="${p.cannotMove}">Whatever cannot be moved</a> is reported to you item by item, with the reason — never dropped quietly.`],
+       (p) => `Providers differ, and some things do not survive the crossing. <a href="${p.cannotMove}">Whatever cannot be moved</a> is clearly reported to you, with the reason — never dropped quietly.`],
       ['It is not a backup service',
        'Once you switch, the migration is finished. Keeping a copy in step afterwards is a new migration you set up, and it is priced as one.'],
     ],
@@ -312,30 +322,25 @@ export const COPY = {
     tierNoSetup: 'No setup fee',
     tierThree: (m) => `${m} for a three-month migration, paying monthly`,
     tierStart: (name) => `Start with ${name}`,
-    // Each tier's subtitle and note, in the page's language (workplan 0152 T1
+    // Each tier's subtitle, in the page's language (workplan 0152 T1
     // (b)): they lived in prices.mjs in English only, so the Dutch pricing page
     // printed them in English. No tier says "most people" any more: nothing
     // counts who picks what, so it is said as a fact about the tier.
     tierText: {
       free: {
         who: 'One person, at a pass a day',
-        note: 'Everything one person moves, one pass a day: the first right after you start, the small things first and the files last. The patient option, and free.',
       },
       small: {
         who: 'One person, at full pace',
-        note: 'The first copy runs pass after pass. After it we look for changes every hour, or as often as every 15 minutes if you choose.',
       },
       medium: {
         who: 'Two people, or a small team',
-        note: 'Two people with everything, or four with three kinds of data each. Self-service, with a manual and somewhere to ask questions.',
       },
       large: {
         who: 'A household, or a small business',
-        note: 'Four people with everything. Where a real person gets involved: planning, the switch, and someone to call when a provider does something strange.',
       },
       xl: {
         who: 'An organisation, or an IT partner',
-        note: 'Ten people with five kinds of data each. Many accounts, one migration, one relationship.',
       },
     },
     tierFree: 'Free',
@@ -506,10 +511,14 @@ export const COPY = {
       ['Een lijst van wat er aankwam, item voor item.', 'En van wat niet mee kon, met de reden.'],
     ],
     strip: {
+      lede: 'Vijf stappen, en u bepaalt zelf wanneer elke stap gebeurt.',
+      anchor: 'stap',
       steps: [
-        ['Koppel het account dat u verlaat', 'Ownpace wijzigt daar niets.'],
-        ['Wij kopiëren, en blijven kopiëren', 'Elke wijziging komt aan in uw nieuwe thuis.'],
-        ['Stap over wanneer u klaar bent', 'Controleer eerst wat er aankwam. Geen deadline.'],
+        ['Zie wat u hebt, voordat u iets koppelt', 'Vertel ons ongeveer wat u wilt migreren, en zie wat het zou kosten. Geen account nodig.'],
+        ['Koppel uw oude account en uw nieuwe thuis', 'Uw nieuwe thuis is een account bij een Europese aanbieder naar keuze. In het oude account wijzigt Ownpace niets.'],
+        ['Wij kopiëren, en blijven kopiëren', 'Elke wijziging komt aan in uw nieuwe thuis, tot u overstapt.'],
+        ['Controleer alles in uw eigen tempo', 'Beide accounts blijven werken. Wat niet mee kon, krijgt u duidelijk gerapporteerd, met de reden.'],
+        ['Stap over wanneer u er klaar voor bent', 'Geen deadline. Uw oude account blijft zoals het is.'],
       ],
       more: 'Alles over hoe het werkt',
     },
@@ -525,6 +534,7 @@ export const COPY = {
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
+      cirrux: { name: 'Cirrux', sub: '' },
       jmap: { name: 'Een JMAP-server', sub: 'zoals Stalwart, als u of uw aanbieder er een beheert' },
       protocols: { name: 'Elke andere aanbieder', sub: 'die de gangbare open standaarden gebruikt, hieronder per soort gegevens genoemd' },
     },
@@ -547,7 +557,7 @@ export const COPY = {
       whatMoves: 'Wat er meegaat',
       verdict: { moves: 'Gaat mee', limit: 'Gaat mee, met een beperking', no: 'Gaat niet mee' },
       goesTo: 'Gaat naar',
-      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', jmap: 'een JMAP-server' },
+      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', cirrux: 'Cirrux', jmap: 'een JMAP-server' },
       anyProvider: (protocol) => `elke ${protocol}-aanbieder`,
       or: 'of',
       experimental: 'Experimenteel',
@@ -630,17 +640,16 @@ export const COPY = {
       ['Bij de bron wordt niets verwijderd',
        (p) => `Nooit. Uw oude account is uw vangnet, en Ownpace laat het zoals het is: <a href="${p.readsOnly}">de software heeft geen code die bij een bron iets wijzigt of verwijdert</a>. Sommige toestemmingen staan meer toe dan Ownpace gebruikt; Hoe het werkt zegt welke.`],
       ['Europees, tot op de bodem',
-       (p) => `Weggaan bij een Amerikaanse cloud via een Amerikaanse dienst schiet zijn doel voorbij. Ownpace draait in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
+       (p) => `Weggaan bij een Amerikaanse cloud via een Amerikaanse dienst schiet zijn doel voorbij. Ownpace draait in Nederland, in de EU, en de software is <a href="${p.repository}">open source</a>, dus u kunt het nakijken in plaats van ons te geloven.`],
       ['Of draai het zelf',
        'Alles is vrije, open-source software (Apache-2.0). Draai het op uw eigen machine en wij zien uw gegevens nooit, ontvangen geen gebruiksgegevens en hebben niets waarin u ons hoeft te vertrouwen.'],
     ],
     wontTitle: 'Wat het niet doet',
-    wontLede: 'De eerlijke lijst, vóór de prijs in plaats van erachter.',
     wont: [
       ['Het synchroniseert niet terug',
        'Gegevens gaan van oud naar nieuw. Ownpace schrijft nooit naar uw oude account, en juist daarom blijft het een veilige plek om op terug te vallen.'],
       ['Het kan niet alles perfect migreren',
-       (p) => `Aanbieders verschillen, en sommige dingen overleven de oversteek niet. <a href="${p.cannotMove}">Wat niet mee kan</a>, krijgt u stuk voor stuk te horen, met de reden — het verdwijnt nooit stilletjes.`],
+       (p) => `Aanbieders verschillen, en sommige dingen overleven de oversteek niet. <a href="${p.cannotMove}">Wat niet mee kan</a>, krijgt u duidelijk gerapporteerd, met de reden — het verdwijnt nooit stilletjes.`],
       ['Het is geen back-updienst',
        'Zodra u overstapt, is de migratie klaar. Daarna een kopie bijhouden is een nieuwe migratie die u zelf instelt, en die wordt ook zo geprijsd.'],
     ],
@@ -684,23 +693,18 @@ export const COPY = {
     tierText: {
       free: {
         who: 'Eén persoon, één ronde per dag',
-        note: 'Alles wat één persoon migreert, één ronde per dag: de eerste direct na de start, de kleine dingen eerst en de bestanden als laatste. De geduldige keuze, en gratis.',
       },
       small: {
         who: 'Eén persoon, op volle snelheid',
-        note: 'De eerste kopie loopt ronde na ronde door. Daarna kijken we elk uur of er iets veranderd is, of elke 15 minuten als u dat kiest.',
       },
       medium: {
         who: 'Twee personen, of een klein team',
-        note: 'Twee personen met alles, of vier met elk drie soorten gegevens. Zelfbediening, met een handleiding en een plek om vragen te stellen.',
       },
       large: {
         who: 'Een huishouden, of een mkb-bedrijf',
-        note: 'Vier personen met alles. Hier komt een echt mens bij: de planning, de overstap, en iemand bij wie u terechtkunt als een aanbieder iets vreemds doet.',
       },
       xl: {
         who: 'Een organisatie, of een IT-partner',
-        note: 'Tien personen met elk vijf soorten gegevens. Veel accounts, één migratie, één aanspreekpunt.',
       },
     },
     tierFree: 'Gratis',

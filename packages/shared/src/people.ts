@@ -4,8 +4,10 @@
  * workplan 0153 T2).
  *
  * The Migrations page lists people: one card per person being moved, with that
- * person's migrations under it (0153 T3). A person is a name, and optionally
- * an email address for grant links (0108). A migration belongs to at most one
+ * person's migrations under it (0153 T3). A person is a name, optionally an
+ * email address for grant links (0108), and optionally the account of the
+ * member it is, which that member links themselves and the answer says only as
+ * `you` (ADR-0050, amended 2026-11-19). A migration belongs to at most one
  * person, and one that belongs to nobody is `unassigned`: every migration made
  * before people existed is.
  *
@@ -47,6 +49,10 @@ export const MIGRATION_NOT_FOUND = 'migration_not_found';
 export const WITH_ANOTHER_PERSON = 'with_another_person';
 /** The appliance's answer to a write: it moves one person, and has nobody else to add. */
 export const ONE_PERSON_HERE = 'one_person_here';
+/** The person is already another member's own: only that member can say it is not them. */
+export const ANOTHER_MEMBERS = 'another_members';
+/** Whoever asked is no member of this organisation, so no person here can be theirs. */
+export const NOT_A_MEMBER = 'not_a_member';
 
 /** One of a person's migrations, and where it is. */
 export interface PersonMigration {
@@ -69,6 +75,14 @@ export interface Person {
   readonly email: string | null;
   /** ISO. Null only for the implicit person. */
   readonly createdAt: string | null;
+  /**
+   * Whether this person is the member who asked (ADR-0050, amended
+   * 2026-11-19): their account is linked to this person, by that member. The
+   * server works it out against the sign-in, so no account id leaves it.
+   * *Who is it for?* chooses this person first. Always false on the
+   * appliance, which has no sign-in.
+   */
+  readonly you: boolean;
   /** Their migrations, oldest first. */
   readonly migrations: readonly PersonMigration[];
   /** Their migrations' states, counted. A person has no state of its own. */
@@ -87,6 +101,12 @@ export interface PeopleResponse {
 export interface CreatePersonRequest {
   readonly displayName: string;
   readonly email?: string | null;
+  /**
+   * The person is the member asking: their own sign-in is linked to it, and
+   * moves off any other person of theirs here. Never an account id: the
+   * server takes the member from the sign-in.
+   */
+  readonly myself?: boolean;
 }
 
 /** `POST /people/{personId}/migrations`' body. */
@@ -106,6 +126,8 @@ export interface PersonRow {
   readonly displayName: string;
   readonly email: string | null;
   readonly createdAt: string;
+  /** Whether the row is the asking member's own: worked out by the store, which keeps the id. */
+  readonly you: boolean;
 }
 
 /** A migration's state, and the person it belongs to if any. */
@@ -158,6 +180,7 @@ export function peopleFrom(people: readonly PersonRow[], migrations: readonly Mi
         displayName: p.displayName,
         email: p.email,
         createdAt: p.createdAt,
+        you: p.you,
         migrations: list,
         counts: lifecycleCounts(list),
       };
@@ -177,6 +200,8 @@ export function implicitPeople(migrations: readonly PersonMigration[]): PeopleRe
         displayName: null,
         email: null,
         createdAt: null,
+        // Nobody signs in to the appliance, so nobody is told this is them.
+        you: false,
         migrations: list,
         counts: lifecycleCounts(list),
       },

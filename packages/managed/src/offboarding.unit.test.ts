@@ -141,6 +141,10 @@ async function seed(tenantId: string, suffix: string): Promise<void> {
      VALUES ($1, $2, $3, 'owner', 'active')`,
     [tenantId, `sub-${suffix}`, `owner-${suffix}@example.test`],
   );
+  // The person is that member's own (ADR-0050, amended 2026-11-19; managed
+  // 0061), so every purge below empties `person` with a link in it, and the
+  // member it names after it.
+  await conn.query(`UPDATE person SET user_id = $1 WHERE id = $2`, [`sub-${suffix}`, person!.id]);
   // What that member accepted, and when (workplan 0139 T3, managed 0032):
   // part of their account, which privacy §4.4 and §9 erase with it.
   await conn.query(

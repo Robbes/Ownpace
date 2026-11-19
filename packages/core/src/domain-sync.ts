@@ -123,14 +123,16 @@ const ENDS_THE_PASS_AT_ONCE: ReadonlySet<FailureCategory> = new Set([
  * read just before it.
  *
  * A window that cannot be read is no window: its items are asked about one at
- * a time. An item from a window the pass has already left (items are taken in
- * order, so only a caller out of order could ask) gets no hint rather than a
- * second read of that window.
+ * a time, and the log says why, under the pass's `domain`. An item from a
+ * window the pass has already left (items are taken in order, so only a caller
+ * out of order could ask) gets no hint rather than a second read of that
+ * window.
  */
 export function ledgerReadAhead<Item>(
   items: ReadonlyArray<Item>,
   keyOf: (item: Item) => string | undefined,
   read: (keys: ReadonlyArray<string>) => Promise<ReadonlyMap<string, LedgerRecord>>,
+  domain: string,
   size: number = LEDGER_READ_AHEAD,
 ): { get(index: number, key: string): Promise<LedgerRecord | undefined> } {
   let current: { readonly window: number; readonly rows: Promise<ReadonlyMap<string, LedgerRecord> | undefined> } | undefined;
@@ -140,7 +142,13 @@ export function ledgerReadAhead<Item>(
       const key = keyOf(item);
       if (key !== undefined) keys.push(key);
     }
-    return read(keys).catch(() => undefined);
+    return read(keys).catch((err: unknown) => {
+      log.warn(
+        `[sync] ${domain}: ${keys.length} items could not be asked about at once, so each is asked ` +
+          `about on its own: ${(err as Error)?.message ?? String(err)}`,
+      );
+      return undefined;
+    });
   };
   return {
     get(index, key) {
@@ -948,6 +956,17 @@ export interface DomainSyncResult {
    */
   readonly conflicted: number;
   /**
+   * Rewrites NOT SENT because the copy on the target still lists guests, at a
+   * target that mails its guests itself (`UpsertResult.keptForGuests`,
+   * workplan 0160).
+   *
+   * Distinct from `conflicted`: nobody edited the copy, and the row is left as
+   * it was rather than marked adopted, so the source change stays unapplied
+   * and is asked about again on the next pass. The day the target stops
+   * mailing guests, the rewrite simply goes through.
+   */
+  readonly keptForGuests: number;
+  /**
    * Items that changed on the source but were left alone because the target
    * copy is the CUSTOMER'S, not ours (status `adopted`).
    *
@@ -1244,6 +1263,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let moved = 0;
   // Rewrites REFUSED because somebody edited our copy in the new system.
   let conflicted = 0;
+  let keptForGuests = 0;
   const moves: ItemMove[] = [];
   const deletions: ItemDeletion[] = [];
   let drift = 0;
@@ -1714,7 +1734,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // it can be (`ledgerReadAhead`); asked one item at a time where it cannot.
     const findMany = ledger.findMany?.bind(ledger);
     const ahead = findMany
-      ? ledgerReadAhead(items, naturalKey, (keys) => findMany(tenantId, mappingId, domain, keys))
+      ? ledgerReadAhead(items, naturalKey, (keys) => findMany(tenantId, mappingId, domain, keys), domain)
       : undefined;
 
     await mapWithConcurrency(items, concurrency, async (item, index) => {
@@ -2213,6 +2233,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // `sourceVersion` is deliberately NOT advanced. Recording it would say
         // the source change had been applied, which is the opposite of what
         // happened, and would hide a real divergence from the operator.
+        // THE COPY LISTS GUESTS THE TARGET WOULD MAIL (workplan 0160).
+        //
+        // Nothing was written and nobody was mailed. The row is left exactly as
+        // it was: not adopted, since nobody edited the copy, and with its
+        // source version NOT advanced, since the change was not applied. So
+        // the next pass asks again, and goes through the day the target no
+        // longer mails guests.
+        if (result.keptForGuests) {
+          keptForGuests += 1;
+          log.warn(
+            `[sync] ${domain}: item ${naturalKeyHash.slice(0, 12)} changed on the source, but its copy ` +
+              'on the target still lists guests, and that target emails each guest a rewrite takes ' +
+              'off. Left as it is: nothing was written and nobody was emailed.',
+          );
+          return;
+        }
         if (result.conflicted) {
           conflicted += 1;
           await timed(phases, 'ledgerWriteMs', () =>
@@ -2230,6 +2266,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           );
           return;
         }
+
+        // The hash of the bytes the writer actually SENT, where it hashed them
+        // on the way: a streamed file has no `content` for `contentHash(raw)`
+        // above to read, so `ch` is of nothing for it (workplan 0160 T5).
+        if (result.contentHash !== undefined) ch = result.contentHash;
 
         const row: LedgerRecord = {
           tenantId,
@@ -2936,6 +2977,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     changedButAdopted,
     changedAfterCutover,
     conflicted,
+    keptForGuests,
     needsDecision,
     leftBehind,
     reappearedAfterRemoval,

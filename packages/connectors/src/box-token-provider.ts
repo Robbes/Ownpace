@@ -13,6 +13,11 @@
  * did nothing to cause. The honest fix is not to store a value the provider
  * consumes.
  *
+ * Since ADR-0052 that posture has one named exception: Cirrux Drive, which
+ * documents no other grant, writes its rotating token back under the
+ * connection row's lock (`cirrux-token-provider.ts`). Box keeps this grant,
+ * which stores no token for a pass to spend.
+ *
  * Box's supported server flow is the **Client Credentials Grant**: client id
  * + secret, `box_subject_type=user` and `box_subject_id` naming WHOSE content
  * the token reads — one subject per mapping, exactly the shape the M365

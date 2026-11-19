@@ -15,8 +15,8 @@ import { describe, it, expect } from 'vitest';
 import { MAPPING_LIFECYCLES, type MappingLifecycle } from './operating-contract.ts';
 import { IMPLICIT_PERSON_ID, implicitPeople, lifecycleCounts, peopleFrom, type MigrationRow } from './people.ts';
 
-const ANNA = { id: 'p-anna', displayName: 'Anna', email: 'anna@example.org', createdAt: '2026-09-28T10:00:00.000Z' };
-const BRAM = { id: 'p-bram', displayName: 'Bram', email: null, createdAt: '2026-09-28T11:00:00.000Z' };
+const ANNA = { id: 'p-anna', displayName: 'Anna', email: 'anna@example.org', createdAt: '2026-09-28T10:00:00.000Z', you: false };
+const BRAM = { id: 'p-bram', displayName: 'Bram', email: null, createdAt: '2026-09-28T11:00:00.000Z', you: false };
 
 const row = (id: string, status: MappingLifecycle, personId: string | null): MigrationRow => ({ id, status, personId });
 
@@ -38,6 +38,15 @@ describe('managed’s answer, from its rows', () => {
 
   it('refuses a migration naming a person it was not handed: a fault, not somebody nobody knows', () => {
     expect(() => peopleFrom([BRAM], [row('m-mail', 'active', ANNA.id)])).toThrow(/p-anna/);
+  });
+
+  it('says `you` of the asking member’s own person only, as the store worked it out', () => {
+    const got = peopleFrom([ANNA, { ...BRAM, you: true }], []);
+
+    expect(got.people.map((p) => [p.displayName, p.you])).toEqual([
+      ['Anna', false],
+      ['Bram', true],
+    ]);
   });
 });
 
@@ -61,6 +70,10 @@ describe('the appliance’s answer', () => {
         { id: 'contacts', status: 'done' },
       ],
     });
+  });
+
+  it('never says its one person is you: nobody signs in to the appliance', () => {
+    expect(implicitPeople([{ id: 'calendar', status: 'active' }]).people[0]!.you).toBe(false);
   });
 });
 

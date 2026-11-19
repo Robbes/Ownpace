@@ -29,11 +29,13 @@ import {
   sourceAuthorityFor,
   sourceStillDecides,
   type PathPhaseOf,
+  mailsGuestsItself,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
 import { connection as connectionTable, mailbox as mailboxTable, PgByteBudget, PgRateBudget, readPathPhases } from '@openmig/ledger';
 import {
   createTokenProvider,
+  cirruxDriveNotConnected,
   type ArchiveStore,
   type ImapByteMeter,
 } from '@openmig/connectors';
@@ -49,7 +51,7 @@ import {
 import { davEndpointFromCreds, fileEndpointFromCreds } from './dav-endpoint.ts';
 import { schedulingRecorder } from './target-scheduling.ts';
 import { buildContactTargetFor, contactTargetProtocol } from './contact-target-factory.ts';
-import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory.ts';
+import { buildFileTargetFor, fileTargetProtocol, type CirruxDriveDeps } from './file-target-factory.ts';
 import {
   STORED_GOOGLE_CREDENTIAL_NAMES,
   buildGoogleDriveSourceFrom,
@@ -89,6 +91,11 @@ import {
   organisationClosedRefusal,
   publishedEndpoint,
   isProviderAccountKind,
+  storesItsMailServer,
+  cirruxDeploymentClient,
+  grantedTargetFacesOf,
+  hasCirruxDriveGrant,
+  type CirruxClientEnv,
 } from '@openmig/shared';
 import { PgLedger, PgCursorStore, organisationIsOpen, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -556,8 +563,8 @@ async function loadDomainConnections(
   tenantId: string,
   mappingId: string,
 ): Promise<{
-  source: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
-  target: { config: Record<string, unknown>; creds: Record<string, string>; kind: string };
+  source: { config: Record<string, unknown>; creds: Record<string, string>; kind: string; id: string };
+  target: { config: Record<string, unknown>; creds: Record<string, string>; kind: string; id: string };
   targetFolderPrefix?: string;
   /** The mapping's stored throttle choice, for `tenantThrottleLimiter`. */
   throttleConfig?: Partial<import('@openmig/shared').ThrottleConfig> | null;
@@ -657,6 +664,9 @@ async function loadDomainConnections(
         config,
         creds: sourceCredentialsFor(conn.kind, role, creds, mapping.sourceSecretRef),
         kind: conn.kind,
+        // The row itself, for the one target whose credential a pass writes
+        // back: Cirrux Drive's rotating sign-in (workplan 0160 T5, ADR-0052).
+        id: conn.id,
       };
     };
     return {
@@ -823,7 +833,7 @@ export async function buildDomainDepsFromMapping(
   // Here rather than in each branch, for the reason this file has been
   // repaired twice already: four branches asking the same question by hand
   // is three chances to forget it.
-  refuseDomainTheTargetCannotCarry(domain, tgt.kind);
+  refuseDomainTheTargetCannotCarry(domain, tgt.kind, grantedTargetFacesOf(tgt.kind, tgt.creds));
   // This data type's phase, on `common` so all four branches carry it and
   // none can be the one that forgot (0117 D4). Its own phase, not the
   // migration's (0128 T5) — see `sourceAuthorityFor`.
@@ -863,10 +873,12 @@ export async function buildDomainDepsFromMapping(
         // provider MISSING from there is a failing guard rather than a
         // silent fall-through to DAV.
         source: buildCalendarSourceFromConnection(src, throttleLimiter),
-        target: buildCalendarTarget(calendarTargetEndpoint, targetDeps),
+        // A target that mails guests whatever SCHEDULE-AGENT says gets none
+        // (workplan 0160, `TARGETS_THAT_MAIL_GUESTS`).
+        target: buildCalendarTarget(calendarTargetEndpoint, targetDeps, { mailsGuests: mailsGuestsItself(tgt.kind) }),
         // The verdict, recorded before the mapping's first calendar write
         // (0105 T0) — measured on the SAME endpoint the writer just got.
-        recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps),
+        recordTargetScheduling: schedulingRecorder(calendarTargetEndpoint, targetDeps, tgt.kind),
       } satisfies CalendarSyncDeps,
       HANDED_BY_THE_CALLER,
     );
@@ -883,7 +895,9 @@ export async function buildDomainDepsFromMapping(
       {
         ...common,
         source: buildTaskSourceFromConnection(src, throttleLimiter),
-        target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps),
+        target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps, {
+          mailsGuests: mailsGuestsItself(tgt.kind),
+        }),
       } satisfies CalendarSyncDeps,
       HANDED_BY_THE_CALLER,
     );
@@ -913,6 +927,12 @@ export async function buildDomainDepsFromMapping(
   // export's path is relative to whatever this migration writes to, read
   // there by byte range. Every other source ignores the option.
   const fileTgtEndpoint = fileEndpointFromCreds('target', tgt.config, tgt.creds, tgt.kind);
+  // A `cirrux` account's files are its Drive, written through the person's
+  // sign-in stored on the row (workplan 0160 T5): refused by name before
+  // anything is built when the deployment has no Cirrux client or the account
+  // no Drive grant, rather than at the first file.
+  const cirruxDrive =
+    fileTargetProtocol(tgt.kind) === 'cirrux-drive' ? cirruxDriveDepsFor(pool, tenantId, tgt) : undefined;
   const fileSource = buildFileSourceFromConnection(src, throttleLimiter, {
     targetStore: () =>
       archiveStoreInTarget(fileTargetProtocol(tgt.kind), fileTgtEndpoint, tgt.kind),
@@ -931,10 +951,38 @@ export async function buildDomainDepsFromMapping(
       // 0001 baseline, so this needs no migration and no new config field.
       // Anything else stays on WebDAV, which is what every existing mapping
       // is and must remain.
-      target: buildFileTargetFor(fileTargetProtocol(tgt.kind), fileTgtEndpoint, targetDeps),
+      target: buildFileTargetFor(fileTargetProtocol(tgt.kind), fileTgtEndpoint, targetDeps, cirruxDrive),
     } satisfies FileSyncDeps,
     HANDED_BY_THE_CALLER,
   );
+}
+
+/**
+ * What the Cirrux Drive writer needs, or the refusal that says what is
+ * missing (workplan 0160 T5; ADR-0052).
+ *
+ * The client is the DEPLOYMENT'S (`CIRRUX_OAUTH_CLIENT_ID`), read here where
+ * the worker runs it: a worker without it cannot refresh, and says so. The
+ * grant is the ACCOUNT'S, and only its presence is checked here: the token
+ * itself is read under the row's lock at each refresh, never from these
+ * credentials, which were decrypted before the lock and may already be spent.
+ */
+export function cirruxDriveDepsFor(
+  pool: Pool,
+  tenantId: string,
+  tgt: { readonly creds: Record<string, string>; readonly id: string },
+  env: CirruxClientEnv = process.env,
+): CirruxDriveDeps {
+  const client = cirruxDeploymentClient(env);
+  if (!client) {
+    throw new Error(
+      'This deployment has no Cirrux client (CIRRUX_OAUTH_CLIENT_ID is not set for the tasks), so no ' +
+        'file can be written to Cirrux Drive. Set it in deploy/compose/.env and run set-task-env.sh, or ' +
+        'send the files to another destination.',
+    );
+  }
+  if (!hasCirruxDriveGrant(tgt.creds)) throw cirruxDriveNotConnected();
+  return { clientId: client.clientId, row: { pool, tenantId, connectionId: tgt.id } };
 }
 
 /**
@@ -1636,7 +1684,10 @@ export function mailTargetConfigFromConnection(
   // build if either seam stops calling it.
   refuseDomainTheTargetCannotCarry('mail', kind);
 
-  if (kind !== 'soverin') {
+  // The account kinds whose mail server is stored apart from their DAV host
+  // (`MAIL_SERVER_ACCOUNT_KINDS`: soverin, and cirrux since 0160) take the
+  // branch below; every other kind keeps its stored or derived shape.
+  if (!storesItsMailServer(kind)) {
     if (typeof config.type === 'string' && config.type !== '') {
       return config as unknown as TargetConfig;
     }
@@ -1670,8 +1721,10 @@ export function mailTargetConfigFromConnection(
   }
   const mailHost = typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
   if (!mailHost) {
+    // The kind is named as it is stored, so Soverin's sentence is the one its
+    // guide has always quoted, and Cirrux's names Cirrux.
     throw new Error(
-      'This soverin connection stores no mail server, so its mail face cannot be built: ' +
+      `This ${kind} connection stores no mail server, so its mail face cannot be built: ` +
         "config.mailHost is missing. Add the account's IMAP host to the connection (your " +
         'provider’s account settings page names it) — the calendar and contact faces are ' +
         'unaffected.',

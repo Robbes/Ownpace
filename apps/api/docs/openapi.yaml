@@ -1652,6 +1652,119 @@ paths:
             text/html:
               schema: { type: string }
 
+  /api/migrations/cirrux/authorize:
+    post:
+      tags: [Migrations]
+      summary: Start Connect Cirrux Drive on a Cirrux account
+      description: |
+        Workplan 0160 T5; ADR-0052. Begins Cirrux's authorization-code flow
+        with PKCE (`S256`) for the Cirrux destination named by `connectionId`,
+        whose app password keeps serving mail, calendars, contacts and tasks.
+        Returns the URL to send a browser to and the exact callback Cirrux
+        must have registered for this deployment.
+
+        **One client per deployment.** A public client with no secret,
+        `CIRRUX_OAUTH_CLIENT_ID`, registered by Cirrux by hand with this
+        deployment's callback. With none set, the answer is
+        `no_cirrux_client`, and the Accounts page offers no button.
+
+        **The scopes** are `user.profile workspace.read drive.read
+        drive.create drive.update drive.delete`. `drive.delete` is used only to
+        move a file to Cirrux's trash when the person approved removing it
+        because it was deleted at the source; nothing is deleted for good.
+
+        A closed organisation (409 `account_closed`) and a person who has not
+        accepted the current texts (409 `conditions_not_accepted`) begin
+        nothing.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connectionId]
+              properties:
+                connectionId:
+                  type: string
+                  format: uuid
+                  description: The Cirrux destination on the Accounts page to connect Drive on.
+                locale:
+                  type: string
+                  enum: [en, nl]
+                  description: |
+                    The language the page was in when the button was pressed,
+                    so the page Cirrux sends the person back to is in it too
+                    (workplan 0145 T6). Recorded on the pending consent and
+                    never put in the redirect; anything else, or nothing, is
+                    English.
+      responses:
+        '200':
+          description: Where to send the browser, and the callback Cirrux must have registered.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [url, redirectUri]
+                properties:
+                  url: { type: string }
+                  redirectUri: { type: string }
+        '400':
+          description: |
+            `invalid_body`, `no_cirrux_client` (this deployment has no Cirrux
+            client yet), `raw_ip_callback` or `unreachable_callback`; and
+            `not_a_cirrux_account`, answered 404, when no Cirrux destination
+            of this organisation has that id.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`not_a_cirrux_account`: no Cirrux destination of this organisation has that id.'
+        '409':
+          description: '`account_closed` or `conditions_not_accepted`; nothing was begun.'
+
+  /api/migrations/cirrux/callback:
+    get:
+      tags: [Migrations]
+      summary: Where Cirrux returns the person's browser
+      description: |
+        Public by nature and trusted by nothing except the signed, single-use,
+        expiring `state`, and only a state begun at the Cirrux door. An `iss`
+        naming another origin than Cirrux's is refused before the code is
+        exchanged, and so is an organisation closed since the consent began.
+        The code is exchanged with the PKCE verifier, and the refresh token is
+        STORED ON THE ACCOUNT, encrypted beside its app password, under the
+        row's lock, with the audit line `connection.cirrux_drive_connected`.
+        It is never handed to the page: it rotates on every refresh, and the
+        server writes each successor back (ADR-0052). The account is then
+        measured again, and the page tells the opening window only that the
+        Drive is connected, as `ownpace-cirrux-drive`, with the account's id.
+      security: []
+      parameters:
+        - { name: state, in: query, schema: { type: string } }
+        - { name: code, in: query, schema: { type: string } }
+        - { name: iss, in: query, schema: { type: string } }
+        - { name: error, in: query, schema: { type: string } }
+        - { name: error_description, in: query, schema: { type: string } }
+      responses:
+        '200':
+          description: The result page — connected, or Cirrux's own refusal.
+          content:
+            text/html:
+              schema: { type: string }
+        '400':
+          description: No state this server is waiting for, another issuer, no authorization code, a code Cirrux refused, a grant a migration cannot run on, or an account no longer there.
+          content:
+            text/html:
+              schema: { type: string }
+        '409':
+          description: The organisation was closed after the consent began; nothing was stored.
+          content:
+            text/html:
+              schema: { type: string }
+        '500':
+          description: Whether the organisation is closed could not be read, or storing the grant failed; nothing was kept.
+          content:
+            text/html:
+              schema: { type: string }
+
   /api/connections:
     get:
       tags: [Connections]
@@ -2310,7 +2423,11 @@ paths:
             T9) is read from a folder of the destination's own files, so a
             destination that cannot serve it is refused at `targetType`: JMAP,
             which has no byte ranges, and every destination with no files.
-            Only `webdav` and `nextcloud` qualify.
+            Only `webdav` and `nextcloud` qualify. A reused account that cannot
+            carry what is asked is refused by `message` too, with nothing
+            stored: another role or kind, a data type its own Test measured as
+            no, or files to a Cirrux account with no Cirrux Drive connected on
+            it (workplan 0160 T5), whose sentence names *Connect Cirrux Drive*.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -3968,6 +4085,13 @@ paths:
         person or by the automatic removal of moved files' old copies; the
         item is still on the new system under its new key). An open row has
         none.
+
+        Each row, and each earlier export, names its item where the ledger
+        holds a name, as `displayName`: a message's Subject, an event's or a
+        task's title, a contact's name, or a file's name, the last segment of
+        the path it was copied from, beside its folder (`collection`). Read
+        from the row, never stored for this; absent on a row from before a
+        name or a path was recorded. `naturalKeyHash` stays the handle.
       responses:
         '200':
           description: The deletion queue.
@@ -4551,6 +4675,17 @@ paths:
         Each `acknowledged` row says what its decision did on the new system,
         as `decided` (workplan 0159 §6 item 6): `kept` (left where it is), or
         `applied` (the old copy removed there). An open row has none.
+
+        Each row names its item where the ledger holds a name, as
+        `displayName`: a message's Subject, an event's or a task's title, a
+        contact's name, or a file's name, the last segment of the path it was
+        copied from. A relocation (`toNaturalKeyHash`) also carries
+        `toDisplayName`, the name on the copy already made under its new key,
+        read from that row in the same organisation and migration. So a file
+        renamed in `Docs` reads `report.pdf` to `report-final.pdf` with `from`
+        and `to` both `Docs`. Read from the rows, never stored for this;
+        absent on a row from before a name or a path was recorded.
+        `naturalKeyHash` stays the handle.
       responses:
         '200':
           description: The move queue.
@@ -5163,6 +5298,11 @@ paths:
         the person for grant links (0108); nothing sends mail to it yet. Not
         refused for a closed organisation: a person is a name, and starts no
         work.
+
+        With `myself: true` the person is the member who asks (ADR-0050,
+        amended 2026-11-19): their sign-in is linked to it, and moves off any
+        other person of theirs in the organisation. The member is the one the
+        bearer token names; an account id in the body is not read.
       requestBody:
         required: true
         content:
@@ -5176,6 +5316,14 @@ paths:
               schema: { $ref: '#/components/schemas/Person' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            `not_a_member`, with `myself: true` only: the caller is no active
+            member of this organisation, so no person here can be theirs.
+            Nothing was stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /api/people/{personId}/migrations:
     parameters:
@@ -5240,6 +5388,62 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PersonDeleted' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/people/{personId}/myself:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    put:
+      tags: [People]
+      summary: Say that this person is you
+      description: |
+        *This is me* (ADR-0050, amended 2026-11-19): the person becomes the
+        asking member's own, so *Who is it for?* chooses them first, and any
+        other person of theirs in the organisation stops being so, in one
+        transaction. The member is the one the bearer token names; there is
+        no body. Saying it again changes nothing. A person who is another
+        member's stays theirs. Open to every member, as adding a person is.
+      responses:
+        '200':
+          description: The person, with `you` true.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: '`not_a_member`: the caller is no active member of this organisation.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: '`another_members`: the person is already another member''s own. Only they can undo it.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [People]
+      summary: Say that this person is not you
+      description: |
+        *This is not me*: only the asking member's own link is undone. A
+        person who is nobody's, or another member's, is answered as it is,
+        and nothing changes. Removing a member from the organisation undoes
+        their link as well.
+      responses:
+        '200':
+          description: The person, with `you` false.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: '`person_not_found`: this organisation has no such person.'
@@ -8072,7 +8276,7 @@ components:
       description: |
         A person being moved (ADR-0050, amended 2026-09-28). No state of its
         own: `counts` is their migrations' states, counted.
-      required: [id, implicit, displayName, email, createdAt, migrations, counts]
+      required: [id, implicit, displayName, email, createdAt, you, migrations, counts]
       properties:
         id:
           type: string
@@ -8094,6 +8298,13 @@ components:
           type: [string, 'null']
           format: date-time
           description: Null only for the implicit person.
+        you:
+          type: boolean
+          description: |
+            True for the asking member's own person, whom they linked to their
+            sign-in (ADR-0050, amended 2026-11-19). Worked out by the server;
+            no account id is sent. Always false on the appliance, which has no
+            sign-in.
         migrations:
           type: array
           description: Oldest first.
@@ -8120,6 +8331,11 @@ components:
           type: [string, 'null']
           maxLength: 254
           description: Optional. An empty string is no address.
+        myself:
+          type: boolean
+          description: |
+            Optional. True when the person is the member asking: their
+            sign-in is linked to it. Who that is comes from the token.
     AddPersonMigration:
       type: object
       required: [mappingId]

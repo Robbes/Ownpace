@@ -155,6 +155,23 @@ export function redirectUris(env: RedirectUriEnv = process.env): ReadonlyArray<R
         '(docs/microsoft-setup.md).',
     },
     {
+      id: 'cirrux.migration',
+      group: 'migration',
+      // Not a console: Cirrux registers a client by hand, from an email to its
+      // help desk naming the app, its redirect URLs and its scopes
+      // (https://cirrux.co/help/questions/oauth-client-for-my-app).
+      provider: 'Cirrux — registered by Cirrux, on request to help@cirrux.co',
+      // Built the way the Cirrux consent route builds it, from the same
+      // variable (workplan 0160 T5).
+      uri: api === null ? null : `${api}/api/migrations/cirrux/callback`,
+      unconfigured: api === null,
+      why:
+        'Where Cirrux returns the browser after somebody connects Cirrux Drive on a Cirrux ' +
+        'account. Built from API_URL, like the others. Cirrux registers one client per ' +
+        'deployment, with this exact address, and sends back its client ID for ' +
+        'CIRRUX_OAUTH_CLIENT_ID; it issues no secret.',
+    },
+    {
       id: 'box.migration',
       group: 'migration',
       provider: 'Box Developer Console',

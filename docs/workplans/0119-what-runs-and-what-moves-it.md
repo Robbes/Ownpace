@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, later: the test stack's Mailpit v1.34.0 is taken inside its three-day floor, on the
+owner's word.** The owner, on 2026-11-19: *"I waive waiting time / nights if needed."* So the
+branch of 2026-11-18 (its entry below) merges once E2E (managed) is green on its head and CI is
+green with `main` merged in, before the floor ends on 2026-11-20 at 07:07 UTC. `managed.yml`'s
+comment and the CHANGELOG say it is taken inside the floor. Live runs no catcher, so nothing
+there changes.
+
 **2026-11-19: CI's migration lint takes Atlas v1.4.0 inside its three-day floor, on the owner's
 word.** The owner, on 2026-11-19: *"I waive waiting time / nights if needed."* So the branch of
 2026-11-18 (the next entry) merges once CI is green on its head with `main` merged in, before
@@ -12,6 +19,533 @@ legs read `atlasbinaries.com`'s bytes *as pinned* for their architecture, printe
 version v1.4.0` and linted the 125 migrations as v1.3.10 did. `ci.yml`'s comment and the
 CHANGELOG say it is taken inside the floor. The floor's security-fix exception still does not
 apply, and nothing deployed changes.
+
+**2026-11-19: hadolint 2.15.1 runs in CI over every Dockerfile git lists, report only, with DL3008
+and DL3018 ignored and nothing else; built on a branch, not merged.** On the branch
+`claude/ownpace-public-readiness-y7orc6-hadolint-ci`, from `main` at `6fc95811` (#1955). The
+owner's decisions of 2026-11-19 answer what the entry below left open: exact apk and apt package
+versions, no; hadolint in CI, yes, report only first, and blocking only once the two Trigger.dev
+Dockerfiles have had their pass (§3 item 14).
+- **The image, read on 2026-11-19.**
+  `hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d`:
+  at 19:43 UTC the `Docker-Content-Digest` of the tag's index through Google's mirror of Docker
+  Hub (`mirror.gcr.io`, without a login; the body hashes to the same digest), and at 19:43 UTC the
+  `digest` Docker Hub's tag API gives, the same, with `last_updated` 2026-07-31 09:57:38 UTC, so
+  its three-day floor (CONTRIBUTING.md) ended on 2026-08-03. The index holds linux/amd64
+  (`fdf19d02…`) and linux/arm64 (`84179f01…`), each with an attestation, and each image's config,
+  read by digest, is one layer, `/bin/hadolint`, with `Cmd ["/bin/hadolint", "-"]`, no entrypoint,
+  no user and no locale. It is hadolint's newest release, and `latest` names the same index.
+  Nothing was pulled or run here. The guard holds the job to this reference (`HADOLINT`), and the
+  pin watch's new row `hadolint/hadolint` compares its tag with Docker Hub's newest of the same
+  shape and major.
+- **The job.** `.github/workflows/hadolint.yml`, *Dockerfile lint*, job `hadolint (report only)`:
+  on every pull request (no `paths:`), on a push to `main` and on dispatch, on `ubuntu-24.04`,
+  with `contents: read` and a checkout that keeps no token. A workflow of its own, not a job in
+  `ci.yml`: `ci-complete` needs every job there and fails on one that does not pass, and this one
+  is not to block it. `scripts/hadolint-report.mjs` lists the Dockerfiles as the guard does (the
+  guard now calls its `dockerfiles()`), pulls the image once (three attempts, 5 and 15 seconds
+  apart), runs hadolint once per file with `--no-fail --format json`, `--pull never`, no network, a
+  read-only root and checkout, no capability and as the runner's user, and writes each file's
+  findings, by line, to the job's summary. Named `dockerfile-lint.yml` at first, which the guard's
+  walk read as a Dockerfile (`Dockerfile-*`, in any case): renamed before it was committed.
+- **What is ignored, and why.** `.hadolint.yaml` ignores DL3008 and DL3018, a package installed
+  without an exact version, by apt and by apk: every base is pinned by its index digest, the
+  weekly image scan reports a package left behind its fix, and an exact version breaks the next
+  fresh build the day the distribution drops it from its mirror. Nothing else is ignored, and
+  `disable-ignore-pragma: true` keeps a `# hadolint ignore=` line (no Dockerfile here has one)
+  from ignoring more. A finding with a reason to stand is marked known, and still listed: a rule
+  the guard's EXCEPTIONS excuse for that file, by hadolint's code for the rule (`RULE_CODES`), or
+  one of `KNOWN_FINDINGS`, the proxy's DL3064 (`SECRETS=0`) and the Redis purge RUN's SC2086 and
+  SC2016, as the entry below read them. A known one hadolint did not report is named, so either
+  list can shrink. EXCEPTIONS moved from the guard into the script, unchanged, so that a bare
+  checkout reads them; the guard imports them.
+- **Report only, and when it turns blocking.** No finding fails the job. On a pull request the
+  report exits 0 even when a Dockerfile went unlinted, and warns; on a push or a dispatch a
+  Dockerfile left unlinted (the image not pulled, hadolint not answering with a list of findings,
+  or answering with a finding the config ignores) fails it, since there the run is the record. It
+  is not a required check (`every-pr-check-is-classified`, `docs/testing.md`). It becomes
+  blocking after `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`
+  have had their pass (their EXCEPTIONS say they were not in that check's round): then a finding
+  that is not known fails the job, and it is required, in one pull request, as the workflow's
+  header says.
+- **Proved on the branch:** `pnpm exec vitest run --project unit scripts`, 298 test files, 7,235
+  tests passed and 33 skipped, on Node 22.22.0, the one installed here (the repository asks for
+  26; pnpm warns and runs); beside it the guards that read a workflow with the root-level ones (25
+  test files, 763 tests) and, after the last edit, the changed guards with the root-level ones (11
+  test files, 481 tests). `pnpm typecheck`, ESLint on every changed script and test, and the six
+  docs checks. The workflow and the config parsed by the `yaml` package, strictly, with no error
+  or warning, and by PyYAML; actionlint is not installed here, and nothing was downloaded to
+  run. On disk, each failing as it should and each file restored byte for byte (its SHA-256
+  compared): the pin's digest with one digit changed, and the pin by tag alone; `continue-on-error`
+  on the job, an `if:` on the lint step and `|| true` after it; the header without IT BECOMES
+  BLOCKING; the self-hosted runner; the config ignoring DL3059 too, without
+  `disable-ignore-pragma`, and with `no-fail`; the report failing a pull request, failing on a
+  finding, or passing a push that linted nothing; hadolint without `--no-fail`, or with the
+  network; the pull without its retries; a finding of an ignored rule taken for a reading; a
+  KNOWN_FINDINGS entry for a rule EXCEPTIONS already excuse; an exception taken out; the walk
+  skipping a Dockerfile; a hadolint job in `ci.yml` (which `ci-complete-covers-every-job` refuses
+  too); the check among `docs/testing.md`'s required ones; the check renamed out of
+  NOT_REQUIRABLE; and the pin watch's row renamed. The digest with one digit changed passed
+  until the guard held the whole reference (`HADOLINT`): the comment names its first twelve
+  digits only.
+- **Owed:** hadolint itself has run nowhere yet. The pull request's run is its first: whether
+  every Dockerfile is linted, what it finds, and whether the known entries match what it reports
+  are that run's to say.
+
+**2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`)
+reads the web image and GoAccess's as containers that run as root (GEN-21), and lists where eight
+Dockerfiles break hadolint's rules (GEN-20). Both images now end as their own users, the web
+image's health check needs no shell, three Dockerfiles lose a pipe with no `pipefail`, the Docker
+socket proxy stays root and says why, and a guard holds every Dockerfile to six of the rules; built
+on a branch, merged as #1953 (`fb4a960e`).** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-nonroot`,
+PR #1953, from `main` at `d6f10278`, one commit per Dockerfile; the dashboard's TLS front
+(`…-bl-caddy`) and the Stalwart fixture (`…-bl-images`) are branches of their own. Each rule was
+read from the line the check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
+- **The web image, `apps/web/Dockerfile`.** nginx's master ran as root, chowned its temp
+  directories to nginx and dropped its workers to it, so `managed.yml` kept CHOWN,
+  NET_BIND_SERVICE, SETGID and SETUID for it. Its runtime stage now ends as `USER 101:101`, the
+  image's own nginx, master and workers alike: one RUN makes `/etc/nginx/conf.d` (where the
+  entrypoint renders the template at every start) and `/var/cache/nginx` (the temp directories)
+  101's, moves the pid file from `/run` to `/tmp`, and drops `user  nginx;`, each line read before
+  it changes. Its HEALTHCHECK is exec form, busybox's wget with no shell (DL3025, line 111).
+  `managed.yml`'s web adds no capability and sets `net.ipv4.ip_unprivileged_port_start: 0`, as
+  Docker does by default, so uid 101 binds port 80 without resting on a daemon default; the
+  container port stays 80, which `STATUS_WEB_URL` and the hosts' `.env` files name. `www.yml`'s
+  site still runs the nginx image as it ships.
+- **GoAccess, `deploy/compose/goaccess/Dockerfile`.** Its run stage, like upstream's, named no
+  USER. It now ends as `USER 65534:65534`, before the RUN that starts the binary, so the build
+  proves it starts as nobody; `site-visits.sh` already ran it as 65534:65534, read-only, with no
+  network and no capability, and builds the image on every run, so live's next count builds this.
+  `make -j"$(nproc)"` is quoted (ShellCheck's SC2046, line 69).
+- **The Docker socket proxy stays root.** `USER root` is upstream's v0.5.0, and the header's new
+  WHY ROOT says why it stays: HAProxy connects to the host's Docker socket, root's and the docker
+  group's at mode 0660, whose group id differs from host to host, and whoever can use the socket
+  holds the host whichever user does; `managed.yml` gives it no capability, no-new-privileges, a
+  read-only root filesystem and one internal network instead. Its check of the two copied files
+  hashes each on its own, where it piped a list into `sha256sum -c -` (DL4006, line 123), and the
+  name moves to `localhost/docker-socket-proxy:3.4.7-alpine-a8d771e9f164`.
+- **The pooler, `deploy/compose/pgbouncer/Dockerfile`.** Both RUNs pipe (DL4006, lines 141 and 170):
+  a SHELL after the FROM, the base's ash with `-o pipefail`, now runs them, and its install message
+  prints its two lists without an unquoted `echo` (SC2086, line 141). images.yml's `build
+  (pgbouncer, …)` compares the image's User, Entrypoint, Cmd, WorkingDir, ExposedPorts and Env
+  with upstream's, not its Shell. The name moves to `localhost/pgbouncer:v1.26.1-p0-abd8080fb98b`.
+- **The tasks' base, `apps/worker/task-image/Dockerfile`.** The build stage's trust RUN makes the
+  roots' alternation with a loop and counts the rejected intermediates by their glob, where it
+  piped `echo | tr` and `ls | wc -l` (DL4006 and SC2012, line 82): the same sed expression, both
+  forms compared under dash. The runtime stage ends as `USER 1000:1000`, node by number (DL3066,
+  line 132); the CLI's runtime stage still says `USER node`, the same account. The published base
+  moves with the next build on `main`, and the tasks with `TASK_BASE_IMAGE` after it.
+- **What stays, and why.** The seven lines given as the whole file (the tasks' base, the TLS
+  front, the proxy, GoAccess, the pooler, Postgres and Redis) are almost certainly DL3057, a
+  HEALTHCHECK missing: those seven have none, and the web image, the one listed with one, has no
+  such line. DL3057 is off unless asked for, and compose gives the databases, the pooler and Redis
+  their probes; a probe in the tasks' base would run in every task's container, GoAccess runs once
+  and exits, and the proxy's instructions are upstream's. The proxy's ENV (line 90) is DL3064, a
+  name with SECRET in it: `SECRETS=0` is upstream's switch that refuses Docker's secrets
+  endpoint. Its `USER root` (line 129) is DL3002 and DL3066, and the pooler's `USER root` and
+  `USER postgres` (lines 136 and 166) DL3066: the user is upstream's, and images.yml holds the
+  pooler's to it. Redis's purge RUN (line 201) has SC2086 and SC2016, both info: two lists split
+  into words on purpose and two Perl programs in single quotes, a RUN `an-essential-nothing-runs`
+  holds line by line. And DL3008 and DL3018, packages installed without a version (the tasks'
+  base, line 73; GoAccess, lines 45 and 75), are left open: an exact version stops the build the
+  day the distribution ships the next and drops it from its mirror, as the pooler's header says
+  of its five, while the bases are pinned by digest and the image scan says when a package is
+  behind. hadolint passes any apk package written with `=`, `~`, `>` or `<`, so a floor would
+  quiet it without pinning anything; it is not done. *(Later that day the owner's answer: no
+  exact pins, and hadolint, in CI since, ignores both rules: the entry on hadolint, above, and
+  §3 item 14.)*
+- **The guard, `a-dockerfile-that-ends-as-root`.** Every Dockerfile git lists, found by walking
+  (14 today, each of them known), ends its last stage as a user that is not root (DL3002), names
+  every USER by number (DL3066), writes CMD, ENTRYPOINT and HEALTHCHECK's CMD in exec form
+  (DL3025), runs a RUN that pipes only under a SHELL with `-o pipefail` (DL4006), has no ADD
+  (DL3020), and names a tag that is not `latest` in every outside FROM (DL3006, DL3007), unless
+  its EXCEPTIONS names the file and the rule with the reason; an exception whose file no longer
+  breaks the rule fails too. Left in it: the proxy (root, by name), the pooler (by name), and the
+  supervisor and the Trigger.dev image (by name, pipes: not in this round).
+- **The order they land in.** The fixture's branch landed first, as #1950 (`4551acb2`), and the TLS
+  front's next, as #1951 (`1a497415`), which makes the front keep the same rule. Each time this
+  branch was brought up to date, the guard failed on the entry the other branch had made stale and
+  named it, as it should, and the entry came out: both are out.
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,103 tests passed and 33 skipped;
+  before that, per Dockerfile, the guards that read it (GoAccess 5 test files, 294 tests; the proxy
+  29, 1,562; the pooler 26, 1,180; the tasks' base 11, 595; the web image 142, 4,559); `tsc
+  --noEmit`, ESLint on every changed test and the six docs checks. On disk, each
+  failing as it should, each file restored byte for byte: the web image without its USER, with
+  `USER root`, and with its HEALTHCHECK in shell form; GoAccess without its USER, with an ADD, and
+  with a FROM of `alpine:latest` or of `alpine` alone, and with a pipe in a RUN; the proxy's check
+  piped again, without its test of the entrypoint's executable bit, and with `USER 0:0` (the
+  exception then stale); the pooler without its SHELL and with ash without pipefail; and the tasks'
+  base counting through `ls | wc -l` again and with `USER node`.
+- **Proved after the push** on `33b7e3eb` (the branch with `main` at `4551acb2`): CI run
+  44584118214; images.yml run 44584118472 (the web image's build, `build (docker-socket-proxy)`,
+  which starts the proxy on the runner's socket and asks it what the supervisor uses, `build
+  (pgbouncer, …)` on both platforms, and the tasks' base started as the CLI's runtime stage starts
+  it, which wants 1000:1000); script-images.yml's build of GoAccess on arm64, run 44584117255; and
+  E2E (managed) run 44584099036 on the OTA box, from 18:05 to 18:16 UTC, deployment 20261119.11.
+  It built the web image, which ends as `USER 101:101`, and the web container, with no capability,
+  was healthy; it built the proxy's and the pooler's images under their new names and ran both, the
+  pooler healthy; the smoke passed.
+
+**2026-11-19: the dashboard's TLS front runs as uid 65532, with no capability, and a one-shot gives
+its two volumes to that user before it starts. Merged as #1951 (`1a497415`).** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-caddy`, PR #1951, from `main` at `6038037b`. A read-only check of
+the repository (run on `main` at `646b9de2`) read `deploy/compose/caddy/Dockerfile`
+as a container that runs as root (GEN-21), which it was, and listed the file as a whole under
+hadolint's rules (GEN-20): almost certainly DL3057, a HEALTHCHECK missing.
+- **Why Caddy needs no root here.** It binds 3443, which needs no capability, and writes only in
+  `/data/caddy` and `/config/caddy`, which upstream's image makes mode 1777. Read at the pinned
+  digest on 2026-11-19, from the image's history and its layer's `security.capability`:
+  `/usr/bin/caddy` carries `cap_net_bind_service` as permitted and not effective (`setcap
+  cap_net_bind_service=+p`), where 2.11.7's was `+ep`. The kernel refuses to start a binary only
+  when its file capability is effective and the bounding set lacks it, so the NET_BIND_SERVICE
+  `trigger-tls` kept for 2.11.7 is not needed with 2.11.9's binary, as root or not.
+- **What changes.** The Dockerfile ends as `USER 65532:65532`, and its new THE USER says why.
+  `trigger-tls.Caddyfile` says `skip_install_trust`: only root may write the system's trust store,
+  and nothing in the container trusts the local CA. `managed.yml`'s `trigger-tls` adds no
+  capability, keeps no-new-privileges, and waits for `trigger-tls-init`: the same build as root,
+  with CHOWN and DAC_READ_SEARCH alone, read-only and with no network, whose one `chown -R` gives
+  `trigger_tls_data` and `trigger_tls_config` to 65532:65532. On a stack that ran the front as
+  root both are root's, their files at mode 0600 in directories at 0700, which 65532 cannot read; the
+  CA, its certificate and a browser's exception for it stay. No volume is added. Once they are
+  65532's the one-shot changes nothing; the bring-up names it before the front, as it names
+  `minio-init` before `trigger-api`. The name moves to
+  `localhost/caddy:2.11.9-alpine-f4b403e49a96`, which each machine builds at its next `up`.
+  images.yml's `build (caddy)` starts the front with no capability and no-new-privileges, as
+  `managed.yml` runs it.
+- **Going back** to a tag that ran the front as root needs the two volumes given back to root
+  first, from this checkout: the guide's `run --rm --no-deps trigger-tls-init 'chown -R 0:0 …'`
+  (*The dashboard's TLS front is a build here too*).
+- **What stays.** DL3057: the front has no healthcheck on purpose, since a probe runs inside the
+  image, which has no curl, and the smoke asks the front from the host (`docs/operator-runbook.md`).
+  Not read-only yet: Caddy's one write outside its volumes was the trust store, and a read-only
+  root waits for a run that measures it.
+- **The order the three branches land in.** `…-bl-nonroot`'s new guard,
+  `a-dockerfile-that-ends-as-root`, names this Dockerfile as an exception (root), which this branch
+  makes stale: whichever of the two lands second takes the entry out (the guard's failure names
+  it).
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,114 tests passed and 33 skipped;
+  before that, the 80 test files that read a changed file, 3,218 tests (one of them,
+  `a-database-started-as-root`'s list of the services run from an image built here, now names the
+  one-shot), and 71 more that read `managed.yml` or the workflows, 1,700 tests passed and 33
+  skipped; `tsc --noEmit`, ESLint on the four changed tests and the six docs checks. The front's
+  guard also holds the one-shot and `skip_install_trust`. On disk, each failing as it should and
+  each file restored byte for byte: the Dockerfile without its USER and with `USER root`;
+  `managed.yml` with NET_BIND_SERVICE given back to the front, without the front's wait for its
+  one-shot, and with the one-shot's DAC_READ_SEARCH taken away (which the guide's way back needs
+  too); images.yml's probe without its hardening; and the Caddyfile without `skip_install_trust`.
+- **Proved after the push** on `fbdea1af` (the branch with `main` at `1edbdc22`): images.yml's
+  `build (caddy)` on the pull request, and E2E (managed) run 44577091109 on the OTA box, whose front
+  ran as root until then. The run built `localhost/caddy:2.11.9-alpine-f4b403e49a96` and started
+  the front on it once its one-shot had finished without an error, as the front waits for it; the
+  smoke's TLS check passed. Owed: the dashboard in a browser with the exception it has, at the
+  owner's next visit.
+
+**2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`) reports two base
+images with a fixable high or critical (IMG-1), and the Stalwart fixture as a container that runs
+as root (GEN-21). Neither base moves here; the fixture says what it is. Merged as #1950
+(`4551acb2`).** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-images`, PR #1950, from
+`main` at `d6f10278` (#1941; the findings' files are as at `646b9de2`). Read on 2026-11-19 from
+Docker Hub (through Google's mirror of it, without a login), GHCR's tag lists, upstream's source
+at its tags, npm's advisory service, OSV's Debian data and CISA's list of exploited
+vulnerabilities; nothing read was run. Times are UTC.
+- **The Stalwart fixture, `packages/testing/fixtures/stalwart/Dockerfile`.** Nothing builds or
+  runs it: no workflow, compose file, script or test names its directory. It is the
+  `stalwart-test-custom` image of 2026-07-05; the integration tests and both E2E gates start
+  `stalwartlabs/stalwart:v0.16.27` itself (`testcontainers-setup.ts`, `setup-stalwart.sh`), as
+  root on purpose (`docs/stalwart-integration-fix.md`, Round 4). That image runs as its own
+  `stalwart`, uid and gid 2000 (its config's `User`, its `/etc/passwd`), so the fixture never ran
+  as root; its Dockerfile now says `USER 2000:2000`, and its FROM carries the index digest the tag
+  has named since 2026-10-18, `c429b311…`. `a-fixture-that-named-no-user` holds both, and
+  `a-float-nothing-ever-pulled` now holds every Dockerfile git lists to a digest, not only
+  `apps/*`'s. The fix doc's *Moving the pin* says the fixture's digest moves with the tag.
+- **What the scan of `v0.16.27` reads, by its package database** (linux/arm64, the apt layer):
+  five fixable findings, as Trivy's five of 2026-11-15: brotli 1.1.0-2 (CVE-2026-111497, on CISA's
+  list of exploited vulnerabilities, fixed in 1.1.0-2+deb13u1), apt 3.0.3 (CVE-2026-109518, fixed
+  in 3.0.4) and zlib 1:1.3.dfsg+really1.3.1-1 (CVE-2026-27171, CVE-2026-76844 and CVE-2026-85091,
+  fixed in +deb13u1). No v0.16 release follows v0.16.27, and Docker Hub has not rebuilt its tag.
+  Stalwart v1.1.0 (pushed 2026-11-09) and v1.1.1 (2026-11-16 11:47, past its floor today) carry
+  brotli 1.1.0-2+deb13u1 and apt 3.0.4, and zlib unfixed. A move to v1 is another line: the
+  owner's call under ADR-0022, from upstream's `UPGRADING/` notes, with the two-phase run proved on
+  the new tag and every copy moved together. Not taken here.
+- **Trigger.dev's base, `ghcr.io/triggerdotdev/trigger.dev:v4.8.5@sha256:6e6d38a9…`.** A check
+  that reads the FROM sees upstream's image; the build here removes or replaces what nothing runs
+  (the Dockerfile's header), so it sees, as this plan's scans read them: the six criticals in
+  depot's and esbuild's Go binaries and in tar 7.5.13 in both copies of pnpm 10.33.2; pnpm 10.33.2
+  itself (11 highs); npm 11.19.1's and node-gyp's trees (12 fixable highs); TypeScript 7's native
+  compiler (15); goose v3.27.1 (21, replaced by v3.30.1); cross-spawn 5.1.0 (1); and the 26 highs
+  with no fix in util-linux's builds, libsystemd0 and libudev1. The image built here read 1, 20
+  and 8 after alpha.11's tag (run 44260105914). What is left with a fix is four packages, eight
+  highs, each fixed only in a new major: undici 5.29.0 (GHSA-vrm6-8vpv-qv8q, -v9p9-hfj2-hcw8,
+  -2m5v-pch6-74hx, -qrxm-fqhp-jwvm and -vxpw-j846-p89q; fixed in 6.24.0 to 6.29.1) with its
+  `@fastify/busboy` 2.1.1 (GHSA-x8mw-p69m-v3mx, fixed in 3.2.1), turbo-stream 2.4.1
+  (GHSA-rxv8-25v2-qmq8, fixed in 3.0.0) and deepmerge-ts 7.1.5 (GHSA-ggr8-5vv4-36mx, fixed in
+  8.0.0); and zlib1g's critical (CVE-2023-45853), which Debian 12 does not fix.
+- **Which of the four a layer here could take, as #1909 took cross-spawn.** Not turbo-stream,
+  an exact pin of `@remix-run/react` and `server-runtime` 2.17.5, nor deepmerge-ts, `@prisma/config`'s:
+  the webapp and its migrations run both. undici 5.29.0's one requirer, in v4.8.5's lockfile, is
+  `@connectrpc/connect-node` 1.4.0, under `@depot/sdk-node`, which the server bundle imports; its
+  `node-headers-polyfill.js` requires undici when it loads and uses its `Headers` only on Node
+  before 18, and trigger-api runs Node 24.22.3 (read in the published package; not run). So
+  undici 5.29.0 cannot simply go: the require would fail. Pointing that one link at the store's
+  undici 6.29.1 and removing 5.29.0 and `@fastify/busboy` 2.1.1 with it, with the walk #1909
+  made, would take six of the eight. The build's rule since 2026-10-26 removes files nothing runs;
+  this would move a dependency that loads across a major, in place, so it is proposed, to be
+  decided first, and not built.
+- **Trigger.dev v4.8.6**, GHCR's newest tag for the webapp and the supervisor today, keeps all
+  four (its `pnpm-lock.yaml`, which `main`'s equals byte for byte on 2026-11-19) and adds an
+  override that drops cross-spawn 5.1.0, which this build already removes; it still pins pnpm
+  10.33.2 and builds goose v3.27.1. So no release fixes what is left. Trigger.dev stays at v4.8.5.
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,095 tests passed and 33 skipped;
+  before that, the two guards, 14 tests, and the 23 test files that read a changed file, 1,186
+  tests; `tsc --noEmit`, ESLint on the two guards and the six docs checks. On disk, the fixture
+  without its digest fails both guards (4 of 14), and without its USER, with `USER stalwart` or
+  with `USER root` the fixture's (3, 2 and 2 of 3), each file restored byte for byte.
+- **On #1950:** CI run 44577905397 green on its last head, `d88e1d90`. Nothing builds the
+  fixture, so no image or E2E run changed: CI's integration jobs start
+  `stalwartlabs/stalwart:v0.16.27` itself, not this fixture.
+
+**2026-11-19: the workflow check's nineteen lines. Sixteen are fixed, in nine workflows, and three
+are read as safe and left; merged as #1943 (`1edbdc22`).** An outside, read-only check of
+`.github/workflows/` on `646b9de2` read three points: an action from outside this repository is
+pinned to a commit, no workflow has a dangerous trigger, and every permission is as small as its
+job (OWASP's CI/CD Security Cheat Sheet). It named nineteen lines, one for each shape a file had.
+Each was read again on `main` at `81558fd5`, where the one merge since is the site's (#1940), and
+each was still there. On the branch `claude/ownpace-public-readiness-y7orc6-bl-workflows`, from
+`81558fd5`, in four commits:
+- **Pins and triggers: nothing to change.** Every `uses:` is a 40-hex commit, and each of the
+  sixteen actions' commits is the tag its comment names, annotated tags peeled (`git ls-remote`,
+  the same day); `a-tag-the-publisher-can-move` holds the pin and the comment. No workflow has
+  `pull_request_target` or `workflow_run`.
+- **A token nobody chose, six lines.** `ci.yml` (77, its first key after the header), `e2e.yml`
+  (150), `e2e-managed.yml` (129), `e2e-o365.yml` (84), `e2e-live-target.yml` (63) and
+  `no-committed-artifacts.yml` (12) named no permissions, so every job ran on whatever Settings,
+  Actions, General gives the default token. None uses more than the checkout's read: actions/cache
+  and upload-artifact take the runner's own token, nothing pushes, comments or writes a check, and
+  the lanes log in with repository secrets, the machine's persisted `.env` or the dev stack's own
+  passwords. Each now says `contents: read` at the top.
+- **A write every job was handed, one line.** `images.yml` 57: `packages: write` at the top, with
+  `id-token: write` beside it. Seven of its eight jobs set `contents: read` of their own; `build`
+  inherited both and uses both (the ghcr.io login pushes the images, their registry cache and
+  cosign's signatures; cosign signs keyless). Both move onto `build`, which holds exactly what it
+  held, and the top says `contents: read`.
+- **A token left on disk, nine lines and eighteen checkouts.** `images.yml` 102,
+  `security-scan.yml` 155, `windows-payload.yml` 69, `ci.yml` 209, `e2e-live-target.yml` 67,
+  `e2e-managed.yml` 133, `e2e-o365.yml` 95, `e2e.yml` 153 and `no-committed-artifacts.yml` 29 were
+  the first checkout in each file to keep the token in `.git/config`, where every later step can
+  read it; the same files held nine more, `ci.yml`'s other eight jobs and windows-payload's
+  `release`. None of the eighteen jobs pushes with git, and each checkout now says
+  `persist-credentials: false`. The release check's fetch of the tags, in four of them, and
+  detect-changes' fetch of a pull request's head now run without the token, as the exposure
+  probe's fetch of a commit already does: this repository is public. Both fetches, run from a
+  repository with no credentials configured, worked (all twelve `v*` tags, and #1940's head).
+- **Three lines read as safe, and left.** The `actions/setup-node` steps at `images.yml` 97 (107
+  now), `security-scan.yml` 151 and `windows-payload.yml` 65, each the first step of a job that
+  publishes. The pin is v7.1.0's tag; `check-latest: true` is `a-gate-on-a-version-nothing-ships`'
+  rule for all 29 such steps, of which the check named only these; and they restore no cache:
+  they name no `cache:`, they run before the checkout, and setup-node's automatic cache engages
+  only for an npm `packageManager` (v7.1.0's `src/main.ts`), where this one is `pnpm@11.28.12`.
+- **Held by** `scripts/a-token-the-job-never-asked-for.unit.test.ts`, 18 tests. Each rule was
+  broken on the real files and failed: `e2e.yml`'s block taken off, `images.yml` as it is on
+  `main`, a `pull_request_target` trigger added, a job given `write-all`, detect-changes'
+  `persist-credentials` taken off, `cache: pnpm` on `images.yml`'s release-check step, and the
+  root `packageManager` made npm; one setup-node step pointed at its tag failed
+  `a-tag-the-publisher-can-move`. Every mutation was restored byte for byte.
+- **Gates:** `npx vitest run --project unit`, 1108 files, 17083 tests passed and 33 skipped, none
+  of them added here; `npx tsc --noEmit`; eslint on the guard; the six checks (`lessons`,
+  `adr-operative`, `workplan-index`, `conflict-markers`, `llms-docs`, `machine-product-name`);
+  `commit-convention.mjs origin/main HEAD`; and each changed workflow parsed by the `yaml` package,
+  strict, with no error or warning, and by PyYAML. actionlint is not installed here, and nothing
+  was downloaded to run.
+- **Proven after the push**, workflow by workflow: CI, Security Scan, the artifacts check and
+  Images run on the pull request itself (Images because the pull request changes `images.yml`:
+  `build` builds without pushing there, with its new block). Images' push and signing prove
+  themselves on `main` after the merge, and every tag path, the four release checks' fetch among
+  them, at the next tag: Release in `rehearse-tag` mode reaches Security Scan's, though only its
+  names step's log tells a refusal of the name from a failed fetch. windows-payload's `build` and
+  `smoke` and the four E2E lanes prove themselves by a dispatch on the branch. In each job's log,
+  "Set up job" lists the token's permissions. On #1943: CI, Security Scan, the artifacts check and
+  Images green on its last head, `7f9fdf5d`, and E2E (managed) run 44568054149 with them; E2E
+  (self-hosted) run 44552758227 and the Windows payload run 44544250125 green on earlier heads
+  whose workflows were the same.
+- **For the owner:** two jobs still hold a write on every event because `permissions:` cannot
+  depend on the event: `images.yml`'s `build` on a pull request, which builds and pushes nothing
+  (GitHub gives a fork's pull request a read-only token and no OIDC), and Security Scan's job,
+  whose `contents: write` only its tag run's SBOM attach uses. Either narrows only by splitting a
+  job. Security Scan's top still grants `security-events: write`, which no job inherits. And with
+  every workflow naming its token, the repository default (Settings, Actions, General) can be
+  read-only.
+
+**2026-11-18, last: the alpha.12 round's reading. No release fixes the image scan's highs; three
+pins move after their floors, and four releases are left.** Read on 2026-11-18 from upstream's
+public git (`git ls-remote`, blobless fetches of the tags), Docker Hub's and GHCR's manifests, the
+npm registry and the OSV data dump, without a login; nothing read was run. Times are UTC.
+- **The highs with a fix that the scan after alpha.11's tag read** (run 44260105914, the entry
+  below): no release carries one yet. Gatus v5.38.0, the registry 3.1.2 and Caddy 2.11.9 are still
+  their projects' newest tags. Gatus's `master` of 2026-11-15 has `golang.org/x/net` v0.62.0 and
+  `klauspost/compress` v1.20.3, with go-jose v4.1.4 and `golang.org/x/image` v0.40.0 as before.
+  Zitadel v4.20.4 and v4.20.5 keep `golang.org/x/net` v0.61.0 (CVE-2026-78661). Trigger.dev
+  v4.8.6's `pnpm-lock.yaml` keeps `@fastify/busboy` 2.1.1, deepmerge-ts 7.1.5, turbo-stream 2.4.1
+  and undici 5.29.0, the four that wait on upstream's issue. So the reach reading of 2026-11-13
+  (the four Go binaries, below) stands, and nothing is built from source.
+- **GHSA-fc5q-39xc-vjpf is withdrawn.** GitHub withdrew the picomatch advisory the gate accepted
+  by name on 2026-11-17 (#1931): OSV's record of it, modified at 15:56:12, says withdrawn at
+  15:38:56, and the npm registry's advisory service, which `pnpm audit` reads, no longer lists it.
+  The day's `pnpm audit` lists one advisory, the known moderate in the Trigger.dev CLI's minimatch
+  10.2.6, and the gate printed that the picomatch entry *"can go"*. It goes in this pull request:
+  `ACCEPTED` is empty, a month before the entry's last day of 2026-12-17, and the gate blocks every
+  high again. Its test that read the entry now reads whatever `ACCEPTED` holds.
+- **What moves for alpha.12, each in its own pull request and after its three-day floor, on
+  2026-11-20:** Mailpit v1.34.0 (#1937), Atlas v1.4.0 (#1936), and Zitadel v4.20.4 (#1938). The
+  owner was asked whether the identity provider takes v4.20.4, and Trigger.dev v4.8.6, both their
+  call (issues #1934 and #1935). Their answer, at 20:53: *"1 yes, 2 no"*. They dumped the OTA
+  instance's `zitadel` database for it the same evening (#1938 records the set).
+- **What is left, and why:**
+  - **Trigger.dev v4.8.6** (its tip commit of 12:08), by the owner's *"2 no"* for alpha.12: 155
+    commits after v4.8.5, 15 new Prisma migrations, one way, and none of the four packages above
+    moves. Issue #1935 stays open for a later round.
+  - **Zitadel v4.20.5** (19:17): its one commit changes `apps/login` alone, Login V2, which this
+    stack does not deploy; the server it runs is v4.20.4's. #1938 says the same.
+  - **MinIO's rebuild of `latest`, `7618b82b…`** (pushed at 00:27): against the pinned `59953701…`
+    it moves `glibc-2.44`, `glibc-2.44-locale-posix` and `ld-linux-2.44` from 2.44-r20 to
+    2.44-r22 and nothing else (linux/arm64, the package database of each image's top layer).
+    Wolfi's advisories for glibc name no fix in r21 or r22, and the pin reads 0, 0 and 0. It waits
+    for a rebuild that fixes something.
+  - **The Docker socket proxy's v0.6.0** (tag of 09:25 on 2026-11-17): `haproxy.cfg` and
+    `docker-entrypoint.sh` are the same blobs as v0.5.0's, moved under `system_files/`. Its
+    Dockerfile names `ARG HAPROXY_VERSION=lts`, which is HAProxy 3.4 today, the line this build
+    already runs, and adds `apk upgrade` while the image builds, a network step the build here does
+    not take: its base moves by digest, in Dependabot's pull requests. So the image would not
+    change, and the guard's record of upstream's instructions would stop matching for nothing. The
+    pin watch's row stays behind until a release changes what the proxy does.
+
+**2026-11-18, last: the test stack's mail catcher is Mailpit v1.34.0, built on a branch, not
+merged, waiting for its three-day floor (0146 T11 (a); the pin watch's #1671).** On the branch
+`claude/ownpace-public-readiness-y7orc6-mailpit-1-34-0`, from `main` at `f928f021` (#1933); not
+merged. Its floor ends 2026-11-20 at 07:07, and E2E (managed) is owed on the branch after it,
+dispatched by the owner. Times are UTC.
+- **The pin.** `axllent/mailpit:v1.34.0@sha256:23a2ef85…` in `managed.yml`, the index digest
+  Docker Hub's tag listing gives and a HEAD of the tag on `registry-1.docker.io` returns (with an
+  anonymous token from `auth.docker.io`), read 2026-11-18 at 15:17: an OCI index of linux/amd64
+  `5040a9c5…`, linux/arm64 `fbcdc3ae…` and linux/386 `f73f9f65…`, with three attestations;
+  `latest` names the same digest. Every manifest, config and layer read here was checked against
+  its digest. v1.33.1's, read for the comparisons below, came from `mirror.gcr.io` by digest, once
+  Docker Hub's anonymous limit was spent. The phone-home guard pins the same reference;
+  `managed-bring-up.md`'s *Nothing phones home* row, the inventory row (§2.1) and the example in
+  `idp-pin-watch.mjs`'s comment move with it.
+- **Three days.** The tag was pushed at 2026-11-17T07:07:21Z (Docker Hub's `tag_last_pushed`;
+  upstream's annotated tag `v1.34.0` is from 06:53:35Z, on its release merge `55a30179` of
+  06:53:28Z, the amd64 image's config from 07:00:16Z and the arm64's from 07:07:11Z), so its floor
+  ends 2026-11-20T07:07Z. This branch is built and pushed inside it, and waits for it.
+- **Why.** The pin watch's run of today (44332746348, dispatched at 15:11 on `main` at
+  `f928f021`) read v1.33.1 behind v1.34.0 and updated its summary issue (#1671, 0146 T8), which
+  lists it. The image scan of today (Security Scan run 44260105914, linux/arm64) read v1.33.1 at
+  0 critical, 0 high and 0 with a fix. Mailpit's notes name one advisory, GHSA-v887-64wg-qqc9,
+  fixed in `41d441d1`: `ParseMediaType` (`internal/mimeparser/mimeparser.go`) wrote the decoded
+  RFC 2231 parameters into the nil map that enmime's parser returns for a media type it cannot
+  parse, so one message with a part header such as `Content-Type: <U+00A0>;a*=iso-8859-1''%E9`
+  panicked in the goroutine that stores it and ended the whole process; it now makes the map
+  (`:42`). The commit says v1.33.1 brought it in (#767), and v1.33.1 is what this stack runs. Its
+  severity was not read: the advisory databases are outside this session's reach. Here a message
+  reaches that parser by SMTP, which only this stack's own services reach, or by the send API of
+  the web port, which is loopback unless `MAILPIT_BIND` names another address. v1.34.0 also
+  recovers a panic in an SMTP session, which now drops that connection alone, with a 451
+  (`4f0060fc`).
+- **The build.** Read off both platforms' layers, nothing run: `/mailpit` is built with go1.27.4,
+  where v1.33.1's is go1.27.3 (`go version -m`: `vcs.revision` `55a30179`,
+  `config.Version=v1.34.0`, `CGO_ENABLED=0`, and `+dirty`, as v1.33.1's is), and is static (no
+  interpreter and no dynamic segment, by `readelf`). Go 1.27.4's 26 commits after go1.27.3 fix 12
+  CVEs: eleven in the toolchain (cmd/go, cgo, compile and link), which reach a build and not a
+  built binary, and CVE-2026-97054 in `net/http` (golang/go `4c1752a0`): an HTTP/1 server whose
+  handler reads a body under `MaxBytesReader` while it writes the response header could crash on
+  a race, and Mailpit wraps its API's request bodies in one (`server/server.go:363`,
+  `server/apiv1/send.go:100`). Against v1.33.1's amd64 binary, 11 of its 51 modules moved, as
+  `go.mod` says: goquery 1.13.0 → 1.14.0, axllent/ghru/v2 2.2.3 → 2.3.0, gomarkdown to its
+  commit of 2026-11-09, klauspost/compress 1.20.3 → 1.20.4, golang.org/x/crypto 0.58.0 → 0.59.0,
+  x/image 0.47.0 → 0.48.0, x/mod 0.42.0 → 0.43.0, x/sys 0.49.0 → 0.50.0, x/text 0.43.0 → 0.44.0
+  (with the fix for CVE-2026-97044, quadratic work in Punycode encoding, in its own copy of
+  idna), modernc.org/libc 1.80.1 → 1.81.2 and modernc.org/memory 1.12.1 → 1.13.0; x/net 0.62.0,
+  modernc.org/sqlite 1.62.0, the `go 1.26.0` line and every build setting but the version, the
+  revision and its time are the same. The base layer is the same blob as v1.33.1's on each
+  platform (Alpine 3.24.4), its 17 packages are the same at the same versions, and each config,
+  its dates and layer ids aside, is v1.33.1's: the same entrypoint, ports (1025, 1110, 8025) and
+  healthcheck.
+- **Read:** Mailpit's `CHANGELOG.md` at v1.34.0 and `git diff v1.33.1 v1.34.0` (110 commits, 108
+  without the two merges), for anything that makes a connection, every variable `managed.yml`
+  sets, and what the gate reads. Lines are v1.34.0's.
+  - The release check changed, and is still stopped first. `internal/stats/stats.go` asks only
+    through `fetchLatest` (`:33`), `config.GHRUConfig.Latest()`, now called from `latestVersion`
+    (`:108`), which no longer holds the lock while it asks, so a page that asks meanwhile gets the
+    cached answer, and whose backoff after errors stops at 30 minutes. `Load` still answers
+    `"disabled"` (`:159`) before that call (`:161`) when `MP_DISABLE_VERSION_CHECK` is set, read at
+    `root.go:176` (`:208` at v1.33.1, the same line) with `getEnabledFromEnv` (`:402`, the same
+    body), as `1`, `true` or `yes`. Its library, `axllent/ghru/v2` 2.3.0 (both versions' zips
+    checked against `go.sum`'s `h1:`), still asks `api.github.com` for `axllent/mailpit`'s
+    releases, now 100 to a page. The only other caller is the `mailpit version` command, which
+    nothing here runs.
+  - Every other way out changed and stays shut here. Rspamd's start ping and SpamAssassin's checks
+    (`config/config.go:597`, `:588`; SpamAssassin's checks are now cached and bounded) need
+    `MP_ENABLE_RSPAMD` or `MP_ENABLE_SPAMASSASSIN`; the webhook (`server/webhook/webhook.go:40`,
+    which now reuses its connections) needs `MP_WEBHOOK_URL`; the relay and the forward (now
+    dialled with a 10-second limit, `internal/smtpd/smtpdial.go`) need their settings; and the
+    HTML check, link check and screenshot proxy still fetch only when their API is asked, each
+    bounded further (the proxy's images and fonts to 10 MiB, its own connections closed). The
+    reverse lookup of an SMTP client's address, made before as well, now runs beside the session
+    with a 2-second limit and is kept for 5 minutes, 1 for an address with no name
+    (`internal/smtpd/smtpd.go:212`, `hostcache.go`). No package starts a request when it loads.
+  - `managed.yml` gives `mailpit` the same five variables (`MP_SMTP_AUTH_ACCEPT_ANY`,
+    `MP_SMTP_AUTH_ALLOW_INSECURE`, `MP_MAX_MESSAGES`, `MP_DATABASE`, `MP_DISABLE_VERSION_CHECK`),
+    no `command` and no `env_file`, and each is read as before. v1.34.0 removes the deprecated
+    `MP_DATA_FILE`, `MP_UI_SSL_*`, `MP_SMTP_SSL_*`, `MP_STRICT_RFC_HEADERS`,
+    `MP_SMTP_TLS_REQUIRED` and `MP_DISABLE_HTML_CHECK`, and their flags, none of which is set
+    here; and an integer variable it cannot read now stops it starting (`setIntFromEnv`), where it
+    was taken as 0, which `"500"` is not.
+- **What the gate reads.** The API the smoke and `setup-zitadel.sh` call (`GET /api/v1/messages`,
+  `GET /api/v1/search`) keeps its handlers, `GetMessages` and `Search`, both in
+  `server/apiv1/messages.go`, the same blob at both tags, as `server/apiv1/structs.go` is; and its
+  answer: `messages_count`, and each message's `Subject` and `To` from its stored metadata. A
+  search now refuses more than 100 terms (`internal/storage/search.go:23`) and holds only the page
+  it returns; the smoke asks one term at a time (an address, a run's tag or a quoted phrase), and
+  a bare term is still matched with `SearchText LIKE`, now case-folded where it was lowercased,
+  which is the same for ASCII. An HTML message's search text is still its stripped HTML with its
+  links, from a rewrite of `internal/html2text` that keeps its spacing rules and now also keeps
+  text that is the name of a skipped element. `/mailpit readyz`, the healthcheck, asks
+  the same address and path, and gives each probe 5 seconds
+  (`internal/healthcheck/healthcheck.go:22`), as the compose `timeout` does. SMTP still takes any
+  credentials, over plain text too (`internal/smtpd/main.go`); a message whose headers cannot be
+  read is now refused for good, with a 550, where it was told 451 and retried (`:237`), and
+  messages are stored 20 MiB at a time at most (`:180`), far above what the gate sends.
+- **One schema step, not one way.** The first start on the kept `mailpit_data` volume applies
+  `internal/storage/schemas/1.34.0.sql` to `mailpit.db`: one column, `MetaSearchText` on
+  `mailbox`, with a row `1.34.0` in `schemas`. Then, in the background, `backfillMetaSearchText`
+  (`internal/storage/schemas.go:285`) fills it for the kept messages, 500 at most here, and
+  `refoldSearchText` (`:195`) case-folds their search text once and records `SearchTextFolded`.
+  v1.33.1 opens that file if rolled back: `dbApplySchemas` applies only the scripts it carries
+  that have no row yet, so the `1.34.0` row changes nothing, and it names its columns in each
+  insert and select on `mailbox`, so it leaves the new column empty for what it catches, which a
+  later v1.34.0 fills at its start. Its driver, modernc.org/sqlite 1.62.0, is v1.33.1's. Nothing
+  to do before or after.
+- **Proved here:** the 150 unit test files that read a file this changes or name Mailpit pass
+  (4,715 tests), among them `a-service-that-phones-home` (41),
+  `a-pin-that-knows-it-is-behind` (122), `an-image-nobody-scanned` (65),
+  `a-float-nothing-ever-pulled` (11) and `the-mail-the-issuer-could-not-send` (25); the 24 in
+  `scripts/` that name Mailpit (972 tests), the 116 that read `managed.yml` (4,108) and the 14
+  that name the pin watch (480) are among them. With v1.33.1's reference left in the guard's pin,
+  `a-service-that-phones-home` fails on the Mailpit row alone (*Re-read what the new version sends
+  by default, then move this row*; 1 failed, 40 passed), and the file was put back from its copy,
+  `cmp` equal. The docs checks pass (`lessons.mjs`, `adr-operative.mjs`, `workplan-index.mjs`,
+  `conflict-markers.mjs`, `llms-docs.mjs` and `machine-product-name.mjs`, each with `--check`),
+  and so does ESLint on the two scripts this changes. The pin watch, run on the branch at 15:38
+  (`idp-pin-watch.mjs` without `--issue`), reads *"axllent/mailpit v1.34.0 v1.34.0 current"*. Its
+  other rows that read behind are not this move's: the identity provider (v4.20.4) and
+  Trigger.dev (v4.8.6), which the watch reports apart, and MinIO's rebuild (`7618b82b…`), the
+  Docker socket proxy (v0.6.0) and Atlas (v1.4.0), the summary issue's other rows.
+- **Not proved here:** a stack running v1.34.0. That is E2E (managed) on the branch, on the OTA
+  stack, where Mailpit is the catcher every mail assertion of the smoke reads, owed after the
+  floor and dispatched by the owner. A nightly on `main` between that run and the merge starts
+  v1.33.1 again on the same `mailpit.db`, the way back above. Nor an image scan of v1.34.0: the
+  image scans run on the weekly schedule and on a dispatch, and neither has read it yet.
 
 **2026-11-18: CI's migration lint moves to Atlas v1.4.0 on a branch, which waits for its three-day
 floor to 2026-11-20 at 15:20 UTC; built, not merged.** On the branch
@@ -176,7 +710,8 @@ it leaves `+(*a)` as it was.
 
 **2026-11-17: MinIO's digest moves to Chainguard's newest build, `59953701…`, with glibc's two
 security fixes, for alpha.11, inside its three-day floor, waived (0146 T7); built on a branch,
-not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-minio-5995`, from `main` at
+merged as #1929 (`74f028a4`).** On the branch `claude/ownpace-public-readiness-y7orc6-minio-5995`,
+from `main` at
 `cd74999d` (#1928). Read from Docker Hub's registry and API: the index, each platform's manifest
 and config and the layers that differ, every blob checked against its digest, and `634c989a…` and
 `1ec745a0…` the same way. Nothing read was run. Times are UTC.
@@ -473,7 +1008,8 @@ overrides' comment says when; the lockfile does not change. Without them `pnpm i
 socket.io-parser 4.2.7, js-yaml 4.3.2 and esbuild 0.25.12.
 
 **2026-11-14, latest still: cross-spawn 5.1.0 out of both Trigger.dev images, with every link
-pnpm made to it, for alpha.9 (0146 T16); built on a branch, not merged.** On the branch
+pnpm made to it, for alpha.9 (0146 T16); built on a branch, merged as #1909 (`368d7fc6`).** On the
+branch
 `claude/ownpace-public-readiness-y7orc6-cross-spawn`, from `main` at `6e9fbc8d` (#1908). Read from
 Trigger.dev's tag `v4.8.5` (`d412e08a`) in a sparse clone: its `pnpm-lock.yaml`, root
 `package.json`, `pnpm-workspace.yaml`, `docker/Dockerfile`, `apps/supervisor/Containerfile` and the
@@ -2847,8 +3383,8 @@ same way; nothing read was run. Times are UTC.
   `deb13u1` clears both, CVE-2026-76844 too, which its changelog does not name. The images of
   the tag, `0.2.0-alpha.7`, keep the two until a later tag.
 
-**2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built
-on a branch, not merged (0146 T11 (a); the pin watch's #1671).** On the branch
+**2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built on a
+branch, merged as #1872 (`b9b3a2f2`) (0146 T11 (a); the pin watch's #1671).** On the branch
 `claude/ownpace-public-readiness-y7orc6-mailpit-1-33-1`, from `main` at `122c86a0` (#1871); not
 merged, and E2E (managed) is owed on it before it can be, dispatched once the live deploy the
 owner has under way is done. Times are UTC.
@@ -3672,8 +4208,9 @@ Times are UTC.
   the same until the pin moves, and #1826's second run (42241841170, on the merge with `main`)
   was green. Asking the deployed version's image instead is a change for after alpha.5.
 
-**2026-11-06: the identity provider on Zitadel v4.20.1, for the owner's decision; built on a
-branch, not merged.** *(2026-11-07: for alpha.6, on the owner's yes, after the OTA instance's
+**2026-11-06: the identity provider on Zitadel v4.20.1, for the owner's decision; built on a branch,
+merged as #1829 (`d8aee36c`).** *(2026-11-07: for alpha.6, on the owner's yes, after the OTA
+instance's
 dump and E2E (managed) run 42331851832 green on the branch: 0135's Status of that day.)* On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-1`, from
 `main` at `21e9796e` (#1826). The pin watch (`scripts/idp-pin-watch.mjs` without `--issue`), run
 at about 16:00 UTC, listed the identity provider behind, v4.20.0 against v4.20.1. A Zitadel move
@@ -3700,7 +4237,7 @@ UTC.
 
 **2026-11-06: effect 3.17.1 is 3.22.4 in the Trigger.dev webapp's image, a fifth row of the
 swap table; effect 3.16.12 and 3.18.4 and body-parser 2.3.0 were read and not taken. Built on
-a branch stacked on the purge's (#1823), not merged.** On the branch
+a branch stacked on the purge's (#1823), merged as #1825 (`9857cf05`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-effect-body-parser`, from `078101bc`. Read and
 built from 12:00 UTC, committed at 12:50 UTC.
 - **Why.** Security Scan run 42213975717 (Trivy 0.76.1, linux/arm64, 11:58 UTC), of the purged
@@ -3793,7 +4330,8 @@ built from 12:00 UTC, committed at 12:50 UTC.
 
 **2026-11-06: the Debian packages nothing runs, purged from the Trigger.dev webapp's image
 too, for alpha.5 (§3 item 11, extended: a proposal pending the owner's confirmation in
-review); built on a branch, not merged; CI, the image scan and E2E (managed) are green on it.
+review); built on a branch, merged as #1823 (`8e7a95e2`); CI, the image scan and E2E (managed) are
+green on it.
 CI's first build stopped at dpkg's refusal (below), and e2fsprogs joined the list.** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-webapp-purge`, on `main` at `691b2352`
 (#1822), with `main` merged at `f42101b0` (#1819). Built under the owner's alpha.5 instruction of 2026-11-06, *"put in most of what you
@@ -4030,7 +4568,8 @@ pin's the same way. Times are UTC.
   `trigger-minio` on `aea6c163…`.
 
 **2026-11-06, later: the tasks move onto the prebuilt base (§3 item 13, the second change);
-built on a branch, not merged; CI, the image scan and E2E (managed) green.** On the branch
+built on a branch, merged as #1824 (`d7d11a58`); CI, the image scan and E2E (managed) green.** On
+the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-switch`, on `main` at `691b2352` (#1822),
 with `main` merged at `f42101b0` (#1819, the appliance without a shell) and at `2886230a`
 (#1815, #1821 and #1816, the bases). Times are UTC. The first change merged as #1818
@@ -4200,7 +4739,8 @@ platform images, each layer checked against its digest:
   this pins from 2026-11-08 08:52 UTC; E2E (managed) runs on the branch after that, and it merges
   on green. The pin watch and Dependabot's Caddy entry see it then as current.
 
-**2026-11-06: the appliance without a shell, built for alpha.5, not merged (§3 item 12).** On
+**2026-11-06: the appliance without a shell, built for alpha.5, merged as #1819 (`f42101b0`) (§3
+item 12).** On
 the branch `claude/ownpace-public-readiness-y7orc6-appliance-distroless`, from `main` at
 `a72c9908` (#1817; built and measured on `1b203759`, #1814). Owed before a merge: E2E
 (self-hosted) on the branch, on Postgres and on PGlite, and `build (selfhost)` on both
@@ -4291,8 +4831,8 @@ Times are UTC.
   the file is being changed for item 13 on another branch, so it is left as it is here.
 
 **2026-11-06: the tasks' prebuilt base, which CI builds and starts on a pull request and
-publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch, not
-merged, and not yet run by CI.** On the branch
+publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch,
+merged as #1818 (`e0ef6b55`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-ghcr`, on `main` at `a72c9908` (#1817).
 Times are UTC. Nothing the stacks run changes with it: `apps/worker/trigger.config.ts` is not
 touched, and the tasks still build on `apps/api/Dockerfile`'s FROM image with its layer.
@@ -4702,7 +5242,8 @@ alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
   about the ten); the smoke's section on a real stack (E2E (managed) on the branch).
 
 **2026-11-03, how the containers run: every service with no new privileges, its capabilities
-cut to what its own start uses, and six read-only roots (built, not merged).** The runtime half
+cut to what its own start uses, and six read-only roots (built, merged as #1803 (`19c0d8c8`)).** The
+runtime half
 of the owner's *"make base images more lean/small and more hardened"* of 2026-11-03. On the
 branch `claude/ownpace-public-readiness-y7orc6-compose-hardening`: `managed.yml`, `www.yml` and
 the appliance's `compose.yml`, the guard `a-privilege-no-service-uses`, *How the containers
@@ -7928,7 +8469,7 @@ is who moves it after T1.
 | `ghcr.io/zitadel/zitadel` | `managed.yml` | v4.20.3 (2026-11-13; merged 2026-11-14 as #1897, `0b870941`, for alpha.8 on the owner's *"A"*, after their dump of the OTA instance, E2E (managed) run 43559644844 on the branch and their hand check of login v1 on the OTA stack: eight fixes that read as security fixes, two of them on paths people here take, login v1's authorization code and the host handling every request passes; twelve commits after v4.20.2, no setup step expected; upstream's advisories unread; the Status entries of 2026-11-13 and 2026-11-14, and 0135's); v4.20.2 before it (2026-11-12, merged 2026-11-13 as #1877, `c1db4c6a`, a security fix: go-jose 4.1.4 → 4.1.7 for CVE-2026-116587, the scans' high since 2026-11-02; six commits after v4.20.1 and no setup step; after the owner's dump of the OTA instance and E2E (managed) on its branch; the Status entry of 2026-11-12, and 0135's); v4.20.1 before it (2026-11-07, #1829, for alpha.6 on the owner's yes, after the OTA instance's dump and E2E (managed) run 42331851832 on the branch: ten commits after v4.20.0, no advisory and no setup step; the Status entry of 2026-11-06, and 0135's of 2026-11-07); v4.20.0 before it (2026-10-25, #1680, `359f8e96`: the Go 1.26.10 build that closes an unauthenticated CPU hole in the console, 0135 T7; this row said v4.19.2 until 2026-11-02, when the week's scan named v4.20.0's one high, the Status entry of that day); v4.19.5 before it (2026-10-22, #1651, `721c6ea8`, three security fixes read commit by commit), v4.19.4 before that (2026-10-05, #1528, `502c52fa`), and v4.19.2 before those (2026-09-28, the patch after v4.19.1, whose three security fixes are in nothing this stack switches on; v4.19.1 before that, #1285, for GHSA-4hgj-wm6c-q7p2) | v4.20.3 (a lightweight tag; its tip commit of 2026-11-13 at 11:55 UTC, read 2026-11-13) | current | owner; releases and advisories watched, and the pin watch keeps its issue (#1643 at first, #1887 since 2026-11-13) open while the pin is behind the newest release (0135 T7, 0146 T8) | **§3, taken** — migrates its schema on boot on the persistent stack, so the gate run in the owner's window applies it |
 | `busybox` | `managed.yml`; `smoke-managed.sh`, `bootstrap-managed.sh`, `setup-zitadel.sh`, `idp-strays.sh`; one test pins the printed command | 1.38, floating (T2; 1.37 at the audit), the one float `a-float-nothing-ever-pulled` names, with its reason; read again on 2026-11-13 with the registry's pin and left, because the scripts run the same image by its tag (Status, 2026-11-13) | 1.38 (1.38.0), its index `a46257e0…` pushed 2026-10-28 22:58 UTC (read 2026-11-13) | current | by hand, the compose line and the scripts together; the pin watch says when either is behind (0146 T8) | **T2** |
 | `ghcr.io/twin/gatus` | `managed.yml` | v5.38.0 (2026-10-30, a day before its floor under the security-fix exception: Status, 2026-10-29 and 2026-10-30; before it v5.37.0 from 2026-10-21) | v5.38.0 (2026-10-28) | current | by hand, when the pin watch's summary issue says (0146 T8) | — |
-| `axllent/mailpit` | `managed.yml` | v1.33.1 by digest `aef2aacc…` (2026-11-11, the patch kept current, past its floor, no finding to clear; merged 2026-11-12 as #1872, `b9b3a2f2`, after E2E (managed) run 43196912718 on its head: Status, 2026-11-11); v1.33.0 by digest `9b3a463b…` before it (2026-11-03, the minor kept current; merged as #1796 at 02:51 UTC, `21fa6ff8`, after E2E (managed) run 41566706312 was green on its head, in alpha.4: Status, 2026-11-03, records); v1.32.0 by digest `0790692b…` before that (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.33.1 (2026-11-07, pushed 23:54 UTC; also `latest` on 2026-11-11), digest `aef2aacc…` | current — *was:* one patch behind, read by the pin watch on 2026-11-09, inside its three-day floor until 2026-11-10 23:54 UTC (Status, 2026-11-11) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
+| `axllent/mailpit` | `managed.yml` | v1.34.0 by digest `23a2ef85…` (2026-11-18, the minor kept current, with the fix for GHSA-v887-64wg-qqc9, which v1.33.1 brought in; on the branch `claude/ownpace-public-readiness-y7orc6-mailpit-1-34-0`, not merged, waiting for its floor, then E2E (managed) on the branch: Status, 2026-11-18); v1.33.1 by digest `aef2aacc…` before it (2026-11-11, the patch kept current, past its floor, no finding to clear; merged 2026-11-12 as #1872, `b9b3a2f2`, after E2E (managed) run 43196912718 on its head: Status, 2026-11-11); v1.33.0 by digest `9b3a463b…` before that (2026-11-03, the minor kept current; merged as #1796 at 02:51 UTC, `21fa6ff8`, after E2E (managed) run 41566706312 was green on its head, in alpha.4: Status, 2026-11-03, records); v1.32.0 by digest `0790692b…` before those (2026-10-25, for CVE-2026-111943 in v1.31.6's Go, 0146 T11 (a); v1.31.6 from 2026-10-21, v1.31.1 from T2) | v1.34.0 (2026-11-17, pushed 07:07 UTC; also `latest` on 2026-11-18), digest `23a2ef85…` | current on the branch — *was:* one minor behind, read by the pin watch on 2026-11-18; inside its three-day floor until 2026-11-20 07:07 UTC, which the merge waits for (Status, 2026-11-18) | by hand, when the pin watch's summary issue says (0146 T8) | **T2** — a mail catcher for the gate |
 | `nextcloud` | `managed.yml`, `dev.yml`, the Testcontainers setup | 35.0.3-apache by digest `8a7a65b8…` (2026-11-14: pushed 01:54:42 UTC with linux/amd64 and linux/arm64 and no riscv64 yet, on `php:8.5.12-apache-trixie`'s build of 2026-11-05; inside its floor, which ends 2026-11-17 01:54:42 UTC and is waived for alpha.10; merged 2026-11-15 as #1907 (`fe067273`), the demo's volume upgraded by E2E (managed) run 43695259732; the fixes for 3 of the scan's 8 criticals, libopenexr's two and CVE-2026-99083, not apache2's CVE-2026-119618; one way, a patch as a major: Status, 2026-11-14, latest); before it 35.0.2-apache by digest `e0b1a2af…`, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC) on Debian's snapshot of 2026-10-27, with `libbrotli1` 1.1.0-2+deb13u1 for the critical CVE-2026-111497, taken 2026-10-30, a day before its floor, under the security-fix exception (Status, 2026-10-29 and 2026-10-30); before it `89af7ee7…` since 2026-10-28 (T5; #1720, `3d2f129e`, the owner's OK of 2026-10-26 for alpha.3; the OTA volume upgraded by E2E (managed) run 40774398411); before it 34.0.5-apache by digest `1f9212ad…` (2026-10-25, upstream's rebuild of 2026-10-23 with `session.upload_progress.enabled=0`, PHP's mitigation for CVE-2026-115560; `9dbdc711…` from 2026-10-22, `34-apache` floating before, never pulled) | 35.0.3 (tagged 2026-11-12) on PHP 8.5.12, read 2026-11-14 | current | by hand, in its own PR, when the pin watch lists a newer 35.x (34.x before the move) or the image scan counts fixable findings; its branch E2E only when it is ready to merge, merged before the next nightly | **pinned 2026-10-22** (§4); a fixture and a demo target; a major is the owner's. One way: the image upgrades the demo's volume and its database and refuses an older image on them, so a bad move is fixed forward or put back from a copy taken before it (`managed-bring-up.md`, *Updating a running deployment* and *A Nextcloud major on the OTA stack*) |
 | `nextcloud` (the second major) | `.github/workflows/nextcloud-second-major.yml` `NEXTCLOUD_IMAGE` (2026-10-25, T5) | 34.0.6-apache by digest `3031e7f8…` since 2026-11-14 (pushed 01:52:58 UTC with linux/amd64 and linux/arm64; inside its floor, which ends 2026-11-17 01:52:58 UTC and is waived for alpha.10; its first fourteen layers 35.0.3's, its Debian packages 35.0.3's version for version: Status, 2026-11-14, latest); before it 34.0.5-apache by digest `515c072e…` from 2026-11-01, upstream's rebuild of 2026-10-28 (Docker Hub push 16:51 UTC, three days old on 2026-10-31; what `34-apache` named that day, read on mirror.gcr.io and Docker Hub), whose Debian and PHP 8.5.12 layers are the same blobs as the demo's 35.0.2 `e0b1a2af…`, with libbrotli's fix for the critical CVE-2026-111497; before it `1f9212ad…` (PHP 8.5.12) from 2026-10-28, flipped in the pull request that moved the demo (T5; #1720, `3d2f129e`, after E2E (managed) run 40774398411 upgraded the OTA volume); before it 35.0.2-apache by digest `89af7ee7…` from 2026-10-26, 35.0.1 from 2026-10-25 | 34.0.6 (tagged 2026-11-12), read 2026-11-14 | current | by hand; the pin watch reads no workflow file (§4) | a CI fixture: the other major customers may run (35 while the demo ran 34, 34 since), never deployed |
 | `ghcr.io/robbes/ownpace-selfhost` | `deploy/selfhost/compose.yml` | `edge` | ours | — | `images.yml` | — |
@@ -8972,6 +9513,16 @@ is beside each; none is urgent tonight.
     Release's verify, a pull request job, the pin watch and the managed smoke follow it; E2E
     (managed) and the image scan dispatched on that branch are what is owed before it merges
     (the Status entry of 2026-11-06, later).
+14. **Exact apk and apt package versions — NO; hadolint in CI — YES, REPORT ONLY FIRST,
+    2026-11-19.** The read-only check of 2026-11-19 listed packages installed without a
+    version (hadolint's DL3008 and DL3018), and its rules were read by hand, since nothing here
+    ran hadolint. **The owner's decisions:** no exact pins, since every base is pinned by its
+    index digest, the image scan reports a package left behind its fix, and an exact version
+    breaks the next fresh build the day the distribution drops it; and hadolint in CI, report
+    only first, blocking only after the two Trigger.dev Dockerfiles
+    (`deploy/compose/trigger.dev/Dockerfile`, `deploy/compose/supervisor/Dockerfile`) have had
+    their pass. Built as `.github/workflows/hadolint.yml`, with `.hadolint.yaml` ignoring those
+    two rules and nothing else (the Status entry of 2026-11-19 on hadolint).
 
 ## 4. Not done, honestly
 

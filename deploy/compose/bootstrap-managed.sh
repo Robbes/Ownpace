@@ -1811,8 +1811,10 @@ phase_trigger() {
   # (0146 T7). `--wait` takes that exit as done, not as a container that
   # stopped, because trigger-api waits for it with
   # service_completed_successfully. It is named here so a failure prints its log.
+  # trigger-tls-init is the same (2026-11-19, workplan 0119): it gives
+  # trigger-tls's volumes to uid 65532, and trigger-tls waits for it.
   up_wait trigger-redis clickhouse minio minio-init trigger-registry \
-    trigger-docker-proxy trigger-api trigger-tls
+    trigger-docker-proxy trigger-api trigger-tls-init trigger-tls
   # mc's own last line from the one-shot, which names the bucket: the run's
   # record that `packets` is there. A note, not a verdict: up_wait above has
   # already failed this phase if minio-init did not exit 0, so a log that
@@ -2294,7 +2296,7 @@ phase_app() {
   local services=(
     postgres pgbouncer
     trigger-db trigger-redis clickhouse minio minio-init trigger-registry
-    trigger-docker-proxy trigger-api trigger-tls trigger-supervisor
+    trigger-docker-proxy trigger-api trigger-tls-init trigger-tls trigger-supervisor
     # The identity provider (ADR-0042). It was in managed.yml from #496 and NOT
     # in this list, so it was defined, interpolated, required in .env — and
     # never started. Every compose command had to satisfy ZITADEL_MASTERKEY for

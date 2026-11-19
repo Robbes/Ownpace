@@ -1,8 +1,8 @@
 # Workplan 0006 — Intermediate remediation: repo integrity & findings outside the plan
 
-> **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`.
+> **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, errors caught and dropped.
 
-## Status — all done (rows corrected 2026-08-01; the work landed long before, this block was never flipped)
+## Status — 2026-11-19: A to I done (rows corrected 2026-08-01, the work having landed long before); J built on a branch, not merged
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -14,6 +14,7 @@
 | G — Compose duplication & Postgres version drift (root vs `deploy/compose`) | ✅ Done — root compose removed; `deploy/compose/managed.yml` is the one source | approved |
 | H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
 | I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
+| J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | 🔨 Built 2026-11-19 on branch `claude/ownpace-public-readiness-y7orc6-bl-errors`, not pushed: 23 sites changed, 2 left as they were (nothing swallowed); the unit and web tests, both type checks and lint green; the three JMAP integration files changed are CI's to prove. See §J | asked for, 2026-11-19 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -198,6 +199,50 @@ absolute `--config C:\...\mapping.json` gets mangled. The README's documented in
 against the dev stack.
 
 **Acceptance.** `--config` works with relative-to-cwd and absolute paths; quickstart verified.
+
+---
+
+## J — Errors caught and dropped (a check for swallowed errors, 2026-11-19)
+
+**Evidence.** The owner ran a read-only check for errors that are silently swallowed (ERR-1: an
+empty `catch`, a broad catch that neither logs nor passes the error on, an async call nobody
+awaits, a promise without error handling) on `main` at `646b9de2`. Its findings were handed on
+as 26, and the list names 25: seven in product code, five in `scripts/jmap-target-spike.ts` and
+thirteen in tests. Each was read again on `81558fd5`, whose one change since (#1940) touches none
+of those files, and judged a real bug, an error that is expected, or nothing swallowed. A comment
+beside an empty catch was not taken as a fix, and nothing was suppressed.
+
+**Done (2026-11-19).** By site, with the line on `646b9de2`:
+
+| Site | What it was | What changed | Shown by |
+|---|---|---|---|
+| `apps/web/src/pages/Confirmed.tsx:674` | A real bug. A failed read of the runs before *Read everything back* read as "no pass before this one", the pass started, and the watch could take the last pass for it | The failure reaches the press's own catch: the screen's error, and nothing started | `Confirmed.unit.test.tsx`, *says a read of the runs that failed* |
+| `packages/core/src/domain-sync.ts:143` | A real bug. A window the ledger could not read was dropped without a word: the pass slowed to a round trip per item with nothing saying why | The same fallback, and a `[sync] <domain>:` warning with the error | `copied-items-asked-a-window-at-a-time.unit.test.ts`, *says in the log why* |
+| `apps/selfhost/src/index.ts:2931`, `:3589` | Expected: a body that is not JSON (`SyntaxError`), answered by the door's own 400. But a body the client cut short was answered 400 too, to nobody, and logged nowhere | `readJsonOrNone`: only the `SyntaxError` reads as no body; anything else reaches the handler's catch, which logs it | `a-body-cut-short-on-the-appliance.unit.test.ts` |
+| `apps/web/src/pages/MappingDetail.tsx:172` | Expected: a visit that was not recorded, which 0157 T7 does not show | Only a failed request (`axios.isAxiosError`) is let go; anything else is thrown | `MappingDetail.unit.test.tsx`, *throws a failure that is not the request's* |
+| `apps/web/src/pages/StartMigration.tsx:1587` | Expected: a removal the server did not make, which leaves the row in the list read again | The same, for a failed request only; anything else is thrown | `StartMigration.unit.test.tsx`, *when the account a failed check left is not removed* |
+| `apps/web/src/services/unreadable-answer.ts:67` | Expected: a report the network did not carry (`TypeError`), which is not kept | Only that; anything else is thrown | `an-answer-the-page-could-not-read.unit.test.tsx`, *throws a failure to send* |
+| `scripts/jmap-target-spike.ts:364`, `:459`, `:947`, `:1124`, `:1135` | Expected: a clean-up that never reached the server (`TypeError`) | `cleanUpNotReached`: said on an `ERROR` line, since the account may keep what the step made; anything else is thrown | Run against a stand-in server that drops every destroy: five clean-ups said, where none were |
+| `apps/web/src/pages/an-acceptance-before-the-first-connection.unit.test.tsx:164` | Expected: the door's 409 the test makes | Only `isConditionsNotAccepted`; anything else fails the test | its two door tests; a 500 from the door now fails them |
+| `packages/connectors/src/imapflow-source.unit.test.ts:487`, `:519` | Expected: the failed fetch each test sets up | `expect(...).rejects.toThrow(...)`, by the message the tests beside them match | the two tests |
+| `packages/managed/src/claim-invitation-under-rls.unit.test.ts:205`, `:391` | Expected: the policy refusing. Both UPDATEs resolve with 0 rows, and a statement that never ran passed as well: with a misspelt table all 21 tests passed | Only `violates row-level security policy`; anything else fails the test | the two tests; the misspelt table now fails |
+| `packages/core/src/apply-relocation.unit.test.ts:571` | Expected: nothing, as the in-memory ledger only resolves | The catch goes | the test |
+| `packages/connectors/src/jmap-contact-target.integration.test.ts:122`, `jmap-file-target.integration.test.ts:107`, `:108` | Expected: nothing that can be thrown, as an id already gone comes back inside the server's 200 | The catch goes: a clean-up that did not happen fails the hook | CI's integration job |
+| `packages/connectors/src/jmap-mailbox-creation.integration.test.ts:125`, `:126` | Expected: a DELETE the server refuses (`imapRefusalDetail`) | Only that, per mailbox; the outer catch goes | CI's integration job |
+| `apps/api/src/routes/connection-delete-revokes.integration.test.ts:332`, `apps/api/src/routes/tenants/members.integration.test.ts:563` | Nothing swallowed: the requests are awaited by `Promise.all` a few lines on, which rejects with their error | Nothing | — |
+
+Each product-code test failed with its fix undone and passed with it. Where a catch was narrowed,
+throwing everything instead fails the test of the expected path too. Gates: the unit and web test
+projects, both type checks, eslint on every changed file, and the index and history checks.
+
+**Not done.** The same shapes stand where the check did not name them, and are left as they
+were: 24 more one-line `.catch(() => undefined)`, `null` or `{}` (most drain a response body or
+close a handle, as best effort), the five `readJson(req).catch(() => ({}))` and the catch of
+`POST /unreadable-answers` in `apps/selfhost/src/index.ts`, the spike's CardDAV `DELETE`
+clean-up (its `.catch(` and `() => undefined` stand on two lines), the poll's catch in
+`Confirmed.tsx`, and the two comment-only catches in `unreadable-answer.ts`. And
+`destroyJmapFixtures` reads only the HTTP status, so a destroy the server refuses inside its 200
+(`notDestroyed`) still passes unsaid.
 
 ---
 

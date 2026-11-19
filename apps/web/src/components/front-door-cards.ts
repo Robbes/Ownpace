@@ -154,6 +154,10 @@ export const TARGET_CARDS = [
   // Nextcloud still needs them, and somebody with an atypical Nextcloud path
   // may still prefer them.
   { id: 'nextcloud', name: 'Nextcloud', hintKey: 'account.proto.nextcloud.hint', guide: 'nextcloud#nextcloud' },
+  // Soverin's card for another provider (workplan 0160): one account, its
+  // published servers pre-filled. Its hint says what it does not take, as
+  // Nextcloud's does, because a person moving files will look for Drive.
+  { id: 'cirrux', name: 'Cirrux', hintKey: 'account.proto.cirrux.hint', guide: 'cirrux#cirrux' },
 ] as const satisfies ReadonlyArray<FrontDoorCard>;
 
 export type SourceCard = (typeof SOURCE_CARDS)[number];

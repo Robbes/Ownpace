@@ -139,6 +139,15 @@ const NOT_REQUIRABLE = new Map([
       'PR touching none of those paths the workflow never runs and the context is never reported. A PR that moves ' +
       "the pin does run it, and E2E (managed) is dispatched on its branch, which deploys the tasks on that base.",
   ],
+  // hadolint.yml (workplan 0119, the owner's decision of 2026-11-19):
+  // hadolint over every Dockerfile, report only until the two Trigger.dev
+  // Dockerfiles have had their pass.
+  [
+    'hadolint (report only)',
+    'hadolint.yml reports on every pull request and fails none of them, whatever hadolint finds: it is ' +
+      'report only until the two Trigger.dev Dockerfiles have had their pass (workplan 0119), so requiring it ' +
+      'would gate nothing. When it turns blocking it is required, under the name it takes then.',
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:

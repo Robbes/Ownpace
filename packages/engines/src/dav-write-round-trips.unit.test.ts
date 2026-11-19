@@ -44,7 +44,7 @@ interface Call {
 }
 
 /** A CalDAV collection holding `existing` UIDs, counting every request. */
-function calServer(existing: string[]) {
+function calServer(existing: string[], options: { mailsGuests?: boolean } = {}) {
   const calls: Call[] = [];
   const present = new Set(existing);
 
@@ -83,7 +83,7 @@ function calServer(existing: string[]) {
   } as unknown as HttpClient;
 
   const writer = new CalDAVTargetWriter(
-    { url: BASE, username: 'alice', password: 'pw' },
+    { url: BASE, username: 'alice', password: 'pw', ...options },
     { domain: 'calendar', ledger: emptyLedger, tenantId: TENANT, mappingId: MAPPING, httpClient: client },
   );
   return { writer, calls, present };
@@ -524,5 +524,22 @@ describe('the calendar writer neutralises scheduling on the wire', () => {
     const body = String(calls.find((c) => c.method === 'PUT')!.body);
     expect(body).toContain('SCHEDULE-AGENT=NONE');
     expect(body).not.toContain('SCHEDULE-AGENT=CLIENT');
+  });
+
+  // Cirrux mailed invitations on 2026-11-19 for events whose every attendee
+  // carried SCHEDULE-AGENT=CLIENT (workplan 0160). A target that mails guests
+  // whatever the marker says is handed nobody to mail.
+  it('PUTs no attendee and no organiser to a target that mails guests anyway, and names them in a comment', async () => {
+    const { writer, calls } = calServer([], { mailsGuests: true });
+    await writer.upsertCalendarEvent('calendars/alice/personal/', {
+      icalendar:
+        'BEGIN:VCALENDAR\r\nBEGIN:VEVENT\r\nUID:sched-3\r\nSUMMARY:s\r\n' +
+        'ORGANIZER;CN=Boss:mailto:boss@example.com\r\nATTENDEE:mailto:a@example.com\r\n' +
+        'END:VEVENT\r\nEND:VCALENDAR',
+    } as never);
+    const body = String(calls.find((c) => c.method === 'PUT')!.body);
+    expect(body).not.toMatch(/^(ATTENDEE|ORGANIZER)[;:]/m);
+    expect(body).toContain('COMMENT:Organised at the source by: Boss <boss@example.com>');
+    expect(body).toContain('COMMENT:Invited at the source: a@example.com');
   });
 });

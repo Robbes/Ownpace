@@ -140,6 +140,9 @@ const PersonSchema = z.object({
   displayName: z.string().nullable(),
   email: z.string().nullable(),
   createdAt: z.string().nullable(),
+  // The signed-in member's own person (ADR-0050, amended 2026-11-19): what
+  // *Who is it for?* chooses first. The server says it; no account id comes.
+  you: z.boolean(),
   migrations: z.array(PersonMigrationSchema),
   counts: z.object({
     paused: z.number(),
@@ -170,6 +173,20 @@ export async function addMigrationToPerson(personId: string, mappingId: string):
   return PersonSchema.parse(
     (await client.post(`/people/${encodeURIComponent(personId)}/migrations`, { mappingId })).data,
   ) as Person;
+}
+
+/**
+ * *This is me*: the person becomes the signed-in member's own, and any other
+ * of theirs stops being so. Managed only. Who the member is comes from the
+ * sign-in, so nothing is sent but the person.
+ */
+export async function markMyself(personId: string): Promise<Person> {
+  return PersonSchema.parse((await client.put(`/people/${encodeURIComponent(personId)}/myself`)).data) as Person;
+}
+
+/** *This is not me*: only the signed-in member's own link is undone. */
+export async function unmarkMyself(personId: string): Promise<Person> {
+  return PersonSchema.parse((await client.delete(`/people/${encodeURIComponent(personId)}/myself`)).data) as Person;
 }
 
 /**

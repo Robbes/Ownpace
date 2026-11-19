@@ -154,6 +154,17 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
     contact: 'dav',
     task: 'dav',
   },
+  // Soverin's builders, for Soverin's reason (workplan 0160): Cirrux serves
+  // mail over IMAP and calendars, contacts and Reminders over CalDAV and
+  // CardDAV with one app password. Cirrux arrives as a destination, and no
+  // door offers it as a source; this row is here because the account table
+  // serves both roles, so a face it could claim has a builder.
+  cirrux: {
+    email: 'imap',
+    calendar: 'dav',
+    contact: 'dav',
+    task: 'dav',
+  },
 };
 
 /**

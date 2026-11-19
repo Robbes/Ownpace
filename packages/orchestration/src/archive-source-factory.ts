@@ -26,6 +26,7 @@
 import {
   ARCHIVE_PROVIDERS,
   archiveInJmapTargetSentence,
+  archiveInTargetRefusal,
   archiveProviderName,
   parseArchiveSource,
   type ArchiveProvider,
@@ -158,10 +159,16 @@ export function buildArchiveSourceFrom(
  * those can be acted on.
  */
 export function archiveStoreInTarget(
-  protocol: 'webdav' | 'jmap',
+  protocol: 'webdav' | 'jmap' | 'cirrux-drive',
   endpoint: DavEndpoint,
   targetKind: string,
 ): ArchiveStore {
+  if (protocol === 'cirrux-drive') {
+    // Cirrux Drive is written to, and no export is read from it (workplan
+    // 0160 T5): the shared sentence says so and names the destinations that
+    // can serve one.
+    throw new Error(archiveInTargetRefusal('cirrux') ?? archiveInJmapTargetSentence(targetKind));
+  }
   if (protocol !== 'webdav') {
     // The sentence is shared (0148 T9): the create door and the wizard's
     // target step refuse a JMAP destination in these words before any pass
