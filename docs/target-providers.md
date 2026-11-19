@@ -94,9 +94,12 @@ Soverin follows RFC 6154 for special-use mailbox names:
 ## Cirrux
 
 The `cirrux` account kind (workplan 0160): Soverin's shape, one app password reaching mail over
-IMAP and calendars, contacts and task lists over CalDAV and CardDAV. Every value below was read
-from Cirrux's own help pages on 2026-11-19; the page is named beside each one. ⏳ Built and held
-by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's run).
+IMAP and calendars, contacts and task lists over CalDAV and CardDAV, and **files in Cirrux Drive
+through a person's OAuth sign-in stored on the same account** (0160 T5; ADR-0052), where the
+deployment has a Cirrux client. Every value below was read from Cirrux's own help pages on
+2026-11-19; the page is named beside each one. ⏳ Built and held by unit tests; not yet run
+against a live Cirrux mailbox (0160 T2) or a live Cirrux client (0160 T2b): both are the owner's
+runs.
 
 ### Provider Details
 
@@ -162,7 +165,7 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
 5. **No published limits** on message or attachment size, or on IMAP and DAV request rates.
    The HTTP API's limit is 600 requests a minute per token (`https://cirrux.co/help/api`).
 
-### What is not reachable without Cirrux's HTTP API
+### What is reached through Cirrux's HTTP API
 
 - **Drive** (`https://cirrux.co/help/api/drive`): no WebDAV. The API needs a **user-scoped
   OAuth token**; a workspace API key (`cxk_…`) is refused. Scopes `drive.read`, `drive.create`,
@@ -170,7 +173,14 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
   up to 2 GiB, go chunked with client-side AES-256-GCM in Cirrux's `CXDRV2` format. Names are
   unique per folder ignoring case and Unicode form; `base_ctag` refuses a stale replace with
   `409 version_conflict`; trash keeps items 30 days; `/v1/drive/changes` is a delta feed.
-  0160 T5.
+  **Built as a files target** (0160 T5): the consent door
+  `/api/migrations/cirrux/authorize` and `/callback` stores the refresh token on the account;
+  every refresh rotates it and writes the successor back under the row's lock (ADR-0052); the
+  scopes asked are `user.profile workspace.read drive.read drive.create drive.update
+  drive.delete`, and `drive.delete` only moves a file to the trash after a person approved its
+  removal. The two clients the owner asked Cirrux for: the live callback
+  `https://app.ownpace.eu/api/migrations/cirrux/callback` and the OTA callback
+  `https://app.ota.ownpace.eu/api/migrations/cirrux/callback`.
 - **Docs** (`https://cirrux.co/help/docs`, `https://cirrux.co/help/api/documents`): Cirrux's
   own editor, in preview for accounts given early access; documents are stored in Drive and
   read and written as Markdown. A Word or OpenDocument file migrated into Drive stays a file.

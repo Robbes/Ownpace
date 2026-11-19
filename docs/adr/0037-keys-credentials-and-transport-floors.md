@@ -3,7 +3,7 @@
 - **Status:** Accepted 2026-08-19 — owner decisions in conversation, same exchange that
   resolved ADR-0034's open questions. Provenance is stated per decision; the one place the
   owner's instruction was adjusted rather than transcribed is decision 6, and it is flagged
-  there for overrule.
+  there for overrule. Amended once (2026-11-19, by ADR-0052).
 - **Date:** 2026-08-19
 - **Deciders:** owner
 - **Relates to:** [ADR-0034](./0034-appliance-configuration-surface.md) (amended the same
@@ -124,3 +124,11 @@ floor everywhere anyway, the change is one constant and this section's supersess
   moves (K8s-shaped), through the same env provider.
 - One lifecycle rule crosses the doors: deleting a file-declared connection revokes or parks
   its stored credential via the existing `revokeStoredCredentials` path — never orphans it.
+
+## Amendment log
+
+- **2026-11-19** — Amended by [ADR-0052](./0052-a-rotating-refresh-token-is-written-back.md): a
+  pass may now WRITE a stored credential, for a provider whose refresh tokens rotate (Cirrux
+  Drive), and it does so through this one store: the same `SecretStore`, column and key, by a
+  compare-and-swap on the ciphertext it read, under the connection row's lock. Nothing else about
+  the store changes. Record: ADR-0052, decisions 1 to 4.

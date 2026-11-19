@@ -1,6 +1,6 @@
 # Workplan 0160 — Cirrux as a destination
 
-> **In one line:** Cirrux, a Dutch workspace hosted in Frankfurt, as a place to migrate into: mail, calendars, contacts and tasks over the IMAP and DAV servers it publishes, and its Drive, which only its own OAuth API reaches, as a later connector.
+> **In one line:** Cirrux, a Dutch workspace hosted in Frankfurt, as a place to migrate into: mail, calendars, contacts and tasks over the IMAP and DAV servers it publishes, and files into its Drive through its own OAuth API, a sign-in a person adds to the account.
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
@@ -17,6 +17,24 @@ migration. For a Cirrux target the calendar and task writers now write no guest 
 each becomes a comment that names the person (§5). The events written before the pause keep
 their guests at Cirrux, and are left as they are: Cirrux emails every guest a cancellation when
 such an event is deleted (*What the owner does*).
+
+**2026-11-19, T5: built, to 2 GiB** (§6; ADR-0052). Both blockers are decided. A pass may
+write a rotating refresh token back, for a provider whose tokens rotate, one refresh at a time per
+connection, through the one credential store, by a compare-and-swap on what it read. And
+Cirrux's client is one public client per deployment, PKCE `S256` and no secret, registered by
+Cirrux by hand; two are requested, for the live callback
+`https://app.ownpace.eu/api/migrations/cirrux/callback` and the OTA callback
+`https://app.ota.ownpace.eu/api/migrations/cirrux/callback`, with the scopes `user.profile
+workspace.read drive.read drive.create drive.update drive.delete`. Built: the consent door
+(`/api/migrations/cirrux/authorize` and `/callback`), which stores the grant on the account; the
+rotating write-back under the connection row's lock; the file face of the `cirrux` kind, which
+exists only once a grant is stored and is a measured no without one, or without the deployment's
+client (`CIRRUX_OAUTH_CLIENT_ID`); the Drive writer, to 100 MB in one request and to 2 GiB
+through the chunked upload, each part encrypted here in `CXDRV2` and streamed; *Connect Cirrux
+Drive* on the Accounts page; *Where does it go?* offering a saved Cirrux account for files once
+its Drive is measured; the words in both languages.
+Not proven: anything against a live Cirrux client (T2b, §6b). Where Cirrux's pages are
+ambiguous, §6 says what the code assumes and how it fails if that is wrong.
 
 **2026-11-19, later again: T3's third correction.** With the second correction on the test
 environment, the calendar pass found the calendar home and made the source's calendar: Cirrux
@@ -74,7 +92,8 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 | T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, calendars with a 404, then each event with a 404, each corrected in T3; then Cirrux emailed the guests of the events written, and the migration is paused; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
 | T3 What T2 corrects | builder | 🔨 **Four corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it; nothing written to Cirrux names a guest or an organiser | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
-| T5 Files into Cirrux Drive | builder, owner | ⛔ **Blocked**: an OAuth client only Cirrux issues, and a decision about rotating refresh tokens | §6. The API is documented in full; the connector is not written against it until both blockers are gone. |
+| T2b The first live Drive test | owner | 📋 **Proposed** | §6b: once Cirrux has sent the OTA client, its ID in the OTA stack's `.env`, *Connect Cirrux Drive*, one small migration of files, a replace, a conflict, an approved removal, and a refresh after fifteen minutes. |
+| T5 Files into Cirrux Drive | builder, owner | 🔨 **Built 2026-11-19, to 2 GiB** | §6; ADR-0052. The consent door, the rotating write-back one refresh at a time, the face and its Test, the writer (simple upload to 100 MB; the chunked upload to 2 GiB and every replace in Cirrux's `CXDRV2` format, streamed; `base_ctag`; the trash for approved removals), the Accounts page's button. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
 
 ## 1. What Cirrux publishes (T0)
@@ -142,8 +161,9 @@ workspace API key reaches mail and the workspace only, and this product writes m
 with an app password; it cannot reach Drive, calendars, contacts, tasks or documents. The one
 webhook event reports mail arriving in a mailbox, does not fire for imported mail, and a one-way
 migration into Cirrux has nothing to do with it. What T5 needs instead is an **OAuth client ID**
-from Cirrux (§6), requested with the scopes `user.profile`, `drive.read`, `drive.create` and
-`drive.update`, and `drive.delete` only if owner-approved removals should reach Cirrux Drive.
+from Cirrux (§6), one per deployment, requested with the scopes `user.profile workspace.read
+drive.read drive.create drive.update drive.delete`. `drive.delete` is used only to move a file
+to the trash when a person approved removing it because it was deleted at the source.
 
 **Cirrux's own sync.** Cirrux Sync copies mail, calendars and contacts from Google or from one
 person's Microsoft account into Cirrux, one way, every hour; it leaves Google Drive and OneDrive
@@ -299,41 +319,196 @@ plausible stored row for the face-building guard.
   alone while its source is unchanged; one that changes at the source is written again without
   its guests, and Cirrux may then email them an update or a cancellation.
 
-## 6. T5 — files into Cirrux Drive (the API's documented shape)
+## 6. T5 — files into Cirrux Drive (built, to 2 GiB)
 
-From `https://cirrux.co/help/api/drive`, read 2026-11-19, under `https://api.cirrux.co/public_api/v1/drive`:
+From `https://cirrux.co/help/api/drive` and `https://cirrux.co/help/api`, read 2026-11-19, under
+`https://api.cirrux.co/public_api/v1`: a user-scoped OAuth token (a workspace API key is
+refused); folders by `POST /drive/folders` and listed by `GET /drive/files?folder_uuid=`; names
+unique among live siblings ignoring case and Unicode form; a simple upload of base64 JSON up to
+100 MB; a chunked upload up to 2 GiB, encrypted by the client in Cirrux's `CXDRV2` format; a
+replace under `base_ctag`, which answers `409 version_conflict`; `POST …/trash`, restorable for 30
+days, and a permanent `DELETE` this product never sends; `content_modified_at`; `GET
+/workspace/storage`; 600 requests a minute per token.
 
-- **Auth**: a user-scoped OAuth access token; a workspace API key is refused. Scopes
-  `drive.read`, `drive.create`, `drive.update`, `drive.delete`.
-- **Folders**: `POST /v1/drive/folders` (`name`, `parent_uuid`); `GET /v1/drive/files?folder_uuid=`
-  lists children. Names are unique among live siblings ignoring case and Unicode form, at most 255
-  characters, a slash allowed (`422 name_taken`).
-- **Upload**: `POST /v1/drive/files` with base64 JSON, up to 100 MB; above that, up to 2 GiB,
-  `POST /v1/drive/uploads` → `part_urls` → PUT each chunk to a presigned URL → `complete`, with
-  AES-256-GCM encryption done by the client in Cirrux's `CXDRV2` wire format (16-byte header,
-  5 MiB chunks, a fixed AAD layout), and a 24-hour expiry.
-- **Update**: `POST /v1/drive/files/{uuid}/replace` with `base_ctag`, which refuses a stale
-  replace with `409 version_conflict` — the shape of this product's version check (§11.1 of the
-  architecture document).
-- **Removal**: `POST …/trash` (restorable for 30 days, a `binned` kind) or `DELETE` (permanent).
-- **Change feed**: `GET /v1/drive/changes?since=` with a durable `sync_token`, `410` to reseed.
-- **Dates**: `content_modified_at` keeps the source's modification time.
-- **Storage**: `422 storage_limit_exceeded`, and `GET /v1/workspace/storage` to read the pool first.
+### The decision (ADR-0052)
 
-**Blocked on two things**, both outside this repository's code:
+Cirrux Drive ships in alpha.12. Every refresh returns a new refresh token and retires the old
+one, and a retired one presented again signs the person out, so a pass WRITES THE SUCCESSOR BACK:
+only for a provider whose tokens rotate; one refresh at a time per connection, holding the
+connection row's lock from reading the token to storing its successor; through `SecretStore`, by
+an UPDATE that compares the ciphertext it read; never logged. A token Cirrux may have spent (an
+answer that never arrived, `invalid_grant`) is removed in the same transaction and never sent
+again; an answer that says nothing happened (`429`, `5xx`, a connection never opened) keeps it.
+One public client per deployment, `CIRRUX_OAUTH_CLIENT_ID`, read by the API and the worker.
 
-1. **An OAuth client ID.** Cirrux issues one by email to help@cirrux.co, given the name people
-   see, the redirect URLs and the scopes. This product's consent doors live at
-   `/api/migrations/<provider>/authorize` and `/callback`, so the request names one callback per
-   deployment that will use it. Whether an appliance can use a client registered for the managed
-   service's address is open question 3.
-2. **Rotating refresh tokens.** Each refresh returns a new refresh token and retires the old one,
-   and using a retired one signs the person out (`https://cirrux.co/help/api`). This product's
-   stored credentials are written once and never written back by a pass, which is why Box uses
-   its client-credentials grant instead (`packages/connectors/src/box-token-provider.ts`).
-   Cirrux documents no such grant for Drive. A Cirrux Drive writer therefore needs the pass to
-   write the new refresh token back, encrypted, after every refresh, and that is a change to a
-   rule every connector keeps today: a decision for an ADR, before any code.
+### What is built
+
+- **The consent door** (`apps/api/src/routes/migrations/cirrux-oauth-routes.ts`,
+  `cirrux-consent.ts`). `POST /api/migrations/cirrux/authorize` names a Cirrux destination of the
+  organisation, refuses a deployment with no client (`no_cirrux_client`), a closed organisation
+  and a person who has not accepted the texts, and begins a signed, single-use, ten-minute state
+  holding the PKCE verifier. `GET /callback` refuses another issuer and an organisation closed
+  since, exchanges the code, stores the refresh token on the account under the row's lock with
+  the audit line `connection.cirrux_drive_connected`, measures the account again with the
+  consent's own access token (so no refresh is spent), and tells the opening window only that the
+  Drive is connected. The token never reaches a browser.
+- **The grant** (`packages/orchestration/src/cirrux-grant-store.ts`): `CIRRUX_DRIVE_GRANT_KEY`
+  in the account's encrypted record, beside the app password; the rotation under `SELECT … FOR
+  UPDATE`; a new app password for the same mailbox keeps it, another mailbox's does not.
+- **The tokens** (`packages/connectors/src/cirrux-token-provider.ts`): an access token in memory,
+  single-flight in a process, each outcome sorted rotated, spent or kept.
+- **The face** (`qualifyCirruxDrive`, `GRANTED_TARGET_FACES`): a measured no, `structural`,
+  without the deployment's client; a measured no, `notGranted`, without a grant; with one,
+  measured through the stored sign-in (who, which workspace, the top of the Drive, the pool).
+  The create door takes `file` for a stored Cirrux account and refuses it, naming the button,
+  while the account stores no grant.
+- **The writer** (`packages/connectors/src/cirrux-drive-target.ts`, `cirrux-drive-api.ts`):
+  folders found by name, case-insensitively, single-flight per path; a simple upload to 100 MB,
+  streamed and hashed as sent; the same name adopted, another capitalisation refused as a
+  collision; a replace only when the source changed, always under a `base_ctag` (the one written,
+  or for an adopted copy the one just read), through the chunked flow in `CXDRV2`, aborted on any
+  failure; `content_modified_at` kept; an approved removal moved to the trash, only while the
+  `ctag` is ours; the pool checked before the first upload of a pass; `429` waited out for its
+  `Retry-After`. A file over 100 MB goes through the chunked upload (below); one over 2 GiB is
+  refused before a byte is read, as not moved, with the reason.
+- **The screens**: *Connect Cirrux Drive* on a Cirrux account's row, only with the deployment's
+  client, its window opened in the press; *Where does it go?* offering a saved Cirrux account for
+  files once its record measured the Drive, and never a new one; the standing failure naming the
+  button; the card's hint, a fourth checklist step, the guides' *Files: Cirrux Drive*, the
+  receipt and the retirement sentence naming the Drive sign-in.
+- **The deployment**: `CIRRUX_OAUTH_CLIENT_ID` in `managed.yml` for the API, in
+  `set-task-env.sh` for the worker, in `managed.env.example`; `GET /api/redirect-uris` lists the
+  callback as `cirrux.migration`.
+
+Two departures from the plan as split: `CXDRV2` and its known-answer vector landed in the first
+step, because Cirrux offers no way to put new bytes in an existing file but the chunked replace;
+and the first step already refused a file over 2 GiB as not moved, since "waiting" would have
+been untrue for it.
+
+### Where Cirrux's pages leave it open
+
+What the code assumes, and how it fails when the assumption is wrong. Nothing here was invented
+as Cirrux's behaviour; each is a reading T2b can confirm.
+
+1. **The chunk index starts at 0** in the AAD (`CXDRV2_FIRST_CHUNK_INDEX`). The page says "the
+   chunk index", not its base. Wrong, and every replace ends in `422 undecryptable_content`: the
+   writer aborts the staged version and says so; the file in Cirrux stays as it was.
+2. **The 16-byte header is in part 1**, in front of chunk 0, and each later part is one chunk.
+   The page says the header "goes in front of the first chunk". Wrong, and complete answers `422
+   upload_size_mismatch` or `undecryptable_content`; the same abort.
+3. **The UUID's 16 raw bytes are in the order its text writes them.** Not stated. Wrong: the
+   same `undecryptable_content`.
+4. **`data_key` is "base64"**, alphabet unnamed (the download's `data` is URL-safe). Both are
+   read; anything that is not 32 bytes is refused before anything is encrypted.
+5. **100 MB is 100,000,000 bytes of the file**, not of the base64 body and not 100 MiB. If
+   Cirrux counts otherwise, a file near the line meets `413 file_too_large`, and the same file
+   goes through the chunked upload; nothing was stored by the refused request.
+6. **A folder listing is complete**: no paging is documented. If Cirrux pages a large folder, a
+   file beyond the first page is not seen, its upload meets `422 name_taken`, the folder is
+   listed again, and the file fails by sentence: never a second copy.
+7. **"Ignoring case and Unicode form"** is keyed as trimmed, NFC, lower case. Cirrux's exact
+   folding (`ß` and `ss`, a dotted capital I) is not stated; a pair Cirrux joins and this key
+   does not meets `name_taken` and is refused, never adopted as somebody else's.
+8. **Files and folders are separate namespaces** under one parent, as the Drive page's own
+   examples read. Wrong, and a file named like a folder meets `name_taken` and fails by sentence.
+9. **The token answer** carries RFC 6749's names (`access_token`, `refresh_token`, `expires_in`,
+   `scope`); Cirrux's page lists none. A `scope` that is present and lacks `drive.read`,
+   `drive.create` or `drive.update` is refused; an absent one is not guessed at. An answer
+   without a new refresh token is read as spent.
+10. **The `iss` string** is in Cirrux's metadata document, which was not read; the callback
+    compares origins with `https://api.cirrux.co`, and accepts an absent one (RFC 9207).
+11. **A successor lives 30 days from its own issue.** Cirrux says refresh tokens last 30 days
+    and rotate; whether the chain has a lifetime of its own is not said. A chain that ends earlier
+    answers `invalid_grant`, the grant is removed, and the person connects again.
+12. **"Signs the user out"** may end the person's own sessions or only the grant; the design
+    takes the worst case and never presents a token that may be spent.
+13. **Whether a refresh retires access tokens already issued** is not said. A `401` refreshes
+    once and retries the request.
+14. **The profile carries no email**, so the consent cannot check that the Cirrux person who
+    signed in is the mailbox's. The window and the log name the login and the workspace.
+15. **The token endpoint's limit**: 60 requests a minute per IP for requests without a bearer
+    token. One refresh per writer per fifteen minutes stays far below it; a deployment with many
+    Drives refreshing at a tick's start would meet it first, and a `429` keeps the token.
+16. **A replace of a trashed file** is not described; this product never replaces a trashed
+    copy (it is the person's, `conflicted`).
+17. **No revocation endpoint** is documented. Deleting the account deletes our copy, and the
+    receipt says the sign-in expires on its own.
+18. **`409 upload_in_progress`** from an upload this pass did not start is not aborted: it may be
+    the person's own, in Cirrux's app. The file fails for that pass and is asked again; Cirrux
+    discards an unfinished upload after 24 hours.
+19. **A listing includes files still uploading**; such a file is never adopted as a copy.
+20. **The upload routes' `{uuid}`** (`/v1/drive/uploads/{uuid}/part_urls`, `/complete`,
+    `/abort`) is read as the init's `file_uuid`, the one the replace routes name; the init also
+    answers a `version_uuid` and an `s3_upload_id`. Wrong, and the first part URL request answers
+    `404`: the upload is aborted (or expires after 24 hours), and the file fails by sentence.
+21. **No published test vector.** Cirrux's page gives the format and no example bytes. The
+    format is pinned three ways instead: a round trip through a decryptor written from the page
+    alone (`decryptCxdrv2`, in the fake Cirrux), which every upload and replace test passes
+    through; a known-answer vector computed independently with WebCrypto
+    (`cirrux-drive-format.unit.test.ts`); and T2b, where Cirrux's own complete decrypts the
+    first chunk.
+
+### The second step: the chunked upload, 100 MB to 2 GiB (built)
+
+A new file over 100 MB goes `POST /v1/drive/uploads`, with its name, type, size, folder and
+`content_modified_at`; its per-file `data_key` and chunk size come back, and the answer's chunk
+count and ciphertext size are checked against this service's reading of the format before a byte
+is sent. Each part is one chunk (the header in front of the first), encrypted as the plaintext
+arrives and PUT to its presigned URL; the source is read at most a chunk or two ahead of the
+PUT, never the whole file. Part URLs are asked for ten at a time, again once a batch is fifty
+minutes old (they last an hour), and again once for a part whose PUT storage answered `403`.
+Any failure aborts the upload, which takes the half-made file with it. A replace over 100 MB
+goes through the same parts. A file over 2 GiB is refused before a byte is read, and an init
+Cirrux answers `413` is the same refusal.
+
+## 6b. T2b — the owner's live Drive test
+
+When Cirrux has answered the request with a client ID for the OTA callback:
+
+1. In the OTA stack's checkout, put the ID in the persisted `.env` the gate reads, and in
+   `deploy/compose/.env` too where that is a copy rather than a link (*The OTA stack: the nightly
+   gate, or a pull* in `docs/managed-bring-up.md` says which, and how to tell), then pass it on
+   to the API and the worker:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh <the .env the gate reads> CIRRUX_OAUTH_CLIENT_ID=<the client ID Cirrux sent>
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ./deploy/compose/set-task-env.sh
+   ./deploy/compose/deploy-tasks.sh
+   ```
+
+   The ID is no secret, and it is the deployment's: it goes in no connection and no screen. Run
+   the four lines while no E2E (managed) run is in progress, as for any key the gate reads.
+2. Check the two answers the screens read: `GET /api/provider-accounts` has `cirrux.client:
+   "deployment"`, and `GET /api/redirect-uris` lists `cirrux.migration` as
+   `https://app.ota.ownpace.eu/api/migrations/cirrux/callback`, the string Cirrux registered.
+3. On the Accounts page, **Test** the Cirrux account from T2 (or add one). Files: a measured no,
+   *not connected*, and the row shows **Connect Cirrux Drive**.
+4. Press it, sign in to Cirrux as the mailbox's person, and allow. Write down: the window's
+   words, and the row's **Carries:** and **Found:** afterwards.
+5. Press **Test** twice, a minute apart. Both measure the Drive; each refreshes the sign-in once
+   and stores the successor. Check that you are still signed in to Cirrux in the browser.
+6. In a file source you own (a Nextcloud or a Dropbox folder), make a folder with: a small text
+   file, a file of about 20 MB, and, if you have one, a file over 100 MB. In Cirrux Drive, make
+   a folder of the same name with one file whose name differs from one of them only in capitals.
+7. Start one migration of files only, from that folder into the Cirrux account, and let one pass
+   finish. Check in Cirrux Drive: the folder is the one you made (not a second); the small, the
+   20 MB and the file over 100 MB are there, with the source's modification dates, and the large
+   one opens (Cirrux decrypted every part); the capitals file is reported, and the one in Cirrux
+   is untouched. A file over 2 GiB, if you have one, is reported as not moved.
+8. Edit the small file at the source and press **Sync now**: the copy in Cirrux has the new
+   content, under the same file. Then edit the 20 MB file in Cirrux, edit it at the source too,
+   and press **Sync now**: Cirrux's edit stays, and the migration reports a conflict.
+9. Delete the small file at the source and press **Sync now**. Under **Deleted on the old
+   system**, press **Delete it here too**, then **Confirm delete**: the file is in Cirrux's
+   trash, restorable, and nowhere else.
+10. Wait more than fifteen minutes and press **Sync now**: the pass runs (the worker refreshed
+    and wrote back), and nobody was signed out.
+11. Delete the migration, then the account if you wish: the receipt names the Drive sign-in.
+
+Write down any failure that names `undecryptable_content`, `upload_size_mismatch`,
+`invalid_grant`, `name_taken` or a sign-out, with its words: each is one of §6's readings proven
+wrong, and T3's kind of correction follows from it. Then T4 records the proof.
 
 ## 7. T6 — Cirrux Docs (parked)
 
@@ -363,8 +538,9 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
   source account's own inbox for the first minutes. The account is an attendee of most events it
   was invited to, so an invitation that still went out would reach it first. Then the calendar,
   task and mail lines the pass reports.
-- For T5, when it is wanted: request an OAuth client from help@cirrux.co (§6, blocker 1), and
-  decide whether a pass may write a refreshed credential back (§6, blocker 2).
+- For T5: the two clients are requested from Cirrux (the live and the OTA callback, §6). When
+  the OTA one arrives, T2b's steps in §6b; when the live one arrives, step 1 of §6b on live, with
+  live's own callback.
 - Nothing with a workspace API key or a webhook.
 
 ## Open questions
@@ -373,7 +549,8 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
    carry no tag today, Soverin's included; T4 records the proof either way.
 2. If Cirrux's DAV root turns out to need a path, is it the same for every mailbox, so the
    directory row can carry it?
-3. For T5: one OAuth client for every deployment, or one per appliance owner, given that Cirrux
-   registers each client and its redirect URLs by hand?
-4. For T5: may a pass write a rotated refresh token back to the stored credential, which no
-   connector does today?
+3. ~~For T5: one OAuth client for every deployment, or one per appliance owner?~~ **Answered
+   2026-11-19**: one public client per deployment, registered by Cirrux by hand; the appliance
+   has no Cirrux Drive (ADR-0052).
+4. ~~For T5: may a pass write a rotated refresh token back?~~ **Answered 2026-11-19**: yes, for a
+   provider whose tokens rotate, one refresh at a time per connection (ADR-0052).

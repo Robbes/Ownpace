@@ -2010,6 +2010,13 @@ services:
       MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
       MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
       MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-}
+      # The deployment's own Cirrux client (workplan 0160 T5; ADR-0052): a
+      # public client with no secret, registered by Cirrux by hand with this
+      # deployment's exact callback. Unset, a Cirrux account's Drive is a
+      # measured no and no screen offers Connect Cirrux Drive. The worker
+      # refreshes the Drive sign-in on every pass, so set-task-env.sh carries
+      # it there too.
+      CIRRUX_OAUTH_CLIENT_ID: ${CIRRUX_OAUTH_CLIENT_ID:-}
       API_URL: ${API_URL:-http://localhost:3001}
       # Where the API reads the status page's own endpoint list, for the
       # operator's support screen (0110 T5): the gatus container on this

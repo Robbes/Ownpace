@@ -31,6 +31,7 @@
  */
 
 import { PROVIDER_ACCOUNT_DOMAINS } from './provider-accounts.ts';
+import { CIRRUX_DRIVE_GRANT_KEY } from './cirrux-drive.ts';
 import type { DiscoveryDomain } from './discovery.ts';
 
 /** The wizard's target vocabulary (mirrors CreateMappingSchema.targetType). */
@@ -111,26 +112,124 @@ export function targetTypeName(targetType: WizardTargetType): string {
   return PROTOCOL_NAMES[targetType];
 }
 
+/**
+ * THE FACES A TARGET KIND CARRIES ONLY ONCE ITS ACCOUNT STORES A GRANT FOR
+ * THEM (workplan 0160 T5; ADR-0052).
+ *
+ * `TARGET_TYPE_DOMAINS` above says what an account of a kind takes on the day
+ * it is added, and the create door and the site hold it to that. Cirrux Drive
+ * is not one of those faces: one app password reaches Cirrux's mail and DAV
+ * servers, and Drive is reached only through Cirrux's API with a person's
+ * OAuth sign-in, added later through the consent door on the Accounts page and
+ * stored beside the app password (`CIRRUX_DRIVE_GRANT_KEY`). So the face is a
+ * fact about one ACCOUNT, not the kind: present when the grant is stored, and
+ * on a deployment that has no Cirrux client, never.
+ *
+ * Kept apart from `TARGET_TYPE_DOMAINS` on purpose. That table is the promise
+ * a new account keeps, the site's *Where to* is held to it
+ * (`where-to-is-the-apps-own-list.unit.test.ts`), and a destination offered as
+ * NEW for files would be an account that cannot take them until somebody
+ * connects its Drive.
+ */
+export const GRANTED_TARGET_FACES: Readonly<
+  Partial<
+    Record<
+      WizardTargetType,
+      {
+        readonly faces: ReadonlyArray<DiscoveryDomain>;
+        /** What the grant is called, and the button on the Accounts page that stores it. */
+        readonly grant: string;
+        readonly button: string;
+        /** The key the grant is stored under, in the account's encrypted credentials. */
+        readonly credentialKey: string;
+      }
+    >
+  >
+> = {
+  cirrux: { faces: ['file'], grant: 'Cirrux Drive', button: 'Connect Cirrux Drive', credentialKey: CIRRUX_DRIVE_GRANT_KEY },
+};
+
+/** The faces this target kind carries once a grant for them is stored, or none. */
+export function grantableTargetFaces(targetType: WizardTargetType): ReadonlyArray<DiscoveryDomain> {
+  return GRANTED_TARGET_FACES[targetType]?.faces ?? [];
+}
+
+/**
+ * The faces whose grant a stored target connection CARRIES, read from its
+ * decrypted credentials: the server's question, at the create door and at the
+ * start of a pass. Never a screen's, which has no credentials to read.
+ */
+export function grantedTargetFacesOf(
+  kind: string,
+  creds: Readonly<Record<string, string | undefined>>,
+): ReadonlyArray<DiscoveryDomain> {
+  if (!Object.prototype.hasOwnProperty.call(GRANTED_TARGET_FACES, kind)) return [];
+  const entry = GRANTED_TARGET_FACES[kind as WizardTargetType];
+  const stored = entry ? creds[entry.credentialKey] : undefined;
+  return entry && typeof stored === 'string' && stored.trim() !== '' ? entry.faces : [];
+}
+
+/**
+ * Every face a target of this kind takes, with the grants its account stores.
+ *
+ * `granted` is the faces whose grant is STORED on the account, as the caller
+ * read it: the server from the decrypted credentials, never a screen. A face
+ * passed here that the kind cannot be granted is ignored rather than added.
+ */
+export function targetFacesWith(
+  targetType: WizardTargetType,
+  granted: ReadonlyArray<DiscoveryDomain> = [],
+): ReadonlyArray<DiscoveryDomain> {
+  const grantable = grantableTargetFaces(targetType);
+  const extra = granted.filter((d) => grantable.includes(d) && !TARGET_TYPE_DOMAINS[targetType].includes(d));
+  return [...TARGET_TYPE_DOMAINS[targetType], ...extra];
+}
+
 /** The selected domains the given target protocol cannot receive. */
 export function incoherentTargetDomains(
   targetType: WizardTargetType,
   domains: ReadonlyArray<DiscoveryDomain>,
+  granted: ReadonlyArray<DiscoveryDomain> = [],
 ): DiscoveryDomain[] {
-  const allowed = TARGET_TYPE_DOMAINS[targetType];
+  const allowed = targetFacesWith(targetType, granted);
   return domains.filter((d) => !allowed.includes(d));
+}
+
+/**
+ * The refusal for a face this kind takes only with a grant, when the account
+ * stores none (workplan 0160 T5). Its own sentence, because the remedy is not
+ * another target: it is one button on the account.
+ */
+function ungrantedFaceRefusal(targetType: WizardTargetType, faces: ReadonlyArray<DiscoveryDomain>): string {
+  const name = PROTOCOL_NAMES[targetType];
+  const grant = GRANTED_TARGET_FACES[targetType];
+  const list = faces.map((d) => `'${d}'`).join(', ');
+  return (
+    `A ${name} account takes ${list} only once ${grant?.grant ?? 'its grant'} is connected on it, ` +
+    `and this one has none. Connect it on the Accounts page (${grant?.button ?? 'Connect'}), then ` +
+    `choose that account for ${faces.length > 1 ? 'them' : 'it'}; or send ${list} to another ` +
+    'destination.'
+  );
 }
 
 /**
  * The refusal sentence for an incoherent target/domain combination, naming
  * BOTH sides (prose boundary: rendered verbatim wherever it surfaces), or
  * null when the combination is coherent.
+ *
+ * `granted` is the faces whose grant the account stores (`targetFacesWith`).
+ * A face the kind takes only with a grant, asked for without one, gets the
+ * sentence that names the button (`ungrantedFaceRefusal`).
  */
 export function targetDomainRefusal(
   targetType: WizardTargetType,
   domains: ReadonlyArray<DiscoveryDomain>,
+  granted: ReadonlyArray<DiscoveryDomain> = [],
 ): string | null {
-  const bad = incoherentTargetDomains(targetType, domains);
+  const bad = incoherentTargetDomains(targetType, domains, granted);
   if (bad.length === 0) return null;
+  const grantable = grantableTargetFaces(targetType);
+  if (bad.every((d) => grantable.includes(d))) return ungrantedFaceRefusal(targetType, bad);
   const name = PROTOCOL_NAMES[targetType];
   const badList = bad.map((d) => `'${d}'`).join(', ');
   const allowedList = TARGET_TYPE_DOMAINS[targetType].map((d) => `'${d}'`).join(', ');

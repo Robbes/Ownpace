@@ -103,7 +103,7 @@ interface PendingConsent {
    * wizard is waiting for", never a code exchanged at the wrong endpoint.
    * Absent means Google, which is every state begun before Dropbox existed.
    */
-  readonly provider?: 'google' | 'dropbox' | 'microsoft';
+  readonly provider?: 'google' | 'dropbox' | 'microsoft' | 'cirrux';
   /**
    * WHICH DIRECTORY this consent was begun against (workplan 0114).
    *
@@ -154,6 +154,19 @@ interface PendingConsent {
    * Absent is English, like anything the authorize call did not say as `nl`.
    */
   readonly locale?: ConsentLocale;
+  /**
+   * Connect Cirrux Drive (workplan 0160 T5; ADR-0052): the PKCE verifier and
+   * the ACCOUNT the grant is for, kept here for `link`'s reason. Cirrux's
+   * client is public, so the verifier is what proves the code is ours; and the
+   * callback stores the grant on this account itself, so the account is named
+   * by the authenticated authorize call, never by the redirect.
+   */
+  readonly cirrux?: {
+    readonly verifier: string;
+    readonly tenantId: string;
+    readonly connectionId: string;
+    readonly actor: string;
+  };
 }
 
 /** The two languages an ending is written in (ADR-0013). */

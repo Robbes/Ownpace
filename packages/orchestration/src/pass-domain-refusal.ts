@@ -84,8 +84,15 @@ export function discoveryDomainOf(domain: PassDomain): DiscoveryDomain {
 export function refuseDomainTheTargetCannotCarry(
   domain: PassDomain,
   targetKind: string,
+  /**
+   * The faces whose grant the connection stores (`grantedTargetFacesOf`, from
+   * its decrypted credentials): Cirrux Drive's file face exists only once a
+   * person's sign-in is stored on the account (workplan 0160 T5). Absent, a
+   * face that needs a grant is refused in the sentence that names its button.
+   */
+  granted: ReadonlyArray<DiscoveryDomain> = [],
 ): void {
   if (!(targetKind in TARGET_TYPE_DOMAINS)) return;
-  const refusal = targetDomainRefusal(targetKind as WizardTargetType, [discoveryDomainOf(domain)]);
+  const refusal = targetDomainRefusal(targetKind as WizardTargetType, [discoveryDomainOf(domain)], granted);
   if (refusal) throw new Error(refusal);
 }

@@ -520,6 +520,18 @@ export interface UpsertResult {
    * itself. An item the destination already held is `adopted`, never rewritten.
    */
   readonly updated?: boolean;
+  /**
+   * The hash of the bytes this write SENT, where the writer hashed them on the
+   * way (workplan 0160 T5).
+   *
+   * The loop hashes `raw.content` before the write, and a file the source
+   * handed over as a stream (`RawFileItem.body`) has no `content`: that hash
+   * is of nothing, and a row recorded with it says every streamed file is
+   * empty, to §20's checksum sample and to move detection alike. A writer that
+   * streams the bytes through a hasher answers here, and the loop records
+   * this. Absent, the loop's own hash stands, as it always has.
+   */
+  readonly contentHash?: string;
 }
 
 /** Per-call instructions for a target write. */
@@ -689,6 +701,14 @@ export interface FileTargetWriter {
    * Existence check for create-if-absent.
    */
   findFileByNaturalKey(parentId: string, naturalKey: string): Promise<string | undefined>;
+  /**
+   * A file this target will refuse, refused BEFORE the source is asked for a
+   * byte (workplan 0160 T5). OPTIONAL: a writer whose limit is a property of
+   * the destination (Cirrux Drive's 2 GiB a file, its 100 MB a simple upload)
+   * says so here, from the listing, and the loop records the error as the
+   * item's failure without fetching it. Undefined lets the file through.
+   */
+  refuseBeforeRead?(item: FileItem): Error | undefined;
 }
 
 

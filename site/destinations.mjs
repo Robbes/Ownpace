@@ -36,8 +36,10 @@ export const DESTINATIONS = [
     types: ['nextcloud'],
     takes: { calendar: 'nextcloud', contact: 'nextcloud', file: 'nextcloud', task: 'nextcloud' },
   },
-  // Cirrux (workplan 0160): Soverin's four, and no files, because Cirrux Drive
-  // has no WebDAV for the app to write to.
+  // Cirrux (workplan 0160): Soverin's four. Files are not claimed: Cirrux Drive
+  // is a sign-in added to a SAVED account, on a deployment Cirrux has
+  // registered (0160 T5; ADR-0052), and this list says what a new account
+  // takes, as `TARGET_TYPE_DOMAINS` does.
   {
     id: 'cirrux',
     types: ['cirrux'],

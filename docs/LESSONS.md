@@ -341,11 +341,20 @@ reading a file drops off its entry by itself.
 
 ### `apps/api/src/routes/connections.ts`
 
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
 
 ### `apps/api/src/routes/grant.ts`
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+
+### `apps/api/src/routes/migrations/cirrux-consent.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
+### `apps/api/src/routes/migrations/cirrux-oauth-routes.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 ### `apps/api/src/routes/migrations/dropbox-consent.ts`
 
@@ -2209,6 +2218,18 @@ reading a file drops off its entry by itself.
 - [a-refusal-that-pastes-its-envelope](../scripts/a-refusal-that-pastes-its-envelope.unit.test.ts) — A FIX WRITTEN ONCE AND APPLIED TO ONE OF THIRTEEN SITES.
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
 
+### `packages/connectors/src/cirrux-drive-api.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
+### `packages/connectors/src/cirrux-drive-target.ts`
+
+- [a-hash-that-was-never-sha256](../scripts/a-hash-that-was-never-sha256.unit.test.ts) — `FileItem.contentHash` WAS DECLARED SHA-256 AND HOLDS FOUR OTHER ALGORITHMS (found 2026-09-09).
+
+### `packages/connectors/src/cirrux-token-provider.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
+
 ### `packages/connectors/src/directory-availability.ts`
 
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
@@ -2679,6 +2700,10 @@ reading a file drops off its entry by itself.
 ### `packages/shared/src/carddav-query.unit.test.ts`
 
 - [an-addressbook-query-without-a-filter](../scripts/an-addressbook-query-without-a-filter.unit.test.ts) — THREE REPORT BODIES, THREE DIFFERENT WAYS OF BEING WRONG.
+
+### `packages/shared/src/cirrux-drive.ts`
+
+- [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 ### `packages/shared/src/config.ts`
 
@@ -3682,6 +3707,7 @@ A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 Reads:
 
 - `apps/api/src/middleware/auth.ts`
+- `apps/api/src/routes/migrations/cirrux-consent.ts`
 - `apps/api/src/routes/migrations/dropbox-consent.ts`
 - `apps/api/src/routes/migrations/google-consent.ts`
 - `apps/api/src/routes/migrations/index.ts`
@@ -3698,6 +3724,8 @@ Reads:
 - `packages/connectors/src/box-token-provider.ts`
 - `packages/connectors/src/caldav-source.ts`
 - `packages/connectors/src/carddav-source.ts`
+- `packages/connectors/src/cirrux-drive-api.ts`
+- `packages/connectors/src/cirrux-token-provider.ts`
 - `packages/connectors/src/dropbox-file-source.ts`
 - `packages/connectors/src/dropbox-token-provider.ts`
 - `packages/connectors/src/google-drive-transport.ts`
@@ -3742,6 +3770,8 @@ A CLIENT THE API HAS AND THE WORKER DOES NOT.
 
 Reads:
 
+- `apps/api/src/routes/connections.ts`
+- `apps/api/src/routes/migrations/cirrux-oauth-routes.ts`
 - `apps/api/src/routes/migrations/index.ts`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
@@ -3751,6 +3781,7 @@ Reads:
 - `packages/orchestration/src/deployment-application.ts`
 - `packages/orchestration/src/probe-connection.ts`
 - `packages/orchestration/src/the-application-a-stored-row-leans-on.unit.test.ts`
+- `packages/shared/src/cirrux-drive.ts`
 - `packages/shared/src/google-deployment-client.unit.test.ts`
 
 ### [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts)
@@ -4485,6 +4516,7 @@ Reads:
 
 - `packages/connectors/src/archive-file-source.ts`
 - `packages/connectors/src/box-file-source.ts`
+- `packages/connectors/src/cirrux-drive-target.ts`
 - `packages/connectors/src/dropbox-file-source.ts`
 - `packages/connectors/src/google-drive-source.ts`
 - `packages/connectors/src/graph-drive-source.ts`
