@@ -57,6 +57,7 @@ import { QUALIFICATION_KEYS } from '@openmig/shared';
 import { Hint } from '../components/Hint.tsx';
 import { ProviderConsentPanel, useProviderConsent } from '../components/ProviderConsent.tsx';
 import { AccountForm, usePlaceholderFor, useRefusalText } from '../components/AccountForm.tsx';
+import { CirruxDrivePanel, isCirruxAccount } from '../components/CirruxDrive.tsx';
 
 /**
  * The categories where the CONNECTION is the thing to act on (workplan 0094
@@ -479,7 +480,15 @@ const Row: React.FC<{
                 })}{' '}
                 {f.category === 'auth_expired'
                   ? t('connections.standing.authExpired', {
-                      button: rotateConsent.isGrantKind ? t('connections.reconnect') : t('connections.rotate'),
+                      // A Cirrux account's files fail on its Drive sign-in,
+                      // which its own button renews; the app password is
+                      // not what expired (0160 T5).
+                      button:
+                        isCirruxAccount(connection) && f.domains.includes('file')
+                          ? t('account.cirrux.connect')
+                          : rotateConsent.isGrantKind
+                            ? t('connections.reconnect')
+                            : t('connections.rotate'),
                     })
                   : t(FAILURE_KEY[f.category])}{' '}
                 <SendItToUs
@@ -493,6 +502,10 @@ const Row: React.FC<{
                 )}
               </span>
             ))}
+          {/* Connect Cirrux Drive (0160 T5): the file face a sign-in adds to a
+              Cirrux account. Draws nothing anywhere else, or without the
+              deployment's Cirrux client. */}
+          <CirruxDrivePanel connection={connection} onChanged={onChanged} />
         </div>
 
         {/* wrap, and only push right once there is room to (workplan 0068):

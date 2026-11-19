@@ -2239,6 +2239,11 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           return;
         }
 
+        // The hash of the bytes the writer actually SENT, where it hashed them
+        // on the way: a streamed file has no `content` for `contentHash(raw)`
+        // above to read, so `ch` is of nothing for it (workplan 0160 T5).
+        if (result.contentHash !== undefined) ch = result.contentHash;
+
         const row: LedgerRecord = {
           tenantId,
           itemType: domain,

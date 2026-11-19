@@ -49,6 +49,7 @@ import {
   microsoftDeploymentClient,
   type MicrosoftClientEnv,
 } from './microsoft-deployment-client.ts';
+import { cirruxDeploymentClient, type CirruxClientEnv } from './cirrux-drive.ts';
 
 /**
  * Connection kinds that hold ONE account and can serve several of its faces.
@@ -289,10 +290,18 @@ const DEPLOYMENT_CLIENT_PROBES: Readonly<
 
 export function providerAccountFacts(
   kind: string,
-  env: ProviderAccountEnv & GoogleClientEnv & MicrosoftClientEnv = process.env,
+  env: ProviderAccountEnv & GoogleClientEnv & MicrosoftClientEnv & CirruxClientEnv = process.env,
 ): ProviderAccountFacts {
   const domains = providerAccountDomains(kind, env);
   if (!isProviderAccountKind(kind)) return { domains };
+  // CIRRUX'S CLIENT IS THE DEPLOYMENT'S OR THERE IS NONE (workplan 0160 T5,
+  // ADR-0052). A public client with no secret, registered by Cirrux per
+  // redirect URL: no connection can carry one of its own, so `'connection'`
+  // would claim a thing that does not exist. `'deployment'` is what lets a
+  // screen offer *Connect Cirrux Drive*; absent, it offers no button.
+  if (kind === 'cirrux') {
+    return cirruxDeploymentClient(env) ? { domains, client: 'deployment' } : { domains };
+  }
   const probe = DEPLOYMENT_CLIENT_PROBES[kind];
   if (!probe) return { domains };
   return { domains, client: probe(env) ? 'deployment' : 'connection' };

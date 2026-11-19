@@ -194,6 +194,13 @@ describe('every card has a checklist, or a reason it has none (0148 T5)', () => 
     expect(keys('target', 'soverin')).toEqual(['account_exists', 'password', 'mail_server']);
   });
 
+  it('ends Cirrux’s checklist with its Drive, a sign-in added to the saved account (0160 T5)', () => {
+    expect(keys('target', 'cirrux')).toEqual(['account_exists', 'app_password', 'mail_server', 'drive']);
+    // Kept whatever the service carries: its detail says what a service without a Cirrux client shows.
+    const everyApp: ProviderClientFacts = { google: 'deployment', dropbox: 'deployment', microsoft: 'deployment' };
+    expect(setupStepsFor('target', 'cirrux', everyApp).map((s) => s.key)).toContain('drive');
+  });
+
   it('says what each new step yields, where it yields something to type', () => {
     const yields = (side: SetupSide, type: string) =>
       Object.fromEntries(setupStepsFor(side, type).map((s) => [s.key, s.yieldsKey]));
