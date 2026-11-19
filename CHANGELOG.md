@@ -119,6 +119,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   as it asks about each one on its own. And three things the web app sends without waiting, the
   visit a migration's page records, the removal of an account a failed check left and the report
   of an answer a page could not read, still let a failed request go and now throw anything else.
+- **A data type that fails no longer holds back the ones after it** (workplan 0143): when your
+  calendars fail to copy, your tasks, mail and files are still copied in the same pass, and the
+  pass still shows as failed, naming each data type that failed.
 
 ## [0.2.0-alpha.11] - 2026-11-17
 

@@ -27,7 +27,7 @@ import {
 } from '@openmig/core';
 import { budgetPauseToReason, HALT_IN_WORDS } from '@openmig/shared';
 import { passStepBefore, whyThisDataTypeStops, type PassHalt, type PassSkip } from './stopping-a-pass.ts';
-import { leavesAReference, planeErrorFor } from './what-a-run-leaves.ts';
+import { leavesAReference, planeErrorFor, planeErrorForEach, type RecordedFailure } from './what-a-run-leaves.ts';
 import { announceFirstCopy } from './the-first-copy-email.ts';
 import type {
   TenantId,
@@ -336,6 +336,27 @@ export const runDeltaSync = schemaTask({
     let stoppedBecause: PassHalt | undefined;
 
     /**
+     * THE DATA TYPES THAT FAILED THIS PASS, in the order it took them (workplan
+     * 0143 T5, 2026-11-19): a pass goes on with the data types it has not
+     * started yet, and one that fails no longer ends it.
+     *
+     * A failure used to end the pass where it happened: the data type's catch
+     * re-threw, so every data type after a failing one never had its turn, pass
+     * after pass. On the test environment a calendar that failed every pass
+     * meant mail that never arrived, although mail itself never failed. Now
+     * each failure is recorded where it happens, as it always was, and kept
+     * here; the pass goes on to the next data type, and once every one has had
+     * its turn the pass fails with all of them named (`planeErrorForEach`).
+     *
+     * Only a failure stopped being a stop. A pass told to stop (paused, its
+     * grant withdrawn, its organisation closed) still takes no new data type;
+     * a data type its owner stopped is still moved past; and one that stopped
+     * at its share of the time, the day's budget or the data ceiling is still
+     * paused, not failed.
+     */
+    const failures: Array<RecordedFailure & { readonly domain: string }> = [];
+
+    /**
      * Seconds per domain for THIS run, closed over by the domain loop and
      * handed to `finishRun` below.
      *
@@ -496,12 +517,20 @@ export const runDeltaSync = schemaTask({
         }
         if ('halt' in step) {
           const halt = step.halt;
+          // Said of the stop, and not of the pass, once a data type before it
+          // has failed (0143 T5, 2026-11-19). While a failure still ended the
+          // pass, none could stand above this line in the same run, and
+          // "nothing failed" was true of all of it.
+          const notAFailure =
+            failures.length === 0
+              ? 'nothing failed'
+              : `the stop itself is not a failure (failed before it: ${failures.map((f) => f.domain).join(', ')})`;
           const line =
             halt === 'organisation_closed'
-              ? `pass stopped before ${domain}: this organisation was closed — nothing failed, and no new work starts with the access it gave; if it is reopened, the next pass continues from the cursors`
+              ? `pass stopped before ${domain}: this organisation was closed — ${notAFailure}, and no new work starts with the access it gave; if it is reopened, the next pass continues from the cursors`
               : halt === 'grant_withdrawn'
-                ? `pass stopped before ${domain}: the person being migrated withdrew their permission — nothing failed, and nothing reads their account until they grant it again`
-                : `pass stopped before ${domain}: this migration no longer runs passes (paused, finished, or past its cutover's grace period) — nothing failed, the next pass continues from the cursors when it runs again`;
+                ? `pass stopped before ${domain}: the person being migrated withdrew their permission — ${notAFailure}, and nothing reads their account until they grant it again`
+                : `pass stopped before ${domain}: this migration no longer runs passes (paused, finished, or past its cutover's grace period) — ${notAFailure}, the next pass continues from the cursors when it runs again`;
           log.info(`[delta-sync] ${line}`);
           await withTenant(pool, tenantId, async (db) => {
             await new RunStore(db).logEvent(tenantId, runId, 'info', line, { domain });
@@ -1063,17 +1092,34 @@ export const runDeltaSync = schemaTask({
             log.error('Failed to mark domain status failed:', statusErr);
           }
           await recordAppEvent(failed);
-          // Re-throw so Trigger.dev records the failure (hard rule 9 — no masking),
-          // under the event's reference and category, and without its words: the
-          // lines above keep those (0134, open question 3 (a); what-a-run-leaves.ts).
-          // A first copy this pass finished is said first (0154 T7).
-          await sayTheFirstCopy();
-          throw await planeErrorFor(
+          // KEPT, AND THE PASS GOES ON TO THE NEXT DATA TYPE (0143 T5,
+          // 2026-11-19). This re-threw here, which ended the pass, and no data
+          // type after this one had its turn. It is surfaced after the loop
+          // instead, once every data type has had one: the pass still fails
+          // (hard rule 9 — no masking), under this event's reference and
+          // category, and without its words, which the lines above keep (0134,
+          // open question 3 (a); what-a-run-leaves.ts).
+          failures.push({
+            domain,
             error,
-            { task: 'run-delta-sync', tenantId, mappingId },
-            { doing: `${domain} sync`, reference: failed.reference, category: failed.category ?? 'unknown' },
-          );
+            recorded: { doing: `${domain} sync`, reference: failed.reference, category: failed.category ?? 'unknown' },
+          });
         }
+      }
+
+      // EVERY DATA TYPE HAS HAD ITS TURN, AND THE PASS NOW ANSWERS FOR THE ONES
+      // THAT FAILED (0143 T5, 2026-11-19). It fails, so Trigger.dev records the
+      // failure and retries it as it always did: the run row closes failed,
+      // counting each data type that failed, and the plane's error names every
+      // one of them, in the order the pass took them, each with the reference
+      // and category recorded above. A first copy this pass finished is said
+      // on the way out, once for the pass however many failed (0154 T7), after
+      // the row is closed, as on the way out of a pass that succeeded.
+      const [firstFailed, ...alsoFailed] = failures;
+      if (firstFailed !== undefined) {
+        await closeRun('failed', failures.length);
+        await sayTheFirstCopy();
+        throw planeErrorForEach([firstFailed, ...alsoFailed]);
       }
 
       log.info('Delta sync completed successfully');
@@ -1097,12 +1143,16 @@ export const runDeltaSync = schemaTask({
       };
     } catch (error) {
       // Close the run row as failed so history shows the failure instead of a
-      // row stuck in `running` forever.
-      await closeRun('failed', 1);
+      // row stuck in `running` forever, counting what ended the pass and each
+      // data type that failed before it. A no-op for the pass's own error from
+      // above, which closed the row itself.
+      await closeRun('failed', failures.length + 1);
       // A deliberate stop fails ONCE; everything else still retries. And
       // neither carries the words. The rules and the reasons are on
-      // `planeErrorFor`, which hands a data type's error from above through.
-      throw await planeErrorFor(error, { task: 'run-delta-sync', tenantId, mappingId });
+      // `planeErrorFor`, which hands the pass's own error from above through,
+      // and names the data types that failed before whatever else ended the
+      // pass, so none drops out of the plane's error (0143 T5, 2026-11-19).
+      throw await planeErrorFor(error, { task: 'run-delta-sync', tenantId, mappingId }, undefined, failures);
     } finally {
       // The net. A no-op on both paths above, and the only thing standing
       // between an unexpected exit and a mapping that never syncs again.
