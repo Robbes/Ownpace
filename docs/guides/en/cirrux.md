@@ -39,7 +39,7 @@ You can also add the account in advance, under **Accounts** → **Add an account
 - **Calendar**, **Contacts** and **Tasks**. Every Cirrux mailbox has a calendar, an address book called Contacts and a task list called Reminders. Task lists are calendars that hold tasks, on the same server as your calendars.
 - Cirrux makes no second address book, so the contacts from every address book at your source go into Contacts.
 - Each calendar at your source becomes a calendar of the same name at Cirrux, beside the mailbox's own Calendar.
-- Each event is written with a marker, `SCHEDULE-AGENT=CLIENT`, that tells the server not to send invitations for it. Attendees and the organiser stay in your copy of each event. A server that ignores the marker could still send invitations, and Cirrux does not say whether its calendar server reads it. Cirrux's own calendar does email guests when an event is made in its app.
+- Cirrux emails an invitation to every guest of an event it is given, whatever the event says about who sends invitations. So the guests and the organiser of your events and tasks are not written to Cirrux, and nobody is emailed. Who was invited is kept in each event as a comment (the iCalendar property `COMMENT`), which Cirrux's own app may not show.
 - **Files** do not go to Cirrux: on **Where does it go?**, the row for files does not offer it. This service writes files over WebDAV, and Cirrux Drive has no WebDAV address: it is reached through Cirrux's own apps and its interface for apps ([Drive](https://cirrux.co/help/drive)). Your files can go to another destination in the same migration.
 - A migration may run again and again: what is already in the target is recognised and not copied a second time.
 
