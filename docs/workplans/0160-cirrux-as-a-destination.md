@@ -4,6 +4,15 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, later again: T3's third correction.** With the second correction on the test
+environment, the calendar pass found the calendar home and made the source's calendar: Cirrux
+answered the MKCALENDAR with 201 and showed the calendar, with the name asked for, beside the
+mailbox's Calendar and Reminders. Then it refused every event written to the address asked for
+with 404, 25 in a row, and the pass stopped. Cirrux keeps a new calendar under an id of its own.
+The writer now asks for a new calendar at a UUID of its own in a home the server named, and
+reads the 201 back: the address, the `Location`, then the home's listing (§5). The calendar the
+pass made is found again by its name, so no second one is made.
+
 **2026-11-19, later still: T3's second correction.** With the contacts correction on the test
 environment, the contacts arrived and show in Cirrux. The owner's next **Sync now** skipped all
 1,244, the ledger already holding each one, and its calendar pass failed before it wrote an event:
@@ -48,8 +57,8 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 |---|---|---|---|
 | T0 What Cirrux publishes | builder | ✅ **Read 2026-11-19** | §1. From the pages themselves; three search-index snippets were stale and are corrected there. |
 | T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19** | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
-| T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, then calendars with a 404, each corrected in T3; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
-| T3 What T2 corrects | builder | 🔨 **Two corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
+| T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, calendars with a 404, then each event with a 404, each corrected in T3; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
+| T3 What T2 corrects | builder | 🔨 **Three corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
 | T5 Files into Cirrux Drive | builder, owner | ⛔ **Blocked**: an OAuth client only Cirrux issues, and a decision about rotating refresh tokens | §6. The API is documented in full; the connector is not written against it until both blockers are gone. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
@@ -235,6 +244,20 @@ plausible stored row for the face-building guard.
   published, and the owner's next pass shows it. Verification lists the same home. Tested in
   `a-calendar-not-where-it-was-assumed.unit.test.ts`, with seventeen mutations, each caught,
   across both writers' tests.
+- **A new calendar answered 201 and kept elsewhere (found 2026-11-19, corrected the same day)**.
+  Cirrux answered an MKCALENDAR at `<home>/<slug>/` with 201 and made the calendar, named as
+  asked, but under an id of its own: every event written to the address asked for was refused
+  with 404. Cirrux names its calendars by UUID (`https://cirrux.co/help/api/calendar`), as do the
+  calendars Apple's apps make. So a new calendar in a home the server named is now asked for at
+  a UUID of the writer's own (`newCalendarSegment`: version 5's shape, from the account, the data
+  type and the slug, the same on every pass). Its 201 is read back: a calendar at the address
+  asked for, then at the answer's `Location` on this host (an address that answers but holds no
+  calendar is not taken for one), then the calendar the home lists now and did not before (the
+  one with the folder's name, or the only one). None of these fails the pass and names what
+  was asked. A later pass finds the calendar by its name, or by the address made. An event
+  refused with 404 now says when its calendar is not there. Tested in the same file, with
+  fifteen more mutations, each caught. Whether Cirrux keeps the UUID asked for is not yet seen;
+  the read-back holds either way.
 - **Discovery finds nothing from the root**: a DAV base URL Cirrux gives goes into the guide and,
   if it is the same for every mailbox, into the directory row as `url`, with the reply as its
   source. If it differs per mailbox, the guide says where to ask and the row stays as it is.
@@ -293,6 +316,9 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
 - Once the contacts correction (§5) is on the test environment: **Sync now** on the Cirrux
   migration, and the contacts line it reports. Done 2026-11-19: 1,244 skipped, already there.
 - Once the calendar correction (§5) is on the test environment: **Sync now** again, and the
+  calendar, task and mail lines it reports. Done 2026-11-19: the calendar was made, and every
+  event was refused with 404, corrected in §5's third bullet.
+- Once that correction is on the test environment: resume the paused Cirrux migration, and the
   calendar, task and mail lines it reports.
 - For T5, when it is wanted: request an OAuth client from help@cirrux.co (§6, blocker 1), and
   decide whether a pass may write a refreshed credential back (§6, blocker 2).
