@@ -484,7 +484,7 @@ describe('fetch', () => {
 
   it('releases the mailbox lock even when the fetch fails', async () => {
     messages = [];
-    await source().fetch(item).catch(() => undefined);
+    await expect(source().fetch(item)).rejects.toThrow(/Message not found: INBOX:7/);
     expect(calls).toContain('release(INBOX)');
   });
 
@@ -516,7 +516,7 @@ describe('fetch', () => {
       const s = source({
         byteMeter: { budget: meter.budget, tenantId: 'tenant-1', provider: 'gmail-imap' },
       });
-      await s.fetch(item).catch(() => undefined);
+      await expect(s.fetch(item)).rejects.toThrow(/No body found/);
       expect(meter.spends).toEqual([]);
     });
 

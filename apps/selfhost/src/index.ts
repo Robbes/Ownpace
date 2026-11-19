@@ -2928,7 +2928,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           : null;
       if (presetSetMatch) {
         const category = decodeURIComponent(presetSetMatch[1]!);
-        const body = await readJson(req).catch(() => undefined);
+        const body = await readJsonOrNone(req);
         const action = (body as { action?: unknown } | undefined)?.action;
         if (action !== 'auto' && action !== 'ask') {
           return sendJson(res, 400, {
@@ -3586,7 +3586,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // CLI's cutover), and a status update must not become a second one.
       const laneMatch = req.method === 'PUT' && req.url ? /^\/mappings\/([^/]+)$/.exec(req.url) : null;
       if (laneMatch) {
-        const body = (await readJson(req).catch(() => undefined)) as Record<string, unknown> | undefined;
+        const body = (await readJsonOrNone(req)) as Record<string, unknown> | undefined;
         const id = decodeURIComponent(laneMatch[1]!);
         const m = mappings.find((x) => x.config.mappingId === id);
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
@@ -3924,6 +3924,21 @@ function readJson(req: IncomingMessage): Promise<unknown> {
     });
     req.on('error', reject);
   });
+}
+
+/**
+ * `readJson`, with a body that is not JSON read as no body, for the two routes
+ * whose own 400 says what to send when there is none. Only the parse's
+ * `SyntaxError`: anything else, such as a request the client cut short, goes on
+ * to the handler's catch, which logs it (rule 9).
+ */
+async function readJsonOrNone(req: IncomingMessage): Promise<unknown> {
+  try {
+    return await readJson(req);
+  } catch (err) {
+    if (err instanceof SyntaxError) return undefined;
+    throw err;
+  }
 }
 
 async function shutdown(
