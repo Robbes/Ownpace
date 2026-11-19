@@ -45,6 +45,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Contacts into Cirrux land in the mailbox's address book, instead of failing before the first
+  card** (workplan 0160). The first contacts pass into Cirrux, on 2026-11-19, stopped at
+  `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The CardDAV
+  writer put every address book at Nextcloud's path and made a new one for each address book at
+  the source. Cirrux makes none: every mailbox has one address book, Contacts, and neither
+  CardDAV nor Cirrux's own API makes another. When the place it assumed is refused, the writer
+  now asks the server where the account's address books are (`/.well-known/carddav`, then the
+  principal's address book home, as RFC 6764 says). It uses a book with the source's name if one
+  is there, makes the book in that home if the server allows it, and otherwise writes into the
+  account's one address book. It does not choose between several. Verification reads the same
+  home. A 501 is no longer retried five times as if the server were busy. Servers with
+  Nextcloud's layout get the same requests as before.
 - **Release no longer stops when GitHub answers 404 for a run it has just dispatched** (workplan
   0146). On 2026-11-18 the publish job dispatched Security Scan on `v0.2.0-alpha.11`, read the run
   whose id the dispatch gave back, was told 404 and stopped, while the run started and passed; a
