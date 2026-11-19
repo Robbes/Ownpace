@@ -87,6 +87,9 @@
  *                      and BuildKit images images.yml's build job names in its
  *                      actions' inputs, each against the digest of the channel
  *                      its action ran before (`ACTION_IMAGES`); and the
+ *                      hadolint image hadolint.yml lints every Dockerfile
+ *                      with (`HADOLINT_IMAGE`, 2026-11-19), against Docker
+ *                      Hub's tags of its shape and major; and the
  *                      Node.js release keyring the Windows payload's
  *                      `node.exe` check reads (`NODE_RELEASE_KEYS` in
  *                      scripts/package-appliance.mjs, 2026-11-01), the file
@@ -241,6 +244,33 @@ export function secondMajorPin(text) {
   const [image] = named;
   if (image.repo !== 'nextcloud' || !/\d/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
     throw new Error(`${NEXTCLOUD_SECOND_MAJOR_WORKFLOW} names ${image.ref}, not nextcloud by a numbered tag and its index digest`);
+  }
+  return image;
+}
+
+/**
+ * The hadolint `hadolint.yml` lints every Dockerfile with, report only
+ * (workplan 0119, the owner's decision of 2026-11-19): its job's one
+ * `HADOLINT_IMAGE:` line. Dependabot reads no workflow env, so this row is
+ * what says a newer release is tagged.
+ */
+export const HADOLINT_WORKFLOW = '.github/workflows/hadolint.yml';
+
+/** Said beside the hadolint row when it is behind. */
+export const HADOLINT_NOTE =
+  "move `HADOLINT_IMAGE` in hadolint.yml by tag and index digest, with the comment above it and `HADOLINT` in a-dockerfile-that-ends-as-root saying what was read, in a pull request of its own three days after the tag's push; a newer hadolint can bring new rules, so read the job's summary on that pull request";
+
+/**
+ * The image `hadolint.yml` runs: its one `HADOLINT_IMAGE:` line, as
+ * `hadolint/hadolint:v<x.y.z>@sha256:…`. None, two, another image or no
+ * digest is an error, never "current".
+ */
+export function hadolintPin(text) {
+  const named = [...text.matchAll(/^\s*HADOLINT_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${HADOLINT_WORKFLOW} sets HADOLINT_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'hadolint/hadolint' || !/^v\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${HADOLINT_WORKFLOW} names ${image.ref}, not hadolint/hadolint by a release tag and its index digest`);
   }
   return image;
 }
@@ -1689,6 +1719,16 @@ export async function routineRows(repo, net) {
     const newest = newestLike(image.tag, await tagsFor(image.repo));
     const state = stateOf(image.tag, newest);
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [NEXTCLOUD_SECOND_MAJOR_NOTE] } : {}) };
+  }]);
+
+  // hadolint (0119, 2026-11-19): the image hadolint.yml lints every Dockerfile
+  // with, against Docker Hub's newest tag of its shape and major (a `v<x.y.z>`,
+  // never that release's `-debian` or `-alpine` build, or a commit's tag).
+  jobs.push(['hadolint/hadolint', HADOLINT_WORKFLOW, async () => {
+    const image = hadolintPin(need(repo, HADOLINT_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [HADOLINT_NOTE] } : {}) };
   }]);
 
   // The tasks' prebuilt base (0119 §3 item 13, 2026-11-06): trigger.config.ts's

@@ -33,74 +33,85 @@
  *
  * unless EXCEPTIONS names the file and the rule, with the reason it stands.
  * An exception whose file keeps its rule fails too, so the list says what is
- * true and shrinks as files are fixed.
+ * true and shrinks as files are fixed. EXCEPTIONS live in
+ * `scripts/hadolint-report.mjs` since 2026-11-19, so that CI's hadolint report
+ * reads them on a bare checkout (below).
  *
  * WHAT IS NOT HELD HERE, AND WHY. Packages installed without a version
  * (DL3008, DL3018): the bases are pinned by digest, a package at an exact
  * version stops the build the day Alpine or Debian ships the next one and
  * drops it from its mirror, and the image scan says when a package is behind;
- * whether to pin anyway is a decision left open (workplan 0119, 2026-11-19).
- * ShellCheck's notes inside a RUN: ShellCheck's to read, and each image's
+ * the owner's answer of 2026-11-19 is not to pin them, and `.hadolint.yaml`
+ * ignores both. ShellCheck's notes inside a RUN, and hadolint's other rules:
+ * hadolint reports them in CI now, report only (below), and each image's
  * build proves what its RUNs do. A HEALTHCHECK in every image (DL3057, off by
  * default in hadolint): compose gives each service its probe, or none on
- * purpose. hadolint itself, which nothing here installs. And a Dockerfile's
- * user against the image it builds on: a base that sets a user of its own, as
- * Stalwart's does, still ends as root by this file's reading when the
- * Dockerfile names none, which is how the check read it.
+ * purpose. And a Dockerfile's user against the image it builds on: a base
+ * that sets a user of its own, as Stalwart's does, still ends as root by this
+ * file's reading when the Dockerfile names none, which is how the check read
+ * it.
+ *
+ * HADOLINT ITSELF, IN CI, REPORT ONLY (the owner's decision of 2026-11-19).
+ * `.github/workflows/hadolint.yml` runs hadolint 2.15.1 over every
+ * Dockerfile this file finds (`dockerfiles()` is the report's, so the two
+ * read the same files), with `.hadolint.yaml`, and writes each file's
+ * findings to the job's summary, a finding EXCEPTIONS or KNOWN_FINDINGS
+ * explain marked known with its reason. It becomes blocking after the two
+ * Trigger.dev Dockerfiles have had their pass. So this also holds, each rule
+ * broken on purpose below as well, on the real file where there is one:
+ *
+ *  7. THE IMAGE IS HADOLINT'S BY A RELEASE TAG AND ITS INDEX DIGEST, the
+ *     reference read on 2026-11-19 (`HADOLINT`, below), in one
+ *     `HADOLINT_IMAGE`, and the comment above it names that digest, the tag,
+ *     the two platforms and the day it was read, so a digest moved without
+ *     its reading fails;
+ *  8. THE CONFIG IGNORES DL3008 AND DL3018 AND NOTHING ELSE, and lets no
+ *     `# hadolint ignore=` line in a Dockerfile ignore more;
+ *  9. THE JOB IS REPORT ONLY: not in ci.yml, so ci-complete never waits for
+ *     it, and not among docs/testing.md's required checks; no
+ *     `continue-on-error` and no `if:` to read a broken run as green; and its
+ *     report, run against a stubbed `docker`, exits 0 on every finding, and
+ *     on a pull request whatever happened, and 1 on a push or a dispatch only
+ *     when a Dockerfile went unlinted;
+ * 10. THE WORKFLOW SAYS WHEN IT BECOMES BLOCKING, naming both Trigger.dev
+ *     Dockerfiles;
+ * 11. THE REPORT LINTS EVERY DOCKERFILE THIS FILE FINDS, after one pull, one
+ *     sandboxed run each, and calls known exactly what EXCEPTIONS (by
+ *     hadolint's code for the rule, RULE_CODES) or KNOWN_FINDINGS explain.
  */
 
 import { describe, it, expect } from 'vitest';
-import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { isDeepStrictEqual } from 'node:util';
+import { parse as parseYaml } from 'yaml';
+import {
+  CONFIG,
+  EXCEPTIONS,
+  IGNORED,
+  IMAGE,
+  KNOWN_FINDINGS,
+  PULL_DELAYS,
+  RULE_CODES,
+  dockerfiles as dockerfilesUnder,
+  knownAs,
+  lintArgs,
+  report,
+  run,
+  type Ran,
+  type Rule,
+} from './hadolint-report.mjs';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const read = (rel: string) => readFileSync(join(REPO_ROOT, rel), 'utf8');
 
-export type Rule = 'non-root' | 'numeric-user' | 'exec-form' | 'pipefail' | 'no-add' | 'tagged';
-
 /**
- * The files that keep a rule broken, by rule, with why. Each is checked to
- * break it still: one fixed since fails until it leaves this list.
+ * Every Dockerfile in the repository, as git lists them, tracked or new: the
+ * report's own walk, so CI's hadolint lints what this reads.
  */
-export const EXCEPTIONS: Readonly<Record<string, Partial<Record<Rule, string>>>> = {
-  'deploy/compose/docker-socket-proxy/Dockerfile': {
-    'non-root':
-      "Tecnativa's docker-socket-proxy v0.5.0 as upstream ships it, `USER root` included. HAProxy connects to the host's Docker " +
-      "socket, root:docker at mode 0660, whose group id differs from host to host, so another user would need each host's " +
-      'docker group id passed in from its .env (group_add), for little: the socket is the power either way. The ' +
-      "Dockerfile's WHY ROOT says so, and what managed.yml gives the proxy instead",
-    'numeric-user': "upstream's own line, `USER root`: a-tag-upstream-never-rebuilds holds every instruction but the FROM and the check to upstream's",
-  },
-
-  'deploy/compose/pgbouncer/Dockerfile': {
-    'numeric-user':
-      "`USER root` for the one RUN apk needs and `USER postgres` after it, by the name upstream's config gives its user: " +
-      "images.yml's build (pgbouncer) holds the built image's User to upstream's, and the RUN after it proves postgres is uid 70",
-  },
-
-  'deploy/compose/supervisor/Dockerfile': {
-    'numeric-user':
-      "upstream's `node` after the RUN as root that removes what nothing here runs, which a-binary-the-stack-never-runs reads " +
-      'line by line; not in the lines this round read (workplan 0119, 2026-11-19)',
-    pipefail: 'the RUN as root that removes what nothing here runs pipes in its walks, held line by line by a-binary-the-stack-never-runs; not in this round',
-  },
-
-  'deploy/compose/trigger.dev/Dockerfile': {
-    'numeric-user':
-      "upstream's `node` after the RUNs as root that remove what nothing here runs and purge the Debian packages nothing loads, " +
-      'which a-binary-the-stack-never-runs and an-essential-nothing-runs read line by line; not in this round (workplan 0119, 2026-11-19)',
-    pipefail: 'the RUNs as root that remove what nothing here runs pipe in their walks, held line by line by those two guards; not in this round',
-  },
-};
-
-/** Every Dockerfile in the repository, as git lists them, tracked or new. */
 export function dockerfiles(): string[] {
-  return execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: REPO_ROOT, encoding: 'utf8' })
-    .split('\n')
-    .filter((f) => /(^|\/)(Dockerfile|Containerfile)([.-][^/]*)?$|\.(Dockerfile|Containerfile)$/i.test(f) && existsSync(join(REPO_ROOT, f)))
-    .sort();
+  return dockerfilesUnder(REPO_ROOT);
 }
 
 /** The Dockerfiles this was written against: the walk must find each, so it cannot pass on a short list. */
@@ -369,5 +380,358 @@ describe('each rule, broken on purpose', () => {
       expect.stringContaining('names y/Dockerfile, which is no Dockerfile here'),
     ]);
     expect(problems(files, () => base.replace('USER 1000:1000\n', ''), {})).toEqual([expect.stringContaining('x/Dockerfile breaks non-root')]);
+  });
+});
+
+/** The workflow that runs hadolint, and its one job. */
+const WORKFLOW = '.github/workflows/hadolint.yml';
+const JOB = 'hadolint';
+/**
+ * The hadolint the job runs, as read on 2026-11-19 at 19:43 UTC: v2.15.1's
+ * index, the `Docker-Content-Digest` Google's mirror of Docker Hub
+ * (mirror.gcr.io) gave for the tag, its body hashing to it, and the `digest`
+ * Docker Hub's tag API gave, the same, pushed 2026-07-31 09:57:38 UTC. A move
+ * is a re-read: of both, and of the job's summary on the pull request that
+ * moves it, since a release can bring new rules.
+ */
+const HADOLINT = 'hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d';
+/** The two Dockerfiles whose pass turns the job blocking. */
+const TRIGGER_DEV = ['deploy/compose/trigger.dev/Dockerfile', 'deploy/compose/supervisor/Dockerfile'] as const;
+
+interface Step {
+  readonly uses?: string;
+  readonly run?: string;
+  readonly if?: unknown;
+  readonly env?: Record<string, unknown>;
+  readonly 'continue-on-error'?: unknown;
+}
+
+interface Job {
+  readonly 'runs-on'?: unknown;
+  readonly if?: unknown;
+  readonly env?: Record<string, unknown>;
+  readonly steps?: ReadonlyArray<Step>;
+  readonly 'continue-on-error'?: unknown;
+}
+
+interface Workflow {
+  readonly on?: Record<string, unknown>;
+  readonly jobs?: Record<string, Job>;
+}
+
+/** What is wrong with the hadolint job, read from its workflow's text (7, 9 and 10 in the header); empty when it holds. */
+export function jobProblems(text: string): string[] {
+  const out: string[] = [];
+  const wf = parseYaml(text) as Workflow;
+  const names = Object.keys(wf.jobs ?? {});
+  if (names.join(' ') !== JOB) out.push(`its jobs are ${JSON.stringify(names)}, not the one \`${JOB}\``);
+  const job = wf.jobs?.[JOB];
+  if (!job) return out;
+  for (const event of ['pull_request', 'push', 'workflow_dispatch']) {
+    if (!Object.hasOwn(wf.on ?? {}, event)) out.push(`it does not run on ${event}`);
+  }
+  if (typeof job['runs-on'] !== 'string' || !/^ubuntu-\d/.test(job['runs-on'])) {
+    out.push(`runs-on is ${JSON.stringify(job['runs-on'])}, not a GitHub-hosted ubuntu runner`);
+  }
+  if (job.if !== undefined) out.push(`the job has an if: (${String(job.if)}), so a run can skip it and read green`);
+  const steps = job.steps ?? [];
+  const swallowing: Array<[string, unknown]> = [['the job', job['continue-on-error']], ...steps.map((s, i): [string, unknown] => [`step ${i + 1}`, s['continue-on-error']])];
+  for (const [where, value] of swallowing) {
+    if (value !== undefined) {
+      out.push(`${where} sets continue-on-error (${String(value)}): the report decides its own exit, and this would read a run that linted nothing as green`);
+    }
+  }
+  const runs = steps.filter((s) => typeof s.run === 'string');
+  if (runs.length !== 1 || runs[0]!.run!.trim() !== 'node scripts/hadolint-report.mjs') {
+    out.push(`its run steps are ${JSON.stringify(runs.map((s) => s.run))}, not the one \`node scripts/hadolint-report.mjs\``);
+  }
+  for (const s of runs) {
+    if (s.if !== undefined) out.push(`the lint step has an if: (${String(s.if)})`);
+    for (const key of ['HADOLINT_IMAGE', 'GITHUB_EVENT_NAME']) if (s.env && Object.hasOwn(s.env, key)) out.push(`the lint step sets ${key} itself`);
+  }
+  const image = job.env?.['HADOLINT_IMAGE'];
+  if (typeof image !== 'string' || !IMAGE.test(image)) {
+    out.push(`HADOLINT_IMAGE is ${JSON.stringify(image)}, not hadolint/hadolint:v<x.y.z>@sha256:<index digest>`);
+  } else {
+    // The comment right above the pin: the digest it carries, its tag, both platforms, the day it was read.
+    const at = text.indexOf(`HADOLINT_IMAGE: ${image}`);
+    const above: string[] = [];
+    for (const line of text.slice(0, at).split('\n').reverse().slice(1)) {
+      if (!/^\s*#/.test(line)) break;
+      above.push(line);
+    }
+    const comment = above.reverse().join('\n');
+    const [named, digest] = image.split('@sha256:') as [string, string];
+    const tag = named.slice(named.indexOf(':') + 1);
+    if (!comment.includes(digest.slice(0, 12))) {
+      out.push(`the comment above HADOLINT_IMAGE does not name the digest it carries (${digest.slice(0, 12)}…): read the new image, then say what it is`);
+    }
+    if (!comment.includes(`hadolint ${tag} `)) out.push(`the comment above HADOLINT_IMAGE does not name the release it pins (hadolint ${tag})`);
+    for (const platform of ['linux/amd64', 'linux/arm64']) {
+      if (!comment.includes(platform)) out.push(`the comment above HADOLINT_IMAGE does not say its index holds ${platform}`);
+    }
+    if (!/read on \d{4}-\d{2}-\d{2}/.test(comment)) out.push('the comment above HADOLINT_IMAGE does not say the day its digest was read');
+  }
+  const images = [...text.matchAll(/hadolint\/hadolint:[^\s'"]+/g)].map((m) => m[0]);
+  if (images.length !== 1) out.push(`the workflow names a hadolint image ${images.length} times, not once: ${images.join(', ')}`);
+  const header = text.slice(0, Math.max(0, text.search(/^name:/m)));
+  if (!header.includes('IT BECOMES BLOCKING')) out.push('the header does not say when the job becomes blocking (IT BECOMES BLOCKING after …)');
+  for (const file of TRIGGER_DEV) if (!header.includes(file)) out.push(`the header does not name ${file}, whose pass turns the job blocking`);
+  return out;
+}
+
+/** What would make the job gate a merge: a job in ci.yml, or a place among docs/testing.md's required checks (9). */
+export function gateProblems(ciText: string, testing: string): string[] {
+  const out: string[] = [];
+  const ci = parseYaml(ciText) as Workflow;
+  const there = Object.entries(ci.jobs ?? {})
+    .filter(([, job]) => /hadolint/i.test(JSON.stringify(job)))
+    .map(([name]) => name);
+  if (there.length) out.push(`ci.yml runs hadolint in ${there.join(', ')}: ci-complete waits for every job there and fails on one that does not pass`);
+  const marker = '**Required status checks**';
+  const start = testing.indexOf(marker);
+  if (start < 0) out.push(`docs/testing.md has no "${marker}" paragraph to read`);
+  else if (/hadolint/i.test(testing.slice(start).split('\n\n')[0] ?? '')) out.push("docs/testing.md's required checks name hadolint, which is report only");
+  return out;
+}
+
+/** What is wrong with `.hadolint.yaml` (8): anything but DL3008 and DL3018 ignored, and no pragma ignoring more. */
+export function configProblems(text: string): string[] {
+  const config: unknown = parseYaml(text);
+  const want = { ignored: [...IGNORED], 'disable-ignore-pragma': true };
+  return isDeepStrictEqual(config, want)
+    ? []
+    : [`${CONFIG} reads ${JSON.stringify(config)}, not ${JSON.stringify(want)}: it ignores DL3008 and DL3018 and nothing else, and no pragma ignores more`];
+}
+
+describe('hadolint in CI, report only (workplan 0119, the owner’s decision of 2026-11-19)', () => {
+  const text = read(WORKFLOW);
+
+  it('runs hadolint by tag and index digest, in one job that hides nothing and says when it becomes blocking', () => {
+    expect(jobProblems(text)).toEqual([]);
+    const image = (parseYaml(text) as Workflow).jobs![JOB]!.env!['HADOLINT_IMAGE'];
+    expect(image, `${WORKFLOW} runs another hadolint than the one read: read the new one as HADOLINT says, then move both`).toBe(HADOLINT);
+  });
+
+  it('refuses a pin moved without its reading, a tag alone, a channel, a second image and another registry', () => {
+    const pin = /^ {6}HADOLINT_IMAGE: (\S+)$/m.exec(text)?.[1];
+    expect(pin, `${WORKFLOW} pins no HADOLINT_IMAGE to mutate`).toBeDefined();
+    const mutate = (from: string, to: string): string[] => {
+      const next = text.replace(from, to);
+      expect(next, from).not.toBe(text);
+      return jobProblems(next);
+    };
+    expect(mutate(pin!, pin!.replace(/@sha256:[0-9a-f]{64}/, `@sha256:${'0'.repeat(64)}`))).toEqual([
+      expect.stringMatching(/does not name the digest it carries \(000000000000…\)/),
+    ]);
+    expect(mutate(pin!, pin!.replace(/@sha256:.*/, '')).join('\n')).toMatch(/not hadolint\/hadolint:v<x\.y\.z>@sha256:<index digest>/);
+    expect(mutate(pin!, pin!.replace(/:v[\d.]+@/, ':latest@')).join('\n')).toMatch(/not hadolint\/hadolint:v<x\.y\.z>@sha256:<index digest>/);
+    expect(mutate(pin!, `ghcr.io/${pin!}`).join('\n')).toMatch(/not hadolint\/hadolint:v<x\.y\.z>@sha256:<index digest>/);
+    expect(mutate(pin!, pin!.replace('v2.15.1', 'v2.15.2')).join('\n')).toMatch(/does not name the release it pins \(hadolint v2\.15\.2\)/);
+    expect(mutate('linux/arm64', 'arm64').join('\n')).toMatch(/does not say its index holds linux\/arm64/);
+    expect(mutate('read on 2026-11-19', 'read').join('\n')).toMatch(/does not say the day its digest was read/);
+    expect(mutate('run: node scripts/hadolint-report.mjs', 'run: docker run --rm -i hadolint/hadolint:latest < apps/api/Dockerfile').join('\n')).toMatch(
+      /names a hadolint image 2 times, not once/,
+    );
+  });
+
+  it('refuses each way the job could read a broken run as green, or land where it should not', () => {
+    const mutate = (from: string, to: string): string => {
+      const next = text.replace(from, to);
+      expect(next, from).not.toBe(text);
+      return jobProblems(next).join('\n');
+    };
+    const step = '        run: node scripts/hadolint-report.mjs\n';
+    expect(mutate('    timeout-minutes: 10\n', '    timeout-minutes: 10\n    continue-on-error: true\n')).toMatch(/the job sets continue-on-error \(true\)/);
+    expect(mutate(step, `${step}        continue-on-error: true\n`)).toMatch(/step 3 sets continue-on-error \(true\)/);
+    expect(mutate('    timeout-minutes: 10\n', "    timeout-minutes: 10\n    if: github.event_name != 'pull_request'\n")).toMatch(/the job has an if:/);
+    expect(mutate(step, `${step}        if: always()\n`)).toMatch(/the lint step has an if:/);
+    expect(mutate(step, `        env:\n          GITHUB_EVENT_NAME: pull_request\n${step}`)).toMatch(/the lint step sets GITHUB_EVENT_NAME itself/);
+    expect(mutate(step, '        run: node scripts/hadolint-report.mjs || true\n')).toMatch(/not the one `node scripts\/hadolint-report\.mjs`/);
+    expect(mutate('runs-on: ubuntu-24.04', 'runs-on: self-hosted')).toMatch(/not a GitHub-hosted ubuntu runner/);
+    expect(mutate('  pull_request:\n', '')).toMatch(/it does not run on pull_request/);
+    expect(mutate('IT BECOMES BLOCKING', 'IT TURNS')).toMatch(/does not say when the job becomes blocking/);
+    expect(mutate(TRIGGER_DEV[1], 'deploy/compose/supervisor')).toMatch(/does not name deploy\/compose\/supervisor\/Dockerfile/);
+  });
+
+  it('is not in ci.yml, so ci-complete never waits for it, and docs/testing.md does not require it', () => {
+    const ci = read('.github/workflows/ci.yml');
+    const testing = read('docs/testing.md');
+    expect(gateProblems(ci, testing)).toEqual([]);
+    const job = '  hadolint:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: node scripts/hadolint-report.mjs\n';
+    expect(ci.endsWith('\n'), 'ci.yml does not end in a newline, so the job below would not be one of its jobs').toBe(true);
+    expect(gateProblems(`${ci}${job}`, testing)).toEqual([expect.stringMatching(/^ci\.yml runs hadolint in hadolint: ci-complete waits/)]);
+    const required = '**Required status checks** on `main` are four: ';
+    expect(testing, `docs/testing.md does not open its required checks with "${required}"`).toContain(required);
+    expect(gateProblems(ci, testing.replace(required, `${required}\`hadolint (report only)\`, `))).toEqual([
+      expect.stringMatching(/required checks name hadolint/),
+    ]);
+  });
+
+  it('ignores DL3008 and DL3018 and nothing else, and lets no pragma in a Dockerfile ignore more', () => {
+    const config = read(CONFIG);
+    expect(IGNORED).toEqual(['DL3008', 'DL3018']);
+    expect(configProblems(config)).toEqual([]);
+    const mutate = (from: string, to: string): string[] => {
+      const next = config.replace(from, to);
+      expect(next, from).not.toBe(config);
+      return configProblems(next);
+    };
+    expect(mutate('  - DL3018\n', '  - DL3018\n  - DL3059\n')).toHaveLength(1);
+    expect(mutate('  - DL3018\n', '')).toHaveLength(1);
+    expect(mutate('disable-ignore-pragma: true', 'disable-ignore-pragma: false')).toHaveLength(1);
+    expect(mutate('disable-ignore-pragma: true', 'disable-ignore-pragma: true\nfailure-threshold: error')).toHaveLength(1);
+    expect(mutate('disable-ignore-pragma: true', 'disable-ignore-pragma: true\nno-fail: true')).toHaveLength(1);
+    expect(mutate('disable-ignore-pragma: true', 'disable-ignore-pragma: true\noverride:\n  ignore:\n    - DL3059')).toHaveLength(1);
+  });
+});
+
+describe("the hadolint report, run against a stubbed docker (11, and 9's exit)", () => {
+  const image = (parseYaml(read(WORKFLOW)) as Workflow).jobs![JOB]!.env!['HADOLINT_IMAGE'] as string;
+  const files = dockerfiles();
+  const ok = (stdout: string): Ran => ({ status: 0, stdout, stderr: '' });
+  /** One finding per file, naming the file. */
+  const lintsAll = (args: string[]): Ran =>
+    args[0] === 'pull' ? ok('') : ok(JSON.stringify([{ code: 'DL3059', line: 3, level: 'info', message: `a note on ${args.at(-1)}`, column: 1, file: args.at(-1) }]));
+  /** A docker that answers as `answer` does, and writes down what it was asked and how long it was made to wait. */
+  const stub = (answer: (args: string[]) => Ran) => {
+    const calls: string[][] = [];
+    const waits: number[] = [];
+    const docker = (args: string[]): Ran => {
+      calls.push(args);
+      return answer(args);
+    };
+    return { calls, waits, docker, wait: async (ms: number) => void waits.push(ms) };
+  };
+  const at = (event: string, s: ReturnType<typeof stub>, env: Record<string, string> = {}) =>
+    run({ root: REPO_ROOT, env: { HADOLINT_IMAGE: image, GITHUB_EVENT_NAME: event, ...env }, docker: s.docker, wait: s.wait, uid: 1001, gid: 118 });
+
+  it('pulls the workflow’s image once, then lints each Dockerfile this file finds, one sandboxed run each', async () => {
+    expect(files.length).toBeGreaterThan(10);
+    const s = stub(lintsAll);
+    const out = await at('pull_request', s);
+    expect(s.calls[0]).toEqual(['pull', '--quiet', image]);
+    expect(s.calls.slice(1)).toEqual(files.map((file) => lintArgs(image, file, { root: REPO_ROOT, uid: 1001, gid: 118 })));
+    for (const args of s.calls.slice(1)) {
+      const said = args.join(' ');
+      expect(args.slice(0, 4)).toEqual(['run', '--rm', '--pull', 'never']);
+      for (const flag of ['--network none', '--read-only', '--cap-drop ALL', '--security-opt no-new-privileges', '--user 1001:118', `--volume ${REPO_ROOT}:/repo:ro`]) {
+        expect(said).toContain(flag);
+      }
+      expect(args.slice(args.indexOf(image))).toEqual([image, '/bin/hadolint', '--config', CONFIG, '--no-fail', '--format', 'json', args.at(-1)]);
+    }
+    expect(out.code).toBe(0);
+  });
+
+  it('exits 0 on a pull request, a push and a dispatch when every Dockerfile has a finding: none fails the job', async () => {
+    for (const event of ['pull_request', 'push', 'workflow_dispatch']) {
+      const out = await at(event, stub(lintsAll));
+      expect(out.code, event).toBe(0);
+      expect(out.markdown).toContain(`| **${files.length} Dockerfiles** | **${files.length}** | **0** | **${files.length}** |`);
+      for (const file of files) expect(out.markdown).toContain(`### \`${file}\``);
+      expect(out.lines.filter((l) => l.startsWith('::'))).toEqual([]);
+    }
+  });
+
+  it('passes a pull request, and warns, when the image cannot be pulled; fails a push or a dispatch', async () => {
+    for (const [event, code, annotation] of [['pull_request', 0, '::warning::'], ['push', 1, '::error::'], ['workflow_dispatch', 1, '::error::']] as const) {
+      const s = stub(() => ({ status: 1, stdout: '', stderr: 'toomanyrequests: You have reached your unauthenticated pull rate limit' }));
+      const out = await at(event, s);
+      expect(out.code, event).toBe(code);
+      expect(s.calls.map((c) => c[0]), 'it ran hadolint on an image it did not have').toEqual(['pull', 'pull', 'pull']);
+      expect(s.waits).toEqual(PULL_DELAYS.map((d) => d * 1000));
+      expect(out.markdown).toMatch(/### Not linted\n\nNothing was linted: .* was not pulled in 3 attempts \(the last: docker exited 1: toomanyrequests/);
+      expect(out.lines.at(-1)).toMatch(new RegExp(`^${annotation}hadolint: ${files.length} of ${files.length} Dockerfiles not linted`));
+    }
+  });
+
+  it('reads anything but a list of findings, or one of a rule the config ignores, as a file not linted', async () => {
+    const odd = files[0]!;
+    const answers: Array<[Ran, RegExp]> = [
+      [{ status: 1, stdout: '', stderr: 'Error parsing config' }, /docker exited 1: Error parsing config/],
+      [ok(''), /printed no list of findings \(nothing\)/],
+      [ok('{"code":"DL3059"}'), /printed JSON that is not a list of findings/],
+      [ok('[{"code":"DL3059"}]'), /a finding without a code, a line, a level and a message/],
+      [ok(JSON.stringify([{ code: 'DL3008', line: 1, level: 'warning', message: 'Pin versions in apt get install' }])), /reported DL3008, which \.hadolint\.yaml ignores: the config was not read/],
+      [{ status: null, stdout: '', stderr: '', error: Object.assign(new Error('spawnSync docker ETIMEDOUT'), { code: 'ETIMEDOUT' }) }, /docker could not be run \(ETIMEDOUT\)/],
+    ];
+    for (const [answer, why] of answers) {
+      for (const [event, code] of [['pull_request', 0], ['push', 1]] as const) {
+        const out = await at(event, stub((args) => (args[0] === 'pull' || args.at(-1) !== odd ? lintsAll(args) : answer)));
+        expect(out.code, `${event}: ${why.source}`).toBe(code);
+        expect(out.markdown).toContain(`| \`${odd}\` | not linted | | |`);
+        const line = out.markdown.split('\n').find((l) => l.startsWith(`- \`${odd}\`: `)) ?? '';
+        expect(line, why.source).toMatch(why);
+        // The other files were read all the same.
+        expect(out.markdown).toContain(`| \`${files[1]!}\` | 1 | 0 | 1 |`);
+      }
+    }
+  });
+
+  it('runs nothing, and fails only outside a pull request, when HADOLINT_IMAGE is not hadolint by a release tag and its digest', async () => {
+    for (const wrong of ['', 'hadolint/hadolint:v2.15.1', `hadolint/hadolint:latest@sha256:${'0'.repeat(64)}`, `ghcr.io/hadolint/hadolint:v2.15.1@sha256:${'0'.repeat(64)}`]) {
+      for (const [event, code] of [['pull_request', 0], ['push', 1]] as const) {
+        const s = stub(lintsAll);
+        const out = await at(event, s, { HADOLINT_IMAGE: wrong });
+        expect(s.calls, wrong).toEqual([]);
+        expect(out.code, `${event} ${wrong}`).toBe(code);
+        expect(out.markdown).toContain('Nothing was linted: HADOLINT_IMAGE is ');
+      }
+    }
+  });
+
+  it("pairs each rule this file holds with hadolint's code for it, as the header does", () => {
+    expect(RULE_CODES).toEqual({
+      'non-root': ['DL3002'],
+      'numeric-user': ['DL3066'],
+      'exec-form': ['DL3025'],
+      pipefail: ['DL4006'],
+      'no-add': ['DL3020'],
+      tagged: ['DL3006', 'DL3007'],
+    });
+  });
+
+  it("records in KNOWN_FINDINGS only Dockerfiles here and hadolint's codes, none the config ignores or EXCEPTIONS explain, each with its reason", () => {
+    for (const [file, codes] of Object.entries(KNOWN_FINDINGS)) {
+      expect(files, file).toContain(file);
+      const excused = Object.keys(EXCEPTIONS[file] ?? {}).flatMap((rule) => RULE_CODES[rule as Rule]);
+      for (const [code, why] of Object.entries(codes)) {
+        expect(code).toMatch(/^(DL|SC)\d{4}$/);
+        expect(IGNORED).not.toContain(code);
+        expect(excused, `${file} ${code}: EXCEPTIONS explain it already`).not.toContain(code);
+        expect(why.length, `${file} ${code}`).toBeGreaterThan(40);
+      }
+    }
+  });
+
+  it('calls known exactly what EXCEPTIONS or KNOWN_FINDINGS explain, with the reason, and names a known one hadolint did not report', () => {
+    const [proxy, supervisor] = ['deploy/compose/docker-socket-proxy/Dockerfile', TRIGGER_DEV[1]];
+    expect(knownAs(supervisor, 'DL3066')).toEqual({ by: 'EXCEPTIONS, numeric-user', why: EXCEPTIONS[supervisor]!['numeric-user'] });
+    expect(knownAs(supervisor, 'DL4006')?.by).toBe('EXCEPTIONS, pipefail');
+    expect(knownAs(proxy, 'DL3064')).toEqual({ by: 'KNOWN_FINDINGS', why: KNOWN_FINDINGS[proxy]!['DL3064'] });
+    expect(knownAs(proxy, 'DL3059')).toBeNull();
+    expect(knownAs('apps/api/Dockerfile', 'DL3066')).toBeNull();
+    expect(knownAs(supervisor, 'constructor')).toBeNull();
+    const finding = (code: string, line: number) => ({ code, line, level: 'warning', message: `${code} | <here>` });
+    const out = report({
+      image,
+      event: 'push',
+      files: [proxy, supervisor],
+      results: [
+        { file: proxy, findings: [finding('DL3002', 143)] },
+        { file: supervisor, findings: [finding('DL3059', 10), finding('DL3066', 242)] },
+      ],
+    });
+    expect(out.code).toBe(0);
+    expect(out.markdown).toContain(`| \`${supervisor}\` | 2 | 1 | 1 |`);
+    expect(out.markdown).toContain('| 242 | [DL3066](https://github.com/hadolint/hadolint/wiki/DL3066) | warning | DL3066 \\| &lt;here&gt; | EXCEPTIONS, numeric-user |');
+    expect(out.markdown).toContain('| 10 | [DL3059](https://github.com/hadolint/hadolint/wiki/DL3059) | warning | DL3059 \\| &lt;here&gt; |  |');
+    expect(out.markdown).toContain(`- **EXCEPTIONS, numeric-user**: ${EXCEPTIONS[supervisor]!['numeric-user']}`);
+    const unreported = out.markdown.split('### Known, and not reported this run')[1] ?? '';
+    expect(unreported).toContain(`\`${supervisor}\`: DL4006 (EXCEPTIONS, pipefail) is known, and hadolint did not report it here`);
+    expect(unreported).toContain(`\`${proxy}\`: DL3066 (EXCEPTIONS, numeric-user)`);
+    expect(unreported).toContain(`\`${proxy}\`: DL3064 (KNOWN_FINDINGS)`);
+    expect(unreported, 'the proxy’s DL3002 was reported').not.toContain('DL3002');
+    expect(out.markdown).toContain('**3 findings in 2 Dockerfiles linted of 2: 2 known, 1 to read.**');
   });
 });
