@@ -65,11 +65,6 @@ export type Rule = 'non-root' | 'numeric-user' | 'exec-form' | 'pipefail' | 'no-
  * break it still: one fixed since fails until it leaves this list.
  */
 export const EXCEPTIONS: Readonly<Record<string, Partial<Record<Rule, string>>>> = {
-  'apps/worker/task-image/Dockerfile': {
-    'numeric-user': '`USER node`, the account the build stage adds at uid and gid 1000, by the name the Trigger.dev CLI uses',
-    pipefail: "the build stage's trust edit makes the roots' alternation with `echo | tr`, and counts the bundle with `ls | wc -l`",
-  },
-
   'deploy/compose/caddy/Dockerfile': {
     'non-root':
       'trigger-tls runs as root: on every stack that ran it, its volumes trigger_tls_data, with the CA `tls internal` minted, ' +
