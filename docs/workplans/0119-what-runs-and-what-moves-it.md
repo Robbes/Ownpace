@@ -2,7 +2,97 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-18 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: a read-only check of the repository (BlueLandscape, run on `main` at `646b9de2`)
+reads the web image and GoAccess's as containers that run as root (GEN-21), and lists where eight
+Dockerfiles break hadolint's rules (GEN-20). Both images now end as their own users, the web
+image's health check needs no shell, three Dockerfiles lose a pipe with no `pipefail`, the Docker
+socket proxy stays root and says why, and a guard holds every Dockerfile to six of the rules; built
+on a branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-bl-nonroot`, from
+`main` at `d6f10278`, one commit per Dockerfile; the dashboard's TLS front (`…-bl-caddy`) and the
+Stalwart fixture (`…-bl-images`) are branches of their own. Each rule was read from the line the
+check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
+- **The web image, `apps/web/Dockerfile`.** nginx's master ran as root, chowned its temp
+  directories to nginx and dropped its workers to it, so `managed.yml` kept CHOWN,
+  NET_BIND_SERVICE, SETGID and SETUID for it. Its runtime stage now ends as `USER 101:101`, the
+  image's own nginx, master and workers alike: one RUN makes `/etc/nginx/conf.d` (where the
+  entrypoint renders the template at every start) and `/var/cache/nginx` (the temp directories)
+  101's, moves the pid file from `/run` to `/tmp`, and drops `user  nginx;`, each line read before
+  it changes. Its HEALTHCHECK is exec form, busybox's wget with no shell (DL3025, line 111).
+  `managed.yml`'s web adds no capability and sets `net.ipv4.ip_unprivileged_port_start: 0`, as
+  Docker does by default, so uid 101 binds port 80 without resting on a daemon default; the
+  container port stays 80, which `STATUS_WEB_URL` and the hosts' `.env` files name. `www.yml`'s
+  site still runs the nginx image as it ships.
+- **GoAccess, `deploy/compose/goaccess/Dockerfile`.** Its run stage, like upstream's, named no
+  USER. It now ends as `USER 65534:65534`, before the RUN that starts the binary, so the build
+  proves it starts as nobody; `site-visits.sh` already ran it as 65534:65534, read-only, with no
+  network and no capability, and builds the image on every run, so live's next count builds this.
+  `make -j"$(nproc)"` is quoted (ShellCheck's SC2046, line 69).
+- **The Docker socket proxy stays root.** `USER root` is upstream's v0.5.0, and the header's new
+  WHY ROOT says why it stays: HAProxy connects to the host's Docker socket, root's and the docker
+  group's at mode 0660, whose group id differs from host to host, and whoever can use the socket
+  holds the host whichever user does; `managed.yml` gives it no capability, no-new-privileges, a
+  read-only root filesystem and one internal network instead. Its check of the two copied files
+  hashes each on its own, where it piped a list into `sha256sum -c -` (DL4006, line 123), and the
+  name moves to `localhost/docker-socket-proxy:3.4.7-alpine-a8d771e9f164`.
+- **The pooler, `deploy/compose/pgbouncer/Dockerfile`.** Both RUNs pipe (DL4006, lines 141 and 170):
+  a SHELL after the FROM, the base's ash with `-o pipefail`, now runs them, and its install message
+  prints its two lists without an unquoted `echo` (SC2086, line 141). images.yml's `build
+  (pgbouncer, …)` compares the image's User, Entrypoint, Cmd, WorkingDir, ExposedPorts and Env
+  with upstream's, not its Shell. The name moves to `localhost/pgbouncer:v1.26.1-p0-abd8080fb98b`.
+- **The tasks' base, `apps/worker/task-image/Dockerfile`.** The build stage's trust RUN makes the
+  roots' alternation with a loop and counts the rejected intermediates by their glob, where it
+  piped `echo | tr` and `ls | wc -l` (DL4006 and SC2012, line 82): the same sed expression, both
+  forms compared under dash. The runtime stage ends as `USER 1000:1000`, node by number (DL3066,
+  line 132); the CLI's runtime stage still says `USER node`, the same account. The published base
+  moves with the next build on `main`, and the tasks with `TASK_BASE_IMAGE` after it.
+- **What stays, and why.** The seven lines given as the whole file (the tasks' base, the TLS
+  front, the proxy, GoAccess, the pooler, Postgres and Redis) are almost certainly DL3057, a
+  HEALTHCHECK missing: those seven have none, and the web image, the one listed with one, has no
+  such line. DL3057 is off unless asked for, and compose gives the databases, the pooler and Redis
+  their probes; a probe in the tasks' base would run in every task's container, GoAccess runs once
+  and exits, and the proxy's instructions are upstream's. The proxy's ENV (line 90) is DL3064, a
+  name with SECRET in it: `SECRETS=0` is upstream's switch that refuses Docker's secrets
+  endpoint. Its `USER root` (line 129) is DL3002 and DL3066, and the pooler's `USER root` and
+  `USER postgres` (lines 136 and 166) DL3066: the user is upstream's, and images.yml holds the
+  pooler's to it. Redis's purge RUN (line 201) has SC2086 and SC2016, both info: two lists split
+  into words on purpose and two Perl programs in single quotes, a RUN `an-essential-nothing-runs`
+  holds line by line. And DL3008 and DL3018, packages installed without a version (the tasks'
+  base, line 73; GoAccess, lines 45 and 75), are left open: an exact version stops the build the
+  day the distribution ships the next and drops it from its mirror, as the pooler's header says
+  of its five, while the bases are pinned by digest and the image scan says when a package is
+  behind. hadolint passes any apk package written with `=`, `~`, `>` or `<`, so a floor would
+  quiet it without pinning anything; it is not done.
+- **The guard, `a-dockerfile-that-ends-as-root`.** Every Dockerfile git lists, found by walking
+  (14 today, each of them known), ends its last stage as a user that is not root (DL3002), names
+  every USER by number (DL3066), writes CMD, ENTRYPOINT and HEALTHCHECK's CMD in exec form
+  (DL3025), runs a RUN that pipes only under a SHELL with `-o pipefail` (DL4006), has no ADD
+  (DL3020), and names a tag that is not `latest` in every outside FROM (DL3006, DL3007), unless
+  its EXCEPTIONS names the file and the rule with the reason; an exception whose file no longer
+  breaks the rule fails too. Left in it: the proxy (root, by name), the pooler (by name), the
+  supervisor and the Trigger.dev image (by name, pipes: not in this round), and the TLS front and
+  the Stalwart fixture (root), each until its own branch lands.
+- **The order they land in.** The TLS front's branch and the fixture's make a file keep a rule
+  that this guard lists as an exception. Whichever lands after this branch takes that file's entry
+  out of EXCEPTIONS in the same change: the guard's failure names it. If this branch lands last, it
+  takes both out itself when it is brought up to date.
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,103 tests passed and 33 skipped;
+  before that, per Dockerfile, the guards that read it (GoAccess 5 test files, 294 tests; the proxy
+  29, 1,562; the pooler 26, 1,180; the tasks' base 11, 595; the web image 142, 4,559); `tsc
+  --noEmit`, ESLint on every changed test and the six docs checks. On disk, each
+  failing as it should, each file restored byte for byte: the web image without its USER, with
+  `USER root`, and with its HEALTHCHECK in shell form; GoAccess without its USER, with an ADD, and
+  with a FROM of `alpine:latest` or of `alpine` alone, and with a pipe in a RUN; the proxy's check
+  piped again, without its test of the entrypoint's executable bit, and with `USER 0:0` (the
+  exception then stale); the pooler without its SHELL and with ash without pipefail; and the tasks'
+  base counting through `ls | wc -l` again and with `USER node`.
+- **Owed after the push:** images.yml on the pull request (the web image's build, `build
+  (docker-socket-proxy)`, which starts the proxy on the runner's socket and asks it what the
+  supervisor uses, `build (pgbouncer, …)` on both platforms, and the tasks' base started as the
+  CLI's runtime stage starts it, which wants 1000:1000), and script-images.yml's build of GoAccess
+  on arm64. Then E2E (managed) on the OTA box: the web container as uid 101 with no capability,
+  and the proxy's and the pooler's new names, which a machine builds at its first `up`.
 
 **2026-11-18, last: the alpha.12 round's reading. No release fixes the image scan's highs; three
 pins move after their floors, and four releases are left.** Read on 2026-11-18 from upstream's

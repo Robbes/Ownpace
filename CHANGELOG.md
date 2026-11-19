@@ -37,6 +37,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The web image runs nginx as its own user from its first process, GoAccess's image ends as
+  nobody, and three more Dockerfiles lose a pipe that could hide a failed command** (workplan
+  0119). A read-only check of the repository read the web image and GoAccess's as containers that
+  run as root, and listed where eight Dockerfiles break hadolint's rules. nginx now starts as uid
+  101 with no capability; managed.yml's web sets `net.ipv4.ip_unprivileged_port_start=0`, so it
+  still listens on port 80, and its health check runs with no shell. GoAccess ends as 65534:65534,
+  the user the visit count already ran it as. The Docker socket proxy stays root, as upstream ships
+  it, and its Dockerfile says why. It and the connection pooler get new image names, which each
+  machine builds at its next deploy, and the tasks' base names its user by number. A new test
+  holds every Dockerfile to six of hadolint's rules, and names each file that breaks one with its
+  reason.
 - **The advisory gate accepts nothing again: GitHub withdrew GHSA-fc5q-39xc-vjpf, the picomatch
   ReDoS it accepted by name, on 2026-11-18** (workplan 0119). `pnpm audit` no longer lists it, so
   its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
