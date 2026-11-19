@@ -149,8 +149,7 @@ people · 1 needs you"* (0153 T3 (b)).
 ## Amendment 2026-11-19: a person may be the member's own account
 
 *Start a migration* asks *Who is it for?* first (0153 T4). The owner asked for their own name to
-be chosen there already: *"At adding a migration I am asked to pick for whom. Default should be
-selected my own name."* Choosing it needs to know which person on the list is the member who is
+be chosen there already. Choosing it needs to know which person on the list is the member who is
 signed in. Rule 1 said a person is a display name and optionally an email address, so nothing
 said it. Matching the name or the address against the sign-in would be a guess, and a wrong guess
 gives one person's migrations to another. Asked to choose between an explicit link (A), a match
