@@ -8,6 +8,13 @@ on:
   # wedges a required context rather than failing it.
   pull_request:
 
+# Read-only (workplan 0119, 2026-11-19): a checkout and `git diff` are all
+# this job does. Until then this file named no permissions, so the job ran on
+# whatever the repository's settings give the default token. Held by
+# scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 jobs:
   check-artifacts:
     name: Check for committed artifacts

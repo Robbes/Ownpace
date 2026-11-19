@@ -110,6 +110,13 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: false
 
+# Read-only (workplan 0119, 2026-11-19): the checkout is the one step here
+# that uses the token. Until then this file named no permissions, so the job
+# ran on whatever the repository's settings give the default token. Held by
+# scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 env:
   # Layered on top when the dispatch asks for PGlite. Exported (rather than
   # spliced only into the `docker compose` calls below) because the gate itself

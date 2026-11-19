@@ -102,6 +102,14 @@ concurrency:
   # the next run inherits it as a mystery.
   cancel-in-progress: false
 
+# Read-only (workplan 0119, 2026-11-19): the checkout is the one step here
+# that uses the token; the Trigger.dev token below is a repository secret,
+# which this does not touch. Until then this file named no permissions, so
+# the job ran on whatever the repository's settings give the default token.
+# Held by scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 env:
   MANAGED_COMPOSE: -f deploy/compose/managed.yml
   # Read by the smoke; defaults match the demo seed.

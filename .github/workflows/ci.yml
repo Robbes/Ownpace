@@ -198,6 +198,16 @@ concurrency:
   group: ci-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# READ-ONLY FOR EVERY JOB (workplan 0119, 2026-11-19). Until then this file
+# named no permissions, so each job ran on whatever the repository's settings
+# give the default token. The checkout is the one step that uses it:
+# actions/cache and upload-artifact take the runner's own token, and nothing
+# below pushes, comments or writes a check. A job that comes to need a write
+# asks for it in a block of its own. Held by
+# scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 jobs:
   detect-changes:
     name: detect-changes

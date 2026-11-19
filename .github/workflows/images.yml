@@ -52,17 +52,27 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Read at the top, and each job asks for what it uses (workplan 0119,
+# 2026-11-19): the two writes sit on `build`, the job that pushes and signs.
+# Until then they were granted here, to every job without a block of its own.
+# Seven of the eight have one, so `build` was the one that held them, and a
+# job added later would have held them too. Held by
+# scripts/a-token-the-job-never-asked-for.unit.test.ts.
 permissions:
   contents: read
-  packages: write
-  # Cosign keyless signing (0025 T3): the OIDC token IS the identity — no
-  # stored key material anywhere (rule 3), the signature binds this repo's
-  # workflow identity to the image digest via the public Sigstore log.
-  id-token: write
 
 jobs:
   build:
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      # The ghcr.io login below pushes with this token: the images, their
+      # registry cache and cosign's signatures.
+      packages: write
+      # Cosign keyless signing (0025 T3): the OIDC token IS the identity — no
+      # stored key material anywhere (rule 3), the signature binds this repo's
+      # workflow identity to the image digest via the public Sigstore log.
+      id-token: write
     strategy:
       fail-fast: false
       matrix:

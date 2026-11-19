@@ -1,0 +1,233 @@
+// Copyright 2026 The Ownpace authors (Apache-2.0)
+
+/**
+ * A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the
+ * repository's settings hand out, and images.yml's `build` held `packages:
+ * write` and `id-token: write` only because the workflow gave them to every
+ * job (workplan 0119, 2026-11-19).
+ *
+ * ## How it was found
+ *
+ * An outside, read-only check of `.github/workflows/` on `646b9de2`
+ * (2026-11-19) read three points: an action from outside this repository is
+ * pinned to a commit, no workflow has a dangerous trigger, and every job's
+ * permissions are as small as the job (OWASP's CI/CD Security Cheat Sheet). It
+ * named nineteen lines, one for each shape a file had. Every `uses:` was
+ * already a commit, and each commit was the tag its comment names (`git
+ * ls-remote`, read the same day), which `a-tag-the-publisher-can-move` holds.
+ *
+ * ## The token nobody chose
+ *
+ * `ci.yml`, the four E2E workflows and `no-committed-artifacts.yml` said
+ * nothing about permissions, at the top or on any job. A job that says nothing
+ * gets the repository's default `GITHUB_TOKEN`, whose scopes are a setting
+ * (Settings, Actions, General), not a line in this tree: read on contents and
+ * packages, or write on every scope, by whatever was chosen there and when.
+ * Four of those workflows run on the self-hosted runner, and `ci.yml`'s push
+ * jobs do whenever `CI_PUSH_ON_SELF_HOSTED` is `true`. None uses more than the
+ * checkout's `contents: read`: actions/cache and upload-artifact use the
+ * runner's own token, not `GITHUB_TOKEN`'s scopes, and what the E2E lanes log
+ * in with is a repository secret, the machine's persisted `.env` or the dev
+ * stack's own password, none of which `permissions:` touches. Each now says
+ * `contents: read` at the top.
+ *
+ * ## A write every job was handed
+ *
+ * `images.yml` granted `packages: write` and `id-token: write` at the top.
+ * Seven of its eight jobs replace that with a `contents: read` of their own;
+ * `build` did not, and it is the job that uses both: its login to ghcr.io
+ * pushes with the token (`packages: write`), and cosign signs keyless with the
+ * run's OIDC identity (`id-token: write`). The two now sit on `build`, which
+ * holds exactly what it held, and the top says `contents: read`, so a job
+ * added later starts from read and asks for what it uses. A workflow of one
+ * job keeps its write at the top (`clock-watch.yml`, `idp-pin-watch.yml`,
+ * whose own guards hold it there): with one job, the top is that job's block.
+ *
+ * ## No trigger that hands a stranger the token
+ *
+ * `pull_request_target` runs on a pull request from anywhere with this
+ * repository's token and secrets, and `workflow_run` runs after another run
+ * with the same; with a checkout of the pull request's head, either runs a
+ * stranger's code holding both. No workflow here has either.
+ */
+
+import { describe, it, expect } from 'vitest';
+import { readFileSync, readdirSync } from 'node:fs';
+import { join, dirname } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
+
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
+const WORKFLOWS = join(REPO_ROOT, '.github', 'workflows');
+
+type Permissions = string | Record<string, string> | undefined;
+
+interface Step {
+  readonly name?: string;
+  readonly uses?: string;
+  readonly run?: string;
+  readonly with?: Record<string, unknown>;
+}
+
+interface Job {
+  readonly permissions?: Permissions;
+  readonly steps?: ReadonlyArray<Step>;
+}
+
+interface Workflow {
+  readonly on?: unknown;
+  readonly permissions?: Permissions;
+  readonly jobs?: Record<string, Job>;
+}
+
+/**
+ * The six workflows that named no permissions. Named, so a walk that stops
+ * seeing one fails here instead of passing over less.
+ */
+const UNDECLARED_FIXED = [
+  '.github/workflows/ci.yml',
+  '.github/workflows/e2e.yml',
+  '.github/workflows/e2e-managed.yml',
+  '.github/workflows/e2e-o365.yml',
+  '.github/workflows/e2e-live-target.yml',
+  '.github/workflows/no-committed-artifacts.yml',
+];
+
+function workflowFiles(): ReadonlyArray<string> {
+  return readdirSync(WORKFLOWS)
+    .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
+    .sort()
+    .map((f) => `.github/workflows/${f}`);
+}
+
+function parse(text: string): Workflow {
+  return parseYaml(text) as Workflow;
+}
+
+function text(path: string): string {
+  return readFileSync(join(REPO_ROOT, path), 'utf8');
+}
+
+/** `write-all`, or a write on any one scope. */
+function grantsWrite(permissions: Permissions): boolean {
+  if (permissions === undefined) return false;
+  if (typeof permissions === 'string') return permissions === 'write-all';
+  return Object.values(permissions).some((level) => level === 'write');
+}
+
+/** Every job that runs on the repository's default token: no block of its own and none at the top. */
+function undeclared(path: string, workflow: Workflow): ReadonlyArray<string> {
+  if (workflow.permissions !== undefined) return [];
+  return Object.entries(workflow.jobs ?? {})
+    .filter(([, job]) => job.permissions === undefined)
+    .map(([name]) => `${path} job ${name}`);
+}
+
+/**
+ * Every job, in a workflow of more than one, that holds a write it does not
+ * declare itself: it has no block of its own, and the top grants a write.
+ */
+function inheritedWrites(path: string, workflow: Workflow): ReadonlyArray<string> {
+  const jobs = Object.entries(workflow.jobs ?? {});
+  if (jobs.length < 2 || !grantsWrite(workflow.permissions)) return [];
+  return jobs
+    .filter(([, job]) => job.permissions === undefined)
+    .map(([name]) => `${path} job ${name} inherits ${JSON.stringify(workflow.permissions)}`);
+}
+
+/** A block that names no scope at all: `read-all` or `write-all`. */
+function blanketGrants(path: string, workflow: Workflow): ReadonlyArray<string> {
+  const blocks: Array<[string, Permissions]> = [
+    [`${path} (top)`, workflow.permissions],
+    ...Object.entries(workflow.jobs ?? {}).map(([name, job]): [string, Permissions] => [`${path} job ${name}`, job.permissions]),
+  ];
+  return blocks.filter(([, p]) => typeof p === 'string').map(([where, p]) => `${where}: permissions: ${String(p)}`);
+}
+
+/** The events a workflow triggers on, in any of the three shapes `on:` takes. */
+function events(workflow: Workflow): ReadonlyArray<string> {
+  const on = workflow.on;
+  if (typeof on === 'string') return [on];
+  if (Array.isArray(on)) return on.map(String);
+  if (on && typeof on === 'object') return Object.keys(on);
+  return [];
+}
+
+const DANGEROUS = ['pull_request_target', 'workflow_run'];
+
+const files = workflowFiles();
+const docs = files.map((path) => ({ path, workflow: parse(text(path)) }));
+
+describe('a job runs on the token its workflow names, not on the repository default', () => {
+  it('reads every workflow, the six that named none among them', () => {
+    expect(files.length, 'almost no workflows found: every assertion below would pass over nothing').toBeGreaterThan(10);
+    for (const path of UNDECLARED_FIXED) expect(files, path).toContain(path);
+  });
+
+  it('every job has permissions, of its own or from the top of its workflow', () => {
+    expect(
+      docs.flatMap(({ path, workflow }) => undeclared(path, workflow)),
+      'these jobs get whatever Settings, Actions, General grants the default token, which this tree cannot see ' +
+        'and a click can widen to write on every scope: give the workflow `permissions: contents: read` at the top, ' +
+        'or each job the block it uses',
+    ).toEqual([]);
+  });
+
+  it('refuses a workflow that names none, by taking the block off a real one', () => {
+    const before = text('.github/workflows/e2e.yml');
+    const after = before.replace(/^permissions:\n(?: {2}.*\n)+/m, '');
+    expect(after, 'the mutation changed nothing').not.toBe(before);
+    expect(undeclared('.github/workflows/e2e.yml', parse(after))).toEqual(['.github/workflows/e2e.yml job e2e-selfhost']);
+  });
+});
+
+describe('a write reaches only the job that declares it', () => {
+  it('no job of a workflow with several holds a write from the top', () => {
+    expect(
+      docs.flatMap(({ path, workflow }) => inheritedWrites(path, workflow)),
+      'a write at the top reaches every job without a block of its own, and every job added later: ' +
+        'move it onto the job that uses it, and leave `contents: read` at the top',
+    ).toEqual([]);
+  });
+
+  it("images.yml's build holds what it pushes and signs with, and the top only reads", () => {
+    const images = parse(text('.github/workflows/images.yml'));
+    expect(images.permissions).toEqual({ contents: 'read' });
+    expect(images.jobs?.['build']?.permissions).toEqual({ contents: 'read', packages: 'write', 'id-token': 'write' });
+  });
+
+  it('refuses the writes back at the top, by moving them on the real file', () => {
+    const images = parse(text('.github/workflows/images.yml')) as {
+      permissions?: Permissions;
+      jobs: Record<string, { permissions?: Permissions }>;
+    };
+    images.permissions = images.jobs['build']!.permissions;
+    delete images.jobs['build']!.permissions;
+    expect(inheritedWrites('.github/workflows/images.yml', images as Workflow)).toEqual([
+      '.github/workflows/images.yml job build inherits {"contents":"read","packages":"write","id-token":"write"}',
+    ]);
+  });
+
+  it('no block grants every scope at once', () => {
+    expect(
+      docs.flatMap(({ path, workflow }) => blanketGrants(path, workflow)),
+      '`read-all` and `write-all` name no scope: list the ones the job uses',
+    ).toEqual([]);
+  });
+});
+
+describe('no workflow runs on an event that hands a stranger the token', () => {
+  it('no pull_request_target and no workflow_run', () => {
+    expect(
+      docs.flatMap(({ path, workflow }) => events(workflow).filter((e) => DANGEROUS.includes(e)).map((e) => `${path}: on ${e}`)),
+      'both run with this repository’s token and secrets on an event somebody outside it can cause',
+    ).toEqual([]);
+  });
+
+  it('reads `on:` in all three of its shapes', () => {
+    expect(events(parse('on: pull_request_target\njobs: {}\n'))).toEqual(['pull_request_target']);
+    expect(events(parse('on: [push, workflow_run]\njobs: {}\n'))).toEqual(['push', 'workflow_run']);
+    expect(events(parse('on:\n  workflow_run:\n    workflows: [CI]\njobs: {}\n'))).toEqual(['workflow_run']);
+    expect(events(parse(text('.github/workflows/ci.yml')))).toEqual(['pull_request', 'push', 'workflow_dispatch']);
+  });
+});
