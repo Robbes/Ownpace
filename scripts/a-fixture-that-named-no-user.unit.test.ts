@@ -2,7 +2,7 @@
 
 /**
  * A FIXTURE THAT NAMED NO USER (a read-only check of the repository,
- * BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+ * 2026-11-19: GEN-21 and IMG-1; workplan 0119).
  *
  * `packages/testing/fixtures/stalwart/Dockerfile` was `FROM
  * stalwartlabs/stalwart:v0.16.27` and one COPY. A check that reads a

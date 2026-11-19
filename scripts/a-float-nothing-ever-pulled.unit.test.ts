@@ -37,7 +37,7 @@
  *    nginx did not; and since 2026-11-19 in every Dockerfile the repository
  *    tracks, whatever builds it: the Stalwart fixture's
  *    (`packages/testing/fixtures/stalwart/Dockerfile`) named its base by tag
- *    alone, and a read-only check of the repository (BlueLandscape, IMG-1)
+ *    alone, and a read-only check of the repository (IMG-1)
  *    reported it so;
  *  - the integration tests' Postgres and Nextcloud
  *    (`packages/testing/src/testcontainers-setup.ts`) are the dev stack's.

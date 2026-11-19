@@ -1828,7 +1828,7 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/setup-stalwart.sh`
 
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
-- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -2837,7 +2837,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/testing/fixtures/stalwart/Dockerfile`
 
-- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 
 ### `packages/testing/fixtures/stalwart/config.json`
@@ -2851,7 +2851,7 @@ reading a file drops off its entry by itself.
 ### `packages/testing/src/testcontainers-setup.ts`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
-- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -4303,7 +4303,7 @@ Reads:
 
 ### [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts)
 
-A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 
 Reads:
 

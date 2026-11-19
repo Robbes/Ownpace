@@ -4,10 +4,10 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
-**2026-11-19: a read-only check of the repository (BlueLandscape, run on `main` at `646b9de2`)
-reports two base images with a fixable high or critical (IMG-1), and the Stalwart fixture as a
-container that runs as root (GEN-21). Neither base moves here; the fixture says what it is; built
-on a branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-bl-images`, from
+**2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`) reports two base
+images with a fixable high or critical (IMG-1), and the Stalwart fixture as a container that runs
+as root (GEN-21). Neither base moves here; the fixture says what it is.** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-images`, PR #1950, from
 `main` at `d6f10278` (#1941; the findings' files are as at `646b9de2`). Read on 2026-11-19 from
 Docker Hub (through Google's mirror of it, without a login), GHCR's tag lists, upstream's source
 at its tags, npm's advisory service, OSV's Debian data and CISA's list of exploited
