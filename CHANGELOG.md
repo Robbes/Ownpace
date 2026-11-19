@@ -144,6 +144,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   recipient, and verification compares as before. The connection test, the assessment and the
   audit row say this for Cirrux, instead of promising what the marker would do. Every other
   target gets the same bytes as before.
+- **An event already at Cirrux that lists guests is left as it is, because changing or deleting it
+  emails them** (workplan 0160, ADR-0043). Cirrux emails a guest a cancellation when they are taken
+  off an event and when the event is deleted: a test of each on 2026-11-19 mailed one. A rewrite
+  takes every guest off, so an event written before the guests came out would have emailed each of
+  its guests a cancellation the first time it changed at the source. For a Cirrux target the
+  calendar and task writers now read such a copy first, and one that lists a guest is neither
+  rewritten nor deleted. The change at the source is not applied and is asked about again on the
+  next pass; the run log says how many were left; *Deletions* and *Moves* answer that it was kept
+  for its guests, and nothing is removed. Every other target gets the same requests as before.
 - **A calendar or task list made at Cirrux is written to where Cirrux keeps it** (workplan 0160).
   With the calendar home found, the next pass into Cirrux, on 2026-11-19, made the source's
   calendar: Cirrux answered 201 and showed it, with the name asked for. Then it refused every

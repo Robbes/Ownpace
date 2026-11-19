@@ -99,6 +99,11 @@ function harness(opts: {
    * point, so the double must not write either.
    */
   refuseOverwrite?: boolean;
+  /**
+   * Make the writer leave the copy as it is because it lists guests the
+   * target would mail (workplan 0160). Nothing is written here either.
+   */
+  keepForGuests?: boolean;
   /** What the writer reports the target version to be after a successful write. */
   targetVersion?: string;
 }) {
@@ -147,6 +152,9 @@ function harness(opts: {
           }
           if (options?.overwrite && opts.refuseOverwrite) {
             return { targetId: 't1', created: false, conflicted: true };
+          }
+          if (options?.overwrite && opts.keepForGuests) {
+            return { targetId: 't1', created: false, keptForGuests: true };
           }
           return {
             targetId: 't1',
@@ -206,6 +214,43 @@ describe('runDomainSync update propagation', () => {
     expect(r4.skipped).toBe(1);
     expect(r4.updated).toBe(0);
     expect(settled.upserts).toHaveLength(0);
+  });
+
+  it('leaves a copy that lists guests as it is, row and all, and asks again next pass (workplan 0160)', async () => {
+    // At a target that mails guests, a rewrite takes every guest off, and
+    // each one taken off is mailed a cancellation. So the writer sends
+    // nothing, and the loop must not pretend otherwise: no update counted,
+    // no conflict (nobody edited the copy), no failure, and the row exactly
+    // as it was.
+    const ledger = new MemoryLedger();
+    await harness({ version: 'etag-1', body: 'v1', targetVersion: 'tv-1' }).run(ledger);
+    const row = async () => {
+      const r = await ledger.find(TENANT, MAPPING, 'calendar', 'k1');
+      return { status: r?.status, sourceVersion: r?.sourceVersion, contentHash: r?.contentHash, targetVersion: r?.targetVersion };
+    };
+    const before = await row();
+    expect(before).toEqual({ status: 'copied', sourceVersion: 'etag-1', contentHash: 'h:v1', targetVersion: 'tv-1' });
+
+    const kept = harness({ version: 'etag-2', body: 'v2', keepForGuests: true });
+    const r = await kept.run(ledger);
+    expect(kept.upserts).toEqual([{ body: 'v2', overwrite: true }]);
+    expect(r.keptForGuests).toBe(1);
+    expect(r.updated).toBe(0);
+    expect(r.conflicted).toBe(0);
+    expect(r.failed).toBe(0);
+    // Not adopted, since nobody edited it; the source version NOT advanced,
+    // since the change was not applied.
+    expect(await row()).toEqual(before);
+
+    // So the next pass asks the writer again...
+    const again = harness({ version: 'etag-2', body: 'v2', keepForGuests: true });
+    expect((await again.run(ledger)).keptForGuests).toBe(1);
+    expect(again.upserts).toEqual([{ body: 'v2', overwrite: true }]);
+
+    // ...and the day the writer may rewrite it, the change goes through.
+    const through = harness({ version: 'etag-2', body: 'v2', targetVersion: 'tv-2' });
+    expect((await through.run(ledger)).updated).toBe(1);
+    expect(await row()).toEqual({ status: 'updated', sourceVersion: 'etag-2', contentHash: 'h:v2', targetVersion: 'tv-2' });
   });
 
   it('does not overwrite a copy the owner has edited on the target', async () => {

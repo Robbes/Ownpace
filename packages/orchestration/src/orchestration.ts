@@ -175,6 +175,12 @@ export interface DomainSyncResult {
    */
   conflicted?: number;
   /**
+   * Rewrites not sent because the copy still lists guests the target would
+   * mail (workplan 0160). The source change was NOT applied; the item stays
+   * ours and is asked about again next pass. Calendar and task only.
+   */
+  keptForGuests?: number;
+  /**
    * Items the source has stopped showing for long enough to be worth saying out
    * loud. Nothing was removed from the target — §11.1, hard rule 2.
    */
@@ -622,6 +628,7 @@ export async function runAllDomains(
             leftBehind: result.leftBehind,
             moved: result.moved,
             conflicted: result.conflicted,
+            keptForGuests: result.keptForGuests,
             deletions: result.deletions.length,
           };
         } finally {
@@ -697,6 +704,7 @@ export async function runAllDomains(
             needsDecision: result.needsDecision,
             leftBehind: result.leftBehind,
             conflicted: result.conflicted,
+            keptForGuests: result.keptForGuests,
             deletions: result.deletions.length,
           };
         } finally {
@@ -921,6 +929,14 @@ export async function runAllDomains(
             'copies on the target had been edited since we wrote them — someone is already ' +
             'working in the new system. Their versions were left untouched (hard rule 2) and ' +
             'those items will not be overwritten again. The source change was NOT applied.',
+        );
+      }
+      if (outcome.keptForGuests) {
+        log.warn(
+          `[Worker] ${domain}: ${outcome.keptForGuests} item(s) changed on the source, but their ` +
+            'copies on the target still list guests, and that target emails each guest a rewrite ' +
+            'takes off. They were left as they are and nobody was emailed. The source change was ' +
+            'NOT applied; the next pass asks again.',
         );
       }
       if (outcome.moved) {

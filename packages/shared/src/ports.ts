@@ -511,6 +511,18 @@ export interface UpsertResult {
    */
   readonly conflicted?: boolean;
   /**
+   * The rewrite was NOT SENT because the copy on the target still lists
+   * guests, and the target mails its guests itself (`mailsGuestsItself`,
+   * workplan 0160). Nothing was written and nobody was mailed.
+   *
+   * Cirrux mails a guest a cancellation when they are taken off an event, and
+   * a rewrite for such a target takes every guest off (`withoutGuests`). So a
+   * copy written before the guests came out is left as it is, however the
+   * source changes. Not an error and not a conflict: nobody edited the copy,
+   * so the ledger row stays as it was and the next pass asks again.
+   */
+  readonly keptForGuests?: boolean;
+  /**
    * True when an item WE had already copied was rewritten because the source
    * version changed — the shadow-sync update path (§11.1, "the source is
    * authoritative for content").
@@ -739,6 +751,15 @@ export interface RemovalResult {
    * where the ETag is, which is the only place it can be done without a race.
    */
   readonly conflicted?: boolean;
+  /**
+   * The copy still lists guests, and the target mails its guests itself
+   * (`mailsGuestsItself`, workplan 0160), so nothing was removed.
+   *
+   * Cirrux mails each guest a cancellation when an event they are on is
+   * deleted. Answered only by a writer told its target does that; asked of
+   * the copy the target holds, just before the DELETE would have gone.
+   */
+  readonly keptForGuests?: boolean;
   /**
    * No version was recorded for this copy, so nothing was removed (workplan
    * 0149 T3, the owner's D1).

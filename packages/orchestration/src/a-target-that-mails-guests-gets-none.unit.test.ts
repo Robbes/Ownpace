@@ -84,6 +84,29 @@ describe('every scheduling verdict is told the kind, so a target that mails gues
   }
 });
 
+describe('a copy kept for its guests is counted where the owner reads a pass, in both editions', () => {
+  // The writer leaves an event that still lists guests as it is (workplan
+  // 0160), and the sync loop counts it. That count is the only sign a source
+  // change went unapplied on purpose, so both editions must carry it out.
+  const read = (file: string) => readFileSync(new URL(file, import.meta.url), 'utf8');
+
+  it("the appliance's pass carries it for calendars and tasks, and says it in the log", () => {
+    const source = read('./orchestration.ts');
+    for (const domain of ['calendar', 'task']) {
+      const start = source.indexOf(`} else if (domain === '${domain}') {`);
+      expect(start, `no ${domain} branch`).toBeGreaterThan(-1);
+      const end = source.indexOf('} else if (domain ===', start + 1);
+      expect(source.slice(start, end), `${domain} branch`).toContain('keptForGuests: result.keptForGuests,');
+    }
+    expect(source).toMatch(/if \(outcome\.keptForGuests\) \{\s*log\.warn\(/);
+  });
+
+  it("the managed worker writes it into the run log the owner reads", () => {
+    const source = read('../../../apps/worker/src/jobs/run-delta-sync.ts');
+    expect(source).toMatch(/if \(result\.keptForGuests\) \{[\s\S]{0,400}?logEvent\([\s\S]{0,600}?\{ domain, keptForGuests: kept \}/);
+  });
+});
+
 describe('the factories hand the answer to the writer', () => {
   const endpoint = { url: 'https://dav.example.org/', username: 'u', password: 'p' };
   const deps = { ledger: {} as never, tenantId: 't' as never, mappingId: 'm' as never };
