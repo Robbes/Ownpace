@@ -2624,6 +2624,7 @@ service, this is the map of what proved it and how:
 | trigger-registry, trigger-docker-proxy | **functionally**, by the gate itself: a deploy pushes through the registry and the supervisor starts runners through the proxy; **and asserted by the smoke**: the registry from the host, the proxy from the supervisor, whose `DOCKER_HOST` it is, and no such name from the API container (the proxy is on `trigger-docker-socket` with the supervisor alone) |
 | minio | compose healthcheck, `mc ready` (Chainguard's build), **and asserted by the smoke** from the API container — see below |
 | minio-init | a one-shot, not a service that stays up: it makes the `packets` bucket and exits 0, `--wait` waits for that, and `trigger-api` starts only after it |
+| trigger-tls-init | a one-shot, not a service that stays up: it gives `trigger-tls`'s two volumes to uid 65532 and exits 0, `--wait` waits for that, and `trigger-tls` starts only after it |
 | trigger-tls | **asserted by the smoke**, not probed — see below |
 | zitadel | no healthcheck by design (managed.yml): readiness is asked from the host by `wait_for_idp_ready`, and the smoke checks the issuer |
 | gatus | no healthcheck by design (a `FROM scratch` image): the smoke probes `/health` over the published port |

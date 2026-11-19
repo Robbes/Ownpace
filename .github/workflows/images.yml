@@ -898,9 +898,13 @@ jobs:
   # own RUN checks the packages it removes at the versions its header read,
   # proves they are gone, and asks `caddy version` for the FROM's release, so a
   # base that moved fails here, by name. Then it starts the image as
-  # managed.yml runs trigger-tls: trigger-tls.Caddyfile mounted read-only
-  # where Caddy reads it, TRIGGER_TLS_HOST at compose's default, the
-  # container's port 3443 on the runner's loopback. And it asks it as the
+  # managed.yml runs trigger-tls: as the image's own user, 65532 since
+  # 2026-11-19, with no capability and no-new-privileges, trigger-tls.Caddyfile
+  # mounted read-only where Caddy reads it, TRIGGER_TLS_HOST at compose's
+  # default, the container's port 3443 on the runner's loopback. Its volumes
+  # are new, the image's own directories, as on a new stack; one a stack ran
+  # as root is trigger-tls-init's to give to 65532, which E2E (managed)
+  # proves. And it asks it as the
   # smoke does, by IP, so with no SNI, which is what the Caddyfile's
   # default_sni is for, and with -k for the certificate `tls internal` mints:
   # TLS must terminate and Caddy must answer, with its own Server header.
@@ -928,16 +932,18 @@ jobs:
       - name: Build the TLS front as managed.yml names it, start it with its Caddyfile, and ask it for TLS on 3443
         run: |
           set -euo pipefail
-          # The reference compose builds, read from managed.yml's one image line for it.
-          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/caddy:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml)"
+          # The reference compose builds, read from managed.yml's image lines for it: trigger-tls's
+          # and trigger-tls-init's, which must name the same build.
+          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/caddy:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml | sort -u)"
           if [ -z "$ref" ] || [ "$(wc -l <<<"$ref")" != 1 ]; then
             echo "::error::managed.yml names no single localhost/caddy image: '${ref}'"
             exit 1
           fi
           docker build --pull --progress=plain --tag "$ref" deploy/compose/caddy
-          echo "${ref}: $(docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}' "$ref")"
-          # managed.yml's Caddyfile, mount and port for trigger-tls, TRIGGER_TLS_HOST at compose's default.
+          echo "${ref}: $(docker image inspect --format '{{.Os}}/{{.Architecture}} {{.Id}}, user {{.Config.User}}' "$ref")"
+          # managed.yml's Caddyfile, mount, port and hardening for trigger-tls, TRIGGER_TLS_HOST at compose's default.
           docker run -d --name tls-front-probe \
+            --cap-drop ALL --security-opt no-new-privileges:true \
             -e TRIGGER_TLS_HOST=localhost \
             -v "$PWD/deploy/compose/trigger-tls.Caddyfile:/etc/caddy/Caddyfile:ro" \
             -p 127.0.0.1:3443:3443 "$ref"

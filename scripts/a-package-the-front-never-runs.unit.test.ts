@@ -20,12 +20,14 @@
  * removed, and with it the libraries only curl pulled in. Its header says what
  * was read, what goes and why nothing needs it, and how it moves. This holds:
  *
- *  - THE DOCKERFILE IS A FROM AND A RUN. One FROM, the official
- *    `caddy:<x.y.z>-alpine` by tag and index digest, and one RUN, and no other
- *    instruction: no parser directive, no COPY, ADD or `--mount` (the name
- *    hashes the instruction lines and nothing else, so nothing else may change
- *    what is built), and no USER, ENV, CMD or anything else that would make the
- *    image's interface other than upstream's;
+ *  - THE DOCKERFILE IS A FROM, A RUN AND ITS USER. One FROM, the official
+ *    `caddy:<x.y.z>-alpine` by tag and index digest, one RUN, and since
+ *    2026-11-19 `USER 65532:65532` last (the Dockerfile's THE USER: Caddy
+ *    needs no root here), and no other instruction: no parser directive, no
+ *    COPY, ADD or `--mount` (the name hashes the instruction lines and nothing
+ *    else, so nothing else may change what is built), and no ENV, CMD or
+ *    anything else that would make the image's interface other than
+ *    upstream's but for its user;
  *  - THE RUN REMOVES CURL, AND PROVES IT, AND STOPS WHEN THE BASE MOVED. It
  *    checks curl, and each other package it names, at an exact apk version
  *    before anything else; then `apk del --no-network curl`; then that every
@@ -35,8 +37,11 @@
  *    Each refusal says "re-read the header". So a newer Caddy, or another
  *    Alpine, fails the build until somebody reads the new image again;
  *  - managed.yml runs it as `localhost/caddy:<builtTag>`, with `build: ./caddy`
- *    and `pull_policy: never`, no `user:` and no healthcheck that names curl;
- *    no other service runs Caddy's image, pulled or built. A name the
+ *    and `pull_policy: never`, no `user:` (the image's is the front's) and no
+ *    healthcheck that names curl; no other service runs Caddy's image, pulled
+ *    or built, but `trigger-tls-init`, the same build as root, whose one chown
+ *    gives the front's two volumes to 65532:65532, and which the front waits
+ *    for: on a stack that ran it as root they are root's. A name the
  *    Dockerfile moved past is one failure that prints the `sed` that moves
  *    it, and the `sed` is run here to show that it does. Nothing builds it
  *    while the machine has the name: `a-database-started-as-root` reads every
@@ -44,7 +49,8 @@
  *    among them, and refuses any command that would;
  *  - images.yml's `build (caddy)` builds this directory under that name on a
  *    pull request, starts it with managed.yml's Caddyfile, mount, port and
- *    TRIGGER_TLS_HOST default, and asks it by IP, as the smoke does, for TLS
+ *    TRIGGER_TLS_HOST default, with no capability and no-new-privileges as
+ *    managed.yml runs it, and asks it by IP, as the smoke does, for TLS
  *    on that port. Its verdict is the probe's: the step is run here against a
  *    stub docker and curl, answered as Caddy answered the job's first run (its
  *    own empty 200: asked by IP, the request matches no site address, so it is
@@ -72,6 +78,10 @@ const DOCKERFILE = `${CONTEXT}/Dockerfile`;
 const MANAGED = 'deploy/compose/managed.yml';
 const IMAGES_WORKFLOW = '.github/workflows/images.yml';
 const SERVICE = 'trigger-tls';
+/** The one-shot that gives the front's volumes to its user (2026-11-19). */
+const INIT = 'trigger-tls-init';
+/** The front's user, the Dockerfile's last line. */
+const USER = '65532:65532';
 const NAME = 'localhost/caddy';
 const CADDYFILE_TARGET = '/etc/caddy/Caddyfile';
 
@@ -123,8 +133,10 @@ function dockerfileProblems(text: string): string[] {
   }
   const instructions = instructionsOf(text);
   const kinds = instructions.map((i) => /^\s*(\S+)/.exec(i)?.[1]?.toUpperCase() ?? '');
-  if (JSON.stringify(kinds) !== JSON.stringify(['FROM', 'RUN'])) {
-    problems.push(`its instructions are ${JSON.stringify(kinds)}, not one FROM and one RUN: anything else reads files the name does not cover, or changes upstream's interface`);
+  if (JSON.stringify(kinds) !== JSON.stringify(['FROM', 'RUN', 'USER'])) {
+    problems.push(`its instructions are ${JSON.stringify(kinds)}, not one FROM, one RUN and its USER: anything else reads files the name does not cover, or changes upstream's interface`);
+  } else if (instructions[2] !== `USER ${USER}`) {
+    problems.push(`\`${instructions[2]}\` is not USER ${USER}, the user ${INIT} gives the front's volumes to`);
   }
   for (const i of instructions) if (/--mount\b/i.test(i)) problems.push(`\`${i.split('\n')[0]}\` mounts something the name does not cover`);
   const run = instructions.find((i) => /^RUN\s/i.test(i));
@@ -183,6 +195,8 @@ interface Service {
   environment?: Record<string, string | number | boolean | null> | string[];
   ports?: string[];
   volumes?: string[];
+  command?: string | string[];
+  depends_on?: string[] | Record<string, { condition?: string }>;
 }
 
 const servicesOf = (text: string) => (parseYaml(text) as { services: Record<string, Service> }).services;
@@ -197,7 +211,7 @@ function composeProblems(managed: string, dockerfile: string): string[] {
   for (const [name, other] of Object.entries(services)) {
     const repo = other.image ? parseRef(other.image).repo : '';
     if (repo === 'caddy') problems.push(`${MANAGED}:${name} runs ${other.image}, upstream's image with curl and the critical it carries: run ${want}, built from ./caddy`);
-    else if (repo === NAME && name !== SERVICE) problems.push(`${MANAGED}:${name} runs the TLS front's build too, which only ${SERVICE} may`);
+    else if (repo === NAME && name !== SERVICE && name !== INIT) problems.push(`${MANAGED}:${name} runs the TLS front's build too, which only ${SERVICE} and ${INIT} may`);
   }
   if (svc.image !== want) {
     if (svc.image && parseRef(svc.image).repo === NAME) {
@@ -220,11 +234,31 @@ function composeProblems(managed: string, dockerfile: string): string[] {
   }
   if (svc.build !== './caddy') problems.push(`${SERVICE}'s build: is ${JSON.stringify(svc.build)}, not the bare \`./caddy\`: args, a target or a Dockerfile of its own are inputs the name does not carry`);
   if (svc.pull_policy !== 'never') problems.push(`${SERVICE} has pull_policy ${String(svc.pull_policy)}, not never: no registry serves ${want}`);
-  if (svc.user !== undefined) problems.push(`${SERVICE} sets user: ${String(svc.user)}; upstream's image runs as root, as it did before the build`);
+  if (svc.user !== undefined) problems.push(`${SERVICE} sets user: ${String(svc.user)}; the image's own USER, ${USER}, is the front's, and ${INIT} gives its volumes to it`);
   if (svc.healthcheck && /\bcurl\b/.test(JSON.stringify(svc.healthcheck.test ?? ''))) {
     problems.push(`${SERVICE}'s healthcheck runs curl, which this image does not have: under \`up --wait\` it fails the bring-up. Ask from the host, as the smoke does`);
   }
   if (!caddyfileMount(svc)) problems.push(`${SERVICE} mounts no Caddyfile at ${CADDYFILE_TARGET}, read-only`);
+  problems.push(...initProblems(services, svc));
+  return problems;
+}
+
+/** What is wrong with the one-shot that gives the front's two volumes to its user; empty when it holds. */
+function initProblems(services: Record<string, Service>, front: Service): string[] {
+  const init = services[INIT];
+  if (!init) return [`${MANAGED} has no ${INIT}: on a stack that ran the front as root, its volumes are root's, and ${USER} cannot read the CA in them`];
+  const problems: string[] = [];
+  if (init.image !== front.image) problems.push(`${INIT} runs ${String(init.image)}, not ${SERVICE}'s ${String(front.image)}: the same build, or its chown is another image's`);
+  if (init.build !== './caddy' || init.pull_policy !== 'never') problems.push(`${INIT} is not built from the bare ./caddy with pull_policy never, as ${SERVICE} is`);
+  if (String(init.user) !== '0:0') problems.push(`${INIT} runs as ${String(init.user)}, not 0:0: only root gives root's files away`);
+  const command = (Array.isArray(init.command) ? init.command : [init.command ?? '']).join(' ');
+  if (!command.includes(`chown -R ${USER} /data/caddy /config/caddy`)) problems.push(`${INIT}'s command does not give /data/caddy and /config/caddy to ${USER}`);
+  const mounts = (s: Service) => (s.volumes ?? []).filter((v) => /^trigger_tls_(data|config):/.test(v)).sort();
+  if (JSON.stringify(mounts(init)) !== JSON.stringify(mounts(front))) {
+    problems.push(`${INIT} mounts ${JSON.stringify(mounts(init))}, and ${SERVICE} ${JSON.stringify(mounts(front))}: it gives away the volumes the front runs on`);
+  }
+  const waits = Array.isArray(front.depends_on) ? undefined : front.depends_on?.[INIT]?.condition;
+  if (waits !== 'service_completed_successfully') problems.push(`${SERVICE} does not wait for ${INIT} to complete successfully, so it can start on volumes ${USER} cannot read`);
   return problems;
 }
 
@@ -295,6 +329,9 @@ function workflowProblems(workflow: string, managed: string): string[] {
     problems.push(`it does not ask the front by IP on the port it published, ${publish[1]}`);
   }
   if (!run.includes("-w '%{http_code} %header{server}'")) problems.push("it does not read the answer's status and Server header");
+  if (!/docker run -d --name tls-front-probe \\\n\s*--cap-drop ALL --security-opt no-new-privileges:true \\\n/.test(run)) {
+    problems.push(`it does not start the front with no capability and no-new-privileges, as ${MANAGED} runs ${SERVICE}`);
+  }
   const commands = run.split('\n').map((line) => line.trim()).filter((line) => line && !line.startsWith('#'));
   for (const line of commands) {
     if (/(^|[\s;&|(])exit\b/.test(line) && !/(^|[\s;&|(])exit 1$/.test(line)) problems.push(`\`${line}\` exits, and not to fail`);
@@ -405,7 +442,12 @@ describe("the TLS front is Caddy's image with curl removed, and nothing else cha
     // What the builder reads that the name does not cover, and an interface that is no longer upstream's.
     expect(dockerfileProblems(`# syntax=docker/dockerfile:1\n${dockerfile}`)).toEqual([expect.stringContaining('is a parser directive')]);
     for (const line of ['COPY Caddyfile /etc/caddy/Caddyfile', 'ADD https://example.org/x /tmp/', 'USER caddy', 'ENV CADDY_ADMIN=0.0.0.0:2019', 'HEALTHCHECK CMD curl -f https://localhost:3443/']) {
-      expect(dockerfileProblems(`${dockerfile}${line}\n`), line).toEqual([expect.stringContaining('not one FROM and one RUN')]);
+      expect(dockerfileProblems(`${dockerfile}${line}\n`), line).toEqual([expect.stringContaining('not one FROM, one RUN and its USER')]);
+    }
+    // The user gone, root again, or another.
+    expect(swap(/\nUSER 65532:65532\n$/, '\n')).toEqual([expect.stringContaining('not one FROM, one RUN and its USER')]);
+    for (const user of ['USER root', 'USER 0:0', 'USER 65532', 'USER caddy']) {
+      expect(swap(/^USER 65532:65532$/m, user), user).toEqual([expect.stringContaining(`\`${user}\` is not USER 65532:65532`)]);
     }
     expect(swap(/^RUN set -eu;/m, 'RUN --mount=type=bind,target=/src set -eu;')).toEqual(expect.arrayContaining([expect.stringContaining('mounts something')]));
     // The removal gone, or what it proves cut short.
@@ -431,8 +473,9 @@ describe("managed.yml runs that build, by the name its instructions give it", ()
 
   it('runs it as localhost/caddy:<builtTag>, built here and never pulled', () => {
     expect(composeProblems(managed, dockerfile)).toEqual([]);
+    // Two lines name it: the front's, and its init's.
     const front = readImages(managed).filter((i) => i.repo === NAME);
-    expect(front.map((i) => i.tag)).toEqual([builtTag(dockerfile)]);
+    expect(front.map((i) => i.tag)).toEqual([builtTag(dockerfile), builtTag(dockerfile)]);
     expect(readImages(managed).filter((i) => i.repo === 'caddy')).toEqual([]);
   });
 
@@ -454,7 +497,7 @@ describe("managed.yml runs that build, by the name its instructions give it", ()
       const moved = readFileSync(file, 'utf8');
       expect(composeProblems(moved, edited)).toEqual([]);
       const changed = moved.split('\n').filter((line, i) => line !== managed.split('\n')[i]);
-      expect(changed).toEqual([`    image: ${NAME}:${builtTag(edited)}`]);
+      expect(changed).toEqual([`    image: ${NAME}:${builtTag(edited)}`, `    image: ${NAME}:${builtTag(edited)}`]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }
@@ -470,6 +513,7 @@ describe("managed.yml runs that build, by the name its instructions give it", ()
     expect(swap(image, '$1caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee')).toEqual([
       expect.stringContaining("upstream's image with curl"),
       expect.stringContaining('not localhost/caddy:'),
+      expect.stringContaining('the same build'),
     ]);
     expect(swap(/^(\s*)build: \.\/caddy$/m, '$1build:\n$1  context: ./caddy')).toEqual([expect.stringContaining('not the bare `./caddy`')]);
     expect(swap(/^(\s*build: \.\/caddy\n)\s*pull_policy: never\n/m, '$1')).toEqual([expect.stringContaining('not never')]);
@@ -478,6 +522,29 @@ describe("managed.yml runs that build, by the name its instructions give it", ()
       expect.stringContaining('healthcheck runs curl'),
     ]);
     expect(swap(/\.\/trigger-tls\.Caddyfile:\/etc\/caddy\/Caddyfile:ro/, './trigger-tls.Caddyfile:/etc/caddy/Caddyfile')).toEqual([expect.stringContaining('mounts no Caddyfile')]);
+  });
+
+  it("tells Caddy not to install its local CA's root into the system's trust store, which uid 65532 cannot write", () => {
+    // A comment that names it is not the option: only a line of its own, outside a comment, sets it.
+    const options = (caddyfile: string) => /^\{\n([\s\S]*?)\n\}$/m.exec(caddyfile.replace(/#.*$/gm, ''))?.[1] ?? '';
+    const caddyfile = read('deploy/compose/trigger-tls.Caddyfile');
+    expect(options(caddyfile)).toMatch(/^\s*skip_install_trust\s*$/m);
+    expect(options(caddyfile.replace(/^\s*skip_install_trust\n/m, ''))).not.toMatch(/^\s*skip_install_trust\s*$/m);
+  });
+
+  it('refuses a front that does not wait for its init, and an init that would not give it its volumes', () => {
+    const swap = (from: RegExp, to: string) => {
+      const text = managed.replace(from, to);
+      expect(text, `${String(from)} matched nothing`).not.toBe(managed);
+      return composeProblems(text, dockerfile);
+    };
+    expect(swap(/\n {6}trigger-tls-init:\n {8}condition: service_completed_successfully\n/, '\n')).toEqual([expect.stringContaining('does not wait for trigger-tls-init')]);
+    expect(swap(/\n {2}trigger-tls-init:\n[\s\S]*?\n(?=\n)/, '\n')).toEqual([expect.stringContaining('has no trigger-tls-init')]);
+    expect(swap(/^(\s*)user: "0:0"$/m, '$1user: "65532:65532"')).toEqual([expect.stringContaining('not 0:0')]);
+    expect(swap(/chown -R 65532:65532 \/data\/caddy \/config\/caddy/, 'chown -R 1000:1000 /data/caddy /config/caddy')).toEqual([
+      expect.stringContaining("command does not give /data/caddy and /config/caddy to 65532:65532"),
+    ]);
+    expect(swap(/(\n {2}trigger-tls-init:\n[\s\S]*?)\n {6}- trigger_tls_config:\/config\n/, '$1\n')).toEqual([expect.stringContaining('it gives away the volumes the front runs on')]);
   });
 });
 
@@ -509,6 +576,9 @@ describe('images.yml builds it on a pull request and asks it for TLS as the smok
     expect(problems(swapped(workflow, `--tag "$ref" ${CONTEXT}\n`, '--tag "$ref" deploy/compose/postgres\n'))).toEqual([expect.stringContaining(`does not build ${CONTEXT}`)]);
     expect(problems(swapped(workflow, 'name: build (caddy)', 'name: build (tls)'))).toEqual([expect.stringContaining('every-pr-check-is-classified')]);
     expect(problems(swapped(workflow, "-w '%{http_code} %header{server}'", "-w '%{http_code}'"))).toEqual([expect.stringContaining('Server header')]);
+    expect(problems(swapped(workflow, '            --cap-drop ALL --security-opt no-new-privileges:true \\\n', ''))).toEqual([
+      expect.stringContaining('no capability and no-new-privileges'),
+    ]);
     expect(problems(swapped(workflow, 'https://127.0.0.1:3443/ ||', 'https://localhost:3443/ ||'))).toEqual([expect.stringContaining('by IP')]);
     expect(problems(swapped(workflow, '          echo "trigger-tls: TLS terminated', '          exit 0\n          echo "trigger-tls: TLS terminated'))).toEqual([
       expect.stringContaining('`exit 0` exits, and not to fail'),
