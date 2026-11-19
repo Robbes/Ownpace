@@ -131,6 +131,21 @@ function versionUnknown(): ApplyDeletionOutcome {
   };
 }
 
+/**
+ * The copy lists guests the target would mail a cancellation (workplan 0160):
+ * the writer removed nothing. Said so a person can decide it themselves.
+ */
+function keptForGuests(): ApplyDeletionOutcome {
+  return {
+    ok: false,
+    code: 'kept_for_guests',
+    reason:
+      'This event still lists its guests in the new system, and that system emails each guest a ' +
+      'cancellation when such an event is deleted. So it was left as it is, and nobody was ' +
+      'emailed. If it should go even so, delete it in the target system yourself, then choose `keep`.',
+  };
+}
+
 /** Why an apply was refused, or how it succeeded. */
 export type ApplyDeletionOutcome =
   /** The copy was removed. `kind` says how final that was. */
@@ -163,6 +178,16 @@ export type ApplyRefusal =
    * before versions existed, a server that returns none, or only a weak one.
    */
   | 'version_unknown'
+  /**
+   * The copy still lists guests, and the target mails each guest a
+   * cancellation when such an event is deleted (Cirrux, workplan 0160), so
+   * nothing was removed.
+   *
+   * Its own code because nothing is wrong with the copy or its version: what
+   * would happen to other people is the reason, and only the owner can decide
+   * that they may be mailed, by deleting it there themselves.
+   */
+  | 'kept_for_guests'
   | 'mass_deletion_suspected'
   /**
    * So much of this domain has relocated at once that the correlation itself
@@ -459,6 +484,8 @@ export async function applyDeletion(
         'alone — those changes are theirs (hard rule 2). Nothing was removed.',
     };
   }
+  // Read before `!removal.kind` too: nothing was removed, on purpose.
+  if (removal.keptForGuests) return keptForGuests();
   // Read before `!removal.kind`, or a copy left alone for want of a version
   // would read as a target that cannot remove (workplan 0149 T3).
   if (removal.unversioned) return versionUnknown();
@@ -694,6 +721,8 @@ export async function applyRelocation(
         'alone — those changes are theirs (hard rule 2). Nothing was removed.',
     };
   }
+  // Read before `!removal.kind` too: nothing was removed, on purpose.
+  if (removal.keptForGuests) return keptForGuests();
   // Read before `!removal.kind`, or a copy left alone for want of a version
   // would read as a target that cannot remove (workplan 0149 T3).
   if (removal.unversioned) return versionUnknown();

@@ -956,6 +956,17 @@ export interface DomainSyncResult {
    */
   readonly conflicted: number;
   /**
+   * Rewrites NOT SENT because the copy on the target still lists guests, at a
+   * target that mails its guests itself (`UpsertResult.keptForGuests`,
+   * workplan 0160).
+   *
+   * Distinct from `conflicted`: nobody edited the copy, and the row is left as
+   * it was rather than marked adopted, so the source change stays unapplied
+   * and is asked about again on the next pass. The day the target stops
+   * mailing guests, the rewrite simply goes through.
+   */
+  readonly keptForGuests: number;
+  /**
    * Items that changed on the source but were left alone because the target
    * copy is the CUSTOMER'S, not ours (status `adopted`).
    *
@@ -1252,6 +1263,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
   let moved = 0;
   // Rewrites REFUSED because somebody edited our copy in the new system.
   let conflicted = 0;
+  let keptForGuests = 0;
   const moves: ItemMove[] = [];
   const deletions: ItemDeletion[] = [];
   let drift = 0;
@@ -2221,6 +2233,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         // `sourceVersion` is deliberately NOT advanced. Recording it would say
         // the source change had been applied, which is the opposite of what
         // happened, and would hide a real divergence from the operator.
+        // THE COPY LISTS GUESTS THE TARGET WOULD MAIL (workplan 0160).
+        //
+        // Nothing was written and nobody was mailed. The row is left exactly as
+        // it was: not adopted, since nobody edited the copy, and with its
+        // source version NOT advanced, since the change was not applied. So
+        // the next pass asks again, and goes through the day the target no
+        // longer mails guests.
+        if (result.keptForGuests) {
+          keptForGuests += 1;
+          log.warn(
+            `[sync] ${domain}: item ${naturalKeyHash.slice(0, 12)} changed on the source, but its copy ` +
+              'on the target still lists guests, and that target emails each guest a rewrite takes ' +
+              'off. Left as it is: nothing was written and nobody was emailed.',
+          );
+          return;
+        }
         if (result.conflicted) {
           conflicted += 1;
           await timed(phases, 'ledgerWriteMs', () =>
@@ -2949,6 +2977,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     changedButAdopted,
     changedAfterCutover,
     conflicted,
+    keptForGuests,
     needsDecision,
     leftBehind,
     reappearedAfterRemoval,

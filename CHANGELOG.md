@@ -20,9 +20,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   part with its own login. Files are not part of the card: kDrive's WebDAV has an address of its
   own per drive and is not offered on every plan, and the Test says so. Until a pass shows that
   Infomaniak's calendar server sends no invitations, nothing written to it names a guest or an
-  organiser. The card has a setup checklist, a guide in English and Dutch, and a card on the
-  site's *Where to*. Ledger migration 0069 widens `connection.kind` by `infomaniak`, and touches no
-  row. Not yet run against a live Infomaniak account (0161 T2).
+  organiser, and an event there that lists a guest is neither rewritten nor deleted, as at
+  Cirrux. The card has a setup checklist, a guide in English and Dutch, and a card on the site's
+  *Where to*. Ledger migration 0069 widens `connection.kind` by `infomaniak`, and touches no row.
+  Not yet run against a live Infomaniak account (0161 T2).
 - ***Who is it for?* chooses you** (workplan 0153 T4; ADR-0050, amended 2026-11-19). When you
   start a migration, your own name is now chosen on its first screen, and you can still pick
   someone else. Say which person you are with *Myself* when adding a person on Migrations, or
@@ -72,6 +73,24 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **CI's migration lint moves to Atlas v1.4.0** (workplan 0119), from alpha.11's v1.3.10. Docker
+  Hub published it on 2026-11-17 at 15:20 UTC, and it is taken inside its three-day floor, which
+  ends on 2026-11-20 at 15:20, on the owner's word of 2026-11-19. Each architecture is checked by the SHA-256 of `/atlas` in the
+  release's community image on Docker Hub. v1.4.0 is built from the upstream commit its git tag
+  names, by the same Go with the same dependencies as v1.3.10. The two upstream commits since
+  v1.3.10's add a section to Atlas's README and two options to `schema clean` in its Go SDK,
+  which the CLI does not import, so the lint and its dev database run as they did. Nothing
+  deployed changes.
+- **The test stack's mail catcher is Mailpit v1.34.0** (workplan 0146 T11 (a), 0119), from
+  v1.33.1: the minor kept current, taken inside its three-day floor, which ends on 2026-11-20, on
+  the owner's word of 2026-11-19. It fixes GHSA-v887-64wg-qqc9,
+  which v1.33.1 brought in: one message whose part header named a media type it could not parse,
+  with an RFC 2231 parameter, ended the whole process. A panic in one SMTP session now drops that
+  connection alone. The image scan read v1.33.1 at no critical and no high finding. It is built
+  with Go 1.27.4, whose `net/http` fixes CVE-2026-97054, on the same Alpine 3.24.4 packages. Its
+  release check is still off, read again at v1.34.0; what else it can send needs a setting this
+  stack does not make, or a person asking for a check in its page. Its first start adds a column
+  to the kept `mailpit.db` and fills it; v1.33.1 still opens that file. Live runs no catcher.
 - **The public site's home page shows How it works as its page's five steps, each with a small
   picture, and the site says less where it said a thing twice** (workplan 0152). The home page
   showed three steps of its own and its page five; both now show the page's five, under the same
@@ -89,6 +108,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The deploy CLI's copy of effect moves to 3.22.4, past a regular expression that could take
+  exponential time** (workplan 0119). pnpm audit named GHSA-7589-6fvf-x4pw (high) on the evening
+  of 2026-11-19: the expression effect's `Schema.TemplateLiteral` compiles, in every version to
+  3.22.0. The one copy below its fix, 3.21.0, came in through the Trigger.dev deploy CLI's build
+  package and its Prisma config reader, which pins it exactly. That reader never calls
+  `TemplateLiteral`, and only the build's Prisma extension loads it, which this repository does
+  not use, so nothing here ran the expression. An override in `pnpm-workspace.yaml` gives it
+  3.22.4, the release the lockfile already held for another of the CLI's packages, so the tree
+  keeps one copy of effect. Nothing deployed changes.
 - **The web image runs nginx as its own user from its first process, GoAccess's image ends as
   nobody, and three more Dockerfiles lose a pipe that could hide a failed command** (workplan
   0119). A read-only check of the repository read the web image and GoAccess's as containers that
@@ -151,6 +179,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   recipient, and verification compares as before. The connection test, the assessment and the
   audit row say this for Cirrux, instead of promising what the marker would do. Every other
   target gets the same bytes as before.
+- **An event already at Cirrux that lists guests is left as it is, because changing or deleting it
+  emails them** (workplan 0160, ADR-0043). Cirrux emails a guest a cancellation when they are taken
+  off an event and when the event is deleted: a test of each on 2026-11-19 mailed one. A rewrite
+  takes every guest off, so an event written before the guests came out would have emailed each of
+  its guests a cancellation the first time it changed at the source. For a Cirrux target the
+  calendar and task writers now read such a copy first, and one that lists a guest is neither
+  rewritten nor deleted. The change at the source is not applied and is asked about again on the
+  next pass; the run log says how many were left; *Deletions* and *Moves* answer that it was kept
+  for its guests, and nothing is removed. Every other target gets the same requests as before.
 - **A calendar or task list made at Cirrux is written to where Cirrux keeps it** (workplan 0160).
   With the calendar home found, the next pass into Cirrux, on 2026-11-19, made the source's
   calendar: Cirrux answered 201 and showed it, with the name asked for. Then it refused every

@@ -99,9 +99,8 @@ export function neutraliseScheduling(icalendar: string): string {
  * `WWW-Authenticate: Basic realm="sabre/dav"`, read 2026-11-19), which in
  * Nextcloud was seen to honour `SCHEDULE-AGENT=CLIENT` (workplan 0103), but
  * nobody has seen what Infomaniak's does with it, and an invitation sent
- * cannot be taken back. A
- * kind leaves this list only on the evidence of a pass that sent none:
- * Infomaniak's is 0161 T2.
+ * cannot be taken back. A kind leaves this list only on the evidence of a
+ * pass that sent none: Infomaniak's is 0161 T2.
  */
 export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set(['cirrux', 'infomaniak']);
 
@@ -148,8 +147,52 @@ export function guestsUntestedAt(kind: string | undefined): boolean {
  * emits a rewritten one.
  */
 export function withoutGuests(icalendar: string): string {
-  const lines = icalendar.split(/(?<=\n)/);
   const out: string[] = [];
+  for (const { span, logical, inAlarm } of propertiesOf(icalendar)) {
+    if (!inAlarm && PROPERTY_START.test(logical)) {
+      const last = span[span.length - 1]!;
+      const eol = /\r\n$/.test(last) ? '\r\n' : /\n$/.test(last) ? '\n' : '';
+      out.push(`COMMENT:${escapeText(guestNote(logical))}${eol}`);
+    } else {
+      out.push(...span);
+    }
+  }
+  return out.join('');
+}
+
+/**
+ * Does this copy still list a guest, for a target in `TARGETS_THAT_MAIL_GUESTS`
+ * (workplan 0160, 2026-11-19)?
+ *
+ * True when any ATTENDEE stands outside a VALARM. The writer asks it of the
+ * copy a target ALREADY HOLDS before it rewrites or deletes that copy, because
+ * the change itself is what gets mailed. Cirrux mails a guest a cancellation
+ * (`METHOD:CANCEL`) when they are taken off an event, and when the event is
+ * deleted: a test of each on 2026-11-19 mailed one. A rewrite through
+ * `withoutGuests` takes every guest off at once, so an event written before
+ * the guests came out (#1947) would mail all of them. So such a copy is left
+ * exactly as it is.
+ *
+ * An ORGANIZER alone is not a guest: with nobody invited there is nobody to
+ * mail. A COMMENT naming one (what `withoutGuests` writes) is not either. An
+ * ATTENDEE inside a VALARM is who an email alarm goes to, as above.
+ */
+export function namesGuests(icalendar: string): boolean {
+  for (const { logical, inAlarm } of propertiesOf(icalendar)) {
+    if (!inAlarm && /^ATTENDEE(?=[;:])/i.test(logical)) return true;
+  }
+  return false;
+}
+
+/**
+ * Each property of an iCalendar text, in order: its physical lines as they
+ * stand (`span`), the property unfolded (`logical`), and whether it is inside
+ * a VALARM.
+ */
+function* propertiesOf(
+  icalendar: string,
+): Generator<{ readonly span: string[]; readonly logical: string; readonly inAlarm: boolean }> {
+  const lines = icalendar.split(/(?<=\n)/);
   let alarms = 0;
   let i = 0;
   while (i < lines.length) {
@@ -165,16 +208,9 @@ export function withoutGuests(icalendar: string): string {
       .join('');
     if (/^BEGIN:VALARM\s*$/i.test(logical)) alarms += 1;
     else if (/^END:VALARM\s*$/i.test(logical)) alarms = Math.max(0, alarms - 1);
-    if (alarms === 0 && PROPERTY_START.test(logical)) {
-      const last = span[span.length - 1]!;
-      const eol = /\r\n$/.test(last) ? '\r\n' : /\n$/.test(last) ? '\n' : '';
-      out.push(`COMMENT:${escapeText(guestNote(logical))}${eol}`);
-    } else {
-      out.push(...span);
-    }
+    yield { span, logical, inAlarm: alarms > 0 };
     i = j;
   }
-  return out.join('');
 }
 
 /** "Invited at the source: Name <address>" for one unfolded ATTENDEE or ORGANIZER line. */

@@ -490,11 +490,14 @@ live in [README.md](./README.md), the register.
   are kept: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs (0103 T1). An
   explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
   kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
-- **Except a target that emails guests whatever the parameter says, or is untested** (2026-11-19):
+- **Except a target that may email guests whatever the parameter says** (2026-11-19):
   a kind in `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160; Infomaniak, untested, 0161) gets neither; each
   becomes a `COMMENT` naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`.
   Undone by taking the kind off the list once its target can be written without mailing guests,
   shown by a pass that sends nothing.
+- **At such a target, a copy that already lists guests is left as it is** (2026-11-19): neither
+  rewritten nor deleted, and reported, since either would mail each guest:
+  `packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`.
 - **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
   copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
   DELETEs (0103 T5) is the belt for attendee-side replies:

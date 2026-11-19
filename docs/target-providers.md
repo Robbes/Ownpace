@@ -287,9 +287,10 @@ naming `mailUsername`/`mailPassword`.
 
 1. **Invitations are untested.** The server is SabreDAV, which in Nextcloud was seen to honour
    `SCHEDULE-AGENT=CLIENT` (workplan 0103); what Infomaniak's does with it is neither published nor
-   observed, and an invitation sent cannot be taken back. So `infomaniak` is in `TARGETS_THAT_MAIL_GUESTS` from the
-   day the kind arrives: no `ATTENDEE` and no `ORGANIZER` is written, each kept as a `COMMENT`. It
-   leaves the list on the evidence of a pass that sent none (0161 T2).
+   observed, and an invitation sent cannot be taken back. So `infomaniak` is in
+   `TARGETS_THAT_MAIL_GUESTS` from the day the kind arrives: no `ATTENDEE` and no `ORGANIZER` is
+   written, each kept as a `COMMENT`, and a copy there that lists a guest is neither rewritten nor
+   deleted. It leaves the list on the evidence of a pass that sent none (0161 T2).
 2. **kDrive** is "INDISPONIBLE" on kSuite Free, kSuite Standard, my kSuite and my kSuite+
    (`ik.me`, `etik.com`, `ikmail.com`) (2409, updated 12/11/2026), and its address is one per
    drive. The `infomaniak` account carries no file face yet, and its Test says why (0161 T3).

@@ -253,6 +253,17 @@ describe('the gates it shares with a deletion are still in front of it', () => {
     expect((await ledger.find(TENANT, MAPPING, 'file', OLD_KEY))?.status).toBe('copied');
   });
 
+  it('leaves a copy that lists guests alone, as kept_for_guests (workplan 0160)', async () => {
+    // Its own code, read before "the target reported no removal": nothing was
+    // removed on purpose, because the target would mail each guest.
+    const ledger = await ledgerWithRelocation();
+
+    const outcome = await applyRelocation(deps(ledger, fakeRemover({ keptForGuests: true })), OLD_KEY);
+
+    expect(outcome).toMatchObject({ ok: false, code: 'kept_for_guests' });
+    expect((await ledger.find(TENANT, MAPPING, 'file', OLD_KEY))?.status).toBe('copied');
+  });
+
   it('leaves a copy with no recorded version alone, as version_unknown (workplan 0149 T3)', async () => {
     // The writer removed nothing, for want of a version to check against. Its
     // own code: nobody is known to have edited it, and this is not a target

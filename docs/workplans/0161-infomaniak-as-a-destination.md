@@ -125,7 +125,10 @@ audit row say the target is untested, never that it emails guests.
   `mail.infomaniak.com`, `993`, from FAQ 2427, 1544, 1321 and 2855, seen 2026-11-19. No `url`.
 - **The reasoned no.** The qualification answers the file face with kDrive's reason.
 - **Guests.** `infomaniak` in `TARGETS_THAT_MAIL_GUESTS` and `TARGETS_UNTESTED_FOR_GUESTS`; the
-  scheduling verdict's sentence for an untested target.
+  scheduling verdict's sentence for an untested target. With workplan 0160's fifth correction
+  merged in, a copy at Infomaniak that lists a guest is neither rewritten nor removed, as at
+  Cirrux: four Infomaniak cases in `a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`,
+  each of which fails when `infomaniak` is taken off the list.
 - **Words.** The card's hint, the boxes' lines, four setup steps (the account, the sync login, the
   mail password on the Devices tab, the mail server), the credential retirement and the revocation
   reason naming both places (the application passwords page and the address's Devices tab), all in
