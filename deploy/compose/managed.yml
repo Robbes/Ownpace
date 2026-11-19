@@ -1557,8 +1557,11 @@ services:
     # a GitHub Enterprise Server provider from its own template (e627c7cd).
     # The last two are login v2's (apps/login, and one text in
     # internal/query/v2-default.json), which does not run here. go.mod and
-    # go.sum are v4.20.3's byte for byte: golang.org/x/net stays v0.61.0,
-    # so the image scan's one high with a fix (CVE-2026-78661) stays. No
+    # go.sum are v4.20.3's byte for byte, and v4.20.3 and v4.20.4 are both
+    # built with go1.26.10, so the image scan reads them alike: two highs
+    # with a fix, x/net's CVE-2026-78661 and the standard library's
+    # CVE-2026-97054 (Security Scan runs 44636169423 and 44637576014,
+    # 2026-11-19). No
     # setup step is expected: cmd/ (with cmd/setup), internal/migration,
     # internal/repository, internal/query/projection, internal/static,
     # proto/ and console/ are unchanged, and the event store changes how it
