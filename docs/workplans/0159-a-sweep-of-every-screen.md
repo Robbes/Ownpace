@@ -27,8 +27,8 @@ ledger held to the same answers (same name, core, 6); the screens (`a-move-that-
 ledger's listing, the tenant or the migration filter dropped (the tenant one is caught outside row
 security only, where the policy cannot help), the name dropped from the fake, and each name dropped
 from the two screens. The queue suites of both editions ran green against a local Postgres 16
-(`scripts/local-pg.sh`). Committed on `claude/ownpace-public-readiness-y7orc6-moves-names`, not
-pushed. No new words for the owner to read.
+(`scripts/local-pg.sh`). On `claude/ownpace-public-readiness-y7orc6-moves-names`, PR #1949. No new
+words for the owner to read.
 
 **2026-11-08, later: the owner read follow-up 18's Dutch (open question 8), merged as #1847
 (`8d19e715`).** On the thirteen lines of #1840, the owner: *"het oude systeem and het nieuwe
