@@ -487,9 +487,14 @@ live in [README.md](./README.md), the register.
   mailman by default, and to any domain added later:
   `docs/workplans/0103-the-mail-a-migration-must-not-send.md`.
 - **The copy stays faithful; the side effects are what we suppress.** `ATTENDEE` and `ORGANIZER`
-  are never stripped: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs
-  (0103 T1). An explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit
-  `CLIENT`/`NONE` are kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+  are kept: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs (0103 T1). An
+  explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
+  kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+- **Except a target that emails guests whatever the parameter says** (2026-11-19): a kind in
+  `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160) gets neither; each becomes a `COMMENT` naming the
+  person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. Undone by taking the kind
+  off the list once its target can be written without mailing guests, shown by a pass that sends
+  nothing.
 - **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
   copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
   DELETEs (0103 T5) is the belt for attendee-side replies:

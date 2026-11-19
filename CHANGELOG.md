@@ -59,9 +59,29 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
   the gate blocks every high as it did before 2026-11-17. The list stays for the next advisory the
   owner accepts by name.
+- **The workflows give each job the token it uses, and no checkout leaves it on disk** (workplan
+  0119). An outside, read-only check of `.github/workflows/` on 2026-11-19 named nineteen lines.
+  `ci.yml`, the four E2E workflows and `no-committed-artifacts.yml` named no permissions, so their
+  jobs ran on whatever the repository's settings give the default token; each now says
+  `contents: read`. `images.yml` gave `packages: write` and `id-token: write` to every job; they
+  now sit on `build`, the job that pushes and signs, and the top of the file only reads. Eighteen
+  checkouts, in jobs that never push with git, kept the token in `.git/config` for every later
+  step; each now says `persist-credentials: false`. The other three lines, the `actions/setup-node`
+  steps that open three jobs that publish, restore no cache and did not change.
+  `scripts/a-token-the-job-never-asked-for.unit.test.ts` holds all of it.
 
 ### Fixed
 
+- **Nothing written to Cirrux names a guest or an organiser, because Cirrux emails every guest**
+  (workplan 0160, ADR-0043 amended). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
+  with every attendee and organiser marked `SCHEDULE-AGENT=CLIENT`, as for every target, and
+  Cirrux emailed each attendee an invitation in the mailbox's name, past events included. The
+  invitation it sent had dropped the marker. For a Cirrux target the calendar and task writers now
+  write no `ATTENDEE` and no `ORGANIZER`: each is replaced by a `COMMENT` that names the person,
+  so the copy still says who was there and Cirrux has nobody to email. An email alarm keeps its
+  recipient, and verification compares as before. The connection test, the assessment and the
+  audit row say this for Cirrux, instead of promising what the marker would do. Every other
+  target gets the same bytes as before.
 - **A calendar or task list made at Cirrux is written to where Cirrux keeps it** (workplan 0160).
   With the calendar home found, the next pass into Cirrux, on 2026-11-19, made the source's
   calendar: Cirrux answered 201 and showed it, with the name asked for. Then it refused every

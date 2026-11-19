@@ -39,7 +39,7 @@ U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoe
 - **Agenda**, **Contacten** en **Taken**. Elke Cirrux-mailbox heeft een agenda, een adresboek dat Contacts heet en een takenlijst die Reminders heet. Takenlijsten zijn agenda's die taken bevatten, op dezelfde server als uw agenda's.
 - Cirrux maakt geen tweede adresboek aan, dus de contacten uit alle adresboeken bij uw bron komen in Contacts terecht.
 - Elke agenda bij uw bron wordt bij Cirrux een agenda met dezelfde naam, naast de eigen agenda Calendar van de mailbox.
-- Elke afspraak wordt geschreven met een markering, `SCHEDULE-AGENT=CLIENT`, die de server vraagt er geen uitnodigingen voor te versturen. Deelnemers en organisator blijven in uw kopie van elke afspraak staan. Een server die de markering negeert, kan toch uitnodigingen versturen, en Cirrux zegt niet of zijn agendaserver de markering leest. De agenda van Cirrux zelf mailt deelnemers wel wanneer een afspraak in de app wordt gemaakt.
+- Cirrux mailt een uitnodiging naar elke deelnemer van een afspraak die het krijgt, wat de afspraak ook zegt over wie uitnodigingen verstuurt. Daarom worden de deelnemers en de organisator van uw afspraken en taken niet naar Cirrux geschreven, en wordt niemand gemaild. Wie er was uitgenodigd, staat in elke afspraak als opmerking (de iCalendar-eigenschap `COMMENT`), die de app van Cirrux zelf misschien niet toont.
 - **Bestanden**, zodra Cirrux Drive op het account is verbonden: zie [Bestanden: Cirrux Drive](#drive). Tot dan biedt de rij voor bestanden bij **Waar gaat het naartoe?** het account niet aan, en kunnen uw bestanden in dezelfde migratie naar een andere bestemming.
 - Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
 

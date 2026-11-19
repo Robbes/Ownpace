@@ -31,6 +31,7 @@ import {
   displayNameForCalendar,
   isOnTarget,
   neutraliseScheduling,
+  withoutGuests,
 } from '@openmig/shared';
 import { createHash } from 'node:crypto';
 import { CALENDAR_COMPONENTS, collectionCarries, componentOfIcalendar } from '@openmig/shared';
@@ -73,6 +74,13 @@ export interface CalDAVTargetConfig {
   color?: string;
   /** Default calendar description */
   description?: string;
+  /**
+   * The target mails every guest of what it is handed, whatever
+   * `SCHEDULE-AGENT` says (`TARGETS_THAT_MAIL_GUESTS`, workplan 0160): write
+   * each object without ATTENDEE and ORGANIZER (`withoutGuests`), so there is
+   * nobody to mail. Set from the target's kind by the deps builders.
+   */
+  mailsGuests?: boolean;
 }
 
 /**
@@ -1284,7 +1292,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // DELETE (take-back, gated apply) does not fan out CANCELs. This
       // cannot disturb change detection: calendarContentHash fingerprints
       // UID/SUMMARY/DESCRIPTION/LOCATION only, pinned by test.
-      body: neutraliseScheduling(raw.icalendar),
+      //
+      // A target that mails guests regardless (Cirrux, 2026-11-19, workplan
+      // 0160) gets no guest at all: each ATTENDEE and ORGANIZER becomes a
+      // COMMENT naming them, which is not fingerprinted either.
+      body: neutraliseScheduling(this.config.mailsGuests ? withoutGuests(raw.icalendar) : raw.icalendar),
       headers: {
         'Content-Type': 'text/calendar',
         // Create-only, atomically, UNLESS this is a deliberate rewrite.
