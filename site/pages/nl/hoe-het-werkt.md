@@ -3,13 +3,13 @@
 Vijf stappen, en u bepaalt zelf wanneer elke stap gebeurt. Niets loopt op een klok behalve
 die van u.
 
-## 1. Zie wat u hebt, voordat u iets koppelt
+## 1. Zie wat u hebt, voordat u iets koppelt {#stap-1}
 
 [Vertel ons ongeveer wat u wilt migreren](./schatting.html) en we laten zien wat het zou kosten. Geen account,
 geen e-mailadres, geen verkoopgesprek. Als het bedrag u niet bevalt, houdt het daar op en
 bent u niets kwijt.
 
-## 2. Koppel het account dat u verlaat — Ownpace leest alleen
+## 2. Koppel het account dat u verlaat — Ownpace leest alleen {#stap-2}
 
 U geeft Ownpace toegang tot het account dat u wilt migreren. Ownpace leest er alleen uit: de
 software heeft geen code die bij een bron iets wijzigt, verplaatst of verwijdert, en een test
@@ -23,7 +23,7 @@ app dat naast de knop, voordat u koppelt.
 U kunt die toegang op elk moment bij uw eigen aanbieder intrekken, zonder het ons te vragen,
 en dan stopt de migratie.
 
-## 3. Wij kopiëren, en blijven kopiëren
+## 3. Wij kopiëren, en blijven kopiëren {#stap-3}
 
 De eerste ronde migreert alles. Daarna komt elke wijziging in het oude account — nieuwe
 e-mail, een verplaatst bestand, een aangepast contact — aan in het nieuwe, tot u overstapt.
@@ -37,16 +37,16 @@ Draai het opnieuw en er wordt niets gedupliceerd. Elk item wordt vastgelegd met 
 dat de aanbieder er zelf aan gaf, dus een tweede ronde herkent wat al gemigreerd is. Onderbreek
 het, start het opnieuw, laat het een maand liggen — het gaat verder waar het was.
 
-## 4. Controleer het, in het tempo dat u past
+## 4. Controleer alles in uw eigen tempo {#stap-4}
 
 Beide accounts werken. Gebruik het nieuwe voor uw echte e-mail, terwijl het oude ook nog e-mail ontvangt.
 Kijk in de mappen die u belangrijk vindt. Zoek dat ene bericht waar u zich zorgen over maakte.
 
 Alles wat niet mee kon, staat voor u op een rij: stuk voor stuk, met de reden. Formaten
 verschillen per aanbieder en sommige dingen overleven de oversteek echt niet — het verschil
-zit hem erin of u het te horen krijgt.
+zit hem erin of u dat duidelijk gerapporteerd krijgt.
 
-## 5. Stap over wanneer u er klaar voor bent
+## 5. Stap over wanneer u er klaar voor bent {#stap-5}
 
 U bepaalt wanneer. Op dat moment is de migratie klaar, en uw oude account staat er nog
 steeds, onaangeroerd, zolang u het aanhoudt.
@@ -56,18 +56,3 @@ oude: uw mailprogramma, de agenda's en contacten op uw telefoon, en de app die u
 synchroniseert. Is uw adres van een eigen domein, dan verandert u ook in de DNS-instellingen
 van dat domein waar de mail wordt bezorgd, zodat nieuwe mail meteen in uw nieuwe thuis
 aankomt.
-
----
-
-## Wat we een vriend zouden aanraden
-
-**Houd het oude account nog even aan na de overstap.** Het kost u weinig, het is het beste
-vangnet dat er is, en het hele product is zo gebouwd dat het kan. Dat is wat "in uw eigen
-tempo" in de praktijk betekent.
-
-**Migreer eerst één ding als u het spannend vindt.** Contacten zijn klein en snel en bewijzen
-dat de hele keten werkt. Doe daarna de rest.
-
-**Begin met alles tegelijk als u het niet spannend vindt.** De rekening daalt vanzelf zodra
-er iets klaar is. Eén voor één is juist gratis, op Free, en langzamer; wat beter is, bepaalt
-u.

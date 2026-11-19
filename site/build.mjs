@@ -57,6 +57,7 @@ import { LEAVING, DOMAIN_OF, EXPORT_TARGETS, leavingPages } from './sources.mjs'
 import { PROOF_LINKS } from './proof.mjs';
 import { MAINTAINED_DOCS, docUrl } from './maintained-docs.mjs';
 import { heroMove } from './hero.mjs';
+import { stepIcon } from './steps.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, 'dist');
@@ -533,14 +534,41 @@ nav.menu .leaving-list a { display: flex; align-items: center; gap: 0.6rem; padd
   .hero { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); grid-template-areas: "words picture" "leaving picture"; }
   .hero-picture { margin: 0; align-self: center; }
 }
-/* Three facts under the hero, and How it works in three steps (0152 T3). */
+/* Three facts under the hero, and How it works in its page's five steps (0152 T3). */
 .facts { margin-top: 0; }
 .facts .card h2 { font-size: 1.05rem; margin-top: 0; }
-.strip { list-style: none; padding: 0; margin: 1.5rem 0 0.75rem; display: grid; gap: 1rem 2rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); }
-.strip li { display: flex; gap: 0.9rem; align-items: flex-start; }
-.strip .step { font-size: 1.6rem; line-height: 1; min-width: 1.2ch; color: var(--teal); }
-.strip h3 { margin: 0 0 0.3rem; font-size: 1.05rem; }
+/* How it works on the home page: the page's five steps, each under its
+   picture (steps.mjs). A column on a phone, the pictures joined by a line down;
+   one row from 60rem, the line running through them. */
+.strip { list-style: none; padding: 0; margin: 1.5rem 0 0.75rem; display: grid; }
+.strip li { position: relative; display: flex; gap: 1rem; align-items: flex-start; padding-bottom: 1.25rem; }
+.strip li:last-child { padding-bottom: 0; }
+.strip li:not(:last-child)::before {
+  content: ""; position: absolute; left: calc(1.375rem - 1px); top: 2.75rem; bottom: 0;
+  border-left: 2px solid var(--mint);
+}
+.step-icon {
+  flex: none; display: grid; place-items: center; width: 2.75rem; height: 2.75rem;
+  border-radius: 50%; background: var(--panel); color: var(--teal); box-shadow: inset 0 0 0 2px var(--mint);
+}
+.step-icon svg { width: 1.5rem; height: 1.5rem; }
+.strip h3 { margin: 0.6rem 0 0.25rem; font-size: 1.05rem; }
+.strip h3 a { color: inherit; text-decoration: none; }
+.strip h3 a:hover { color: var(--teal); text-decoration: underline; }
+.strip .step { color: var(--teal); }
 .strip p { margin: 0; color: var(--muted); }
+@media (min-width: 60rem) {
+  .strip { grid-template-columns: repeat(5, 1fr); column-gap: 1.5rem; }
+  .strip li { flex-direction: column; gap: 0.75rem; padding-bottom: 0; }
+  .strip li:not(:last-child)::before {
+    left: 2.75rem; right: -1.5rem; top: calc(1.375rem - 1px); bottom: auto;
+    border-left: 0; border-top: 2px solid var(--mint);
+  }
+  .strip h3 { margin-top: 0; }
+}
+/* The same pictures beside the steps' headings on How it works. */
+.step-h { display: flex; align-items: center; gap: 0.75rem; }
+.step-h .step-icon { width: 2.5rem; height: 2.5rem; }
 /* The app itself, after How it works (0152 T3): its screen in a frame, so the
    frame says where the app ends and the page goes on. */
 .app-screen { margin: 1.5rem 0 0; }
@@ -632,7 +660,8 @@ a.verdict { text-decoration: underline; text-decoration-thickness: 1px; }
 .tier .price span { display: block; margin-top: 0.15rem; }
 .tier ul { list-style: none; padding: 0; margin: 1rem 0; font-size: 0.93rem; }
 .tier ul li { padding: 0.3rem 0; border-top: 1px solid var(--line); }
-.tier .note { color: var(--muted); font-size: 0.9rem; margin-top: auto; padding-top: 1rem; }
+/* The button keeps the foot of its card, so the five line up. */
+.tier .start { margin: auto 0 0; padding-top: 1rem; }
 
 /* How you pay (0152 T6 (e)): a switch that needs no script and opens on yearly.
    Each paid card carries both answers, and the switch shows one. Where :has() is
@@ -1053,8 +1082,7 @@ function tierCards(locale) {
     <li>${c.tierData(size(t.dataGb, locale))}</li>
     ${terms}
   </ul>
-  <p class="note">${esc(c.tierText[t.id].note)}</p>
-  <p><a class="btn ${featured ? 'btn-primary' : 'btn-ghost'}" href="${esc(orderHref(locale, t))}">${c.tierStart(t.name)}</a></p>
+  <p class="start"><a class="btn ${featured ? 'btn-primary' : 'btn-ghost'}" href="${esc(orderHref(locale, t))}">${c.tierStart(t.name)}</a></p>
 </div>`;
     }).join('') +
     '</div>'
@@ -1316,8 +1344,13 @@ ${SPRITE}
 </section>
 <div class="cards facts">${c.facts.map(([h, p]) => `<div class="card"><h2>${linked(h)}</h2><p>${linked(p)}</p></div>`).join('')}</div>
 <h2>${c.nav.how}</h2>
+<p>${c.strip.lede}</p>
 <ol class="strip">${c.strip.steps
-    .map(([h, p], i) => `<li><span class="step" aria-hidden="true">${i + 1}</span><div><h3>${h}</h3><p>${p}</p></div></li>`)
+    .map(
+      ([h, p], i) =>
+        `<li>${stepIcon(i + 1)}<div><h3><a href="${urlFor(locale, 'how')}#${c.strip.anchor}-${i + 1}">` +
+        `<span class="step" aria-hidden="true">${i + 1}.</span> ${h}</a></h3><p>${p}</p></div></li>`,
+    )
     .join('')}</ol>
 <p><a href="${urlFor(locale, 'how')}">${c.strip.more} <span aria-hidden="true">→</span></a></p>
 ${appScreen(locale)}
@@ -1326,7 +1359,6 @@ ${whereTo(locale)}
 ${cards(c.diff)}
 
 <h2>${c.wontTitle}</h2>
-<p>${c.wontLede}</p>
 ${cards(c.wont)}
 
 <h2>${c.costTitle}</h2>
@@ -1811,6 +1843,11 @@ export function build({ alpha = ALPHA, googleRestricted = GOOGLE_RESTRICTED } = 
         if (key === 'pricing') body = asQuestions(body, c.pricingRules);
         // How it works ends where a reader decides (0152 T3 (c)): the hero's two buttons.
         if (key === 'how') {
+          // Each step's heading carries the picture the home page shows it with.
+          body = body.replace(
+            new RegExp(`<h2 id="(${c.strip.anchor}-([1-5]))">`, 'g'),
+            (_, id, n) => `<h2 id="${id}" class="step-h">${stepIcon(Number(n))}`,
+          );
           body +=
             `<div class="cta"><a class="btn btn-primary" href="${esc(orderHref(locale, null))}">${c.ctaOrder}</a>` +
             `<a class="btn btn-ghost" href="${urlFor(locale, 'pricing')}">${c.ctaPricing}</a></div>`;

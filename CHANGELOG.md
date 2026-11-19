@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The public site's home page shows How it works as its page's five steps, each with a small
+  picture, and the site says less where it said a thing twice** (workplan 0152). The home page
+  showed three steps of its own and its page five; both now show the page's five, under the same
+  five pictures, and each step on the home page links to its section of the page. Gone, in both
+  languages: the line under *What it will not do*, the pricing page's opening line and the second
+  half of *Two numbers decide your tier*, the note above each tier's button, and How it works's
+  *What we would tell a friend*. Step 4 is *Check everything at your own pace*, and what cannot be
+  moved is *clearly reported*.
+
 ### Security
 
 - **The advisory gate accepts nothing again: GitHub withdrew GHSA-fc5q-39xc-vjpf, the picomatch

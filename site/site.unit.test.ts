@@ -162,7 +162,7 @@ describe('the published prices agree with the decision that set them', () => {
   it('says what each tier is in the page’s language, and as a fact, never as "most people" (0152 T1 (b))', async () => {
     const { TIERS } = await import('./prices.mjs');
     const { COPY } = (await import('./copy.mjs')) as unknown as {
-      COPY: Record<'en' | 'nl', { tierText: Record<string, { who: string; note: string }> }>;
+      COPY: Record<'en' | 'nl', { tierText: Record<string, { who: string }> }>;
     };
     const pages = await renderedPages();
     const html = (file: string) => pages.find((p) => p.file === file)!.html;
@@ -172,10 +172,10 @@ describe('the published prices agree with the decision that set them', () => {
     ] as const) {
       for (const t of TIERS) {
         const own = COPY[locale].tierText[t.id];
-        expect(own?.who && own?.note, `${locale}: ${t.name} has no subtitle or note`).toBeTruthy();
+        expect(own?.who, `${locale}: ${t.name} has no subtitle`).toBeTruthy();
         expect(html(file), `${file}: ${t.name}'s subtitle is not its own language's`).toContain(own!.who);
         // The defect this replaces: the Dutch page printed English tier text.
-        expect(html(file), `${file}: ${t.name}'s note is in ${other}`).not.toContain(COPY[other].tierText[t.id]!.note);
+        expect(html(file), `${file}: ${t.name}'s subtitle is in ${other}`).not.toContain(COPY[other].tierText[t.id]!.who);
       }
     }
     // Nothing counts who picks what, so no page says what most people do.
