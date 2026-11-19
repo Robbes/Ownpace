@@ -27,7 +27,8 @@ chose the explicit link (ADR-0050, amended 2026-11-19).
   cases), the routes (`this-is-me.unit.test.ts`, 18), the start flow
   (`the-person-adding-a-migration-is-chosen-first.unit.test.tsx`, 10), and new cases in
   `Mappings.unit.test.tsx` (3), `Person.unit.test.tsx` (5), `MappingLinksPanel.unit.test.tsx` (1)
-  and `one-answer-from-both-editions.unit.test.ts` (2). Taking out the default, the server's
+  and `one-answer-from-both-editions.unit.test.ts` (2). The erasure's 18 cases
+  (`offboarding.unit.test.ts`) now purge a person linked to its member. Taking out the default, the server's
   `you`, the sign-in as the only source of the account, the unique index or the key's clearing
   each turned cases red.
 - **Not run here:** Atlas's lint of both chains, and the integration and managed E2E tiers. They
