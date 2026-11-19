@@ -1,6 +1,6 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * A MOVE THAT NAMES THE FILE (the owner, 2026-11-19).
+ * A MOVE THAT NAMES THE FILE (found 2026-11-19).
  *
  * Testing a Google to Nextcloud migration, the owner was shown one row on
  * *Moved on the old system*:

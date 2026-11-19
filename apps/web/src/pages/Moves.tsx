@@ -88,9 +88,8 @@ const renamedInPlace = (mv: ItemMove): boolean =>
 
 /**
  * Where the target has the item, and where the source lists it now, as a row
- * says them (the owner, 2026-11-19, on a row that read *Files / renamed*: *"I
- * need more info, like a name, to be able to understand what I need to decide
- * on."*).
+ * says them (found 2026-11-19, on a row that read *Files / renamed* and named
+ * nothing a decision could be made on).
  *
  * A FILE's name is part of its place, so a named file reads as its path:
  * `/Docs/report.pdf → /Archive/report.pdf`. Anything else keeps its folders,

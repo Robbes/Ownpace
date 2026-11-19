@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * A QUEUE ROW THAT NAMES ITS ITEM (the owner, 2026-11-19), over `MemoryLedger`.
+ * A QUEUE ROW THAT NAMES ITS ITEM (found 2026-11-19), over `MemoryLedger`.
  *
  * A row on *Moved on the old system* read *Files / renamed* beside a hash, and
  * the owner could not tell which file it asked about. The names were held

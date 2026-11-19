@@ -85,7 +85,7 @@ const Decided: React.FC<{ decided: NonNullable<ItemDeletion['decided']> }> = ({ 
  * WHICH ITEM a row is about, from what the ledger already holds for it
  * (`displayName`, read by `nameOnRow`). A row named only its folder, so a file
  * at the top of a drive read `/` beside a hash, under a button that deletes it
- * on the new system (the owner, 2026-11-19, of the same row on Moves).
+ * on the new system (found 2026-11-19, as on Moves).
  *
  * A FILE's name is part of its place: `/Docs/report.pdf`. Anything else leads
  * with its name and keeps its folder after it in small type, as Failures does.

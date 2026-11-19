@@ -1465,7 +1465,7 @@ export class PgLedger implements Ledger {
         moveAcknowledgedAt: schemaPg.item.moveAcknowledgedAt,
         // What a decided move did on the new system (0159 §6 item 6).
         deletionAppliedAt: schemaPg.item.deletionAppliedAt,
-        // WHAT IT IS CALLED (the owner, 2026-11-19: a row read *Files /
+        // WHAT IT IS CALLED (found 2026-11-19: a row read *Files /
         // renamed* beside a hash). Read from what this row already holds, by
         // `named`: the stored name, or a file's last path segment.
         naturalKey: schemaPg.item.naturalKey,

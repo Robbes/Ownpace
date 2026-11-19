@@ -2009,7 +2009,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // anyone can act on. And a row names its item where the ledger holds a
       // name (`displayName`, and a relocation's `toDisplayName`), for the same
       // reason: a row reading `/ renamed` beside a hash cannot be decided on
-      // (the owner, 2026-11-19). §17 keeps paths and names out of METRIC
+      // (found 2026-11-19). §17 keeps paths and names out of METRIC
       // labels, which is a different store with different retention; this is
       // the owner's own queue, the same place `lastError` already goes.
       if (req.method === 'GET' && req.url === '/moves') {

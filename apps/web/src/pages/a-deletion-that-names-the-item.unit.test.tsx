@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 /**
- * A DELETION THAT NAMES THE ITEM (the owner, 2026-11-19, of the same blind spot
- * on Moves).
+ * A DELETION THAT NAMES THE ITEM (found 2026-11-19, the same blind spot as on
+ * Moves).
  *
  * *Deleted on the old system* offers *Delete it here too*, and its rows named
  * only a folder: a file deleted at the top of a drive read `/` beside a hash.
