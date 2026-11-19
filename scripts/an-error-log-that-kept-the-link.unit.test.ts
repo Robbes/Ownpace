@@ -77,14 +77,21 @@ describe("the web image's nginx writes critical errors only", () => {
     expect(all, `${TEMPLATE_PATH} sets an error_log outside its servers`).toHaveLength(SERVERS.length);
   });
 
-  it("keeps the image's own nginx.conf, which the run below reproduces", () => {
+  it("keeps the image's own nginx.conf but for its user and its pid file, which the run below reproduces", () => {
     // The template goes where the image renders it into its http block, and
     // nothing replaces the image's main level or that block.
     const runtime = DOCKERFILE.slice(DOCKERFILE.search(/^FROM \S+ AS runtime$/m));
     // Tag and digest since 2026-10-22 (a-float-nothing-ever-pulled), which Dependabot moves together.
     expect(runtime).toMatch(/^FROM nginx:[\w.-]+(?:@sha256:[0-9a-f]{64})? AS runtime$/m);
     expect(runtime).toMatch(/^COPY apps\/web\/nginx\.conf\.template \/etc\/nginx\/templates\/default\.conf\.template$/m);
-    expect(runtime).not.toMatch(/\/etc\/nginx\/nginx\.conf/);
+    expect(runtime).not.toMatch(/^(?:COPY|ADD)\b[^\n]*\/etc\/nginx\/nginx\.conf/m);
+    // Since 2026-11-19 nginx runs as its own user (workplan 0119): one line of
+    // one RUN names nginx.conf, and that RUN's one sed deletes `user  nginx;`
+    // and moves the pid file to /tmp. Neither is the error log's line or the
+    // access log's, and the run below names no user and keeps its own pid file.
+    expect(runtime.split('\n').filter((l) => l.includes('/etc/nginx/nginx.conf'))).toEqual(['    conf=/etc/nginx/nginx.conf; \\']);
+    const seds = [...runtime.matchAll(/\bsed -i ([^\n]*) "\$conf"/g)].map((m) => m[1]);
+    expect(seds).toEqual(["-e '/^user  nginx;$/d' -e 's|^pid        /run/nginx\\.pid;$|pid        /tmp/nginx.pid;|'"]);
   });
 });
 

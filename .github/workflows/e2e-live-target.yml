@@ -59,12 +59,22 @@ concurrency:
   group: ${{ github.workflow }}
   cancel-in-progress: false
 
+# Read-only (workplan 0119, 2026-11-19): the checkout is the one step here
+# that uses the token; the lane's credentials are the machine's persisted
+# .env (the header). Until then this file named no permissions, so the job ran
+# on whatever the repository's settings give the default token. Held by
+# scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 jobs:
   live-target:
     runs-on: [self-hosted, linux, arm64]
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

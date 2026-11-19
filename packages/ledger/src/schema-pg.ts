@@ -137,6 +137,11 @@ export const connection = pgTable(
         // Same word, different table, unrelated meaning; a grep that conflates
         // them will read one as the other.
         'archive',
+        // A destination ACCOUNT at Cirrux (workplan 0160 T1), Soverin's shape:
+        // one app password, IMAP for mail from the stored `mailHost` and DAV
+        // for calendars, contacts and tasks. Migration 0068 widens the check
+        // constraint to match.
+        'cirrux',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

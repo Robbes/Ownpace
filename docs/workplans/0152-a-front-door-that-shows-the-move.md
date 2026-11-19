@@ -2,7 +2,41 @@
 
 > **In one line:** The public site explains a move at a glance: old account and new home in one picture, the destinations named, the alpha said, a shorter menu, a calculator that ends in a button, monthly and yearly prices (a year costs six months), and a page per provider a person leaves.
 
-## Status — 2026-11-01 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: T0's reading changes the site's words, and the home page shows How it works as
+its page's five steps.** On the branch `claude/ownpace-public-readiness-y7orc6-site-copy`. In
+both languages:
+
+- *What it will not do* loses its lede; its heading says what the lede said.
+- What cannot be moved is *clearly reported* (*duidelijk gerapporteerd*), on the home page's card
+  and in How it works's step 4, and step 4's heading is *Check everything at your own pace*
+  (*Controleer alles in uw eigen tempo*).
+- How it works loses *What we would tell a friend* (*Wat we een vriend zouden aanraden*).
+- The pricing page loses its opening line and the second half of *Two numbers decide your tier*
+  (*Twee getallen bepalen uw pakket*), and each tier's card loses its note above the button, which
+  keeps the foot of its card, so the five still line up.
+
+T3 (b)'s strip, How it works folded into three steps, is the page's own five now, so following
+it no longer finds a different list. Each step is the page's heading, or its words before the
+dash, under a picture of its own (`site/steps.mjs`, drawn in the data-type icons' manner and the
+site's alone) that the heading carries on the page too, and links to its step: the headings
+have ids, `#step-1` to `#step-5`, and `#stap-1` to `#stap-5` in Dutch. The page's first sentence
+leads them. `scripts/the-hero-is-the-drawing.unit.test.ts` holds the two in step, and fails on
+each of six mutations: a heading reworded, a heading's id dropped, a step dropped, the lede
+changed, two steps sharing a picture, a step's link dropped. The wireframe `wf-site-home.svg`
+still draws three; it is the plan's drawing of 2026-10-04.
+
+Four more the same day, in both languages:
+
+- Step 2 is *Connect your old account and your new home* (*Koppel uw oude account en uw nieuwe
+  thuis*). It says what the new home is, so the steps now say where the data goes.
+- Step 5 answers *Does my email address change?* (*Verandert mijn e-mailadres?*). It also says what
+  you use afterwards: the phone's and the computer's own apps, Thunderbird, DAVx⁵ and the Nextcloud
+  apps.
+- *European, all the way down* says Ownpace runs in the Netherlands, in the EU.
+  `site/site.unit.test.ts` holds that to the privacy policy's §7, and fails on each of two
+  mutations: the policy moving the machine, the card dropping the country.
 
 **2026-11-01, records: T5 (c)'s two pull requests were merged, and T6 dates #1317's merge
 2026-09-28.** Docs only, on the branch `claude/ownpace-public-readiness-y7orc6-records-2026-11-01-later`. The two entries
@@ -1224,7 +1258,7 @@ together, from one audit of the site and the app on `main` at `83eb73e` (§1).
 | T0 The owner reads the new copy | ⏳ **Owner; before the first invitation, before each task merges. D6's *migratie* is built on the site's own pages; the legal texts are 0139's** | §3. Site copy is the owner's to approve (0144 T0). Every new sentence here is a proposal, in both languages. It includes *migratie* for *verhuizing* (D6) and the new *Why it is priced this way* (T6 (g)). |
 | T1 The alpha, said on the site | ✅ **Built: (b) 2026-10-04, (a) 2026-10-05 (open question 5); its new sentence waits for T0** | §3. A line about the Alpha on every site page while the alpha setting is on, and in the app's guides for a visitor without a session: a fact for a visitor, *"Ownpace is in its Alpha, by invitation. Nothing is charged during the Alpha."*, while the welcome stays the members' (open question 5, answered 2026-10-05). The unbacked *"Most people"* and *"Meest gekozen"* become a fact about the tier. |
 | T2 A shorter menu, and a header that fits a phone | ✅ **Built 2026-10-04, with T6 (c); *Leaving…* joined it with T5 (b); its words wait for T0** | §3. The header reads Home · How it works · Pricing · Sign in, plus the language switch. Privacy and Terms move to the footer. On a phone the menu folds into a `<details>`, which needs no script. |
-| T3 The hero shows the move | ✅ **Built 2026-10-04, and the app screen joined it 2026-10-05 (D8); its words wait for T0** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a three-step strip links to *How it works*. After the strip, the app itself: a person's page, photographed by `scripts/shoot-the-app-screen.mjs` and held to the app's words by the UI smoke. |
+| T3 The hero shows the move | ✅ **Built 2026-10-04, and the app screen joined it 2026-10-05 (D8); its words wait for T0** | §3. The drawing `hero-move.svg`, inlined: the old account's data, then Ownpace, then the new home, with our own icons (D4). Three facts sit under it, and a strip of *How it works*'s five steps (three until 2026-11-19) links to each of them. After the strip, the app itself: a person's page, photographed by `scripts/shoot-the-app-screen.mjs` and held to the app's words by the UI smoke. |
 | T4 The destinations, named | ✅ **Built 2026-10-04; its words wait for T0** | §3. A *Where to* section names what the app supports, from a site copy of the app's list with a guard that it matches. It says plainly that the new account is one the person opens and pays for themselves. |
 | T5 A page per provider a person leaves | ✅ **(a) and (b) built 2026-10-04; (c) built 2026-10-30, on `claude/ownpace-public-readiness-y7orc6-site-search-metadata`, merged as #1743 on 2026-10-30 (`04a5374b`), and its links to the maintained documentation in `llms.txt` (ADR-0029) 2026-10-31, on `claude/ownpace-public-readiness-y7orc6-llms-txt-maintained-docs`, merged as #1756 on 2026-10-31 (`e103699f`); its words wait for T0** — *was:* 🟡 **(a) and (b) built 2026-10-04; (c) waits for the site's address; its words wait for T0** | §3. *Leaving Google*, *Leaving Microsoft 365*, *Leaving iCloud*, *Leaving Dropbox*, *Leaving Box*, *Leaving another mail provider*: what moves, the limits, what the person does, the destinations it can go to, a typical cost. Built from copies of the app's own verdicts, each guarded. |
 | T6 Pricing that reads in one pass | ✅ **(a) to (g) done**: (a) the sentence by #1317 and its guard beside D6's by #1339, merged 2026-09-28 and 2026-09-29; (b) in #1486, merged 2026-10-05; (c) with T2 in #1471, (d) the new list with ADR-0014's amendment of 2026-09-29 in force and (g)'s principle on the page and the architecture document's dated §16 note, both in #1435, (e) in #1477 and (f)'s words on the page and in the terms in #1470, all merged 2026-10-04; (f)'s button, its label decided 2026-10-05, in #1562 (0111 slice 7c), merged 2026-10-11, and the email a month before a year's credit runs out in #1579, merged 2026-10-12. Its words wait for T0 — *was:* 🟡 **(a) done: the sentence by #1317, its guard beside D6's. (c) built 2026-10-04, with T2 (#1471). (d) built 2026-10-03, with (g)'s principle on the page. (b) and (e) built 2026-10-04. (f)'s words on the page and in the terms built 2026-10-04; the button's label decided 2026-10-05, the button built 2026-10-11 (0111 slice 7c). The rest proposed, before the first invitation (D5)** | §3. (a) One VAT statement. (b) The rules as questions and answers. (c) A button to the calculator. (d) The new list, a year = six months (D9). (e) The monthly / yearly switch (D10). (f) The withdrawal button, and the year's end (D11, amended 2026-10-04). (g) The principle, the price that pays for the work (D12). |

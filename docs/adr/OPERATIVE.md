@@ -487,9 +487,14 @@ live in [README.md](./README.md), the register.
   mailman by default, and to any domain added later:
   `docs/workplans/0103-the-mail-a-migration-must-not-send.md`.
 - **The copy stays faithful; the side effects are what we suppress.** `ATTENDEE` and `ORGANIZER`
-  are never stripped: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs
-  (0103 T1). An explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit
-  `CLIENT`/`NONE` are kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+  are kept: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs (0103 T1). An
+  explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
+  kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+- **Except a target that emails guests whatever the parameter says** (2026-11-19): a kind in
+  `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160) gets neither; each becomes a `COMMENT` naming the
+  person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. Undone by taking the kind
+  off the list once its target can be written without mailing guests, shown by a pass that sends
+  nothing.
 - **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
   copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
   DELETEs (0103 T5) is the belt for attendee-side replies:
@@ -666,7 +671,9 @@ live in [README.md](./README.md), the register.
   `packages/shared/src/people.ts`. Never *move*, which names the moved-items queue (`/moves`,
   `MovesQueue`). On screen the grouping has no noun; the person's name titles it (0153 D6).
 - **A person is someone being moved**: a display name, optionally an email address for grant
-  links, in one tenant.
+  links, and optionally the account of the member it is (`person.user_id`, managed 0061; amended
+  2026-11-19), in one tenant. Only that member links it; answers say `you`, never the id. One per
+  member; removing the member clears it. Guard: `the-person-you-are-under-rls.unit.test.ts`.
 - **A migration belongs to at most one person** (`person_migration`'s key is the migration), or
   to nobody: `unassigned`, shown without a person. **Deleting a person deletes no migration**;
   theirs become `unassigned`. Deleting a migration deletes only its `person_migration` row.
@@ -681,9 +688,10 @@ live in [README.md](./README.md), the register.
   configured migration; writes are refused (`one_person_here`). Guards:
   `one-person-on-the-appliance.unit.test.ts`; `no-managed-leakage.unit.test.ts` names both tables.
 - **The API**: `GET` and `POST /api/people`, `POST /api/people/{personId}/migrations`,
-  `DELETE /api/people/{personId}`, with the migration routes' tenant checks, in the OpenAPI spec.
-  Re-adding changes nothing; another person's migration stays theirs (409 `with_another_person`).
-  Guard: `people.unit.test.ts`.
+  `DELETE /api/people/{personId}`, `PUT` and `DELETE /api/people/{personId}/myself`, with the
+  migration routes' tenant checks, in the OpenAPI spec. Re-adding changes nothing; another person's
+  migration stays theirs (409 `with_another_person`). Guards: `people.unit.test.ts`,
+  `this-is-me.unit.test.ts`.
 
 ## [ADR-0051: An ADR reads as it stands — a budget for the operative layer, and consolidation in place](./0051-an-adr-reads-as-it-stands.md)
 
@@ -704,3 +712,27 @@ live in [README.md](./README.md), the register.
   to `docs/adr/history/`*. A cluster of several ADRs is still consolidated by a new ADR
   (ADR-0038).
 - The guards: `scripts/adr-operative.unit.test.ts`.
+
+## [ADR-0052: A rotating refresh token is written back, one refresh at a time](./0052-a-rotating-refresh-token-is-written-back.md)
+
+- **A pass writes a stored credential back only for a provider whose refresh tokens rotate**,
+  each refresh retiring the last: Cirrux today. Every other connector reads its credential and
+  never writes it, and Box keeps its client-credentials grant (`box-token-provider.ts`).
+- **One refresh at a time per connection**: from reading the stored token to storing its
+  successor, the refresh holds the connection row's lock (`SELECT … FOR UPDATE`), so two runs
+  never spend one token (`cirrux-grant-store.ts`; `two-refreshes-one-token.unit.test.ts`,
+  `cirrux-grant-store.integration.test.ts`).
+- **The successor goes through the one credential store** (ADR-0037): encrypted by
+  `SecretStore`, in the same row, by an UPDATE that compares the ciphertext it read; a mismatch
+  stores nothing. No token is logged, put in a URL, or handed to a browser.
+- **An access token lives in memory only**, one per writer, refreshed single-flight in a process.
+- **A token Cirrux may have spent is never presented again**: a successor that never arrived, or
+  `invalid_grant`, removes the stored token in the same transaction, and the person connects
+  again. A `429` waits its `Retry-After`; an answer that says nothing happened keeps the token.
+- **Cirrux's OAuth client is the deployment's**: one public client per deployment, PKCE `S256`,
+  no secret, `CIRRUX_OAUTH_CLIENT_ID` for the API and the worker. Unset, the Drive face is a
+  measured no and no button is offered (`a-client-the-worker-never-got.unit.test.ts`).
+- **The grant is stored by the consent door's callback, on the server**, onto the account the
+  authorize call named (`cirrux-oauth-routes.ts`).
+- **The appliance has no Cirrux Drive**: its credentials live in its `.env`, which nothing
+  writes back, and it has no consent door.

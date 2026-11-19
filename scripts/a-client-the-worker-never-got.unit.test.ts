@@ -160,3 +160,41 @@ describe('the fallback is gated where it has to be', () => {
     expect(dropbox).toContain("'clientId', 'clientSecret', 'refreshToken'");
   });
 });
+
+/**
+ * AND CIRRUX'S PUBLIC CLIENT (workplan 0160 T5; ADR-0052, decision 6). The same
+ * split, with a sharper edge: the worker does not only read with the client, it
+ * REFRESHES a Cirrux account's Drive sign-in on every pass and writes the
+ * successor back. Given to the API alone, Connect Cirrux Drive would work, the
+ * Test would measure the Drive, and every pass into it would be refused for a
+ * client the worker never got.
+ */
+describe('Cirrux’s client reaches both halves of the stack', () => {
+  const NAME = 'CIRRUX_OAUTH_CLIENT_ID';
+
+  it('managed.yml passes it to the API', () => {
+    expect(read('deploy/compose/managed.yml')).toContain(`${NAME}: \${${NAME}`);
+  });
+
+  it('set-task-env.sh forwards it into the upload and lists it', () => {
+    const script = read('deploy/compose/set-task-env.sh');
+    expect(script, `${NAME} is never forwarded into the upload process`).toContain(`${NAME}="\${${NAME}:-}"`);
+    expect(script, `${NAME} is forwarded but not in the uploaded list`).toContain(`"${NAME}"`);
+  });
+
+  it('the example env documents it, and says beside it that the worker needs it too', () => {
+    const example = read('deploy/compose/managed.env.example');
+    const at = example.indexOf(`${NAME}=`);
+    expect(at, 'the setting is not in the example env').toBeGreaterThan(-1);
+    expect(example.slice(Math.max(0, at - 1500), at), 'nothing near it mentions set-task-env.sh').toContain(
+      'set-task-env.sh',
+    );
+  });
+
+  it('the pass and the API read the one variable, through the one helper', () => {
+    expect(read('packages/shared/src/cirrux-drive.ts')).toContain(NAME);
+    expect(read('packages/orchestration/src/build-deps-from-mapping.ts')).toContain('cirruxDeploymentClient(');
+    expect(read('apps/api/src/routes/connections.ts')).toContain('cirruxDeploymentClient(');
+    expect(read('apps/api/src/routes/migrations/cirrux-oauth-routes.ts')).toContain('cirruxDeploymentClient(');
+  });
+});

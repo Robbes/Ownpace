@@ -16,7 +16,7 @@
  * throws in croner at scheduler registration.
  */
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { CreateMappingSchema, UpdateMappingSchema, sourceConfigOverride } from './index.ts';
+import { CreateMappingSchema, UpdateMappingSchema, sourceConfigOverride, targetConnectionConfig } from './index.ts';
 
 function body(over: Record<string, unknown> = {}) {
   return {
@@ -89,6 +89,8 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
       { targetType: 'webdav', domains: ['file'] },
       // The account-shaped kind (0106 T4a): both DAV domains through one row.
       { targetType: 'soverin', domains: ['calendar', 'contact'] },
+      // Cirrux's account (workplan 0160): the same faces, tasks among them.
+      { targetType: 'cirrux', domains: ['calendar', 'contact', 'task'] },
     ] as const;
     for (const { targetType, domains } of ok) {
       const result = CreateMappingSchema.safeParse(
@@ -124,6 +126,68 @@ describe('target/domain coherence — the server refuses, naming both sides', ()
         }),
       ).success,
     ).toBe(true);
+  });
+
+  it('cirrux + email demands the mail server by name, names cirrux, and stores it once typed (0160)', () => {
+    const withEmail = (targetConfig: Record<string, unknown>) =>
+      body({ targetType: 'cirrux', targetConfig, syncConfig: { domains: ['email', 'task'] } });
+    const bare = { host: 'api.cirrux.co', port: 443, username: 'a@example.nl', password: 'x' };
+    const msg = refusalText(withEmail(bare));
+    expect(msg).toContain('A cirrux target carries email only when');
+    expect(msg).toContain('targetConfig.mailHost is missing');
+    const parsed = CreateMappingSchema.safeParse(withEmail({ ...bare, mailHost: 'imap.cirrux.co', mailPort: 993 }));
+    expect(parsed.success).toBe(true);
+    // And the connection the door stores carries the mail face beside the DAV host.
+    expect(targetConnectionConfig({ targetType: 'cirrux', targetConfig: parsed.data!.targetConfig })).toMatchObject({
+      host: 'api.cirrux.co',
+      port: 443,
+      mailHost: 'imap.cirrux.co',
+      mailPort: 993,
+    });
+  });
+
+  it('cirrux + file: a NEW account is refused naming the button; a stored one is the row’s to answer (0160 T5)', () => {
+    const cirrux = { host: 'api.cirrux.co', port: 443, username: 'a@example.nl', password: 'x' };
+    const msg = refusalText(body({ targetType: 'cirrux', targetConfig: cirrux, syncConfig: { domains: ['file'] } }));
+    expect(msg).toContain('Connect Cirrux Drive');
+    expect(msg).toContain('only once Cirrux Drive is connected');
+    // A stored account may carry the grant, and the schema cannot read it: the
+    // reuse in the create transaction does (connect-cirrux-drive.unit.test.ts).
+    const reused = CreateMappingSchema.safeParse(
+      body({
+        targetType: 'cirrux',
+        targetConnectionId: '0160cd00-e29b-41d4-a716-446655440011',
+        targetConfig: { username: 'a@example.nl', password: '' },
+        syncConfig: { domains: ['file'] },
+      }),
+    );
+    expect(reused.success, reused.success ? '' : reused.error.issues.map((i) => i.message).join(' ')).toBe(true);
+    // And no other kind gains a face by being reused.
+    expect(
+      refusalText(
+        body({
+          targetType: 'carddav',
+          targetConnectionId: '0160cd00-e29b-41d4-a716-446655440011',
+          targetConfig: { username: 'a@example.nl', password: '' },
+          syncConfig: { domains: ['file'] },
+        }),
+      ),
+    ).toContain("'file'");
+  });
+
+  it('a protocol target never stores a mail face, however it is sent one', () => {
+    // The other direction of the table: only the account kinds keep `mailHost`.
+    const parsed = CreateMappingSchema.safeParse(
+      body({
+        targetType: 'caldav',
+        targetConfig: { host: 'dav.example.nl', port: 443, username: 'a', password: 'x', mailHost: 'imap.example.nl' },
+        syncConfig: { domains: ['calendar'] },
+      }),
+    );
+    expect(parsed.success).toBe(true);
+    expect(targetConnectionConfig({ targetType: 'caldav', targetConfig: parsed.data!.targetConfig })).not.toHaveProperty(
+      'mailHost',
+    );
   });
 });
 
@@ -731,7 +795,7 @@ describe('a nextcloud target is reached at its base URL (2026-09-07)', () => {
   });
 
   it('still refuses every OTHER target type with no host or port', () => {
-    for (const targetType of ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin']) {
+    for (const targetType of ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'cirrux']) {
       const parsed = CreateMappingSchema.safeParse(
         body({
           targetType,

@@ -520,6 +520,18 @@ export interface UpsertResult {
    * itself. An item the destination already held is `adopted`, never rewritten.
    */
   readonly updated?: boolean;
+  /**
+   * The hash of the bytes this write SENT, where the writer hashed them on the
+   * way (workplan 0160 T5).
+   *
+   * The loop hashes `raw.content` before the write, and a file the source
+   * handed over as a stream (`RawFileItem.body`) has no `content`: that hash
+   * is of nothing, and a row recorded with it says every streamed file is
+   * empty, to §20's checksum sample and to move detection alike. A writer that
+   * streams the bytes through a hasher answers here, and the loop records
+   * this. Absent, the loop's own hash stands, as it always has.
+   */
+  readonly contentHash?: string;
 }
 
 /** Per-call instructions for a target write. */
@@ -689,6 +701,14 @@ export interface FileTargetWriter {
    * Existence check for create-if-absent.
    */
   findFileByNaturalKey(parentId: string, naturalKey: string): Promise<string | undefined>;
+  /**
+   * A file this target will refuse, refused BEFORE the source is asked for a
+   * byte (workplan 0160 T5). OPTIONAL: a writer whose limit is a property of
+   * the destination (Cirrux Drive's 2 GiB a file, its 100 MB a simple upload)
+   * says so here, from the listing, and the loop records the error as the
+   * item's failure without fetching it. Undefined lets the file through.
+   */
+  refuseBeforeRead?(item: FileItem): Error | undefined;
 }
 
 
@@ -2055,11 +2075,13 @@ export interface ItemFailure {
    * which is why this comment names the four rather than saying "it is fine".
    *
    * For a FILE it is the last segment of its path, read from the row's key
-   * when the queue is listed (`nameOfFailure` in the ledger): a file's row
-   * stores no name of its own, and until 2026-09-23 its failure named only
-   * the folder. Absent for mail (whose Subject this codebase cannot decode
-   * yet), on every row written before 2026-09-17, and for a file whose key was
-   * never recorded. The screen then shows what it has always shown.
+   * when the queue is listed (`nameOnRow`, the rule Moves and Deletions read
+   * too): a file's row stores no name of its own, and until 2026-09-23 its
+   * failure named only the folder. For a message it is the Subject the pass
+   * decoded, when it had fetched the message. Absent on every row written
+   * before 2026-09-17, on a message that was never fetched, and for a file
+   * whose key was never recorded. The screen then shows what it has always
+   * shown.
    */
   readonly displayName?: string;
   readonly collection?: string;
@@ -2111,15 +2133,58 @@ export interface ItemFailure {
  * topology and lifecycle, and hard rule 2 forbids the delete half of a move
  * outright.
  *
- * `from` and `to` are folder paths, which §17 counts as personal data. They
- * belong on the operator's own status surface — the same place `lastError`
- * already goes — and must NEVER become a metric label; the count is the only
- * part of this that is safe to export to a metrics store.
+ * `from` and `to` are folder paths, which §17 counts as personal data, and so
+ * are `displayName` and `toDisplayName` below. They belong on the owner's own
+ * queue — the same place `lastError` already goes — and must NEVER become a
+ * metric label; the count is the only part of this that is safe to export to a
+ * metrics store.
  */
 export interface ItemMove {
   readonly domain: DiscoveryDomain;
-  /** Same anchor, and for the same §17 reason, as `ItemFailure.naturalKeyHash`. */
+  /**
+   * Same anchor, and for the same §17 reason, as `ItemFailure.naturalKeyHash`:
+   * the handle *Leave it where it is* and *Remove the old copy* post. The names
+   * below are labels beside it, never a handle.
+   */
   readonly naturalKeyHash: string;
+  /**
+   * The name a PERSON calls the item, as the copy on the target has it: a
+   * message's Subject, an event's or a task's SUMMARY, a contact's FN, a file's
+   * name (the last segment of the path it was copied from). Read from the row by
+   * `nameOnRow`, never stored for this.
+   *
+   * ## Why this sits beside a hash whose comment says the opposite
+   *
+   * For the reason `ItemFailure.displayName` gives, and on stronger ground: this
+   * queue asks whether to remove a copy on the new system, and on 2026-11-19 the
+   * owner, testing a Google to Nextcloud migration, was shown one row reading
+   * *Files / renamed* beside a hash, with nothing to say which file. ADR-0035 decision 5
+   * already keeps this queue naming files and folders to the owner, even for an
+   * account a person granted: the owner decides on them, and a decision has to
+   * know what it is about.
+   *
+   * ## Who reads it
+   *
+   * `listMoves` has five kinds of caller, and only the first renders a row:
+   *
+   *  - the Moves screen of both editions (`GET /moves`,
+   *    `GET /api/migrations/{id}/moves`) — the reader this field exists for;
+   *  - both digest builders and the Attention page, which count rows (`MoveRow`
+   *    is `acknowledgedAt` alone), so no name reaches an email;
+   *  - the completion report of both editions, which counts them;
+   *  - the mass-relocation breaker, which counts them;
+   *  - unattended apply (ADR-0031), whose log lines, audit rows and receipts
+   *    carry the hash and nothing else, and which the digest counts.
+   *
+   * A future caller that forwards a whole row somewhere is the thing to watch,
+   * which is why this names the five rather than saying "it is fine".
+   *
+   * Absent on a file row written before 2026-09-12, whose path was not
+   * recorded, on an event or a contact written before 2026-09-17, and on a
+   * message copied before its Subject was read. The screen then shows what it
+   * showed before: the folders.
+   */
+  readonly displayName?: string;
   /** The source collection recorded on the ledger row when we copied it. */
   readonly from: string;
   /** The source collection it is listed in now. */
@@ -2131,13 +2196,24 @@ export interface ItemMove {
    * renamed, correlated by content hash (ADR-0030). Absent for every mail and
    * calendar move, where the key survives.
    *
-   * It is what makes a rename legible at all — `from` and `to` are both `Docs`
-   * when somebody renames a file inside one folder, and this is the field that
-   * says what actually changed — and it is the precondition for `apply`: the
-   * old copy may be removed only because the same bytes are already on the
-   * target under THIS key.
+   * It is the precondition for `apply`: the old copy may be removed only because
+   * the same bytes are already on the target under THIS key. It does not make a
+   * rename legible, though: it is a SHA-256 of the new path, and `from` and `to`
+   * are both `Docs` when somebody renames a file inside one folder. What says
+   * what changed is `toDisplayName`.
    */
   readonly toNaturalKeyHash?: string;
+  /**
+   * For a relocation, the name the source lists the item under now: the name on
+   * the row `toNaturalKeyHash` names, the copy already made under the new key,
+   * in the same organisation and migration (`nameOnRow`; for a file, the last
+   * segment of its path). With `displayName` it reads *report.pdf →
+   * report-final.pdf*.
+   *
+   * Absent when `toNaturalKeyHash` is, and when that row's path was not
+   * recorded. Same readers, and the same §17 rule, as `displayName`.
+   */
+  readonly toDisplayName?: string;
   /**
    * When this move was RECORDED (migration 0013). Re-stamped when the
    * destination changes — a move somewhere new is a new report.
@@ -2227,6 +2303,12 @@ export interface EarlierExport {
   readonly domain: DiscoveryDomain;
   /** The earlier copy's key. Same anchor, same §17 reason, as `ItemFailure.naturalKeyHash`. */
   readonly naturalKeyHash: string;
+  /**
+   * The earlier copy's file name (`nameOnRow`), as `ItemDeletion.displayName`
+   * says and for its reason: the row named only its folder. Absent on a row
+   * whose path was not recorded.
+   */
+  readonly displayName?: string;
   /** Where it was copied from. */
   readonly collection: string;
   /** The document's current copy: the key the current export policy gives it. */
@@ -2246,14 +2328,28 @@ export interface EarlierExport {
  * usually 0 and means nothing, because the source told us outright rather than
  * us noticing.
  *
- * `collection` is a folder path, which §17 counts as personal data. It belongs
- * on the operator's own status surface — the same place `lastError` and
- * `ItemMove.from` already go — and must never become a metric label.
+ * `collection` is a folder path, which §17 counts as personal data, and so is
+ * `displayName`. Both belong on the owner's own queue — the same place
+ * `lastError` and `ItemMove.from` already go — and must never become a metric
+ * label.
  */
 export interface ItemDeletion {
   readonly domain: DiscoveryDomain;
   /** Same anchor, same §17 reason, as `ItemFailure.naturalKeyHash`. */
   readonly naturalKeyHash: string;
+  /**
+   * What the item is called: a message's Subject, an event's or a task's
+   * SUMMARY, a contact's FN, a file's name (`nameOnRow`), as
+   * `ItemMove.displayName` says and for its reason. This queue offers *Delete it
+   * here too*, and until 2026-11-19 a row named only its folder: a file at the
+   * top of a drive read `/` and a hash.
+   *
+   * Only the Deletions screen of both editions renders it; the digests, the
+   * Attention page, the completion report and the mass-deletion breaker count
+   * rows (`DeletionRow` is `confirmed` and `acknowledgedAt` alone). Absent on
+   * rows from before a name or a path was recorded.
+   */
+  readonly displayName?: string;
   /** Where we copied it from, which is also where it stopped appearing. */
   readonly collection: string;
   /**

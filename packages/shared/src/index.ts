@@ -96,6 +96,8 @@ export * from './provider-endpoints.ts';
 export * from './google-deployment-client.ts';
 export * from './google-read-only.ts';
 export * from './dropbox-deployment-client.ts';
+// Cirrux Drive's endpoints, scopes, limits and the deployment's public client (workplan 0160 T5).
+export * from './cirrux-drive.ts';
 export * from './microsoft-deployment-client.ts';
 export * from './microsoft-scopes.ts';
 export * from './provider-clients.ts';

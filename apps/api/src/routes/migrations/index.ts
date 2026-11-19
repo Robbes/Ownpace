@@ -71,6 +71,7 @@ import {
   newReference,
   parseArchiveSource,
   recordAppEvent,
+  storesItsMailServer,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -118,6 +119,7 @@ import { googleAccountScopeSentence } from './google-account-consent.ts';
 import googleOauthRoutes from './google-oauth-routes.ts';
 import dropboxOauthRoutes from './dropbox-oauth-routes.ts';
 import microsoftOauthRoutes from './microsoft-oauth-routes.ts';
+import cirruxOauthRoutes from './cirrux-oauth-routes.ts';
 // The owner's grant-link surface (workplan 0108 T3): issue, list, revoke, all
 // under /api/migrations/:mappingId/links. The link HOLDER's routes are not
 // here and never will be — they authenticate a link, not a session, so they
@@ -133,6 +135,8 @@ import { holdTheCap, maxMigrationsPerOrganisationFromEnv, PastTheCap } from './m
 export { accountOnConnection };
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
+  grantableTargetFaces,
+  grantedTargetFacesOf,
   targetDomainRefusal,
   parseTargetFolderPrefix,
   sourceDomainRefusal,
@@ -744,12 +748,13 @@ export function targetConnectionConfig(
   // resolver prefers over host+port (0105 T1) — the door for a provider
   // whose DAV root lives behind a path. The account kind alone may also
   // store its MAIL face (T4b): the IMAP host the person typed, which the
-  // mail seam resolves into the imap-dav writer — scoped to `soverin` so a
+  // mail seam resolves into the imap-dav writer — scoped to the kinds in
+  // `MAIL_SERVER_ACCOUNT_KINDS` (soverin, and cirrux since 0160) so a
   // protocol row can never grow a face its kind does not carry.
   return {
     ...base,
     ...(cfg.url ? { url: cfg.url } : {}),
-    ...(body.targetType === 'soverin' && cfg.mailHost
+    ...(storesItsMailServer(body.targetType) && cfg.mailHost
       ? { mailHost: cfg.mailHost, ...(cfg.mailPort ? { mailPort: cfg.mailPort } : {}) }
       : {}),
   };
@@ -1061,6 +1066,9 @@ router.use('/', googleOauthRoutes);
 router.use('/', dropboxOauthRoutes);
 // Connect with Microsoft (workplan 0114 T2b), mounted beside the other two.
 router.use('/', microsoftOauthRoutes);
+// Connect Cirrux Drive (workplan 0160 T5; ADR-0052): a consent that ends in
+// the database, on the account it was begun for, not in the wizard.
+router.use('/', cirruxOauthRoutes);
 router.use('/', linkRoutes);
 
 // Global pool - created once and reused
@@ -1130,7 +1138,7 @@ export const CreateMappingBase = z.object({
    */
   sourceConnectionId: z.string().uuid().optional(),
   targetConnectionId: z.string().uuid().optional(),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
     // 'oauth2'/'graph' (the per-customer Entra app registration — ADR-0006,
@@ -1796,7 +1804,14 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       }
     }
   }
-  const domainRefusal = targetDomainRefusal(body.targetType, body.syncConfig.domains);
+  // A face a kind takes only once its account stores a grant (Cirrux Drive,
+  // 0160 T5) can be asked of a STORED account: whether it carries the grant is
+  // the row's to say, and the reuse below reads it. A new account has none.
+  const domainRefusal = targetDomainRefusal(
+    body.targetType,
+    body.syncConfig.domains,
+    body.targetConnectionId ? grantableTargetFaces(body.targetType) : [],
+  );
   if (domainRefusal) {
     ctx.addIssue({ code: 'custom', path: ['syncConfig', 'domains'], message: domainRefusal });
   }
@@ -1804,9 +1819,10 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
   // person NAMED (0106 T4b — never guessed from the provider's name). A
   // reused connection is exempt here because its stored config may already
   // carry the host; the mail seam refuses at build time with the same field
-  // name if it does not.
+  // name if it does not. Cirrux's account is built the same way (0160), so
+  // the rule is the table's and the sentence names the kind it refuses.
   if (
-    body.targetType === 'soverin' &&
+    storesItsMailServer(body.targetType) &&
     body.syncConfig.domains.includes('email') &&
     !body.targetConnectionId &&
     !body.targetConfig.mailHost?.trim()
@@ -1815,7 +1831,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       code: 'custom',
       path: ['targetConfig', 'mailHost'],
       message:
-        "A soverin target carries email only when the account's mail server is stored: " +
+        `A ${body.targetType} target carries email only when the account's mail server is stored: ` +
         'targetConfig.mailHost is missing. Enter the IMAP host your provider names (the ' +
         'account settings page lists it) — or drop the email data type; calendars and ' +
         'contacts need no mail server.',
@@ -2507,13 +2523,14 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         id: string,
         role: 'source' | 'target',
         wantKind: string,
-      ): Promise<{ id: string; qualification: unknown }> => {
+      ): Promise<{ id: string; qualification: unknown; secretRef: unknown }> => {
         const rows = await db
           .select({
             id: schema.connection.id,
             role: schema.connection.role,
             kind: schema.connection.kind,
             qualification: schema.connection.qualification,
+            secretRef: schema.connection.secretRef,
           })
           .from(schema.connection)
           .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)));
@@ -2540,7 +2557,7 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
               `'${wantKind}' ${role}. Pick a ${wantKind} connection, or enter new credentials.`,
           );
         }
-        return { id: found.id, qualification: found.qualification };
+        return { id: found.id, qualification: found.qualification, secretRef: found.secretRef };
       };
 
       const sourceConn = body.sourceConnectionId
@@ -2571,6 +2588,19 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
             // this reads the account's own record beneath it.
             const refusal = measuredNoRefusal(reused.qualification, body.syncConfig.domains);
             if (refusal) throw new ConfigError(refusal);
+            // AND WHAT ITS CREDENTIALS CARRY (0160 T5): a face the kind takes
+            // only with a grant is refused unless the account stores one,
+            // whatever its record says, in the sentence that names the button.
+            const grantable = grantableTargetFaces(body.targetType);
+            if (grantable.some((d) => body.syncConfig.domains.includes(d))) {
+              const stored = reused.secretRef ? SecretStore.decryptCredentials(reused.secretRef as object) : {};
+              const ungranted = targetDomainRefusal(
+                body.targetType,
+                body.syncConfig.domains,
+                grantedTargetFacesOf(body.targetType, stored),
+              );
+              if (ungranted) throw new ConfigError(ungranted);
+            }
             return reused;
           })()
         : firstOrThrow(
@@ -2760,6 +2790,13 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         message: error.issues.map((i) => i.message).join(' '),
         details: error.issues,
       });
+    } else if (error instanceof ConfigError) {
+      // A reused account that cannot carry what was asked, found in the
+      // create transaction: another role or kind, a face its own Test
+      // measured as no (0106 T3a), or Cirrux Drive not connected on it (0160
+      // T5). A refusal with its sentence, which until 2026-11-19 reached the
+      // person as a 500 that called it a fault on our side. Nothing was stored.
+      res.status(400).json({ error: 'Validation error', message: error.message });
     } else if (error instanceof DuplicateMappingError) {
       // A refusal the person can act on, so it must not look like a fault:
       // this used to reach them as a 500 about a unique index (0071 T6).

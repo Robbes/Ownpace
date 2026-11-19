@@ -61,6 +61,32 @@ export const PROVIDER_DIRECTORY: ReadonlyArray<ProviderDirectoryEntry> = [
       { url: 'https://soverin.com/help/setup', seen: '2026-09-03' },
     ],
   },
+  {
+    role: 'target',
+    type: 'cirrux',
+    // Cirrux's setup page, under Manual Configuration, gives ONE server for
+    // its Calendar, Contacts and Reminders, `api.cirrux.co`, and the Calendar
+    // page says the same: "point your client at api.cirrux.co". Neither page
+    // gives a port or a path. A DAV server named by itself is HTTPS on 443,
+    // which is the number here, and no path means the DAV base URL box stays
+    // empty, as Soverin's does: the DAV clients look for the calendars from
+    // the host's root (RFC 6764), as a calendar app given only that name must.
+    // Mail is IMAP at `imap.cirrux.co`, port 993 with SSL (the page also lists
+    // 143 with STARTTLS; this product's IMAP doors use TLS from the start).
+    // The username is the mailbox's email address, and the password is an
+    // app password made on the mailbox's Passwords tab: the account's own
+    // password is refused. Nothing here pre-fills either.
+    values: {
+      host: 'api.cirrux.co',
+      port: '443',
+      mailHost: 'imap.cirrux.co',
+      mailPort: '993',
+    },
+    sources: [
+      { url: 'https://cirrux.co/help/setup', seen: '2026-11-19' },
+      { url: 'https://cirrux.co/help/calendar', seen: '2026-11-19' },
+    ],
+  },
 ];
 
 const NOTHING: Readonly<Record<string, string>> = Object.freeze({});

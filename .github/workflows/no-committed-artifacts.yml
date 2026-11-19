@@ -8,6 +8,13 @@ on:
   # wedges a required context rather than failing it.
   pull_request:
 
+# Read-only (workplan 0119, 2026-11-19): a checkout and `git diff` are all
+# this job does. Until then this file named no permissions, so the job ran on
+# whatever the repository's settings give the default token. Held by
+# scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 jobs:
   check-artifacts:
     name: Check for committed artifacts
@@ -29,6 +36,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          persist-credentials: false
       - name: Check added files
         run: |
           ADDED_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD)

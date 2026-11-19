@@ -1,10 +1,6 @@
 # Pricing
 
-Published in full. No quote, no sales call, no price you only learn after speaking to
-somebody.
-
-**Two numbers decide your tier, and you are on whichever is higher:** how many things you
-are moving **at the same time**, and how much data you have moved **in total**.
+**Two numbers decide your tier:** how many things you are moving **at the same time**, and how much data you have moved **in total**.
 
 Your mail, your contacts, your calendar, your tasks and your files are separate migrations,
 and photos from a Google export are one more. One person moving all six at once is six at the

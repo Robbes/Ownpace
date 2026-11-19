@@ -427,7 +427,7 @@ export const CreateMappingResponseSchema = z.object({
     // An EXPORT ARCHIVE (workplan 0116 T1; a mapping source since T5/T6).
     'archive',
   ]),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux']),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().optional(),
@@ -460,7 +460,7 @@ export interface CreateMappingInput {
     // one since placement and idempotency were built. Its credential is a
     // location, carried in `sourceConfig.provider` and `.path`.
     | 'archive';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud' | 'cirrux';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
   sourceConnectionId?: string;
@@ -977,6 +977,21 @@ export const mappingApi = {
     p: { clientId?: string; clientSecret?: string } & ConsentLanguage = {},
   ): Promise<{ url: string; redirectUri: string }> => {
     const response = await apiClient.post('/migrations/dropbox/authorize', p);
+    return response.data as { url: string; redirectUri: string };
+  },
+
+  /**
+   * CONNECT CIRRUX DRIVE on a stored Cirrux account (workplan 0160 T5;
+   * ADR-0052). Not the round trip above: no token comes back to this page.
+   * The server stores the Drive sign-in on the account named here, and the
+   * window it ends in tells this page only that it did
+   * (`ownpace-cirrux-drive`), so the page reads the account again. The client
+   * is the deployment's, so nothing else is sent.
+   */
+  cirruxDriveAuthorize: async (
+    p: { connectionId: string } & ConsentLanguage,
+  ): Promise<{ url: string; redirectUri: string }> => {
+    const response = await apiClient.post('/migrations/cirrux/authorize', p);
     return response.data as { url: string; redirectUri: string };
   },
 

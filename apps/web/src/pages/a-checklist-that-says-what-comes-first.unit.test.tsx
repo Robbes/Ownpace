@@ -214,6 +214,42 @@ const NAMED: ReadonlyArray<{
     },
   },
   {
+    // Workplan 0160 T1. Cirrux's own screen words stay in English in both
+    // languages, as Cirrux's help pages write them (the Dutch guide says so).
+    side: 'target',
+    provider: 'cirrux',
+    slug: 'cirrux',
+    sections: ['before', 'cirrux', 'when-test-says'],
+    words: {
+      en: [
+        'Settings → Mailboxes',
+        'Passwords',
+        'New app password',
+        'once',
+        'This service creates no accounts',
+        'seven days',
+        'Mail server',
+        'Mail port',
+        'imap.cirrux.co',
+        '993',
+        'carries no mail',
+      ],
+      nl: [
+        'Settings → Mailboxes',
+        'Passwords',
+        'New app password',
+        'één keer',
+        'Deze dienst maakt zelf geen accounts aan',
+        'zeven dagen',
+        'Mailserver',
+        'Mailpoort',
+        'imap.cirrux.co',
+        '993',
+        'account dat zonder Mailserver is bewaard, omvat geen mail',
+      ],
+    },
+  },
+  {
     side: 'source',
     provider: 'graph',
     slug: 'microsoft',
@@ -269,11 +305,11 @@ describe("each new profile names what its card's guide names (0148 T5 (a))", () 
     }
   }
 
-  it("the Soverin steps name the mail server the code pre-fills, from the provider directory", () => {
-    const values = providerDirectoryEntry('target', 'soverin')?.values;
+  it.each(['soverin', 'cirrux'])("the %s steps name the mail server the code pre-fills, from the provider directory", (provider) => {
+    const values = providerDirectoryEntry('target', provider)?.values;
     expect(values?.mailHost).toBeDefined();
     for (const locale of LOCALES) {
-      const steps = profileText(locale, 'target', 'soverin');
+      const steps = profileText(locale, 'target', provider);
       expect(steps, locale).toContain(values!.mailHost!);
       expect(steps, locale).toContain(values!.mailPort!);
       // The wizard's own labels for the two boxes, as that language shows them.
@@ -381,6 +417,7 @@ describe("the page shows each new profile's steps and links the card's guide sec
     ['source', 'apple'],
     ['target', 'nextcloud'],
     ['target', 'soverin'],
+    ['target', 'cirrux'],
     ['source', 'oauth2'],
   ];
 

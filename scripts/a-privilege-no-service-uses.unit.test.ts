@@ -50,14 +50,16 @@
  * the table in the guide says whether it was measured on the service's own
  * image (its start and a restart on the volume it wrote, then one capability
  * fewer) or read from its Dockerfile. Two findings shaped the lists more than
- * any rule: Caddy's binary carries `cap_net_bind_service` as a file
- * capability, and the kernel refuses to start a binary whose file capability
- * the bounding set lacks, so `trigger-tls` keeps NET_BIND_SERVICE although it
- * binds 3443; and Redis's entrypoint, while it started as root, `find`s
- * through append-only directories that are uid 999's and mode 0700, so without
- * DAC_READ_SEARCH its first restart on its own volume failed. Since 2026-11-07
- * Redis's image is built here and runs as uid 999 from its first process
- * (deploy/compose/redis), and keeps no capability.
+ * any rule: Caddy 2.11.7's binary carried `cap_net_bind_service` as an
+ * effective file capability, and the kernel refuses to start a binary whose
+ * effective file capability the bounding set lacks, so `trigger-tls` kept
+ * NET_BIND_SERVICE although it binds 3443 (since 2026-11-19 it runs as uid
+ * 65532 and keeps none: 2.11.9's capability is not effective, and
+ * `trigger-tls-init` gives it its volumes); and Redis's entrypoint, while it
+ * started as root, `find`s through append-only directories that are uid 999's
+ * and mode 0700, so without DAC_READ_SEARCH its first restart on its own
+ * volume failed. Since 2026-11-07 Redis's image is built here and runs as uid
+ * 999 from its first process (deploy/compose/redis), and keeps no capability.
  *
  * THE RULE THE FIRST VERSION DID NOT HAVE (the review of 2026-11-03). The
  * lists were measured on each service's START, and the shape of the files was
@@ -101,7 +103,7 @@ export interface Policy {
   readonly readOnly?: readonly string[];
 }
 
-/** nginx's master: port 80, its temp directories chowned to nginx, workers that become nginx. */
+/** nginx's master as root, as the image ships it: port 80, its temp directories chowned to nginx, workers that become nginx. */
 const NGINX: Policy = { caps: ['CHOWN', 'NET_BIND_SERVICE', 'SETGID', 'SETUID'] };
 
 export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>> = {
@@ -117,11 +119,13 @@ export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>
     'trigger-supervisor': { caps: [] },
     minio: { caps: [] },
     'minio-init': { caps: [], readOnly: ['/tmp'] },
-    'trigger-tls': { caps: ['NET_BIND_SERVICE'] },
+    'trigger-tls': { caps: [] },
+    'trigger-tls-init': { caps: ['CHOWN', 'DAC_READ_SEARCH'], readOnly: [] },
     zitadel: { caps: [] },
     'zitadel-machinekey': { caps: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'], readOnly: [] },
     api: { caps: [] },
-    web: NGINX,
+    // nginx as its own user, uid 101, from its first process since 2026-11-19 (apps/web/Dockerfile).
+    web: { caps: [] },
     gatus: { caps: [] },
     mailpit: { caps: [], readOnly: ['/tmp'] },
     nextcloud: { caps: 'docker-default' },
@@ -545,6 +549,12 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
     },
   },
   minio: { mc: NONE('as uid 65532, with its config directory in /tmp') },
+  'trigger-tls-init': {
+    chown: {
+      needs: ['CHOWN', 'DAC_READ_SEARCH'],
+      why: "the guide's way back to a tag that ran the front as root: the two volumes given back to root, as the service's own command gives them to 65532",
+    },
+  },
   'zitadel-machinekey': {
     '(its command)': { needs: ['CHOWN', 'FOWNER'], why: 'its own command: chown the volume to the identity provider, then chmod 700 what it no longer owns' },
     cat: {
@@ -564,7 +574,7 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
     '(its command)': NONE('the API as its image starts it (or a command a document breaks over a line)'),
   },
   'trigger-supervisor': { node: NONE('the image\'s node, as node') },
-  web: { wget: NONE("asks its own nginx over 127.0.0.1, as root, and writes nothing") },
+  web: { wget: NONE("asks its own nginx over 127.0.0.1, as nginx (uid 101), and writes nothing") },
   // Distroless since 2026-11-06 (workplan 0119 §3 item 12): Node by its path is
   // all there is to run, as uid 10001. Until then the drill ran `sh -c ls`,
   // E2E asked `dpkg-query`, and the README offered `exec app sh`.
@@ -705,10 +715,12 @@ describe('every service runs with no new privileges and only the capabilities it
     expect([...guideRows(read(GUIDE)).keys()]).toEqual(expect.arrayContaining(['www (www.yml)', 'postgres (appliance)', 'app (appliance)']));
   });
 
-  it("Caddy's settings say to revisit no-new-privileges if it ever runs as another user", () => {
-    // Its binary binds through a file capability, which no-new-privileges stops for any user but root.
-    const block = read(MANAGED).split('\n  trigger-tls:\n')[1]?.split('\n  zitadel:')[0] ?? '';
-    expect(block).toMatch(/IF CADDY EVER RUNS AS A USER OTHER\s+#\s+THAN ROOT, revisit no-new-privileges/);
+  it("Caddy's settings say why it keeps no capability as uid 65532, and why no-new-privileges stays", () => {
+    // Until 2026-11-19 they said to revisit no-new-privileges if Caddy ever ran as another user: 2.11.7's
+    // binary bound through an effective file capability, which no-new-privileges stops for any user but root.
+    const block = read(MANAGED).split('\n  trigger-tls:\n')[1]?.split('\n  trigger-tls-init:')[0] ?? '';
+    expect(block).toMatch(/as uid and gid 65532 from its first process/);
+    expect(block).toMatch(/It binds 3443, which needs\s+#\s+none, and no-new-privileges stays/);
   });
 });
 
@@ -727,8 +739,10 @@ describe('each rule fails when it is broken', () => {
     ['ALL added back', (c) => (svc(c, 'api').cap_add = ['ALL']), /api adds ALL back/],
     ['cap_drop taken off', (c) => delete svc(c, 'clickhouse').cap_drop, /clickhouse does not drop ALL/],
     ['cap_drop of one capability, not ALL', (c) => (svc(c, 'zitadel').cap_drop = ['NET_RAW']), /zitadel does not drop ALL/],
-    ['a capability no longer added', (c) => (svc(c, 'web').cap_add = ['CHOWN', 'NET_BIND_SERVICE', 'SETGID']), /web no longer adds SETUID/],
-    ['NET_BIND_SERVICE taken from Caddy', (c) => (svc(c, 'trigger-tls').cap_add = []), /trigger-tls no longer adds NET_BIND_SERVICE/],
+    ['a capability no longer added', (c) => (svc(c, 'clickhouse').cap_add = ['CHOWN', 'DAC_READ_SEARCH', 'SETGID']), /clickhouse no longer adds SETUID/],
+    ["root's nginx set back on the web app", (c) => (svc(c, 'web').cap_add = ['CHOWN', 'NET_BIND_SERVICE', 'SETGID', 'SETUID']), /web adds CHOWN, NET_BIND_SERVICE, SETGID, SETUID, beyond its list \(none\)/],
+    ['NET_BIND_SERVICE given back to Caddy', (c) => (svc(c, 'trigger-tls').cap_add = ['NET_BIND_SERVICE']), /trigger-tls adds NET_BIND_SERVICE, beyond its list \(none\)/],
+    ["DAC_READ_SEARCH taken from the TLS front's init", (c) => (svc(c, 'trigger-tls-init').cap_add = ['CHOWN']), /trigger-tls-init no longer adds DAC_READ_SEARCH/],
     ['a default-set service half dropped', (c) => (svc(c, 'trigger-api').cap_drop = ['ALL']), /trigger-api keeps Docker's default capabilities in the policy, and sets cap_drop or cap_add/],
     ['a new service', (c) => (c.services!['probe'] = { security_opt: ['no-new-privileges:true'] }), /probe is not in this guard's POLICIES/],
     ['a service renamed', (c) => {
@@ -786,8 +800,8 @@ describe('each rule fails when it is broken', () => {
     const guide = read(GUIDE);
     expect(guideProblems(guide.replace(/^\| `gatus` \|.*\n/m, ''), POLICIES).join('\n')).toMatch(/has no row for gatus/);
     expect(
-      guideProblems(guide.replace(/^(\| `trigger-tls` \|[^|]*\|) NET_BIND_SERVICE \|/m, '$1 none |'), POLICIES).join('\n'),
-    ).toMatch(/says trigger-tls keeps none, the policy NET_BIND_SERVICE/);
+      guideProblems(guide.replace(/^(\| `trigger-tls` \|[^|]*\|) none \|/m, '$1 NET_BIND_SERVICE |'), POLICIES).join('\n'),
+    ).toMatch(/says trigger-tls keeps NET_BIND_SERVICE, the policy none/);
     expect(
       guideProblems(guide.replace(/^(\| `nextcloud` \|[^|]*\|) Docker's default \|/m, '$1 CHOWN |'), POLICIES).join('\n'),
     ).toMatch(/says nextcloud keeps CHOWN, the policy Docker's default/);

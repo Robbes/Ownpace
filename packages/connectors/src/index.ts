@@ -36,6 +36,12 @@ export * from './jmap-contact-target.ts';
 // Files as a JMAP target (0031 T3). Same reasoning as the contacts writer for
 // why it lives here rather than beside the WebDAV writer in @openmig/engines.
 export * from './jmap-file-target.ts';
+// Cirrux Drive (workplan 0160 T5): the writer, its API, its format, and the
+// token provider that writes a rotated refresh token back (ADR-0052).
+export * from './cirrux-drive-target.ts';
+export * from './cirrux-drive-api.ts';
+export * from './cirrux-drive-format.ts';
+export * from './cirrux-token-provider.ts';
 
 // Which domains a JMAP server can actually carry (0031 T4) — the question the
 // per-domain target picker cannot be built without being able to ask.

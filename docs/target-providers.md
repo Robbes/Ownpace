@@ -32,6 +32,7 @@ decides otherwise.
 The IMAP/DAV target family supports migration to European sovereign platforms that use standard IMAP for email delivery. This includes:
 
 - **Soverin** (Netherlands) - OX-based mail suite
+- **Cirrux** (Netherlands, hosted in Germany) - mail, calendar, contacts, tasks and a Drive
 - **openDesk** (Germany) - Open-Xchange + Nextcloud bundle
 - **Stalwart** - Reference server for development and testing
 - Other IMAP-compatible providers
@@ -87,6 +88,126 @@ Soverin follows RFC 6154 for special-use mailbox names:
 - Test with real Soverin account before production use
 - Verify special-use folder creation works correctly
 - Confirm flag preservation (especially `\Seen`, `\Answered`, `\Flagged`)
+
+---
+
+## Cirrux
+
+The `cirrux` account kind (workplan 0160): Soverin's shape, one app password reaching mail over
+IMAP and calendars, contacts and task lists over CalDAV and CardDAV, and **files in Cirrux Drive
+through a person's OAuth sign-in stored on the same account** (0160 T5; ADR-0052), where the
+deployment has a Cirrux client. Every value below was read from Cirrux's own help pages on
+2026-11-19; the page is named beside each one. ⏳ Built and held by unit tests; not yet run
+against a live Cirrux mailbox (0160 T2) or a live Cirrux client (0160 T2b): both are the owner's
+runs.
+
+### Provider Details
+
+- **Company:** Werk Slim B.V., Hilversum, Netherlands (`https://cirrux.co/terms`)
+- **Hosting:** Exoscale DE-FRA1, Frankfurt; a backup mail exchanger at Exoscale AT-VIE2,
+  Vienna, that only holds inbound mail while Frankfurt is unreachable
+  (`https://cirrux.co/help/reliability`)
+- **Type:** Managed SaaS, paid per seat; no free mailbox. Storage is one pool per workspace,
+  shared by mail, Drive, documents and Gmail backups; a workspace over its storage tier for
+  seven days is moved to the smallest tier that fits, and uploads past the pool are refused
+  (`https://cirrux.co/help/billing`). A migration into a full pool fails at the upload, so the
+  pool needs room for what is coming.
+- **Protocols:** IMAP, SMTP, CalDAV, CardDAV, all over TLS (`https://cirrux.co/help/encryption`).
+  No WebDAV anywhere in the help pages.
+
+### Settings (`https://cirrux.co/help/setup`, Manual Configuration)
+
+| Face | Server | Port | Username | Password |
+|---|---|---|---|---|
+| Mail in (IMAP) | `imap.cirrux.co` | 993 (SSL) or 143 (STARTTLS) | the email address | an app password |
+| Mail out (SMTP) | `smtp.cirrux.co` | 465 (SSL) or 587 (STARTTLS) | the email address | an app password |
+| Calendar | `api.cirrux.co` | not given | the email address | an app password |
+| Contacts | `api.cirrux.co` | not given | the email address | an app password |
+| Reminders | `api.cirrux.co` | not given | the email address | an app password |
+
+- The `cirrux` form pre-fills `api.cirrux.co` on 443 (HTTPS's own port, for a server named
+  without one), `imap.cirrux.co` on 993, and leaves the DAV base URL empty: **no DAV path, no
+  principal URL and no `/.well-known` discovery is documented**. The DAV clients look for the
+  calendar home from the host's root (RFC 6764 and the principal's `calendar-home-set`), which
+  is what any calendar app given "api.cirrux.co" must do; the first live Test measures it.
+- **App passwords** are per mailbox: Cirrux Mail → Settings → Mailboxes → the mailbox →
+  Passwords → New app password, shown once. The account's own password is refused for IMAP,
+  SMTP and CalDAV. A workspace admin can switch the Passwords tab off, and then no app password
+  can be made (`https://cirrux.co/help/setup`).
+
+### Known Quirks
+
+1. **Folders are labels** (`https://cirrux.co/help/questions/subfolders-in-my-mailbox`): a
+   slash nests a label, IMAP shows labels as nested folders, and a folder created over IMAP
+   becomes a label. Whether a message appended into two folders becomes one message with two
+   labels or two messages is not documented (0160 T2 checks it).
+2. **Each mailbox starts with** a default calendar, an address book called Contacts and a task
+   list called Reminders (`https://cirrux.co/help/calendar`, `https://cirrux.co/help/api/contacts`,
+   `https://cirrux.co/help/api/tasks`). A calendar collection may hold events and tasks at once.
+   No second address book can be made: Cirrux's Contacts API has no call for one, and its
+   CardDAV server answered an MKCOL for one with 501 on a test mailbox (2026-11-19). So the
+   contacts of every address book at the source go into Contacts (0160 §5). Its CalDAV server
+   answered an MKCALENDAR at Nextcloud's `calendars/<user>/` with 404 the same day: the
+   calendar home is found by asking, as the address book home is (0160 §5). In that home it
+   answered an MKCALENDAR at a name of ours with 201 and kept the new calendar under an id of
+   its own, so a new calendar is asked for at a UUID and read back (0160 §5).
+3. **Invitations:** Cirrux emails every guest of an event it is given, also over CalDAV. On
+   2026-11-19 it emailed an invitation, in the test mailbox's name and past events included, for
+   events written with every attendee marked `SCHEDULE-AGENT=CLIENT`, and the marker was gone from
+   the invitation it sent (0160 §5). Its API page says the mailbox is always the organiser, and
+   that guests are emailed invitations, updates and cancellations
+   (`https://cirrux.co/help/api/calendar`). So nothing written to Cirrux carries an `ATTENDEE` or
+   an `ORGANIZER`: each becomes a `COMMENT` that names the person (`TARGETS_THAT_MAIL_GUESTS`).
+4. **Server-side filters** run "as mail arrives" and can forward (`https://cirrux.co/help/mailboxes`);
+   the webhook documentation says imported mail and mail saved over IMAP never counts as
+   received (`https://cirrux.co/help/api/webhooks`). Whether filters run on appended mail is
+   not documented.
+5. **No published limits** on message or attachment size, or on IMAP and DAV request rates.
+   The HTTP API's limit is 600 requests a minute per token (`https://cirrux.co/help/api`).
+
+### What is reached through Cirrux's HTTP API
+
+- **Drive** (`https://cirrux.co/help/api/drive`): no WebDAV. The API needs a **user-scoped
+  OAuth token**; a workspace API key (`cxk_…`) is refused. Scopes `drive.read`, `drive.create`,
+  `drive.update`, `drive.delete`. A simple upload takes base64 JSON up to 100 MB; larger files,
+  up to 2 GiB, go chunked with client-side AES-256-GCM in Cirrux's `CXDRV2` format. Names are
+  unique per folder ignoring case and Unicode form; `base_ctag` refuses a stale replace with
+  `409 version_conflict`; trash keeps items 30 days; `/v1/drive/changes` is a delta feed.
+  **Built as a files target** (0160 T5): the consent door
+  `/api/migrations/cirrux/authorize` and `/callback` stores the refresh token on the account;
+  every refresh rotates it and writes the successor back under the row's lock (ADR-0052); the
+  scopes asked are `user.profile workspace.read drive.read drive.create drive.update
+  drive.delete`, and `drive.delete` only moves a file to the trash after a person approved its
+  removal. The two clients the owner asked Cirrux for: the live callback
+  `https://app.ownpace.eu/api/migrations/cirrux/callback` and the OTA callback
+  `https://app.ota.ownpace.eu/api/migrations/cirrux/callback`.
+- **Docs** (`https://cirrux.co/help/docs`, `https://cirrux.co/help/api/documents`): Cirrux's
+  own editor, in preview for accounts given early access; documents are stored in Drive and
+  read and written as Markdown. A Word or OpenDocument file migrated into Drive stays a file.
+- **OAuth clients are not self-service** (`https://cirrux.co/help/questions/oauth-client-for-my-app`):
+  Cirrux sends a public client ID (PKCE S256, no secret) on request to help@cirrux.co, given
+  the app's name, redirect URLs and scopes. Access tokens last 15 minutes, refresh tokens 30
+  days, and every refresh retires the previous refresh token (`https://cirrux.co/help/api`).
+- **Workspace API keys** reach the workspace and mail only (`workspace.read`, `email.read`,
+  `email.write`, `email.send`), never calendars, contacts, tasks, Drive or documents
+  (`https://cirrux.co/help/questions/script-or-agent-reads-and-sends-mail`). This tool writes
+  mail over IMAP, so it needs none.
+- **Webhooks** (`https://cirrux.co/help/api/webhooks`): one event, `email.received`, per
+  mailbox, which does not fire for imported mail. A one-way migration into Cirrux has no use
+  for it.
+
+### Cirrux's own import
+
+Cirrux Sync reads Google (`https://cirrux.co/help/google-sync`) and Microsoft
+(`https://cirrux.co/help/microsoft-sync`) accounts read-only, one way, every hour: mail,
+calendars and contacts. It leaves Google Drive and OneDrive files behind, names no tasks, and
+from Microsoft also leaves the online archive, event attachments, group calendars and contact
+lists. For any other provider Cirrux has an IMAP import that runs when it is started
+(`https://cirrux.co/help/imap-import`) and `.ics` / `.vcf` uploads.
+
+Cirrux Sync and this tool write into the same mailbox, calendars and address book, and neither
+knows what the other wrote, so the guide (`docs/guides/en/cirrux.md`) tells a person to choose
+one of the two for each kind of data.
 
 ---
 

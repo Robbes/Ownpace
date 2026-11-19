@@ -95,7 +95,8 @@ describe('an nginx that carries only what it loads', () => {
     // HEALTHCHECK's options and its CMD, continuation lines joined.
     const check = /^HEALTHCHECK\b((?:[^\n]*\\\n)*[^\n]*)/m.exec(RUNTIME)?.[1]?.replace(/\\\n\s*/g, ' ');
     expect(check, `${DOCKERFILE_PATH}'s runtime has no HEALTHCHECK`).toBeDefined();
-    expect(check).toMatch(/\bCMD wget\b/);
+    // Exec form since 2026-11-19 (hadolint's DL3025): wget by the PATH, with no shell between.
+    expect(check).toMatch(/\bCMD \["wget", /);
     expect(check).not.toMatch(/\bcurl\b/);
   });
 

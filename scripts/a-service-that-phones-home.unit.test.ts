@@ -290,6 +290,7 @@ export interface Service {
   readonly extends?: unknown;
   readonly environment?: Readonly<Record<string, unknown>> | ReadonlyArray<string>;
   readonly volumes?: ReadonlyArray<Mount>;
+  readonly network_mode?: string;
 }
 
 interface Entry {
@@ -875,6 +876,11 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
     },
   },
   'deploy/compose/managed.yml:zitadel-machinekey': { readAt: 'busybox', why: 'a one-shot chown of a volume, with no network use' },
+  'deploy/compose/managed.yml:trigger-tls-init': {
+    readAt: 'build',
+    why: "a one-shot chown of trigger-tls's two volumes, in the front's own build, with no network: Caddy never starts in it (2026-11-19)",
+    holds: (svc) => (svc.network_mode === 'none' ? [] : [`its network_mode is ${String(svc.network_mode)}, not none: read what it can reach before it stays here`]),
+  },
   'deploy/compose/managed.yml:minio-init': {
     readAt: 'chainguard/minio',
     why:

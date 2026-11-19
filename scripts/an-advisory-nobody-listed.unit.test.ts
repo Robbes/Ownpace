@@ -356,11 +356,16 @@ describe('an advisory no release fixes passes by name, for a month at most', () 
     }
   });
 
-  const picomatchEntry = ACCEPTED.find((e) => e.id === 'GHSA-fc5q-39xc-vjpf');
-  it.runIf(picomatchEntry !== undefined)('the gate reads ACCEPTED when it is given no list', () => {
-    const entry = picomatchEntry!;
-    expect(shouldFail(picomatch(), 'high', undefined, entry.accepted)).toBe(false);
-    const after = new Date(Date.parse(`${entry.until}T00:00:00Z`) + 86_400_000).toISOString().slice(0, 10);
-    expect(shouldFail(picomatch(), 'high', undefined, after)).toBe(true);
+  it('the gate reads ACCEPTED when it is given no list', () => {
+    // With no list given, the gate decides as it does with ACCEPTED, whatever
+    // ACCEPTED holds that day. It holds nothing since 2026-11-18, when GitHub
+    // withdrew GHSA-fc5q-39xc-vjpf, so a row no entry names blocks at high, as
+    // it does with an empty list.
+    const rows = picomatch();
+    for (const today of [inside, '2026-12-18']) {
+      expect(shouldFail(rows, 'high', undefined, today), today).toBe(shouldFail(rows, 'high', ACCEPTED, today));
+    }
+    expect(shouldFail(rows, 'high', [], inside)).toBe(true);
+    expect(shouldFail(rows, 'high', granted, inside)).toBe(false);
   });
 });

@@ -39,7 +39,8 @@ import * as schema from '@openmig/ledger';
 import { PgLedger, readPathPhases } from '@openmig/ledger';
 import type { PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { HttpTokenRevoker } from '@openmig/connectors';
+import { CirruxDriveApi, CirruxTokenProvider, HttpTokenRevoker, type CirruxAccessToken } from '@openmig/connectors';
+import { PgCirruxGrantStore, mergeKeepingTheDriveGrant } from '@openmig/orchestration/cirrux-grant-store';
 import { revokeCredentialRow } from '@openmig/orchestration/revoke-stored-credentials';
 import { SELF_HEALING_CATEGORIES } from '@openmig/orchestration/failing-backoff';
 import type { TokenRevoker } from '@openmig/shared';
@@ -61,6 +62,7 @@ import {
   qualifyDropbox,
   qualifyGoogleGrant,
   type AccountQualification,
+  type QualifyDeps,
 } from '@openmig/orchestration/account-qualification';
 import {
   isMicrosoftGrantKind,
@@ -70,6 +72,7 @@ import { z } from 'zod';
 import {
   ARCHIVE_PROVIDERS,
   DISCOVERY_DOMAINS,
+  cirruxDeploymentClient,
   credentialFieldsFor,
   halfGoogleClientPairProblem,
   halfDropboxClientPairProblem,
@@ -119,7 +122,7 @@ function pool() {
 }
 
 /** Target kinds `probeTargetConnection` knows how to reach. */
-const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud'] as const;
+const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
 
 /**
@@ -159,6 +162,8 @@ async function qualifyAndRemember(
   deadlineAt: number,
   /** The request's answers, so a refused face is stored said from its parts (0136 T3). */
   answers: ProbeAnswers,
+  /** A Cirrux access token already in hand (the consent's), so measuring the Drive spends no refresh. */
+  cirruxAccess?: CirruxAccessToken,
 ): Promise<AccountQualification | 'pending' | undefined> {
   // EVERY KIND THAT HAS A QUALIFIER, and this list is the whole reason the
   // dispatch below can be trusted. It is also where 0116 T7 was briefly
@@ -188,8 +193,72 @@ async function qualifyAndRemember(
     return undefined;
   }
   return withinBudget(
-    qualifyAndRememberNow(tenantId, connectionId, kind, config, creds, actor, answers),
+    qualifyAndRememberNow(tenantId, connectionId, kind, config, creds, actor, answers, cirruxAccess),
     Math.max(QUALIFICATION_FLOOR_MS, deadlineAt - Date.now()),
+  );
+}
+
+/**
+ * HOW A TEST REACHES A CIRRUX ACCOUNT'S DRIVE (workplan 0160 T5; ADR-0052):
+ * through the account's own stored sign-in, refreshed under the ROW's lock and
+ * written back there, the way a pass reaches it. Only the caller that holds
+ * the row can build this, which is why the qualifier is handed it rather than
+ * building it. No client on the deployment, nothing is built: the face's
+ * measured no says so before anything would be asked.
+ */
+function cirruxQualifyDeps(
+  tenantId: string,
+  connectionId: string,
+  kind: string,
+  cirruxAccess?: CirruxAccessToken,
+): QualifyDeps {
+  const client = kind === 'cirrux' ? cirruxDeploymentClient() : null;
+  if (!client) return {};
+  return {
+    cirruxDrive: () =>
+      new CirruxDriveApi({
+        tokens: new CirruxTokenProvider({
+          clientId: client.clientId,
+          store: new PgCirruxGrantStore({ pool: pool(), tenantId, connectionId }),
+          ...(cirruxAccess ? { initial: cirruxAccess } : {}),
+        }),
+      }),
+  };
+}
+
+/**
+ * MEASURE A STORED ACCOUNT AGAIN, FROM ITS ROW (workplan 0160 T5). A consent
+ * that adds a face to an account (*Connect Cirrux Drive*) changes what the
+ * account can carry without anybody pressing Test, so it asks for what a Test
+ * does after its probe: the row read and decrypted, the account qualified,
+ * and the answer remembered on the row, where the Accounts page and *Where
+ * does it go?* read it. The headline probe is not run again: the app password
+ * did not change. With no stored credential there is nothing to measure.
+ */
+export async function requalifyStoredConnection(
+  tenantId: string,
+  connectionId: string,
+  actor: string,
+  cirruxAccess?: CirruxAccessToken,
+): Promise<AccountQualification | 'pending' | undefined> {
+  const found = await withTenantDb(tenantId, pool(), (db) =>
+    db
+      .select({ kind: schema.connection.kind, config: schema.connection.config, secretRef: schema.connection.secretRef })
+      .from(schema.connection)
+      .where(and(eq(schema.connection.id, connectionId), eq(schema.connection.tenantId, tenantId))),
+  );
+  const row = found[0];
+  if (!row?.secretRef) return undefined;
+  return qualifyAndRemember(
+    tenantId,
+    connectionId,
+    row.kind,
+    (row.config ?? {}) as Record<string, unknown>,
+    SecretStore.decryptCredentials(row.secretRef),
+    actor,
+    Date.now() + DOOR_BUDGET_MS,
+    probeAnswers('connecting an account', tenantId),
+    cirruxAccess,
   );
 }
 
@@ -201,6 +270,7 @@ async function qualifyAndRememberNow(
   creds: Record<string, string>,
   actor: string,
   answers: ProbeAnswers,
+  cirruxAccess?: CirruxAccessToken,
 ): Promise<AccountQualification | undefined> {
   try {
     // Probe-qualified for the Basic-auth families; grant-qualified for the
@@ -220,7 +290,7 @@ async function qualifyAndRememberNow(
     // no credentials, which is why it is the one qualifier here that is
     // passed the config alone.
     const qualification =
-      (await qualifyAccount(kind, config, creds)) ??
+      (await qualifyAccount(kind, config, creds, cirruxQualifyDeps(tenantId, connectionId, kind, cirruxAccess))) ??
       (await qualifyGoogleGrant(kind, creds, {
         reach: { user: String(config.user ?? ''), config },
       })) ??
@@ -1408,23 +1478,31 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     // The probe takes seconds, and the connection may be deleted meanwhile.
     // Then the update changes no row: nothing was stored, so it is a 404 and
     // no `accountStored: true` record (0137 T4).
-    const storedIt = await withTenantDb(tenantId, pool(), async (db) => {
+    //
+    // A CIRRUX ACCOUNT KEEPS ITS DRIVE (workplan 0160 T5). The app password is
+    // replaced; the Drive sign-in stored beside it is the person's, and is
+    // carried across for the same mailbox. It is read under the row's lock, in
+    // this transaction, so a refresh in flight cannot store a successor that
+    // this would then overwrite with the token it retired (ADR-0052).
+    const stored = await withTenantDb(tenantId, pool(), async (db) => {
+      const record =
+        row.role === 'target' && row.kind === 'cirrux'
+          ? await mergeKeepingTheDriveGrant(db, tenantId, id, creds as Record<string, string>)
+          : (creds as Record<string, string>);
       const updated = await db
         .update(schema.connection)
         .set({
-          secretRef: JSON.stringify(
-            SecretStore.encryptCredentials(creds as Record<string, string>).encrypted,
-          ),
+          secretRef: JSON.stringify(SecretStore.encryptCredentials(record).encrypted),
           status: 'connected',
           updatedAt: new Date(),
         })
         .where(and(eq(schema.connection.id, id), eq(schema.connection.tenantId, tenantId)))
         .returning({ id: schema.connection.id });
-      if (updated.length === 0) return false;
+      if (updated.length === 0) return undefined;
       await recordCredentialsReplaced(db, tenantId, actor, row, true);
-      return true;
+      return record;
     });
-    if (!storedIt) {
+    if (!stored) {
       return void res.status(404).json({ error: 'not_found', reason: 'No such connection.' });
     }
 
@@ -1442,7 +1520,7 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
       id,
       row.kind,
       (row.config ?? {}) as Record<string, unknown>,
-      creds as Record<string, string>,
+      stored,
       actor,
       startedAt + DOOR_BUDGET_MS,
       answers,

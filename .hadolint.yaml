@@ -1,0 +1,30 @@
+# hadolint's configuration (workplan 0119; the owner's decisions of
+# 2026-11-19). .github/workflows/hadolint.yml passes it to every run
+# (`--config .hadolint.yaml`), and hadolint run by hand from the repository's
+# root finds it by itself.
+#
+# IGNORED, BOTH FOR ONE REASON: a package installed without an exact version,
+# by apt (DL3008) and by apk (DL3018). The owner's answer of 2026-11-19 is not
+# to pin them. Every base is pinned by its index digest
+# (a-float-nothing-ever-pulled), the weekly image scan reports a package left
+# behind its fix (scripts/image-scan.mjs), and an exact version stops the next
+# fresh build the day Debian or Alpine ships the one after it and drops it
+# from its mirror. hadolint passes any apk package written with `=`, `~`, `>`
+# or `<`, so a floor would quiet DL3018 without pinning anything; that is not
+# done either.
+#
+# NOTHING ELSE. Every other rule stays on, at hadolint's own severity. A
+# finding with a reason to stand is listed as known in the job's summary, file
+# by file (EXCEPTIONS and KNOWN_FINDINGS in scripts/hadolint-report.mjs), and
+# not ignored here. `disable-ignore-pragma` makes a `# hadolint ignore=` line
+# in a Dockerfile ignore nothing, so this list is all that is ignored. No
+# `failure-threshold` and no `no-fail`: whether a finding fails is the
+# workflow's to say, and it is report only until the two Trigger.dev
+# Dockerfiles have had their pass.
+#
+# scripts/a-dockerfile-that-ends-as-root.unit.test.ts holds this file to
+# exactly these two keys.
+ignored:
+  - DL3008
+  - DL3018
+disable-ignore-pragma: true

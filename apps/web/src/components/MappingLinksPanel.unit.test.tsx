@@ -91,6 +91,7 @@ const person = (id: string, displayName: string, migrations: string[]) => ({
   displayName,
   email: null,
   createdAt: LAST_WEEK,
+  you: false,
   migrations: migrations.map((m) => ({ id: m, status: 'paused' })),
   counts: { paused: migrations.length, active: 0, cutover: 0, done: 0, continuous: 0 },
 });
@@ -262,6 +263,22 @@ describe("a migration's page, since a link is the person's", () => {
 
     await waitFor(() => expect(addMigrationMock).toHaveBeenCalledWith('p-anna', 'acme-mail'));
     expect(createPersonMock).not.toHaveBeenCalled();
+  });
+
+  it('chooses nobody even where one of the people is the member signed in (ADR-0050, amended 2026-11-19)', async () => {
+    // Only *Who is it for?* on Start a migration, and Migrations' Add to,
+    // choose the member's own person: here a press would give an existing
+    // migration away, a shared mailbox's too, so it waits for a choice.
+    peopleMock.mockResolvedValue({
+      people: [person('p-bram', 'Bram', ['other']), { ...person('p-anna', 'Anna Jansen', ['more']), you: true }],
+      unassigned: [],
+    });
+    renderPanel();
+    const links = await section('Links');
+    const who = (await links.findByLabelText('Who is this for?')) as HTMLSelectElement;
+
+    expect(who.value).toBe('');
+    expect(links.getByRole('button', { name: 'Save' })).toBeDisabled();
   });
 
   it('adds it to somebody new, named here', async () => {

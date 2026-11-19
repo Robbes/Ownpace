@@ -1,0 +1,93 @@
+# hadolint over every Dockerfile, REPORT ONLY (workplan 0119; the owner's
+# decisions of 2026-11-19: hadolint in CI, report only first, and no exact apk
+# or apt package versions).
+#
+# scripts/a-dockerfile-that-ends-as-root.unit.test.ts holds every Dockerfile
+# git lists to six of hadolint's rules by reading the files, and nothing ran
+# hadolint itself: its other rules, and ShellCheck's notes inside a RUN, were
+# read once, by a read-only check of 2026-11-19, and by nothing since. This
+# runs hadolint over each Dockerfile git lists, found as that guard finds them,
+# one run per file, with the repository's .hadolint.yaml, which ignores DL3008
+# and DL3018 and nothing else, and writes what hadolint says, file by file, to
+# the job's summary (scripts/hadolint-report.mjs). A finding the guard's
+# EXCEPTIONS explain, or one workplan 0119 read and left, is marked known with
+# its reason and still listed.
+#
+# REPORT ONLY. No finding fails this job: hadolint runs with --no-fail, and the
+# script exits 0 whatever it found. On a pull request the script exits 0 even
+# when a Dockerfile went unlinted, and warns, in the summary too. On a push to
+# main or a dispatch a Dockerfile left unlinted fails the job, since there the
+# run is the record (security-scan.yml's rule: a scan that skipped itself is
+# not green). It is not in ci.yml, so ci-complete never waits for it, and it is
+# not a required check (every-pr-check-is-classified.unit.test.ts,
+# docs/testing.md).
+#
+# IT BECOMES BLOCKING after the two Trigger.dev Dockerfiles,
+# deploy/compose/trigger.dev/Dockerfile and deploy/compose/supervisor/Dockerfile,
+# have had their pass, whose EXCEPTIONS say they were not in that check's round;
+# not before. Then a finding that is not known fails the job, and the job
+# becomes a required check, in one pull request that says which findings still
+# stand and why.
+#
+# WHICH IMAGE. HADOLINT_IMAGE below, by tag and index digest, which the guard
+# holds to the reference it records as read (`HADOLINT`), and moved by hand:
+# Dependabot reads no workflow env, so the pin watch's row `hadolint/hadolint`
+# (scripts/idp-pin-watch.mjs) reads that line and lists a newer tag in its
+# summary issue. A tag waits three days after its push before it is pinned
+# here, the age CONTRIBUTING.md asks of a dependency. A newer hadolint can
+# bring new rules, so read the job's summary on the pull request that moves it.
+#
+# WHEN, AND WHERE. On every pull request, since one image pull and one run of a
+# static binary per Dockerfile take seconds; on a push to main, which keeps
+# main's record; and on dispatch. Always on a GitHub-hosted runner: it has a
+# pull_request trigger, and ci.yml's header says why that never reaches the
+# self-hosted runner.
+#
+# scripts/a-dockerfile-that-ends-as-root.unit.test.ts holds this file, the
+# config and the script.
+name: Dockerfile lint
+
+on:
+  # No `branches:` filter (ci.yml's trigger block says why), and no `paths:`,
+  # so the report is there on every pull request and the check can be required
+  # as it is once it turns blocking.
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: hadolint-${{ github.ref }}
+  # As in ci.yml: a superseded pull request run is cancelled, a run on main is not.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  hadolint:
+    name: hadolint (report only)
+    # GitHub-hosted, like every other pull_request job: see ci.yml's "Which
+    # machine runs untrusted code" header for the policy.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # hadolint v2.15.1 by its index digest, `32dac94127fd…`, with linux/amd64
+      # (`fdf19d02…`) and linux/arm64 (`84179f01…`) in it, read on 2026-11-19
+      # as the Docker-Content-Digest of the tag's manifest through Google's
+      # mirror of Docker Hub (mirror.gcr.io), and the same digest from Docker
+      # Hub's tag API, which gives its push as 2026-07-31 09:57:38 UTC, past
+      # its three-day floor (CONTRIBUTING.md). It was hadolint's newest release
+      # that day, the digest `latest` named too. The image is one file,
+      # /bin/hadolint.
+      HADOLINT_IMAGE: hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+      - name: Lint every Dockerfile git lists, and write what hadolint says to the summary
+        run: node scripts/hadolint-report.mjs

@@ -346,6 +346,36 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
       'Apple-accountwachtwoord te wijzigen.',
   },
   {
+    // A CREDENTIAL, as Apple's is (workplan 0160): an app password the person
+    // made for one mailbox, which Cirrux keeps honouring "until you delete
+    // it" (https://cirrux.co/help/questions/script-or-agent-reads-and-sends-mail,
+    // read 2026-11-19). The screen is named because Cirrux names it: Settings
+    // → Mailboxes, the mailbox, its Passwords tab (https://cirrux.co/help/setup).
+    // Cirrux's own labels, kept in English in both languages as the help
+    // pages write them.
+    id: 'cirrux',
+    impliedBy: ['cirrux'],
+    whatTheyCallIt: 'Settings → Mailboxes → your mailbox → Passwords',
+    where: 'https://mail.cirrux.co/settings/mailboxes → your mailbox → Passwords',
+    // And Cirrux Drive's sign-in, where one was connected (0160 T5): Cirrux
+    // names no way for an app to withdraw it (https://cirrux.co/help/api), so
+    // the sentence says how it ends rather than where to end it.
+    en:
+      'The app password you created for this migration still works on that Cirrux mailbox ' +
+      'until it is deleted. Deleting our copy does not delete it at Cirrux: delete it on the ' +
+      'mailbox’s Passwords tab to end it. Your Cirrux password stays as it is. If Cirrux Drive ' +
+      'was connected, our copy of its sign-in is deleted too; Cirrux names no way for an app to ' +
+      'withdraw one, and a sign-in left unused expires there after 30 days.',
+    nl:
+      'Het app-wachtwoord dat u voor deze migratie hebt aangemaakt werkt nog op die ' +
+      'Cirrux-mailbox, totdat het verwijderd wordt. Het verwijderen van onze kopie verwijdert ' +
+      'het niet bij Cirrux: verwijder het op het tabblad Passwords van de mailbox om het te ' +
+      'beëindigen. Uw Cirrux-wachtwoord blijft zoals het is. Was Cirrux Drive verbonden, dan is ' +
+      'onze kopie van die aanmelding ook verwijderd; Cirrux noemt geen manier waarop een app ' +
+      'zo’n aanmelding kan intrekken, en een aanmelding die niet wordt gebruikt, verloopt daar na ' +
+      '30 dagen.',
+  },
+  {
     id: 'nextcloud',
     impliedBy: ['nextcloud'],
     whatTheyCallIt: 'Settings → Security → Devices & sessions',

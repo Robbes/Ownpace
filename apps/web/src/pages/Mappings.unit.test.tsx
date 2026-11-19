@@ -35,6 +35,7 @@ import { fetchProgress } from '../services/progress-service.ts';
 import { formatDateTime } from '../i18n/datetime.ts';
 import { fetchReportingAvailable } from '../services/problem-report-service.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
+import { LocaleProvider } from '../i18n/index.tsx';
 
 vi.mock('../services/mapping-service', () => ({
   mappingApi: { list: vi.fn(), triggerSync: vi.fn(), delete: vi.fn(), pause: vi.fn() },
@@ -92,6 +93,7 @@ const person = (id: string, displayName: string | null, migrations: PersonMigrat
   displayName,
   email: null,
   createdAt: implicit ? null : '2026-09-28T10:00:00.000Z',
+  you: false,
   migrations,
   counts: lifecycleCounts(migrations),
 });
@@ -425,7 +427,7 @@ describe('Migrations — one card per person (0153 T3)', () => {
 });
 
 describe('Migrations — a migration with nobody, and a new person (ADR-0050 rule 2)', () => {
-  it('lists it under Not with a person yet, and adds it to a person in one press', async () => {
+  it('lists it under Not with a person yet, chooses nobody, and adds it to the person chosen', async () => {
     listMock.mockResolvedValue([sampleMapping({ id: 'm2', name: 'Old one' })]);
     peopleMock.mockResolvedValue({
       people: [person('p-anna', 'Anna', [])],
@@ -437,7 +439,10 @@ describe('Migrations — a migration with nobody, and a new person (ADR-0050 rul
 
     const section = await screen.findByRole('region', { name: 'Not with a person yet' });
     expect(within(section).getByText('Old one')).toBeInTheDocument();
-    expect(within(section).getByLabelText('Add to')).toHaveValue('p-anna');
+    // The first person in the list is not chosen for anybody (ADR-0050, amended 2026-11-19).
+    expect(within(section).getByLabelText('Add to')).toHaveValue('');
+    expect(within(section).getByRole('button', { name: 'Add' })).toBeDisabled();
+    fireEvent.change(within(section).getByLabelText('Add to'), { target: { value: 'p-anna' } });
     fireEvent.click(within(section).getByRole('button', { name: 'Add' }));
 
     await waitFor(() => expect(addMock).toHaveBeenCalledWith('p-anna', 'm2'));
@@ -455,7 +460,8 @@ describe('Migrations — a migration with nobody, and a new person (ADR-0050 rul
 
     renderMappings();
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Add' }));
+    fireEvent.change(await screen.findByLabelText('Add to'), { target: { value: 'p-anna' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }));
 
     expect(await screen.findByText('The migration was not added.')).toBeInTheDocument();
     expect(screen.getByText(/belongs to one person at most/)).toBeInTheDocument();
@@ -491,6 +497,69 @@ describe('Migrations — a migration with nobody, and a new person (ADR-0050 rul
 
     expect(await screen.findByText('The person was not added.')).toBeInTheDocument();
     expect(screen.getByText('That is not an email address.')).toBeInTheDocument();
+  });
+});
+
+describe('Migrations — the person you are (ADR-0050, amended 2026-11-19)', () => {
+  const you = (p: Person): Person => ({ ...p, you: true });
+
+  it('offers a migration with nobody to the member’s own person, chosen already: one press adds it', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm2', name: 'Old one' })]);
+    peopleMock.mockResolvedValue({
+      people: [person('p-bram', 'Bram', []), you(person('p-anna', 'Anna', []))],
+      unassigned: [{ id: 'm2', status: 'active' }],
+    });
+    addMock.mockResolvedValue(you(person('p-anna', 'Anna', [{ id: 'm2', status: 'active' }])));
+
+    renderMappings();
+
+    const section = await screen.findByRole('region', { name: 'Not with a person yet' });
+    expect(within(section).getByLabelText('Add to')).toHaveValue('p-anna');
+    fireEvent.click(within(section).getByRole('button', { name: 'Add' }));
+
+    await waitFor(() => expect(addMock).toHaveBeenCalledWith('p-anna', 'm2'));
+  });
+
+  it('adds a person as Myself: the server is asked to link the signed-in member, and sent no account', async () => {
+    listMock.mockResolvedValue([sampleMapping({ id: 'm2', name: 'Old one' })]);
+    createPersonMock.mockResolvedValue(you(person('p-anna', 'Anna', [])));
+
+    renderMappings();
+
+    fireEvent.change(await screen.findByLabelText('Name'), { target: { value: 'Anna' } });
+    expect(screen.getByRole('radio', { name: 'Someone else' })).toBeChecked();
+    expect(screen.queryByText('When you start a migration, this person is then chosen first.')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('radio', { name: 'Myself' }));
+    expect(screen.getByText('When you start a migration, this person is then chosen first.')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: 'Add person' }));
+
+    await waitFor(() => expect(createPersonMock).toHaveBeenCalledWith({ displayName: 'Anna', email: null, myself: true }));
+    // The form is ready for the next one, who is somebody else again.
+    await waitFor(() => expect(screen.getByRole('radio', { name: 'Someone else' })).toBeChecked());
+  });
+
+  it('asks it in Dutch too', async () => {
+    globalThis.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      listMock.mockResolvedValue([sampleMapping({ id: 'm2', name: 'Old one' })]);
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={new QueryClient({ defaultOptions: { queries: { retry: false } } })}>
+            <MemoryRouter initialEntries={['/mappings']}>
+              <Mappings />
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+
+      expect(await screen.findByRole('group', { name: 'Wie is dit?' })).toBeInTheDocument();
+      expect(screen.getByRole('radio', { name: 'Ikzelf' })).not.toBeChecked();
+      expect(screen.getByRole('radio', { name: 'Iemand anders' })).toBeChecked();
+      fireEvent.click(screen.getByRole('radio', { name: 'Ikzelf' }));
+      expect(screen.getByText('Als u een migratie start, is deze persoon dan al gekozen.')).toBeInTheDocument();
+    } finally {
+      globalThis.localStorage.removeItem('ownpace.locale');
+    }
   });
 });
 
