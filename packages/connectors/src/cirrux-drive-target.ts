@@ -16,9 +16,13 @@
  *   unique among live siblings ignoring case and Unicode form, and surrounding
  *   whitespace is trimmed. A source folder `Photos` lands in an existing
  *   `photos`, because Cirrux would refuse a second one.
- * - **A new file is a simple upload**, the bytes inside the JSON as base64,
- *   streamed (`CirruxDriveApi.uploadSimple`), with the source's modification
- *   time as `content_modified_at`.
+ * - **A new file up to 100 MB is a simple upload**, the bytes inside the JSON
+ *   as base64, streamed (`CirruxDriveApi.uploadSimple`), with the source's
+ *   modification time as `content_modified_at`. **A larger one, up to 2 GiB,
+ *   is the chunked upload**: `POST /drive/uploads`, then each part encrypted
+ *   here in Cirrux's `CXDRV2` format and PUT to its presigned URL as the
+ *   plaintext arrives, never the whole file in memory, then complete. A
+ *   simple upload Cirrux answers `413` goes the chunked way instead.
  * - **A file the source changed is REPLACED, never re-created**, under
  *   `base_ctag`: the content version this product last wrote. A copy somebody
  *   edited in Cirrux since has a newer `ctag`, Cirrux answers `409
@@ -35,13 +39,13 @@
  *   read; Cirrux's own `422 storage_limit_exceeded` says the same afterwards.
  * - **`429` is waited out** for its `Retry-After` (`cirrux-drive-api.ts`).
  *
- * ## What it does not do yet
+ * ## The parts
  *
- * A file over Cirrux's simple-upload cap (`CIRRUX_SIMPLE_UPLOAD_MAX_BYTES`,
- * 100 MB) needs the chunked upload, which is the next step of this workplan.
- * Until it lands, such a file is refused before a byte is read, with a
- * sentence saying it waits, and a press of Try again carries it once it can go
- * (`waitingForTheChunkedStep`). A replace of such a file waits the same way.
+ * One chunk a part, the 16-byte header in front of the first (workplan 0160
+ * §6, the readings). Part URLs are asked for ten at a time, again once a
+ * batch is fifty minutes old (they are valid for an hour), and again once
+ * for a part whose PUT storage answered `403`. Any failure aborts the staged
+ * upload or replace, so nothing half-sent lingers in front of a file.
  *
  * ## The version this writer records
  *
@@ -77,6 +81,7 @@ import {
 } from '@openmig/shared';
 import {
   CirruxApiError,
+  CirruxPartRefused,
   type CirruxDriveApi,
   type CirruxDriveFile,
   type CirruxDriveFolder,
@@ -88,6 +93,16 @@ import { dataKeyBytes, encryptedParts, expectedCiphertextBytes, cxdrv2ChunkCount
 const DRIVE = 'Cirrux Drive';
 /** How many presigned part URLs are asked for at once. They last an hour (the page). */
 const PART_URL_BATCH = 10;
+/** A batch of part URLs older than this is asked for again before its next PUT. */
+const PART_URL_FRESH_MS = 50 * 60_000;
+
+/** The three calls of one chunked flow: an upload of a new file, or a replace. */
+interface ChunkedFlow {
+  readonly what: 'upload' | 'replace';
+  partUrls(partNumbers: ReadonlyArray<number>): Promise<ReadonlyArray<{ part_number: number; url: string }>>;
+  complete(parts: ReadonlyArray<{ part_number: number; etag: string }>): Promise<CirruxDriveFile>;
+  abort(): Promise<void>;
+}
 
 export interface CirruxDriveTargetOptions {
   readonly api: CirruxDriveApi;
@@ -95,6 +110,8 @@ export interface CirruxDriveTargetOptions {
   readonly targetFolderPrefix?: string;
   /** Overridable for tests; Cirrux's own cap otherwise. */
   readonly simpleUploadMaxBytes?: number;
+  /** The clock a batch of part URLs is aged by; `Date.now` unless a test says otherwise. */
+  readonly now?: () => number;
 }
 
 /** A folder's children as this pass knows them, keyed the way Cirrux compares names. */
@@ -159,24 +176,6 @@ function sizeText(bytes: number): string {
   return `${Math.max(1, Math.round(bytes / MB))} MB`;
 }
 
-/**
- * A file larger than one simple upload takes, before the chunked upload is
- * built: refused before a byte is read, and WAITING, which is what the
- * sentence says (workplan 0160 T5, the owner's brief: "a reason, not a silent
- * skip"). Parked, because every pass would refuse it the same way; Try again
- * carries it once the chunked step is in.
- */
-export function waitingForTheChunkedStep(path: string, sizeBytes: number): Error {
-  const error = new Error(
-    `${path} is ${sizeText(sizeBytes)}. Files up to 100 MB go to ${DRIVE} in one request, and the ` +
-      'larger route Cirrux offers, up to 2 GB a file, is not in this version yet: this file waits for ' +
-      'it. Nothing was copied and nothing was changed; every other file continues. Once this service ' +
-      'can send it, press Try again on this file.',
-  );
-  markNeedsDecision(error);
-  return withFailureCategory('too_large', error);
-}
-
 /** Over Cirrux's own limit for one file, at every size path: not moved, with the reason. */
 export function overCirruxLimit(path: string, sizeBytes: number): Error {
   const error = new Error(
@@ -198,6 +197,7 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
   private readonly api: CirruxDriveApi;
   private readonly prefix: string | undefined;
   private readonly simpleMax: number;
+  private readonly now: () => number;
   /** Folder path (prefixed) to its uuid, `null` for the Drive root; single-flight per path. */
   private readonly folderByPath = new Map<string, Promise<string | null>>();
   /** A folder's children, read once a pass; `''` is the root. */
@@ -210,17 +210,17 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
     this.api = options.api;
     this.prefix = options.targetFolderPrefix ? normalizeRelativePath(options.targetFolderPrefix) : undefined;
     this.simpleMax = options.simpleUploadMaxBytes ?? CIRRUX_SIMPLE_UPLOAD_MAX_BYTES;
+    this.now = options.now ?? Date.now;
   }
 
   /**
    * Refused before the source is asked for a byte (`FileTargetWriter`'s
-   * optional hook, read by `runFileSync`): a file over Cirrux's own limit, and
-   * one the chunked step must carry while it is not built.
+   * optional hook, read by `runFileSync`): a file over Cirrux's own limit of
+   * 2 GiB, however it would be sent.
    */
   refuseBeforeRead(item: FileItem): Error | undefined {
     if (item.isDirectory || typeof item.size !== 'number') return undefined;
     if (item.size > CIRRUX_LARGEST_FILE_BYTES) return overCirruxLimit(item.path, item.size);
-    if (item.size > this.simpleMax) return waitingForTheChunkedStep(item.path, item.size);
     return undefined;
   }
 
@@ -328,8 +328,8 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
     const there = (await this.children(parent)).files.get(cirruxNameKey(name));
     if (there) return this.alreadyThere(there, name, naturalKey, raw);
 
-    if (sizeBytes > this.simpleMax) throw waitingForTheChunkedStep(naturalKey, sizeBytes);
     await this.refuseOverThePool(naturalKey, sizeBytes);
+    if (sizeBytes > this.simpleMax) return this.uploadChunked(naturalKey, name, parent, raw, sizeBytes);
 
     const body = raw.content ? bodyOfBytes(raw.content) : raw.body!;
     let hasher = streamingFileContentHash();
@@ -353,7 +353,9 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
           if (now) return this.alreadyThere(now, name, naturalKey, raw);
         }
         if (err.code === 'storage_limit_exceeded') throw this.poolFull(naturalKey, sizeBytes, err);
-        if (err.code === 'file_too_large' || err.status === 413) throw waitingForTheChunkedStep(naturalKey, sizeBytes);
+        // Cirrux counts its cap another way than this service read it: the
+        // chunked route takes the same file, and nothing was stored.
+        if (err.code === 'file_too_large' || err.status === 413) return this.uploadChunked(naturalKey, name, parent, raw, sizeBytes);
         if (err.code === 'parent_trashed') throw this.parentTrashed(naturalKey);
       }
       throw err;
@@ -367,6 +369,61 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
       created: true,
       ...(targetVersion ? { targetVersion } : {}),
       contentHash: raw.content ? fileContentHash(raw.content) : hasher.digest(),
+    };
+  }
+
+  /**
+   * A NEW file over the simple upload's cap, up to 2 GiB: Cirrux's chunked
+   * upload, every part encrypted here in `CXDRV2` as the plaintext arrives.
+   * A name taken since the listing is the same answer as the simple upload's.
+   */
+  private async uploadChunked(
+    naturalKey: string,
+    name: string,
+    parent: string | null,
+    raw: RawFileItem,
+    sizeBytes: number,
+  ): Promise<UpsertResult> {
+    let init: Awaited<ReturnType<CirruxDriveApi['uploadInit']>>;
+    try {
+      init = await this.api.uploadInit({
+        name,
+        contentType: raw.item.mimeType || 'application/octet-stream',
+        folderUuid: parent,
+        plaintextSizeBytes: sizeBytes,
+        ...modifiedAt(raw.item),
+      });
+    } catch (err) {
+      if (err instanceof CirruxApiError) {
+        if (err.code === 'name_taken') {
+          this.childrenOf.delete(parent ?? '');
+          const now = (await this.children(parent)).files.get(cirruxNameKey(name));
+          if (now) return this.alreadyThere(now, name, naturalKey, raw);
+        }
+        if (err.code === 'storage_limit_exceeded') throw this.poolFull(naturalKey, sizeBytes, err);
+        if (err.code === 'file_too_large' || err.status === 413) throw overCirruxLimit(naturalKey, sizeBytes);
+        if (err.code === 'parent_trashed') throw this.parentTrashed(naturalKey);
+      }
+      throw err;
+    }
+    const fileUuid = init.file_uuid;
+    if (typeof fileUuid !== 'string' || fileUuid === '') {
+      throw new Error(`Cirrux started the upload of ${naturalKey} without naming the file, so nothing was sent.`);
+    }
+    const sent = await this.sendEncrypted(fileUuid, init, raw, sizeBytes, naturalKey, {
+      what: 'upload',
+      partUrls: (numbers) => this.api.uploadPartUrls(fileUuid, numbers),
+      complete: (parts) => this.api.uploadComplete(fileUuid, parts),
+      abort: () => this.api.uploadAbort(fileUuid),
+    });
+    this.addedThisPass += sizeBytes;
+    (await this.children(parent)).files.set(cirruxNameKey(sent.file.name ?? name), sent.file);
+    const targetVersion = cirruxTargetVersion(sent.file);
+    return {
+      targetId: sent.file.uuid,
+      created: true,
+      ...(targetVersion ? { targetVersion } : {}),
+      contentHash: sent.contentHash,
     };
   }
 
@@ -449,8 +506,6 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
       // reversed by a replace. Theirs from now on.
       return { targetId: uuid, created: false, conflicted: true };
     }
-    if (sizeBytes > this.simpleMax) throw waitingForTheChunkedStep(naturalKey, sizeBytes);
-
     // ALWAYS under a `base_ctag`: the one this product wrote, or, for a copy
     // it adopted and never wrote, the one just read, so an edit in Cirrux in
     // between is never written over either. With neither, nothing is sent.
@@ -468,7 +523,12 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
     const replaced =
       init.upload_status === 'completed'
         ? { file: await this.api.getFile(uuid), contentHash: fileContentHash(new Uint8Array(0)) }
-        : await this.sendEncrypted(uuid, init, raw, sizeBytes, naturalKey);
+        : await this.sendEncrypted(uuid, init, raw, sizeBytes, naturalKey, {
+            what: 'replace',
+            partUrls: (numbers) => this.api.replacePartUrls(uuid, numbers),
+            complete: (parts) => this.api.replaceComplete(uuid, parts),
+            abort: () => this.api.replaceAbort(uuid),
+          });
     const targetVersion = cirruxTargetVersion(replaced.file);
     return {
       targetId: uuid,
@@ -501,10 +561,11 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
   }
 
   /**
-   * The chunked flow's middle: part URLs a batch at a time, each part
-   * encrypted and PUT as the plaintext arrives, then complete. Any failure
-   * aborts the staged version, so a half-sent replace never lingers in front
-   * of the file for 24 hours.
+   * The chunked flow's middle, for an upload and a replace alike: part URLs a
+   * batch at a time, each part encrypted and PUT as the plaintext arrives,
+   * then complete. The plaintext is read one chunk ahead of the PUT and never
+   * held whole. Any failure aborts the staged upload or replace, so nothing
+   * half-sent lingers in front of the file for 24 hours.
    */
   private async sendEncrypted(
     uuid: string,
@@ -512,19 +573,21 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
     raw: RawFileItem,
     sizeBytes: number,
     naturalKey: string,
+    flow: ChunkedFlow,
   ): Promise<{ readonly file: CirruxDriveFile; readonly contentHash: string }> {
     const chunkSize = init.chunk_size_bytes;
     if (typeof chunkSize !== 'number' || !Number.isInteger(chunkSize) || chunkSize <= 0) {
-      throw new Error(`Cirrux started a replace of ${naturalKey} without a chunk size, so nothing was sent.`);
+      await this.abortQuietly(flow, naturalKey);
+      throw new Error(`Cirrux started the ${flow.what} of ${naturalKey} without a chunk size, so nothing was sent.`);
     }
     const count = cxdrv2ChunkCount(sizeBytes, chunkSize);
     const expected = expectedCiphertextBytes(sizeBytes, chunkSize);
     if (init.chunk_count !== count || init.ciphertext_size_bytes !== expected || (init.file_uuid && init.file_uuid !== uuid)) {
-      await this.abortQuietly(uuid, naturalKey);
+      await this.abortQuietly(flow, naturalKey);
       throw new Error(
-        `Cirrux started a replace of ${naturalKey} with ${String(init.chunk_count)} chunks and ` +
+        `Cirrux started the ${flow.what} of ${naturalKey} with ${String(init.chunk_count)} chunks and ` +
           `${String(init.ciphertext_size_bytes)} encrypted bytes; this service's reading of Cirrux's format ` +
-          `makes it ${count} and ${expected}. Nothing was sent, and the file in Cirrux is as it was.`,
+          `makes it ${count} and ${expected}. Nothing was sent, and nothing in Cirrux was changed.`,
       );
     }
     try {
@@ -534,6 +597,13 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
       const plaintext = (await body.open()).pipeThrough(hasher.through);
       const done: Array<{ part_number: number; etag: string }> = [];
       let urls = new Map<number, string>();
+      let urlsAt = 0;
+      const askUrls = async (from: number) => {
+        const batch = Array.from({ length: Math.min(PART_URL_BATCH, count - from + 1) }, (_, i) => from + i);
+        urls = new Map((await flow.partUrls(batch)).map((u) => [u.part_number, u.url]));
+        urlsAt = this.now();
+        if (!urls.has(from)) throw new Error(`Cirrux answered no URL for part ${from} of ${naturalKey}.`);
+      };
       for await (const part of encryptedParts({
         plaintext,
         plaintextSizeBytes: sizeBytes,
@@ -542,24 +612,28 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
         fileUuid: uuid,
         path: naturalKey,
       })) {
-        if (!urls.has(part.partNumber)) {
-          const batch = Array.from({ length: Math.min(PART_URL_BATCH, count - part.partNumber + 1) }, (_, i) => part.partNumber + i);
-          urls = new Map((await this.api.replacePartUrls(uuid, batch)).map((u) => [u.part_number, u.url]));
-          if (!urls.has(part.partNumber)) {
-            throw new Error(`Cirrux answered no URL for part ${part.partNumber} of ${naturalKey}.`);
-          }
+        if (!urls.has(part.partNumber) || this.now() - urlsAt > PART_URL_FRESH_MS) await askUrls(part.partNumber);
+        let etag: string;
+        try {
+          etag = await this.api.putPart(urls.get(part.partNumber)!, part.bytes, naturalKey);
+        } catch (err) {
+          // A URL past its hour answers 403: asked for again once, the part
+          // sent again from the bytes in hand.
+          if (!(err instanceof CirruxPartRefused) || err.status !== 403) throw err;
+          await askUrls(part.partNumber);
+          etag = await this.api.putPart(urls.get(part.partNumber)!, part.bytes, naturalKey);
         }
-        done.push({ part_number: part.partNumber, etag: await this.api.putPart(urls.get(part.partNumber)!, part.bytes, naturalKey) });
+        done.push({ part_number: part.partNumber, etag });
       }
-      const file = await this.api.replaceComplete(uuid, done);
+      const file = await flow.complete(done);
       return { file, contentHash: raw.content ? fileContentHash(raw.content) : hasher.digest() };
     } catch (err) {
-      await this.abortQuietly(uuid, naturalKey);
+      await this.abortQuietly(flow, naturalKey);
       if (err instanceof CirruxApiError && err.code === 'undecryptable_content') {
         throw new Error(
-          `Cirrux could not decrypt the first part of ${naturalKey} and discarded the replace; the file in ` +
-            `${DRIVE} is as it was. This service and Cirrux read Cirrux's encryption format differently ` +
-            '(workplan 0160 §6 names the two readings that could differ). Nothing else was changed.',
+          `Cirrux could not decrypt the first part of ${naturalKey} and discarded the ${flow.what}; ` +
+            `nothing in ${DRIVE} was changed. This service and Cirrux read Cirrux's encryption format ` +
+            'differently (workplan 0160 §6 names the readings that could differ).',
           { cause: err },
         );
       }
@@ -567,14 +641,14 @@ export class CirruxDriveTarget implements FileTargetWriter, TargetRemover, Targe
     }
   }
 
-  private async abortQuietly(uuid: string, naturalKey: string): Promise<void> {
+  private async abortQuietly(flow: ChunkedFlow, naturalKey: string): Promise<void> {
     try {
-      await this.api.replaceAbort(uuid);
+      await flow.abort();
     } catch (err) {
-      // Said, not swallowed: a replace that was not aborted expires after 24
-      // hours by itself, and until then blocks another replace of the file.
+      // Said, not swallowed: an upload or replace that was not aborted expires
+      // after 24 hours by itself, and until then holds the file.
       log.warn(
-        `[cirrux-drive] could not abort the staged replace of ${naturalKey} ` +
+        `[cirrux-drive] could not abort the staged ${flow.what} of ${naturalKey} ` +
           `(${err instanceof Error ? err.message : String(err)}); Cirrux discards it after 24 hours`,
       );
     }

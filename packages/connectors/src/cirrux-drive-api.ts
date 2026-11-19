@@ -88,6 +88,21 @@ export interface CirruxChunkedInit {
 }
 
 /** A refusal from Cirrux, as data: the status, its `error` code, and the rest of its body. */
+/**
+ * Cirrux's storage refused one part's PUT. A presigned URL is valid for one
+ * hour (the page), and one past it answers `403`: the writer asks for that
+ * part's URL again once, and only then gives up.
+ */
+export class CirruxPartRefused extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'CirruxPartRefused';
+    this.status = status;
+  }
+}
+
 export class CirruxApiError extends Error {
   readonly status: number;
   readonly code: string | undefined;
@@ -231,6 +246,50 @@ export class CirruxDriveApi {
   }
 
   // ---------------------------------------------------------------------
+  // Upload: the chunked flow, for a new file over the simple upload's cap
+  // ---------------------------------------------------------------------
+
+  /**
+   * `POST /drive/uploads`: a new file, up to 2 GiB, whose bytes go to storage
+   * in parts the client encrypts (`CXDRV2`). The answer names the file's
+   * `file_uuid`, its `data_key` and the chunk size; the file is listed as
+   * `uploading` until complete. Scope `drive.create`.
+   */
+  uploadInit(p: {
+    readonly name: string;
+    readonly contentType: string;
+    readonly folderUuid: string | null;
+    readonly plaintextSizeBytes: number;
+    readonly contentModifiedAt?: string;
+  }): Promise<CirruxChunkedInit> {
+    return this.json('POST', '/drive/uploads', {
+      name: p.name,
+      content_type: p.contentType,
+      plaintext_size_bytes: p.plaintextSizeBytes,
+      ...(p.folderUuid ? { folder_uuid: p.folderUuid } : {}),
+      ...(p.contentModifiedAt ? { content_modified_at: p.contentModifiedAt } : {}),
+    });
+  }
+
+  /**
+   * The page writes these routes as `/v1/drive/uploads/{uuid}/…` after an
+   * init that answers a `file_uuid`, a `version_uuid` and an `s3_upload_id`;
+   * `{uuid}` is read as the `file_uuid`, the one the replace routes name too
+   * (workplan 0160 §6, the readings).
+   */
+  uploadPartUrls(fileUuid: string, partNumbers: ReadonlyArray<number>): Promise<ReadonlyArray<{ part_number: number; url: string }>> {
+    return this.partUrls(`/drive/uploads/${encodeURIComponent(fileUuid)}/part_urls`, partNumbers);
+  }
+
+  uploadComplete(fileUuid: string, parts: ReadonlyArray<{ part_number: number; etag: string }>): Promise<CirruxDriveFile> {
+    return this.json('POST', `/drive/uploads/${encodeURIComponent(fileUuid)}/complete`, { parts });
+  }
+
+  async uploadAbort(fileUuid: string): Promise<void> {
+    await this.json('POST', `/drive/uploads/${encodeURIComponent(fileUuid)}/abort`, {});
+  }
+
+  // ---------------------------------------------------------------------
   // Replace: the chunked flow, against an existing file
   // ---------------------------------------------------------------------
 
@@ -293,7 +352,10 @@ export class CirruxDriveApi {
         const text = await response.text().catch(() => '');
         throw withFailureCategory(
           response.status === 403 ? 'target_refused' : 'network',
-          new Error(`Cirrux's storage refused a part of ${what} with ${response.status}${text ? `: ${text.slice(0, 200)}` : ''}`),
+          new CirruxPartRefused(
+            `Cirrux's storage refused a part of ${what} with ${response.status}${text ? `: ${text.slice(0, 200)}` : ''}`,
+            response.status,
+          ),
         );
       }
       await response.text().catch(() => undefined);

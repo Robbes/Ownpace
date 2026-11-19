@@ -229,12 +229,13 @@ is stored: until then its Test answers a measured no (*not connected*, or *no Ci
 this deployment*, with no button), and *Where does it go?* offers a saved Cirrux account for
 files only once its record measured the Drive. The refresh token rotates on every refresh and is
 written back under the row's lock, one refresh at a time (ADR-0052). Files up to 100 MB go as a
-simple upload; a changed file is replaced under `base_ctag` through the chunked flow, encrypted
-here in Cirrux's `CXDRV2` format, and a copy edited in Cirrux since is left alone; folders are
-found by name, case-insensitively; `content_modified_at` is kept; an approved deletion moves the
-copy to Cirrux's trash, never a permanent delete; storage is checked before the first upload,
-and `429` is waited out. A file over 100 MB waits for the chunked upload (0160 T5, second step),
-and one over 2 GiB is not moved, with the reason. 0160 T2b is the owner's live run.
+simple upload, and up to 2 GiB through the chunked upload, each part encrypted here in Cirrux's
+`CXDRV2` format and streamed, never held whole; a changed file is replaced under `base_ctag`
+through the same parts, and a copy edited in Cirrux since is left alone; folders are found by
+name, case-insensitively; `content_modified_at` is kept; an approved deletion moves the copy to
+Cirrux's trash, never a permanent delete; storage is checked before the first upload, and `429`
+is waited out. A file over 2 GiB is refused before it is read, with the reason. 0160 T2b is the
+owner's live run.
 
 Also a target: **JMAP files** (workplan 0031 T3). A file larger than 8 MB arrives as a stream, and
 is uploaded as one. A file larger than the server takes in one upload (its session's

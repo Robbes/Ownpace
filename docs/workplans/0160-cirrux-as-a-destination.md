@@ -4,7 +4,7 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
-**2026-11-19, T5: built, to 100 MB** (§6; ADR-0052). Both blockers are decided. A pass may
+**2026-11-19, T5: built, to 2 GiB** (§6; ADR-0052). Both blockers are decided. A pass may
 write a rotating refresh token back, for a provider whose tokens rotate, one refresh at a time per
 connection, through the one credential store, by a compare-and-swap on what it read. And
 Cirrux's client is one public client per deployment, PKCE `S256` and no secret, registered by
@@ -15,9 +15,10 @@ workspace.read drive.read drive.create drive.update drive.delete`. Built: the co
 (`/api/migrations/cirrux/authorize` and `/callback`), which stores the grant on the account; the
 rotating write-back under the connection row's lock; the file face of the `cirrux` kind, which
 exists only once a grant is stored and is a measured no without one, or without the deployment's
-client (`CIRRUX_OAUTH_CLIENT_ID`); the Drive writer to 100 MB; *Connect Cirrux Drive* on the
-Accounts page; *Where does it go?* offering a saved Cirrux account for files once its Drive is
-measured; the words in both languages. The chunked upload, 100 MB to 2 GiB, is T5's second step.
+client (`CIRRUX_OAUTH_CLIENT_ID`); the Drive writer, to 100 MB in one request and to 2 GiB
+through the chunked upload, each part encrypted here in `CXDRV2` and streamed; *Connect Cirrux
+Drive* on the Accounts page; *Where does it go?* offering a saved Cirrux account for files once
+its Drive is measured; the words in both languages.
 Not proven: anything against a live Cirrux client (T2b, §6b). Where Cirrux's pages are
 ambiguous, §6 says what the code assumes and how it fails if that is wrong.
 
@@ -78,7 +79,7 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 | T3 What T2 corrects | builder | 🔨 **Three corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
 | T2b The first live Drive test | owner | 📋 **Proposed** | §6b: once Cirrux has sent the OTA client, its ID in the OTA stack's `.env`, *Connect Cirrux Drive*, one small migration of files, a replace, a conflict, an approved removal, and a refresh after fifteen minutes. |
-| T5 Files into Cirrux Drive | builder, owner | 🔨 **Built 2026-11-19, to 100 MB** | §6; ADR-0052. The consent door, the rotating write-back one refresh at a time, the face and its Test, the writer (simple upload; replace under `base_ctag` in Cirrux's `CXDRV2` format; the trash for approved removals), the Accounts page's button. Its second step, the chunked upload from 100 MB to 2 GiB, is §6's last part. |
+| T5 Files into Cirrux Drive | builder, owner | 🔨 **Built 2026-11-19, to 2 GiB** | §6; ADR-0052. The consent door, the rotating write-back one refresh at a time, the face and its Test, the writer (simple upload to 100 MB; the chunked upload to 2 GiB and every replace in Cirrux's `CXDRV2` format, streamed; `base_ctag`; the trash for approved removals), the Accounts page's button. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
 
 ## 1. What Cirrux publishes (T0)
@@ -285,7 +286,7 @@ plausible stored row for the face-building guard.
   the writer does about it before anyone migrates a calendar with meetings into Cirrux.
 - **The Test reports no auto-scheduling and none was sent**: nothing changes.
 
-## 6. T5 — files into Cirrux Drive (built, to 100 MB)
+## 6. T5 — files into Cirrux Drive (built, to 2 GiB)
 
 From `https://cirrux.co/help/api/drive` and `https://cirrux.co/help/api`, read 2026-11-19, under
 `https://api.cirrux.co/public_api/v1`: a user-scoped OAuth token (a workspace API key is
@@ -335,8 +336,8 @@ One public client per deployment, `CIRRUX_OAUTH_CLIENT_ID`, read by the API and 
   or for an adopted copy the one just read), through the chunked flow in `CXDRV2`, aborted on any
   failure; `content_modified_at` kept; an approved removal moved to the trash, only while the
   `ctag` is ours; the pool checked before the first upload of a pass; `429` waited out for its
-  `Retry-After`. A file over 100 MB is refused before a byte is read, as waiting for the chunked
-  step; one over 2 GiB as not moved, with the reason.
+  `Retry-After`. A file over 100 MB goes through the chunked upload (below); one over 2 GiB is
+  refused before a byte is read, as not moved, with the reason.
 - **The screens**: *Connect Cirrux Drive* on a Cirrux account's row, only with the deployment's
   client, its window opened in the press; *Where does it go?* offering a saved Cirrux account for
   files once its record measured the Drive, and never a new one; the standing failure naming the
@@ -346,10 +347,10 @@ One public client per deployment, `CIRRUX_OAUTH_CLIENT_ID`, read by the API and 
   `set-task-env.sh` for the worker, in `managed.env.example`; `GET /api/redirect-uris` lists the
   callback as `cirrux.migration`.
 
-Two departures from the plan as split: `CXDRV2` and its known-answer vector landed in this first
+Two departures from the plan as split: `CXDRV2` and its known-answer vector landed in the first
 step, because Cirrux offers no way to put new bytes in an existing file but the chunked replace;
-and this step already refuses a file over 2 GiB as not moved, since "waiting" would be untrue for
-it.
+and the first step already refused a file over 2 GiB as not moved, since "waiting" would have
+been untrue for it.
 
 ### Where Cirrux's pages leave it open
 
@@ -367,8 +368,8 @@ as Cirrux's behaviour; each is a reading T2b can confirm.
 4. **`data_key` is "base64"**, alphabet unnamed (the download's `data` is URL-safe). Both are
    read; anything that is not 32 bytes is refused before anything is encrypted.
 5. **100 MB is 100,000,000 bytes of the file**, not of the base64 body and not 100 MiB. If
-   Cirrux counts otherwise, a file near the line meets `413 file_too_large`, which is read as
-   waiting for the chunked step, and nothing is half-written.
+   Cirrux counts otherwise, a file near the line meets `413 file_too_large`, and the same file
+   goes through the chunked upload; nothing was stored by the refused request.
 6. **A folder listing is complete**: no paging is documented. If Cirrux pages a large folder, a
    file beyond the first page is not seen, its upload meets `422 name_taken`, the folder is
    listed again, and the file fails by sentence: never a second copy.
@@ -403,13 +404,29 @@ as Cirrux's behaviour; each is a reading T2b can confirm.
     the person's own, in Cirrux's app. The file fails for that pass and is asked again; Cirrux
     discards an unfinished upload after 24 hours.
 19. **A listing includes files still uploading**; such a file is never adopted as a copy.
+20. **The upload routes' `{uuid}`** (`/v1/drive/uploads/{uuid}/part_urls`, `/complete`,
+    `/abort`) is read as the init's `file_uuid`, the one the replace routes name; the init also
+    answers a `version_uuid` and an `s3_upload_id`. Wrong, and the first part URL request answers
+    `404`: the upload is aborted (or expires after 24 hours), and the file fails by sentence.
+21. **No published test vector.** Cirrux's page gives the format and no example bytes. The
+    format is pinned three ways instead: a round trip through a decryptor written from the page
+    alone (`decryptCxdrv2`, in the fake Cirrux), which every upload and replace test passes
+    through; a known-answer vector computed independently with WebCrypto
+    (`cirrux-drive-format.unit.test.ts`); and T2b, where Cirrux's own complete decrypts the
+    first chunk.
 
-### The second step: the chunked upload, 100 MB to 2 GiB
+### The second step: the chunked upload, 100 MB to 2 GiB (built)
 
-`POST /v1/drive/uploads`, a per-file `data_key`, presigned part URLs valid one hour (asked for
-again when they run out), `CXDRV2` exactly as the page specifies, streamed and never buffered
-whole, and an upload that expires after 24 hours; a file over 2 GiB refused before a byte is
-read. Its own commit, stacked on this one.
+A new file over 100 MB goes `POST /v1/drive/uploads`, with its name, type, size, folder and
+`content_modified_at`; its per-file `data_key` and chunk size come back, and the answer's chunk
+count and ciphertext size are checked against this service's reading of the format before a byte
+is sent. Each part is one chunk (the header in front of the first), encrypted as the plaintext
+arrives and PUT to its presigned URL; the source is read at most a chunk or two ahead of the
+PUT, never the whole file. Part URLs are asked for ten at a time, again once a batch is fifty
+minutes old (they last an hour), and again once for a part whose PUT storage answered `403`.
+Any failure aborts the upload, which takes the half-made file with it. A replace over 100 MB
+goes through the same parts. A file over 2 GiB is refused before a byte is read, and an init
+Cirrux answers `413` is the same refusal.
 
 ## 6b. T2b — the owner's live Drive test
 
@@ -442,9 +459,10 @@ When Cirrux has answered the request with a client ID for the OTA callback:
    file, a file of about 20 MB, and, if you have one, a file over 100 MB. In Cirrux Drive, make
    a folder of the same name with one file whose name differs from one of them only in capitals.
 7. Start one migration of files only, from that folder into the Cirrux account, and let one pass
-   finish. Check in Cirrux Drive: the folder is the one you made (not a second); the small and
-   the 20 MB file are there, with the source's modification dates; the capitals file is reported,
-   and the one in Cirrux is untouched; the file over 100 MB is listed as too large, waiting.
+   finish. Check in Cirrux Drive: the folder is the one you made (not a second); the small, the
+   20 MB and the file over 100 MB are there, with the source's modification dates, and the large
+   one opens (Cirrux decrypted every part); the capitals file is reported, and the one in Cirrux
+   is untouched. A file over 2 GiB, if you have one, is reported as not moved.
 8. Edit the small file at the source and press **Sync now**: the copy in Cirrux has the new
    content, under the same file. Then edit the 20 MB file in Cirrux, edit it at the source too,
    and press **Sync now**: Cirrux's edit stays, and the migration reports a conflict.

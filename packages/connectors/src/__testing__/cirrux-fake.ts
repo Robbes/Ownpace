@@ -210,6 +210,12 @@ export class FakeCirrux {
   tokenFault: 'none' | 'reset' | 'refused-connection' | 'no-successor' | 'server-error' = 'none';
   /** How long the token endpoint takes, so two refreshes can overlap. */
   tokenDelayMs = 5;
+  /** The simple upload's cap: 100 MB, as the page says, unless a test says otherwise. */
+  simpleUploadMaxBytes = 100 * 1000 * 1000;
+  /** Answer the next PUTs to storage `403`, as a presigned URL past its hour does. */
+  refuseNextPartPuts = 0;
+  /** Called at every storage PUT, so a test can see how far the source was read by then. */
+  onPartPut: ((partNumber: number) => void) | undefined;
   /** What the next consent grants, as the token answer's `scope` says it. */
   grantedScope = 'user.profile workspace.read drive.read drive.create drive.update drive.delete';
   /** Every authorization code exchanged, in order, whether it was accepted or not. */
@@ -382,6 +388,12 @@ export class FakeCirrux {
     const m = /\/part\/([^/]+)\/(\d+)$/.exec(new URL(url).pathname);
     const staged = m ? this.staged.get(m[1]!) : undefined;
     if (!m || !staged || init?.method !== 'PUT') return new Response('NoSuchUpload', { status: 404 });
+    this.onPartPut?.(Number(m[2]));
+    if (this.refuseNextPartPuts > 0) {
+      this.refuseNextPartPuts -= 1;
+      await new Response(init.body as ConstructorParameters<typeof Response>[0]).arrayBuffer();
+      return new Response('<Error><Code>AccessDenied</Code><Message>Request has expired</Message></Error>', { status: 403 });
+    }
     const bytes = new Uint8Array(await new Response(init.body as ConstructorParameters<typeof Response>[0]).arrayBuffer());
     staged.parts.set(Number(m[2]), bytes);
     this.partPuts.push({ url, bytes: bytes.byteLength });
@@ -445,7 +457,7 @@ export class FakeCirrux {
       const folder = (b.folder_uuid as string | null | undefined) ?? undefined;
       if (typeof b.data !== 'string') return json(400, { error: 'invalid_body' });
       const bytes = Uint8Array.from(Buffer.from(b.data, 'base64'));
-      if (bytes.byteLength > 100 * 1000 * 1000) return json(413, { error: 'file_too_large', max_size: 100 * 1000 * 1000 });
+      if (bytes.byteLength > this.simpleUploadMaxBytes) return json(413, { error: 'file_too_large', max_size: this.simpleUploadMaxBytes });
       if (folder && !this.liveFolder(folder)) return json(404, { error: 'folder_not_found' });
       if (this.usedBytes + bytes.byteLength > this.poolBytes) return json(422, { error: 'storage_limit_exceeded', pool_bytes: this.poolBytes });
       if (this.nameTaken(name, folder)) return json(422, { error: 'name_taken' });
@@ -454,6 +466,18 @@ export class FakeCirrux {
       file.content_modified_at = typeof b.content_modified_at === 'string' ? new Date(b.content_modified_at).toISOString() : null;
       this.usedBytes += bytes.byteLength;
       return json(201, fileView(file));
+    }
+    if (method === 'POST' && path === '/drive/uploads') return this.uploadInit(b);
+    const uploadRoute = /^\/drive\/uploads\/([0-9a-f-]{36})\/(part_urls|complete|abort)$/.exec(path!);
+    if (method === 'POST' && uploadRoute) {
+      const [, uuid, step] = uploadRoute;
+      const staged = this.staged.get(uuid!);
+      if (!staged || staged.kind !== 'upload') return json(404, { error: 'not_found' });
+      if (step === 'part_urls') return this.partUrls(uuid!, b);
+      if (step === 'complete') return this.complete(uuid!, b);
+      this.staged.delete(uuid!);
+      this.files.delete(uuid!);
+      return json(200, { object: 'upload', aborted: true });
     }
     const fileRoute = /^\/drive\/files\/([0-9a-f-]{36})(\/.*)?$/.exec(path!);
     if (fileRoute) {
@@ -495,6 +519,52 @@ export class FakeCirrux {
     return [...this.files.values()].some(
       (f) => f.uuid !== except && !f.trashed && f.folder_uuid === folder && nameKey(f.name) === nameKey(name),
     );
+  }
+
+  /** `POST /drive/uploads`: the file is listed as `uploading` until complete. */
+  private uploadInit(b: Record<string, unknown>): Response {
+    const name = String(b.name ?? '').trim();
+    const size = Number(b.plaintext_size_bytes);
+    const folder = (b.folder_uuid as string | null | undefined) ?? undefined;
+    if (!name || typeof b.content_type !== 'string' || !Number.isInteger(size) || size < 0) {
+      return json(400, { error: 'invalid_body' });
+    }
+    if (size > 2 * 1024 ** 3) return json(413, { error: 'file_too_large', max_size: 2 * 1024 ** 3 });
+    if (folder && !this.liveFolder(folder)) return json(404, { error: 'folder_not_found' });
+    if (this.usedBytes + size > this.poolBytes) return json(422, { error: 'storage_limit_exceeded', pool_bytes: this.poolBytes });
+    if (this.nameTaken(name, folder)) return json(422, { error: 'name_taken' });
+    const file = this.addFile(name, new Uint8Array(0), folder);
+    file.content_type = b.content_type;
+    file.upload_status = 'uploading';
+    const key = randomBytes(32);
+    const count = Math.ceil(size / this.chunkSize);
+    const staged: Staged = {
+      fileUuid: file.uuid,
+      kind: 'upload',
+      key,
+      plaintextSize: size,
+      chunkSize: this.chunkSize,
+      chunkCount: count,
+      ciphertextSize: 16 + count * 28 + size,
+      contentType: b.content_type,
+      contentModifiedAt: typeof b.content_modified_at === 'string' ? new Date(b.content_modified_at).toISOString() : null,
+      ...(folder ? { folderUuid: folder } : {}),
+      name,
+      parts: new Map(),
+    };
+    this.staged.set(file.uuid, staged);
+    return json(200, {
+      file_uuid: file.uuid,
+      version_uuid: randomUUID(),
+      data_key: key.toString('base64'),
+      chunk_size_bytes: staged.chunkSize,
+      chunk_count: staged.chunkCount,
+      plaintext_size_bytes: size,
+      ciphertext_size_bytes: staged.ciphertextSize,
+      s3_upload_id: randomBytes(8).toString('hex'),
+      expires_at: new Date(Date.now() + 24 * 3600_000).toISOString(),
+      upload_status: 'uploading',
+    });
   }
 
   private replaceInit(file: FakeFile, b: Record<string, unknown>): Response {
@@ -563,17 +633,28 @@ export class FakeCirrux {
     }
     const object = Uint8Array.from(Buffer.concat(chunks));
     this.staged.delete(uuid);
-    if (object.byteLength !== staged.ciphertextSize) return json(422, { error: 'upload_size_mismatch' });
+    // A failed complete discards the upload: a new file goes with it.
+    const discard = (error: string) => {
+      if (staged.kind === 'upload') this.files.delete(uuid);
+      return json(422, { error });
+    };
+    if (object.byteLength !== staged.ciphertextSize) return discard('upload_size_mismatch');
     let plaintext: Uint8Array;
     try {
       decryptCxdrv2({ object, key: staged.key, fileUuid: uuid, plaintextSizeBytes: staged.plaintextSize, firstChunkOnly: true });
       plaintext = decryptCxdrv2({ object, key: staged.key, fileUuid: uuid, plaintextSizeBytes: staged.plaintextSize });
     } catch {
-      return json(422, { error: 'undecryptable_content' });
+      return discard('undecryptable_content');
     }
     const file = this.files.get(uuid)!;
     this.usedBytes += Math.max(0, plaintext.byteLength - file.bytes.byteLength);
     file.bytes = plaintext;
+    if (staged.kind === 'upload') {
+      // A new file: completed at its first version, `ctag` 0.
+      file.upload_status = 'completed';
+      file.content_modified_at = staged.contentModifiedAt ?? null;
+      return json(200, fileView(file));
+    }
     file.ctag += 1;
     file.version += 1;
     file.content_modified_at = staged.contentModifiedAt ?? null;

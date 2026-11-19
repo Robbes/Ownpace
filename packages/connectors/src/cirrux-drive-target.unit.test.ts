@@ -27,7 +27,7 @@ import { FakeCirrux, MemoryRotatingGrantStore } from './__testing__/cirrux-fake.
 const sha = (b: Uint8Array) => createHash('sha256').update(b).digest('hex');
 const bytes = (text: string) => new TextEncoder().encode(text);
 
-function setup(p: { chunkSize?: number; simpleMax?: number; prefix?: string; waits?: number[] } = {}) {
+function setup(p: { chunkSize?: number; simpleMax?: number; prefix?: string; waits?: number[]; now?: () => number } = {}) {
   const cirrux = new FakeCirrux({ refreshToken: 'rt-0', chunkSize: p.chunkSize ?? 64 });
   const store = new MemoryRotatingGrantStore('rt-0');
   const sleep = async (ms: number) => {
@@ -39,6 +39,7 @@ function setup(p: { chunkSize?: number; simpleMax?: number; prefix?: string; wai
     api,
     simpleUploadMaxBytes: p.simpleMax ?? 1000,
     ...(p.prefix ? { targetFolderPrefix: p.prefix } : {}),
+    ...(p.now ? { now: p.now } : {}),
   });
   return { cirrux, target, store, api };
 }
@@ -197,18 +198,130 @@ describe('a new file: the simple upload', () => {
   });
 });
 
-describe('what does not go, and says why, before a byte is read', () => {
-  it('a file over 100 MB waits for the chunked step', async () => {
-    const { cirrux, target } = setup({ simpleMax: 100 });
-    const item = raw('movie.mp4', new Uint8Array(101)).item;
-    const refused = target.refuseBeforeRead(item);
-    expect(String(refused)).toMatch(/waits for it/);
-    expect(isDecisionError(refused)).toBe(true);
-    expect(statedFailureCategoryOf(refused)).toBe('too_large');
-    await expect(target.upsertFile('', raw('movie.mp4', new Uint8Array(101)))).rejects.toThrow(/waits for it/);
+/** Bytes that differ chunk to chunk, so a part sent in the wrong place cannot decrypt to the same file. */
+const pattern = (length: number) => Uint8Array.from({ length }, (_, i) => (i * 7 + (i >> 6)) & 0xff);
+
+describe('a new file over the simple upload’s cap: the chunked upload, encrypted in Cirrux’s format', () => {
+  it('goes in parts Cirrux decrypts back to the file, with its folder, type and modification time', async () => {
+    const { cirrux, target } = setup({ simpleMax: 100, chunkSize: 64 });
+    expect(target.refuseBeforeRead(raw('Films/movie.mp4', new Uint8Array(1000)).item)).toBeUndefined();
+    const content = pattern(1000); // 16 chunks of 64 bytes, the last of 40
+    const result = await target.upsertFile('', raw('Films/movie.mp4', content, { mimeType: 'video/mp4', modifiedAt: '2026-05-01T07:30:00Z' }));
+    const file = cirrux.fileAt('Films/movie.mp4')!;
+    expect(Buffer.from(file.bytes).equals(Buffer.from(content))).toBe(true);
+    expect(file).toMatchObject({ upload_status: 'completed', content_type: 'video/mp4', content_modified_at: '2026-05-01T07:30:00.000Z', ctag: 0 });
+    expect(result).toEqual({ targetId: file.uuid, created: true, targetVersion: `cirrux:0:${file.uuid}`, contentHash: sha(content) });
+    // Asked as the page says: the init, part URLs ten at a time, one PUT a chunk, then complete.
+    expect(posts(cirrux, '/drive/uploads')[0]!.body).toMatchObject({ name: 'movie.mp4', plaintext_size_bytes: 1000, content_type: 'video/mp4' });
+    expect(posts(cirrux, `/drive/uploads/${file.uuid}/part_urls`).map((r) => (r.body as { part_numbers: number[] }).part_numbers)).toEqual([
+      [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+      [11, 12, 13, 14, 15, 16],
+    ]);
+    expect(cirrux.partPuts).toHaveLength(16);
     expect(posts(cirrux, '/drive/files')).toHaveLength(0);
   });
 
+  it('streams: each part is sent before the source is read past it, never the whole file at once', async () => {
+    const { cirrux, target } = setup({ simpleMax: 100, chunkSize: 64 });
+    const content = pattern(64 * 20);
+    let delivered = 0;
+    const seenAt: number[] = [];
+    cirrux.onPartPut = (n) => {
+      seenAt[n] = delivered;
+    };
+    const body: RawFileItem = {
+      item: { path: 'big.bin', name: 'big.bin', isDirectory: false, size: content.byteLength, modifiedAt: '2026-06-19T09:00:00Z', sourceRef: 'big.bin' },
+      body: {
+        sizeBytes: content.byteLength,
+        open: async () =>
+          new ReadableStream<Uint8Array>({
+            pull(c) {
+              if (delivered >= content.byteLength) return c.close();
+              c.enqueue(content.slice(delivered, delivered + 13));
+              delivered = Math.min(content.byteLength, delivered + 13);
+            },
+          }),
+      },
+    };
+    await target.upsertFile('', body);
+    expect(Buffer.from(cirrux.fileAt('big.bin')!.bytes).equals(Buffer.from(content))).toBe(true);
+    for (let n = 1; n <= 20; n++) {
+      // Part n is chunk n-1: by its PUT the source was read at most two chunks past it.
+      expect(seenAt[n], `part ${n}`).toBeLessThanOrEqual((n + 2) * 64);
+    }
+    expect(seenAt[1]).toBeLessThan(content.byteLength / 4);
+  });
+
+  it('a simple upload Cirrux answers 413 goes the chunked way, and nothing was stored twice', async () => {
+    const { cirrux, target } = setup({ simpleMax: 1000, chunkSize: 64 });
+    cirrux.simpleUploadMaxBytes = 100;
+    const content = pattern(300);
+    await target.upsertFile('', raw('report.pdf', content));
+    expect(Buffer.from(cirrux.fileAt('report.pdf')!.bytes).equals(Buffer.from(content))).toBe(true);
+    expect(posts(cirrux, '/drive/uploads')).toHaveLength(1);
+    expect([...cirrux.files.values()].filter((f) => f.name === 'report.pdf')).toHaveLength(1);
+  });
+
+  it('a part URL past its hour is asked for again once, and the part sent again', async () => {
+    const { cirrux, target } = setup({ simpleMax: 100, chunkSize: 64 });
+    cirrux.refuseNextPartPuts = 1;
+    const content = pattern(200);
+    await target.upsertFile('', raw('a.bin', content));
+    const file = cirrux.fileAt('a.bin')!;
+    expect(Buffer.from(file.bytes).equals(Buffer.from(content))).toBe(true);
+    expect(posts(cirrux, `/drive/uploads/${file.uuid}/part_urls`)).toHaveLength(2);
+  });
+
+  it('a batch of part URLs fifty minutes old is asked for again before its next PUT', async () => {
+    let clock = 0;
+    const { cirrux, target } = setup({ simpleMax: 100, chunkSize: 64, now: () => clock });
+    cirrux.onPartPut = () => {
+      clock += 51 * 60_000;
+    };
+    await target.upsertFile('', raw('slow.bin', pattern(64 * 3)));
+    const file = cirrux.fileAt('slow.bin')!;
+    expect(posts(cirrux, `/drive/uploads/${file.uuid}/part_urls`).map((r) => (r.body as { part_numbers: number[] }).part_numbers)).toEqual([
+      [1, 2, 3],
+      [2, 3],
+      [3],
+    ]);
+  });
+
+  it('a part storage keeps refusing aborts the upload, and no file is left in Cirrux', async () => {
+    const { cirrux, target } = setup({ simpleMax: 100, chunkSize: 64 });
+    cirrux.refuseNextPartPuts = 2;
+    await expect(target.upsertFile('', raw('gone.bin', pattern(200)))).rejects.toThrow(/refused a part of gone\.bin with 403/);
+    expect([...cirrux.files.values()].some((f) => f.name === 'gone.bin')).toBe(false);
+    expect(cirrux.requests.filter((r) => r.method === 'POST' && /\/drive\/uploads\/[0-9a-f-]+\/abort$/.test(r.path))).toHaveLength(1);
+  });
+
+  it('an upload Cirrux cannot decrypt is discarded by Cirrux, said in our words, and leaves no file', async () => {
+    const { cirrux, api } = setup({ simpleMax: 100, chunkSize: 64 });
+    const tampered = new CirruxDriveTarget({
+      api: Object.assign(Object.create(Object.getPrototypeOf(api) as object) as CirruxDriveApi, api, {
+        putPart: (url: string, part: Uint8Array, what: string) => {
+          const flipped = Uint8Array.from(part);
+          flipped[flipped.byteLength - 1]! ^= 0xff;
+          return api.putPart(url, flipped, what);
+        },
+      }),
+      simpleUploadMaxBytes: 100,
+    });
+    await expect(tampered.upsertFile('', raw('x.bin', pattern(150)))).rejects.toThrow(/could not decrypt the first part of x\.bin and discarded the upload/);
+    expect([...cirrux.files.values()].some((f) => f.name === 'x.bin')).toBe(false);
+  });
+
+  it('a name taken by a file made since the listing is adopted, not uploaded twice', async () => {
+    const { cirrux, target } = setup({ simpleMax: 100, chunkSize: 64 });
+    await target.listEntries(); // the root's listing, read before the other file arrives
+    const theirs = cirrux.addFile('late.bin', pattern(150));
+    const result = await target.upsertFile('', raw('late.bin', pattern(150)));
+    expect(result).toMatchObject({ targetId: theirs.uuid, adopted: true });
+    expect(cirrux.partPuts).toHaveLength(0);
+  });
+});
+
+describe('what does not go, and says why, before a byte is read', () => {
   it('a file over 2 GiB is not moved, with the reason', () => {
     const { target } = setup();
     const refused = target.refuseBeforeRead({ ...raw('huge.iso', new Uint8Array(1)).item, size: 2 * 1024 ** 3 + 1 });
@@ -304,12 +417,13 @@ describe('a changed file: replaced under base_ctag, encrypted in Cirrux’s form
     expect(new TextDecoder().decode(cirrux.files.get(first.targetId)!.bytes)).toBe('version two');
   });
 
-  it('a changed file over 100 MB waits for the chunked step too', async () => {
-    const { cirrux, target, first } = await copied({ simpleMax: 50 });
-    await expect(
-      target.upsertFile('', raw('plan.txt', new Uint8Array(51)), { overwrite: true, expectedTargetVersion: first.targetVersion! }),
-    ).rejects.toThrow(/waits for it/);
-    expect(posts(cirrux, `/drive/files/${first.targetId}/replace`)).toHaveLength(0);
+  it('a changed file over 100 MB is replaced through the same parts, under the same base_ctag', async () => {
+    const { cirrux, target, first } = await copied({ simpleMax: 50, chunkSize: 16 });
+    const next = pattern(51);
+    const result = await target.upsertFile('', raw('plan.txt', next), { overwrite: true, expectedTargetVersion: first.targetVersion! });
+    expect(Buffer.from(cirrux.files.get(first.targetId)!.bytes).equals(Buffer.from(next))).toBe(true);
+    expect(result).toMatchObject({ targetId: first.targetId, updated: true, targetVersion: `cirrux:1:${first.targetId}` });
+    expect(posts(cirrux, `/drive/files/${first.targetId}/replace`)[0]!.body).toMatchObject({ base_ctag: 0, plaintext_size_bytes: 51 });
   });
 
   it('a part Cirrux’s storage refuses aborts the staged replace, and the file stays as it was', async () => {

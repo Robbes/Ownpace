@@ -23,12 +23,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   the account's Cirrux Drive. Cirrux's refresh tokens rotate on every refresh, so this is the one
   provider whose stored credential a pass writes back: one refresh at a time per account, under
   the connection row's lock, encrypted through the one credential store, with a compare-and-swap
-  on what was read, and never logged (ADR-0052). Files up to 100 MB are uploaded; a changed file
-  is replaced only while its copy in Cirrux is the one this service wrote (`base_ctag`); folders
-  are found by name, whatever their capitals; the modification time is kept; an approved
-  deletion moves the copy to Cirrux's trash, never deletes it for good; storage is checked
-  first, and Cirrux's rate limit is waited out. A larger file waits for the chunked upload, and
-  one over 2 GiB is not moved, with the reason. A deployment needs its own Cirrux client,
+  on what was read, and never logged (ADR-0052). Files up to 2 GiB are uploaded: up to 100 MB in
+  one request, and larger ones in parts encrypted here in Cirrux's own format, streamed and never
+  held whole; a changed file is replaced only while its copy in Cirrux is the one this service
+  wrote (`base_ctag`); folders are found by name, whatever their capitals; the modification time
+  is kept; an approved deletion moves the copy to Cirrux's trash, never deletes it for good;
+  storage is checked first, and Cirrux's rate limit is waited out. A file over 2 GiB is not
+  moved, with the reason. A deployment needs its own Cirrux client,
   `CIRRUX_OAUTH_CLIENT_ID`, which Cirrux registers by hand; until it is set, Cirrux's files are a
   measured no that says so, and no button is offered. *Where does it go?* offers a saved Cirrux
   account for files once its Drive is connected. Built against a fake Cirrux; not yet run

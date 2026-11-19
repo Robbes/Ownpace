@@ -55,7 +55,7 @@ Then the row for files on **Where does it go?** offers the account under **Your 
 
 What happens to your files there:
 
-- **Each file up to 100 MB is copied.** A larger file is not copied yet: it is listed as too large and waits, and nothing of it is sent. A file over 2 GiB is not moved at all, said with that reason: Cirrux takes no file that large through its interface.
+- **Each file up to 2 GiB is copied.** Up to 100 MB in one request; a larger one in parts, which this service encrypts in Cirrux's own format before sending them, as Cirrux requires for files that size. A file over 2 GiB is not moved at all, said with that reason: Cirrux takes no file that large.
 - **Folders are found by name**, and made where they are missing. Cirrux keeps one name per folder however it is capitalised, so `Photos` and `photos` are one folder there. A file whose name differs only in capitals from a file already in that folder is not written over: it is reported.
 - **A file already in the folder under the same name is taken as the copy**, and not written. When a file changes at the source later, its copy is replaced, unless the copy was changed in Cirrux after this service last wrote it: then the copy in Cirrux stays as it is, and the file is reported as a conflict.
 - **The time a file was last changed is kept**, as Cirrux shows it.

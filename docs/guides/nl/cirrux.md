@@ -55,7 +55,7 @@ Daarna biedt de rij voor bestanden bij **Waar gaat het naartoe?** het account aa
 
 Wat er met uw bestanden gebeurt:
 
-- **Elk bestand tot 100 MB wordt gekopieerd.** Een groter bestand wordt nog niet gekopieerd: het staat als te groot in de lijst en wacht, en er wordt niets van verstuurd. Een bestand boven 2 GiB gaat helemaal niet mee, en dat wordt gezegd met die reden: Cirrux neemt via zijn koppeling geen bestand van die grootte aan.
+- **Elk bestand tot 2 GiB wordt gekopieerd.** Tot 100 MB in één verzoek; een groter bestand in delen, die deze dienst vóór het versturen versleutelt in het eigen formaat van Cirrux, zoals Cirrux voor bestanden van die grootte vraagt. Een bestand boven 2 GiB gaat helemaal niet mee, en dat wordt gezegd met die reden: Cirrux neemt geen bestand van die grootte aan.
 - **Mappen worden op naam gevonden**, en aangemaakt waar ze ontbreken. Cirrux houdt één naam per map aan, hoe die ook met hoofdletters is geschreven, dus `Photos` en `photos` zijn daar één map. Een bestand waarvan de naam alleen in hoofdletters verschilt van een bestand dat al in die map staat, wordt niet overschreven: het wordt gemeld.
 - **Een bestand dat al onder dezelfde naam in de map staat, geldt als de kopie**, en wordt niet beschreven. Verandert een bestand later bij de bron, dan wordt de kopie vervangen, tenzij de kopie in Cirrux is gewijzigd nadat deze dienst haar voor het laatst schreef: dan blijft de kopie in Cirrux zoals ze is, en wordt het bestand gemeld als conflict.
 - **Het tijdstip waarop een bestand voor het laatst is gewijzigd, blijft behouden**, zoals Cirrux het toont.
