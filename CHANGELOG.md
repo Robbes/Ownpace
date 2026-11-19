@@ -12,11 +12,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and reminders, and `imap.cirrux.co` on 993 for mail, as read from `https://cirrux.co/help/setup`
   and `https://cirrux.co/help/calendar` on 2026-11-19. It signs in with the mailbox's email
   address and an app password, which Cirrux makes per mailbox and requires; Test measures each
-  part. Files are not offered: Cirrux Drive has no WebDAV, only an HTTP API that takes a
-  person's OAuth sign-in through a client Cirrux registers on request, and the Test says so. The
-  card has a setup checklist, a guide in English and Dutch, and a card on the site's *Where to*.
+  part. Files are not part of the card: Cirrux Drive has no WebDAV, and is a sign-in added to the
+  saved account afterwards (the next entry). The card has a setup checklist, a guide in English and Dutch, and a card on the site's *Where to*.
   Ledger migration 0068 widens `connection.kind` by `cirrux`, and touches no row. Not yet run
   against a live Cirrux mailbox: that is the owner's test (0160 T2).
+
+- **Cirrux Drive as a destination for files** (workplan 0160 T5; ADR-0052). A Cirrux account
+  on the Accounts page gains **Connect Cirrux Drive**: a person signs in to Cirrux, the server
+  stores the Drive sign-in on that account beside its app password, and files can then go to
+  the account's Cirrux Drive. Cirrux's refresh tokens rotate on every refresh, so this is the one
+  provider whose stored credential a pass writes back: one refresh at a time per account, under
+  the connection row's lock, encrypted through the one credential store, with a compare-and-swap
+  on what was read, and never logged (ADR-0052). Files up to 100 MB are uploaded; a changed file
+  is replaced only while its copy in Cirrux is the one this service wrote (`base_ctag`); folders
+  are found by name, whatever their capitals; the modification time is kept; an approved
+  deletion moves the copy to Cirrux's trash, never deletes it for good; storage is checked
+  first, and Cirrux's rate limit is waited out. A larger file waits for the chunked upload, and
+  one over 2 GiB is not moved, with the reason. A deployment needs its own Cirrux client,
+  `CIRRUX_OAUTH_CLIENT_ID`, which Cirrux registers by hand; until it is set, Cirrux's files are a
+  measured no that says so, and no button is offered. *Where does it go?* offers a saved Cirrux
+  account for files once its Drive is connected. Built against a fake Cirrux; not yet run
+  against a live client (0160 T2b).
 
 ### Changed
 

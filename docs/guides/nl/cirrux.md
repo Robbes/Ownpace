@@ -1,6 +1,6 @@
-# Cirrux — mail, agenda's, contacten en taken in één account
+# Cirrux — mail, agenda's, contacten, taken en Drive in één account
 
-De kaart **Cirrux** is één account voor een Cirrux-mailbox: mail, agenda's, contacten en takenlijsten. Bestanden horen er niet bij: Cirrux Drive heeft geen WebDAV-adres, en de eigen koppeling van Cirrux voor apps kan deze dienst nog niet gebruiken. Deze dienst meldt zich aan met het e-mailadres van de mailbox en een app-wachtwoord; er is geen knop om toestemming te geven.
+De kaart **Cirrux** is één account voor een Cirrux-mailbox: mail, agenda's, contacten en takenlijsten. Deze dienst meldt zich daarvoor aan met het e-mailadres van de mailbox en een app-wachtwoord. Bestanden kunnen ook naar de Cirrux Drive van het account, zodra u die verbindt op de pagina **Accounts**: Cirrux Drive heeft geen WebDAV-adres en is alleen bereikbaar via de eigen koppeling van Cirrux voor apps, met uw eigen aanmelding bij Cirrux en niet met het app-wachtwoord ([Bestanden: Cirrux Drive](#drive)).
 
 De servers hieronder zijn de servers die Cirrux publiceert op zijn [instellingenpagina](https://cirrux.co/help/setup), onder Manual Configuration, en op zijn [agendapagina](https://cirrux.co/help/calendar), gelezen op 19 november 2026. Die pagina's zijn in het Engels, en de namen van knoppen en tabbladen in Cirrux staan hieronder zoals Cirrux ze schrijft.
 
@@ -29,7 +29,7 @@ Laat ze staan, tenzij Cirrux u andere waarden opgeeft. Gaat er mail mee, laat de
 
 Er is geen vakje voor SSL/TLS: deze dienst gebruikt het altijd, voor agenda's, contacten en taken en voor mail. Laat **DAV-basis-URL** leeg: Cirrux noemt de server en geen pad, en deze dienst zoekt de agenda's en adresboeken vanaf daar, zoals een agenda-app dat doet met dezelfde servernaam. Mislukt de test op een server, dan opent **Serverinstellingen** vanzelf.
 
-De test schrijft niets. Hij meldt zich aan bij de agenda's en meet daarnaast elk deel van het account apart: wat het account omvat staat achter **Omvat:**, en wat hij vond achter **Gevonden:**. Bestanden staan er als niet omvat, met de reden.
+De test schrijft niets. Hij meldt zich aan bij de agenda's en meet daarnaast elk deel van het account apart: wat het account omvat staat achter **Omvat:**, en wat hij vond achter **Gevonden:**. Bestanden staan er als niet omvat, met de reden, tot Cirrux Drive op het account is verbonden ([Bestanden: Cirrux Drive](#drive)).
 
 U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoegen**: kies bij **Bron of bestemming?** **Bestemmingen**, dan de kaart **Cirrux**, en druk op **Toevoegen en testen**. De vakken zijn daar op dezelfde manier vooraf ingevuld, open in beeld.
 
@@ -40,8 +40,30 @@ U kunt het account ook vooraf toevoegen, onder **Accounts** → **Account toevoe
 - Cirrux maakt geen tweede adresboek aan, dus de contacten uit alle adresboeken bij uw bron komen in Contacts terecht.
 - Elke agenda bij uw bron wordt bij Cirrux een agenda met dezelfde naam, naast de eigen agenda Calendar van de mailbox.
 - Elke afspraak wordt geschreven met een markering, `SCHEDULE-AGENT=CLIENT`, die de server vraagt er geen uitnodigingen voor te versturen. Deelnemers en organisator blijven in uw kopie van elke afspraak staan. Een server die de markering negeert, kan toch uitnodigingen versturen, en Cirrux zegt niet of zijn agendaserver de markering leest. De agenda van Cirrux zelf mailt deelnemers wel wanneer een afspraak in de app wordt gemaakt.
-- **Bestanden** gaan niet naar Cirrux: bij **Waar gaat het naartoe?** biedt de rij voor bestanden het niet aan. Deze dienst schrijft bestanden via WebDAV, en Cirrux Drive heeft geen WebDAV-adres: het is bereikbaar via de eigen apps van Cirrux en de koppeling voor apps ([Drive](https://cirrux.co/help/drive)). Uw bestanden kunnen in dezelfde migratie naar een andere bestemming.
+- **Bestanden**, zodra Cirrux Drive op het account is verbonden: zie [Bestanden: Cirrux Drive](#drive). Tot dan biedt de rij voor bestanden bij **Waar gaat het naartoe?** het account niet aan, en kunnen uw bestanden in dezelfde migratie naar een andere bestemming.
 - Een migratie mag vaker lopen: wat al in het doel staat, wordt herkend en niet nog eens gemigreerd.
+
+## Bestanden: Cirrux Drive {#drive}
+
+Cirrux Drive is bereikbaar via de eigen koppeling van Cirrux voor apps, met de aanmelding van een persoon bij Cirrux ([Drive](https://cirrux.co/help/drive), [de koppeling](https://cirrux.co/help/api)). Bestanden zijn dus een tweede aanmelding op hetzelfde account, die u toevoegt nadat het account is bewaard. Of de knop er staat, hangt af van de dienst die u gebruikt: Cirrux registreert elke dienst die mensen mag aanmelden met de hand, en een dienst zonder zo'n registratie toont bestanden als niet omvat, met **This service has no Cirrux client on this deployment yet**, en zonder knop.
+
+1. Op de pagina **Accounts** staat bij het Cirrux-account **Cirrux Drive verbinden**. Druk erop.
+2. De aanmeldpagina van Cirrux opent in een nieuw venster. Meld u bij Cirrux aan als de persoon van wie de Drive is, en sta toe wat Cirrux vraagt: wie u bent en welke workspace, en het lezen, toevoegen, wijzigen en naar de prullenbak verplaatsen van de bestanden in uw Drive.
+3. Het venster zegt **Cirrux Drive is verbonden**. Sluit het. Bij het account staat **Cirrux Drive is verbonden: bestanden kunnen naar dit account.**, en het account is opnieuw gemeten: **Omvat:** noemt nu bestanden, en **Gevonden:** wat er bovenin uw Drive staat.
+
+Daarna biedt de rij voor bestanden bij **Waar gaat het naartoe?** het account aan onder **Uw accounts**. Onder **Een nieuw account** biedt hij Cirrux niet aan: een nieuw account heeft geen Drive tot het is bewaard en verbonden.
+
+Wat er met uw bestanden gebeurt:
+
+- **Elk bestand tot 100 MB wordt gekopieerd.** Een groter bestand wordt nog niet gekopieerd: het staat als te groot in de lijst en wacht, en er wordt niets van verstuurd. Een bestand boven 2 GiB gaat helemaal niet mee, en dat wordt gezegd met die reden: Cirrux neemt via zijn koppeling geen bestand van die grootte aan.
+- **Mappen worden op naam gevonden**, en aangemaakt waar ze ontbreken. Cirrux houdt één naam per map aan, hoe die ook met hoofdletters is geschreven, dus `Photos` en `photos` zijn daar één map. Een bestand waarvan de naam alleen in hoofdletters verschilt van een bestand dat al in die map staat, wordt niet overschreven: het wordt gemeld.
+- **Een bestand dat al onder dezelfde naam in de map staat, geldt als de kopie**, en wordt niet beschreven. Verandert een bestand later bij de bron, dan wordt de kopie vervangen, tenzij de kopie in Cirrux is gewijzigd nadat deze dienst haar voor het laatst schreef: dan blijft de kopie in Cirrux zoals ze is, en wordt het bestand gemeld als conflict.
+- **Het tijdstip waarop een bestand voor het laatst is gewijzigd, blijft behouden**, zoals Cirrux het toont.
+- **Er wordt niets definitief verwijderd.** Een bestand dat bij de bron is verwijderd, wordt alleen uit Cirrux gehaald als u dat verwijderen goedkeurt, en dan gaat het naar de prullenbak van Cirrux, waar het 30 dagen terug te zetten is.
+- **De opslag wordt gecontroleerd voordat er iets wordt geüpload**: passen de bestanden niet in de opslag van de workspace, dan worden ze niet verstuurd, en de reden zegt dat.
+- **Cirrux bepaalt het tempo**: 600 verzoeken per minuut voor één aanmelding. Vraagt Cirrux deze dienst langzamer te gaan, dan wacht hij zo lang als Cirrux zegt, en gaat daarna verder.
+
+De aanmelding wordt versleuteld bij het account bewaard, naast het app-wachtwoord. Cirrux vervangt haar telkens wanneer deze dienst haar vernieuwt, dus deze dienst bewaart elke nieuwe en gebruikt die één keer. Een aanmelding die 30 dagen niet wordt gebruikt, verloopt bij Cirrux. Werkt de aanmelding niet meer, dan mislukken de bestanden met een zin die **Cirrux Drive verbinden** noemt: druk er opnieuw op, en de bestanden gaan bij de volgende keer verder. Een nieuw app-wachtwoord van dezelfde mailbox houdt de Drive verbonden; een app-wachtwoord van een andere mailbox begint zonder.
 
 ## De eigen import van Cirrux {#cirrux-sync}
 
@@ -64,5 +86,5 @@ Wat Cirrux zelf antwoordt, toont deze dienst woordelijk, in de taal van de serve
 ## Stoppen {#leaving}
 
 - Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.** Wat al gemigreerd is, blijft bij Cirrux staan.
-- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het app-wachtwoord bij deze dienst. Het app-wachtwoord zelf blijft bij Cirrux geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.**
+- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het app-wachtwoord bij deze dienst, en van de aanmelding bij Cirrux Drive als die verbonden was. Het app-wachtwoord zelf blijft bij Cirrux geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.** Ook voor een aanmelding bij Cirrux Drive noemt Cirrux geen manier waarop een dienst haar kan intrekken; niets hier kan haar nog gebruiken, en bij Cirrux verloopt ze zodra ze 30 dagen niet is gebruikt.
 - Verwijder daarom het app-wachtwoord bij Cirrux: in Cirrux Mail, **Settings → Mailboxes**, de mailbox, het tabblad **Passwords**. Uw Cirrux-wachtwoord blijft zoals het is.

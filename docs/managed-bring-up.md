@@ -2243,6 +2243,37 @@ consent entirely). Both render as sentences, so the person knows to ask
 somebody rather than press the button again. `docs/microsoft-setup.md` is the
 customer-facing version of all of this.
 
+#### The deployment's own Cirrux client
+
+For Cirrux Drive as a destination for files (workplan 0160 T5; ADR-0052). Not a
+pair: Cirrux issues a **public client** (PKCE `S256`, no secret), and it is not
+self-service.
+
+1. **Ask Cirrux for one**, at help@cirrux.co, giving the name people see, the
+   exact callback `GET /api/redirect-uris` lists as `cirrux.migration`
+   (`https://<your API host>/api/migrations/cirrux/callback`), and the scopes
+   `user.profile workspace.read drive.read drive.create drive.update
+   drive.delete`. `drive.delete` only ever moves a file to Cirrux's trash, after
+   a person approved removing it. One client per deployment: the OTA stack and
+   live each have their own callback, and so their own client.
+2. **The client ID, in `deploy/compose/.env`**, where the gate reads it on the
+   OTA stack as for any key:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env CIRRUX_OAUTH_CLIENT_ID=<the client ID>
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ./deploy/compose/set-task-env.sh
+   ./deploy/compose/deploy-tasks.sh
+   ```
+
+   The worker needs it more than any other client: a pass refreshes each Cirrux
+   account's Drive sign-in and writes the successor back, so without it every
+   pass into a Drive the API connected fails.
+
+Until it is set, a Cirrux account's files are a measured no that says this
+deployment has no Cirrux client, and no screen offers *Connect Cirrux Drive*.
+`GET /api/provider-accounts` answers `cirrux.client: deployment` once it is.
+
 ### 8f. Problem reports — by mail, or your own Zammad
 
 "Report a problem", beside Sign out, sends a customer's report to a person:

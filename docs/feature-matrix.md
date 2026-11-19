@@ -216,17 +216,25 @@ Not (yet) migrated:
 
 | | generic WebDAV (Nextcloud, …) | Google Drive | Microsoft 365 | Dropbox | Box |
 |---|---|---|---|---|---|
-| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable (workplans 0049/0051); bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, workplan 0054); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (*Start a migration*'s **Show shared folders** + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back; the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
+| **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable (workplans 0049/0051); bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, workplan 0054); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (*Start a migration*'s **Show shared folders** + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back (ADR-0052 makes one exception, for Cirrux Drive, which has no other grant; Box keeps this one); the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
 | **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target | 🚫 never a target |
 
-**Not a files target yet, and it is a measured no with its reason: Cirrux Drive** (`cirrux`,
-workplan 0160). Cirrux Drive speaks no WebDAV; it is reached through Cirrux's own HTTP API
-(`https://cirrux.co/help/api/drive`), which refuses a workspace API key and takes a person's
-OAuth token from a client Cirrux registers on request. The `cirrux` account therefore carries no
-file face, its Test says why, and *Where does it go?* does not offer it for files. ⛔ A Drive
-writer over that API is 0160 T5: the API is documented in full (chunked upload with client-side
-encryption up to 2 GiB, a `base_ctag` conflict check, a trash, a `changes` feed); what it waits
-for is the OAuth client.
+Also a target, ⏳ built and not yet run against a live Cirrux client: **Cirrux Drive** (`cirrux`,
+workplan 0160 T5; ADR-0052). Cirrux Drive speaks no WebDAV; it is reached through Cirrux's own
+HTTP API (`https://cirrux.co/help/api/drive`) with a person's OAuth sign-in, from one public
+client per deployment that Cirrux registers by hand (`CIRRUX_OAUTH_CLIENT_ID`, PKCE `S256`, no
+secret). So the file face is a GRANT stored on the `cirrux` account beside its app password,
+added by **Connect Cirrux Drive** on the Accounts page, and the face exists only once the grant
+is stored: until then its Test answers a measured no (*not connected*, or *no Cirrux client on
+this deployment*, with no button), and *Where does it go?* offers a saved Cirrux account for
+files only once its record measured the Drive. The refresh token rotates on every refresh and is
+written back under the row's lock, one refresh at a time (ADR-0052). Files up to 100 MB go as a
+simple upload; a changed file is replaced under `base_ctag` through the chunked flow, encrypted
+here in Cirrux's `CXDRV2` format, and a copy edited in Cirrux since is left alone; folders are
+found by name, case-insensitively; `content_modified_at` is kept; an approved deletion moves the
+copy to Cirrux's trash, never a permanent delete; storage is checked before the first upload,
+and `429` is waited out. A file over 100 MB waits for the chunked upload (0160 T5, second step),
+and one over 2 GiB is not moved, with the reason. 0160 T2b is the owner's live run.
 
 Also a target: **JMAP files** (workplan 0031 T3). A file larger than 8 MB arrives as a stream, and
 is uploaded as one. A file larger than the server takes in one upload (its session's
@@ -428,6 +436,7 @@ These hold across all object types, and are features rather than gaps:
 | Dropbox against a real account | ⏳ built, unproven | workplan 0055 T3(a) |
 | Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and *Start a migration* asks for it on *What moves?* with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
 | Box against a real account | ⏳ built, unproven | workplan 0056 T3(a) |
+| Cirrux Drive as a files target against a live Cirrux client (the consent, the rotating refresh written back, an upload, a replace under `base_ctag`, a trash) | ⏳ built against a fake; waits for the client Cirrux registers | workplan 0160 T2b; ADR-0052 |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |
