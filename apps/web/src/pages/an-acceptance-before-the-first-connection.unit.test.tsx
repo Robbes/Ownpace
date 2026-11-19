@@ -79,6 +79,7 @@ vi.mock('../components/BuildStamp.tsx', () => ({ default: () => null }));
 
 import AcceptanceGate from '../components/AcceptanceGate.tsx';
 import { rememberSignIn } from '../services/acceptance.ts';
+import { isConditionsNotAccepted } from '../services/conditions-refused.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 
 const SITE = 'https://www.ownpace.eu';
@@ -161,7 +162,10 @@ async function aDoorRefuses(): Promise<void> {
           }),
         ),
     })
-    .catch(() => undefined);
+    .catch((err: unknown) => {
+      // The refusal is the point; anything else failed the request for another reason.
+      if (!isConditionsNotAccepted(err)) throw err;
+    });
 }
 
 function refused(status: number, data: unknown): AxiosError {

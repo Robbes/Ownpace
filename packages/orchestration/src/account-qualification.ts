@@ -623,6 +623,8 @@ export async function qualifyAccount(
           calendarEndpoint.url,
           calendarEndpoint.username,
           calendarEndpoint.password,
+          undefined,
+          kind,
         )
       : undefined;
   const mail: QualifiedDomain =

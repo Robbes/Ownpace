@@ -12,6 +12,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, SCOPE_MANIFEST, lifecycleCounts, sourceFaceIsExperimental, type Person } from '@openmig/shared';
 import StartMigration, { CheckStep } from './StartMigration.tsx';
@@ -413,6 +414,55 @@ describe('Connect your accounts (screen 4)', () => {
     expect(screen.getByRole('button', { name: 'Check the sign-in' })).toBeEnabled();
     expect(screen.getByRole('textbox', { name: /^Username/ })).toHaveValue('anna@example.nl');
     expect(next()).toBeDisabled();
+  });
+
+  // The swallowed-error check of 2026-11-19 (workplan 0006 J): the removal's catch let
+  // any failure go, a fault in the page's own code as well as a refused request.
+  describe('when the account a failed check left is not removed', () => {
+    async function pressTryAgain() {
+      addMock.mockResolvedValue({ ok: false, id: 'c-bad', reason: 'Login failed' });
+      const user = userEvent.setup();
+      renderAt();
+      await toWhatMoves(user, ['Another mail provider']);
+      await onTo(user, 'Connect your accounts');
+      await user.type(await screen.findByRole('textbox', { name: /^Username/ }), 'anna@example.nl');
+      await user.click(screen.getByRole('button', { name: 'Check the sign-in' }));
+      const button = await screen.findByRole('button', { name: 'Try again' });
+      const readsBefore = listMock.mock.calls.length;
+      await user.click(button);
+      return readsBefore;
+    }
+
+    it('reads the accounts again when the server did not remove it, so the row it kept is listed', async () => {
+      const gone = new AxiosError('Request failed with status code 404', AxiosError.ERR_BAD_REQUEST);
+      gone.response = {
+        status: 404,
+        statusText: '',
+        data: { error: 'not_found', reason: 'No such connection.' },
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+      };
+      removeMock.mockRejectedValue(gone);
+
+      const readsBefore = await pressTryAgain();
+
+      expect(removeMock).toHaveBeenCalledWith('c-bad');
+      await vi.waitFor(() => expect(listMock.mock.calls.length).toBeGreaterThan(readsBefore));
+    });
+
+    it('throws a failure that is not the request’s, rather than dropping it', async () => {
+      const fault = new TypeError('a fault in the page');
+      removeMock.mockRejectedValue(fault);
+      const thrown: unknown[] = [];
+      const onUnhandled = (reason: unknown) => thrown.push(reason);
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        await pressTryAgain();
+        await vi.waitFor(() => expect(thrown).toContain(fault));
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+    });
   });
 
   it('says the saved accounts could not be read, and still offers a new one', async () => {

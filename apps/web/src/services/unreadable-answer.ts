@@ -64,7 +64,11 @@ function send(body: UnreadableAnswerBody): void {
       headers: { 'content-type': 'application/json', ...(token ? { authorization: `Bearer ${token}` } : {}) },
       body: JSON.stringify(body),
       keepalive: true,
-    }).catch(() => undefined);
+    }).catch((err: unknown) => {
+      // A report the network did not carry, which `fetch` rejects with a
+      // `TypeError`, is not kept. Anything else is this page's own, and is thrown.
+      if (!(err instanceof TypeError)) throw err;
+    });
   } catch {
     // No fetch at all: the report is not kept, and the sentence stands.
   }

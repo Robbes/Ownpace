@@ -9,6 +9,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import {
   CALENDAR_TARGET_SCHEDULING_ACTION,
+  measureTargetScheduling,
   schedulingRecorder,
 } from './target-scheduling.ts';
 import { asMappingId, asTenantId } from '@openmig/shared';
@@ -94,5 +95,53 @@ describe('schedulingRecorder: measured before the first write, once per mapping 
     }
     expect(ledger.recorded[0]?.detail).toMatchObject({ capability: 'unknown' });
     expect(String(ledger.recorded[0]?.detail?.sentence)).toContain('UNMEASURED');
+  });
+});
+
+describe('a target that mails guests whatever the marker says is said to be one (workplan 0160)', () => {
+  // Cirrux mailed invitations on 2026-11-19 for events whose every attendee
+  // carried SCHEDULE-AGENT=CLIENT. The writer now gives it no guests, and the
+  // sentence a person reads, and the audit row, say that instead of the
+  // promise the marker was meant to keep.
+  const answering = (dav: string) => ({
+    request: async () => ({ status: 200, body: '', headers: { DAV: dav } }),
+  });
+
+  it('says no guests are written, whatever the server advertises, and keeps the capability as measured', async () => {
+    for (const [dav, capability] of [
+      ['1, 2, calendar-access, calendar-auto-schedule', 'auto-schedule'],
+      ['1, 2, calendar-access', 'none'],
+    ] as const) {
+      const verdict = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering(dav), 'cirrux');
+      expect(verdict.capability).toBe(capability);
+      expect(verdict.sentence).toContain('without their guests and organiser');
+      expect(verdict.sentence).not.toContain('cannot happen here');
+      expect(verdict.sentence).not.toContain('neutralises');
+    }
+  });
+
+  it('records that sentence before the first calendar write', async () => {
+    const ledger = fakeLedger();
+    vi.stubGlobal('fetch', optionsAnsweringFetch('1, 2, calendar-access, calendar-auto-schedule'));
+    try {
+      await schedulingRecorder(ENDPOINT, { ledger, tenantId: TENANT, mappingId: MAPPING }, 'cirrux')();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(ledger.recorded[0]?.detail).toMatchObject({ capability: 'auto-schedule' });
+    expect(String(ledger.recorded[0]?.detail?.sentence)).toContain('without their guests and organiser');
+  });
+
+  it('leaves every other kind, and an unnamed one, with the sentence its server earned', async () => {
+    for (const kind of ['nextcloud', 'soverin', undefined]) {
+      const verdict = await measureTargetScheduling(
+        ENDPOINT.url,
+        'probe',
+        'pw',
+        answering('1, 2, calendar-access, calendar-auto-schedule'),
+        kind,
+      );
+      expect(verdict.sentence, String(kind)).toContain('measured on this target, not assumed');
+    }
   });
 });

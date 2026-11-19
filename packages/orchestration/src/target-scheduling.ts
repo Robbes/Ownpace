@@ -18,7 +18,7 @@
 
 import { detectCaldavScheduling } from '@openmig/connectors';
 import type { CaldavSchedulingCapability, HttpClient } from '@openmig/connectors';
-import { log } from '@openmig/shared';
+import { log, mailsGuestsItself } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { Ledger, MappingId, TenantId } from '@openmig/shared';
 
@@ -52,6 +52,20 @@ const SCHEDULING_SENTENCES: Record<CaldavSchedulingCapability, string> = {
     'calendar object it writes.',
 };
 
+/**
+ * The sentence for a target kind that mails guests whatever the marker says
+ * (`TARGETS_THAT_MAIL_GUESTS`, workplan 0160). For such a target what it
+ * advertises does not decide anything: Cirrux mailed invitations on
+ * 2026-11-19 for events whose every attendee was marked, so the writer gives
+ * it no guests at all, and the sentence says that instead of promising what
+ * the marker would do.
+ */
+const MAILS_GUESTS_SENTENCE =
+  'This target emails every guest an event lists, whatever the event says about ' +
+  'who sends invitations. Ownpace therefore writes events and tasks to it without ' +
+  'their guests and organiser, each kept as a comment that names them, so ' +
+  'migrating sends no invitations.';
+
 /** The OPTIONS probe wants only status + headers; the body stays unread. */
 const optionsHttpClient: HttpClient = {
   request: async ({ url, method, headers }) => {
@@ -64,18 +78,28 @@ const optionsHttpClient: HttpClient = {
   },
 };
 
+/**
+ * `kind` is the target's kind where the caller knows it: a kind in
+ * `TARGETS_THAT_MAIL_GUESTS` gets the sentence that says what the writer does
+ * for it, whatever the server advertised. The capability is still measured
+ * and kept as measured.
+ */
 export async function measureTargetScheduling(
   url: string,
   username: string,
   password: string,
   httpClient: HttpClient = optionsHttpClient,
+  kind?: string,
 ): Promise<SchedulingVerdict> {
   const capability = await detectCaldavScheduling(
     url,
     `Basic ${Buffer.from(`${username}:${password}`).toString('base64')}`,
     httpClient,
   );
-  return { capability, sentence: SCHEDULING_SENTENCES[capability] };
+  return {
+    capability,
+    sentence: mailsGuestsItself(kind) ? MAILS_GUESTS_SENTENCE : SCHEDULING_SENTENCES[capability],
+  };
 }
 
 /** The audit action the once-per-mapping verdict is recorded under. */
@@ -104,6 +128,8 @@ export function schedulingRecorder(
     readonly tenantId: TenantId;
     readonly mappingId: MappingId;
   },
+  /** The target's kind, so a target that mails guests is recorded as one (0160). */
+  kind?: string,
 ): () => Promise<void> {
   return async () => {
     try {
@@ -116,6 +142,8 @@ export function schedulingRecorder(
         endpoint.url,
         endpoint.username,
         endpoint.password,
+        undefined,
+        kind,
       );
       await deps.ledger.recordAuditEvent(deps.tenantId, {
         actor: 'system',
