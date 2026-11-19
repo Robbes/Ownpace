@@ -11,7 +11,7 @@
  *  - the managed pass notes the data types with no completed pass as it
  *    begins, marks one as finished only after `markCompleted` on a data type
  *    from that list, and asks after a closed run and on the way out of a
- *    failed one, never letting the asking fail the pass;
+ *    failed one, once a pass, never letting the asking fail the pass;
  *  - the appliance reads whether everything had arrived before it runs its
  *    data types, and says so only when it was not so then and is now, once.
  */
@@ -36,7 +36,11 @@ describe('the managed pass asks only when it finished a first copy', () => {
 
   it('asks after a closed run and on the way out of a failed one, and never fails the pass', () => {
     expect(pass).toMatch(/await closeRun\('succeeded', 0\);\s*await sayTheFirstCopy\(\);/);
-    expect(pass).toMatch(/await recordAppEvent\(failed\);\s*\/\/ Re-throw[^\n]*\n(?:\s*\/\/[^\n]*\n)*\s*await sayTheFirstCopy\(\);\s*throw await planeErrorFor\(/);
+    // A failed one too, once every data type has had its turn and the run is
+    // closed: once for the pass, never once per data type that failed (0143 T5,
+    // 2026-11-19, when a failure stopped ending the pass).
+    expect(pass).toMatch(/await closeRun\('failed', failures\.length\);\s*await sayTheFirstCopy\(\);\s*throw planeErrorForEach\(/);
+    expect(pass.match(/await sayTheFirstCopy\(\);/g) ?? []).toHaveLength(2);
     const asking = pass.slice(pass.indexOf('const sayTheFirstCopy'), pass.indexOf('for (const domain of domains) {'));
     expect(asking).toMatch(/if \(!finishedAFirstCopy\) return;/);
     expect(asking).toMatch(/try \{[\s\S]*announceFirstCopy\(pool, tenantId, mappingId\)[\s\S]*\} catch \(err\) \{/);

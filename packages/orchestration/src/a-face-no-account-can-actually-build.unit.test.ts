@@ -99,6 +99,13 @@ const PLAUSIBLE_ROW: Readonly<
     config: { user: 'someone@icloud.com' },
     creds: { username: 'someone@icloud.com', password: 'abcd-efgh-ijkl-mnop' },
   },
+  // Soverin's shape with Cirrux's published servers (workplan 0160): the DAV
+  // host its setup page names for calendars, contacts and reminders, and its
+  // IMAP host, each as the pre-filled door stores them.
+  cirrux: {
+    config: { host: 'api.cirrux.co', port: 443, mailHost: 'imap.cirrux.co', mailPort: 993 },
+    creds: { username: 'someone@example.com', password: 'the-app-password' },
+  },
 };
 
 /** Build one face of one row, the way a pass would. */
@@ -176,6 +183,20 @@ describe('an account kind\'s mail face connects to its MAIL host', () => {
       }),
       'a soverin row holds a DAV host and an IMAP host; the mail face must take the IMAP one',
     ).toEqual({ host: 'imap.soverin.net', port: 993 });
+  });
+
+  it('does the same for a cirrux row, whose two hosts differ by more than a prefix', () => {
+    // Cirrux's DAV host is `api.cirrux.co`, a name that says nothing about
+    // calendars, so a mail face that fell back to it would aim IMAP at the
+    // API server (workplan 0160).
+    expect(
+      accountMailEndpoint('cirrux', {
+        host: 'api.cirrux.co',
+        port: 443,
+        mailHost: 'imap.cirrux.co',
+        mailPort: 993,
+      }),
+    ).toEqual({ host: 'imap.cirrux.co', port: 993 });
   });
 
   it('falls back to the published endpoint when the row stores no host at all', () => {

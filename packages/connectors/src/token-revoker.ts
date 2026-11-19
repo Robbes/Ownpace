@@ -87,7 +87,7 @@ export class HttpTokenRevoker implements TokenRevoker {
   }): Promise<RevocationOutcome> {
     const { kind, credentials } = input;
 
-    const capability = revocationCapability(kind);
+    const capability = revocationCapability(kind, credentials);
     if (!capability.revocable) {
       // Not a failure. The reason is a fact about the provider, and it is the
       // sentence the customer needs in order to do the part only they can do.

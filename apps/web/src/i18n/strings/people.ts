@@ -90,6 +90,17 @@ export const en = {
   'people.new.email': 'Email address, for a grant link (optional)',
   'people.new.submit': 'Add person',
   'people.new.failed': 'The person was not added.',
+  // THE PERSON YOU ARE (ADR-0050, amended 2026-11-19): *Myself* when adding a
+  // person, *This is me* on a person's page. *Who is it for?* then chooses
+  // that person first, so the hint says it, under both.
+  'people.new.who': 'Who is this?',
+  'people.new.myself': 'Myself',
+  'people.new.someoneElse': 'Someone else',
+  'people.myself.hint': 'When you start a migration, this person is then chosen first.',
+  'person.me.is': 'This is you.',
+  'person.me.mark': 'This is me',
+  'person.me.unmark': 'This is not me',
+  'person.me.failed': 'Could not save whether this is you.',
   // A person's page (0153 T5): their migrations, and the steps before they
   // switch as one list (0154 T4). The steps keep the hub's names (hub.*).
   'person.back': '← Migrations',
@@ -209,6 +220,14 @@ export const nl: Record<keyof typeof en, string> = {
   'people.new.email': 'E-mailadres, voor een toegangslink (optioneel)',
   'people.new.submit': 'Persoon toevoegen',
   'people.new.failed': 'De persoon is niet toegevoegd.',
+  'people.new.who': 'Wie is dit?',
+  'people.new.myself': 'Ikzelf',
+  'people.new.someoneElse': 'Iemand anders',
+  'people.myself.hint': 'Als u een migratie start, is deze persoon dan al gekozen.',
+  'person.me.is': 'Dit bent u.',
+  'person.me.mark': 'Dit ben ik',
+  'person.me.unmark': 'Dit ben ik niet',
+  'person.me.failed': 'Kon niet opslaan of dit u bent.',
   'person.back': '← Migraties',
   'person.notFound': 'Deze persoon bestaat hier niet.',
   'person.loadFailed': 'Kon deze persoon niet laden.',

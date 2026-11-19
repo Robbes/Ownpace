@@ -20,9 +20,12 @@
  *    data type as the app names it, and the picture is an image named by its
  *    own title and description.
  * 4. **The home page shows it once, after its buttons,** so on a phone the
- *    buttons come first; the three facts follow, then How it works in three
- *    steps, linking the whole page. How it works ends with the hero's two
- *    buttons (T3 (c)).
+ *    buttons come first; the three facts follow, then How it works in its
+ *    page's own five steps (three until 2026-11-19, a list the page did not
+ *    have). Each is the page's heading for that step, or its words before the
+ *    dash, under the
+ *    picture the heading carries, and links to it; the page's first sentence
+ *    leads them. How it works ends with the hero's two buttons (T3 (c)).
  */
 
 import { describe, it, expect } from 'vitest';
@@ -56,7 +59,8 @@ type Copy = Record<
      * title (2026-10-18), so a heading never opens a code file.
      */
     facts: Array<[string | ((links: Record<string, string>) => string), string | ((links: Record<string, string>) => string)]>;
-    strip: { steps: Array<[string, string]>; more: string };
+    strip: { lede: string; anchor: string; steps: Array<[string, string]>; more: string };
+    nav: { how: string };
     dataTypes: Record<string, string>;
     leaving: { photos: string };
     files: Record<string, string>;
@@ -120,7 +124,7 @@ describe('the hero is the drawing (0152 T3)', () => {
     expect(symbolsOf(read(DRAWING))).toEqual(symbolsOf(read('docs/design/0152-0154/icons.svg')));
   });
 
-  it('shows it once on each home page, after the buttons, with the three facts and How it works in three steps', async () => {
+  it('shows it once on each home page, after the buttons, with the three facts and How it works in its page’s five steps', async () => {
     process.env.OWNPACE_APP_URL ??= 'https://app.ota.ownpace.eu';
     const { rendered } = await site<{ rendered: Array<{ file: string; locale: string; key: string; html: string }> }>(
       'build.mjs',
@@ -156,10 +160,33 @@ describe('the hero is the drawing (0152 T3)', () => {
         at = found;
       }
       const strip = after.slice(after.indexOf('<ol class="strip">'), after.indexOf('</ol>', after.indexOf('<ol class="strip">')));
-      expect(strip.match(/<li>/g)?.length, `${file}: How it works is not three steps`).toBe(3);
-      for (const [h, p] of c.strip.steps) expect(strip).toContain(`<h3>${h}</h3><p>${p}</p>`);
       const how = `${locale === 'nl' ? '/nl' : ''}/${c.files.how}`;
-      expect(after, `${file}: the three steps do not link How it works`).toContain(`<a href="${how}">${c.strip.more} `);
+      // How it works's own steps: each heading's id, picture, number and words.
+      const page = rendered.find((p) => p.key === 'how' && p.locale === locale)!.html;
+      const steps = [
+        ...page.matchAll(/<h2 id="([^"]+)" class="step-h">(<span class="step-icon"[\s\S]*?<\/span>)(\d)\. ([^<]*)<\/h2>/g),
+      ];
+      expect(steps.length, `${locale}: How it works is not five steps, each heading with its picture`).toBe(5);
+      expect(strip.match(/<li>/g)?.length, `${file}: How it works is not its page's ${steps.length} steps`).toBe(steps.length);
+      expect(after, `${file}: How it works does not open with its page's first sentence`).toContain(
+        `<h2>${c.nav.how}</h2>\n<p>${c.strip.lede}</p>`,
+      );
+      expect(page, `${locale}: the page does not open with the home page's sentence`).toContain(`<p>${c.strip.lede} `);
+      steps.forEach(([, id, picture, n, heading], i) => {
+        const [title, text] = c.strip.steps[i]!;
+        expect(Number(n), `${locale}: How it works's step ${i + 1} is numbered ${n}`).toBe(i + 1);
+        expect(id, `${locale}: step ${i + 1}'s heading has no id of its own`).toBe(`${c.strip.anchor}-${i + 1}`);
+        // The home page's words for a step are the page's heading, or its words before the dash.
+        expect(
+          heading === title || heading!.startsWith(`${title} — `),
+          `${file}: step ${i + 1} is "${title}" here and "${heading}" on How it works`,
+        ).toBe(true);
+        expect(strip, `${file}: step ${i + 1} is not the page's, under its picture and linking to it`).toContain(
+          `<li>${picture}<div><h3><a href="${how}#${id}"><span class="step" aria-hidden="true">${i + 1}.</span> ${title}</a></h3><p>${text}</p></div></li>`,
+        );
+      });
+      expect(new Set(steps.map(([, , picture]) => picture)).size, `${locale}: two steps share a picture`).toBe(steps.length);
+      expect(after, `${file}: the steps do not link How it works`).toContain(`<a href="${how}">${c.strip.more} `);
     }
     for (const [locale, file] of [
       ['en', 'how-it-works.html'],

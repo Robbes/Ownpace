@@ -31,8 +31,11 @@ import {
   displayNameForCalendar,
   isOnTarget,
   neutraliseScheduling,
+  namesGuests,
+  withoutGuests,
 } from '@openmig/shared';
-import { CALENDAR_COMPONENTS, componentOfIcalendar } from '@openmig/shared';
+import { createHash } from 'node:crypto';
+import { CALENDAR_COMPONENTS, collectionCarries, componentOfIcalendar } from '@openmig/shared';
 import { davRefusalBody, withFailureCategory } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import { payloadDefectNote } from './dav-payload-defects.ts';
@@ -51,6 +54,7 @@ import {
   sizeOf,
 } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
+import { NOT_THIS_PLACE, isNamed, discoverHomeSet, type CollectionAt } from './dav-home-set.ts';
 import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
@@ -71,6 +75,13 @@ export interface CalDAVTargetConfig {
   color?: string;
   /** Default calendar description */
   description?: string;
+  /**
+   * The target mails every guest of what it is handed, whatever
+   * `SCHEDULE-AGENT` says (`TARGETS_THAT_MAIL_GUESTS`, workplan 0160): write
+   * each object without ATTENDEE and ORGANIZER (`withoutGuests`), so there is
+   * nobody to mail. Set from the target's kind by the deps builders.
+   */
+  mailsGuests?: boolean;
 }
 
 /**
@@ -81,6 +92,54 @@ export interface CalDAVTargetConfig {
  * union that admitted them would let a caller hand one over by mistake.
  */
 export type CalDavLedgerDomain = Extract<DiscoveryDomain, 'calendar' | 'task'>;
+
+/** One calendar a server listed: where it is, what it calls itself, and what it says it holds. */
+interface CalendarAt extends CollectionAt {
+  /** Absent when it declares no `supported-calendar-component-set`, and then it holds every kind. */
+  readonly components?: ReadonlyArray<CalendarComponent>;
+}
+
+/**
+ * What a `supported-calendar-component-set` in this XML declares, or
+ * undefined when it declares nothing this product knows. Undeclared means
+ * the collection holds every kind (RFC 4791 §5.2.3; see `collectionCarries`).
+ */
+function componentsDeclaredIn(xml: string): ReadonlyArray<CalendarComponent> | undefined {
+  const set = firstElementText(xml, 'supported-calendar-component-set');
+  if (!set) return undefined;
+  const known = new Set<string>(CALENDAR_COMPONENTS);
+  const components = [...set.matchAll(/<(?:[A-Za-z0-9._-]+:)?comp\s[^>]*name=["']([^"']+)["']/gi)]
+    .map((m) => m[1]!.toUpperCase())
+    .filter((name) => known.has(name)) as CalendarComponent[];
+  return components.length > 0 ? [...new Set(components)] : undefined;
+}
+
+/**
+ * THE LAST SEGMENT OF A NEW CALENDAR'S ADDRESS, IN A HOME THE SERVER NAMED:
+ * a UUID, the same one on every pass (workplan 0160).
+ *
+ * Where this writer assumes Nextcloud's layout, a new calendar is made at
+ * its slug, as it always was. In a home the server named, that is no longer
+ * a safe guess. Cirrux names its calendars by UUID
+ * (https://cirrux.co/help/api/calendar, read 2026-11-19), as Apple's apps
+ * name the calendars they make. On a test mailbox on 2026-11-19, Cirrux
+ * answered 201 to an MKCALENDAR at a slug, and then refused with 404 every
+ * event written to that address.
+ *
+ * Derived, not random, so that every pass asks for the same address, and so
+ * a calendar made by an earlier pass is found again by its path, even after
+ * its owner renames it. A task list and a calendar with the same name get
+ * different addresses. The UUID has version 5's shape (RFC 9562 §5.5), from
+ * SHA-1 over a name of this writer's own rather than over a registered
+ * namespace.
+ */
+export function newCalendarSegment(username: string, domain: CalDavLedgerDomain, slug: string): string {
+  const hash = createHash('sha1').update(`ownpace:new-calendar:v1\n${username}\n${domain}\n${slug}`).digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
+}
 
 /**
  * CalDAV target writer implementation
@@ -125,6 +184,8 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
    * listing instead of racing to build it N times.
    */
   private readonly collectionKeys = new Map<string, Promise<Map<string, string> | undefined>>();
+  /** The calendar home the server names; asked once, see `discoveredHomeSet`. */
+  private discoveredHome: Promise<string | undefined> | undefined;
 
   constructor(
     config: CalDAVTargetConfig,
@@ -154,10 +215,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // folder handed to us by the domain-sync loop is the SOURCE collection (e.g.
     // /remote.php/dav/calendars/<source-user>/personal/); using its path verbatim
     // would target the wrong user (or double the DAV prefix). We therefore derive a
-    // stable slug from the folder and re-home it under calendars/<target-user>/.
-    const calendarPath = this.normalizeCalendarPath(
-      `calendars/${this.config.username}/${collectionSlug(folder.name, folder.path, 'calendar')}`,
-    );
+    // stable slug from the folder and re-home it under calendars/<target-user>/,
+    // where Nextcloud and SabreDAV keep a user's calendars. A server that keeps
+    // them elsewhere is asked where (see `calendarAfterRefusal`).
+    const slug = collectionSlug(folder.name, folder.path, 'calendar');
+    const calendarPath = this.normalizeCalendarPath(`calendars/${this.config.username}/${slug}`);
 
     // Check if calendar already exists via PROPFIND
     const exists = await this.calendarExists(calendarPath);
@@ -166,8 +228,215 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
 
     // Create new calendar using MKCALENDAR
-    await this.createCalendar(calendarPath, folder);
-    return calendarPath;
+    const made = await this.createCalendar(calendarPath, folder);
+    if (made.status === 201) return calendarPath;
+    return this.calendarAfterRefusal(folder, slug, calendarPath, made);
+  }
+
+  /**
+   * WHERE THE CALENDAR GOES WHEN THE ASSUMED PLACE IS REFUSED (workplan 0160).
+   *
+   * Nextcloud's layout is an assumption, and Cirrux does not keep it: on a
+   * test mailbox, on 2026-11-19, its CalDAV server answered the MKCALENDAR
+   * at `calendars/<mailbox>/<slug>/` with 404. The calendar pass failed
+   * before it wrote an event, and since a failed type ends the pass, the
+   * tasks and the mail behind it had no turn either. So the server is asked
+   * where this account's calendars are, and the folder goes, in this order:
+   *
+   *   1. into a calendar the account already has under the folder's name and
+   *      that holds this writer's kind (VEVENT, or VTODO for a task list), as
+   *      it does when the assumed path exists;
+   *   2. into a new calendar in the home the server named, where that is not
+   *      the home this writer assumed, at a UUID of its own
+   *      (`newCalendarSegment`) and read back where the server says it made
+   *      it (`whereItWasMade`). Apps add task lists to a Cirrux mailbox over
+   *      CalDAV (https://cirrux.co/help/api/tasks, read 2026-11-19);
+   *   3. into the account's ONE calendar that holds this kind, where no new
+   *      one can be made.
+   *
+   * Several, and none of them this folder's, is not guessed between: the pass
+   * fails, and names them.
+   */
+  private async calendarAfterRefusal(
+    folder: CalendarFolder,
+    slug: string,
+    assumedPath: string,
+    refusal: HttpResponse,
+  ): Promise<string> {
+    const refused = `MKCALENDAR failed for ${assumedPath} with status ${refusal.status}: ${davRefusalBody(refusal.body)}`;
+    if (!NOT_THIS_PLACE.has(refusal.status)) throw new Error(refused);
+
+    let account: { home: string; calendars: CalendarAt[] };
+    try {
+      account = await this.accountCalendars();
+    } catch (err) {
+      throw new Error(
+        `${refused}. Looking for this account's own calendars failed too: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      );
+    }
+    const { home } = account;
+    const kind: CalendarComponent = this.domain === 'task' ? 'VTODO' : 'VEVENT';
+    const holding = account.calendars.filter((calendar) => collectionCarries(calendar.components, kind));
+
+    // By its name, or by the address an earlier pass made it at, which still
+    // holds after its owner renames it.
+    const segment = newCalendarSegment(this.config.username, this.domain, slug);
+    const named = holding.find(
+      (calendar) => isNamed(calendar, slug) || collectionSlug(undefined, calendar.path, '') === segment,
+    );
+    if (named !== undefined) return named.path;
+
+    if (home !== this.assumedHome()) {
+      const path = this.normalizeCalendarPath(`${home}${segment}`);
+      const there = await this.createCalendar(path, folder);
+      if (there.status === 201) return this.whereItWasMade(path, there, folder, slug, home, account.calendars, kind);
+      if (!NOT_THIS_PLACE.has(there.status)) {
+        throw new Error(`MKCALENDAR failed for ${path} with status ${there.status}: ${davRefusalBody(there.body)}`);
+      }
+    }
+
+    const only = holding.length === 1 ? holding[0] : undefined;
+    if (only !== undefined) {
+      log.info(
+        `[caldav] no calendar can be made for ${folder.name || slug} (MKCALENDAR ${refusal.status}); ` +
+          `its ${kind} objects go into ${only.path}, the one calendar this account has that holds them`,
+      );
+      return only.path;
+    }
+    throw new Error(
+      `${refused}. No calendar could be made for ${folder.name || slug}, and the account has ` +
+        (holding.length === 0
+          ? `none at ${home} that holds ${kind} to write into.`
+          : `${holding.length} at ${home} that hold ${kind}, none of them by that name ` +
+            `(${holding.map((calendar) => calendar.displayName ?? calendar.path).join(', ')}): ` +
+            'which one they go into is not guessed.'),
+    );
+  }
+
+  /**
+   * WHERE A CALENDAR THE SERVER SAID IT MADE ACTUALLY IS (workplan 0160).
+   *
+   * RFC 4791 §5.3.1 makes the calendar at the address asked for, and a 201
+   * says it did. Cirrux's 201, on 2026-11-19, did not: every event written to
+   * that address was then refused with 404. So in a home the server named, a
+   * 201 is read back:
+   *
+   *   1. a calendar at the address asked for, which is where a server that
+   *      follows the RFC made it;
+   *   2. a calendar at the `Location` the answer gave, on this host and under
+   *      this base;
+   *   3. the calendar the home lists now and did not list before: the one with
+   *      the folder's name, or the only new one that holds this kind.
+   *
+   * None of these, and the pass fails, naming what it asked for, rather than
+   * writing every event of the folder to an address the server refuses.
+   */
+  private async whereItWasMade(
+    path: string,
+    made: HttpResponse,
+    folder: CalendarFolder,
+    slug: string,
+    home: string,
+    before: readonly CalendarAt[],
+    kind: CalendarComponent,
+  ): Promise<string> {
+    if (await this.calendarIsAt(path)) return path;
+
+    const location = made.headers['location'];
+    if (location !== undefined && location.trim() !== '') {
+      const at = this.calendarPathFromHref(location.trim(), path);
+      if (at !== undefined && at !== path && (await this.calendarIsAt(at))) {
+        log.info(`[caldav] MKCALENDAR for ${path} made ${folder.name || slug} at ${at}, the address it answered with`);
+        return at;
+      }
+    }
+
+    const after = await this.calendarsIn(home);
+    const known = new Set(before.map((calendar) => calendar.path));
+    const fresh =
+      after.status === 207
+        ? after.calendars.filter(
+            (calendar) => !known.has(calendar.path) && collectionCarries(calendar.components, kind),
+          )
+        : [];
+    const chosen = fresh.find((calendar) => isNamed(calendar, slug)) ?? (fresh.length === 1 ? fresh[0] : undefined);
+    if (chosen !== undefined) {
+      log.info(
+        `[caldav] MKCALENDAR for ${path} made ${folder.name || slug} at ${chosen.path}, ` +
+          `which the server lists in ${home}; not where it was asked for`,
+      );
+      return chosen.path;
+    }
+    throw new Error(
+      `MKCALENDAR for ${path} was answered 201, but no calendar is there, the answer named no other ` +
+        `address that holds one, and ${home} ` +
+        (after.status !== 207
+          ? `could not be listed again (status ${after.status}).`
+          : fresh.length === 0
+            ? `lists no new calendar that holds ${kind}.`
+            : `lists ${fresh.length} new ones that hold ${kind}, none of them by that name ` +
+              `(${fresh.map((calendar) => calendar.displayName ?? calendar.path).join(', ')}): ` +
+              'which one it made is not guessed.'),
+    );
+  }
+
+  /** A server href as this writer's calendar path, or undefined when it lies on another host or outside the base. */
+  private calendarPathFromHref(href: string, requestedPath: string): string | undefined {
+    let url: URL;
+    try {
+      url = new URL(href, this.buildUrl(requestedPath));
+    } catch {
+      return undefined;
+    }
+    const base = this.buildUrl('');
+    if (url.origin !== new URL(base).origin) return undefined;
+    const relative = hrefRelativeTo(url.pathname, base);
+    if (relative === undefined || relative === '') return undefined;
+    return this.normalizeCalendarPath(relative);
+  }
+
+  /**
+   * Is a calendar at this address? Its resourcetype, asked at Depth 0, says
+   * so. A 207 alone does not: a server that answers 201 for a calendar it
+   * keeps elsewhere may answer for an address that holds none.
+   */
+  private async calendarIsAt(path: string): Promise<boolean> {
+    try {
+      const response = await this.httpClient.request({
+        method: 'PROPFIND',
+        url: this.buildUrl(path),
+        body: `<?xml version="1.0" encoding="utf-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`,
+        headers: {
+          Depth: '0',
+          'Content-Type': 'application/xml',
+          Authorization: this.authHeader(),
+        },
+      });
+      return (
+        response.status === 207 && parseMultiStatus(response.body).some((r) => hasResourceType(r.xml, 'calendar'))
+      );
+    } catch (err) {
+      log.warn(`[caldav] could not read ${path} back: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  }
+
+  /** The status a Depth-0 PROPFIND of one collection answers, or undefined when it could not be asked. */
+  private async collectionStatus(path: string): Promise<number | undefined> {
+    try {
+      const response = await this.httpClient.request({
+        method: 'PROPFIND',
+        url: this.buildUrl(path),
+        headers: { Depth: '0', Authorization: this.authHeader() },
+      });
+      return response.status;
+    } catch (err) {
+      log.warn(`[caldav] could not ask whether ${path} is there: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
   }
 
   /**
@@ -272,6 +541,10 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // tripwire — both of which describe something else.
         return { targetId: written.path, created: false, conflicted: true };
       }
+      // Nothing was written, and nobody was mailed: the copy lists guests the
+      // target would have mailed (above). Reported, not thrown, for the same
+      // reasons; and not a conflict, since nobody edited the copy.
+      if (written.keptForGuests) return { targetId: written.path, created: false, keptForGuests: true };
       (await this.keysIn(calendarId))?.set(naturalKey, written.path);
       return {
         targetId: written.path,
@@ -582,29 +855,69 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
   }
 
-  /** Every calendar collection under `calendars/<username>/`. */
+  /** Every calendar collection of this account; see `accountCalendars` for where they are looked for. */
   private async listCalendarCollections(): Promise<string[]> {
-    const homeSet = this.normalizeCalendarPath(`calendars/${this.config.username}`);
+    return (await this.accountCalendars()).calendars.map((calendar) => calendar.path);
+  }
+
+  /** Nextcloud's and SabreDAV's place for this account's calendars, assumed first. */
+  private assumedHome(): string {
+    return this.normalizeCalendarPath(`calendars/${this.config.username}`);
+  }
+
+  /**
+   * This account's calendar home and the calendars in it (workplan 0160).
+   *
+   * The assumed home first, as before. When it holds no calendar, or answers
+   * with one of `NOT_THIS_PLACE`'s statuses, the home the server names
+   * instead. An assumed home that lists empty, with no other named, is an
+   * account without calendars, and says so. Every other failure throws.
+   * Failing loudly matters more here than anywhere else: an empty list is
+   * indistinguishable from "the target has no events", which verification
+   * would report as total data loss (hard rule 9).
+   */
+  private async accountCalendars(): Promise<{ home: string; calendars: CalendarAt[] }> {
+    const assumed = this.assumedHome();
+    const here = await this.calendarsIn(assumed);
+    if (here.status === 207 && here.calendars.length > 0) return { home: assumed, calendars: here.calendars };
+
+    if (here.status === 207 || NOT_THIS_PLACE.has(here.status)) {
+      const named = await this.discoveredHomeSet();
+      if (named !== undefined && named !== assumed) {
+        const there = await this.calendarsIn(named);
+        if (there.status === 207) return { home: named, calendars: there.calendars };
+        throw new Error(
+          `PROPFIND on calendar home set ${named} failed with status ${there.status}: ${davRefusalBody(there.body)}`,
+        );
+      }
+      if (here.status === 207) return { home: assumed, calendars: here.calendars };
+    }
+
+    throw new Error(
+      `PROPFIND on calendar home set ${assumed} failed with status ${here.status}: ${davRefusalBody(here.body)}`,
+    );
+  }
+
+  /**
+   * The calendars directly under `home`, with their names and the kinds they
+   * say they hold; `calendars` is empty unless 207.
+   */
+  private async calendarsIn(
+    home: string,
+  ): Promise<{ status: number; body: string; calendars: CalendarAt[] }> {
     const response = await this.httpClient.request({
       method: 'PROPFIND',
-      url: this.buildUrl(homeSet),
+      url: this.buildUrl(home),
       body: `<?xml version="1.0" encoding="utf-8"?>
-        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`,
+        <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav"><D:prop>` +
+        '<D:resourcetype/><D:displayname/><C:supported-calendar-component-set/></D:prop></D:propfind>',
       headers: {
         Depth: '1',
         'Content-Type': 'application/xml',
         Authorization: this.authHeader(),
       },
     });
-
-    if (response.status !== 207) {
-      // Failing loudly matters more here than anywhere else: an empty list is
-      // indistinguishable from "the target has no events", which verification
-      // would report as total data loss (hard rule 9).
-      throw new Error(
-        `PROPFIND on calendar home set ${homeSet} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
-      );
-    }
+    if (response.status !== 207) return { status: response.status, body: response.body, calendars: [] };
 
     // An href in a multistatus is SERVER-absolute (`/remote.php/dav/calendars/
     // <user>/personal/`), while `buildUrl` treats its argument as relative to
@@ -619,15 +932,42 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // only the reindexer feeds server hrefs back in, so it surfaced the first
     // time verification ran against a real Nextcloud. `hrefRelativeTo` (#142)
     // exists for exactly this and is what the WebDAV reindexer already uses.
-    return parseMultiStatus(response.body)
+    const calendars = parseMultiStatus(response.body)
       .filter((r) => hasResourceType(r.xml, 'calendar'))
-      .map((r) => hrefRelativeTo(r.href, this.buildUrl('')))
-      // An href outside the configured base is not ours to read; dropping it is
-      // right, and `''` is the home set itself — not a calendar, though some
-      // servers list it.
-      .filter((relative): relative is string => relative !== undefined && relative !== '')
-      .map((relative) => this.normalizeCalendarPath(relative))
-      .filter((path) => path !== homeSet);
+      .flatMap((r): CalendarAt[] => {
+        const relative = hrefRelativeTo(r.href, this.buildUrl(''));
+        // An href outside the configured base is not ours to read; dropping it
+        // is right, and `''` is the home set itself — not a calendar, though
+        // some servers list it.
+        if (relative === undefined || relative === '') return [];
+        const path = this.normalizeCalendarPath(relative);
+        if (path === home) return [];
+        const name = firstElementText(r.xml, 'displayname');
+        const displayName = name === undefined ? '' : unescapeXml(name).trim();
+        const components = componentsDeclaredIn(r.xml);
+        return [
+          {
+            path,
+            ...(displayName === '' ? {} : { displayName }),
+            ...(components === undefined ? {} : { components }),
+          },
+        ];
+      });
+    return { status: 207, body: response.body, calendars };
+  }
+
+  /**
+   * The calendar home the SERVER names for this account (RFC 4791 §6.2.1),
+   * asked as `discoverHomeSet` says, or undefined.
+   *
+   * Asked once per writer, and only after the assumed home failed, so a
+   * server that serves Nextcloud's layout costs no request more than before.
+   */
+  private discoveredHomeSet(): Promise<string | undefined> {
+    this.discoveredHome ??= discoverHomeSet('caldav', this.buildUrl(''), this.authHeader(), (options) =>
+      this.httpClient.request(options),
+    ).then((relative) => (relative === undefined ? undefined : this.normalizeCalendarPath(relative)));
+    return this.discoveredHome;
   }
 
   /** Every calendar resource in one collection, as ledger-shaped entries. */
@@ -815,7 +1155,8 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
   }
 
-  private async createCalendar(path: string, folder: CalendarFolder): Promise<void> {
+  /** Make one calendar, and hand back the server's answer: 201 when made, the refusal otherwise. */
+  private async createCalendar(path: string, folder: CalendarFolder): Promise<HttpResponse> {
     // RFC 4791 §5.3.1: the MKCALENDAR request body's root element MUST be in the CalDAV
     // namespace (C:mkcalendar), not DAV: — servers (e.g. SabreDAV, which Nextcloud uses)
     // deserialize the body by its Clark-notation element name and silently fail to create a
@@ -854,9 +1195,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       },
     });
 
-    if (response.status !== 201) {
-      throw new Error(`MKCALENDAR failed for ${path} with status ${response.status}: ${davRefusalBody(response.body)}`);
-    }
+    return response;
   }
 
   /**
@@ -921,10 +1260,41 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     uid: string,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean; keptForGuests?: boolean }> {
     // Generate event filename from UID
     const filename = `${uid}.ics`;
     const eventPath = `${calendarId}${filename}`;
+
+    // A COPY THAT STILL LISTS GUESTS IS NOT REWRITTEN, at a target that mails
+    // its guests itself (workplan 0160, 2026-11-19).
+    //
+    // The rewrite below goes through `withoutGuests`, which takes every guest
+    // off, and Cirrux mails a guest a cancellation when they are taken off an
+    // event. A copy written before the guests came out (#1947) still lists
+    // them. So the copy the target holds is read first, and left exactly as it
+    // is when it lists a guest: the copy's guests are the ones who would be
+    // mailed, whatever the source says now. Gone (404, 410), there is nobody
+    // to mail and the rewrite goes on as before. A read that cannot say, a
+    // refusal or an answer with no calendar object in it, throws, with
+    // nothing written: an unknown copy is not a copy without guests.
+    if (overwrite && this.config.mailsGuests) {
+      const held = await this.requestWithRetry({
+        method: 'GET',
+        url: this.buildUrl(eventPath),
+        headers: { Authorization: this.authHeader() },
+      });
+      if (held.status !== 404 && held.status !== 410) {
+        const answered = held.status >= 200 && held.status < 300;
+        if (!answered || !/BEGIN:VCALENDAR/i.test(held.body)) {
+          throw new Error(
+            `GET ${eventPath} ${answered ? 'answered with no calendar object' : `failed with status ${held.status}`}, ` +
+              'so whether the copy there still lists guests is unknown, and this target mails each guest a ' +
+              'rewrite takes off. Nothing was written.',
+          );
+        }
+        if (namesGuests(held.body)) return { path: eventPath, keptForGuests: true };
+      }
+    }
 
     // OWNERSHIP, checked at the last possible moment: by the server, in the
     // PUT itself (workplan 0149 T3).
@@ -958,7 +1328,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // DELETE (take-back, gated apply) does not fan out CANCELs. This
       // cannot disturb change detection: calendarContentHash fingerprints
       // UID/SUMMARY/DESCRIPTION/LOCATION only, pinned by test.
-      body: neutraliseScheduling(raw.icalendar),
+      //
+      // A target that mails guests regardless (Cirrux, 2026-11-19, workplan
+      // 0160) gets no guest at all: each ATTENDEE and ORGANIZER becomes a
+      // COMMENT naming them, which is not fingerprinted either.
+      body: neutraliseScheduling(this.config.mailsGuests ? withoutGuests(raw.icalendar) : raw.icalendar),
       headers: {
         'Content-Type': 'text/calendar',
         // Create-only, atomically, UNLESS this is a deliberate rewrite.
@@ -1119,6 +1493,15 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     const plain =
       `PUT failed for ${eventPath} with status ${response.status}: ` +
       `${davRefusalBody(response.body)}${payloadDefectNote(icalendar)}`;
+    // A 404 to a PUT usually means the calendar itself is not there, which is
+    // what every one of 25 refusals meant on 2026-11-19 (workplan 0160), and
+    // which the server's own words did not say.
+    if (response.status === 404 && (await this.collectionStatus(calendarId)) === 404) {
+      return (
+        `PUT failed for ${eventPath} with status 404: the calendar ${calendarId} is not on the server, ` +
+        `so nothing can be written into it. Server said: ${davRefusalBody(response.body)}`
+      );
+    }
     const component = componentOfIcalendar(icalendar);
     if (!component) return plain;
     let accepted: ReadonlyArray<CalendarComponent> | undefined;
@@ -1156,15 +1539,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       },
     });
     if (response.status !== 207) return undefined;
-    const set = response.body.match(
-      /<[A-Za-z]+:supported-calendar-component-set[^>]*>([\s\S]*?)<\/[A-Za-z]+:supported-calendar-component-set>/i,
-    );
-    if (!set?.[1]) return undefined;
-    const known = new Set<string>(CALENDAR_COMPONENTS);
-    const components = [...set[1].matchAll(/<[A-Za-z]*:?comp\s[^>]*name="([^"]+)"/gi)]
-      .map((m) => m[1]!.toUpperCase())
-      .filter((name) => known.has(name)) as CalendarComponent[];
-    return components.length > 0 ? [...new Set(components)] : undefined;
+    return componentsDeclaredIn(response.body);
   }
 
   private escapeXml(str: string): string {
@@ -1198,6 +1573,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       authorization: this.authHeader(),
       request: (opts) => this.httpClient.request(opts),
       kind: 'deleted',
+      // A copy that still lists guests is not deleted at a target that mails
+      // them a cancellation for it (workplan 0160): see `keepIfItListsGuests`.
+      ...(this.config.mailsGuests ? { keepIfItListsGuests: true } : {}),
       ...(options?.expectedTargetVersion !== undefined
         ? { expectedTargetVersion: options.expectedTargetVersion }
         : {}),

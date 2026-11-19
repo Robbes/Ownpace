@@ -361,7 +361,11 @@ the tenant, each set transaction-locally by its own helper in `db.ts`:
 
 `grant_link_allowance` has one policy for every command, on the tenant, and
 `vat_consultation` has SELECT and INSERT only. `person` has one policy for every
-command, on the tenant. `person_migration`'s adds to it that a row it writes
+command, on the tenant. Its `user_id`, the member a person is (managed `0061`),
+is held to one of that same tenant's members by a key to `tenant_member
+(tenant_id, user_id)`, checked past row security like every key, so the policy
+needed nothing new; removing the member sets it back to NULL
+(`ON DELETE SET NULL (user_id)`). `person_migration`'s adds to it that a row it writes
 names a migration of that tenant (managed `0031`). Its key already holds the
 person to that tenant, and a key is checked past row security, so the policy is
 what holds the migration. `legal_acceptance` (managed `0032`)

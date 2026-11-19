@@ -17,6 +17,10 @@
 # address browsers actually use, e.g. the machine's VPN IP).
 {
 	default_sni {$TRIGGER_TLS_HOST}
+	# Caddy runs as uid 65532 (deploy/compose/caddy/Dockerfile, THE USER, since
+	# 2026-11-19), which cannot write the system's trust store, and nothing in
+	# the container trusts the local CA: so it does not try to install its root.
+	skip_install_trust
 }
 
 {$TRIGGER_TLS_HOST}:3443 {

@@ -351,6 +351,7 @@ TRIGGER_API_URL="${TRIGGER_API_ORIGIN:-http://localhost:3090}" \
   MICROSOFT_OAUTH_CLIENT_ID="${MICROSOFT_OAUTH_CLIENT_ID:-}" \
   MICROSOFT_OAUTH_CLIENT_SECRET="${MICROSOFT_OAUTH_CLIENT_SECRET:-}" \
   MICROSOFT_OAUTH_TENANT="${MICROSOFT_OAUTH_TENANT:-}" \
+  CIRRUX_OAUTH_CLIENT_ID="${CIRRUX_OAUTH_CLIENT_ID:-}" \
   SMTP_HOST="${SMTP_HOST:-}" \
   SMTP_PORT="${SMTP_PORT:-}" \
   SMTP_SECURE="${SMTP_SECURE:-}" \
@@ -465,6 +466,12 @@ const { envvars } = require("@trigger.dev/sdk");
     // a message about the application not being found.
     "MICROSOFT_OAUTH_CLIENT_ID", "MICROSOFT_OAUTH_CLIENT_SECRET",
     "MICROSOFT_OAUTH_TENANT",
+    // And the public client of Cirrux (workplan 0160 T5): a pass refreshes
+    // the Drive sign-in of a Cirrux account with it, and writes the successor
+    // back (ADR-0052). Without it here, the API connects Drive and every
+    // pass into it fails. (No apostrophe in this list: it is inside the
+    // single-quoted script.)
+    "CIRRUX_OAUTH_CLIENT_ID",
     "SMTP_HOST", "SMTP_PORT", "SMTP_SECURE", "SMTP_USER", "SMTP_PASSWORD",
     "NOTIFY_FROM", "NOTIFY_TO", "NOTIFY_LOCALE",
     "LEDGER_RETENTION_DAYS", "LEDGER_RUN_RETENTION_DAYS", "LARGEST_FILE_MB",

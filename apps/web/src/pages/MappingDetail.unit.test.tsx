@@ -13,6 +13,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { fireEvent, render, screen, within } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { AxiosError } from 'axios';
 import { STRINGS } from '../i18n/strings.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 
@@ -477,10 +478,28 @@ describe('the schedule panel (the owner, 2026-09-28)', () => {
   });
 
   it('shows the page as it would without the visit, when the visit is not recorded', async () => {
-    mappingVisitMock.mockRejectedValue(new Error('network down'));
+    // What axios rejects with when the network is down.
+    mappingVisitMock.mockRejectedValue(new AxiosError('Network Error', AxiosError.ERR_NETWORK));
     renderHub();
     expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
     expect(document.querySelector('[data-cadence="brought-back"]')).toBeNull();
+  });
+
+  // The swallowed-error check of 2026-11-19 (workplan 0006 J): the catch let any
+  // failure go, a fault in the page's own code as well as a request that failed.
+  it('throws a failure that is not the request’s, rather than dropping it', async () => {
+    const fault = new TypeError('a fault in the page');
+    mappingVisitMock.mockRejectedValue(fault);
+    const thrown: unknown[] = [];
+    const onUnhandled = (reason: unknown) => thrown.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      renderHub();
+      expect(await screen.findByRole('heading', { name: 'Before you switch' })).toBeInTheDocument();
+      await vi.waitFor(() => expect(thrown).toContain(fault));
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
   });
 
   it('says once that the visit brought back the hour, when the morning mail had said a slower step (0157 T7)', async () => {

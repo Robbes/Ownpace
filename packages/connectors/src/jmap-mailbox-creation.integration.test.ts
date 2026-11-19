@@ -44,6 +44,7 @@ import {
 } from '../../testing/src/imap-test-client.ts';
 import type { ImapFlow } from 'imapflow';
 import { mapImapSpecialUse } from './imap-conventions.ts';
+import { imapRefusalDetail } from './imapflow-source.ts';
 
 const BASE = process.env.STALWART_JMAP_URL;
 const USER = process.env.STALWART_JMAP_USERNAME ?? 'target@dev.local';
@@ -117,13 +118,20 @@ if (!BASE || !PASSWORD || !IMAP_HOST) {
       // entitled to refuse deleting a mailbox that still has children, and the
       // prefix cases below create exactly that shape. Sorted by length rather
       // than by depth because the delimiter is the server's choice, and a
-      // longer path is a deeper one under any delimiter.
+      // longer path is a deeper one under any delimiter. A DELETE the server
+      // refuses is left, and the next one tried; anything else, such as a
+      // dropped connection, fails the hook rather than leaving the account
+      // littered without a word.
       await withImapTestClient(imap, async (client: ImapFlow) => {
         const ours = (await listMailboxPaths(client))
           .filter((p) => p.startsWith('Ownpace-IT-'))
           .sort((a, b) => b.length - a.length);
-        for (const path of ours) await client.mailboxDelete(path).catch(() => undefined);
-      }).catch(() => undefined);
+        for (const path of ours) {
+          await client.mailboxDelete(path).catch((err: unknown) => {
+            if (imapRefusalDetail(err) === undefined) throw err;
+          });
+        }
+      });
     }, 60_000);
 
     it('creates the mailbox and answers with an id the SERVER issued', async () => {

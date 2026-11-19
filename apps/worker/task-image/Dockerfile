@@ -78,10 +78,15 @@ COPY emsign-block/ /usr/local/share/ca-certificates/emsign-block/
 # The CLI's edit of the roots, as it writes it at 4.8.3, then the checks: each
 # of the four that Debian still ships is off in the configuration and absent
 # from the bundle, the eight are in it, and dumb-init is /usr/bin/dumb-init and
-# needs no library but the C library.
+# needs no library but the C library. The roots' alternation is made from the
+# list, and the bundle's intermediates counted, with no pipe (since
+# 2026-11-19, hadolint's DL4006): this RUN sets no pipefail, so a pipe's
+# status would be its last command's alone.
 RUN set -eu \
   && roots='emSign_ECC_Root_CA_-_G3 emSign_Root_CA_-_C1 emSign_ECC_Root_CA_-_C3 Comodo_AAA_Services_root' \
-  && sed -i -E "s#^(mozilla/($(echo "$roots" | tr ' ' '|'))\\.crt)\$#!\\1#" /etc/ca-certificates.conf \
+  && alternation='' \
+  && for root in $roots; do alternation="${alternation:+$alternation|}$root"; done \
+  && sed -i -E "s#^(mozilla/(${alternation})\\.crt)\$#!\\1#" /etc/ca-certificates.conf \
   && update-ca-certificates --fresh \
   && bundle=/etc/ssl/certs/ca-certificates.crt \
   && for root in $roots; do \
@@ -91,7 +96,8 @@ RUN set -eu \
          if grep -qxF "$(sed -n 2p "$pem")" "$bundle"; then echo "${root} is still in ${bundle}" >&2; exit 1; fi; \
        fi; \
      done \
-  && rejected="$(ls /usr/local/share/ca-certificates/emsign-block/*.crt | wc -l)" \
+  && set -- /usr/local/share/ca-certificates/emsign-block/*.crt \
+  && rejected=$# \
   && in_bundle="$(grep -c '^-----BEGIN TRUSTED CERTIFICATE-----$' "$bundle" || true)" \
   && if [ "$rejected" != 8 ] || [ "$in_bundle" != 8 ]; then echo "the bundle holds ${in_bundle} of the ${rejected} rejected intermediates, and both must be 8" >&2; exit 1; fi \
   && dumb_init="$(readlink -f "$(command -v dumb-init)")" \
@@ -129,6 +135,9 @@ COPY --from=build --chown=1000:1000 /out/home/node /home/node
 ENV PATH=/nodejs/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
   NODE_OPTIONS=--use-openssl-ca \
   SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
-USER node
+# node by its uid and gid, 1000:1000, which the build stage holds it to
+# (since 2026-11-19, hadolint's DL3066: a number needs no /etc/passwd to be
+# read). The CLI's runtime stage still says `USER node`, the same account.
+USER 1000:1000
 WORKDIR /home/node
 ENTRYPOINT ["dumb-init", "node"]

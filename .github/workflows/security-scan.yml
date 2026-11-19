@@ -153,6 +153,10 @@ jobs:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # No token left in .git/config for the steps after this one (workplan
+          # 0119): the tags' fetch below needs none, this repository being public.
+          persist-credentials: false
 
       # THE TAG, THE VERSION AND THE CHANGELOG NAME ONE RELEASE (workplan 0146
       # T2), checked before anything below installs or publishes. Without it, a
@@ -209,8 +213,9 @@ jobs:
       # yet, which the owner accepted in `ACCEPTED` (scripts/audit-advisories.mjs)
       # for a month at most. It stays listed, marked accepted, and blocks again
       # the day a fix is published, a production path reaches it, its severity
-      # rises, or its last day passes. GHSA-fc5q-39xc-vjpf on picomatch, from
-      # 2026-11-17 to 2026-12-17 (workplan 0119, Status of that day).
+      # rises, or its last day passes. It holds none since 2026-11-18: its one
+      # entry, GHSA-fc5q-39xc-vjpf on picomatch, went when GitHub withdrew the
+      # advisory (workplan 0119, Status of 2026-11-17 and 2026-11-18).
       - name: pnpm audit (advisory gate)
         run: |
           pnpm audit --audit-level=moderate --json > pnpm-audit.json || true

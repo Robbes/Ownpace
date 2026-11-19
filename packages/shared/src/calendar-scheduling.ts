@@ -79,3 +79,148 @@ export function neutraliseScheduling(icalendar: string): string {
   }
   return out.join('');
 }
+
+/**
+ * THE TARGETS THAT MAIL GUESTS WHATEVER THE MARKER SAYS (workplan 0160).
+ *
+ * `neutraliseScheduling` rests on RFC 6638 §7.1: a server handed
+ * `SCHEDULE-AGENT=CLIENT` stores the property and sends nothing. Cirrux's
+ * CalDAV server does not honour it. On 2026-11-19 the first calendar pass
+ * into a Cirrux test mailbox wrote events with every attendee and organiser
+ * marked so, and Cirrux mailed invitations for them, past events included
+ * (the owner's report that day). For a target kind named here, the writer
+ * keeps no ATTENDEE and no ORGANIZER at all (`withoutGuests`): with nobody
+ * invited, a server has nobody to mail.
+ *
+ * A kind joins this list on the evidence of one invitation it sent; it
+ * leaves it only on the evidence of a pass that sent none.
+ */
+export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set(['cirrux']);
+
+/** Does a target of this kind send invitations itself, whatever SCHEDULE-AGENT says? */
+export function mailsGuestsItself(kind: string | undefined): boolean {
+  return kind !== undefined && TARGETS_THAT_MAIL_GUESTS.has(kind);
+}
+
+/**
+ * An iCalendar text with nobody invited, for a target in
+ * `TARGETS_THAT_MAIL_GUESTS`.
+ *
+ * Every ATTENDEE and ORGANIZER of an event or a task is replaced, where it
+ * stood, by a COMMENT that names the person ("Invited at the source: Name
+ * <address>", "Organised at the source by: …"), so the copy still says who
+ * was there and a server has no one to send anything to. COMMENT is allowed
+ * in every component that may carry the two (RFC 5545 §3.8.1.4), and it is
+ * not fingerprinted: `calendarContentHash` reads UID, SUMMARY, DESCRIPTION
+ * and LOCATION only, so verification compares the copy with its source as
+ * it always did. The description is left as the source wrote it for the
+ * same reason.
+ *
+ * An ATTENDEE inside a VALARM is who an email alarm goes to, not a guest,
+ * and is left alone: the alarm would be invalid without it.
+ *
+ * Lines this does not replace are kept byte for byte, folds and line ends
+ * included. A replaced line is emitted unfolded, as `neutraliseScheduling`
+ * emits a rewritten one.
+ */
+export function withoutGuests(icalendar: string): string {
+  const out: string[] = [];
+  for (const { span, logical, inAlarm } of propertiesOf(icalendar)) {
+    if (!inAlarm && PROPERTY_START.test(logical)) {
+      const last = span[span.length - 1]!;
+      const eol = /\r\n$/.test(last) ? '\r\n' : /\n$/.test(last) ? '\n' : '';
+      out.push(`COMMENT:${escapeText(guestNote(logical))}${eol}`);
+    } else {
+      out.push(...span);
+    }
+  }
+  return out.join('');
+}
+
+/**
+ * Does this copy still list a guest, for a target in `TARGETS_THAT_MAIL_GUESTS`
+ * (workplan 0160, 2026-11-19)?
+ *
+ * True when any ATTENDEE stands outside a VALARM. The writer asks it of the
+ * copy a target ALREADY HOLDS before it rewrites or deletes that copy, because
+ * the change itself is what gets mailed. Cirrux mails a guest a cancellation
+ * (`METHOD:CANCEL`) when they are taken off an event, and when the event is
+ * deleted: a test of each on 2026-11-19 mailed one. A rewrite through
+ * `withoutGuests` takes every guest off at once, so an event written before
+ * the guests came out (#1947) would mail all of them. So such a copy is left
+ * exactly as it is.
+ *
+ * An ORGANIZER alone is not a guest: with nobody invited there is nobody to
+ * mail. A COMMENT naming one (what `withoutGuests` writes) is not either. An
+ * ATTENDEE inside a VALARM is who an email alarm goes to, as above.
+ */
+export function namesGuests(icalendar: string): boolean {
+  for (const { logical, inAlarm } of propertiesOf(icalendar)) {
+    if (!inAlarm && /^ATTENDEE(?=[;:])/i.test(logical)) return true;
+  }
+  return false;
+}
+
+/**
+ * Each property of an iCalendar text, in order: its physical lines as they
+ * stand (`span`), the property unfolded (`logical`), and whether it is inside
+ * a VALARM.
+ */
+function* propertiesOf(
+  icalendar: string,
+): Generator<{ readonly span: string[]; readonly logical: string; readonly inAlarm: boolean }> {
+  const lines = icalendar.split(/(?<=\n)/);
+  let alarms = 0;
+  let i = 0;
+  while (i < lines.length) {
+    const span = [lines[i]!];
+    let j = i + 1;
+    while (j < lines.length && /^[ \t]/.test(lines[j]!)) {
+      span.push(lines[j]!);
+      j += 1;
+    }
+    const logical = span
+      .map((l) => l.replace(/\r?\n$/, ''))
+      .map((l, k) => (k === 0 ? l : l.slice(1)))
+      .join('');
+    if (/^BEGIN:VALARM\s*$/i.test(logical)) alarms += 1;
+    else if (/^END:VALARM\s*$/i.test(logical)) alarms = Math.max(0, alarms - 1);
+    yield { span, logical, inAlarm: alarms > 0 };
+    i = j;
+  }
+}
+
+/** "Invited at the source: Name <address>" for one unfolded ATTENDEE or ORGANIZER line. */
+function guestNote(logical: string): string {
+  const organiser = /^ORGANIZER/i.test(logical);
+  // The value starts at the first colon outside a quoted parameter value.
+  let quoted = false;
+  let colon = -1;
+  for (let k = 0; k < logical.length; k += 1) {
+    const ch = logical[k];
+    if (ch === '"') quoted = !quoted;
+    else if (ch === ':' && !quoted) {
+      colon = k;
+      break;
+    }
+  }
+  const head = colon === -1 ? logical : logical.slice(0, colon);
+  const value = colon === -1 ? '' : logical.slice(colon + 1).trim();
+  const param = (key: string): string =>
+    (new RegExp(`;${key}=(?:"([^"]*)"|([^;:]*))`, 'i').exec(head)?.slice(1).find((v) => v !== undefined) ?? '').trim();
+  const name = param('CN');
+  // A mailto: value is the address. Any other value (a urn:uuid:, say) is
+  // not one, and RFC 7986's EMAIL parameter, where the source gave it, is.
+  const address = /^mailto:/i.test(value) ? value.slice('mailto:'.length).trim() : param('EMAIL') || value;
+  // A source that wrote the address as the name too is named once.
+  const who =
+    name && address && name.toLowerCase() !== address.toLowerCase()
+      ? `${name} <${address}>`
+      : address || name || 'someone unnamed';
+  return `${organiser ? 'Organised at the source by' : 'Invited at the source'}: ${who}`;
+}
+
+/** RFC 5545 §3.3.11 TEXT: backslash, semicolon, comma and newline escaped. */
+function escapeText(text: string): string {
+  return text.replace(/\\/g, '\\\\').replace(/;/g, '\\;').replace(/,/g, '\\,').replace(/\r?\n/g, '\\n');
+}

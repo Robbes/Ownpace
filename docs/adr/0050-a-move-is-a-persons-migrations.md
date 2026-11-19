@@ -1,9 +1,10 @@
 # ADR-0050: A move is a person's migrations
 
-- **Status:** **Accepted 2026-09-28**, by the owner, as proposed; amended once, the same day (the
-  name in code is *person*). **The tables, the API and the pages are built** (workplan 0153 T2,
-  #1332; T3, #1341; T5's first slice, #1353). Dated history: the Amendment log below.
-- **Date:** 2026-09-28; accepted 2026-09-28; amended 2026-09-28
+- **Status:** **Accepted 2026-09-28**, by the owner, as proposed; amended twice: the same day (the
+  name in code is *person*), and on 2026-11-19 (a person may be the member's own account). **The
+  tables, the API and the pages are built** (workplan 0153 T2, #1332; T3, #1341; T5's first slice,
+  #1353). Dated history: the Amendment log below.
+- **Date:** 2026-09-28; accepted 2026-09-28; amended 2026-09-28 and 2026-11-19
 - **Deciders:** owner
 - **Relates to:** [ADR-0014](./0014-cost-recovery-billing.md) (a path is billed, never a move),
   [ADR-0026](./0026-one-operating-ui-one-contract.md) (both editions answer the same shapes),
@@ -23,7 +24,9 @@
   `packages/shared/src/people.ts`. Never *move*, which names the moved-items queue (`/moves`,
   `MovesQueue`). On screen the grouping has no noun; the person's name titles it (0153 D6).
 - **A person is someone being moved**: a display name, optionally an email address for grant
-  links, in one tenant.
+  links, and optionally the account of the member it is (`person.user_id`, managed 0061; amended
+  2026-11-19), in one tenant. Only that member links it; answers say `you`, never the id. One per
+  member; removing the member clears it. Guard: `the-person-you-are-under-rls.unit.test.ts`.
 - **A migration belongs to at most one person** (`person_migration`'s key is the migration), or
   to nobody: `unassigned`, shown without a person. **Deleting a person deletes no migration**;
   theirs become `unassigned`. Deleting a migration deletes only its `person_migration` row.
@@ -38,9 +41,10 @@
   configured migration; writes are refused (`one_person_here`). Guards:
   `one-person-on-the-appliance.unit.test.ts`; `no-managed-leakage.unit.test.ts` names both tables.
 - **The API**: `GET` and `POST /api/people`, `POST /api/people/{personId}/migrations`,
-  `DELETE /api/people/{personId}`, with the migration routes' tenant checks, in the OpenAPI spec.
-  Re-adding changes nothing; another person's migration stays theirs (409 `with_another_person`).
-  Guard: `people.unit.test.ts`.
+  `DELETE /api/people/{personId}`, `PUT` and `DELETE /api/people/{personId}/myself`, with the
+  migration routes' tenant checks, in the OpenAPI spec. Re-adding changes nothing; another person's
+  migration stays theirs (409 `with_another_person`). Guards: `people.unit.test.ts`,
+  `this-is-me.unit.test.ts`.
 
 ## Context
 
@@ -142,6 +146,41 @@ Nothing else changed. The eight rules hold as accepted, under the new names, and
 has no noun for the grouping. The name also matches what the page says above the cards, *"2
 people · 1 needs you"* (0153 T3 (b)).
 
+## Amendment 2026-11-19: a person may be the member's own account
+
+*Start a migration* asks *Who is it for?* first (0153 T4). The owner asked for their own name to
+be chosen there already. Choosing it needs to know which person on the list is the member who is
+signed in. Rule 1 said a person is a display name and optionally an email address, so nothing
+said it. Matching the name or the address against the sign-in would be a guess, and a wrong guess
+gives one person's migrations to another. Asked to choose between an explicit link (A), a match
+on the address (B) and choosing the only person when there is one (C), the owner chose A.
+
+Rule 1 gains a third part: **optionally the account of the member it is.** What changed:
+
+| As accepted | As amended |
+|---|---|
+| a person is a display name, and optionally an email address | the same, and optionally the account of the member it is: `person.user_id`, their sign-in subject (managed migration 0061) |
+| nothing on screen knows which person is the member | `GET /api/people` says `you` of the member's own person, worked out on the server; no account id is sent |
+| a person is made with a name and an address | also *Myself* (`POST /api/people` with `myself: true`), and *This is me* or *This is not me* on a person's page (`PUT` and `DELETE /api/people/{personId}/myself`) |
+| rule 2's one press, under *Not with a person yet* (0153 T6's words), went to the first person listed | it goes to the member's own person, chosen already where there is one; otherwise nobody is chosen and the press waits for a choice, as *Who is this for?* has since the UX sweep of 2026-10-17 |
+
+What holds the link to what it means:
+
+- **Only the member links their own account.** The account is the one the request signed in
+  with; no route reads one from a request body, so nobody can link another member's.
+- **One person per member** in an organisation: a unique index, and linking another person moves
+  the link in one transaction.
+- **A person who is another member's stays theirs** (409 `another_members`); *This is not me*
+  undoes only the asker's own link.
+- **The link goes with the membership.** The key names `tenant_member (tenant_id, user_id)` with
+  `ON DELETE SET NULL (user_id)`: removing the member keeps the person, with their name and their
+  migrations, and clears the link.
+
+Nothing else changed. A person still changes nothing about a migration, the appliance still has
+one implicit person and no table (it answers `you: false`: nobody signs in there), and erasure
+purges `person` as before, before `tenant_member`. Who may do what is unchanged too: any member,
+whatever their role, may add a person, and each member says which person is them.
+
 ## Amendment log
 
 - **2026-09-28** — Accepted, by the owner, as proposed. Asked what the pull request needed, and
@@ -156,3 +195,9 @@ people · 1 needs you"* (0153 T3 (b)).
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0050-a-move-is-a-persons-migrations.md](./history/0050-a-move-is-a-persons-migrations.md).
+- **2026-11-19** — **Amended**, by the owner: a person may be the account of the member it is, so
+  *Who is it for?* can choose the member's own person first. Asked to choose between an explicit
+  link, a match on the address and choosing the only person, the owner answered *"A"*, the
+  explicit link ([the amendment](#amendment-2026-11-19-a-person-may-be-the-members-own-account)).
+  Built the same day (workplan 0153 T4): managed migration 0061, `you`, *Myself*, *This is me*.
+  Record: the section "Amendment 2026-11-19: a person may be the member's own account".

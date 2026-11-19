@@ -198,6 +198,16 @@ concurrency:
   group: ci-${{ github.event_name == 'workflow_dispatch' && 'dispatch-' || '' }}${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# READ-ONLY FOR EVERY JOB (workplan 0119, 2026-11-19). Until then this file
+# named no permissions, so each job ran on whatever the repository's settings
+# give the default token. The checkout is the one step that uses it:
+# actions/cache and upload-artifact take the runner's own token, and nothing
+# below pushes, comments or writes a check. A job that comes to need a write
+# asks for it in a block of its own. Held by
+# scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 jobs:
   detect-changes:
     name: detect-changes
@@ -207,6 +217,8 @@ jobs:
       migrations_changed: ${{ steps.migrations.outputs.any_changed }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Get changed files
         id: filter
         uses: tj-actions/changed-files@9426d40962ed5378910ee2e21d5f8c6fcbf2dd96 # v47.0.6
@@ -383,6 +395,7 @@ jobs:
           # has neither the base tip nor the branch's own history, and the
           # script would fail with git's error instead of a verdict.
           fetch-depth: 0
+          persist-credentials: false
       # The Node the images run, like every job that runs Node. Without it the
       # script ran the hosted image's default, a version nobody chose
       # (a-gate-on-a-version-nothing-ships, 2026-11-01).
@@ -407,6 +420,8 @@ jobs:
     # Quality gate for all changes (incl. docs-only)
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Verify only allowed markdown files at repo root
         run: |
           set -e
@@ -524,6 +539,8 @@ jobs:
     # Runs on all PRs — fast check before heavier jobs
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Check for cross-file UUID collisions
         run: |
           ./scripts/check-fixture-uuid-collisions.sh
@@ -551,6 +568,8 @@ jobs:
     if: ${{ needs.detect-changes.outputs.migrations_changed == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - name: Install Atlas (community edition)
         # A direct binary download into RUNNER_TEMP, NOT `curl | sh`: the
         # installer script ends with a sudo copy into /usr/local/bin, and the
@@ -581,30 +600,33 @@ jobs:
         #
         # WHERE THE SUMS COME FROM. Each is the SHA-256 of `/atlas` in the
         # same release's community image on Docker Hub,
-        # `arigaio/atlas:1.3.10-community@sha256:9c74b256725bfb8c79c1e70ba4fae2c1da8519e5ef888770e039d0388461df62`
-        # (linux/amd64 manifest `aa5b91e8…`, linux/arm64 `9001e41a…`), read
-        # through the registry's own digests, layer by layer (2026-11-13; the
-        # same reading of v1.3.9's image gave the two sums pinned before
+        # `arigaio/atlas:1.4.0-community@sha256:972b99f8a90fd513d8a1ed97e525ea59702e41e40be260c315ad5892fac46706`
+        # (linux/amd64 manifest `9fb3012c…`, linux/arm64 `fb2ddb21…`), read
+        # through the registry's own digests, layer by layer (2026-11-18; the
+        # same reading of v1.3.10's image gave the two sums pinned before
         # these). So a run that passes here has two channels agreeing on the
         # bytes, both carrying one output of Ariga's own build
-        # (`-tags=official`, version v1.3.10, Go 1.26.10 as v1.3.9's). Its Go
-        # build information names upstream commit `90dacfc6c25f` (2026-11-05),
-        # the commit v1.3.9 was built from, and differs from v1.3.9's in the
-        # version alone: the same compiler, flags and 89 dependencies, in a
-        # file of the same size and section layout. It is clean for amd64,
-        # while the arm64 build reports a modified tree (`vcs.modified=true`),
-        # as v1.3.6's, v1.3.8's and v1.3.9's did, so only the amd64 one says
-        # it is that commit as published. That commit is still the head of
-        # upstream's public git (2026-11-13). The one commit between v1.3.8's
-        # `06ecb0780451` and it, *skills: update drivers (#3827)*, touches 77
-        # files, 76 under `skills/` and one under `.claude-plugin/`, and none
-        # of Atlas's code, so the docker driver, the Postgres driver and the
-        # migrate package this job runs are v1.3.8's. Docker Hub listed the
-        # tag on 2026-11-13 11:24 UTC, so its three-day floor
-        # (CONTRIBUTING.md) runs to 2026-11-16 11:24: it is taken inside that
-        # floor, on the owner's word of 2026-11-13, *"Waive all waiting
-        # time."* Upstream's git tags stop at v1.3.0, so the release list
-        # is the image's tags, and that is what the pin watch reads
+        # (`-tags=official`, version v1.4.0, Go 1.26.10 as v1.3.10's). Its Go
+        # build information names upstream commit `e933d0b70620` (2026-11-17),
+        # the one upstream's git tag v1.4.0 names, and differs from v1.3.10's
+        # in that commit, the version and the build date alone: the same
+        # compiler, flags and 89 dependencies, in a file of the same size and
+        # section layout. It is clean for amd64, while the arm64 build
+        # reports a modified tree (`vcs.modified=true`), as v1.3.6's,
+        # v1.3.8's, v1.3.9's and v1.3.10's did, so only the amd64 one says it
+        # is that commit as published. Upstream's public git holds two
+        # commits between v1.3.10's `90dacfc6c25f` and it: a section of the
+        # README, and an include and exclude option for `schema clean` in the
+        # Go SDK (`atlasexec`), which no package of the CLI imports. Every
+        # other path is the same in both, so the docker driver, the Postgres
+        # driver, the migrate package and the lint's analyzers this job runs
+        # are v1.3.10's, which are v1.3.8's. Docker Hub listed the tag on
+        # 2026-11-17 15:20 UTC, so its three-day floor (CONTRIBUTING.md) runs
+        # to 2026-11-20 15:20: it is taken inside that floor, on the owner's
+        # word of 2026-11-19, *"I waive waiting time / nights if needed."*
+        # Upstream's git has a tag for v1.3.0 and one for v1.4.0, and none
+        # for the releases between them, so the release list is the image's
+        # tags, and that is what the pin watch reads
         # (`scripts/idp-pin-watch.mjs`, its Atlas row; Dependabot cannot see
         # a URL in a `run:`).
         #
@@ -614,9 +636,9 @@ jobs:
         # all three values below in one pull request, and read the version
         # line in both of its migration-lint legs' logs.
         env:
-          ATLAS_VERSION: v1.3.10
-          ATLAS_SHA256_AMD64: d2b4d2e1c6ec36fd1a77568dbcb42fc483fb9b3156be4d3ce34eeecda352f4a5
-          ATLAS_SHA256_ARM64: 71e988ffe8c67a2b9dac263c9ea241145dd6c498309590719d270ff4a8201318
+          ATLAS_VERSION: v1.4.0
+          ATLAS_SHA256_AMD64: 5f964b94afdb069661fb180fb07c2a536b8bccc6262296e3268411dfea3b95cc
+          ATLAS_SHA256_ARM64: f2c6eb9f010376960765a805478666fe256939fa1dd0cd542733f35392b58849
         run: |
           set -euo pipefail
           case "$(uname -m)" in
@@ -690,11 +712,12 @@ jobs:
           # Atlas's docker driver takes the path's first part as the tag and
           # runs `docker run … postgres:<tag>` (FromURL and PostgreSQL in its
           # cmd/atlas/internal/docker, at v1.3.6's commit and unchanged at
-          # v1.3.8's, and at v1.3.9's, which is v1.3.10's), and a tag that
-          # carries `@sha256:` reaches `docker run` whole. The last part is the
-          # database because it holds no `:`. A Dependabot pull request that
-          # moves that FROM fails `a-gate-on-a-version-nothing-ships` until
-          # this line moves too; the failure prints the `sed` that moves it.
+          # v1.3.8's, at v1.3.9's, which is v1.3.10's, and at v1.4.0's), and a
+          # tag that carries `@sha256:` reaches `docker run` whole. The last
+          # part is the database because it holds no `:`. A Dependabot pull
+          # request that moves that FROM fails
+          # `a-gate-on-a-version-nothing-ships` until this line moves too; the
+          # failure prints the `sed` that moves it.
           atlas migrate lint \
             --dir "file://$staged" \
             --dev-url "docker://postgres/18.7-alpine@sha256:75dcac3dfb1cd01ca3536910bbc84128759362f8b118bf8c55b38a94f68f3b73/dev?search_path=public" \
@@ -707,6 +730,8 @@ jobs:
     if: ${{ needs.detect-changes.outputs.any_changed == 'true' }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -805,6 +830,7 @@ jobs:
           # a missing tag under CI for the same reason, but the fix belongs
           # here: the gate should run, not report why it could not.
           fetch-depth: 0
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -873,6 +899,8 @@ jobs:
     needs: lint
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
@@ -976,6 +1004,7 @@ jobs:
           # reads each release's chains and migrators out of its tag, and
           # under CI a tag it cannot reach is a failure, not a skip.
           fetch-depth: 0
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

@@ -25,7 +25,14 @@ import {
 import Person from './Person.tsx';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
 import { STRINGS } from '../i18n/strings.ts';
-import { fetchAttention, fetchPeople, fetchStatus, fetchVerifyReport } from '../services/operating-service.ts';
+import {
+  fetchAttention,
+  fetchPeople,
+  fetchStatus,
+  fetchVerifyReport,
+  markMyself,
+  unmarkMyself,
+} from '../services/operating-service.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import userEvent from '@testing-library/user-event';
 
@@ -35,6 +42,8 @@ vi.mock('../services/operating-service', () => ({
   fetchAttention: vi.fn(),
   fetchStatus: vi.fn(),
   fetchVerifyReport: vi.fn(),
+  markMyself: vi.fn(),
+  unmarkMyself: vi.fn(),
 }));
 // The progress read (0154 T1 (b)) runs for real: managed's through its client,
 // whose GET is all that is replaced, and the appliance's from the status above.
@@ -79,6 +88,7 @@ const person = (id: string, displayName: string, migrations: PersonMigration[]):
   displayName,
   email: null,
   createdAt: '2026-09-28T10:00:00.000Z',
+  you: false,
   migrations,
   counts: lifecycleCounts(migrations),
 });
@@ -507,6 +517,99 @@ describe('what waits for their grant, on their page (start when granted, per per
     await screen.findByRole('heading', { level: 1, name: 'Anna Jansen' });
     return row(id);
   }
+});
+
+describe('this is me (ADR-0050, amended 2026-11-19)', () => {
+  const markMock = vi.mocked(markMyself);
+  const unmarkMock = vi.mocked(unmarkMyself);
+  const YOU = { ...ANNA, you: true };
+
+  it('offers This is me on a person who is not the member, and says it is them once pressed', async () => {
+    const user = userEvent.setup();
+    markMock.mockImplementation(async () => {
+      peopleMock.mockResolvedValue({ people: [YOU], unassigned: [] });
+      return YOU;
+    });
+    renderAt();
+    await answered();
+
+    expect(screen.queryByText('This is you.')).not.toBeInTheDocument();
+    expect(screen.getByText('When you start a migration, this person is then chosen first.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'This is me' }));
+
+    expect(markMock).toHaveBeenCalledWith('p-anna');
+    expect(await screen.findByText('This is you.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'This is not me' })).toBeInTheDocument();
+    expect(unmarkMock).not.toHaveBeenCalled();
+  });
+
+  it('offers This is not me on the member’s own person, and undoes it once pressed', async () => {
+    const user = userEvent.setup();
+    peopleMock.mockResolvedValue({ people: [YOU], unassigned: [] });
+    unmarkMock.mockImplementation(async () => {
+      peopleMock.mockResolvedValue({ people: [ANNA], unassigned: [] });
+      return ANNA;
+    });
+    renderAt();
+    await answered();
+
+    expect(screen.getByText('This is you.')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'This is not me' }));
+
+    expect(unmarkMock).toHaveBeenCalledWith('p-anna');
+    expect(await screen.findByRole('button', { name: 'This is me' })).toBeInTheDocument();
+    expect(screen.queryByText('This is you.')).not.toBeInTheDocument();
+    expect(markMock).not.toHaveBeenCalled();
+  });
+
+  it('says the server’s refusal in its own words, and stays as it was', async () => {
+    const user = userEvent.setup();
+    const err = new AxiosError('Request failed with status code 409');
+    err.response = {
+      status: 409,
+      statusText: 'Conflict',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: {
+        error: 'another_members',
+        message: 'This person is already another member’s own. Only they can say it is not them.',
+      },
+    };
+    markMock.mockRejectedValue(err);
+    renderAt();
+    await answered();
+
+    await user.click(screen.getByRole('button', { name: 'This is me' }));
+
+    const alert = await screen.findByRole('alert');
+    expect(alert).toHaveTextContent('Could not save whether this is you.');
+    expect(alert).toHaveTextContent('This person is already another member’s own. Only they can say it is not them.');
+    expect(screen.getByRole('button', { name: 'This is me' })).toBeEnabled();
+  });
+
+  it('sits outside the head and the card the home page photographs', async () => {
+    renderAt();
+    await answered();
+
+    const press = screen.getByRole('button', { name: 'This is me' });
+    expect(press.closest('[data-app-screen]')).toBeNull();
+  });
+
+  it('is not on the appliance’s page: nobody signs in there', async () => {
+    edition.selfhost = true;
+    peopleMock.mockResolvedValue(implicitPeople([{ id: 'mail', status: 'active' }]));
+    vi.mocked(fetchStatus).mockResolvedValue({
+      status: 'ok',
+      mappings: [{ mappingId: 'mail', migrationStatus: 'active', sourceType: 'gmail', targetType: 'jmap', domains: [] }],
+    });
+    attentionMock.mockResolvedValue({ mappings: [quiet('mail')] });
+    renderAt('/people/implicit');
+    await answered();
+
+    expect(await screen.findByRole('heading', { level: 1, name: 'Your migrations' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'This is me' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'This is not me' })).not.toBeInTheDocument();
+  });
 });
 
 describe('the appliance’s one person (0153 T8)', () => {

@@ -100,6 +100,14 @@
  * newest tag ends otherwise than the pin, the line says the move is made by
  * hand. This holds that on the pooler's real pin, and that a newer PgBouncer
  * and every other image built here keep Dependabot's line.
+ *
+ * THE HADOLINT THE DOCKERFILE LINT RUNS (workplan 0119, 2026-11-19). The
+ * lint, report only, runs `hadolint/hadolint` by the tag and index digest of
+ * its job's one `HADOLINT_IMAGE`, which Dependabot cannot see in a workflow's
+ * env. Its row compares the tag with Docker Hub's newest of the same shape
+ * and major, past the Debian and Alpine builds and the per-commit tags the
+ * same repository lists, and this holds that, the note it is listed with when
+ * behind, and that a line it cannot read is an error.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -123,6 +131,8 @@ import {
   COMPOSE,
   COMPOSE_FILES,
   COSIGN_FILES,
+  HADOLINT_NOTE,
+  HADOLINT_WORKFLOW,
   ISSUE_TITLE,
   STALWART_FILES,
   GOACCESS_DOCKERFILE,
@@ -166,6 +176,7 @@ import {
   endingOf,
   fileInTgz,
   gitBlobId,
+  hadolintPin,
   issueBody,
   keepIssue,
   newestLike,
@@ -1300,6 +1311,10 @@ function registry(newer: Record<string, string> = {}): Stubs {
   // The second Nextcloud major's leg names its own tag, beside the demo's major the compose files run.
   const second = secondMajorPin(REAL.read(NEXTCLOUD_SECOND_MAJOR_WORKFLOW)!);
   pins.set(registryOf(second.repo).name, [...(pins.get(registryOf(second.repo).name) ?? []), second.tag]);
+  // The hadolint the lint runs (0119, 2026-11-19), beside the tags of other shapes Docker Hub lists for it (its
+  // Debian build, `latest`, a commit's per-platform tag) and another major, none of which its row may take for newer.
+  const lint = hadolintPin(REAL.read(HADOLINT_WORKFLOW)!);
+  pins.set(registryOf(lint.repo).name, [lint.tag, `${lint.tag}-debian`, 'latest', '2eece55955ced00200be9729e9728cb7dacca505-amd64', 'v3.0.0']);
   // The Atlas release ci.yml installs, as the community image's tag, beside tags of other shapes
   // and another major that its row must never take for a newer release.
   pins.set(ATLAS_IMAGE, [ATLAS_TAG, 'latest-community', '1.99.0-community-alpine', '1.99.0-extended', '2.0.0-community']);
@@ -2620,6 +2635,51 @@ describe("the second Nextcloud major's leg, against its own major's newest tag (
     for (const [text, error] of cases) {
       expect(text).not.toBe(LEG);
       const broken = await row({ [NEXTCLOUD_SECOND_MAJOR_WORKFLOW]: text });
+      expect(broken.state).toBe('error');
+      expect(broken.error).toMatch(error);
+    }
+  });
+});
+
+describe('the hadolint the Dockerfile lint runs, against its newest release on Docker Hub (0119, 2026-11-19)', () => {
+  const LINT = REAL.read(HADOLINT_WORKFLOW)!;
+  const pin = hadolintPin(LINT);
+  const row = async (over: Record<string, string | null> = {}, newer: Record<string, string> = {}) =>
+    (await routineRows(Object.keys(over).length ? withFiles(over) : REAL, fakeNet(registry(newer)))).rows.find((r) => r.name === 'hadolint/hadolint')!;
+
+  it('reads the one HADOLINT_IMAGE the job runs, hadolint/hadolint by a release tag and its index digest', () => {
+    expect(HADOLINT_WORKFLOW).toBe('.github/workflows/hadolint.yml');
+    expect(pin.repo).toBe('hadolint/hadolint');
+    expect(pin.tag).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(pin.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(registryOf(pin.repo)).toEqual({ host: 'registry-1.docker.io', name: 'hadolint/hadolint' });
+  });
+
+  it('is current while Docker Hub lists nothing newer of its shape and major: not its Debian build, latest, a commit, or v3', async () => {
+    expect(await row()).toMatchObject({ state: 'current', pin: `${pin.tag}@${pin.digest}`, newest: pin.tag, where: HADOLINT_WORKFLOW });
+  });
+
+  it('is behind on a newer release of its major, and says how it moves', async () => {
+    const [major, minor] = pin.tag.slice(1).split('.');
+    const newer = `v${major}.${minor}.99`;
+    expect(await row({}, { 'hadolint/hadolint': newer })).toMatchObject({ state: 'behind', newest: newer, notes: [HADOLINT_NOTE] });
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'hadolint/hadolint': newer })));
+    const line = (summaryOf(rows, status).body ?? '').split('\n').find((l) => l.startsWith('- `hadolint/hadolint`'));
+    expect(line).toContain(`(${HADOLINT_WORKFLOW}): ${pin.tag}@${pin.digest}, newest **${newer}**; ${HADOLINT_NOTE}`);
+  });
+
+  it('a job that names no image, two, another image, a tag of no release or no digest is an error, never current', async () => {
+    const line = /^\s*HADOLINT_IMAGE:.*$/m.exec(LINT)![0];
+    const cases: Array<[string, RegExp]> = [
+      [LINT.replace(line, ''), /sets HADOLINT_IMAGE 0 times, not once/],
+      [LINT.replace(line, `${line}\n${line}`), /sets HADOLINT_IMAGE 2 times, not once/],
+      [LINT.replace(line, line.replace('hadolint/hadolint:', 'ghcr.io/hadolint/hadolint:')), /not hadolint\/hadolint by a release tag and its index digest/],
+      [LINT.replace(line, line.replace(/:v[\d.]+@/, ':latest@')), /not hadolint\/hadolint by a release tag and its index digest/],
+      [LINT.replace(line, line.replace(/@sha256:[0-9a-f]{64}/, '')), /not hadolint\/hadolint by a release tag and its index digest/],
+    ];
+    for (const [text, error] of cases) {
+      expect(text).not.toBe(LINT);
+      const broken = await row({ [HADOLINT_WORKFLOW]: text });
       expect(broken.state).toBe('error');
       expect(broken.error).toMatch(error);
     }

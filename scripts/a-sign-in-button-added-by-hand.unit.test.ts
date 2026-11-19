@@ -36,8 +36,8 @@
  *
  *   Not refused: live's `.env` with every key empty or in empty single quotes
  *   (and the three `IDP_*` keys that are not a provider's), with the migration
- *   consent's clients set as live sets them (`GOOGLE_`, `MICROSOFT_` and
- *   `DROPBOX_OAUTH_*`, other keys, which make no button); the OTA stack's
+ *   consent's clients set as live sets them (`GOOGLE_`, `MICROSOFT_`,
+ *   `DROPBOX_` and `CIRRUX_OAUTH_*`, other keys, which make no button); the OTA stack's
  *   `.env`, which carries no marker, with a pair set, as the nightly gate's
  *   placeholder is; and on live with a pair set, `--print` and the two timer
  *   modes. `--token-only` is the provisioning token's clock, which
@@ -70,7 +70,7 @@ const SIGN_IN_KEYS = [...EXAMPLE.matchAll(/^(IDP_[A-Z0-9_]+)=/gm)]
  * The migration consent's clients (0140 T11), which live's `.env` DOES set: other
  * keys, read by the api and the worker, which make no sign-in button.
  */
-const CONSENT_KEYS = [...EXAMPLE.matchAll(/^((?:GOOGLE|MICROSOFT|DROPBOX)_OAUTH_[A-Z_]+)=/gm)].map((m) => m[1]!);
+const CONSENT_KEYS = [...EXAMPLE.matchAll(/^((?:GOOGLE|MICROSOFT|DROPBOX|CIRRUX)_OAUTH_[A-Z_]+)=/gm)].map((m) => m[1]!);
 
 const LIVE_ENV = [
   'COMPOSE_PROJECT_NAME=ownpace-live',
@@ -313,6 +313,9 @@ describe('and nothing else', () => {
         'MICROSOFT_OAUTH_CLIENT_ID',
         'MICROSOFT_OAUTH_CLIENT_SECRET',
         'MICROSOFT_OAUTH_TENANT',
+        // Cirrux Drive's public client (workplan 0160 T5): a consent client too,
+        // which makes no sign-in button.
+        'CIRRUX_OAUTH_CLIENT_ID',
       ]);
       const keys = SIGN_IN_KEYS.map((key, i) => `${key}=${i % 2 ? "''" : ''}\n`).join('');
       const consent = CONSENT_KEYS.map((key, i) => `${key}=consent-value-q${20 + i}\n`).join('');

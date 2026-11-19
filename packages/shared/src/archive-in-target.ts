@@ -29,7 +29,7 @@
  * (`docs/i18n-prose-boundary.md`), like `targetDomainRefusal` beside them.
  */
 
-import { TARGET_TYPE_DOMAINS, targetTypeName, type WizardTargetType } from './target-domains.ts';
+import { GRANTED_TARGET_FACES, TARGET_TYPE_DOMAINS, targetTypeName, type WizardTargetType } from './target-domains.ts';
 
 /**
  * The destinations an export can be read from: those that carry files, less
@@ -87,6 +87,18 @@ export function archiveInJmapTargetSentence(targetKind: string): string {
 export function archiveInTargetRefusal(targetType: WizardTargetType): string | null {
   if (ARCHIVE_READABLE_TARGETS.includes(targetType)) return null;
   if (targetType === 'jmap') return archiveInJmapTargetSentence(targetType);
+  // A destination whose files are behind a grant (Cirrux Drive, workplan 0160
+  // T5) HAS files, so "has no files" would be untrue; what is true is that this
+  // product writes them and reads no export from them.
+  const granted = GRANTED_TARGET_FACES[targetType];
+  if (granted?.faces.includes('file')) {
+    return (
+      "This export is to be read from a folder in the destination's files, and a " +
+      `${targetTypeName(targetType)} account's files are in ${granted.grant}, which this product ` +
+      `writes to and reads no export from. ${listed(readableNames(), 'and')} destinations can serve ` +
+      'one: choose one of those as the destination, and put the export in a folder of its files.'
+    );
+  }
   return (
     "This export is to be read from a folder in the destination's files, and " +
     `${targetTypeName(targetType)} destinations have no files. ` +

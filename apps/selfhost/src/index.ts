@@ -2006,9 +2006,12 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       //
       // `from`/`to` ARE folder paths, unlike everything keyed by hash above.
       // They have to be: "12 items moved" that cannot say where is not a queue
-      // anyone can act on. §17 keeps paths out of METRIC labels, which is a
-      // different store with different retention; this is the operator's own
-      // status surface, the same place `lastError` already goes.
+      // anyone can act on. And a row names its item where the ledger holds a
+      // name (`displayName`, and a relocation's `toDisplayName`), for the same
+      // reason: a row reading `/ renamed` beside a hash cannot be decided on
+      // (found 2026-11-19). §17 keeps paths and names out of METRIC
+      // labels, which is a different store with different retention; this is
+      // the owner's own queue, the same place `lastError` already goes.
       if (req.method === 'GET' && req.url === '/moves') {
         const out: Record<string, MovesQueue> = {};
         for (const m of mappings) {
@@ -2766,7 +2769,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                   { username: davTarget.user!, password },
                 );
                 if (qualification) return qualificationReportLines(qualification);
-                const verdict = await measureTargetScheduling(davTarget.url!, davTarget.user!, password);
+                const verdict = await measureTargetScheduling(davTarget.url!, davTarget.user!, password, undefined, davTarget.type);
                 return [verdict.sentence];
               }
             : undefined;
@@ -2928,7 +2931,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
           : null;
       if (presetSetMatch) {
         const category = decodeURIComponent(presetSetMatch[1]!);
-        const body = await readJson(req).catch(() => undefined);
+        const body = await readJsonOrNone(req);
         const action = (body as { action?: unknown } | undefined)?.action;
         if (action !== 'auto' && action !== 'ask') {
           return sendJson(res, 400, {
@@ -3586,7 +3589,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
       // CLI's cutover), and a status update must not become a second one.
       const laneMatch = req.method === 'PUT' && req.url ? /^\/mappings\/([^/]+)$/.exec(req.url) : null;
       if (laneMatch) {
-        const body = (await readJson(req).catch(() => undefined)) as Record<string, unknown> | undefined;
+        const body = (await readJsonOrNone(req)) as Record<string, unknown> | undefined;
         const id = decodeURIComponent(laneMatch[1]!);
         const m = mappings.find((x) => x.config.mappingId === id);
         if (!m) return sendJson(res, 404, { error: 'unknown mapping' });
@@ -3924,6 +3927,21 @@ function readJson(req: IncomingMessage): Promise<unknown> {
     });
     req.on('error', reject);
   });
+}
+
+/**
+ * `readJson`, with a body that is not JSON read as no body, for the two routes
+ * whose own 400 says what to send when there is none. Only the parse's
+ * `SyntaxError`: anything else, such as a request the client cut short, goes on
+ * to the handler's catch, which logs it (rule 9).
+ */
+async function readJsonOrNone(req: IncomingMessage): Promise<unknown> {
+  try {
+    return await readJson(req);
+  } catch (err) {
+    if (err instanceof SyntaxError) return undefined;
+    throw err;
+  }
 }
 
 async function shutdown(

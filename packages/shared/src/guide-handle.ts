@@ -23,6 +23,7 @@ export const SERVED_GUIDES = [
   'apple',
   'archive',
   'box',
+  'cirrux',
   'dav',
   'dropbox',
   'google',

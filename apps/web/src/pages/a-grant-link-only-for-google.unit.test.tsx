@@ -68,6 +68,7 @@ const person = (id: string, displayName: string, migrations: PersonMigration[]):
   displayName,
   email: null,
   createdAt: '2026-09-28T10:00:00.000Z',
+  you: false,
   migrations,
   counts: lifecycleCounts(migrations),
 });

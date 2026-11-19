@@ -21,13 +21,15 @@
  * holds:
  *
  *  - THE DOCKERFILE IS UPSTREAM'S IMAGE AND TWO RUNS. One FROM,
- *    `edoburu/pgbouncer:v<x.y.z>-p<n>` by tag and index digest; `USER root`,
- *    the RUN that takes the packages, `USER postgres`, the RUN that starts
- *    the pooler and the client; and no other instruction: no parser
- *    directive, no COPY, ADD or `--mount` (the name hashes the instruction
- *    lines and nothing else, and the directory also holds the pooler's
- *    configuration), and no ENTRYPOINT, CMD or ENV, which would make the
- *    image's interface other than upstream's;
+ *    `edoburu/pgbouncer:v<x.y.z>-p<n>` by tag and index digest; since
+ *    2026-11-19 a SHELL that is the base's ash with `-o pipefail`, so a pipe
+ *    in either RUN fails it when any of its commands fails (hadolint's
+ *    DL4006); `USER root`, the RUN that takes the packages, `USER postgres`,
+ *    the RUN that starts the pooler and the client; and no other
+ *    instruction: no parser directive, no COPY, ADD or `--mount` (the name
+ *    hashes the instruction lines and nothing else, and the directory also
+ *    holds the pooler's configuration), and no ENTRYPOINT, CMD or ENV, which
+ *    would make the image's interface other than upstream's;
  *  - THE FIRST RUN TAKES EXACTLY THE VERSIONS IT NAMES. apk is asked for
  *    `add --no-cache name=version …` and `version -t` and nothing else: never
  *    a floor, an upgrade or another repository. The RUN is run here, on a
@@ -196,10 +198,11 @@ function dockerfileProblems(text: string): string[] {
   }
   const instructions = instructionsOf(text);
   const kinds = instructions.map((i) => /^\s*(\S+)/.exec(i)?.[1]?.toUpperCase() ?? '');
-  if (JSON.stringify(kinds) !== JSON.stringify(['FROM', 'USER', 'RUN', 'USER', 'RUN'])) {
-    return [...problems, `its instructions are ${JSON.stringify(kinds)}, not FROM, USER, RUN, USER, RUN: anything else reads files the name does not cover, or changes upstream's interface`];
+  if (JSON.stringify(kinds) !== JSON.stringify(['FROM', 'SHELL', 'USER', 'RUN', 'USER', 'RUN'])) {
+    return [...problems, `its instructions are ${JSON.stringify(kinds)}, not FROM, SHELL, USER, RUN, USER, RUN: anything else reads files the name does not cover, or changes upstream's interface`];
   }
-  const [, asRoot, packages, asUpstream, proof] = instructions as [string, string, string, string, string];
+  const [, shell, asRoot, packages, asUpstream, proof] = instructions as [string, string, string, string, string, string];
+  if (shell !== 'SHELL ["/bin/ash", "-o", "pipefail", "-c"]') problems.push(`\`${shell}\` is not the base's ash with pipefail, which both RUNs' pipes need`);
   if (asRoot !== 'USER root') problems.push(`\`${asRoot}\` before the packages' RUN, not USER root, which apk needs`);
   if (asUpstream !== 'USER postgres') problems.push(`the image's user is \`${asUpstream}\`, not USER postgres, which upstream's config names: the pooler would start as somebody else`);
   for (const i of instructions) if (/--mount\b/i.test(i)) problems.push(`\`${i.split('\n')[0]}\` mounts something the name does not cover`);
@@ -254,7 +257,11 @@ process.stderr.write('the stand-in apk has no ' + command + '\n');
 process.exit(2);
 `;
 
-/** The Dockerfile's two RUNs as the builder hands them to /bin/sh. */
+/**
+ * The Dockerfile's two RUNs, as the builder hands them to its SHELL, the
+ * base's ash with pipefail (since 2026-11-19). This machine's sh runs them
+ * here, with no pipefail: no stand-in below fails inside a pipe.
+ */
 function runsOf(dockerfile: string): [string, string] {
   const runs = instructionsOf(dockerfile).filter((i) => /^RUN\s/.test(i)).map((i) => i.replace(/^RUN\s+/, ''));
   expect(runs, 'the Dockerfile has not two RUNs').toHaveLength(2);
@@ -569,8 +576,12 @@ describe("the pooler is upstream's image with five Alpine packages at exact vers
     // What the builder reads that the name does not cover, and an interface that is no longer upstream's.
     expect(dockerfileProblems(`# syntax=docker/dockerfile:1\n${dockerfile}`)).toEqual([expect.stringContaining('is a parser directive')]);
     for (const line of ['COPY pgbouncer.ini /etc/pgbouncer/pgbouncer.ini', 'ADD https://example.org/x /tmp/', 'ENTRYPOINT ["/usr/bin/pgbouncer"]', 'CMD ["/usr/bin/pgbouncer", "-v"]', 'ENV PGSSLMODE=disable', 'USER root']) {
-      expect(dockerfileProblems(`${dockerfile}${line}\n`), line).toEqual([expect.stringContaining('not FROM, USER, RUN, USER, RUN')]);
+      expect(dockerfileProblems(`${dockerfile}${line}\n`), line).toEqual([expect.stringContaining('not FROM, SHELL, USER, RUN, USER, RUN')]);
     }
+    // The shell: gone, or another, or without pipefail.
+    expect(dockerfileProblems(dockerfile.replace(/^SHELL .*\n/m, ''))).toEqual([expect.stringContaining('not FROM, SHELL, USER, RUN, USER, RUN')]);
+    expect(problems(/^SHELL .*$/m, 'SHELL ["/bin/sh", "-c"]')).toEqual([expect.stringContaining("is not the base's ash with pipefail")]);
+    expect(problems(/^SHELL .*$/m, 'SHELL ["/bin/ash", "-c"]')).toEqual([expect.stringContaining("is not the base's ash with pipefail")]);
     expect(problems(/^USER postgres$/m, 'USER root')).toEqual([expect.stringContaining('not USER postgres')]);
     expect(problems(/^USER postgres$/m, 'USER 70')).toEqual([expect.stringContaining('not USER postgres')]);
     expect(problems(/^USER root$/m, 'USER postgres')).toEqual([expect.stringContaining('not USER root')]);

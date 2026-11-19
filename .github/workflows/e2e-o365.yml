@@ -62,6 +62,14 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
   cancel-in-progress: false
 
+# Read-only (workplan 0119, 2026-11-19): the checkout is the one step here
+# that uses the token; the tenant's credentials below are repository secrets,
+# which this does not touch. Until then this file named no permissions, so
+# the job ran on whatever the repository's settings give the default token.
+# Held by scripts/a-token-the-job-never-asked-for.unit.test.ts.
+permissions:
+  contents: read
+
 env:
   # O365 configuration (from repo/environment secrets).
   O365_CLIENT_ID: ${{ secrets.O365_CLIENT_ID }}
@@ -93,6 +101,8 @@ jobs:
           echo "✓ Required O365 secrets present (client ${O365_CLIENT_ID:0:8}…, tenant $O365_TENANT_ID)"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:

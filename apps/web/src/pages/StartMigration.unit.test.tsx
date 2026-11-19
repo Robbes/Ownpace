@@ -12,6 +12,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { DISCOVERY_DOMAINS, SCOPE_MANIFEST, lifecycleCounts, sourceFaceIsExperimental, type Person } from '@openmig/shared';
 import StartMigration, { CheckStep } from './StartMigration.tsx';
@@ -72,6 +73,7 @@ const ANNA: Person = {
   displayName: 'Anna Jansen',
   email: null,
   createdAt: '2026-09-28T10:00:00.000Z',
+  you: false,
   migrations: [],
   counts: lifecycleCounts([]),
 };
@@ -415,6 +417,55 @@ describe('Connect your accounts (screen 4)', () => {
     expect(next()).toBeDisabled();
   });
 
+  // The swallowed-error check of 2026-11-19 (workplan 0006 J): the removal's catch let
+  // any failure go, a fault in the page's own code as well as a refused request.
+  describe('when the account a failed check left is not removed', () => {
+    async function pressTryAgain() {
+      addMock.mockResolvedValue({ ok: false, id: 'c-bad', reason: 'Login failed' });
+      const user = userEvent.setup();
+      renderAt();
+      await toWhatMoves(user, ['Another mail provider']);
+      await onTo(user, 'Connect your accounts');
+      await user.type(await screen.findByRole('textbox', { name: /^Username/ }), 'anna@example.nl');
+      await user.click(screen.getByRole('button', { name: 'Check the sign-in' }));
+      const button = await screen.findByRole('button', { name: 'Try again' });
+      const readsBefore = listMock.mock.calls.length;
+      await user.click(button);
+      return readsBefore;
+    }
+
+    it('reads the accounts again when the server did not remove it, so the row it kept is listed', async () => {
+      const gone = new AxiosError('Request failed with status code 404', AxiosError.ERR_BAD_REQUEST);
+      gone.response = {
+        status: 404,
+        statusText: '',
+        data: { error: 'not_found', reason: 'No such connection.' },
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+      };
+      removeMock.mockRejectedValue(gone);
+
+      const readsBefore = await pressTryAgain();
+
+      expect(removeMock).toHaveBeenCalledWith('c-bad');
+      await vi.waitFor(() => expect(listMock.mock.calls.length).toBeGreaterThan(readsBefore));
+    });
+
+    it('throws a failure that is not the request’s, rather than dropping it', async () => {
+      const fault = new TypeError('a fault in the page');
+      removeMock.mockRejectedValue(fault);
+      const thrown: unknown[] = [];
+      const onUnhandled = (reason: unknown) => thrown.push(reason);
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        await pressTryAgain();
+        await vi.waitFor(() => expect(thrown).toContain(fault));
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+    });
+  });
+
   it('says the saved accounts could not be read, and still offers a new one', async () => {
     listMock.mockRejectedValue(new Error('down'));
     const user = userEvent.setup();
@@ -576,6 +627,47 @@ describe('Where does it go? (screen 5)', () => {
     await user.click(screen.getByRole('button', { name: 'Leave email out' }));
     expect(screen.queryByRole('combobox', { name: 'Where email goes' })).not.toBeInTheDocument();
     expect(screen.getByRole('combobox', { name: 'Where files goes' })).toBeInTheDocument();
+  });
+
+  /** A saved Cirrux account, its Drive as its last test measured it (0160 T5). */
+  const cirrux = (id: string, file?: { answer: 'yes' | 'no'; detail: string }) =>
+    account({
+      id,
+      role: 'target',
+      kind: 'cirrux',
+      displayName: id === 'c-drive' ? 'Anna Cirrux' : 'Bob Cirrux',
+      qualification: {
+        domains: {
+          mail: { answer: 'yes', detail: '1 mailbox' },
+          ...(file ? { file } : {}),
+        },
+      },
+    });
+
+  it('offers a saved Cirrux account for files once its Drive is connected, and never a new one (0160 T5)', async () => {
+    listMock.mockResolvedValue([
+      ...SAVED_SOURCES,
+      cirrux('c-drive', { answer: 'yes', detail: 'Cirrux Drive connected as anna.' }),
+      cirrux('c-nodrive', { answer: 'no', detail: 'Cirrux Drive is not connected on this account.' }),
+      cirrux('c-unmeasured'),
+    ]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    const files = screen.getByRole('combobox', { name: 'Where files goes' });
+    // The connected one is offered, and suggested, there being no Nextcloud saved.
+    expect(within(files).getByRole('option', { name: 'Anna Cirrux' })).toBeEnabled();
+    expect(files).toHaveDisplayValue('Anna Cirrux');
+    // One whose Drive is a measured no, or was never measured, is not a
+    // destination for files at all: its kind takes none without the sign-in.
+    expect(within(files).queryByRole('option', { name: /^Bob Cirrux/ })).not.toBeInTheDocument();
+    expect(within(files).getAllByRole('option', { name: /Cirrux/ })).toHaveLength(1);
+    // Never as a new account: a new Cirrux account has no Drive until it is connected.
+    expect(within(files).queryByRole('option', { name: 'Add Cirrux' })).not.toBeInTheDocument();
+    // And Cirrux is not blamed for files where one of its accounts takes them.
+    expect(screen.queryByText('Cirrux does not take files.')).not.toBeInTheDocument();
+    // Mail still takes any Cirrux account, saved (three) or new (one).
+    expect(within(screen.getByRole('combobox', { name: 'Where email goes' })).getAllByRole('option', { name: /Cirrux/ })).toHaveLength(4);
   });
 
   it('says it in Dutch too, with the same names in each sentence', () => {

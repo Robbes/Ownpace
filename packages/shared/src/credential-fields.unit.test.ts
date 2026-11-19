@@ -16,6 +16,7 @@ import {
   connectableTypes,
   credentialFieldRequired,
   credentialFieldsFor,
+  providerDisplayName,
   secretFieldKeys,
 } from './credential-fields.ts';
 
@@ -99,15 +100,18 @@ describe('what each side can offer', () => {
       // the calendars, address books, files and task lists one Nextcloud
       // already serves, instead of three protocol rows describing it.
       'nextcloud',
+      // Soverin's shape for a second provider (workplan 0160): mail, calendars,
+      // contacts and tasks from one Cirrux mailbox and its app password.
+      'cirrux',
     ]);
   });
 });
 
 describe('the DAV targets ask for an optional base URL (0105 T1)', () => {
-  it('caldav, carddav, webdav and soverin offer url, and it gates nothing', () => {
+  it('caldav, carddav, webdav, soverin and cirrux offer url, and it gates nothing', () => {
     // The escape hatch for a provider whose DAV root lives behind a path —
     // host+port can only ever say https://host:port/.
-    for (const type of ['caldav', 'carddav', 'webdav', 'soverin']) {
+    for (const type of ['caldav', 'carddav', 'webdav', 'soverin', 'cirrux']) {
       const url = credentialFieldsFor('target', type).find((f) => f.key === 'url');
       expect(url, `${type} has no url field`).toBeDefined();
       expect(url?.required, `${type}'s url must stay optional — host+port keep working`).not.toBe(
@@ -148,6 +152,39 @@ describe('the soverin mail face is asked at ITS door only (0106 T4b)', () => {
         `${type} must not ask for a mailHost`,
       ).toBe(false);
     }
+  });
+});
+
+describe('the cirrux door (workplan 0160 T1)', () => {
+  const fields = credentialFieldsFor('target', 'cirrux');
+
+  it("is Soverin's door: the DAV host and port, the base URL, who signs in, and the mail face", () => {
+    expect(fields.map((f) => f.key)).toEqual([
+      'host',
+      'port',
+      'url',
+      'username',
+      'password',
+      'mailHost',
+      'mailPort',
+    ]);
+    expect(fields.filter((f) => f.required).map((f) => f.key)).toEqual(['host', 'port', 'username', 'password']);
+    expect(secretFieldKeys('target', 'cirrux')).toEqual(['password']);
+  });
+
+  it('shows the server Cirrux publishes as its example, and says the password is an app password', () => {
+    expect(fields.find((f) => f.key === 'host')?.placeholder).toBe('api.cirrux.co');
+    expect(fields.find((f) => f.key === 'port')?.placeholder).toBe('443');
+    // Cirrux refuses the account's own password over IMAP and DAV, so the box
+    // says which password it wants before Test has to.
+    expect(fields.find((f) => f.key === 'password')?.hintKey).toBe('account.cirruxAppPassword.hint');
+    // And only Cirrux's box says so: Soverin's password box is unchanged.
+    expect(credentialFieldsFor('target', 'soverin').find((f) => f.key === 'password')?.hintKey).toBeUndefined();
+  });
+
+  it('is named Cirrux on screen, in both languages', () => {
+    expect(providerDisplayName('cirrux')).toBe('Cirrux');
+    expect(providerDisplayName('cirrux', 'nl')).toBe('Cirrux');
   });
 });
 

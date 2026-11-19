@@ -87,6 +87,9 @@
  *                      and BuildKit images images.yml's build job names in its
  *                      actions' inputs, each against the digest of the channel
  *                      its action ran before (`ACTION_IMAGES`); and the
+ *                      hadolint image hadolint.yml lints every Dockerfile
+ *                      with (`HADOLINT_IMAGE`, 2026-11-19), against Docker
+ *                      Hub's tags of its shape and major; and the
  *                      Node.js release keyring the Windows payload's
  *                      `node.exe` check reads (`NODE_RELEASE_KEYS` in
  *                      scripts/package-appliance.mjs, 2026-11-01), the file
@@ -245,6 +248,33 @@ export function secondMajorPin(text) {
   return image;
 }
 
+/**
+ * The hadolint `hadolint.yml` lints every Dockerfile with, report only
+ * (workplan 0119, the owner's decision of 2026-11-19): its job's one
+ * `HADOLINT_IMAGE:` line. Dependabot reads no workflow env, so this row is
+ * what says a newer release is tagged.
+ */
+export const HADOLINT_WORKFLOW = '.github/workflows/hadolint.yml';
+
+/** Said beside the hadolint row when it is behind. */
+export const HADOLINT_NOTE =
+  "move `HADOLINT_IMAGE` in hadolint.yml by tag and index digest, with the comment above it and `HADOLINT` in a-dockerfile-that-ends-as-root saying what was read, in a pull request of its own three days after the tag's push; a newer hadolint can bring new rules, so read the job's summary on that pull request";
+
+/**
+ * The image `hadolint.yml` runs: its one `HADOLINT_IMAGE:` line, as
+ * `hadolint/hadolint:v<x.y.z>@sha256:…`. None, two, another image or no
+ * digest is an error, never "current".
+ */
+export function hadolintPin(text) {
+  const named = [...text.matchAll(/^\s*HADOLINT_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${HADOLINT_WORKFLOW} sets HADOLINT_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'hadolint/hadolint' || !/^v\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${HADOLINT_WORKFLOW} names ${image.ref}, not hadolint/hadolint by a release tag and its index digest`);
+  }
+  return image;
+}
+
 /** The visit count's GoAccess, built here (#1675). */
 export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
 
@@ -290,10 +320,11 @@ export const COSIGN_FILES = ['.github/workflows/images.yml', '.github/workflows/
  * the `env:` of its install step. Until that day the step fetched
  * `atlas-community-linux-<arch>-latest`, which is a canary build of upstream's
  * master branch and not a release, with no checksum, and ran it, on the
- * owner's machine for a main push. Upstream's git tags stop at v1.3.0 while
- * its releases go on (1.3.6 on 2026-10-27), so the release list this row
- * reads is the community image's tags on Docker Hub, `<version>-community`,
- * which carry every release. Dependabot cannot see a URL in a `run:`.
+ * owner's machine for a main push. Upstream's git tags miss most of its
+ * releases (v1.3.1 to v1.3.10 have none; v1.4.0, of 2026-11-17, has one), so
+ * the release list this row reads is the community image's tags on Docker
+ * Hub, `<version>-community`, which carry every release. Dependabot cannot
+ * see a URL in a `run:`.
  */
 export const ATLAS_WORKFLOW = '.github/workflows/ci.yml';
 export const ATLAS_HOST = 'https://atlasbinaries.com/';
@@ -546,7 +577,7 @@ export function stateOf(pin, newest) {
 
 // ----------------------------------------------------------- images ------
 
-/** An image reference in its three parts: `axllent/mailpit:v1.33.1@sha256:…`. */
+/** An image reference in its three parts: `axllent/mailpit:v1.34.0@sha256:…`. */
 export function parseRef(ref) {
   const at = ref.indexOf('@');
   const digest = at >= 0 ? ref.slice(at + 1) : '';
@@ -1691,6 +1722,16 @@ export async function routineRows(repo, net) {
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [NEXTCLOUD_SECOND_MAJOR_NOTE] } : {}) };
   }]);
 
+  // hadolint (0119, 2026-11-19): the image hadolint.yml lints every Dockerfile
+  // with, against Docker Hub's newest tag of its shape and major (a `v<x.y.z>`,
+  // never that release's `-debian` or `-alpine` build, or a commit's tag).
+  jobs.push(['hadolint/hadolint', HADOLINT_WORKFLOW, async () => {
+    const image = hadolintPin(need(repo, HADOLINT_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [HADOLINT_NOTE] } : {}) };
+  }]);
+
   // The tasks' prebuilt base (0119 §3 item 13, 2026-11-06): trigger.config.ts's
   // pin against main's `edge`, by layers, since every merge republishes it
   // under a new digest (taskBaseRow).
@@ -1780,7 +1821,7 @@ export async function routineRows(repo, net) {
 
   // Atlas: the CLI migration-lint downloads by release and checks by its
   // sha256 (2026-11-01). Its release list is the community image's tags on
-  // Docker Hub, since upstream's git tags stop at v1.3.0 (ATLAS_WORKFLOW).
+  // Docker Hub, since upstream's git tags miss most releases (ATLAS_WORKFLOW).
   jobs.push(['Atlas', ATLAS_WORKFLOW, async () => {
     const { version } = atlasPin(need(repo, ATLAS_WORKFLOW));
     const tag = `${version.slice(1)}-community`;
