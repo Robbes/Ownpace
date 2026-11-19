@@ -2,7 +2,17 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-18 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: alpha.12's counted nights are waived, in the owner's words, before its fold.** The
+owner, on 2026-11-19: *"I waive waiting time / nights if needed."* So `v0.2.0-alpha.12` joins
+`WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to alpha.11, with those words,
+which Release's `waive_nights` must carry. The two guards that read the list name it, with
+`v0.2.0-alpha.13` now the version a waiver is refused for, and `docs/release.md` lists it. It
+lands before alpha.12's fold, so C, the fold's squash, carries the list: Release reads
+`WAIVER_VERSIONS` from `main`'s own scripts. Owed before the tag: Zitadel v4.20.4 (#1938), which
+goes in after a copy of the OTA stack's identity provider is taken; the fold; C green on CI, the
+scans and E2E; and the owner's dispatch of Release.
 
 **2026-11-18, last: T11 (a) again, Mailpit v1.33.1 → v1.34.0 on the test stack, built on a
 branch, not merged, waiting for its floor.** On the branch
