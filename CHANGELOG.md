@@ -90,6 +90,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The deploy CLI's copy of effect moves to 3.22.4, past a regular expression that could take
+  exponential time** (workplan 0119). pnpm audit named GHSA-7589-6fvf-x4pw (high) on the evening
+  of 2026-11-19: the expression effect's `Schema.TemplateLiteral` compiles, in every version to
+  3.22.0. The one copy below its fix, 3.21.0, came in through the Trigger.dev deploy CLI's build
+  package and its Prisma config reader, which pins it exactly. That reader never calls
+  `TemplateLiteral`, and only the build's Prisma extension loads it, which this repository does
+  not use, so nothing here ran the expression. An override in `pnpm-workspace.yaml` gives it
+  3.22.4, the release the lockfile already held for another of the CLI's packages, so the tree
+  keeps one copy of effect. Nothing deployed changes.
 - **The web image runs nginx as its own user from its first process, GoAccess's image ends as
   nobody, and three more Dockerfiles lose a pipe that could hide a failed command** (workplan
   0119). A read-only check of the repository read the web image and GoAccess's as containers that
