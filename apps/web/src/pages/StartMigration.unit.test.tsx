@@ -629,6 +629,47 @@ describe('Where does it go? (screen 5)', () => {
     expect(screen.getByRole('combobox', { name: 'Where files goes' })).toBeInTheDocument();
   });
 
+  /** A saved Cirrux account, its Drive as its last test measured it (0160 T5). */
+  const cirrux = (id: string, file?: { answer: 'yes' | 'no'; detail: string }) =>
+    account({
+      id,
+      role: 'target',
+      kind: 'cirrux',
+      displayName: id === 'c-drive' ? 'Anna Cirrux' : 'Bob Cirrux',
+      qualification: {
+        domains: {
+          mail: { answer: 'yes', detail: '1 mailbox' },
+          ...(file ? { file } : {}),
+        },
+      },
+    });
+
+  it('offers a saved Cirrux account for files once its Drive is connected, and never a new one (0160 T5)', async () => {
+    listMock.mockResolvedValue([
+      ...SAVED_SOURCES,
+      cirrux('c-drive', { answer: 'yes', detail: 'Cirrux Drive connected as anna.' }),
+      cirrux('c-nodrive', { answer: 'no', detail: 'Cirrux Drive is not connected on this account.' }),
+      cirrux('c-unmeasured'),
+    ]);
+    const user = userEvent.setup();
+    renderAt();
+    await toWhereTo(user);
+    const files = screen.getByRole('combobox', { name: 'Where files goes' });
+    // The connected one is offered, and suggested, there being no Nextcloud saved.
+    expect(within(files).getByRole('option', { name: 'Anna Cirrux' })).toBeEnabled();
+    expect(files).toHaveDisplayValue('Anna Cirrux');
+    // One whose Drive is a measured no, or was never measured, is not a
+    // destination for files at all: its kind takes none without the sign-in.
+    expect(within(files).queryByRole('option', { name: /^Bob Cirrux/ })).not.toBeInTheDocument();
+    expect(within(files).getAllByRole('option', { name: /Cirrux/ })).toHaveLength(1);
+    // Never as a new account: a new Cirrux account has no Drive until it is connected.
+    expect(within(files).queryByRole('option', { name: 'Add Cirrux' })).not.toBeInTheDocument();
+    // And Cirrux is not blamed for files where one of its accounts takes them.
+    expect(screen.queryByText('Cirrux does not take files.')).not.toBeInTheDocument();
+    // Mail still takes any Cirrux account, saved (three) or new (one).
+    expect(within(screen.getByRole('combobox', { name: 'Where email goes' })).getAllByRole('option', { name: /Cirrux/ })).toHaveLength(4);
+  });
+
   it('says it in Dutch too, with the same names in each sentence', () => {
     const KEYS = [
       'start.to.cannotTake.option',

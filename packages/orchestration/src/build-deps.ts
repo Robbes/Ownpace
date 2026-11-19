@@ -29,6 +29,7 @@ import {
   InProcessByteBudget,
   imapDownloadPlan,
   type SourceAuthority,
+  mailsGuestsItself,
 } from '@openmig/shared';
 import {
   createTokenProvider,
@@ -695,10 +696,12 @@ function buildDomainDepsWithLedger(
             )
           : buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
       const calendarTargetEndpoint = davEndpoint(targetConfig, 'caldav', 'target');
-      target = buildCalendarTarget(calendarTargetEndpoint, targetDeps);
+      // No guests for a target that mails them whatever SCHEDULE-AGENT says
+      // (workplan 0160, `TARGETS_THAT_MAIL_GUESTS`).
+      target = buildCalendarTarget(calendarTargetEndpoint, targetDeps, { mailsGuests: mailsGuestsItself(targetConfig.type) });
       // The verdict, recorded before the mapping's first calendar write
       // (0105 T0) — measured on the SAME endpoint the writer just got.
-      recordTargetScheduling = schedulingRecorder(calendarTargetEndpoint, targetDeps);
+      recordTargetScheduling = schedulingRecorder(calendarTargetEndpoint, targetDeps, targetConfig.type);
       break;
     }
     case 'contact': {
@@ -839,7 +842,9 @@ function buildDomainDepsWithLedger(
         sourceConfig.type === 'graph-todo'
           ? buildGraphTodoSourceFrom(sourceConfig, graphEntraCredsFromEnv(), domainThrottleLimiter)
           : buildTaskSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
-      target = buildTaskTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps);
+      target = buildTaskTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps, {
+        mailsGuests: mailsGuestsItself(targetConfig.type),
+      });
       break;
     }
   }

@@ -31,6 +31,7 @@
  */
 
 import { CalDAVSource, CarddavSource, DropboxFileSource, WebdavFileSource } from '@openmig/connectors';
+import type { CirruxDriveApi } from '@openmig/connectors';
 import {
   isProviderAccountKind,
   parseGoogleDriveSource,
@@ -40,6 +41,9 @@ import {
   storesItsMailServer,
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
+  cirruxDeploymentClient,
+  hasCirruxDriveGrant,
+  type CirruxClientEnv,
   type ProviderAccountEnv,
 } from '@openmig/shared';
 import {
@@ -256,7 +260,20 @@ interface Listable {
 export interface QualifyDeps {
   /** Build the IMAP face's listable; the default opens a real connection. */
   readonly imapListable?: (config: Record<string, unknown>, creds: Record<string, string>) => Listable;
+  /**
+   * Cirrux Drive, reached through the account's own stored sign-in (workplan
+   * 0160 T5). Built by the caller that holds the ROW, because measuring the
+   * face refreshes the sign-in and the successor is written back to the row
+   * under its lock (ADR-0052): the API's Test passes one, a door with no
+   * stored row has nothing to pass.
+   */
+  readonly cirruxDrive?: () => CirruxDriveReach;
+  /** The deployment's Cirrux client, read from the environment unless a test says otherwise. */
+  readonly env?: CirruxClientEnv;
 }
+
+/** What measuring Cirrux Drive asks of its API: who signed in, the pool, the top of the Drive. */
+export type CirruxDriveReach = Pick<CirruxDriveApi, 'profile' | 'storage' | 'listFolder'>;
 
 const NOT_ASKABLE_MAIL =
   'This connection carries no mail server address, so mail was not measured — ' +
@@ -359,25 +376,6 @@ function notAFaceOf(kind: string, face: string): QualifiedDomain {
  * stays a list of exceptions rather than a second vocabulary.
  */
 function reasonedNo(kind: string, face: DiscoveryDomain): QualifiedDomain | undefined {
-  // Cirrux's Drive is real and is where a person expects their files to go,
-  // so "not a face of this connection" would read as if nobody had looked.
-  // What is true: Drive speaks no WebDAV, only Cirrux's own HTTP API, and
-  // that API refuses a workspace API key and takes a person's OAuth sign-in
-  // through a client Cirrux registers on request
-  // (https://cirrux.co/help/api/drive, https://cirrux.co/help/questions/oauth-client-for-my-app,
-  // read 2026-11-19). Workplan 0160 T5 is that connector; until it exists the
-  // file face is a measured no with its reason.
-  if (kind === 'cirrux' && face === 'file') {
-    return {
-      answer: 'no',
-      reason: 'structural',
-      detail:
-        'Cirrux Drive is not reachable over WebDAV, only through Cirrux’s own API, which signs a ' +
-        'person in with an app Cirrux registers. This service has no such app yet, so files ' +
-        'cannot be written to Cirrux Drive from this account. Mail, calendars, contacts and ' +
-        'tasks can.',
-    };
-  }
   if (kind === 'apple' && face === 'file') {
     return {
       answer: 'no',
@@ -585,16 +583,20 @@ export async function qualifyAccount(
         }),
       'addressBook',
     ),
-    davFace(
-      'file',
-      'a file store',
-      () =>
-        (() => {
-          const e = fileEndpoint();
-          return new WebdavFileSource({ url: e.url, username: e.username, password: e.password });
-        })(),
-      'folder',
-    ),
+    // A Cirrux account's files are its Drive, behind a person's sign-in
+    // stored beside the app password (workplan 0160 T5), not a DAV face.
+    kind === 'cirrux'
+      ? qualifyCirruxDrive(creds, deps)
+      : davFace(
+          'file',
+          'a file store',
+          () =>
+            (() => {
+              const e = fileEndpoint();
+              return new WebdavFileSource({ url: e.url, username: e.username, password: e.password });
+            })(),
+          'folder',
+        ),
     mailHost
       ? askListable(
           () =>
@@ -623,6 +625,8 @@ export async function qualifyAccount(
           calendarEndpoint.url,
           calendarEndpoint.username,
           calendarEndpoint.password,
+          undefined,
+          kind,
         )
       : undefined;
   const mail: QualifiedDomain =
@@ -650,6 +654,83 @@ export async function qualifyAccount(
     },
     ...(scheduling ? { scheduling } : {}),
   };
+}
+
+/**
+ * CIRRUX DRIVE, THE FACE A SIGN-IN ADDS (workplan 0160 T5; ADR-0052).
+ *
+ * Three answers, by what is true of the deployment and the account, in that
+ * order:
+ *
+ * - **No Cirrux client on this deployment**: a measured `no`, `structural`,
+ *   saying so. Cirrux registers each client by hand; until it has, nothing
+ *   can sign a person in, and no screen offers the button.
+ * - **No Drive grant on the account**: a measured `no`, `notGranted`. The
+ *   face exists and the account has not been given it; the Accounts page's
+ *   *Connect Cirrux Drive* is what gives it.
+ * - **A grant stored**: MEASURED, through the account's own sign-in: who
+ *   signed in and in which workspace, what is at the top of the Drive, and
+ *   the storage pool. That refreshes the sign-in, and the successor is
+ *   written back to the row under its lock, which is why the caller holding
+ *   the row builds the reach. A refusal is not a no: `unknown`, with
+ *   Cirrux's words.
+ */
+export async function qualifyCirruxDrive(
+  creds: Record<string, string>,
+  deps: QualifyDeps = {},
+): Promise<QualifiedDomain> {
+  if (!cirruxDeploymentClient(deps.env ?? process.env)) {
+    return {
+      answer: 'no',
+      reason: 'structural',
+      detail:
+        'This service has no Cirrux client on this deployment yet, so nobody can sign in to Cirrux ' +
+        'Drive from it, and files cannot be written there. Cirrux registers each client by hand. ' +
+        'Mail, calendars, contacts and tasks can go to this account.',
+    };
+  }
+  if (!hasCirruxDriveGrant(creds)) {
+    return {
+      answer: 'no',
+      reason: 'notGranted',
+      detail:
+        'Cirrux Drive is not connected on this account. Press Connect Cirrux Drive on the Accounts ' +
+        'page and sign in to Cirrux, and files can go to its Drive.',
+    };
+  }
+  if (!deps.cirruxDrive) {
+    return {
+      answer: 'unknown',
+      reason: 'notAskable',
+      detail: 'Cirrux Drive is connected on this account; it was not measured here.',
+    };
+  }
+  try {
+    const drive = deps.cirruxDrive();
+    const [profile, top] = await Promise.all([drive.profile(), drive.listFolder(null)]);
+    const who = profile.user?.username ? ` as ${profile.user.username}` : '';
+    const where = profile.workspace?.name ? `, in the workspace ${profile.workspace.name}` : '';
+    const count = top.folders.length + top.files.length;
+    let face: QualifiedDomain = {
+      answer: 'yes',
+      detail: `Cirrux Drive connected${who}${where}: ${count} item${count === 1 ? '' : 's'} at the top level.`,
+      count: top.folders.length,
+      unit: 'folder',
+    };
+    try {
+      const pool = await drive.storage();
+      face = { ...face, ...(typeof pool.used_bytes === 'number' ? { volume: { bytes: pool.used_bytes } } : {}) };
+    } catch (err) {
+      face = { ...face, volume: { failed: `storage: ${err instanceof Error ? err.message : String(err)}` } };
+    }
+    return face;
+  } catch (err) {
+    return {
+      answer: 'unknown',
+      reason: 'refused',
+      detail: `Unmeasured — Cirrux Drive refused: ${err instanceof Error ? err.message : String(err)}`,
+    };
+  }
 }
 
 /**

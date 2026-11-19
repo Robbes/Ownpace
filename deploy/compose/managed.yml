@@ -112,6 +112,8 @@ name: ownpace-managed
 # tag and digest, which Dependabot reads (its own entry, never a major). Its name ends in the hash
 # of that file's instructions, and a pull request that changes them fails
 # a-package-the-front-never-runs until the name moves with it. `up` builds it where it is missing.
+# Since 2026-11-19 it runs as uid 65532, and trigger-tls-init, the same build as root, gives its
+# two volumes to that user before it starts.
 # trigger-redis runs a local build too since 2026-11-07 (workplan 0119 §3 item 11, for alpha.6):
 # Redis's official image at its pinned digest with the eleven Debian packages nothing here runs
 # purged (thirteen since 2026-11-08, for alpha.7: libsystemd0 and libudev1 too), run as uid 999
@@ -150,13 +152,13 @@ name: ownpace-managed
 # "more hardened"). Every service sets `no-new-privileges`: a process in it
 # cannot gain a privilege by running a setuid binary or one with a file
 # capability. Nothing here needs that: the services that change user
-# (ClickHouse's `clickhouse su`, nginx's and Apache's workers, Nextcloud's su) do
-# it as root, with a system call, and the rest never change user. All but
+# (ClickHouse's `clickhouse su`, Apache's workers, Nextcloud's su) do it as
+# root, with a system call, and the rest never change user. All but
 # two drop every capability (`cap_drop: [ALL]`) and add back only what their
 # own start-up does as root, each named beside the service with the reason;
 # a service that runs as another user from its first process adds none. The two
 # that keep Docker's default set, trigger-api and nextcloud, say why beside
-# them. Six that write nothing outside their volumes start with a read-only
+# them. Seven that write nothing outside their volumes start with a read-only
 # root, with /tmp (and /run) in memory where they write there. Each set was
 # measured on the service's own image, its start and a restart on the volume it
 # wrote, where the image could be pulled, and read from the image's Dockerfile
@@ -283,7 +285,7 @@ services:
   # `up` that finds no image of this name; `never`, as for the databases: no
   # registry serves this name.
   pgbouncer:
-    image: localhost/pgbouncer:v1.26.1-p0-db1368bd0eb6
+    image: localhost/pgbouncer:v1.26.1-p0-abd8080fb98b
     build: ./pgbouncer
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-pgbouncer
@@ -874,7 +876,7 @@ services:
   # only), why the name carries the hash of its instructions, and how it moves.
   # `never`, as for the databases: no registry serves this name.
   trigger-docker-proxy:
-    image: localhost/docker-socket-proxy:3.4.7-alpine-98bf1b1c7226
+    image: localhost/docker-socket-proxy:3.4.7-alpine-a8d771e9f164
     build: ./docker-socket-proxy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
@@ -1189,26 +1191,30 @@ services:
   # in, which carried the image's one critical finding and two of its highs.
   # Nothing here runs curl in it: no healthcheck, no exec, and the smoke asks
   # the front from the host. deploy/compose/caddy/Dockerfile says what it
-  # removes, why the name carries the hash of its instructions, and how it
-  # moves. `never`, as for the databases: no registry serves this name.
+  # removes, why the name carries the hash of its instructions, how it moves,
+  # and why it runs as uid 65532. `never`, as for the databases: no registry
+  # serves this name.
   trigger-tls:
-    image: localhost/caddy:2.11.9-alpine-f52a976e646f
+    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     logging: *logging
-    # HOW IT RUNS (see the header): root, writing only its two volumes.
-    # NET_BIND_SERVICE although it binds 3443: the image's /usr/bin/caddy carries it
-    # as a file capability (cap_net_bind_service=ep), and the kernel refuses to
-    # start a binary whose file capability the bounding set lacks: without it, `exec
-    # /usr/bin/caddy: operation not permitted`. IF CADDY EVER RUNS AS A USER OTHER
-    # THAN ROOT, revisit no-new-privileges here: a non-root Caddy binds through that
-    # file capability, and no-new-privileges stops a file capability from applying.
-    # Not read-only: Caddy writes its local CA into the image's trust store at start.
+    # HOW IT RUNS (see the header): as uid and gid 65532 from its first process,
+    # the image's USER since 2026-11-19, with no capability, writing only its two
+    # volumes, which trigger-tls-init gives it first. It binds 3443, which needs
+    # none, and no-new-privileges stays: the binary's file capability,
+    # cap_net_bind_service, is permitted and not effective in Caddy 2.11.9's
+    # image (`+p`), and the kernel starts such a binary whatever the bounding set
+    # holds. Until then it ran as root and kept NET_BIND_SERVICE, for 2.11.7's
+    # `+ep`: the kernel refuses a binary whose effective file capability the
+    # bounding set lacks (`exec /usr/bin/caddy: operation not permitted`). Not
+    # read-only: not measured since Caddy stopped installing its local CA into
+    # the image's trust store at start (skip_install_trust), which was why.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    cap_add: [NET_BIND_SERVICE]
+    cap_add: []
     environment:
       TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
     ports:
@@ -1226,8 +1232,48 @@ services:
     depends_on:
       trigger-api:
         condition: service_started
+      # Its two volumes given to 65532 first (trigger-tls-init, below).
+      trigger-tls-init:
+        condition: service_completed_successfully
     networks:
       - ownpace-network
+
+  # Gives trigger-tls's two volumes to the user it runs as, uid and gid 65532,
+  # before it starts (2026-11-19, workplan 0119). On a stack that ran the front
+  # as root, trigger_tls_data (the CA `tls internal` minted, and its
+  # certificate) and trigger_tls_config are root's, the keys at mode 0600 in
+  # directories at mode 0700, so 65532 could not read the CA and the front
+  # would not start. This gives both to 65532 once, and the CA and a browser's
+  # exception for its certificate stay; at every `up` after that it changes
+  # nothing, and on a new volume it finds the image's own directories. A
+  # one-shot, as minio-init is: trigger-tls waits for it with
+  # service_completed_successfully, which `up --wait` takes as done. The same
+  # build as trigger-tls, as root. Going back to a tag that ran the front as
+  # root needs the two given back to root first (docs/managed-bring-up.md, "The
+  # dashboard's TLS front is a build here too").
+  trigger-tls-init:
+    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
+    build: ./caddy
+    pull_policy: never
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls-init
+    restart: "no"
+    logging: *logging
+    # HOW IT RUNS (see the header): root, for one chown (CHOWN) through
+    # directories that are 65532's at mode 0700 once it has run
+    # (DAC_READ_SEARCH). Read-only, with no network: it changes the owner of the
+    # two volumes' files and nothing else.
+    user: "0:0"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    read_only: true
+    network_mode: none
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'mkdir -p /data/caddy /config/caddy && chown -R 65532:65532 /data/caddy /config/caddy && echo "trigger_tls_data and trigger_tls_config are 65532:65532"'
+    volumes:
+      - trigger_tls_data:/data
+      - trigger_tls_config:/config
 
   # The identity provider (ADR-0042).
   #
@@ -1964,6 +2010,13 @@ services:
       MICROSOFT_OAUTH_CLIENT_ID: ${MICROSOFT_OAUTH_CLIENT_ID:-}
       MICROSOFT_OAUTH_CLIENT_SECRET: ${MICROSOFT_OAUTH_CLIENT_SECRET:-}
       MICROSOFT_OAUTH_TENANT: ${MICROSOFT_OAUTH_TENANT:-}
+      # The deployment's own Cirrux client (workplan 0160 T5; ADR-0052): a
+      # public client with no secret, registered by Cirrux by hand with this
+      # deployment's exact callback. Unset, a Cirrux account's Drive is a
+      # measured no and no screen offers Connect Cirrux Drive. The worker
+      # refreshes the Drive sign-in on every pass, so set-task-env.sh carries
+      # it there too.
+      CIRRUX_OAUTH_CLIENT_ID: ${CIRRUX_OAUTH_CLIENT_ID:-}
       API_URL: ${API_URL:-http://localhost:3001}
       # Where the API reads the status page's own endpoint list, for the
       # operator's support screen (0110 T5): the gatus container on this
@@ -2119,13 +2172,17 @@ services:
     container_name: ${COMPOSE_PROJECT_NAME}-web
     restart: unless-stopped
     logging: *logging
-    # HOW IT RUNS (see the header): nginx's master is root, binds port 80
-    # (NET_BIND_SERVICE; Docker's own sysctl makes it redundant today, and it is
-    # kept so that port 80 does not rest on a daemon default), chowns its temp
-    # directories to nginx (CHOWN), and its workers become nginx (SETUID, SETGID).
+    # HOW IT RUNS (see the header): as nginx's own user, uid 101, from its first
+    # process, master and workers alike (apps/web/Dockerfile, since 2026-11-19),
+    # with no capability. It binds port 80 as that user by the sysctl below,
+    # which Docker sets the same by default; it is said here so that port 80
+    # does not rest on a daemon default. Until then the master ran as root and
+    # kept CHOWN, NET_BIND_SERVICE, SETGID and SETUID.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    cap_add: [CHOWN, NET_BIND_SERVICE, SETGID, SETUID]
+    cap_add: []
+    sysctls:
+      net.ipv4.ip_unprivileged_port_start: 0
     ports:
       # A ROUTED PORT: the app's public name (`app.…`) leads here through the
       # front. WEB_BIND is set to the front's address in this stack's `.env`,

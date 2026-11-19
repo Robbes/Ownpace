@@ -94,9 +94,12 @@ Soverin follows RFC 6154 for special-use mailbox names:
 ## Cirrux
 
 The `cirrux` account kind (workplan 0160): Soverin's shape, one app password reaching mail over
-IMAP and calendars, contacts and task lists over CalDAV and CardDAV. Every value below was read
-from Cirrux's own help pages on 2026-11-19; the page is named beside each one. ⏳ Built and held
-by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's run).
+IMAP and calendars, contacts and task lists over CalDAV and CardDAV, and **files in Cirrux Drive
+through a person's OAuth sign-in stored on the same account** (0160 T5; ADR-0052), where the
+deployment has a Cirrux client. Every value below was read from Cirrux's own help pages on
+2026-11-19; the page is named beside each one. ⏳ Built and held by unit tests; not yet run
+against a live Cirrux mailbox (0160 T2) or a live Cirrux client (0160 T2b): both are the owner's
+runs.
 
 ### Provider Details
 
@@ -145,11 +148,16 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
    CardDAV server answered an MKCOL for one with 501 on a test mailbox (2026-11-19). So the
    contacts of every address book at the source go into Contacts (0160 §5). Its CalDAV server
    answered an MKCALENDAR at Nextcloud's `calendars/<user>/` with 404 the same day: the
-   calendar home is found by asking, as the address book home is (0160 §5).
-3. **Invitations:** Cirrux Calendar emails guests for changes made in its app or its API
-   (`https://cirrux.co/help/api/calendar`). Whether its CalDAV server honours
-   `SCHEDULE-AGENT=CLIENT` is not documented; Test reads the server's own `DAV:` compliance
-   header, and 0160 T2 runs the canary.
+   calendar home is found by asking, as the address book home is (0160 §5). In that home it
+   answered an MKCALENDAR at a name of ours with 201 and kept the new calendar under an id of
+   its own, so a new calendar is asked for at a UUID and read back (0160 §5).
+3. **Invitations:** Cirrux emails every guest of an event it is given, also over CalDAV. On
+   2026-11-19 it emailed an invitation, in the test mailbox's name and past events included, for
+   events written with every attendee marked `SCHEDULE-AGENT=CLIENT`, and the marker was gone from
+   the invitation it sent (0160 §5). Its API page says the mailbox is always the organiser, and
+   that guests are emailed invitations, updates and cancellations
+   (`https://cirrux.co/help/api/calendar`). So nothing written to Cirrux carries an `ATTENDEE` or
+   an `ORGANIZER`: each becomes a `COMMENT` that names the person (`TARGETS_THAT_MAIL_GUESTS`).
 4. **Server-side filters** run "as mail arrives" and can forward (`https://cirrux.co/help/mailboxes`);
    the webhook documentation says imported mail and mail saved over IMAP never counts as
    received (`https://cirrux.co/help/api/webhooks`). Whether filters run on appended mail is
@@ -157,7 +165,7 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
 5. **No published limits** on message or attachment size, or on IMAP and DAV request rates.
    The HTTP API's limit is 600 requests a minute per token (`https://cirrux.co/help/api`).
 
-### What is not reachable without Cirrux's HTTP API
+### What is reached through Cirrux's HTTP API
 
 - **Drive** (`https://cirrux.co/help/api/drive`): no WebDAV. The API needs a **user-scoped
   OAuth token**; a workspace API key (`cxk_…`) is refused. Scopes `drive.read`, `drive.create`,
@@ -165,7 +173,14 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
   up to 2 GiB, go chunked with client-side AES-256-GCM in Cirrux's `CXDRV2` format. Names are
   unique per folder ignoring case and Unicode form; `base_ctag` refuses a stale replace with
   `409 version_conflict`; trash keeps items 30 days; `/v1/drive/changes` is a delta feed.
-  0160 T5.
+  **Built as a files target** (0160 T5): the consent door
+  `/api/migrations/cirrux/authorize` and `/callback` stores the refresh token on the account;
+  every refresh rotates it and writes the successor back under the row's lock (ADR-0052); the
+  scopes asked are `user.profile workspace.read drive.read drive.create drive.update
+  drive.delete`, and `drive.delete` only moves a file to the trash after a person approved its
+  removal. The two clients the owner asked Cirrux for: the live callback
+  `https://app.ownpace.eu/api/migrations/cirrux/callback` and the OTA callback
+  `https://app.ota.ownpace.eu/api/migrations/cirrux/callback`.
 - **Docs** (`https://cirrux.co/help/docs`, `https://cirrux.co/help/api/documents`): Cirrux's
   own editor, in preview for accounts given early access; documents are stored in Drive and
   read and written as Markdown. A Word or OpenDocument file migrated into Drive stays a file.

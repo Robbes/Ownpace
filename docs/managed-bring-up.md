@@ -2243,6 +2243,37 @@ consent entirely). Both render as sentences, so the person knows to ask
 somebody rather than press the button again. `docs/microsoft-setup.md` is the
 customer-facing version of all of this.
 
+#### The deployment's own Cirrux client
+
+For Cirrux Drive as a destination for files (workplan 0160 T5; ADR-0052). Not a
+pair: Cirrux issues a **public client** (PKCE `S256`, no secret), and it is not
+self-service.
+
+1. **Ask Cirrux for one**, at help@cirrux.co, giving the name people see, the
+   exact callback `GET /api/redirect-uris` lists as `cirrux.migration`
+   (`https://<your API host>/api/migrations/cirrux/callback`), and the scopes
+   `user.profile workspace.read drive.read drive.create drive.update
+   drive.delete`. `drive.delete` only ever moves a file to Cirrux's trash, after
+   a person approved removing it. One client per deployment: the OTA stack and
+   live each have their own callback, and so their own client.
+2. **The client ID, in `deploy/compose/.env`**, where the gate reads it on the
+   OTA stack as for any key:
+
+   ```bash
+   ./deploy/compose/env-upsert.sh deploy/compose/.env CIRRUX_OAUTH_CLIENT_ID=<the client ID>
+   ./deploy/compose/bootstrap-managed.sh --only app
+   ./deploy/compose/set-task-env.sh
+   ./deploy/compose/deploy-tasks.sh
+   ```
+
+   The worker needs it more than any other client: a pass refreshes each Cirrux
+   account's Drive sign-in and writes the successor back, so without it every
+   pass into a Drive the API connected fails.
+
+Until it is set, a Cirrux account's files are a measured no that says this
+deployment has no Cirrux client, and no screen offers *Connect Cirrux Drive*.
+`GET /api/provider-accounts` answers `cirrux.client: deployment` once it is.
+
 ### 8f. Problem reports — by mail, or your own Zammad
 
 "Report a problem", beside Sign out, sends a customer's report to a person:
@@ -3233,7 +3264,7 @@ that change user do it as root with a system call (ClickHouse's `clickhouse
 su`, nginx's and Apache's workers, Nextcloud's `su`), and the rest never change
 user. All but two drop every capability and add back
 only what their own start does as root; a service that runs as another user
-from its first process adds none. Six that write nothing outside their volumes
+from its first process adds none. Seven that write nothing outside their volumes
 start with a read-only root, with `/tmp` (and `/run`) in memory where they
 write there. `managed.yml` gives each service's reason beside it, and
 `scripts/a-privilege-no-service-uses.unit.test.ts` holds every service to this
@@ -3256,11 +3287,12 @@ whose program needs a capability its service does not keep.
 | `trigger-supervisor` | node | none | no | read: its image's user from the first process, and its base carries no setuid binary and no file capability |
 | `minio` | uid 65532 | none | no | measured |
 | `minio-init` | uid 65532 | none | yes, `/tmp` in memory | measured: without `/tmp` mc cannot write its config |
-| `trigger-tls` | root | NET_BIND_SERVICE | no | measured: `/usr/bin/caddy` carries `cap_net_bind_service` as a file capability, and without it in the set the kernel refuses to start it (`exec /usr/bin/caddy: operation not permitted`); not read-only because Caddy writes its local CA into the image's trust store at start |
+| `trigger-tls` | uid 65532 | none | no | read (2026-11-19): its image runs Caddy as uid and gid 65532 from its first process (`deploy/compose/caddy`), which binds 3443 with no capability; `/usr/bin/caddy`'s file capability, `cap_net_bind_service`, is permitted and not effective in Caddy 2.11.9's image (`+p`), and the kernel starts such a binary whatever the bounding set holds. Until then measured as root with NET_BIND_SERVICE, for 2.11.7's effective one, without which the kernel refused to start it (`exec /usr/bin/caddy: operation not permitted`). Not read-only: not measured since Caddy stopped installing its local CA into the image's trust store (`skip_install_trust`). E2E (managed) is the proof |
+| `trigger-tls-init` | root | CHOWN, DAC_READ_SEARCH | yes | read (2026-11-19): a one-shot that gives `trigger-tls`'s two volumes to uid 65532 before it starts, with one `chown -R`, through directories that are 65532's at mode 0700 once it has run, with no network. E2E (managed) is the proof |
 | `zitadel` | its image's user | none | no | read: an image of one binary, run as its non-root user |
 | `zitadel-machinekey` | root | CHOWN, DAC_OVERRIDE, FOWNER | yes | measured, its init and every other command it runs: without CHOWN the chown fails, without FOWNER the chmod after it; without DAC_OVERRIDE `setup-zitadel.sh` cannot read the token (`cat: can't open '/machinekey/pat.txt': Permission denied`) nor write the rotated one, in a directory the identity provider owns at mode 700 (DAC_READ_SEARCH alone reads it and still cannot write) |
 | `api` | uid 65532 | none | no | read: its image's user, and its base carries no setuid binary and no file capability |
-| `web` | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured on its nginx with its config: without CHOWN nginx stops, without SETUID or SETGID its workers do |
+| `web` | uid 101 (nginx) | none | no | read (2026-11-19): its image runs nginx as its own user from its first process (`apps/web/Dockerfile`), with the template's output directory and nginx's cache its own and its pid file in `/tmp`, and binds port 80 by the service's `net.ipv4.ip_unprivileged_port_start=0`; until then measured as root, then nginx, keeping CHOWN, NET_BIND_SERVICE, SETGID and SETUID. E2E (managed) is the proof |
 | `gatus` | root | none | no | read: an image of one binary, writing only its own volume |
 | `mailpit` | root | none | yes, `/tmp` in memory | measured: a message in, and a restart |
 | `nextcloud` | root, then www-data | Docker's default | no | read: its entrypoint rsyncs and chowns as root and runs occ through `su`, a set not measured |
@@ -3276,9 +3308,11 @@ came up healthy, and answered as the scripts ask them, through `managed.yml`
 itself. *Read* means its Dockerfile and
 entrypoint at the pinned version, where the image could not be pulled. E2E
 (managed) is the proof for both: it brings up every service of this file.
-NET_BIND_SERVICE stays with `web` (and the site's nginx) although Docker's own
+NET_BIND_SERVICE stays with the site's nginx although Docker's own
 `net.ipv4.ip_unprivileged_port_start=0` makes it redundant today, so that
-port 80 does not rest on a daemon default.
+port 80 does not rest on a daemon default. `web` runs nginx as uid 101 with
+no capability since 2026-11-19, and sets that sysctl itself for the same
+reason.
 
 **What it changes for an operator.** A `docker compose exec` has the
 capabilities of its service: `exec -u 0` into `postgres` is root with no
@@ -5068,10 +5102,25 @@ asks it from the host.
   moves `managed.yml`'s image line. `build (caddy)` (`images.yml`) builds it,
   starts it with `trigger-tls.Caddyfile` and asks it for TLS on 3443, and its
   E2E (managed) is dispatched like any pin's. A major is the owner's call.
+- **It runs as uid and gid 65532 since 2026-11-19**, with no capability
+  (`deploy/compose/caddy/Dockerfile`, THE USER). On a stack that ran it as
+  root, its volumes `trigger_tls_data` (the local CA and the certificate) and
+  `trigger_tls_config` are root's, and `trigger-tls-init`, the same build as
+  root with CHOWN and DAC_READ_SEARCH alone, gives both to 65532 before the
+  front starts. It runs at every `up`, and once they are 65532's it changes
+  nothing. The CA stays, so the browser's exception still holds.
 - **Rolling back to a tag before this runs upstream's image again**,
   `caddy:2.11.7-alpine` by the digest those tags pin; `up` pulls it when the
   machine no longer has it. A tag between the two builds Caddy 2.11.7 without
-  curl.
+  curl. A tag from before 2026-11-19 runs the front as root with no capability but
+  NET_BIND_SERVICE, which cannot read the CA's keys once 65532 owns them: give
+  the volumes back to root first, from this checkout, before the older tag's
+  `up`:
+
+  ```bash
+  docker compose -f deploy/compose/managed.yml run --rm --no-deps trigger-tls-init \
+    'chown -R 0:0 /data/caddy /config/caddy'
+  ```
 
 **Trigger.dev's Redis is a build here too**, from `v0.2.0-alpha.6`.
 `trigger-redis` runs

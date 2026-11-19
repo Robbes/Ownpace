@@ -63,6 +63,15 @@
 # /etc/pgbouncer/pgbouncer.ini), the working directory, the port and the
 # environment are upstream's: this file sets none of them, and images.yml's
 # `build (pgbouncer, …)` holds each to the base's.
+# Both RUNs run under `SHELL ["/bin/ash", "-o", "pipefail", "-c"]`, the
+# base's own busybox ash (since 2026-11-19, workplan 0119; hadolint's
+# DL4006): each pipes, and with pipefail a pipeline whose first command
+# fails fails the RUN, where /bin/sh gives it its last command's status.
+# The SHELL is the image's too: Docker runs managed.yml's healthcheck, a
+# CMD-SHELL with no pipe (`psql … || exit 1`), under it. The two USER lines
+# stay names, upstream's config's, where hadolint asks for numbers
+# (DL3066): images.yml's build holds the image's User to upstream's
+# `postgres`, and the second RUN proves that is uid 70.
 #
 # WHAT WAS READ FOR THE VERSIONS. This session could not read Alpine's index
 # (dl-cdn.alpinelinux.org and Alpine's other hosts were refused to it). Read
@@ -132,6 +141,9 @@
 # and, on a machine, may hold its userlist.
 FROM edoburu/pgbouncer:v1.26.1-p0@sha256:488422e38cff912895d0d65d8963fcd306e6ac589a724398b6eb8e294e94d624
 
+# Each RUN's pipes fail it when any of their commands fails (WHAT IT IS, above).
+SHELL ["/bin/ash", "-o", "pipefail", "-c"]
+
 # Root for the one RUN that needs it: apk replaces files root owns.
 USER root
 
@@ -158,7 +170,7 @@ RUN set -eu; \
     gone="$(awk 'NR == FNR { now[$0] = 1; next } !($0 in now) { sub(/=.*/, ""); print }' /tmp/apk-after /tmp/apk-before)"; \
     rm /tmp/apk-before /tmp/apk-after; \
     if [ "$added" != "$(printf 'libpq=18.7-r0\nmusl-utils=1.2.6-r3\nmusl=1.2.6-r3\npostgresql18-client=18.7-r0\nzlib=1.4-r0')" ] || [ "$gone" != "$(printf 'libpq\nmusl-utils\nmusl\npostgresql18-client\nzlib')" ]; then \
-      echo "The install changed more than libpq, musl, musl-utils, postgresql18-client and zlib, or took other versions of them. Installed: $(echo $added). Replaced or removed: $(echo $gone)." >&2; \
+      echo "The install changed more than libpq, musl, musl-utils, postgresql18-client and zlib, or took other versions of them. Installed: $(printf '%s' "$added" | tr '\n' ' '). Replaced or removed: $(printf '%s' "$gone" | tr '\n' ' ')." >&2; \
       exit 1; \
     fi
 

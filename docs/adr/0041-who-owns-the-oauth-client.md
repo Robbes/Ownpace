@@ -2,8 +2,8 @@
 
 - **Status:** **Accepted 2026-08-26** by the owner, as proposed, adding that the Drive assessment
   is intended **later** and that the client registered 2026-08-20 is the **test (OTA) client**,
-  with production getting its own client before real customers exist; amended seven times (latest
-  2026-10-03); consolidated 2026-10-03 (ADR-0051)
+  with production getting its own client before real customers exist; amended eight times (latest
+  2026-11-19, by ADR-0052); consolidated 2026-10-03 (ADR-0051)
 - **Date:** 2026-08-20; accepted 2026-08-26; consolidated 2026-10-03
 - **Deciders:** owner
 - **Relates to:** [ADR-0003](./0003-two-editions-one-core.md) (two editions, one core),
@@ -336,6 +336,12 @@ cutover — the "sell a copy" model ADR-0014 defines this product against.
   deployment's configuration, and the 2026-08-26 wording (the managed credential store, under the
   key provider) is set aside (owner: *"stay on option B"*). Record: *Alternatives considered*,
   "The deployment's pair in the managed credential store".
+- **2026-11-19** — Amended by [ADR-0052](./0052-a-rotating-refresh-token-is-written-back.md):
+  Cirrux's client is the deployment's too, by option B, and differs from the pairs above in two
+  ways. It is a **public client with no secret** (PKCE `S256`), so "both or neither" has one half;
+  and a connection never brings its own, so there is no pair to win: one client per deployment,
+  registered by Cirrux by hand, `CIRRUX_OAUTH_CLIENT_ID` for the API and the worker. Record:
+  ADR-0052, decision 6.
 
 The full record, word for word as it read before this consolidation:
 [history/0041-who-owns-the-oauth-client.md](./history/0041-who-owns-the-oauth-client.md).

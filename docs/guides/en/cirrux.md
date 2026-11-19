@@ -1,6 +1,6 @@
-# Cirrux — mail, calendars, contacts and tasks in one account
+# Cirrux — mail, calendars, contacts, tasks and Drive in one account
 
-The **Cirrux** card is one account for a Cirrux mailbox: mail, calendars, contacts and task lists. Files are not among them: Cirrux Drive has no WebDAV address, and Cirrux's own interface for apps is one this service cannot use yet. This service signs in with the mailbox's email address and an app password; there is no consent button.
+The **Cirrux** card is one account for a Cirrux mailbox: mail, calendars, contacts and task lists. This service signs in to them with the mailbox's email address and an app password. Files can go to the account's Cirrux Drive too, once you connect it on the **Accounts** page: Cirrux Drive has no WebDAV address and is reached only through Cirrux's own interface for apps, with your own Cirrux sign-in rather than the app password ([Files: Cirrux Drive](#drive)).
 
 The servers below are the ones Cirrux publishes on its [setup page](https://cirrux.co/help/setup), under Manual Configuration, and on its [calendar page](https://cirrux.co/help/calendar), read on 19 November 2026.
 
@@ -29,7 +29,7 @@ Leave them as they are, unless Cirrux gives you other values. If mail moves, kee
 
 There is no box for SSL/TLS: this service always uses it, for calendars, contacts and tasks and for mail. Leave **DAV base URL** empty: Cirrux names the server and no path, and this service looks for the calendars and address books from there, as a calendar app does with the same server name. When the test fails on a server, **Server settings** opens by itself.
 
-The test writes nothing. It signs in to the calendars and also measures each part of the account on its own: what the account carries follows **Carries:**, and what it found follows **Found:**. Files show as not carried, with the reason.
+The test writes nothing. It signs in to the calendars and also measures each part of the account on its own: what the account carries follows **Carries:**, and what it found follows **Found:**. Files show as not carried, with the reason, until Cirrux Drive is connected on the account ([Files: Cirrux Drive](#drive)).
 
 You can also add the account in advance, under **Accounts** → **Add an account**: choose **Destinations** under **Source or destination?**, then the **Cirrux** card, and press **Add and test**. The boxes are pre-filled there in the same way, in plain view.
 
@@ -38,9 +38,32 @@ You can also add the account in advance, under **Accounts** → **Add an account
 - **Email**, when the account is saved with its **Mail server**: the folders and the messages in them. Folders in Cirrux are labels. A folder this service creates becomes a label of the same name, nested under another where the name has a slash, and over IMAP every label shows as a folder again ([subfolders](https://cirrux.co/help/questions/subfolders-in-my-mailbox)).
 - **Calendar**, **Contacts** and **Tasks**. Every Cirrux mailbox has a calendar, an address book called Contacts and a task list called Reminders. Task lists are calendars that hold tasks, on the same server as your calendars.
 - Cirrux makes no second address book, so the contacts from every address book at your source go into Contacts.
-- Each event is written with a marker, `SCHEDULE-AGENT=CLIENT`, that tells the server not to send invitations for it. Attendees and the organiser stay in your copy of each event. A server that ignores the marker could still send invitations, and Cirrux does not say whether its calendar server reads it. Cirrux's own calendar does email guests when an event is made in its app.
-- **Files** do not go to Cirrux: on **Where does it go?**, the row for files does not offer it. This service writes files over WebDAV, and Cirrux Drive has no WebDAV address: it is reached through Cirrux's own apps and its interface for apps ([Drive](https://cirrux.co/help/drive)). Your files can go to another destination in the same migration.
+- Each calendar at your source becomes a calendar of the same name at Cirrux, beside the mailbox's own Calendar.
+- Cirrux emails an invitation to every guest of an event it is given, whatever the event says about who sends invitations. So the guests and the organiser of your events and tasks are not written to Cirrux, and nobody is emailed. Who was invited is kept in each event as a comment (the iCalendar property `COMMENT`), which Cirrux's own app may not show.
+- **Files**, once Cirrux Drive is connected on the account: see [Files: Cirrux Drive](#drive). Until then, the row for files on **Where does it go?** does not offer the account, and your files can go to another destination in the same migration.
 - A migration may run again and again: what is already in the target is recognised and not copied a second time.
+
+## Files: Cirrux Drive {#drive}
+
+Cirrux Drive is reached through Cirrux's own interface for apps, with a person's Cirrux sign-in ([Drive](https://cirrux.co/help/drive), [the interface](https://cirrux.co/help/api)). So files are a second sign-in on the same account, added after the account is saved. Whether the button is there depends on the service you use: Cirrux registers each service that may sign people in by hand, and a service without such a registration shows files as not carried, with **This service has no Cirrux client on this deployment yet**, and no button.
+
+1. On the **Accounts** page, the Cirrux account shows **Connect Cirrux Drive**. Press it.
+2. Cirrux's sign-in page opens in a new window. Sign in to Cirrux as the person whose Drive it is, and allow what Cirrux asks: who you are and which workspace, and reading, adding, changing and moving to the trash the files in your Drive.
+3. The window says **Cirrux Drive is connected**. Close it. The account says **Cirrux Drive is connected: files can go to this account.**, and it has been measured again: **Carries:** now names files, and **Found:** what is at the top of your Drive.
+
+Then the row for files on **Where does it go?** offers the account under **Your accounts**. It does not offer Cirrux under **A new account**: a new account has no Drive until it is saved and connected.
+
+What happens to your files there:
+
+- **Each file up to 2 GiB is copied.** Up to 100 MB in one request; a larger one in parts, which this service encrypts in Cirrux's own format before sending them, as Cirrux requires for files that size. A file over 2 GiB is not moved at all, said with that reason: Cirrux takes no file that large.
+- **Folders are found by name**, and made where they are missing. Cirrux keeps one name per folder however it is capitalised, so `Photos` and `photos` are one folder there. A file whose name differs only in capitals from a file already in that folder is not written over: it is reported.
+- **A file already in the folder under the same name is taken as the copy**, and not written. When a file changes at the source later, its copy is replaced, unless the copy was changed in Cirrux after this service last wrote it: then the copy in Cirrux stays as it is, and the file is reported as a conflict.
+- **The time a file was last changed is kept**, as Cirrux shows it.
+- **Nothing is deleted for good.** A file deleted at the source is removed from Cirrux only when you approve that removal, and then it is moved to Cirrux's trash, where it stays restorable for 30 days.
+- **Storage is checked before anything is uploaded**: when the files would not fit in the workspace's storage, they are not sent, and the reason says so.
+- **Cirrux sets a pace**: 600 requests a minute for one sign-in. When Cirrux asks this service to slow down, it waits as long as Cirrux says, and carries on.
+
+The sign-in is kept with the account, encrypted, beside the app password. Cirrux replaces it every time this service renews it, so this service stores each new one and uses it once. A sign-in left unused for 30 days expires at Cirrux. When the sign-in no longer works, files fail with a sentence naming **Connect Cirrux Drive**: press it again, and the files carry on at the next run. Replacing the app password of the same mailbox keeps the Drive connected; an app password of another mailbox starts without it.
 
 ## Cirrux's own import {#cirrux-sync}
 
@@ -63,5 +86,5 @@ What Cirrux itself answers, this service shows word for word, in the server's la
 ## Stopping {#leaving}
 
 - A migration is deleted under **Migrations**. The confirmation says what that does: **Removes the migration’s settings and record; nothing at your source or destination is touched.** What was already copied stays at Cirrux.
-- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the app password. The app password itself stays valid at Cirrux, and the screen says so too: **We deleted our copy; this provider has no revocation we can trigger.**
+- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the app password, and of the Cirrux Drive sign-in where one was connected. The app password itself stays valid at Cirrux, and the screen says so too: **We deleted our copy; this provider has no revocation we can trigger.** Cirrux names no way for a service to withdraw a Drive sign-in either; nothing here can use it again, and at Cirrux it expires once it is left unused for 30 days.
 - So delete the app password at Cirrux: in Cirrux Mail, **Settings → Mailboxes**, the mailbox, its **Passwords** tab. Your Cirrux password stays as it is.

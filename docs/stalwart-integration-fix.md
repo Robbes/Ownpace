@@ -29,7 +29,8 @@ section of ADR-0022, and only within a minor line upstream calls a binary swap (
 the binary (or run `docker pull`)"*); another line starts from upstream's `UPGRADING/` notes. In
 the same change:
 - every copy: `IMAGE` in `deploy/selfhost/setup-stalwart.sh`, both phases in
-  `packages/testing/src/testcontainers-setup.ts`, `packages/testing/fixtures/stalwart/Dockerfile`,
+  `packages/testing/src/testcontainers-setup.ts`, `packages/testing/fixtures/stalwart/Dockerfile`
+  (its FROM by the tag and the digest of the tag's index, which nothing else names),
   `STALWART` in `scripts/a-service-that-phones-home.unit.test.ts`, and this file
   (`scripts/idp-pin-watch.mjs` reads the first four and reports "the copies disagree" otherwise);
 - then `git grep -n` for the old tag, because nothing guards the other places that name the

@@ -981,6 +981,21 @@ export const mappingApi = {
   },
 
   /**
+   * CONNECT CIRRUX DRIVE on a stored Cirrux account (workplan 0160 T5;
+   * ADR-0052). Not the round trip above: no token comes back to this page.
+   * The server stores the Drive sign-in on the account named here, and the
+   * window it ends in tells this page only that it did
+   * (`ownpace-cirrux-drive`), so the page reads the account again. The client
+   * is the deployment's, so nothing else is sent.
+   */
+  cirruxDriveAuthorize: async (
+    p: { connectionId: string } & ConsentLanguage,
+  ): Promise<{ url: string; redirectUri: string }> => {
+    const response = await apiClient.post('/migrations/cirrux/authorize', p);
+    return response.data as { url: string; redirectUri: string };
+  },
+
+  /**
    * Microsoft's turn at the same round trip (workplan 0114).
    *
    * Shaped like the GOOGLE ACCOUNT ask rather than Dropbox's, because it is

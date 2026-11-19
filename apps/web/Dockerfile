@@ -6,8 +6,9 @@
 # build arg (never as runtime env, which a static build would ignore). The
 # default, /api, keeps API calls same-origin; nginx.conf.template proxies them
 # to the api service (override the target with API_UPSTREAM at runtime).
-# nginx master runs as root, its workers as the image's nginx user — the
-# official image's standard split.
+# nginx runs as the image's own nginx user, uid 101, from its first process,
+# master and workers alike (the runtime stage says what that takes); until
+# 2026-11-19 its master ran as root, the official image's standard split.
 
 # The same node tag and digest the selfhost image pins (apps/selfhost/Dockerfile).
 # Node 26 since 2026-10-31; corepack comes from npm because the Node 26 image
@@ -107,6 +108,40 @@ ENV VITE_OIDC_ISSUER=$VITE_OIDC_ISSUER
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 COPY apps/web/nginx.conf.template /etc/nginx/templates/default.conf.template
 RUN rm -f /etc/nginx/conf.d/default.conf
+# AS NGINX'S OWN USER, FROM ITS FIRST PROCESS (workplan 0119, 2026-11-19). The
+# official image starts nginx's master as root, which chowns its temp
+# directories to `nginx` and drops its workers to it, so managed.yml kept
+# CHOWN, NET_BIND_SERVICE, SETGID and SETUID for it. Here all of nginx runs as
+# `nginx`, uid and gid 101 in the image's /etc/passwd, with no capability. It
+# writes in three places, and only those become its own:
+#   - /etc/nginx/conf.d, where the image's entrypoint renders the template at
+#     every start. 20-envsubst-on-templates.sh renders nothing into a
+#     directory it cannot write: it says "ERROR: ... is not writable", and
+#     nginx starts without the app's server;
+#   - /var/cache/nginx, where nginx makes its temp directories at start;
+#   - its pid file, which the image's nginx.conf puts in /run, root's: it moves
+#     to /tmp.
+# nginx.conf's `user  nginx;` goes too: a master that is not root ignores it,
+# and says so at every start. Each line is read before it is changed, so a
+# base whose nginx.conf moved stops the build here. The rest of nginx.conf is
+# the image's: its main level, and the http block the template is included in
+# (scripts/an-error-log-that-kept-the-link.unit.test.ts runs that main level).
+# Port 80 stays the container's: managed.yml's service sets
+# net.ipv4.ip_unprivileged_port_start=0, as Docker does by default, so uid 101
+# binds it.
+RUN set -eu; \
+    conf=/etc/nginx/nginx.conf; \
+    for line in 'user  nginx;' 'pid        /run/nginx.pid;'; do \
+      grep -qxF "$line" "$conf" || { echo "$conf has no line '$line': read apps/web/Dockerfile's runtime stage again against this nginx" >&2; exit 1; }; \
+    done; \
+    sed -i -e '/^user  nginx;$/d' -e 's|^pid        /run/nginx\.pid;$|pid        /tmp/nginx.pid;|' "$conf"; \
+    if grep -q '^user[[:space:]]' "$conf" || ! grep -qxF 'pid        /tmp/nginx.pid;' "$conf"; then echo "$conf still names a user, or no pid file in /tmp" >&2; exit 1; fi; \
+    [ "$(id -u nginx):$(id -g nginx)" = 101:101 ] || { echo "the image's nginx is $(id -u nginx):$(id -g nginx), not 101:101" >&2; exit 1; }; \
+    chown 101:101 /etc/nginx/conf.d /var/cache/nginx
+USER 101:101
 EXPOSE 80
+# Exec form: busybox's wget, which slim keeps, found on the PATH with no shell
+# between. Docker counts any exit but 0 as a failed check, so it needs no
+# `|| exit 1`.
 HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
-  CMD wget -qO /dev/null http://127.0.0.1:80/ || exit 1
+  CMD ["wget", "-qO", "/dev/null", "http://127.0.0.1:80/"]

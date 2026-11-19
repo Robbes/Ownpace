@@ -1,12 +1,12 @@
 # GoAccess 1.12 for the site's visit count (site-visits.sh), on an Alpine its
-# distribution still supports (#1675, workplan 0152).
+# distribution still supports (#1675, workplan 0152), as nobody.
 #
 # WHY IT IS BUILT HERE. Upstream's image, `allinurl/goaccess:1.12` and `latest`
 # alike, is built on Alpine 3.20, past its end of life since 2026-04-01 (Trivy
 # v0.76.1's table), and upstream's Dockerfile at `master` still says
 # `FROM alpine:3.20` in both stages (read on 2026-10-25). Alpine's own package
 # is GoAccess 1.10.2 on 3.24, and 1.12 only on edge. So this is upstream's own
-# Dockerfile at the tag v1.12, with three changes and no other:
+# Dockerfile at the tag v1.12, with five changes and no other:
 #
 #   1. Both stages start from a supported Alpine, by exact tag and the digest
 #      of its index. The pin taken on 2026-10-25 was 3.24.3 (amd64 and arm64
@@ -28,11 +28,18 @@
 #      download job on 3.24 (aports 3.24-stable, main/libmaxminddb): nothing
 #      GoAccess runs. The stage ends by running the binary once, so a missing
 #      library fails the build, not the daily count.
+#   4. The run stage ends as uid and gid 65534, nobody (since 2026-11-19,
+#      workplan 0119), the user site-visits.sh runs it as anyway: a read-only
+#      check of the repository read a last stage with no USER as one that runs
+#      as root, and upstream's names none. The stage's run of the binary comes
+#      after that line, so the build proves it starts as nobody.
+#   5. `make -j"$(nproc)"`: the job count quoted, as ShellCheck asks
+#      (SC2046); the same build.
 #
 # The configure flags, the compiler, the volume, the port, the entrypoint and
 # the command are upstream's, so GoAccess behaves as the 1.12 the script was
-# written against. The image sets no USER: site-visits.sh runs it as
-# 65534:65534, with no network, read-only, with no capability.
+# written against. site-visits.sh runs the image as 65534:65534 too, with no
+# network, read-only, with no capability.
 #
 # Built by site-visits.sh on the machine that counts (live's), as
 # `localhost/goaccess:1.12`, a name no registry serves, and run with
@@ -66,7 +73,7 @@ RUN git init -q . \
     && rm -rf .git
 RUN autoreconf -fiv && rm -rf autom4te.cache
 RUN CC="clang" CFLAGS="-O3" LIBS="$(pkg-config --libs openssl)" ./configure --prefix=/usr --enable-utf8 --with-openssl --enable-geoip=mmdb
-RUN make -j$(nproc) && make DESTDIR=/dist install
+RUN make -j"$(nproc)" && make DESTDIR=/dist install
 # Check dynamic dependencies
 RUN ldd /dist/usr/bin/goaccess && echo "Dependencies checked"
 
@@ -83,6 +90,8 @@ RUN apk add --no-cache \
 COPY --from=builds /dist/usr/bin/goaccess /usr/bin/goaccess
 COPY --from=builds /dist/usr/share /usr/share
 COPY --from=builds /usr/share/zoneinfo /usr/share/zoneinfo
+# Not upstream's: nobody, from here on (the header's change 4).
+USER 65534:65534
 # Every library it needs is here: the loader refuses to start it otherwise.
 RUN /usr/bin/goaccess --version
 # Set up volume and port

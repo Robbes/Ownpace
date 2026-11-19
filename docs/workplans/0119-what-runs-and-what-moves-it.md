@@ -2,7 +2,289 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-18 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`)
+reads the web image and GoAccess's as containers that run as root (GEN-21), and lists where eight
+Dockerfiles break hadolint's rules (GEN-20). Both images now end as their own users, the web
+image's health check needs no shell, three Dockerfiles lose a pipe with no `pipefail`, the Docker
+socket proxy stays root and says why, and a guard holds every Dockerfile to six of the rules; built
+on a branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-bl-nonroot`,
+PR #1953, from `main` at `d6f10278`, one commit per Dockerfile; the dashboard's TLS front
+(`…-bl-caddy`) and the Stalwart fixture (`…-bl-images`) are branches of their own. Each rule was
+read from the line the check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
+- **The web image, `apps/web/Dockerfile`.** nginx's master ran as root, chowned its temp
+  directories to nginx and dropped its workers to it, so `managed.yml` kept CHOWN,
+  NET_BIND_SERVICE, SETGID and SETUID for it. Its runtime stage now ends as `USER 101:101`, the
+  image's own nginx, master and workers alike: one RUN makes `/etc/nginx/conf.d` (where the
+  entrypoint renders the template at every start) and `/var/cache/nginx` (the temp directories)
+  101's, moves the pid file from `/run` to `/tmp`, and drops `user  nginx;`, each line read before
+  it changes. Its HEALTHCHECK is exec form, busybox's wget with no shell (DL3025, line 111).
+  `managed.yml`'s web adds no capability and sets `net.ipv4.ip_unprivileged_port_start: 0`, as
+  Docker does by default, so uid 101 binds port 80 without resting on a daemon default; the
+  container port stays 80, which `STATUS_WEB_URL` and the hosts' `.env` files name. `www.yml`'s
+  site still runs the nginx image as it ships.
+- **GoAccess, `deploy/compose/goaccess/Dockerfile`.** Its run stage, like upstream's, named no
+  USER. It now ends as `USER 65534:65534`, before the RUN that starts the binary, so the build
+  proves it starts as nobody; `site-visits.sh` already ran it as 65534:65534, read-only, with no
+  network and no capability, and builds the image on every run, so live's next count builds this.
+  `make -j"$(nproc)"` is quoted (ShellCheck's SC2046, line 69).
+- **The Docker socket proxy stays root.** `USER root` is upstream's v0.5.0, and the header's new
+  WHY ROOT says why it stays: HAProxy connects to the host's Docker socket, root's and the docker
+  group's at mode 0660, whose group id differs from host to host, and whoever can use the socket
+  holds the host whichever user does; `managed.yml` gives it no capability, no-new-privileges, a
+  read-only root filesystem and one internal network instead. Its check of the two copied files
+  hashes each on its own, where it piped a list into `sha256sum -c -` (DL4006, line 123), and the
+  name moves to `localhost/docker-socket-proxy:3.4.7-alpine-a8d771e9f164`.
+- **The pooler, `deploy/compose/pgbouncer/Dockerfile`.** Both RUNs pipe (DL4006, lines 141 and 170):
+  a SHELL after the FROM, the base's ash with `-o pipefail`, now runs them, and its install message
+  prints its two lists without an unquoted `echo` (SC2086, line 141). images.yml's `build
+  (pgbouncer, …)` compares the image's User, Entrypoint, Cmd, WorkingDir, ExposedPorts and Env
+  with upstream's, not its Shell. The name moves to `localhost/pgbouncer:v1.26.1-p0-abd8080fb98b`.
+- **The tasks' base, `apps/worker/task-image/Dockerfile`.** The build stage's trust RUN makes the
+  roots' alternation with a loop and counts the rejected intermediates by their glob, where it
+  piped `echo | tr` and `ls | wc -l` (DL4006 and SC2012, line 82): the same sed expression, both
+  forms compared under dash. The runtime stage ends as `USER 1000:1000`, node by number (DL3066,
+  line 132); the CLI's runtime stage still says `USER node`, the same account. The published base
+  moves with the next build on `main`, and the tasks with `TASK_BASE_IMAGE` after it.
+- **What stays, and why.** The seven lines given as the whole file (the tasks' base, the TLS
+  front, the proxy, GoAccess, the pooler, Postgres and Redis) are almost certainly DL3057, a
+  HEALTHCHECK missing: those seven have none, and the web image, the one listed with one, has no
+  such line. DL3057 is off unless asked for, and compose gives the databases, the pooler and Redis
+  their probes; a probe in the tasks' base would run in every task's container, GoAccess runs once
+  and exits, and the proxy's instructions are upstream's. The proxy's ENV (line 90) is DL3064, a
+  name with SECRET in it: `SECRETS=0` is upstream's switch that refuses Docker's secrets
+  endpoint. Its `USER root` (line 129) is DL3002 and DL3066, and the pooler's `USER root` and
+  `USER postgres` (lines 136 and 166) DL3066: the user is upstream's, and images.yml holds the
+  pooler's to it. Redis's purge RUN (line 201) has SC2086 and SC2016, both info: two lists split
+  into words on purpose and two Perl programs in single quotes, a RUN `an-essential-nothing-runs`
+  holds line by line. And DL3008 and DL3018, packages installed without a version (the tasks'
+  base, line 73; GoAccess, lines 45 and 75), are left open: an exact version stops the build the
+  day the distribution ships the next and drops it from its mirror, as the pooler's header says
+  of its five, while the bases are pinned by digest and the image scan says when a package is
+  behind. hadolint passes any apk package written with `=`, `~`, `>` or `<`, so a floor would
+  quiet it without pinning anything; it is not done.
+- **The guard, `a-dockerfile-that-ends-as-root`.** Every Dockerfile git lists, found by walking
+  (14 today, each of them known), ends its last stage as a user that is not root (DL3002), names
+  every USER by number (DL3066), writes CMD, ENTRYPOINT and HEALTHCHECK's CMD in exec form
+  (DL3025), runs a RUN that pipes only under a SHELL with `-o pipefail` (DL4006), has no ADD
+  (DL3020), and names a tag that is not `latest` in every outside FROM (DL3006, DL3007), unless
+  its EXCEPTIONS names the file and the rule with the reason; an exception whose file no longer
+  breaks the rule fails too. Left in it: the proxy (root, by name), the pooler (by name), and the
+  supervisor and the Trigger.dev image (by name, pipes: not in this round).
+- **The order they land in.** The fixture's branch landed first, as #1950 (`4551acb2`), and the TLS
+  front's next, as #1951 (`1a497415`), which makes the front keep the same rule. Each time this
+  branch was brought up to date, the guard failed on the entry the other branch had made stale and
+  named it, as it should, and the entry came out: both are out.
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,103 tests passed and 33 skipped;
+  before that, per Dockerfile, the guards that read it (GoAccess 5 test files, 294 tests; the proxy
+  29, 1,562; the pooler 26, 1,180; the tasks' base 11, 595; the web image 142, 4,559); `tsc
+  --noEmit`, ESLint on every changed test and the six docs checks. On disk, each
+  failing as it should, each file restored byte for byte: the web image without its USER, with
+  `USER root`, and with its HEALTHCHECK in shell form; GoAccess without its USER, with an ADD, and
+  with a FROM of `alpine:latest` or of `alpine` alone, and with a pipe in a RUN; the proxy's check
+  piped again, without its test of the entrypoint's executable bit, and with `USER 0:0` (the
+  exception then stale); the pooler without its SHELL and with ash without pipefail; and the tasks'
+  base counting through `ls | wc -l` again and with `USER node`.
+- **Proved after the push** on `33b7e3eb` (the branch with `main` at `4551acb2`): CI run
+  44584118214; images.yml run 44584118472 (the web image's build, `build (docker-socket-proxy)`,
+  which starts the proxy on the runner's socket and asks it what the supervisor uses, `build
+  (pgbouncer, …)` on both platforms, and the tasks' base started as the CLI's runtime stage starts
+  it, which wants 1000:1000); script-images.yml's build of GoAccess on arm64, run 44584117255; and
+  E2E (managed) run 44584099036 on the OTA box, from 18:05 to 18:16 UTC, deployment 20261119.11.
+  It built the web image, which ends as `USER 101:101`, and the web container, with no capability,
+  was healthy; it built the proxy's and the pooler's images under their new names and ran both, the
+  pooler healthy; the smoke passed.
+
+**2026-11-19: the dashboard's TLS front runs as uid 65532, with no capability, and a one-shot gives
+its two volumes to that user before it starts.** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-caddy`, PR #1951, from `main` at `6038037b`. A read-only check of
+the repository (run on `main` at `646b9de2`) read `deploy/compose/caddy/Dockerfile`
+as a container that runs as root (GEN-21), which it was, and listed the file as a whole under
+hadolint's rules (GEN-20): almost certainly DL3057, a HEALTHCHECK missing.
+- **Why Caddy needs no root here.** It binds 3443, which needs no capability, and writes only in
+  `/data/caddy` and `/config/caddy`, which upstream's image makes mode 1777. Read at the pinned
+  digest on 2026-11-19, from the image's history and its layer's `security.capability`:
+  `/usr/bin/caddy` carries `cap_net_bind_service` as permitted and not effective (`setcap
+  cap_net_bind_service=+p`), where 2.11.7's was `+ep`. The kernel refuses to start a binary only
+  when its file capability is effective and the bounding set lacks it, so the NET_BIND_SERVICE
+  `trigger-tls` kept for 2.11.7 is not needed with 2.11.9's binary, as root or not.
+- **What changes.** The Dockerfile ends as `USER 65532:65532`, and its new THE USER says why.
+  `trigger-tls.Caddyfile` says `skip_install_trust`: only root may write the system's trust store,
+  and nothing in the container trusts the local CA. `managed.yml`'s `trigger-tls` adds no
+  capability, keeps no-new-privileges, and waits for `trigger-tls-init`: the same build as root,
+  with CHOWN and DAC_READ_SEARCH alone, read-only and with no network, whose one `chown -R` gives
+  `trigger_tls_data` and `trigger_tls_config` to 65532:65532. On a stack that ran the front as
+  root both are root's, their files at mode 0600 in directories at 0700, which 65532 cannot read; the
+  CA, its certificate and a browser's exception for it stay. No volume is added. Once they are
+  65532's the one-shot changes nothing; the bring-up names it before the front, as it names
+  `minio-init` before `trigger-api`. The name moves to
+  `localhost/caddy:2.11.9-alpine-f4b403e49a96`, which each machine builds at its next `up`.
+  images.yml's `build (caddy)` starts the front with no capability and no-new-privileges, as
+  `managed.yml` runs it.
+- **Going back** to a tag that ran the front as root needs the two volumes given back to root
+  first, from this checkout: the guide's `run --rm --no-deps trigger-tls-init 'chown -R 0:0 …'`
+  (*The dashboard's TLS front is a build here too*).
+- **What stays.** DL3057: the front has no healthcheck on purpose, since a probe runs inside the
+  image, which has no curl, and the smoke asks the front from the host (`docs/operator-runbook.md`).
+  Not read-only yet: Caddy's one write outside its volumes was the trust store, and a read-only
+  root waits for a run that measures it.
+- **The order the three branches land in.** `…-bl-nonroot`'s new guard,
+  `a-dockerfile-that-ends-as-root`, names this Dockerfile as an exception (root), which this branch
+  makes stale: whichever of the two lands second takes the entry out (the guard's failure names
+  it).
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,114 tests passed and 33 skipped;
+  before that, the 80 test files that read a changed file, 3,218 tests (one of them,
+  `a-database-started-as-root`'s list of the services run from an image built here, now names the
+  one-shot), and 71 more that read `managed.yml` or the workflows, 1,700 tests passed and 33
+  skipped; `tsc --noEmit`, ESLint on the four changed tests and the six docs checks. The front's
+  guard also holds the one-shot and `skip_install_trust`. On disk, each failing as it should and
+  each file restored byte for byte: the Dockerfile without its USER and with `USER root`;
+  `managed.yml` with NET_BIND_SERVICE given back to the front, without the front's wait for its
+  one-shot, and with the one-shot's DAC_READ_SEARCH taken away (which the guide's way back needs
+  too); images.yml's probe without its hardening; and the Caddyfile without `skip_install_trust`.
+- **Proved after the push** on `fbdea1af` (the branch with `main` at `1edbdc22`): images.yml's
+  `build (caddy)` on the pull request, and E2E (managed) run 44577091109 on the OTA box, whose front
+  ran as root until then. The run built `localhost/caddy:2.11.9-alpine-f4b403e49a96` and started
+  the front on it once its one-shot had finished without an error, as the front waits for it; the
+  smoke's TLS check passed. Owed: the dashboard in a browser with the exception it has, at the
+  owner's next visit.
+
+**2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`) reports two base
+images with a fixable high or critical (IMG-1), and the Stalwart fixture as a container that runs
+as root (GEN-21). Neither base moves here; the fixture says what it is. Merged as #1950
+(`4551acb2`).** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-images`, PR #1950, from
+`main` at `d6f10278` (#1941; the findings' files are as at `646b9de2`). Read on 2026-11-19 from
+Docker Hub (through Google's mirror of it, without a login), GHCR's tag lists, upstream's source
+at its tags, npm's advisory service, OSV's Debian data and CISA's list of exploited
+vulnerabilities; nothing read was run. Times are UTC.
+- **The Stalwart fixture, `packages/testing/fixtures/stalwart/Dockerfile`.** Nothing builds or
+  runs it: no workflow, compose file, script or test names its directory. It is the
+  `stalwart-test-custom` image of 2026-07-05; the integration tests and both E2E gates start
+  `stalwartlabs/stalwart:v0.16.27` itself (`testcontainers-setup.ts`, `setup-stalwart.sh`), as
+  root on purpose (`docs/stalwart-integration-fix.md`, Round 4). That image runs as its own
+  `stalwart`, uid and gid 2000 (its config's `User`, its `/etc/passwd`), so the fixture never ran
+  as root; its Dockerfile now says `USER 2000:2000`, and its FROM carries the index digest the tag
+  has named since 2026-10-18, `c429b311…`. `a-fixture-that-named-no-user` holds both, and
+  `a-float-nothing-ever-pulled` now holds every Dockerfile git lists to a digest, not only
+  `apps/*`'s. The fix doc's *Moving the pin* says the fixture's digest moves with the tag.
+- **What the scan of `v0.16.27` reads, by its package database** (linux/arm64, the apt layer):
+  five fixable findings, as Trivy's five of 2026-11-15: brotli 1.1.0-2 (CVE-2026-111497, on CISA's
+  list of exploited vulnerabilities, fixed in 1.1.0-2+deb13u1), apt 3.0.3 (CVE-2026-109518, fixed
+  in 3.0.4) and zlib 1:1.3.dfsg+really1.3.1-1 (CVE-2026-27171, CVE-2026-76844 and CVE-2026-85091,
+  fixed in +deb13u1). No v0.16 release follows v0.16.27, and Docker Hub has not rebuilt its tag.
+  Stalwart v1.1.0 (pushed 2026-11-09) and v1.1.1 (2026-11-16 11:47, past its floor today) carry
+  brotli 1.1.0-2+deb13u1 and apt 3.0.4, and zlib unfixed. A move to v1 is another line: the
+  owner's call under ADR-0022, from upstream's `UPGRADING/` notes, with the two-phase run proved on
+  the new tag and every copy moved together. Not taken here.
+- **Trigger.dev's base, `ghcr.io/triggerdotdev/trigger.dev:v4.8.5@sha256:6e6d38a9…`.** A check
+  that reads the FROM sees upstream's image; the build here removes or replaces what nothing runs
+  (the Dockerfile's header), so it sees, as this plan's scans read them: the six criticals in
+  depot's and esbuild's Go binaries and in tar 7.5.13 in both copies of pnpm 10.33.2; pnpm 10.33.2
+  itself (11 highs); npm 11.19.1's and node-gyp's trees (12 fixable highs); TypeScript 7's native
+  compiler (15); goose v3.27.1 (21, replaced by v3.30.1); cross-spawn 5.1.0 (1); and the 26 highs
+  with no fix in util-linux's builds, libsystemd0 and libudev1. The image built here read 1, 20
+  and 8 after alpha.11's tag (run 44260105914). What is left with a fix is four packages, eight
+  highs, each fixed only in a new major: undici 5.29.0 (GHSA-vrm6-8vpv-qv8q, -v9p9-hfj2-hcw8,
+  -2m5v-pch6-74hx, -qrxm-fqhp-jwvm and -vxpw-j846-p89q; fixed in 6.24.0 to 6.29.1) with its
+  `@fastify/busboy` 2.1.1 (GHSA-x8mw-p69m-v3mx, fixed in 3.2.1), turbo-stream 2.4.1
+  (GHSA-rxv8-25v2-qmq8, fixed in 3.0.0) and deepmerge-ts 7.1.5 (GHSA-ggr8-5vv4-36mx, fixed in
+  8.0.0); and zlib1g's critical (CVE-2023-45853), which Debian 12 does not fix.
+- **Which of the four a layer here could take, as #1909 took cross-spawn.** Not turbo-stream,
+  an exact pin of `@remix-run/react` and `server-runtime` 2.17.5, nor deepmerge-ts, `@prisma/config`'s:
+  the webapp and its migrations run both. undici 5.29.0's one requirer, in v4.8.5's lockfile, is
+  `@connectrpc/connect-node` 1.4.0, under `@depot/sdk-node`, which the server bundle imports; its
+  `node-headers-polyfill.js` requires undici when it loads and uses its `Headers` only on Node
+  before 18, and trigger-api runs Node 24.22.3 (read in the published package; not run). So
+  undici 5.29.0 cannot simply go: the require would fail. Pointing that one link at the store's
+  undici 6.29.1 and removing 5.29.0 and `@fastify/busboy` 2.1.1 with it, with the walk #1909
+  made, would take six of the eight. The build's rule since 2026-10-26 removes files nothing runs;
+  this would move a dependency that loads across a major, in place, so it is proposed, to be
+  decided first, and not built.
+- **Trigger.dev v4.8.6**, GHCR's newest tag for the webapp and the supervisor today, keeps all
+  four (its `pnpm-lock.yaml`, which `main`'s equals byte for byte on 2026-11-19) and adds an
+  override that drops cross-spawn 5.1.0, which this build already removes; it still pins pnpm
+  10.33.2 and builds goose v3.27.1. So no release fixes what is left. Trigger.dev stays at v4.8.5.
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,095 tests passed and 33 skipped;
+  before that, the two guards, 14 tests, and the 23 test files that read a changed file, 1,186
+  tests; `tsc --noEmit`, ESLint on the two guards and the six docs checks. On disk, the fixture
+  without its digest fails both guards (4 of 14), and without its USER, with `USER stalwart` or
+  with `USER root` the fixture's (3, 2 and 2 of 3), each file restored byte for byte.
+- **On #1950:** CI run 44577905397 green on its last head, `d88e1d90`. Nothing builds the
+  fixture, so no image or E2E run changed: CI's integration jobs start
+  `stalwartlabs/stalwart:v0.16.27` itself, not this fixture.
+
+**2026-11-19: the workflow check's nineteen lines. Sixteen are fixed, in nine workflows, and three
+are read as safe and left; merged as #1943 (`1edbdc22`).** An outside, read-only check of
+`.github/workflows/` on `646b9de2` read three points: an action from outside this repository is
+pinned to a commit, no workflow has a dangerous trigger, and every permission is as small as its
+job (OWASP's CI/CD Security Cheat Sheet). It named nineteen lines, one for each shape a file had.
+Each was read again on `main` at `81558fd5`, where the one merge since is the site's (#1940), and
+each was still there. On the branch `claude/ownpace-public-readiness-y7orc6-bl-workflows`, from
+`81558fd5`, in four commits:
+- **Pins and triggers: nothing to change.** Every `uses:` is a 40-hex commit, and each of the
+  sixteen actions' commits is the tag its comment names, annotated tags peeled (`git ls-remote`,
+  the same day); `a-tag-the-publisher-can-move` holds the pin and the comment. No workflow has
+  `pull_request_target` or `workflow_run`.
+- **A token nobody chose, six lines.** `ci.yml` (77, its first key after the header), `e2e.yml`
+  (150), `e2e-managed.yml` (129), `e2e-o365.yml` (84), `e2e-live-target.yml` (63) and
+  `no-committed-artifacts.yml` (12) named no permissions, so every job ran on whatever Settings,
+  Actions, General gives the default token. None uses more than the checkout's read: actions/cache
+  and upload-artifact take the runner's own token, nothing pushes, comments or writes a check, and
+  the lanes log in with repository secrets, the machine's persisted `.env` or the dev stack's own
+  passwords. Each now says `contents: read` at the top.
+- **A write every job was handed, one line.** `images.yml` 57: `packages: write` at the top, with
+  `id-token: write` beside it. Seven of its eight jobs set `contents: read` of their own; `build`
+  inherited both and uses both (the ghcr.io login pushes the images, their registry cache and
+  cosign's signatures; cosign signs keyless). Both move onto `build`, which holds exactly what it
+  held, and the top says `contents: read`.
+- **A token left on disk, nine lines and eighteen checkouts.** `images.yml` 102,
+  `security-scan.yml` 155, `windows-payload.yml` 69, `ci.yml` 209, `e2e-live-target.yml` 67,
+  `e2e-managed.yml` 133, `e2e-o365.yml` 95, `e2e.yml` 153 and `no-committed-artifacts.yml` 29 were
+  the first checkout in each file to keep the token in `.git/config`, where every later step can
+  read it; the same files held nine more, `ci.yml`'s other eight jobs and windows-payload's
+  `release`. None of the eighteen jobs pushes with git, and each checkout now says
+  `persist-credentials: false`. The release check's fetch of the tags, in four of them, and
+  detect-changes' fetch of a pull request's head now run without the token, as the exposure
+  probe's fetch of a commit already does: this repository is public. Both fetches, run from a
+  repository with no credentials configured, worked (all twelve `v*` tags, and #1940's head).
+- **Three lines read as safe, and left.** The `actions/setup-node` steps at `images.yml` 97 (107
+  now), `security-scan.yml` 151 and `windows-payload.yml` 65, each the first step of a job that
+  publishes. The pin is v7.1.0's tag; `check-latest: true` is `a-gate-on-a-version-nothing-ships`'
+  rule for all 29 such steps, of which the check named only these; and they restore no cache:
+  they name no `cache:`, they run before the checkout, and setup-node's automatic cache engages
+  only for an npm `packageManager` (v7.1.0's `src/main.ts`), where this one is `pnpm@11.28.12`.
+- **Held by** `scripts/a-token-the-job-never-asked-for.unit.test.ts`, 18 tests. Each rule was
+  broken on the real files and failed: `e2e.yml`'s block taken off, `images.yml` as it is on
+  `main`, a `pull_request_target` trigger added, a job given `write-all`, detect-changes'
+  `persist-credentials` taken off, `cache: pnpm` on `images.yml`'s release-check step, and the
+  root `packageManager` made npm; one setup-node step pointed at its tag failed
+  `a-tag-the-publisher-can-move`. Every mutation was restored byte for byte.
+- **Gates:** `npx vitest run --project unit`, 1108 files, 17083 tests passed and 33 skipped, none
+  of them added here; `npx tsc --noEmit`; eslint on the guard; the six checks (`lessons`,
+  `adr-operative`, `workplan-index`, `conflict-markers`, `llms-docs`, `machine-product-name`);
+  `commit-convention.mjs origin/main HEAD`; and each changed workflow parsed by the `yaml` package,
+  strict, with no error or warning, and by PyYAML. actionlint is not installed here, and nothing
+  was downloaded to run.
+- **Proven after the push**, workflow by workflow: CI, Security Scan, the artifacts check and
+  Images run on the pull request itself (Images because the pull request changes `images.yml`:
+  `build` builds without pushing there, with its new block). Images' push and signing prove
+  themselves on `main` after the merge, and every tag path, the four release checks' fetch among
+  them, at the next tag: Release in `rehearse-tag` mode reaches Security Scan's, though only its
+  names step's log tells a refusal of the name from a failed fetch. windows-payload's `build` and
+  `smoke` and the four E2E lanes prove themselves by a dispatch on the branch. In each job's log,
+  "Set up job" lists the token's permissions. On #1943: CI, Security Scan, the artifacts check and
+  Images green on its last head, `7f9fdf5d`, and E2E (managed) run 44568054149 with them; E2E
+  (self-hosted) run 44552758227 and the Windows payload run 44544250125 green on earlier heads
+  whose workflows were the same.
+- **For the owner:** two jobs still hold a write on every event because `permissions:` cannot
+  depend on the event: `images.yml`'s `build` on a pull request, which builds and pushes nothing
+  (GitHub gives a fork's pull request a read-only token and no OIDC), and Security Scan's job,
+  whose `contents: write` only its tag run's SBOM attach uses. Either narrows only by splitting a
+  job. Security Scan's top still grants `security-events: write`, which no job inherits. And with
+  every workflow naming its token, the repository default (Settings, Actions, General) can be
+  read-only.
 
 **2026-11-18, last: the alpha.12 round's reading. No release fixes the image scan's highs; three
 pins move after their floors, and four releases are left.** Read on 2026-11-18 from upstream's

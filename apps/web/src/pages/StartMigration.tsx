@@ -42,6 +42,7 @@ import {
   ARCHIVE_PROVIDER_ORIGINS,
   TARGET_TYPE_DOMAINS,
   formDefaultsFor,
+  grantableTargetFaces,
   scopeFamilyOfSourceCard,
   scopeManifestFor,
   providerDisplayName,
@@ -1476,7 +1477,10 @@ export const savedSources = (
     return card === 'google' && only !== undefined && types.length === 1 && types[0] === only;
   });
 
-/** Saved destinations that can take a data type (`destinationsFor`). */
+/**
+ * Saved destinations that can take a data type (`destinationsFor`), and a
+ * saved account that takes it only with a grant it stores (`grantedOnRecord`).
+ */
 export const savedTargets = (
   saved: ReadonlyArray<ConnectionSummary>,
   type: DiscoveryDomain,
@@ -1485,8 +1489,21 @@ export const savedTargets = (
     (c) =>
       c.role === 'target' &&
       c.status !== 'revoked' &&
-      destinationsFor(type).includes(c.kind as WizardTargetType),
+      (destinationsFor(type).includes(c.kind as WizardTargetType) || grantedOnRecord(c, type)),
   );
+
+/**
+ * A face a kind takes only once its account stores a grant for it: a Cirrux
+ * account's files, once Cirrux Drive is connected on it (workplan 0160 T5).
+ * Offered where the account's own record has the face and it is not a
+ * measured no. A new account is never offered for it, and the create door
+ * reads the stored grant itself, whatever this screen offered.
+ */
+function grantedOnRecord(c: ConnectionSummary, type: DiscoveryDomain): boolean {
+  if (!grantableTargetFaces(c.kind as WizardTargetType).includes(type)) return false;
+  const record = qualifiedAnswerFor(c.qualification, type);
+  return record !== undefined && record.answer !== 'no';
+}
 
 /**
  * What a saved destination's last test MEASURED it cannot take (0106 T3a): the
@@ -2173,7 +2190,11 @@ export const ToStep: React.FC<{
       <ul className="space-y-3">
         {types.map((type) => {
           const saved = savedTargets(accounts.saved, type);
-          const blamed = chosenCards.filter((card) => !TARGET_TYPE_DOMAINS[card].includes(type));
+          // Not a card whose saved account takes this type through a grant it
+          // stores (Cirrux Drive, 0160 T5): that account is in the list above.
+          const blamed = chosenCards.filter(
+            (card) => !TARGET_TYPE_DOMAINS[card].includes(type) && !saved.some((c) => c.kind === card),
+          );
           // A saved account whose last test found it does not take this type:
           // marked in the list, never suggested, and said under the row with
           // its own evidence (the owner, 2026-10-04: "4. C, without D").

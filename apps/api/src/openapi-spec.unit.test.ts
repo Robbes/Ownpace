@@ -85,6 +85,7 @@ const MOUNTS: ReadonlyArray<{ prefix: string; files: string[]; mountedIn?: strin
       'src/routes/migrations/google-oauth-routes.ts',
       'src/routes/migrations/dropbox-oauth-routes.ts',
       'src/routes/migrations/microsoft-oauth-routes.ts',
+      'src/routes/migrations/cirrux-oauth-routes.ts',
       'src/routes/migrations/link-routes.ts',
     ],
   },
@@ -380,6 +381,14 @@ const CONSENT_DOORS: ReadonlyArray<ConsentDoor> = [
     handler: 'src/routes/migrations/dropbox-oauth-routes.ts',
     passedOn: { client: '../../packages/shared/src/dropbox-deployment-client.ts' },
   },
+  {
+    // Files only, on a stored Cirrux account, with the deployment's public
+    // client or none (workplan 0160 T5): no pair, no `domains`.
+    path: '/api/migrations/cirrux/authorize',
+    provider: 'cirrux',
+    handler: 'src/routes/migrations/cirrux-oauth-routes.ts',
+    passedOn: {},
+  },
 ];
 
 interface DocumentedPost {
@@ -505,6 +514,7 @@ describe('the link pages’ wire (0145 T6)', () => {
     { path: '/api/migrations/google/authorize', handler: 'src/routes/migrations/google-oauth-routes.ts' },
     { path: '/api/migrations/dropbox/authorize', handler: 'src/routes/migrations/dropbox-oauth-routes.ts' },
     { path: '/api/migrations/microsoft/authorize', handler: 'src/routes/migrations/microsoft-oauth-routes.ts' },
+    { path: '/api/migrations/cirrux/authorize', handler: 'src/routes/migrations/cirrux-oauth-routes.ts' },
   ] as const;
   const READS_LOCALE = /localeOf\(\(req\.body as \{ locale\?: unknown \} \| undefined\)\?\.locale\)/;
 

@@ -31,7 +31,9 @@ import {
   displayNameForCalendar,
   isOnTarget,
   neutraliseScheduling,
+  withoutGuests,
 } from '@openmig/shared';
+import { createHash } from 'node:crypto';
 import { CALENDAR_COMPONENTS, collectionCarries, componentOfIcalendar } from '@openmig/shared';
 import { davRefusalBody, withFailureCategory } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
@@ -72,6 +74,13 @@ export interface CalDAVTargetConfig {
   color?: string;
   /** Default calendar description */
   description?: string;
+  /**
+   * The target mails every guest of what it is handed, whatever
+   * `SCHEDULE-AGENT` says (`TARGETS_THAT_MAIL_GUESTS`, workplan 0160): write
+   * each object without ATTENDEE and ORGANIZER (`withoutGuests`), so there is
+   * nobody to mail. Set from the target's kind by the deps builders.
+   */
+  mailsGuests?: boolean;
 }
 
 /**
@@ -102,6 +111,33 @@ function componentsDeclaredIn(xml: string): ReadonlyArray<CalendarComponent> | u
     .map((m) => m[1]!.toUpperCase())
     .filter((name) => known.has(name)) as CalendarComponent[];
   return components.length > 0 ? [...new Set(components)] : undefined;
+}
+
+/**
+ * THE LAST SEGMENT OF A NEW CALENDAR'S ADDRESS, IN A HOME THE SERVER NAMED:
+ * a UUID, the same one on every pass (workplan 0160).
+ *
+ * Where this writer assumes Nextcloud's layout, a new calendar is made at
+ * its slug, as it always was. In a home the server named, that is no longer
+ * a safe guess. Cirrux names its calendars by UUID
+ * (https://cirrux.co/help/api/calendar, read 2026-11-19), as Apple's apps
+ * name the calendars they make. On a test mailbox on 2026-11-19, Cirrux
+ * answered 201 to an MKCALENDAR at a slug, and then refused with 404 every
+ * event written to that address.
+ *
+ * Derived, not random, so that every pass asks for the same address, and so
+ * a calendar made by an earlier pass is found again by its path, even after
+ * its owner renames it. A task list and a calendar with the same name get
+ * different addresses. The UUID has version 5's shape (RFC 9562 §5.5), from
+ * SHA-1 over a name of this writer's own rather than over a registered
+ * namespace.
+ */
+export function newCalendarSegment(username: string, domain: CalDavLedgerDomain, slug: string): string {
+  const hash = createHash('sha1').update(`ownpace:new-calendar:v1\n${username}\n${domain}\n${slug}`).digest();
+  hash[6] = (hash[6]! & 0x0f) | 0x50;
+  hash[8] = (hash[8]! & 0x3f) | 0x80;
+  const hex = hash.subarray(0, 16).toString('hex');
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20, 32)}`;
 }
 
 /**
@@ -191,9 +227,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
 
     // Create new calendar using MKCALENDAR
-    const refusal = await this.createCalendar(calendarPath, folder);
-    if (refusal === undefined) return calendarPath;
-    return this.calendarAfterRefusal(folder, slug, calendarPath, refusal);
+    const made = await this.createCalendar(calendarPath, folder);
+    if (made.status === 201) return calendarPath;
+    return this.calendarAfterRefusal(folder, slug, calendarPath, made);
   }
 
   /**
@@ -210,9 +246,10 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
    *      that holds this writer's kind (VEVENT, or VTODO for a task list), as
    *      it does when the assumed path exists;
    *   2. into a new calendar in the home the server named, where that is not
-   *      the home this writer assumed. Apps add task lists to a Cirrux
-   *      mailbox over CalDAV (https://cirrux.co/help/api/tasks, read
-   *      2026-11-19);
+   *      the home this writer assumed, at a UUID of its own
+   *      (`newCalendarSegment`) and read back where the server says it made
+   *      it (`whereItWasMade`). Apps add task lists to a Cirrux mailbox over
+   *      CalDAV (https://cirrux.co/help/api/tasks, read 2026-11-19);
    *   3. into the account's ONE calendar that holds this kind, where no new
    *      one can be made.
    *
@@ -242,13 +279,18 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     const kind: CalendarComponent = this.domain === 'task' ? 'VTODO' : 'VEVENT';
     const holding = account.calendars.filter((calendar) => collectionCarries(calendar.components, kind));
 
-    const named = holding.find((calendar) => isNamed(calendar, slug));
+    // By its name, or by the address an earlier pass made it at, which still
+    // holds after its owner renames it.
+    const segment = newCalendarSegment(this.config.username, this.domain, slug);
+    const named = holding.find(
+      (calendar) => isNamed(calendar, slug) || collectionSlug(undefined, calendar.path, '') === segment,
+    );
     if (named !== undefined) return named.path;
 
     if (home !== this.assumedHome()) {
-      const path = this.normalizeCalendarPath(`${home}${slug}`);
+      const path = this.normalizeCalendarPath(`${home}${segment}`);
       const there = await this.createCalendar(path, folder);
-      if (there === undefined) return path;
+      if (there.status === 201) return this.whereItWasMade(path, there, folder, slug, home, account.calendars, kind);
       if (!NOT_THIS_PLACE.has(there.status)) {
         throw new Error(`MKCALENDAR failed for ${path} with status ${there.status}: ${davRefusalBody(there.body)}`);
       }
@@ -270,6 +312,130 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
             `(${holding.map((calendar) => calendar.displayName ?? calendar.path).join(', ')}): ` +
             'which one they go into is not guessed.'),
     );
+  }
+
+  /**
+   * WHERE A CALENDAR THE SERVER SAID IT MADE ACTUALLY IS (workplan 0160).
+   *
+   * RFC 4791 §5.3.1 makes the calendar at the address asked for, and a 201
+   * says it did. Cirrux's 201, on 2026-11-19, did not: every event written to
+   * that address was then refused with 404. So in a home the server named, a
+   * 201 is read back:
+   *
+   *   1. a calendar at the address asked for, which is where a server that
+   *      follows the RFC made it;
+   *   2. a calendar at the `Location` the answer gave, on this host and under
+   *      this base;
+   *   3. the calendar the home lists now and did not list before: the one with
+   *      the folder's name, or the only new one that holds this kind.
+   *
+   * None of these, and the pass fails, naming what it asked for, rather than
+   * writing every event of the folder to an address the server refuses.
+   */
+  private async whereItWasMade(
+    path: string,
+    made: HttpResponse,
+    folder: CalendarFolder,
+    slug: string,
+    home: string,
+    before: readonly CalendarAt[],
+    kind: CalendarComponent,
+  ): Promise<string> {
+    if (await this.calendarIsAt(path)) return path;
+
+    const location = made.headers['location'];
+    if (location !== undefined && location.trim() !== '') {
+      const at = this.calendarPathFromHref(location.trim(), path);
+      if (at !== undefined && at !== path && (await this.calendarIsAt(at))) {
+        log.info(`[caldav] MKCALENDAR for ${path} made ${folder.name || slug} at ${at}, the address it answered with`);
+        return at;
+      }
+    }
+
+    const after = await this.calendarsIn(home);
+    const known = new Set(before.map((calendar) => calendar.path));
+    const fresh =
+      after.status === 207
+        ? after.calendars.filter(
+            (calendar) => !known.has(calendar.path) && collectionCarries(calendar.components, kind),
+          )
+        : [];
+    const chosen = fresh.find((calendar) => isNamed(calendar, slug)) ?? (fresh.length === 1 ? fresh[0] : undefined);
+    if (chosen !== undefined) {
+      log.info(
+        `[caldav] MKCALENDAR for ${path} made ${folder.name || slug} at ${chosen.path}, ` +
+          `which the server lists in ${home}; not where it was asked for`,
+      );
+      return chosen.path;
+    }
+    throw new Error(
+      `MKCALENDAR for ${path} was answered 201, but no calendar is there, the answer named no other ` +
+        `address that holds one, and ${home} ` +
+        (after.status !== 207
+          ? `could not be listed again (status ${after.status}).`
+          : fresh.length === 0
+            ? `lists no new calendar that holds ${kind}.`
+            : `lists ${fresh.length} new ones that hold ${kind}, none of them by that name ` +
+              `(${fresh.map((calendar) => calendar.displayName ?? calendar.path).join(', ')}): ` +
+              'which one it made is not guessed.'),
+    );
+  }
+
+  /** A server href as this writer's calendar path, or undefined when it lies on another host or outside the base. */
+  private calendarPathFromHref(href: string, requestedPath: string): string | undefined {
+    let url: URL;
+    try {
+      url = new URL(href, this.buildUrl(requestedPath));
+    } catch {
+      return undefined;
+    }
+    const base = this.buildUrl('');
+    if (url.origin !== new URL(base).origin) return undefined;
+    const relative = hrefRelativeTo(url.pathname, base);
+    if (relative === undefined || relative === '') return undefined;
+    return this.normalizeCalendarPath(relative);
+  }
+
+  /**
+   * Is a calendar at this address? Its resourcetype, asked at Depth 0, says
+   * so. A 207 alone does not: a server that answers 201 for a calendar it
+   * keeps elsewhere may answer for an address that holds none.
+   */
+  private async calendarIsAt(path: string): Promise<boolean> {
+    try {
+      const response = await this.httpClient.request({
+        method: 'PROPFIND',
+        url: this.buildUrl(path),
+        body: `<?xml version="1.0" encoding="utf-8"?>
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`,
+        headers: {
+          Depth: '0',
+          'Content-Type': 'application/xml',
+          Authorization: this.authHeader(),
+        },
+      });
+      return (
+        response.status === 207 && parseMultiStatus(response.body).some((r) => hasResourceType(r.xml, 'calendar'))
+      );
+    } catch (err) {
+      log.warn(`[caldav] could not read ${path} back: ${err instanceof Error ? err.message : String(err)}`);
+      return false;
+    }
+  }
+
+  /** The status a Depth-0 PROPFIND of one collection answers, or undefined when it could not be asked. */
+  private async collectionStatus(path: string): Promise<number | undefined> {
+    try {
+      const response = await this.httpClient.request({
+        method: 'PROPFIND',
+        url: this.buildUrl(path),
+        headers: { Depth: '0', Authorization: this.authHeader() },
+      });
+      return response.status;
+    } catch (err) {
+      log.warn(`[caldav] could not ask whether ${path} is there: ${err instanceof Error ? err.message : String(err)}`);
+      return undefined;
+    }
   }
 
   /**
@@ -984,8 +1150,8 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     }
   }
 
-  /** Make one calendar: undefined when made, and the refusal otherwise, for the caller to read. */
-  private async createCalendar(path: string, folder: CalendarFolder): Promise<HttpResponse | undefined> {
+  /** Make one calendar, and hand back the server's answer: 201 when made, the refusal otherwise. */
+  private async createCalendar(path: string, folder: CalendarFolder): Promise<HttpResponse> {
     // RFC 4791 §5.3.1: the MKCALENDAR request body's root element MUST be in the CalDAV
     // namespace (C:mkcalendar), not DAV: — servers (e.g. SabreDAV, which Nextcloud uses)
     // deserialize the body by its Clark-notation element name and silently fail to create a
@@ -1024,7 +1190,7 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       },
     });
 
-    return response.status === 201 ? undefined : response;
+    return response;
   }
 
   /**
@@ -1126,7 +1292,11 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // DELETE (take-back, gated apply) does not fan out CANCELs. This
       // cannot disturb change detection: calendarContentHash fingerprints
       // UID/SUMMARY/DESCRIPTION/LOCATION only, pinned by test.
-      body: neutraliseScheduling(raw.icalendar),
+      //
+      // A target that mails guests regardless (Cirrux, 2026-11-19, workplan
+      // 0160) gets no guest at all: each ATTENDEE and ORGANIZER becomes a
+      // COMMENT naming them, which is not fingerprinted either.
+      body: neutraliseScheduling(this.config.mailsGuests ? withoutGuests(raw.icalendar) : raw.icalendar),
       headers: {
         'Content-Type': 'text/calendar',
         // Create-only, atomically, UNLESS this is a deliberate rewrite.
@@ -1287,6 +1457,15 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     const plain =
       `PUT failed for ${eventPath} with status ${response.status}: ` +
       `${davRefusalBody(response.body)}${payloadDefectNote(icalendar)}`;
+    // A 404 to a PUT usually means the calendar itself is not there, which is
+    // what every one of 25 refusals meant on 2026-11-19 (workplan 0160), and
+    // which the server's own words did not say.
+    if (response.status === 404 && (await this.collectionStatus(calendarId)) === 404) {
+      return (
+        `PUT failed for ${eventPath} with status 404: the calendar ${calendarId} is not on the server, ` +
+        `so nothing can be written into it. Server said: ${davRefusalBody(response.body)}`
+      );
+    }
     const component = componentOfIcalendar(icalendar);
     if (!component) return plain;
     let accepted: ReadonlyArray<CalendarComponent> | undefined;

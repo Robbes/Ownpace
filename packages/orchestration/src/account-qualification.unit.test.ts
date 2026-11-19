@@ -206,7 +206,7 @@ describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓
     }
   });
 
-  it('a cirrux account measures its four faces, and answers Files with the reason Drive cannot be reached (0160)', async () => {
+  it('a cirrux account measures its four faces, and answers Files with why Drive is not there yet (0160)', async () => {
     vi.stubGlobal('fetch', davAnsweringFetch());
     const asked: Array<Record<string, unknown>> = [];
     try {
@@ -227,10 +227,12 @@ describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓
       expect(q?.domains.mail.answer).toBe('yes');
       // Mail was asked at the IMAP host the row stores, never at the DAV root.
       expect(asked[0]?.host).toBe('imap.cirrux.co');
-      // A measured no, as Soverin's, but with the reason a person who HAS a
-      // Cirrux Drive needs: not the generic "not a face of this connection".
-      expect(q?.domains.file.answer).toBe('no');
-      expect(q?.domains.file.detail).toContain('Cirrux Drive is not reachable over WebDAV');
+      // A measured no with the reason a person who HAS a Cirrux Drive needs,
+      // never the generic "not a face of this connection": here, that this
+      // deployment has no Cirrux client (0160 T5; the rest of the face's
+      // answers are `a-drive-face-a-sign-in-adds.unit.test.ts`).
+      expect(q?.domains.file).toMatchObject({ answer: 'no', reason: 'structural' });
+      expect(q?.domains.file.detail).toContain('no Cirrux client on this deployment');
       expect(q?.domains.file.detail).not.toContain('is not a face of this connection');
       expect(q?.domains.file.count).toBeUndefined();
     } finally {

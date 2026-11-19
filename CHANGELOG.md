@@ -18,11 +18,28 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and reminders, and `imap.cirrux.co` on 993 for mail, as read from `https://cirrux.co/help/setup`
   and `https://cirrux.co/help/calendar` on 2026-11-19. It signs in with the mailbox's email
   address and an app password, which Cirrux makes per mailbox and requires; Test measures each
-  part. Files are not offered: Cirrux Drive has no WebDAV, only an HTTP API that takes a
-  person's OAuth sign-in through a client Cirrux registers on request, and the Test says so. The
-  card has a setup checklist, a guide in English and Dutch, and a card on the site's *Where to*.
+  part. Files are not part of the card: Cirrux Drive has no WebDAV, and is a sign-in added to the
+  saved account afterwards (the next entry). The card has a setup checklist, a guide in English and Dutch, and a card on the site's *Where to*.
   Ledger migration 0068 widens `connection.kind` by `cirrux`, and touches no row. Not yet run
   against a live Cirrux mailbox: that is the owner's test (0160 T2).
+
+- **Cirrux Drive as a destination for files** (workplan 0160 T5; ADR-0052). A Cirrux account
+  on the Accounts page gains **Connect Cirrux Drive**: a person signs in to Cirrux, the server
+  stores the Drive sign-in on that account beside its app password, and files can then go to
+  the account's Cirrux Drive. Cirrux's refresh tokens rotate on every refresh, so this is the one
+  provider whose stored credential a pass writes back: one refresh at a time per account, under
+  the connection row's lock, encrypted through the one credential store, with a compare-and-swap
+  on what was read, and never logged (ADR-0052). Files up to 2 GiB are uploaded: up to 100 MB in
+  one request, and larger ones in parts encrypted here in Cirrux's own format, streamed and never
+  held whole; a changed file is replaced only while its copy in Cirrux is the one this service
+  wrote (`base_ctag`); folders are found by name, whatever their capitals; the modification time
+  is kept; an approved deletion moves the copy to Cirrux's trash, never deletes it for good;
+  storage is checked first, and Cirrux's rate limit is waited out. A file over 2 GiB is not
+  moved, with the reason. A deployment needs its own Cirrux client,
+  `CIRRUX_OAUTH_CLIENT_ID`, which Cirrux registers by hand; until it is set, Cirrux's files are a
+  measured no that says so, and no button is offered. *Where does it go?* offers a saved Cirrux
+  account for files once its Drive is connected. Built against a fake Cirrux; not yet run
+  against a live client (0160 T2b).
 
 ### Changed
 
@@ -43,14 +60,78 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The web image runs nginx as its own user from its first process, GoAccess's image ends as
+  nobody, and three more Dockerfiles lose a pipe that could hide a failed command** (workplan
+  0119). A read-only check of the repository read the web image and GoAccess's as containers that
+  run as root, and listed where eight Dockerfiles break hadolint's rules. nginx now starts as uid
+  101 with no capability; managed.yml's web sets `net.ipv4.ip_unprivileged_port_start=0`, so it
+  still listens on port 80, and its health check runs with no shell. GoAccess ends as 65534:65534,
+  the user the visit count already ran it as. The Docker socket proxy stays root, as upstream ships
+  it, and its Dockerfile says why. It and the connection pooler get new image names, which each
+  machine builds at its next deploy, and the tasks' base names its user by number. A new test
+  holds every Dockerfile to six of hadolint's rules, and names each file that breaks one with its
+  reason.
+- **The Trigger.dev dashboard's TLS front runs as its own user, with no capability** (workplan
+  0119). A read-only check of the repository read the front's image as a container that runs as
+  root, which it did. Caddy now runs as uid 65532: it listens on port 3443, which needs no
+  privilege, and Caddy 2.11.9's binary no longer needs the capability the front kept for 2.11.7.
+  A one-shot gives the front's two volumes to that user before it starts, so the local
+  certificate authority, and a browser's exception for its certificate, stay. Each machine builds
+  the new image at its next deploy. Going back to an earlier release needs the volumes given back
+  to root first; the bring-up guide gives the command.
+- **The Stalwart test fixture's Dockerfile names its base by digest and its user by number, and
+  the two base images a read-only check reported with a fixable high or critical stay, read and
+  recorded** (workplan 0119). `packages/testing/fixtures/stalwart/Dockerfile`, which nothing here
+  builds, now pins `stalwartlabs/stalwart:v0.16.27` by the digest of its index and says
+  `USER 2000:2000`, the image's own `stalwart`, so a reading of the file no longer takes it for a
+  container that runs as root; every Dockerfile is now held to a digest. The Stalwart image the
+  tests run carries Debian 13's brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited
+  vulnerabilities): no v0.16 release fixes it, Stalwart v1.1 does, and that move is the owner's
+  (ADR-0022). Trigger.dev v4.8.5's own image carries what this repository's build of it removes;
+  four packages with a fix are left in that build, each fixed only in a new major, and v4.8.6
+  fixes none of them. Nothing that runs changes.
 - **The advisory gate accepts nothing again: GitHub withdrew GHSA-fc5q-39xc-vjpf, the picomatch
   ReDoS it accepted by name, on 2026-11-18** (workplan 0119). `pnpm audit` no longer lists it, so
   its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
   the gate blocks every high as it did before 2026-11-17. The list stays for the next advisory the
   owner accepts by name.
+- **The workflows give each job the token it uses, and no checkout leaves it on disk** (workplan
+  0119). An outside, read-only check of `.github/workflows/` on 2026-11-19 named nineteen lines.
+  `ci.yml`, the four E2E workflows and `no-committed-artifacts.yml` named no permissions, so their
+  jobs ran on whatever the repository's settings give the default token; each now says
+  `contents: read`. `images.yml` gave `packages: write` and `id-token: write` to every job; they
+  now sit on `build`, the job that pushes and signs, and the top of the file only reads. Eighteen
+  checkouts, in jobs that never push with git, kept the token in `.git/config` for every later
+  step; each now says `persist-credentials: false`. The other three lines, the `actions/setup-node`
+  steps that open three jobs that publish, restore no cache and did not change.
+  `scripts/a-token-the-job-never-asked-for.unit.test.ts` holds all of it.
 
 ### Fixed
 
+- **Moves and Deletions name the item each row asks about** (workplan 0159): a file renamed at
+  the top of a drive read only `/ renamed` beside an ID and now reads
+  `/report.pdf → report-final.pdf`, a moved file shows its name in both folders, and a message,
+  an event or a contact shows its name, all from what the migration had already recorded.
+- **Nothing written to Cirrux names a guest or an organiser, because Cirrux emails every guest**
+  (workplan 0160, ADR-0043 amended). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
+  with every attendee and organiser marked `SCHEDULE-AGENT=CLIENT`, as for every target, and
+  Cirrux emailed each attendee an invitation in the mailbox's name, past events included. The
+  invitation it sent had dropped the marker. For a Cirrux target the calendar and task writers now
+  write no `ATTENDEE` and no `ORGANIZER`: each is replaced by a `COMMENT` that names the person,
+  so the copy still says who was there and Cirrux has nobody to email. An email alarm keeps its
+  recipient, and verification compares as before. The connection test, the assessment and the
+  audit row say this for Cirrux, instead of promising what the marker would do. Every other
+  target gets the same bytes as before.
+- **A calendar or task list made at Cirrux is written to where Cirrux keeps it** (workplan 0160).
+  With the calendar home found, the next pass into Cirrux, on 2026-11-19, made the source's
+  calendar: Cirrux answered 201 and showed it, with the name asked for. Then it refused every
+  event written to the calendar's address with 404, because Cirrux keeps a new calendar under an
+  id of its own. In a home the server named, a new calendar is now asked for at a UUID of the
+  writer's own, the same one on every pass, as Apple's apps do. The 201 is read back: a
+  calendar at the address asked for, then at the `Location` the answer gave, then the calendar
+  the home lists now and did not before, by its name. A 201 with no calendar anywhere fails, and
+  says so. An event refused with 404 says whether its calendar is there at all. Servers with
+  Nextcloud's layout get the same requests as before.
 - **Calendars and task lists into Cirrux are made where Cirrux keeps them, instead of failing
   before the first event** (workplan 0160). With contacts corrected, the next pass into Cirrux, on
   2026-11-19, stopped at `MKCALENDAR failed for /calendars/<mailbox>/<slug>/ with status 404`.
@@ -91,6 +172,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   as it asks about each one on its own. And three things the web app sends without waiting, the
   visit a migration's page records, the removal of an account a failed check left and the report
   of an answer a page could not read, still let a failed request go and now throw anything else.
+- **A data type that fails no longer holds back the ones after it** (workplan 0143): when your
+  calendars fail to copy, your tasks, mail and files are still copied in the same pass, and the
+  pass still shows as failed, naming each data type that failed.
 
 ## [0.2.0-alpha.11] - 2026-11-17
 
