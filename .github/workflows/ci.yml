@@ -603,7 +603,8 @@ jobs:
         # driver, the migrate package and the lint's analyzers this job runs
         # are v1.3.10's, which are v1.3.8's. Docker Hub listed the tag on
         # 2026-11-17 15:20 UTC, so its three-day floor (CONTRIBUTING.md) runs
-        # to 2026-11-20 15:20, and this pin is not merged before then.
+        # to 2026-11-20 15:20: it is taken inside that floor, on the owner's
+        # word of 2026-11-19, *"I waive waiting time / nights if needed."*
         # Upstream's git has a tag for v1.3.0 and one for v1.4.0, and none
         # for the releases between them, so the release list is the image's
         # tags, and that is what the pin watch reads

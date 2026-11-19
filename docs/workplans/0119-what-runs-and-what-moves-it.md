@@ -2,7 +2,16 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-18 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: CI's migration lint takes Atlas v1.4.0 inside its three-day floor, on the owner's
+word.** The owner, on 2026-11-19: *"I waive waiting time / nights if needed."* So the branch of
+2026-11-18 (the next entry) merges once CI is green on its head with `main` merged in, before
+2026-11-20 at 15:20 UTC. Its CI on `ef8c6e7f` was green (run 44340368345): both `migration-lint`
+legs read `atlasbinaries.com`'s bytes *as pinned* for their architecture, printed `atlas community
+version v1.4.0` and linted the 125 migrations as v1.3.10 did. `ci.yml`'s comment and the
+CHANGELOG say it is taken inside the floor. The floor's security-fix exception still does not
+apply, and nothing deployed changes.
 
 **2026-11-18: CI's migration lint moves to Atlas v1.4.0 on a branch, which waits for its three-day
 floor to 2026-11-20 at 15:20 UTC; built, not merged.** On the branch
