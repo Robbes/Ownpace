@@ -297,9 +297,8 @@ export function displayNameForContact(contact: Contact | undefined): string | un
 /**
  * WHAT A QUEUE ROW CALLS ITS ITEM, read from what the ledger row already holds.
  *
- * The owner, 2026-11-19, on a Moves row that read *Files / renamed* beside a
- * hash: *"As I use it I need more info, like a name, to be able to understand
- * what I need to decide on."* Failures had learned this on 2026-09-17 and
+ * Found 2026-11-19 on a Moves row that read *Files / renamed* beside a hash,
+ * with nothing on it to say which file. Failures had learned this on 2026-09-17 and
  * 2026-09-23; Moves and Deletions had not, so the two queues that ask about
  * removing a copy named nothing a person could recognise.
  *

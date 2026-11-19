@@ -4,9 +4,7 @@
  * A QUEUE ROW THAT NAMES ITS ITEM (the owner, 2026-11-19), on PGlite.
  *
  * Testing a Google to Nextcloud migration, the owner was shown one row on
- * *Moved on the old system*: *Files / renamed*, beside `68524b1d65c5`. *"I find
- * it a bit weird it just mentions '/'. As I use it I need more info, like a
- * name, to be able to understand what I need to decide on."* The decision on
+ * *Moved on the old system*: *Files / renamed*, beside a hash. The decision on
  * that row is whether to remove the old copy on the new system, and nothing on
  * it said which file.
  *

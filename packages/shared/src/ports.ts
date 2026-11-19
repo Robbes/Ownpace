@@ -2138,8 +2138,7 @@ export interface ItemMove {
    * For the reason `ItemFailure.displayName` gives, and on stronger ground: this
    * queue asks whether to remove a copy on the new system, and on 2026-11-19 the
    * owner, testing a Google to Nextcloud migration, was shown one row reading
-   * *Files / renamed* beside `68524b1d65c5` — *"I need more info, like a name,
-   * to be able to understand what I need to decide on."* ADR-0035 decision 5
+   * *Files / renamed* beside a hash, with nothing to say which file. ADR-0035 decision 5
    * already keeps this queue naming files and folders to the owner, even for an
    * account a person granted: the owner decides on them, and a decision has to
    * know what it is about.

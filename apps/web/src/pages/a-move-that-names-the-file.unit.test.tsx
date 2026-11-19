@@ -5,11 +5,9 @@
  * Testing a Google to Nextcloud migration, the owner was shown one row on
  * *Moved on the old system*:
  *
- *     Files   / renamed          ID 68524b1d65c5   last month
+ *     Files   / renamed          ID <hash>   last month
  *
- * *"I find it a bit weird it just mentions '/'. As I use it I need more info,
- * like a name, to be able to understand what I need to decide on."* The row
- * asks whether to remove the old copy on the new system, and said nothing about
+ * The row asks whether to remove the old copy on the new system, and said nothing about
  * which file. The server now sends the names the ledger already held
  * (`displayName`, `toDisplayName`), and the row says them:
  *

@@ -169,9 +169,9 @@ export const GuidancePanel: React.FC<{ queue: GuidedQueue }> = ({ queue }) => {
 /**
  * A file's place, as its folder and its name, from the top of the drive:
  * `/Docs/report.pdf`, and `/report.pdf` for a file at the top, whose folder
- * alone read `/` beside a hash (the owner, 2026-11-19: *"I find it a bit weird
- * it just mentions '/'"*). The folder is a row's `collection`, root-relative
- * and `/` at the root; the name is its `displayName`.
+ * alone read `/` beside a hash (found 2026-11-19). The folder is a row's
+ * `collection`, root-relative and `/` at the root; the name is its
+ * `displayName`.
  */
 export const fileAt = (folder: string, name: string): string => {
   const inside = folder.replace(/^\/+|\/+$/g, '');
