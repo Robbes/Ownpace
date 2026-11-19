@@ -58,6 +58,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   measured no that says so, and no button is offered. *Where does it go?* offers a saved Cirrux
   account for files once its Drive is connected. Built against a fake Cirrux; not yet run
   against a live client (0160 T2b).
+- **Disconnect Cirrux Drive** (workplan 0160; ADR-0052). A Cirrux account whose Drive is
+  connected shows **Disconnect Cirrux Drive** beside it on the Accounts page, and asks before it
+  acts. It ends the Drive sign-in alone: the app password stays, so mail, calendars, contacts
+  and tasks carry on, and nothing in the Drive is touched. The server removes the sign-in from the
+  account's encrypted record under the same row lock a refresh takes
+  (`POST /api/migrations/cirrux/disconnect`), records files as not connected and writes
+  `connection.cirrux_drive_disconnected` to the audit log in the same transaction, and drops the
+  access tokens it holds for the account; a pass already running elsewhere stops within a
+  minute. Cirrux documents no way for an app to withdraw a sign-in, so Cirrux is not asked, and
+  the answer says the sign-in lasts at Cirrux until it goes unused for 30 days, or until it is
+  revoked under Settings → Security in Cirrux Mail; the receipt for deleting a Cirrux account now
+  says the same. A migration that sends files there then
+  fails its files with a sentence naming **Connect Cirrux Drive**, and writes them nowhere else.
+  Pressing it on an account with nothing connected answers that there was nothing to disconnect.
+  A data type's failure now keeps the category its own code stated, as a failed item's did, so
+  the Accounts page names that button for it.
 
 - **hadolint reads every Dockerfile on every pull request, and reports what it finds without
   failing anything yet** (workplan 0119). A read-only check of the repository had read the

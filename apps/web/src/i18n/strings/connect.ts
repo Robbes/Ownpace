@@ -93,6 +93,21 @@ export const en = {
     'Cirrux Drive is reached only through Cirrux’s own API, with your sign-in rather than the app password. Ownpace keeps that sign-in on this account, renews it each time Cirrux asks, and uses it to put files in your Drive. It removes nothing for good: a file is moved to Cirrux’s trash only when you approve removing it because it was deleted where it came from.',
   'account.cirrux.connected': 'Cirrux Drive is connected: files can go to this account.',
   'account.cirrux.landed': 'Cirrux Drive is connected, and the account has been measured again.',
+  // Disconnect Cirrux Drive (workplan 0160): ends the Drive sign-in alone; the
+  // app password stays. The press asks first, as withdrawing a grant does.
+  'account.cirrux.disconnect': 'Disconnect Cirrux Drive',
+  'account.cirrux.disconnect.confirm':
+    'Disconnect Cirrux Drive from this account? Files stop going to its Drive until you connect it again. What is already in your Drive stays there, and the app password keeps working for mail, calendars, contacts and tasks.',
+  'account.cirrux.disconnect.yes': 'Yes, disconnect',
+  'account.cirrux.disconnect.keep': 'Keep it connected',
+  'account.cirrux.disconnecting': 'Disconnecting…',
+  'account.cirrux.disconnected':
+    'Cirrux Drive is disconnected: Ownpace deleted its sign-in, and no file goes to this account until you connect it again.',
+  // Cirrux offers apps no revocation (https://cirrux.co/help/api); its
+  // Security page lists the apps a person authorized (https://cirrux.co/help/security).
+  'account.cirrux.disconnected.atCirrux':
+    'Cirrux offers apps no way to end a sign-in, so at Cirrux it stays valid until it goes unused for 30 days. To end it sooner, revoke Ownpace in Cirrux Mail under Settings → Security, where the apps you have authorized are listed.',
+  'account.cirrux.notConnected': 'Cirrux Drive was not connected on this account, so there was nothing to disconnect.',
   'account.dropbox.connect': 'Connect with Dropbox',
   'account.dropbox.connect.hint': 'Opens Dropbox’s sign-in page, where you give Ownpace access to this account.',
   'account.dropbox.connect.needsClient': 'Enter the App key and App secret first.',
@@ -799,6 +814,17 @@ export const nl: Record<keyof typeof en, string> = {
     'Cirrux Drive is alleen bereikbaar via de eigen API van Cirrux, met uw aanmelding en niet met het app-wachtwoord. Ownpace bewaart die aanmelding bij dit account, vernieuwt haar telkens als Cirrux daarom vraagt, en gebruikt haar om bestanden in uw Drive te zetten. Er wordt niets definitief verwijderd: een bestand gaat alleen naar de prullenbak van Cirrux als u goedkeurt dat het weg mag omdat het verwijderd is waar het vandaan kwam.',
   'account.cirrux.connected': 'Cirrux Drive is verbonden: bestanden kunnen naar dit account.',
   'account.cirrux.landed': 'Cirrux Drive is verbonden, en het account is opnieuw gemeten.',
+  'account.cirrux.disconnect': 'Cirrux Drive loskoppelen',
+  'account.cirrux.disconnect.confirm':
+    'Cirrux Drive loskoppelen van dit account? Er gaan dan geen bestanden meer naar de Drive tot u die opnieuw verbindt. Wat al in uw Drive staat, blijft daar, en het app-wachtwoord blijft werken voor mail, agenda’s, contacten en taken.',
+  'account.cirrux.disconnect.yes': 'Ja, loskoppelen',
+  'account.cirrux.disconnect.keep': 'Verbonden laten',
+  'account.cirrux.disconnecting': 'Bezig met loskoppelen…',
+  'account.cirrux.disconnected':
+    'Cirrux Drive is losgekoppeld: Ownpace heeft de aanmelding verwijderd, en er gaat geen bestand meer naar dit account tot u Cirrux Drive opnieuw verbindt.',
+  'account.cirrux.disconnected.atCirrux':
+    'Cirrux biedt apps geen manier om een aanmelding te beëindigen, dus bij Cirrux blijft ze geldig tot ze 30 dagen niet is gebruikt. Wilt u haar eerder beëindigen, trek dan de toegang van Ownpace in via Settings → Security in Cirrux Mail, waar de apps staan die u toegang hebt gegeven.',
+  'account.cirrux.notConnected': 'Cirrux Drive was niet verbonden op dit account, dus er was niets los te koppelen.',
   'account.dropbox.connect': 'Verbinden met Dropbox',
   'account.dropbox.connect.hint': 'Opent de aanmeldpagina van Dropbox, waar u Ownpace toegang geeft.',
   'account.dropbox.connect.needsClient': 'Vul eerst de App key en het App secret in.',

@@ -16,7 +16,13 @@
  * - the token is never in the row in plaintext;
  * - the consent door stores a grant only on a Cirrux destination of this
  *   organisation, and replacing the app password keeps it for the same
- *   mailbox only.
+ *   mailbox only;
+ * - DISCONNECT CIRRUX DRIVE (workplan 0160) removes the grant and nothing
+ *   else, from a Cirrux destination of this organisation only, writes the
+ *   record's file face and its audit line in the same transaction, answers
+ *   an account with no grant as `not_connected` without touching the secret,
+ *   and the store then says no grant is held, so a refresh asks Cirrux
+ *   nothing.
  */
 
 import { describe, it, expect, beforeAll } from 'vitest';
@@ -29,6 +35,7 @@ import { FakeCirrux } from '../../connectors/src/__testing__/cirrux-fake.ts';
 import {
   PgCirruxGrantStore,
   mergeKeepingTheDriveGrant,
+  removeCirruxDriveGrant,
   storeCirruxDriveGrant,
 } from './cirrux-grant-store.ts';
 
@@ -179,5 +186,140 @@ describe('the consent door’s grant, and the app password beside it', () => {
       mergeKeepingTheDriveGrant(db, TENANT, CIRRUX, { username: 'bob@example.com', password: 'app-password-3' }),
     );
     expect(other).toEqual({ username: 'bob@example.com', password: 'app-password-3' });
+  });
+});
+
+describe('Disconnect Cirrux Drive: the grant taken off, and nothing else (workplan 0160)', () => {
+  const row = (connectionId = CIRRUX, tenantId = TENANT) => ({ pool: driver, tenantId, connectionId });
+  const unasked = { answer: 'unknown', reason: 'notAskable', detail: 'not this file’s subject' };
+  const MEASURED = {
+    domains: {
+      mail: { answer: 'yes', detail: 'mail' },
+      calendar: { answer: 'yes', detail: 'calendars' },
+      contact: unasked,
+      task: unasked,
+      file: { answer: 'yes', detail: 'Cirrux Drive connected as the-login: 3 items at the top level.' },
+    },
+    scheduling: { capability: 'server' },
+  };
+  const NOT_CONNECTED = { answer: 'no', reason: 'notGranted', detail: 'Cirrux Drive is not connected on this account.' };
+  const WITH_SETTINGS = { ...APP_PASSWORD, host: 'api.cirrux.co', mailHost: 'imap.cirrux.co' };
+
+  async function setQualification(q: unknown, id = CIRRUX): Promise<void> {
+    const conn = await driver.acquire();
+    try {
+      await conn.query('UPDATE connection SET qualification = $1::jsonb WHERE id = $2', [q === null ? null : JSON.stringify(q), id]);
+    } finally {
+      conn.release();
+    }
+  }
+  async function storedQualification(id = CIRRUX): Promise<{ domains?: Record<string, unknown>; scheduling?: unknown } | null> {
+    const conn = await driver.acquire();
+    try {
+      const r = await conn.query('SELECT qualification FROM connection WHERE id = $1', [id]);
+      return (r.rows[0] as { qualification: { domains?: Record<string, unknown> } | null }).qualification;
+    } finally {
+      conn.release();
+    }
+  }
+
+  it('removes the grant and keeps the app password and every other key, encrypted, under the row lock', async () => {
+    await setCreds({ ...WITH_SETTINGS, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-held' });
+    let recordedIn: unknown;
+    const outcome = await removeCirruxDriveGrant(row(), {
+      recorded: async (db) => {
+        recordedIn = db;
+      },
+    });
+    expect(outcome).toBe('removed');
+    expect(await storedCreds()).toEqual(WITH_SETTINGS);
+    expect(await rawSecretRef()).not.toContain('rt-held');
+    expect(await rawSecretRef()).not.toContain('app-password-1');
+    // The audit line is written in the removal's own transaction.
+    expect(recordedIn).toBeDefined();
+  });
+
+  it('writes the record’s file face in the same transaction, and leaves the other faces as they were', async () => {
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-held' });
+    await setQualification(MEASURED);
+    expect(await removeCirruxDriveGrant(row(), { face: NOT_CONNECTED })).toBe('removed');
+    expect(await storedQualification()).toEqual({ ...MEASURED, domains: { ...MEASURED.domains, file: NOT_CONNECTED } });
+  });
+
+  it('a row with no record is left without one: nothing claims the Drive either way', async () => {
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-held' });
+    await setQualification(null);
+    expect(await removeCirruxDriveGrant(row(), { face: NOT_CONNECTED })).toBe('removed');
+    expect(await storedQualification()).toBeNull();
+  });
+
+  it('an account with no grant is not_connected: the secret is not written and nothing is recorded, and a stale face is put right', async () => {
+    await setCreds(APP_PASSWORD);
+    await setQualification(MEASURED);
+    const before = await rawSecretRef();
+    let recorded = 0;
+    const outcome = await removeCirruxDriveGrant(row(), {
+      face: NOT_CONNECTED,
+      recorded: async () => {
+        recorded += 1;
+      },
+    });
+    expect(outcome).toBe('not_connected');
+    expect(await rawSecretRef()).toBe(before);
+    expect(recorded).toBe(0);
+    expect((await storedQualification())?.domains?.file).toEqual(NOT_CONNECTED);
+  });
+
+  it('pressed twice: removed, then not_connected, the record as the first left it', async () => {
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-held' });
+    expect(await removeCirruxDriveGrant(row())).toBe('removed');
+    const after = await rawSecretRef();
+    expect(await removeCirruxDriveGrant(row())).toBe('not_connected');
+    expect(await rawSecretRef()).toBe(after);
+    expect(await storedCreds()).toEqual(APP_PASSWORD);
+  });
+
+  it('only on a Cirrux destination of this organisation: another kind, or another organisation’s row, is no_account and untouched', async () => {
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-ours' }, SOVERIN);
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-theirs' }, THEIRS);
+    expect(await removeCirruxDriveGrant(row(SOVERIN))).toBe('no_account');
+    expect((await storedCreds(SOVERIN))[CIRRUX_DRIVE_GRANT_KEY]).toBe('rt-ours');
+    // Named in our organisation, the other organisation's row is not found.
+    expect(await removeCirruxDriveGrant(row(THEIRS))).toBe('no_account');
+    expect((await storedCreds(THEIRS, OTHER_TENANT))[CIRRUX_DRIVE_GRANT_KEY]).toBe('rt-theirs');
+    expect(await removeCirruxDriveGrant(row('01600cc0-e29b-41d4-a716-446655440099'))).toBe('no_account');
+  });
+
+  it('an audit line that cannot be written keeps the grant: both commit or neither', async () => {
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-held' });
+    await expect(
+      removeCirruxDriveGrant(row(), {
+        recorded: async () => {
+          throw new Error('the audit log is not there');
+        },
+      }),
+    ).rejects.toThrow(/audit log/);
+    expect((await storedCreds())[CIRRUX_DRIVE_GRANT_KEY]).toBe('rt-held');
+  });
+
+  it('the store then holds no grant, and a refresh asks Cirrux nothing and says the Drive is not connected', async () => {
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-0' });
+    expect(await store().holdsGrant()).toBe(true);
+    await removeCirruxDriveGrant(row());
+    expect(await store().holdsGrant()).toBe(false);
+    const cirrux = new FakeCirrux({ refreshToken: 'rt-0' });
+    const tokens = new CirruxTokenProvider({ clientId: 'c', store: store(), fetchImpl: cirrux.fetch });
+    await expect(tokens.getAccessToken()).rejects.toThrow(/no Cirrux Drive connected/);
+    expect(cirrux.presented).toEqual([]);
+  });
+
+  it('holdsGrant: a row that is gone holds none, and the store names its connection', async () => {
+    expect(store().connection).toBe(CIRRUX);
+    expect(
+      await new PgCirruxGrantStore({ pool: driver, tenantId: TENANT, connectionId: '01600cc0-e29b-41d4-a716-446655440099' }).holdsGrant(),
+    ).toBe(false);
+    // Another organisation's row, asked from ours, is not read.
+    await setCreds({ ...APP_PASSWORD, [CIRRUX_DRIVE_GRANT_KEY]: 'rt-theirs' }, THEIRS);
+    expect(await new PgCirruxGrantStore({ pool: driver, tenantId: TENANT, connectionId: THEIRS }).holdsGrant()).toBe(false);
   });
 });

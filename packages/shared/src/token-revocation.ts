@@ -210,13 +210,43 @@ const PASSWORD_REASON =
   'This connection authenticates with a password or app password. A password is revoked by changing it, which only the account holder can do.';
 
 /**
- * A Cirrux account that also stored a Cirrux Drive sign-in (workplan 0160 T5;
- * ADR-0052). Cirrux documents no revocation an app can call
- * (`https://cirrux.co/help/api`, read 2026-11-19), so the receipt says what is
- * true: our copy is gone, and the sign-in ends at Cirrux on its own.
+ * How a Cirrux Drive sign-in ends at Cirrux once our copy is gone (workplan
+ * 0160; ADR-0052). Cirrux's API pages name two OAuth endpoints, the
+ * authorization and the token endpoint, and no revocation an app can call
+ * (`https://cirrux.co/help/api`,
+ * `https://cirrux.co/help/questions/oauth-client-for-my-app`, read
+ * 2026-11-19), so nothing is asked of Cirrux and the receipt never says
+ * `revoked`. What Cirrux does publish is where the person ends it: the
+ * Security page under Settings lists the apps they have authorized, and any
+ * of them can be revoked there (`https://cirrux.co/help/security`, *Review
+ * access to your account*; `https://cirrux.co/help/mcp` names the list
+ * *Authorized apps*).
  */
-const CIRRUX_DRIVE_REASON =
-  `${PASSWORD_REASON} It also held a Cirrux Drive sign-in. Cirrux documents no way for an app to withdraw one, so our copy was deleted and nothing here can use it again; at Cirrux, a sign-in left unused expires after 30 days.`;
+const CIRRUX_DRIVE_AT_CIRRUX =
+  'Cirrux documents no way for an app to withdraw a Drive sign-in, so our copy was deleted and nothing here can use it again. At Cirrux it lasts until it goes unused for 30 days, or until it is revoked in Cirrux Mail under Settings → Security, which lists the apps you have authorized.';
+
+/**
+ * A Cirrux account that also stored a Cirrux Drive sign-in (workplan 0160 T5;
+ * ADR-0052): the app password's sentence, and the sign-in's.
+ */
+const CIRRUX_DRIVE_REASON = `${PASSWORD_REASON} It also held a Cirrux Drive sign-in. ${CIRRUX_DRIVE_AT_CIRRUX}`;
+
+/**
+ * What *Disconnect Cirrux Drive* did at Cirrux (workplan 0160): nothing, and
+ * the receipt says so. `unsupported`, with how the sign-in ends at Cirrux,
+ * when a sign-in was removed here; `no_credential` when the account stored
+ * none, which is no failure. Never `revoked`: Cirrux was not asked, because it
+ * documents nothing to ask.
+ */
+export function cirruxDriveDisconnectRevocation(removed: boolean): RevocationOutcome {
+  return removed
+    ? { kind: 'cirrux', status: 'unsupported', reason: CIRRUX_DRIVE_AT_CIRRUX }
+    : {
+        kind: 'cirrux',
+        status: 'no_credential',
+        reason: 'No Cirrux Drive sign-in was stored on this account, so there was nothing to disconnect.',
+      };
+}
 
 /**
  * Whether WE can revoke what a connection of this kind stores. Given the

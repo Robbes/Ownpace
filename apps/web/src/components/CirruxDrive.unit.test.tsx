@@ -13,6 +13,11 @@
  * - **Connected**, by the account's own record: said, and the button offers
  *   to connect again.
  * - **A refusal** closes the blank window and is shown in the server's words.
+ * - **Disconnect Cirrux Drive** (workplan 0160), beside a stored sign-in only:
+ *   the press asks first and sends nothing; *Keep it connected* sends
+ *   nothing; the confirmed press sends the account's id, says what was done
+ *   and how the sign-in ends at Cirrux, and reads the accounts again; an
+ *   account that stored none says so; a refusal is the server's words.
  */
 
 import React from 'react';
@@ -24,13 +29,14 @@ import { LocaleProvider } from '../i18n/index.tsx';
 import { STRINGS } from '../i18n/strings.ts';
 import type { ConnectionSummary } from '../services/mapping-service.ts';
 
-const { cirruxDriveAuthorize, facts } = vi.hoisted(() => ({
+const { cirruxDriveAuthorize, cirruxDriveDisconnect, facts } = vi.hoisted(() => ({
   cirruxDriveAuthorize: vi.fn(),
+  cirruxDriveDisconnect: vi.fn(),
   facts: vi.fn(),
 }));
 
 vi.mock('../services/mapping-service', () => ({
-  mappingApi: { cirruxDriveAuthorize },
+  mappingApi: { cirruxDriveAuthorize, cirruxDriveDisconnect },
   providerAccountsApi: { get: facts },
 }));
 
@@ -116,9 +122,17 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   cirruxDriveAuthorize.mockReset();
+  cirruxDriveDisconnect.mockReset();
   facts.mockReset();
   globalThis.localStorage.clear();
 });
+
+const UNMEASURED = { answer: 'unknown' as const, reason: 'refused', detail: 'Unmeasured — Cirrux Drive refused: 503' };
+const DISCONNECTED = {
+  connectionId: ID,
+  removed: true,
+  revocation: { kind: 'cirrux', status: 'unsupported', reason: 'Cirrux documents no way for an app to withdraw a Drive sign-in.' },
+};
 
 describe.each(['en', 'nl'] as const)('in %s', (locale) => {
   it('offers no button on a deployment without a Cirrux client, nor on another kind', async () => {
@@ -203,5 +217,103 @@ describe.each(['en', 'nl'] as const)('in %s', (locale) => {
     expect(screen.getByRole('status').textContent).toContain(
       words(locale, 'account.consent.windowBlocked').replace('{provider}', 'Cirrux'),
     );
+  });
+
+  describe('Disconnect Cirrux Drive (workplan 0160)', () => {
+    const disconnectButton = () => screen.queryByRole('button', { name: words(locale, 'account.cirrux.disconnect') });
+
+    it('is offered beside a stored sign-in only: connected, or unmeasured; never without one, nor without a record', async () => {
+      wrap(locale, <CirruxDrivePanel connection={account(CONNECTED)} onChanged={() => {}} />);
+      expect(await screen.findByRole('button', { name: words(locale, 'account.cirrux.disconnect') })).toBeTruthy();
+      cleanup();
+
+      wrap(locale, <CirruxDrivePanel connection={account(UNMEASURED)} onChanged={() => {}} />);
+      expect(await screen.findByRole('button', { name: words(locale, 'account.cirrux.disconnect') })).toBeTruthy();
+      cleanup();
+
+      for (const record of [NOT_GRANTED, undefined]) {
+        wrap(locale, <CirruxDrivePanel connection={account(record)} onChanged={() => {}} />);
+        await screen.findByRole('button', { name: words(locale, 'account.cirrux.connect') });
+        expect(disconnectButton()).toBeNull();
+        cleanup();
+      }
+    });
+
+    it('is not offered on a deployment without a Cirrux client, however connected the record says it is', async () => {
+      facts.mockResolvedValue({ cirrux: { domains: ['email', 'calendar', 'contact', 'task'] } });
+      const { queryClient } = wrap(locale, <CirruxDrivePanel connection={account(CONNECTED)} onChanged={() => {}} />);
+      await factsArrived(queryClient);
+      expect(screen.queryByRole('button')).toBeNull();
+      expect(cirruxDriveDisconnect).not.toHaveBeenCalled();
+    });
+
+    it('asks first and sends nothing; Keep it connected sends nothing either', async () => {
+      wrap(locale, <CirruxDrivePanel connection={account(CONNECTED)} onChanged={() => {}} />);
+      fireEvent.click(await screen.findByRole('button', { name: words(locale, 'account.cirrux.disconnect') }));
+      const dialog = screen.getByRole('alertdialog');
+      expect(dialog.textContent).toContain(words(locale, 'account.cirrux.disconnect.confirm'));
+      expect(cirruxDriveDisconnect).not.toHaveBeenCalled();
+      fireEvent.click(screen.getByRole('button', { name: words(locale, 'account.cirrux.disconnect.keep') }));
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(cirruxDriveDisconnect).not.toHaveBeenCalled();
+      expect(disconnectButton()).toBeTruthy();
+    });
+
+    it('the confirmed press sends the account, says what was done and how it ends at Cirrux, and reads the accounts again', async () => {
+      let answer: (v: typeof DISCONNECTED) => void = () => {};
+      cirruxDriveDisconnect.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+      const onChanged = vi.fn();
+      wrap(locale, <CirruxDrivePanel connection={account(CONNECTED)} onChanged={onChanged} />);
+      fireEvent.click(await screen.findByRole('button', { name: words(locale, 'account.cirrux.disconnect') }));
+      fireEvent.click(screen.getByRole('button', { name: words(locale, 'account.cirrux.disconnect.yes') }));
+      expect(cirruxDriveDisconnect).toHaveBeenCalledWith({ connectionId: ID });
+      // While the server answers, the press says so and cannot be pressed twice.
+      const busy = screen.getByRole('button', { name: words(locale, 'account.cirrux.disconnecting') });
+      expect(busy).toHaveProperty('disabled', true);
+      await act(async () => answer(DISCONNECTED));
+      expect(screen.getByRole('status').textContent).toBe(
+        `${words(locale, 'account.cirrux.disconnected')} ${words(locale, 'account.cirrux.disconnected.atCirrux')}`,
+      );
+      expect(screen.queryByRole('alertdialog')).toBeNull();
+      expect(onChanged).toHaveBeenCalledTimes(1);
+      expect(cirruxDriveDisconnect).toHaveBeenCalledTimes(1);
+    });
+
+    it('an account that stored no sign-in says there was nothing to disconnect', async () => {
+      cirruxDriveDisconnect.mockResolvedValue({
+        connectionId: ID,
+        removed: false,
+        revocation: { kind: 'cirrux', status: 'no_credential', reason: 'none' },
+      });
+      const onChanged = vi.fn();
+      wrap(locale, <CirruxDrivePanel connection={account(CONNECTED)} onChanged={onChanged} />);
+      fireEvent.click(await screen.findByRole('button', { name: words(locale, 'account.cirrux.disconnect') }));
+      fireEvent.click(screen.getByRole('button', { name: words(locale, 'account.cirrux.disconnect.yes') }));
+      expect((await screen.findByRole('status')).textContent).toBe(words(locale, 'account.cirrux.notConnected'));
+      // The record said connected; it is read again either way.
+      expect(onChanged).toHaveBeenCalledTimes(1);
+    });
+
+    it('a refusal is shown in the server’s words, and the question stays open', async () => {
+      const err = new AxiosError('Request failed with status code 404');
+      err.response = {
+        status: 404,
+        statusText: 'Not Found',
+        headers: {},
+        config: { headers: new AxiosHeaders() },
+        data: { error: 'not_a_cirrux_account', reason: 'No Cirrux destination with that id is on your Accounts page.' },
+      };
+      cirruxDriveDisconnect.mockRejectedValue(err);
+      const onChanged = vi.fn();
+      wrap(locale, <CirruxDrivePanel connection={account(CONNECTED)} onChanged={onChanged} />);
+      fireEvent.click(await screen.findByRole('button', { name: words(locale, 'account.cirrux.disconnect') }));
+      fireEvent.click(screen.getByRole('button', { name: words(locale, 'account.cirrux.disconnect.yes') }));
+      expect(await screen.findByRole('alert')).toHaveProperty(
+        'textContent',
+        'No Cirrux destination with that id is on your Accounts page.',
+      );
+      expect(screen.getByRole('alertdialog')).toBeTruthy();
+      expect(onChanged).not.toHaveBeenCalled();
+    });
   });
 });

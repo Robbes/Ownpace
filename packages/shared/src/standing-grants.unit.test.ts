@@ -261,6 +261,16 @@ describe('credentials that outlive our erasure', () => {
     expect(item!.nl).toContain('app-wachtwoord');
   });
 
+  it('cirrux says where the Drive sign-in is ended at Cirrux, since no app can end it (workplan 0160)', () => {
+    // Cirrux's Security page lists the apps a person authorized, each revocable
+    // there (https://cirrux.co/help/security); its labels stay in English.
+    const [item] = credentialRetirementsFor(['cirrux']);
+    for (const text of [item!.en, item!.nl]) {
+      expect(text).toContain('Settings → Security');
+      expect(text).toContain('30');
+    }
+  });
+
   it('says the credential STILL WORKS, which is the whole point', () => {
     for (const kind of ['imap', 'nextcloud', 'proton', 'webdav']) {
       const [item] = credentialRetirementsFor([kind]);

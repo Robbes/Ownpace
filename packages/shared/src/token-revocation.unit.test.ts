@@ -16,6 +16,7 @@ import { describe, it, expect } from 'vitest';
 import {
   NO_REVOCATION,
   REVOCATION_CAPABILITIES,
+  cirruxDriveDisconnectRevocation,
   revocationCapability,
   revocationSummaryText,
   summariseRevocations,
@@ -78,6 +79,12 @@ describe('revocationCapability', () => {
     expect(cap.reason).toContain('Devices tab');
     expect(cap.reason).not.toContain('dummy-');
     expect(cap.reason).not.toContain('someone@example.com');
+  });
+
+  it('a Cirrux account’s receipt says where Cirrux ends the Drive sign-in, since no app can (0160)', () => {
+    const drive = revocationCapability('cirrux', { username: 'mailbox', password: 'app', driveRefreshToken: 'rt' });
+    expect(drive.reason).toContain('Settings → Security');
+    expect(drive.reason).toContain('30 days');
   });
 
   it('an unknown kind is unsupported, never silently fine', () => {
@@ -184,5 +191,31 @@ describe('revocationSummaryText', () => {
 
     expect(en).toContain('1 other(s)');
     expect(en).toMatch(/for 1 there were no stored credentials/i);
+  });
+});
+
+describe('what Disconnect Cirrux Drive may claim happened at Cirrux (workplan 0160)', () => {
+  it('a sign-in removed here: unsupported, never revoked, and how it ends at Cirrux', () => {
+    const outcome = cirruxDriveDisconnectRevocation(true);
+    expect(outcome.kind).toBe('cirrux');
+    expect(outcome.status).toBe('unsupported');
+    expect(outcome.reason).toContain('our copy was deleted');
+    expect(outcome.reason).toContain('Settings → Security');
+    expect(outcome.reason).toContain('30 days');
+    // The app password is not what was let go of, so the password sentence is not said.
+    expect(outcome.reason).not.toMatch(/password/i);
+  });
+
+  it('none stored: no_credential, which is nothing to do and no failure', () => {
+    const outcome = cirruxDriveDisconnectRevocation(false);
+    expect(outcome).toEqual({
+      kind: 'cirrux',
+      status: 'no_credential',
+      reason: 'No Cirrux Drive sign-in was stored on this account, so there was nothing to disconnect.',
+    });
+  });
+
+  it('never says revoked, whichever it is', () => {
+    expect([true, false].map((removed) => cirruxDriveDisconnectRevocation(removed).status)).not.toContain('revoked');
   });
 });
