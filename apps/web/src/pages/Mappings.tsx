@@ -530,12 +530,20 @@ const Mappings: React.FC = () => {
   );
 };
 
-/** One press to add a migration that belongs to nobody to a person (ADR-0050 rule 2). */
+/**
+ * One press to add a migration that belongs to nobody to a person (ADR-0050
+ * rule 2): to the signed-in member's own person, chosen already where one is
+ * theirs (`you`; ADR-0050, amended 2026-11-19). Otherwise nobody is chosen,
+ * and the press waits for a choice. Until then it chose the first person in
+ * the list, so one press gave a migration, a shared mailbox's too, to whoever
+ * came first: the reason *Who is this for?* has preset nobody since the UX
+ * sweep of 2026-10-17.
+ */
 const AddToPerson: React.FC<{ mappingId: string; people: readonly Person[] }> = ({ mappingId, people }) => {
   const t = useT();
   const queryClient = useQueryClient();
   const id = React.useId();
-  const [personId, setPersonId] = React.useState(people[0]?.id ?? '');
+  const [personId, setPersonId] = React.useState(people.find((p) => p.you)?.id ?? '');
   const [pending, setPending] = React.useState(false);
   const [failed, setFailed] = React.useState<string | null>(null);
 
@@ -564,6 +572,9 @@ const AddToPerson: React.FC<{ mappingId: string; people: readonly Person[] }> = 
           onChange={(e) => setPersonId(e.target.value)}
           className="px-2 py-1 border border-gray-300 rounded-lg"
         >
+          <option value="" disabled>
+            {t('migrationLinks.whoFor.choose')}
+          </option>
           {people.map((p) => (
             <option key={p.id} value={p.id}>
               {p.displayName}
@@ -588,14 +599,23 @@ const AddToPerson: React.FC<{ mappingId: string; people: readonly Person[] }> = 
   );
 };
 
-/** A person to add migrations to: a name, and an address for a grant link or none. */
+/**
+ * A person to add migrations to: a name, an address for a grant link or none,
+ * and whether it is *Myself* or *Someone else* (0153 T4's design line;
+ * ADR-0050, amended 2026-11-19). *Myself* links the signed-in member's own
+ * account, which the server takes from the sign-in, so *Who is it for?*
+ * chooses this person first. *Someone else* is the default: a person is
+ * nobody's account until somebody says it is theirs.
+ */
 const NewPerson: React.FC = () => {
   const t = useT();
   const queryClient = useQueryClient();
   const nameId = React.useId();
   const emailId = React.useId();
+  const whoName = React.useId();
   const [name, setName] = React.useState('');
   const [email, setEmail] = React.useState('');
+  const [myself, setMyself] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const [failed, setFailed] = React.useState<string | null>(null);
 
@@ -604,9 +624,10 @@ const NewPerson: React.FC = () => {
     setPending(true);
     setFailed(null);
     try {
-      await createPerson({ displayName: name, email: email === '' ? null : email });
+      await createPerson({ displayName: name, email: email === '' ? null : email, ...(myself ? { myself: true } : {}) });
       setName('');
       setEmail('');
+      setMyself(false);
       await queryClient.invalidateQueries({ queryKey: ['people'] });
     } catch (error) {
       setFailed(serverMessage(error));
@@ -647,6 +668,32 @@ const NewPerson: React.FC = () => {
           />
         </div>
       </div>
+      <fieldset className="mt-3">
+        <legend className="text-sm font-medium text-gray-700">{t('people.new.who')}</legend>
+        <div className="mt-1 flex flex-wrap gap-x-6">
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name={whoName}
+              checked={myself}
+              onChange={() => setMyself(true)}
+              className="h-4 w-4"
+            />
+            <span className="text-gray-900">{t('people.new.myself')}</span>
+          </label>
+          <label className="flex min-h-[44px] items-center gap-2 cursor-pointer">
+            <input
+              type="radio"
+              name={whoName}
+              checked={!myself}
+              onChange={() => setMyself(false)}
+              className="h-4 w-4"
+            />
+            <span className="text-gray-900">{t('people.new.someoneElse')}</span>
+          </label>
+        </div>
+        {myself && <p className="text-sm text-gray-600">{t('people.myself.hint')}</p>}
+      </fieldset>
       <button
         type="submit"
         disabled={pending || name.trim() === ''}

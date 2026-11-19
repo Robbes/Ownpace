@@ -281,6 +281,7 @@ const FIXTURES: Record<string, unknown> = {
         displayName: 'Anna',
         email: null,
         createdAt: new Date(Date.now() - 86_400_000).toISOString(),
+        you: false,
         migrations: [{ id: MAPPING, status: 'active' }],
         counts: { paused: 0, active: 1, cutover: 0, done: 0, continuous: 0 },
       },

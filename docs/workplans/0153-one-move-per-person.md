@@ -2,7 +2,36 @@
 
 > **In one line:** The Migrations page lists people: one flow (who, from where, what, to where) takes a person from one or more old accounts to a new home and creates their migrations underneath, and protocols, kinds and ids stay off screen until needed. Four faults the audit found go first.
 
-## Status — 2026-10-31 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: *Who is it for?* chooses the member's own person.** The owner: *"At adding a
+migration I am asked to pick for whom. Default should be selected my own name."* Nothing said which
+person on the list is the member who is signed in: a person was a name and an address. Asked to
+choose between an explicit link, a match on the address and choosing the only person, the owner
+chose the explicit link (ADR-0050, amended 2026-11-19).
+
+- **Built.** Managed migration 0061 adds `person.user_id`, the member's sign-in subject: one person
+  per member in an organisation, with a key to `tenant_member (tenant_id, user_id)` that removing
+  the member clears (`ON DELETE SET NULL (user_id)`). `GET /api/people` says `you` of the member's
+  own person and sends no account id. `POST /api/people` takes `myself: true`, and `PUT` and
+  `DELETE /api/people/{personId}/myself` say *This is me* and *This is not me*. All three link only
+  the asker's own account, taken from the sign-in, and move it off any other person in one
+  transaction; a person who is another member's stays theirs (409 `another_members`).
+- **On screen.** *Myself* or *Someone else* when adding a person on Migrations; *This is me* or
+  *This is not me* on a person's page, outside the part the home page photographs. *Who is it for?*
+  chooses the member's own person until a `?person=` comes in or a choice is made, and the screens
+  after it set the migrations up for that person. *Not with a person yet*'s *Add to* chooses it too,
+  or nobody: no longer the first person listed. *Who is this for?* on a migration's page still
+  chooses nobody.
+- **Proved by:** the store under row security (`the-person-you-are-under-rls.unit.test.ts`, 17
+  cases), the routes (`this-is-me.unit.test.ts`, 18), the start flow
+  (`the-person-adding-a-migration-is-chosen-first.unit.test.tsx`, 10), and new cases in
+  `Mappings.unit.test.tsx` (3), `Person.unit.test.tsx` (5), `MappingLinksPanel.unit.test.tsx` (1)
+  and `one-answer-from-both-editions.unit.test.ts` (2). Taking out the default, the server's
+  `you`, the sign-in as the only source of the account, the unique index or the key's clearing
+  each turned cases red.
+- **Not run here:** Atlas's lint of both chains, and the integration and managed E2E tiers. They
+  need Docker, which this session had no daemon for: CI runs the lint, and the E2E runs after.
 
 **2026-10-31: a person's page's tests wait for its reads, then look.** The first test of
 `Person.unit.test.tsx` failed twice on main's CI, on 2026-10-28 (run 40691552058) and on
@@ -1330,7 +1359,7 @@ person, and a flow that fills it.
 | T1 Four faults the audit found | ✅ **(a) in #1315 and (d) in #1316, each proved by its guard; (b) drawn and guarded (#1349); (c) is T4's, by construction, and ended with the wizard's retirement (D5): *Start a migration* is the one door, and its consent asks for what was ticked** | §3. (a) Review & confirm listed every source's limits on managed. (b) The Gmail app password the guide names is not in the wizard. (c) The Microsoft consent is sent before the data types are chosen: T4 fixes it by construction (the owner, 2026-09-28: no press). (d) A raw state word on Finish. |
 | T2 ADR-0050: a move is a person's migrations | ✅ **ADR-0050 accepted 2026-09-28 (#1327), amended the same night: *person*. The tables and `/api/people` built, with the appliance's implicit person (#1332)** | §3. A `person` row and `person_migration` in `packages/managed/migrations` (0031). The appliance answers one implicit person. The billed unit (a path) and the migration (a mapping) do not change. Deleting a person deletes no migration. |
 | T3 The Migrations page lists people | ✅ **Built: the page lists people (#1341); it is the landing page, the Dashboard is gone, and the menu is the drawing's (#1343); the menu counts beside *Needs you* what waits (#1346); each row's stage and line come from the progress read (0154 T1 (b) and (d), #1422)** | §3. One card per person: their name, where from and where to, a row per data type with its state, and a count of what needs them. The landing page after sign-in; the Dashboard goes (D7). Drawing: `wf-migrations-page.svg`, `wf-migrations-phone.svg`. |
-| T4 *Start a migration*: who, from where, what, to where | ✅ **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b); screen 6 says how long (0154 T3 (a)). The owner's four questions answered and built (open question 5), every card reached through `/start` (#1462), and the wizard retired (D5)** | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
+| T4 *Start a migration*: who, from where, what, to where | ✅ **Built (#1372, #1378), with *Someone else* by a grant link (#1386), one per person since T5 (b); screen 6 says how long (0154 T3 (a)). The owner's four questions answered and built (open question 5), every card reached through `/start` (#1462), and the wizard retired (D5)**; *Who is it for?* chooses the member's own person (2026-11-19, ADR-0050's amendment; Status) | §3. Provider tiles with no card preselected. The data types are chosen before any consent. Destinations are suggested per data type, with server fields folded. One review screen holds the green light. The app creates the migrations. Drawing: `wf-start-a-migration.svg`. |
 | T5 A page per person | ✅ **Built: the person, their migrations, their rows and their steps (#1353, with 0154 T1, T2 and T4); one link per person, in T5 (b)'s four slices (#1394, #1396, #1401, #1408), with *Report this link* (#1402), asking again (#1407), start when granted (#1409), and what waits for their grant (#1413)** | §3. Every migration of theirs, the queues with counts, and grant and progress links per person. Progress and proof on it are 0154's. Drawing: `wf-person-page.svg`. Its tests wait for the page's reads (`answered()`) before they look (2026-10-31, #1760; Status). |
 | T6 Words a family reads | ✅ **(b)'s words approved by the owner 2026-09-28, as proposed; built inside T3–T5, the schedule folded last; the wizard's own step names went with it (D5). The Dutch says *migratie* everywhere the product speaks, with two guards (#1342). (c)'s two guards built (#1347)** | §3. No protocol, kind or id before it is needed. *Accounts*, *Team*, and one word family for *Needs you*. Two guards: attributes are read, and no connection kind is rendered as text. |
 | T7 Defaults a family can pass | ✅ **(a) to (f) built inside T4 (#1378); the wizard's progress line too (#1383)** | §3. Buttons that look like buttons, with the reason in text. A Soverin sign-in in two visible fields. A Nextcloud address, not a DAV URL. Business-only fields only on the business path. The limit blamed on the side that has it. Tiles and icons: `tiles.svg`, `icons.svg`. |
@@ -1690,6 +1719,8 @@ on its heading, as 0145 T3 built for the wizard.
 1. **Who is it for?** / ***Voor wie?*** A name, and *"Myself"* or *"Someone else"*. For someone else, the flow
    offers a grant link (0108), so they connect their own accounts and the owner never holds their
    password.
+   **2026-11-19:** the member's own person is chosen here first, where one is theirs: a person
+   says *Myself* when added, or *This is me* on their page (ADR-0050, amended 2026-11-19; Status).
 2. **Where from?**
    - Provider tiles, **with none preselected**: Google, Microsoft 365, Apple iCloud, Dropbox,
      Box, and *Another mail provider*.

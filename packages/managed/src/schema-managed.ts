@@ -41,6 +41,7 @@ import {
   uniqueIndex,
   index,
 } from 'drizzle-orm/pg-core';
+import { isNotNull } from 'drizzle-orm';
 import { mailboxMapping, tenant } from '@openmig/ledger/schema-pg';
 
 // ========================= Usage Metrics (for billing) =========================
@@ -716,8 +717,23 @@ export const person = pgTable(
      * found the last first copy in. NULL until then.
      */
     firstCopyAnnouncedAt: timestamp('first_copy_announced_at', { withTimezone: true }),
+    /**
+     * The member this person is, by their sign-in subject (`tenant_member.user_id`;
+     * ADR-0050, amended 2026-11-19; migration 0061). Written only by that member,
+     * from their own sign-in, and never sent to a browser: `GET /api/people`
+     * says `you` instead. NULL for a person who is no member's.
+     *
+     * Its key to `tenant_member (tenant_id, user_id)` is the SQL's alone:
+     * `ON DELETE SET NULL (user_id)`, so removing the member clears it, names
+     * one column, which Drizzle cannot say. Drizzle authors no DDL here (ADR-0045).
+     */
+    userId: text('user_id'),
   },
-  (t) => [index('person_tenant_idx').on(t.tenantId, t.createdAt)],
+  (t) => [
+    index('person_tenant_idx').on(t.tenantId, t.createdAt),
+    // One person per member in an organisation.
+    uniqueIndex('person_one_per_member').on(t.tenantId, t.userId).where(isNotNull(t.userId)),
+  ],
 );
 
 /**
