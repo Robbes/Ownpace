@@ -5,9 +5,10 @@
 ## Status — 2026-11-19 (update this block at the end of every session)
 
 **2026-11-19, late: the deploy CLI's copy of effect moves to 3.22.4 by an override, past
-GHSA-7589-6fvf-x4pw, a high pnpm audit named that evening.** The advisory gate passed on a pull
-request's Security Scan at 21:58 UTC (run 44623957435) and named the advisory on the next read of
-the same lockfile: `effect` to 3.22.0, the regular expression `Schema.TemplateLiteral` compiles
+GHSA-7589-6fvf-x4pw, a high pnpm audit named that evening.** The advisory gate passed on pull
+requests' Security Scans until 22:11 UTC (#1938's, run 44626158907) and failed on `main`'s push
+scan at 22:12 UTC (run 44626245869, its `pnpm audit (advisory gate)` step), on the same lockfile.
+The advisory: `effect` to 3.22.0, the regular expression `Schema.TemplateLiteral` compiles
 (CWE-1333), fixed in 3.22.1 (2026-07-30). One copy was below it, 3.21.0, on one path: apps/worker
 > trigger.dev (the deploy CLI, 4.8.5) > `@trigger.dev/build` > `@prisma/config` 6.19.3, which pins
 it exactly. So the gate was red for every pull request again, the tree's and not any diff's.
