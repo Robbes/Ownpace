@@ -9,7 +9,8 @@ reads the web image and GoAccess's as containers that run as root (GEN-21), and 
 Dockerfiles break hadolint's rules (GEN-20). Both images now end as their own users, the web
 image's health check needs no shell, three Dockerfiles lose a pipe with no `pipefail`, the Docker
 socket proxy stays root and says why, and a guard holds every Dockerfile to six of the rules; built
-on a branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-bl-nonroot`,
+on a branch, merged as #1953 (`fb4a960e`).** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-nonroot`,
 PR #1953, from `main` at `d6f10278`, one commit per Dockerfile; the dashboard's TLS front
 (`…-bl-caddy`) and the Stalwart fixture (`…-bl-images`) are branches of their own. Each rule was
 read from the line the check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
@@ -97,7 +98,7 @@ read from the line the check gave, by hadolint 2.15.1's rules; hadolint itself w
   pooler healthy; the smoke passed.
 
 **2026-11-19: the dashboard's TLS front runs as uid 65532, with no capability, and a one-shot gives
-its two volumes to that user before it starts.** On the branch
+its two volumes to that user before it starts. Merged as #1951 (`1a497415`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-bl-caddy`, PR #1951, from `main` at `6038037b`. A read-only check of
 the repository (run on `main` at `646b9de2`) read `deploy/compose/caddy/Dockerfile`
 as a container that runs as root (GEN-21), which it was, and listed the file as a whole under
@@ -416,7 +417,8 @@ it leaves `+(*a)` as it was.
 
 **2026-11-17: MinIO's digest moves to Chainguard's newest build, `59953701…`, with glibc's two
 security fixes, for alpha.11, inside its three-day floor, waived (0146 T7); built on a branch,
-not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-minio-5995`, from `main` at
+merged as #1929 (`74f028a4`).** On the branch `claude/ownpace-public-readiness-y7orc6-minio-5995`,
+from `main` at
 `cd74999d` (#1928). Read from Docker Hub's registry and API: the index, each platform's manifest
 and config and the layers that differ, every blob checked against its digest, and `634c989a…` and
 `1ec745a0…` the same way. Nothing read was run. Times are UTC.
@@ -713,7 +715,8 @@ overrides' comment says when; the lockfile does not change. Without them `pnpm i
 socket.io-parser 4.2.7, js-yaml 4.3.2 and esbuild 0.25.12.
 
 **2026-11-14, latest still: cross-spawn 5.1.0 out of both Trigger.dev images, with every link
-pnpm made to it, for alpha.9 (0146 T16); built on a branch, not merged.** On the branch
+pnpm made to it, for alpha.9 (0146 T16); built on a branch, merged as #1909 (`368d7fc6`).** On the
+branch
 `claude/ownpace-public-readiness-y7orc6-cross-spawn`, from `main` at `6e9fbc8d` (#1908). Read from
 Trigger.dev's tag `v4.8.5` (`d412e08a`) in a sparse clone: its `pnpm-lock.yaml`, root
 `package.json`, `pnpm-workspace.yaml`, `docker/Dockerfile`, `apps/supervisor/Containerfile` and the
@@ -3087,8 +3090,8 @@ same way; nothing read was run. Times are UTC.
   `deb13u1` clears both, CVE-2026-76844 too, which its changelog does not name. The images of
   the tag, `0.2.0-alpha.7`, keep the two until a later tag.
 
-**2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built
-on a branch, not merged (0146 T11 (a); the pin watch's #1671).** On the branch
+**2026-11-11: the test stack's mail catcher is Mailpit v1.33.1, past its three-day floor, built on a
+branch, merged as #1872 (`b9b3a2f2`) (0146 T11 (a); the pin watch's #1671).** On the branch
 `claude/ownpace-public-readiness-y7orc6-mailpit-1-33-1`, from `main` at `122c86a0` (#1871); not
 merged, and E2E (managed) is owed on it before it can be, dispatched once the live deploy the
 owner has under way is done. Times are UTC.
@@ -3912,8 +3915,9 @@ Times are UTC.
   the same until the pin moves, and #1826's second run (42241841170, on the merge with `main`)
   was green. Asking the deployed version's image instead is a change for after alpha.5.
 
-**2026-11-06: the identity provider on Zitadel v4.20.1, for the owner's decision; built on a
-branch, not merged.** *(2026-11-07: for alpha.6, on the owner's yes, after the OTA instance's
+**2026-11-06: the identity provider on Zitadel v4.20.1, for the owner's decision; built on a branch,
+merged as #1829 (`d8aee36c`).** *(2026-11-07: for alpha.6, on the owner's yes, after the OTA
+instance's
 dump and E2E (managed) run 42331851832 green on the branch: 0135's Status of that day.)* On the branch `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-1`, from
 `main` at `21e9796e` (#1826). The pin watch (`scripts/idp-pin-watch.mjs` without `--issue`), run
 at about 16:00 UTC, listed the identity provider behind, v4.20.0 against v4.20.1. A Zitadel move
@@ -3940,7 +3944,7 @@ UTC.
 
 **2026-11-06: effect 3.17.1 is 3.22.4 in the Trigger.dev webapp's image, a fifth row of the
 swap table; effect 3.16.12 and 3.18.4 and body-parser 2.3.0 were read and not taken. Built on
-a branch stacked on the purge's (#1823), not merged.** On the branch
+a branch stacked on the purge's (#1823), merged as #1825 (`9857cf05`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-effect-body-parser`, from `078101bc`. Read and
 built from 12:00 UTC, committed at 12:50 UTC.
 - **Why.** Security Scan run 42213975717 (Trivy 0.76.1, linux/arm64, 11:58 UTC), of the purged
@@ -4033,7 +4037,8 @@ built from 12:00 UTC, committed at 12:50 UTC.
 
 **2026-11-06: the Debian packages nothing runs, purged from the Trigger.dev webapp's image
 too, for alpha.5 (§3 item 11, extended: a proposal pending the owner's confirmation in
-review); built on a branch, not merged; CI, the image scan and E2E (managed) are green on it.
+review); built on a branch, merged as #1823 (`8e7a95e2`); CI, the image scan and E2E (managed) are
+green on it.
 CI's first build stopped at dpkg's refusal (below), and e2fsprogs joined the list.** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-webapp-purge`, on `main` at `691b2352`
 (#1822), with `main` merged at `f42101b0` (#1819). Built under the owner's alpha.5 instruction of 2026-11-06, *"put in most of what you
@@ -4270,7 +4275,8 @@ pin's the same way. Times are UTC.
   `trigger-minio` on `aea6c163…`.
 
 **2026-11-06, later: the tasks move onto the prebuilt base (§3 item 13, the second change);
-built on a branch, not merged; CI, the image scan and E2E (managed) green.** On the branch
+built on a branch, merged as #1824 (`d7d11a58`); CI, the image scan and E2E (managed) green.** On
+the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-switch`, on `main` at `691b2352` (#1822),
 with `main` merged at `f42101b0` (#1819, the appliance without a shell) and at `2886230a`
 (#1815, #1821 and #1816, the bases). Times are UTC. The first change merged as #1818
@@ -4440,7 +4446,8 @@ platform images, each layer checked against its digest:
   this pins from 2026-11-08 08:52 UTC; E2E (managed) runs on the branch after that, and it merges
   on green. The pin watch and Dependabot's Caddy entry see it then as current.
 
-**2026-11-06: the appliance without a shell, built for alpha.5, not merged (§3 item 12).** On
+**2026-11-06: the appliance without a shell, built for alpha.5, merged as #1819 (`f42101b0`) (§3
+item 12).** On
 the branch `claude/ownpace-public-readiness-y7orc6-appliance-distroless`, from `main` at
 `a72c9908` (#1817; built and measured on `1b203759`, #1814). Owed before a merge: E2E
 (self-hosted) on the branch, on Postgres and on PGlite, and `build (selfhost)` on both
@@ -4531,8 +4538,8 @@ Times are UTC.
   the file is being changed for item 13 on another branch, so it is left as it is here.
 
 **2026-11-06: the tasks' prebuilt base, which CI builds and starts on a pull request and
-publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch, not
-merged, and not yet run by CI.** On the branch
+publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch, merged as
+#1818 (`e0ef6b55`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-ghcr`, on `main` at `a72c9908` (#1817).
 Times are UTC. Nothing the stacks run changes with it: `apps/worker/trigger.config.ts` is not
 touched, and the tasks still build on `apps/api/Dockerfile`'s FROM image with its layer.
@@ -4942,7 +4949,8 @@ alpha.4 fold (Wednesday 4 November, 23:30 UTC), it moves to alpha.5.
   about the ten); the smoke's section on a real stack (E2E (managed) on the branch).
 
 **2026-11-03, how the containers run: every service with no new privileges, its capabilities
-cut to what its own start uses, and six read-only roots (built, not merged).** The runtime half
+cut to what its own start uses, and six read-only roots (built, merged as #1803 (`19c0d8c8`)).** The
+runtime half
 of the owner's *"make base images more lean/small and more hardened"* of 2026-11-03. On the
 branch `claude/ownpace-public-readiness-y7orc6-compose-hardening`: `managed.yml`, `www.yml` and
 the appliance's `compose.yml`, the guard `a-privilege-no-service-uses`, *How the containers

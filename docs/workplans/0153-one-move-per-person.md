@@ -4,7 +4,7 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
-**2026-11-19: *Who is it for?* chooses the member's own person.** Nothing said which person on the
+**2026-11-19: *Who is it for?* chooses the member's own person; merged as #1954 (`6128a442`).** Nothing said which person on the
 list is the member who is signed in: a person was a name and an address. Asked to choose between an
 explicit link, a match on the address and choosing the only person, the owner chose the explicit
 link (ADR-0050, amended 2026-11-19).

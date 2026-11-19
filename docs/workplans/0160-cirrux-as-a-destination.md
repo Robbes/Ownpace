@@ -18,7 +18,7 @@ each becomes a comment that names the person (§5). The events written before th
 their guests at Cirrux, and are left as they are: Cirrux emails every guest a cancellation when
 such an event is deleted (*What the owner does*).
 
-**2026-11-19, T5: built, to 2 GiB** (§6; ADR-0052). Both blockers are decided. A pass may
+**2026-11-19, T5: built, to 2 GiB; merged as #1952 (`4db06696`)** (§6; ADR-0052). Both blockers are decided. A pass may
 write a rotating refresh token back, for a provider whose tokens rotate, one refresh at a time per
 connection, through the one credential store, by a compare-and-swap on what it read. And
 Cirrux's client is one public client per deployment, PKCE `S256` and no secret, registered by
