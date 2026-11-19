@@ -42,6 +42,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
   the gate blocks every high as it did before 2026-11-17. The list stays for the next advisory the
   owner accepts by name.
+- **The workflows give each job the token it uses, and no checkout leaves it on disk** (workplan
+  0119). An outside, read-only check of `.github/workflows/` on 2026-11-19 named nineteen lines.
+  `ci.yml`, the four E2E workflows and `no-committed-artifacts.yml` named no permissions, so their
+  jobs ran on whatever the repository's settings give the default token; each now says
+  `contents: read`. `images.yml` gave `packages: write` and `id-token: write` to every job; they
+  now sit on `build`, the job that pushes and signs, and the top of the file only reads. Eighteen
+  checkouts, in jobs that never push with git, kept the token in `.git/config` for every later
+  step; each now says `persist-credentials: false`. The other three lines, the `actions/setup-node`
+  steps that open three jobs that publish, restore no cache and did not change.
+  `scripts/a-token-the-job-never-asked-for.unit.test.ts` holds all of it.
 
 ### Fixed
 
