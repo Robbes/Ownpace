@@ -1,7 +1,7 @@
 # ADR-0043: A migration is silent by default — outward mail is a human-pressed action
 
 - **Status:** Accepted; amended 2026-11-19 (a target that emails guests whatever the marker says
-  gets none)
+  gets none, and a copy there that already lists guests is left as it is)
 - **Date:** 2026-08-25
 - **Deciders:** Owner, 2026-08-25 — "do T1 and T2, and the rest", instructing
   workplan 0103's proposed posture to be built as written. The research that
@@ -24,6 +24,9 @@
   person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. Undone by taking the kind
   off the list once its target can be written without mailing guests, shown by a pass that sends
   nothing.
+- **At such a target, a copy that already lists guests is left as it is** (2026-11-19): neither
+  rewritten nor deleted, and reported, since either would mail each guest:
+  `packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`.
 - **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
   copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
   DELETEs (0103 T5) is the belt for attendee-side replies:
@@ -70,3 +73,9 @@ moves the mail to the second pass — are in workplan 0103 with sources.
   and past events included, to every guest of the events a pass wrote into it, each marked
   `SCHEDULE-AGENT=CLIENT` (workplan 0160 §5). The first operative rule is why: no write may make a
   target mail third parties.
+- **2026-11-19** — **Amended** again, under the first operative rule: at a target in
+  `TARGETS_THAT_MAIL_GUESTS`, a copy that already lists a guest is neither rewritten nor deleted.
+  Cirrux emails a guest a cancellation when they are taken off an event and when the event is
+  deleted: a test of each that evening mailed one. The events written before the guests came out
+  still list them there, and a rewrite takes every guest off. The writer reads the copy first,
+  sends nothing when it lists a guest, and says so (workplan 0160 §5).

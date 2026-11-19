@@ -26,6 +26,7 @@
 
 import { ifMatchFor } from './dav-target-version.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
+import { namesGuests } from '@openmig/shared';
 import type { RemovalResult, RemovalKind } from '@openmig/shared';
 
 /**
@@ -88,6 +89,14 @@ export interface RemoveDavResourceDeps {
    * see the note on `davDeleteIsRecoverable`.
    */
   readonly kind?: RemovalKind;
+  /**
+   * The target mails each guest of an event a cancellation when the event is
+   * deleted (Cirrux, workplan 0160). Set, the copy is read just before the
+   * DELETE, and one that still lists a guest (`namesGuests`) is not removed:
+   * the answer is `keptForGuests`. Set only by the calendar writer, and only
+   * for such a target.
+   */
+  readonly keepIfItListsGuests?: boolean;
 }
 
 /**
@@ -131,6 +140,28 @@ export async function removeDavResource(deps: RemoveDavResourceDeps): Promise<Re
   // strongly, so it could never match (D4).
   const ifMatch = ifMatchFor(expectedTargetVersion);
   if (ifMatch === undefined) return { unversioned: true };
+
+  // A COPY THAT STILL LISTS GUESTS STAYS, at a target that mails them a
+  // cancellation for its deletion (workplan 0160, 2026-11-19). Cirrux did for
+  // an event deleted in its own screens. Whether it honours `Schedule-Reply`
+  // below is not known, and a mail cannot be taken back, so it is not tried.
+  // Read just before the DELETE: a guest added after this read changes the
+  // version, and the `If-Match` below then removes nothing. Gone already is
+  // the answer a DELETE would give. A read that cannot say, a refusal or an
+  // answer with no calendar object in it, throws, and nothing is removed.
+  if (deps.keepIfItListsGuests) {
+    const held = await send({ method: 'GET', url, headers: { Authorization: authorization } });
+    if (held.status === 404 || held.status === 410) return { kind: 'deleted' };
+    const answered = held.status >= 200 && held.status < 300;
+    if (!answered || !/BEGIN:VCALENDAR/i.test(held.body)) {
+      throw new Error(
+        `GET ${url} ${answered ? 'answered with no calendar object' : `failed with status ${held.status}`}, ` +
+          'so whether the copy lists guests is unknown, and this target mails each guest a cancellation ' +
+          'when such a copy is deleted. Nothing was removed.',
+      );
+    }
+    if (namesGuests(held.body)) return { keptForGuests: true };
+  }
 
   const response = await send({
     method: 'DELETE',

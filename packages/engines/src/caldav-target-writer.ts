@@ -31,6 +31,7 @@ import {
   displayNameForCalendar,
   isOnTarget,
   neutraliseScheduling,
+  namesGuests,
   withoutGuests,
 } from '@openmig/shared';
 import { createHash } from 'node:crypto';
@@ -540,6 +541,10 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
         // tripwire — both of which describe something else.
         return { targetId: written.path, created: false, conflicted: true };
       }
+      // Nothing was written, and nobody was mailed: the copy lists guests the
+      // target would have mailed (above). Reported, not thrown, for the same
+      // reasons; and not a conflict, since nobody edited the copy.
+      if (written.keptForGuests) return { targetId: written.path, created: false, keptForGuests: true };
       (await this.keysIn(calendarId))?.set(naturalKey, written.path);
       return {
         targetId: written.path,
@@ -1255,10 +1260,41 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     uid: string,
     overwrite = false,
     expectedTargetVersion?: string,
-  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean }> {
+  ): Promise<{ path: string; etag?: string; conflicted?: boolean; alreadyHeld?: boolean; keptForGuests?: boolean }> {
     // Generate event filename from UID
     const filename = `${uid}.ics`;
     const eventPath = `${calendarId}${filename}`;
+
+    // A COPY THAT STILL LISTS GUESTS IS NOT REWRITTEN, at a target that mails
+    // its guests itself (workplan 0160, 2026-11-19).
+    //
+    // The rewrite below goes through `withoutGuests`, which takes every guest
+    // off, and Cirrux mails a guest a cancellation when they are taken off an
+    // event. A copy written before the guests came out (#1947) still lists
+    // them. So the copy the target holds is read first, and left exactly as it
+    // is when it lists a guest: the copy's guests are the ones who would be
+    // mailed, whatever the source says now. Gone (404, 410), there is nobody
+    // to mail and the rewrite goes on as before. A read that cannot say, a
+    // refusal or an answer with no calendar object in it, throws, with
+    // nothing written: an unknown copy is not a copy without guests.
+    if (overwrite && this.config.mailsGuests) {
+      const held = await this.requestWithRetry({
+        method: 'GET',
+        url: this.buildUrl(eventPath),
+        headers: { Authorization: this.authHeader() },
+      });
+      if (held.status !== 404 && held.status !== 410) {
+        const answered = held.status >= 200 && held.status < 300;
+        if (!answered || !/BEGIN:VCALENDAR/i.test(held.body)) {
+          throw new Error(
+            `GET ${eventPath} ${answered ? 'answered with no calendar object' : `failed with status ${held.status}`}, ` +
+              'so whether the copy there still lists guests is unknown, and this target mails each guest a ' +
+              'rewrite takes off. Nothing was written.',
+          );
+        }
+        if (namesGuests(held.body)) return { path: eventPath, keptForGuests: true };
+      }
+    }
 
     // OWNERSHIP, checked at the last possible moment: by the server, in the
     // PUT itself (workplan 0149 T3).
@@ -1537,6 +1573,9 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       authorization: this.authHeader(),
       request: (opts) => this.httpClient.request(opts),
       kind: 'deleted',
+      // A copy that still lists guests is not deleted at a target that mails
+      // them a cancellation for it (workplan 0160): see `keepIfItListsGuests`.
+      ...(this.config.mailsGuests ? { keepIfItListsGuests: true } : {}),
       ...(options?.expectedTargetVersion !== undefined
         ? { expectedTargetVersion: options.expectedTargetVersion }
         : {}),

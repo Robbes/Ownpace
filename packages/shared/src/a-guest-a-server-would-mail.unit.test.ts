@@ -11,7 +11,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mailsGuestsItself, neutraliseScheduling, withoutGuests } from './calendar-scheduling.ts';
+import { mailsGuestsItself, namesGuests, neutraliseScheduling, withoutGuests } from './calendar-scheduling.ts';
 import { calendarContentHash } from './hash.ts';
 
 const wrap = (lines: string[], component = 'VEVENT', eol = '\r\n'): string =>
@@ -146,6 +146,49 @@ describe('withoutGuests', () => {
   it('leaves the marker nothing to mark', () => {
     const out = neutraliseScheduling(withoutGuests(wrap(['ATTENDEE:mailto:a@example.org'])));
     expect(out).not.toMatch(/SCHEDULE-AGENT/);
+  });
+});
+
+describe('namesGuests: does the copy a target holds still list a guest?', () => {
+  // Asked before a rewrite or a delete at a target that mails guests: Cirrux
+  // mailed a cancellation when a guest was taken off, and when the event was
+  // deleted (a test of each on 2026-11-19).
+  it('says yes for an attendee, in the shape Cirrux keeps one', () => {
+    expect(namesGuests(wrap(['ORGANIZER;CN=Someone:mailto:owner@example.org', 'ATTENDEE:mailto:guest@example.org']))).toBe(true);
+  });
+
+  it('says yes for an attendee whose line is folded, and in any letter case', () => {
+    expect(namesGuests(wrap(['ATTENDEE;CN=A Very Long Name Indeed;PARTSTAT=NEEDS-ACT', ' ION:mailto:long@example.org']))).toBe(true);
+    expect(namesGuests(wrap(['attendee;cn=Lower:mailto:lower@example.org']))).toBe(true);
+  });
+
+  it('says yes in a task, and with LF line ends', () => {
+    expect(namesGuests(wrap(['ATTENDEE:mailto:helper@example.org'], 'VTODO'))).toBe(true);
+    expect(namesGuests(wrap(['ATTENDEE:mailto:a@example.org'], 'VEVENT', '\n'))).toBe(true);
+  });
+
+  it('says no for what withoutGuests wrote: nobody is left to mail', () => {
+    const written = withoutGuests(wrap(['ORGANIZER:mailto:boss@example.org', 'ATTENDEE;CN=Some One:mailto:one@example.org']));
+    expect(namesGuests(written)).toBe(false);
+    expect(namesGuests(neutraliseScheduling(written))).toBe(false);
+  });
+
+  it("says no for an organiser alone, and for an email alarm's attendee, which is who the alarm goes to", () => {
+    expect(namesGuests(wrap(['ORGANIZER;CN=The Boss:mailto:boss@example.org']))).toBe(false);
+    const alarm = ['BEGIN:VALARM', 'ACTION:EMAIL', 'ATTENDEE:mailto:me@example.org', 'END:VALARM'];
+    expect(namesGuests(wrap(alarm))).toBe(false);
+    // Out of the alarm again, a guest is a guest.
+    expect(namesGuests(wrap([...alarm, 'ATTENDEE:mailto:guest@example.org']))).toBe(true);
+  });
+
+  it('says no for a property that only begins with the word, or text that mentions it', () => {
+    expect(namesGuests(wrap(['X-ATTENDEE-COUNT:3', 'ATTENDEES-NOTE:none', 'COMMENT:Invited at the source: ATTENDEE:mailto:x@example.org']))).toBe(false);
+    // A folded continuation is part of the line before it, never a property.
+    expect(namesGuests(wrap(['DESCRIPTION:See the list', ' ATTENDEE:mailto:x@example.org']))).toBe(false);
+  });
+
+  it('says no for an event without guests', () => {
+    expect(namesGuests(wrap(['LOCATION:Home']))).toBe(false);
   });
 });
 

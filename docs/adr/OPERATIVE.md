@@ -495,6 +495,9 @@ live in [README.md](./README.md), the register.
   person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. Undone by taking the kind
   off the list once its target can be written without mailing guests, shown by a pass that sends
   nothing.
+- **At such a target, a copy that already lists guests is left as it is** (2026-11-19): neither
+  rewritten nor deleted, and reported, since either would mail each guest:
+  `packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`.
 - **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
   copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
   DELETEs (0103 T5) is the belt for attendee-side replies:
