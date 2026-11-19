@@ -202,7 +202,11 @@ describe('what the policy refuses', () => {
           `UPDATE tenant_member SET user_id = '${IMPOSTOR}' WHERE email = '${INVITED_EMAIL}'`,
         ),
       { verifiedEmail: INVITED_EMAIL },
-    ).catch(() => null);
+    ).catch((err: unknown) => {
+      // The policy may refuse with its error rather than by matching nothing; any other
+      // failure is not a refusal.
+      if (!/violates row-level security policy/.test(reasons(err))) throw err;
+    });
     expect(await rowFor(INVITED_EMAIL)).toMatchObject({ user_id: CLAIMANT });
   });
 
@@ -388,7 +392,11 @@ describe('an invitation in any case (managed 0059)', () => {
       async (db) =>
         db.execute(`UPDATE tenant_member SET user_id = '${IMPOSTOR}' WHERE tenant_id = '${CASED_TENANT}'`),
       { verifiedEmail: 'PAT@example.test' },
-    ).catch(() => null);
+    ).catch((err: unknown) => {
+      // The policy may refuse with its error rather than by matching nothing; any other
+      // failure is not a refusal.
+      if (!/violates row-level security policy/.test(reasons(err))) throw err;
+    });
     expect(await casedRow()).toMatchObject({ user_id: CLAIMANT, status: 'active' });
   });
 

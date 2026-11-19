@@ -141,10 +141,20 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
 2. **Each mailbox starts with** a default calendar, an address book called Contacts and a task
    list called Reminders (`https://cirrux.co/help/calendar`, `https://cirrux.co/help/api/contacts`,
    `https://cirrux.co/help/api/tasks`). A calendar collection may hold events and tasks at once.
-3. **Invitations:** Cirrux Calendar emails guests for changes made in its app or its API
-   (`https://cirrux.co/help/api/calendar`). Whether its CalDAV server honours
-   `SCHEDULE-AGENT=CLIENT` is not documented; Test reads the server's own `DAV:` compliance
-   header, and 0160 T2 runs the canary.
+   No second address book can be made: Cirrux's Contacts API has no call for one, and its
+   CardDAV server answered an MKCOL for one with 501 on a test mailbox (2026-11-19). So the
+   contacts of every address book at the source go into Contacts (0160 §5). Its CalDAV server
+   answered an MKCALENDAR at Nextcloud's `calendars/<user>/` with 404 the same day: the
+   calendar home is found by asking, as the address book home is (0160 §5). In that home it
+   answered an MKCALENDAR at a name of ours with 201 and kept the new calendar under an id of
+   its own, so a new calendar is asked for at a UUID and read back (0160 §5).
+3. **Invitations:** Cirrux emails every guest of an event it is given, also over CalDAV. On
+   2026-11-19 it emailed an invitation, in the test mailbox's name and past events included, for
+   events written with every attendee marked `SCHEDULE-AGENT=CLIENT`, and the marker was gone from
+   the invitation it sent (0160 §5). Its API page says the mailbox is always the organiser, and
+   that guests are emailed invitations, updates and cancellations
+   (`https://cirrux.co/help/api/calendar`). So nothing written to Cirrux carries an `ATTENDEE` or
+   an `ORGANIZER`: each becomes a `COMMENT` that names the person (`TARGETS_THAT_MAIL_GUESTS`).
 4. **Server-side filters** run "as mail arrives" and can forward (`https://cirrux.co/help/mailboxes`);
    the webhook documentation says imported mail and mail saved over IMAP never counts as
    received (`https://cirrux.co/help/api/webhooks`). Whether filters run on appended mail is

@@ -43,6 +43,15 @@ describe('isTransientDavStatus', () => {
     // server about (workplan 0149 T1), not something to repeat.
     for (const s of [200, 201, 204, 207, 401, 403, 412, 415]) expect(isTransientDavStatus(s)).toBe(false);
   });
+
+  it('treats 501 as final: Not Implemented is "never", not "busy"', () => {
+    // Cirrux answers an address book MKCOL with 501, because it makes none
+    // (workplan 0160). Retried as transient, the writer waited through five
+    // attempts before it heard the answer it had from the first.
+    expect(isTransientDavStatus(501)).toBe(false);
+    // The 5xx on either side of it are still "come back".
+    for (const s of [500, 502, 503, 504]) expect(isTransientDavStatus(s)).toBe(true);
+  });
 });
 
 describe('requestWithDavRetry', () => {

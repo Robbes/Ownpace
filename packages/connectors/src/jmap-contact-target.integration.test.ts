@@ -112,14 +112,16 @@ if (!BASE || !PASSWORD) {
       // NEXT run's "already exists" look like a finding.
       // Straight on the server, not through `removeItem`: since workplan 0149 T3 a
       // removal needs the version the item was written with, and a cleanup
-      // has none. See `__testing__/jmap-fixture-cleanup.ts`.
+      // has none. See `__testing__/jmap-fixture-cleanup.ts`. An id already
+      // gone is answered inside the server's 200, so a throw here means the
+      // cleanup did not happen, and fails the hook.
       await destroyJmapFixtures({
         baseUrl: BASE!,
         username: USER,
         password: PASSWORD!,
         type: 'ContactCard',
         ids: written,
-      }).catch(() => undefined);
+      });
     }, 60_000);
 
     it('writes a contact and keys it by the vCard UID', async () => {

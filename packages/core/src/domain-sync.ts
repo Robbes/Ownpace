@@ -123,14 +123,16 @@ const ENDS_THE_PASS_AT_ONCE: ReadonlySet<FailureCategory> = new Set([
  * read just before it.
  *
  * A window that cannot be read is no window: its items are asked about one at
- * a time. An item from a window the pass has already left (items are taken in
- * order, so only a caller out of order could ask) gets no hint rather than a
- * second read of that window.
+ * a time, and the log says why, under the pass's `domain`. An item from a
+ * window the pass has already left (items are taken in order, so only a caller
+ * out of order could ask) gets no hint rather than a second read of that
+ * window.
  */
 export function ledgerReadAhead<Item>(
   items: ReadonlyArray<Item>,
   keyOf: (item: Item) => string | undefined,
   read: (keys: ReadonlyArray<string>) => Promise<ReadonlyMap<string, LedgerRecord>>,
+  domain: string,
   size: number = LEDGER_READ_AHEAD,
 ): { get(index: number, key: string): Promise<LedgerRecord | undefined> } {
   let current: { readonly window: number; readonly rows: Promise<ReadonlyMap<string, LedgerRecord> | undefined> } | undefined;
@@ -140,7 +142,13 @@ export function ledgerReadAhead<Item>(
       const key = keyOf(item);
       if (key !== undefined) keys.push(key);
     }
-    return read(keys).catch(() => undefined);
+    return read(keys).catch((err: unknown) => {
+      log.warn(
+        `[sync] ${domain}: ${keys.length} items could not be asked about at once, so each is asked ` +
+          `about on its own: ${(err as Error)?.message ?? String(err)}`,
+      );
+      return undefined;
+    });
   };
   return {
     get(index, key) {
@@ -1714,7 +1722,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // it can be (`ledgerReadAhead`); asked one item at a time where it cannot.
     const findMany = ledger.findMany?.bind(ledger);
     const ahead = findMany
-      ? ledgerReadAhead(items, naturalKey, (keys) => findMany(tenantId, mappingId, domain, keys))
+      ? ledgerReadAhead(items, naturalKey, (keys) => findMany(tenantId, mappingId, domain, keys), domain)
       : undefined;
 
     await mapWithConcurrency(items, concurrency, async (item, index) => {
