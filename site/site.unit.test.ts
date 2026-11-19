@@ -159,10 +159,29 @@ describe('the published prices agree with the decision that set them', () => {
     }
   });
 
+  it('names the country the privacy policy names for the machine it runs on (0152, 2026-11-19)', async () => {
+    // The home page says where Ownpace runs; the privacy policy's §7 is where
+    // that is stated as a fact. Should the machine move, the policy changes
+    // first, and this fails until the home page says the same.
+    const { COPY } = (await import('./copy.mjs')) as unknown as {
+      COPY: Record<'en' | 'nl', { diff: Array<[string, string | ((links: Record<string, string>) => string)]> }>;
+    };
+    const { PROOF_LINKS } = (await import('./proof.mjs')) as unknown as { PROOF_LINKS: Record<string, string> };
+    const flat = (s: string) => s.replace(/\s+/g, ' ');
+    for (const [locale, says, policy, where] of [
+      ['en', 'runs in the Netherlands, in the EU', 'site/legal/privacy.md', 'run on a machine we administer ourselves, in the Netherlands.'],
+      ['nl', 'draait in Nederland, in de EU', 'site/legal/privacy.nl.md', 'machine die we zelf beheren, in Nederland.'],
+    ] as const) {
+      const cards = COPY[locale].diff.map(([, body]) => (typeof body === 'function' ? body(PROOF_LINKS) : body));
+      expect(cards.filter((body) => body.includes(says)), `${locale}: no card says "${says}"`).toHaveLength(1);
+      expect(flat(read(policy)), `${policy} no longer says the machine is there`).toContain(where);
+    }
+  });
+
   it('says what each tier is in the page’s language, and as a fact, never as "most people" (0152 T1 (b))', async () => {
     const { TIERS } = await import('./prices.mjs');
     const { COPY } = (await import('./copy.mjs')) as unknown as {
-      COPY: Record<'en' | 'nl', { tierText: Record<string, { who: string; note: string }> }>;
+      COPY: Record<'en' | 'nl', { tierText: Record<string, { who: string }> }>;
     };
     const pages = await renderedPages();
     const html = (file: string) => pages.find((p) => p.file === file)!.html;
@@ -172,10 +191,10 @@ describe('the published prices agree with the decision that set them', () => {
     ] as const) {
       for (const t of TIERS) {
         const own = COPY[locale].tierText[t.id];
-        expect(own?.who && own?.note, `${locale}: ${t.name} has no subtitle or note`).toBeTruthy();
+        expect(own?.who, `${locale}: ${t.name} has no subtitle`).toBeTruthy();
         expect(html(file), `${file}: ${t.name}'s subtitle is not its own language's`).toContain(own!.who);
         // The defect this replaces: the Dutch page printed English tier text.
-        expect(html(file), `${file}: ${t.name}'s note is in ${other}`).not.toContain(COPY[other].tierText[t.id]!.note);
+        expect(html(file), `${file}: ${t.name}'s subtitle is in ${other}`).not.toContain(COPY[other].tierText[t.id]!.who);
       }
     }
     // Nothing counts who picks what, so no page says what most people do.

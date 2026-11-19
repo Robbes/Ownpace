@@ -1,10 +1,6 @@
 # Prijzen
 
-Volledig gepubliceerd. Geen offerte, geen verkoopgesprek, geen prijs die u pas hoort nadat u
-iemand hebt gesproken.
-
-**Twee getallen bepalen uw pakket, en u zit op het hoogste van de twee:** hoeveel migraties er
-**tegelijk** lopen, en hoeveel gegevens u **in totaal** hebt gemigreerd.
+**Twee getallen bepalen uw pakket:** hoeveel migraties er **tegelijk** lopen, en hoeveel gegevens u **in totaal** hebt gemigreerd.
 
 Uw e-mail, uw contacten, uw agenda, uw taken en uw bestanden zijn aparte migraties, en foto’s
 uit een export van Google zijn er nog één. Eén persoon die alle zes tegelijk migreert, doet er
