@@ -65,12 +65,6 @@ export type Rule = 'non-root' | 'numeric-user' | 'exec-form' | 'pipefail' | 'no-
  * break it still: one fixed since fails until it leaves this list.
  */
 export const EXCEPTIONS: Readonly<Record<string, Partial<Record<Rule, string>>>> = {
-  'deploy/compose/caddy/Dockerfile': {
-    'non-root':
-      'trigger-tls runs as root: on every stack that ran it, its volumes trigger_tls_data, with the CA `tls internal` minted, ' +
-      "and trigger_tls_config are root's, and a user needs their ownership moved once first (workplan 0119, 2026-11-19)",
-  },
-
   'deploy/compose/docker-socket-proxy/Dockerfile': {
     'non-root':
       "Tecnativa's docker-socket-proxy v0.5.0 as upstream ships it, `USER root` included. HAProxy connects to the host's Docker " +

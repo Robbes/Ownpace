@@ -9,10 +9,10 @@ reads the web image and GoAccess's as containers that run as root (GEN-21), and 
 Dockerfiles break hadolint's rules (GEN-20). Both images now end as their own users, the web
 image's health check needs no shell, three Dockerfiles lose a pipe with no `pipefail`, the Docker
 socket proxy stays root and says why, and a guard holds every Dockerfile to six of the rules; built
-on a branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-bl-nonroot`, from
-`main` at `d6f10278`, one commit per Dockerfile; the dashboard's TLS front (`…-bl-caddy`) and the
-Stalwart fixture (`…-bl-images`) are branches of their own. Each rule was read from the line the
-check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
+on a branch, not merged.** On the branch `claude/ownpace-public-readiness-y7orc6-bl-nonroot`,
+PR #1953, from `main` at `d6f10278`, one commit per Dockerfile; the dashboard's TLS front
+(`…-bl-caddy`) and the Stalwart fixture (`…-bl-images`) are branches of their own. Each rule was
+read from the line the check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
 - **The web image, `apps/web/Dockerfile`.** nginx's master ran as root, chowned its temp
   directories to nginx and dropped its workers to it, so `managed.yml` kept CHOWN,
   NET_BIND_SERVICE, SETGID and SETUID for it. Its runtime stage now ends as `USER 101:101`, the
@@ -70,13 +70,12 @@ check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
   (DL3025), runs a RUN that pipes only under a SHELL with `-o pipefail` (DL4006), has no ADD
   (DL3020), and names a tag that is not `latest` in every outside FROM (DL3006, DL3007), unless
   its EXCEPTIONS names the file and the rule with the reason; an exception whose file no longer
-  breaks the rule fails too. Left in it: the proxy (root, by name), the pooler (by name), the
-  supervisor and the Trigger.dev image (by name, pipes: not in this round), and the TLS front
-  (root), until its own branch lands.
-- **The order they land in.** The fixture's branch landed first, as #1950 (`4551acb2`), so this
-  branch took the fixture's entry out of EXCEPTIONS when it was brought up to date. The TLS front's
-  branch, #1951, makes the front keep the same rule: whichever of the two lands second takes the
-  front's entry out in the same change, and the guard's failure names it.
+  breaks the rule fails too. Left in it: the proxy (root, by name), the pooler (by name), and the
+  supervisor and the Trigger.dev image (by name, pipes: not in this round).
+- **The order they land in.** The fixture's branch landed first, as #1950 (`4551acb2`), and the TLS
+  front's next, as #1951 (`1a497415`), which makes the front keep the same rule. Each time this
+  branch was brought up to date, the guard failed on the entry the other branch had made stale and
+  named it, as it should, and the entry came out: both are out.
 - **Proved on the branch:** the unit suite, 1,108 test files, 17,103 tests passed and 33 skipped;
   before that, per Dockerfile, the guards that read it (GoAccess 5 test files, 294 tests; the proxy
   29, 1,562; the pooler 26, 1,180; the tasks' base 11, 595; the web image 142, 4,559); `tsc
@@ -87,12 +86,15 @@ check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
   piped again, without its test of the entrypoint's executable bit, and with `USER 0:0` (the
   exception then stale); the pooler without its SHELL and with ash without pipefail; and the tasks'
   base counting through `ls | wc -l` again and with `USER node`.
-- **Owed after the push:** images.yml on the pull request (the web image's build, `build
-  (docker-socket-proxy)`, which starts the proxy on the runner's socket and asks it what the
-  supervisor uses, `build (pgbouncer, …)` on both platforms, and the tasks' base started as the
-  CLI's runtime stage starts it, which wants 1000:1000), and script-images.yml's build of GoAccess
-  on arm64. Then E2E (managed) on the OTA box: the web container as uid 101 with no capability,
-  and the proxy's and the pooler's new names, which a machine builds at its first `up`.
+- **Proved after the push** on `33b7e3eb` (the branch with `main` at `4551acb2`): CI run
+  44584118214; images.yml run 44584118472 (the web image's build, `build (docker-socket-proxy)`,
+  which starts the proxy on the runner's socket and asks it what the supervisor uses, `build
+  (pgbouncer, …)` on both platforms, and the tasks' base started as the CLI's runtime stage starts
+  it, which wants 1000:1000); script-images.yml's build of GoAccess on arm64, run 44584117255; and
+  E2E (managed) run 44584099036 on the OTA box, from 18:05 to 18:16 UTC, deployment 20261119.11.
+  It built the web image, which ends as `USER 101:101`, and the web container, with no capability,
+  was healthy; it built the proxy's and the pooler's images under their new names and ran both, the
+  pooler healthy; the smoke passed.
 
 **2026-11-19: the dashboard's TLS front runs as uid 65532, with no capability, and a one-shot gives
 its two volumes to that user before it starts.** On the branch
