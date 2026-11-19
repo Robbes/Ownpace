@@ -84,8 +84,9 @@
  *    no `up --build` on managed.yml or dev.yml, no `build` naming no service
  *    or a database, nor any other service whose image is built here, read
  *    from the files (trigger-api and trigger-supervisor since 0146 T16,
- *    trigger-docker-proxy since 2026-10-30, trigger-tls since 2026-10-31, and
- *    trigger-redis since 2026-11-07);
+ *    trigger-docker-proxy since 2026-10-30, trigger-tls since 2026-10-31 and
+ *    its one-shot trigger-tls-init since 2026-11-19, and trigger-redis since
+ *    2026-11-07);
  *  - a pull request that touches deploy/ builds the Dockerfile and starts the
  *    result (images.yml, `build (postgres)`), so a FROM that does not resolve,
  *    or a base without gosu, is found there and not first by E2E (managed);
@@ -751,9 +752,10 @@ const COMPOSE_VARIABLE = /^"?\$\{?[A-Z_]*COMPOSE[A-Z_]*\}?"?$/;
  * Every service of managed.yml and dev.yml that runs an image built here
  * (`localhost/…`), read from the files: the two databases (0146 T15),
  * trigger-api and trigger-supervisor since 0146 T16, trigger-docker-proxy
- * since 2026-10-30, trigger-tls since 2026-10-31 and trigger-redis since
- * 2026-11-07 (0119). None may be built by name: each is built where its name is
- * missing, and only then.
+ * since 2026-10-30, trigger-tls since 2026-10-31 (and trigger-tls-init, the
+ * same build, since 2026-11-19) and trigger-redis since 2026-11-07 (0119).
+ * None may be built by name: each is built where its name is missing, and only
+ * then.
  */
 const BUILT_HERE_SERVICES: ReadonlySet<string> = new Set(
   ['deploy/compose/managed.yml', 'deploy/compose/dev.yml'].flatMap((file) =>
@@ -959,7 +961,17 @@ const lift = (name: string): string => {
 
 describe("nothing builds the databases' image again while the machine has it", () => {
   it('knows every service that runs an image built here, from the compose files', () => {
-    expect([...BUILT_HERE_SERVICES].sort()).toEqual(['pgbouncer', 'postgres', 'trigger-api', 'trigger-db', 'trigger-docker-proxy', 'trigger-redis', 'trigger-supervisor', 'trigger-tls']);
+    expect([...BUILT_HERE_SERVICES].sort()).toEqual([
+      'pgbouncer',
+      'postgres',
+      'trigger-api',
+      'trigger-db',
+      'trigger-docker-proxy',
+      'trigger-redis',
+      'trigger-supervisor',
+      'trigger-tls',
+      'trigger-tls-init',
+    ]);
   });
 
   it('reads the commands it means, and refuses each way of rebuilding it', () => {

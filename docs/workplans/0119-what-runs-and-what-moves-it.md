@@ -4,9 +4,64 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19: the dashboard's TLS front runs as uid 65532, with no capability, and a one-shot gives
+its two volumes to that user before it starts.** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-caddy`, PR #1951, from `main` at `6038037b`. A read-only check of
+the repository (run on `main` at `646b9de2`) read `deploy/compose/caddy/Dockerfile`
+as a container that runs as root (GEN-21), which it was, and listed the file as a whole under
+hadolint's rules (GEN-20): almost certainly DL3057, a HEALTHCHECK missing.
+- **Why Caddy needs no root here.** It binds 3443, which needs no capability, and writes only in
+  `/data/caddy` and `/config/caddy`, which upstream's image makes mode 1777. Read at the pinned
+  digest on 2026-11-19, from the image's history and its layer's `security.capability`:
+  `/usr/bin/caddy` carries `cap_net_bind_service` as permitted and not effective (`setcap
+  cap_net_bind_service=+p`), where 2.11.7's was `+ep`. The kernel refuses to start a binary only
+  when its file capability is effective and the bounding set lacks it, so the NET_BIND_SERVICE
+  `trigger-tls` kept for 2.11.7 is not needed with 2.11.9's binary, as root or not.
+- **What changes.** The Dockerfile ends as `USER 65532:65532`, and its new THE USER says why.
+  `trigger-tls.Caddyfile` says `skip_install_trust`: only root may write the system's trust store,
+  and nothing in the container trusts the local CA. `managed.yml`'s `trigger-tls` adds no
+  capability, keeps no-new-privileges, and waits for `trigger-tls-init`: the same build as root,
+  with CHOWN and DAC_READ_SEARCH alone, read-only and with no network, whose one `chown -R` gives
+  `trigger_tls_data` and `trigger_tls_config` to 65532:65532. On a stack that ran the front as
+  root both are root's, their files at mode 0600 in directories at 0700, which 65532 cannot read; the
+  CA, its certificate and a browser's exception for it stay. No volume is added. Once they are
+  65532's the one-shot changes nothing; the bring-up names it before the front, as it names
+  `minio-init` before `trigger-api`. The name moves to
+  `localhost/caddy:2.11.9-alpine-f4b403e49a96`, which each machine builds at its next `up`.
+  images.yml's `build (caddy)` starts the front with no capability and no-new-privileges, as
+  `managed.yml` runs it.
+- **Going back** to a tag that ran the front as root needs the two volumes given back to root
+  first, from this checkout: the guide's `run --rm --no-deps trigger-tls-init 'chown -R 0:0 …'`
+  (*The dashboard's TLS front is a build here too*).
+- **What stays.** DL3057: the front has no healthcheck on purpose, since a probe runs inside the
+  image, which has no curl, and the smoke asks the front from the host (`docs/operator-runbook.md`).
+  Not read-only yet: Caddy's one write outside its volumes was the trust store, and a read-only
+  root waits for a run that measures it.
+- **The order the three branches land in.** `…-bl-nonroot`'s new guard,
+  `a-dockerfile-that-ends-as-root`, names this Dockerfile as an exception (root), which this branch
+  makes stale: whichever of the two lands second takes the entry out (the guard's failure names
+  it).
+- **Proved on the branch:** the unit suite, 1,108 test files, 17,114 tests passed and 33 skipped;
+  before that, the 80 test files that read a changed file, 3,218 tests (one of them,
+  `a-database-started-as-root`'s list of the services run from an image built here, now names the
+  one-shot), and 71 more that read `managed.yml` or the workflows, 1,700 tests passed and 33
+  skipped; `tsc --noEmit`, ESLint on the four changed tests and the six docs checks. The front's
+  guard also holds the one-shot and `skip_install_trust`. On disk, each failing as it should and
+  each file restored byte for byte: the Dockerfile without its USER and with `USER root`;
+  `managed.yml` with NET_BIND_SERVICE given back to the front, without the front's wait for its
+  one-shot, and with the one-shot's DAC_READ_SEARCH taken away (which the guide's way back needs
+  too); images.yml's probe without its hardening; and the Caddyfile without `skip_install_trust`.
+- **Proved after the push** on `fbdea1af` (the branch with `main` at `1edbdc22`): images.yml's
+  `build (caddy)` on the pull request, and E2E (managed) run 44577091109 on the OTA box, whose front
+  ran as root until then. The run built `localhost/caddy:2.11.9-alpine-f4b403e49a96` and started
+  the front on it once its one-shot had finished without an error, as the front waits for it; the
+  smoke's TLS check passed. Owed: the dashboard in a browser with the exception it has, at the
+  owner's next visit.
+
 **2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`) reports two base
 images with a fixable high or critical (IMG-1), and the Stalwart fixture as a container that runs
-as root (GEN-21). Neither base moves here; the fixture says what it is.** On the branch
+as root (GEN-21). Neither base moves here; the fixture says what it is. Merged as #1950
+(`4551acb2`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-bl-images`, PR #1950, from
 `main` at `d6f10278` (#1941; the findings' files are as at `646b9de2`). Read on 2026-11-19 from
 Docker Hub (through Google's mirror of it, without a login), GHCR's tag lists, upstream's source
@@ -64,9 +119,9 @@ vulnerabilities; nothing read was run. Times are UTC.
   tests; `tsc --noEmit`, ESLint on the two guards and the six docs checks. On disk, the fixture
   without its digest fails both guards (4 of 14), and without its USER, with `USER stalwart` or
   with `USER root` the fixture's (3, 2 and 2 of 3), each file restored byte for byte.
-- **Owed after the push:** CI on the pull request. Nothing builds the fixture, so no image or E2E
-  run changes: CI's integration jobs start `stalwartlabs/stalwart:v0.16.27` itself, not this
-  fixture.
+- **On #1950:** CI run 44577905397 green on its last head, `d88e1d90`. Nothing builds the
+  fixture, so no image or E2E run changed: CI's integration jobs start
+  `stalwartlabs/stalwart:v0.16.27` itself, not this fixture.
 
 **2026-11-19: the workflow check's nineteen lines. Sixteen are fixed, in nine workflows, and three
 are read as safe and left; merged as #1943 (`1edbdc22`).** An outside, read-only check of
