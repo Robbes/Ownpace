@@ -45,6 +45,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A data type that fails no longer holds back the ones after it** (workplan 0143): when your
+  calendars fail to copy, your tasks, mail and files are still copied in the same pass, and the
+  pass still shows as failed, naming each data type that failed.
 - **Contacts into Cirrux land in the mailbox's address book, instead of failing before the first
   card** (workplan 0160). The first contacts pass into Cirrux, on 2026-11-19, stopped at
   `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The CardDAV
