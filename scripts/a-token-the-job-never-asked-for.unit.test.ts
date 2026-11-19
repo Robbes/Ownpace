@@ -13,9 +13,11 @@
  * (2026-11-19) read three points: an action from outside this repository is
  * pinned to a commit, no workflow has a dangerous trigger, and every job's
  * permissions are as small as the job (OWASP's CI/CD Security Cheat Sheet). It
- * named nineteen lines, one for each shape a file had. Every `uses:` was
- * already a commit, and each commit was the tag its comment names (`git
- * ls-remote`, read the same day), which `a-tag-the-publisher-can-move` holds.
+ * named nineteen lines, one for each shape a file had: sixteen are the three
+ * shapes below, and three are `actions/setup-node` steps, answered in the last
+ * section. Every `uses:` was already a commit, and each commit was the tag its
+ * comment names (`git ls-remote`, read the same day), which
+ * `a-tag-the-publisher-can-move` holds.
  *
  * ## The token nobody chose
  *
@@ -65,6 +67,20 @@
  * repository's token and secrets, and `workflow_run` runs after another run
  * with the same; with a checkout of the pull request's head, either runs a
  * stranger's code holding both. No workflow here has either.
+ *
+ * ## A job that publishes restores no cache
+ *
+ * The other three lines were the `actions/setup-node` steps that open
+ * `images.yml`'s `build`, Security Scan's job and windows-payload's `build`,
+ * three jobs that publish. setup-node is a cache-aware action, and a cache
+ * restored into a job that publishes is another run's files in the release.
+ * None is restored there, for three reasons this file holds for every job that
+ * runs the release check: those steps name no `cache:`; they run before the
+ * job's checkout, so on a fresh runner setup-node has no package.json to read;
+ * and its automatic cache (on by default since v5, `package-manager-cache`)
+ * engages only when `packageManager` names npm, and this repository's names
+ * pnpm. The pin is right, and `check-latest: true` is
+ * `a-gate-on-a-version-nothing-ships`' rule. So those lines did not change.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -131,6 +147,14 @@ const CHECKOUTS_FIXED: Readonly<Record<string, ReadonlyArray<string>>> = {
   '.github/workflows/security-scan.yml': ['security-scan'],
   '.github/workflows/windows-payload.yml': ['build', 'release'],
 };
+
+/** The four jobs that run the release check, and so publish a release. */
+const RELEASE_JOBS = [
+  '.github/workflows/images.yml job build',
+  '.github/workflows/security-scan.yml job security-scan',
+  '.github/workflows/windows-payload.yml job build',
+  '.github/workflows/windows-payload.yml job release',
+];
 
 function workflowFiles(): ReadonlyArray<string> {
   return readdirSync(WORKFLOWS)
@@ -208,6 +232,43 @@ function checkoutJobs(path: string, workflow: Workflow): ReadonlyArray<string> {
   return Object.entries(workflow.jobs ?? {})
     .filter(([, job]) => (job.steps ?? []).some(isCheckout))
     .map(([name]) => `${path} job ${name}`);
+}
+
+function isSetupNode(step: Step): boolean {
+  return typeof step.uses === 'string' && step.uses.startsWith('actions/setup-node@');
+}
+
+/** setup-node v7.1.0's own test for an npm project (src/main.ts, `getNameFromPackageManagerField`). */
+const NPM = /^(\^)?npm(@.*)?$/;
+
+const RUNS_RELEASE_CHECK = /\bnode scripts\/release-names-agree\.mjs\b/;
+
+/** Every job that runs the release check: where Node is set up, and what in it could restore a cache. */
+function releaseJobs(
+  path: string,
+  workflow: Workflow,
+): ReadonlyArray<{ where: string; nodeBeforeCheckout: boolean; caches: ReadonlyArray<string> }> {
+  return Object.entries(workflow.jobs ?? {})
+    .filter(([, job]) => (job.steps ?? []).some((s) => typeof s.run === 'string' && RUNS_RELEASE_CHECK.test(s.run)))
+    .map(([name, job]) => {
+      const steps = job.steps ?? [];
+      const setupAt = steps.findIndex(isSetupNode);
+      const checkoutAt = steps.findIndex(isCheckout);
+      return {
+        where: `${path} job ${name}`,
+        nodeBeforeCheckout: setupAt !== -1 && checkoutAt !== -1 && setupAt < checkoutAt,
+        caches: steps.flatMap((s, i) => {
+          if (typeof s.uses !== 'string') return [];
+          if (/^actions\/cache(\/restore)?@/.test(s.uses)) return [`step ${i + 1}: ${s.uses.split('@')[0]!}`];
+          if (!isSetupNode(s)) return [];
+          const cache = s.with?.['cache'];
+          if (cache !== undefined && cache !== '') return [`step ${i + 1}: setup-node cache: ${String(cache)}`];
+          const auto = s.with?.['package-manager-cache'];
+          if (auto === true || auto === 'true') return [`step ${i + 1}: setup-node package-manager-cache: ${String(auto)}`];
+          return [];
+        }),
+      };
+    });
 }
 
 /** The events a workflow triggers on, in any of the three shapes `on:` takes. */
@@ -331,5 +392,45 @@ describe('no workflow runs on an event that hands a stranger the token', () => {
     expect(events(parse('on: [push, workflow_run]\njobs: {}\n'))).toEqual(['push', 'workflow_run']);
     expect(events(parse('on:\n  workflow_run:\n    workflows: [CI]\njobs: {}\n'))).toEqual(['workflow_run']);
     expect(events(parse(text('.github/workflows/ci.yml')))).toEqual(['pull_request', 'push', 'workflow_dispatch']);
+  });
+});
+
+describe('a job that publishes a release restores no cache', () => {
+  const found = docs.flatMap(({ path, workflow }) => releaseJobs(path, workflow));
+
+  it('found the four jobs that run the release check', () => {
+    expect(found.map((f) => f.where).sort()).toEqual([...RELEASE_JOBS].sort());
+  });
+
+  it('none of them restores a cache through setup-node or actions/cache', () => {
+    expect(
+      found.filter((f) => f.caches.length > 0).map((f) => `${f.where}: ${f.caches.join(', ')}`),
+      'a cache restored into a job that publishes is another run’s files in the release: leave `cache:` off here',
+    ).toEqual([]);
+  });
+
+  it('each sets Node up before its checkout, so setup-node finds no package.json to cache from on a fresh runner', () => {
+    expect(found.filter((f) => !f.nodeBeforeCheckout).map((f) => f.where)).toEqual([]);
+  });
+
+  it("package.json's packageManager is not one setup-node caches by itself", () => {
+    const pkg = JSON.parse(text('package.json')) as { packageManager?: unknown; devEngines?: { packageManager?: unknown } };
+    expect(pkg.packageManager, 'the root package.json names its package manager').toMatch(/^pnpm@/);
+    expect(NPM.test(String(pkg.packageManager))).toBe(false);
+    const dev = pkg.devEngines?.packageManager;
+    for (const entry of Array.isArray(dev) ? dev : dev === undefined ? [] : [dev]) {
+      expect(NPM.test(String((entry as { name?: unknown }).name)), 'devEngines.packageManager names npm').toBe(false);
+    }
+    // The pattern is setup-node's, so it must say yes where setup-node would cache.
+    for (const npm of ['npm', 'npm@11.6.0', '^npm@11']) expect(NPM.test(npm), npm).toBe(true);
+  });
+
+  it('refuses a cache on one of those steps, by adding it to the real file', () => {
+    const before = text('.github/workflows/images.yml');
+    const after = before.replace(/^( +)check-latest: true(.*)\n/m, '$1check-latest: true$2\n$1cache: pnpm\n');
+    expect(after, 'the mutation changed nothing').not.toBe(before);
+    expect(releaseJobs('.github/workflows/images.yml', parse(after)).flatMap((f) => f.caches)).toEqual([
+      'step 1: setup-node cache: pnpm',
+    ]);
   });
 });
