@@ -21,7 +21,7 @@
 export const DATA_TYPES = ['email', 'calendar', 'contact', 'file', 'task'];
 
 /**
- * The home page's four destinations. `types` are the app's target types the
+ * The home page's five destinations. `types` are the app's target types the
  * card stands for. `takes` maps each data type the card shows to the target
  * type that carries it: one card can be four protocols, each carrying its own.
  */
@@ -35,6 +35,13 @@ export const DESTINATIONS = [
     id: 'nextcloud',
     types: ['nextcloud'],
     takes: { calendar: 'nextcloud', contact: 'nextcloud', file: 'nextcloud', task: 'nextcloud' },
+  },
+  // Cirrux (workplan 0160): Soverin's four, and no files, because Cirrux Drive
+  // has no WebDAV for the app to write to.
+  {
+    id: 'cirrux',
+    types: ['cirrux'],
+    takes: { email: 'cirrux', calendar: 'cirrux', contact: 'cirrux', task: 'cirrux' },
   },
   {
     id: 'jmap',

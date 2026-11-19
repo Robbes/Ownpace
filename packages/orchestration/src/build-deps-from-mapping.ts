@@ -89,6 +89,7 @@ import {
   organisationClosedRefusal,
   publishedEndpoint,
   isProviderAccountKind,
+  storesItsMailServer,
 } from '@openmig/shared';
 import { PgLedger, PgCursorStore, organisationIsOpen, plainDb, tenantScopedDb, withTenant, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
@@ -1636,7 +1637,10 @@ export function mailTargetConfigFromConnection(
   // build if either seam stops calling it.
   refuseDomainTheTargetCannotCarry('mail', kind);
 
-  if (kind !== 'soverin') {
+  // The account kinds whose mail server is stored apart from their DAV host
+  // (`MAIL_SERVER_ACCOUNT_KINDS`: soverin, and cirrux since 0160) take the
+  // branch below; every other kind keeps its stored or derived shape.
+  if (!storesItsMailServer(kind)) {
     if (typeof config.type === 'string' && config.type !== '') {
       return config as unknown as TargetConfig;
     }
@@ -1670,8 +1674,10 @@ export function mailTargetConfigFromConnection(
   }
   const mailHost = typeof config.mailHost === 'string' ? config.mailHost.trim() : '';
   if (!mailHost) {
+    // The kind is named as it is stored, so Soverin's sentence is the one its
+    // guide has always quoted, and Cirrux's names Cirrux.
     throw new Error(
-      'This soverin connection stores no mail server, so its mail face cannot be built: ' +
+      `This ${kind} connection stores no mail server, so its mail face cannot be built: ` +
         "config.mailHost is missing. Add the account's IMAP host to the connection (your " +
         'provider’s account settings page names it) — the calendar and contact faces are ' +
         'unaffected.',

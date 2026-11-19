@@ -31,6 +31,13 @@ Also a target: **JMAP** (`jmap` — Stalwart / La Suite / mosa.cloud), and **Sov
 driven from the mail server the person STORED on the connection (`mailHost` — demanded by
 name when email is ticked, never guessed from the provider's name).
 
+Also a target: **Cirrux** (`cirrux`, workplan 0160) — the same mail face, from the same stored
+`mailHost`, which the form pre-fills with the server Cirrux publishes (`imap.cirrux.co:993`,
+read from `https://cirrux.co/help/setup` on 2026-11-19); the password is an app password made
+per mailbox, since Cirrux refuses the account's own. ⏳ built, not yet run against a live
+Cirrux mailbox (0160 T2). Cirrux keeps folders as labels and shows them as IMAP folders, so a
+folder this tool creates becomes a label.
+
 Also a source: **Apple** (`apple`, workplan 0115) — the mail face of the iCloud account
 kind, over IMAP at `imap.mail.me.com:993`. Where Soverin's mail face is driven from a host
 the person **stored**, Apple's is driven from a host Apple **publishes**: `apple` is the
@@ -80,6 +87,13 @@ Also a target: **Soverin** (`soverin`, workplan 0106 T4a+T4b) — the first prov
 contact mappings through the same writers the protocol kinds use (mail via the stored
 `mailHost`, see Email). What the account actually answers per face is measured and stored
 (the 0106 qualification), never assumed.
+
+Also a target: **Cirrux** (`cirrux`, workplan 0160) — Soverin's account shape for a second
+provider: calendars and task lists (Cirrux's per-mailbox Reminders list included) over the one
+DAV host Cirrux publishes for its Calendar, Contacts and Reminders, `api.cirrux.co`, with the
+DAV base URL left empty because Cirrux publishes no path. ⏳ built, not yet run against a live
+Cirrux mailbox (0160 T2): that discovery from the host's root finds the calendar home is what
+the first Test measures.
 
 Also a target: **Nextcloud** (`nextcloud`) — the second **account** kind, and the
 one a person is most likely to be running themselves: one connection row carrying calendars,
@@ -177,9 +191,9 @@ because the API has none. A task deleted in Google goes to the Deletions queue.
 | **Source** | ✅ (`carddav`) | ⏳ Graph (`graph-contacts`), wired in workplan 0054, as calendars; appliance mapping files; shared via `source.mailbox`. **Photos**: Graph lists a contact without its photo, so the photo is read per card when the card is written. A card copied before 2026-09-23 has none until the contact changes in Outlook (after one pass on the new version, which records each card's version and rewrites nothing), and older cards are not re-copied; a new contact brings its photo at once | ✅ CardDAV with OAuth (`google-contacts`, workplan 0045) — **run against the owner's real Google account**, not yet against a second one |
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
-Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`) and **Nextcloud**
-(`nextcloud`) — the account kinds' contact face, riding the same CardDAV writer (see
-Calendars).
+Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`), **Nextcloud**
+(`nextcloud`) and **Cirrux** (`cirrux`, ⏳ workplan 0160) — the account kinds' contact face,
+riding the same CardDAV writer (see Calendars).
 
 Also a source: **Apple** (`apple`, workplan 0115) — the contact face of the iCloud account,
 at `contacts.icloud.com`. Worth stating separately because it is a **different host** to the
@@ -204,6 +218,15 @@ Not (yet) migrated:
 |---|---|---|---|---|---|
 | **Source** | ✅ (`webdav`), incl. trash-bin read for deletion evidence | ✅ (`google-drive`, workplan 0042), My Drive, a **shared drive** or a **folder shared with the account** by id — browsable (workplans 0049/0051); bin read for evidence; **orphan check** (`scripts/list-drive-orphans.ts`, workplan 0058) reports owned files under no folder at all — Drive's `is:unorganized`, which no walk from a root can reach | ⏳ OneDrive/SharePoint (`graph-drive`, workplan 0054); appliance mapping files; deletions arrive as **`reported`-class evidence** from the delta stream's `deleted` facets (pinned by test); another user's drive via `mailbox` needs `Files.Read.All` (see the setup doc's consent note) | ⏳ (`dropbox`, workplan 0055): the whole Dropbox or a `rootPath` — **browsable** via `sharing/list_folders` (*Start a migration*'s **Show shared folders** + appliance script; mounted shares carry the path, optional `sharing.read` scope); the owner's own read-only app; `content_hash` change detection; **tombstone read** (`include_deleted`) gives `trashed`-class deletion evidence, absence-counting covers the rest; a **Paper doc**, or any file Dropbox marks as not downloadable, is refused by name and parked on first sight, not exported (workplan 0150) | ⏳ (`box`, workplan 0056): All Files or a `rootFolderId`; the owner's own read-only platform app via the **Client Credentials Grant** — no refresh token, because Box rotates refresh tokens on every use and stored credentials are never written back; the numeric subject user id rides the mapping (one subject per mapping); `sha1` change detection; **bin read** (`/folders/trash/items`, original paths recovered from the `path_collection` ancestor chain the listing already carries) gives `trashed`-class deletion evidence, so a Box deletion can be APPLIED, not only reported; **web links** are pointers, not files — not enumerated |
 | **Target** | ✅ WebDAV | 🚫 never a target | 🚫 never a target | 🚫 never a target | 🚫 never a target |
+
+**Not a files target yet, and it is a measured no with its reason: Cirrux Drive** (`cirrux`,
+workplan 0160). Cirrux Drive speaks no WebDAV; it is reached through Cirrux's own HTTP API
+(`https://cirrux.co/help/api/drive`), which refuses a workspace API key and takes a person's
+OAuth token from a client Cirrux registers on request. The `cirrux` account therefore carries no
+file face, its Test says why, and *Where does it go?* does not offer it for files. ⛔ A Drive
+writer over that API is 0160 T5: the API is documented in full (chunked upload with client-side
+encryption up to 2 GiB, a `base_ctag` conflict check, a trash, a `changes` feed); what it waits
+for is the OAuth client.
 
 Also a target: **JMAP files** (workplan 0031 T3). A file larger than 8 MB arrives as a stream, and
 is uploaded as one. A file larger than the server takes in one upload (its session's

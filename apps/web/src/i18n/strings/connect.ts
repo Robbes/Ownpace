@@ -274,6 +274,9 @@ export const en = {
   // elsewhere should not have to discover that by ticking Email and
   // finding no writer behind it.
   'account.proto.nextcloud.hint': 'One account — calendars, contacts, files and tasks (no email)',
+  // Says what it does not take, as Nextcloud's does: Cirrux has a Drive, and
+  // nothing here can write to it yet (workplan 0160).
+  'account.proto.cirrux.hint': 'One account — email, calendars, contacts and tasks (no files)',
   'account.host': 'Host',
   'account.port': 'Port',
   // The DAV escape hatch (0105 T1) — see credential-fields.ts. It is the
@@ -293,6 +296,11 @@ export const en = {
   'account.soverinMailHost.why':
     'Calendars, tasks and contacts need no mail server. Test measures what the host you enter actually supports.',
   'account.soverinMailPort': 'Mail port',
+  // The Cirrux door's Password box (0160 T1): Cirrux refuses the account's
+  // own password over IMAP and DAV, and makes app passwords per mailbox.
+  'account.cirruxAppPassword.hint': 'An app password from the mailbox’s Passwords tab in Cirrux Mail.',
+  'account.cirruxAppPassword.why':
+    'Cirrux refuses the password you sign in with for mail, calendars and contacts. An app password works for one mailbox until you delete it.',
   // The provider directory (0106 T5): whose published settings sit in the
   // boxes, read when. They are measured by Test, never assumed.
   'account.providerDefaults.note':
@@ -693,6 +701,17 @@ export const en = {
   'setup.soverin.mail_server.title': 'Mail moving too? Keep the mail server',
   'setup.soverin.mail_server.detail':
     'The form fills in Mail server, imap.soverin.net, and Mail port, 993, from Soverin’s published settings. If mail moves, leave Mail server filled in: an account saved without it carries no mail. Calendars and contacts need no mail server.',
+  // ---- What comes first for Cirrux (workplan 0160 T1), in cirrux.md's words ----
+  'setup.cirrux.account_exists.title': 'Make sure the Cirrux mailbox exists',
+  'setup.cirrux.account_exists.detail':
+    'The Cirrux mailbox must exist already, in a workspace with room for what is coming. Storage is shared by the whole workspace, and Cirrux moves a workspace that stays over its storage tier for seven days to a larger one. This service creates no accounts.',
+  'setup.cirrux.app_password.title': 'Create an app password for the mailbox',
+  'setup.cirrux.app_password.detail':
+    'In Cirrux Mail: Settings → Mailboxes, pick the mailbox, open its Passwords tab and click New app password. Cirrux shows it once, so copy it at once. Do not use the password you sign in to Cirrux with: it is refused for mail, calendars and contacts. No Passwords tab means the workspace’s admin has switched off apps outside Cirrux.',
+  'setup.cirrux.app_password.yields': 'the mailbox’s email address, and an app password.',
+  'setup.cirrux.mail_server.title': 'Mail moving too? Keep the mail server',
+  'setup.cirrux.mail_server.detail':
+    'The form fills in Mail server, imap.cirrux.co, and Mail port, 993, from Cirrux’s published settings. If mail moves, leave Mail server filled in: an account saved without it carries no mail. Calendars, contacts and tasks need no mail server.',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -862,6 +881,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
   'account.proto.nextcloud.hint':
     'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
+  'account.proto.cirrux.hint': 'Eén account — e-mail, agenda’s, contacten en taken (geen bestanden)',
   'account.host': 'Host',
   'account.port': 'Poort',
   'account.targetDavUrl': 'DAV-basis-URL',
@@ -875,6 +895,9 @@ export const nl: Record<keyof typeof en, string> = {
   'account.soverinMailHost.why':
     'Agenda’s, taken en contacten hebben geen mailserver nodig. Test meet wat de host die u invult daadwerkelijk kan ondersteunen.',
   'account.soverinMailPort': 'Mailpoort',
+  'account.cirruxAppPassword.hint': 'Een app-wachtwoord van het tabblad Passwords van de mailbox in Cirrux Mail.',
+  'account.cirruxAppPassword.why':
+    'Cirrux weigert het wachtwoord waarmee u zich aanmeldt voor mail, agenda’s en contacten. Een app-wachtwoord werkt voor één mailbox, totdat u het verwijdert.',
   'account.providerDefaults.note':
     'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert deze.',
   'account.sourceUsername': 'Gebruikersnaam',
@@ -1168,4 +1191,14 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.soverin.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
   'setup.soverin.mail_server.detail':
     'Het formulier vult Mailserver, imap.soverin.net, en Mailpoort, 993, in met de gepubliceerde instellingen van Soverin. Gaat er mail mee, laat Mailserver dan ingevuld: een account dat zonder Mailserver is bewaard, omvat geen mail. Agenda’s en contacten hebben geen mailserver nodig.',
+  'setup.cirrux.account_exists.title': 'Zorg dat de Cirrux-mailbox bestaat',
+  'setup.cirrux.account_exists.detail':
+    'De Cirrux-mailbox moet al bestaan, in een workspace met ruimte voor wat eraan komt. De opslag wordt gedeeld door de hele workspace, en een workspace die zeven dagen boven zijn opslagniveau blijft, zet Cirrux over naar een groter niveau. Deze dienst maakt zelf geen accounts aan.',
+  'setup.cirrux.app_password.title': 'Maak een app-wachtwoord voor de mailbox',
+  'setup.cirrux.app_password.detail':
+    'In Cirrux Mail: Settings → Mailboxes, kies de mailbox, open het tabblad Passwords en klik op New app password. Cirrux toont het één keer, dus kopieer het meteen. Gebruik niet het wachtwoord waarmee u zich bij Cirrux aanmeldt: dat wordt geweigerd voor mail, agenda’s en contacten. Ziet u geen tabblad Passwords, dan heeft de beheerder van de workspace apps buiten Cirrux uitgezet.',
+  'setup.cirrux.app_password.yields': 'het e-mailadres van de mailbox en een app-wachtwoord.',
+  'setup.cirrux.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
+  'setup.cirrux.mail_server.detail':
+    'Het formulier vult Mailserver, imap.cirrux.co, en Mailpoort, 993, in met de gepubliceerde instellingen van Cirrux. Gaat er mail mee, laat Mailserver dan ingevuld: een account dat zonder Mailserver is bewaard, omvat geen mail. Agenda’s, contacten en taken hebben geen mailserver nodig.',
 };

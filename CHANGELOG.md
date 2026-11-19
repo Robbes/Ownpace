@@ -4,6 +4,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **Cirrux as a destination** (workplan 0160). A **Cirrux** card, on *Where does it go?* and on
+  the Accounts page, adds one Cirrux mailbox for mail, calendars, contacts and tasks, with the
+  servers Cirrux publishes already in the boxes: `api.cirrux.co` on 443 for calendars, contacts
+  and reminders, and `imap.cirrux.co` on 993 for mail, as read from `https://cirrux.co/help/setup`
+  and `https://cirrux.co/help/calendar` on 2026-11-19. It signs in with the mailbox's email
+  address and an app password, which Cirrux makes per mailbox and requires; Test measures each
+  part. Files are not offered: Cirrux Drive has no WebDAV, only an HTTP API that takes a
+  person's OAuth sign-in through a client Cirrux registers on request, and the Test says so. The
+  card has a setup checklist, a guide in English and Dutch, and a card on the site's *Where to*.
+  Ledger migration 0068 widens `connection.kind` by `cirrux`, and touches no row. Not yet run
+  against a live Cirrux mailbox: that is the owner's test (0160 T2).
+
 ### Changed
 
 - **The public site's home page shows How it works as its page's five steps, each with a small

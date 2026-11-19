@@ -72,6 +72,26 @@ describe('who has a row', () => {
     expect(providerDirectoryEntry('target', 'soverin')?.sources[0]?.url).toContain('soverin');
   });
 
+  it('the Cirrux target: the servers its setup page publishes, read from cirrux.co (workplan 0160)', () => {
+    // Exactly the values https://cirrux.co/help/setup gives under Manual
+    // Configuration: api.cirrux.co for Calendar, Contacts and Reminders, and
+    // imap.cirrux.co with 993 (SSL) for mail. 443 is HTTPS's own port, for a
+    // server the page names without one. A changed value here is a changed
+    // claim about Cirrux, and must come with a new reading of the page.
+    expect(providerDefaultsFor('target', 'cirrux')).toEqual({
+      host: 'api.cirrux.co',
+      port: '443',
+      mailHost: 'imap.cirrux.co',
+      mailPort: '993',
+    });
+    const sources = providerDirectoryEntry('target', 'cirrux')?.sources ?? [];
+    expect(sources.map((s) => s.url)).toEqual(['https://cirrux.co/help/setup', 'https://cirrux.co/help/calendar']);
+    for (const s of sources) expect(new URL(s.url).hostname).toBe('cirrux.co');
+    // No path is published, so the row leaves the DAV base URL box alone.
+    expect(providerDefaultsFor('target', 'cirrux')).not.toHaveProperty('url');
+    expect(providerDefaultsProvenance('target', 'cirrux')).toEqual({ provider: 'Cirrux', seen: '2026-11-19' });
+  });
+
   it('a protocol kind and an unknown kind pre-fill nothing', () => {
     expect(providerDefaultsFor('target', 'jmap')).toEqual({});
     expect(providerDefaultsFor('target', 'imap')).toEqual({});

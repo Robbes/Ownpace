@@ -1,6 +1,6 @@
 # Ownpace
 
-Low-maintenance, open-source stack to migrate families and small/medium businesses off US cloud (Microsoft 365, Google, iCloud, Dropbox, Box, or another mail provider) to EU sovereign platforms: **Soverin**, **Nextcloud**, a **JMAP** server such as Stalwart, or any IMAP / CalDAV / CardDAV / WebDAV service. Proton is not supported yet.
+Low-maintenance, open-source stack to migrate families and small/medium businesses off US cloud (Microsoft 365, Google, iCloud, Dropbox, Box, or another mail provider) to EU sovereign platforms: **Soverin**, **Cirrux**, **Nextcloud**, a **JMAP** server such as Stalwart, or any IMAP / CalDAV / CardDAV / WebDAV service. Proton is not supported yet.
 
 - **Idempotent** transfers (re-run safely; no duplicates).
 - **Shadow-run** old and new in parallel for as long as you want, then cut over on your schedule.

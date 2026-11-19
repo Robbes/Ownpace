@@ -119,7 +119,7 @@ function pool() {
 }
 
 /** Target kinds `probeTargetConnection` knows how to reach. */
-const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud'] as const;
+const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
 
 /**
