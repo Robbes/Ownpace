@@ -2766,7 +2766,7 @@ export async function start(options: SelfhostOptions = {}): Promise<SelfhostHand
                   { username: davTarget.user!, password },
                 );
                 if (qualification) return qualificationReportLines(qualification);
-                const verdict = await measureTargetScheduling(davTarget.url!, davTarget.user!, password);
+                const verdict = await measureTargetScheduling(davTarget.url!, davTarget.user!, password, undefined, davTarget.type);
                 return [verdict.sentence];
               }
             : undefined;
