@@ -22,6 +22,7 @@
  */
 
 import React from 'react';
+import axios from 'axios';
 import { Link, useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Pause } from 'lucide-react';
@@ -156,9 +157,10 @@ const MappingDetail: React.FC = () => {
   // it. Sent as the page opens; the server moves it at most once an hour.
   // Managed only, as the schedule is. A visit that is not recorded changes
   // nothing on this page, and the server logs its own faults, so the page
-  // never waits for it and a failure is not shown. Its answer names the
-  // slower step it ended, once said by the morning mail, and the page says so
-  // under the pace (`broughtBackFrom`), on this visit alone.
+  // never waits for it and a failed request is not shown; any other failure
+  // is this page's own, and is thrown. Its answer names the slower step it
+  // ended, once said by the morning mail, and the page says so under the pace
+  // (`broughtBackFrom`), on this visit alone.
   const [broughtBackFrom, setBroughtBackFrom] = React.useState<'six-hourly' | 'daily' | null>(null);
   React.useEffect(() => {
     setBroughtBackFrom(null);
@@ -169,7 +171,9 @@ const MappingDetail: React.FC = () => {
       .then((answer) => {
         if (current) setBroughtBackFrom(answer?.broughtBackFrom ?? null);
       })
-      .catch(() => undefined);
+      .catch((err: unknown) => {
+        if (!axios.isAxiosError(err)) throw err;
+      });
     return () => {
       current = false;
     };

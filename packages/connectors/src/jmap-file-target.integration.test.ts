@@ -102,10 +102,12 @@ if (!BASE || !PASSWORD) {
       // the NEXT run's "already exists" look like a finding.
       // Straight on the server, not through `removeItem`: since workplan 0149 T3 a
       // removal needs the version the item was written with, and a cleanup
-      // has none. See `__testing__/jmap-fixture-cleanup.ts`.
+      // has none. See `__testing__/jmap-fixture-cleanup.ts`. An id already
+      // gone is answered inside the server's 200, so a throw here means the
+      // cleanup did not happen, and fails the hook.
       const fixtures = { baseUrl: BASE!, username: USER, password: PASSWORD!, type: 'FileNode' } as const;
-      await destroyJmapFixtures({ ...fixtures, ids: written }).catch(() => undefined);
-      await destroyJmapFixtures({ ...fixtures, ids: [dirId] }).catch(() => undefined);
+      await destroyJmapFixtures({ ...fixtures, ids: written });
+      await destroyJmapFixtures({ ...fixtures, ids: [dirId] });
     }, 60_000);
 
     it('writes a file and keys it by the reconstructed path', async () => {
