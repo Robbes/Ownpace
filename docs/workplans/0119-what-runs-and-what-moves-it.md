@@ -2,7 +2,23 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-19 (update this block at the end of every session)
+## Status — 2026-11-20 (update this block at the end of every session)
+
+**2026-11-20: what alpha.12 moves.** The fold for `v0.2.0-alpha.12` (0146's entry of the same
+day) carries everything `main` merged after alpha.11's tag, #1932 to #1961, with Zitadel v4.20.4
+(#1938). For live:
+
+- the identity provider's pin moves from v4.20.3 to v4.20.4 (#1938);
+- ledger migrations 0068 (`cirrux`, #1941) and 0069 (`infomaniak`, #1961) widen
+  `connection.kind`, and managed migration 0061 (#1954) moves;
+- the web image's nginx, GoAccess's image and the dashboard's TLS front run as their own users,
+  and the Docker socket proxy and the connection pooler are built under new names (#1951, #1953);
+- the Trigger.dev and ClickHouse pins do not move.
+
+So live's deploy from alpha.11 is one-way by the deploy's own rule. CI alone: Atlas v1.4.0
+(#1936), hadolint, report only (#1956), the workflows' tokens (#1943), the effect override in the
+deploy tool's tree (#1960) and the advisory gate's empty acceptance list (#1939). The test stack
+alone: Mailpit v1.34.0 (#1937).
 
 **2026-11-19, late: the deploy CLI's copy of effect moves to 3.22.4 by an override, past
 GHSA-7589-6fvf-x4pw, a high pnpm audit named that evening.** The advisory gate passed on pull
@@ -47,7 +63,8 @@ CHANGELOG say it is taken inside the floor. The floor's security-fix exception s
 apply, and nothing deployed changes.
 
 **2026-11-19: hadolint 2.15.1 runs in CI over every Dockerfile git lists, report only, with DL3008
-and DL3018 ignored and nothing else; built on a branch, not merged.** On the branch
+and DL3018 ignored and nothing else; merged as #1956 on 2026-11-19 (`8eb0009a`; *was:* built on a
+branch, not merged).** On the branch
 `claude/ownpace-public-readiness-y7orc6-hadolint-ci`, from `main` at `6fc95811` (#1955). The
 owner's decisions of 2026-11-19 answer what the entry below left open: exact apk and apt package
 versions, no; hadolint in CI, yes, report only first, and blocking only once the two Trigger.dev
@@ -446,8 +463,9 @@ npm registry and the OSV data dump, without a login; nothing read was run. Times
     change, and the guard's record of upstream's instructions would stop matching for nothing. The
     pin watch's row stays behind until a release changes what the proxy does.
 
-**2026-11-18, last: the test stack's mail catcher is Mailpit v1.34.0, built on a branch, not
-merged, waiting for its three-day floor (0146 T11 (a); the pin watch's #1671).** On the branch
+**2026-11-18, last: the test stack's mail catcher is Mailpit v1.34.0, merged as #1937 on 2026-11-19
+(`27b56453`; *was:* built on a branch, not
+merged, waiting for its three-day floor; 0146 T11 (a); the pin watch's #1671).** On the branch
 `claude/ownpace-public-readiness-y7orc6-mailpit-1-34-0`, from `main` at `f928f021` (#1933); not
 merged. Its floor ends 2026-11-20 at 07:07, and E2E (managed) is owed on the branch after it,
 dispatched by the owner. Times are UTC.
@@ -574,7 +592,8 @@ dispatched by the owner. Times are UTC.
   image scans run on the weekly schedule and on a dispatch, and neither has read it yet.
 
 **2026-11-18: CI's migration lint moves to Atlas v1.4.0 on a branch, which waits for its three-day
-floor to 2026-11-20 at 15:20 UTC; built, not merged.** On the branch
+floor to 2026-11-20 at 15:20 UTC; merged as #1936 on 2026-11-19 (`e2ecadf6`), inside that floor on
+the owner's word (*was:* built, not merged).** On the branch
 `claude/ownpace-public-readiness-y7orc6-atlas-1-4-0`, from `main` at `f928f021` (#1933). Read from
 Docker Hub's registry and upstream's public git without a login, every blob checked against its
 digest; nothing read was run. Times are UTC.

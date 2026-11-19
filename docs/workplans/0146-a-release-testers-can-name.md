@@ -2,7 +2,47 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-19 (update this block at the end of every session)
+## Status — 2026-11-20 (update this block at the end of every session)
+
+**2026-11-20: the fold for `v0.2.0-alpha.12` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.12`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-20, under a summary; [Unreleased] stays, empty. alpha.12 carries what
+`main` merged after alpha.11's tag:
+
+- Release reads a run it has just dispatched again for five minutes on a 404 (#1932), and the
+  advisory gate's acceptance list is empty again (#1939);
+- the site's How it works on the home page (#1940);
+- Cirrux as a destination (#1941), its contacts, calendars and task lists where Cirrux keeps them
+  (#1942, #1945, #1946), nothing written to it naming a guest (#1947) and an event there that
+  lists guests left as it is (#1957);
+- Cirrux Drive for files (#1952) and Disconnect Cirrux Drive (#1959);
+- the workflows' tokens (#1943), twenty-five swallowed errors (#1944), every data type's turn
+  (#1948), Moves and Deletions naming the item (#1949);
+- the Stalwart fixture by digest (#1950), the dashboard's TLS front as uid 65532 (#1951), and the
+  web and GoAccess images as their own users (#1953);
+- *Who is it for?* choosing you, with managed migration 0061 (#1954);
+- hadolint over every Dockerfile, report only (#1956);
+- Mailpit v1.34.0 for the test stack (#1937) and Atlas v1.4.0 for CI's migration lint (#1936),
+  both inside their floors on the owner's word;
+- the nights waiver (#1958) and the deploy tool's copy of effect past GHSA-7589-6fvf-x4pw (#1960);
+- Infomaniak as a destination, with ledger migration 0069 (#1961);
+- the identity provider on Zitadel v4.20.4 (#1938), after the owner's hand check of login v1 on
+  the OTA stack.
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.12 (*"I waive waiting time / nights if needed."*):
+  E2E (managed) and E2E (self-hosted) on Postgres and on PGlite, dispatched on `main` at C, one at
+  a time, beside C's push runs and its Windows smoke.
+- **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
+  `waive_nights` set to *I waive waiting time / nights if needed.*, and the approval in the
+  `release` environment.
+- **Live's deploy** from alpha.11 is one-way by the deploy's own rule: ledger migrations 0068 and
+  0069 and managed migration 0061 are added, and the identity provider's pin moves to v4.20.4. The
+  images each machine builds change too: the web's nginx starts as uid 101, GoAccess ends as
+  65534:65534, the dashboard's TLS front runs as uid 65532 after a one-shot gives its two volumes
+  to that user, and the Docker socket proxy and the connection pooler are built under new names.
+  Going back to alpha.11 would need the front's volumes given back to root first; the bring-up
+  guide gives the command (0119's Status, 2026-11-19).
 
 **2026-11-19: alpha.12's counted nights are waived, in the owner's words, before its fold.** The
 owner, on 2026-11-19: *"I waive waiting time / nights if needed."* So `v0.2.0-alpha.12` joins
@@ -14,8 +54,9 @@ lands before alpha.12's fold, so C, the fold's squash, carries the list: Release
 goes in after a copy of the OTA stack's identity provider is taken; the fold; C green on CI, the
 scans and E2E; and the owner's dispatch of Release.
 
-**2026-11-18, last: T11 (a) again, Mailpit v1.33.1 → v1.34.0 on the test stack, built on a
-branch, not merged, waiting for its floor.** On the branch
+**2026-11-18, last: T11 (a) again, Mailpit v1.33.1 → v1.34.0 on the test stack, merged as
+#1937 on 2026-11-19 (`27b56453`), inside its floor on the owner's word (*was:* built on a branch,
+not merged, waiting for its floor).** On the branch
 `claude/ownpace-public-readiness-y7orc6-mailpit-1-34-0`, from `main` at `f928f021` (#1933); 0119's
 Status entry of the same day has the detail. The pin watch's summary issue (#1671, T8) lists
 v1.33.1 behind v1.34.0, as its run of today read it. The image scan of today (Security Scan run

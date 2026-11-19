@@ -4,6 +4,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.12] - 2026-11-20
+
+Two destinations are new. Cirrux takes mail, calendars, contacts and tasks, and its Drive
+takes files once a deployment has a Cirrux client of its own, with a button that ends the
+Drive sign-in alone. Infomaniak takes mail, calendars, contacts and tasks, its mail signed in
+with the mailbox's own login. Neither has run against a live account yet. Nothing written to
+either names a guest, and an event there that lists guests is left as it is: Cirrux emails every
+guest it is shown, and Infomaniak is not yet tested. *Who is it for?* now chooses you, Moves and
+Deletions name the item each row asks about, and a data type that fails no longer holds back the
+ones after it. Underneath, the identity provider moves to Zitadel v4.20.4, the web, GoAccess and
+the Trigger.dev dashboard's TLS front no longer run as root, every workflow job names the token
+it uses, and the deploy tool's copy of effect moves past a high advisory. Live's deploy from
+alpha.11 is one-way: ledger migrations 0068 and 0069 and managed migration 0061 move, and so
+does the identity provider's pin.
+
 ### Added
 
 - **Infomaniak as a destination** (workplan 0161). An **Infomaniak** card, on *Where does it go?*
