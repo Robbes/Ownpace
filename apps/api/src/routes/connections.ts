@@ -76,12 +76,17 @@ import {
   credentialFieldsFor,
   halfGoogleClientPairProblem,
   halfDropboxClientPairProblem,
+  halfMailLogin,
+  halfMailLoginRefusal,
   isArchiveProvider,
   isFailureCategory,
   isFailureSide,
   log,
   newReference,
+  keepingTheMailLogin,
   recordAppEvent,
+  signsInToMailApart,
+  targetCredentialRecord,
   wizardTypeForConnectionKind,
 } from '@openmig/shared';
 import type {
@@ -122,7 +127,7 @@ function pool() {
 }
 
 /** Target kinds `probeTargetConnection` knows how to reach. */
-const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux'] as const;
+const TARGET_KINDS = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak'] as const;
 type TargetKind = (typeof TARGET_KINDS)[number];
 
 /**
@@ -789,6 +794,15 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
         return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
       }
     }
+    // And half a mail login (workplan 0161 T1): the mailbox's address without
+    // its password, or the reverse, can sign in to nothing. Refused naming
+    // the missing box, before anything is probed or stored.
+    if (role === 'target') {
+      const halfLogin = halfMailLogin(type, values);
+      if (halfLogin) {
+        return void res.status(400).json({ ...missingFieldsRefusal([halfLogin]), reason: halfMailLoginRefusal(halfLogin) });
+      }
+    }
 
     const half = checked.data as never;
     const config =
@@ -809,10 +823,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     // inside this process. See `archive-on-the-server.ts`.
     const onServer = archiveOnServerRefusal(kind, config);
     if (onServer) return void res.status(400).json(onServer);
+    // A target's record through the one builder every door uses (0161 T1).
     const creds =
       role === 'source'
         ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
-        : { username: values.username ?? '', password: values.password ?? '' };
+        : targetCredentialRecord(type, values);
 
     // A closed organisation takes no new access, and nothing is probed with
     // it (0085 T2).
@@ -1120,6 +1135,34 @@ export function keptTenant(
   return (stored.clientId ?? '').trim() === (values.clientId ?? '').trim() ? tenant : undefined;
 }
 
+/**
+ * The credential record a rotation may keep a mail login from (workplan 0161
+ * T1): read only for a kind that signs in to mail apart, so every other kind
+ * rotates exactly as before, and `{}` where there is nothing readable to keep.
+ *
+ * An unreadable record keeps nothing, as `keptTenant` keeps no tenant from
+ * one: the rotation stores what was sent, the line below says so in the log
+ * by connection id, and the qualification that follows the rotation names
+ * the missing mail login by field, so it is not lost without a word.
+ */
+export function storedMailLogin(row: {
+  readonly id: string;
+  readonly kind: string;
+  readonly secretRef?: unknown;
+}): Record<string, string> {
+  if (!signsInToMailApart(row.kind) || !row.secretRef) return {};
+  try {
+    return SecretStore.decryptCredentials(row.secretRef as object);
+  } catch (err) {
+    log.warn(
+      `[rotate] connection ${row.id}: its stored credentials could not be read, so no mail login was ` +
+        'kept from them; the replacement is stored as sent:',
+      loggableError(err),
+    );
+    return {};
+  }
+}
+
 /** The audit action a replacement of a connection's credentials is recorded under (0137 T4). */
 export const CREDENTIALS_REPLACED_ACTION = 'connection.credentials_replaced';
 
@@ -1424,6 +1467,14 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
         return void res.status(400).json({ error: 'half_client_pair', reason: halfPair });
       }
     }
+    // Half a mail login, refused as at the add door (workplan 0161 T1). Both
+    // boxes empty is not half of one: it keeps the login stored (below).
+    if (row.role === 'target') {
+      const halfLogin = halfMailLogin(row.kind, values);
+      if (halfLogin) {
+        return void res.status(400).json({ ...missingFieldsRefusal([halfLogin]), reason: halfMailLoginRefusal(halfLogin) });
+      }
+    }
 
     // The CONFIG is deliberately left alone: rotation replaces a secret, not
     // where the migration is rooted. Changing both here would let a rotation
@@ -1445,10 +1496,18 @@ router.put('/:id/credentials', authenticate, async (req: AuthenticatedRequest, r
     // close, as every use of the stored access is.
     const kept = row.role === 'source' && row.kind === 'microsoft' ? keptTenant(row.secretRef, values) : undefined;
     const half = (kept === undefined ? checked.data : { ...checked.data, tenantId: kept }) as never;
+    // A ROTATION KEEPS THE MAILBOX'S LOGIN (workplan 0161 T1). For a kind that
+    // signs in to mail apart, the panel offers the two mail boxes beside the
+    // sync login, and both left empty means "as it is": the record replaces
+    // the whole secret, so without this a renewed app password would drop
+    // the mail login without a word, and the next pass's mail would refuse.
+    // Read before the probe, as the tenant above is, so the probe is handed
+    // exactly what is stored. Nothing else writes this login, so there is no
+    // refresh to race, unlike Cirrux's Drive grant below.
     const creds =
       row.role === 'source'
         ? sourceCredentialRecord({ sourceType: type as never, sourceConfig: half })
-        : { username: values.username ?? '', password: values.password ?? '' };
+        : keepingTheMailLogin(row.kind, storedMailLogin(row), targetCredentialRecord(row.kind, values));
     const answers = probeAnswers('replacing credentials', tenantId);
     const probe = answers.result(
       row.role === 'target'

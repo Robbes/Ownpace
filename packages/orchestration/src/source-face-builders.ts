@@ -165,6 +165,16 @@ const ACCOUNT_FACE_BUILDERS: Readonly<
     contact: 'dav',
     task: 'dav',
   },
+  // Soverin's builders again (workplan 0161), and the same "no door offers it
+  // as a source". What differs is who signs in: the IMAP builder signs in with
+  // the mailbox's own login (`mailLoginOf`), the DAV builders with the
+  // account's sync login, because Infomaniak refuses an app password for mail.
+  infomaniak: {
+    email: 'imap',
+    calendar: 'dav',
+    contact: 'dav',
+    task: 'dav',
+  },
 };
 
 /**

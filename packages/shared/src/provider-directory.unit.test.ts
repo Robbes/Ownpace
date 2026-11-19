@@ -92,6 +92,34 @@ describe('who has a row', () => {
     expect(providerDefaultsProvenance('target', 'cirrux')).toEqual({ provider: 'Cirrux', seen: '2026-11-19' });
   });
 
+  it('the Infomaniak target: its two servers, read from infomaniak.com, and no login (workplan 0161)', () => {
+    // Exactly what Infomaniak's pages give: sync.infomaniak.com for contacts
+    // and calendars (FAQ 1544, "utilisez uniquement sync.infomaniak.com"), and
+    // mail.infomaniak.com on 993 with SSL (FAQ 2427). 443 is HTTPS's own port,
+    // for a server named without one. A changed value here is a changed claim
+    // about Infomaniak, and must come with a new reading of the page.
+    expect(providerDefaultsFor('target', 'infomaniak')).toEqual({
+      host: 'sync.infomaniak.com',
+      port: '443',
+      mailHost: 'mail.infomaniak.com',
+      mailPort: '993',
+    });
+    const sources = providerDirectoryEntry('target', 'infomaniak')?.sources ?? [];
+    expect(sources.map((s) => new URL(s.url).pathname.split('/')[4])).toEqual(['2427', '1544', '1321', '2855']);
+    for (const s of sources) {
+      expect(new URL(s.url).hostname).toBe('www.infomaniak.com');
+      // The pages as the site served them that day: in French.
+      expect(new URL(s.url).pathname.startsWith('/fr/support/faq/')).toBe(true);
+      expect(s.seen).toBe('2026-11-19');
+    }
+    // No path is published, so the row leaves the DAV base URL box alone, and
+    // neither of the two logins is anybody's to pre-fill.
+    for (const key of ['url', 'username', 'password', 'mailUsername', 'mailPassword']) {
+      expect(providerDefaultsFor('target', 'infomaniak')).not.toHaveProperty(key);
+    }
+    expect(providerDefaultsProvenance('target', 'infomaniak')).toEqual({ provider: 'Infomaniak', seen: '2026-11-19' });
+  });
+
   it('a protocol kind and an unknown kind pre-fill nothing', () => {
     expect(providerDefaultsFor('target', 'jmap')).toEqual({});
     expect(providerDefaultsFor('target', 'imap')).toEqual({});

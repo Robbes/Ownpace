@@ -1,7 +1,7 @@
 # ADR-0043: A migration is silent by default — outward mail is a human-pressed action
 
 - **Status:** Accepted; amended 2026-11-19 (a target that emails guests whatever the marker says
-  gets none)
+  gets none; so does one no pass has tested yet)
 - **Date:** 2026-08-25
 - **Deciders:** Owner, 2026-08-25 — "do T1 and T2, and the rest", instructing
   workplan 0103's proposed posture to be built as written. The research that
@@ -19,11 +19,11 @@
   are kept: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs (0103 T1). An
   explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
   kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
-- **Except a target that emails guests whatever the parameter says** (2026-11-19): a kind in
-  `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160) gets neither; each becomes a `COMMENT` naming the
-  person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. Undone by taking the kind
-  off the list once its target can be written without mailing guests, shown by a pass that sends
-  nothing.
+- **Except a target that emails guests whatever the parameter says, or is untested** (2026-11-19):
+  a kind in `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160; Infomaniak, untested, 0161) gets neither; each
+  becomes a `COMMENT` naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`.
+  Undone by taking the kind off the list once its target can be written without mailing guests,
+  shown by a pass that sends nothing.
 - **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
   copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
   DELETEs (0103 T5) is the belt for attendee-side replies:
@@ -70,3 +70,11 @@ moves the mail to the second pass — are in workplan 0103 with sources.
   and past events included, to every guest of the events a pass wrote into it, each marked
   `SCHEDULE-AGENT=CLIENT` (workplan 0160 §5). The first operative rule is why: no write may make a
   target mail third parties.
+- **2026-11-19** — **Amended**: a kind can be on the list untested. `infomaniak` is on it from the
+  day its kind arrives (workplan 0161 T1), because no pass has been run against it: its CalDAV
+  server answers as SabreDAV, which in Nextcloud was seen to honour `SCHEDULE-AGENT=CLIENT`
+  (workplan 0103), but what Infomaniak's does with it has not been seen, and an invitation sent
+  cannot be taken back. What a
+  person reads about such a target says it is untested, never that it mails guests
+  (`TARGETS_UNTESTED_FOR_GUESTS`). It leaves the list on the evidence of a pass that sent none
+  (workplan 0161 T2).

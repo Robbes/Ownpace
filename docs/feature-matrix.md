@@ -38,6 +38,14 @@ per mailbox, since Cirrux refuses the account's own. ⏳ built, not yet run agai
 Cirrux mailbox (0160 T2). Cirrux keeps folders as labels and shows them as IMAP folders, so a
 folder this tool creates becomes a label.
 
+Also a target: **Infomaniak** (`infomaniak`, workplan 0161) — the same mail face, from the same
+stored `mailHost`, pre-filled with the server Infomaniak publishes (`mail.infomaniak.com:993`,
+read from `https://www.infomaniak.com/fr/support/faq/2427/synchroniser-les-e-mails-sur-tous-vos-equipements`
+on 2026-11-19), signed in with a login of its own: the full address and the password made for it
+on the address's Devices tab, stored as `mailUsername`/`mailPassword` beside the sync login its
+DAV faces use, because Infomaniak refuses an application password for mail. ⏳ built, not yet run
+against a live Infomaniak account (0161 T2).
+
 Also a source: **Apple** (`apple`, workplan 0115) — the mail face of the iCloud account
 kind, over IMAP at `imap.mail.me.com:993`. Where Soverin's mail face is driven from a host
 the person **stored**, Apple's is driven from a host Apple **publishes**: `apple` is the
@@ -94,6 +102,14 @@ DAV host Cirrux publishes for its Calendar, Contacts and Reminders, `api.cirrux.
 DAV base URL left empty because Cirrux publishes no path. ⏳ built, not yet run against a live
 Cirrux mailbox (0160 T2): that discovery from the host's root finds the calendar home is what
 the first Test measures.
+
+Also a target: **Infomaniak** (`infomaniak`, workplan 0161) — Soverin's account shape again:
+calendars and task lists over `sync.infomaniak.com`, the one server Infomaniak names for them,
+signed in with the account's sync login (a short username such as `AB12345` and an application
+password, or the account's password without two-step validation), with the DAV base URL left
+empty: the server answers `/.well-known/caldav` with a redirect to its own root, where the homes
+are discovered. Nothing written there names a guest or an organiser until a pass shows its
+SabreDAV sends no invitation. ⏳ built, not yet run against a live Infomaniak account (0161 T2).
 
 Also a target: **Nextcloud** (`nextcloud`) — the second **account** kind, and the
 one a person is most likely to be running themselves: one connection row carrying calendars,
@@ -192,8 +208,8 @@ because the API has none. A task deleted in Google goes to the Deletions queue.
 | **Target** | ✅ CardDAV | — | 🚫 never a target |
 
 Also a target: **JMAP** (workplan 0031 T2), **Soverin** (`soverin`), **Nextcloud**
-(`nextcloud`) and **Cirrux** (`cirrux`, ⏳ workplan 0160) — the account kinds' contact face,
-riding the same CardDAV writer (see Calendars).
+(`nextcloud`), **Cirrux** (`cirrux`, ⏳ workplan 0160) and **Infomaniak** (`infomaniak`, ⏳
+workplan 0161) — the account kinds' contact face, riding the same CardDAV writer (see Calendars).
 
 Also a source: **Apple** (`apple`, workplan 0115) — the contact face of the iCloud account,
 at `contacts.icloud.com`. Worth stating separately because it is a **different host** to the
@@ -236,6 +252,15 @@ name, case-insensitively; `content_modified_at` is kept; an approved deletion mo
 Cirrux's trash, never a permanent delete; storage is checked before the first upload, and `429`
 is waited out. A file over 2 GiB is refused before it is read, with the reason. 0160 T2b is the
 owner's live run.
+
+**Not a files target yet, and a measured "later" with its reason: kDrive** (`infomaniak`,
+workplan 0161). kDrive has WebDAV, at an address of its own for each drive,
+`https://<kDrive ID>.connect.kdrive.infomaniak.com`, which Infomaniak does not offer on kSuite
+Free, kSuite Standard, my kSuite or my kSuite+
+(`https://www.infomaniak.com/fr/support/faq/2409/se-connecter-a-kdrive-par-webdav`, updated
+12/11/2026). The `infomaniak` account therefore carries no file face, its Test says why, and
+*Where does it go?* does not offer it for files. ⛔ 0161 T3: a field for the drive's address, and
+a measurement of it, before the face is claimed.
 
 Also a target: **JMAP files** (workplan 0031 T3). A file larger than 8 MB arrives as a stream, and
 is uploaded as one. A file larger than the server takes in one upload (its session's
@@ -438,6 +463,7 @@ These hold across all object types, and are features rather than gaps:
 | Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and *Start a migration* asks for it on *What moves?* with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
 | Box against a real account | ⏳ built, unproven | workplan 0056 T3(a) |
 | Cirrux Drive as a files target against a live Cirrux client (the consent, the rotating refresh written back, an upload, a replace under `base_ctag`, a trash) | ⏳ built against a fake; waits for the client Cirrux registers | workplan 0160 T2b; ADR-0052 |
+| Infomaniak against a real account: the sync login and the mailbox's login each reaching its faces, one small pass, and whether its SabreDAV mails the guests of an event written into it | ⏳ built, unproven; guests are not written until that pass shows none is emailed | workplan 0161 T2 |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |

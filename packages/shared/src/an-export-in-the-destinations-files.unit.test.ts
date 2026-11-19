@@ -78,6 +78,14 @@ describe('archiveInTargetRefusal — which destinations an export can be read fr
     }
   });
 
+  it('says of Infomaniak where its files are, kDrive, rather than that it has none (0161)', () => {
+    const refusal = archiveInTargetRefusal('infomaniak')!;
+    expect(refusal).toContain('Infomaniak destinations keep their files in kDrive');
+    expect(refusal).toContain('does not reach yet');
+    expect(refusal).not.toContain('have no files');
+    expect(refusal).toContain('WebDAV and Nextcloud destinations can serve one');
+  });
+
   it('refuses a destination with no files by saying so, and which ones have them', () => {
     for (const type of ['imap', 'caldav', 'carddav', 'soverin'] as const) {
       const refusal = archiveInTargetRefusal(type)!;

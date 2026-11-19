@@ -67,6 +67,9 @@ export const FRONT_DOOR_GROUPS: Readonly<Record<string, FrontDoorGroup>> = {
   nextcloud: 'provider',
   // A destination people name by its product (workplan 0160), like Soverin.
   cirrux: 'provider',
+  // The same (workplan 0161): a person names their Infomaniak, not the IMAP,
+  // CalDAV and CardDAV it is reached over.
+  infomaniak: 'provider',
   // The Apple ACCOUNT (workplan 0115) — a provider, and a family of exactly
   // one: there is no `icloud` or `apple-mail` kind beside it to collect,
   // because Apple has never published an API one could have been built on.
@@ -244,6 +247,10 @@ export const SOURCE_PROOFS: {
     // state: orchestration can build its faces, because the account table
     // serves both roles, and no door offers it as a place to leave.
     cirrux: { email: EXPERIMENTAL, calendar: EXPERIMENTAL, contact: EXPERIMENTAL, task: EXPERIMENTAL },
+    // Cirrux's state, for Cirrux's reason (workplan 0161): a destination
+    // first, buildable as a source because the account table serves both
+    // roles, and offered as a place to leave by no door.
+    infomaniak: { email: EXPERIMENTAL, calendar: EXPERIMENTAL, contact: EXPERIMENTAL, task: EXPERIMENTAL },
   },
   // Parked until a Workspace the owner administers, or a tester who asks (0141 T6).
   wholeDomain: EXPERIMENTAL,
@@ -348,6 +355,9 @@ export const FRONT_DOOR_ICONS: Readonly<Record<string, FrontDoorIcon>> = {
   // Neutral zinc, for Soverin's reason: Cirrux's own colour is not one this
   // file has been told, and a wrong one would be a guess.
   cirrux: { kind: 'mark', initial: 'C', background: '#3f3f46' },
+  // Neutral stone, not guessed: Infomaniak's own colour is not one this file
+  // has been told, so it gets the neutral treatment Soverin's and Cirrux's get.
+  infomaniak: { kind: 'mark', initial: 'I', background: '#44403c' },
   apple: { kind: 'mark', initial: 'A', background: '#1d1d1f' },
   // A MARK, because the invariant below is pinned: marks on providers, glyphs
   // on protocols, and mixing them is what re-mixes the levels T1 separated.

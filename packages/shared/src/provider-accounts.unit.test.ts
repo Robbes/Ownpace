@@ -14,12 +14,21 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import {
+  MAIL_LOGIN_APART_KINDS,
   PROVIDER_ACCOUNT_DOMAINS,
   PROVIDER_ACCOUNT_KINDS,
+  halfMailLogin,
+  halfMailLoginRefusal,
   isProviderAccountKind,
+  keepingTheMailLogin,
+  mailLoginOf,
+  missingMailLogin,
   providerAccountDomains,
   providerAccountServes,
   providerAccountFacts,
+  signsInToMailApart,
+  storesItsMailServer,
+  targetCredentialRecord,
 } from './provider-accounts.ts';
 import { SOURCE_TYPE_DOMAINS } from './target-domains.ts';
 
@@ -230,5 +239,117 @@ describe('the microsoft account kind (0114 T3)', () => {
         expect(['deployment', 'connection']).toContain(facts.client);
       }
     }
+  });
+});
+
+/**
+ * THE ACCOUNT THAT SIGNS IN TO ITS MAIL APART (workplan 0161 T1).
+ *
+ * Infomaniak's calendars and contacts sign in with the account's sync login
+ * (a short username and an app password), and its mail with the mailbox's
+ * own (the address and the password made on its Devices tab), because an app
+ * password "ne permettra pas de synchroniser une adresse mail". So one secret
+ * holds two logins, and every seam that signs in to mail asks `mailLoginOf`.
+ * What is pinned here is the table and the four functions every seam and door
+ * reads, and that Soverin and Cirrux, which sign in with one login, answer
+ * exactly as before.
+ */
+describe('the infomaniak account kind and its two logins (0161 T1)', () => {
+  // Obvious dummies: no real login is ever written into a test.
+  const STORED = {
+    username: 'AB12345',
+    password: 'dummy-sync-app-password',
+    mailUsername: 'someone@example.com',
+    mailPassword: 'dummy-mailbox-device-password',
+  };
+
+  it('serves four faces, files not among them, and stores its mail server as Soverin does', () => {
+    expect(providerAccountDomains('infomaniak')).toEqual(['email', 'calendar', 'contact', 'task']);
+    expect(providerAccountServes('infomaniak', 'file')).toBe(false);
+    expect(storesItsMailServer('infomaniak')).toBe(true);
+    // No OAuth client to speak of.
+    expect(providerAccountFacts('infomaniak', {})).toEqual({ domains: ['email', 'calendar', 'contact', 'task'] });
+  });
+
+  it('is the one kind that signs in to its mail apart', () => {
+    expect([...MAIL_LOGIN_APART_KINDS]).toEqual(['infomaniak']);
+    expect(signsInToMailApart('infomaniak')).toBe(true);
+    for (const kind of ['soverin', 'cirrux', 'apple', 'imap', 'jmap', 'nextcloud', '']) {
+      expect(signsInToMailApart(kind), kind).toBe(false);
+    }
+  });
+
+  it('mailLoginOf: the mailbox’s own login for infomaniak, never its sync login', () => {
+    expect(mailLoginOf('infomaniak', STORED)).toEqual({
+      username: 'someone@example.com',
+      password: 'dummy-mailbox-device-password',
+    });
+    // Without a mail login, nothing: never the sync pair in its place.
+    expect(mailLoginOf('infomaniak', { username: 'AB12345', password: 'dummy-sync-app-password' })).toEqual({
+      username: '',
+      password: '',
+    });
+  });
+
+  it('mailLoginOf: every other kind keeps its one login exactly as stored', () => {
+    for (const kind of ['soverin', 'cirrux', 'imap', 'jmap', 'apple']) {
+      expect(mailLoginOf(kind, STORED), kind).toEqual({ username: 'AB12345', password: 'dummy-sync-app-password' });
+      // Never the mailbox keys, even where a record happens to carry them.
+      expect(mailLoginOf(kind, { mailUsername: 'x', mailPassword: 'y' }), kind).toEqual({ username: '', password: '' });
+    }
+    // A number is not a value (a create body's config has ports in it).
+    expect(mailLoginOf('imap', { username: 'a', password: 7 })).toEqual({ username: 'a', password: '' });
+  });
+
+  it('missingMailLogin names each half the record lacks, and nothing for a kind with one login', () => {
+    expect(missingMailLogin('infomaniak', STORED)).toEqual([]);
+    expect(missingMailLogin('infomaniak', { username: 'AB12345', password: 'p' })).toEqual(['mailUsername', 'mailPassword']);
+    expect(missingMailLogin('infomaniak', { mailUsername: 'someone@example.com', mailPassword: '   ' })).toEqual(['mailPassword']);
+    expect(missingMailLogin('soverin', {})).toEqual([]);
+  });
+
+  it('halfMailLogin: the missing half when one was given, nothing for both or neither', () => {
+    expect(halfMailLogin('infomaniak', { mailUsername: 'someone@example.com' })).toBe('mailPassword');
+    expect(halfMailLogin('infomaniak', { mailPassword: 'p' })).toBe('mailUsername');
+    expect(halfMailLogin('infomaniak', { mailUsername: '', mailPassword: '' })).toBeUndefined();
+    expect(halfMailLogin('infomaniak', STORED)).toBeUndefined();
+    // A kind with one login has no half to refuse, whatever it is sent.
+    expect(halfMailLogin('cirrux', { mailUsername: 'someone@example.com' })).toBeUndefined();
+    const sentence = halfMailLoginRefusal('mailPassword');
+    expect(sentence).toContain('mailUsername was sent without mailPassword');
+  });
+
+  it('targetCredentialRecord: the pair as every door stored it, and the mail login beside it for infomaniak', () => {
+    const typed = { host: 'sync.infomaniak.com', port: 443, ...STORED };
+    expect(targetCredentialRecord('infomaniak', typed)).toEqual(STORED);
+    // Without a mail login: the sync pair alone, no empty keys.
+    expect(targetCredentialRecord('infomaniak', { username: 'AB12345', password: 'p', mailUsername: ' ', mailPassword: '' })).toEqual({
+      username: 'AB12345',
+      password: 'p',
+    });
+    // Every other kind stores exactly the pair, as `{ username, password }` by hand did.
+    for (const kind of ['soverin', 'cirrux', 'imap', 'jmap', 'caldav', 'nextcloud']) {
+      expect(targetCredentialRecord(kind, typed), kind).toEqual({ username: 'AB12345', password: 'dummy-sync-app-password' });
+    }
+    expect(targetCredentialRecord('caldav', {})).toEqual({ username: '', password: '' });
+  });
+
+  it('keepingTheMailLogin: blank mail boxes keep the stored login; both typed replace it', () => {
+    const renewed = { username: 'AB12345', password: 'dummy-renewed-app-password' };
+    expect(keepingTheMailLogin('infomaniak', STORED, renewed)).toEqual({
+      ...renewed,
+      mailUsername: 'someone@example.com',
+      mailPassword: 'dummy-mailbox-device-password',
+    });
+    // Kept whichever sync login replaces the old one: it is the mailbox's.
+    expect(keepingTheMailLogin('infomaniak', STORED, { username: 'CD67890', password: 'p' }).mailUsername).toBe(
+      'someone@example.com',
+    );
+    const newMail = { ...renewed, mailUsername: 'other@example.com', mailPassword: 'dummy-new-device-password' };
+    expect(keepingTheMailLogin('infomaniak', STORED, newMail)).toEqual(newMail);
+    // Nothing stored, nothing kept.
+    expect(keepingTheMailLogin('infomaniak', {}, renewed)).toEqual(renewed);
+    // A kind with one login keeps nothing it was not sent.
+    expect(keepingTheMailLogin('cirrux', STORED, renewed)).toEqual(renewed);
   });
 });

@@ -172,6 +172,21 @@ export const REVOCATION_CAPABILITIES: Readonly<Record<string, RevocationCapabili
     reason:
       'An export archive is a file the customer downloaded, read from a path they gave us. No provider was signed in to and no credential was ever held, so there is nothing to revoke. Our record of where the archive was has been deleted; the archive itself is theirs and stays where they put it.',
   },
+  // TWO credentials, retired in two places (workplan 0161). A row rather than
+  // `PASSWORD_KINDS`, for Apple's reason: "a password is revoked by changing
+  // it" would send somebody to change their Infomaniak password, which ends
+  // neither the app password nor the mail password. The app password is
+  // revoked on the Manager's application passwords page, one at a time or all
+  // at once (https://www.infomaniak.com/fr/support/faq/2855); the mail
+  // password is a device on the address's Devices tab, revoked on its own
+  // while "les autres accès à l'adresse mail restent actifs"
+  // (https://www.infomaniak.com/fr/support/faq/1321). Both read 2026-11-19.
+  // Neither page names an endpoint an app could call.
+  infomaniak: {
+    revocable: false,
+    reason:
+      'Infomaniak publishes no revocation endpoint for either password this account held. The customer revokes the application password on the Manager’s application passwords page (https://manager.infomaniak.com/v3/ng/profile/user/connection-history/application-password), and the mailbox’s password on the address’s Devices tab (Manager → Mail Service → the address → Devices), each on its own. Where the account had no two-step validation, the sync login was the Infomaniak password itself, which only changing it ends.',
+  },
 } as const;
 
 /** Password-shaped kinds: nothing to revoke, and one shared reason. */

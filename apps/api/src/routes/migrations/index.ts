@@ -72,6 +72,11 @@ import {
   parseArchiveSource,
   recordAppEvent,
   storesItsMailServer,
+  signsInToMailApart,
+  missingMailLogin,
+  halfMailLogin,
+  halfMailLoginRefusal,
+  targetCredentialRecord,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -749,8 +754,12 @@ export function targetConnectionConfig(
   // whose DAV root lives behind a path. The account kind alone may also
   // store its MAIL face (T4b): the IMAP host the person typed, which the
   // mail seam resolves into the imap-dav writer — scoped to the kinds in
-  // `MAIL_SERVER_ACCOUNT_KINDS` (soverin, and cirrux since 0160) so a
-  // protocol row can never grow a face its kind does not carry.
+  // `MAIL_SERVER_ACCOUNT_KINDS` (soverin, cirrux since 0160, infomaniak since
+  // 0161) so a protocol row can never grow a face its kind does not carry.
+  // The mailbox's own login, which infomaniak stores beside it, is NOT
+  // config: it is a credential, and only `targetCredentialRecord` puts it in
+  // the encrypted secret. Nothing here copies `mailUsername` or
+  // `mailPassword`, so a form reading this config back never sees either.
   return {
     ...base,
     ...(cfg.url ? { url: cfg.url } : {}),
@@ -1138,7 +1147,7 @@ export const CreateMappingBase = z.object({
    */
   sourceConnectionId: z.string().uuid().optional(),
   targetConnectionId: z.string().uuid().optional(),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
     // 'oauth2'/'graph' (the per-customer Entra app registration — ADR-0006,
@@ -1232,6 +1241,17 @@ export const CreateMappingBase = z.object({
      */
     mailHost: z.string().optional(),
     mailPort: z.number().optional(),
+    /**
+     * The MAILBOX'S OWN LOGIN, for an account kind whose mail signs in apart
+     * from its DAV faces (workplan 0161 T1; `MAIL_LOGIN_APART_KINDS`): the full
+     * address, and the password made for it, which Infomaniak makes on the
+     * address's Devices tab. Both optional; demanded by the superRefine, by
+     * name, when email is ticked, and refused there when only one is sent.
+     * Stored only in the encrypted credential (`targetCredentialRecord`),
+     * never in a connection's config.
+     */
+    mailUsername: z.string().optional(),
+    mailPassword: z.string().optional(),
   }),
   syncConfig: z.object({
     domains: z.array(z.enum(DISCOVERY_DOMAINS)).default(['email']),
@@ -1831,14 +1851,53 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       code: 'custom',
       path: ['targetConfig', 'mailHost'],
       message:
-        `A ${body.targetType} target carries email only when the account's mail server is stored: ` +
+        `${aTarget(body.targetType)} carries email only when the account's mail server is stored: ` +
         'targetConfig.mailHost is missing. Enter the IMAP host your provider names (the ' +
         'account settings page lists it) — or drop the email data type; calendars and ' +
         'contacts need no mail server.',
     });
   }
+  // A kind whose mail signs in apart (workplan 0161 T1: infomaniak) carries
+  // mail only with the mailbox's own login, and half of one is refused
+  // whatever is ticked: it can sign in to nothing, and stored, it would read
+  // later as a mail face set up wrong. Exempt on reuse, as the mail server
+  // is: the stored record may hold the login, and the mail seam refuses by
+  // the same field names at build time if it does not.
+  if (!body.targetConnectionId) {
+    const half = halfMailLogin(body.targetType, body.targetConfig);
+    if (half) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targetConfig', half],
+        message: halfMailLoginRefusal(half),
+      });
+    } else if (
+      signsInToMailApart(body.targetType) &&
+      body.syncConfig.domains.includes('email') &&
+      missingMailLogin(body.targetType, body.targetConfig).length > 0
+    ) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['targetConfig', 'mailUsername'],
+        message:
+          `${aTarget(body.targetType)} carries email only when the mailbox's own login is stored: ` +
+          'targetConfig.mailUsername and targetConfig.mailPassword are missing. Enter the mailbox ' +
+          'address and the password made for that address (an app password is refused for mail) ' +
+          '— or drop the email data type; calendars, contacts and tasks sign in with the sync ' +
+          'login alone.',
+      });
+    }
+  }
   if (body.syncConfig.schedule !== undefined) refuseUnreadableSchedule(ctx, body.syncConfig.schedule);
 });
+
+/**
+ * "A soverin target", "An infomaniak target": the start of the two mail
+ * refusals above, whose kinds are named as they are stored.
+ */
+function aTarget(kind: string): string {
+  return `${/^[aeiou]/i.test(kind) ? 'An' : 'A'} ${kind} target`;
+}
 
 /**
  * A schedule the tick cannot evaluate, or one faster than the floor, refused
@@ -2152,12 +2211,24 @@ router.post('/test-connection', authenticate, async (req: AuthenticatedRequest, 
         reason: 'Testing the target needs targetType and targetConfig.',
       });
     }
+    // Half a mail login is refused here as at the create door (workplan 0161
+    // T1), before anything is probed: a Test of what could never be stored.
+    const halfLogin = halfMailLogin(body.targetType, body.targetConfig);
+    if (halfLogin) {
+      return void res.status(400).json({
+        error: 'missing_fields',
+        fields: [halfLogin],
+        reason: halfMailLoginRefusal(halfLogin),
+      });
+    }
     if (refusedOverTestLimit(req, res)) return;
+    // EXACTLY the record create would encrypt (`targetCredentialRecord`), so a
+    // passed Test cannot have tested a different secret than the one saved.
     const result = probeAnswers('testing a connection', req.tenantId).result(
       await probeTargetConnection(
         body.targetType,
         targetConnectionConfig({ targetType: body.targetType, targetConfig: body.targetConfig }),
-        { username: body.targetConfig.username, password: body.targetConfig.password },
+        targetCredentialRecord(body.targetType, body.targetConfig),
       ),
     );
     return void res.json(result);
@@ -2502,11 +2573,11 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       const sourceSecret = JSON.stringify(
         SecretStore.encryptCredentials(sourceCredentialRecord(body)).encrypted,
       );
+      // The target's record through the one builder every door uses
+      // (workplan 0161 T1): the sign-in pair, and for a kind that signs in to
+      // mail apart, the mailbox's own login beside it.
       const targetSecret = JSON.stringify(
-        SecretStore.encryptCredentials({
-          username: body.targetConfig.username,
-          password: body.targetConfig.password,
-        }).encrypted,
+        SecretStore.encryptCredentials(targetCredentialRecord(body.targetType, body.targetConfig)).encrypted,
       );
 
       /**

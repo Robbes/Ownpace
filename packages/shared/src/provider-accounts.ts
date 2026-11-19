@@ -59,13 +59,13 @@ import { cirruxDeploymentClient, type CirruxClientEnv } from './cirrux-drive.ts'
  * server does. These are the kinds where one credential provably reaches more
  * than one domain.
  */
-export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin', 'microsoft', 'apple', 'cirrux'] as const;
+export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin', 'microsoft', 'apple', 'cirrux', 'infomaniak'] as const;
 export type ProviderAccountKind = (typeof PROVIDER_ACCOUNT_KINDS)[number];
 
 /**
  * The account kinds whose MAIL face is a second server the account STORES
  * (`mailHost`, `mailPort`), beside the DAV host its other faces share
- * (workplan 0106 T4b for Soverin, 0160 T1 for Cirrux).
+ * (workplan 0106 T4b for Soverin, 0160 T1 for Cirrux, 0161 T1 for Infomaniak).
  *
  * One table rather than a `kind === 'soverin'` at each seam, because three
  * seams ask the same question and must give the same answer: the create door
@@ -78,11 +78,187 @@ export type ProviderAccountKind = (typeof PROVIDER_ACCOUNT_KINDS)[number];
  * Not `apple`: its mail server is the same for every account and is
  * PUBLISHED (`PROVIDER_ENDPOINTS`), so its door asks for no host at all.
  */
-export const MAIL_SERVER_ACCOUNT_KINDS = ['soverin', 'cirrux'] as const;
+export const MAIL_SERVER_ACCOUNT_KINDS = ['soverin', 'cirrux', 'infomaniak'] as const;
 
 /** Does this kind keep its mail server in `mailHost`, apart from its DAV host? */
 export function storesItsMailServer(kind: string): boolean {
   return (MAIL_SERVER_ACCOUNT_KINDS as ReadonlyArray<string>).includes(kind);
+}
+
+/**
+ * The account kinds whose MAIL face signs in with a LOGIN OF ITS OWN, beside
+ * the one their DAV faces sign in with (workplan 0161 T1).
+ *
+ * Soverin and Cirrux sign in to mail and to DAV with one username and one
+ * password. Infomaniak cannot be reached that way. Its calendars and contacts
+ * belong to the Infomaniak ACCOUNT and sign in with a short sync username
+ * (`AB12345`) and an app password, or the account's own password without
+ * two-step validation (https://www.infomaniak.com/fr/support/faq/1544). An
+ * app password "ne permettra pas de synchroniser une adresse mail"
+ * (https://www.infomaniak.com/fr/support/faq/2855). Mail signs in with the
+ * full address and a password made for that address on its Devices tab
+ * (https://www.infomaniak.com/fr/support/faq/1321), which has "pas de rapport
+ * avec votre mot de passe de connexion à Infomaniak"
+ * (https://www.infomaniak.com/fr/support/faq/2427). All four read 2026-11-19.
+ *
+ * So the one encrypted secret of such a kind holds two logins:
+ * `username`/`password`, the sync login its calendar, contact and task faces
+ * use; and `mailUsername`/`mailPassword`, the mailbox's own, which its mail
+ * face uses and nothing else does. A table, for `MAIL_SERVER_ACCOUNT_KINDS`'s
+ * reason: the doors that store a secret, the mail seam that builds the
+ * writer, the qualification that measures the face and the probe all ask
+ * this question, and a seam that reads `username`/`password` for mail by hand
+ * does not fail at its own door. It signs in to mail with the sync login,
+ * which the mail server refuses, at the first pass.
+ */
+export const MAIL_LOGIN_APART_KINDS = ['infomaniak'] as const;
+
+/** Does this kind's mail face sign in with a login of its own (`mailUsername`, `mailPassword`)? */
+export function signsInToMailApart(kind: string): boolean {
+  return (MAIL_LOGIN_APART_KINDS as ReadonlyArray<string>).includes(kind);
+}
+
+/** One username and its password, as a mail face signs in with them. */
+export interface MailLogin {
+  readonly username: string;
+  readonly password: string;
+}
+
+/** The two keys of a mailbox's own login, as a kind apart stores them in its secret. */
+export const MAIL_LOGIN_KEYS = ['mailUsername', 'mailPassword'] as const;
+export type MailLoginKey = (typeof MAIL_LOGIN_KEYS)[number];
+
+/**
+ * A credential record, a door's typed values or a create body's config: read
+ * key by key, and only a string counts as a value (a port is a number there).
+ */
+export type CredentialValues = Readonly<Record<string, unknown>>;
+
+/** A stored or typed value, or `''` for an absent one. Never trimmed: a password is what was typed. */
+function valueOf(record: CredentialValues, key: string): string {
+  const value = record[key];
+  return typeof value === 'string' ? value : '';
+}
+
+/** Was this value given at all? A value of only spaces was not: no server takes it. */
+function given(record: CredentialValues, key: string): boolean {
+  return valueOf(record, key).trim() !== '';
+}
+
+/**
+ * THE LOGIN A KIND'S MAIL FACE SIGNS IN WITH, from its credential record.
+ *
+ * For a kind that signs in to mail apart, the mailbox's own pair,
+ * `mailUsername`/`mailPassword`: never the sync login, which its mail server
+ * refuses. An absent half is `''`, and the seams refuse it by name
+ * (`missingMailLogin`) before they connect.
+ *
+ * For every other kind, the record's own `username`/`password`, exactly as
+ * every seam read them before 0161. A seam that falls back to a token where no
+ * password is stored (`access_token` for an IMAP writer; `token` and `api_key`
+ * for JMAP) still does, because it lays this pair over the record rather than
+ * replacing it, so the fallback reads what it always read.
+ */
+export function mailLoginOf(kind: string, credentials: CredentialValues): MailLogin {
+  if (signsInToMailApart(kind)) {
+    return { username: valueOf(credentials, 'mailUsername'), password: valueOf(credentials, 'mailPassword') };
+  }
+  return { username: valueOf(credentials, 'username'), password: valueOf(credentials, 'password') };
+}
+
+/**
+ * The halves of a kind apart's mail login its record lacks, by field name, or
+ * `[]` when it has both or the kind signs in to mail with its one login. A
+ * value of only spaces is lacking: no mail server takes it.
+ */
+export function missingMailLogin(
+  kind: string,
+  credentials: CredentialValues,
+): ReadonlyArray<MailLoginKey> {
+  if (!signsInToMailApart(kind)) return [];
+  return MAIL_LOGIN_KEYS.filter((key) => !given(credentials, key));
+}
+
+/**
+ * HALF A MAIL LOGIN, REFUSED AT EVERY DOOR (workplan 0161 T1): the field that
+ * was not given when its other half was, or `undefined` when both or neither
+ * were. Both are optional, because an account used only for calendars,
+ * contacts and tasks needs no mail login; half of one can sign in to nothing,
+ * and stored, it would read later as a mail face set up wrong rather than as
+ * one never set up.
+ */
+export function halfMailLogin(
+  kind: string,
+  values: CredentialValues,
+): MailLoginKey | undefined {
+  if (!signsInToMailApart(kind)) return undefined;
+  const missing = missingMailLogin(kind, values);
+  return missing.length === 1 ? missing[0] : undefined;
+}
+
+/** The sentence a door refuses half a mail login with, naming the half that is missing. */
+export function halfMailLoginRefusal(missing: MailLoginKey): string {
+  const sent: MailLoginKey = missing === 'mailUsername' ? 'mailPassword' : 'mailUsername';
+  return (
+    `A mail login is given whole or not at all: ${sent} was sent without ${missing}. Enter the ` +
+    'mailbox address and the password made for that address together, or leave both empty — ' +
+    'calendars, contacts and tasks need no mail login.'
+  );
+}
+
+/**
+ * WHAT A DOOR ENCRYPTS FOR A TARGET (workplan 0161 T1): `{ username, password }`
+ * as every target has stored since the doors existed, and for a kind that
+ * signs in to mail apart, the mailbox's `mailUsername`/`mailPassword` beside
+ * them, where they were given. Every door that stores or tests a target secret
+ * builds it here; `scripts/a-target-secret-a-door-built-by-hand.unit.test.ts`
+ * fails the day one builds the pair by hand again, because a hand-built pair
+ * is a mail login dropped on its way to the store.
+ *
+ * Never trimmed, as a typed password never is. The mail login is never part
+ * of a connection's `config`, which is plain JSON a form may read back
+ * (`knownConnectionValues`): it lives only in this record, which is encrypted.
+ */
+export function targetCredentialRecord(
+  kind: string,
+  values: CredentialValues,
+): Record<string, string> {
+  const record: Record<string, string> = {
+    username: valueOf(values, 'username'),
+    password: valueOf(values, 'password'),
+  };
+  if (signsInToMailApart(kind)) {
+    for (const key of MAIL_LOGIN_KEYS) {
+      if (given(values, key)) record[key] = valueOf(values, key);
+    }
+  }
+  return record;
+}
+
+/**
+ * A replacement record for a target, keeping the mail login it already stores
+ * when the replacement carries none (workplan 0161 T1).
+ *
+ * *Replace credentials* replaces the whole secret, so a person renewing the
+ * sync login and leaving the two mail boxes empty would otherwise lose the
+ * mailbox's login without being told, and the next pass's mail would refuse.
+ * Empty means "as it is"; both boxes filled means a new mail login. The
+ * mailbox's login is the mailbox's, not the sync account's, so it is kept
+ * whichever sync login replaces the old one. Cirrux's Drive grant is carried
+ * across a rotation the same way (`keepingTheDriveGrant`).
+ */
+export function keepingTheMailLogin(
+  kind: string,
+  stored: CredentialValues,
+  replacement: Readonly<Record<string, string>>,
+): Record<string, string> {
+  if (!signsInToMailApart(kind)) return { ...replacement };
+  if (MAIL_LOGIN_KEYS.some((key) => given(replacement, key))) return { ...replacement };
+  const kept: Record<string, string> = {};
+  for (const key of MAIL_LOGIN_KEYS) {
+    if (given(stored, key)) kept[key] = valueOf(stored, key);
+  }
+  return { ...replacement, ...kept };
 }
 
 /**
@@ -166,6 +342,28 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // registers by hand (https://cirrux.co/help/api/drive). A files face is a
   // connector of its own, not a row edit; 0160 T5 plans it.
   cirrux: ['email', 'calendar', 'contact', 'task'],
+  // Soverin's four faces with TWO logins (workplan 0161; read 2026-11-19):
+  // mail over IMAP at mail.infomaniak.com, signed in with the full address
+  // and the password made for it (https://www.infomaniak.com/fr/support/faq/2427),
+  // and calendars, contacts and tasks over CalDAV and CardDAV at
+  // sync.infomaniak.com, signed in with the account's sync login
+  // (https://www.infomaniak.com/fr/support/faq/1544). `MAIL_LOGIN_APART_KINDS`
+  // says why the two cannot be one. 'task' is here on the day the kind
+  // arrives, with Cirrux's evidence: a task in Infomaniak's Calendar is linked
+  // to a calendar (https://www.infomaniak.com/fr/support/faq/984), an imported
+  // .ics puts its VTODO there (https://www.infomaniak.com/fr/support/faq/1974),
+  // and kSync syncs "contacts, calendriers/agendas et tâches" over CardDAV and
+  // CalDAV (https://www.infomaniak.com/fr/support/faq/2302). So a task list is
+  // a calendar collection that declares VTODO (0113 T5).
+  //
+  // 'file' is absent, and it is a measured "later" rather than a no: kDrive
+  // has WebDAV, at an address of its own per drive,
+  // `https://<kDrive ID>.connect.kdrive.infomaniak.com`, and Infomaniak does
+  // not offer it on kSuite Free, kSuite Standard, my kSuite or my kSuite+
+  // (https://www.infomaniak.com/fr/support/faq/2409, updated 12/11/2026). A
+  // face some plans have and others refuse needs its own address field and its
+  // own measurement before this row can claim it; 0161 T3 plans it.
+  infomaniak: ['email', 'calendar', 'contact', 'task'],
 };
 
 /**

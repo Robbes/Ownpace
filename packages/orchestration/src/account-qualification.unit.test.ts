@@ -514,7 +514,7 @@ describe('the JMAP face: the one place an honest NO exists', () => {
 
 describe('the boundary', () => {
   it('covers exactly the Basic-auth account families; OAuth kinds are grant-qualified (T1), not probed', async () => {
-    for (const kind of ['caldav', 'carddav', 'webdav', 'nextcloud', 'soverin', 'cirrux', 'imap', 'jmap']) {
+    for (const kind of ['caldav', 'carddav', 'webdav', 'nextcloud', 'soverin', 'cirrux', 'infomaniak', 'imap', 'jmap']) {
       expect(isQualifiableKind(kind), kind).toBe(true);
     }
     for (const kind of ['gmail', 'google_drive', 'google_calendar', 'o365', 'dropbox', 'box']) {

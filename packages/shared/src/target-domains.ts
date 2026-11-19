@@ -43,7 +43,8 @@ export type WizardTargetType =
   | 'webdav'
   | 'soverin'
   | 'nextcloud'
-  | 'cirrux';
+  | 'cirrux'
+  | 'infomaniak';
 
 export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<DiscoveryDomain>> = {
   jmap: ['email', 'contact', 'file'],
@@ -91,6 +92,13 @@ export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<Discove
   // which says why `file` is not in it: Cirrux Drive has no WebDAV, so no
   // writer here can reach it.
   cirrux: ['email', 'calendar', 'contact', 'task'],
+  // The fourth (workplan 0161 T1): Soverin's faces and two logins, mail over
+  // IMAP from the stored `mailHost` with the mailbox's own login, calendars,
+  // contacts and task lists over `sync.infomaniak.com` with the account's
+  // sync login. The same list as `PROVIDER_ACCOUNT_DOMAINS.infomaniak`, which
+  // says why `file` waits: kDrive's WebDAV has its own address per drive and
+  // is not offered on every plan.
+  infomaniak: ['email', 'calendar', 'contact', 'task'],
 };
 
 const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
@@ -102,6 +110,7 @@ const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
   soverin: 'Soverin',
   nextcloud: 'Nextcloud',
   cirrux: 'Cirrux',
+  infomaniak: 'Infomaniak',
 };
 
 /**

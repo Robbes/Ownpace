@@ -347,7 +347,7 @@ describe('the scheduling verdict: measured at test time, never assumed (0105 T0)
 
   // `cirrux` since workplan 0160: the rule is the account table, so the second
   // named account target is asked the same way without a list naming it.
-  it.each(['soverin', 'cirrux'] as const)('a %s target’s headline is its CALENDAR face, verdict riding it (0106 T4a)', async (kind) => {
+  it.each(['soverin', 'cirrux', 'infomaniak'] as const)('a %s target’s headline is its CALENDAR face, verdict riding it (0106 T4a)', async (kind) => {
     // The account kind answers like caldav at the headline: the most
     // informative single face, and the one the scheduling verdict belongs
     // to — the qualification beside it carries the rest of the account.

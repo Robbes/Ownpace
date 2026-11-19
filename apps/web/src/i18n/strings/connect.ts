@@ -286,6 +286,9 @@ export const en = {
   // Says how its files come, as Nextcloud's says what it does not take: Cirrux
   // Drive is a sign-in added to the account once it is saved (workplan 0160 T5).
   'account.proto.cirrux.hint': 'One account — email, calendars, contacts and tasks; Drive files once connected',
+  // Says what it does not take, as Nextcloud's does: Infomaniak has kDrive,
+  // and nothing here writes to it yet (workplan 0161).
+  'account.proto.infomaniak.hint': 'One account — email, calendars, contacts and tasks (no files)',
   'account.host': 'Host',
   'account.port': 'Port',
   // The DAV escape hatch (0105 T1) — see credential-fields.ts. It is the
@@ -310,6 +313,23 @@ export const en = {
   'account.cirruxAppPassword.hint': 'An app password from the mailbox’s Passwords tab in Cirrux Mail.',
   'account.cirruxAppPassword.why':
     'Cirrux refuses the password you sign in with for mail, calendars and contacts. An app password works for one mailbox until you delete it.',
+  // The Infomaniak door (0161 T1): TWO logins in one form. Calendars,
+  // contacts and tasks sign in with the account's sync login; mail with the
+  // mailbox's own, because Infomaniak refuses an app password for mail.
+  'account.infomaniakSyncUsername.hint': 'Your sync username from config.infomaniak.com, such as AB12345.',
+  'account.infomaniakSyncUsername.why':
+    'Not your email address: Infomaniak’s calendars and contacts belong to your Infomaniak account, which signs in with this short username, in capitals. In the configuration assistant, choose a device other than iOS, such as Linux, then the manual synchronisation tab.',
+  'account.infomaniakSyncPassword.hint':
+    'An application password if two-step validation is on; otherwise your Infomaniak password.',
+  'account.infomaniakSyncPassword.why':
+    'It signs in to calendars, contacts and tasks. Infomaniak refuses an application password for mail, which is why mail has a login of its own below.',
+  // The mailbox's own login, on the doors whose mail signs in apart.
+  'account.mailUsername': 'Mailbox address',
+  'account.mailPassword': 'Mailbox password',
+  'account.infomaniakMailUsername.hint': 'The mailbox’s full email address, needed only if mail moves.',
+  'account.infomaniakMailPassword.hint': 'Made on the address’s Devices tab, not an application password.',
+  'account.infomaniakMailPassword.why':
+    'In the Manager: Mail Service → the domain → the address → Devices → Add a device, with No user. Infomaniak refuses an application password for mail. It shows the new password once, and it can be changed there later. Leave both mailbox boxes empty if no mail moves.',
   // The provider directory (0106 T5): whose published settings sit in the
   // boxes, read when. They are measured by Test, never assumed.
   'account.providerDefaults.note':
@@ -724,6 +744,22 @@ export const en = {
   'setup.cirrux.drive.title': 'Files moving too? Connect Cirrux Drive afterwards',
   'setup.cirrux.drive.detail':
     'Files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password. Once the account is saved, press Connect Cirrux Drive beside it on the Accounts page and sign in to Cirrux as the person whose Drive it is. A service that Cirrux has not registered shows no such button, and says so: then send the files to another destination.',
+  // ---- What comes first for Infomaniak (workplan 0161 T1), in infomaniak.md's words ----
+  'setup.infomaniak.account_exists.title': 'Make sure the Infomaniak account and mailbox exist',
+  'setup.infomaniak.account_exists.detail':
+    'The Infomaniak account must exist already, with the mail address the mail goes to and room for what is coming. This service creates no accounts.',
+  'setup.infomaniak.sync_login.title': 'Find the sync login for calendars and contacts',
+  'setup.infomaniak.sync_login.detail':
+    'Open config.infomaniak.com, choose a device other than iOS, such as Linux, then Contacts or Calendars, and open the manual synchronisation tab: it shows your username, such as AB12345. With two-step validation on, make an application password in the Manager under Application passwords (Generate an application password; it is shown once) and use it; without, use your Infomaniak password.',
+  'setup.infomaniak.sync_login.yields':
+    'the sync username, such as AB12345, and an application password or your Infomaniak password.',
+  'setup.infomaniak.mail_password.title': 'Make a password for the mailbox',
+  'setup.infomaniak.mail_password.detail':
+    'Mail signs in apart, and an application password is refused for it. In the Manager: Mail Service, the domain, the address, its Devices tab, then Add a device, choosing No user. Infomaniak shows the password once, at least 16 characters, so copy it at once; you can change it there later.',
+  'setup.infomaniak.mail_password.yields': 'the mailbox’s email address, and its password.',
+  'setup.infomaniak.mail_server.title': 'Mail moving too? Keep the mail server',
+  'setup.infomaniak.mail_server.detail':
+    'The form fills in Mail server, mail.infomaniak.com, and Mail port, 993, from Infomaniak’s published settings. If mail moves, leave Mail server filled in and fill in Mailbox address and Mailbox password: an account saved without them carries no mail. Calendars, contacts and tasks need none of the three.',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -901,6 +937,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.proto.nextcloud.hint':
     'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
   'account.proto.cirrux.hint': 'Eén account — e-mail, agenda’s, contacten, taken; bestanden zodra Drive verbonden is',
+  'account.proto.infomaniak.hint': 'Eén account — e-mail, agenda’s, contacten en taken (geen bestanden)',
   'account.host': 'Host',
   'account.port': 'Poort',
   'account.targetDavUrl': 'DAV-basis-URL',
@@ -917,6 +954,19 @@ export const nl: Record<keyof typeof en, string> = {
   'account.cirruxAppPassword.hint': 'Een app-wachtwoord van het tabblad Passwords van de mailbox in Cirrux Mail.',
   'account.cirruxAppPassword.why':
     'Cirrux weigert het wachtwoord waarmee u zich aanmeldt voor mail, agenda’s en contacten. Een app-wachtwoord werkt voor één mailbox, totdat u het verwijdert.',
+  'account.infomaniakSyncUsername.hint': 'Uw synchronisatiegebruikersnaam van config.infomaniak.com, zoals AB12345.',
+  'account.infomaniakSyncUsername.why':
+    'Niet uw e-mailadres: de agenda’s en contacten van Infomaniak horen bij uw Infomaniak-account, dat zich met deze korte gebruikersnaam aanmeldt, in hoofdletters. Kies in de configuratie-assistent een ander apparaat dan iOS, zoals Linux, en daarna het tabblad voor handmatige synchronisatie.',
+  'account.infomaniakSyncPassword.hint':
+    'Een app-wachtwoord als verificatie in twee stappen aanstaat; anders uw Infomaniak-wachtwoord.',
+  'account.infomaniakSyncPassword.why':
+    'Het meldt zich aan bij agenda’s, contacten en taken. Infomaniak weigert een app-wachtwoord voor mail; daarom heeft mail hieronder een eigen aanmelding.',
+  'account.mailUsername': 'Adres van de mailbox',
+  'account.mailPassword': 'Wachtwoord van de mailbox',
+  'account.infomaniakMailUsername.hint': 'Het volledige e-mailadres van de mailbox, alleen nodig als er mail meegaat.',
+  'account.infomaniakMailPassword.hint': 'Gemaakt op het tabblad Devices van het adres, geen app-wachtwoord.',
+  'account.infomaniakMailPassword.why':
+    'In de Manager: Mail Service → het domein → het adres → Devices → Add a device, met No user. Infomaniak weigert een app-wachtwoord voor mail. Het toont het nieuwe wachtwoord één keer, en u kunt het daar later wijzigen. Laat beide mailboxvakken leeg als er geen mail meegaat.',
   'account.providerDefaults.note':
     'Vooraf ingevuld met de gepubliceerde instellingen van {provider}, gelezen op {seen}. Test controleert deze.',
   'account.sourceUsername': 'Gebruikersnaam',
@@ -1223,4 +1273,19 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.cirrux.drive.title': 'Gaan er bestanden mee? Verbind daarna Cirrux Drive',
   'setup.cirrux.drive.detail':
     'Bestanden gaan naar Cirrux Drive, en daarvoor is uw eigen aanmelding bij Cirrux nodig, niet het app-wachtwoord. Is het account bewaard, druk dan op de pagina Accounts naast het account op Cirrux Drive verbinden en meld u bij Cirrux aan als de persoon van wie de Drive is. Een dienst die Cirrux niet heeft geregistreerd, toont die knop niet en zegt dat: stuur de bestanden dan naar een andere bestemming.',
+  'setup.infomaniak.account_exists.title': 'Zorg dat het Infomaniak-account en de mailbox bestaan',
+  'setup.infomaniak.account_exists.detail':
+    'Het Infomaniak-account moet al bestaan, met het mailadres waar de mail naartoe gaat en ruimte voor wat eraan komt. Deze dienst maakt zelf geen accounts aan.',
+  'setup.infomaniak.sync_login.title': 'Zoek de synchronisatie-aanmelding voor agenda’s en contacten',
+  'setup.infomaniak.sync_login.detail':
+    'Open config.infomaniak.com, kies een ander apparaat dan iOS, zoals Linux, daarna Contacts of Calendars, en open het tabblad voor handmatige synchronisatie: daar staat uw gebruikersnaam, zoals AB12345. Staat verificatie in twee stappen aan, maak dan in de Manager onder Application passwords een app-wachtwoord (Generate an application password; het wordt één keer getoond) en gebruik dat; anders uw Infomaniak-wachtwoord.',
+  'setup.infomaniak.sync_login.yields':
+    'de synchronisatiegebruikersnaam, zoals AB12345, en een app-wachtwoord of uw Infomaniak-wachtwoord.',
+  'setup.infomaniak.mail_password.title': 'Maak een wachtwoord voor de mailbox',
+  'setup.infomaniak.mail_password.detail':
+    'Mail meldt zich apart aan, en een app-wachtwoord wordt daarvoor geweigerd. In de Manager: Mail Service, het domein, het adres, het tabblad Devices, daarna Add a device, met No user. Infomaniak toont het wachtwoord één keer, minstens 16 tekens, dus kopieer het meteen; u kunt het daar later wijzigen.',
+  'setup.infomaniak.mail_password.yields': 'het e-mailadres van de mailbox en het wachtwoord daarvan.',
+  'setup.infomaniak.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
+  'setup.infomaniak.mail_server.detail':
+    'Het formulier vult Mailserver, mail.infomaniak.com, en Mailpoort, 993, in met de gepubliceerde instellingen van Infomaniak. Gaat er mail mee, laat Mailserver dan ingevuld en vul Adres van de mailbox en Wachtwoord van de mailbox in: een account dat zonder die drie is bewaard, omvat geen mail. Agenda’s, contacten en taken hebben geen van die drie nodig.',
 };
