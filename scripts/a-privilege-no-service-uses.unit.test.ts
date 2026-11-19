@@ -101,7 +101,7 @@ export interface Policy {
   readonly readOnly?: readonly string[];
 }
 
-/** nginx's master: port 80, its temp directories chowned to nginx, workers that become nginx. */
+/** nginx's master as root, as the image ships it: port 80, its temp directories chowned to nginx, workers that become nginx. */
 const NGINX: Policy = { caps: ['CHOWN', 'NET_BIND_SERVICE', 'SETGID', 'SETUID'] };
 
 export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>> = {
@@ -121,7 +121,8 @@ export const POLICIES: Readonly<Record<string, Readonly<Record<string, Policy>>>
     zitadel: { caps: [] },
     'zitadel-machinekey': { caps: ['CHOWN', 'DAC_OVERRIDE', 'FOWNER'], readOnly: [] },
     api: { caps: [] },
-    web: NGINX,
+    // nginx as its own user, uid 101, from its first process since 2026-11-19 (apps/web/Dockerfile).
+    web: { caps: [] },
     gatus: { caps: [] },
     mailpit: { caps: [], readOnly: ['/tmp'] },
     nextcloud: { caps: 'docker-default' },
@@ -564,7 +565,7 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
     '(its command)': NONE('the API as its image starts it (or a command a document breaks over a line)'),
   },
   'trigger-supervisor': { node: NONE('the image\'s node, as node') },
-  web: { wget: NONE("asks its own nginx over 127.0.0.1, as root, and writes nothing") },
+  web: { wget: NONE("asks its own nginx over 127.0.0.1, as nginx (uid 101), and writes nothing") },
   // Distroless since 2026-11-06 (workplan 0119 §3 item 12): Node by its path is
   // all there is to run, as uid 10001. Until then the drill ran `sh -c ls`,
   // E2E asked `dpkg-query`, and the README offered `exec app sh`.
@@ -727,7 +728,8 @@ describe('each rule fails when it is broken', () => {
     ['ALL added back', (c) => (svc(c, 'api').cap_add = ['ALL']), /api adds ALL back/],
     ['cap_drop taken off', (c) => delete svc(c, 'clickhouse').cap_drop, /clickhouse does not drop ALL/],
     ['cap_drop of one capability, not ALL', (c) => (svc(c, 'zitadel').cap_drop = ['NET_RAW']), /zitadel does not drop ALL/],
-    ['a capability no longer added', (c) => (svc(c, 'web').cap_add = ['CHOWN', 'NET_BIND_SERVICE', 'SETGID']), /web no longer adds SETUID/],
+    ['a capability no longer added', (c) => (svc(c, 'clickhouse').cap_add = ['CHOWN', 'DAC_READ_SEARCH', 'SETGID']), /clickhouse no longer adds SETUID/],
+    ["root's nginx set back on the web app", (c) => (svc(c, 'web').cap_add = ['CHOWN', 'NET_BIND_SERVICE', 'SETGID', 'SETUID']), /web adds CHOWN, NET_BIND_SERVICE, SETGID, SETUID, beyond its list \(none\)/],
     ['NET_BIND_SERVICE taken from Caddy', (c) => (svc(c, 'trigger-tls').cap_add = []), /trigger-tls no longer adds NET_BIND_SERVICE/],
     ['a default-set service half dropped', (c) => (svc(c, 'trigger-api').cap_drop = ['ALL']), /trigger-api keeps Docker's default capabilities in the policy, and sets cap_drop or cap_add/],
     ['a new service', (c) => (c.services!['probe'] = { security_opt: ['no-new-privileges:true'] }), /probe is not in this guard's POLICIES/],

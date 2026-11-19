@@ -3260,7 +3260,7 @@ whose program needs a capability its service does not keep.
 | `zitadel` | its image's user | none | no | read: an image of one binary, run as its non-root user |
 | `zitadel-machinekey` | root | CHOWN, DAC_OVERRIDE, FOWNER | yes | measured, its init and every other command it runs: without CHOWN the chown fails, without FOWNER the chmod after it; without DAC_OVERRIDE `setup-zitadel.sh` cannot read the token (`cat: can't open '/machinekey/pat.txt': Permission denied`) nor write the rotated one, in a directory the identity provider owns at mode 700 (DAC_READ_SEARCH alone reads it and still cannot write) |
 | `api` | uid 65532 | none | no | read: its image's user, and its base carries no setuid binary and no file capability |
-| `web` | root, then nginx | CHOWN, NET_BIND_SERVICE, SETGID, SETUID | no | measured on its nginx with its config: without CHOWN nginx stops, without SETUID or SETGID its workers do |
+| `web` | uid 101 (nginx) | none | no | read (2026-11-19): its image runs nginx as its own user from its first process (`apps/web/Dockerfile`), with the template's output directory and nginx's cache its own and its pid file in `/tmp`, and binds port 80 by the service's `net.ipv4.ip_unprivileged_port_start=0`; until then measured as root, then nginx, keeping CHOWN, NET_BIND_SERVICE, SETGID and SETUID. E2E (managed) is the proof |
 | `gatus` | root | none | no | read: an image of one binary, writing only its own volume |
 | `mailpit` | root | none | yes, `/tmp` in memory | measured: a message in, and a restart |
 | `nextcloud` | root, then www-data | Docker's default | no | read: its entrypoint rsyncs and chowns as root and runs occ through `su`, a set not measured |
@@ -3276,9 +3276,11 @@ came up healthy, and answered as the scripts ask them, through `managed.yml`
 itself. *Read* means its Dockerfile and
 entrypoint at the pinned version, where the image could not be pulled. E2E
 (managed) is the proof for both: it brings up every service of this file.
-NET_BIND_SERVICE stays with `web` (and the site's nginx) although Docker's own
+NET_BIND_SERVICE stays with the site's nginx although Docker's own
 `net.ipv4.ip_unprivileged_port_start=0` makes it redundant today, so that
-port 80 does not rest on a daemon default.
+port 80 does not rest on a daemon default. `web` runs nginx as uid 101 with
+no capability since 2026-11-19, and sets that sysctl itself for the same
+reason.
 
 **What it changes for an operator.** A `docker compose exec` has the
 capabilities of its service: `exec -u 0` into `postgres` is root with no
