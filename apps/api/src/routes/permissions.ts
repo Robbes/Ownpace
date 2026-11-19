@@ -398,6 +398,8 @@ function targetConductOf(
       davUrl(config),
       creds.username ?? '',
       creds.password ?? '',
+      undefined,
+      target.kind,
     );
     return [verdict.sentence];
   };
