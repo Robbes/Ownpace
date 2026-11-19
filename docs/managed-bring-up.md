@@ -3233,7 +3233,7 @@ that change user do it as root with a system call (ClickHouse's `clickhouse
 su`, nginx's and Apache's workers, Nextcloud's `su`), and the rest never change
 user. All but two drop every capability and add back
 only what their own start does as root; a service that runs as another user
-from its first process adds none. Six that write nothing outside their volumes
+from its first process adds none. Seven that write nothing outside their volumes
 start with a read-only root, with `/tmp` (and `/run`) in memory where they
 write there. `managed.yml` gives each service's reason beside it, and
 `scripts/a-privilege-no-service-uses.unit.test.ts` holds every service to this
@@ -3256,7 +3256,8 @@ whose program needs a capability its service does not keep.
 | `trigger-supervisor` | node | none | no | read: its image's user from the first process, and its base carries no setuid binary and no file capability |
 | `minio` | uid 65532 | none | no | measured |
 | `minio-init` | uid 65532 | none | yes, `/tmp` in memory | measured: without `/tmp` mc cannot write its config |
-| `trigger-tls` | root | NET_BIND_SERVICE | no | measured: `/usr/bin/caddy` carries `cap_net_bind_service` as a file capability, and without it in the set the kernel refuses to start it (`exec /usr/bin/caddy: operation not permitted`); not read-only because Caddy writes its local CA into the image's trust store at start |
+| `trigger-tls` | uid 65532 | none | no | read (2026-11-19): its image runs Caddy as uid and gid 65532 from its first process (`deploy/compose/caddy`), which binds 3443 with no capability; `/usr/bin/caddy`'s file capability, `cap_net_bind_service`, is permitted and not effective in Caddy 2.11.9's image (`+p`), and the kernel starts such a binary whatever the bounding set holds. Until then measured as root with NET_BIND_SERVICE, for 2.11.7's effective one, without which the kernel refused to start it (`exec /usr/bin/caddy: operation not permitted`). Not read-only: not measured since Caddy stopped installing its local CA into the image's trust store (`skip_install_trust`). E2E (managed) is the proof |
+| `trigger-tls-init` | root | CHOWN, DAC_READ_SEARCH | yes | read (2026-11-19): a one-shot that gives `trigger-tls`'s two volumes to uid 65532 before it starts, with one `chown -R`, through directories that are 65532's at mode 0700 once it has run, with no network. E2E (managed) is the proof |
 | `zitadel` | its image's user | none | no | read: an image of one binary, run as its non-root user |
 | `zitadel-machinekey` | root | CHOWN, DAC_OVERRIDE, FOWNER | yes | measured, its init and every other command it runs: without CHOWN the chown fails, without FOWNER the chmod after it; without DAC_OVERRIDE `setup-zitadel.sh` cannot read the token (`cat: can't open '/machinekey/pat.txt': Permission denied`) nor write the rotated one, in a directory the identity provider owns at mode 700 (DAC_READ_SEARCH alone reads it and still cannot write) |
 | `api` | uid 65532 | none | no | read: its image's user, and its base carries no setuid binary and no file capability |
@@ -5070,10 +5071,25 @@ asks it from the host.
   moves `managed.yml`'s image line. `build (caddy)` (`images.yml`) builds it,
   starts it with `trigger-tls.Caddyfile` and asks it for TLS on 3443, and its
   E2E (managed) is dispatched like any pin's. A major is the owner's call.
+- **It runs as uid and gid 65532 since 2026-11-19**, with no capability
+  (`deploy/compose/caddy/Dockerfile`, THE USER). On a stack that ran it as
+  root, its volumes `trigger_tls_data` (the local CA and the certificate) and
+  `trigger_tls_config` are root's, and `trigger-tls-init`, the same build as
+  root with CHOWN and DAC_READ_SEARCH alone, gives both to 65532 before the
+  front starts. It runs at every `up`, and once they are 65532's it changes
+  nothing. The CA stays, so the browser's exception still holds.
 - **Rolling back to a tag before this runs upstream's image again**,
   `caddy:2.11.7-alpine` by the digest those tags pin; `up` pulls it when the
   machine no longer has it. A tag between the two builds Caddy 2.11.7 without
-  curl.
+  curl. A tag from before 2026-11-19 runs the front as root with no capability but
+  NET_BIND_SERVICE, which cannot read the CA's keys once 65532 owns them: give
+  the volumes back to root first, from this checkout, before the older tag's
+  `up`:
+
+  ```bash
+  docker compose -f deploy/compose/managed.yml run --rm --no-deps trigger-tls-init \
+    'chown -R 0:0 /data/caddy /config/caddy'
+  ```
 
 **Trigger.dev's Redis is a build here too**, from `v0.2.0-alpha.6`.
 `trigger-redis` runs

@@ -112,6 +112,8 @@ name: ownpace-managed
 # tag and digest, which Dependabot reads (its own entry, never a major). Its name ends in the hash
 # of that file's instructions, and a pull request that changes them fails
 # a-package-the-front-never-runs until the name moves with it. `up` builds it where it is missing.
+# Since 2026-11-19 it runs as uid 65532, and trigger-tls-init, the same build as root, gives its
+# two volumes to that user before it starts.
 # trigger-redis runs a local build too since 2026-11-07 (workplan 0119 §3 item 11, for alpha.6):
 # Redis's official image at its pinned digest with the eleven Debian packages nothing here runs
 # purged (thirteen since 2026-11-08, for alpha.7: libsystemd0 and libudev1 too), run as uid 999
@@ -156,7 +158,7 @@ name: ownpace-managed
 # own start-up does as root, each named beside the service with the reason;
 # a service that runs as another user from its first process adds none. The two
 # that keep Docker's default set, trigger-api and nextcloud, say why beside
-# them. Six that write nothing outside their volumes start with a read-only
+# them. Seven that write nothing outside their volumes start with a read-only
 # root, with /tmp (and /run) in memory where they write there. Each set was
 # measured on the service's own image, its start and a restart on the volume it
 # wrote, where the image could be pulled, and read from the image's Dockerfile
@@ -1189,26 +1191,30 @@ services:
   # in, which carried the image's one critical finding and two of its highs.
   # Nothing here runs curl in it: no healthcheck, no exec, and the smoke asks
   # the front from the host. deploy/compose/caddy/Dockerfile says what it
-  # removes, why the name carries the hash of its instructions, and how it
-  # moves. `never`, as for the databases: no registry serves this name.
+  # removes, why the name carries the hash of its instructions, how it moves,
+  # and why it runs as uid 65532. `never`, as for the databases: no registry
+  # serves this name.
   trigger-tls:
-    image: localhost/caddy:2.11.9-alpine-f52a976e646f
+    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
     restart: unless-stopped
     logging: *logging
-    # HOW IT RUNS (see the header): root, writing only its two volumes.
-    # NET_BIND_SERVICE although it binds 3443: the image's /usr/bin/caddy carries it
-    # as a file capability (cap_net_bind_service=ep), and the kernel refuses to
-    # start a binary whose file capability the bounding set lacks: without it, `exec
-    # /usr/bin/caddy: operation not permitted`. IF CADDY EVER RUNS AS A USER OTHER
-    # THAN ROOT, revisit no-new-privileges here: a non-root Caddy binds through that
-    # file capability, and no-new-privileges stops a file capability from applying.
-    # Not read-only: Caddy writes its local CA into the image's trust store at start.
+    # HOW IT RUNS (see the header): as uid and gid 65532 from its first process,
+    # the image's USER since 2026-11-19, with no capability, writing only its two
+    # volumes, which trigger-tls-init gives it first. It binds 3443, which needs
+    # none, and no-new-privileges stays: the binary's file capability,
+    # cap_net_bind_service, is permitted and not effective in Caddy 2.11.9's
+    # image (`+p`), and the kernel starts such a binary whatever the bounding set
+    # holds. Until then it ran as root and kept NET_BIND_SERVICE, for 2.11.7's
+    # `+ep`: the kernel refuses a binary whose effective file capability the
+    # bounding set lacks (`exec /usr/bin/caddy: operation not permitted`). Not
+    # read-only: not measured since Caddy stopped installing its local CA into
+    # the image's trust store at start (skip_install_trust), which was why.
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
-    cap_add: [NET_BIND_SERVICE]
+    cap_add: []
     environment:
       TRIGGER_TLS_HOST: ${TRIGGER_TLS_HOST:-localhost}
     ports:
@@ -1226,8 +1232,48 @@ services:
     depends_on:
       trigger-api:
         condition: service_started
+      # Its two volumes given to 65532 first (trigger-tls-init, below).
+      trigger-tls-init:
+        condition: service_completed_successfully
     networks:
       - ownpace-network
+
+  # Gives trigger-tls's two volumes to the user it runs as, uid and gid 65532,
+  # before it starts (2026-11-19, workplan 0119). On a stack that ran the front
+  # as root, trigger_tls_data (the CA `tls internal` minted, and its
+  # certificate) and trigger_tls_config are root's, the keys at mode 0600 in
+  # directories at mode 0700, so 65532 could not read the CA and the front
+  # would not start. This gives both to 65532 once, and the CA and a browser's
+  # exception for its certificate stay; at every `up` after that it changes
+  # nothing, and on a new volume it finds the image's own directories. A
+  # one-shot, as minio-init is: trigger-tls waits for it with
+  # service_completed_successfully, which `up --wait` takes as done. The same
+  # build as trigger-tls, as root. Going back to a tag that ran the front as
+  # root needs the two given back to root first (docs/managed-bring-up.md, "The
+  # dashboard's TLS front is a build here too").
+  trigger-tls-init:
+    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
+    build: ./caddy
+    pull_policy: never
+    container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls-init
+    restart: "no"
+    logging: *logging
+    # HOW IT RUNS (see the header): root, for one chown (CHOWN) through
+    # directories that are 65532's at mode 0700 once it has run
+    # (DAC_READ_SEARCH). Read-only, with no network: it changes the owner of the
+    # two volumes' files and nothing else.
+    user: "0:0"
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+    cap_add: [CHOWN, DAC_READ_SEARCH]
+    read_only: true
+    network_mode: none
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - 'mkdir -p /data/caddy /config/caddy && chown -R 65532:65532 /data/caddy /config/caddy && echo "trigger_tls_data and trigger_tls_config are 65532:65532"'
+    volumes:
+      - trigger_tls_data:/data
+      - trigger_tls_config:/config
 
   # The identity provider (ADR-0042).
   #

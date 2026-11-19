@@ -48,6 +48,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   machine builds at its next deploy, and the tasks' base names its user by number. A new test
   holds every Dockerfile to six of hadolint's rules, and names each file that breaks one with its
   reason.
+- **The Trigger.dev dashboard's TLS front runs as its own user, with no capability** (workplan
+  0119). A read-only check of the repository read the front's image as a container that runs as
+  root, which it did. Caddy now runs as uid 65532: it listens on port 3443, which needs no
+  privilege, and Caddy 2.11.9's binary no longer needs the capability the front kept for 2.11.7.
+  A one-shot gives the front's two volumes to that user before it starts, so the local
+  certificate authority, and a browser's exception for its certificate, stay. Each machine builds
+  the new image at its next deploy. Going back to an earlier release needs the volumes given back
+  to root first; the bring-up guide gives the command.
 - **The Stalwart test fixture's Dockerfile names its base by digest and its user by number, and
   the two base images a read-only check reported with a fixable high or critical stay, read and
   recorded** (workplan 0119). `packages/testing/fixtures/stalwart/Dockerfile`, which nothing here
