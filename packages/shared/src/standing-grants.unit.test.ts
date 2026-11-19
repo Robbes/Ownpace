@@ -207,7 +207,7 @@ describe('the completion report carries it (workplan 0085 T4b)', () => {
  * same shape, so the reminder has to exist.
  */
 describe('credentials that outlive our erasure', () => {
-  it.each(['nextcloud', 'proton', 'imap', 'jmap', 'caldav', 'carddav', 'webdav', 'selfhosted_mail', 'soverin', 'cirrux'])(
+  it.each(['nextcloud', 'proton', 'imap', 'jmap', 'caldav', 'carddav', 'webdav', 'selfhosted_mail', 'soverin', 'cirrux', 'infomaniak'])(
     '%s leaves a credential the customer has to retire',
     (kind) => {
       const found = credentialRetirementsFor([kind]);
@@ -222,7 +222,7 @@ describe('credentials that outlive our erasure', () => {
     // from "nothing to do".
     const PASSWORD_KINDS = [
       'imap', 'jmap', 'caldav', 'carddav', 'webdav',
-      'nextcloud', 'proton', 'soverin', 'cirrux', 'selfhosted_mail',
+      'nextcloud', 'proton', 'soverin', 'cirrux', 'infomaniak', 'selfhosted_mail',
     ];
     const covered = new Set(identifiersWithRetirableCredentials());
     expect(PASSWORD_KINDS.filter((k) => !covered.has(k))).toEqual([]);
@@ -239,6 +239,36 @@ describe('credentials that outlive our erasure', () => {
     expect(item!.en).toMatch(/app password[^.]*still works/i);
     expect(item!.nl).toContain('app-wachtwoord');
     expect(item!.nl).toContain('Passwords');
+  });
+
+  it('infomaniak names BOTH places, because the account held two passwords (workplan 0161)', () => {
+    // The sync login's app password lives on the Manager's application
+    // passwords page (FAQ 2855); the mailbox's password is a device on the
+    // address's Devices tab (FAQ 1321). A sentence naming one of them would
+    // leave the other working, with nobody told.
+    const [item] = credentialRetirementsFor(['infomaniak']);
+    expect(item?.id).toBe('infomaniak');
+    expect(item!.whatTheyCallIt).toContain('Application passwords');
+    expect(item!.whatTheyCallIt).toContain('Devices');
+    expect(item!.where).toContain('https://manager.infomaniak.com/v3/ng/profile/user/connection-history/application-password');
+    expect(item!.where).toContain('Mail Service');
+    expect(item!.where).toContain('Devices');
+    for (const words of [item!.en, item!.nl]) {
+      expect(words).toContain('Application passwords');
+      expect(words).toContain('Devices');
+    }
+    expect(item!.en).toMatch(/two passwords[^.]*still work/i);
+    expect(item!.nl).toContain('app-wachtwoord');
+  });
+
+  it('cirrux says where the Drive sign-in is ended at Cirrux, since no app can end it (workplan 0160)', () => {
+    // Cirrux's Security page lists the apps a person authorized, each revocable
+    // there (https://cirrux.co/help/security); its labels stay in English.
+    const [item] = credentialRetirementsFor(['cirrux']);
+    for (const text of [item!.en, item!.nl]) {
+      expect(text).toContain('Settings → Security');
+      expect(text).toContain('30');
+    }
   });
 
   it('says the credential STILL WORKS, which is the whole point', () => {

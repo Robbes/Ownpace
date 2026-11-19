@@ -103,15 +103,18 @@ describe('what each side can offer', () => {
       // Soverin's shape for a second provider (workplan 0160): mail, calendars,
       // contacts and tasks from one Cirrux mailbox and its app password.
       'cirrux',
+      // And a third (workplan 0161), with two logins: Infomaniak's sync login
+      // for calendars, contacts and tasks, and the mailbox's own for mail.
+      'infomaniak',
     ]);
   });
 });
 
 describe('the DAV targets ask for an optional base URL (0105 T1)', () => {
-  it('caldav, carddav, webdav, soverin and cirrux offer url, and it gates nothing', () => {
+  it('caldav, carddav, webdav, soverin, cirrux and infomaniak offer url, and it gates nothing', () => {
     // The escape hatch for a provider whose DAV root lives behind a path —
     // host+port can only ever say https://host:port/.
-    for (const type of ['caldav', 'carddav', 'webdav', 'soverin', 'cirrux']) {
+    for (const type of ['caldav', 'carddav', 'webdav', 'soverin', 'cirrux', 'infomaniak']) {
       const url = credentialFieldsFor('target', type).find((f) => f.key === 'url');
       expect(url, `${type} has no url field`).toBeDefined();
       expect(url?.required, `${type}'s url must stay optional — host+port keep working`).not.toBe(
@@ -152,6 +155,75 @@ describe('the soverin mail face is asked at ITS door only (0106 T4b)', () => {
         `${type} must not ask for a mailHost`,
       ).toBe(false);
     }
+  });
+});
+
+describe('the infomaniak door: two logins in one form (workplan 0161 T1)', () => {
+  const fields = credentialFieldsFor('target', 'infomaniak');
+  const field = (key: string) => fields.find((f) => f.key === key);
+
+  it("is Soverin's door with the mailbox's own login after the mail server", () => {
+    expect(fields.map((f) => f.key)).toEqual([
+      'host',
+      'port',
+      'url',
+      'username',
+      'password',
+      'mailHost',
+      'mailPort',
+      'mailUsername',
+      'mailPassword',
+    ]);
+    // The sync login is required; the four mail fields are not: a calendar-only
+    // account needs none of them, and the create door demands them by name
+    // when email is ticked.
+    expect(fields.filter((f) => f.required).map((f) => f.key)).toEqual(['host', 'port', 'username', 'password']);
+    for (const key of ['mailHost', 'mailPort', 'mailUsername', 'mailPassword']) {
+      expect(field(key)?.required, key).not.toBe(true);
+    }
+  });
+
+  it('keeps the mailbox password secret, and never asks the deployment for it', () => {
+    expect(secretFieldKeys('target', 'infomaniak')).toEqual(['password', 'mailPassword']);
+    expect(field('mailUsername')?.secret).not.toBe(true);
+    // A second login, not a client pair: each half names the other, so the
+    // rotation panel offers them together, and no deployment folds them away.
+    expect(field('mailUsername')?.loginPairedWith).toBe('mailPassword');
+    expect(field('mailPassword')?.loginPairedWith).toBe('mailUsername');
+    expect(field('mailUsername')?.pairedWith).toBeUndefined();
+    expect(field('mailPassword')?.pairedWith).toBeUndefined();
+    for (const deploymentClient of [true, false]) {
+      expect(credentialFieldRequired(field('mailUsername')!, { deploymentClient })).toBe(false);
+      expect(credentialFieldRequired(field('mailPassword')!, { deploymentClient })).toBe(false);
+    }
+  });
+
+  it('shows the servers and the username Infomaniak names, and says which password each box wants', () => {
+    expect(field('host')?.placeholder).toBe('sync.infomaniak.com');
+    expect(field('port')?.placeholder).toBe('443');
+    // The sync username is short and in capitals, not an address.
+    expect(field('username')?.placeholder).toBe('AB12345');
+    expect(field('username')?.hintKey).toBe('account.infomaniakSyncUsername.hint');
+    expect(field('password')?.hintKey).toBe('account.infomaniakSyncPassword.hint');
+    expect(field('mailUsername')?.labelKey).toBe('account.mailUsername');
+    expect(field('mailPassword')?.labelKey).toBe('account.mailPassword');
+    expect(field('mailPassword')?.hintKey).toBe('account.infomaniakMailPassword.hint');
+  });
+
+  it('leaves every other target door exactly as it was', () => {
+    // Soverin's and Cirrux's Username boxes keep their address example and no
+    // line, and no other door grows a mail login.
+    for (const type of ['soverin', 'cirrux', 'caldav', 'imap', 'jmap', 'nextcloud']) {
+      const other = credentialFieldsFor('target', type);
+      expect(other.find((f) => f.key === 'username')?.placeholder, type).toBe('someone@example.com');
+      expect(other.find((f) => f.key === 'username')?.hintKey, type).toBeUndefined();
+      expect(other.some((f) => f.key === 'mailUsername' || f.key === 'mailPassword'), type).toBe(false);
+    }
+  });
+
+  it('is named Infomaniak on screen, in both languages', () => {
+    expect(providerDisplayName('infomaniak')).toBe('Infomaniak');
+    expect(providerDisplayName('infomaniak', 'nl')).toBe('Infomaniak');
   });
 });
 

@@ -63,6 +63,7 @@ import {
   notReadSaid,
   permissionsNotDiscoverable,
   resolveGoogleClient,
+  targetCredentialRecord,
   type Bilingual,
   type PermissionListing,
 } from '@openmig/shared';
@@ -382,11 +383,12 @@ function targetConductOf(
       : (config.credentials ?? {});
     // The full qualification when the kind supports it (0106 T0): which
     // object types this account answered for, with the scheduling verdict
-    // folded into the calendar face it belongs to.
-    const qualification = await qualifyAccount(target.kind, config, {
-      username: creds.username ?? '',
-      password: creds.password ?? '',
-    });
+    // folded into the calendar face it belongs to. Handed the target's record
+    // as every door builds it (`targetCredentialRecord`, workplan 0161 T1):
+    // for the DAV kinds measured here, the pair it always was; for a kind
+    // that signs in to mail apart, the mailbox's login beside it, which a
+    // hand-built pair would drop.
+    const qualification = await qualifyAccount(target.kind, config, targetCredentialRecord(target.kind, creds));
     // The target's address is one the organisation typed, so a face it
     // refused is said from its parts, as on the Test button (0136 T3).
     if (qualification) {

@@ -17,7 +17,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { asTenantId, asMappingId, type Ledger } from '@openmig/shared';
+import { asTenantId, asMappingId, mailsGuestsItself, type Ledger } from '@openmig/shared';
 import { CalDAVTargetWriter, type HttpClient } from './caldav-target-writer.ts';
 import { removeDavResource } from './dav-remove.ts';
 
@@ -298,5 +298,52 @@ describe('a removal at a target that mails guests', () => {
 
     expect(result).toEqual({ keptForGuests: true });
     expect(t.sent('DELETE')).toHaveLength(0);
+  });
+});
+
+/**
+ * THE SAME AT INFOMANIAK (workplan 0161). `infomaniak` is on
+ * `TARGETS_THAT_MAIL_GUESTS` from the day its kind arrives, untested, and a
+ * writer's flag is that list's answer for its kind (`mailsGuestsItself`, which
+ * the factories hand over). This writer sends Infomaniak no guest, so a copy
+ * there that lists one was given it at Infomaniak; it is neither rewritten nor
+ * removed, exactly as at Cirrux.
+ */
+describe('a copy that lists guests at an Infomaniak target (workplan 0161)', () => {
+  const mailsGuests = mailsGuestsItself('infomaniak');
+
+  it('is at a target the writers treat as one that mails guests', () => {
+    expect(mailsGuests).toBe(true);
+  });
+
+  it('is not rewritten: nothing is sent, and the copy stays as it was', async () => {
+    const t = target({ body: WITH_GUESTS, etag: 'v1' });
+
+    const result = await rewrite(writer(t.client, mailsGuests));
+
+    expect(result).toEqual({ targetId: EVENT, created: false, keptForGuests: true });
+    expect(t.sent('PUT'), 'a PUT here takes the guest off').toHaveLength(0);
+    expect(t.held()).toEqual({ body: WITH_GUESTS, etag: 'v1' });
+  });
+
+  it('is not removed either, a task as an event', async () => {
+    for (const domain of ['calendar', 'task'] as const) {
+      const body = domain === 'task' ? WITH_GUESTS.replace(/VEVENT/g, 'VTODO') : WITH_GUESTS;
+      const t = target({ body, etag: 'v1' });
+
+      const result = await writer(t.client, mailsGuests, domain).removeItem(EVENT, { expectedTargetVersion: 'v1' });
+
+      expect(result, domain).toEqual({ keptForGuests: true });
+      expect(t.sent('DELETE'), domain).toHaveLength(0);
+    }
+  });
+
+  it('still rewrites a copy that lists nobody, as every copy this writer made there does', async () => {
+    const t = target({ body: WITHOUT_GUESTS, etag: 'v1' });
+
+    const result = await rewrite(writer(t.client, mailsGuests));
+
+    expect(result).toMatchObject({ targetId: EVENT, created: false, updated: true });
+    expect(t.sent('PUT')[0]?.body).not.toMatch(/^(ATTENDEE|ORGANIZER)/m);
   });
 });

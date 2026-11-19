@@ -18,7 +18,7 @@
 
 import { detectCaldavScheduling } from '@openmig/connectors';
 import type { CaldavSchedulingCapability, HttpClient } from '@openmig/connectors';
-import { log, mailsGuestsItself } from '@openmig/shared';
+import { guestsUntestedAt, log, mailsGuestsItself } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
 import type { Ledger, MappingId, TenantId } from '@openmig/shared';
 
@@ -66,6 +66,18 @@ const MAILS_GUESTS_SENTENCE =
   'their guests and organiser, each kept as a comment that names them, so ' +
   'migrating sends no invitations.';
 
+/**
+ * The sentence for a kind on that list because nobody has tested it
+ * (`TARGETS_UNTESTED_FOR_GUESTS`, workplan 0161): the writer does the same,
+ * and the sentence does not claim the target mails guests, which nobody has
+ * seen it do.
+ */
+const UNTESTED_GUESTS_SENTENCE =
+  'Whether this target emails the guests an event lists has not been tested yet. ' +
+  'Until a migration shows it sends nothing, Ownpace writes events and tasks to it ' +
+  'without their guests and organiser, each kept as a comment that names them, so ' +
+  'migrating sends no invitations.';
+
 /** The OPTIONS probe wants only status + headers; the body stays unread. */
 const optionsHttpClient: HttpClient = {
   request: async ({ url, method, headers }) => {
@@ -98,7 +110,11 @@ export async function measureTargetScheduling(
   );
   return {
     capability,
-    sentence: mailsGuestsItself(kind) ? MAILS_GUESTS_SENTENCE : SCHEDULING_SENTENCES[capability],
+    sentence: mailsGuestsItself(kind)
+      ? guestsUntestedAt(kind)
+        ? UNTESTED_GUESTS_SENTENCE
+        : MAILS_GUESTS_SENTENCE
+      : SCHEDULING_SENTENCES[capability],
   };
 }
 

@@ -1765,6 +1765,73 @@ paths:
             text/html:
               schema: { type: string }
 
+  /api/migrations/cirrux/disconnect:
+    post:
+      tags: [Migrations]
+      summary: Disconnect Cirrux Drive from a Cirrux account
+      description: |
+        Workplan 0160; ADR-0052. Removes the Cirrux Drive sign-in stored on
+        the Cirrux destination named by `connectionId`, and nothing else: the
+        app password and every other part of the account's encrypted record
+        stay, so mail, calendars, contacts and tasks carry on. The removal
+        takes the row's lock every refresh takes, so a refresh in flight
+        finishes first and the token it stored is the one removed. In the same
+        transaction the account's record measures files as not connected (a
+        measured no), and the audit line `connection.cirrux_drive_disconnected`
+        is written, with no token in it. Once it commits, this process's
+        access tokens for the account are dropped; a pass running in another
+        process stops within a minute, when it finds no sign-in stored, and
+        says so in the sentence that names *Connect Cirrux Drive*.
+
+        **Nothing is asked of Cirrux, and no file in the Drive is touched.**
+        Cirrux documents no way for an app to withdraw a sign-in, so
+        `revocation.status` is `unsupported`, never `revoked`, and its
+        `reason` says the sign-in lasts at Cirrux until it goes unused for 30
+        days or is revoked under Settings → Security in Cirrux Mail, which
+        lists the apps a person has authorized.
+
+        **Idempotent.** An account with no Drive sign-in stored answers 200
+        with `removed: false` and `revocation.status` `no_credential`, and a
+        record that still said the Drive was connected is put right.
+
+        A closed organisation is not refused, and nor is a person who has not
+        accepted the current texts: this ends access and starts nothing, as
+        withdrawing a grant does (workplan 0085 T2).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [connectionId]
+              properties:
+                connectionId:
+                  type: string
+                  format: uuid
+                  description: The Cirrux destination on the Accounts page to disconnect Drive from.
+      responses:
+        '200':
+          description: Disconnected, or there was no Drive sign-in to disconnect.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/CirruxDriveDisconnected' }
+        '400':
+          description: '`invalid_body`: no `connectionId`, or one that is not a UUID.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`not_a_cirrux_account`: no Cirrux destination of this organisation has that id; nothing was changed.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '500':
+          description: |
+            `cirrux_disconnect_failed`: ours. The removal's transaction did not
+            commit, so nothing was removed; the reason carries a reference to
+            mention.
+
   /api/connections:
     get:
       tags: [Connections]
@@ -8692,6 +8759,20 @@ components:
         displayName: { type: string }
         revocation: { $ref: '#/components/schemas/RevocationOutcome' }
       required: [deleted, id, revocation]
+
+    CirruxDriveDisconnected:
+      type: object
+      description: |
+        The answer to Disconnect Cirrux Drive (workplan 0160). `removed` says
+        whether this press removed a stored sign-in; false when none was
+        stored, which is not a failure. `revocation` says what happened at
+        Cirrux: `unsupported` (Cirrux documents no revocation an app can call,
+        and `reason` says how the sign-in ends there) or `no_credential`.
+      properties:
+        connectionId: { type: string, format: uuid }
+        removed: { type: boolean }
+        revocation: { $ref: '#/components/schemas/RevocationOutcome' }
+      required: [connectionId, removed, revocation]
 
     MigrationDeleted:
       type: object

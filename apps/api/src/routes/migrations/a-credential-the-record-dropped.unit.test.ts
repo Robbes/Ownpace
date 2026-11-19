@@ -30,7 +30,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { connectableTypes, credentialFieldsFor, type CredentialField } from '@openmig/shared';
+import { connectableTypes, credentialFieldsFor, targetCredentialRecord, type CredentialField } from '@openmig/shared';
 import { sourceCredentialRecord } from './index.ts';
 
 /** A value that names its own field, so a swap between two would show. */
@@ -78,6 +78,47 @@ describe('every secret a source descriptor asks for survives the credential reco
           '(2026-09-06: a Microsoft grant stored as {username}).',
       ).toBe(sentinel(secret.key));
     }
+  });
+});
+
+/**
+ * THE SAME RULE FOR A DESTINATION (workplan 0161 T1). Until 0161 every target
+ * signed in with one login, and the doors wrote `{ username, password }` by
+ * hand. Infomaniak's form asks for a second login, the mailbox's own, and a
+ * hand-written pair would drop it: the descriptor calls `mailPassword` a
+ * secret, the door checks it was sent, and the record never wrote it. So each
+ * secret a target descriptor asks for, with the field that names it as its
+ * other half, must come out of `targetCredentialRecord` as it went in.
+ */
+describe('every secret a target descriptor asks for survives the credential record', () => {
+  const types = connectableTypes('target');
+
+  it.each([...types])('%s keeps each of its secrets, beside the required fields', (type) => {
+    const fields = credentialFieldsFor('target', type);
+    const required = Object.fromEntries(
+      fields.filter((f) => f.required && !isSecret(f)).map((f) => [f.key, sentinel(f.key)]),
+    );
+    for (const secret of fields.filter(isSecret)) {
+      // A login's other half travels with it, as the form sends them.
+      const paired = fields.find((f) => f.pairedWith === secret.key || f.loginPairedWith === secret.key);
+      const values = {
+        ...required,
+        [secret.key]: sentinel(secret.key),
+        ...(paired ? { [paired.key]: sentinel(paired.key) } : {}),
+      };
+      const stored = targetCredentialRecord(type, values);
+      expect(
+        stored[secret.key],
+        `targetCredentialRecord dropped '${secret.key}' for a '${type}' target. The descriptor asks ` +
+          'for it as a secret, the door checks it was sent, and the record never wrote it.',
+      ).toBe(sentinel(secret.key));
+      if (paired) expect(stored[paired.key], `${type}: '${paired.key}' travels with '${secret.key}'`).toBe(sentinel(paired.key));
+    }
+  });
+
+  it('reads a door with a second login on it', () => {
+    // The loop above is only as good as what it walks over.
+    expect(credentialFieldsFor('target', 'infomaniak').filter(isSecret).map((f) => f.key)).toEqual(['password', 'mailPassword']);
   });
 });
 

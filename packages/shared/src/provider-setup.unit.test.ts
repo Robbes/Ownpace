@@ -201,6 +201,22 @@ describe('every card has a checklist, or a reason it has none (0148 T5)', () => 
     expect(setupStepsFor('target', 'cirrux', everyApp).map((s) => s.key)).toContain('drive');
   });
 
+  it('gives Infomaniak four steps: the account, the sync login, the mail password, the mail server (0161 T1)', () => {
+    // A step more than Soverin and Cirrux, because Infomaniak signs in to mail
+    // and to calendars with two different logins.
+    expect(keys('target', 'infomaniak')).toEqual(['account_exists', 'sync_login', 'mail_password', 'mail_server']);
+    const yields = Object.fromEntries(setupStepsFor('target', 'infomaniak').map((s) => [s.key, s.yieldsKey]));
+    expect(yields).toMatchObject({
+      sync_login: 'setup.infomaniak.sync_login.yields',
+      mail_password: 'setup.infomaniak.mail_password.yields',
+    });
+    // None is somebody else's, and none is about a deployment's own app.
+    for (const step of setupStepsFor('target', 'infomaniak')) {
+      expect(step.needsAnotherPerson, step.key).toBeUndefined();
+      expect(step.ownAppOnly, step.key).toBeUndefined();
+    }
+  });
+
   it('says what each new step yields, where it yields something to type', () => {
     const yields = (side: SetupSide, type: string) =>
       Object.fromEntries(setupStepsFor(side, type).map((s) => [s.key, s.yieldsKey]));

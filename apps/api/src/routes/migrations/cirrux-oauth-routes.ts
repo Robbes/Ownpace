@@ -18,6 +18,18 @@
  * refresh and is the account's, so it is never handed to the page. It then
  * measures the account again, so the Accounts page and *Where does it go?* see
  * the Drive connected, and tells the opening window only that.
+ *
+ * `POST /cirrux/disconnect` is authenticated, and ends what the callback
+ * stored (workplan 0160): it removes the Drive grant from the account's
+ * record under the row's lock and nothing else, so the app password keeps
+ * serving mail, calendars, contacts and tasks. The record's file face reads
+ * not connected and the audit line `connection.cirrux_drive_disconnected` is
+ * written in the same transaction; this process's access tokens for the
+ * account are dropped once it commits. Cirrux documents no revocation an app
+ * can call, so nothing is asked of Cirrux, and the answer says so, with where
+ * the person ends the sign-in at Cirrux. An account with no grant answers 200,
+ * `removed: false`. A closed organisation is not refused: ending access stays
+ * open after a close, as withdrawing a grant does (`withdraw-grant.ts`).
  */
 
 import { Router } from 'express';
@@ -32,14 +44,18 @@ import type { AuthenticatedRequest } from '../../types/api.ts';
 import {
   CIRRUX_DRIVE_SCOPES,
   cirruxDeploymentClient,
+  cirruxDriveDisconnectRevocation,
   inLocale,
   localeOf,
   log,
   organisationClosedRefusal,
   type Bilingual,
+  type RevocationOutcome,
   type TenantId,
 } from '@openmig/shared';
-import { storeCirruxDriveGrant } from '@openmig/orchestration/cirrux-grant-store';
+import { forgetCirruxAccess } from '@openmig/connectors';
+import { qualifyCirruxDrive } from '@openmig/orchestration/account-qualification';
+import { removeCirruxDriveGrant, storeCirruxDriveGrant } from '@openmig/orchestration/cirrux-grant-store';
 import {
   CONSENT_NOT_AWAITED,
   browserLocale,
@@ -51,6 +67,7 @@ import { consentFlows as flows } from './consent-flows.ts';
 import {
   CIRRUX_CONSENT_FOR_THE_OWNER,
   CIRRUX_DRIVE_CONNECTED_ACTION,
+  CIRRUX_DRIVE_DISCONNECTED_ACTION,
   cirruxConsentUrl,
   cirruxResultPage,
   cirruxSignedInAs,
@@ -60,6 +77,7 @@ import {
 } from './cirrux-consent.ts';
 import { closedOrganisation, refusedAsClosed } from '../../closed-organisation.ts';
 import { refusedUntilAccepted } from '../../conditions-not-accepted.ts';
+import { serverFault } from '../../server-fault.ts';
 
 const router = Router();
 
@@ -73,6 +91,15 @@ const AuthorizeSchema = z.object({
   connectionId: z.string().uuid(),
   locale: z.unknown().optional(),
 });
+
+const DisconnectSchema = z.object({ connectionId: z.string().uuid() });
+
+/** The answer to *Disconnect Cirrux Drive*: whether a sign-in was removed here, and what happened at Cirrux. */
+export interface CirruxDriveDisconnected {
+  readonly connectionId: string;
+  readonly removed: boolean;
+  readonly revocation: RevocationOutcome;
+}
 
 /** Built from `API_URL`, the way `redirectUris` lists it, so the two cannot differ. */
 function callbackUri(req: Request): string {
@@ -241,6 +268,59 @@ router.get('/cirrux/callback', async (req: Request, res: Response) => {
       ...(origin ? { webOrigin: origin } : {}),
     }),
   );
+});
+
+router.post('/cirrux/disconnect', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    if (!req.tenantId) return void res.status(401).json({ error: 'Unauthorized', message: 'Tenant ID not found' });
+    const tenantId = req.tenantId;
+    const parsed = DisconnectSchema.safeParse(req.body ?? {});
+    if (!parsed.success) {
+      const reason = 'Send { connectionId }: the Cirrux account to disconnect Drive from.';
+      return void res.status(400).json({ error: 'invalid_body', message: reason, reason });
+    }
+    const { connectionId } = parsed.data;
+    // No closed-organisation check, deliberately: disconnecting ends access,
+    // and ending stays open after a close (`closed-organisation.ts`), as
+    // withdrawing a grant does. Nothing here starts work or reaches Cirrux.
+    //
+    // The face the record keeps from now on: the measured no the Drive answers
+    // without a grant (or without the deployment's client), which asks nothing
+    // of anybody to be said.
+    const face = await qualifyCirruxDrive({});
+    const removal = await removeCirruxDriveGrant(
+      { pool: pool(), tenantId, connectionId },
+      {
+        face: { ...face },
+        // The audit line, in the removal's own transaction: who, on which
+        // account, and what Cirrux was asked (nothing). Never a token.
+        recorded: (db) =>
+          new PgLedger(db).recordAuditEvent(tenantId as TenantId, {
+            actor: req.userId ?? 'unknown',
+            action: CIRRUX_DRIVE_DISCONNECTED_ACTION,
+            entity: 'connection',
+            detail: { connectionId, kind: 'cirrux', revocation: cirruxDriveDisconnectRevocation(true).status },
+          }),
+      },
+    );
+    if (removal === 'no_account') {
+      const reason = 'No Cirrux destination with that id is on your Accounts page, so no Drive can be disconnected from it.';
+      return void res.status(404).json({ error: 'not_a_cirrux_account', message: reason, reason });
+    }
+    // This process's access tokens for the account go now; a pass in another
+    // process stops within a minute, when its store says no grant is stored.
+    forgetCirruxAccess(connectionId);
+    const removed = removal === 'removed';
+    if (removed) log.info(`[api] Cirrux Drive disconnected on account ${connectionId}`);
+    const answer: CirruxDriveDisconnected = {
+      connectionId,
+      removed,
+      revocation: cirruxDriveDisconnectRevocation(removed),
+    };
+    res.json(answer);
+  } catch (error) {
+    serverFault(res, 'cirrux_disconnect_failed', 'disconnecting Cirrux Drive', error);
+  }
 });
 
 export default router;

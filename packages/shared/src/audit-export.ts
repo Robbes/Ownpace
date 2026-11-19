@@ -110,6 +110,9 @@ export const AUDIT_DETAIL_FIELDS = {
   host: 'keep',
   // What Google answered when a grant was taken back (0108 T8 (c)): a state.
   atGoogle: 'keep',
+  // What Disconnect Cirrux Drive did at Cirrux (workplan 0160): a revocation
+  // status (`unsupported`, since Cirrux offers nothing to call), naming nobody.
+  revocation: 'keep',
   // The operator's number of live grant links, and the moment it stops
   // applying (0108 T8 (d)): a count and a date.
   liveLinks: 'keep',

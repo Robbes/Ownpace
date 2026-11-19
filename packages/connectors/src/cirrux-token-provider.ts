@@ -33,6 +33,25 @@
  * the successor. The managed edition's is a row lock on the connection
  * (`packages/orchestration/src/cirrux-grant-store.ts`); the test double is in
  * `__testing__/cirrux-fake.ts`, with the same contract.
+ *
+ * ## A disconnect leaves no access token usable (workplan 0160)
+ *
+ * *Disconnect Cirrux Drive* removes the grant from the store, and Cirrux
+ * offers no way to withdraw what it issued, so an access token already in
+ * memory would go on working at Cirrux for the rest of its 15 minutes. Two
+ * things keep it from being handed out again:
+ *
+ * - **In the process that disconnects, at once**: `forgetCirruxAccess(id)`
+ *   counts a disconnect for the connection, and every provider over a store
+ *   of that connection (`RotatingGrantStore.connection`) drops its access
+ *   token at its next call, and hands out none from a refresh the disconnect
+ *   overtook. The next call goes to the store, which holds no grant and says
+ *   the Drive is not connected.
+ * - **In every other process, within a minute**: a token in memory is handed
+ *   out only while the store, asked at most every `GRANT_RECHECK_MS`, still
+ *   holds a grant (`RotatingGrantStore.holdsGrant`). A pass running in the
+ *   worker when the person disconnects in the API stops at its next request
+ *   after that minute, in the sentence that names *Connect Cirrux Drive*.
  */
 
 import { parseRetryAfterMs, withFailureCategory, CIRRUX_TOKEN_ENDPOINT } from '@openmig/shared';
@@ -58,6 +77,19 @@ export type RotationOutcome<T> =
  */
 export interface RotatingGrantStore {
   rotate<T>(use: (refreshToken: string) => Promise<RotationOutcome<T>>): Promise<T>;
+  /**
+   * The connection the grant is on, as `forgetCirruxAccess` names it. Absent,
+   * a disconnect in this process does not reach the providers over this store
+   * until `holdsGrant` says so.
+   */
+  readonly connection?: string;
+  /**
+   * Whether a grant is stored right now, read without the lock. Asked at most
+   * once every `GRANT_RECHECK_MS` while an access token in memory is handed
+   * out, so a disconnect in another process stops this one too. Absent, it is
+   * never asked, and a token in memory lasts until it is refreshed.
+   */
+  holdsGrant?(): Promise<boolean>;
 }
 
 /** An access token, and when it stops working. */
@@ -96,6 +128,33 @@ const DEFAULT_ACCESS_TOKEN_SECONDS = 15 * 60;
 const DEFAULT_TIMEOUT_MS = 30_000;
 /** How often a `429` from the token endpoint is waited out inside one refresh. */
 const RATE_LIMIT_ATTEMPTS = 3;
+/**
+ * How long an access token in memory is handed out before the store is asked
+ * again whether a grant is stored at all: the longest a pass in another
+ * process goes on after *Disconnect Cirrux Drive* (workplan 0160).
+ */
+export const GRANT_RECHECK_MS = 60_000;
+
+/**
+ * Each connection's disconnects in this process, counted. A provider keeps the
+ * count it last saw; a higher one means its access token, and any refresh it
+ * has in flight, belong to a sign-in that was let go of.
+ */
+const disconnects = new Map<string, number>();
+
+const disconnectsOf = (connection: string | undefined): number =>
+  connection === undefined ? 0 : (disconnects.get(connection) ?? 0);
+
+/**
+ * DISCONNECT CIRRUX DRIVE, IN THIS PROCESS (workplan 0160): every provider over
+ * a store of this connection forgets its access token at its next call, and
+ * hands out none from a refresh this overtook. Called once the grant's removal
+ * has committed; the next call finds no grant and says the Drive is not
+ * connected. Another process learns it from its store (`holdsGrant`).
+ */
+export function forgetCirruxAccess(connection: string): void {
+  disconnects.set(connection, disconnectsOf(connection) + 1);
+}
 
 /**
  * The refusal for an account with no Drive grant stored: the face is not
@@ -123,6 +182,12 @@ export class CirruxTokenProvider {
   private readonly timeoutMs: number;
   private cached: CirruxAccessToken | null = null;
   private inFlight: Promise<CirruxAccessToken> | null = null;
+  /** The disconnects of this connection this provider has seen (`forgetCirruxAccess`). */
+  private seen: number;
+  /** When the store last held a grant, as far as this provider knows: epoch milliseconds. */
+  private grantSeenAt: number;
+  /** One question to the store at a time, joined by every item that needs a token meanwhile. */
+  private checking: Promise<void> | null = null;
 
   constructor(options: CirruxTokenProviderOptions) {
     if (!options.clientId.trim()) {
@@ -139,24 +204,84 @@ export class CirruxTokenProvider {
     this.sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.cached = options.initial ?? null;
+    this.seen = disconnectsOf(this.store.connection);
+    // A token handed in comes from a grant stored a moment ago (the consent's own).
+    this.grantSeenAt = options.initial ? this.now() : Number.NEGATIVE_INFINITY;
   }
 
-  /** A working access token: the one in memory, or a fresh one from a refresh joined or started. */
+  /**
+   * A working access token: the one in memory while a grant is still stored,
+   * or a fresh one from a refresh joined or started. Never one a disconnect in
+   * this process overtook: that try is made once more, from the store, which
+   * then holds no grant and says the Drive is not connected.
+   */
   async getAccessToken(): Promise<string> {
-    if (this.cached && this.cached.expiresAt - this.now() > REFRESH_BEFORE_EXPIRY_MS) {
-      return this.cached.accessToken;
+    for (let attempt = 1; ; attempt++) {
+      this.forgetIfDisconnected();
+      const seen = this.seen;
+      const held = this.cached;
+      let token: CirruxAccessToken;
+      if (held && held.expiresAt - this.now() > REFRESH_BEFORE_EXPIRY_MS) {
+        await this.stillGranted();
+        token = held;
+      } else {
+        this.inFlight ??= this.refresh();
+        token = await this.inFlight;
+      }
+      if (disconnectsOf(this.store.connection) === seen) return token.accessToken;
+      if (attempt >= 2) throw cirruxDriveNotConnected();
     }
-    this.inFlight ??= this.store
+  }
+
+  /** One refresh through the store's lock; joined by every caller until it settles. */
+  private refresh(): Promise<CirruxAccessToken> {
+    return this.store
       .rotate((refreshToken) => this.exchange(refreshToken))
       .then((answer) => {
         if (!answer.ok) throw answer.error;
         this.cached = answer.token;
+        // Read under the lock a moment ago: the grant is stored.
+        this.grantSeenAt = this.now();
         return answer.token;
       })
       .finally(() => {
         this.inFlight = null;
       });
-    return (await this.inFlight).accessToken;
+  }
+
+  /** A disconnect in this process since the last call: the token in memory is the old sign-in's. */
+  private forgetIfDisconnected(): void {
+    const count = disconnectsOf(this.store.connection);
+    if (count === this.seen) return;
+    this.seen = count;
+    this.cached = null;
+    this.grantSeenAt = Number.NEGATIVE_INFINITY;
+  }
+
+  /**
+   * Asked before a token in memory is handed out, at most every
+   * `GRANT_RECHECK_MS`: is a grant still stored? None means the Drive was
+   * disconnected (or the account deleted, or its app password replaced with
+   * another mailbox's) in some process, and the token is dropped unused. A
+   * store that cannot be asked is not, and a question that fails is the
+   * caller's failure, never a yes.
+   */
+  private stillGranted(): Promise<void> {
+    const store = this.store;
+    if (!store.holdsGrant || this.now() - this.grantSeenAt < GRANT_RECHECK_MS) return Promise.resolve();
+    this.checking ??= store
+      .holdsGrant()
+      .then((held) => {
+        if (!held) {
+          this.cached = null;
+          throw cirruxDriveNotConnected();
+        }
+        this.grantSeenAt = this.now();
+      })
+      .finally(() => {
+        this.checking = null;
+      });
+    return this.checking;
   }
 
   /**

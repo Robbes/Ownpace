@@ -39,6 +39,9 @@ import {
   providerAccountServes,
   providerDisplayName,
   storesItsMailServer,
+  mailLoginOf,
+  missingMailLogin,
+  signsInToMailApart,
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
   cirruxDeploymentClient,
@@ -244,6 +247,11 @@ export const QUALIFIABLE_KINDS = [
   // one host Cirrux publishes. Its file face gets a sentence of its own, as
   // Apple's does, because the person HAS a Cirrux Drive.
   'cirrux',
+  // A fourth time (workplan 0161), with the one difference measured where it
+  // lives: the mail face signs in with the mailbox's own login
+  // (`mailLoginOf`), the DAV faces with the account's sync login. Its file
+  // face, kDrive, gets a sentence of its own for Cirrux's reason.
+  'infomaniak',
   'imap',
   'jmap',
 ] as const;
@@ -376,6 +384,24 @@ function notAFaceOf(kind: string, face: string): QualifiedDomain {
  * stays a list of exceptions rather than a second vocabulary.
  */
 function reasonedNo(kind: string, face: DiscoveryDomain): QualifiedDomain | undefined {
+  // kDrive is real, and has WebDAV, at an address of its own per drive
+  // (`https://<kDrive ID>.connect.kdrive.infomaniak.com`) that Infomaniak does
+  // not offer on kSuite Free, kSuite Standard, my kSuite or my kSuite+
+  // (https://www.infomaniak.com/fr/support/faq/2409, updated 12/11/2026, read
+  // 2026-11-19). This account does not carry it yet (workplan 0161 T3), so the
+  // file face is a measured no that says so, not "not a face of this
+  // connection".
+  if (kind === 'infomaniak' && face === 'file') {
+    return {
+      answer: 'no',
+      reason: 'structural',
+      detail:
+        'kDrive is reached over WebDAV at an address of its own for each drive, which Infomaniak ' +
+        'does not offer on kSuite Free, kSuite Standard, my kSuite or my kSuite+. This account does ' +
+        'not write to kDrive yet, so files cannot go to it from here. Mail, calendars, contacts and ' +
+        'tasks can.',
+    };
+  }
   if (kind === 'apple' && face === 'file') {
     return {
       answer: 'no',
@@ -387,6 +413,52 @@ function reasonedNo(kind: string, face: DiscoveryDomain): QualifiedDomain | unde
     };
   }
   return undefined;
+}
+
+/**
+ * WHY A STORED MAIL FACE WAS NOT MEASURED, naming each field the row lacks.
+ *
+ * `incomplete`, not `notAskable`: a Soverin, Cirrux or Infomaniak account HAS
+ * a mailbox, and this row is a field or two short of reaching it. The
+ * sentence names them, so it is one of the two a screen says aloud. A row
+ * with its mail server and no mail login, which only a kind that signs in to
+ * mail apart can be (workplan 0161 T1), names the login. The sentence for a
+ * row with no mail server and nothing else missing is the one Soverin's and
+ * Cirrux's guides quote, word for word.
+ */
+function mailNotMeasured(
+  storesMailHost: boolean,
+  missingLogin: ReadonlyArray<string>,
+): QualifiedDomain {
+  const login = missingLogin.join('/');
+  if (!storesMailHost && missingLogin.length === 0) {
+    return {
+      answer: 'unknown',
+      reason: 'incomplete',
+      detail:
+        'This account stores no mail server address, so mail was not measured — add the ' +
+        'mail host (mailHost) to the connection to measure this face.',
+    };
+  }
+  if (!storesMailHost) {
+    return {
+      answer: 'unknown',
+      reason: 'incomplete',
+      detail:
+        'This account stores no mail server address and no mail login, so mail was not measured — ' +
+        `add the mail host (mailHost) and the mailbox's own login (${login}) to the connection to ` +
+        'measure this face.',
+    };
+  }
+  return {
+    answer: 'unknown',
+    reason: 'incomplete',
+    detail:
+      `This account stores no mail login, so mail was not measured: ${login} ` +
+      `${missingLogin.length > 1 ? 'are' : 'is'} missing. Add the mailbox address and the password ` +
+      'made for that address to the connection to measure this face; an app password is refused ' +
+      'for mail.',
+  };
 }
 
 /**
@@ -404,6 +476,8 @@ export async function qualifyAccount(
   if (!isQualifiableKind(kind)) return undefined;
 
   if (kind === 'imap') {
+    // An `imap` row has one login, and `mailLoginOf` answers it as stored.
+    const login = mailLoginOf(kind, creds);
     const mail = await askListable(
       () =>
         deps.imapListable
@@ -413,9 +487,9 @@ export async function qualifyAccount(
                 host: String(config.host ?? ''),
                 port: Number(config.port ?? 993),
                 tls: config.useSsl !== false,
-                user: String(config.user ?? creds.username ?? ''),
+                user: String(config.user ?? login.username),
               },
-              { authType: 'LOGIN', password: creds.password },
+              { authType: 'LOGIN', password: login.password },
             ),
       'folder',
       true,
@@ -515,6 +589,15 @@ export async function qualifyAccount(
     ? typedMailHost || publishedMail?.host || ''
     : '';
   const mailPort = Number(config.mailPort ?? publishedMail?.port ?? 993);
+  // WHO SIGNS IN TO MAIL (workplan 0161 T1): the kind's mail login, which for
+  // a kind that signs in to mail apart is its mailbox's own, never the sync
+  // login the DAV faces below use. Such a kind with no mail login stored is
+  // not measured at all, rather than measured with the sync login, which its
+  // mail server refuses: a refusal would read as a wrong password, and the
+  // truth is a login nobody typed.
+  const mailLogin = mailLoginOf(kind, creds);
+  const missingLogin = missingMailLogin(kind, creds);
+  const mailUser = signsInToMailApart(kind) ? mailLogin.username : String(config.user ?? mailLogin.username);
   // A FACE THIS ACCOUNT KIND HAS NOT GOT IS NOT MEASURED, IT IS ANSWERED.
   // `providerAccountDomains` is the product's own statement of what a NAMED
   // provider carries from one account row — soverin: email, calendar,
@@ -597,19 +680,19 @@ export async function qualifyAccount(
             })(),
           'folder',
         ),
-    mailHost
+    mailHost && missingLogin.length === 0
       ? askListable(
           () =>
             deps.imapListable
-              ? deps.imapListable({ host: mailHost, port: mailPort }, creds)
+              ? deps.imapListable({ host: mailHost, port: mailPort }, { username: mailUser, password: mailLogin.password })
               : buildImapSourceFrom(
                   {
                     host: mailHost,
                     port: mailPort,
                     tls: config.useSsl !== false,
-                    user: String(config.user ?? creds.username ?? ''),
+                    user: mailUser,
                   },
-                  { authType: 'LOGIN', password: creds.password },
+                  { authType: 'LOGIN', password: mailLogin.password },
                 ),
           'folder',
           typedMailHost !== '',
@@ -632,17 +715,7 @@ export async function qualifyAccount(
   const mail: QualifiedDomain =
     mailMeasured ??
     (storesItsMailServer(kind)
-      ? {
-          answer: 'unknown',
-          // `incomplete`, not `notAskable`: a Soverin or Cirrux account HAS
-          // a mailbox, and this row is one field short of reaching it. The
-          // sentence names that field, so it is one of the two a screen says
-          // aloud.
-          reason: 'incomplete',
-          detail:
-            'This account stores no mail server address, so mail was not measured — add the ' +
-            'mail host (mailHost) to the connection to measure this face.',
-        }
+      ? mailNotMeasured(mailHost !== '', missingLogin)
       : { answer: 'unknown', reason: 'notAskable', detail: NOT_ASKABLE_MAIL });
   return {
     domains: {

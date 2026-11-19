@@ -427,7 +427,7 @@ export const CreateMappingResponseSchema = z.object({
     // An EXPORT ARCHIVE (workplan 0116 T1; a mapping source since T5/T6).
     'archive',
   ]),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak']),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().optional(),
@@ -460,7 +460,7 @@ export interface CreateMappingInput {
     // one since placement and idempotency were built. Its credential is a
     // location, carried in `sourceConfig.provider` and `.path`.
     | 'archive';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud' | 'cirrux';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud' | 'cirrux' | 'infomaniak';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
   sourceConnectionId?: string;
@@ -537,6 +537,14 @@ export interface CreateMappingInput {
     /** soverin only (0106 T4b): the account's mail face — typed, never guessed. */
     mailHost?: string;
     mailPort?: number;
+    /**
+     * The mailbox's own login, for a kind whose mail signs in apart from its
+     * DAV faces (workplan 0161 T1: infomaniak): its address and the password
+     * made for it. Given whole or not at all; `mailPassword` is a secret, sent
+     * only in this body and stored only in the encrypted credential.
+     */
+    mailUsername?: string;
+    mailPassword?: string;
   };
   syncConfig: {
     domains: Array<DiscoveryDomain>;
@@ -996,6 +1004,17 @@ export const mappingApi = {
   },
 
   /**
+   * DISCONNECT CIRRUX DRIVE (workplan 0160): the server removes the Drive
+   * sign-in from the account named here, and nothing else, and says whether
+   * one was stored and what happened at Cirrux (nothing: Cirrux offers no way
+   * to withdraw one).
+   */
+  cirruxDriveDisconnect: async (p: { connectionId: string }): Promise<CirruxDriveDisconnected> => {
+    const response = await apiClient.post('/migrations/cirrux/disconnect', p);
+    return response.data as CirruxDriveDisconnected;
+  },
+
+  /**
    * Microsoft's turn at the same round trip (workplan 0114).
    *
    * Shaped like the GOOGLE ACCOUNT ask rather than Dropbox's, because it is
@@ -1452,6 +1471,17 @@ export interface ConnectionDeleted {
   deleted: true;
   id: string;
   displayName?: string;
+  revocation: RevocationOutcome;
+}
+
+/**
+ * The answer to Disconnect Cirrux Drive (workplan 0160): `removed` is false
+ * when the account stored no sign-in, which is no failure; `revocation` is
+ * what happened at Cirrux, never `revoked`.
+ */
+export interface CirruxDriveDisconnected {
+  connectionId: string;
+  removed: boolean;
   revocation: RevocationOutcome;
 }
 

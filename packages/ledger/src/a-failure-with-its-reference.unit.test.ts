@@ -96,6 +96,17 @@ describe("a failed data type's status", () => {
     expect(status?.state).toBe('failed');
     expect(status?.lastErrorReference).toBeUndefined();
   });
+
+  it('keeps the category the throw site stated over the matcher’s, and the matcher’s without one (workplan 0160)', async () => {
+    // Our own sentence for a Cirrux account whose Drive was disconnected: no
+    // rule reads it as an expired sign-in, and the throw site said it is one.
+    const ours = 'This Cirrux account has no Cirrux Drive connected, so nothing was written for \'file\'.';
+    await store.markFailed(TENANT, MAPPING, 'calendar', ours, undefined, '0a1b2c3d', 'auth_expired');
+    expect((await store.getStatus(TENANT, MAPPING))[0]?.lastErrorCategory).toBe('auth_expired');
+
+    await store.markFailed(TENANT, MAPPING, 'calendar', ours);
+    expect((await store.getStatus(TENANT, MAPPING))[0]?.lastErrorCategory).toBe('unknown');
+  });
 });
 
 describe('when the failure is over', () => {

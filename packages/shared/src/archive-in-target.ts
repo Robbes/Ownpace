@@ -40,6 +40,16 @@ export const ARCHIVE_READABLE_TARGETS: ReadonlyArray<WizardTargetType> = (
   Object.keys(TARGET_TYPE_DOMAINS) as WizardTargetType[]
 ).filter((type) => TARGET_TYPE_DOMAINS[type].includes('file') && type !== 'jmap');
 
+/**
+ * Destinations whose provider HAS files that this product does not reach yet,
+ * by the name the provider gives them (workplan 0161). "Has no files" would
+ * be untrue of them: the refusal says where the files are instead.
+ * Infomaniak's are in kDrive, which 0161 T3 plans.
+ */
+const FILES_NOT_REACHED_YET: Readonly<Partial<Record<WizardTargetType, string>>> = {
+  infomaniak: 'kDrive',
+};
+
 /** Names as a sentence lists them: `A`, `A and B`, `A, B and C`. */
 function listed(names: ReadonlyArray<string>, conjunction: 'and' | 'or'): string {
   if (names.length <= 1) return names.join('');
@@ -97,6 +107,15 @@ export function archiveInTargetRefusal(targetType: WizardTargetType): string | n
       `${targetTypeName(targetType)} account's files are in ${granted.grant}, which this product ` +
       `writes to and reads no export from. ${listed(readableNames(), 'and')} destinations can serve ` +
       'one: choose one of those as the destination, and put the export in a folder of its files.'
+    );
+  }
+  const unreached = FILES_NOT_REACHED_YET[targetType];
+  if (unreached) {
+    return (
+      "This export is to be read from a folder in the destination's files, and " +
+      `${targetTypeName(targetType)} destinations keep their files in ${unreached}, which this ` +
+      `product does not reach yet. ${listed(readableNames(), 'and')} destinations can serve one: ` +
+      'choose one of those as the destination, and put the export in a folder of its files.'
     );
   }
   return (

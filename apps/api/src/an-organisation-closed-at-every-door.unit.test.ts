@@ -16,7 +16,8 @@
  * the permission report; the sharing rescan and the share applies; and a grant
  * link's consent, which stored a new token and lifted a withdrawal. Connecting
  * Cirrux Drive on an account (0160 T5) asks at its authorize and again at its
- * callback, as a grant link's consent does.
+ * callback, as a grant link's consent does. Disconnecting it (0160) does not:
+ * it ends access, and ending stays open after a close.
  *
  * Each of them now answers 409 `account_closed`, with a sentence that names
  * the close and the day the data is removed, and does nothing else. Reading
@@ -634,7 +635,7 @@ const ASKS_AT_ALL = /\b(refusedAsClosed|closedOrganisation|enqueueUnlessHeld|rea
  * credential, or reaching a provider with one. A call, not a definition.
  */
 const USES_STORED_ACCESS =
-  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|migrationInventoryScans|sourceCredentialsFor|createNextcloudShare|exchangeCode|storeGrantedToken|storePersonGrant|exchangeCirruxCode|storeCirruxDriveGrant|requalifyStoredConnection|mergeKeepingTheDriveGrant)\s*\(/g;
+  /(?<!function\s+)\b(?:SecretStore\.decryptCredentials|storedCredentials|probeSourceConnection|probeTargetConnection|qualifyAccount|qualifyAndRemember|tenantInventoryScans|migrationInventoryScans|sourceCredentialsFor|createNextcloudShare|exchangeCode|storeGrantedToken|storePersonGrant|exchangeCirruxCode|storeCirruxDriveGrant|requalifyStoredConnection|mergeKeepingTheDriveGrant|removeCirruxDriveGrant)\s*\(/g;
 
 /**
  * Where the API uses the stored access today, counted per file. A new use
@@ -646,11 +647,18 @@ const USES_BY_FILE: Readonly<Record<string, number>> = {
   // question 5), read after the rotation's close, and one since the folder
   // browse reads a saved account's sign-in, after its own. Three more since a
   // Cirrux account's Drive (0160 T5): a rotation keeps its grant, and the
-  // consent's measuring reads the row, after the consent's own close.
-  'routes/connections.ts': 16,
+  // consent's measuring reads the row, after the consent's own close. One more
+  // since a rotation keeps an Infomaniak account's mail login (0161 T1), read
+  // after the rotation's close, as the tenant is.
+  'routes/connections.ts': 17,
   'routes/grant.ts': 2,
   'routes/migrations/account-on-connection.ts': 1,
-  'routes/migrations/cirrux-oauth-routes.ts': 3,
+  // One more since Disconnect Cirrux Drive (0160), which opens the record
+  // only to take the Drive sign-in out of it. It asks nothing of the close on
+  // purpose: it ends access and starts nothing, and ending stays open after a
+  // close, as withdrawing a grant does (withdraw-grant.ts, below). Its own
+  // test presses it on a closed organisation.
+  'routes/migrations/cirrux-oauth-routes.ts': 4,
   'routes/migrations/google-oauth-routes.ts': 3,
   'routes/migrations/grant-subject.ts': 2,
   // One more since the create door reads a reused Cirrux account's Drive

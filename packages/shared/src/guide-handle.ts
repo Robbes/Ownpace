@@ -28,6 +28,7 @@ export const SERVED_GUIDES = [
   'dropbox',
   'google',
   'imap',
+  'infomaniak',
   'jmap',
   'microsoft',
   'nextcloud',

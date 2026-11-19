@@ -21,7 +21,7 @@
 export const DATA_TYPES = ['email', 'calendar', 'contact', 'file', 'task'];
 
 /**
- * The home page's five destinations. `types` are the app's target types the
+ * The home page's six destinations. `types` are the app's target types the
  * card stands for. `takes` maps each data type the card shows to the target
  * type that carries it: one card can be four protocols, each carrying its own.
  */
@@ -44,6 +44,14 @@ export const DESTINATIONS = [
     id: 'cirrux',
     types: ['cirrux'],
     takes: { email: 'cirrux', calendar: 'cirrux', contact: 'cirrux', task: 'cirrux' },
+  },
+  // Infomaniak (workplan 0161): Soverin's four, and no files. kDrive's WebDAV
+  // has an address of its own per drive and is not offered on every plan, and
+  // nothing in the app writes to it yet (0161 T3).
+  {
+    id: 'infomaniak',
+    types: ['infomaniak'],
+    takes: { email: 'infomaniak', calendar: 'infomaniak', contact: 'infomaniak', task: 'infomaniak' },
   },
   {
     id: 'jmap',

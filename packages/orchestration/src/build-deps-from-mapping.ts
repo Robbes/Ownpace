@@ -92,6 +92,9 @@ import {
   publishedEndpoint,
   isProviderAccountKind,
   storesItsMailServer,
+  signsInToMailApart,
+  mailLoginOf,
+  missingMailLogin,
   cirruxDeploymentClient,
   grantedTargetFacesOf,
   hasCirruxDriveGrant,
@@ -329,7 +332,7 @@ export async function buildDepsFromMapping(
 
   // Load connections and credentials WITHIN tenant context. Row security binds
   // here on an app_user pool, which the managed tasks pass since 0138 T1.
-  const { sourceConfig, targetConfig, sourceCredentials, targetCredentials } = await withTenant(pool, tenantId, async (txDb) => {
+  const { sourceConfig, targetConfig, sourceCredentials, targetCredentials, targetKind } = await withTenant(pool, tenantId, async (txDb) => {
     // THE MAPPING'S OWN connections, mailbox → connection (tenant-filtered), with
     // the tenant-role row only as a logged fallback for legacy rows whose
     // mailboxes carry no connection id. "The tenant's first source row" was
@@ -433,6 +436,10 @@ export async function buildDepsFromMapping(
       targetConfig,
       sourceCredentials,
       targetCredentials,
+      // The kind, for the writer's password below: a kind that signs in to
+      // mail apart hands the writer its mailbox's login, never its sync login
+      // (workplan 0161 T1).
+      targetKind: targetConnection.kind,
     };
   });
   
@@ -501,8 +508,12 @@ export async function buildDepsFromMapping(
     byteMeter
   );
   
-  // Build target writer with decrypted credentials
-  const target = buildTargetWriterFromCredentials(mappingConfig.target, targetCredentials);
+  // Build target writer with decrypted credentials: the MAIL login, which for
+  // a kind that signs in to mail apart is the mailbox's own (workplan 0161 T1).
+  const target = buildTargetWriterFromCredentials(
+    mappingConfig.target,
+    mailCredentialsOf(targetKind, targetCredentials),
+  );
   
   // Create ledger and cursor store, each statement in the tenant's scope.
   const ledger = new PgLedger(db);
@@ -1464,15 +1475,21 @@ export function buildSourceConnectorFromCredentials(
     // from the row, and the credential from the store. A kind that reaches
     // here with no published endpoint and no stored host refuses by name
     // rather than connecting to nothing.
+    //
+    // WHO SIGNS IN is the kind's MAIL login (workplan 0161 T1): for a kind
+    // that signs in to mail apart, its mailbox's own, refused by field name
+    // where the row stores none; for every other kind the row's `user` and
+    // the stored record, as before.
     const { host, port } = accountMailEndpoint(sourceConfig.type, sourceConfig);
+    refuseWithoutMailLogin(sourceConfig.type, credentials);
     return buildImapSourceFromCredentials(
       {
         type: 'imap-oauth2',
         host,
         port,
-        user: String((sourceConfig as { user?: unknown }).user ?? credentials.username ?? ''),
+        user: mailUserOf(sourceConfig.type, sourceConfig as unknown as Record<string, unknown>, credentials),
       } as SourceConfig,
-      credentials,
+      mailCredentialsOf(sourceConfig.type, credentials),
       throttleLimiter,
       byteMeter,
     );
@@ -1685,8 +1702,10 @@ export function mailTargetConfigFromConnection(
   refuseDomainTheTargetCannotCarry('mail', kind);
 
   // The account kinds whose mail server is stored apart from their DAV host
-  // (`MAIL_SERVER_ACCOUNT_KINDS`: soverin, and cirrux since 0160) take the
-  // branch below; every other kind keeps its stored or derived shape.
+  // (`MAIL_SERVER_ACCOUNT_KINDS`: soverin, cirrux since 0160, infomaniak since
+  // 0161) take the branch below; every other kind keeps its stored or derived
+  // shape. Who signs in to mail is the kind's mail login (`mailLoginOf`), which
+  // for infomaniak is the mailbox's own and not the sync login.
   if (!storesItsMailServer(kind)) {
     if (typeof config.type === 'string' && config.type !== '') {
       return config as unknown as TargetConfig;
@@ -1706,7 +1725,7 @@ export function mailTargetConfigFromConnection(
         ...config,
         type: 'jmap',
         baseUrl: `${scheme}://${String(config.host ?? '')}:${String(config.port ?? (scheme === 'https' ? 443 : 80))}`,
-        user: String(config.user ?? credentials.username ?? ''),
+        user: String(config.user ?? mailLoginOf(kind, credentials).username),
       } as unknown as TargetConfig;
     }
     if (kind === 'imap') {
@@ -1714,7 +1733,7 @@ export function mailTargetConfigFromConnection(
         ...config,
         type: 'imap-dav',
         tls: config.useSsl !== false,
-        user: String(config.user ?? credentials.username ?? ''),
+        user: String(config.user ?? mailLoginOf(kind, credentials).username),
       } as unknown as TargetConfig;
     }
     return config as unknown as TargetConfig;
@@ -1730,6 +1749,7 @@ export function mailTargetConfigFromConnection(
         'unaffected.',
     );
   }
+  refuseWithoutMailLogin(kind, credentials);
   const portRaw = Number(config.mailPort);
   return {
     type: 'imap-dav',
@@ -1737,8 +1757,64 @@ export function mailTargetConfigFromConnection(
     port: Number.isFinite(portRaw) && portRaw > 0 ? portRaw : 993,
     // Same asymmetry rule as every IMAP door: TLS unless said otherwise.
     tls: config.useSsl !== false,
-    user: String(config.user ?? credentials.username ?? ''),
+    user: mailUserOf(kind, config, credentials),
   } as unknown as TargetConfig;
+}
+
+/**
+ * WHO A MAIL FACE SIGNS IN AS, for an account kind whose row stores its mail
+ * server (workplan 0161 T1).
+ *
+ * A kind that signs in to mail apart signs in as its mailbox, `mailUsername`,
+ * and NEVER as the row's `config.user`: a mapping that reuses the connection
+ * writes the account it was shown there as its override `user`, which for
+ * such a kind is the sync username, and the mail server refuses that. Every
+ * other kind keeps the rule it has always had: the row's own `user`, else the
+ * credential's username.
+ */
+function mailUserOf(kind: string, config: Record<string, unknown>, credentials: Record<string, string>): string {
+  const login = mailLoginOf(kind, credentials);
+  return signsInToMailApart(kind) ? login.username : String(config.user ?? login.username);
+}
+
+/**
+ * A kind that signs in to mail apart, whose record stores no mail login,
+ * refuses BY FIELD NAME (workplan 0161 T1), the way a row with no `mailHost`
+ * does above: never by signing in to mail with the sync login, which its mail
+ * server refuses, nor with an empty one. The create door demands the login
+ * when email is ticked; this catches the row that was saved without it, for
+ * calendars only, and later given a migration with Email.
+ */
+function refuseWithoutMailLogin(kind: string, credentials: Readonly<Record<string, string | undefined>>): void {
+  const missing = missingMailLogin(kind, credentials);
+  if (missing.length === 0) return;
+  throw new Error(
+    `This ${kind} connection stores no mail login, so its mail face cannot be built: ` +
+      `${missing.join('/')} ${missing.length > 1 ? 'are' : 'is'} missing. Replace the account's ` +
+      'credentials with the mailbox address and the password made for that address beside the ' +
+      'sync login (an app password is refused for mail) — the calendar, contact and task faces ' +
+      'are unaffected.',
+  );
+}
+
+/**
+ * The credentials a MAIL face signs in with, target writer or account source
+ * alike (workplan 0161 T1).
+ *
+ * For a kind that signs in to mail apart, the stored record with the
+ * mailbox's own login (`mailLoginOf`) laid over its `username` and
+ * `password`, so the sync login its DAV faces use never reaches a mail
+ * connector. For every other kind, the record exactly as stored, key for
+ * key, so a builder's own token fallbacks (`access_token`, `token`,
+ * `api_key`) read what they always read. Exported for its guard,
+ * `a-mailbox-that-signs-in-apart.unit.test.ts`, which also holds the call
+ * sites to it.
+ */
+export function mailCredentialsOf(
+  kind: string,
+  credentials: Readonly<Record<string, string>>,
+): Record<string, string> {
+  return signsInToMailApart(kind) ? { ...credentials, ...mailLoginOf(kind, credentials) } : { ...credentials };
 }
 
 /**

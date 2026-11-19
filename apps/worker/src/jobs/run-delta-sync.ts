@@ -56,6 +56,7 @@ import {
   domainDeadline,
   domainFailedEvent,
   recordAppEvent,
+  statedFailureCategoryOf,
 } from '@openmig/shared';
 import { openTaskPools } from './task-pools.ts';
 
@@ -1077,6 +1078,9 @@ export const runDeltaSync = schemaTask({
             domain,
             message: errorMessage,
             side: failureSideOf(error),
+            // The category the throw site stated, which wins over the message
+            // (workplan 0160): the same one `markFailed` stores below.
+            stated: statedFailureCategoryOf(error),
           });
           log.error(`Domain ${domain} sync failed [ref ${failed.reference}]:`, errorMessage);
           // Record the failure verbatim in the run log (hard rule 9) before
@@ -1107,6 +1111,7 @@ export const runDeltaSync = schemaTask({
                 errorMessage,
                 failureSideOf(error),
                 failed.reference,
+                statedFailureCategoryOf(error),
               );
             });
           } catch (statusErr) {

@@ -142,6 +142,11 @@ export const connection = pgTable(
         // for calendars, contacts and tasks. Migration 0068 widens the check
         // constraint to match.
         'cirrux',
+        // A destination ACCOUNT at Infomaniak (workplan 0161 T1), Soverin's
+        // shape with two logins in its one secret: the sync login for
+        // calendars, contacts and tasks, and the mailbox's own for mail from
+        // the stored `mailHost`. Migration 0069 widens the check constraint.
+        'infomaniak',
       ],
     }).notNull(),
     displayName: text('display_name').notNull(),

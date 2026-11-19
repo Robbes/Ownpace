@@ -365,8 +365,18 @@ describe('the guides mention what the connector actually needs', () => {
  * named neither and wrote *The folder*. Each answer of the followed field is
  * resolved through `followedField`, the function both doors draw the label
  * with, and the section must name the label of every answer.
+ *
+ * A SECOND LOGIN is named too, though neither of its boxes is required
+ * (workplan 0161 T1). Infomaniak's mailbox address and password are optional
+ * because an account for calendars alone needs neither, and a guide that
+ * misnamed them passed this case: a mutation that renamed the Dutch guide's
+ * **Adres van de mailbox** went unseen. A field the descriptor pairs into a
+ * login (`loginPairedWith`) is asked for as a required one is.
  */
 const LABELS_PENDING: readonly string[] = ['google', 'microsoft'];
+
+/** The fields a card's section must name: the required ones, and both halves of a second login. */
+const mustBeNamed = (f: CredentialField): boolean => f.required === true || f.loginPairedWith !== undefined;
 
 /** Every label a field is shown under: its own, or one per answer of the field it follows. */
 function labelKeysOf(fields: ReadonlyArray<CredentialField>, field: CredentialField): string[] {
@@ -391,7 +401,7 @@ describe('each card\'s section names its fields as the account form labels them,
   const guideText = (locale: Locale, slug: string) =>
     Object.entries(GUIDES).find(([p]) => nameOf(p) === `${locale}/${slug}`)?.[1];
 
-  /** The required labels the card's section does not name, per language its guide is written in. */
+  /** The labels the card's section must name (`mustBeNamed`) and does not, per language its guide is written in. */
   const unnamed = (role: 'source' | 'target', card: FrontDoorCard) => {
     const { slug, section } = guideOf(card);
     const out: Array<{ locale: Locale; missing: string[] }> = [];
@@ -401,7 +411,7 @@ describe('each card\'s section names its fields as the account form labels them,
       const text = sectionOf(body, section) ?? '';
       const fields = credentialFieldsFor(role, card.id);
       const labels = fields
-        .filter((f) => f.required)
+        .filter(mustBeNamed)
         .flatMap((f) => labelKeysOf(fields, f))
         .map((key) => STRINGS[locale][key as StringKey]);
       out.push({ locale, missing: labels.filter((label) => !text.includes(label)) });

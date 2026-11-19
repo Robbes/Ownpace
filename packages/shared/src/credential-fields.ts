@@ -27,7 +27,7 @@
  */
 
 import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES, hasArchiveReader } from './archive-providers.ts';
-import { storesItsMailServer } from './provider-accounts.ts';
+import { signsInToMailApart, storesItsMailServer } from './provider-accounts.ts';
 
 /**
  * One choice in a closed list (`CredentialField.options`).
@@ -81,6 +81,22 @@ export interface CredentialField {
    * is presented wherever its secret is, so a rotated pair is a pair.
    */
   readonly pairedWith?: string;
+  /**
+   * The other half of a SECOND LOGIN this value belongs to, by key (workplan
+   * 0161 T1): a mailbox's own address and password, which an account kind
+   * that signs in to its mail apart (`MAIL_LOGIN_APART_KINDS`) stores beside
+   * its sync login.
+   *
+   * Not `pairedWith`, because the two pairs are optional for different
+   * reasons. A client pair is optional because the DEPLOYMENT may carry the
+   * client, so `credentialFieldRequired` demands it where none does. A mail
+   * login is optional because an account used only for calendars, contacts
+   * and tasks needs none, and no deployment ever stands in for it: given
+   * whole or not at all, and refused by every door when half of it is sent
+   * (`halfMailLogin`). What the two flags share is the rotation panel's rule:
+   * each half is offered wherever the other is, so a replaced login is whole.
+   */
+  readonly loginPairedWith?: string;
   /**
    * WHOSE consent mints this value (2026-09-02: Connect with Dropbox). On a
    * refresh-token field, the provider whose consent screen fills it — and
@@ -619,6 +635,11 @@ const TARGET_HOST_EXAMPLE: Readonly<Record<string, { host: string; port: string 
   // Reminders alike. The page gives no port; a DAV server named alone is
   // HTTPS on 443, which `USUAL_PORT` states for every DAV protocol.
   cirrux: { host: 'api.cirrux.co', port: '443' },
+  // "Pour l'adresse du serveur, utilisez uniquement sync.infomaniak.com"
+  // (https://www.infomaniak.com/fr/support/faq/1544, read 2026-11-19), for
+  // contacts and calendars alike. No port is given; Thunderbird's page names
+  // the account address `https://sync.infomaniak.com`, which is 443.
+  infomaniak: { host: 'sync.infomaniak.com', port: '443' },
 };
 
 /** Every target speaks host/port/user/password; only the protocol differs. */
@@ -643,7 +664,7 @@ const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
   },
 ];
 
-const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux'] as const;
+const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux', 'infomaniak'] as const;
 
 /**
  * The DAV targets' escape hatch (0105 T1): a full base URL, for a provider
@@ -666,7 +687,12 @@ const TARGET_DAV_URL: CredentialField = {
 // URL as its escape hatch, exactly like the protocol trio. `cirrux` is the
 // same door (0160 T1): Cirrux publishes a DAV host and no path, so the base
 // URL box stays empty until somebody's account shows it is needed.
-const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin', 'cirrux'] as const;
+// `infomaniak` too (0161 T1): `sync.infomaniak.com` sends `/.well-known/caldav`
+// and `/.well-known/carddav` back to its own root (302, read 2026-11-19), so
+// the DAV clients find the calendars from there (RFC 6764). The box stays for
+// the fuller URL Infomaniak's configuration assistant shows (its Thunderbird
+// page, https://www.infomaniak.com/fr/support/faq/2046).
+const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin', 'cirrux', 'infomaniak'] as const;
 
 /**
  * WHERE, THEN WHO — the base URL belongs with host and port (2026-09-07).
@@ -715,8 +741,9 @@ const NEXTCLOUD_TARGET_FIELDS: ReadonlyArray<CredentialField> = [
  * the email domain is ticked, by name.
  *
  * Every kind in `MAIL_SERVER_ACCOUNT_KINDS` asks for it (0160 T1 added
- * `cirrux`). The label keys keep the name of the kind that first needed them,
- * because the words are not Soverin's: "Mail server", "Mail port".
+ * `cirrux`, 0161 T1 `infomaniak`). The label keys keep the name of the kind
+ * that first needed them, because the words are not Soverin's: "Mail server",
+ * "Mail port".
  */
 const MAIL_SERVER_FIELDS: ReadonlyArray<CredentialField> = [
   {
@@ -741,13 +768,35 @@ const MAIL_SERVER_FIELDS: ReadonlyArray<CredentialField> = [
  */
 const PASSWORD_HINT: Readonly<Record<string, string>> = {
   cirrux: 'account.cirruxAppPassword.hint',
+  // Infomaniak's sync password is an app password when two-step validation is
+  // on, and the account's own password when it is off
+  // (https://www.infomaniak.com/fr/support/faq/1544, read 2026-11-19): the
+  // box says which, before Test has to.
+  infomaniak: 'account.infomaniakSyncPassword.hint',
+};
+
+/**
+ * A Username box that does not take an email address (0161 T1): its example
+ * and the sentence under it.
+ *
+ * Every other target signs in with an address, and the box's example says
+ * `someone@example.com`. Infomaniak's calendars and contacts sign in with a
+ * short sync username, "par exemple AB12345", which its configuration
+ * assistant at config.infomaniak.com shows
+ * (https://www.infomaniak.com/fr/support/faq/1544, read 2026-11-19). An
+ * address typed there is a username nobody has tested, so the box shows the
+ * shape Infomaniak shows, and says where to find it.
+ */
+const USERNAME_HINT: Readonly<Record<string, { readonly hintKey: string; readonly placeholder: string }>> = {
+  infomaniak: { hintKey: 'account.infomaniakSyncUsername.hint', placeholder: 'AB12345' },
 };
 
 /** TARGET_FIELDS with the host/port example this protocol actually uses. */
 function targetFieldsWithExample(type: string): ReadonlyArray<CredentialField> {
   const example = TARGET_HOST_EXAMPLE[type];
   const passwordHint = PASSWORD_HINT[type];
-  if (!example && !passwordHint) return TARGET_FIELDS;
+  const usernameHint = USERNAME_HINT[type];
+  if (!example && !passwordHint && !usernameHint) return TARGET_FIELDS;
   return TARGET_FIELDS.map((f) =>
     f.key === 'host' && example
       ? { ...f, placeholder: example.host }
@@ -755,8 +804,60 @@ function targetFieldsWithExample(type: string): ReadonlyArray<CredentialField> {
         ? { ...f, placeholder: example.port }
         : f.key === 'password' && passwordHint
           ? { ...f, hintKey: passwordHint }
-          : f,
+          : f.key === 'username' && usernameHint
+            ? { ...f, placeholder: usernameHint.placeholder, hintKey: usernameHint.hintKey }
+            : f,
   );
+}
+
+/**
+ * THE MAILBOX'S OWN LOGIN (workplan 0161 T1), for the kinds whose mail signs
+ * in apart (`MAIL_LOGIN_APART_KINDS`): the full address, and the password made
+ * for it. Both optional, as the mail server is: the create door demands them
+ * by name the moment email is ticked, and every door refuses half of one.
+ * `mailPassword` is a secret like any password, so no door hands it back and
+ * no form prefills it. Each half names the other (`loginPairedWith`), so the
+ * rotation panel offers them together.
+ *
+ * The labels say what they are in any provider's words; the line under each
+ * box is the provider's, through `MAIL_LOGIN_HINT`.
+ */
+const MAIL_LOGIN_FIELDS: ReadonlyArray<CredentialField> = [
+  {
+    key: 'mailUsername',
+    labelKey: 'account.mailUsername',
+    placeholder: 'someone@example.com',
+    autoComplete: 'off',
+    loginPairedWith: 'mailPassword',
+  },
+  {
+    key: 'mailPassword',
+    labelKey: 'account.mailPassword',
+    secret: true,
+    placeholder: '••••••••',
+    autoComplete: 'new-password',
+    revealable: true,
+    loginPairedWith: 'mailUsername',
+  },
+];
+
+/**
+ * The line under each mail login box, per kind. Infomaniak's says where the
+ * mail password is made, on the address's Devices tab
+ * (https://www.infomaniak.com/fr/support/faq/1321), and that an app password
+ * is refused for mail (https://www.infomaniak.com/fr/support/faq/2855).
+ */
+const MAIL_LOGIN_HINT: Readonly<Record<string, Readonly<Partial<Record<string, string>>>>> = {
+  infomaniak: {
+    mailUsername: 'account.infomaniakMailUsername.hint',
+    mailPassword: 'account.infomaniakMailPassword.hint',
+  },
+};
+
+/** The mailbox's login boxes, with the lines this kind's provider gives them. */
+function mailLoginFieldsFor(type: string): ReadonlyArray<CredentialField> {
+  const hints = MAIL_LOGIN_HINT[type] ?? {};
+  return MAIL_LOGIN_FIELDS.map((f) => (hints[f.key] ? { ...f, hintKey: hints[f.key] } : f));
 }
 
 /**
@@ -771,7 +872,11 @@ export function credentialFieldsFor(
   if (role === 'target') {
     if (type === 'nextcloud') return NEXTCLOUD_TARGET_FIELDS;
     if (storesItsMailServer(type)) {
-      return [...withDavUrl(targetFieldsWithExample(type)), ...MAIL_SERVER_FIELDS];
+      return [
+        ...withDavUrl(targetFieldsWithExample(type)),
+        ...MAIL_SERVER_FIELDS,
+        ...(signsInToMailApart(type) ? mailLoginFieldsFor(type) : []),
+      ];
     }
     if ((DAV_TARGET_TYPES as ReadonlyArray<string>).includes(type)) {
       return withDavUrl(targetFieldsWithExample(type));
@@ -883,6 +988,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   // removes (owner's ask, 2026-09-07).
   nextcloud: 'Nextcloud',
   cirrux: 'Cirrux',
+  infomaniak: 'Infomaniak',
 };
 
 /**

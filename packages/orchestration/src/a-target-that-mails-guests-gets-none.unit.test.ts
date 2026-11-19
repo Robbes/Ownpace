@@ -118,6 +118,12 @@ describe('the factories hand the answer to the writer', () => {
     expect(configOf(buildTaskTarget(endpoint, deps, options)).mailsGuests).toBe(true);
   });
 
+  it('for Infomaniak too, until a pass shows it sends nothing (workplan 0161)', () => {
+    const options = { mailsGuests: mailsGuestsItself('infomaniak') };
+    expect(configOf(buildCalendarTarget(endpoint, deps, options)).mailsGuests).toBe(true);
+    expect(configOf(buildTaskTarget(endpoint, deps, options)).mailsGuests).toBe(true);
+  });
+
   it('for any other target, and when nothing is said, they keep guests as before', () => {
     const options = { mailsGuests: mailsGuestsItself('nextcloud') };
     expect(configOf(buildCalendarTarget(endpoint, deps, options)).mailsGuests).toBeUndefined();

@@ -11,7 +11,15 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { mailsGuestsItself, namesGuests, neutraliseScheduling, withoutGuests } from './calendar-scheduling.ts';
+import {
+  TARGETS_THAT_MAIL_GUESTS,
+  TARGETS_UNTESTED_FOR_GUESTS,
+  guestsUntestedAt,
+  mailsGuestsItself,
+  namesGuests,
+  neutraliseScheduling,
+  withoutGuests,
+} from './calendar-scheduling.ts';
 import { calendarContentHash } from './hash.ts';
 
 const wrap = (lines: string[], component = 'VEVENT', eol = '\r\n'): string =>
@@ -193,10 +201,30 @@ describe('namesGuests: does the copy a target holds still list a guest?', () => 
 });
 
 describe('mailsGuestsItself', () => {
-  it('names Cirrux, and no target it has no evidence against', () => {
+  it('names Cirrux, which mailed guests, and no target it has no evidence against but Infomaniak', () => {
     expect(mailsGuestsItself('cirrux')).toBe(true);
     for (const kind of ['nextcloud', 'caldav', 'soverin', undefined]) {
       expect(mailsGuestsItself(kind), String(kind)).toBe(false);
+    }
+  });
+
+  it('names Infomaniak from the day its kind arrives, because no pass has shown it sends nothing (0161)', () => {
+    // Not on evidence of an invitation, as Cirrux was: on the absence of a
+    // test. Its SabreDAV may honour SCHEDULE-AGENT=CLIENT, as Nextcloud's
+    // does; nobody has seen it, and an invitation sent cannot be taken back.
+    // 0161 T2's pass is what may take it off the list.
+    expect(mailsGuestsItself('infomaniak')).toBe(true);
+    // On the list as untested, and said to be so: never said to mail guests.
+    expect(guestsUntestedAt('infomaniak')).toBe(true);
+    expect(guestsUntestedAt('cirrux')).toBe(false);
+  });
+
+  it('every kind kept guestless as untested is on the list the writers read', () => {
+    // The untested set only changes what a person reads; the writers read the
+    // list. A kind in the first and not the second would be said to be kept
+    // without guests while its guests were written.
+    for (const kind of TARGETS_UNTESTED_FOR_GUESTS) {
+      expect(TARGETS_THAT_MAIL_GUESTS.has(kind), kind).toBe(true);
     }
   });
 });

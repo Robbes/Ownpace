@@ -36,13 +36,21 @@
  * for a token Cirrux may have spent), and the record encrypted again through
  * `SecretStore`, the one credential store (ADR-0037). No token is logged and
  * none leaves this module but into Cirrux's token request.
+ *
+ * ## And the grant taken off again (workplan 0160)
+ *
+ * *Disconnect Cirrux Drive* removes the one key, under the same lock
+ * (`removeCirruxDriveGrant`): a refresh in flight finishes first, and the
+ * successor it stored is the token removed, never one stored after it. The
+ * app password and every other key stay. A pass that holds an access token
+ * learns it from `holdsGrant` within a minute (`cirrux-token-provider.ts`).
  */
 
 import { and, eq } from 'drizzle-orm';
 import type { Pool } from 'pg';
 import { connection as connectionTable, withTenant, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
 import { SecretStore } from '@openmig/core/secret-store';
-import { CIRRUX_DRIVE_GRANT_KEY } from '@openmig/shared';
+import { CIRRUX_DRIVE_GRANT_KEY, hasCirruxDriveGrant } from '@openmig/shared';
 import {
   cirruxDriveNotConnected,
   type RotatingGrantStore,
@@ -67,9 +75,30 @@ function sealed(creds: Record<string, string>): string {
  */
 export class PgCirruxGrantStore implements RotatingGrantStore {
   private readonly row: CirruxGrantRow;
+  /** The connection's id: the name a disconnect forgets this process's access tokens by. */
+  readonly connection: string;
 
   constructor(row: CirruxGrantRow) {
     this.row = row;
+    this.connection = row.connectionId;
+  }
+
+  /**
+   * Is a Drive grant stored on the row now? Read without the lock: an answer a
+   * moment old is enough to stop handing out an access token whose grant was
+   * disconnected, and a refresh that follows reads the token under the lock
+   * anyway. A row that is gone holds none.
+   */
+  async holdsGrant(): Promise<boolean> {
+    const { pool, tenantId, connectionId } = this.row;
+    const stored = await withTenant(pool, tenantId, async (db) => {
+      const rows = await db
+        .select({ secretRef: connectionTable.secretRef })
+        .from(connectionTable)
+        .where(and(eq(connectionTable.id, connectionId), eq(connectionTable.tenantId, tenantId)));
+      return rows[0]?.secretRef;
+    });
+    return stored ? hasCirruxDriveGrant(SecretStore.decryptCredentials(stored)) : false;
   }
 
   async rotate<T>(use: (refreshToken: string) => Promise<RotationOutcome<T>>): Promise<T> {
@@ -178,6 +207,105 @@ export async function storeCirruxDriveGrant<R = never>(
     if (written.length !== 1) return 'no_account';
     await hooks.recorded?.(db);
     return 'stored';
+  });
+}
+
+/** What *Disconnect Cirrux Drive* found under the lock, and did. */
+export type CirruxDriveRemoval =
+  /** A grant was stored, and is not now. */
+  | 'removed'
+  /** None was stored: nothing to remove, and no failure. */
+  | 'not_connected'
+  /** No Cirrux destination of this organisation has that id. */
+  | 'no_account';
+
+/** What the disconnect's own transaction writes beside the removal. */
+export interface GrantRemovalHooks {
+  /**
+   * The file face to store in the account's record, so no screen reads the
+   * Drive as connected once this commits: the measured no the face answers
+   * without a grant. Written whether or not a grant was found, since a record
+   * can still say connected after Cirrux ended the sign-in. A row with no
+   * record is left without one.
+   */
+  readonly face?: Readonly<Record<string, unknown>>;
+  /** Written in the same transaction when a grant was removed (the audit line), so both commit or neither. */
+  readonly recorded?: (db: PgDatabase) => Promise<void>;
+}
+
+/** The stored record with its file face replaced, or undefined when there is no record to replace it in. */
+function withFileFace(stored: unknown, face: Readonly<Record<string, unknown>>): Record<string, unknown> | undefined {
+  if (typeof stored !== 'object' || stored === null) return undefined;
+  const domains = (stored as { domains?: unknown }).domains;
+  if (typeof domains !== 'object' || domains === null) return undefined;
+  return { ...(stored as Record<string, unknown>), domains: { ...(domains as Record<string, unknown>), file: face } };
+}
+
+/**
+ * DISCONNECT CIRRUX DRIVE: take the Drive grant off a Cirrux account, and
+ * nothing else (workplan 0160; ADR-0052).
+ *
+ * Under the row lock every refresh takes, so a refresh in flight stores its
+ * successor first and that is the token removed. Only `CIRRUX_DRIVE_GRANT_KEY`
+ * leaves the record: the app password and every other key are encrypted again
+ * as they were, through `SecretStore`, by a compare-and-swap on what was read.
+ * Only on a `cirrux` DESTINATION in this tenant, as the consent door stores
+ * one. Nothing is asked of Cirrux here, and no token leaves this function.
+ */
+export async function removeCirruxDriveGrant(
+  row: CirruxGrantRow,
+  hooks: GrantRemovalHooks = {},
+): Promise<CirruxDriveRemoval> {
+  const { pool, tenantId, connectionId } = row;
+  return withTenant(pool, tenantId, async (db) => {
+    const rows = await db
+      .select({
+        secretRef: connectionTable.secretRef,
+        kind: connectionTable.kind,
+        role: connectionTable.role,
+        qualification: connectionTable.qualification,
+      })
+      .from(connectionTable)
+      .where(and(eq(connectionTable.id, connectionId), eq(connectionTable.tenantId, tenantId)))
+      .for('update');
+    const found = rows[0];
+    if (!found || found.kind !== 'cirrux' || found.role !== 'target') return 'no_account';
+    const qualification = hooks.face ? withFileFace(found.qualification, hooks.face) : undefined;
+    const creds = found.secretRef ? SecretStore.decryptCredentials(found.secretRef) : {};
+    if (!found.secretRef || !hasCirruxDriveGrant(creds)) {
+      // Nothing to remove. A record that still says the Drive is connected
+      // (Cirrux ended the sign-in since the last Test) is put right.
+      if (qualification) {
+        await db
+          .update(connectionTable)
+          .set({ qualification, updatedAt: new Date() })
+          .where(and(eq(connectionTable.id, connectionId), eq(connectionTable.tenantId, tenantId)));
+      }
+      return 'not_connected';
+    }
+    const kept: Record<string, string> = { ...creds };
+    delete kept[CIRRUX_DRIVE_GRANT_KEY];
+    // THE COMPARE-AND-SWAP, on the ciphertext read under the lock.
+    const written = await db
+      .update(connectionTable)
+      .set({ secretRef: sealed(kept), ...(qualification ? { qualification } : {}), updatedAt: new Date() })
+      .where(
+        and(
+          eq(connectionTable.id, connectionId),
+          eq(connectionTable.tenantId, tenantId),
+          eq(connectionTable.secretRef, found.secretRef),
+        ),
+      )
+      .returning({ id: connectionTable.id });
+    if (written.length !== 1) {
+      // Not reachable while the lock holds; if it ever is, nothing was removed, and that is said.
+      throw new Error(
+        `The stored credentials of the Cirrux account ${connectionId} changed while its Drive was being ` +
+          'disconnected, so nothing was removed. Press Disconnect Cirrux Drive again.',
+      );
+    }
+    await hooks.recorded?.(db);
+    return 'removed';
   });
 }
 

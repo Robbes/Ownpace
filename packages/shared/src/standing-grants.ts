@@ -359,21 +359,56 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
     where: 'https://mail.cirrux.co/settings/mailboxes → your mailbox → Passwords',
     // And Cirrux Drive's sign-in, where one was connected (0160 T5): Cirrux
     // names no way for an app to withdraw it (https://cirrux.co/help/api), so
-    // the sentence says how it ends rather than where to end it.
+    // the sentence says how it ends, and where the person ends it sooner: the
+    // Security page lists the apps they have authorized, each one revocable
+    // there (https://cirrux.co/help/security).
     en:
       'The app password you created for this migration still works on that Cirrux mailbox ' +
       'until it is deleted. Deleting our copy does not delete it at Cirrux: delete it on the ' +
       'mailbox’s Passwords tab to end it. Your Cirrux password stays as it is. If Cirrux Drive ' +
-      'was connected, our copy of its sign-in is deleted too; Cirrux names no way for an app to ' +
-      'withdraw one, and a sign-in left unused expires there after 30 days.',
+      'was connected, our copy of its sign-in is deleted too. Cirrux names no way for an app to ' +
+      'withdraw one: it expires there once unused for 30 days, or ends when you revoke it in ' +
+      'Cirrux Mail under Settings → Security, which lists the apps you have authorized.',
     nl:
       'Het app-wachtwoord dat u voor deze migratie hebt aangemaakt werkt nog op die ' +
       'Cirrux-mailbox, totdat het verwijderd wordt. Het verwijderen van onze kopie verwijdert ' +
       'het niet bij Cirrux: verwijder het op het tabblad Passwords van de mailbox om het te ' +
       'beëindigen. Uw Cirrux-wachtwoord blijft zoals het is. Was Cirrux Drive verbonden, dan is ' +
-      'onze kopie van die aanmelding ook verwijderd; Cirrux noemt geen manier waarop een app ' +
-      'zo’n aanmelding kan intrekken, en een aanmelding die niet wordt gebruikt, verloopt daar na ' +
-      '30 dagen.',
+      'onze kopie van die aanmelding ook verwijderd. Cirrux noemt geen manier waarop een app ' +
+      'zo’n aanmelding kan intrekken: ze verloopt daar na 30 dagen zonder gebruik, of eindigt ' +
+      'wanneer u haar intrekt in Cirrux Mail onder Settings → Security, waar de apps staan die ' +
+      'u toegang hebt gegeven.',
+  },
+  {
+    // TWO CREDENTIALS, and both places are named (workplan 0161). The sync
+    // login's app password is revoked on the Manager's application passwords
+    // page, one at a time or all at once (https://www.infomaniak.com/fr/support/faq/2855);
+    // the mailbox's password is a device on the address's Devices tab, and
+    // revoking it leaves the address's other access as it is
+    // (https://www.infomaniak.com/fr/support/faq/1321). Both read 2026-11-19.
+    // Infomaniak's English labels, kept in both languages: its Dutch help
+    // pages are served in English.
+    id: 'infomaniak',
+    impliedBy: ['infomaniak'],
+    whatTheyCallIt: 'Application passwords, and the address’s Devices tab',
+    where:
+      'https://manager.infomaniak.com/v3/ng/profile/user/connection-history/application-password, ' +
+      'and Manager → Mail Service → the address → Devices',
+    en:
+      'The two passwords you made for this migration still work at Infomaniak until they are ' +
+      'revoked. Deleting our copy does not revoke them: revoke the application password on the ' +
+      'Manager’s Application passwords page, and the device you added for the mailbox on the ' +
+      'address’s Devices tab. Each is revoked on its own, and the address’s other devices keep ' +
+      'working. If the account has no two-step validation, the sync login was your Infomaniak ' +
+      'password itself: change it to end it.',
+    nl:
+      'De twee wachtwoorden die u voor deze migratie hebt aangemaakt, werken bij Infomaniak nog ' +
+      'totdat ze worden ingetrokken. Het verwijderen van onze kopie trekt ze niet in: trek het ' +
+      'app-wachtwoord in op de pagina Application passwords in de Manager, en het apparaat dat u ' +
+      'voor de mailbox hebt toegevoegd op het tabblad Devices van het adres. Elk wordt apart ' +
+      'ingetrokken, en de andere apparaten van het adres blijven werken. Heeft het account geen ' +
+      'verificatie in twee stappen, dan was de synchronisatie-aanmelding uw Infomaniak-wachtwoord ' +
+      'zelf: wijzig het om die te beëindigen.',
   },
   {
     id: 'nextcloud',

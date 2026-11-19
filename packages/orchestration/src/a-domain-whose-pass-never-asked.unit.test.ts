@@ -37,6 +37,7 @@ import {
   DISCOVERY_DOMAINS,
   TARGET_TYPE_DOMAINS,
   grantableTargetFaces,
+  statedFailureCategoryOf,
   type WizardTargetType,
 } from '@openmig/shared';
 import {
@@ -102,14 +103,21 @@ describe('what each target kind is refused', () => {
       it(`refuses ${kind} a face it carries only with a grant, naming the button, until the grant is stored`, () => {
         for (const face of grantable) {
           const domain = PASS_DOMAINS.find((d) => discoveryDomainOf(d) === face)!;
-          let message = '';
+          let thrown: unknown;
           try {
             refuseDomainTheTargetCannotCarry(domain, kind);
           } catch (err) {
-            message = (err as Error).message;
+            thrown = err;
           }
+          const message = thrown instanceof Error ? thrown.message : '';
           expect(message, `${kind} did not refuse '${face}' without its grant`).toContain(face);
-          expect(message).toMatch(/Connect it on the Accounts page/);
+          // A pass's sentence (workplan 0160): the grant the migration was
+          // made with is gone, nothing was written anywhere, and which button
+          // stores it again, under the category that names that remedy.
+          expect(message).toMatch(/nothing was written for/);
+          expect(message).toMatch(/here or to any other destination/);
+          expect(message).toMatch(/On the Accounts page, press /);
+          expect(statedFailureCategoryOf(thrown)).toBe('auth_expired');
           // With the grant stored, the same face goes through.
           expect(() => refuseDomainTheTargetCannotCarry(domain, kind, [face])).not.toThrow();
         }

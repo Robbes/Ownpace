@@ -144,4 +144,24 @@ describe('a target that mails guests whatever the marker says is said to be one 
       expect(verdict.sentence, String(kind)).toContain('measured on this target, not assumed');
     }
   });
+
+  it('says of an untested target that it is untested, and never that it emails guests (0161)', async () => {
+    // Infomaniak is on the list because no pass has been run against it, not
+    // because it was seen to mail anybody. The writer drops guests for it as
+    // for Cirrux; the sentence a person reads must not claim what nobody saw.
+    const verdict = await measureTargetScheduling(
+      ENDPOINT.url,
+      'probe',
+      'pw',
+      answering('1, 2, calendar-access, calendar-auto-schedule'),
+      'infomaniak',
+    );
+    expect(verdict.capability).toBe('auto-schedule');
+    expect(verdict.sentence).toContain('has not been tested yet');
+    expect(verdict.sentence).toContain('without their guests and organiser');
+    expect(verdict.sentence).not.toContain('This target emails every guest');
+    // And Cirrux, which did, still says so.
+    const cirrux = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering('1, 2, calendar-access'), 'cirrux');
+    expect(cirrux.sentence).toContain('This target emails every guest');
+  });
 });

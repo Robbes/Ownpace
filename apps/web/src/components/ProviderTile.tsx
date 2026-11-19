@@ -52,6 +52,7 @@ export const TILE_LETTERS: Readonly<Record<TileRole, Readonly<Record<string, str
     soverin: 'S',
     nextcloud: 'N',
     cirrux: 'C',
+    infomaniak: 'I',
     jmap: 'J',
     imap: '+',
     caldav: '+',
