@@ -7,7 +7,7 @@
 **2026-11-19: the dashboard's TLS front runs as uid 65532, with no capability, and a one-shot gives
 its two volumes to that user before it starts; built on a branch, not merged.** On the branch
 `claude/ownpace-public-readiness-y7orc6-bl-caddy`, from `main` at `6038037b`. A read-only check of
-the repository (BlueLandscape, run on `main` at `646b9de2`) read `deploy/compose/caddy/Dockerfile`
+the repository (run on `main` at `646b9de2`) read `deploy/compose/caddy/Dockerfile`
 as a container that runs as root (GEN-21), which it was, and listed the file as a whole under
 hadolint's rules (GEN-20): almost certainly DL3057, a HEALTHCHECK missing.
 - **Why Caddy needs no root here.** It binds 3443, which needs no capability, and writes only in
