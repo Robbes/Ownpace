@@ -69,7 +69,7 @@ vulnerabilities; nothing read was run. Times are UTC.
   fixture.
 
 **2026-11-19: the workflow check's nineteen lines. Sixteen are fixed, in nine workflows, and three
-are read as safe and left; on a branch, not pushed.** An outside, read-only check of
+are read as safe and left; merged as #1943 (`1edbdc22`).** An outside, read-only check of
 `.github/workflows/` on `646b9de2` read three points: an action from outside this repository is
 pinned to a commit, no workflow has a dangerous trigger, and every permission is as small as its
 job (OWASP's CI/CD Security Cheat Sheet). It named nineteen lines, one for each shape a file had.
@@ -127,7 +127,10 @@ each was still there. On the branch `claude/ownpace-public-readiness-y7orc6-bl-w
   them, at the next tag: Release in `rehearse-tag` mode reaches Security Scan's, though only its
   names step's log tells a refusal of the name from a failed fetch. windows-payload's `build` and
   `smoke` and the four E2E lanes prove themselves by a dispatch on the branch. In each job's log,
-  "Set up job" lists the token's permissions.
+  "Set up job" lists the token's permissions. On #1943: CI, Security Scan, the artifacts check and
+  Images green on its last head, `7f9fdf5d`, and E2E (managed) run 44568054149 with them; E2E
+  (self-hosted) run 44552758227 and the Windows payload run 44544250125 green on earlier heads
+  whose workflows were the same.
 - **For the owner:** two jobs still hold a write on every event because `permissions:` cannot
   depend on the event: `images.yml`'s `build` on a pull request, which builds and pushes nothing
   (GitHub gives a fork's pull request a read-only token and no OIDC), and Security Scan's job,
