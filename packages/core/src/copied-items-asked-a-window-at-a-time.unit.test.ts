@@ -25,7 +25,7 @@
  *     from a window already left no hint rather than a second read.
  */
 
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import {
   runDomainSync,
   ledgerReadAhead,
@@ -221,6 +221,31 @@ describe('a window that cannot be read, or a ledger that cannot read windows', (
     expect(ledger.reads.find - findsBefore).toBe(12);
   });
 
+  // The swallowed-error check of 2026-11-19 (workplan 0006 J): the failure was caught
+  // and dropped, so a pass that lost its read-ahead slowed to a round trip per
+  // item with nothing in the log to say why.
+  it('says in the log why a window could not be read, under the pass’s domain', async () => {
+    const ledger = new MemoryLedger();
+    const w = world(ledger);
+    await w.pass([[WORK, files(12)]]);
+    ledger.findMany = () => Promise.reject(new Error('the ledger is unavailable'));
+    setLogLevel('warn');
+    const warned: string[] = [];
+    const spy = vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+      warned.push(args.map(String).join(' '));
+    });
+    try {
+      await w.pass([[WORK, files(12)]]);
+    } finally {
+      spy.mockRestore();
+    }
+
+    expect(warned).toEqual([
+      '[sync] file: 12 items could not be asked about at once, so each is asked about on its own: ' +
+        'the ledger is unavailable',
+    ]);
+  });
+
   it('a ledger without findMany is asked one item at a time, as before', async () => {
     const memory = new MemoryLedger();
     const oneAtATime: Ledger = new Proxy(memory, {
@@ -259,6 +284,7 @@ describe('ledgerReadAhead', () => {
         asked.push([...window]);
         return new Map(window.map((k) => [k, row(k)]));
       },
+      'file',
       size,
     );
     return { ahead, asked };
@@ -285,7 +311,7 @@ describe('ledgerReadAhead', () => {
   });
 
   it('answers nothing for a key the window holds no row for', async () => {
-    const ahead = ledgerReadAhead(['a', 'b'], (k) => k, async () => new Map(), 2);
+    const ahead = ledgerReadAhead(['a', 'b'], (k) => k, async () => new Map(), 'file', 2);
 
     expect(await ahead.get(0, 'a')).toBeUndefined();
   });

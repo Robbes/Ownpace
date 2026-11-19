@@ -110,7 +110,9 @@ describe('the managed worker records the same event', () => {
   it('builds it in the catch that marks the data type failed, and records it', () => {
     expect(worker).toMatch(/const failed = domainFailedEvent\(\{[\s\S]{0,200}?side: failureSideOf\(error\)/);
     expect(worker).toMatch(/sync failed \[ref \$\{failed\.reference\}\]/);
-    expect(worker).toMatch(/markFailed\([\s\S]{0,600}?await recordAppEvent\(failed\);\s*\/\/ Re-throw/);
+    // In the catch, before the failure is kept and the pass goes on to the next
+    // data type (0143 T5, 2026-11-19), where it re-threw until then.
+    expect(worker).toMatch(/markFailed\([\s\S]{0,600}?await recordAppEvent\(failed\);[\s\S]{0,600}?failures\.push\(\{/);
   });
 });
 

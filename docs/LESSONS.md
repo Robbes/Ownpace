@@ -55,6 +55,7 @@ reading a file drops off its entry by itself.
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
@@ -63,12 +64,14 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/clock-watch.yml`
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 
 ### `.github/workflows/e2e-live-target.yml`
 
 - [a-credential-the-next-step-printed](../scripts/a-credential-the-next-step-printed.unit.test.ts) — A CREDENTIAL THE NEXT STEP PRINTED.
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 
 ### `.github/workflows/e2e-managed.yml`
 
@@ -83,6 +86,7 @@ reading a file drops off its entry by itself.
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -94,6 +98,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/e2e-o365.yml`
 
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `.github/workflows/e2e.yml`
@@ -107,6 +112,7 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-workflow-step-bash-cannot-parse](../scripts/a-workflow-step-bash-cannot-parse.unit.test.ts) — AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
 - [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -120,6 +126,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/idp-pin-watch.yml`
 
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `.github/workflows/images.yml`
@@ -136,6 +143,7 @@ reading a file drops off its entry by itself.
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
@@ -143,6 +151,10 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/nextcloud-second-major.yml`
 
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
+
+### `.github/workflows/no-committed-artifacts.yml`
+
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 
 ### `.github/workflows/release.yml`
 
@@ -165,6 +177,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts) — A security scan that skipped itself, and reported green.
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts) — An advisory nobody listed, in a job that reported green.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
@@ -175,6 +188,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-runtime-only-its-own-host-vouched-for](../scripts/a-runtime-only-its-own-host-vouched-for.unit.test.ts) — A RUNTIME ONLY ITS OWN HOST VOUCHED FOR: the `node.exe` every Windows payload ships was checked against a `SHASUMS256.txt` fetched from the same `nodejs.org` release directory as the binary, so whoever could change the one could change t…
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
+- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-zip-no-windows-had-started](../scripts/a-zip-no-windows-had-started.unit.test.ts) — A ZIP NO WINDOWS HAD STARTED: every release tag attached a Windows zip that no Windows machine had run, because the only Windows check was a person's, by hand, and it was owed (workplan 0119, Status 2026-11-02).
 
 ### `AGENTS.md`
@@ -182,16 +196,6 @@ reading a file drops off its entry by itself.
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
-
-### `CHANGELOG.md`
-
-- [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
-- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
-- [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
-- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
-- [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
-- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
-- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
 
 ### `CONTRIBUTING.md`
 
@@ -983,6 +987,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/caddy/Dockerfile`
 
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
@@ -1841,6 +1846,7 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/setup-stalwart.sh`
 
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -2850,6 +2856,8 @@ reading a file drops off its entry by itself.
 ### `packages/testing/fixtures/stalwart/Dockerfile`
 
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+- [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 
 ### `packages/testing/fixtures/stalwart/config.json`
 
@@ -2862,6 +2870,7 @@ reading a file drops off its entry by itself.
 ### `packages/testing/src/testcontainers-setup.ts`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -4110,7 +4119,6 @@ A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 Reads:
 
 - `.github/workflows/ci.yml`
-- `CHANGELOG.md`
 - `SECURITY.md`
 - `docs/adr/OPERATIVE.md`
 - `docs/architecture/solution-architecture.md`
@@ -4333,6 +4341,16 @@ Reads:
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
 
+### [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts)
+
+A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+
+Reads:
+
+- `deploy/selfhost/setup-stalwart.sh`
+- `packages/testing/fixtures/stalwart/Dockerfile`
+- `packages/testing/src/testcontainers-setup.ts`
+
 ### [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts)
 
 A hook that builds a database gets more than ten seconds to do it.
@@ -4351,6 +4369,7 @@ Reads:
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `apps/web/Dockerfile`
+- `deploy/compose/caddy/Dockerfile`
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/dev.yml`
@@ -4358,6 +4377,7 @@ Reads:
 - `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/stand-up-live.sh`
 - `deploy/compose/www.yml`
+- `packages/testing/fixtures/stalwart/Dockerfile`
 - `packages/testing/src/testcontainers-setup.ts`
 - `scripts/bootstrap-managed.unit.test.ts`
 - `scripts/idp-pin-watch.mjs`
@@ -4629,7 +4649,6 @@ Reads:
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e-o365.yml`
 - `AGENTS.md`
-- `CHANGELOG.md`
 - `docs/LESSONS.md`
 - `docs/workplans/README.md`
 - `pnpm-lock.yaml`
@@ -5281,7 +5300,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `scripts/fixtures/release/changelog-2026-10-23.md`
 - `scripts/fixtures/release/ci-jobs-39866562875.json`
@@ -5302,7 +5320,6 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
-- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `apps/web/src/components/Layout.tsx`
 - `apps/web/src/components/Layout.unit.test.tsx`
@@ -5610,10 +5627,6 @@ Reads:
 
 Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
 
-Reads:
-
-- `CHANGELOG.md`
-
 ### [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts)
 
 A SITE ANOTHER STACK'S TEARDOWN DELETED.
@@ -5831,6 +5844,24 @@ Reads:
 - `deploy/compose/smoke-managed.sh`
 - `deploy/compose/stand-up-live.sh`
 - `docs/managed-bring-up.md`
+
+### [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts)
+
+A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/clock-watch.yml`
+- `.github/workflows/e2e-live-target.yml`
+- `.github/workflows/e2e-managed.yml`
+- `.github/workflows/e2e-o365.yml`
+- `.github/workflows/e2e.yml`
+- `.github/workflows/idp-pin-watch.yml`
+- `.github/workflows/images.yml`
+- `.github/workflows/no-committed-artifacts.yml`
+- `.github/workflows/security-scan.yml`
+- `.github/workflows/windows-payload.yml`
 
 ### [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts)
 
@@ -6134,7 +6165,6 @@ AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T1
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
-- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/api/src/index.ts`
 - `deploy/compose/deploy-live.sh`
@@ -6165,7 +6195,6 @@ AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decisi
 Reads:
 
 - `.github/workflows/e2e.yml`
-- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `deploy/selfhost/README.md`

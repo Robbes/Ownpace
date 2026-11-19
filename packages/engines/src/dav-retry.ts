@@ -21,7 +21,10 @@
  *
  * 423 (WebDAV Locked) and 429 join 5xx: all three mean "come back", not "your
  * request is wrong". Everything else — 401, 403, 412, 415 — returns on the
- * first response, because retrying those only delays the answer. 412 in
+ * first response, because retrying those only delays the answer. So does 501,
+ * the one 5xx that is not "busy": Not Implemented says the server does not do
+ * this at all. Cirrux answers an MKCOL for an address book with it, and was
+ * asked five times before the writer heard it (workplan 0160). 412 in
  * particular is a precondition doing its job, never something to repeat, and
  * never a success either:
  *
@@ -55,7 +58,7 @@ const DEFAULT_BASE_BACKOFF_MS = 200;
 
 /** True when the status says "busy, try again", as opposed to "no". */
 export function isTransientDavStatus(status: number): boolean {
-  return status >= 500 || status === 423 || status === 429;
+  return (status >= 500 && status !== 501) || status === 423 || status === 429;
 }
 
 /**

@@ -722,7 +722,7 @@ async function probeTargetNow(
     const scheduling =
       targetType === 'carddav'
         ? undefined
-        : await measureTargetScheduling(endpoint.url, endpoint.username, endpoint.password);
+        : await measureTargetScheduling(endpoint.url, endpoint.username, endpoint.password, undefined, targetType);
     return {
       ok: true,
       // Appended to the fallback text so every consumer that shows `detail`

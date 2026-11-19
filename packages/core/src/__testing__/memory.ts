@@ -30,9 +30,19 @@ import {
   MAX_ITEM_ATTEMPTS,
   DELETION_CONFIRMATIONS,
   classifyFailure,
+  nameOnRow,
   type FailureSide,
   type FailureCategory,
 } from '@openmig/shared';
+
+/**
+ * `{ displayName }` when a row names its item, by PgLedger's one rule
+ * (`nameOnRow`): the stored name, or a file's last path segment.
+ */
+function named(r: LedgerRecord): { readonly displayName?: string } {
+  const name = nameOnRow({ domain: r.itemType, displayName: r.displayName, naturalKey: r.naturalKey });
+  return name ? { displayName: name } : {};
+}
 
 /** Seed shape for {@link MemorySource}. */
 export interface SeedMessage {
@@ -459,6 +469,12 @@ export class MemoryLedger implements Ledger {
       ...(record.naturalKey !== undefined && record.naturalKey !== ''
         ? { naturalKey: record.naturalKey }
         : {}),
+      // And the name, by the same rule as PgLedger's SET: the queues read it
+      // now (`named`), so a fake that dropped it would name an item the real
+      // store does not, or fail to name one it does.
+      ...(record.displayName !== undefined && record.displayName !== ''
+        ? { displayName: record.displayName }
+        : {}),
       // A fact about the ORIGINAL copy. Postgres keeps it because first_seen_at
       // is not in the SET clause either.
       createdAt: existing.createdAt,
@@ -527,6 +543,10 @@ export class MemoryLedger implements Ledger {
           // unrepaired row cannot blank a name the ledger already holds.
           ...(record.naturalKey !== undefined && record.naturalKey !== ''
             ? { naturalKey: record.naturalKey }
+            : {}),
+          // And the name, by the same rule, as PgLedger's ON CONFLICT sets it.
+          ...(record.displayName !== undefined && record.displayName !== ''
+            ? { displayName: record.displayName }
             : {}),
           // And the source's handle, by the same rule (0042 T8 (b)).
           ...(record.sourceRef !== undefined && record.sourceRef !== ''
@@ -955,12 +975,22 @@ export class MemoryLedger implements Ledger {
       if (r.tenantId !== tenantId || r.mappingId !== mappingId) continue;
       if (domain && r.itemType !== domain) continue;
       if (!r.movedToCollection) continue;
+      // The new name, from the row its new key names in THIS tenant and
+      // migration, by the rule PgLedger's `namesOfKeys` reads it by.
+      const arrival = r.movedToNaturalKeyHash
+        ? this.rows.get(
+            this.key({ tenantId, mappingId, itemType: r.itemType, naturalKeyHash: r.movedToNaturalKeyHash }),
+          )
+        : undefined;
+      const toName = arrival ? named(arrival).displayName : undefined;
       out.push({
         domain: r.itemType,
         naturalKeyHash: r.naturalKeyHash,
+        ...named(r),
         from: r.collection ?? '',
         to: r.movedToCollection,
         ...(r.movedToNaturalKeyHash ? { toNaturalKeyHash: r.movedToNaturalKeyHash } : {}),
+        ...(toName ? { toDisplayName: toName } : {}),
         ...(r.movedRecordedAt ? { recordedAt: r.movedRecordedAt } : {}),
         ...(r.moveAcknowledgedAt ? { acknowledgedAt: r.moveAcknowledgedAt } : {}),
         // What a decided move did on the new system, as PgLedger says it.
@@ -1187,6 +1217,7 @@ export class MemoryLedger implements Ledger {
       out.push({
         domain: r.itemType,
         naturalKeyHash: r.naturalKeyHash,
+        ...named(r),
         collection: r.collection ?? '',
         absentPasses: r.absentPasses ?? 0,
         confirmed:
@@ -1258,6 +1289,7 @@ export class MemoryLedger implements Ledger {
       out.push({
         domain: r.itemType,
         naturalKeyHash: r.naturalKeyHash,
+        ...named(r),
         collection: r.collection ?? '',
         exportedAs: r.supersededByNaturalKeyHash,
         ...(r.deletionAcknowledgedAt ? { acknowledgedAt: r.deletionAcknowledgedAt } : {}),

@@ -200,4 +200,25 @@ describe('an answer the page could not read is a sentence, not zod’s JSON', ()
     expect(await screen.findByText(CASES[1].said)).toBeInTheDocument();
     expect(screen.getByText(CASES[1].lead)).toBeInTheDocument();
   });
+
+  // The swallowed-error check of 2026-11-19 (workplan 0006 J): the report's catch let
+  // any failure go, a fault in the page's own code as well as the network's.
+  it('throws a failure to send that is not the network’s, and still shows the sentence', async () => {
+    const fault = new RangeError('a fault in the page');
+    sent.mockImplementation(async () => {
+      throw fault;
+    });
+    listMock.mockRejectedValue(theReportedRefusal());
+    const thrown: unknown[] = [];
+    const onUnhandled = (reason: unknown) => thrown.push(reason);
+    process.on('unhandledRejection', onUnhandled);
+    try {
+      inLocale('en', <Mappings />);
+
+      expect(await screen.findByText(CASES[0].said)).toBeInTheDocument();
+      await vi.waitFor(() => expect(thrown).toContain(fault));
+    } finally {
+      process.off('unhandledRejection', onUnhandled);
+    }
+  });
 });
