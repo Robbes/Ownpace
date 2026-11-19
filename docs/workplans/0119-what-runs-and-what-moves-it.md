@@ -4538,8 +4538,8 @@ Times are UTC.
   the file is being changed for item 13 on another branch, so it is left as it is here.
 
 **2026-11-06: the tasks' prebuilt base, which CI builds and starts on a pull request and
-publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch, merged as
-#1818 (`e0ef6b55`).** On the branch
+publishes and signs from `main` (§3 item 13, the first of two changes); built on a branch,
+merged as #1818 (`e0ef6b55`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-task-base-ghcr`, on `main` at `a72c9908` (#1817).
 Times are UTC. Nothing the stacks run changes with it: `apps/worker/trigger.config.ts` is not
 touched, and the tasks still build on `apps/api/Dockerfile`'s FROM image with its layer.
