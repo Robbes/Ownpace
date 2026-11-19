@@ -86,10 +86,6 @@ export const EXCEPTIONS: Readonly<Record<string, Partial<Record<Rule, string>>>>
     pipefail: "the check that the two copied files are upstream's pipes printf into `sha256sum -c -`",
   },
 
-  'deploy/compose/goaccess/Dockerfile': {
-    'non-root': "the image names no USER, as upstream's does: site-visits.sh runs it as 65534:65534",
-  },
-
   'deploy/compose/pgbouncer/Dockerfile': {
     'numeric-user':
       "`USER root` for the one RUN apk needs and `USER postgres` after it, by the name upstream's config gives its user: " +
