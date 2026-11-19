@@ -9,9 +9,10 @@ GHSA-7589-6fvf-x4pw, a high pnpm audit named that evening.** The advisory gate p
 requests' Security Scans until 22:11 UTC (#1938's, run 44626158907) and failed on `main`'s push
 scan at 22:12 UTC (run 44626245869, its `pnpm audit (advisory gate)` step), on the same lockfile.
 The advisory: `effect` to 3.22.0, the regular expression `Schema.TemplateLiteral` compiles
-(CWE-1333), fixed in 3.22.1 (2026-07-30). One copy was below it, 3.21.0, on one path: apps/worker
-> trigger.dev (the deploy CLI, 4.8.5) > `@trigger.dev/build` > `@prisma/config` 6.19.3, which pins
-it exactly. So the gate was red for every pull request again, the tree's and not any diff's.
+(CWE-1333), fixed in 3.22.1 (2026-07-30). One copy was below it, 3.21.0, on one path:
+apps/worker, then trigger.dev (the deploy CLI, 4.8.5), `@trigger.dev/build` and `@prisma/config`
+6.19.3, which pins it exactly. So the gate was red for every pull request again, the tree's and
+not any diff's.
 
 - **Nothing here ran the expression.** `@prisma/config`'s `dist/index.js` (read 2026-11-19 in the
   installed package) calls Schema's `Struct`, `optional`, `String`, `Boolean`, `Literal`, `Union`,
