@@ -104,12 +104,11 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
 - **Hosting:** Exoscale DE-FRA1, Frankfurt; a backup mail exchanger at Exoscale AT-VIE2,
   Vienna, that only holds inbound mail while Frankfurt is unreachable
   (`https://cirrux.co/help/reliability`)
-- **Type:** Managed SaaS. One price per seat, €2,99 a month or €29 a year with 20 GB; Plus
-  100 GB (€4,99 / €49), Large 500 GB (€9,99 / €99), Max 2 TB (€19,99 / €199). Storage is one
-  pool per workspace, shared by mail, Drive, documents and Gmail backups; a workspace over its
-  tier for seven days is moved to the smallest tier that fits, and uploads past the pool are
-  refused. No free mailbox: a mailbox is paid from day one, with a 14-day refund
-  (`https://cirrux.co/help/billing`)
+- **Type:** Managed SaaS, paid per seat; no free mailbox. Storage is one pool per workspace,
+  shared by mail, Drive, documents and Gmail backups; a workspace over its storage tier for
+  seven days is moved to the smallest tier that fits, and uploads past the pool are refused
+  (`https://cirrux.co/help/billing`). A migration into a full pool fails at the upload, so the
+  pool needs room for what is coming.
 - **Protocols:** IMAP, SMTP, CalDAV, CardDAV, all over TLS (`https://cirrux.co/help/encryption`).
   No WebDAV anywhere in the help pages.
 
@@ -177,19 +176,18 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
   mailbox, which does not fire for imported mail. A one-way migration into Cirrux has no use
   for it.
 
-### Cirrux's own import, and where this tool complements it
+### Cirrux's own import
 
 Cirrux Sync reads Google (`https://cirrux.co/help/google-sync`) and Microsoft
 (`https://cirrux.co/help/microsoft-sync`) accounts read-only, one way, every hour: mail,
 calendars and contacts. It leaves Google Drive and OneDrive files behind, names no tasks, and
 from Microsoft also leaves the online archive, event attachments, group calendars and contact
 lists. For any other provider Cirrux has an IMAP import that runs when it is started
-(`https://cirrux.co/help/imap-import`) and `.ics` / `.vcf` uploads. So for mail, calendars and
-contacts from Google or a single Microsoft account Cirrux competes with this tool directly.
-What this tool adds today: tasks (Microsoft To Do, Google Tasks, Apple Reminders into Cirrux's
-CalDAV task lists), Apple iCloud and any IMAP/DAV source kept in step rather than copied once,
-an administrator moving other people's Microsoft 365 mailboxes, and the ledger, verification
-and decision queues. Files wait on the Drive connector (0160 T5).
+(`https://cirrux.co/help/imap-import`) and `.ics` / `.vcf` uploads.
+
+Cirrux Sync and this tool write into the same mailbox, calendars and address book, and neither
+knows what the other wrote, so the guide (`docs/guides/en/cirrux.md`) tells a person to choose
+one of the two for each kind of data.
 
 ---
 

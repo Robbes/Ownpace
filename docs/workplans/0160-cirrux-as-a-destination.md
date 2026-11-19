@@ -4,7 +4,7 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
-**2026-11-19: T0 read and T1 built, on a branch of its own, not merged.** Cirrux's help site was
+**2026-11-19: T0 read and T1 built.** Cirrux's help site was
 read page by page (42 help and API pages and 6 common
 questions, from `cirrux.co` itself; §1 lists every fact with its page). T1 adds `cirrux` as a
 destination account in Soverin's shape: one row, one app password, four faces (email, calendar,
@@ -20,14 +20,13 @@ every changed file; the whole `unit` project (1107 files, 17090 tests, 33 skippe
 `unit-browser` project (184 files, 3532 tests), with the migration chain replayed on PGlite; the
 site's `build.mjs --check` (28 pages, nothing unfilled); and fourteen mutations, each breaking
 one line of T1 and each caught by the test meant to catch it (§3). What is not proven: anything against a live Cirrux mailbox. **No DAV path, principal URL or
-`/.well-known` discovery is published**, and `api.cirrux.co` could not be reached from the session
-that built this, so whether discovery from the host's root finds the calendars is the first thing
-T2 measures. No API key and no webhook were used, and none is needed (§2 (d)).
+`/.well-known` discovery is published**, and nothing has asked `api.cirrux.co` yet, so whether
+discovery from the host's root finds the calendars is the first thing T2 measures. No API key and no webhook were used, and none is needed (§2 (d)).
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 What Cirrux publishes | builder | ✅ **Read 2026-11-19** | §1. From the pages themselves; three search-index snippets were stale and are corrected there. |
-| T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19**, on a branch, not merged | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
+| T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19** | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
 | T2 The first live Test and migration | owner | 📋 **Proposed** | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. |
 | T3 What T2 corrects | builder | ⏳ **Waits on T2** | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
@@ -47,7 +46,7 @@ Read on 2026-11-19. *Read* means the page itself was read; *inferred* says what 
 | An app password works for its one mailbox until deleted; IMAP IDLE is supported | `https://cirrux.co/help/questions/script-or-agent-reads-and-sends-mail` | read |
 | TLS for IMAP, SMTP, CalDAV and CardDAV | `https://cirrux.co/help/encryption` | read |
 | No WebDAV, no DAV path, no principal URL, no `/.well-known` on any of the 42 pages | all of `https://cirrux.co/help/*` | read (searched) |
-| A DAV client given only `api.cirrux.co` finds the collections by RFC 6764 discovery or a PROPFIND on the root | from the two rows above | **inferred**: Apple's apps are documented to work with the bare server name; not observed, because the egress proxy refused `api.cirrux.co` |
+| A DAV client given only `api.cirrux.co` finds the collections by RFC 6764 discovery or a PROPFIND on the root | from the two rows above | **inferred**: Apple's apps are documented to work with the bare server name; not yet observed |
 | Port 443 for the DAV server | from the bare server name | **inferred**: a DAV server named without a port is HTTPS on its own port |
 | Every mailbox has a default calendar, an address book called Contacts and a task list called Reminders; Apple Reminders adds lists over CalDAV; a calendar may hold events and tasks at once | `https://cirrux.co/help/calendar`, `https://cirrux.co/help/api/contacts`, `https://cirrux.co/help/api/tasks` | read |
 | Recurring tasks work in Apple Reminders | `https://cirrux.co/updates/email-filters-cirrux-sync` | search snippet only |
@@ -100,13 +99,11 @@ migration into Cirrux has nothing to do with it. What T5 needs instead is an **O
 from Cirrux (§6), requested with the scopes `user.profile`, `drive.read`, `drive.create` and
 `drive.update`, and `drive.delete` only if owner-approved removals should reach Cirrux Drive.
 
-**Cirrux's own sync, beside this product.** For mail, calendars and contacts from Google or from
-one person's Microsoft account, Cirrux Sync does what this product does, hourly, inside Cirrux.
-This product adds what Cirrux Sync leaves out: tasks (Microsoft To Do, Google Tasks, Apple
-Reminders), Apple iCloud and any IMAP or DAV source kept in step rather than copied once, an
-administrator moving other people's Microsoft 365 mailboxes, and the ledger, verification and
-decision queues. Files are the largest gap Cirrux Sync leaves (no OneDrive, no Google Drive), and
-they wait on T5. The guide tells a person to use one of the two for each kind of data.
+**Cirrux's own sync.** Cirrux Sync copies mail, calendars and contacts from Google or from one
+person's Microsoft account into Cirrux, one way, every hour; it leaves Google Drive and OneDrive
+files behind and names no tasks. It and this product write into the same mailbox, calendars and
+address book, and neither knows what the other wrote, so the guide tells a person to use one of
+the two for each kind of data.
 
 ## 3. T1 — the `cirrux` destination (built)
 
@@ -170,9 +167,17 @@ plausible stored row for the face-building guard.
    filled in, type the mailbox's address and the app password, press **Add and test**.
 5. Write down what the Test says: each face after **Carries:** and **Found:**, the counts, and
    the line about invitations (*calendar auto-scheduling* or not).
-6. If calendars, contacts or tasks are *unknown* or found nothing: ask help@cirrux.co for the
-   CalDAV and CardDAV address of the mailbox, put it in **DAV base URL**, and test again. Write
-   down the address they give (T3).
+6. If calendars, contacts or tasks are *unknown* or found nothing, find the mailbox's DAV
+   address in one of two ways, put it in **DAV base URL**, and test again. Write down the address
+   (T3).
+   - On a Mac: the mailbox's **Passwords** tab has a **macOS configuration** button
+     (`https://cirrux.co/help/mac-profile`). Its profile is signed, and sets up the Mac's own
+     calendars and contacts, so it names their server and, if Cirrux sets one, their path. Read
+     only those lines, not the password's:
+     `security cms -D -i ~/Downloads/cirrux-*.mobileconfig | grep -A1 -E '(CalDAV|CardDAV)(HostName|Port|PrincipalURL)'`.
+     The profile carries an app password of its own: delete it on the same tab afterwards, and
+     delete the downloaded file.
+   - Or ask help@cirrux.co for the CalDAV and CardDAV address of the mailbox.
 7. Start one small migration from a source you own into that account, with email, calendar
    (including one event with an attendee you control), contacts and tasks ticked, and let one pass
    finish.
