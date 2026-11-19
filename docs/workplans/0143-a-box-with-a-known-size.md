@@ -2,7 +2,42 @@
 
 > **In one line:** Sizing the reference machine for the alpha's two stacks: Trigger.dev machine presets, a pass cap in `managed-sync-tick`, per-organisation limits, streamed files to `JmapFileTarget`, a largest-file refusal, plane retention and a measured load rehearsal.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: a failed data type no longer ends the pass (T5).** Found that day on the test
+environment: the owner's migration into Cirrux had its calendars failing on every pass, and its
+mail never arrived, although mail itself never failed. In `run-delta-sync`, a data type's catch
+re-threw, which ended the pass, so every data type after a failing one in the pass order never had
+its turn. A pass now goes on with the data types it has not started yet:
+
+- **The catch records a failure as before, and the pass goes on.** The run event, `markFailed`
+  with its side and reference, `domainFailedEvent` and `recordAppEvent` are unchanged. After the
+  loop a pass with a failure still fails. Its run row closes failed with one error per failed data
+  type, so the run page reads *2 errors* for two. The first copy is asked about once. The plane
+  gets `planeErrorForEach`'s error (`what-a-run-leaves.ts`): every failed data type in the pass
+  order, each with its own reference and category, and none of the words. It is retried as
+  before, unless one of the failures may not be (a data type that stopped itself after items
+  failed in a row), because a retry runs the whole pass again. Anything else that ends the pass
+  after a failure names the failed data types first (`planeErrorFor`'s `failedBefore`).
+- **Deliberate stops are unchanged.** A halt before a data type (paused, grant withdrawn,
+  organisation closed) still ends the loop with `break`, a data type stopped by its owner or past
+  its cutover is still moved past, and a stop inside a data type (deadline, budget, ceiling, halt)
+  is still a pause and not a failure. The halt's run-log line no longer says *nothing failed*
+  when a data type before it failed.
+- **Each data type's share of the time** is still asked before it starts, from what is left of
+  the pass (`domainDeadline`), so the time a failed data type did not use goes to the ones after
+  it. Nothing else counted on the loop ending at the first failure.
+- **The appliance and the command-line worker already went on:** `runAllDomains`'s catch in
+  `packages/orchestration/src/orchestration.ts` does not re-throw. Unchanged.
+- **Guard:** `apps/worker/src/jobs/a-failed-type-ends-no-pass.unit.test.ts` runs the task's own
+  `run` over PGlite, with the five passes scripted. Calendar fails, and task, email and file still
+  run in order. Two failures are both named, in the pass order. A stop after a failure still
+  stops. With the re-throw put back, 6 of its 7 cases fail.
+- **Still to watch:** a pass with any failed data type counts as a failed pass, so the tick's
+  failing-backoff ladder (`failing-backoff.ts`) still spaces such a mapping's passes out, to one
+  a day after twelve, unless one of its data types failed for a reason that clears by itself.
+  Mail now moves on every pass that runs, but while calendars keep failing, passes run that much
+  less often.
 
 **2026-11-08, records: two notes caught up with what merged.** Docs only, on the branch
 `claude/ownpace-public-readiness-y7orc6-a7-records-cleanup`, merged as #1844 (`200185fd`). The entry
@@ -1532,6 +1567,12 @@ calendars, contacts and files may not start until the mail's first copy is done.
 it in its known-limitations page, which 0144 plans for after the first invitation. Before then,
 the owner says it when granting (§4), and can also suggest that such a tester ticks mail alone
 first.
+
+**2026-11-19: a failed data type no longer ends the pass.** Until that day a data type that
+failed ended the pass, so the data types after it in the pass order never ran.
+Now the pass goes on to the next one and fails only once every data type has had its turn, naming
+each one that failed. A pass told to stop still stops. The Status block's entry of that date has
+the details, and `a-failed-type-ends-no-pass.unit.test.ts` is the guard.
 
 ### T6 — runs of organisations that are never invoiced (parked)
 

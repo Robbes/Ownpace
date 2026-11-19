@@ -154,9 +154,11 @@ Rename one migrated file **in Drive**, same folder — `report.pdf` →
 `summary.pdf`. Wait one pass.
 
 - **Expect:** the target now holds BOTH copies (nothing is ever deleted by a
-  pass), and **Moved on the old system** (`/ui` → moves) shows one row saying
-  *renamed*, with two buttons: **Leave it where it is** and **Remove the old
-  copy**.
+  pass), and **Moved on the old system** (`/ui` → moves) shows one row naming
+  the file as it was and as it is now, *`/report.pdf` → `summary.pdf`* (its
+  folder in front of the old name; a row from before the names were recorded
+  still says *renamed*), with two buttons: **Leave it where it is** and
+  **Remove the old copy**.
 - Click **Remove the old copy** — it arms first (*Confirm removal*), a single
   click never removes anything — then confirm.
 - **Expect:** the row resolves with the server's own sentence; the OLD name is
@@ -164,9 +166,9 @@ Rename one migrated file **in Drive**, same folder — `report.pdf` →
   the token cannot write.
 - **Also with a Google Doc**, if Docs are exported as Microsoft Office: rename
   one in Drive. Each export of it has other bytes, so it is recognised by its
-  Drive id. **Expect** the same *renamed* row, and **not** a deletion two passes
-  later. **Remove the old copy** works the same; unattended apply leaves it for
-  you.
+  Drive id. **Expect** the same row, naming the document's old and new names,
+  and **not** a deletion two passes later. **Remove the old copy** works the
+  same; unattended apply leaves it for you.
 - **Also worth one deliberate minute:** rename another file and answer **keep**
   this time. The row moves to *Already decided*, saying *Left where it is on the
   new system*, and the remove button is gone — and stays gone: `keep` is final
@@ -174,10 +176,11 @@ Rename one migrated file **in Drive**, same folder — `report.pdf` →
   button (that enforcement is what PR #408 added). The row you removed above is
   there too, saying *Old copy removed on the new system*.
 
-### Drill C — a real move (expect: folder → folder, same buttons)
+### Drill C — a real move (expect: the file in both folders, same buttons)
 
 Drag a migrated file to a different subfolder in Drive. Same as B, but the row
-reads `folderA → folderB` instead of *renamed*.
+reads the file in both folders, `/folderA/report.pdf → /folderB/report.pdf`,
+instead of an old name and a new one.
 
 ### Drill D — deletion (expect: a report, and NO apply button)
 
@@ -185,8 +188,9 @@ Delete a migrated file in Drive (into Drive's bin is fine). Wait **two full
 passes** — absence must repeat before it is reported.
 
 - **Expect:** **Deleted on the old system** (`/ui` → deletions) shows the row as
-  *inferred* — and offers **keep only, no apply button**. Drive never *reports*
-  deletions (its `removed` flag also fires for sharing changes, so this product
+  *inferred*, naming the file by its path — and offers **keep only, no apply
+  button**. Drive never *reports* deletions (its `removed` flag also fires for
+  sharing changes, so this product
   refuses to treat it as evidence), and inferred absence is never enough to
   destroy a copy (ADR-0024 gate 3). The missing button is the safety argument
   working; the target keeps the file until you delete it there yourself.

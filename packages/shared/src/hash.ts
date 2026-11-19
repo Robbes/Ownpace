@@ -132,10 +132,12 @@ export function naturalKeyForFile(file: FileItem): string {
 // Every hash above is `sha256Hex('<prefix>:<something>')`, and that
 // `<something>` is the item's own identifier: a Message-ID, a UID, a file
 // path. The hash is the ledger's key and is all any ACTION needs (§17). The
-// plain text is what a PERSON needs, and it has exactly one consumer: the
+// plain text is what a PERSON needs, and it has two kinds of consumer: the
 // confirmed list and its CSV export — the document somebody reconciles
-// against the account they are about to empty. `confirmed-list.ts` argues
-// that exception at length; this is the other end of it.
+// against the account they are about to empty, whose `confirmed-list.ts`
+// argues that exception at length — and the owner's three decision queues,
+// which read a FILE's name, its last segment, from it (`nameOnRow`, below),
+// beside the folder each of their rows already carries.
 //
 // Two things about these that look like mistakes and are not:
 //
@@ -290,6 +292,39 @@ export function displayNameForTask(task: CalendarEvent | undefined): string | un
 /** The card's FN — the person's full name as their address book holds it. */
 export function displayNameForContact(contact: Contact | undefined): string | undefined {
   return boundDisplayName(contact?.name);
+}
+
+/**
+ * WHAT A QUEUE ROW CALLS ITS ITEM, read from what the ledger row already holds.
+ *
+ * Found 2026-11-19 on a Moves row that read *Files / renamed* beside a hash,
+ * with nothing on it to say which file. Failures had learned this on 2026-09-17 and
+ * 2026-09-23; Moves and Deletions had not, so the two queues that ask about
+ * removing a copy named nothing a person could recognise.
+ *
+ * - The stored name first (`display_name`, migration 0050): an event's or a
+ *   task's SUMMARY, a contact's FN, a message's Subject as the pass decoded it
+ *   from the bytes it copied (`displayNameForMessage`).
+ * - A FILE stores none, because its key is its name: the root-relative path
+ *   the pass records beside the hash (`natural_key`). Its last segment is the
+ *   name a person gave it, and the row's folder is already its `collection`.
+ * - Nothing else. A Message-ID or a UID is an identifier, not a name.
+ *
+ * READ, NEVER STORED: no column is written for this, so a name reaches a screen
+ * only from a row that already held it, and goes when the row goes. Absent on a
+ * file row written before 2026-09-12 (its key is `''`), on an event or a contact
+ * written before 2026-09-17, and on a message copied before its Subject was
+ * read; a screen then shows what it showed before. Shared by `PgLedger` and the
+ * in-memory ledger, so the two cannot name an item differently.
+ */
+export function nameOnRow(row: {
+  readonly domain: string;
+  readonly displayName?: string | null | undefined;
+  readonly naturalKey?: string | null | undefined;
+}): string | undefined {
+  if (row.displayName) return row.displayName;
+  if (row.domain !== 'file' || !row.naturalKey) return undefined;
+  return boundDisplayName(row.naturalKey.split('/').filter(Boolean).pop());
 }
 
 /**
