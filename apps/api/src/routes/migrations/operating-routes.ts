@@ -323,6 +323,11 @@ router.get('/:mappingId/moves', authenticate, async (req: AuthenticatedRequest, 
     const all = await withLedger(s.tenantId, (l) =>
       l.listMoves(s.tenantId as TenantId, s.mappingId as MappingId),
     );
+    // Each row names its item where the ledger holds a name (`displayName`,
+    // `toDisplayName`), and keeps it for an account a person granted too:
+    // ADR-0035 decision 5 keeps this queue, and Deletions, naming that
+    // person's files and folders to the owner, who decides on them. What it
+    // withholds is a FAILURE's text and names (`withheldFailure`, below).
     const body: MovesResponse = {
       [s.mappingId]: {
         migrationStatus: s.lifecycle,

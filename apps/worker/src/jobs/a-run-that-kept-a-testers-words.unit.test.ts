@@ -338,10 +338,18 @@ describe('the two tasks that hand words on themselves', () => {
     expect(code).toMatch(/return \{ outcomes \};/);
   });
 
-  it('run-delta-sync’s data type fails with the reference its catch recorded', () => {
+  it('run-delta-sync’s data types fail with the references their catch recorded, once each has had its turn', () => {
+    // Since 2026-11-19 (0143 T5) the catch keeps a failure and the pass goes on
+    // to the next data type; the pass fails after the loop, naming every one.
+    // `a-failed-type-ends-no-pass` runs it.
     const code = readFileSync(join(HERE, 'run-delta-sync.ts'), 'utf8');
     expect(code).toMatch(
-      /await recordAppEvent\(failed\);[\s\S]{0,400}?throw await planeErrorFor\(\s*error,[\s\S]{0,120}?\{ doing: `\$\{domain\} sync`, reference: failed\.reference,/,
+      /await recordAppEvent\(failed\);[\s\S]{0,600}?failures\.push\(\{[\s\S]{0,120}?recorded: \{ doing: `\$\{domain\} sync`, reference: failed\.reference,/,
+    );
+    expect(code).toMatch(/throw planeErrorForEach\(\[firstFailed, \.\.\.alsoFailed\]\);/);
+    // Whatever else ends the pass leaves with them, not in their place.
+    expect(code).toMatch(
+      /throw await planeErrorFor\(error, \{ task: 'run-delta-sync', tenantId, mappingId \}, undefined, failures\);/,
     );
     expect(code).not.toMatch(/^\s*throw error;/m);
   });

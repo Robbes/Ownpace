@@ -72,6 +72,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Moves and Deletions name the item each row asks about** (workplan 0159): a file renamed at
+  the top of a drive read only `/ renamed` beside an ID and now reads
+  `/report.pdf → report-final.pdf`, a moved file shows its name in both folders, and a message,
+  an event or a contact shows its name, all from what the migration had already recorded.
 - **Nothing written to Cirrux names a guest or an organiser, because Cirrux emails every guest**
   (workplan 0160, ADR-0043 amended). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
   with every attendee and organiser marked `SCHEDULE-AGENT=CLIENT`, as for every target, and
@@ -132,6 +136,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   as it asks about each one on its own. And three things the web app sends without waiting, the
   visit a migration's page records, the removal of an account a failed check left and the report
   of an answer a page could not read, still let a failed request go and now throw anything else.
+- **A data type that fails no longer holds back the ones after it** (workplan 0143): when your
+  calendars fail to copy, your tasks, mail and files are still copied in the same pass, and the
+  pass still shows as failed, naming each data type that failed.
 
 ## [0.2.0-alpha.11] - 2026-11-17
 
