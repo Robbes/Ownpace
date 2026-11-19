@@ -127,6 +127,9 @@ export const CIRRUX_CONSENT_FOR_THE_OWNER = {
 /** The audit action a Drive grant stored on a Cirrux account is recorded under (ADR-0052, decision 7). */
 export const CIRRUX_DRIVE_CONNECTED_ACTION = 'connection.cirrux_drive_connected';
 
+/** The audit action *Disconnect Cirrux Drive* is recorded under, when it removed a grant (workplan 0160). */
+export const CIRRUX_DRIVE_DISCONNECTED_ACTION = 'connection.cirrux_drive_disconnected';
+
 /** Scopes a migration into Drive cannot run without: listing, creating and replacing. */
 export const CIRRUX_REQUIRED_SCOPES: ReadonlyArray<string> = ['drive.read', 'drive.create', 'drive.update'];
 

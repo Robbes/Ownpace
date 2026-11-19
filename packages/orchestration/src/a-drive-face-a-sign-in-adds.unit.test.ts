@@ -20,7 +20,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { CIRRUX_DRIVE_GRANT_KEY, grantedTargetFacesOf } from '@openmig/shared';
+import { CIRRUX_DRIVE_GRANT_KEY, classifyFailure, grantedTargetFacesOf, statedFailureCategoryOf } from '@openmig/shared';
 import { qualifyCirruxDrive, type CirruxDriveReach } from './account-qualification.ts';
 import { cirruxDriveDepsFor } from './build-deps-from-mapping.ts';
 import { buildFileTargetFor, fileTargetProtocol } from './file-target-factory.ts';
@@ -122,8 +122,29 @@ describe('the pass refuses by the same facts, before anything is built', () => {
     expect(grantedTargetFacesOf('cirrux', GRANTED)).toEqual(['file']);
     expect(grantedTargetFacesOf('nextcloud', GRANTED)).toEqual([]);
     expect(() => refuseDomainTheTargetCannotCarry('file', 'cirrux', grantedTargetFacesOf('cirrux', APP_PASSWORD))).toThrow(
-      /only once Cirrux Drive is connected/,
+      /no Cirrux Drive connected/,
     );
     expect(() => refuseDomainTheTargetCannotCarry('file', 'cirrux', grantedTargetFacesOf('cirrux', GRANTED))).not.toThrow();
+  });
+
+  it('a pass after Disconnect Cirrux Drive writes no file anywhere and says so, under auth_expired (workplan 0160)', () => {
+    let thrown: unknown;
+    try {
+      refuseDomainTheTargetCannotCarry('file', 'cirrux', grantedTargetFacesOf('cirrux', APP_PASSWORD));
+    } catch (err) {
+      thrown = err;
+    }
+    expect(thrown).toBeInstanceOf(Error);
+    const message = (thrown as Error).message;
+    expect(message).toBe(
+      "This Cirrux account has no Cirrux Drive connected, so nothing was written for 'file', here or to any " +
+        "other destination. On the Accounts page, press Connect Cirrux Drive on this account, and 'file' " +
+        'carries on at the next pass.',
+    );
+    // Stated by the throw site, so the status row and the Accounts row name
+    // the button: no rule reads this sentence of ours as an expired sign-in.
+    expect(statedFailureCategoryOf(thrown)).toBe('auth_expired');
+    expect(classifyFailure(message)).toBe('unknown');
+    expect(classifyFailure(message, undefined, statedFailureCategoryOf(thrown))).toBe('auth_expired');
   });
 });

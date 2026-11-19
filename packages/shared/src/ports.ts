@@ -3024,6 +3024,12 @@ export interface MigrationStatusStore {
     side?: FailureSide,
     /** The reference the failure was recorded under (0129 T1), kept to be shown. */
     reference?: string,
+    /**
+     * The category the throw site stated (`statedFailureCategoryOf`), which
+     * wins over the one the message classifies as, as it does for an item
+     * (0125 T4; workplan 0160, a disconnected Cirrux Drive).
+     */
+    stated?: FailureCategory,
   ): Promise<void>;
 
   /**

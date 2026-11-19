@@ -53,7 +53,10 @@
 
 import {
   TARGET_TYPE_DOMAINS,
+  grantableTargetFaces,
   targetDomainRefusal,
+  ungrantedFaceAtPassRefusal,
+  withFailureCategory,
   type DiscoveryDomain,
   type WizardTargetType,
 } from '@openmig/shared';
@@ -93,6 +96,19 @@ export function refuseDomainTheTargetCannotCarry(
   granted: ReadonlyArray<DiscoveryDomain> = [],
 ): void {
   if (!(targetKind in TARGET_TYPE_DOMAINS)) return;
-  const refusal = targetDomainRefusal(targetKind as WizardTargetType, [discoveryDomainOf(domain)], granted);
-  if (refusal) throw new Error(refusal);
+  const type = targetKind as WizardTargetType;
+  const face = discoveryDomainOf(domain);
+  const refusal = targetDomainRefusal(type, [face], granted);
+  if (!refusal) return;
+  // A FACE THE ACCOUNT TAKES ONCE ITS GRANT IS STORED, AND IT IS NOT (workplan
+  // 0160): the migration was made with the grant, and the person disconnected
+  // it since, or the provider ended it. The pass says that, writes nothing for
+  // the face anywhere, and states `auth_expired` itself, because the remedy is
+  // the button that stores the grant again and no rule reads this sentence of
+  // ours as one: the Accounts row then names that button, as it does for a
+  // Drive sign-in Cirrux refused.
+  if (grantableTargetFaces(type).includes(face)) {
+    throw withFailureCategory('auth_expired', new Error(ungrantedFaceAtPassRefusal(type, [face])));
+  }
+  throw new Error(refusal);
 }

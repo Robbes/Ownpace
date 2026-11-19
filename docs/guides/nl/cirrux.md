@@ -65,6 +65,17 @@ Wat er met uw bestanden gebeurt:
 
 De aanmelding wordt versleuteld bij het account bewaard, naast het app-wachtwoord. Cirrux vervangt haar telkens wanneer deze dienst haar vernieuwt, dus deze dienst bewaart elke nieuwe en gebruikt die één keer. Een aanmelding die 30 dagen niet wordt gebruikt, verloopt bij Cirrux. Werkt de aanmelding niet meer, dan mislukken de bestanden met een zin die **Cirrux Drive verbinden** noemt: druk er opnieuw op, en de bestanden gaan bij de volgende keer verder. Een nieuw app-wachtwoord van dezelfde mailbox houdt de Drive verbonden; een app-wachtwoord van een andere mailbox begint zonder.
 
+### Cirrux Drive loskoppelen {#disconnect}
+
+Wilt u dat er geen bestanden meer naar de Drive gaan, en het account voor de rest houden, druk dan op de pagina **Accounts** bij het Cirrux-account op **Cirrux Drive loskoppelen**, naast **Cirrux Drive opnieuw verbinden**. Er wordt eerst gevraagd of u het zeker weet; druk op **Ja, loskoppelen**, of op **Verbonden laten** om alles te laten zoals het is.
+
+- **Alleen de aanmelding bij Cirrux Drive verdwijnt.** Deze dienst verwijdert zijn kopie ervan. Het app-wachtwoord blijft, dus mail, agenda's, contacten en taken gaan door zoals ze gingen, en wat al in uw Drive staat, blijft daar: er wordt niets in verplaatst of verwijderd.
+- **Er gaan geen bestanden meer heen.** Het account toont bestanden als niet omvat, en **Waar gaat het naartoe?** biedt het niet meer aan voor bestanden. Een migratie die bestanden daarheen stuurt, stopt bij de bestanden met een zin die **Cirrux Drive verbinden** noemt, en stuurt ze nergens anders heen; de andere soorten gegevens gaan door. Een ronde die al bestanden kopieert, stopt binnen ongeveer een minuut, bij het volgende verzoek aan Cirrux.
+- **Bij Cirrux eindigt de aanmelding vanzelf.** Cirrux biedt een dienst geen manier om een aanmelding te beëindigen, dus bij Cirrux blijft ze geldig tot ze 30 dagen niet is gebruikt. Wilt u haar eerder beëindigen, open dan in Cirrux Mail **Settings → Security**, waar de apps staan die u toegang hebt gegeven, en trek daar de toegang van deze dienst in ([security](https://cirrux.co/help/security)).
+- **Later weer verbinden** gaat met **Cirrux Drive verbinden** en opnieuw aanmelden, zoals de eerste keer; de bestanden gaan verder waar ze stopten.
+
+Drukt u erop bij een account zonder verbonden Drive, dan zegt het scherm dat er niets los te koppelen was.
+
 ## De eigen import van Cirrux {#cirrux-sync}
 
 Cirrux kan zelf kopiëren uit Google en Microsoft. Google Sync en Microsoft Sync van Cirrux lezen mail, agenda's en contacten, in één richting, en kijken elk uur naar wijzigingen ([Google Sync](https://cirrux.co/help/google-sync), [Microsoft Sync](https://cirrux.co/help/microsoft-sync)). Bestanden uit Google Drive en OneDrive laten ze achter, en taken noemen ze niet. Voor andere aanbieders kopieert de IMAP-import van Cirrux mail telkens wanneer u die start, en agenda's en contacten komen over als bestanden die u uploadt.
@@ -85,6 +96,7 @@ Wat Cirrux zelf antwoordt, toont deze dienst woordelijk, in de taal van de serve
 
 ## Stoppen {#leaving}
 
+- Wilt u alleen de bestanden stoppen en het account houden voor mail, agenda's, contacten en taken, koppel dan Cirrux Drive los ([Cirrux Drive loskoppelen](#disconnect)).
 - Een migratie verwijdert u onder **Migraties**. De bevestiging zegt wat dat doet: **Verwijdert enkel instellingen en registratie van uw migratie in Ownpace, niets bij uw bron of bestemming.** Wat al gemigreerd is, blijft bij Cirrux staan.
-- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het app-wachtwoord bij deze dienst, en van de aanmelding bij Cirrux Drive als die verbonden was. Het app-wachtwoord zelf blijft bij Cirrux geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.** Ook voor een aanmelding bij Cirrux Drive noemt Cirrux geen manier waarop een dienst haar kan intrekken; niets hier kan haar nog gebruiken, en bij Cirrux verloopt ze zodra ze 30 dagen niet is gebruikt.
+- Een account verwijdert u onder **Accounts** met **Verwijderen**. Daarmee verdwijnt de kopie van het app-wachtwoord bij deze dienst, en van de aanmelding bij Cirrux Drive als die verbonden was. Het app-wachtwoord zelf blijft bij Cirrux geldig, en het scherm zegt dat ook: **Wij hebben onze kopie verwijderd; deze aanbieder biedt geen manier om intrekking door ons te forceren.** Ook voor een aanmelding bij Cirrux Drive noemt Cirrux geen manier waarop een dienst haar kan intrekken; niets hier kan haar nog gebruiken, en bij Cirrux verloopt ze zodra ze 30 dagen niet is gebruikt, of wanneer u haar intrekt onder **Settings → Security** in Cirrux Mail.
 - Verwijder daarom het app-wachtwoord bij Cirrux: in Cirrux Mail, **Settings → Mailboxes**, de mailbox, het tabblad **Passwords**. Uw Cirrux-wachtwoord blijft zoals het is.

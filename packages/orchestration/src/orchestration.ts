@@ -63,7 +63,7 @@ import {
 } from './target-fan-out.ts';
 import { discoverDomains, type DomainDiscoveryTask, type DomainDiscoveryOutcome } from './discovery.ts';
 import { log, metrics as registry, MAX_ITEM_ATTEMPTS, type PassMetrics } from '@openmig/shared';
-import { domainFailedEvent, recordAppEvent } from '@openmig/shared';
+import { domainFailedEvent, recordAppEvent, statedFailureCategoryOf } from '@openmig/shared';
 import { DISCOVERY_DOMAINS, DOMAIN_CONFIG_KEY } from '@openmig/shared';
 import { sourceStillDecides, type PassPhases, type PathPhaseOf, type SourceAuthority } from '@openmig/shared';
 
@@ -960,6 +960,9 @@ export async function runAllDomains(
         domain,
         message: error.message,
         side: failureSideOf(err),
+        // The category the throw site stated, which wins over the message
+        // (workplan 0160): the same one `markFailed` stores below.
+        stated: statedFailureCategoryOf(err),
       });
       log.error(`[Worker] ${domain} sync failed [ref ${failed.reference}]: ${error.message}`);
       // With the side the pass tagged at the closure that threw (0094 T5,
@@ -974,6 +977,7 @@ export async function runAllDomains(
         error.message,
         failureSideOf(err),
         failed.reference,
+        statedFailureCategoryOf(err),
       );
       await recordAppEvent(failed);
       results.push({ domain, scanned: 0, created: 0, updated: 0, skipped: 0, adopted: 0, failed: 1, error: error.message });

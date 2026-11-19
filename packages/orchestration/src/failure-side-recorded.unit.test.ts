@@ -41,3 +41,24 @@ describe('the side a pass tagged reaches markFailed', () => {
     expect(worker).not.toMatch(/markFailed\(tenantId, mappingId, domain, errorMessage\)/);
   });
 });
+
+/**
+ * AND THE CATEGORY THE THROW SITE STATED (workplan 0160). A data type's status
+ * row classified its failure from the message alone, so a refusal this code
+ * wrote and tagged (`withFailureCategory`) lost its tag there: a Cirrux
+ * account whose Drive was disconnected read `unknown` on the Accounts row
+ * instead of naming *Connect Cirrux Drive*. Both catches hand it on, to the
+ * status row and to the operator's event alike.
+ */
+const MARK_FAILED_WITH_STATED = /markFailed\([\s\S]{0,300}?statedFailureCategoryOf\((err|error)\)/;
+const EVENT_WITH_STATED = /domainFailedEvent\(\{[\s\S]{0,500}?stated: statedFailureCategoryOf\((err|error)\)/;
+
+describe('the category a throw site stated reaches markFailed and the event', () => {
+  it.each([
+    ['the appliance and CLI path (orchestration.runOneDomain)', orchestration],
+    ['the managed worker (run-delta-sync)', worker],
+  ])('in %s', (_where, source) => {
+    expect(source).toMatch(MARK_FAILED_WITH_STATED);
+    expect(source).toMatch(EVENT_WITH_STATED);
+  });
+});

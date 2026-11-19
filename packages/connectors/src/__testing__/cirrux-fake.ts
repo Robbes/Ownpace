@@ -40,15 +40,26 @@ import { cirruxDriveNotConnected } from '../cirrux-token-provider.ts';
 /**
  * `RotatingGrantStore` in memory, with the contract the database's holds: one
  * rotation at a time (a promise chain is the lock), the token read under it,
- * the outcome acted on before it is released. `writes` counts what was stored.
+ * the outcome acted on before it is released. `writes` counts what was stored,
+ * `asked` how often `holdsGrant` was asked. A disconnect is
+ * `refreshToken = undefined`, as the database's removes the key.
  */
 export class MemoryRotatingGrantStore implements RotatingGrantStore {
   refreshToken: string | undefined;
   writes = 0;
+  asked = 0;
+  /** The connection, for `forgetCirruxAccess`; absent unless a test names one. */
+  readonly connection: string | undefined;
   private tail: Promise<unknown> = Promise.resolve();
 
-  constructor(refreshToken: string | undefined) {
+  constructor(refreshToken: string | undefined, connection?: string) {
     this.refreshToken = refreshToken;
+    this.connection = connection;
+  }
+
+  async holdsGrant(): Promise<boolean> {
+    this.asked += 1;
+    return typeof this.refreshToken === 'string' && this.refreshToken.trim() !== '';
   }
 
   rotate<T>(use: (refreshToken: string) => Promise<RotationOutcome<T>>): Promise<T> {

@@ -20,7 +20,7 @@ import {
 import type { PgDatabase } from './db.ts';
 import { eq, and, inArray, like, sql } from 'drizzle-orm';
 import * as schemaPg from './schema-pg.ts';
-import type { DiscoveryDomain, FailureSide } from '@openmig/shared';
+import type { DiscoveryDomain, FailureCategory, FailureSide } from '@openmig/shared';
 
 /**
  * The item statuses `itemsSynced` counts, and the ones that make a
@@ -281,6 +281,7 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
     error: string,
     side?: FailureSide,
     reference?: string,
+    stated?: FailureCategory,
   ): Promise<void> {
     await this.db
       .update(schemaPg.migrationStatus)
@@ -307,7 +308,12 @@ export class PgMigrationStatusStore implements MigrationStatusStore {
         // which is why the category is derived here rather than anywhere the
         // message later travels to. The two are written in the same statement
         // and cannot disagree.
-        lastErrorCategory: classifyFailure(error, side),
+        //
+        // AND THE CATEGORY THE THROW SITE STATED (workplan 0160), which wins
+        // over the matcher as it does for an item (0125 T4): a refusal this
+        // code wrote, such as a Cirrux account whose Drive was disconnected,
+        // names `auth_expired` itself, in a sentence no rule reads as one.
+        lastErrorCategory: classifyFailure(error, side, stated),
         // The reference the failure was recorded under (0061, 0129 T1), what
         // a person quotes. NULL written explicitly, like the side: a previous
         // failure's reference must not stand beside this one. One of the
