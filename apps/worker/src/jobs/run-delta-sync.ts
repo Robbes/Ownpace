@@ -627,6 +627,11 @@ export const runDeltaSync = schemaTask({
              * the mail branch: mail carries no version, so it is never rewritten.
              */
             changedAfterCutover?: number;
+            /**
+             * Rewrites not sent because the copy still lists guests the target
+             * would mail (workplan 0160). Calendar and task only.
+             */
+            keptForGuests?: number;
             budgetPause?: BudgetPause;
             deadlinePause?: DeadlinePause;
             haltPause?: HaltPause;
@@ -911,6 +916,22 @@ export const runDeltaSync = schemaTask({
                   'as the new system has them: after cutover a change there no longer overwrites a copy ' +
                   'here. Nothing failed; new items are still copied.',
                 { domain, changedAfterCutover: changed },
+              );
+            });
+          }
+          if (result.keptForGuests) {
+            // Said in the run log too: a copy left unchanged on purpose is a
+            // divergence the owner can see and decide about (workplan 0160).
+            const kept = result.keptForGuests;
+            await withTenant(pool, tenantId, async (db) => {
+              await new RunStore(db).logEvent(
+                tenantId,
+                runId,
+                'warn',
+                `${domain}: ${kept} item(s) changed at the old system, but their copies at the new ` +
+                  'system still list guests, and it emails each guest a change takes off. They were ' +
+                  'left as they are and nobody was emailed. Nothing failed; the change was not applied.',
+                { domain, keptForGuests: kept },
               );
             });
           }

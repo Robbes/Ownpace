@@ -4,6 +4,15 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, night: an event at Cirrux that lists guests is left as it is.** The owner tested
+Cirrux alone, with two events of their own and a guest on each: taking the guest off one, and
+deleting the other, each mailed the guest a cancellation (`METHOD:CANCEL`, the mailbox as its
+organiser). So the events written before the guests came out would have mailed every guest a
+cancellation the first time the writer rewrote one, since a rewrite takes every guest off, or
+removed one. For a Cirrux target the calendar and task writers now read the copy first and,
+when it lists a guest, send neither: the change at the source is not applied and is asked about
+again on the next pass, and a removal answers *kept for its guests* and removes nothing (§5).
+
 **2026-11-19, evening: Cirrux emailed invitations for the events written.** With the third
 correction on the test environment, the resumed pass wrote events into the calendar it had made,
 and Cirrux emailed an invitation to every guest of every event that listed one, past events
@@ -90,7 +99,7 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 | T0 What Cirrux publishes | builder | ✅ **Read 2026-11-19** | §1. From the pages themselves; three search-index snippets were stale and are corrected there. |
 | T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19** | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
 | T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, calendars with a 404, then each event with a 404, each corrected in T3; then Cirrux emailed the guests of the events written, and the migration is paused; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
-| T3 What T2 corrects | builder | 🔨 **Four corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it; nothing written to Cirrux names a guest or an organiser | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states. |
+| T3 What T2 corrects | builder | 🔨 **Five corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it; nothing written to Cirrux names a guest or an organiser; an event there that already lists a guest is neither rewritten nor deleted | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
 | T2b The first live Drive test | owner | 📋 **Proposed** | §6b: once Cirrux has sent the OTA client, its ID in the OTA stack's `.env`, *Connect Cirrux Drive*, one small migration of files, a replace, a conflict, an approved removal, and a refresh after fifteen minutes. |
 | T5 Files into Cirrux Drive | builder, owner | 🔨 **Built 2026-11-19, to 2 GiB** | §6; ADR-0052. The consent door, the rotating write-back one refresh at a time, the face and its Test, the writer (simple upload to 100 MB; the chunked upload to 2 GiB and every replace in Cirrux's `CXDRV2` format, streamed; `base_ctag`; the trash for approved removals), the Accounts page's button. |
@@ -315,9 +324,25 @@ plausible stored row for the face-building guard.
   what the writer does instead of what the marker would do. Tested in
   `a-guest-a-server-would-mail.unit.test.ts`, `dav-write-round-trips.unit.test.ts`,
   `a-target-that-mails-guests-gets-none.unit.test.ts` and `target-scheduling.unit.test.ts`,
-  with seventeen mutations, each caught. The events written before the pause keep their guests at Cirrux. A later pass leaves each
-  alone while its source is unchanged; one that changes at the source is written again without
-  its guests, and Cirrux may then email them an update or a cancellation.
+  with seventeen mutations, each caught. The events written before the pause keep their guests
+  at Cirrux, and are left as they are: the next bullet.
+- **A copy that still lists guests, rewritten or deleted (found 2026-11-19, corrected the same
+  day)**. The owner tested Cirrux alone: a guest taken off an event, and an event deleted, each
+  mailed the guest a cancellation (`METHOD:CANCEL`, the mailbox as its organiser). A rewrite
+  takes every guest off, so each event written before the previous bullet would have mailed all
+  its guests a cancellation the first time its source changed, and a removal would have too. For
+  a target in `TARGETS_THAT_MAIL_GUESTS`, the calendar and task writers now read the copy first,
+  with one GET, and only on a rewrite or a removal. When it lists an `ATTENDEE` outside an alarm
+  (`namesGuests`), nothing is sent. A rewrite answers `keptForGuests`: the row is left exactly as
+  it was, its source version not advanced, so the next pass asks again and the rewrite goes
+  through the day `cirrux` leaves the list. A removal answers `kept_for_guests` on *Deletions*
+  and *Moves*, in words a person can act on. A copy that cannot be read, or whose answer holds no
+  calendar object, is neither rewritten nor removed, and one that is gone is left gone. A guest added between the read and the `DELETE`
+  changes the version, and `If-Match` then removes nothing. The pass's log and the run log say
+  how many were left. Tested in `a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`,
+  `a-guest-a-server-would-mail.unit.test.ts`, `update-propagation.unit.test.ts`,
+  `apply-deletion.unit.test.ts` and `apply-relocation.unit.test.ts`, with twenty-five mutations,
+  each caught.
 
 ## 6. T5 — files into Cirrux Drive (built, to 2 GiB)
 
@@ -530,12 +555,13 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
   2026-11-19: Cirrux emailed the guests of the events written, and the migration is paused again
   (§5's fourth bullet).
 - Leave the events already in Cirrux, and the calendar the pass made, as they are: Cirrux emails
-  every guest a cancellation when one is deleted (§1). If they are to go, ask help@cirrux.co how
-  to remove them without mail.
+  every guest a cancellation when one is deleted or loses a guest, which the owner's test showed
+  (§5's fifth bullet). If they are to go, ask help@cirrux.co how to remove them without mail.
 - When Cirrux answers how its server can be written to without mailing guests (asked
   2026-11-19): pass the answer on, so the exception can be undone (§5's fourth bullet).
-- Once the guests correction is on the test environment: resume the migration and watch the
-  source account's own inbox for the first minutes. The account is an attendee of most events it
+- Once the guests correction and the one after it (§5's fourth and fifth bullets) are on the
+  test environment: resume the migration and watch the source account's own inbox for the first
+  minutes. The account is an attendee of most events it
   was invited to, so an invitation that still went out would reach it first. Then the calendar,
   task and mail lines the pass reports.
 - For T5: the two clients are requested from Cirrux (the live and the OTA callback, §6). When

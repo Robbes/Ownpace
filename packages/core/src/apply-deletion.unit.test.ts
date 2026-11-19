@@ -397,6 +397,32 @@ describe('gate 5: an edit on the target refuses the removal', () => {
     expect(row?.deletionAppliedAt).toBeUndefined();
   });
 
+  it('reports kept_for_guests when the writer kept a copy that lists guests, and records nothing (workplan 0160)', async () => {
+    // A target that mails each guest a cancellation for a deleted event: the
+    // writer removed nothing, and the person is told why in words they can
+    // act on.
+    const ledger = new MemoryLedger();
+    await ledger.recordIfAbsent(
+      baseRow({ targetVersion: 'etag-1', deletionReportedAt: new Date().toISOString() }),
+    );
+    const target = fakeRemover({ keptForGuests: true });
+
+    const outcome = await applyDeletion(
+      { tenantId: TENANT, mappingId: MAPPING, domain: 'calendar', ledger, target, allowApplyDeletions: true, stillTheAuthority: BEFORE_CUTOVER },
+      'nk-1',
+    );
+
+    expect(outcome).toEqual({
+      ok: false,
+      code: 'kept_for_guests',
+      reason: expect.stringContaining('emails each guest a cancellation'),
+    });
+    expect(outcome.ok === false && outcome.reason).toContain('nobody was emailed');
+    const row = await ledger.find(TENANT, MAPPING, 'calendar', 'nk-1');
+    expect(row?.status).toBe('copied');
+    expect(row?.deletionAppliedAt).toBeUndefined();
+  });
+
   it('passes the recorded targetVersion through to the writer, so it can check at the moment of removal', async () => {
     const ledger = new MemoryLedger();
     await ledger.recordIfAbsent(
