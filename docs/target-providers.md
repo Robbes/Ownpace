@@ -143,7 +143,9 @@ by unit tests; not yet run against a live Cirrux mailbox (0160 T2 is the owner's
    `https://cirrux.co/help/api/tasks`). A calendar collection may hold events and tasks at once.
    No second address book can be made: Cirrux's Contacts API has no call for one, and its
    CardDAV server answered an MKCOL for one with 501 on a test mailbox (2026-11-19). So the
-   contacts of every address book at the source go into Contacts (0160 §5).
+   contacts of every address book at the source go into Contacts (0160 §5). Its CalDAV server
+   answered an MKCALENDAR at Nextcloud's `calendars/<user>/` with 404 the same day: the
+   calendar home is found by asking, as the address book home is (0160 §5).
 3. **Invitations:** Cirrux Calendar emails guests for changes made in its app or its API
    (`https://cirrux.co/help/api/calendar`). Whether its CalDAV server honours
    `SCHEDULE-AGENT=CLIENT` is not documented; Test reads the server's own `DAV:` compliance

@@ -45,6 +45,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Calendars and task lists into Cirrux are made where Cirrux keeps them, instead of failing
+  before the first event** (workplan 0160). With contacts corrected, the next pass into Cirrux, on
+  2026-11-19, stopped at `MKCALENDAR failed for /calendars/<mailbox>/<slug>/ with status 404`.
+  The CalDAV writer put every calendar at Nextcloud's `calendars/<user>/`, and Cirrux keeps them
+  elsewhere. When the place it assumed is refused, the writer now asks the server where the
+  account's calendars are (`/.well-known/caldav`, then the principal's calendar home, as RFC 6764
+  and RFC 4791 say), the same question the contacts writer asks, now answered by one shared
+  helper. It uses a calendar with the source's name that holds the same kind (events, or tasks
+  for a task list) if one is there, makes the calendar in that home if the server allows it, and
+  otherwise writes into the account's one calendar that holds that kind. It does not choose
+  between several. Verification reads the same home. Servers with Nextcloud's layout get the
+  same requests as before.
 - **Contacts into Cirrux land in the mailbox's address book, instead of failing before the first
   card** (workplan 0160). The first contacts pass into Cirrux, on 2026-11-19, stopped at
   `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The CardDAV
