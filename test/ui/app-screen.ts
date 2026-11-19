@@ -107,6 +107,7 @@ export function appScreenAnswers(locale: AppScreenLocale): Record<string, unknow
           displayName: 'Anna Jansen',
           email: null,
           createdAt: daysFrom(-6),
+          you: false,
           migrations: ids.map((id) => ({ id, status: 'active' })),
           counts: { paused: 0, active: ids.length, cutover: 0, done: 0, continuous: 0 },
         },

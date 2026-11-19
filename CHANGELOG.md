@@ -6,6 +6,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- ***Who is it for?* chooses you** (workplan 0153 T4; ADR-0050, amended 2026-11-19). When you
+  start a migration, your own name is now chosen on its first screen, and you can still pick
+  someone else. Say which person you are with *Myself* when adding a person on Migrations, or
+  *This is me* on their page. Only you can say it of yourself, and removing a member from the
+  organisation undoes theirs. *Add to*, under *Not with a person yet*, now starts at you as well,
+  or at nobody, rather than at whoever is listed first.
 - **Cirrux as a destination** (workplan 0160). A **Cirrux** card, on *Where does it go?* and on
   the Accounts page, adds one Cirrux mailbox for mail, calendars, contacts and tasks, with the
   servers Cirrux publishes already in the boxes: `api.cirrux.co` on 443 for calendars, contacts

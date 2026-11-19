@@ -5298,6 +5298,11 @@ paths:
         the person for grant links (0108); nothing sends mail to it yet. Not
         refused for a closed organisation: a person is a name, and starts no
         work.
+
+        With `myself: true` the person is the member who asks (ADR-0050,
+        amended 2026-11-19): their sign-in is linked to it, and moves off any
+        other person of theirs in the organisation. The member is the one the
+        bearer token names; an account id in the body is not read.
       requestBody:
         required: true
         content:
@@ -5311,6 +5316,14 @@ paths:
               schema: { $ref: '#/components/schemas/Person' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: |
+            `not_a_member`, with `myself: true` only: the caller is no active
+            member of this organisation, so no person here can be theirs.
+            Nothing was stored.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
 
   /api/people/{personId}/migrations:
     parameters:
@@ -5375,6 +5388,62 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/PersonDeleted' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+
+  /api/people/{personId}/myself:
+    parameters:
+      - $ref: '#/components/parameters/PersonId'
+    put:
+      tags: [People]
+      summary: Say that this person is you
+      description: |
+        *This is me* (ADR-0050, amended 2026-11-19): the person becomes the
+        asking member's own, so *Who is it for?* chooses them first, and any
+        other person of theirs in the organisation stops being so, in one
+        transaction. The member is the one the bearer token names; there is
+        no body. Saying it again changes nothing. A person who is another
+        member's stays theirs. Open to every member, as adding a person is.
+      responses:
+        '200':
+          description: The person, with `you` true.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403':
+          description: '`not_a_member`: the caller is no active member of this organisation.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '404':
+          description: '`person_not_found`: this organisation has no such person.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+        '409':
+          description: '`another_members`: the person is already another member''s own. Only they can undo it.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+    delete:
+      tags: [People]
+      summary: Say that this person is not you
+      description: |
+        *This is not me*: only the asking member's own link is undone. A
+        person who is nobody's, or another member's, is answered as it is,
+        and nothing changes. Removing a member from the organisation undoes
+        their link as well.
+      responses:
+        '200':
+          description: The person, with `you` false.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Person' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: '`person_not_found`: this organisation has no such person.'
@@ -8207,7 +8276,7 @@ components:
       description: |
         A person being moved (ADR-0050, amended 2026-09-28). No state of its
         own: `counts` is their migrations' states, counted.
-      required: [id, implicit, displayName, email, createdAt, migrations, counts]
+      required: [id, implicit, displayName, email, createdAt, you, migrations, counts]
       properties:
         id:
           type: string
@@ -8229,6 +8298,13 @@ components:
           type: [string, 'null']
           format: date-time
           description: Null only for the implicit person.
+        you:
+          type: boolean
+          description: |
+            True for the asking member's own person, whom they linked to their
+            sign-in (ADR-0050, amended 2026-11-19). Worked out by the server;
+            no account id is sent. Always false on the appliance, which has no
+            sign-in.
         migrations:
           type: array
           description: Oldest first.
@@ -8255,6 +8331,11 @@ components:
           type: [string, 'null']
           maxLength: 254
           description: Optional. An empty string is no address.
+        myself:
+          type: boolean
+          description: |
+            Optional. True when the person is the member asking: their
+            sign-in is linked to it. Who that is comes from the token.
     AddPersonMigration:
       type: object
       required: [mappingId]

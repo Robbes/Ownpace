@@ -9,6 +9,8 @@
  * - their name, where from and where to, one stage (the least advanced of
  *   their migrations', the owner's *"One stage per person"*), and what waits
  *   on them;
+ * - on managed, *This is me*, or *This is not me* where the person is the
+ *   signed-in member's own (`ThisIsMe`; ADR-0050, amended 2026-11-19);
  * - each migration's lines per data type, as the card draws them, with a link
  *   to the migration's own page as *Details*: its run history, its schedule,
  *   its settings and its controls stay there;
@@ -49,11 +51,22 @@
  */
 import React from 'react';
 import { Link, useParams } from 'react-router';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertCircle, Clock, Plus } from 'lucide-react';
-import { leastAdvancedStage, wizardTypeForConnectionKind, type StatusReport } from '@openmig/shared';
+import {
+  leastAdvancedStage,
+  wizardTypeForConnectionKind,
+  type Person as PersonShape,
+  type StatusReport,
+} from '@openmig/shared';
 import { mappingApi, type MappingListItem } from '../services/mapping-service.ts';
-import { fetchAttention, fetchPeople, fetchStatus } from '../services/operating-service.ts';
+import {
+  fetchAttention,
+  fetchPeople,
+  fetchStatus,
+  markMyself,
+  unmarkMyself,
+} from '../services/operating-service.ts';
 import { referenceIn, serverMessage } from '../services/api.ts';
 import { SendItToUs } from '../components/SendItToUs.tsx';
 import { waitingOn } from '../services/needs-you.ts';
@@ -117,6 +130,55 @@ function rowsFromStatus(report: StatusReport): PersonRow[] {
     };
   });
 }
+
+/**
+ * THIS IS ME (ADR-0050, amended 2026-11-19): the signed-in member says this
+ * person is them, so *Who is it for?* chooses them first, or that they are
+ * not. Each member makes and undoes only their own: the server takes who they
+ * are from the sign-in. Saying it of a second person moves it there. Managed
+ * only, beside the head and outside it: the head is the home page's picture.
+ */
+const ThisIsMe: React.FC<{ person: PersonShape }> = ({ person }) => {
+  const t = useT();
+  const queryClient = useQueryClient();
+  const [pending, setPending] = React.useState(false);
+  const [failed, setFailed] = React.useState<string | null>(null);
+
+  const press = async () => {
+    setPending(true);
+    setFailed(null);
+    try {
+      await (person.you ? unmarkMyself(person.id) : markMyself(person.id));
+      await queryClient.invalidateQueries({ queryKey: ['people'] });
+    } catch (error) {
+      setFailed(serverMessage(error));
+    } finally {
+      setPending(false);
+    }
+  };
+
+  return (
+    <div className="text-sm">
+      <div className="flex flex-wrap items-center gap-3">
+        {person.you && <span className="text-gray-900">{t('person.me.is')}</span>}
+        <button
+          type="button"
+          onClick={() => void press()}
+          disabled={pending}
+          className="min-h-[44px] px-3 py-1 bg-white border border-gray-300 text-gray-800 rounded-lg hover:bg-gray-50 disabled:opacity-50"
+        >
+          {t(person.you ? 'person.me.unmark' : 'person.me.mark')}
+        </button>
+      </div>
+      <p className="mt-1 text-gray-600">{t('people.myself.hint')}</p>
+      {failed !== null && (
+        <p role="alert" className="mt-1 text-red-800">
+          <span className="font-medium">{t('person.me.failed')}</span> {failed}
+        </p>
+      )}
+    </div>
+  );
+};
 
 /** The names on one side of a person's migrations, once each, in the order met. */
 function names(migrations: readonly PersonRow[], side: 'sourceType' | 'targetType', locale: Locale): string[] {
@@ -296,6 +358,8 @@ const Person: React.FC = () => {
           </a>
         ) : null}
       </div>
+
+      {!selfHost && !person.implicit && <ThisIsMe person={person} />}
 
       <section data-app-screen="migrations" className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6">
         {migrations.length === 0 ? (

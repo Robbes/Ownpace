@@ -12,8 +12,10 @@
  *
  * - **Who is it for?** Somebody already on Migrations, or a new name. A
  *   person's page opens this with `?person=`, and that person is chosen.
- *   Nobody is created here: the person is created with their migrations, on
- *   the last screen, so leaving half-way leaves no empty card behind.
+ *   Otherwise the signed-in member's own person (`you`, ADR-0050 as amended
+ *   on 2026-11-19) is chosen until anything else is. Nobody is created here:
+ *   the person is created with their migrations, on the last screen, so
+ *   leaving half-way leaves no empty card behind.
  * - **Which account are you leaving?** Six tiles, none ticked, more than one
  *   allowed (D1). A tile that has not met a real account says so (0131 D6).
  *   A server by its protocol is IMAP, which is *Another mail provider*: the
@@ -338,11 +340,15 @@ const StartMigration: React.FC = () => {
   }, [providerAccounts]);
 
   const [step, setStep] = React.useState<Step>('who');
-  const [who, setWho] = React.useState<Who>({
-    personId: searchParams.get('person'),
+  const personParam = searchParams.get('person');
+  const [answeredWho, setWho] = React.useState<Who>({
+    personId: personParam,
     name: '',
     someoneElse: false,
   });
+  // Whether a person or a name has been chosen on screen 1. The member's own
+  // person, below, is chosen only until then.
+  const [whoChosen, setWhoChosen] = React.useState(false);
   const [providers, setProviders] = React.useState<ReadonlyArray<StartProvider>>([]);
   const [ticked, setTicked] = React.useState<Partial<Record<StartProvider, ReadonlyArray<DiscoveryDomain>>>>({});
   const [nativeFormats, setNativeFormats] = React.useState<NativeFilePolicyByKind>(LEAVE_ALL_BEHIND);
@@ -371,6 +377,26 @@ const StartMigration: React.FC = () => {
   const people: ReadonlyArray<Person> = (peopleQuery.data?.people ?? []).filter(
     (p) => !p.implicit && p.displayName !== null,
   );
+  // THE MEMBER'S OWN PERSON IS CHOSEN FIRST (the owner, 2026-11-19: "Default
+  // should be selected my own name"; ADR-0050, amended 2026-11-19): the person
+  // the server says is `you`, where nothing chose anybody yet. A `?person=`
+  // wins, and so does any choice made on the screen, whenever it was made.
+  // Derived rather than written into the state, so a list read late or read
+  // again can never overwrite an answer.
+  const yours = people.find((p) => p.you)?.id;
+  const who: Who =
+    yours !== undefined &&
+    !whoChosen &&
+    personParam === null &&
+    answeredWho.personId === null &&
+    answeredWho.name === ''
+      ? { ...answeredWho, personId: yours }
+      : answeredWho;
+  /** Screen 1's answers: one that picks a person or types a name is a choice the default gives way to. */
+  const answerWho = (next: Who) => {
+    if (next.personId !== who.personId || next.name !== who.name) setWhoChosen(true);
+    setWho(next);
+  };
   // A `?person=` that names nobody on Migrations (gone, or somebody else's)
   // chooses nobody: the screen asks for a name rather than going on with none.
   const peopleRead = peopleQuery.isSuccess;
@@ -709,7 +735,7 @@ const StartMigration: React.FC = () => {
         </h2>
         <div className="mt-4">
           {step === 'who' && (
-            <WhoStep people={people} peopleFailed={peopleQuery.isError} who={who} onWho={setWho} />
+            <WhoStep people={people} peopleFailed={peopleQuery.isError} who={who} onWho={answerWho} />
           )}
           {step === 'from' && <FromStep providers={providers} onProviders={setProviders} />}
           {step === 'what' && (
@@ -824,7 +850,17 @@ const StartMigration: React.FC = () => {
               // Leaving *Where does it go?* sets the migrations up, paused,
               // and the button says so: it was *Next*, and once pressed there
               // is no way back (the UX sweep, 2026-10-17).
-              onClick={() => (step === 'to' ? void setUp() : setStep(next))}
+              onClick={() => {
+                if (step === 'to') return void setUp();
+                // Leaving *Who is it for?* settles its answer, the member's
+                // own person too: the people read again on a later screen
+                // (a window refocused) cannot change whom this is for.
+                if (step === 'who') {
+                  setWho(who);
+                  setWhoChosen(true);
+                }
+                setStep(next);
+              }}
               disabled={notYet !== undefined || settingUp}
               aria-describedby={notYet !== undefined ? reasonId : step === 'to' ? setUpLineId : undefined}
               className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"

@@ -14,6 +14,16 @@
  *    theirs.
  *  - `DELETE /api/people/:personId` deletes one, and no migration: theirs
  *    belong to nobody again.
+ *  - `PUT /api/people/:personId/myself` says the person is the member who
+ *    asks ("This is me"), and `DELETE` there says they are not (ADR-0050,
+ *    amended 2026-11-19). `POST /api/people` takes `myself: true` for the same
+ *    when the person is new.
+ *
+ * THE MEMBER IS THE SIGN-IN, NEVER THE BODY. A person is linked to the
+ * subject `authenticate` verified (`req.userId`), and no route here reads an
+ * account id from a request, so a member links their own account and nobody
+ * else's. What goes back is `you` on each person, worked out against that
+ * subject; no account id is in any answer.
  *
  * THE SAME TENANT CHECKS AS THE MIGRATION ROUTES: `authenticate`, the tenant
  * from the session, and every read and write inside the organisation's own
@@ -33,9 +43,19 @@
 import { Router } from 'express';
 import type { Response } from 'express';
 import { z } from 'zod';
-import { addMigrationToPerson, createPerson, deletePerson, listPeople } from '@openmig/managed';
 import {
+  addMigrationToPerson,
+  createMyself,
+  createPerson,
+  deletePerson,
+  listPeople,
+  markMyself,
+  unmarkMyself,
+} from '@openmig/managed';
+import {
+  ANOTHER_MEMBERS,
   MIGRATION_NOT_FOUND,
+  NOT_A_MEMBER,
   PERSON_EMAIL_MAX,
   PERSON_NAME_MAX,
   PERSON_NOT_FOUND,
@@ -79,6 +99,9 @@ const CreatePersonSchema = z.object({
     .refine((v) => v === '' || EMAIL.safeParse(v).success, 'That is not an email address.')
     .nullish()
     .transform((v) => (v ? v : null)),
+  // The person is the member asking. Who that is comes from the sign-in: a
+  // key naming an account is not read, so it cannot name somebody else's.
+  myself: z.boolean({ error: 'myself is true or false.' }).optional(),
 });
 
 const AddMigrationSchema = z.object({
@@ -107,6 +130,18 @@ function personNotFound(res: Response): void {
   res.status(404).json({ error: PERSON_NOT_FOUND, message: 'There is no such person in this organisation.' });
 }
 
+/**
+ * The asker is no active member here. `authenticate` admits members only, so
+ * this is a sign-in that lost its membership between the check and the write,
+ * or the development mode, which checks none.
+ */
+function notAMember(res: Response): void {
+  res.status(403).json({
+    error: NOT_A_MEMBER,
+    message: 'Only a member of this organisation can say that a person here is them.',
+  });
+}
+
 /** A validation refusal, in the shape the migration routes answer with. */
 function invalid(res: Response, error: z.ZodError): void {
   res.status(400).json({
@@ -120,7 +155,7 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
   try {
     const tenantId = tenantOf(req, res);
     if (!tenantId) return;
-    const people = await withTenantDb(tenantId, getSharedPool(), (db) => listPeople(db, tenantId));
+    const people = await withTenantDb(tenantId, getSharedPool(), (db) => listPeople(db, tenantId, req.userId));
     res.json(people);
   } catch (error) {
     // Never an empty list on failure: "we could not read them" and "there is
@@ -135,9 +170,16 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
     if (!tenantId) return;
     const parsed = CreatePersonSchema.safeParse(req.body ?? {});
     if (!parsed.success) return invalid(res, parsed.error);
-    const created = await withTenantDb(tenantId, getSharedPool(), (db) =>
-      createPerson(db, tenantId, { displayName: parsed.data.displayName, email: parsed.data.email }),
-    );
+    const input = { displayName: parsed.data.displayName, email: parsed.data.email };
+    if (parsed.data.myself === true) {
+      const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
+        createMyself(db, tenantId, input, req.userId),
+      );
+      if (outcome.kind === 'not_a_member') return notAMember(res);
+      res.status(201).json(outcome.person);
+      return;
+    }
+    const created = await withTenantDb(tenantId, getSharedPool(), (db) => createPerson(db, tenantId, input));
     res.status(201).json(created);
   } catch (error) {
     serverFault(res, 'person_create_failed', 'adding this person', error);
@@ -154,7 +196,7 @@ router.post('/:personId/migrations', authenticate, async (req: AuthenticatedRequ
     if (!parsed.success) return invalid(res, parsed.error);
 
     const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
-      addMigrationToPerson(db, tenantId, personId, parsed.data.mappingId),
+      addMigrationToPerson(db, tenantId, personId, parsed.data.mappingId, req.userId),
     );
     switch (outcome.kind) {
       case 'added':
@@ -196,6 +238,59 @@ router.delete('/:personId', authenticate, async (req: AuthenticatedRequest, res:
     res.json(gone);
   } catch (error) {
     serverFault(res, 'person_delete_failed', 'deleting this person', error);
+  }
+});
+
+// "This is me" (ADR-0050, amended 2026-11-19): the person becomes the asking
+// member's own, and any other person of theirs here stops being so. Any
+// member may say it of themselves, as any member may add a person.
+router.put('/:personId/myself', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = tenantOf(req, res);
+    if (!tenantId) return;
+    const personId = personIdOf(req, res);
+    if (!personId) return;
+    const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      markMyself(db, tenantId, personId, req.userId),
+    );
+    switch (outcome.kind) {
+      case 'marked':
+      case 'already_yours':
+        res.status(200).json(outcome.person);
+        return;
+      case 'no_such_person':
+        personNotFound(res);
+        return;
+      case 'not_a_member':
+        notAMember(res);
+        return;
+      case 'another_members':
+        res.status(409).json({
+          error: ANOTHER_MEMBERS,
+          message: 'This person is already another member’s own. Only they can say it is not them.',
+        });
+        return;
+    }
+  } catch (error) {
+    serverFault(res, 'person_myself_failed', 'saying this person is you', error);
+  }
+});
+
+// "This is not me": only the asking member's own link is undone. A person
+// who is nobody's, or another member's, is answered as it is.
+router.delete('/:personId/myself', authenticate, async (req: AuthenticatedRequest, res: Response) => {
+  try {
+    const tenantId = tenantOf(req, res);
+    if (!tenantId) return;
+    const personId = personIdOf(req, res);
+    if (!personId) return;
+    const outcome = await withTenantDb(tenantId, getSharedPool(), (db) =>
+      unmarkMyself(db, tenantId, personId, req.userId),
+    );
+    if (outcome.kind === 'no_such_person') return personNotFound(res);
+    res.status(200).json(outcome.person);
+  } catch (error) {
+    serverFault(res, 'person_not_myself_failed', 'saying this person is not you', error);
   }
 });
 
