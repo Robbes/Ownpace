@@ -115,7 +115,10 @@ const lineOf = (tag: string) => /^(\d+\.\d+)\.\d+-alpine$/.exec(tag)?.[1] ?? nul
 
 /**
  * The check RUN: its physical lines, and the files it names with their
- * SHA-256s. The one RUN that pipes into `sha256sum -c -`.
+ * SHA-256s. The one RUN that compares each file's `sha256sum` with the hash
+ * it names, `test "$(sha256sum < <file>)" = '<hash>  -'`, with no pipe since
+ * 2026-11-19 (hadolint's DL4006): until then it piped a list into
+ * `sha256sum -c -`.
  */
 function checkRun(text: string): { lines: string[]; named: Array<{ hash: string; path: string }>; executable: boolean } | null {
   const lines = text.split('\n');
@@ -125,9 +128,9 @@ function checkRun(text: string): { lines: string[]; named: Array<{ hash: string;
     while (end < lines.length - 1 && /\\\s*$/.test(lines[end]!)) end += 1;
     const block = lines.slice(start, end + 1);
     const joined = block.join('\n');
-    if (!/\|\s*sha256sum -c -/.test(joined)) continue;
-    const named = [...joined.matchAll(/\b([0-9a-f]{64})\s+(\/\S+)/g)].map((m) => ({ hash: m[1]!, path: m[2]! }));
-    return { lines: block, named, executable: /&&\s*test -x \/usr\/local\/bin\/docker-entrypoint\.sh\s*$/.test(joined) };
+    if (!/\bsha256sum < \//.test(joined)) continue;
+    const named = [...joined.matchAll(/test "\$\(sha256sum < (\/\S+)\)" = '([0-9a-f]{64}) {2}-'/g)].map((m) => ({ hash: m[2]!, path: m[1]! }));
+    return { lines: block, named, executable: /(?:&&|;)\s*(?:\\\n\s*)?test -x \/usr\/local\/bin\/docker-entrypoint\.sh\s*$/.test(joined) };
   }
   return null;
 }
@@ -171,7 +174,7 @@ function dockerfileProblems(text: string, files: Readonly<Record<string, Buffer>
   // The check: each copied file by the SHA-256 it has here, and the entrypoint executable.
   const check = checkRun(text);
   if (!check) {
-    problems.push('no RUN that checks the copied files with `sha256sum -c -`: the name would not change when they do');
+    problems.push('no RUN that checks the copied files by their `sha256sum`: the name would not change when they do');
   } else {
     const want = FILES.map((f) => ({ hash: files[f] ? sha256(files[f]) : '(missing)', path: UPSTREAM.files[f].target }));
     if (JSON.stringify(check.named) !== JSON.stringify(want)) {
@@ -180,7 +183,7 @@ function dockerfileProblems(text: string, files: Readonly<Record<string, Buffer>
           'move the check with the files, and the name moves with it',
       );
     }
-    if (!check.executable) problems.push('the check does not end in `&& test -x /usr/local/bin/docker-entrypoint.sh`: an entrypoint without its executable bit would build');
+    if (!check.executable) problems.push('the check does not end in `test -x /usr/local/bin/docker-entrypoint.sh`: an entrypoint without its executable bit would build');
   }
   // Every other instruction line is upstream's, in its order.
   const checkLines = new Set(check?.lines ?? []);
@@ -570,7 +573,9 @@ describe('the Docker socket proxy is upstream\'s release, built here on a curren
     const check = checkRun(dockerfile)!;
     expect(check.named.map((n) => n.path)).toEqual(FILES.map((f) => UPSTREAM.files[f].target));
     expect(swap(check.lines.join('\n') + '\n', '')).toEqual([expect.stringContaining('no RUN that checks the copied files')]);
-    expect(swap(/ \\\n\s*&& test -x \/usr\/local\/bin\/docker-entrypoint\.sh$/m, '')).toEqual([expect.stringContaining('test -x')]);
+    expect(swap(/; \\\n\s*test -x \/usr\/local\/bin\/docker-entrypoint\.sh$/m, '')).toEqual([expect.stringContaining('test -x')]);
+    // A check that pipes again, as it did before 2026-11-19, is no check this reads.
+    expect(swap(check.lines.join('\n'), "RUN printf '%s  %s\\n' x /y | sha256sum -c -")).toEqual(expect.arrayContaining([expect.stringContaining('no RUN that checks the copied files')]));
   });
 
   it("refuses a file that is not upstream's, a lost executable bit, and anything else in the directory", () => {
