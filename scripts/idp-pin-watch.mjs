@@ -320,10 +320,11 @@ export const COSIGN_FILES = ['.github/workflows/images.yml', '.github/workflows/
  * the `env:` of its install step. Until that day the step fetched
  * `atlas-community-linux-<arch>-latest`, which is a canary build of upstream's
  * master branch and not a release, with no checksum, and ran it, on the
- * owner's machine for a main push. Upstream's git tags stop at v1.3.0 while
- * its releases go on (1.3.6 on 2026-10-27), so the release list this row
- * reads is the community image's tags on Docker Hub, `<version>-community`,
- * which carry every release. Dependabot cannot see a URL in a `run:`.
+ * owner's machine for a main push. Upstream's git tags miss most of its
+ * releases (v1.3.1 to v1.3.10 have none; v1.4.0, of 2026-11-17, has one), so
+ * the release list this row reads is the community image's tags on Docker
+ * Hub, `<version>-community`, which carry every release. Dependabot cannot
+ * see a URL in a `run:`.
  */
 export const ATLAS_WORKFLOW = '.github/workflows/ci.yml';
 export const ATLAS_HOST = 'https://atlasbinaries.com/';
@@ -1820,7 +1821,7 @@ export async function routineRows(repo, net) {
 
   // Atlas: the CLI migration-lint downloads by release and checks by its
   // sha256 (2026-11-01). Its release list is the community image's tags on
-  // Docker Hub, since upstream's git tags stop at v1.3.0 (ATLAS_WORKFLOW).
+  // Docker Hub, since upstream's git tags miss most releases (ATLAS_WORKFLOW).
   jobs.push(['Atlas', ATLAS_WORKFLOW, async () => {
     const { version } = atlasPin(need(repo, ATLAS_WORKFLOW));
     const tag = `${version.slice(1)}-community`;
