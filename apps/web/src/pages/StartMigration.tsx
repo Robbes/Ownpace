@@ -34,6 +34,7 @@
  * Each screen starts at the top with focus on its heading (0145 T3 (a)).
  */
 import React from 'react';
+import axios from 'axios';
 import { Link, useNavigate, useSearchParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -1616,11 +1617,15 @@ function useAccounts(personName: string): Accounts {
       setFormKeys((prev) => ({ ...prev, [key]: (prev[key] ?? 0) + 1 }));
       // The account the failed check left is this flow's own, and nothing
       // uses it yet: it goes, so the Accounts page does not keep a row that
-      // never worked. What was typed stays in the form.
+      // never worked. What was typed stays in the form. A removal the server
+      // did not make leaves the row in the list read again here; any other
+      // failure is this page's own, and is thrown.
       if (id !== undefined) {
         void connectionsApi
           .remove(id)
-          .catch(() => undefined)
+          .catch((err: unknown) => {
+            if (!axios.isAxiosError(err)) throw err;
+          })
           .then(() => queryClient.invalidateQueries({ queryKey: ['connections'] }));
       }
     },

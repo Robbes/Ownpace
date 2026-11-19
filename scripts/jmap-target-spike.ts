@@ -137,6 +137,17 @@ function firstParsedCard(body: string, blobId: string): Record<string, unknown> 
   return card && typeof card === 'object' ? (card as Record<string, unknown>) : undefined;
 }
 
+/**
+ * A clean-up request that never reached the server, which `fetch` rejects with
+ * a `TypeError`: said, because what the step made is then still on the
+ * account, and the next run would read it as a finding. Any other failure is
+ * this script's own, and is thrown.
+ */
+function cleanUpNotReached(err: unknown): void {
+  if (!(err instanceof TypeError)) throw err;
+  console.log(`  ERROR clean-up: ${err.message}; what this step made may still be on the account`);
+}
+
 async function main(): Promise<number> {
   if (!PASSWORD) {
     console.error(
@@ -361,7 +372,7 @@ async function main(): Promise<number> {
     } catch (err) {
       console.log(`  ERROR ${rung.name}: ${err instanceof Error ? err.message : err}`);
     } finally {
-      if (id) await call([['CalendarEvent/set', { accountId, destroy: [id] }, '0']]).catch(() => undefined);
+      if (id) await call([['CalendarEvent/set', { accountId, destroy: [id] }, '0']]).catch(cleanUpNotReached);
     }
   }
 
@@ -456,7 +467,7 @@ async function main(): Promise<number> {
             using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:contacts'],
             methodCalls: [['ContactCard/set', { accountId: contactsAccount, destroy: [cid] }, '0']],
           }),
-        }).catch(() => undefined);
+        }).catch(cleanUpNotReached);
       }
     } catch (err) {
       console.log(`  ERROR contacts: ${err instanceof Error ? err.message : err}`);
@@ -944,7 +955,7 @@ async function main(): Promise<number> {
               ['ContactCard/set', { accountId: contactsAccount, destroy: [jmapWrittenCardId] }, '0'],
             ],
           }),
-        }).catch(() => undefined);
+        }).catch(cleanUpNotReached);
       }
     }
   }
@@ -1121,7 +1132,7 @@ async function main(): Promise<number> {
                   ['FileNode/set', { accountId: filesAccount, destroy: [docId] }, '0'],
                 ],
               }),
-            }).catch(() => undefined);
+            }).catch(cleanUpNotReached);
           }
         }
 
@@ -1132,7 +1143,7 @@ async function main(): Promise<number> {
             using: ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'],
             methodCalls: [['FileNode/set', { accountId: filesAccount, destroy: [fid] }, '0']],
           }),
-        }).catch(() => undefined);
+        }).catch(cleanUpNotReached);
       }
       console.log(
         `         The finding is the FIELD NAMES: does a node carry a path, or\n` +

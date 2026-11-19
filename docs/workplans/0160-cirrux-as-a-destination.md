@@ -4,9 +4,20 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, later still: T3's second correction.** With the contacts correction on the test
+environment, the contacts arrived and show in Cirrux. The owner's next **Sync now** skipped all
+1,244, the ledger already holding each one, and its calendar pass failed before it wrote an event:
+`MKCALENDAR failed for /calendars/<mailbox>/<slug>/ with status 404`. Cirrux keeps its calendars
+elsewhere than Nextcloud's `calendars/<user>/`. The CalDAV writer now asks the server where the
+account's calendars are, as the CardDAV writer does, through one helper both share
+(`dav-home-set.ts`), and makes the calendar there (§5). A failed type ends the pass, so
+nothing after it ran: not after contacts on the first passes, not after calendars on this one.
+Tasks and mail have had no turn yet. A pass that goes on to the next type after a failure is
+0143 T5's to change.
+
 **2026-11-19, later: T2's first pass, and T3's first correction.** On the test environment, a
-Cirrux account carried mail and calendars on its first pass. The contacts pass failed before it
-wrote a card: `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The
+Cirrux account's first contacts pass failed before it wrote a card:
+`MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The
 CardDAV writer had assumed Nextcloud's layout and made a new address book for each one at the
 source, and Cirrux makes none (§5). The writer now asks the server where the account's address
 books are, and writes into the one the mailbox has. The rest of T2 (§4, step 8) is still to run.
@@ -37,8 +48,8 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 |---|---|---|---|
 | T0 What Cirrux publishes | builder | ✅ **Read 2026-11-19** | §1. From the pages themselves; three search-index snippets were stale and are corrected there. |
 | T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19** | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
-| T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: mail and calendars arrived; contacts failed with a 501, corrected in T3 | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
-| T3 What T2 corrects | builder | 🔨 **First correction 2026-11-19**: contacts go into the mailbox's own address book | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
+| T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, then calendars with a 404, each corrected in T3; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
+| T3 What T2 corrects | builder | 🔨 **Two corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
 | T5 Files into Cirrux Drive | builder, owner | ⛔ **Blocked**: an OAuth client only Cirrux issues, and a decision about rotating refresh tokens | §6. The API is documented in full; the connector is not written against it until both blockers are gone. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
@@ -211,6 +222,19 @@ plausible stored row for the face-building guard.
   final in `dav-retry.ts`. Tested in `an-address-book-the-server-would-not-make.unit.test.ts`,
   with twelve mutations, each caught. Where Cirrux keeps its books is not recorded here: the
   writer asks every time.
+- **Calendars refused with 404 (found 2026-11-19, corrected the same day)**. The CalDAV writer
+  put every calendar at Nextcloud's `calendars/<user>/`, and Cirrux answered the MKCALENDAR there
+  with 404. The calendars are now found as the address books are, by the same helper
+  (`dav-home-set.ts`): `current-user-principal` at `/.well-known/caldav`, then at the configured
+  base, then the principal's `calendar-home-set`. In that home the folder goes into a calendar
+  with its name that holds the writer's kind (VEVENT, or VTODO for a task list), else a new
+  calendar there, else the account's one calendar that holds that kind. A calendar that declares
+  no kinds holds every kind (RFC 4791 §5.2.3). Several, none with its name, is a failure that
+  names them. Apps add task lists to a Cirrux mailbox over CalDAV
+  (`https://cirrux.co/help/api/tasks`); whether Cirrux makes an event calendar over CalDAV is not
+  published, and the owner's next pass shows it. Verification lists the same home. Tested in
+  `a-calendar-not-where-it-was-assumed.unit.test.ts`, with seventeen mutations, each caught,
+  across both writers' tests.
 - **Discovery finds nothing from the root**: a DAV base URL Cirrux gives goes into the guide and,
   if it is the same for every mailbox, into the directory row as `url`, with the reply as its
   source. If it differs per mailbox, the guide says where to ask and the row stays as it is.
@@ -267,7 +291,9 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
 
 - T2's steps, in §4, on a Cirrux mailbox of their own, and the four observations in step 8.
 - Once the contacts correction (§5) is on the test environment: **Sync now** on the Cirrux
-  migration, and the contacts line it reports.
+  migration, and the contacts line it reports. Done 2026-11-19: 1,244 skipped, already there.
+- Once the calendar correction (§5) is on the test environment: **Sync now** again, and the
+  calendar, task and mail lines it reports.
 - For T5, when it is wanted: request an OAuth client from help@cirrux.co (§6, blocker 1), and
   decide whether a pass may write a refreshed credential back (§6, blocker 2).
 - Nothing with a workspace API key or a webhook.
