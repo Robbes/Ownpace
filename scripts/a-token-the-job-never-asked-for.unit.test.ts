@@ -2,9 +2,10 @@
 
 /**
  * A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the
- * repository's settings hand out, and images.yml's `build` held `packages:
- * write` and `id-token: write` only because the workflow gave them to every
- * job (workplan 0119, 2026-11-19).
+ * repository's settings hand out, images.yml's `build` held `packages: write`
+ * and `id-token: write` only because the workflow gave them to every job, and
+ * eighteen checkouts left the token in `.git/config` for every step after them
+ * (workplan 0119, 2026-11-19).
  *
  * ## How it was found
  *
@@ -42,6 +43,21 @@
  * added later starts from read and asks for what it uses. A workflow of one
  * job keeps its write at the top (`clock-watch.yml`, `idp-pin-watch.yml`,
  * whose own guards hold it there): with one job, the top is that job's block.
+ *
+ * ## A token left where every later step can read it
+ *
+ * `actions/checkout` keeps the job's token in `.git/config`, as an
+ * `http.extraheader`, until the job ends, unless it is given
+ * `persist-credentials: false`. Every step after it can read that file:
+ * `pnpm install`'s lifecycle scripts, a test, a build. Eighteen checkouts kept
+ * it, in jobs that never push with git, among them `images.yml`'s `build`
+ * (`packages: write`), Security Scan's job and windows-payload's `release`
+ * (both `contents: write`). An action that takes `github.token` as an input
+ * still gets it (upload-sarif, the release attach, the ghcr.io login); what
+ * changes is that no file on the runner holds it. The release check's
+ * `git fetch` of the tags now runs without it, as the exposure probe's fetch
+ * of a commit already does, which works because this repository is public:
+ * were it private, that fetch would need a token of its own.
  *
  * ## No trigger that hands a stranger the token
  *
@@ -93,6 +109,29 @@ const UNDECLARED_FIXED = [
   '.github/workflows/no-committed-artifacts.yml',
 ];
 
+/** The jobs whose checkouts kept the token, by file. */
+const CHECKOUTS_FIXED: Readonly<Record<string, ReadonlyArray<string>>> = {
+  '.github/workflows/ci.yml': [
+    'detect-changes',
+    'commit-convention',
+    'docs-hygiene',
+    'fixture-uuid-check',
+    'migration-lint',
+    'lint',
+    'unit-tests',
+    'ui-tests',
+    'integration-tests',
+  ],
+  '.github/workflows/e2e.yml': ['e2e-selfhost'],
+  '.github/workflows/e2e-managed.yml': ['e2e-managed'],
+  '.github/workflows/e2e-o365.yml': ['e2e-o365'],
+  '.github/workflows/e2e-live-target.yml': ['live-target'],
+  '.github/workflows/images.yml': ['build'],
+  '.github/workflows/no-committed-artifacts.yml': ['check-artifacts'],
+  '.github/workflows/security-scan.yml': ['security-scan'],
+  '.github/workflows/windows-payload.yml': ['build', 'release'],
+};
+
 function workflowFiles(): ReadonlyArray<string> {
   return readdirSync(WORKFLOWS)
     .filter((f) => f.endsWith('.yml') || f.endsWith('.yaml'))
@@ -142,6 +181,33 @@ function blanketGrants(path: string, workflow: Workflow): ReadonlyArray<string> 
     ...Object.entries(workflow.jobs ?? {}).map(([name, job]): [string, Permissions] => [`${path} job ${name}`, job.permissions]),
   ];
   return blocks.filter(([, p]) => typeof p === 'string').map(([where, p]) => `${where}: permissions: ${String(p)}`);
+}
+
+function isCheckout(step: Step): boolean {
+  return typeof step.uses === 'string' && step.uses.startsWith('actions/checkout@');
+}
+
+/** A `run:` that pushes with git, which is what a checkout's kept token would be for. */
+const PUSHES = /\bgit\b[^\n]*\bpush\b/;
+
+/** Every checkout, in a job that does not push with git, that keeps the token on disk. */
+function keptTokens(path: string, workflow: Workflow): ReadonlyArray<string> {
+  return Object.entries(workflow.jobs ?? {}).flatMap(([name, job]) => {
+    const steps = job.steps ?? [];
+    if (steps.some((s) => typeof s.run === 'string' && PUSHES.test(s.run))) return [];
+    return steps.flatMap((s, i) =>
+      isCheckout(s) && s.with?.['persist-credentials'] !== false
+        ? [`${path} job ${name}, step ${i + 1}: persist-credentials ${JSON.stringify(s.with?.['persist-credentials'] ?? '(absent, so true)')}`]
+        : [],
+    );
+  });
+}
+
+/** Every job with a checkout, in the form the fixes are named in. */
+function checkoutJobs(path: string, workflow: Workflow): ReadonlyArray<string> {
+  return Object.entries(workflow.jobs ?? {})
+    .filter(([, job]) => (job.steps ?? []).some(isCheckout))
+    .map(([name]) => `${path} job ${name}`);
 }
 
 /** The events a workflow triggers on, in any of the three shapes `on:` takes. */
@@ -213,6 +279,42 @@ describe('a write reaches only the job that declares it', () => {
       docs.flatMap(({ path, workflow }) => blanketGrants(path, workflow)),
       '`read-all` and `write-all` name no scope: list the ones the job uses',
     ).toEqual([]);
+  });
+});
+
+describe('a checkout leaves no token on the runner for the steps after it', () => {
+  it('found every job each fix was made in', () => {
+    const seen = docs.flatMap(({ path, workflow }) => checkoutJobs(path, workflow));
+    const missing = Object.entries(CHECKOUTS_FIXED).flatMap(([path, jobs]) =>
+      jobs.map((job) => `${path} job ${job}`).filter((where) => !seen.includes(where)),
+    );
+    expect(missing, 'the walk no longer finds these checkouts').toEqual([]);
+    expect(seen.length, 'almost no checkouts found').toBeGreaterThan(30);
+  });
+
+  it('every checkout in a job that does not push with git says persist-credentials: false', () => {
+    expect(
+      docs.flatMap(({ path, workflow }) => keptTokens(path, workflow)),
+      'actions/checkout keeps the token in .git/config until the job ends, where `pnpm install`, a test or a ' +
+        'build can read it: add `persist-credentials: false` to its `with:`',
+    ).toEqual([]);
+  });
+
+  it('refuses a checkout that keeps it, by taking the line off a real one', () => {
+    const before = text('.github/workflows/no-committed-artifacts.yml');
+    const after = before.replace(/^ +persist-credentials: false\n/m, '');
+    expect(after, 'the mutation changed nothing').not.toBe(before);
+    expect(keptTokens('.github/workflows/no-committed-artifacts.yml', parse(after))).toEqual([
+      '.github/workflows/no-committed-artifacts.yml job check-artifacts, step 1: persist-credentials "(absent, so true)"',
+    ]);
+  });
+
+  it('lets a job that pushes with git keep it, and only that job', () => {
+    const job = (run: string): Workflow => ({
+      jobs: { j: { steps: [{ uses: 'actions/checkout@0000000000000000000000000000000000000000' }, { run }] } },
+    });
+    expect(keptTokens('x.yml', job('git push origin HEAD:refs/heads/x'))).toEqual([]);
+    expect(keptTokens('x.yml', job('git fetch --tags origin'))).toHaveLength(1);
   });
 });
 
