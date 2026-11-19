@@ -326,6 +326,23 @@ overrides:
   #     8.0.2. Drop it when @trigger.dev/build asks for a @prisma/config that does.
   "deepmerge-ts@<8.0.0": ^8.0.2
   #
+  # 2026-11-19. effect GHSA-7589-6fvf-x4pw (HIGH, CWE-1333): the regular expression that
+  # Schema.TemplateLiteral compiles can take exponential time on a crafted string; every version
+  # to 3.22.0, fixed in 3.22.1 (2026-07-30). pnpm audit named it on the evening of 2026-11-19,
+  # red on main and on every pull request again (the tree, not the diff). DEV-ONLY, on the one
+  # path deepmerge-ts's entry above is on: apps/worker > trigger.dev (the deploy CLI, 4.8.5) >
+  # @trigger.dev/build > @prisma/config 6.19.3, which pins 3.21.0 exactly. @prisma/config calls
+  # Schema's Struct, optional, String, Boolean, Literal, Union, NullOr, Array, extend, mutable,
+  # declare and decodeUnknownEither, Either, and Function's pipe, and no TemplateLiteral
+  # (dist/index.js, read 2026-11-19), so the vulnerable code is never called; and only
+  # @trigger.dev/build's prisma extension loads @prisma/config, which apps/worker's
+  # trigger.config.ts does not use. Raised to 3.22.4, the copy the lockfile already held for
+  # @trigger.dev/schema-to-json: published 2026-10-22, well before the cooldown below, so no
+  # minimumReleaseAgeExclude entry is needed. It is a minor within the 3.x line @prisma/config
+  # asks for, so no consumer leaves its major. Drop it when @trigger.dev/build asks for a
+  # @prisma/config that takes 3.22.1 or later itself. Workplan 0119, Status of 2026-11-19.
+  "effect@<3.22.1": ^3.22.4
+  #
   # 2026-11-13. hono and `@hono/node-server`: seven advisories (six MODERATE, one LOW), all
   # DEV-ONLY and all on one path, apps/worker > trigger.dev (the deploy CLI, 4.8.5) >
   # `@modelcontextprotocol/sdk` 1.32.2. The SDK asks for `hono: ^4.11.4` and
