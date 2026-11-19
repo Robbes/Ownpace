@@ -465,7 +465,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   image's tags on Docker Hub, since upstream's git tags stop at v1.3.0), the stalwart-cli
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
   tags), the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
-  digest of the channel each action ran before, `latest` and `buildx-stable-1`), and the tasks'
+  digest of the channel each action ran before, `latest` and `buildx-stable-1`), the hadolint
+  image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), and the tasks'
   prebuilt base `trigger.config.ts` pins (against main's `edge` by each platform's layers, since
   its digest moves on every merge while its layers do not: behind when they differ, or when the
   pinned index or its signature is gone) share one summary issue; another image a script there
@@ -518,6 +519,19 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `deploy/compose/site-visits.sh` builds from `deploy/compose/goaccess/Dockerfile`): an
   arm64 build-only check, `Build (<directory>)`, on a pull request that touches that directory or
   the workflow, Dependabot's move of its Alpine pin included. It pushes nothing.
+- `hadolint.yml` — on every pull request, on a push to `main` and on dispatch, on a GitHub-hosted
+  runner, never a required check: hadolint 2.15.1, by the tag and index digest `HADOLINT_IMAGE`
+  names, over every Dockerfile git lists (found as `a-dockerfile-that-ends-as-root` finds them),
+  one run per file with no network and the checkout read-only, with `.hadolint.yaml`, which
+  ignores DL3008 and DL3018 (no exact apk or apt versions, the owner's decision of 2026-11-19)
+  and nothing else. `hadolint (report only)` writes each file's findings to its summary, a
+  finding that guard's EXCEPTIONS or `KNOWN_FINDINGS` explain (both in
+  `scripts/hadolint-report.mjs`) marked known with its reason. No finding fails it. A Dockerfile
+  left unlinted is a warning on a pull request and fails the run on a push or a dispatch, where
+  the run is the record. It becomes blocking after the two Trigger.dev Dockerfiles have had their
+  pass.
+  Held by `scripts/a-dockerfile-that-ends-as-root.unit.test.ts`, which runs the report against a
+  stubbed docker.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -562,7 +576,10 @@ pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
 and the other three workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
-`SCOPE:` comment above `ci-complete` in `ci.yml`.
+`SCOPE:` comment above `ci-complete` in `ci.yml`. Nor `hadolint (report only)` from
+`hadolint.yml`, for another reason: it reports on every pull request, but it is report only and
+passes whatever hadolint finds, so requiring it would gate nothing. It turns blocking, and is
+required then, after the two Trigger.dev Dockerfiles have had their pass.
 
 **No `pull_request` trigger filters by base branch**, and a guard holds that —
 `every-pr-gets-checked.unit.test.ts`. A `branches: [main]` filter gives a pull request opened

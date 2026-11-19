@@ -4,6 +4,78 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19: hadolint 2.15.1 runs in CI over every Dockerfile git lists, report only, with DL3008
+and DL3018 ignored and nothing else; built on a branch, not merged.** On the branch
+`claude/ownpace-public-readiness-y7orc6-hadolint-ci`, from `main` at `6fc95811` (#1955). The
+owner's decisions of 2026-11-19 answer what the entry below left open: exact apk and apt package
+versions, no; hadolint in CI, yes, report only first, and blocking only once the two Trigger.dev
+Dockerfiles have had their pass (§3 item 14).
+- **The image, read on 2026-11-19.**
+  `hadolint/hadolint:v2.15.1@sha256:32dac94127fd60b7b7e3fbfc65e1383b9b5e25c9bfd7b8536de7a539fe68a12d`:
+  at 19:43 UTC the `Docker-Content-Digest` of the tag's index through Google's mirror of Docker
+  Hub (`mirror.gcr.io`, without a login; the body hashes to the same digest), and at 19:43 UTC the
+  `digest` Docker Hub's tag API gives, the same, with `last_updated` 2026-07-31 09:57:38 UTC, so
+  its three-day floor (CONTRIBUTING.md) ended on 2026-08-03. The index holds linux/amd64
+  (`fdf19d02…`) and linux/arm64 (`84179f01…`), each with an attestation, and each image's config,
+  read by digest, is one layer, `/bin/hadolint`, with `Cmd ["/bin/hadolint", "-"]`, no entrypoint,
+  no user and no locale. It is hadolint's newest release, and `latest` names the same index.
+  Nothing was pulled or run here. The guard holds the job to this reference (`HADOLINT`), and the
+  pin watch's new row `hadolint/hadolint` compares its tag with Docker Hub's newest of the same
+  shape and major.
+- **The job.** `.github/workflows/hadolint.yml`, *Dockerfile lint*, job `hadolint (report only)`:
+  on every pull request (no `paths:`), on a push to `main` and on dispatch, on `ubuntu-24.04`,
+  with `contents: read` and a checkout that keeps no token. A workflow of its own, not a job in
+  `ci.yml`: `ci-complete` needs every job there and fails on one that does not pass, and this one
+  is not to block it. `scripts/hadolint-report.mjs` lists the Dockerfiles as the guard does (the
+  guard now calls its `dockerfiles()`), pulls the image once (three attempts, 5 and 15 seconds
+  apart), runs hadolint once per file with `--no-fail --format json`, `--pull never`, no network, a
+  read-only root and checkout, no capability and as the runner's user, and writes each file's
+  findings, by line, to the job's summary. Named `dockerfile-lint.yml` at first, which the guard's
+  walk read as a Dockerfile (`Dockerfile-*`, in any case): renamed before it was committed.
+- **What is ignored, and why.** `.hadolint.yaml` ignores DL3008 and DL3018, a package installed
+  without an exact version, by apt and by apk: every base is pinned by its index digest, the
+  weekly image scan reports a package left behind its fix, and an exact version breaks the next
+  fresh build the day the distribution drops it from its mirror. Nothing else is ignored, and
+  `disable-ignore-pragma: true` keeps a `# hadolint ignore=` line (no Dockerfile here has one)
+  from ignoring more. A finding with a reason to stand is marked known, and still listed: a rule
+  the guard's EXCEPTIONS excuse for that file, by hadolint's code for the rule (`RULE_CODES`), or
+  one of `KNOWN_FINDINGS`, the proxy's DL3064 (`SECRETS=0`) and the Redis purge RUN's SC2086 and
+  SC2016, as the entry below read them. A known one hadolint did not report is named, so either
+  list can shrink. EXCEPTIONS moved from the guard into the script, unchanged, so that a bare
+  checkout reads them; the guard imports them.
+- **Report only, and when it turns blocking.** No finding fails the job. On a pull request the
+  report exits 0 even when a Dockerfile went unlinted, and warns; on a push or a dispatch a
+  Dockerfile left unlinted (the image not pulled, hadolint not answering with a list of findings,
+  or answering with a finding the config ignores) fails it, since there the run is the record. It
+  is not a required check (`every-pr-check-is-classified`, `docs/testing.md`). It becomes
+  blocking after `deploy/compose/trigger.dev/Dockerfile` and `deploy/compose/supervisor/Dockerfile`
+  have had their pass (their EXCEPTIONS say they were not in that check's round): then a finding
+  that is not known fails the job, and it is required, in one pull request, as the workflow's
+  header says.
+- **Proved on the branch:** `pnpm exec vitest run --project unit scripts`, 298 test files, 7,235
+  tests passed and 33 skipped, on Node 22.22.0, the one installed here (the repository asks for
+  26; pnpm warns and runs); beside it the guards that read a workflow with the root-level ones (25
+  test files, 763 tests) and, after the last edit, the changed guards with the root-level ones (11
+  test files, 481 tests). `pnpm typecheck`, ESLint on every changed script and test, and the six
+  docs checks. The workflow and the config parsed by the `yaml` package, strictly, with no error
+  or warning, and by PyYAML; actionlint is not installed here, and nothing was downloaded to
+  run. On disk, each failing as it should and each file restored byte for byte (its SHA-256
+  compared): the pin's digest with one digit changed, and the pin by tag alone; `continue-on-error`
+  on the job, an `if:` on the lint step and `|| true` after it; the header without IT BECOMES
+  BLOCKING; the self-hosted runner; the config ignoring DL3059 too, without
+  `disable-ignore-pragma`, and with `no-fail`; the report failing a pull request, failing on a
+  finding, or passing a push that linted nothing; hadolint without `--no-fail`, or with the
+  network; the pull without its retries; a finding of an ignored rule taken for a reading; a
+  KNOWN_FINDINGS entry for a rule EXCEPTIONS already excuse; an exception taken out; the walk
+  skipping a Dockerfile; a hadolint job in `ci.yml` (which `ci-complete-covers-every-job` refuses
+  too); the check among `docs/testing.md`'s required ones; the check renamed out of
+  NOT_REQUIRABLE; and the pin watch's row renamed. The digest with one digit changed passed
+  until the guard held the whole reference (`HADOLINT`): the comment names its first twelve
+  digits only.
+- **Owed:** hadolint itself has run nowhere yet. The pull request's run is its first: whether
+  every Dockerfile is linted, what it finds, and whether the known entries match what it reports
+  are that run's to say.
+
 **2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`)
 reads the web image and GoAccess's as containers that run as root (GEN-21), and lists where eight
 Dockerfiles break hadolint's rules (GEN-20). Both images now end as their own users, the web
@@ -64,7 +136,9 @@ read from the line the check gave, by hadolint 2.15.1's rules; hadolint itself w
   day the distribution ships the next and drops it from its mirror, as the pooler's header says
   of its five, while the bases are pinned by digest and the image scan says when a package is
   behind. hadolint passes any apk package written with `=`, `~`, `>` or `<`, so a floor would
-  quiet it without pinning anything; it is not done.
+  quiet it without pinning anything; it is not done. *(Later that day the owner's answer: no
+  exact pins, and hadolint, in CI since, ignores both rules: the entry on hadolint, above, and
+  §3 item 14.)*
 - **The guard, `a-dockerfile-that-ends-as-root`.** Every Dockerfile git lists, found by walking
   (14 today, each of them known), ends its last stage as a user that is not root (DL3002), names
   every USER by number (DL3066), writes CMD, ENTRYPOINT and HEALTHCHECK's CMD in exec form
@@ -9220,6 +9294,16 @@ is beside each; none is urgent tonight.
     Release's verify, a pull request job, the pin watch and the managed smoke follow it; E2E
     (managed) and the image scan dispatched on that branch are what is owed before it merges
     (the Status entry of 2026-11-06, later).
+14. **Exact apk and apt package versions — NO; hadolint in CI — YES, REPORT ONLY FIRST,
+    2026-11-19.** The read-only check of 2026-11-19 listed packages installed without a
+    version (hadolint's DL3008 and DL3018), and its rules were read by hand, since nothing here
+    ran hadolint. **The owner's decisions:** no exact pins, since every base is pinned by its
+    index digest, the image scan reports a package left behind its fix, and an exact version
+    breaks the next fresh build the day the distribution drops it; and hadolint in CI, report
+    only first, blocking only after the two Trigger.dev Dockerfiles
+    (`deploy/compose/trigger.dev/Dockerfile`, `deploy/compose/supervisor/Dockerfile`) have had
+    their pass. Built as `.github/workflows/hadolint.yml`, with `.hadolint.yaml` ignoring those
+    two rules and nothing else (the Status entry of 2026-11-19 on hadolint).
 
 ## 4. Not done, honestly
 

@@ -41,6 +41,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   account for files once its Drive is connected. Built against a fake Cirrux; not yet run
   against a live client (0160 T2b).
 
+- **hadolint reads every Dockerfile on every pull request, and reports what it finds without
+  failing anything yet** (workplan 0119). A read-only check of the repository had read the
+  Dockerfiles by hadolint's rules once, and nothing in CI ran hadolint. *Dockerfile lint*
+  (`.github/workflows/hadolint.yml`) now runs hadolint 2.15.1, pinned by its index digest, over
+  every Dockerfile git lists, on every pull request, on `main` and on dispatch, and writes each
+  file's findings to the job's summary; a finding with a recorded reason to stand is marked
+  known, with the reason. Its config, `.hadolint.yaml`, ignores DL3008 and DL3018, packages
+  installed without an exact version, which the owner decided on 2026-11-19 not to pin, and
+  nothing else. No finding fails a pull request: the job becomes blocking after the two
+  Trigger.dev Dockerfiles have had their pass. The weekly pin watch says when a newer hadolint
+  is tagged.
+
 ### Changed
 
 - **The public site's home page shows How it works as its page's five steps, each with a small
