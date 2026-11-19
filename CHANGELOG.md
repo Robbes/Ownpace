@@ -45,6 +45,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A calendar or task list made at Cirrux is written to where Cirrux keeps it** (workplan 0160).
+  With the calendar home found, the next pass into Cirrux, on 2026-11-19, made the source's
+  calendar: Cirrux answered 201 and showed it, with the name asked for. Then it refused every
+  event written to the calendar's address with 404, because Cirrux keeps a new calendar under an
+  id of its own. In a home the server named, a new calendar is now asked for at a UUID of the
+  writer's own, the same one on every pass, as Apple's apps do. The 201 is read back: a
+  calendar at the address asked for, then at the `Location` the answer gave, then the calendar
+  the home lists now and did not before, by its name. A 201 with no calendar anywhere fails, and
+  says so. An event refused with 404 says whether its calendar is there at all. Servers with
+  Nextcloud's layout get the same requests as before.
 - **Calendars and task lists into Cirrux are made where Cirrux keeps them, instead of failing
   before the first event** (workplan 0160). With contacts corrected, the next pass into Cirrux, on
   2026-11-19, stopped at `MKCALENDAR failed for /calendars/<mailbox>/<slug>/ with status 404`.
