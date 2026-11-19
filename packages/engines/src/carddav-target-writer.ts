@@ -47,6 +47,7 @@ import {
   sizeOf,
 } from './dav-multistatus.ts';
 import { requestWithDavRetry } from './dav-retry.ts';
+import { NOT_THIS_PLACE, isNamed, discoverHomeSet, type CollectionAt } from './dav-home-set.ts';
 import { readEtag, readVersion, ownershipOf, ifMatchFor } from './dav-target-version.ts';
 import { removeDavResource, assertRemovableTargetId } from './dav-remove.ts';
 import { log } from '@openmig/shared';
@@ -66,38 +67,6 @@ export interface CardDAVTargetConfig {
   homeSet?: string;
   /** Default address book description */
   description?: string;
-}
-
-/**
- * ANSWERS THAT SAY THE PLACE IS WRONG, NOT THE REQUEST (workplan 0160).
- *
- * To an MKCOL: 403, where nobody may make a collection (RFC 4918 §9.3.1);
- * 405, an address already taken; 409, a parent that does not exist; 404,
- * which some servers give for that instead of 409; and 501, a server that
- * makes no address book at all. The last is Cirrux's. Every Cirrux mailbox
- * has one address book, Contacts, and no way to make another, over CardDAV
- * or through Cirrux's own API (https://cirrux.co/help/api/contacts, read
- * 2026-11-19).
- *
- * To the PROPFIND that lists the assumed home, the same answers say that
- * home is not this account's. Any other answer (a sign-in refused, a server
- * in trouble, a full disk) is the answer itself, and is reported as it
- * always was.
- */
-const NOT_THIS_PLACE: ReadonlySet<number> = new Set([403, 404, 405, 409, 501]);
-
-/** One address book a server listed: where it is, and what it calls itself. */
-interface AddressBookAt {
-  readonly path: string;
-  readonly displayName?: string;
-}
-
-/** Is this the book a folder with this slug would have been made as? By its path, or by its name. */
-function isNamed(book: AddressBookAt, slug: string): boolean {
-  return (
-    collectionSlug(undefined, book.path, '') === slug ||
-    (book.displayName !== undefined && collectionSlug(book.displayName, undefined, '') === slug)
-  );
 }
 
 /**
@@ -189,7 +158,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     const refused = `MKCOL failed for ${assumedPath} with status ${refusal.status}: ${davRefusalBody(refusal.body)}`;
     if (!NOT_THIS_PLACE.has(refusal.status)) throw new Error(refused);
 
-    let account: { home: string; books: AddressBookAt[] };
+    let account: { home: string; books: CollectionAt[] };
     try {
       account = await this.accountBooks();
     } catch (err) {
@@ -588,7 +557,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
    * throws: an empty list here would read as "the target holds no
    * contacts", which verification reports as total data loss (hard rule 9).
    */
-  private async accountBooks(): Promise<{ home: string; books: AddressBookAt[] }> {
+  private async accountBooks(): Promise<{ home: string; books: CollectionAt[] }> {
     const assumed = this.assumedHome();
     const here = await this.addressBooksIn(assumed);
     if (here.status === 207 && here.books.length > 0) return { home: assumed, books: here.books };
@@ -613,7 +582,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
   /** The address books directly under `home`, with their names; `books` is empty unless 207. */
   private async addressBooksIn(
     home: string,
-  ): Promise<{ status: number; body: string; books: AddressBookAt[] }> {
+  ): Promise<{ status: number; body: string; books: CollectionAt[] }> {
     const response = await this.httpClient.request({
       method: 'PROPFIND',
       url: this.buildUrl(home),
@@ -632,7 +601,7 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     // identical fix and the real 404 it produced in caldav-target-writer.ts.
     const books = parseMultiStatus(response.body)
       .filter((r) => hasResourceType(r.xml, 'addressbook'))
-      .flatMap((r): AddressBookAt[] => {
+      .flatMap((r): CollectionAt[] => {
         const relative = hrefRelativeTo(r.href, this.buildUrl(''));
         // Outside the base, or the home set itself, which is not an address book.
         if (relative === undefined || relative === '') return [];
@@ -647,83 +616,16 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
 
   /**
    * The address book home the SERVER names for this account (RFC 6352
-   * §7.1.1), reached as RFC 6764 §6 says: `current-user-principal`
-   * (RFC 5397), asked at `/.well-known/carddav` on the configured host and
-   * then at the configured base, and the principal asked for its
-   * `addressbook-home-set`. The DAV sources have always looked this way
-   * (carddav-source.ts); the writer assumed instead.
+   * §7.1.1), asked as `discoverHomeSet` says, or undefined.
    *
    * Asked once per writer, and only after the assumed home failed, so a
    * server that serves Nextcloud's layout costs no request more than before.
-   * Undefined when nothing names a home this writer can reach: one on
-   * another host, or outside the configured base, is not one `buildUrl` can
-   * address.
    */
   private discoveredHomeSet(): Promise<string | undefined> {
-    this.discoveredHome ??= this.discoverHomeSet();
+    this.discoveredHome ??= discoverHomeSet('carddav', this.buildUrl(''), this.authHeader(), (options) =>
+      this.httpClient.request(options),
+    ).then((relative) => (relative === undefined ? undefined : this.normalizeAddressBookPath(relative)));
     return this.discoveredHome;
-  }
-
-  private async discoverHomeSet(): Promise<string | undefined> {
-    const base = this.buildUrl('');
-    const origin = new URL(base).origin;
-    for (const start of [new URL('/.well-known/carddav', base).toString(), base]) {
-      // An href this cannot read is one more place that named nothing; it must
-      // not reject the answer every later call of this writer shares.
-      try {
-        const principal = await this.hrefProperty(start, '<D:current-user-principal/>', 'current-user-principal');
-        if (principal === undefined) continue;
-        const principalUrl = new URL(principal, start);
-        if (principalUrl.origin !== origin) continue;
-        const home = await this.hrefProperty(
-          principalUrl.toString(),
-          '<C:addressbook-home-set/>',
-          'addressbook-home-set',
-        );
-        if (home === undefined) continue;
-        const homeUrl = new URL(home, principalUrl);
-        if (homeUrl.origin !== origin) continue;
-        const relative = hrefRelativeTo(homeUrl.pathname, base);
-        if (relative === undefined) continue;
-        return this.normalizeAddressBookPath(relative);
-      } catch (err) {
-        log.warn(
-          `[carddav] could not read the address book home named from ${start}: ` +
-            `${err instanceof Error ? err.message : String(err)}`,
-        );
-      }
-    }
-    return undefined;
-  }
-
-  /** One href-valued property of one resource; undefined when the server gives none. */
-  private async hrefProperty(url: string, prop: string, localName: string): Promise<string | undefined> {
-    let response: HttpResponse;
-    try {
-      response = await this.httpClient.request({
-        method: 'PROPFIND',
-        url,
-        body: `<?xml version="1.0" encoding="utf-8"?>
-          <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav"><D:prop>${prop}</D:prop></D:propfind>`,
-        headers: {
-          Depth: '0',
-          'Content-Type': 'application/xml',
-          Authorization: this.authHeader(),
-        },
-      });
-    } catch (err) {
-      // The second question, asked because the first answer failed. A place
-      // that cannot be reached names nothing, and the error the caller then
-      // raises carries the first answer, which is the one to act on.
-      log.warn(
-        `[carddav] could not ask ${url} for its ${localName}: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      return undefined;
-    }
-    if (response.status !== 207) return undefined;
-    const value = firstElementText(response.body, localName);
-    const href = value === undefined ? undefined : firstElementText(value, 'href')?.trim();
-    return href ? unescapeXml(href) : undefined;
   }
 
   /** Every vCard in one address book, as ledger-shaped entries. */
