@@ -8,9 +8,7 @@
 environment: the owner's migration into Cirrux had its calendars failing on every pass, and its
 mail never arrived, although mail itself never failed. In `run-delta-sync`, a data type's catch
 re-threw, which ended the pass, so every data type after a failing one in the pass order never had
-its turn. The owner: *"i would like sync to continue with what did not yet start, and not
-stand/end with one type fails."* On the branch
-`claude/ownpace-public-readiness-y7orc6-every-type-a-turn`:
+its turn. A pass now goes on with the data types it has not started yet:
 
 - **The catch records a failure as before, and the pass goes on.** The run event, `markFailed`
   with its side and reference, `domainFailedEvent` and `recordAppEvent` are unchanged. After the

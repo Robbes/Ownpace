@@ -337,8 +337,8 @@ export const runDeltaSync = schemaTask({
 
     /**
      * THE DATA TYPES THAT FAILED THIS PASS, in the order it took them (workplan
-     * 0143 T5, 2026-11-19). The owner: *"i would like sync to continue with what
-     * did not yet start, and not stand/end with one type fails."*
+     * 0143 T5, 2026-11-19): a pass goes on with the data types it has not
+     * started yet, and one that fails no longer ends it.
      *
      * A failure used to end the pass where it happened: the data type's catch
      * re-threw, so every data type after a failing one never had its turn, pass

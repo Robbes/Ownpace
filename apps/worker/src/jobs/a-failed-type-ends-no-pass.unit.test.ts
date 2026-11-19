@@ -8,9 +8,7 @@
  * arrived, although mail itself never failed. The managed pass takes its data
  * types in the pass order, contact, calendar, task, email, file (T5, "every data
  * type gets a turn"), and a data type's catch re-threw, which ended the pass:
- * the data types after a failing one never had their turn, pass after pass. The
- * owner: *"i would like sync to continue with what did not yet start, and not
- * stand/end with one type fails."*
+ * the data types after a failing one never had their turn, pass after pass.
  *
  * Now a failure is recorded where it happens, as it always was (the run event,
  * the status row with its side and reference, the app event), and the pass goes
