@@ -97,6 +97,11 @@ export function newAppEvent(event: Omit<AppEvent, 'reference'>): AppEvent {
  * The event a domain records when its pass fails: `sync.<domain>.failed`, with
  * the category the message classifies as. The same call `markFailed` makes, so
  * the log page and the customer's progress strip name the same category.
+ *
+ * `stated` is the category the throw site named (`statedFailureCategoryOf`),
+ * which wins over the message, as it does for an item (workplan 0160: a
+ * Cirrux account whose Drive was disconnected is refused with `auth_expired`
+ * in a sentence of ours that no matcher reads as one).
  */
 export function domainFailedEvent(args: {
   readonly tenantId: string;
@@ -104,13 +109,14 @@ export function domainFailedEvent(args: {
   readonly domain: string;
   readonly message: string;
   readonly side?: FailureSide;
+  readonly stated?: FailureCategory;
 }): AppEvent {
   return newAppEvent({
     level: 'error',
     event: `sync.${args.domain}.failed`,
     tenantId: args.tenantId,
     mappingId: args.mappingId,
-    category: classifyFailure(args.message, args.side),
+    category: classifyFailure(args.message, args.side, args.stated),
   });
 }
 

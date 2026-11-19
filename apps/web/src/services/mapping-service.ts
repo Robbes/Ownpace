@@ -996,6 +996,17 @@ export const mappingApi = {
   },
 
   /**
+   * DISCONNECT CIRRUX DRIVE (workplan 0160): the server removes the Drive
+   * sign-in from the account named here, and nothing else, and says whether
+   * one was stored and what happened at Cirrux (nothing: Cirrux offers no way
+   * to withdraw one).
+   */
+  cirruxDriveDisconnect: async (p: { connectionId: string }): Promise<CirruxDriveDisconnected> => {
+    const response = await apiClient.post('/migrations/cirrux/disconnect', p);
+    return response.data as CirruxDriveDisconnected;
+  },
+
+  /**
    * Microsoft's turn at the same round trip (workplan 0114).
    *
    * Shaped like the GOOGLE ACCOUNT ask rather than Dropbox's, because it is
@@ -1452,6 +1463,17 @@ export interface ConnectionDeleted {
   deleted: true;
   id: string;
   displayName?: string;
+  revocation: RevocationOutcome;
+}
+
+/**
+ * The answer to Disconnect Cirrux Drive (workplan 0160): `removed` is false
+ * when the account stored no sign-in, which is no failure; `revocation` is
+ * what happened at Cirrux, never `revoked`.
+ */
+export interface CirruxDriveDisconnected {
+  connectionId: string;
+  removed: boolean;
   revocation: RevocationOutcome;
 }
 

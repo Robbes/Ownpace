@@ -4,6 +4,32 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, night: T7, Disconnect Cirrux Drive** (§6; ADR-0052 amended). A Drive sign-in
+ended only when its account was deleted, or when its app password was replaced with another
+mailbox's. *Disconnect Cirrux Drive*, beside a connected Drive on the Accounts page, asks first,
+then removes the Drive grant and nothing else (`POST /api/migrations/cirrux/disconnect`): under
+the row lock a refresh takes, with the app password and every other key kept, the record's file
+face set to its measured no and `connection.cirrux_drive_disconnected` written in the same
+transaction. The API then drops its access tokens for the account; a pass running in the worker
+stops within a minute, when its store says no grant is stored. A pass on the account refuses its
+files before anything is built, writing them nowhere, in a sentence naming *Connect Cirrux
+Drive*, stated `auth_expired`; a data type's status row now keeps a category its throw site
+stated, so the Accounts row names that button. Cirrux's API pages name an authorization and a
+token endpoint and no revocation (§1), so Cirrux is not asked: the answer says the sign-in lasts
+there until it goes unused for 30 days, or until it is revoked under Settings → Security. A closed
+organisation may disconnect, since it ends access and starts nothing. Proven: 54 new unit cases
+as run, in nine files (the screen's six run in English and in Dutch), two of the files new
+(`disconnect-cirrux-drive.unit.test.ts`, `a-disconnect-leaves-no-token.unit.test.ts`); four
+existing pins follow the change (the pass's new sentence in two, `markFailed`'s stated category,
+the closed-organisation door count); and two new cases in
+`cirrux-grant-store.integration.test.ts`, run on a local Postgres 16 (`./scripts/local-pg.sh`):
+the disconnect waits for a refresh holding the lock and removes the successor it stored, and on
+a connection row security does not hold it does not reach another organisation's row. 39
+mutations, each one change to this code on disk, restored byte for byte, each caught (§6,
+*Disconnect Cirrux Drive (T7): the mutations*); one, the tenant filter in the removal's own
+`WHERE`, only on real Postgres, since row security hides the other row from the unit tests'
+role. Not proven: anything against a live Cirrux client (T2b, §6b step 11).
+
 **2026-11-19, night: an event at Cirrux that lists guests is left as it is.** The owner tested
 Cirrux alone, with two events of their own and a guest on each: taking the guest off one, and
 deleting the other, each mailed the guest a cancellation (`METHOD:CANCEL`, the mailbox as its
@@ -101,8 +127,9 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 | T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, calendars with a 404, then each event with a 404, each corrected in T3; then Cirrux emailed the guests of the events written, and the migration is paused; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
 | T3 What T2 corrects | builder | 🔨 **Five corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it; nothing written to Cirrux names a guest or an organiser; an event there that already lists a guest is neither rewritten nor deleted | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
-| T2b The first live Drive test | owner | 📋 **Proposed** | §6b: once Cirrux has sent the OTA client, its ID in the OTA stack's `.env`, *Connect Cirrux Drive*, one small migration of files, a replace, a conflict, an approved removal, and a refresh after fifteen minutes. |
+| T2b The first live Drive test | owner | 📋 **Proposed** | §6b: once Cirrux has sent the OTA client, its ID in the OTA stack's `.env`, *Connect Cirrux Drive*, one small migration of files, a replace, a conflict, an approved removal, a refresh after fifteen minutes, and *Disconnect Cirrux Drive*. |
 | T5 Files into Cirrux Drive | builder, owner | 🔨 **Built 2026-11-19, to 2 GiB** | §6; ADR-0052. The consent door, the rotating write-back one refresh at a time, the face and its Test, the writer (simple upload to 100 MB; the chunked upload to 2 GiB and every replace in Cirrux's `CXDRV2` format, streamed; `base_ctag`; the trash for approved removals), the Accounts page's button. |
+| T7 Disconnect Cirrux Drive | builder | 🔨 **Built 2026-11-19** | §6, *Disconnect Cirrux Drive*; ADR-0052 amended. The grant alone removed under the row's lock, the record's file face and the audit line in the same transaction, the access tokens dropped (at once in the API, within a minute in a pass), a pass's files refused under `auth_expired`. Nothing asked of Cirrux, which publishes no revocation. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
 
 ## 1. What Cirrux publishes (T0)
@@ -133,6 +160,8 @@ Read on 2026-11-19. *Read* means the page itself was read; *inferred* says what 
 | Docs at `docs.cirrux.co`, a preview for accounts given early access; documents live in Drive; the API reads and writes them as Markdown; export as PDF or Markdown | `https://cirrux.co/help/docs`, `https://cirrux.co/help/api/documents` | read |
 | API under `https://api.cirrux.co/public_api`, `/v1`, bearer tokens. A workspace API key (`cxk_…`, made by an admin) reaches only `workspace.read`, `email.read`, `email.write`, `email.send`, in the mailboxes chosen for it; Drive, Calendar, Tasks, Contacts and Documents need a user-scoped OAuth token and refuse a key with `403 forbidden`. 18 scopes. OAuth: authorization code with PKCE `S256`, public client, access tokens 15 minutes, refresh tokens 30 days, each refresh retiring the previous one. 600 requests a minute per token; `429` with `Retry-After` | `https://cirrux.co/help/api` | read |
 | An OAuth client ID is not self-service: email help@cirrux.co with the app's name, its redirect URLs and its scopes | `https://cirrux.co/help/questions/oauth-client-for-my-app` | read |
+| No OAuth revocation an app can call: the pages name the authorization endpoint (`https://api.cirrux.co/oauth/authorize`) and the token endpoint (`https://api.cirrux.co/oauth/token`), and nothing else; the error table says an access token can be "unknown, expired or revoked". Both point to a metadata document, `https://api.cirrux.co/.well-known/oauth-authorization-server`, which was not read | `https://cirrux.co/help/api`, `https://cirrux.co/help/questions/oauth-client-for-my-app` | read (searched) |
+| Settings → Security lists a person's active sessions and the apps they have authorized, and any of them can be revoked there; the AI-assistants page calls the list *Authorized apps* | `https://cirrux.co/help/security`, `https://cirrux.co/help/mcp` | read; whether this service's Drive sign-in is listed there is **not yet observed** (T2b) |
 | Webhooks: one event, `email.received`, per mailbox, not fired for mail copied in by an import or saved over IMAP; HMAC-SHA256 signature; five attempts | `https://cirrux.co/help/api/webhooks` | read |
 | The webhook page says `GET /v1/emails/{uuid}` refuses a workspace API key; the API introduction says a key may read mail | `https://cirrux.co/help/api/webhooks`, `https://cirrux.co/help/api` | read; the two pages disagree |
 | One seat price, €2,99 a month or €29 a year with 20 GB; Plus 100 GB, Large 500 GB, Max 2 TB; one storage pool per workspace for mail, Drive, documents and Gmail backups; over the tier for seven days, the workspace moves up; uploads past the pool are refused; no free mailbox; a 14-day refund | `https://cirrux.co/help/billing` | read |
@@ -382,6 +411,25 @@ One public client per deployment, `CIRRUX_OAUTH_CLIENT_ID`, read by the API and 
   UPDATE`; a new app password for the same mailbox keeps it, another mailbox's does not.
 - **The tokens** (`packages/connectors/src/cirrux-token-provider.ts`): an access token in memory,
   single-flight in a process, each outcome sorted rotated, spent or kept.
+- **Disconnect Cirrux Drive** (T7; `POST /api/migrations/cirrux/disconnect`,
+  `removeCirruxDriveGrant`). Authenticated and scoped to the organisation as the consent door is;
+  only on a `cirrux` destination of it (`not_a_cirrux_account` otherwise). Under the row's lock,
+  `CIRRUX_DRIVE_GRANT_KEY` leaves the record and nothing else does, by a compare-and-swap on the
+  ciphertext read; the record's file face becomes the measured no `qualifyCirruxDrive` answers
+  without a grant, and `connection.cirrux_drive_disconnected` is written with the actor and the
+  account, in the same transaction. Then `forgetCirruxAccess` drops the API's access tokens for
+  the account; a provider elsewhere asks its store at most once a minute whether a grant is still
+  stored (`holdsGrant`) before it hands out a token in memory. Nothing is sent to Cirrux: the
+  answer's `revocation` is `unsupported`, with the Security page (§1), or `no_credential` with
+  `removed: false` for an account that stored none (a second press, or a sign-in Cirrux had
+  already ended, whose stale face is put right). Not refused for a closed organisation: it ends
+  access and starts nothing, as withdrawing a grant does. A pass on the account then refuses its
+  file data type before anything is built, in a sentence of its own (*nothing was written for
+  'file', here or to any other destination*), stated `auth_expired`; and a data type's failure
+  now keeps the category its throw site stated (`markFailed`, `domainFailedEvent`), so the
+  Accounts row names *Connect Cirrux Drive*. The screen: *Disconnect Cirrux Drive* beside a
+  stored sign-in, a question first (*Yes, disconnect* / *Keep it connected*), then what was done
+  and how the sign-in ends at Cirrux, in both languages.
 - **The face** (`qualifyCirruxDrive`, `GRANTED_TARGET_FACES`): a measured no, `structural`,
   without the deployment's client; a measured no, `notGranted`, without a grant; with one,
   measured through the stored sign-in (who, which workspace, the top of the Drive, the pool).
@@ -456,8 +504,10 @@ as Cirrux's behaviour; each is a reading T2b can confirm.
     Drives refreshing at a tick's start would meet it first, and a `429` keeps the token.
 16. **A replace of a trashed file** is not described; this product never replaces a trashed
     copy (it is the person's, `conflicted`).
-17. **No revocation endpoint** is documented. Deleting the account deletes our copy, and the
-    receipt says the sign-in expires on its own.
+17. **No revocation endpoint** is documented (§1). Deleting the account, or *Disconnect Cirrux
+    Drive*, deletes our copy, and both receipts say the sign-in expires at Cirrux after 30 days
+    unused, or ends when the person revokes it under Settings → Security. The metadata document
+    the API pages point to may name a `revocation_endpoint`; it was not read (item 10).
 18. **`409 upload_in_progress`** from an upload this pass did not start is not aborted: it may be
     the person's own, in Cirrux's app. The file fails for that pass and is asked again; Cirrux
     discards an unfinished upload after 24 hours.
@@ -485,6 +535,58 @@ minutes old (they last an hour), and again once for a part whose PUT storage ans
 Any failure aborts the upload, which takes the half-made file with it. A replace over 100 MB
 goes through the same parts. A file over 2 GiB is refused before a byte is read, and an init
 Cirrux answers `413` is the same refusal.
+
+### Disconnect Cirrux Drive (T7): the mutations
+
+Each made one change to the disconnect's code on disk, ran the tests meant to catch it, and was
+put back byte for byte (its file’s SHA-256 compared after every one). S4 and S4b are one
+mutation run twice: the unit tests connect as `app_user`, whose row security hides another
+organisation’s row whatever the query says, and the integration test connects as the database
+owner, which row security skips, as it skips the system role. S11 and S4b ran on a local
+Postgres 16 (`./scripts/local-pg.sh`).
+
+| # | What was broken | Caught by |
+|---|---|---|
+| S1 | the whole record dropped, not the one key | `cirrux-grant-store.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 6 cases |
+| S2 | the grant key kept | `cirrux-grant-store.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 8 cases |
+| S3 | any kind or role accepted | `cirrux-grant-store.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 2 cases |
+| S4 | the tenant left out of the removal’s own WHERE | not caught here: row security hides the other row from the unit tests’ role (see S4b) |
+| S4b | the tenant left out of the removal’s own WHERE (real Postgres, row security not in force) | `cirrux-grant-store.integration.test.ts`: 1 case |
+| S5 | the face not written with the removal | `cirrux-grant-store.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 3 cases |
+| S6 | a stale face left when nothing was stored | `cirrux-grant-store.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 2 cases |
+| S7 | nothing stored, still recorded as a disconnect | `cirrux-grant-store.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 3 cases |
+| S8 | an audit line that failed swallowed | `cirrux-grant-store.unit.test.ts`: 1 case |
+| S9 | holdsGrant says yes whatever is stored | `cirrux-grant-store.unit.test.ts`: 2 cases |
+| S10 | the store names no connection | `cirrux-grant-store.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 2 cases |
+| S11 | the row lock left out of the removal (real Postgres) | `cirrux-grant-store.integration.test.ts`: 1 case |
+| T1 | a disconnect here not looked at | `a-disconnect-leaves-no-token.unit.test.ts`: 1 case |
+| T2 | a refresh the disconnect overtook handed out | `a-disconnect-leaves-no-token.unit.test.ts`: 1 case |
+| T3 | the store never asked before a token in memory goes out | `a-disconnect-leaves-no-token.unit.test.ts`: 4 cases |
+| T4 | the store asked on every call | `a-disconnect-leaves-no-token.unit.test.ts`: 2 cases |
+| T5 | one question per item, not one for all waiting | `a-disconnect-leaves-no-token.unit.test.ts`: 1 case |
+| T6 | a store that could not answer counted as a yes | `a-disconnect-leaves-no-token.unit.test.ts`: 3 cases |
+| T7 | no grant stored, token kept and handed out | `a-disconnect-leaves-no-token.unit.test.ts`: 2 cases |
+| T8 | a disconnect counted for every connection | `a-disconnect-leaves-no-token.unit.test.ts`: 1 case |
+| R1 | this process’s tokens not dropped | `disconnect-cirrux-drive.unit.test.ts`: 1 case |
+| R2 | another kind or an unknown id answered 200 | `disconnect-cirrux-drive.unit.test.ts`: 1 case |
+| R3 | no audit line | `disconnect-cirrux-drive.unit.test.ts`: 2 cases |
+| R4 | the face not handed to the removal | `disconnect-cirrux-drive.unit.test.ts`: 3 cases |
+| R5 | the answer claims revoked | `disconnect-cirrux-drive.unit.test.ts`: 2 cases |
+| R6 | a closed organisation refused | `disconnect-cirrux-drive.unit.test.ts`: 1 case |
+| R7 | the body’s id not checked | `disconnect-cirrux-drive.unit.test.ts`: 1 case |
+| W1 | the disconnect receipt says revoked | `token-revocation.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 4 cases |
+| W2 | the Security page left out of how it ends at Cirrux | `token-revocation.unit.test.ts`, `disconnect-cirrux-drive.unit.test.ts`: 3 cases |
+| P1 | the pass refusal states no category | `a-domain-whose-pass-never-asked.unit.test.ts`, `a-drive-face-a-sign-in-adds.unit.test.ts`: 2 cases |
+| P2 | the pass says the create door’s sentence | `a-domain-whose-pass-never-asked.unit.test.ts`, `a-drive-face-a-sign-in-adds.unit.test.ts`: 3 cases |
+| P3 | markFailed drops the stated category | `a-failure-with-its-reference.unit.test.ts`: 1 case |
+| P4 | runOneDomain hands markFailed no stated category | `failure-side-recorded.unit.test.ts`: 1 case |
+| P5 | the worker hands its event no stated category | `failure-side-recorded.unit.test.ts`: 1 case |
+| U1 | no question before the press | `CirruxDrive.unit.test.tsx`: 8 cases |
+| U2 | offered with no sign-in stored | `CirruxDrive.unit.test.tsx`: 2 cases |
+| U3 | how it ends at Cirrux not said | `CirruxDrive.unit.test.tsx`: 2 cases |
+| U4 | nothing stored, said as disconnected | `CirruxDrive.unit.test.tsx`: 2 cases |
+| U5 | the accounts not read again | `CirruxDrive.unit.test.tsx`: 4 cases |
+| U6 | the dormant guard lets the panel draw without a client | `CirruxDrive.unit.test.tsx`: 4 cases |
 
 ## 6b. T2b — the owner's live Drive test
 
@@ -529,7 +631,14 @@ When Cirrux has answered the request with a client ID for the OTA callback:
    trash, restorable, and nowhere else.
 10. Wait more than fifteen minutes and press **Sync now**: the pass runs (the worker refreshed
     and wrote back), and nobody was signed out.
-11. Delete the migration, then the account if you wish: the receipt names the Drive sign-in.
+11. Press **Disconnect Cirrux Drive** on the account, then **Yes, disconnect**. Write down the
+    row's words, and that **Carries:** no longer names files. Press **Sync now** on the files
+    migration: its files fail with a sentence naming **Connect Cirrux Drive**, nothing new
+    appears in Cirrux Drive, and its other data types run. In Cirrux Mail, open Settings →
+    Security: write down whether this service is listed among the apps you have authorized, and
+    revoke it there. Then press **Connect Cirrux Drive**, sign in again and press **Sync now**:
+    the files carry on.
+12. Delete the migration, then the account if you wish: the receipt names the Drive sign-in.
 
 Write down any failure that names `undecryptable_content`, `upload_size_mismatch`,
 `invalid_grant`, `name_taken` or a sign-out, with its words: each is one of §6's readings proven

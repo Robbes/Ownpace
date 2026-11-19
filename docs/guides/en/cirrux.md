@@ -65,6 +65,17 @@ What happens to your files there:
 
 The sign-in is kept with the account, encrypted, beside the app password. Cirrux replaces it every time this service renews it, so this service stores each new one and uses it once. A sign-in left unused for 30 days expires at Cirrux. When the sign-in no longer works, files fail with a sentence naming **Connect Cirrux Drive**: press it again, and the files carry on at the next run. Replacing the app password of the same mailbox keeps the Drive connected; an app password of another mailbox starts without it.
 
+### Disconnecting Cirrux Drive {#disconnect}
+
+To stop files going to the Drive and keep the account for everything else, press **Disconnect Cirrux Drive** on the Cirrux account on the **Accounts** page, beside **Connect Cirrux Drive again**. It asks first; press **Yes, disconnect**, or **Keep it connected** to leave it as it is.
+
+- **Only the Drive sign-in goes.** This service deletes its copy of it. The app password stays, so mail, calendars, contacts and tasks carry on as before, and what is already in your Drive stays there: nothing in it is moved or deleted.
+- **No file goes there any more.** The account shows files as not carried, and **Where does it go?** no longer offers it for files. A migration that sends files there stops at its files with a sentence naming **Connect Cirrux Drive**, and sends them nowhere else; its other data types carry on. A run already copying files stops within about a minute, at its next request to Cirrux.
+- **At Cirrux, the sign-in ends by itself.** Cirrux offers no way for a service to end a sign-in, so it stays valid at Cirrux until it has gone unused for 30 days. To end it sooner, open **Settings → Security** in Cirrux Mail, which lists the apps you have authorized, and revoke this service there ([security](https://cirrux.co/help/security)).
+- **To connect again**, press **Connect Cirrux Drive** and sign in, as the first time; the files carry on from where they stopped.
+
+Pressed on an account with no Drive connected, it says there was nothing to disconnect.
+
 ## Cirrux's own import {#cirrux-sync}
 
 Cirrux can copy from Google and Microsoft itself. Its Google Sync and Microsoft Sync read mail, calendars and contacts, one way, and look for changes every hour ([Google Sync](https://cirrux.co/help/google-sync), [Microsoft Sync](https://cirrux.co/help/microsoft-sync)). They leave Google Drive and OneDrive files behind, and they name no tasks. For other providers, Cirrux's IMAP import copies mail each time you start it, and calendars and contacts come across as files you upload.
@@ -85,6 +96,7 @@ What Cirrux itself answers, this service shows word for word, in the server's la
 
 ## Stopping {#leaving}
 
+- To stop files only, and keep the account for mail, calendars, contacts and tasks, disconnect Cirrux Drive ([Disconnecting Cirrux Drive](#disconnect)).
 - A migration is deleted under **Migrations**. The confirmation says what that does: **Removes the migration’s settings and record; nothing at your source or destination is touched.** What was already copied stays at Cirrux.
-- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the app password, and of the Cirrux Drive sign-in where one was connected. The app password itself stays valid at Cirrux, and the screen says so too: **We deleted our copy; this provider has no revocation we can trigger.** Cirrux names no way for a service to withdraw a Drive sign-in either; nothing here can use it again, and at Cirrux it expires once it is left unused for 30 days.
+- An account is deleted under **Accounts**, with **Delete**. That deletes this service's copy of the app password, and of the Cirrux Drive sign-in where one was connected. The app password itself stays valid at Cirrux, and the screen says so too: **We deleted our copy; this provider has no revocation we can trigger.** Cirrux names no way for a service to withdraw a Drive sign-in either; nothing here can use it again, and at Cirrux it expires once it is left unused for 30 days, or when you revoke it under **Settings → Security** in Cirrux Mail.
 - So delete the app password at Cirrux: in Cirrux Mail, **Settings → Mailboxes**, the mailbox, its **Passwords** tab. Your Cirrux password stays as it is.

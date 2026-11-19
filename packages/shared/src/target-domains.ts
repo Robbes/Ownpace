@@ -213,6 +213,25 @@ function ungrantedFaceRefusal(targetType: WizardTargetType, faces: ReadonlyArray
 }
 
 /**
+ * The same missing grant, met by a PASS or a migration's preflight rather than
+ * at the create door (workplan 0160): the migration was made while the grant
+ * was stored, and it is not stored now, because the person pressed
+ * *Disconnect Cirrux Drive* or the provider ended the sign-in. Nothing of the
+ * face is written, to this account or to any other destination, and the
+ * sentence names the button that stores the grant again.
+ */
+export function ungrantedFaceAtPassRefusal(targetType: WizardTargetType, faces: ReadonlyArray<DiscoveryDomain>): string {
+  const name = PROTOCOL_NAMES[targetType];
+  const grant = GRANTED_TARGET_FACES[targetType];
+  const list = faces.map((d) => `'${d}'`).join(', ');
+  return (
+    `This ${name} account has no ${grant?.grant ?? 'grant'} connected, so nothing was written for ${list}, ` +
+    `here or to any other destination. On the Accounts page, press ${grant?.button ?? 'Connect'} on this ` +
+    `account, and ${list} carries on at the next pass.`
+  );
+}
+
+/**
  * The refusal sentence for an incoherent target/domain combination, naming
  * BOTH sides (prose boundary: rendered verbatim wherever it surfaces), or
  * null when the combination is coherent.

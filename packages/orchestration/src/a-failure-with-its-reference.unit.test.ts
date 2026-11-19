@@ -88,6 +88,10 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 describe("the managed worker's task", () => {
   it('marks the data type failed with the same reference', () => {
     const worker = readFileSync(join(HERE, '../../..', 'apps/worker/src/jobs/run-delta-sync.ts'), 'utf8');
-    expect(worker).toMatch(/markFailed\([\s\S]{0,200}?failureSideOf\(error\),\s*failed\.reference,\s*\)/);
+    // The reference after the side, and then only the category the throw site
+    // stated (workplan 0160), which `failure-side-recorded.unit.test.ts` pins.
+    expect(worker).toMatch(
+      /markFailed\([\s\S]{0,200}?failureSideOf\(error\),\s*failed\.reference,\s*(?:statedFailureCategoryOf\(error\),\s*)?\)/,
+    );
   });
 });
