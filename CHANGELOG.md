@@ -45,6 +45,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Moves and Deletions name the item each row asks about** (workplan 0159): a file renamed at
+  the top of a drive read only `/ renamed` beside an ID and now reads
+  `/report.pdf → report-final.pdf`, a moved file shows its name in both folders, and a message,
+  an event or a contact shows its name, all from what the migration had already recorded.
 - **Contacts into Cirrux land in the mailbox's address book, instead of failing before the first
   card** (workplan 0160). The first contacts pass into Cirrux, on 2026-11-19, stopped at
   `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The CardDAV

@@ -3968,6 +3968,13 @@ paths:
         person or by the automatic removal of moved files' old copies; the
         item is still on the new system under its new key). An open row has
         none.
+
+        Each row, and each earlier export, names its item where the ledger
+        holds a name, as `displayName`: a message's Subject, an event's or a
+        task's title, a contact's name, or a file's name, the last segment of
+        the path it was copied from, beside its folder (`collection`). Read
+        from the row, never stored for this; absent on a row from before a
+        name or a path was recorded. `naturalKeyHash` stays the handle.
       responses:
         '200':
           description: The deletion queue.
@@ -4551,6 +4558,17 @@ paths:
         Each `acknowledged` row says what its decision did on the new system,
         as `decided` (workplan 0159 §6 item 6): `kept` (left where it is), or
         `applied` (the old copy removed there). An open row has none.
+
+        Each row names its item where the ledger holds a name, as
+        `displayName`: a message's Subject, an event's or a task's title, a
+        contact's name, or a file's name, the last segment of the path it was
+        copied from. A relocation (`toNaturalKeyHash`) also carries
+        `toDisplayName`, the name on the copy already made under its new key,
+        read from that row in the same organisation and migration. So a file
+        renamed in `Docs` reads `report.pdf` to `report-final.pdf` with `from`
+        and `to` both `Docs`. Read from the rows, never stored for this;
+        absent on a row from before a name or a path was recorded.
+        `naturalKeyHash` stays the handle.
       responses:
         '200':
           description: The move queue.

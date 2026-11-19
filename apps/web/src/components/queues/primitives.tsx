@@ -52,8 +52,9 @@ export const DomainTag: React.FC<{ domain: string }> = ({ domain }) => {
  *
  * Shortened for reading, never for use: the full value is the handle every
  * action posts, and it stays in the `title` so an operator can copy it into a
- * ticket. §17 is why this is what identifies an item on screen at all — the
- * natural key itself is a Message-ID, an iCal UID or a file path.
+ * ticket. §17 is why the KEY never travels in its place — it is a Message-ID,
+ * an iCal UID or a file path — and why a row names its item only by what the
+ * ledger already holds for it (`displayName`, read by `nameOnRow`).
  *
  * Folded because nobody recognises an item by twelve hex digits: the row
  * says what it is and where, and the digits are for a support ticket.
@@ -165,6 +166,18 @@ export const GuidancePanel: React.FC<{ queue: GuidedQueue }> = ({ queue }) => {
  * path still reads, and is still found, as one text (`INBOX/Projects`); the
  * `<wbr>` after each slash only says where a line may end.
  */
+/**
+ * A file's place, as its folder and its name, from the top of the drive:
+ * `/Docs/report.pdf`, and `/report.pdf` for a file at the top, whose folder
+ * alone read `/` beside a hash (the owner, 2026-11-19: *"I find it a bit weird
+ * it just mentions '/'"*). The folder is a row's `collection`, root-relative
+ * and `/` at the root; the name is its `displayName`.
+ */
+export const fileAt = (folder: string, name: string): string => {
+  const inside = folder.replace(/^\/+|\/+$/g, '');
+  return inside === '' ? `/${name}` : `/${inside}/${name}`;
+};
+
 export const PathText: React.FC<{ path: string }> = ({ path }) => (
   <>
     {path.split('/').map((part, i) => (

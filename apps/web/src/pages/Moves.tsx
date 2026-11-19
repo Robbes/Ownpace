@@ -47,6 +47,7 @@ import {
   ItemRow,
   PathText,
   QueueSection,
+  fileAt,
   ReceiptStatus,
   Refused,
   Resolved,
@@ -85,6 +86,28 @@ const DECIDED: Record<NonNullable<ItemMove['decided']>, StringKey> = {
 const renamedInPlace = (mv: ItemMove): boolean =>
   mv.toNaturalKeyHash !== undefined && mv.to === mv.from;
 
+/**
+ * Where the target has the item, and where the source lists it now, as a row
+ * says them (the owner, 2026-11-19, on a row that read *Files / renamed*: *"I
+ * need more info, like a name, to be able to understand what I need to decide
+ * on."*).
+ *
+ * A FILE's name is part of its place, so a named file reads as its path:
+ * `/Docs/report.pdf → /Archive/report.pdf`. Anything else keeps its folders,
+ * and its name, when the row has one, leads the line as a label (`label`). A
+ * name the ledger did not record is not guessed: that side keeps its folder.
+ */
+function placesOf(mv: ItemMove): { label?: string; was: string; now: string } {
+  if (mv.domain !== 'file') {
+    return { ...(mv.displayName !== undefined ? { label: mv.displayName } : {}), was: mv.from, now: mv.to };
+  }
+  const was = mv.displayName !== undefined ? fileAt(mv.from, mv.displayName) : mv.from;
+  // A relocation is named by its new copy's row. A move that kept its key (a
+  // file never does, but a row is not a promise) keeps its name.
+  const newName = mv.toNaturalKeyHash !== undefined ? mv.toDisplayName : mv.displayName;
+  return { was, now: newName !== undefined ? fileAt(mv.to, newName) : mv.to };
+}
+
 const Row: React.FC<{
   mv: ItemMove;
   outcome?: ItemOutcome;
@@ -92,38 +115,52 @@ const Row: React.FC<{
 }> = ({ mv, outcome, actions }) => {
   const t = useT();
   const { relativeToNow, dateTime } = useFormatters();
+  const { label, was, now } = placesOf(mv);
   return (
   <ItemRow>
     <DomainTag domain={mv.domain} />
     {/*
       `from` is where the target has it; `to` is where the source lists it now.
       Both are folder paths and both are necessary: a queue that says "12 items
-      moved" without saying where is not one anybody can act on.
+      moved" without saying where is not one anybody can act on. And WHICH item:
+      a file by its path, anything else by its name before the folders, both
+      from what the ledger already holds (`nameOnRow`).
     */}
     {/* At least 12rem, so on a phone the pair takes a line of its own and
         wraps at the slashes, instead of shrinking beside the chips to a
         letter or two (the UX sweep, 2026-10-17). */}
     <span className="flex flex-wrap items-center gap-1.5 flex-1 min-w-[12rem] text-gray-900">
-      <span className="min-w-0 break-words" title={mv.from}>
-        <PathText path={mv.from} />
+      {label !== undefined && <span className="min-w-0 break-words font-medium">{label}</span>}
+      <span className="min-w-0 break-words" title={was}>
+        <PathText path={was} />
       </span>
-      {renamedInPlace(mv) ? (
+      {renamedInPlace(mv) && mv.toDisplayName !== undefined && mv.displayName !== undefined ? (
         /*
-          A RENAME. "Docs → Docs" would say nothing about what changed, and the
-          only other thing this row holds is `toNaturalKeyHash` — which is a
-          SHA-256 of the new path, NOT the new path (see `fileNaturalKeyHash`).
-          It used to be rendered here, so the row read `Docs → 3f9a2b1c…`: a
-          destination nobody can recognise, in a queue whose whole job is to say
-          what happened. §17 keeps the path itself off this wire deliberately, so
-          the honest thing to show is that it was renamed and nothing more. The
-          item's own chip below is the handle every action takes.
+          A RENAME, by both names: `/Docs/report.pdf → report-final.pdf`. The
+          folder is said once, because it did not change.
+        */
+        <>
+          <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
+          <span className="min-w-0 break-words" title={now}>
+            {mv.toDisplayName}
+          </span>
+        </>
+      ) : renamedInPlace(mv) && mv.toDisplayName === undefined ? (
+        /*
+          A RENAME whose new name the ledger did not record. "Docs → Docs" would
+          say nothing about what changed, and `toNaturalKeyHash` is a SHA-256 of
+          the new path (`fileNaturalKeyHash`), not the path: it was once printed
+          here, and the row read `Docs → 3f9a2b1c…`. The new name comes only from
+          the row its key names (`toDisplayName`); where that row holds none, the
+          honest thing to say is that it was renamed. The item's own chip below
+          is the handle every action takes.
         */
         <span className="text-gray-500 italic flex-shrink-0">{t('moves.renamedTo')}</span>
       ) : (
         <>
           <ArrowRight className="w-3.5 h-3.5 flex-shrink-0 text-gray-400" />
-          <span className="min-w-0 break-words" title={mv.to}>
-            <PathText path={mv.to} />
+          <span className="min-w-0 break-words" title={now}>
+            <PathText path={now} />
           </span>
         </>
       )}

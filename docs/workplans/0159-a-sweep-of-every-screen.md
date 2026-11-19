@@ -2,7 +2,36 @@
 
 > **In one line:** Every screen of the managed app and the public site, in English and Dutch, on a phone and a desktop, looked at as a tester meets it: what reads wrong, does not fit or a screen reader cannot follow is fixed where the words are ours, and put to the owner where they are the owner's.
 
-## Status — 2026-11-08 (update this block at the end of every session)
+## Status — 2026-11-19 (update this block at the end of every session)
+
+**2026-11-19: Moves and Deletions name the item each row asks about (the owner's finding, after
+T9).** Testing a Google to Nextcloud migration, the owner was shown one row on *Moved on the old
+system*, *Files / renamed* beside `68524b1d65c5`: *"I find it a bit weird it just mentions '/'. As
+I use it I need more info, like a name, to be able to understand what I need to decide on."* The
+names were already held, so nothing new is stored and nothing is read from a server at display
+time. Each ledger row records the path a file was copied from (`natural_key`, since 2026-09-12)
+and the name a message, an event, a task or a contact was read under (`display_name`), and a
+relocation's new name is on the row its new key names. `listMoves`, `listDeletions` and
+`listEarlierExports` now read them by the one rule Failures used (`nameOnRow`), in both editions'
+ledgers, and the rows say them: `/Docs/report.pdf → report-final.pdf` for a rename, the file in
+both folders for a move, a message's or an event's name before its folders. A row from before
+the names were recorded reads as it did, and the ID stays the handle. *Renamed* came from 0042
+T2, where the row had printed a SHA-256 instead. The new names are read in one statement for the
+whole queue, bound to the organisation and the migration in the statement as well as by row
+security. A subquery per move was tried first: on Postgres 16, 1,000 moves in a migration of
+50,000 items took 5.0 s that way and 18 ms as one read, and its first build matched no row at all,
+because drizzle writes a one-table select's columns without their table; the store test caught
+it. **Evidence:** the store on PGlite
+(`a-queue-row-that-names-its-item`, ledger, 9), including another organisation's and another
+migration's rows under the same key never read, under row security and outside it; the
+in-memory ledger held to the same answers (same name, core, 6); the screens
+(`a-move-that-names-the-file`, 8; `a-deletion-that-names-the-item`, 4). Ten mutations, each
+caught: either name dropped from the ledger's listing, the tenant or the migration filter dropped
+(the tenant one is caught outside row security only, where the policy cannot help), the name
+dropped from the fake, and each name dropped from the two screens. The queue suites of both
+editions ran green against a local Postgres 16 (`scripts/local-pg.sh`). Committed on
+`claude/ownpace-public-readiness-y7orc6-moves-names`, not pushed. No new words for the owner to
+read.
 
 **2026-11-08, later: the owner read follow-up 18's Dutch (open question 8), merged as #1847
 (`8d19e715`).** On the thirteen lines of #1840, the owner: *"het oude systeem and het nieuwe

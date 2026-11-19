@@ -45,6 +45,7 @@ import {
   Refused,
   Resolved,
   ServedEffect,
+  fileAt,
   servedOf,
 } from '../components/queues/primitives.tsx';
 import {
@@ -80,6 +81,49 @@ const Decided: React.FC<{ decided: NonNullable<ItemDeletion['decided']> }> = ({ 
   return <Resolved effect={t(DECIDED[decided])} />;
 };
 
+/**
+ * WHICH ITEM a row is about, from what the ledger already holds for it
+ * (`displayName`, read by `nameOnRow`). A row named only its folder, so a file
+ * at the top of a drive read `/` beside a hash, under a button that deletes it
+ * on the new system (the owner, 2026-11-19, of the same row on Moves).
+ *
+ * A FILE's name is part of its place: `/Docs/report.pdf`. Anything else leads
+ * with its name and keeps its folder after it in small type, as Failures does.
+ * A row with no name says what it always said: its folder.
+ */
+const WhichItem: React.FC<{ domain: string; displayName: string | undefined; collection: string }> = ({
+  domain,
+  displayName,
+  collection,
+}) => {
+  if (displayName === undefined) {
+    return (
+      <span className="text-gray-900 flex-1 min-w-[12rem] break-words" title={collection}>
+        <PathText path={collection} />
+      </span>
+    );
+  }
+  if (domain === 'file') {
+    const path = fileAt(collection, displayName);
+    return (
+      <span className="text-gray-900 flex-1 min-w-[12rem] break-words" title={path}>
+        <PathText path={path} />
+      </span>
+    );
+  }
+  return (
+    <span
+      className="text-gray-900 flex-1 min-w-[12rem] break-words"
+      title={`${displayName} — ${collection}`}
+    >
+      {displayName}
+      <span className="ml-2 text-xs text-gray-500">
+        <PathText path={collection} />
+      </span>
+    </span>
+  );
+};
+
 const Row: React.FC<{
   d: ItemDeletion;
   outcome?: ItemOutcome;
@@ -90,9 +134,7 @@ const Row: React.FC<{
     <EvidenceBadge evidence={d.evidence} />
     {/* At least 12rem: on a phone the name takes a line of its own and
         wraps, instead of shrinking to a letter (the UX sweep, 2026-10-17). */}
-    <span className="text-gray-900 flex-1 min-w-[12rem] break-words" title={d.collection}>
-      <PathText path={d.collection} />
-    </span>
+    <WhichItem domain={d.domain} displayName={d.displayName} collection={d.collection} />
     <HashChip hash={d.naturalKeyHash} />
     <div className="flex items-center gap-2 ml-auto">
       {outcome?.state === 'done' ? (
@@ -132,9 +174,7 @@ const EarlierRow: React.FC<{
       >
         {t('deletions.earlierExport.badge')}
       </span>
-      <span className="text-gray-900 flex-1 min-w-[12rem] break-words" title={e.collection}>
-        <PathText path={e.collection} />
-      </span>
+      <WhichItem domain={e.domain} displayName={e.displayName} collection={e.collection} />
       <HashChip hash={e.naturalKeyHash} />
       <div className="flex items-center gap-2 ml-auto">
         {outcome?.state === 'done' ? (
