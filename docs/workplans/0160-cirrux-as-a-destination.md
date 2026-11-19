@@ -4,6 +4,16 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, later: T2's first pass, and T3's first correction.** On the test environment, a
+Cirrux account carried mail and calendars on its first pass. The contacts pass failed before it
+wrote a card: `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The
+CardDAV writer had assumed Nextcloud's layout and made a new address book for each one at the
+source, and Cirrux makes none (§5). The writer now asks the server where the account's address
+books are, and writes into the one the mailbox has. The rest of T2 (§4, step 8) is still to run.
+Main's scheduled E2E (managed) at 12:01 UTC, queued behind T1's branch run, refused the test
+database at 0068 (*newer than this build understands*), as that guard is meant to: it ran main as
+it was before #1941, and main carries 0068 since.
+
 **2026-11-19: T0 read and T1 built.** Cirrux's help site was
 read page by page (42 help and API pages and 6 common
 questions, from `cirrux.co` itself; §1 lists every fact with its page). T1 adds `cirrux` as a
@@ -27,8 +37,8 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 |---|---|---|---|
 | T0 What Cirrux publishes | builder | ✅ **Read 2026-11-19** | §1. From the pages themselves; three search-index snippets were stale and are corrected there. |
 | T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19** | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
-| T2 The first live Test and migration | owner | 📋 **Proposed** | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. |
-| T3 What T2 corrects | builder | ⏳ **Waits on T2** | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
+| T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: mail and calendars arrived; contacts failed with a 501, corrected in T3 | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
+| T3 What T2 corrects | builder | 🔨 **First correction 2026-11-19**: contacts go into the mailbox's own address book | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
 | T5 Files into Cirrux Drive | builder, owner | ⛔ **Blocked**: an OAuth client only Cirrux issues, and a decision about rotating refresh tokens | §6. The API is documented in full; the connector is not written against it until both blockers are gone. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
@@ -189,6 +199,18 @@ plausible stored row for the face-building guard.
 
 ## 5. T3 — what T2 may correct
 
+- **Contacts refused with 501 (found 2026-11-19, corrected the same day)**. The CardDAV writer
+  put every address book at Nextcloud's `addressbooks/users/<user>/` and made a new one for each
+  address book at the source. Cirrux answered that MKCOL with 501, and its Contacts API has no
+  call that makes an address book either (`https://cirrux.co/help/api/contacts`). Now, when the
+  assumed place is refused with 403, 404, 405, 409 or 501, the writer asks the server where the
+  account's address books are: `current-user-principal` at `/.well-known/carddav`, then at the
+  configured base, then the principal's `addressbook-home-set`. In that home the folder goes into
+  the book with its name, else a new book, else the account's one book. Several books, none
+  with its name, is a failure that names them. Verification lists the same home, and a 501 is
+  final in `dav-retry.ts`. Tested in `an-address-book-the-server-would-not-make.unit.test.ts`,
+  with twelve mutations, each caught. Where Cirrux keeps its books is not recorded here: the
+  writer asks every time.
 - **Discovery finds nothing from the root**: a DAV base URL Cirrux gives goes into the guide and,
   if it is the same for every mailbox, into the directory row as `url`, with the reply as its
   source. If it differs per mailbox, the guide says where to ask and the row stays as it is.
@@ -244,6 +266,8 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
 ## What the owner does
 
 - T2's steps, in §4, on a Cirrux mailbox of their own, and the four observations in step 8.
+- Once the contacts correction (§5) is on the test environment: **Sync now** on the Cirrux
+  migration, and the contacts line it reports.
 - For T5, when it is wanted: request an OAuth client from help@cirrux.co (§6, blocker 1), and
   decide whether a pass may write a refreshed credential back (§6, blocker 2).
 - Nothing with a workspace API key or a webhook.

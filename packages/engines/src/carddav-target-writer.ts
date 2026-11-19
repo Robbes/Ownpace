@@ -69,6 +69,38 @@ export interface CardDAVTargetConfig {
 }
 
 /**
+ * ANSWERS THAT SAY THE PLACE IS WRONG, NOT THE REQUEST (workplan 0160).
+ *
+ * To an MKCOL: 403, where nobody may make a collection (RFC 4918 §9.3.1);
+ * 405, an address already taken; 409, a parent that does not exist; 404,
+ * which some servers give for that instead of 409; and 501, a server that
+ * makes no address book at all. The last is Cirrux's. Every Cirrux mailbox
+ * has one address book, Contacts, and no way to make another, over CardDAV
+ * or through Cirrux's own API (https://cirrux.co/help/api/contacts, read
+ * 2026-11-19).
+ *
+ * To the PROPFIND that lists the assumed home, the same answers say that
+ * home is not this account's. Any other answer (a sign-in refused, a server
+ * in trouble, a full disk) is the answer itself, and is reported as it
+ * always was.
+ */
+const NOT_THIS_PLACE: ReadonlySet<number> = new Set([403, 404, 405, 409, 501]);
+
+/** One address book a server listed: where it is, and what it calls itself. */
+interface AddressBookAt {
+  readonly path: string;
+  readonly displayName?: string;
+}
+
+/** Is this the book a folder with this slug would have been made as? By its path, or by its name. */
+function isNamed(book: AddressBookAt, slug: string): boolean {
+  return (
+    collectionSlug(undefined, book.path, '') === slug ||
+    (book.displayName !== undefined && collectionSlug(book.displayName, undefined, '') === slug)
+  );
+}
+
+/**
  * CardDAV target writer implementation
  */
 export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer {
@@ -83,6 +115,8 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
    * item; see the CalDAV writer for the measurement that motivated it.
    */
   private readonly collectionKeys = new Map<string, Promise<Map<string, string> | undefined>>();
+  /** The address book home the server names; asked once, see `discoveredHomeSet`. */
+  private discoveredHome: Promise<string | undefined> | undefined;
 
   constructor(
     config: CardDAVTargetConfig,
@@ -109,8 +143,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     // the folder handed to us by the domain-sync loop is the SOURCE collection, which
     // in a cross-account migration belongs to a different user/server. Nextcloud/SabreDAV
     // serve a user's address books under addressbooks/users/<user>/.
+    const slug = collectionSlug(folder.name, folder.path, 'contacts');
     const addressBookPath = this.normalizeAddressBookPath(
-      `addressbooks/users/${this.config.username}/${collectionSlug(folder.name, folder.path, 'contacts')}`,
+      `addressbooks/users/${this.config.username}/${slug}`,
     );
 
     // Check if address book already exists via PROPFIND
@@ -120,8 +155,80 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     }
 
     // Create new address book using MKCOL
-    await this.createAddressBook(addressBookPath, folder);
-    return addressBookPath;
+    const refusal = await this.createAddressBook(addressBookPath, folder);
+    if (refusal === undefined) return addressBookPath;
+    return this.addressBookAfterRefusal(folder, slug, addressBookPath, refusal);
+  }
+
+  /**
+   * WHERE THE CONTACTS GO WHEN THE ASSUMED PLACE IS REFUSED (workplan 0160).
+   *
+   * Nextcloud's layout is an assumption, and Cirrux is the first destination
+   * it does not hold for: on a test mailbox, on 2026-11-19, its CardDAV
+   * server answered the MKCOL with 501, and the contacts pass failed
+   * before it wrote a single card. So the server is asked where this
+   * account's address books are, and the folder goes, in this order:
+   *
+   *   1. into a book the account already has under the folder's name, as it
+   *      does when the assumed path exists;
+   *   2. into a new book in the home the server named, where that is not the
+   *      home this writer assumed;
+   *   3. into the account's ONE address book, where no new book can be made.
+   *      Every Cirrux mailbox has exactly one, Contacts, so the contacts of a
+   *      source with several address books all land in that one.
+   *
+   * Several books and none of them this folder's is not guessed between: the
+   * pass fails, and names them.
+   */
+  private async addressBookAfterRefusal(
+    folder: ContactFolder,
+    slug: string,
+    assumedPath: string,
+    refusal: HttpResponse,
+  ): Promise<string> {
+    const refused = `MKCOL failed for ${assumedPath} with status ${refusal.status}: ${davRefusalBody(refusal.body)}`;
+    if (!NOT_THIS_PLACE.has(refusal.status)) throw new Error(refused);
+
+    let account: { home: string; books: AddressBookAt[] };
+    try {
+      account = await this.accountBooks();
+    } catch (err) {
+      throw new Error(
+        `${refused}. Looking for this account's own address books failed too: ` +
+          `${err instanceof Error ? err.message : String(err)}`,
+        { cause: err },
+      );
+    }
+    const { home, books } = account;
+
+    const named = books.find((book) => isNamed(book, slug));
+    if (named !== undefined) return named.path;
+
+    if (home !== this.assumedHome()) {
+      const path = this.normalizeAddressBookPath(`${home}${slug}`);
+      const there = await this.createAddressBook(path, folder);
+      if (there === undefined) return path;
+      if (!NOT_THIS_PLACE.has(there.status)) {
+        throw new Error(`MKCOL failed for ${path} with status ${there.status}: ${davRefusalBody(there.body)}`);
+      }
+    }
+
+    const only = books.length === 1 ? books[0] : undefined;
+    if (only !== undefined) {
+      log.info(
+        `[carddav] no address book can be made for ${folder.name || slug} (MKCOL ${refusal.status}); ` +
+          `its contacts go into ${only.path}, the one this account has`,
+      );
+      return only.path;
+    }
+    throw new Error(
+      `${refused}. No address book could be made for ${folder.name || slug}, and the account has ` +
+        (books.length === 0
+          ? `none at ${home} to write into.`
+          : `${books.length} at ${home}, none of them by that name ` +
+            `(${books.map((book) => book.displayName ?? book.path).join(', ')}): ` +
+            'which one its contacts go into is not guessed.'),
+    );
   }
 
   /**
@@ -461,39 +568,162 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     }
   }
 
-  /** Every address book under `addressbooks/users/<username>/`. */
+  /** Every address book of this account; see `accountBooks` for where they are looked for. */
   private async listAddressBooks(): Promise<string[]> {
-    const homeSet = this.normalizeAddressBookPath(`addressbooks/users/${this.config.username}`);
+    return (await this.accountBooks()).books.map((book) => book.path);
+  }
+
+  /** Nextcloud's and SabreDAV's place for this account's address books, assumed first. */
+  private assumedHome(): string {
+    return this.normalizeAddressBookPath(`addressbooks/users/${this.config.username}`);
+  }
+
+  /**
+   * This account's address book home and the books in it (workplan 0160).
+   *
+   * The assumed home first, as before. When it holds no address book, or
+   * answers with one of `NOT_THIS_PLACE`'s statuses, the home the server
+   * names instead. An assumed home that lists empty, with no other named, is
+   * an account without address books, and says so. Every other failure
+   * throws: an empty list here would read as "the target holds no
+   * contacts", which verification reports as total data loss (hard rule 9).
+   */
+  private async accountBooks(): Promise<{ home: string; books: AddressBookAt[] }> {
+    const assumed = this.assumedHome();
+    const here = await this.addressBooksIn(assumed);
+    if (here.status === 207 && here.books.length > 0) return { home: assumed, books: here.books };
+
+    if (here.status === 207 || NOT_THIS_PLACE.has(here.status)) {
+      const named = await this.discoveredHomeSet();
+      if (named !== undefined && named !== assumed) {
+        const there = await this.addressBooksIn(named);
+        if (there.status === 207) return { home: named, books: there.books };
+        throw new Error(
+          `PROPFIND on address book home set ${named} failed with status ${there.status}: ${davRefusalBody(there.body)}`,
+        );
+      }
+      if (here.status === 207) return { home: assumed, books: here.books };
+    }
+
+    throw new Error(
+      `PROPFIND on address book home set ${assumed} failed with status ${here.status}: ${davRefusalBody(here.body)}`,
+    );
+  }
+
+  /** The address books directly under `home`, with their names; `books` is empty unless 207. */
+  private async addressBooksIn(
+    home: string,
+  ): Promise<{ status: number; body: string; books: AddressBookAt[] }> {
     const response = await this.httpClient.request({
       method: 'PROPFIND',
-      url: this.buildUrl(homeSet),
+      url: this.buildUrl(home),
       body: `<?xml version="1.0" encoding="utf-8"?>
-        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/></D:prop></D:propfind>`,
+        <D:propfind xmlns:D="DAV:"><D:prop><D:resourcetype/><D:displayname/></D:prop></D:propfind>`,
       headers: {
         Depth: '1',
         'Content-Type': 'application/xml',
         Authorization: this.authHeader(),
       },
     });
-
-    if (response.status !== 207) {
-      // An empty list here would read as "the target holds no contacts", which
-      // verification reports as total data loss. Fail loudly (hard rule 9).
-      throw new Error(
-        `PROPFIND on address book home set ${homeSet} failed with status ${response.status}: ${davRefusalBody(response.body)}`,
-      );
-    }
+    if (response.status !== 207) return { status: response.status, body: response.body, books: [] };
 
     // Hrefs are SERVER-absolute; `buildUrl` concatenates onto the configured
     // base. Passing them through unconverted doubled the DAV prefix — see the
     // identical fix and the real 404 it produced in caldav-target-writer.ts.
-    return parseMultiStatus(response.body)
+    const books = parseMultiStatus(response.body)
       .filter((r) => hasResourceType(r.xml, 'addressbook'))
-      .map((r) => hrefRelativeTo(r.href, this.buildUrl('')))
-      // Outside the base, or the home set itself, which is not an address book.
-      .filter((relative): relative is string => relative !== undefined && relative !== '')
-      .map((relative) => this.normalizeAddressBookPath(relative))
-      .filter((path) => path !== homeSet);
+      .flatMap((r): AddressBookAt[] => {
+        const relative = hrefRelativeTo(r.href, this.buildUrl(''));
+        // Outside the base, or the home set itself, which is not an address book.
+        if (relative === undefined || relative === '') return [];
+        const path = this.normalizeAddressBookPath(relative);
+        if (path === home) return [];
+        const name = firstElementText(r.xml, 'displayname');
+        const displayName = name === undefined ? '' : unescapeXml(name).trim();
+        return [displayName === '' ? { path } : { path, displayName }];
+      });
+    return { status: 207, body: response.body, books };
+  }
+
+  /**
+   * The address book home the SERVER names for this account (RFC 6352
+   * §7.1.1), reached as RFC 6764 §6 says: `current-user-principal`
+   * (RFC 5397), asked at `/.well-known/carddav` on the configured host and
+   * then at the configured base, and the principal asked for its
+   * `addressbook-home-set`. The DAV sources have always looked this way
+   * (carddav-source.ts); the writer assumed instead.
+   *
+   * Asked once per writer, and only after the assumed home failed, so a
+   * server that serves Nextcloud's layout costs no request more than before.
+   * Undefined when nothing names a home this writer can reach: one on
+   * another host, or outside the configured base, is not one `buildUrl` can
+   * address.
+   */
+  private discoveredHomeSet(): Promise<string | undefined> {
+    this.discoveredHome ??= this.discoverHomeSet();
+    return this.discoveredHome;
+  }
+
+  private async discoverHomeSet(): Promise<string | undefined> {
+    const base = this.buildUrl('');
+    const origin = new URL(base).origin;
+    for (const start of [new URL('/.well-known/carddav', base).toString(), base]) {
+      // An href this cannot read is one more place that named nothing; it must
+      // not reject the answer every later call of this writer shares.
+      try {
+        const principal = await this.hrefProperty(start, '<D:current-user-principal/>', 'current-user-principal');
+        if (principal === undefined) continue;
+        const principalUrl = new URL(principal, start);
+        if (principalUrl.origin !== origin) continue;
+        const home = await this.hrefProperty(
+          principalUrl.toString(),
+          '<C:addressbook-home-set/>',
+          'addressbook-home-set',
+        );
+        if (home === undefined) continue;
+        const homeUrl = new URL(home, principalUrl);
+        if (homeUrl.origin !== origin) continue;
+        const relative = hrefRelativeTo(homeUrl.pathname, base);
+        if (relative === undefined) continue;
+        return this.normalizeAddressBookPath(relative);
+      } catch (err) {
+        log.warn(
+          `[carddav] could not read the address book home named from ${start}: ` +
+            `${err instanceof Error ? err.message : String(err)}`,
+        );
+      }
+    }
+    return undefined;
+  }
+
+  /** One href-valued property of one resource; undefined when the server gives none. */
+  private async hrefProperty(url: string, prop: string, localName: string): Promise<string | undefined> {
+    let response: HttpResponse;
+    try {
+      response = await this.httpClient.request({
+        method: 'PROPFIND',
+        url,
+        body: `<?xml version="1.0" encoding="utf-8"?>
+          <D:propfind xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:carddav"><D:prop>${prop}</D:prop></D:propfind>`,
+        headers: {
+          Depth: '0',
+          'Content-Type': 'application/xml',
+          Authorization: this.authHeader(),
+        },
+      });
+    } catch (err) {
+      // The second question, asked because the first answer failed. A place
+      // that cannot be reached names nothing, and the error the caller then
+      // raises carries the first answer, which is the one to act on.
+      log.warn(
+        `[carddav] could not ask ${url} for its ${localName}: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      return undefined;
+    }
+    if (response.status !== 207) return undefined;
+    const value = firstElementText(response.body, localName);
+    const href = value === undefined ? undefined : firstElementText(value, 'href')?.trim();
+    return href ? unescapeXml(href) : undefined;
   }
 
   /** Every vCard in one address book, as ledger-shaped entries. */
@@ -629,7 +859,8 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
     }
   }
 
-  private async createAddressBook(path: string, folder: ContactFolder): Promise<void> {
+  /** MKCOL an address book at `path`: undefined when made, the server's answer when not. */
+  private async createAddressBook(path: string, folder: ContactFolder): Promise<HttpResponse | undefined> {
     // RFC 5689 Extended MKCOL (required by RFC 6352 §5.2 to create a CardDAV addressbook):
     // a plain MKCOL with no resourcetype just creates an ordinary WebDAV collection, invisible
     // to CardDAV discovery (which filters PROPFIND results by the {addressbook} resourcetype).
@@ -654,9 +885,9 @@ export class CardDAVTargetWriter implements ContactTargetWriter, TargetReindexer
       },
     });
 
-    if (response.status !== 201) {
-      throw new Error(`MKCOL failed for ${path} with status ${response.status}: ${davRefusalBody(response.body)}`);
-    }
+    // The refusal is the caller's to read: `ensureContactFolder` turns it into
+    // the error, or, where it says the place is wrong, into another place.
+    return response.status === 201 ? undefined : response;
   }
 
   /**
