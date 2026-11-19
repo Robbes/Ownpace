@@ -4,6 +4,32 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, late: the deploy CLI's copy of effect moves to 3.22.4 by an override, past
+GHSA-7589-6fvf-x4pw, a high pnpm audit named that evening.** The advisory gate passed on pull
+requests' Security Scans until 22:11 UTC (#1938's, run 44626158907) and failed on `main`'s push
+scan at 22:12 UTC (run 44626245869, its `pnpm audit (advisory gate)` step), on the same lockfile.
+The advisory: `effect` to 3.22.0, the regular expression `Schema.TemplateLiteral` compiles
+(CWE-1333), fixed in 3.22.1 (2026-07-30). One copy was below it, 3.21.0, on one path:
+apps/worker, then trigger.dev (the deploy CLI, 4.8.5), `@trigger.dev/build` and `@prisma/config`
+6.19.3, which pins it exactly. So the gate was red for every pull request again, the tree's and
+not any diff's.
+
+- **Nothing here ran the expression.** `@prisma/config`'s `dist/index.js` (read 2026-11-19 in the
+  installed package) calls Schema's `Struct`, `optional`, `String`, `Boolean`, `Literal`, `Union`,
+  `NullOr`, `Array`, `extend`, `mutable`, `declare` and `decodeUnknownEither`, `Either`, and
+  `effect/Function`'s `pipe`, and no `TemplateLiteral`. Only `@trigger.dev/build`'s prisma extension
+  loads `@prisma/config`, and apps/worker's `trigger.config.ts` does not use it (deepmerge-ts's
+  entry in `pnpm-workspace.yaml` read the same path on 2026-11-13).
+- **The override.** `"effect@<3.22.1": ^3.22.4` in `pnpm-workspace.yaml`, with its reason. 3.22.4
+  is the copy the lockfile already held for `@trigger.dev/schema-to-json`, published 2026-10-22,
+  so the three-day cooldown needs no exception; it is a minor within the 3.x line
+  `@prisma/config` asks for. The lockfile's change is that line, 3.21.0 gone, and
+  `@prisma/config`'s dependency read as 3.22.4: one copy of effect in the tree.
+- **Proof.** `pnpm audit` on the new lockfile lists 1 moderate (minimatch's, known, the deploy
+  CLI's) and no high, and the gate (`scripts/audit-advisories.mjs --fail-at=high`) passes. The
+  deploy CLI is proved on E2E (managed) on the branch, which deploys the tasks with it.
+- **Drop it** when `@trigger.dev/build` asks for a `@prisma/config` that takes 3.22.1 or later.
+
 **2026-11-19, later: the test stack's Mailpit v1.34.0 is taken inside its three-day floor, on the
 owner's word.** The owner, on 2026-11-19: *"I waive waiting time / nights if needed."* So the
 branch of 2026-11-18 (its entry below) merges once E2E (managed) is green on its head and CI is
