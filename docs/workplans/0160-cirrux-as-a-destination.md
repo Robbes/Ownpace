@@ -4,9 +4,43 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, evening: Cirrux emailed invitations for the events written.** With the third
+correction on the test environment, the resumed pass wrote events into the calendar it had made,
+and Cirrux emailed an invitation to every guest of every event that listed one, past events
+included. One that reached the owner shows how. It came in the test mailbox's name, for a meeting
+from 2019 that an outside organiser had invited the source account to. Its attached `invite.ics`
+names Cirrux's CalDAV server (`PRODID:-//Cirrux CalDAV//`), says `METHOD:REQUEST`, keeps the
+outside organiser as `ORGANIZER`, and carries the attendee without the `SCHEDULE-AGENT=CLIENT`
+the writer had put on it. Cirrux's calendar API page says the mailbox is always the organiser and
+that guests are emailed invitations, updates and cancellations (§1). The owner paused the
+migration. For a Cirrux target the calendar and task writers now write no guest and no organiser:
+each becomes a comment that names the person (§5). The events written before the pause keep
+their guests at Cirrux, and are left as they are: Cirrux emails every guest a cancellation when
+such an event is deleted (*What the owner does*).
+
+**2026-11-19, later again: T3's third correction.** With the second correction on the test
+environment, the calendar pass found the calendar home and made the source's calendar: Cirrux
+answered the MKCALENDAR with 201 and showed the calendar, with the name asked for, beside the
+mailbox's Calendar and Reminders. Then it refused every event written to the address asked for
+with 404, 25 in a row, and the pass stopped. Cirrux keeps a new calendar under an id of its own.
+The writer now asks for a new calendar at a UUID of its own in a home the server named, and
+reads the 201 back: the address, the `Location`, then the home's listing (§5). The calendar the
+pass made is found again by its name, so no second one is made.
+
+**2026-11-19, later still: T3's second correction.** With the contacts correction on the test
+environment, the contacts arrived and show in Cirrux. The owner's next **Sync now** skipped all
+1,244, the ledger already holding each one, and its calendar pass failed before it wrote an event:
+`MKCALENDAR failed for /calendars/<mailbox>/<slug>/ with status 404`. Cirrux keeps its calendars
+elsewhere than Nextcloud's `calendars/<user>/`. The CalDAV writer now asks the server where the
+account's calendars are, as the CardDAV writer does, through one helper both share
+(`dav-home-set.ts`), and makes the calendar there (§5). A failed type ends the pass, so
+nothing after it ran: not after contacts on the first passes, not after calendars on this one.
+Tasks and mail have had no turn yet. A pass that goes on to the next type after a failure is
+0143 T5's to change.
+
 **2026-11-19, later: T2's first pass, and T3's first correction.** On the test environment, a
-Cirrux account carried mail and calendars on its first pass. The contacts pass failed before it
-wrote a card: `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The
+Cirrux account's first contacts pass failed before it wrote a card:
+`MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The
 CardDAV writer had assumed Nextcloud's layout and made a new address book for each one at the
 source, and Cirrux makes none (§5). The writer now asks the server where the account's address
 books are, and writes into the one the mailbox has. The rest of T2 (§4, step 8) is still to run.
@@ -37,15 +71,16 @@ discovery from the host's root finds the calendars is the first thing T2 measure
 |---|---|---|---|
 | T0 What Cirrux publishes | builder | ✅ **Read 2026-11-19** | §1. From the pages themselves; three search-index snippets were stale and are corrected there. |
 | T1 The `cirrux` destination | builder | 🔨 **Built 2026-11-19** | §3. Every host and port from `https://cirrux.co/help/setup` and `https://cirrux.co/help/calendar`; the DAV base URL left empty because no path is published. |
-| T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: mail and calendars arrived; contacts failed with a 501, corrected in T3 | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
-| T3 What T2 corrects | builder | 🔨 **First correction 2026-11-19**: contacts go into the mailbox's own address book | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states; the invitation check. |
+| T2 The first live Test and migration | owner | 🔨 **Started 2026-11-19**: contacts failed with a 501, calendars with a 404, then each event with a 404, each corrected in T3; then Cirrux emailed the guests of the events written, and the migration is paused; tasks and mail have had no turn yet | §4: a Cirrux mailbox, an app password, the Test, then one small migration with each data type, and four things to look at. Step 8 is still to run. |
+| T3 What T2 corrects | builder | 🔨 **Four corrections 2026-11-19**: contacts go into the mailbox's own address book; calendars and task lists are made where the server keeps them; a new one is read back where the server put it; nothing written to Cirrux names a guest or an organiser | §5. A DAV base URL, if discovery from the root finds nothing; a label behaviour the guide states. |
 | T4 The proof written down | builder | ⏳ **Waits on T2** | The feature matrix's ⏳ for `cirrux` becomes ✅ per face that T2 ran, with its counts, as the matrix's *Live proofs* rule asks. |
 | T5 Files into Cirrux Drive | builder, owner | ⛔ **Blocked**: an OAuth client only Cirrux issues, and a decision about rotating refresh tokens | §6. The API is documented in full; the connector is not written against it until both blockers are gone. |
 | T6 Cirrux Docs | — | 🅿️ **Parked** | §7. A preview editor for early-access accounts; files stay files. |
 
 ## 1. What Cirrux publishes (T0)
 
-Read on 2026-11-19. *Read* means the page itself was read; *inferred* says what it rests on.
+Read on 2026-11-19. *Read* means the page itself was read; *inferred* says what it rests on;
+*observed* is what the test mailbox did.
 
 | Fact | Page | How |
 |---|---|---|
@@ -62,7 +97,8 @@ Read on 2026-11-19. *Read* means the page itself was read; *inferred* says what 
 | Recurring tasks work in Apple Reminders | `https://cirrux.co/updates/email-filters-cirrux-sync` | search snippet only |
 | Folders are labels; a slash nests; IMAP shows labels as nested folders; a folder created over IMAP becomes a label | `https://cirrux.co/help/questions/subfolders-in-my-mailbox` | read |
 | Changes through Cirrux Calendar or its API email guests invitations, updates and cancellations | `https://cirrux.co/help/api/calendar` | read |
-| Whether the CalDAV server sends invitations for an event written over CalDAV, and whether it honours `SCHEDULE-AGENT=CLIENT` | — | **not published** |
+| An event made through the API is organised by the mailbox the calendar belongs to, and the organiser cannot be set. Sending `attendees` replaces the guest list, and guests are emailed the update. Deleting an event emails its guests a cancellation; only the organiser can delete | `https://cirrux.co/help/api/calendar` | read |
+| The CalDAV server emails an invitation, in the mailbox's name, to every attendee of an event written over CalDAV, past events included. It does not honour `SCHEDULE-AGENT=CLIENT`, and drops it from what it sends | the invitation of 2026-11-19 (§5) | **observed**; not published |
 | Server-side filters run as mail arrives and can forward; whether they run on IMAP-appended mail | `https://cirrux.co/help/mailboxes` | read; the second half **not published** |
 | Drive at `drive.cirrux.co`; 2 GB per file in the web app; names unique per folder, case-insensitive; trash 30 days | `https://cirrux.co/help/drive` | read |
 | Drive API: the shape in §6 | `https://cirrux.co/help/api/drive` | read |
@@ -211,13 +247,57 @@ plausible stored row for the face-building guard.
   final in `dav-retry.ts`. Tested in `an-address-book-the-server-would-not-make.unit.test.ts`,
   with twelve mutations, each caught. Where Cirrux keeps its books is not recorded here: the
   writer asks every time.
+- **Calendars refused with 404 (found 2026-11-19, corrected the same day)**. The CalDAV writer
+  put every calendar at Nextcloud's `calendars/<user>/`, and Cirrux answered the MKCALENDAR there
+  with 404. The calendars are now found as the address books are, by the same helper
+  (`dav-home-set.ts`): `current-user-principal` at `/.well-known/caldav`, then at the configured
+  base, then the principal's `calendar-home-set`. In that home the folder goes into a calendar
+  with its name that holds the writer's kind (VEVENT, or VTODO for a task list), else a new
+  calendar there, else the account's one calendar that holds that kind. A calendar that declares
+  no kinds holds every kind (RFC 4791 §5.2.3). Several, none with its name, is a failure that
+  names them. Apps add task lists to a Cirrux mailbox over CalDAV
+  (`https://cirrux.co/help/api/tasks`); whether Cirrux makes an event calendar over CalDAV is not
+  published, and the owner's next pass shows it. Verification lists the same home. Tested in
+  `a-calendar-not-where-it-was-assumed.unit.test.ts`, with seventeen mutations, each caught,
+  across both writers' tests.
+- **A new calendar answered 201 and kept elsewhere (found 2026-11-19, corrected the same day)**.
+  Cirrux answered an MKCALENDAR at `<home>/<slug>/` with 201 and made the calendar, named as
+  asked, but under an id of its own: every event written to the address asked for was refused
+  with 404. Cirrux names its calendars by UUID (`https://cirrux.co/help/api/calendar`), as do the
+  calendars Apple's apps make. So a new calendar in a home the server named is now asked for at
+  a UUID of the writer's own (`newCalendarSegment`: version 5's shape, from the account, the data
+  type and the slug, the same on every pass). Its 201 is read back: a calendar at the address
+  asked for, then at the answer's `Location` on this host (an address that answers but holds no
+  calendar is not taken for one), then the calendar the home lists now and did not before (the
+  one with the folder's name, or the only one). None of these fails the pass and names what
+  was asked. A later pass finds the calendar by its name, or by the address made. An event
+  refused with 404 now says when its calendar is not there. Tested in the same file, with
+  fifteen more mutations, each caught. Whether Cirrux keeps the UUID asked for is not yet seen;
+  the read-back holds either way.
 - **Discovery finds nothing from the root**: a DAV base URL Cirrux gives goes into the guide and,
   if it is the same for every mailbox, into the directory row as `url`, with the reply as its
   source. If it differs per mailbox, the guide says where to ask and the row stays as it is.
 - **A message in two folders**: the guide's *What moves* says which of the two Cirrux does.
-- **An invitation arrives**: the guide's marker sentence becomes a warning, and the plan says what
-  the writer does about it before anyone migrates a calendar with meetings into Cirrux.
-- **The Test reports no auto-scheduling and none was sent**: nothing changes.
+- **Invitations emailed for the events written (found 2026-11-19, corrected the same day)**. The
+  resumed pass wrote events with every `ATTENDEE` and `ORGANIZER` marked `SCHEDULE-AGENT=CLIENT`,
+  as for every target (ADR-0043), and Cirrux emailed every attendee an invitation in the
+  mailbox's name, past events included. The invitation's own attachment kept the outside
+  organiser and lost the marker, and the API page says the mailbox is always the organiser (§1):
+  over CalDAV, Cirrux schedules as its app does. So `cirrux` is in `TARGETS_THAT_MAIL_GUESTS`
+  (`packages/shared/src/calendar-scheduling.ts`), and ADR-0043 is amended for it the same day: the
+  exception is undone by taking `cirrux` off the list once Cirrux can be written without mailing
+  guests, shown by a pass that sends none. For a target of such a kind, the calendar and
+  task writers write no `ATTENDEE` and no `ORGANIZER`: each is replaced, where it stood, by a
+  `COMMENT` that names the person (*Invited at the source: …*, *Organised at the source by: …*).
+  An email alarm's `ATTENDEE` is who the alarm goes to, and stays. `calendarContentHash` reads
+  none of these lines, so verification compares as before. Both deps builders hand the writer
+  the target's kind, and the connection test, the assessment and the audit row say for Cirrux
+  what the writer does instead of what the marker would do. Tested in
+  `a-guest-a-server-would-mail.unit.test.ts`, `dav-write-round-trips.unit.test.ts`,
+  `a-target-that-mails-guests-gets-none.unit.test.ts` and `target-scheduling.unit.test.ts`,
+  with seventeen mutations, each caught. The events written before the pause keep their guests at Cirrux. A later pass leaves each
+  alone while its source is unchanged; one that changes at the source is written again without
+  its guests, and Cirrux may then email them an update or a cancellation.
 
 ## 6. T5 — files into Cirrux Drive (the API's documented shape)
 
@@ -267,7 +347,22 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
 
 - T2's steps, in §4, on a Cirrux mailbox of their own, and the four observations in step 8.
 - Once the contacts correction (§5) is on the test environment: **Sync now** on the Cirrux
-  migration, and the contacts line it reports.
+  migration, and the contacts line it reports. Done 2026-11-19: 1,244 skipped, already there.
+- Once the calendar correction (§5) is on the test environment: **Sync now** again, and the
+  calendar, task and mail lines it reports. Done 2026-11-19: the calendar was made, and every
+  event was refused with 404, corrected in §5's third bullet.
+- Once that correction is on the test environment: resume the paused Cirrux migration. Done
+  2026-11-19: Cirrux emailed the guests of the events written, and the migration is paused again
+  (§5's fourth bullet).
+- Leave the events already in Cirrux, and the calendar the pass made, as they are: Cirrux emails
+  every guest a cancellation when one is deleted (§1). If they are to go, ask help@cirrux.co how
+  to remove them without mail.
+- When Cirrux answers how its server can be written to without mailing guests (asked
+  2026-11-19): pass the answer on, so the exception can be undone (§5's fourth bullet).
+- Once the guests correction is on the test environment: resume the migration and watch the
+  source account's own inbox for the first minutes. The account is an attendee of most events it
+  was invited to, so an invitation that still went out would reach it first. Then the calendar,
+  task and mail lines the pass reports.
 - For T5, when it is wanted: request an OAuth client from help@cirrux.co (§6, blocker 1), and
   decide whether a pass may write a refreshed credential back (§6, blocker 2).
 - Nothing with a workspace API key or a webhook.

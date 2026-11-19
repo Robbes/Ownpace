@@ -568,7 +568,7 @@ describe('what the audit found', () => {
     const arrivalKey = NEW_KEY;
     // Whatever happened to it — a concurrent apply, or a crash that left the
     // row claiming `copied` — the ledger must not take it as proof.
-    await ledger.applyRelocation(TENANT, MAPPING, 'file', arrivalKey).catch(() => undefined);
+    await ledger.applyRelocation(TENANT, MAPPING, 'file', arrivalKey);
     const rows = (ledger as unknown as { rows: Map<string, { status?: string }> }).rows;
     for (const [, r] of rows) if (r.status === 'copied') break;
 

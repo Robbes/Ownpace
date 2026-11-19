@@ -17,7 +17,8 @@
  * - **A failed run's error.** Every task's `run` is wrapped in
  *   {@link leavesAReference}, so whatever it throws leaves as
  *   {@link planeErrorFor}'s error: the task or data type, a category, and a
- *   reference. It has to be done INSIDE `run`: Trigger.dev's `run()` span
+ *   reference, or one of each for every data type of a pass that failed
+ *   ({@link planeErrorForEach}). It has to be done INSIDE `run`: Trigger.dev's `run()` span
  *   records the exception it sees before any `catchError` hook could swap it
  *   (`TriggerTracer.startActiveSpan`, 4.5.16).
  * - **Discovery's output.** {@link outcomesForThePlane} keeps a failed data
@@ -64,6 +65,16 @@ export interface AlreadyRecorded {
   readonly doing: string;
   readonly reference: string;
   readonly category: FailureCategory;
+}
+
+/**
+ * One data type's failure in a pass, as the pass's own catch recorded it: what
+ * it threw, kept for its class (whether the run may be retried), and what was
+ * said of it.
+ */
+export interface RecordedFailure {
+  readonly error: unknown;
+  readonly recorded: AlreadyRecorded;
 }
 
 /** The errors this module made, so a second pass through it changes nothing. */
@@ -123,21 +134,26 @@ function isPlaneRefusal(error: unknown): boolean {
  * Never rejects, and the event is written before it resolves: a run that
  * throws may be the process's last act. Returns an error it made itself
  * unchanged.
+ *
+ * `failedBefore` are the data types of a pass that failed before `error` ended
+ * it (workplan 0143 T5, 2026-11-19). A failed data type no longer ends the
+ * pass, so something else may end it after one has failed, a read between two
+ * data types for instance. They are named first, as {@link planeErrorForEach}
+ * names them, so the plane's error still names every data type that failed.
  */
 export async function planeErrorFor(
   error: unknown,
   where: RunWhere,
   recorded?: AlreadyRecorded,
+  failedBefore: readonly RecordedFailure[] = [],
 ): Promise<Error> {
   if (typeof error === 'object' && error !== null && made.has(error)) return error as Error;
-  const stopped = error instanceof PassAbortError;
-  const verdict = isVerdict(error);
-  const failsOnce = stopped || verdict || isPlaneRefusal(error);
 
   let said: AlreadyRecorded;
   if (recorded) {
     said = recorded;
   } else {
+    const verdict = isVerdict(error);
     const category = classifyFailure(messageOf(error), failureSideOf(error), statedFailureCategoryOf(error));
     said = { doing: where.task, reference: newReference(), category };
     // A task's own verdict is an answer; everything else went wrong.
@@ -155,13 +171,55 @@ export async function planeErrorFor(
     });
   }
 
+  return planeErrorOf([...failedBefore, { error, recorded: said }]);
+}
+
+/**
+ * The error a pass fails with when one or more of its data types failed
+ * (workplan 0143 T5, 2026-11-19). The pass no longer ends at the first one: the
+ * data types after it still have their turn, and the pass fails once they have
+ * had it, as hard rule 9 asks.
+ *
+ * **Each failure is said as {@link planeErrorFor} says one,** with the reference
+ * and the category the pass's own catch recorded for it, in the order the pass
+ * took them, and still without the words. One failure reads exactly as it
+ * always did; two read `calendar sync failed (target_refused). Reference
+ * 1a2b3c4d. email sync failed (source_unreachable). Reference 5e6f7a8b.` Each
+ * reference is the one its data type's run event, status row and app event
+ * carry, so the operator's log page finds every one of them.
+ *
+ * **Not retried if any of them may not be.** A retry runs the whole pass again,
+ * so a data type that stopped itself after items failed in a row would be run
+ * again against a target that had already said no, which is what the first
+ * rule of {@link planeErrorFor} exists to stop. The others are named all the
+ * same, and the sync tick's failing-backoff ladder brings the next pass. When
+ * every one of them is worth another go, the pass is retried, as a pass with
+ * one such failure always was.
+ *
+ * At least one, by its type: a pass in which nothing failed has no error to fail
+ * with.
+ */
+export function planeErrorForEach(failures: readonly [RecordedFailure, ...RecordedFailure[]]): Error {
+  return planeErrorOf(failures);
+}
+
+/** One failure, as the plane hears it: whether it fails its run once, and its sentence. */
+function sentenceOf({ error, recorded }: RecordedFailure): { readonly failsOnce: boolean; readonly sentence: string } {
+  const stopped = error instanceof PassAbortError;
+  const failsOnce = stopped || isVerdict(error) || isPlaneRefusal(error);
   const what = stopped
     ? 'stopped itself after items failed in a row'
     : failsOnce
       ? 'ended, and is not retried'
       : 'failed';
-  const sentence = `${said.doing} ${what} (${said.category}). Reference ${said.reference}.`;
-  const planeError = failsOnce ? new AbortTaskRunError(sentence) : new Error(sentence);
+  return { failsOnce, sentence: `${recorded.doing} ${what} (${recorded.category}). Reference ${recorded.reference}.` };
+}
+
+/** The plane's error for the failures given, in their order: see {@link planeErrorForEach}. */
+function planeErrorOf(failures: readonly RecordedFailure[]): Error {
+  const said = failures.map(sentenceOf);
+  const sentence = said.map((s) => s.sentence).join(' ');
+  const planeError = said.some((s) => s.failsOnce) ? new AbortTaskRunError(sentence) : new Error(sentence);
   made.add(planeError);
   return planeError;
 }

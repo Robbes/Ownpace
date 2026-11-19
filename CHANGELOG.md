@@ -50,9 +50,51 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   its entry in `ACCEPTED` (`scripts/audit-advisories.mjs`) goes, a month before its last day, and
   the gate blocks every high as it did before 2026-11-17. The list stays for the next advisory the
   owner accepts by name.
+- **The workflows give each job the token it uses, and no checkout leaves it on disk** (workplan
+  0119). An outside, read-only check of `.github/workflows/` on 2026-11-19 named nineteen lines.
+  `ci.yml`, the four E2E workflows and `no-committed-artifacts.yml` named no permissions, so their
+  jobs ran on whatever the repository's settings give the default token; each now says
+  `contents: read`. `images.yml` gave `packages: write` and `id-token: write` to every job; they
+  now sit on `build`, the job that pushes and signs, and the top of the file only reads. Eighteen
+  checkouts, in jobs that never push with git, kept the token in `.git/config` for every later
+  step; each now says `persist-credentials: false`. The other three lines, the `actions/setup-node`
+  steps that open three jobs that publish, restore no cache and did not change.
+  `scripts/a-token-the-job-never-asked-for.unit.test.ts` holds all of it.
 
 ### Fixed
 
+- **Nothing written to Cirrux names a guest or an organiser, because Cirrux emails every guest**
+  (workplan 0160, ADR-0043 amended). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
+  with every attendee and organiser marked `SCHEDULE-AGENT=CLIENT`, as for every target, and
+  Cirrux emailed each attendee an invitation in the mailbox's name, past events included. The
+  invitation it sent had dropped the marker. For a Cirrux target the calendar and task writers now
+  write no `ATTENDEE` and no `ORGANIZER`: each is replaced by a `COMMENT` that names the person,
+  so the copy still says who was there and Cirrux has nobody to email. An email alarm keeps its
+  recipient, and verification compares as before. The connection test, the assessment and the
+  audit row say this for Cirrux, instead of promising what the marker would do. Every other
+  target gets the same bytes as before.
+- **A calendar or task list made at Cirrux is written to where Cirrux keeps it** (workplan 0160).
+  With the calendar home found, the next pass into Cirrux, on 2026-11-19, made the source's
+  calendar: Cirrux answered 201 and showed it, with the name asked for. Then it refused every
+  event written to the calendar's address with 404, because Cirrux keeps a new calendar under an
+  id of its own. In a home the server named, a new calendar is now asked for at a UUID of the
+  writer's own, the same one on every pass, as Apple's apps do. The 201 is read back: a
+  calendar at the address asked for, then at the `Location` the answer gave, then the calendar
+  the home lists now and did not before, by its name. A 201 with no calendar anywhere fails, and
+  says so. An event refused with 404 says whether its calendar is there at all. Servers with
+  Nextcloud's layout get the same requests as before.
+- **Calendars and task lists into Cirrux are made where Cirrux keeps them, instead of failing
+  before the first event** (workplan 0160). With contacts corrected, the next pass into Cirrux, on
+  2026-11-19, stopped at `MKCALENDAR failed for /calendars/<mailbox>/<slug>/ with status 404`.
+  The CalDAV writer put every calendar at Nextcloud's `calendars/<user>/`, and Cirrux keeps them
+  elsewhere. When the place it assumed is refused, the writer now asks the server where the
+  account's calendars are (`/.well-known/caldav`, then the principal's calendar home, as RFC 6764
+  and RFC 4791 say), the same question the contacts writer asks, now answered by one shared
+  helper. It uses a calendar with the source's name that holds the same kind (events, or tasks
+  for a task list) if one is there, makes the calendar in that home if the server allows it, and
+  otherwise writes into the account's one calendar that holds that kind. It does not choose
+  between several. Verification reads the same home. Servers with Nextcloud's layout get the
+  same requests as before.
 - **Contacts into Cirrux land in the mailbox's address book, instead of failing before the first
   card** (workplan 0160). The first contacts pass into Cirrux, on 2026-11-19, stopped at
   `MKCOL failed for /addressbooks/users/<mailbox>/address-book/ with status 501`. The CardDAV
@@ -71,6 +113,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   re-run of the failed job reused that green run and published the release. Until a run has
   answered once, `scripts/release-dispatch.mjs` now reads it again every five seconds, for five
   minutes at most; once it has answered, a 404 is still an error at once.
+- **Seven places that caught an error and dropped it now say it, or pass it on** (workplan 0006
+  J). *Read everything back* on the confirmed list no longer starts a pass when the read of the
+  runs before it fails: it shows the failure, as a failed press does, because without that read
+  the watch could take the last pass for this one. On the appliance, a request whose body the
+  client cut short, to set a standing answer or to keep a migration copying, is logged as a
+  failed request, where it was answered 400 with nothing in the log; a body that is not JSON keeps
+  its 400. A pass that cannot ask the ledger about a window of items at once says why in its log
+  as it asks about each one on its own. And three things the web app sends without waiting, the
+  visit a migration's page records, the removal of an account a failed check left and the report
+  of an answer a page could not read, still let a failed request go and now throw anything else.
+- **A data type that fails no longer holds back the ones after it** (workplan 0143): when your
+  calendars fail to copy, your tasks, mail and files are still copied in the same pass, and the
+  pass still shows as failed, naming each data type that failed.
 
 ## [0.2.0-alpha.11] - 2026-11-17
 
