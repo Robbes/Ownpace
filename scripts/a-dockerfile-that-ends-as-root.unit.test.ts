@@ -2,8 +2,8 @@
 
 /**
  * A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS
- * IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21
- * and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+ * IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20,
+ * the latter by hadolint 2.15.1's rules; workplan 0119).
  *
  * The check read each Dockerfile, not the image it builds. Five ended in a
  * stage with no USER, or with `USER root`: the web image, GoAccess's, the
@@ -98,12 +98,6 @@ export const EXCEPTIONS: Readonly<Record<string, Partial<Record<Rule, string>>>>
       "upstream's `node` after the RUNs as root that remove what nothing here runs and purge the Debian packages nothing loads, " +
       'which a-binary-the-stack-never-runs and an-essential-nothing-runs read line by line; not in this round (workplan 0119, 2026-11-19)',
     pipefail: 'the RUNs as root that remove what nothing here runs pipe in their walks, held line by line by those two guards; not in this round',
-  },
-
-  'packages/testing/fixtures/stalwart/Dockerfile': {
-    'non-root':
-      'it names no USER, though its base runs as its own stalwart, uid and gid 2000; nothing here builds it, and the line that ' +
-      'says so is a change of its own (workplan 0119, 2026-11-19)',
   },
 };
 

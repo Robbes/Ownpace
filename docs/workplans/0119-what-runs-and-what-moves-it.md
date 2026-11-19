@@ -4,7 +4,7 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
-**2026-11-19: a read-only check of the repository (BlueLandscape, run on `main` at `646b9de2`)
+**2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`)
 reads the web image and GoAccess's as containers that run as root (GEN-21), and lists where eight
 Dockerfiles break hadolint's rules (GEN-20). Both images now end as their own users, the web
 image's health check needs no shell, three Dockerfiles lose a pipe with no `pipefail`, the Docker
@@ -71,12 +71,12 @@ check gave, by hadolint 2.15.1's rules; hadolint itself was not run.
   (DL3020), and names a tag that is not `latest` in every outside FROM (DL3006, DL3007), unless
   its EXCEPTIONS names the file and the rule with the reason; an exception whose file no longer
   breaks the rule fails too. Left in it: the proxy (root, by name), the pooler (by name), the
-  supervisor and the Trigger.dev image (by name, pipes: not in this round), and the TLS front and
-  the Stalwart fixture (root), each until its own branch lands.
-- **The order they land in.** The TLS front's branch and the fixture's make a file keep a rule
-  that this guard lists as an exception. Whichever lands after this branch takes that file's entry
-  out of EXCEPTIONS in the same change: the guard's failure names it. If this branch lands last, it
-  takes both out itself when it is brought up to date.
+  supervisor and the Trigger.dev image (by name, pipes: not in this round), and the TLS front
+  (root), until its own branch lands.
+- **The order they land in.** The fixture's branch landed first, as #1950 (`4551acb2`), so this
+  branch took the fixture's entry out of EXCEPTIONS when it was brought up to date. The TLS front's
+  branch, #1951, makes the front keep the same rule: whichever of the two lands second takes the
+  front's entry out in the same change, and the guard's failure names it.
 - **Proved on the branch:** the unit suite, 1,108 test files, 17,103 tests passed and 33 skipped;
   before that, per Dockerfile, the guards that read it (GoAccess 5 test files, 294 tests; the proxy
   29, 1,562; the pooler 26, 1,180; the tasks' base 11, 595; the web image 142, 4,559); `tsc

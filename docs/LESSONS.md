@@ -134,7 +134,7 @@ reading a file drops off its entry by itself.
 - [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
@@ -197,6 +197,16 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [adr-operative](../scripts/adr-operative.unit.test.ts) — The operative layer cannot drift from its source (ADR-0038).
 
+### `CHANGELOG.md`
+
+- [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
+- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
+- [a-release-preflight-that-said-yes-too-soon](../scripts/a-release-preflight-that-said-yes-too-soon.unit.test.ts) — A RELEASE PREFLIGHT THAT SAID YES TOO SOON: on 2026-10-22 the names check passed `v0.2.0-alpha.2` while `CHANGELOG.md`'s `[Unreleased]` still held about 170 lines above a section dated 2026-10-11 (workplan 0146 T2, the fold not done).
+- [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
+- [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts) — Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
+- [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
+- [an-appliance-with-nothing-to-exec](../scripts/an-appliance-with-nothing-to-exec.unit.test.ts) — AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decision of 2026-11-03: the shell goes, the image and the compose healthcheck together, in alpha.5).
+
 ### `CONTRIBUTING.md`
 
 - [a-convention-two-of-two-hundred-commits-followed](../scripts/a-convention-two-of-two-hundred-commits-followed.unit.test.ts) — THE CONVENTION NOTHING ENFORCED.
@@ -216,7 +226,7 @@ reading a file drops off its entry by itself.
 ### `apps/api/Dockerfile`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
@@ -497,7 +507,7 @@ reading a file drops off its entry by itself.
 ### `apps/selfhost/Dockerfile`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
@@ -529,7 +539,7 @@ reading a file drops off its entry by itself.
 ### `apps/web/Dockerfile`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-healthcheck-that-asked-the-wrong-address](../scripts/a-healthcheck-that-asked-the-wrong-address.unit.test.ts) — A HEALTHCHECK THAT ASKED THE WRONG ADDRESS.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -903,7 +913,7 @@ reading a file drops off its entry by itself.
 ### `apps/worker/task-image/Dockerfile`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
@@ -986,7 +996,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/caddy/Dockerfile`
 
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
@@ -1079,7 +1089,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/docker-socket-proxy/Dockerfile`
 
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/compose/docker-socket-proxy/docker-entrypoint.sh`
@@ -1197,7 +1207,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/goaccess/Dockerfile`
 
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-service-that-phones-home](../scripts/a-service-that-phones-home.unit.test.ts) — A SERVICE THAT PHONES HOME.
 - [a-visit-count-that-kept-the-visitor](../scripts/a-visit-count-that-kept-the-visitor.unit.test.ts) — A VISIT COUNT THAT KEPT THE VISITOR (the owner, 2026-10-05: *"go with GoAccess on the logs and the sentence. id and status we skip for now, no netbird api tokens..."*; privacy §4.5, §5 and §9).
@@ -1393,7 +1403,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/pgbouncer/Dockerfile`
 
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
@@ -1415,7 +1425,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/postgres/Dockerfile`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -1431,7 +1441,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/redis/Dockerfile`
 
 - [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
@@ -1663,7 +1673,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/supervisor/Dockerfile`
 
 - [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
@@ -1713,7 +1723,7 @@ reading a file drops off its entry by itself.
 ### `deploy/compose/trigger.dev/Dockerfile`
 
 - [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
@@ -1828,7 +1838,7 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/postgres/Dockerfile`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
 ### `deploy/selfhost/selfhost.env.example`
@@ -2855,7 +2865,7 @@ reading a file drops off its entry by itself.
 
 ### `packages/testing/fixtures/stalwart/Dockerfile`
 
-- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 
@@ -4119,6 +4129,7 @@ A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 Reads:
 
 - `.github/workflows/ci.yml`
+- `CHANGELOG.md`
 - `SECURITY.md`
 - `docs/adr/OPERATIVE.md`
 - `docs/architecture/solution-architecture.md`
@@ -4139,7 +4150,7 @@ Reads:
 
 ### [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts)
 
-A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 
 Reads:
 
@@ -4649,6 +4660,7 @@ Reads:
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e-o365.yml`
 - `AGENTS.md`
+- `CHANGELOG.md`
 - `docs/LESSONS.md`
 - `docs/workplans/README.md`
 - `pnpm-lock.yaml`
@@ -5300,6 +5312,7 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
+- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `scripts/fixtures/release/changelog-2026-10-23.md`
 - `scripts/fixtures/release/ci-jobs-39866562875.json`
@@ -5320,6 +5333,7 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
+- `CHANGELOG.md`
 - `apps/api/docs/openapi.yaml`
 - `apps/web/src/components/Layout.tsx`
 - `apps/web/src/components/Layout.unit.test.tsx`
@@ -5626,6 +5640,10 @@ Reads:
 ### [a-signature-checked-under-either-name](../scripts/a-signature-checked-under-either-name.unit.test.ts)
 
 Every documented `cosign verify` accepts the images signed under either of the repository's names, and nothing else (ADR-0040).
+
+Reads:
+
+- `CHANGELOG.md`
 
 ### [a-site-a-teardown-removed](../scripts/a-site-a-teardown-removed.unit.test.ts)
 
@@ -6165,6 +6183,7 @@ AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T1
 Reads:
 
 - `.github/workflows/e2e-managed.yml`
+- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/api/src/index.ts`
 - `deploy/compose/deploy-live.sh`
@@ -6195,6 +6214,7 @@ AN APPLIANCE WITH NOTHING TO EXEC (workplan 0119 §3 item 12; the owner's decisi
 Reads:
 
 - `.github/workflows/e2e.yml`
+- `CHANGELOG.md`
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `deploy/selfhost/README.md`
