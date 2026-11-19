@@ -46,7 +46,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Fixed
 
 - **Nothing written to Cirrux names a guest or an organiser, because Cirrux emails every guest**
-  (workplan 0160). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
+  (workplan 0160, ADR-0043 amended). On 2026-11-19 the first calendar pass into a Cirrux test mailbox wrote events
   with every attendee and organiser marked `SCHEDULE-AGENT=CLIENT`, as for every target, and
   Cirrux emailed each attendee an invitation in the mailbox's name, past events included. The
   invitation it sent had dropped the marker. For a Cirrux target the calendar and task writers now

@@ -284,7 +284,9 @@ plausible stored row for the face-building guard.
   mailbox's name, past events included. The invitation's own attachment kept the outside
   organiser and lost the marker, and the API page says the mailbox is always the organiser (§1):
   over CalDAV, Cirrux schedules as its app does. So `cirrux` is in `TARGETS_THAT_MAIL_GUESTS`
-  (`packages/shared/src/calendar-scheduling.ts`). For a target of such a kind, the calendar and
+  (`packages/shared/src/calendar-scheduling.ts`), and ADR-0043 is amended for it the same day: the
+  exception is undone by taking `cirrux` off the list once Cirrux can be written without mailing
+  guests, shown by a pass that sends none. For a target of such a kind, the calendar and
   task writers write no `ATTENDEE` and no `ORGANIZER`: each is replaced, where it stood, by a
   `COMMENT` that names the person (*Invited at the source: …*, *Organised at the source by: …*).
   An email alarm's `ATTENDEE` is who the alarm goes to, and stays. `calendarContentHash` reads
@@ -355,6 +357,8 @@ it is. Revisit when Cirrux Docs is open to every account and someone asks.
 - Leave the events already in Cirrux, and the calendar the pass made, as they are: Cirrux emails
   every guest a cancellation when one is deleted (§1). If they are to go, ask help@cirrux.co how
   to remove them without mail.
+- When Cirrux answers how its server can be written to without mailing guests (asked
+  2026-11-19): pass the answer on, so the exception can be undone (§5's fourth bullet).
 - Once the guests correction is on the test environment: resume the migration and watch the
   source account's own inbox for the first minutes. The account is an attendee of most events it
   was invited to, so an invitation that still went out would reach it first. Then the calendar,

@@ -1,6 +1,7 @@
 # ADR-0043: A migration is silent by default — outward mail is a human-pressed action
 
-- **Status:** Accepted
+- **Status:** Accepted; amended 2026-11-19 (a target that emails guests whatever the marker says
+  gets none)
 - **Date:** 2026-08-25
 - **Deciders:** Owner, 2026-08-25 — "do T1 and T2, and the rest", instructing
   workplan 0103's proposed posture to be built as written. The research that
@@ -15,9 +16,14 @@
   mailman by default, and to any domain added later:
   `docs/workplans/0103-the-mail-a-migration-must-not-send.md`.
 - **The copy stays faithful; the side effects are what we suppress.** `ATTENDEE` and `ORGANIZER`
-  are never stripped: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs
-  (0103 T1). An explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit
-  `CLIENT`/`NONE` are kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+  are kept: the calendar writer sets `SCHEDULE-AGENT=CLIENT` on every one it PUTs (0103 T1). An
+  explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
+  kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
+- **Except a target that emails guests whatever the parameter says** (2026-11-19): a kind in
+  `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160) gets neither; each becomes a `COMMENT` naming the
+  person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. Undone by taking the kind
+  off the list once its target can be written without mailing guests, shown by a pass that sends
+  nothing.
 - **The same rule covers deletion.** Take-back and the gated apply-deletion path delete organiser
   copies; neutralised objects send no CANCEL on honouring servers, and `Schedule-Reply: F` on our
   DELETEs (0103 T5) is the belt for attendee-side replies:
@@ -57,3 +63,10 @@ moves the mail to the second pass — are in workplan 0103 with sources.
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
   decided. Their earlier wording, with the reasons and examples the budget left out, is in the
   record: [history/0043-a-migration-is-silent-by-default.md](./history/0043-a-migration-is-silent-by-default.md).
+- **2026-11-19** — **Amended**, by the owner (*"yes, you may"*), on the condition that it can be
+  undone once Cirrux says how its server can be written to without mailing guests. A target that
+  emails guests whatever `SCHEDULE-AGENT` says gets no `ATTENDEE` and no `ORGANIZER`; each becomes
+  a `COMMENT` that names the person. Cirrux had emailed an invitation, in the test mailbox's name
+  and past events included, to every guest of the events a pass wrote into it, each marked
+  `SCHEDULE-AGENT=CLIENT` (workplan 0160 §5). The first operative rule is why: no write may make a
+  target mail third parties.
