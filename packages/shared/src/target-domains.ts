@@ -41,7 +41,8 @@ export type WizardTargetType =
   | 'carddav'
   | 'webdav'
   | 'soverin'
-  | 'nextcloud';
+  | 'nextcloud'
+  | 'cirrux';
 
 export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<DiscoveryDomain>> = {
   jmap: ['email', 'contact', 'file'],
@@ -82,6 +83,13 @@ export const TARGET_TYPE_DOMAINS: Record<WizardTargetType, ReadonlyArray<Discove
   // Tasks ride the CalDAV face, as they do for soverin (0113 T5): a Nextcloud
   // task list is a calendar collection that declares VTODO.
   nextcloud: ['calendar', 'contact', 'file', 'task'],
+  // The third provider-named ACCOUNT target (workplan 0160 T1), and Soverin's
+  // shape exactly: mail over IMAP from the server the account stores
+  // (`mailHost`), calendars, contacts and task lists over the one DAV host
+  // Cirrux publishes. The same list as `PROVIDER_ACCOUNT_DOMAINS.cirrux`,
+  // which says why `file` is not in it: Cirrux Drive has no WebDAV, so no
+  // writer here can reach it.
+  cirrux: ['email', 'calendar', 'contact', 'task'],
 };
 
 const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
@@ -92,6 +100,7 @@ const PROTOCOL_NAMES: Record<WizardTargetType, string> = {
   webdav: 'WebDAV',
   soverin: 'Soverin',
   nextcloud: 'Nextcloud',
+  cirrux: 'Cirrux',
 };
 
 /**

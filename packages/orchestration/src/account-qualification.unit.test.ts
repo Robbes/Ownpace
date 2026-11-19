@@ -206,6 +206,49 @@ describe('each face is asked where that face lives (owner 2026-09-03: "Files ✓
     }
   });
 
+  it('a cirrux account measures its four faces, and answers Files with the reason Drive cannot be reached (0160)', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    const asked: Array<Record<string, unknown>> = [];
+    try {
+      const q = await qualifyAccount(
+        'cirrux',
+        { ...DAV_CONFIG, mailHost: 'imap.cirrux.co', mailPort: 993 },
+        CREDS,
+        {
+          imapListable: (cfg) => {
+            asked.push(cfg);
+            return { listFolders: async () => ['INBOX'] };
+          },
+        },
+      );
+      expect(q?.domains.calendar.answer).toBe('yes');
+      expect(q?.domains.contact.answer).toBe('yes');
+      expect(q?.domains.task.answer).toBe('yes');
+      expect(q?.domains.mail.answer).toBe('yes');
+      // Mail was asked at the IMAP host the row stores, never at the DAV root.
+      expect(asked[0]?.host).toBe('imap.cirrux.co');
+      // A measured no, as Soverin's, but with the reason a person who HAS a
+      // Cirrux Drive needs: not the generic "not a face of this connection".
+      expect(q?.domains.file.answer).toBe('no');
+      expect(q?.domains.file.detail).toContain('Cirrux Drive is not reachable over WebDAV');
+      expect(q?.domains.file.detail).not.toContain('is not a face of this connection');
+      expect(q?.domains.file.count).toBeUndefined();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('a cirrux account saved without its mail server says which field is missing', async () => {
+    vi.stubGlobal('fetch', davAnsweringFetch());
+    try {
+      const q = await qualifyAccount('cirrux', DAV_CONFIG, CREDS);
+      expect(q?.domains.mail).toMatchObject({ answer: 'unknown', reason: 'incomplete' });
+      expect(q?.domains.mail.detail).toContain('mailHost');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('a calendar and a task list are counted apart — the component decides, not the collection', async () => {
     // THE T5 ASSERTION, and the one the owner's own account motivated: two
     // collections under one calendar home set, one declaring VEVENT and the
@@ -469,7 +512,7 @@ describe('the JMAP face: the one place an honest NO exists', () => {
 
 describe('the boundary', () => {
   it('covers exactly the Basic-auth account families; OAuth kinds are grant-qualified (T1), not probed', async () => {
-    for (const kind of ['caldav', 'carddav', 'webdav', 'nextcloud', 'soverin', 'imap', 'jmap']) {
+    for (const kind of ['caldav', 'carddav', 'webdav', 'nextcloud', 'soverin', 'cirrux', 'imap', 'jmap']) {
       expect(isQualifiableKind(kind), kind).toBe(true);
     }
     for (const kind of ['gmail', 'google_drive', 'google_calendar', 'o365', 'dropbox', 'box']) {

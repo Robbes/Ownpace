@@ -346,6 +346,28 @@ const CREDENTIALS: readonly CredentialRetirement[] = [
       'Apple-accountwachtwoord te wijzigen.',
   },
   {
+    // A CREDENTIAL, as Apple's is (workplan 0160): an app password the person
+    // made for one mailbox, which Cirrux keeps honouring "until you delete
+    // it" (https://cirrux.co/help/questions/script-or-agent-reads-and-sends-mail,
+    // read 2026-11-19). The screen is named because Cirrux names it: Settings
+    // → Mailboxes, the mailbox, its Passwords tab (https://cirrux.co/help/setup).
+    // Cirrux's own labels, kept in English in both languages as the help
+    // pages write them.
+    id: 'cirrux',
+    impliedBy: ['cirrux'],
+    whatTheyCallIt: 'Settings → Mailboxes → your mailbox → Passwords',
+    where: 'https://mail.cirrux.co/settings/mailboxes → your mailbox → Passwords',
+    en:
+      'The app password you created for this migration still works on that Cirrux mailbox ' +
+      'until it is deleted. Deleting our copy does not delete it at Cirrux: delete it on the ' +
+      'mailbox’s Passwords tab to end it. Your Cirrux password stays as it is.',
+    nl:
+      'Het app-wachtwoord dat u voor deze migratie hebt aangemaakt werkt nog op die ' +
+      'Cirrux-mailbox, totdat het verwijderd wordt. Het verwijderen van onze kopie verwijdert ' +
+      'het niet bij Cirrux: verwijder het op het tabblad Passwords van de mailbox om het te ' +
+      'beëindigen. Uw Cirrux-wachtwoord blijft zoals het is.',
+  },
+  {
     id: 'nextcloud',
     impliedBy: ['nextcloud'],
     whatTheyCallIt: 'Settings → Security → Devices & sessions',
