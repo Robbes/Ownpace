@@ -207,7 +207,7 @@ describe('the completion report carries it (workplan 0085 T4b)', () => {
  * same shape, so the reminder has to exist.
  */
 describe('credentials that outlive our erasure', () => {
-  it.each(['nextcloud', 'proton', 'imap', 'jmap', 'caldav', 'carddav', 'webdav', 'selfhosted_mail', 'soverin'])(
+  it.each(['nextcloud', 'proton', 'imap', 'jmap', 'caldav', 'carddav', 'webdav', 'selfhosted_mail', 'soverin', 'cirrux'])(
     '%s leaves a credential the customer has to retire',
     (kind) => {
       const found = credentialRetirementsFor([kind]);
@@ -222,10 +222,23 @@ describe('credentials that outlive our erasure', () => {
     // from "nothing to do".
     const PASSWORD_KINDS = [
       'imap', 'jmap', 'caldav', 'carddav', 'webdav',
-      'nextcloud', 'proton', 'soverin', 'selfhosted_mail',
+      'nextcloud', 'proton', 'soverin', 'cirrux', 'selfhosted_mail',
     ];
     const covered = new Set(identifiersWithRetirableCredentials());
     expect(PASSWORD_KINDS.filter((k) => !covered.has(k))).toEqual([]);
+  });
+
+  it('cirrux names the screen Cirrux names, and the app password, in both languages (workplan 0160)', () => {
+    // Cirrux publishes where an app password lives (https://cirrux.co/help/setup),
+    // so this is an exact screen, as Apple's and Nextcloud's are, and not the
+    // generic "your mail provider's settings".
+    const [item] = credentialRetirementsFor(['cirrux']);
+    expect(item?.id).toBe('cirrux');
+    expect(item!.whatTheyCallIt).toBe('Settings → Mailboxes → your mailbox → Passwords');
+    expect(item!.where).toContain('https://mail.cirrux.co/settings/mailboxes');
+    expect(item!.en).toMatch(/app password[^.]*still works/i);
+    expect(item!.nl).toContain('app-wachtwoord');
+    expect(item!.nl).toContain('Passwords');
   });
 
   it('says the credential STILL WORKS, which is the whole point', () => {

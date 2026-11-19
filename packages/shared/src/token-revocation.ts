@@ -183,6 +183,10 @@ const PASSWORD_KINDS = [
   'nextcloud',
   'proton',
   'soverin',
+  // An app password per mailbox (https://cirrux.co/help/setup): revoked by
+  // deleting it on the mailbox's Passwords tab, which only Cirrux's account
+  // holder can do (0160 T1).
+  'cirrux',
   'selfhosted_mail',
 ] as const;
 

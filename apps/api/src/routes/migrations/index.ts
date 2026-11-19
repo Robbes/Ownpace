@@ -71,6 +71,7 @@ import {
   newReference,
   parseArchiveSource,
   recordAppEvent,
+  storesItsMailServer,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
 import { HttpTokenRevoker } from '@openmig/connectors';
@@ -744,12 +745,13 @@ export function targetConnectionConfig(
   // resolver prefers over host+port (0105 T1) — the door for a provider
   // whose DAV root lives behind a path. The account kind alone may also
   // store its MAIL face (T4b): the IMAP host the person typed, which the
-  // mail seam resolves into the imap-dav writer — scoped to `soverin` so a
+  // mail seam resolves into the imap-dav writer — scoped to the kinds in
+  // `MAIL_SERVER_ACCOUNT_KINDS` (soverin, and cirrux since 0160) so a
   // protocol row can never grow a face its kind does not carry.
   return {
     ...base,
     ...(cfg.url ? { url: cfg.url } : {}),
-    ...(body.targetType === 'soverin' && cfg.mailHost
+    ...(storesItsMailServer(body.targetType) && cfg.mailHost
       ? { mailHost: cfg.mailHost, ...(cfg.mailPort ? { mailPort: cfg.mailPort } : {}) }
       : {}),
   };
@@ -1130,7 +1132,7 @@ export const CreateMappingBase = z.object({
    */
   sourceConnectionId: z.string().uuid().optional(),
   targetConnectionId: z.string().uuid().optional(),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux']),
   sourceConfig: z.object({
     // host/port belong to an 'imap' source; tenantId/clientId/clientSecret to
     // 'oauth2'/'graph' (the per-customer Entra app registration — ADR-0006,
@@ -1804,9 +1806,10 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
   // person NAMED (0106 T4b — never guessed from the provider's name). A
   // reused connection is exempt here because its stored config may already
   // carry the host; the mail seam refuses at build time with the same field
-  // name if it does not.
+  // name if it does not. Cirrux's account is built the same way (0160), so
+  // the rule is the table's and the sentence names the kind it refuses.
   if (
-    body.targetType === 'soverin' &&
+    storesItsMailServer(body.targetType) &&
     body.syncConfig.domains.includes('email') &&
     !body.targetConnectionId &&
     !body.targetConfig.mailHost?.trim()
@@ -1815,7 +1818,7 @@ export const CreateMappingSchema = CreateMappingBase.superRefine((body, ctx) => 
       code: 'custom',
       path: ['targetConfig', 'mailHost'],
       message:
-        "A soverin target carries email only when the account's mail server is stored: " +
+        `A ${body.targetType} target carries email only when the account's mail server is stored: ` +
         'targetConfig.mailHost is missing. Enter the IMAP host your provider names (the ' +
         'account settings page lists it) — or drop the email data type; calendars and ' +
         'contacts need no mail server.',

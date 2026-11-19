@@ -58,8 +58,31 @@ import {
  * server does. These are the kinds where one credential provably reaches more
  * than one domain.
  */
-export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin', 'microsoft', 'apple'] as const;
+export const PROVIDER_ACCOUNT_KINDS = ['google', 'soverin', 'microsoft', 'apple', 'cirrux'] as const;
 export type ProviderAccountKind = (typeof PROVIDER_ACCOUNT_KINDS)[number];
+
+/**
+ * The account kinds whose MAIL face is a second server the account STORES
+ * (`mailHost`, `mailPort`), beside the DAV host its other faces share
+ * (workplan 0106 T4b for Soverin, 0160 T1 for Cirrux).
+ *
+ * One table rather than a `kind === 'soverin'` at each seam, because three
+ * seams ask the same question and must give the same answer: the create door
+ * (which demands the field when email is ticked), the mail seam that builds
+ * the writer, and the qualification that measures the face. Written out for
+ * one provider, the second provider is the one a seam forgets, and a
+ * forgotten seam does not fail at its own door: it fails at the first pass,
+ * as a missing writer.
+ *
+ * Not `apple`: its mail server is the same for every account and is
+ * PUBLISHED (`PROVIDER_ENDPOINTS`), so its door asks for no host at all.
+ */
+export const MAIL_SERVER_ACCOUNT_KINDS = ['soverin', 'cirrux'] as const;
+
+/** Does this kind keep its mail server in `mailHost`, apart from its DAV host? */
+export function storesItsMailServer(kind: string): boolean {
+  return (MAIL_SERVER_ACCOUNT_KINDS as ReadonlyArray<string>).includes(kind);
+}
 
 /**
  * The faces each provider account can serve, TODAY.
@@ -127,6 +150,21 @@ export const PROVIDER_ACCOUNT_DOMAINS: Readonly<
   // never the user's Drive. So this is a measured no with a reason rather
   // than a face waiting on work, and no amount of connector would change it.
   apple: ['email', 'calendar', 'contact', 'task'],
+  // Soverin's shape again (workplan 0160): one app password per mailbox,
+  // over IMAP for mail and over CalDAV and CardDAV for the rest, which
+  // https://cirrux.co/help/setup lists under Calendar, Contacts and Reminders
+  // with one server, api.cirrux.co (read 2026-11-19). 'task' is here on the
+  // day the kind arrives, as Apple's was: every Cirrux mailbox has a task
+  // list called Reminders, and Apple Reminders reads it over CalDAV
+  // (https://cirrux.co/help/api/tasks), so it is a calendar collection that
+  // declares VTODO (0113 T5).
+  //
+  // 'file' is absent, and the reason is the shape of Cirrux Drive rather
+  // than work left undone here: Drive speaks no WebDAV, only its own HTTP
+  // API, and that API takes a person's OAuth sign-in through a client Cirrux
+  // registers by hand (https://cirrux.co/help/api/drive). A files face is a
+  // connector of its own, not a row edit; 0160 T5 plans it.
+  cirrux: ['email', 'calendar', 'contact', 'task'],
 };
 
 /**

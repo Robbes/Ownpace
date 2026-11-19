@@ -26,12 +26,14 @@ import {
   appleAuthRefusal,
   guideOf,
   isCredentialRefusal,
+  isProviderAccountKind,
   microsoftFaceScope,
   whatHappened,
   type BilingualRefusal,
   type GuideHandle,
   type ProviderClientEnv,
   type WhatHappenedAnswer,
+  type WizardTargetType,
 } from '@openmig/shared';
 import { withDeploymentApplication } from './deployment-application.ts';
 import {
@@ -642,7 +644,7 @@ async function probeSourceNow(
  * JMAP client here starts with.
  */
 export function probeTargetConnection(
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud',
+  targetType: WizardTargetType,
   config: Record<string, unknown>,
   creds: Record<string, string>,
 ): Promise<ProbeResult> {
@@ -650,7 +652,7 @@ export function probeTargetConnection(
 }
 
 async function probeTargetNow(
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud',
+  targetType: WizardTargetType,
   config: Record<string, unknown>,
   creds: Record<string, string>,
 ): Promise<ProbeResult> {
@@ -704,7 +706,10 @@ async function probeTargetNow(
       // A `soverin` account's headline face is its calendar (0106 T4a): the
       // most informative single answer, and the one the scheduling verdict
       // belongs to. The qualification beside it carries the other faces.
-      targetType === 'caldav' || targetType === 'soverin'
+      // Every named account target is asked the same way (`cirrux` since
+      // 0160), so the rule is the account table rather than a list of names
+      // here. `nextcloud` is not an account kind, and keeps its file face.
+      targetType === 'caldav' || isProviderAccountKind(targetType)
         ? new CalDAVSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password })
         : targetType === 'carddav'
           ? new CarddavSource({ url: endpoint.url, username: endpoint.username, password: endpoint.password })

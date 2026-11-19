@@ -139,6 +139,7 @@ export const COPY = {
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
+      cirrux: { name: 'Cirrux', sub: '' },
       jmap: { name: 'A JMAP server', sub: 'such as Stalwart, if you or your provider runs one' },
       protocols: { name: 'Any other provider', sub: 'that uses the usual open standards, named beside each kind of data' },
     },
@@ -165,7 +166,7 @@ export const COPY = {
       whatMoves: 'What moves',
       verdict: { moves: 'Moves', limit: 'Moves, with a limit', no: 'Does not move' },
       goesTo: 'Goes to',
-      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', jmap: 'a JMAP server' },
+      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', cirrux: 'Cirrux', jmap: 'a JMAP server' },
       anyProvider: (protocol) => `any ${protocol} provider`,
       or: 'or',
       experimental: 'Experimental',
@@ -525,6 +526,7 @@ export const COPY = {
     destinations: {
       soverin: { name: 'Soverin', sub: '' },
       nextcloud: { name: 'Nextcloud', sub: '' },
+      cirrux: { name: 'Cirrux', sub: '' },
       jmap: { name: 'Een JMAP-server', sub: 'zoals Stalwart, als u of uw aanbieder er een beheert' },
       protocols: { name: 'Elke andere aanbieder', sub: 'die de gangbare open standaarden gebruikt, hieronder per soort gegevens genoemd' },
     },
@@ -547,7 +549,7 @@ export const COPY = {
       whatMoves: 'Wat er meegaat',
       verdict: { moves: 'Gaat mee', limit: 'Gaat mee, met een beperking', no: 'Gaat niet mee' },
       goesTo: 'Gaat naar',
-      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', jmap: 'een JMAP-server' },
+      destShort: { soverin: 'Soverin', nextcloud: 'Nextcloud', cirrux: 'Cirrux', jmap: 'een JMAP-server' },
       anyProvider: (protocol) => `elke ${protocol}-aanbieder`,
       or: 'of',
       experimental: 'Experimenteel',

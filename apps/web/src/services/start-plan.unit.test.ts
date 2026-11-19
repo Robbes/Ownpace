@@ -169,11 +169,13 @@ describe('which accounts to connect for what was ticked (step 4)', () => {
 
 describe('which destinations take a type (step 5)', () => {
   it('offers only a destination that can write the type', () => {
-    expect(destinationsFor('email')).toEqual(['jmap', 'imap', 'soverin']);
+    expect(destinationsFor('email')).toEqual(['jmap', 'imap', 'soverin', 'cirrux']);
     expect(destinationsFor('file')).toEqual(['jmap', 'webdav', 'nextcloud']);
-    expect(destinationsFor('task')).toEqual(['caldav', 'soverin', 'nextcloud']);
+    expect(destinationsFor('task')).toEqual(['caldav', 'soverin', 'nextcloud', 'cirrux']);
     // Nextcloud is no mail server, so mail never goes there.
     expect(destinationsFor('email')).not.toContain('nextcloud');
+    // And Cirrux Drive has no WebDAV, so files never go there (workplan 0160).
+    expect(destinationsFor('file')).not.toContain('cirrux');
   });
 });
 
