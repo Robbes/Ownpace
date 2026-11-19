@@ -2370,8 +2370,9 @@ services:
   # SMTP stays on the compose network: 1025 is not published, because the only
   # things that should reach it are services in this stack. The web UI is.
   #
-  # v1.34.0 (pushed 2026-11-17T07:07Z, three days old 2026-11-20T07:07Z;
-  # workplan 0119, Status 2026-11-18) is the minor kept current. It fixes
+  # v1.34.0 (pushed 2026-11-17T07:07Z, three days old 2026-11-20T07:07Z,
+  # taken inside that floor on the owner's word of 2026-11-19; workplan
+  # 0119, Status 2026-11-18 and 2026-11-19) is the minor kept current. It fixes
   # GHSA-v887-64wg-qqc9, which v1.33.1 brought in: one message whose part
   # header names a media type it cannot parse, with an RFC 2231 parameter,
   # ended the whole process. A panic in an SMTP session now drops that

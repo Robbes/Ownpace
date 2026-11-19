@@ -4,6 +4,13 @@
 
 ## Status — 2026-11-19 (update this block at the end of every session)
 
+**2026-11-19, later: the test stack's Mailpit v1.34.0 is taken inside its three-day floor, on the
+owner's word.** The owner, on 2026-11-19: *"I waive waiting time / nights if needed."* So the
+branch of 2026-11-18 (its entry below) merges once E2E (managed) is green on its head and CI is
+green with `main` merged in, before the floor ends on 2026-11-20 at 07:07 UTC. `managed.yml`'s
+comment and the CHANGELOG say it is taken inside the floor. Live runs no catcher, so nothing
+there changes.
+
 **2026-11-19: hadolint 2.15.1 runs in CI over every Dockerfile git lists, report only, with DL3008
 and DL3018 ignored and nothing else; built on a branch, not merged.** On the branch
 `claude/ownpace-public-readiness-y7orc6-hadolint-ci`, from `main` at `6fc95811` (#1955). The

@@ -56,7 +56,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 ### Changed
 
 - **The test stack's mail catcher is Mailpit v1.34.0** (workplan 0146 T11 (a), 0119), from
-  v1.33.1: the minor kept current, three days old on 2026-11-20. It fixes GHSA-v887-64wg-qqc9,
+  v1.33.1: the minor kept current, taken inside its three-day floor, which ends on 2026-11-20, on
+  the owner's word of 2026-11-19. It fixes GHSA-v887-64wg-qqc9,
   which v1.33.1 brought in: one message whose part header named a media type it could not parse,
   with an RFC 2231 parameter, ended the whole process. A panic in one SMTP session now drops that
   connection alone. The image scan read v1.33.1 at no critical and no high finding. It is built
