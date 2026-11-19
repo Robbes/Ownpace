@@ -361,6 +361,14 @@ const CIRRUX_TARGET: ReadonlyArray<SetupStep> = [
     titleKey: 'setup.cirrux.mail_server.title',
     detailKey: 'setup.cirrux.mail_server.detail',
   },
+  // Files are Cirrux Drive, a second sign-in added to the SAVED account
+  // (workplan 0160 T5; ADR-0052), so its step comes last and names the
+  // button the Accounts page draws; the guide's #drive says the rest.
+  {
+    key: 'drive',
+    titleKey: 'setup.cirrux.drive.title',
+    detailKey: 'setup.cirrux.drive.detail',
+  },
 ];
 
 const JMAP_TARGET: ReadonlyArray<SetupStep> = [

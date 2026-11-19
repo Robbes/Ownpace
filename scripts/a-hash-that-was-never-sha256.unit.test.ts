@@ -75,6 +75,17 @@ const WRITERS: ReadonlyMap<string, string> = new Map([
   ['packages/connectors/src/archive-file-source.ts', 'our own SHA-256, used as an item identity'],
 ]);
 
+/**
+ * Targets that put a value in `UpsertResult.contentHash`, which is NOT this
+ * field: the hash of the bytes a write SENT, which the ledger records in place
+ * of the loop's own (`domain-sync.ts`, workplan 0160 T5). Always our own
+ * SHA-256, and listed so the sweep below, which reads `contentHash:` wherever
+ * it is set, can tell a target's report from a source's field.
+ */
+const SENT_HASH_TARGETS: ReadonlyMap<string, string> = new Map([
+  ['packages/connectors/src/cirrux-drive-target.ts', 'our own SHA-256 of the bytes an upload or replace sent (UpsertResult.contentHash)'],
+]);
+
 /** Files that set `contentHash:` on something, found rather than listed. */
 function connectorsWritingAContentHash(): string[] {
   const dir = 'packages/connectors/src';
@@ -110,14 +121,25 @@ describe('the field says what it holds', () => {
     const found = connectorsWritingAContentHash();
     // Not vacuous: the sweep must find the sources this was written about.
     expect(found.length).toBeGreaterThanOrEqual(5);
-    const undeclared = found.filter((f) => !WRITERS.has(f));
+    const undeclared = found.filter((f) => !WRITERS.has(f) && !SENT_HASH_TARGETS.has(f));
     expect(
       undeclared,
       'A source that fills FileItem.contentHash must say which algorithm it publishes — ' +
         'add it to WRITERS here and to the field\'s own documentation.',
     ).toEqual([]);
     // And no entry outlives the file it describes.
-    expect([...WRITERS.keys()].filter((f) => !found.includes(f))).toEqual([]);
+    expect([...WRITERS.keys(), ...SENT_HASH_TARGETS.keys()].filter((f) => !found.includes(f))).toEqual([]);
+  });
+
+  it('a target reporting what it sent reports our own SHA-256, never a provider’s hash', () => {
+    for (const rel of SENT_HASH_TARGETS.keys()) {
+      const text = code(rel);
+      expect(text, `${rel} reports a hash it did not compute with the ledger's own SHA-256`).toMatch(
+        /\b(?:streamingFileContentHash|fileContentHash)\(/,
+      );
+      // A target reports; it is no source, so the field's own table does not list it.
+      expect(WRITERS.has(rel)).toBe(false);
+    }
   });
 
   it('the declaration names them too, so the type is readable on its own', () => {

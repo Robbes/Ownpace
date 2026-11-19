@@ -84,6 +84,15 @@ export const en = {
   'account.google.inAppBrowser':
     'If this page opened inside another app, such as a chat or mail app, use that app\'s \'Open in browser\' option or copy the link into your favorite browser, such as Safari or Chrome, then sign in to Ownpace there.',
   // Connect with Dropbox (2026-09-02): the same button, Dropbox's words.
+  // Connect Cirrux Drive (workplan 0160 T5): on a Cirrux account's row, the
+  // sign-in that adds files to an account whose app password carries the rest.
+  'account.cirrux.connect': 'Connect Cirrux Drive',
+  'account.cirrux.again': 'Connect Cirrux Drive again',
+  'account.cirrux.connect.hint': 'Opens Cirrux’s sign-in page, where you give Ownpace access to your Drive.',
+  'account.cirrux.connect.why':
+    'Cirrux Drive is reached only through Cirrux’s own API, with your sign-in rather than the app password. Ownpace keeps that sign-in on this account, renews it each time Cirrux asks, and uses it to put files in your Drive. It removes nothing for good: a file is moved to Cirrux’s trash only when you approve removing it because it was deleted where it came from.',
+  'account.cirrux.connected': 'Cirrux Drive is connected: files can go to this account.',
+  'account.cirrux.landed': 'Cirrux Drive is connected, and the account has been measured again.',
   'account.dropbox.connect': 'Connect with Dropbox',
   'account.dropbox.connect.hint': 'Opens Dropbox’s sign-in page, where you give Ownpace access to this account.',
   'account.dropbox.connect.needsClient': 'Enter the App key and App secret first.',
@@ -274,9 +283,9 @@ export const en = {
   // elsewhere should not have to discover that by ticking Email and
   // finding no writer behind it.
   'account.proto.nextcloud.hint': 'One account — calendars, contacts, files and tasks (no email)',
-  // Says what it does not take, as Nextcloud's does: Cirrux has a Drive, and
-  // nothing here can write to it yet (workplan 0160).
-  'account.proto.cirrux.hint': 'One account — email, calendars, contacts and tasks (no files)',
+  // Says how its files come, as Nextcloud's says what it does not take: Cirrux
+  // Drive is a sign-in added to the account once it is saved (workplan 0160 T5).
+  'account.proto.cirrux.hint': 'One account — email, calendars, contacts and tasks; Drive files once connected',
   'account.host': 'Host',
   'account.port': 'Port',
   // The DAV escape hatch (0105 T1) — see credential-fields.ts. It is the
@@ -712,6 +721,9 @@ export const en = {
   'setup.cirrux.mail_server.title': 'Mail moving too? Keep the mail server',
   'setup.cirrux.mail_server.detail':
     'The form fills in Mail server, imap.cirrux.co, and Mail port, 993, from Cirrux’s published settings. If mail moves, leave Mail server filled in: an account saved without it carries no mail. Calendars, contacts and tasks need no mail server.',
+  'setup.cirrux.drive.title': 'Files moving too? Connect Cirrux Drive afterwards',
+  'setup.cirrux.drive.detail':
+    'Files go to Cirrux Drive, which takes your own Cirrux sign-in rather than the app password. Once the account is saved, press Connect Cirrux Drive beside it on the Accounts page and sign in to Cirrux as the person whose Drive it is. A service that Cirrux has not registered shows no such button, and says so: then send the files to another destination.',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -744,6 +756,13 @@ export const nl: Record<keyof typeof en, string> = {
     'Voor e-mail, agenda’s en contacten beschrijft Google een ruimere toestemming dan Ownpace gebruikt. Ownpace leest alleen; het wijzigt en verwijdert niets in dit account.',
   'account.google.inAppBrowser':
     'Is deze pagina geopend in een andere app, zoals een chat- of mailapp? Kies daar \'Openen in browser\' of kopieer de link naar uw favoriete browser, zoals Safari of Chrome, en meld u in die browser aan bij Ownpace.',
+  'account.cirrux.connect': 'Cirrux Drive verbinden',
+  'account.cirrux.again': 'Cirrux Drive opnieuw verbinden',
+  'account.cirrux.connect.hint': 'Opent de aanmeldpagina van Cirrux; daar geeft u Ownpace toegang.',
+  'account.cirrux.connect.why':
+    'Cirrux Drive is alleen bereikbaar via de eigen API van Cirrux, met uw aanmelding en niet met het app-wachtwoord. Ownpace bewaart die aanmelding bij dit account, vernieuwt haar telkens als Cirrux daarom vraagt, en gebruikt haar om bestanden in uw Drive te zetten. Er wordt niets definitief verwijderd: een bestand gaat alleen naar de prullenbak van Cirrux als u goedkeurt dat het weg mag omdat het verwijderd is waar het vandaan kwam.',
+  'account.cirrux.connected': 'Cirrux Drive is verbonden: bestanden kunnen naar dit account.',
+  'account.cirrux.landed': 'Cirrux Drive is verbonden, en het account is opnieuw gemeten.',
   'account.dropbox.connect': 'Verbinden met Dropbox',
   'account.dropbox.connect.hint': 'Opent de aanmeldpagina van Dropbox, waar u Ownpace toegang geeft.',
   'account.dropbox.connect.needsClient': 'Vul eerst de App key en het App secret in.',
@@ -881,7 +900,7 @@ export const nl: Record<keyof typeof en, string> = {
   'account.proto.soverin.hint': 'Eén account — e-mail, agenda’s en contacten',
   'account.proto.nextcloud.hint':
     'Eén account — agenda’s, contacten, bestanden en taken (geen e-mail)',
-  'account.proto.cirrux.hint': 'Eén account — e-mail, agenda’s, contacten en taken (geen bestanden)',
+  'account.proto.cirrux.hint': 'Eén account — e-mail, agenda’s, contacten, taken; bestanden zodra Drive verbonden is',
   'account.host': 'Host',
   'account.port': 'Poort',
   'account.targetDavUrl': 'DAV-basis-URL',
@@ -1201,4 +1220,7 @@ export const nl: Record<keyof typeof en, string> = {
   'setup.cirrux.mail_server.title': 'Gaat er mail mee? Laat de mailserver staan',
   'setup.cirrux.mail_server.detail':
     'Het formulier vult Mailserver, imap.cirrux.co, en Mailpoort, 993, in met de gepubliceerde instellingen van Cirrux. Gaat er mail mee, laat Mailserver dan ingevuld: een account dat zonder Mailserver is bewaard, omvat geen mail. Agenda’s, contacten en taken hebben geen mailserver nodig.',
+  'setup.cirrux.drive.title': 'Gaan er bestanden mee? Verbind daarna Cirrux Drive',
+  'setup.cirrux.drive.detail':
+    'Bestanden gaan naar Cirrux Drive, en daarvoor is uw eigen aanmelding bij Cirrux nodig, niet het app-wachtwoord. Is het account bewaard, druk dan op de pagina Accounts naast het account op Cirrux Drive verbinden en meld u bij Cirrux aan als de persoon van wie de Drive is. Een dienst die Cirrux niet heeft geregistreerd, toont die knop niet en zegt dat: stuur de bestanden dan naar een andere bestemming.',
 };

@@ -51,6 +51,7 @@
  */
 
 import type { RefusalLocale } from './credential-refusals.ts';
+import { hasCirruxDriveGrant } from './cirrux-drive.ts';
 
 /** What happened when we tried to revoke one connection's credential. */
 export type RevocationStatus =
@@ -193,7 +194,27 @@ const PASSWORD_KINDS = [
 const PASSWORD_REASON =
   'This connection authenticates with a password or app password. A password is revoked by changing it, which only the account holder can do.';
 
-export function revocationCapability(kind: string): RevocationCapability {
+/**
+ * A Cirrux account that also stored a Cirrux Drive sign-in (workplan 0160 T5;
+ * ADR-0052). Cirrux documents no revocation an app can call
+ * (`https://cirrux.co/help/api`, read 2026-11-19), so the receipt says what is
+ * true: our copy is gone, and the sign-in ends at Cirrux on its own.
+ */
+const CIRRUX_DRIVE_REASON =
+  `${PASSWORD_REASON} It also held a Cirrux Drive sign-in. Cirrux documents no way for an app to withdraw one, so our copy was deleted and nothing here can use it again; at Cirrux, a sign-in left unused expires after 30 days.`;
+
+/**
+ * Whether WE can revoke what a connection of this kind stores. Given the
+ * decrypted credentials, the answer can name a grant the kind carries only
+ * sometimes: a Cirrux account's Drive sign-in.
+ */
+export function revocationCapability(
+  kind: string,
+  credentials?: Readonly<Record<string, string | undefined>>,
+): RevocationCapability {
+  if (kind === 'cirrux' && credentials && hasCirruxDriveGrant(credentials)) {
+    return { revocable: false, reason: CIRRUX_DRIVE_REASON };
+  }
   const known = REVOCATION_CAPABILITIES[kind];
   if (known) return known;
   if ((PASSWORD_KINDS as readonly string[]).includes(kind)) {

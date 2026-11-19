@@ -8,8 +8,9 @@
  * act on.
  *
  * The credential shape is NOT the OAuth trio: Box rotates refresh tokens on
- * every use (single-use), and stored credentials here are never written back,
- * so a stored Box refresh token would break on the second pass. The
+ * every use (single-use), and stored credentials here are never written back
+ * (ADR-0052's one exception is Cirrux Drive, which has no other grant), so a
+ * stored Box refresh token would break on the second pass. The
  * Client Credentials Grant is used instead — client id + secret plus the
  * SUBJECT USER ID naming whose files the token reads, which lives on the
  * mapping's source config (one subject per mapping, the DWD/ADR-0033

@@ -400,6 +400,13 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
       if (deps.largestFileBytes !== undefined && typeof listed === 'number' && listed > deps.largestFileBytes) {
         throw fileTooLarge(item.item.path, listed, deps.largestFileBytes);
       }
+      // And a file the DESTINATION will refuse, said by the writer from the
+      // listing, before the source is asked for a byte (workplan 0160 T5):
+      // Cirrux Drive's 2 GiB a file is the destination's limit, not this
+      // deployment's, and fetching the file first would spend a download on a
+      // refusal already known.
+      const refusedThere = target.refuseBeforeRead?.(item.item);
+      if (refusedThere) throw refusedThere;
       const fetched = item.content ? { content: item.content } : await source.fetch(item.item);
       const content = fetched.content;
       const body = 'body' in fetched ? fetched.body : undefined;

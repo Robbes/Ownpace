@@ -36,6 +36,7 @@ import { fileURLToPath } from 'node:url';
 import {
   DISCOVERY_DOMAINS,
   TARGET_TYPE_DOMAINS,
+  grantableTargetFaces,
   type WizardTargetType,
 } from '@openmig/shared';
 import {
@@ -68,8 +69,14 @@ describe('what each target kind is refused', () => {
   for (const kind of Object.keys(TARGET_TYPE_DOMAINS) as WizardTargetType[]) {
     const carried = TARGET_TYPE_DOMAINS[kind];
 
+    // A face the kind carries only once its account stores a grant (Cirrux
+    // Drive, workplan 0160 T5) has a refusal of its own, below.
+    const grantable = grantableTargetFaces(kind);
+
     it(`refuses ${kind} every domain it cannot carry, in the wizard's own words`, () => {
-      const cannot = PASS_DOMAINS.filter((d) => !carried.includes(discoveryDomainOf(d)));
+      const cannot = PASS_DOMAINS.filter(
+        (d) => !carried.includes(discoveryDomainOf(d)) && !grantable.includes(discoveryDomainOf(d)),
+      );
       for (const domain of cannot) {
         let message: string | undefined;
         try {
@@ -90,6 +97,24 @@ describe('what each target kind is refused', () => {
         expect(message).not.toMatch(/undefined/);
       }
     });
+
+    if (grantable.length > 0) {
+      it(`refuses ${kind} a face it carries only with a grant, naming the button, until the grant is stored`, () => {
+        for (const face of grantable) {
+          const domain = PASS_DOMAINS.find((d) => discoveryDomainOf(d) === face)!;
+          let message = '';
+          try {
+            refuseDomainTheTargetCannotCarry(domain, kind);
+          } catch (err) {
+            message = (err as Error).message;
+          }
+          expect(message, `${kind} did not refuse '${face}' without its grant`).toContain(face);
+          expect(message).toMatch(/Connect it on the Accounts page/);
+          // With the grant stored, the same face goes through.
+          expect(() => refuseDomainTheTargetCannotCarry(domain, kind, [face])).not.toThrow();
+        }
+      });
+    }
 
     it(`lets ${kind} through for every domain it CAN carry`, () => {
       // The other half, and the one that would break working migrations if it

@@ -704,3 +704,27 @@ live in [README.md](./README.md), the register.
   to `docs/adr/history/`*. A cluster of several ADRs is still consolidated by a new ADR
   (ADR-0038).
 - The guards: `scripts/adr-operative.unit.test.ts`.
+
+## [ADR-0052: A rotating refresh token is written back, one refresh at a time](./0052-a-rotating-refresh-token-is-written-back.md)
+
+- **A pass writes a stored credential back only for a provider whose refresh tokens rotate**,
+  each refresh retiring the last: Cirrux today. Every other connector reads its credential and
+  never writes it, and Box keeps its client-credentials grant (`box-token-provider.ts`).
+- **One refresh at a time per connection**: from reading the stored token to storing its
+  successor, the refresh holds the connection row's lock (`SELECT … FOR UPDATE`), so two runs
+  never spend one token (`cirrux-grant-store.ts`; `two-refreshes-one-token.unit.test.ts`,
+  `cirrux-grant-store.integration.test.ts`).
+- **The successor goes through the one credential store** (ADR-0037): encrypted by
+  `SecretStore`, in the same row, by an UPDATE that compares the ciphertext it read; a mismatch
+  stores nothing. No token is logged, put in a URL, or handed to a browser.
+- **An access token lives in memory only**, one per writer, refreshed single-flight in a process.
+- **A token Cirrux may have spent is never presented again**: a successor that never arrived, or
+  `invalid_grant`, removes the stored token in the same transaction, and the person connects
+  again. A `429` waits its `Retry-After`; an answer that says nothing happened keeps the token.
+- **Cirrux's OAuth client is the deployment's**: one public client per deployment, PKCE `S256`,
+  no secret, `CIRRUX_OAUTH_CLIENT_ID` for the API and the worker. Unset, the Drive face is a
+  measured no and no button is offered (`a-client-the-worker-never-got.unit.test.ts`).
+- **The grant is stored by the consent door's callback, on the server**, onto the account the
+  authorize call named (`cirrux-oauth-routes.ts`).
+- **The appliance has no Cirrux Drive**: its credentials live in its `.env`, which nothing
+  writes back, and it has no consent door.

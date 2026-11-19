@@ -26,12 +26,29 @@
  */
 
 import { WebDAVTargetWriter } from '@openmig/engines';
-import { JmapFileTarget } from '@openmig/connectors';
+import { CirruxDriveApi, CirruxDriveTarget, CirruxTokenProvider, JmapFileTarget } from '@openmig/connectors';
 import type { FileTargetWriter } from '@openmig/shared';
 import type { DavEndpoint, DavTargetDeps } from './dav-factories.ts';
+import { PgCirruxGrantStore, type CirruxGrantRow } from './cirrux-grant-store.ts';
 
-/** The protocols this product can carry files over. */
-export type FileTargetProtocol = 'webdav' | 'jmap';
+/**
+ * The protocols this product can carry files over.
+ *
+ * `cirrux-drive` is no standard protocol: Cirrux Drive is reached only
+ * through Cirrux's own API, with a person's OAuth sign-in stored on the
+ * `cirrux` account (workplan 0160 T5, ADR-0052). It needs what a DAV endpoint
+ * does not carry, the account's row (`CirruxDriveDeps`), because every
+ * refresh of that sign-in is written back to it under its lock.
+ */
+export type FileTargetProtocol = 'webdav' | 'jmap' | 'cirrux-drive';
+
+/** What the Cirrux Drive writer needs beside the endpoint every writer gets. */
+export interface CirruxDriveDeps {
+  /** The deployment's public client (`CIRRUX_OAUTH_CLIENT_ID`). */
+  readonly clientId: string;
+  /** The `cirrux` account the grant is stored on, and the pool its lock is taken on. */
+  readonly row: CirruxGrantRow;
+}
 
 /**
  * Read the protocol off a stored connection `kind` or a config `type`.
@@ -47,7 +64,12 @@ export type FileTargetProtocol = 'webdav' | 'jmap';
  * this shipped. The fallback is what it has always done.
  */
 export function fileTargetProtocol(kindOrType: string | undefined): FileTargetProtocol {
-  return kindOrType === 'jmap' ? 'jmap' : 'webdav';
+  if (kindOrType === 'jmap') return 'jmap';
+  // A `cirrux` account's files are its Drive (workplan 0160 T5). Only a
+  // stored connection names this kind; the appliance's config has no such
+  // type, and so never reaches it.
+  if (kindOrType === 'cirrux') return 'cirrux-drive';
+  return 'webdav';
 }
 
 /**
@@ -66,7 +88,19 @@ export function buildFileTargetFor(
   protocol: FileTargetProtocol,
   endpoint: DavEndpoint,
   deps: DavTargetDeps,
+  cirrux?: CirruxDriveDeps,
 ): FileTargetWriter {
+  if (protocol === 'cirrux-drive') {
+    if (!cirrux) {
+      // Never reached by the appliance, whose config has no `cirrux` type; a
+      // caller that names the protocol without the account is refused by name.
+      throw new Error(
+        'Cirrux Drive is written through the Cirrux account it is connected on, and none was given. ' +
+          'This is a wiring gap, not a credential problem.',
+      );
+    }
+    return buildCirruxDriveTarget(cirrux, deps.targetFolderPrefix);
+  }
   if (protocol === 'jmap') {
     return new JmapFileTarget({
       baseUrl: endpoint.url,
@@ -83,4 +117,17 @@ export function buildFileTargetFor(
     },
     deps,
   );
+}
+
+/**
+ * The Cirrux Drive writer for one account: its token provider over the row's
+ * lock (ADR-0052), the API over that, the writer over the API. One of each per
+ * writer, so the items of one pass share one access token and one refresh.
+ */
+export function buildCirruxDriveTarget(cirrux: CirruxDriveDeps, targetFolderPrefix?: string): CirruxDriveTarget {
+  const tokens = new CirruxTokenProvider({ clientId: cirrux.clientId, store: new PgCirruxGrantStore(cirrux.row) });
+  return new CirruxDriveTarget({
+    api: new CirruxDriveApi({ tokens }),
+    ...(targetFolderPrefix ? { targetFolderPrefix } : {}),
+  });
 }
