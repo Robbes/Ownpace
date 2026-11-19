@@ -125,24 +125,32 @@
  *    only when it is run with no command (`cmd/main.go` at mc's
  *    `RELEASE.2025-08-13T08-35-41Z`).
  *  - MAILPIT (v1.31.6, again at v1.32.0 on 2026-10-25, at v1.33.0 on
- *    2026-11-03 and at v1.33.1 on 2026-11-11; the test stack's catcher, live
- *    has none) asks GitHub for its newest release whenever its web page asks
- *    for the server's info, unless `MP_DISABLE_VERSION_CHECK` says true
- *    (`internal/stats/stats.go`, the variable read in `cmd/root.go` as `1`,
- *    `true` or `yes`). stats.go is the same at all four tags, and so are the
- *    lines of root.go that read it; v1.33.1 changed neither file.
+ *    2026-11-03, at v1.33.1 on 2026-11-11 and at v1.34.0 on 2026-11-18; the
+ *    test stack's catcher, live has none) asks GitHub for its newest release
+ *    whenever its web page asks for the server's info, unless
+ *    `MP_DISABLE_VERSION_CHECK` says true (`internal/stats/stats.go`, the
+ *    variable read in `cmd/root.go` as `1`, `true` or `yes`). stats.go is the
+ *    same at the first four tags. At v1.34.0 the lookup (`fetchLatest`, by
+ *    `axllent/ghru/v2` 2.3.0, still `api.github.com`) no longer holds up a
+ *    page that asks while it runs, and its backoff after errors is bounded;
+ *    `"disabled"` is still answered before it (`stats.go:159`). The lines of
+ *    root.go that read the variable are the same at all five tags.
  *    None of its other requests goes to its maker: a webhook goes out only
  *    when one is configured, and the HTML check, link check and screenshot
  *    proxy fetch what a caught message names only when its API is asked for
  *    them (at v1.33.0 the link check's pattern also finds a link that starts
  *    a plain text body; at v1.33.1 the HTML check fetches at most 10 of the
  *    stylesheets a message links, 5 MiB in all, and stops when its caller
- *    goes; nothing else those four run changed). v1.33.0 adds one more:
- *    Rspamd, pinged at start and sent a message when its check is asked,
- *    only when `MP_ENABLE_RSPAMD` or `--enable-rspamd` names a server
- *    (`config/config.go`, `server/server.go`, `internal/rspamd/rspamd.go`,
- *    none of which v1.33.1 changed), the operator's server and not its
- *    maker; this stack names none.
+ *    goes; at v1.34.0 all four are bounded further, the webhook reuses its
+ *    connections and the proxy closes its own, each still only when
+ *    configured or asked).
+ *    v1.33.0 adds one more: Rspamd, pinged at start and sent a message when
+ *    its check is asked, only when `MP_ENABLE_RSPAMD` or `--enable-rspamd`
+ *    names a server (`config/config.go`, `server/server.go`,
+ *    `internal/rspamd/rspamd.go`, none of which v1.33.1 changed; v1.34.0
+ *    hardens the client and still pings only then), the operator's server and
+ *    not its maker; this stack names none, and no SpamAssassin server, relay
+ *    or forward either, which v1.34.0 also leaves off unless named.
  *  - NEXTCLOUD (35 since the demo's move, workplan 0119 T5, 34 before; the
  *    demo's DAV target on the OTA stack every night, and the development one)
  *    sends its version, PHP version and install time to
@@ -666,7 +674,7 @@ const CLICKHOUSE =
 const MINIO =
   'chainguard/minio:latest@sha256:59953701f8f8d0de81aab456f0b0b6c0a1804119415559bf7ede79d944108879';
 const MAILPIT =
-  'axllent/mailpit:v1.33.1@sha256:aef2aacc11f075ec0fb6874275ee4a421e688e11a96ebb296134d1735c7761ce';
+  'axllent/mailpit:v1.34.0@sha256:23a2ef85bc50853ab3093645d1d64679afd8887e89da5e48a88940c172591a4e';
 /**
  * Read at `stable34` (config.sample.php and the two crawlers), so the line, not
  * one patch of it; read again at `v35.0.2` and nextcloud_announcements'
@@ -754,7 +762,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
   },
   'deploy/compose/managed.yml:mailpit': {
     readAt: MAILPIT,
-    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0, v1.33.0 and v1.33.1)",
+    why: "a release check to GitHub when its web page asks for the server's info (internal/stats/stats.go at v1.31.6, unchanged at v1.32.0, v1.33.0 and v1.33.1; at v1.34.0 the lookup changed, and the switch still stops it first)",
     holds: (svc) => exactly(environmentOf(svc), 'MP_DISABLE_VERSION_CHECK', 'true'),
   },
   'deploy/compose/managed.yml:trigger-tls': {
