@@ -5,8 +5,8 @@
 ## Status — 2026-11-19 (update this block at the end of every session)
 
 **2026-11-19: the dashboard's TLS front runs as uid 65532, with no capability, and a one-shot gives
-its two volumes to that user before it starts; built on a branch, not merged.** On the branch
-`claude/ownpace-public-readiness-y7orc6-bl-caddy`, from `main` at `6038037b`. A read-only check of
+its two volumes to that user before it starts.** On the branch
+`claude/ownpace-public-readiness-y7orc6-bl-caddy`, PR #1951, from `main` at `6038037b`. A read-only check of
 the repository (run on `main` at `646b9de2`) read `deploy/compose/caddy/Dockerfile`
 as a container that runs as root (GEN-21), which it was, and listed the file as a whole under
 hadolint's rules (GEN-20): almost certainly DL3057, a HEALTHCHECK missing.
@@ -51,14 +51,17 @@ hadolint's rules (GEN-20): almost certainly DL3057, a HEALTHCHECK missing.
   `managed.yml` with NET_BIND_SERVICE given back to the front, without the front's wait for its
   one-shot, and with the one-shot's DAC_READ_SEARCH taken away (which the guide's way back needs
   too); images.yml's probe without its hardening; and the Caddyfile without `skip_install_trust`.
-- **Owed after the push:** images.yml's `build (caddy)` on the pull request; then E2E (managed) on
-  the OTA box, whose front ran as root until now: the one-shot's chown of its volumes, the front's
-  start as 65532 on them with the CA it had, the smoke's TLS check, and the dashboard in a browser
-  with the exception it has.
+- **Proved after the push** on `fbdea1af` (the branch with `main` at `1edbdc22`): images.yml's
+  `build (caddy)` on the pull request, and E2E (managed) run 44577091109 on the OTA box, whose front
+  ran as root until then. The run built `localhost/caddy:2.11.9-alpine-f4b403e49a96` and started
+  the front on it once its one-shot had finished without an error, as the front waits for it; the
+  smoke's TLS check passed. Owed: the dashboard in a browser with the exception it has, at the
+  owner's next visit.
 
 **2026-11-19: a read-only check of the repository (run on `main` at `646b9de2`) reports two base
 images with a fixable high or critical (IMG-1), and the Stalwart fixture as a container that runs
-as root (GEN-21). Neither base moves here; the fixture says what it is.** On the branch
+as root (GEN-21). Neither base moves here; the fixture says what it is. Merged as #1950
+(`4551acb2`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-bl-images`, PR #1950, from
 `main` at `d6f10278` (#1941; the findings' files are as at `646b9de2`). Read on 2026-11-19 from
 Docker Hub (through Google's mirror of it, without a login), GHCR's tag lists, upstream's source
@@ -116,9 +119,9 @@ vulnerabilities; nothing read was run. Times are UTC.
   tests; `tsc --noEmit`, ESLint on the two guards and the six docs checks. On disk, the fixture
   without its digest fails both guards (4 of 14), and without its USER, with `USER stalwart` or
   with `USER root` the fixture's (3, 2 and 2 of 3), each file restored byte for byte.
-- **Owed after the push:** CI on the pull request. Nothing builds the fixture, so no image or E2E
-  run changes: CI's integration jobs start `stalwartlabs/stalwart:v0.16.27` itself, not this
-  fixture.
+- **On #1950:** CI run 44577905397 green on its last head, `d88e1d90`. Nothing builds the
+  fixture, so no image or E2E run changed: CI's integration jobs start
+  `stalwartlabs/stalwart:v0.16.27` itself, not this fixture.
 
 **2026-11-19: the workflow check's nineteen lines. Sixteen are fixed, in nine workflows, and three
 are read as safe and left; merged as #1943 (`1edbdc22`).** An outside, read-only check of
