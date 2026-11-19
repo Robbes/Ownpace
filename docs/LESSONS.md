@@ -977,6 +977,7 @@ reading a file drops off its entry by itself.
 
 ### `deploy/compose/caddy/Dockerfile`
 
+- [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
@@ -1827,6 +1828,7 @@ reading a file drops off its entry by itself.
 ### `deploy/selfhost/setup-stalwart.sh`
 
 - [a-demo-on-a-real-address](../scripts/a-demo-on-a-real-address.unit.test.ts) — A DEMO ON A REAL ADDRESS (workplan 0132 T5, the code that keeps the demo off live).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-port-published-on-purpose](../scripts/a-port-published-on-purpose.unit.test.ts) — A PORT PUBLISHED ON PURPOSE.
@@ -2833,6 +2835,11 @@ reading a file drops off its entry by itself.
 - [a-domain-the-readme-forgot](../scripts/a-domain-the-readme-forgot.unit.test.ts) — DOCUMENTATION IS A FAN-OUT SITE, AND PROSE HAS NO TYPE CHECKER.
 - [a-report-domain-the-gate-never-reads](../scripts/a-report-domain-the-gate-never-reads.unit.test.ts) — Every domain the §20 report accounts for is a domain the e2e gates actually read (workplan 0113, the follow-up to T8).
 
+### `packages/testing/fixtures/stalwart/Dockerfile`
+
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+- [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
+
 ### `packages/testing/fixtures/stalwart/config.json`
 
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
@@ -2844,6 +2851,7 @@ reading a file drops off its entry by itself.
 ### `packages/testing/src/testcontainers-setup.ts`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
+- [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts) — A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -4293,6 +4301,16 @@ Reads:
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
 
+### [a-fixture-that-named-no-user](../scripts/a-fixture-that-named-no-user.unit.test.ts)
+
+A FIXTURE THAT NAMED NO USER (a read-only check of the repository, BlueLandscape, 2026-11-19: GEN-21 and IMG-1; workplan 0119).
+
+Reads:
+
+- `deploy/selfhost/setup-stalwart.sh`
+- `packages/testing/fixtures/stalwart/Dockerfile`
+- `packages/testing/src/testcontainers-setup.ts`
+
 ### [a-fixture-with-ten-seconds](../scripts/a-fixture-with-ten-seconds.unit.test.ts)
 
 A hook that builds a database gets more than ten seconds to do it.
@@ -4311,6 +4329,7 @@ Reads:
 - `apps/api/Dockerfile`
 - `apps/selfhost/Dockerfile`
 - `apps/web/Dockerfile`
+- `deploy/compose/caddy/Dockerfile`
 - `deploy/compose/db-roles.sh`
 - `deploy/compose/deploy-live.sh`
 - `deploy/compose/dev.yml`
@@ -4318,6 +4337,7 @@ Reads:
 - `deploy/compose/postgres/Dockerfile`
 - `deploy/compose/stand-up-live.sh`
 - `deploy/compose/www.yml`
+- `packages/testing/fixtures/stalwart/Dockerfile`
 - `packages/testing/src/testcontainers-setup.ts`
 - `scripts/bootstrap-managed.unit.test.ts`
 - `scripts/idp-pin-watch.mjs`

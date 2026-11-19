@@ -34,7 +34,11 @@
  *    than three numbers), unless it is named below with its reason;
  *  - every FROM of an outside image in `apps/*\/Dockerfile` carries a digest,
  *    which `.github/dependabot.yml` says they all do, and the web image's
- *    nginx did not;
+ *    nginx did not; and since 2026-11-19 in every Dockerfile the repository
+ *    tracks, whatever builds it: the Stalwart fixture's
+ *    (`packages/testing/fixtures/stalwart/Dockerfile`) named its base by tag
+ *    alone, and a read-only check of the repository (BlueLandscape, IMG-1)
+ *    reported it so;
  *  - the integration tests' Postgres and Nextcloud
  *    (`packages/testing/src/testcontainers-setup.ts`) are the dev stack's.
  *    The pin watch reads `dev.yml` and not that file, so a copy there that
@@ -68,6 +72,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
+import { execFileSync } from 'node:child_process';
 import { readdirSync, readFileSync, existsSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -191,10 +196,14 @@ describe('no image line of the deploy/compose stacks floats within its line', ()
   });
 });
 
-describe("every outside image an app's Dockerfile builds on carries a digest", () => {
-  const dockerfiles = readdirSync(join(REPO_ROOT, 'apps'))
+describe('every outside image a Dockerfile of this repository builds on carries a digest', () => {
+  const apps = readdirSync(join(REPO_ROOT, 'apps'))
     .map((app) => `apps/${app}/Dockerfile`)
     .filter((p) => existsSync(join(REPO_ROOT, p)));
+  // Every Dockerfile git lists, tracked or new, so one nothing builds is held too.
+  const dockerfiles = execFileSync('git', ['ls-files', '--cached', '--others', '--exclude-standard'], { cwd: REPO_ROOT, encoding: 'utf8' })
+    .split('\n')
+    .filter((f) => /(^|\/)(Dockerfile|Containerfile)([.-][^/]*)?$|\.(Dockerfile|Containerfile)$/i.test(f) && existsSync(join(REPO_ROOT, f)));
 
   /** Each FROM's image, with the stages declared before it left out: `FROM base AS build` builds on no outside image. */
   const bases = dockerfiles.flatMap((file) => {
@@ -207,9 +216,12 @@ describe("every outside image an app's Dockerfile builds on carries a digest", (
     return found;
   });
 
-  it('found the three images and their bases', () => {
+  it('found the three images and their bases, and the Dockerfiles nothing in apps/ builds', () => {
     expect(dockerfiles).toEqual(expect.arrayContaining(['apps/api/Dockerfile', 'apps/selfhost/Dockerfile', 'apps/web/Dockerfile']));
+    expect(dockerfiles).toEqual(expect.arrayContaining(apps));
+    expect(dockerfiles).toEqual(expect.arrayContaining(['deploy/compose/caddy/Dockerfile', 'packages/testing/fixtures/stalwart/Dockerfile']));
     expect(bases.filter((b) => b.file === 'apps/web/Dockerfile').map((b) => parseRef(b.ref).repo)).toEqual(['node', 'nginx']);
+    expect(bases.filter((b) => b.file === 'packages/testing/fixtures/stalwart/Dockerfile').map((b) => parseRef(b.ref).repo)).toEqual(['stalwartlabs/stalwart']);
   });
 
   it('each is tag and digest, which Dependabot moves together', () => {
