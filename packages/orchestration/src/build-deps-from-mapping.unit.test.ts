@@ -359,6 +359,29 @@ describe('mailTargetConfigFromConnection — kind resolves protocol at ONE seam'
       mailTargetConfigFromConnection('soverin', { host: 'dav.example.nl' }, CREDS),
     ).toThrow(/calendar and contact faces are unaffected/);
   });
+
+  // Workplan 0160 T1: Cirrux's account is Soverin's shape, so its mail face is
+  // the IMAP server the row stores, never its DAV host. Before the table, the
+  // seam asked `kind !== 'soverin'`, and a cirrux row went down the protocol
+  // branch and was handed to the writer switch with no type at all.
+  it('turns a cirrux row with Cirrux’s published servers into the imap-dav shape, on the IMAP host', () => {
+    const resolved = mailTargetConfigFromConnection(
+      'cirrux',
+      { host: 'api.cirrux.co', port: 443, mailHost: 'imap.cirrux.co', mailPort: 993 },
+      CREDS,
+    ) as unknown as { type: string; host: string; port: number; tls: boolean; user: string };
+    expect(resolved).toMatchObject({ type: 'imap-dav', host: 'imap.cirrux.co', port: 993, tls: true });
+    expect(resolved.user).toBe('a@example.nl');
+    expect(
+      buildTargetWriterFromCredentials(resolved as unknown as TargetConfig, { password: 'pw' }),
+    ).toBeInstanceOf(ImapFlowDavMailTarget);
+  });
+
+  it('refuses a cirrux row with no stored mail server in the sentence its guide quotes', () => {
+    expect(() => mailTargetConfigFromConnection('cirrux', { host: 'api.cirrux.co' }, CREDS)).toThrow(
+      'This cirrux connection stores no mail server, so its mail face cannot be built: config.mailHost is missing.',
+    );
+  });
 });
 
 /**

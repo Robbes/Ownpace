@@ -427,7 +427,7 @@ export const CreateMappingResponseSchema = z.object({
     // An EXPORT ARCHIVE (workplan 0116 T1; a mapping source since T5/T6).
     'archive',
   ]),
-  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud']),
+  targetType: z.enum(['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux']),
   status: MappingLifecycleSchema,
   mode: z.string(),
   pattern: z.string().optional(),
@@ -460,7 +460,7 @@ export interface CreateMappingInput {
     // one since placement and idempotency were built. Its credential is a
     // location, carried in `sourceConfig.provider` and `.path`.
     | 'archive';
-  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud';
+  targetType: 'jmap' | 'imap' | 'caldav' | 'carddav' | 'webdav' | 'soverin' | 'nextcloud' | 'cirrux';
   /** Reuse a stored connection instead of creating one (workplan 0064). When
    *  set, its credentials are used and none need re-sending. */
   sourceConnectionId?: string;

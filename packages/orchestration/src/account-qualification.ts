@@ -37,6 +37,7 @@ import {
   providerAccountDomains,
   providerAccountServes,
   providerDisplayName,
+  storesItsMailServer,
   withDeploymentDropboxClient,
   withDeploymentGoogleClient,
   type ProviderAccountEnv,
@@ -234,6 +235,11 @@ export const QUALIFIABLE_KINDS = [
   // somewhere else. What Apple needs from that branch is two things it did not
   // do: PER-FACE endpoints, and its own sentence for the file face.
   'apple',
+  // Soverin's shape, a third time (workplan 0160): one app password, IMAP
+  // for mail from the host the account stores and DAV for the rest, from the
+  // one host Cirrux publishes. Its file face gets a sentence of its own, as
+  // Apple's does, because the person HAS a Cirrux Drive.
+  'cirrux',
   'imap',
   'jmap',
 ] as const;
@@ -353,6 +359,25 @@ function notAFaceOf(kind: string, face: string): QualifiedDomain {
  * stays a list of exceptions rather than a second vocabulary.
  */
 function reasonedNo(kind: string, face: DiscoveryDomain): QualifiedDomain | undefined {
+  // Cirrux's Drive is real and is where a person expects their files to go,
+  // so "not a face of this connection" would read as if nobody had looked.
+  // What is true: Drive speaks no WebDAV, only Cirrux's own HTTP API, and
+  // that API refuses a workspace API key and takes a person's OAuth sign-in
+  // through a client Cirrux registers on request
+  // (https://cirrux.co/help/api/drive, https://cirrux.co/help/questions/oauth-client-for-my-app,
+  // read 2026-11-19). Workplan 0160 T5 is that connector; until it exists the
+  // file face is a measured no with its reason.
+  if (kind === 'cirrux' && face === 'file') {
+    return {
+      answer: 'no',
+      reason: 'structural',
+      detail:
+        'Cirrux Drive is not reachable over WebDAV, only through Cirrux’s own API, which signs a ' +
+        'person in with an app Cirrux registers. This service has no such app yet, so files ' +
+        'cannot be written to Cirrux Drive from this account. Mail, calendars, contacts and ' +
+        'tasks can.',
+    };
+  }
   if (kind === 'apple' && face === 'file') {
     return {
       answer: 'no',
@@ -602,12 +627,13 @@ export async function qualifyAccount(
       : undefined;
   const mail: QualifiedDomain =
     mailMeasured ??
-    (kind === 'soverin'
+    (storesItsMailServer(kind)
       ? {
           answer: 'unknown',
-          // `incomplete`, not `notAskable`: a Soverin account HAS a mailbox,
-          // and this row is one field short of reaching it. The sentence
-          // names that field, so it is one of the two a screen says aloud.
+          // `incomplete`, not `notAskable`: a Soverin or Cirrux account HAS
+          // a mailbox, and this row is one field short of reaching it. The
+          // sentence names that field, so it is one of the two a screen says
+          // aloud.
           reason: 'incomplete',
           detail:
             'This account stores no mail server address, so mail was not measured — add the ' +

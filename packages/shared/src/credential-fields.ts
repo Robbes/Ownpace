@@ -27,6 +27,7 @@
  */
 
 import { ARCHIVE_PROVIDERS, ARCHIVE_PROVIDER_NAMES, hasArchiveReader } from './archive-providers.ts';
+import { storesItsMailServer } from './provider-accounts.ts';
 
 /**
  * One choice in a closed list (`CredentialField.options`).
@@ -614,6 +615,10 @@ const TARGET_HOST_EXAMPLE: Readonly<Record<string, { host: string; port: string 
   carddav: { host: 'dav.example.com', port: '443' },
   webdav: { host: 'dav.example.com', port: '443' },
   soverin: { host: 'caldav.soverin.net', port: '443' },
+  // The server https://cirrux.co/help/setup names for Calendar, Contacts and
+  // Reminders alike. The page gives no port; a DAV server named alone is
+  // HTTPS on 443, which `USUAL_PORT` states for every DAV protocol.
+  cirrux: { host: 'api.cirrux.co', port: '443' },
 };
 
 /** Every target speaks host/port/user/password; only the protocol differs. */
@@ -638,7 +643,7 @@ const TARGET_FIELDS: ReadonlyArray<CredentialField> = [
   },
 ];
 
-const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud'] as const;
+const TARGET_TYPES = ['jmap', 'imap', 'caldav', 'carddav', 'webdav', 'soverin', 'nextcloud', 'cirrux'] as const;
 
 /**
  * The DAV targets' escape hatch (0105 T1): a full base URL, for a provider
@@ -658,8 +663,10 @@ const TARGET_DAV_URL: CredentialField = {
 };
 
 // `soverin` is DAV-shaped at the door (0106 T4a): one account, the DAV base
-// URL as its escape hatch, exactly like the protocol trio.
-const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin'] as const;
+// URL as its escape hatch, exactly like the protocol trio. `cirrux` is the
+// same door (0160 T1): Cirrux publishes a DAV host and no path, so the base
+// URL box stays empty until somebody's account shows it is needed.
+const DAV_TARGET_TYPES = ['caldav', 'carddav', 'webdav', 'soverin', 'cirrux'] as const;
 
 /**
  * WHERE, THEN WHO — the base URL belongs with host and port (2026-09-07).
@@ -706,8 +713,12 @@ const NEXTCLOUD_TARGET_FIELDS: ReadonlyArray<CredentialField> = [
  * what Test measured. Optional, because an account used only for calendars
  * and contacts needs no mail server; the create door demands it the moment
  * the email domain is ticked, by name.
+ *
+ * Every kind in `MAIL_SERVER_ACCOUNT_KINDS` asks for it (0160 T1 added
+ * `cirrux`). The label keys keep the name of the kind that first needed them,
+ * because the words are not Soverin's: "Mail server", "Mail port".
  */
-const SOVERIN_MAIL_FIELDS: ReadonlyArray<CredentialField> = [
+const MAIL_SERVER_FIELDS: ReadonlyArray<CredentialField> = [
   {
     key: 'mailHost',
     labelKey: 'account.soverinMailHost',
@@ -717,16 +728,34 @@ const SOVERIN_MAIL_FIELDS: ReadonlyArray<CredentialField> = [
   { key: 'mailPort', labelKey: 'account.soverinMailPort', numeric: true, placeholder: '993' },
 ];
 
+/**
+ * A sentence under a door's Password box, for the providers that refuse the
+ * account's own password (0160 T1).
+ *
+ * Cirrux says so on its setup page: *"Your main account password cannot be
+ * used for IMAP, SMTP, or CalDAV connections"*, and an app password is made
+ * per mailbox, on its Passwords tab (https://cirrux.co/help/setup, read
+ * 2026-11-19). A person who types the password they sign in with gets a
+ * refusal for every face, so the box says which password it wants before
+ * Test has to.
+ */
+const PASSWORD_HINT: Readonly<Record<string, string>> = {
+  cirrux: 'account.cirruxAppPassword.hint',
+};
+
 /** TARGET_FIELDS with the host/port example this protocol actually uses. */
 function targetFieldsWithExample(type: string): ReadonlyArray<CredentialField> {
   const example = TARGET_HOST_EXAMPLE[type];
-  if (!example) return TARGET_FIELDS;
+  const passwordHint = PASSWORD_HINT[type];
+  if (!example && !passwordHint) return TARGET_FIELDS;
   return TARGET_FIELDS.map((f) =>
-    f.key === 'host'
+    f.key === 'host' && example
       ? { ...f, placeholder: example.host }
-      : f.key === 'port'
+      : f.key === 'port' && example
         ? { ...f, placeholder: example.port }
-        : f,
+        : f.key === 'password' && passwordHint
+          ? { ...f, hintKey: passwordHint }
+          : f,
   );
 }
 
@@ -741,8 +770,8 @@ export function credentialFieldsFor(
 ): ReadonlyArray<CredentialField> {
   if (role === 'target') {
     if (type === 'nextcloud') return NEXTCLOUD_TARGET_FIELDS;
-    if (type === 'soverin') {
-      return [...withDavUrl(targetFieldsWithExample(type)), ...SOVERIN_MAIL_FIELDS];
+    if (storesItsMailServer(type)) {
+      return [...withDavUrl(targetFieldsWithExample(type)), ...MAIL_SERVER_FIELDS];
     }
     if ((DAV_TARGET_TYPES as ReadonlyArray<string>).includes(type)) {
       return withDavUrl(targetFieldsWithExample(type));
@@ -853,6 +882,7 @@ const PROVIDER_DISPLAY_NAMES: Readonly<Record<string, string>> = {
   // Nextcloud, and describing it three times is the friction this card
   // removes (owner's ask, 2026-09-07).
   nextcloud: 'Nextcloud',
+  cirrux: 'Cirrux',
 };
 
 /**

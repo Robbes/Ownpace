@@ -335,6 +335,34 @@ const SOVERIN_TARGET: ReadonlyArray<SetupStep> = [
   },
 ];
 
+/**
+ * The Cirrux card (workplan 0160 T1): the mailbox, an app password made on
+ * that mailbox's Passwords tab, and, only where mail moves, the mail server
+ * the form pre-fills. Soverin's three steps, with the second one firmer:
+ * Cirrux refuses the account's own password for IMAP and DAV alike
+ * (https://cirrux.co/help/setup), so there is no "or the password" here. Not
+ * marked as somebody else's step: a Cirrux mailbox is one its holder, or the
+ * workspace's admin, signs up for, and the guide says which.
+ */
+const CIRRUX_TARGET: ReadonlyArray<SetupStep> = [
+  {
+    key: 'account_exists',
+    titleKey: 'setup.cirrux.account_exists.title',
+    detailKey: 'setup.cirrux.account_exists.detail',
+  },
+  {
+    key: 'app_password',
+    titleKey: 'setup.cirrux.app_password.title',
+    detailKey: 'setup.cirrux.app_password.detail',
+    yieldsKey: 'setup.cirrux.app_password.yields',
+  },
+  {
+    key: 'mail_server',
+    titleKey: 'setup.cirrux.mail_server.title',
+    detailKey: 'setup.cirrux.mail_server.detail',
+  },
+];
+
 const JMAP_TARGET: ReadonlyArray<SetupStep> = [
   {
     key: 'account_exists',
@@ -392,6 +420,7 @@ const TARGET_PROFILE: Readonly<Record<string, ReadonlyArray<SetupStep>>> = {
   carddav: DAV_BASIC_TARGET,
   nextcloud: NEXTCLOUD_TARGET,
   soverin: SOVERIN_TARGET,
+  cirrux: CIRRUX_TARGET,
 };
 
 /**
