@@ -13,9 +13,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   because on 2026-11-19 Cirrux's calendar server emailed an invitation to every guest of what it
   was given, whatever the marker said. Cirrux has since said that its server did not honour the
   marker then, and does now. An invitation it might still send cannot be taken back, so the change
-  was held for a test on the test environment: one event in the future whose only guest is the
-  owner's own second address, watched for mail at its first copy, at a change of its title and at
-  its removal (0160 §4). An event at Cirrux that lists guests is now rewritten and removed as at
+  was held for a test on the test environment, run on 2026-11-20: an event in the future whose only
+  guest was the owner's own second address sent no mail at its first copy, at a change of its title
+  and time, or when the guest was taken off at the source (0160 §4). Its removal could not be
+  tested from Google, whose calendars report no deletions. An event at Cirrux that lists guests is
+  now rewritten and removed as at
   any other target. One copied while the guests were left out keeps them as comments until its
   next rewrite, the next time it changes at the source, and then gets its guests. The Test's
   scheduling line, and the audit row the first calendar pass writes, say what Cirrux's server

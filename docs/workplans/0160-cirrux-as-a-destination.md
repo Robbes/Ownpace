@@ -4,6 +4,35 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, late: the owner's test sent no mail, and Cirrux's copies keep their guests**
+(ADR-0043, amended; §1's row on the marker; §4, step 11). Run on the test environment with this
+change deployed (E2E (managed) run 44797714678, deployment 20261120.10), the queue held for it.
+A new migration of the owner's own Google calendars into Cirrux copied 6,211 events, keeping their
+guests, each marked `SCHEDULE-AGENT=CLIENT`, and the owner saw no mail from it. Step 11: (1) the
+event whose only guest was the owner's second address arrived with that guest, and no invitation
+reached it; (2) its title and time, changed at the source, arrived after **Sync now** with the
+guest kept, and no update reached it; (3) could not be run, for the reason below. In its place
+the other change that mailed on 2026-11-19 was run: a new event with the same only guest, which
+again sent no invitation, then the guest taken off at the source and copied by the next pass, and
+no cancellation reached it. The owner's answer: *"4b sends no mail, but did sync. Continue."*, and
+the change merged on it. Not observed: a removal applied at Cirrux to a copy that lists guests.
+
+Why (3) could not run: **Google's calendars report no deletions to this service.** As read on
+2026-09-12 (`caldav-source.ts`), Google's `sync-collection` REPORT answers a first read with
+nothing, so the source lists each calendar whole with `calendar-query` on every pass (this run:
+*6,212 skipped*), and that listing names no removals. A calendar has no bin to read either, and an
+item missing from a listing is never counted as deleted (`detectPathKeyedMoves` runs for files
+alone). So an event deleted in Google never reaches **Deleted on the old system**, and no copy of a
+Google event is removed at any target. Google Tasks is not affected: its API reports deletions. A
+removal of a copy that lists guests can therefore come only from a source that reports deletions
+(Microsoft 365, Nextcloud, Infomaniak, Cirrux), one item at a time, after **Turn on deleting by
+hand**. How Google's calendar deletions could be read is being worked out with the owner.
+
+Seen on the same run, and recorded where each belongs: four old messages copied from Gmail showed
+the evening they were copied, because no IMAP writer here ever gave an APPEND the message's own
+arrival time (workplan 0002; fixed in #1976), and the owner paused the run's mail until that
+lands. Two messages that looked like one copied twice were two messages of one thread.
+
 **2026-11-20: Cirrux's copies keep their guests again, for alpha.13, once the owner's test sends
 no mail** (ADR-0043, amended; §1's rows of Cirrux's answer, §5's sixth bullet, and §4's steps 10
 and 11 follow). Asked *"Decision for alpha.13, no rush: copy guests to Cirrux again?"*, the owner
@@ -184,7 +213,7 @@ paraphrased, and not yet observed unless the row says so.
 | On 2026-11-19 the CalDAV server emailed an invitation, in the mailbox's name, to every attendee of an event written over CalDAV, past events included. It did not honour `SCHEDULE-AGENT=CLIENT`, and dropped it from what it sent | the invitation of 2026-11-19 (§5) | **observed**; not published |
 | The server did not honour `SCHEDULE-AGENT=CLIENT`: it took a CalDAV PUT that lists attendees for a new event the organiser makes, and sent the invitations | Cirrux's answer of 2026-11-20 | **said**; what was observed on 2026-11-19 (§5) |
 | It skipped events in the past, but took a recurring event with no end date for one still going on, which is why invitations went out for old events | Cirrux's answer of 2026-11-20 | **said** |
-| The server honours `SCHEDULE-AGENT=CLIENT` now | Cirrux's answer of 2026-11-20 | **said**; not yet observed: §4, step 11, watches for it |
+| The server honours `SCHEDULE-AGENT=CLIENT` now | Cirrux's answer of 2026-11-20 | **said**, and **observed** on 2026-11-20 (§4, step 11): no mail at a first copy, a change, or a guest taken off; a removal not yet observed |
 | Deleting a single event sent its attendees a notification; deleting a whole calendar sends none | Cirrux's answer of 2026-11-20 | **said**; the first is what the owner's test of 2026-11-19 saw (§5) |
 | An alarm that sends an email (`VALARM` with `ACTION:EMAIL`) is not supported | Cirrux's answer of 2026-11-20 | **said** |
 | Cirrux's app should show an event's `COMMENT` when the event is opened | Cirrux's answer of 2026-11-20 | **said**; not yet observed |
@@ -343,7 +372,11 @@ plausible stored row for the face-building guard.
     press **Sync now**; under **Deleted on the old system**, press **Delete it here too**, then
     **Confirm delete**: no cancellation may arrive. **No mail at any step** is the evidence that
     Cirrux keeps to the marker, as it said on 2026-11-20 (§1): the change merges, and the result
-    goes into §1, this Status block and ADR-0043's amendment log. **Mail at any step** means the
+    goes into §1, this Status block and ADR-0043's amendment log. (3) needs **Turn on deleting by
+    hand** on the Deletions page first, and a source that reports deletions: from Google it cannot
+    be run, because Google's calendars report none (the Status entry of 2026-11-20, late). Take
+    the guest off the event at the source instead, press **Sync now**, and watch for a
+    cancellation; that is how it was run on 2026-11-20. **Mail at any step** means the
     change does not merge, and `cirrux` goes back on `TARGETS_THAT_MAIL_GUESTS`, where `main` still
     has it; you tell Cirrux which step mailed, and the step goes into §1.
 

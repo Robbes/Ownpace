@@ -134,6 +134,18 @@ What holds since:
   first pass, a changed title and an applied removal. Mail at any step, and it does not merge, and
   `cirrux` goes back on `TARGETS_THAT_MAIL_GUESTS`.
 
+**The test, run on 2026-11-20.** On the test environment, with this change deployed, a new
+migration of the owner's own Google calendars into Cirrux copied 6,211 events with their guests,
+and the owner saw no mail from it. The event whose only guest was the owner's second address
+arrived with that guest and sent no invitation; a change of its title and time arrived with the
+guest kept and sent no update. The applied removal could not be run: Google's calendars report no
+deletions to this service, so the deleted event never reached the Deletions queue and nothing was
+removed at Cirrux (workplan 0160, Status of 2026-11-20). In its place the other change that mailed
+on 2026-11-19 was run, a guest taken off an event at the source and copied by the next pass, and it
+sent no cancellation. The owner's answer was *"4b sends no mail, but did sync. Continue."*, and the
+change merged on it. Not observed: a removal applied at Cirrux to a copy that lists guests, which
+only a source that reports deletions can reach, one item at a time.
+
 ## Amendment log
 
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
@@ -169,3 +181,7 @@ What holds since:
   its server now honours the marker, and on the owner's test before the merge (workplan 0160).
   Record: the section "Amendment 2026-11-20: Cirrux's copies keep their guests again, once a test
   sends no mail".
+- **2026-11-20** — The owner's test on the test environment sent no mail at a first copy, a change,
+  or a guest taken off, and the change merged (*"4b sends no mail, but did sync. Continue."*). The
+  removal step could not be run from Google, whose calendars report no deletions. Record: "The
+  test, run on 2026-11-20" in the same section.
