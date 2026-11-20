@@ -2,7 +2,132 @@
 
 > **In one line:** `ownpace-live`, a second compose stack at the production names beside the OTA `ownpace-managed` stack and nightly gate: project-derived container and network names, own `.env`, database passwords, Trigger.dev plane and Zitadel, loopback ports, tag deploys.
 
-## Status — 2026-11-18 (update this block at the end of every session)
+## Status — 2026-11-20 (update this block at the end of every session)
+
+**2026-11-20: live runs `v0.2.0-alpha.12`, one-way over alpha.11 by ledger migrations 0068 and 0069,
+managed migration 0061 and the identity provider's pin, on a copy of alpha.11's databases (T6,
+T9).** The owner deployed it on 2026-11-20, before any tester, pasting the sheet's checked blocks
+one at a time, and ran the checks after it the same evening. Times are UTC, on 2026-11-20 unless
+said. No values.
+
+- **The deploy log (T6 step 9).** 2026-11-20, `v0.2.0-alpha.12`: took at 17:22:57 UTC; one-way. The
+  tag is tag object `0a2b3244…` on `b4d11ee7` (#1962, the fold), made at 11:28:26 by Release run
+  44726032197, which its message names with *Proved by: CI run #5670, Security Scan run #5788 on
+  main, windows-payload run #48* and the gate scan, run 44727684552. The owner waived its counted
+  nights, for this version alone (`WAIVER_VERSIONS`, #1958; 0146's Status, 2026-11-19); the
+  acceptance is the tag message's own line: *Nights waived by Robbes, in their words: "I waive
+  waiting time / nights."* alpha.12 carries Cirrux and Infomaniak as destinations, with ledger
+  migrations 0068 and 0069 (#1941, #1961), *Who is it for?* choosing you, with managed migration
+  0061 (#1954), the identity provider on Zitadel v4.20.4 (#1938), the web and the dashboard's TLS
+  front without capabilities (#1951, #1953), and the other alpha.12 pull requests (0146's Status,
+  2026-11-20, the fold).
+- **Why block 1 ran: the API address.** The sheet named two ways for this day. In (C), a pass of the
+  owner's own migration on live proves alpha.11 first, and the box checks then delete the copy
+  before alpha.11 by themselves; in (A), the owner's word deletes that copy by hand (block 1), since
+  it holds alpha.10's databases of 2026-11-18, a way back that would lose everything since. (C) was
+  the plan. Before any such pass, Google refused the owner's first connect of a Google account on
+  live with `redirect_uri_mismatch`: the api builds the consent's redirect from `API_URL`, and
+  live's `.env` did not set it to live's outside address, so the redirect named a local address,
+  which live's Google client does not list (0140's Status, 2026-11-20). The owner then chose (A), in
+  their words *"A: fix with the deploy"*: at about 16:47, `env-upsert.sh` set
+  `API_URL=https://app.ownpace.eu` in live's `.env`, its one `API_URL` line, beside `WEB_URL` and
+  `CORS_ORIGIN`, which said the same already, for the deploy's new api to start with; and block 1
+  deleted the copy before alpha.11, so that block 4's take made a copy of alpha.11's databases, the
+  way back from alpha.12.
+- **Read-only checks first (0a, at about 16:32, before the API address).** As the owner, not root,
+  with live's `.env`: live's checkout at `v0.2.0-alpha.11`, clean; both box timers active; in live's
+  `.env` `TRIGGER_IMAGE_TAG=v4.8.5`, `WWW_LIVE=true`, one `COPY_DELETE_WHEN_PROVEN=true` line, no
+  `PGBOUNCER_USERLIST` line, the userlist being a file in the checkout, and
+  `OWNPACE_REACHABLE_HOSTS`, `MOLLIE_API_KEY` and `CIRRUX_OAUTH_CLIENT_ID` empty; `deploys.log`'s
+  last three lines alpha.9's took one-way (2026-11-15T16:29:16Z), alpha.10's took reversible
+  (2026-11-16T07:02:20Z) and alpha.11's took one-way (2026-11-18T09:51:50Z); the copy before
+  alpha.11 at mode 700 with its 5 entries, its note `taken=2026-11-18T09:49:21Z`,
+  `taken_epoch=1794995361`, `before=v0.2.0-alpha.11` and `from=v0.2.0-alpha.10 (fe0b1be2…)`; the
+  take's own dry run: the copy on day 3 of at most 7 and its update not proven, in the take's words
+  *the deploy of v0.2.0-alpha.11 took at 2026-11-18T09:51:50Z and its hold is lifted, but no pass
+  that started after it has succeeded yet*, so kept, no second copy taken and nothing written, exit
+  0; and no copy volume or ClickHouse list made by hand.
+- **The tag and what it moves (0b to 0d).** 0b: the deploy shell's `node` the owner's own v26.13.0,
+  and pnpm 11.28.12. 0c, which checks itself, read all 104 of its lines as expected: the tag object,
+  its message and its pins; between the two tags, the three migrations added, the web's Dockerfile,
+  `bootstrap-managed.sh` and `set-task-env.sh` changed, the lockfile and the site's files; the
+  migrations' statements; and `managed.yml`'s lines, among them the three new image names, the
+  front's one-shot `trigger-tls-init`, Zitadel's `v4.20.3` to `v4.20.4` and the api's
+  `CIRRUX_OAUTH_CLIENT_ID`. The 13 images live ran were on the shared daemon, and so were the new
+  builds of the pooler (`abd8080fb98b`), the socket proxy (`a8d771e9f164`) and the front
+  (`f4b403e49a96`), which E2E (managed) had built there on 2026-11-19, and Zitadel v4.20.4, at
+  GHCR's index `2133708c0093`; of what those builds start from, the pooler's base and busybox 1.38
+  were there, HAProxy's and Caddy's not, which only a build would need. No script `deploy-live.sh`
+  runs moves between the tags, so `deploy-live.sh`, the copy's script and `dump-idp.sh` are
+  alpha.11's. 0d: the npm registry answered 200 for corepack 0.36.0 and pnpm 11.28.12; Docker Hub's,
+  GitHub's and Google's registries 401, so reachable; Alpine's mirror 200; and the tasks' base and
+  Zitadel v4.20.4 were readable from GitHub's registry without a login, exit 0.
+- **The copy before alpha.11, deleted by hand (block 1, destructive, the owner's).** At about 16:57
+  it read the copy's note and its 5 files, then deleted the 5 files: the directory left with 0
+  entries, at mode 700. The take's dry run again: a take would now take the copy before
+  v0.2.0-alpha.12, of the app's database, the sign-in service's database and the roles, exit 0.
+- **The hold (T6 step 2)** went on at 17:00:21, by its own row. Block 2's first read, at 17:00, 10
+  seconds after, said STOP, as it must under 300 seconds; its second, at 17:05, was clean:
+  `yes|1|308|0`, one hold, 308 seconds old, and 0 passes in flight, with nothing unfinished but a
+  scheduled task's run. No E2E run was queued or running from before 0a until block 6 was done, and
+  nothing was merged to `main` from the hold until then; only a pull request's CI ran meanwhile, on
+  GitHub's hosted runners. The dry run (block 3), at about 17:12, exited 0: one-way over alpha.11,
+  naming the three migrations and the pin's move; the take would make the copy; and the site at the
+  tag test-built in a directory of its own, then removed.
+- **The run (T6 steps 3 to 7).** From about 17:20, one run of alpha.11's `deploy-live.sh`, the
+  checkout's. The paste of its output began at its closing lines, so what it did is read from them
+  and from the checks after it (6b to 6e). The take dumped the sign-in service's database with
+  `dump-idp.sh` while it ran Zitadel v4.20.3, 701 entries read back (409,236 bytes, its roles file
+  1,771 bytes), and took the copy before v0.2.0-alpha.12 at 17:20:23 (`taken_epoch=1795195223`),
+  `from=v0.2.0-alpha.11 (95ccf152…)`, 5 files, the app's database among them, with no task runner's
+  database, since Trigger.dev's pin does not move. The new api applied ledger migrations 0068 and
+  0069 and managed migration 0061 at 17:21, and the tasks deployed as `20261120.1` at 17:22. It
+  closed with the one-way verdict, naming the three migrations and the pin's move, *Logged as took*,
+  and exit 0, which it prints only after every check of its own passed: both version endpoints at
+  the tag's commit, the app's headers as the tag's template states them (0158 T4), `/api/ready`, the
+  auth mode managed, `NODE_ENV` production, the site, and the exposure check. *The deploy took* at
+  17:22:57, one-way. Block 5 found the tree clean, nothing to put back.
+- **The checks after it, with the hold on (T6 step 7),** each as the sheet expects. Both version
+  endpoints at alpha.12's `b4d11ee7`, `0.2.0-alpha.12`. Every container with `no-new-privileges`
+  (*without no-new-privileges: 0*); the web now as 101:101 with `drop=[ALL]`, none added, and
+  `net.ipv4.ip_unprivileged_port_start` at 0; the dashboard's TLS front as 65532:65532 with
+  `drop=[ALL]` and none added; its one-shot `trigger-tls-init` as root, exited 0, and the front's
+  two volumes 65532's; `trigger-api` still without `drop=[ALL]`. The switches: MinIO's update and
+  call-home off, telemetry off, `CLI_LOGIN_IDLE_TIMEOUT_DAYS=90` and `ADMIN_API_ENABLED=false`, and
+  the api's `CIRRUX_OAUTH_CLIENT_ID` empty. Every image exactly as the tag pins it, Zitadel at
+  GHCR's `2133708c0093…`; started after alpha.11's deploy took: the pooler, the socket proxy,
+  `minio-init`, `trigger-tls-init`, the front, Zitadel, the api and the web; the other nine not
+  since, and 0 restarts. The tasks' runners (6d): the runners of `20261120.1` on image
+  `88e924036af6`, and the current deployment, `20261120.1`, on the same image, built at the fixed
+  1970-01-01; the api's Node and the tasks' v26.13.1; in the tasks' image no `sh`, `/bin/sh`,
+  `bash`, `/bin/bash` or `/busybox/sh`; and no container left behind. The task row
+  `current|20261120.1|DEPLOYED|4.8.5|4.8.5|26.13.1|2026-11-20 17:22`; the tick
+  `COMPLETED_SUCCESSFULLY|4.8.5|5`; no Prisma migration unfinished; managed migration 0061 applied
+  at 17:21, after 0060 on 2026-11-18 at 09:50, and ledger migrations 0069 and 0068 at 17:21, after
+  0067 on 2026-10-07; `connection.kind` taking `cirrux` and `infomaniak`, and `person.user_id` text,
+  with its index and its key; the site's check ok; `deploys.log`'s last lines alpha.10's took
+  reversible, alpha.11's took one-way and alpha.12's took one-way, at 17:22:57; and the copy as the
+  take made it, `dump-idp.sh`'s one note naming v4.20.3 as running, and no task runner's dump. The
+  sign-in service (6f): `setup-zitadel.sh --count-organisations` found it ready, still accepting the
+  provisioning token, with *organisations on this instance: 1*, exit 0, running
+  `ghcr.io/zitadel/zitadel:v4.20.4`; the deployment's `GET /api/provider-accounts` named `cirrux`
+  and `infomaniak`, each with email, calendar, contact and task, and no deployment client for
+  Cirrux; and the owner found the Accounts page's two new cards as expected.
+- **The lift (T6 step 8).** Block 7's checks passed (*the copy before the update:
+  before=v0.2.0-alpha.12*, then *OK: lift the hold*), and the owner lifted the hold at 18:01:46, by
+  the hold's own row (started 17:00:21), so the hold was on for 1 hour 1 minute 25 seconds. The
+  owner's check at about 18:13 read `yes|0|-1|0`, no hold open and no pass in flight; the last hold
+  from 17:00:21 to 18:01:46; the box checks' timer's next run within 6 minutes; and the copy's
+  directory with its 5 entries, kept, since nothing has proven alpha.12 yet.
+- **What is left (T9).** Nothing has proven alpha.12 yet; the owner's own migration on live, before
+  any invitation, is the proof. Once a pass proves it, the box checks delete the copy, at least an
+  hour after the lift (`COPY_DELETE_WHEN_PROVEN=true`); otherwise it expires on 2026-11-26 at
+  16:20:23, 6 days less an hour after its take, its last day from 2026-11-25 at 16:20:23, on which
+  every take refuses but a deploy of alpha.11, the release it holds. The copy holds alpha.11's
+  databases, so it is the way back from alpha.12, which its migrations and the identity provider's
+  pin make one-way; the copy before alpha.11, of alpha.10's, is gone. Google's consent on live also
+  waits on live's consent address on the Google client (0140 T11). 7c, GoAccess's image as
+  65534:65534 after the next daily duties, is read the day after.
 
 **2026-11-18: live runs `v0.2.0-alpha.11`, one-way over alpha.10 by managed migration 0060, on a
 copy of alpha.10's databases taken under the owner's waiver (T6, T9).** The owner deployed it on

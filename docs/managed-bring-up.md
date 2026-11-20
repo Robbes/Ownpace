@@ -3431,19 +3431,26 @@ Nextcloud at the catcher. And as booleans: `--value=false` alone stores the
 string `"false"`, which PHP reads as
 true.
 
-The demo's Stalwart (v0.16.27), which
+The demo's Stalwart (v1.1.1), which
 `setup-stalwart.sh` starts with `docker run`, outside every compose file, on
 the OTA stack every night, in the self-host end-to-end run, and on a
 developer's machine beside `deploy/compose/dev.yml`. It downloads its WebUI
-from `github.com/stalwartlabs/webui/releases/download/v1.0.11` on first start
-and every 30 days, in recovery mode too, its spam-filter rules from
+from `github.com/stalwartlabs/webui/releases/download/v2` on first start and
+again when its cached copy expires, 90 days on, in recovery mode too; `v2` is
+a tag upstream moves within its 2.x releases (on 2026-11-20 it named the
+commit of v2.1.0). It downloads its spam-filter rules from
 `github.com/stalwartlabs/spam-filter/releases/latest`, and an ASN and country
-database daily: from `github.com/sapics/ip-location-db` on a database it made,
-and from `cdn.jsdelivr.net` on one an older version made, which keeps the
-addresses it was given (the OTA demo's, made at v0.16.10)
+database daily from `github.com/sapics/ip-location-db`
 (`crates/common/src/manager/defaults.rs` and `application.rs`, and
-`SpamSettings` in `crates/registry/src/schema/structs_impl.rs`, at v0.16.27;
-the stored addresses read back with `stalwart-cli snapshot`).
+`Application` and `SpamSettings` in
+`crates/registry/src/schema/structs_impl.rs`, at v1.1.1). v0.16.27 asked for
+its WebUI from the release `v1.0.11`, every 30 days, and an older database
+kept `cdn.jsdelivr.net` for its ASN lists (the OTA demo's, made at v0.16.10).
+v1 opens no database an earlier line made, so that address is gone with it:
+the OTA demo's goes once, by hand, at the switch to v1.1.1, with the demo mail
+migration's rows (`deploy/compose/reset-demo-mail.sh`;
+`docs/stalwart-integration-fix.md`, "Moving the pin"), and the next bring-up
+makes it again at v1.1.1 under the same name.
 They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on

@@ -17,6 +17,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   source and is written again. The Test's scheduling line, and the audit row the first calendar
   pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
   nothing written to it names a guest.
+- **The Stalwart the tests and the demo start is v1.1.1** (workplan 0119, ADR-0022), from
+  v0.16.27, on the owner's decision of 2026-11-19: the integration tests, the self-hosted
+  end-to-end run and the OTA demo run it, live never does. Its image carries Debian's fixes for
+  brotli (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and apt; zlib's are still
+  not there. v1 has a new database layout and opens no volume an earlier version made, so a
+  developer's `ownpace-dev-stalwart-data` from v0.16 is removed before `setup-stalwart.sh` runs
+  again; it holds fixtures only. Its WebUI now comes from the release `v2`, a tag upstream moves,
+  and is fetched again after 90 days rather than 30; its ASN lists come from GitHub only.
+  stalwart-cli stays at 1.0.14.
+- **The OTA demo's mail lane is reset once, by hand, for that move** (workplan 0119, ADR-0022),
+  on the owner's choice of 2026-11-20: `deploy/compose/reset-demo-mail.sh`. v1.1.1 cannot open the
+  demo's mail volume, and the demo's records still count its test messages as copied, so the
+  nightly gate would fail after the switch. Run with `--yes` once a nightly of `main` has
+  finished, it removes the demo's Stalwart and its data volume and clears the demo mail
+  migration's own records, nothing else; without `--yes` it only shows what it would do. It
+  refuses live. Nothing runs it by itself.
 - **The Docker socket proxy is built from Tecnativa's docker-socket-proxy v0.6.0, which allows
   and refuses what v0.5.0 did** (workplan 0119). v0.6.0 keeps v0.5.0's configuration and
   entrypoint byte for byte, moved into a `system_files/` directory that one COPY takes, and the
@@ -43,6 +59,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   proves from where the webapp loads them that connect-node and Depot's SDK load with 6.29.1.
   Nothing is downloaded for it. The image has a new name, which each machine builds at its next
   deploy.
+
+### Fixed
+
+- **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
+  a file node's kind `@type` and requires it when a node is made, and calls its media type
+  `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
+  file from a folder nor make either. It now speaks both, chosen by what the account's session
+  says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
+  are still recognised as its own. To v1 it gives a media type without its parameters
+  (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
 
 ## [0.2.0-alpha.12] - 2026-11-20
 
