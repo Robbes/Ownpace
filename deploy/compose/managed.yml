@@ -1524,13 +1524,62 @@ services:
     # policy's fields hold at v4.20.3.
     # The owner took it into alpha.8 on 2026-11-14, and dumped the OTA
     # instance's `zitadel` database first, on v4.20.2, with
-    # deploy/compose/dump-idp.sh (04:07 UTC, 701 entries read back). This
-    # line merges after E2E (managed) on its branch, which applies it to the
+    # deploy/compose/dump-idp.sh (04:07 UTC, 701 entries read back). It
+    # merged after E2E (managed) on its branch, which applied it to the
     # OTA instance, and after the owner's hand check there, which that gate
     # cannot make, because its smoke signs in through a client pinned to
     # login v2: one sign-in in a browser (login v1), and one forgot-password
     # mail, read in the mail catcher and its link opened.
-    image: ghcr.io/zitadel/zitadel:v4.20.3
+    #
+    # v4.20.4, from the pin watch (issue #1934): six commits after v4.20.3
+    # on upstream's v4.x branch, each a cherry-pick that names its pull
+    # request. The tag is lightweight; its tip commit (384bb9ec) was
+    # committed 2026-11-17 at 13:38 UTC. Upstream's release notes and
+    # advisories could not be read where this was built, and none of the six
+    # reads as a security fix in what this stack runs, so no exception to
+    # the three-day floor is claimed. The floor ends 2026-11-20 at 13:38 UTC
+    # at the earliest; it is taken inside it, on the owner's word of
+    # 2026-11-19, "I waive waiting time / nights if needed." Three
+    # change what runs here, in two ways. Zitadel's Google, GitHub, GitLab
+    # and Azure AD providers now always send a PKCE challenge on top of
+    # their client secret, so a code the provider issues is redeemed only
+    # by the sign-in that asked for it (9c1c1413); Apple's is unchanged, and
+    # a sign-in started before the upgrade completes as before.
+    # setup-zitadel.sh adds Google, Microsoft (as Azure AD) and GitHub only
+    # when a provider's client pair is set: live sets none, and the gate
+    # writes a placeholder Google pair where none is set. And where it reads
+    # an account's password state, in a password check through login v1 or
+    # the session API and in a password change or reset, it loads only the
+    # checks since the account's failed count was last reset, where it
+    # loaded every check the account ever made (e1386736, 59fecbb8);
+    # upstream's message keeps the failed count, the lockout and the tarpit
+    # as they were. One is in what is not configured here: login v1 builds
+    # a GitHub Enterprise Server provider from its own template (e627c7cd).
+    # The last two are login v2's (apps/login, and one text in
+    # internal/query/v2-default.json), which does not run here. go.mod and
+    # go.sum are v4.20.3's byte for byte, and v4.20.3 and v4.20.4 are both
+    # built with go1.26.10, so the image scan reads them alike: two highs
+    # with a fix, x/net's CVE-2026-78661 and the standard library's
+    # CVE-2026-97054 (Security Scan runs 44636169423 and 44637576014,
+    # 2026-11-19). No
+    # setup step is expected: cmd/ (with cmd/setup), internal/migration,
+    # internal/repository, internal/query/projection, internal/static,
+    # proto/ and console/ are unchanged, and the event store changes how it
+    # queries, not what it stores. That is read from the diff, not run.
+    # cmd/defaults.yaml is v4.20.3's byte for byte, so the three facts
+    # above, the service ping's default, the lockout and the privacy
+    # policy's fields hold at v4.20.4. v4.20.5 (2026-11-18) is left on
+    # purpose: one commit, in apps/login alone, which makes login v2 ask
+    # for the second factor a person already has before it adds an
+    # authenticator.
+    # The owner said yes to v4.20.4 on 2026-11-18, and dumped the OTA
+    # instance's `zitadel` database first, on v4.20.3, with
+    # deploy/compose/dump-idp.sh (21:24 UTC, 701 entries read back). This
+    # line merges after E2E (managed) on its branch, which
+    # applies it to the OTA instance, and after the owner's hand check
+    # there, as for v4.20.3: one sign-in in a browser (login v1), and one
+    # forgot-password mail, read in the mail catcher and its link opened.
+    image: ghcr.io/zitadel/zitadel:v4.20.4
     container_name: ${COMPOSE_PROJECT_NAME}-idp
     restart: unless-stopped
     logging: *logging
