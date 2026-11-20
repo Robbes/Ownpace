@@ -62,9 +62,14 @@ branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-nonroot`.
   now mount `/run:uid=99,gid=99,mode=0755`, and the guard holds that string in both places and
   refuses a plain `/run`. On failure, the job prints the owner of `/tmp` and `/run` as the proxy
   sees them.
-- **Open.** The CI job on this branch is the first run of the image as uid 99 on a real socket.
-  E2E (managed) on the shared daemon was not dispatched (this work never dispatches it); it is the
-  proof on the OTA stack, and live takes it from a release tag.
+- **Proved in CI, on `88f432c`.** All checks passed. images.yml's `build (docker-socket-proxy)`
+  read the runner's socket group (`wrote DOCKER_SOCKET_GID=117`) and started the image with
+  managed.yml's settings. It then reported `not root: every process runs as uid 99, and HAProxy
+  holds the socket's group 117 (groups 99 117 )`. Docker answered the nine probes the supervisor
+  uses (API 1.48), and the proxy refused the sixteen switches left off with its own 403.
+- **Open.** E2E (managed) on the shared daemon was not dispatched (this work never dispatches it).
+  It is the proof on the OTA stack, where the supervisor starts task runs through the proxy, and
+  live takes it from a release tag.
 
 **2026-11-20, evening, recorded: live runs alpha.12, Zitadel v4.20.4, the three new builds and the
 three migrations with it.** The owner deployed `v0.2.0-alpha.12` (tagged 2026-11-20 on `b4d11ee7`)
