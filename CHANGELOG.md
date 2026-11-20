@@ -6,6 +6,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **No workflow reads the real Microsoft 365 tenant; its harness runs by hand** (workplan 0141).
+  The O365 lane, `.github/workflows/e2e-o365.yml`, never ran a test: its secrets were never set.
+  It is deleted, so the tenant's credentials stay out of CI. The harness,
+  `test/e2e/o365-scenario.e2e.test.ts`, runs as before on a machine that holds them;
+  `docs/test-tenant.md` says how and lists every variable it reads, and a unit test holds that list
+  to the suite.
 - **Infomaniak keeps the guests on copied calendar events** (workplan 0161; ADR-0043, amended
   2026-11-20). Events and tasks written to Infomaniak now carry their guests and organiser, each
   marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.

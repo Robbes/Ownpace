@@ -113,14 +113,14 @@ interface Workflow {
 }
 
 /**
- * The six workflows that named no permissions. Named, so a walk that stops
- * seeing one fails here instead of passing over less.
+ * The six workflows that named no permissions, less `e2e-o365.yml`, deleted on
+ * 2026-11-20 without having run a test (workplan 0141 T13 (a)). Named, so a
+ * walk that stops seeing one fails here instead of passing over less.
  */
 const UNDECLARED_FIXED = [
   '.github/workflows/ci.yml',
   '.github/workflows/e2e.yml',
   '.github/workflows/e2e-managed.yml',
-  '.github/workflows/e2e-o365.yml',
   '.github/workflows/e2e-live-target.yml',
   '.github/workflows/no-committed-artifacts.yml',
 ];
@@ -140,7 +140,6 @@ const CHECKOUTS_FIXED: Readonly<Record<string, ReadonlyArray<string>>> = {
   ],
   '.github/workflows/e2e.yml': ['e2e-selfhost'],
   '.github/workflows/e2e-managed.yml': ['e2e-managed'],
-  '.github/workflows/e2e-o365.yml': ['e2e-o365'],
   '.github/workflows/e2e-live-target.yml': ['live-target'],
   '.github/workflows/images.yml': ['build'],
   '.github/workflows/no-committed-artifacts.yml': ['check-artifacts'],
@@ -286,7 +285,7 @@ const files = workflowFiles();
 const docs = files.map((path) => ({ path, workflow: parse(text(path)) }));
 
 describe('a job runs on the token its workflow names, not on the repository default', () => {
-  it('reads every workflow, the six that named none among them', () => {
+  it('reads every workflow, the five of the six that named none among them', () => {
     expect(files.length, 'almost no workflows found: every assertion below would pass over nothing').toBeGreaterThan(10);
     for (const path of UNDECLARED_FIXED) expect(files, path).toContain(path);
   });

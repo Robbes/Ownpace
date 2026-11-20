@@ -39,9 +39,9 @@ Two exceptions, both because the subject is not a single file:
 - **E2E** (on the self-hosted arm64 runner): nightly black-box gates against a
   running self-host appliance (`e2e.yml`, both persistence backends) and the managed stack
   (`e2e-managed.yml`), a nightly soft lane against a target we do not host
-  (`e2e-live-target.yml`), and a dispatch-only shadow read of the real SMB O365 source
-  (`e2e-o365.yml`): read-only, least-privilege, a dry run that lists what Graph returns and
-  writes to no target. See "CI mapping" below.
+  (`e2e-live-target.yml`). The real SMB O365 source is read by hand only, never in CI
+  (`test/e2e/o365-scenario.e2e.test.ts`): read-only, least-privilege, a dry run that lists what
+  Graph returns and writes to no target; `docs/test-tenant.md` says how. See "CI mapping" below.
 
 ## Running tests locally
 
@@ -83,7 +83,8 @@ than the whole unit suite — but it is the only tier that sees what a user sees
 
 ### E2E tests (manual, requires Docker and real O365 credentials)
 ```bash
-# See docs/test-tenant.md for the tenant and the secrets e2e-o365.yml needs
+# The tenant's rules and every variable the suite reads: docs/test-tenant.md
+pnpm test:e2e test/e2e/o365-scenario.e2e.test.ts
 ```
 
 ### Self-host restart-resume e2e (`.github/workflows/e2e.yml`, nightly and on dispatch, self-hosted runner only)
@@ -432,8 +433,6 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the machine: the soft lane against
   a target we do not host. Red means investigate; it never runs on a pull request, so it blocks
   nothing.
-- `e2e-o365.yml` — dispatch only, on the machine: the secret-gated real-tenant O365 e2e; the
-  tenant and its secrets are in `docs/test-tenant.md`.
 - `clock-watch.yml` — daily (06:41 UTC) and on dispatch, on a GitHub-hosted runner: the clocks
   nothing else warns about. It reads the certificates `app.`, `id.` and `status.ownpace.eu`
   serve; `www.ownpace.eu`'s and its `security.txt` `Expires` once the repository variable

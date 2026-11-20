@@ -289,8 +289,8 @@ function nodeBeforeSetupNode(): ReadonlyArray<string> {
 const ANCHORS = ['.github/workflows/e2e-managed.yml', '.github/workflows/e2e-live-target.yml'];
 
 /**
- * Every `setup-node` step there is, by workflow and job: the nine that can run
- * on the machine (ci.yml's five on a push, the four E2E lanes), the three that
+ * Every `setup-node` step there is, by workflow and job: the eight that can run
+ * on the machine (ci.yml's five on a push, the three E2E lanes), the three that
  * run on hosted runners only, Security Scan's, and the two added 2026-11-01
  * to jobs that ran Node without one (ci.yml's `commit-convention`, images.yml's
  * `build`). Named rather than counted,
@@ -307,7 +307,6 @@ const STEP_ANCHORS = [
   '.github/workflows/ci.yml job integration-tests',
   '.github/workflows/e2e-managed.yml job e2e-managed',
   '.github/workflows/e2e.yml job e2e-selfhost',
-  '.github/workflows/e2e-o365.yml job e2e-o365',
   '.github/workflows/e2e-live-target.yml job live-target',
   '.github/workflows/exposure-probe.yml job probe',
   '.github/workflows/idp-pin-watch.yml job watch',

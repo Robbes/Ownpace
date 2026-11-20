@@ -4,6 +4,38 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, last: the O365 lane is withdrawn, and its workflow deleted (T13 (a)).** On the
+branch `claude/ownpace-public-readiness-y7orc6-o365-lane-withdrawn`, from `main` at `bf9ede75`; not
+merged. The owner asked it with the CI checks proposal (#1978, its D2): *"why do we still have an
+O365 workflow? Perhaps we need to delete that file."* Advised there to delete it (its D7), the
+owner answered *"D7: yes"*.
+- **Why.** The lane never ran a test. Its four runs: the two of 2026-09-06 were cancelled before
+  a runner took them, 41273625023 waited for a runner label no runner carried, and 41418432093
+  stopped at its secrets, which were never set. Every alpha since alpha.4 was tagged without it,
+  under the owner's waiver for alpha.4 to alpha.11, and Release does not read it. Kept and wired, it
+  would put a real SMB's credentials on the self-hosted runner, which holds live during the alpha.
+- **What changes.**
+  - `e2e-o365.yml` is deleted. The harness stays and runs by hand. `docs/test-tenant.md` says how
+    and lists the fourteen variables the suite reads.
+  - `test/e2e/o365-scenario.unit.test.ts` held the workflow's variables to the suite; it now holds
+    that table to the suite, both ways, with no exception.
+  - `connector-coverage` keeps the Graph sources `owed`, with `graph-mail`'s reason updated.
+    `a-token-the-job-never-asked-for` and `a-gate-on-a-version-nothing-ships` drop the lane from
+    their named lists.
+  - The architecture's §22, `docs/testing.md` and `ci.yml`'s header no longer name it.
+- **What it leaves.** (a) is withdrawn, not owed, so no alpha needs a waiver of the lane from now
+  on. (b)'s last step, a green run that moves `graph-*` to `driven`, needs a lane that names the
+  test, so it cannot happen while there is none; (b) is otherwise unchanged, as is (c). In Settings,
+  the owner checks that no `O365_*` secret is left; none was set at the run of 2026-11-02.
+- **Proved here**, on Node 22.23.5 (CI runs 26):
+  - Every guard and the harness's unit test pass: `vitest run --project unit scripts test/e2e`, 304
+    files, 7,422 tests passed and 33 skipped, none of the skips added here.
+  - The converted case fails on each of three breaks of `docs/test-tenant.md`. The soak switch
+    misspelled `SOAKE_TEST_24H` fails both directions; `SOAK_DURATION_MS` dropped fails one; the
+    heading renamed fails the vacuity check. The file was put back `cmp`-equal.
+  - ESLint passes on the six changed TypeScript files, `pnpm typecheck` exits 0, and the docs
+    checks `docs-hygiene` runs pass.
+
 **2026-11-20: alpha.12 is tagged without the O365 lane, and live runs it (T13 (a), T14).** Docs
 only. `v0.2.0-alpha.12` was tagged on 2026-11-20 at 11:28:26 UTC without a run of `e2e-o365.yml`
 (0146, Status of that day). Release does not read the lane. No waiver of the lane for alpha.12 is
@@ -679,7 +711,7 @@ run. T10's move is merged, #1187.)*
 | T10 Shared mailboxes: Partial until one is copied | ✅ **(a), the move, done** in #1187, merged 2026-09-26 (`d7c4ebde`, `6402cd93`; decided 2026-09-25 by the owner); ⏳ **Owner** (0027 T0's consent run, after) — *was:* 🔨 **Decided 2026-09-25 (owner) and built on branch `claude/ownpace-public-readiness-y7orc6-shared-mailboxes-partial`, not merged** (the move, (a)) | §3. **Before a tester on a Microsoft card.** |
 | T11 The detectors and the permission report tell a Connect-with-Microsoft tester the truth | 📋 **Proposed**; the minimum 🔨 built 2026-09-27, merged as #1246; the credential model (open question 7) parked 2026-09-27 | §3. The finding was checked again on 2026-09-24. The true sentence goes in **before the first Microsoft 365 tester**. Per-tenant credentials come **after**, with an ADR. |
 | T12 The managed journey in a browser | ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ✅ **done** in #1646, merged 2026-10-21 (the fixture cases, (b)); ⏳ **Owner** (the walk); 📋 **Proposed** (the real-API journey, (c), after) — *was:* ✅ **done** in #1215, merged 2026-09-27 (the runbook's Stage 8, (a1)); ⏳ **Owner** (the walk); 📋 **Proposed** (fixture cases, and the real-API journey) | §3. The two-stranger walk happens on `ownpace-live` **before the first invitation**. The real-API journey comes **after**, in the gate on the OTA stack; it was parked on 0132 T8, which 0132 D7 superseded. |
-| T13 The O365 lane and the live-target lane | ⏳ **Owner** (secrets), **for a later alpha; waived for alpha.4** by the owner on 2026-11-02 at about 22:10 UTC (*"Accept all, within alpha 4"*; Status, 2026-11-02, latest), so alpha.4 is tagged without a green run, **and for alpha.5** on 2026-11-07 (*"Ok, continue, work autonomously"*, asked whether alpha.5's tag without it is recorded as waived; Status, 2026-11-07), tagged without a run too, **and for alpha.6, alpha.7 and alpha.8** on 2026-11-12 (*"Postgres yes, MinIO yes, O365 waived."*, the reply offered with the question whether it is recorded as waived for alpha.8, and for alpha.6 and alpha.7; Status, 2026-11-14): alpha.6 and alpha.7 were tagged without a run before that answer, and alpha.8, the first tag with `@azure/msal-node` 7.2.0, is to be; and Release does not read the lane: (a)'s label is done, the owner added the label named after the machine to the self-hosted runner on 2026-11-02 at about 07:40 UTC; the lane's first run on a runner, 41418432093 on `main` (`bce0fcfd`, 09:10 to 09:11 UTC), failed at *Validate required secrets*, `O365_CLIENT_ID` and `O365_TENANT_ID` not set as repository secrets, so the suite cannot run; setting them (`docs/test-tenant.md`) and a green run are the owner's (Status, 2026-11-02); 📋 **Proposed** (code) — *was:* waived for alpha.4 and alpha.5 alone, the question for alpha.6 asked on 2026-11-07 and not answered, and no waiver recorded for alpha.7 (2026-11-09); ⏳ **Owner** (secrets): the owner could not set them on 2026-11-02, so for alpha.4 it was the secrets and a green run, or the owner's waiver of the lane (2026-11-02, later); ⏳ **Owner** (runner label, secrets): `e2e-o365.yml` asks for the label named after the machine, which the self-hosted runner does not carry, so run 41273625023 has been queued since 2026-11-01 04:34 UTC and no run has started (it was cancelled on 2026-11-02 at 02:00 UTC without a runner); the step is the owner's, (a): add that label to the runner, or drop it from `runs-on` (2026-11-01) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
+| T13 The O365 lane and the live-target lane | ⛔ **(a) Withdrawn 2026-11-20, by owner decision** (*"D7: yes"*; Status, 2026-11-20, last): `e2e-o365.yml` is deleted without having run a test, and the harness runs by hand only (`docs/test-tenant.md`); (b) and (c) unchanged — *was:* ⏳ **Owner** (secrets), **for a later alpha; waived for alpha.4** by the owner on 2026-11-02 at about 22:10 UTC (*"Accept all, within alpha 4"*; Status, 2026-11-02, latest), so alpha.4 is tagged without a green run, **and for alpha.5** on 2026-11-07 (*"Ok, continue, work autonomously"*, asked whether alpha.5's tag without it is recorded as waived; Status, 2026-11-07), tagged without a run too, **and for alpha.6, alpha.7 and alpha.8** on 2026-11-12 (*"Postgres yes, MinIO yes, O365 waived."*, the reply offered with the question whether it is recorded as waived for alpha.8, and for alpha.6 and alpha.7; Status, 2026-11-14): alpha.6 and alpha.7 were tagged without a run before that answer, and alpha.8, the first tag with `@azure/msal-node` 7.2.0, is to be; and Release does not read the lane: (a)'s label is done, the owner added the label named after the machine to the self-hosted runner on 2026-11-02 at about 07:40 UTC; the lane's first run on a runner, 41418432093 on `main` (`bce0fcfd`, 09:10 to 09:11 UTC), failed at *Validate required secrets*, `O365_CLIENT_ID` and `O365_TENANT_ID` not set as repository secrets, so the suite cannot run; setting them (`docs/test-tenant.md`) and a green run are the owner's (Status, 2026-11-02); 📋 **Proposed** (code) — *was:* waived for alpha.4 and alpha.5 alone, the question for alpha.6 asked on 2026-11-07 and not answered, and no waiver recorded for alpha.7 (2026-11-09); ⏳ **Owner** (secrets): the owner could not set them on 2026-11-02, so for alpha.4 it was the secrets and a green run, or the owner's waiver of the lane (2026-11-02, later); ⏳ **Owner** (runner label, secrets): `e2e-o365.yml` asks for the label named after the machine, which the self-hosted runner does not carry, so run 41273625023 has been queued since 2026-11-01 04:34 UTC and no run has started (it was cancelled on 2026-11-02 at 02:00 UTC without a runner); the step is the owner's, (a): add that label to the runner, or drop it from `runs-on` (2026-11-01) | §3. **After.** A green run counts only when it ran the product's code against a real account. |
 | T14 The nightly managed gate's readiness rule | ✅ **Read by code** in #1682, merged 2026-10-23 (`54e4c3d2`): `scripts/release-nights.mjs`, which the Release workflow runs, first read by it on `main` the same day (Release run 1: no commit qualifies yet); both nights on C, every attempt green, and the freeze, the owner's of 2026-10-23, written in §3; ✅ **The owner's waiver** (2026-10-30, for alpha.3), merged as #1741 on 2026-10-30 (`7e2fbbbe`), and **used once, for `v0.2.0-alpha.3`**: Release run 41066208430 (#16) tagged `e1b21aac` with the nights waived, its message quoting the owner (Status, 2026-10-31). Release's `waive_nights`, for a version in `WAIVER_VERSIONS` only (alpha.3) and from a person's account, the rule's refusals as notes that quote it, the commit given, the tag's message saying so, the tag job bound by what the preflight did, nothing else waived (§3); 📋 **Decided 2026-09-27**: two nights, scheduled runs only; **read 2026-09-27: 0 of 2** (the managed gate's #199 and #200 red, the appliance's last four green), and stated in `docs/testing.md` — *was:* 🔨 the waiver built as a draft on branch `claude/ownpace-public-readiness-y7orc6-release-nights-waiver` (2026-10-30); 🔨 **Read by code** on branch `claude/ownpace-public-readiness-y7orc6-release-workflow`, not merged (2026-10-23); ⏳ **Owner** (names N); 📋 **Proposed** (the rule) | §3. Worked out with 0132 T6 step 1. It is read **before the first invitation**, before live's first bring-up from a tag, and again before each later deploy to live. *(2026-11-08: the first invitation waits for `v0.2.0-alpha.7` or a later tag, the owner's; alpha.7 is planned with its two counted nights run, not waived (Status, 2026-11-08).)* |
 
 ## 1. What there is today
@@ -1386,6 +1418,8 @@ stays owed, for a later alpha (Status, 2026-11-02, latest).*
 *2026-11-08: the label is no longer in the workflow; `runs-on` asks for
 `[self-hosted, linux, arm64]`, as `e2e.yml` and `e2e-managed.yml` do, so the lane routes as those
 two E2E lanes do, to the one runner (#1841).*
+*2026-11-20: withdrawn by the owner, and the workflow deleted, without its secrets ever having
+been set (Status, 2026-11-20, last). The harness runs by hand, as `docs/test-tenant.md` says.*
 
 **(b) The scenario drives the product (proposed).**
 
