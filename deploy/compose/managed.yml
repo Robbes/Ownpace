@@ -452,7 +452,11 @@ services:
     # 2026-11-14 it also removes cross-spawn 5.1.0 (CVE-2024-21538) and
     # spawndamnit's link to it, its one requirer, under the root's
     # @changesets/cli, release tooling nothing here runs (its header, WHAT
-    # GOES). Since
+    # GOES). Since 2026-11-20 connect-node, the one requirer of undici
+    # 5.29.0, links the store's undici 6.29.1 in its place, and undici 5.29.0
+    # and its @fastify/busboy 2.1.1 go, six highs that only their next major
+    # fixes; nothing is fetched for it (its header, WHAT IS RELINKED: UNDICI).
+    # Since
     # 2026-11-06 its last RUN as root purges eleven Debian packages nothing
     # here runs or loads, apt, libapt-pkg6.0, util-linux's eight and
     # e2fsprogs, which depends on two of them (workplan 0119
@@ -467,7 +471,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-c3d2ec340994
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-f7b52b1d2670
     build:
       context: ./trigger.dev
       args:

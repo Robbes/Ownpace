@@ -36,8 +36,10 @@
  * RENAMED), two more with the fixes of 2026-11-03 (A GO BINARY TRIVY
  * READS ONLY WHEN IT CAN RUN, and A PACKAGE PNPM INSTALLED IS NOT ITS
  * TARBALL), one with effect's of 2026-11-06 (A PACKAGE OF THE WORKSPACE
- * LINKS FROM ITS OWN NODE_MODULES), and one with cross-spawn's of 2026-11-14
- * (A PACKAGE PNPM HOISTED IS LINKED WHERE NO REQUIRER IS). The third, the
+ * LINKS FROM ITS OWN NODE_MODULES), one with cross-spawn's of 2026-11-14
+ * (A PACKAGE PNPM HOISTED IS LINKED WHERE NO REQUIRER IS), and one with
+ * undici's of 2026-11-20 (A NAME AN ESM IMPORT TAKES FROM COMMONJS IS PROVED
+ * BY LOADING IT). The third, the
  * sixth and the seventh came with package swaps that went at Trigger.dev
  * v4.8.5 (2026-11-13), whose lockfile resolves each fixed release itself:
  * they are kept below as what happened, and nothing here holds them now.
@@ -177,6 +179,26 @@
  *    CROSS_SPAWN names where it is there, and proves after that no directory,
  *    package.json or link of cross-spawn 5.1.0 is left. Over the stand-in,
  *    both stores are laid out as pnpm lays them by that lockfile.
+ *  - A NAME AN ESM IMPORT TAKES FROM COMMONJS IS PROVED BY LOADING IT
+ *    (2026-11-20). undici 5.29.0 (5 highs) and its @fastify/busboy 2.1.1 (1)
+ *    are fixed only in their next major. Their one requirer is
+ *    @connectrpc/connect-node 1.4.0, which the webapp loads at every start,
+ *    through @depot/sdk-node, and which names undici in two files, each a
+ *    Headers polyfill used only on Node before 18; the store holds undici
+ *    6.29.1 already, for @remix-run/node. So the webapp's build points
+ *    connect-node's link at that copy and removes both old directories with
+ *    every link into them (RELINK). What a version read from package.json
+ *    would not show: connect-node's ESM build imports Headers by name from
+ *    undici, which is CommonJS, and Node's loader reads a CommonJS name only
+ *    from the shapes it parses (`module.exports.Headers = ...` it reads; the
+ *    same Headers put there by Object.assign it does not, read on Node 22 on
+ *    2026-11-20). So the RUN proves the relink by loading, from each
+ *    requirer's own directory: require and import of undici from
+ *    connect-node, require and import of connect-node from @depot/sdk-node,
+ *    and @depot/sdk-node from the webapp, whose loaded undici must be
+ *    6.29.1's. Over the stand-in, an undici that exports Headers by
+ *    Object.assign passes every check of names, versions and files, and
+ *    fails the import.
  *
  * What else is held:
  *  - the Dockerfiles' shape: one FROM, upstream's image by `vX.Y.Z` and index
@@ -232,6 +254,14 @@
  *    the directory holds it and links alone, and the walk of the image finds
  *    it the one copy with no other link into it; after, nothing of it is
  *    left. Run over the stand-in, each way that could slip fails;
+ *  - RELINK below equals what the webapp's relink RUN names (connect-node's
+ *    link and both its targets, undici 6.29.1's tree as npm published it,
+ *    the two directories it removes and pnpm's hoist of busboy); that RUN
+ *    runs as root, after goose's and before the purge, with every check
+ *    before the change and every proof after it; and run over the stand-in,
+ *    it relinks and removes exactly that, each way the image could differ
+ *    from what was read fails it with nothing changed, and each proof fails
+ *    on the change it is there to see;
  *  - managed.yml: each service is `localhost/<name>:${TRIGGER_IMAGE_TAG:-<pin>}-<hash>`
  *    (the hash as #1717's), built from `./<name>` with the version as its one
  *    argument, never pulled, with COREPACK_ENABLE_NETWORK "0" and no HOME,
@@ -344,6 +374,70 @@ const CROSS_SPAWN: Readonly<Record<Name, CrossSpawn>> = {
     package: `${SUPERVISOR_PNPM}/cross-spawn@5.1.0/node_modules/cross-spawn`,
     links: { xspawn_hoist: `${SUPERVISOR_PNPM}/node_modules/cross-spawn`, xspawn_link: `${SUPERVISOR_PNPM}/spawndamnit@2.0.0/node_modules/cross-spawn` },
   },
+};
+
+/** pnpm's directory for connect-node 1.4.0, named by its lockfile key with its two peers, as pnpm names it. */
+const CONNECT_STORE = `${PNPM}/@connectrpc+connect-node@1.4.0_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.4.0_@bufbuild+protobuf@1.10.0_`;
+
+interface Relink {
+  /** connect-node, the one requirer of undici 5.29.0; its pnpm directory's link to undici, and that link's target before and after. */
+  readonly requirer: string;
+  readonly link: string;
+  readonly from: string;
+  readonly to: string;
+  /** undici 6.29.1 in the store, and its tree as npm published it (the RUN's tree(): each file's SHA-256 and path, pnpm's node_modules aside). */
+  readonly undici: string;
+  readonly tree: string;
+  /** undici 5.29.0 and busboy 2.1.1: pnpm's directory for each, the package in it, and the links into busboy's. */
+  readonly old: { readonly store: string; readonly package: string };
+  readonly busboy: { readonly store: string; readonly package: string; readonly link: string; readonly hoist: string };
+  /** @depot/sdk-node 1.0.0, connect-node's one requirer, and its link to connect-node. */
+  readonly sdk: { readonly package: string; readonly link: string };
+  /** What goes, each with why nothing needs it after the relink. */
+  readonly removed: readonly Removal[];
+}
+
+/**
+ * THE UNDICI RELINK, in the webapp's build (since 2026-11-20; workplan 0119's
+ * reading of 2026-11-19 proposed it, and the owner approved it). Must equal
+ * what its RUN names. undici 5.29.0 (5 highs) and its @fastify/busboy 2.1.1
+ * (1) are fixed only in a new major; their one requirer, connect-node 1.4.0,
+ * gets the store's undici 6.29.1, which @remix-run/node 2.17.5 and
+ * @ai-sdk/provider-utils 4.0.56 link already.
+ */
+const RELINK: Relink = {
+  requirer: `${CONNECT_STORE}/node_modules/@connectrpc/connect-node`,
+  link: `${CONNECT_STORE}/node_modules/undici`,
+  from: '../../undici@5.29.0/node_modules/undici',
+  to: '../../undici@6.29.1/node_modules/undici',
+  undici: `${PNPM}/undici@6.29.1/node_modules/undici`,
+  tree: '5f8644a9bf69a2c6aac6cef3f750832a3ff2b7a1f0d6d55d105abc4456cba6fb',
+  old: { store: `${PNPM}/undici@5.29.0`, package: `${PNPM}/undici@5.29.0/node_modules/undici` },
+  busboy: {
+    store: `${PNPM}/@fastify+busboy@2.1.1`,
+    package: `${PNPM}/@fastify+busboy@2.1.1/node_modules/@fastify/busboy`,
+    link: `${PNPM}/undici@5.29.0/node_modules/@fastify/busboy`,
+    hoist: `${PNPM}/node_modules/@fastify/busboy`,
+  },
+  sdk: { package: `${PNPM}/@depot+sdk-node@1.0.0/node_modules/@depot/sdk-node`, link: `${PNPM}/@depot+sdk-node@1.0.0/node_modules/@connectrpc/connect-node` },
+  removed: [
+    {
+      path: `${PNPM}/undici@5.29.0`,
+      why: "pnpm's directory for undici 5.29.0 (5 highs, each fixed only in undici 6, all by 6.29.1), with its link to @fastify/busboy 2.1.1: its one requirer is connect-node 1.4.0, whose link the RUN points at the store's undici 6.29.1 first. connect-node names undici only in its two node-headers-polyfill.js, which install undici's Headers as globalThis.Headers on Node before 18 alone, and trigger-api runs Node 24.22.3",
+      evidence:
+        "upstream's pnpm-lock.yaml at v4.8.5 (d412e08a), read 2026-11-19: undici 5.29.0's one requirer @connectrpc/connect-node 1.4.0 ('undici': '^5.28.3'), connect-node's one @depot/sdk-node 1.0.0, an apps/webapp dependency; connect-node 1.4.0, @depot/sdk-node 1.0.0 and undici 5.29.0 and 6.29.1 as npm published them, by the lockfile's sha512 (dist/cjs and dist/esm node-headers-polyfill.js, index.js, lib/global.js); Security Scan run 44637576014 (main, 2026-11-19), by path",
+    },
+    {
+      path: `${PNPM}/@fastify+busboy@2.1.1`,
+      why: "pnpm's directory for @fastify/busboy 2.1.1 (CVE-2026-19481, high, fixed in 3.2.1), the one version of it in the store: its one requirer is undici 5.29.0, which goes, and undici 6.29.1 declares no dependency and requires nothing but Node's own modules",
+      evidence: "upstream's pnpm-lock.yaml at v4.8.5: @fastify/busboy 2.1.1's one requirer undici 5.29.0, and undici 6.29.1's snapshot with no dependency; undici 6.29.1 as npm published it (package.json, and every require in index.js and lib); Security Scan run 44637576014, by path",
+    },
+    {
+      path: `${PNPM}/node_modules/@fastify/busboy`,
+      why: "pnpm's hoisted link to @fastify/busboy 2.1.1, its one version here, through which a package that requires busboy without declaring it would reach it, and which would dangle once busboy's directory is gone: removed with it where it is there. Nothing upstream ships names @fastify/busboy",
+      evidence: "pnpm's default hoist-pattern, `*`, into node_modules/.pnpm/node_modules; upstream's pnpm-workspace.yaml at v4.8.5 (no hoist-pattern; publicHoistPattern names *prisma* alone); no file of apps/webapp, internal-packages, packages/core/src or packages/trigger-sdk/src at v4.8.5 names busboy",
+    },
+  ],
 };
 
 interface Swap {
@@ -738,6 +832,7 @@ function shapeProblems(name: Name, text: string): string[] {
   problems.push(...swapProblems(name, removingArgs));
   if (name === 'trigger.dev') problems.push(...tscProblems(removingArgs));
   problems.push(...xspawnProblems(name, removingArgs));
+  problems.push(...relinkProblems(name, text));
   return problems;
 }
 
@@ -957,6 +1052,139 @@ function xspawnProblems(name: Name, args: string): string[] {
   return problems;
 }
 
+/** The RUN that relinks connect-node's undici: the one that names its link (the webapp's, since 2026-11-20). */
+const relinkRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])undici_link="/.test(r.args));
+/** How many each Dockerfile has: the supervisor's deploy has no connect-node. */
+const RELINKS: Readonly<Record<Name, number>> = { 'trigger.dev': 1, supervisor: 0 };
+/** The relink's walk: cross-spawn's, with pnpm's name for a scoped package's directory, a plus for its slash. */
+const RELINK_WHERE_READS: ReadonlyArray<readonly [string, string]> = [
+  ...WHERE_READS,
+  ["const dir = name.replace('/', '+') + '@' + version;", "name a scoped package's directory as pnpm does, a plus for its slash"],
+];
+
+/**
+ * What the relink RUN checks before it changes anything, each with what it is
+ * there for: every check is a line of its own, and none may come after the
+ * first change, `rm "$undici_link"`.
+ */
+const RELINK_BEFORE: ReadonlyArray<readonly [RegExp, string]> = [
+  [/for d in "\$connect" "\$sdk" "\$old" "\$busboy" "\$new"; do \[ -f "\$d\/package\.json" \] \|\| fail /, 'that connect-node, @depot/sdk-node, both undici and busboy are there'],
+  [/\[ "\$\(said "\$connect"\)" = @connectrpc\/connect-node@1\.4\.0 \] \|\| fail /, 'that connect-node is 1.4.0, the release read'],
+  [/\[ "\$\(said "\$sdk"\)" = @depot\/sdk-node@1\.0\.0 \] \|\| fail /, 'that @depot/sdk-node is 1.0.0, the release read'],
+  [/\[ "\$\(said "\$old"\)" = undici@5\.29\.0 \] \|\| fail /, 'that the undici it removes is 5.29.0'],
+  [/\[ "\$\(said "\$busboy"\)" = @fastify\/busboy@2\.1\.1 \] \|\| fail /, 'that the busboy it removes is 2.1.1'],
+  [/\[ "\$\(said "\$new"\)" = undici@6\.29\.1 \] \|\| fail /, 'that the undici it links is 6.29.1'],
+  [/\{ \[ -L "\$sdk_link" \] && \[ "\$\(readlink -f "\$sdk_link"\)" = "\$\(readlink -f "\$connect"\)" \]; \} \|\| fail /, "that @depot/sdk-node's link to connect-node is the directory read"],
+  [/\[ "\$\(declared "\$connect"\)" = '\{"undici":"\^5\.28\.3"\}' \] \|\| fail /, 'that connect-node declares undici ^5.28.3 alone'],
+  [/named="\$\(cd "\$connect" && grep -rHoE --include='\*\.js' --include='\*\.cjs' --include='\*\.mjs' /, 'that it reads every file of connect-node for what names undici'],
+  [/\[ "\$named" = "\.\/dist\/cjs\/node-headers-polyfill\.js:require\(undici \.\/dist\/esm\/node-headers-polyfill\.js:from undici " \] \|\| fail /, 'that no file of connect-node names undici but the two read'],
+  [/\{ \[ -L "\$undici_link" \] && \[ "\$\(readlink "\$undici_link"\)" = "\$undici_from" \]; \} \|\| fail /, "that connect-node's undici is pnpm's link to undici 5.29.0"],
+  [/\[ "\$\(readlink -f "\$undici_link"\)" = "\$\(readlink -f "\$old"\)" \] \|\| fail /, 'that the link resolves to undici 5.29.0'],
+  [/\[ "\$\(cd "\$\{undici_link%\/\*\}" && readlink -f "\$undici_to"\)" = "\$\(readlink -f "\$new"\)" \] \|\| fail /, 'that the new target, from the link, is undici 6.29.1'],
+  [/\[ "\$\(ls -A "\$old_store"\)" = node_modules \] \|\| fail /, "that pnpm's directory for undici 5.29.0 holds its node_modules alone"],
+  [/\[ "\$held" = "\.\/@fastify \.\/@fastify\/busboy \.\/undici " \] \|\| fail /, 'that that holds the package and its link to busboy alone'],
+  [/\[ "\$\(declared "\$old"\)" = '\{"@fastify\/busboy":"\^2\.0\.0"\}' \] \|\| fail /, 'that undici 5.29.0 declares busboy alone'],
+  [/\{ \[ ! -L "\$old" \] && \[ -L "\$busboy_link" \] && \[ "\$\(readlink -f "\$busboy_link"\)" = "\$\(readlink -f "\$busboy"\)" \]; \} \|\| fail /, "that undici 5.29.0's link to busboy is busboy 2.1.1's directory"],
+  [/\[ "\$\(ls -A "\$busboy_store"\)" = node_modules \] \|\| fail /, "that pnpm's directory for busboy holds its node_modules alone"],
+  [/\{ \[ "\$held" = "\.\/@fastify \.\/@fastify\/busboy " \] && \[ ! -L "\$busboy" \]; \} \|\| fail /, 'that that holds the package alone'],
+  [/\[ "\$\(declared "\$new"\)" = '\{\}' \] \|\| fail /, 'that undici 6.29.1 declares no dependency'],
+  [/\{ \[ "\$held" = "\.\/node_modules \.\/node_modules\/undici " \] && \[ ! -L "\$new" \]; \} \|\| fail /, "that pnpm's directory for undici 6.29.1 holds the package alone"],
+  [/\[ -z "\$\(find "\$new" -path "\$new\/node_modules" -prune -o ! -type f ! -type d -print\)" \] \|\| fail /, 'that undici 6.29.1 holds files and directories alone'],
+  [/\[ "\$\(tree "\$new"\)" = "\$new_tree" \] \|\| \{ files "\$new" >&2; fail /, 'that undici 6.29.1 is the published one, file for file'],
+  [/(?:^|[;\s])want="directory \$old_store link \$undici_link package \$old\/package\.json "; \s*found="\$\(node -e "\$where" "\$top" "\$old_store" undici 5\.29\.0\)" \|\| fail [^\n]*\n\s*\[ "\$found" = "\$want" \] \|\| fail /, "that, walking the image, undici 5.29.0 is one copy, and nothing links into it but connect-node's link"],
+  [/(?:^|[;\s])want_hoist=""; if \[ -L "\$busboy_hoist" \]; then want_hoist="link \$busboy_hoist "; fi; \s*want="directory \$busboy_store \$\{want_hoist\}link \$busboy_link package \$busboy\/package\.json "; \s*found="\$\(node -e "\$where" "\$top" "\$busboy_store" @fastify\/busboy 2\.1\.1\)" \|\| fail [^\n]*\n\s*\[ "\$found" = "\$want" \] \|\| fail /, "that, walking the image, busboy 2.1.1 is one copy, linked by undici 5.29.0 and by pnpm's hoist where it is there, and by nothing else"],
+  [/for d in "\$webapp\/build" "\$webapp\/public"; do \[ -d "\$d" \] \|\| fail /, "that the webapp's build is where it was read"],
+  [/found="\$\(grep -rlF -e undici:request:create "\$webapp\/build" "\$webapp\/public"\)" && st=0 \|\| st=\$\?; \s*\[ "\$st" = 1 \] \|\| fail /, "that the webapp's own build bundles no undici"],
+  [/(?:^|[;\s])before="\$\(state\)";/, 'of the state of the image outside what it changes'],
+];
+
+/** What the relink RUN proves after its last `rm`, each with what it is there for. */
+const RELINK_AFTER: ReadonlyArray<readonly [RegExp, string]> = [
+  [/\{ \[ -L "\$undici_link" \] && \[ "\$\(readlink "\$undici_link"\)" = "\$undici_to" \]; \} \|\| fail /, "that connect-node's link is the new one"],
+  [/\[ "\$\(readlink -f "\$undici_link"\)" = "\$\(readlink -f "\$new"\)" \] \|\| fail /, 'that it resolves to undici 6.29.1'],
+  [/\[ "\$\(stat -c %u:%g "\$undici_link"\)" = "\$owner" \] \|\| fail /, "that it has pnpm's link's owner"],
+  [/for p in "\$old_store" "\$busboy_store" "\$busboy_hoist"; do \{ \[ ! -e "\$p" \] && \[ ! -L "\$p" \]; \} \|\| fail /, 'that what it removed is gone'],
+  [/found="\$\(node -e "\$where" "\$top" "\$old_store" undici 5\.29\.0\)" \|\| fail [^\n]*\n\s*\[ -z "\$found" \] \|\| fail /, 'that nothing of undici 5.29.0 is left'],
+  [/found="\$\(node -e "\$where" "\$top" "\$busboy_store" @fastify\/busboy 2\.1\.1\)" \|\| fail [^\n]*\n\s*\[ -z "\$found" \] \|\| fail /, 'that nothing of busboy 2.1.1 is left'],
+  [/\[ "\$\(state\)" = "\$before" \] \|\| fail /, 'that nothing else in the image changed'],
+  [/\(cd "\$connect" && node -e "[^"\n]*require\.resolve\('undici'\)[^"\n]*v !== '6\.29\.1'[^"\n]*h !== 'function'[^"\n]*" "\$new"\) \|\| fail /, 'that from connect-node, require of undici loads 6.29.1 and its Headers'],
+  [/\(cd "\$connect" && node --input-type=module -e "[^"\n]*import\.meta\.resolve\('undici'\)[^"\n]*await import\('undici'\)[^"\n]*typeof Headers !== 'function'[^"\n]*" "\$new"\) \|\| fail /, "that from connect-node, import of undici gives 6.29.1's Headers by name"],
+  [/\(cd "\$sdk" && node -e "if \(typeof require\('@connectrpc\/connect-node'\)\.createConnectTransport !== 'function'\) process\.exit\(1\);"\) \|\| fail /, 'that from @depot/sdk-node, require of connect-node loads'],
+  [/\(cd "\$sdk" && node --input-type=module -e "if \(typeof \(await import\('@connectrpc\/connect-node'\)\)\.createConnectTransport !== 'function'\) process\.exit\(1\);"\) \|\| fail /, 'that from @depot/sdk-node, import of connect-node loads'],
+  [/\(cd "\$webapp" && node -e "[^"\n]*require\.resolve\('@depot\/sdk-node'\)[^"\n]*createBuild !== 'function' \|\| !require\.cache\[undici\]\) process\.exit\(1\);" "\$sdk" "\$new"\) \|\| fail /, "that from the webapp, @depot/sdk-node loads, and the undici it loaded is 6.29.1's"],
+];
+
+/** The relink's state(): every entry of the image but what the RUN changes, by owner, mode, size and times, as goose's. */
+const RELINK_STATE = /(?:^|[;\s])state\(\) \{ \{ find "\$top" -xdev \\\( -path "\$undici_link" -o -path "\$old_store" -o -path "\$busboy_store" -o -path "\$busboy_hoist" \\\) -prune -o -type d -exec stat -c '%n %u:%g %a' \{\} \+ ; find "\$top" -xdev \\\( -path "\$undici_link" -o -path "\$old_store" -o -path "\$busboy_store" -o -path "\$busboy_hoist" \\\) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' \{\} \+ ; \} \| LC_ALL=C sort \| sha256sum \| cut -d' ' -f1; \};/;
+
+/**
+ * What is wrong with the webapp's relink of connect-node's undici (RELINK), in
+ * words; empty when it holds. One RUN, as root, after goose's and before the
+ * purge, the last as root. Before it changes anything it checks each release,
+ * link and directory it was read for, that undici 6.29.1 is npm's file for
+ * file, the two walks and the webapp's build (RELINK_BEFORE); then it points
+ * the link at undici 6.29.1 with the old link's owner and removes pnpm's two
+ * directories and the hoist where it is there; and after, it proves the link,
+ * that nothing of the two releases is left, that nothing else changed, and
+ * that each requirer loads undici 6.29.1 (RELINK_AFTER).
+ */
+function relinkProblems(name: Name, text: string): string[] {
+  const found = relinkRuns(text);
+  if (found.length !== RELINKS[name]) return [`${found.length} RUNs relink connect-node's undici, not ${RELINKS[name]}`];
+  if (RELINKS[name] === 0) return [];
+  const problems: string[] = [];
+  const all = runs(text);
+  const index = (re: RegExp) => all.findIndex((r) => re.test(r.args));
+  const at = index(/(^|[;\s])undici_link="/);
+  const run = all[at]!;
+  if (run.user !== 'root') problems.push(`the relink RUN runs as ${run.user}, not root`);
+  const goose = index(/(^|[;\s])goose=\/usr\/local\/bin\/goose;/);
+  const purge = index(/(^|[;\s])dpkg --purge /);
+  if (goose < 0 || at < goose) problems.push("the relink RUN does not come after goose's");
+  if (purge < 0 || at > purge) problems.push('the relink RUN does not come before the purge, the last RUN as root');
+  const args = run.args;
+  const vars = resolvedAssignments(args);
+  const want: ReadonlyArray<readonly [string, string]> = [
+    ['connect', RELINK.requirer],
+    ['undici_link', RELINK.link],
+    ['undici_from', RELINK.from],
+    ['undici_to', RELINK.to],
+    ['old_store', RELINK.old.store],
+    ['old', RELINK.old.package],
+    ['busboy_store', RELINK.busboy.store],
+    ['busboy', RELINK.busboy.package],
+    ['busboy_link', RELINK.busboy.link],
+    ['busboy_hoist', RELINK.busboy.hoist],
+    ['new', RELINK.undici],
+    ['new_tree', RELINK.tree],
+    ['sdk', RELINK.sdk.package],
+    ['sdk_link', RELINK.sdk.link],
+    ['webapp', '/triggerdotdev/apps/webapp'],
+    ['top', '/'],
+  ];
+  for (const [k, v] of want) if (vars.get(k) !== v) problems.push(`the relink RUN's ${k}= is ${vars.get(k) ?? 'not there'}, not ${v}`);
+  const change = args.search(/(^|[;\s])rm "\$undici_link";/);
+  const lastRm = Math.max(-1, ...[...args.matchAll(/(^|[;\s])rm\s/g)].map((m) => m.index!));
+  for (const [re, what] of RELINK_BEFORE) {
+    const i = args.search(re);
+    if (i < 0 || (change >= 0 && i > change)) problems.push(`no check, before anything is changed, ${what}`);
+  }
+  if (!/(?:^|[;\s])rm "\$undici_link"; \s*ln -s "\$undici_to" "\$undici_link";/.test(args)) problems.push("the relink RUN does not replace connect-node's undici link with one to $undici_to");
+  if (!/(?:^|[;\s])owner="\$\(stat -c %u:%g "\$undici_link"\)"; \s*rm "\$undici_link";/.test(args) || !/(?:^|[;\s])ln -s "\$undici_to" "\$undici_link"; \s*chown -h "\$owner" "\$undici_link";/.test(args)) {
+    problems.push("the relink RUN does not give the new link the owner of pnpm's");
+  }
+  if (!/(?:^|[;\s])rm -r "\$old_store" "\$busboy_store";/.test(args)) problems.push("the relink RUN does not remove pnpm's directories for undici 5.29.0 and busboy 2.1.1 (rm -r \"$old_store\" \"$busboy_store\")");
+  if (!/(?:^|[;\s])if \[ -L "\$busboy_hoist" \]; then rm "\$busboy_hoist"; fi;/.test(args)) problems.push("the relink RUN does not remove pnpm's hoist of busboy 2.1.1 where it is there");
+  for (const [re, what] of RELINK_AFTER) {
+    const i = args.search(re);
+    if (i < 0 || i < lastRm) problems.push(`no proof, after the change, ${what}`);
+  }
+  if (!RELINK_STATE.test(args)) problems.push('the relink RUN\'s state() does not read every entry of the image but the four paths it changes');
+  const where = assignments(args).get('where') ?? '';
+  for (const [needle, what] of RELINK_WHERE_READS) if (!where.includes(needle)) problems.push(`the relink RUN's $where does not ${what}`);
+  return problems;
+}
+
 /**
  * What is wrong with how a RUN's fetch fails, in words; empty when it holds. A
  * host that does not answer, or answers with an error, is no move upstream: the
@@ -1131,6 +1359,8 @@ interface DpkgDb {
 
 interface StandIn {
   readonly goose?: string;
+  /** The stand-in undici 6.29.1's tree (packageTree), which takes the published one's place in the relink RUN (`build`). */
+  readonly undici?: string;
 }
 
 interface Published {
@@ -1520,6 +1750,102 @@ function crossSpawnTree(name: Name): { files: Record<string, string>; links: Arr
   return { files, links };
 }
 
+/** The webapp's own directory in the image, whose build the relink reads and from which it loads @depot/sdk-node. */
+const WEBAPP_DIR = '/triggerdotdev/apps/webapp';
+
+/**
+ * What the relink RUN's tree() reads of a package's directory, pnpm's
+ * node_modules aside: the SHA-256 of each file's SHA-256 and path (`./` and
+ * its path in the directory), sorted by the bytes of the path, as `LC_ALL=C
+ * sort -z` and sha256sum print them. Over npm's tarball of undici 6.29.1 the
+ * same reading gives RELINK.tree (2026-11-19).
+ */
+function packageTree(files: Readonly<Record<string, string>>, dir: string): string {
+  const rows = Object.entries(files)
+    .filter(([p]) => p.startsWith(`${dir}/`) && !p.startsWith(`${dir}/node_modules/`))
+    .map(([p, text]): [string, string] => [`./${p.slice(dir.length + 1)}`, sha256(text)])
+    .sort(([a], [b]) => Buffer.compare(Buffer.from(a), Buffer.from(b)));
+  return sha256(rows.map(([p, h]) => `${h}  ${p}\n`).join(''));
+}
+
+/** The stand-in's undici 6.29.1: CommonJS, Headers by `module.exports.Headers =`, undici's own diagnostics string, and no dependency. */
+const STAND_IN_UNDICI_6: Readonly<Record<string, string>> = {
+  [`${RELINK.undici}/package.json`]: `${JSON.stringify({ name: 'undici', version: '6.29.1', main: 'index.js', types: 'index.d.ts', engines: { node: '>=18.17' } })}\n`,
+  [`${RELINK.undici}/index.js`]: "'use strict'\n\nmodule.exports.Headers = require('./lib/web/fetch/headers').Headers\nmodule.exports.request = function request () {}\n",
+  [`${RELINK.undici}/lib/web/fetch/headers.js`]: "'use strict'\n\nclass Headers {}\n\nmodule.exports = { Headers }\n",
+  [`${RELINK.undici}/lib/core/diagnostics.js`]: "'use strict'\n\nmodule.exports = { channels: { create: 'undici:request:create' } }\n",
+};
+
+/**
+ * connect-node, undici and busboy in a stand-in of the webapp's store, laid
+ * out as pnpm lays them out by upstream's lockfile at v4.8.5: pnpm's
+ * directory for connect-node 1.4.0, named with its peers, with its link to
+ * undici 5.29.0; undici 5.29.0's, with its link to busboy 2.1.1; busboy's;
+ * undici 6.29.1's, which @remix-run/node 2.17.5 and @ai-sdk/provider-utils
+ * 4.0.56 link and pnpm hoists (it meets @remix-run/node's, an importer's
+ * dependency, before connect-node's); pnpm's hoist of busboy 2.1.1, its one
+ * version; @depot/sdk-node 1.0.0, with its link to connect-node, and the
+ * webapp's link to it; and the webapp's own build, which bundles no undici.
+ * connect-node's two builds name undici as the published ones do, each in its
+ * node-headers-polyfill.js, and a comment of a spec file names it besides.
+ * `undici` is the stand-in undici 6.29.1's tree.
+ */
+function relinkTree(): { files: Record<string, string>; links: Array<{ path: string; target: string }>; undici: string } {
+  const r = RELINK.requirer;
+  const polyfill = (load: string, headers: string) =>
+    [load, 'const [major] = process.versions.node', '    .split(".")', '    .map((value) => parseInt(value, 10));', 'if (major < 18) {', '    if (typeof globalThis.Headers === "undefined") {', `        globalThis.Headers = ${headers};`, '    }', '}', ''].join('\n');
+  const json = (value: unknown) => `${JSON.stringify(value)}\n`;
+  const files: Record<string, string> = {
+    [`${r}/package.json`]: json({
+      name: '@connectrpc/connect-node',
+      version: '1.4.0',
+      type: 'module',
+      main: './dist/cjs/index.js',
+      exports: { '.': { import: './dist/esm/index.js', require: './dist/cjs/index.js' } },
+      dependencies: { undici: '^5.28.3' },
+      peerDependencies: { '@bufbuild/protobuf': '^1.4.2', '@connectrpc/connect': '1.4.0' },
+    }),
+    [`${r}/dist/cjs/package.json`]: json({ type: 'commonjs' }),
+    [`${r}/dist/cjs/index.js`]: '"use strict";\nObject.defineProperty(exports, "__esModule", { value: true });\nrequire("./node-headers-polyfill.js");\nexports.createConnectTransport = function createConnectTransport(options) { return { options }; };\n',
+    [`${r}/dist/cjs/node-headers-polyfill.js`]: polyfill('"use strict";\nObject.defineProperty(exports, "__esModule", { value: true });\nconst undici_1 = require("undici");', 'undici_1.Headers'),
+    [`${r}/dist/esm/index.js`]: 'import "./node-headers-polyfill.js";\nexport function createConnectTransport(options) { return { options }; }\n',
+    [`${r}/dist/esm/node-headers-polyfill.js`]: polyfill('import { Headers as HeadersPolyfill } from "undici";', 'HeadersPolyfill'),
+    [`${r}/dist/esm/node-universal-header.spec.js`]: '// Also see https://github.com/nodejs/undici/releases/tag/v5.19.0\n',
+    [`${RELINK.old.package}/package.json`]: json({ name: 'undici', version: '5.29.0', main: 'index.js', dependencies: { '@fastify/busboy': '^2.0.0' } }),
+    [`${RELINK.old.package}/index.js`]: "'use strict'\n\nmodule.exports.Headers = require('./lib/fetch/headers').Headers\n",
+    [`${RELINK.old.package}/lib/fetch/headers.js`]: "'use strict'\n\nclass Headers {}\n\nmodule.exports = { Headers }\n",
+    [`${RELINK.old.package}/lib/core/request.js`]: "'use strict'\n\nconst channels = { create: 'undici:request:create' }\n\nmodule.exports = { channels }\n",
+    [`${RELINK.busboy.package}/package.json`]: json({ name: '@fastify/busboy', version: '2.1.1', main: 'lib/main' }),
+    [`${RELINK.busboy.package}/lib/main.js`]: "'use strict'\n\nmodule.exports = function Busboy () {}\n",
+    ...STAND_IN_UNDICI_6,
+    [`${PNPM}/@remix-run+node@2.17.5_typescript@7.0.2/node_modules/@remix-run/node/package.json`]: json({ name: '@remix-run/node', version: '2.17.5', dependencies: { undici: '^6.21.2' } }),
+    [`${PNPM}/@ai-sdk+provider-utils@4.0.56_zod@4.5.4/node_modules/@ai-sdk/provider-utils/package.json`]: json({ name: '@ai-sdk/provider-utils', version: '4.0.56', dependencies: { undici: '^6.28.0' } }),
+    [`${RELINK.sdk.package}/package.json`]: json({
+      name: '@depot/sdk-node',
+      version: '1.0.0',
+      main: './dist/index.js',
+      module: './dist/index.mjs',
+      dependencies: { '@bufbuild/protobuf': '1.10.0', '@connectrpc/connect': '^1.4.0', '@connectrpc/connect-node': '^1.4.0' },
+    }),
+    [`${RELINK.sdk.package}/dist/index.js`]:
+      '"use strict";\nvar import_connect_node = require("@connectrpc/connect-node");\nvar transport = (0, import_connect_node.createConnectTransport)({ baseUrl: "https://api.depot.dev", httpVersion: "2" });\nexports.depot = { build: { v1: { BuildService: { createBuild() { return transport; } } } } };\n',
+    [`${WEBAPP_DIR}/package.json`]: json({ name: 'webapp', private: true }),
+    [`${WEBAPP_DIR}/build/server/index.js`]: 'import { remoteBuildsEnabled } from "./assets/remoteImageBuilder.server.js";\nexport { remoteBuildsEnabled };\n',
+    [`${WEBAPP_DIR}/public/favicon.ico`]: 'stand-in\n',
+  };
+  const links = [
+    { path: RELINK.link, target: RELINK.from },
+    { path: RELINK.busboy.link, target: '../../../@fastify+busboy@2.1.1/node_modules/@fastify/busboy' },
+    { path: RELINK.busboy.hoist, target: '../../@fastify+busboy@2.1.1/node_modules/@fastify/busboy' },
+    { path: `${PNPM}/@remix-run+node@2.17.5_typescript@7.0.2/node_modules/undici`, target: RELINK.to },
+    { path: `${PNPM}/@ai-sdk+provider-utils@4.0.56_zod@4.5.4/node_modules/undici`, target: RELINK.to },
+    { path: `${PNPM}/node_modules/undici`, target: '../undici@6.29.1/node_modules/undici' },
+    { path: RELINK.sdk.link, target: `../../../${CONNECT_STORE.slice(PNPM.length + 1)}/node_modules/@connectrpc/connect-node` },
+    { path: `${WEBAPP_DIR}/node_modules/@depot/sdk-node`, target: '../../../../node_modules/.pnpm/@depot+sdk-node@1.0.0/node_modules/@depot/sdk-node' },
+  ];
+  return { files, links, undici: packageTree(files, RELINK.undici) };
+}
+
 function treeOf(name: Name, plat: string): Tree {
   const xs = crossSpawnTree(name);
   if (name === 'supervisor') {
@@ -1541,12 +1867,13 @@ function treeOf(name: Name, plat: string): Tree {
   const pkg = (dir: string): Record<string, string> => ({ [`${dir}/package.json`]: '{"main":"lib/main.js"}\n', [`${dir}/lib/main.js`]: 'module.exports = {};\n' });
   const dpkg = debian12(plat);
   const ts = typescriptTree();
+  const rl = relinkTree();
   const goose = GOOSE.assets[plat as Plat];
   return {
-    links: [...NODE_LINKS, ...ts.links!, ...xs.links],
+    links: [...NODE_LINKS, ...ts.links!, ...xs.links, ...rl.links],
     pnpm: PUBLISHED,
     registry: goose ? { [goose.url]: STAND_IN_GOOSE_NEW } : {},
-    standIn: { goose: sha256(STAND_IN_GOOSE_NEW) },
+    standIn: { goose: sha256(STAND_IN_GOOSE_NEW), undici: rl.undici },
     // goose is static; openssl, which upstream's runner stage installs, needs what the purge keeps.
     executables: { [GOOSE.path]: STAND_IN_GOOSE_OLD, '/usr/bin/openssl': dynamicElf(['libssl.so.3', 'libcrypto.so.3', 'libc.so.6']) },
     tools: gooseTools(),
@@ -1564,6 +1891,7 @@ function treeOf(name: Name, plat: string): Tree {
       ...NODE_GLOBALS,
       ...ts.files,
       ...xs.files,
+      ...rl.files,
     },
     binaries: [
       {
@@ -1866,12 +2194,14 @@ interface Options {
   readonly pinnedTsc?: boolean;
   /** Keep goose's SHA-256 the goose RUN pins, which the stand-in's new goose is not. */
   readonly pinnedGoose?: boolean;
+  /** Keep the tree of undici 6.29.1 the relink RUN pins, which the stand-in's undici is not. */
+  readonly pinnedUndici?: boolean;
   /** Only the RUNs this picks. */
   readonly pick?: (run: Instruction) => boolean;
 }
 
 /** Runs a Dockerfile's RUN instructions in order, each as its USER, and stops at the first that fails. */
-function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false, pinnedTsc = false, pinnedGoose = false, pick }: Options = {}): Run {
+function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false, pinnedTsc = false, pinnedGoose = false, pinnedUndici = false, pick }: Options = {}): Run {
   const [platform, arch] = plat.split('-') as [string, string];
   let out = '';
   for (const run of runs(text)) {
@@ -1881,6 +2211,7 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
     const standIn = box.standIn ?? {};
     if (!pinnedTsc) script = script.replace(/(?<=(^|[;\s])tsc_sha256=)[0-9a-f]{64}/g, sha256(STAND_IN_TSC));
     if (!pinnedGoose && standIn.goose) script = script.replace(/(?<=(^|[;\s])goose_sha256=)[0-9a-f]{64}/g, standIn.goose);
+    if (!pinnedUndici && standIn.undici) script = script.replace(/(?<=(^|[;\s])new_tree=)[0-9a-f]{64}/g, standIn.undici);
     // The whole file system the replacement walks is the stand-in's root.
     script = rooted(script, box.fs).replace(/(?<=(^|[;\s])top=)\/;/, `${box.fs};`);
     const r = spawnSync('sh', ['-c', script], {
@@ -2166,9 +2497,12 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
           expect(run.status, run.out).toBe(0);
           const home = name === 'trigger.dev' ? '/root' : '/home/node';
           const kept = COPY(home, SWAP.to);
-          // What the image had is gone; what the install brought and the RUN removed, the new copy's node-gyp tree, is not left either.
+          // What the image had is gone, and in the webapp's what the relink took with undici 5.29.0; what the install
+          // brought and the RUN removed, the new copy's node-gyp tree, is not left either.
           const installed = (path: string) => path.startsWith(`${kept}/`);
-          expect(removedBy(box, run)).toEqual(REMOVED[name].map((r) => expand(r.path, plat)).filter((path) => !installed(path)).sort());
+          const gone = [...REMOVED[name], ...(RELINKS[name] ? RELINK.removed : [])];
+          expect(removedBy(box, run)).toEqual(gone.map((r) => expand(r.path, plat)).filter((path) => !installed(path)).sort());
+          if (RELINKS[name]) expect(readlinkSync(join(box.fs, RELINK.link))).toBe(RELINK.to);
           for (const r of REMOVED[name].filter((r) => installed(r.path))) {
             expect(Object.keys(PUBLISHED.files).some((f) => `${kept}/${f}`.startsWith(`${r.path}/`)), `${r.path} is no path the install brings`).toBe(true);
             expect(run.left.filter((path) => path === r.path || path.startsWith(`${r.path}/`)), r.path).toEqual([]);
@@ -2844,6 +3178,277 @@ describe('both builds remove cross-spawn 5.1.0 with every link pnpm made to it, 
         });
       }
     }
+  });
+});
+
+const relinkOnly = { pick: (run: Instruction) => /(^|[;\s])undici_link="/.test(run.args) };
+
+/** The index of the relink RUN's own first line (`RUN set -eu; \`) in the file's lines. */
+function relinkRunLine(lines: readonly string[]): number {
+  const named = lines.findIndex((l) => /^ {4}undici_link="/.test(l));
+  expect(named, 'the relink RUN names no undici_link').toBeGreaterThan(0);
+  let at = named;
+  while (at > 0 && !lines[at]!.startsWith('RUN ')) at--;
+  return at;
+}
+
+/** The text with the first line of the relink RUN that `re` matches taken out (another RUN may hold a line like it, earlier). */
+function dropRelinkLine(text: string, re: RegExp): string {
+  const lines = text.split('\n');
+  const start = relinkRunLine(lines);
+  const i = lines.findIndex((l, k) => k > start && re.test(l));
+  expect(i, `${String(re)} matched no line of the relink RUN`).toBeGreaterThan(start);
+  return [...lines.slice(0, i), ...lines.slice(i + 1)].join('\n');
+}
+
+/** The text with the first line of the relink RUN that `re` matches moved to just after the first of its lines `to` matches. */
+function moveRelinkLine(text: string, re: RegExp, to: RegExp): string {
+  const lines = text.split('\n');
+  const start = relinkRunLine(lines);
+  const i = lines.findIndex((l, k) => k > start && re.test(l));
+  expect(i, `${String(re)} matched no line of the relink RUN`).toBeGreaterThan(start);
+  const line = lines[i]!;
+  const rest = [...lines.slice(0, i), ...lines.slice(i + 1)];
+  const j = rest.findIndex((l, k) => k > start && to.test(l));
+  expect(j, `${String(to)} matched no line of the relink RUN`).toBeGreaterThan(start);
+  return [...rest.slice(0, j + 1), line, ...rest.slice(j + 1)].join('\n');
+}
+
+/** The relink RUN with its comment, as the file holds it: from its comment's first line to the blank line after it. */
+function relinkBlock(text: string): string {
+  const from = text.indexOf("# Still as root, after goose's: connect-node's undici");
+  const to = text.indexOf('\n\n', from);
+  expect(from, 'no relink RUN comment').toBeGreaterThan(0);
+  return text.slice(from, to + 2);
+}
+
+describe("the webapp's build relinks connect-node's undici to the store's 6.29.1, and removes undici 5.29.0 and @fastify/busboy 2.1.1 with every link into them (2026-11-20)", () => {
+  const webapp = dockerfiles['trigger.dev'];
+  const relink = () => relinkRuns(webapp)[0]!;
+
+  it('the relink RUN is held to RELINK: its checks before anything changes, the change, and its proofs after', () => {
+    expect(relinkProblems('trigger.dev', webapp)).toEqual([]);
+    expect(relinkProblems('supervisor', dockerfiles.supervisor)).toEqual([]);
+    for (const r of RELINK.removed) {
+      expect(r.why.length, `${r.path}: why`).toBeGreaterThan(60);
+      expect(r.evidence.length, `${r.path}: evidence`).toBeGreaterThan(30);
+    }
+    // What its `rm` names: the link it replaces, and what goes, which RELINK lists.
+    expect(rmTargets(relink().args).sort()).toEqual([RELINK.link, ...RELINK.removed.map((r) => r.path)].sort());
+    // The header names the findings and says why, and the RUN points at it.
+    for (const s of ['WHAT IS RELINKED: UNDICI', 'HOW UNDICI IS RELINKED, AND PROVED', 'CVE-2026-19481', 'CVE-2026-87018', 'Security Scan run 44637576014', '`undici@>=6 <6.29.1:']) {
+      expect(webapp, s).toContain(s);
+    }
+    // The stand-in's undici is no published one: its own tree takes RELINK.tree's place in the RUN.
+    expect(relinkTree().undici).not.toBe(RELINK.tree);
+  });
+
+  it("its walk is cross-spawn's, but for pnpm's name for a scoped package's directory", () => {
+    const first = assignments(removingRun(webapp)!.args).get('where')!;
+    const mine = assignments(relink().args).get('where')!;
+    expect(mine).toBe(first.replace("const dir = name + '@' + version;", "const dir = name.replace('/', '+') + '@' + version;"));
+    // an-essential-nothing-runs takes the purge's `if (read === 0)` out where it first occurs; this RUN comes before the purge.
+    expect(mine).not.toContain('if (read === 0)');
+  });
+
+  it('refuses each way the relink could slip', () => {
+    const problems = (text: string) => shapeProblems('trigger.dev', text);
+    /** A check that spans lines is dropped by its last line, the comparison. */
+    const lineOf = new Map<string, RegExp>([
+      ["that, walking the image, undici 5.29.0 is one copy, and nothing links into it but connect-node's link", /^ {4}\[ "\$found" = "\$want" \] \|\| fail "under \$top, undici 5\.29\.0/],
+      ["that, walking the image, busboy 2.1.1 is one copy, linked by undici 5.29.0 and by pnpm's hoist where it is there, and by nothing else", /^ {4}\[ "\$found" = "\$want" \] \|\| fail "under \$top, @fastify\/busboy 2\.1\.1/],
+      ["that the webapp's own build bundles no undici", /^ {4}\[ "\$st" = 1 \] \|\| fail "the webapp's own build carries undici's/],
+      ['that nothing of undici 5.29.0 is left', /^ {4}\[ -z "\$found" \] \|\| fail "after the removal, undici 5\.29\.0/],
+      ['that nothing of busboy 2.1.1 is left', /^ {4}\[ -z "\$found" \] \|\| fail "after the removal, @fastify\/busboy 2\.1\.1/],
+    ]);
+    for (const [re, what] of RELINK_BEFORE) expect(problems(dropRelinkLine(webapp, lineOf.get(what) ?? re)), what).toEqual([`no check, before anything is changed, ${what}`]);
+    for (const [re, what] of RELINK_AFTER) expect(problems(dropRelinkLine(webapp, lineOf.get(what) ?? re)), what).toEqual([`no proof, after the change, ${what}`]);
+    // A check moved after the change checks nothing in time; a proof moved before it proves nothing.
+    const change = /^ {4}rm "\$undici_link"; \\$/;
+    const removal = /^ {4}rm -r "\$old_store" "\$busboy_store"; \\$/;
+    expect(problems(moveRelinkLine(webapp, /^ {4}\[ "\$\(tree "\$new"\)" = "\$new_tree" \]/, removal))).toEqual(['no check, before anything is changed, that undici 6.29.1 is the published one, file for file']);
+    expect(problems(moveRelinkLine(webapp, /^ {4}\[ "\$named" = /, /^ {4}chown -h "\$owner" "\$undici_link"; \\$/))).toEqual(['no check, before anything is changed, that no file of connect-node names undici but the two read']);
+    // One moved between the old link's removal and the new one's making also breaks the change apart.
+    expect(problems(moveRelinkLine(webapp, /^ {4}\[ "\$named" = /, change))).toEqual([
+      'no check, before anything is changed, that no file of connect-node names undici but the two read',
+      "the relink RUN does not replace connect-node's undici link with one to $undici_to",
+    ]);
+    expect(problems(moveRelinkLine(webapp, /^ {4}\[ "\$\(state\)" = "\$before" \]/, /^ {4}before="\$\(state\)"; \\$/))).toEqual(['no proof, after the change, that nothing else in the image changed']);
+    // The change itself.
+    const replaced = "the relink RUN does not replace connect-node's undici link with one to $undici_to";
+    const owned = "the relink RUN does not give the new link the owner of pnpm's";
+    expect(problems(dropRelinkLine(webapp, /^ {4}ln -s "\$undici_to" "\$undici_link"; \\$/))).toEqual([replaced, owned]);
+    expect(problems(dropRelinkLine(webapp, /^ {4}chown -h "\$owner" "\$undici_link"; \\$/))).toEqual([owned]);
+    expect(problems(dropRelinkLine(webapp, removal))).toEqual(['the relink RUN does not remove pnpm\'s directories for undici 5.29.0 and busboy 2.1.1 (rm -r "$old_store" "$busboy_store")']);
+    expect(problems(dropRelinkLine(webapp, /^ {4}if \[ -L "\$busboy_hoist" \]; then rm "\$busboy_hoist"; fi; \\$/))).toEqual(["the relink RUN does not remove pnpm's hoist of busboy 2.1.1 where it is there"]);
+    expect(problems(webapp.replace('rm -r "$old_store" "$busboy_store";', 'rm -rf "$old_store" "$busboy_store";'))).toEqual([
+      expect.stringContaining('`rm -f` or `rm -rf`'),
+      'the relink RUN does not remove pnpm\'s directories for undici 5.29.0 and busboy 2.1.1 (rm -r "$old_store" "$busboy_store")',
+    ]);
+    // Other releases, another target, another tree.
+    expect(problems(webapp.replace('undici_to=../../undici@6.29.1/', 'undici_to=../../undici@6.29.2/'))).toEqual([`the relink RUN's undici_to= is ../../undici@6.29.2/node_modules/undici, not ${RELINK.to}`]);
+    expect(problems(webapp.replace(`new_tree=${RELINK.tree};`, `new_tree=${'0'.repeat(64)};`))).toEqual([`the relink RUN's new_tree= is ${'0'.repeat(64)}, not ${RELINK.tree}`]);
+    expect(problems(webapp.replace('busboy_hoist="$s/node_modules/@fastify/busboy";', 'busboy_hoist="$s/node_modules/@fastify/busboy-2";'))).toEqual([`the relink RUN's busboy_hoist= is ${RELINK.busboy.hoist}-2, not ${RELINK.busboy.hoist}`]);
+    // What state() leaves out: only what the RUN changes.
+    expect(problems(webapp.replace('-o -path "$busboy_store" -o -path "$busboy_hoist" \\) -prune -o -type d', '-o -path "$busboy_store" -o -path "$busboy_hoist" -o -path "$new" \\) -prune -o -type d'))).toEqual([
+      "the relink RUN's state() does not read every entry of the image but the four paths it changes",
+    ]);
+    // Its walk, doing less than it must: each fragment taken out of the relink RUN's alone.
+    const block = relinkBlock(webapp);
+    for (const [needle, what] of RELINK_WHERE_READS) {
+      const less = webapp.replace(block, block.replace(needle, needle === 'if (s.dev === dev) walk(p);' ? 'walk(p);' : ''));
+      expect(less, needle).not.toBe(webapp);
+      expect(problems(less), needle).toEqual([`the relink RUN's $where does not ${what}`]);
+    }
+    // Its place: as root, after goose's, before the purge, the last as root.
+    const without_ = webapp.replace(block, '');
+    expect(problems(without_.replace("# Still as root: goose v3.27.1 replaced", `${block}# Still as root: goose v3.27.1 replaced`))).toEqual(["the relink RUN does not come after goose's"]);
+    expect(problems(without_.replace("# Upstream's own user, which this image keeps.", `${block}# Upstream's own user, which this image keeps.`))).toEqual(['the relink RUN does not come before the purge, the last RUN as root']);
+    expect(problems(webapp.replace(block, `USER node\n\n${block}USER root\n\n`))).toEqual(['the relink RUN runs as node, not root']);
+    expect(problems(without_)).toEqual(["0 RUNs relink connect-node's undici, not 1"]);
+  });
+
+  for (const plat of PLATFORMS) {
+    it(`on ${plat}, run over the stand-in, it points connect-node's link at undici 6.29.1, removes what RELINK lists, and changes nothing else`, () => {
+      withSandbox(treeOf('trigger.dev', plat), (box) => {
+        const before = snapshot(box);
+        const run = build(webapp, box, { ...relinkOnly, plat });
+        expect(run.status, run.out).toBe(0);
+        expect(readlinkSync(join(box.fs, RELINK.link))).toBe(RELINK.to);
+        expect(removedBy(box, run)).toEqual(RELINK.removed.map((r) => r.path).sort());
+        // Outside what it changed nothing changed: @remix-run/node's and @ai-sdk/provider-utils' links and pnpm's hoist of 6.29.1 among it.
+        const changed = [RELINK.link, ...RELINK.removed.map((r) => r.path)];
+        expect(changed.reduce(without, snapshot(box))).toEqual(changed.reduce(without, before));
+        expect(readlinkSync(join(box.fs, PNPM, 'node_modules/undici'))).toBe('../undici@6.29.1/node_modules/undici');
+        expect(run.out).toContain(`require(undici): ${box.fs}${RELINK.undici}/index.js 6.29.1, Headers function`);
+        expect(run.out).toContain(`import(undici): ${box.fs}${RELINK.undici}/index.js, Headers function`);
+        expect(run.out).toContain(`require(@depot/sdk-node): ${box.fs}${RELINK.sdk.package}/dist/index.js; undici: ${box.fs}${RELINK.undici}/index.js`);
+        expect(run.out).toContain('connect-node 1.4.0 links undici 6.29.1, the store');
+        expect(run.out).toMatch(/^[1-9]\d* package\.json files read under /m);
+      });
+    });
+  }
+
+  it("without pnpm's hoist of busboy, it removes the two directories alone", () => {
+    const tree = treeOf('trigger.dev', 'linux-x64');
+    withSandbox({ ...tree, links: tree.links!.filter((l) => l.path !== RELINK.busboy.hoist) }, (box) => {
+      const run = build(webapp, box, { ...relinkOnly, plat: 'linux-x64' });
+      expect(run.status, run.out).toBe(0);
+      expect(removedBy(box, run)).toEqual([RELINK.old.store, RELINK.busboy.store].sort());
+    });
+  });
+
+  it('each way the image could differ from what was read fails it, with nothing changed', () => {
+    const plat = 'linux-arm64';
+    const base = treeOf('trigger.dev', plat);
+    const r = RELINK.requirer;
+    const json = (value: unknown) => `${JSON.stringify(value)}\n`;
+    const pkg = (dir: string, value: unknown) => ({ [`${dir}/package.json`]: json(value) });
+    const withFiles = (files: Record<string, string>, drop: readonly string[] = []): Tree => ({
+      ...base,
+      files: { ...Object.fromEntries(Object.entries(base.files).filter(([p]) => !drop.some((d) => p === d || p.startsWith(`${d}/`)))), ...files },
+    });
+    const withLinks = (links: ReadonlyArray<{ path: string; target: string }>, drop: readonly string[] = []): Tree => ({ ...base, links: [...base.links!.filter((l) => !drop.includes(l.path)), ...links] });
+    const busboy3 = `${PNPM}/@fastify+busboy@3.2.1/node_modules/@fastify/busboy`;
+    const cases: ReadonlyArray<[string, Tree, (fs: string) => string, Options?]> = [
+      ['connect-node of another release', withFiles(pkg(r, { name: '@connectrpc/connect-node', version: '1.4.1', dependencies: { undici: '^5.28.3' } })), (fs) => `${fs}${r} is @connectrpc/connect-node@1.4.1, not @connectrpc/connect-node@1.4.0, the release this file was read for.`],
+      ['@depot/sdk-node of another release', withFiles(pkg(RELINK.sdk.package, { name: '@depot/sdk-node', version: '1.1.0' })), (fs) => `${fs}${RELINK.sdk.package} is @depot/sdk-node@1.1.0, not @depot/sdk-node@1.0.0`],
+      ['another undici at 5.29.0\'s path', withFiles(pkg(RELINK.old.package, { name: 'undici', version: '5.28.5', dependencies: { '@fastify/busboy': '^2.0.0' } })), (fs) => `${fs}${RELINK.old.package} is undici@5.28.5, not undici@5.29.0, the release this file removes.`],
+      ['another busboy at 2.1.1\'s path', withFiles(pkg(RELINK.busboy.package, { name: '@fastify/busboy', version: '2.1.0' })), (fs) => `${fs}${RELINK.busboy.package} is @fastify/busboy@2.1.0, not @fastify/busboy@2.1.1`],
+      ['another undici at 6.29.1\'s path', withFiles(pkg(RELINK.undici, { name: 'undici', version: '6.29.2', main: 'index.js' })), (fs) => `${fs}${RELINK.undici} is undici@6.29.2, not undici@6.29.1, the release this file gives connect-node.`],
+      ["@depot/sdk-node's link to another connect-node", withLinks([{ path: RELINK.sdk.link, target: '../../../undici@6.29.1/node_modules/undici' }], [RELINK.sdk.link]), (fs) => `${fs}${RELINK.sdk.link} is not pnpm's link to ${fs}${r}`],
+      ['connect-node asking for undici 6', withFiles(pkg(r, { name: '@connectrpc/connect-node', version: '1.4.0', dependencies: { undici: '^6.0.0' } })), (fs) => `${fs}${r} declares {"undici":"^6.0.0"}, not undici ^5.28.3 alone, as read.`],
+      [
+        'connect-node naming undici in a third file',
+        withFiles({ [`${r}/dist/cjs/fetch.js`]: 'const { fetch } = require("undici/lib/fetch");\n' }),
+        (fs) => `in ${fs}${r}, these name undici: ./dist/cjs/fetch.js:require(undici/lib/fetch ./dist/cjs/node-headers-polyfill.js:require(undici ./dist/esm/node-headers-polyfill.js:from undici ; this file was read for two`,
+      ],
+      ["connect-node's link already at 6.29.1", withLinks([{ path: RELINK.link, target: RELINK.to }], [RELINK.link]), (fs) => `${fs}${RELINK.link} is not pnpm's link to ${RELINK.from}: connect-node's undici is not where it was read.`],
+      ['undici 5.29.0 with another dependency linked', withLinks([{ path: `${RELINK.old.store}/node_modules/ms`, target: '../../ms@2.1.3/node_modules/ms' }]), (fs) => `${fs}${RELINK.old.store}/node_modules holds: ./@fastify ./@fastify/busboy ./ms ./undici ; this file was read for`],
+      ['undici 5.29.0 declaring another dependency', withFiles(pkg(RELINK.old.package, { name: 'undici', version: '5.29.0', dependencies: { '@fastify/busboy': '^2.0.0', ms: '^2.1.3' } })), (fs) => `${fs}${RELINK.old.package} declares {"@fastify/busboy":"^2.0.0","ms":"^2.1.3"}, not @fastify/busboy ^2.0.0 alone, as read.`],
+      ['busboy with a dependency linked', withLinks([{ path: `${RELINK.busboy.store}/node_modules/streamsearch`, target: '../../streamsearch@1.1.0/node_modules/streamsearch' }]), (fs) => `${fs}${RELINK.busboy.store}/node_modules holds: ./@fastify ./@fastify/busboy ./streamsearch ; this file was read for @fastify/busboy 2.1.1 alone`],
+      ['undici 6.29.1 declaring a dependency', withFiles(pkg(RELINK.undici, { name: 'undici', version: '6.29.1', main: 'index.js', dependencies: { '@fastify/busboy': '^2.0.0' } })), (fs) => `${fs}${RELINK.undici} declares {"@fastify/busboy":"^2.0.0"}; undici 6.29.1 as npm published it declares none`],
+      ['undici 6.29.1 with a package linked beside it', withLinks([{ path: `${PNPM}/undici@6.29.1/node_modules/@fastify/busboy`, target: '../../../@fastify+busboy@2.1.1/node_modules/@fastify/busboy' }]), (fs) => `${fs}${PNPM}/undici@6.29.1 holds: ./node_modules ./node_modules/@fastify ./node_modules/undici ; this file was read for undici 6.29.1 alone`],
+      ['undici 6.29.1 with a file more than npm published', withFiles({ [`${RELINK.undici}/lib/extra.js`]: "'use strict'\n" }), (fs) => `${fs}${RELINK.undici} is not the published undici 6.29.1, file for file (above).`],
+      ['undici 6.29.1 holding a link', withLinks([{ path: `${RELINK.undici}/lib/link.js`, target: 'core/diagnostics.js' }]), (fs) => `${fs}${RELINK.undici} holds more than files and directories.`],
+      ['the pinned tree, against the stand-in', base, (fs) => `${fs}${RELINK.undici} is not the published undici 6.29.1, file for file (above).`, { pinnedUndici: true }],
+      ['a requirer of undici 5.29.0 it was not read for', withLinks([{ path: `${PNPM}/@x+y@1.0.0/node_modules/undici`, target: '../../undici@5.29.0/node_modules/undici' }]), (fs) => `link ${fs}${RELINK.link} link ${fs}${PNPM}/@x+y@1.0.0/node_modules/undici package `],
+      ["pnpm's hoist of undici into 5.29.0", withLinks([{ path: `${PNPM}/node_modules/undici`, target: '../undici@5.29.0/node_modules/undici' }], [`${PNPM}/node_modules/undici`]), (fs) => `link ${fs}${RELINK.link} link ${fs}${PNPM}/node_modules/undici package `],
+      ['a second copy of undici 5.29.0', withFiles({ '/opt/vendor/undici/package.json': json({ name: 'undici', version: '5.29.0' }) }), (fs) => `package ${fs}/opt/vendor/undici/package.json `],
+      ['a requirer of busboy 2.1.1 it was not read for', withLinks([{ path: `${PNPM}/@x+y@1.0.0/node_modules/@fastify/busboy`, target: '../../../@fastify+busboy@2.1.1/node_modules/@fastify/busboy' }]), (fs) => `link ${fs}${PNPM}/@x+y@1.0.0/node_modules/@fastify/busboy `],
+      [
+        "pnpm's hoist of busboy to another release",
+        { ...withFiles(pkg(busboy3, { name: '@fastify/busboy', version: '3.2.1' })), links: [...base.links!.filter((l) => l.path !== RELINK.busboy.hoist), { path: RELINK.busboy.hoist, target: '../../@fastify+busboy@3.2.1/node_modules/@fastify/busboy' }] },
+        (fs) => `this file was read for one copy, ${fs}${RELINK.busboy.package}, in ${fs}${RELINK.busboy.store}, linked by undici 5.29.0`,
+      ],
+      ["the webapp's own build bundling undici", withFiles({ [`${WEBAPP_DIR}/build/server/assets/undici.js`]: "const channels = { create: 'undici:request:create' };\n" }), (fs) => `the webapp's own build carries undici's undici:request:create (grep exits 0): ${fs}${WEBAPP_DIR}/build/server/assets/undici.js.`],
+      ["the webapp's build without its public", withFiles({}, [`${WEBAPP_DIR}/public`]), (fs) => `${fs}${WEBAPP_DIR}/public is not there: the webapp's build is not where it was read.`],
+      ...[r, RELINK.sdk.package, RELINK.old.package, RELINK.busboy.package, RELINK.undici].map((dir): [string, Tree, (fs: string) => string] => [`${dir} not there`, withFiles({}, [dir]), (fs) => `${fs}${dir} is not there.`]),
+    ];
+    for (const [what, tree, said, options] of cases) {
+      withSandbox(tree, (box) => {
+        const before = snapshot(box);
+        const run = build(webapp, box, { ...relinkOnly, plat, ...options });
+        expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+        expect(run.out, what).toContain(said(box.fs));
+        expect(snapshot(box), `${what}: something changed before it failed`).toEqual(before);
+      });
+    }
+  });
+
+  it('each proof after the change fails on the change it is there to see', () => {
+    const plat = 'linux-arm64';
+    const base = treeOf('trigger.dev', plat);
+    const afterChange = (line: string) => insertAfter(webapp, /^ {4}if \[ -L "\$busboy_hoist" \]; then rm "\$busboy_hoist"; fi; \\$/, line);
+    const texts: ReadonlyArray<[string, string, (fs: string) => string]> = [
+      ['a file changed elsewhere', 'echo changed >> /triggerdotdev/package.json;', () => "outside connect-node's undici link and what went with undici 5.29.0, a path was added or removed, or an entry's owner, mode, size or times changed, while it was relinked."],
+      ['the link pointed elsewhere', 'rm "$undici_link"; ln -s ../../undici@6.29.2/node_modules/undici "$undici_link";', (fs) => `${fs}${RELINK.link} is not a link to ${RELINK.to} after the relink.`],
+      ['another owner', 'owner=0:4242;', () => "'s after the relink, not 0:4242's, as pnpm's link was."],
+      ["pnpm's directory for undici 5.29.0, back", 'mkdir "$old_store";', (fs) => `${fs}${RELINK.old.store} is still there.`],
+      ['a copy of undici 5.29.0 left', `mkdir -p "$s/x/undici"; printf '%s\\n' '{"name":"undici","version":"5.29.0"}' > "$s/x/undici/package.json";`, (fs) => `after the removal, undici 5.29.0 is still under ${fs}: package ${fs}${PNPM}/x/undici/package.json`],
+      ["a directory by pnpm's name for busboy 2.1.1 left", 'mkdir "$s/@fastify+busboy@2.1.1_x";', (fs) => `after the removal, @fastify/busboy 2.1.1 is still under ${fs}: directory ${fs}${PNPM}/@fastify+busboy@2.1.1_x`],
+    ];
+    for (const [what, line, said] of texts) {
+      withSandbox(base, (box) => {
+        const run = build(afterChange(line), box, { ...relinkOnly, plat });
+        expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+        expect(run.out, what).toContain(said(box.fs));
+      });
+    }
+    // An undici 6.29.1 that passes every check before the change, each with its own tree, and fails a proof that loads it.
+    const variant = (files: Record<string, string>): Tree => {
+      const all = { ...base.files, ...files };
+      return { ...base, files: all, standIn: { ...base.standIn, undici: packageTree(all, RELINK.undici) } };
+    };
+    const r = RELINK.requirer;
+    const trees: ReadonlyArray<[string, Tree, (fs: string) => string]> = [
+      ['an undici without Headers', variant({ [`${RELINK.undici}/index.js`]: "'use strict'\n\nmodule.exports.request = function request () {}\n" }), (fs) => `from ${fs}${r}, require('undici') does not load undici 6.29.1 and its Headers from ${fs}${RELINK.undici}.`],
+      [
+        "an undici whose Headers Node's ESM loader cannot read by name",
+        variant({ [`${RELINK.undici}/index.js`]: "'use strict'\n\nObject.assign(module.exports, { Headers: require('./lib/web/fetch/headers').Headers })\n" }),
+        (fs) => `from ${fs}${r}, import('undici') does not give undici 6.29.1's Headers by name from ${fs}${RELINK.undici}.`,
+      ],
+      ["a connect-node whose CommonJS build gives no transport", variant({ [`${r}/dist/cjs/index.js`]: '"use strict";\nrequire("./node-headers-polyfill.js");\n' }), (fs) => `from ${fs}${RELINK.sdk.package}, require('@connectrpc/connect-node') does not load with undici 6.29.1.`],
+      [
+        'a connect-node whose ESM build imports a name undici does not export',
+        variant({ [`${r}/dist/esm/node-headers-polyfill.js`]: 'import { Headers as HeadersPolyfill, HeadersList } from "undici";\nvoid HeadersPolyfill; void HeadersList;\n' }),
+        (fs) => `from ${fs}${RELINK.sdk.package}, import('@connectrpc/connect-node') does not load with undici 6.29.1: its dist/esm imports Headers from undici by name.`,
+      ],
+      ["a @depot/sdk-node that loads no connect-node", variant({ [`${RELINK.sdk.package}/dist/index.js`]: '"use strict";\nexports.depot = { build: { v1: { BuildService: { createBuild() {} } } } };\n' }), (fs) => `undici: not ${fs}${RELINK.undici}/index.js`],
+    ];
+    for (const [what, tree, said] of trees) {
+      withSandbox(tree, (box) => {
+        const run = build(webapp, box, { ...relinkOnly, plat });
+        expect(run.status, `${what}: ${run.out}`).not.toBe(0);
+        expect(run.out, what).toContain(said(box.fs));
+      });
+    }
+    // The webapp without its link to @depot/sdk-node: the last proof, from where the server loads it.
+    withSandbox({ ...base, links: base.links!.filter((l) => l.path !== `${WEBAPP_DIR}/node_modules/@depot/sdk-node`) }, (box) => {
+      const run = build(webapp, box, { ...relinkOnly, plat });
+      expect(run.status).not.toBe(0);
+      expect(run.out).toContain(`from ${box.fs}${WEBAPP_DIR}, @depot/sdk-node does not load connect-node with undici 6.29.1 from ${box.fs}${RELINK.undici}.`);
+    });
   });
 });
 
@@ -4015,8 +4620,10 @@ describe('the reading is not vacuous', () => {
   it('found the Dockerfiles and their removing RUNs', () => {
     for (const name of NAMES) {
       expect(statSync(join(REPO_ROOT, dockerfileOf(name))).isFile()).toBe(true);
-      // The removing RUN and the node RUN, goose's, and the webapp's purge (until v4.8.5 also dompurify's RUN and a swap table's).
-      expect(runs(dockerfiles[name]).length, name).toBe(2 + binaryRows(name).length + PURGES[name]);
+      // The removing RUN and the node RUN, goose's, the webapp's relink (since 2026-11-20) and its purge (until v4.8.5
+      // also dompurify's RUN and a swap table's).
+      expect(runs(dockerfiles[name]).length, name).toBe(2 + binaryRows(name).length + RELINKS[name] + PURGES[name]);
+      expect(relinkRuns(dockerfiles[name]).length, name).toBe(RELINKS[name]);
       expect(purgeRuns(dockerfiles[name]).length, name).toBe(PURGES[name]);
       expect(gooseRuns(dockerfiles[name]).length, name).toBe(binaryRows(name).length);
       // No RUN swaps a package any more: none names a tarball's integrity, and none holds a table of rows.

@@ -37,7 +37,11 @@
 # expected, goose's two going (WHAT IS REPLACED: GOOSE), and the scan of
 # alpha.8's tag commit read that (Security Scan run 43577138736). Since
 # 2026-11-14 (for alpha.9) cross-spawn 5.1.0 goes too, with spawndamnit's link
-# to it (WHAT GOES): about 1, 16 and 8 are expected.
+# to it (WHAT GOES): about 1, 16 and 8 are expected. Since 2026-11-20
+# connect-node's undici is the store's 6.29.1 in place of 5.29.0, and undici
+# 5.29.0 and its @fastify/busboy 2.1.1 go (WHAT IS RELINKED: UNDICI): the scan
+# of main on 2026-11-19 read 1, 19 and 8 (Security Scan run 44637576014), and
+# 1, 13 and 2 are expected.
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -317,7 +321,8 @@
 # @prisma/config pinned exactly, and body-parser 2.3.0. This is the npm half of
 # what triggerdotdev/trigger.dev#5084 asked for. Nothing in this build fetches
 # from the npm registry now but pnpm 10.34.9, which corepack installs (WHAT IS
-# REPLACED: PNPM).
+# REPLACED: PNPM); the undici relink fetches nothing, and gives connect-node
+# the store's 6.29.1 (WHAT IS RELINKED: UNDICI).
 #
 # WHAT IS REPLACED: GOOSE v3.27.1 BY v3.30.1 (by v3.29.0 from 2026-11-03; by
 # v3.30.1 since 2026-11-13, for alpha.8). Upstream's
@@ -443,6 +448,87 @@
 # and a scan of a binary taken out of an image is no proof unless the copy
 # kept it (chmod +x first).
 #
+# WHAT IS RELINKED: UNDICI 5.29.0 BY THE STORE'S 6.29.1, FOR CONNECT-NODE
+# (since 2026-11-20; workplan 0119's reading of 2026-11-19 proposed it, and the
+# owner approved it). Security Scan run 44637576014 (main, 2026-11-19) reads
+# undici 5.29.0 at node_modules/.pnpm/undici@5.29.0/node_modules/undici, 5
+# highs that only undici 6 fixes (CVE-2026-1526, CVE-2026-2229,
+# CVE-2026-12151, CVE-2026-87018 and one more, all fixed by 6.29.1), and its
+# one dependency, @fastify/busboy 2.1.1, at
+# node_modules/.pnpm/@fastify+busboy@2.1.1 (CVE-2026-19481, high, fixed in
+# 3.2.1). Read in upstream's pnpm-lock.yaml at read_at (d412e08a) on
+# 2026-11-19: undici 5.29.0's one requirer is @connectrpc/connect-node 1.4.0,
+# which asks for "undici": "^5.28.3", and connect-node's one is
+# @depot/sdk-node 1.0.0, an apps/webapp dependency; busboy 2.1.1's one is
+# undici 5.29.0; and undici 6.29.1 is in the same store, installed for
+# @remix-run/node 2.17.5, another apps/webapp dependency, and
+# @ai-sdk/provider-utils 4.0.56, by upstream's override `undici@>=6 <6.29.1:
+# ^6.29.1`, which reaches no undici 5. So nothing is fetched: connect-node's
+# link, node_modules/undici in pnpm's directory for it, points at the store's
+# 6.29.1, and pnpm's directories for undici 5.29.0 and busboy 2.1.1 go, with
+# pnpm's hoisted link to busboy, its one version in the store. pnpm's records
+# (pnpm-lock.yaml, node_modules/.pnpm/lock.yaml) keep 5.29.0: nothing here
+# installs, Node checks no range, and Trivy reads package.json.
+# Why 6.29.1 serves connect-node, read in the published packages, each by the
+# sha512 the lockfile names (connect-node 1.4.0, @depot/sdk-node 1.0.0, undici
+# 5.29.0 and 6.29.1, busboy 2.1.1), on 2026-11-19, none of them run:
+# connect-node's dist names undici in two files, each build's
+# node-headers-polyfill.js, which that build's index loads: `require("undici")`
+# in dist/cjs, and `import { Headers as HeadersPolyfill } from "undici"` in
+# dist/esm. Each puts undici's Headers on globalThis only when Node's major is
+# below 18 and there is none, and trigger-api runs Node 24.22.3: on it,
+# connect-node needs only that undici loads, and in dist/esm that Headers can be
+# imported by name. undici 6.29.1 is CommonJS (main index.js, no exports, no
+# type), asks for Node >=18.17, declares no dependency, requires nothing but
+# Node's own modules, and exports Headers as 5.29.0 does, by
+# `module.exports.Headers =`, the fetch Headers class, a name Node's ESM loader
+# reads from CommonJS. Loading either does one more thing, in the same way in
+# both (each one's lib/global.js): it sets the process's global dispatcher,
+# Symbol.for('undici.globalDispatcher.1'), which Node's own fetch uses too, to
+# an Agent of its own when none is set. connect-node's transports are its own
+# http and http2 code, not undici's, and @depot/sdk-node makes one when it
+# loads, which connects only for a request; the webapp makes one only with
+# DEPOT_TOKEN and DEPOT_ORG_ID (WHAT GOES). The webapp loads it at every start:
+# app/entry.server.tsx imports remoteBuildsEnabled from
+# app/v3/remoteImageBuilder.server.ts, which imports @depot/sdk-node. It loads
+# it from node_modules: Vite's SSR build keeps both packages external (neither
+# is in its noExternal), and @depot/sdk-node 1.0.0, which has no exports and no
+# type, is its CommonJS dist/index.js, which requires connect-node, whose
+# "require" export is dist/cjs. So what changes at a start is that one require:
+# it gives the module @remix-run/node and @ai-sdk/provider-utils link, one
+# module by its real path, where it gave 5.29.0; and if it is the first undici
+# to load, the global dispatcher is a 6.29.1 Agent where it was a 5.29.0 one.
+# Which load comes first was not read: E2E (managed) runs the webapp.
+#
+# HOW UNDICI IS RELINKED, AND PROVED. The third RUN as root, after goose's.
+# Before it changes anything it checks: connect-node, @depot/sdk-node, both
+# undici and busboy are the releases read (each package.json's name and
+# version), and @depot/sdk-node's link to connect-node is that directory;
+# connect-node declares undici ^5.28.3 alone, and no file of it names undici
+# but the two read; its link is pnpm's, ../../undici@5.29.0/node_modules/undici;
+# pnpm's directory for undici 5.29.0 holds the package and a link to busboy,
+# and busboy's the package alone; undici 6.29.1 declares no dependency, its
+# directory holds the package alone, files and directories only, and it is the
+# published 6.29.1 file for file (new_tree, the tree of npm's tarball, as the
+# swap of 2026-11-03 to 2026-11-13 pinned it); walking the whole image, as
+# cross-spawn's walk does, with a scoped package's directory named as pnpm
+# names it, a plus for its slash, undici 5.29.0 is one copy with one link into
+# it, connect-node's, and busboy 2.1.1 one copy linked by undici 5.29.0 and by
+# pnpm's hoist where that is there; and no file of the webapp's own build
+# (apps/webapp/build and public) carries undici:request:create, a string of
+# undici's own code in both releases, so the copy relinked is the one the
+# server loads. Then it points the link at
+# ../../undici@6.29.1/node_modules/undici, with the old link's owner, and
+# removes pnpm's two directories and the hoist where it is there. After: the
+# link is the new one and resolves to undici 6.29.1; by the same walks nothing
+# of undici 5.29.0 or busboy 2.1.1 is left; no other path of the image was
+# added, removed or changed (owner, mode, size and times, as goose's RUN
+# proves); from connect-node, require and import of undici give 6.29.1 and its
+# Headers; from @depot/sdk-node, require and import of connect-node load; and
+# from the webapp, @depot/sdk-node loads, with its createBuild, and the undici
+# it loaded is 6.29.1's index.js. scripts/a-binary-the-stack-never-runs.unit.test.ts
+# holds the RUN's shape and runs it over its stand-in.
+#
 # WHAT STAYS, and why (2026-11-03; read again at v4.8.5 on 2026-11-13;
 # triggerdotdev/trigger.dev#5084 asks upstream for all of it). Expected at
 # v4.8.5, by arithmetic from the scan of the image built for alpha.7 (Security
@@ -459,17 +545,23 @@
 #     REPLACED: GOOSE), so about 17 high and about 9 with a fix are expected
 #     with it, which the branch's image scan measures.
 #   - in the webapp's dependencies, where only a new major fixes them, or a
-#     requirer pins the version exactly: undici 5.29.0 (5 highs,
-#     @connectrpc/connect-node's; fixed in 6) and its @fastify/busboy 2.1.1
-#     (fixed in 3); turbo-stream 2.4.1 (fixed in 3; an exact pin of
-#     @remix-run/react and server-runtime 2.17.5); and deepmerge-ts 7.1.5
-#     (fixed in 8; @prisma/config's).
+#     requirer pins the version exactly: turbo-stream 2.4.1 (fixed in 3; an
+#     exact pin of @remix-run/react and server-runtime 2.17.5); and
+#     deepmerge-ts 7.1.5 (fixed in 8; @prisma/config's).
 # Until v4.8.5 effect 3.16.12 and 3.18.4 (CVE-2026-32887, exact pins of
 # @prisma/config 6.14.0 and 6.19.0) and body-parser 2.3.0 (2.4.0 needs
 # iconv-lite ^0.7.3, and pnpm linked 0.7.2 for it) stayed too. Until
 # 2026-11-14 cross-spawn 5.1.0 (fixed in 6.0.6; spawndamnit's, under the
 # root's @changesets/cli) stayed as well: it goes since (WHAT GOES), and about
 # 16 high and about 8 with a fix are expected, which the branch's image scan
+# measures. Until 2026-11-20 undici 5.29.0 (5 highs,
+# @connectrpc/connect-node's; fixed in 6) and its @fastify/busboy 2.1.1 (1,
+# fixed in 3) stayed too. The scan of main on 2026-11-19 read 1 critical, 19
+# high and 8 with a fix (Security Scan run 44637576014; its 11 highs with no
+# fix are Debian 12's: one more of zlib1g's, one each in gzip, libacl1,
+# libtinfo6, ncurses-base, ncurses-bin and perl-base, and four in libpam's
+# packages). Since connect-node runs the store's 6.29.1, both go (WHAT IS
+# RELINKED: UNDICI): 1, 13 and 2 are expected, which the branch's image scan
 # measures.
 #
 # THE DEBIAN PACKAGES NOTHING RUNS (since 2026-11-06, for alpha.6; workplan
@@ -691,7 +783,10 @@
 # one, fails here and names the path: re-read this header against it, and
 # drop the removal upstream fixed. The replacement names the version it replaces the same
 # way (goose v3.27.1), and fails by name when upstream moves it: drop it
-# (THE WAY OUT). The purge names its thirteen packages and eight
+# (THE WAY OUT). The relink names connect-node 1.4.0, both undici releases
+# and busboy 2.1.1 the same way, by path and by package.json, and stops the
+# build on a tree that holds another of them (WHAT IS RELINKED: UNDICI). The
+# purge names its thirteen packages and eight
 # libraries the same way: `dpkg-query -W` stops the build on a base that
 # renames or drops one, and `dpkg-query -L` on one that no longer ships a
 # library (THE DEBIAN PACKAGES NOTHING RUNS). A pull request that touches
@@ -728,7 +823,13 @@
 # out, in both Dockerfiles, with its REMOVED rows and the guard's CROSS_SPAWN,
 # when upstream's lockfile no longer resolves it (a @changesets/cli whose
 # spawndamnit takes cross-spawn 7, or none in the root's dependencies): its
-# check stops the build where it is not there. When upstream's
+# check stops the build where it is not there. The undici relink goes, its RUN
+# with the guard's RELINK, when upstream's lockfile no longer resolves undici
+# 5.29.0 for connect-node (a connect-node on undici 6 or later, or a
+# @depot/sdk-node that takes none): its checks stop the build where
+# connect-node, its link or either undici is not as read. To go back to
+# 5.29.0 before that, revert the change that brought the RUN, and managed.yml's
+# name with it (THE BASE AND THE NAME). When upstream's
 # Dockerfile moves goose past v3.27.1, goose's RUN fails ("upstream moved
 # goose: drop the replacement"): delete that RUN and goose's REPLACED row,
 # and read the new goose's findings in the scan.
@@ -924,6 +1025,98 @@ RUN set -eu; \
     [ "$(state)" = "$before" ] || fail "outside $goose, a path was added or removed, or an entry's owner, mode, size or times changed, while it was replaced."; \
     rm -r "$tmp"; \
     echo "$me: goose $goose_from at $goose is goose $goose_to's $asset, by its SHA-256 ($goose_sha256), root's and 0755; nothing else in the image changed."
+
+# Still as root, after goose's: connect-node's undici 5.29.0 relinked to the
+# store's 6.29.1, and undici 5.29.0 and @fastify/busboy 2.1.1 removed with
+# every link into them (WHAT IS RELINKED: UNDICI, and HOW UNDICI IS RELINKED,
+# above).
+RUN set -eu; \
+    me=deploy/compose/trigger.dev/Dockerfile; \
+    fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS RELINKED: UNDICI against this image, or drop the relink if upstream moved connect-node or undici (THE WAY OUT)." >&2; exit 1; }; \
+    s=/triggerdotdev/node_modules/.pnpm; \
+    connect_store="$s/@connectrpc+connect-node@1.4.0_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.4.0_@bufbuild+protobuf@1.10.0_"; \
+    connect="$connect_store/node_modules/@connectrpc/connect-node"; \
+    undici_link="$connect_store/node_modules/undici"; \
+    undici_from=../../undici@5.29.0/node_modules/undici; \
+    undici_to=../../undici@6.29.1/node_modules/undici; \
+    old_store="$s/undici@5.29.0"; \
+    old="$old_store/node_modules/undici"; \
+    busboy_store="$s/@fastify+busboy@2.1.1"; \
+    busboy="$busboy_store/node_modules/@fastify/busboy"; \
+    busboy_link="$old_store/node_modules/@fastify/busboy"; \
+    busboy_hoist="$s/node_modules/@fastify/busboy"; \
+    new_store="$s/undici@6.29.1"; \
+    new="$new_store/node_modules/undici"; \
+    new_tree=5f8644a9bf69a2c6aac6cef3f750832a3ff2b7a1f0d6d55d105abc4456cba6fb; \
+    sdk_store="$s/@depot+sdk-node@1.0.0"; \
+    sdk="$sdk_store/node_modules/@depot/sdk-node"; \
+    sdk_link="$sdk_store/node_modules/@connectrpc/connect-node"; \
+    webapp=/triggerdotdev/apps/webapp; \
+    top=/; \
+    said() { node -p "const j = require(process.argv[1] + '/package.json'); j.name + '@' + j.version" "$1"; }; \
+    declared() { node -p "JSON.stringify(require(process.argv[1] + '/package.json').dependencies || {})" "$1"; }; \
+    files() { (cd "$1" && find . -path ./node_modules -prune -o -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum); }; \
+    tree() { files "$1" | sha256sum | cut -d' ' -f1; }; \
+    state() { { find "$top" -xdev \( -path "$undici_link" -o -path "$old_store" -o -path "$busboy_store" -o -path "$busboy_hoist" \) -prune -o -type d -exec stat -c '%n %u:%g %a' {} + ; find "$top" -xdev \( -path "$undici_link" -o -path "$old_store" -o -path "$busboy_store" -o -path "$busboy_hoist" \) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' {} + ; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }; \
+    where="const fs = require('fs'); const path = require('path'); const [top, gone, name, version] = process.argv.slice(1); const dev = fs.statSync(top).dev; const real = fs.existsSync(gone) ? fs.realpathSync(gone) : gone; const into = (t) => [gone, real].some((g) => t === g || t.startsWith(g + '/')); const dir = name.replace('/', '+') + '@' + version; const quoted = JSON.stringify(name); let read = 0; const hits = []; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isSymbolicLink()) { if (!into(p) && (into(path.resolve(d, fs.readlinkSync(p))) || (fs.existsSync(p) && into(fs.realpathSync(p))))) hits.push('link ' + p); continue; } if (s.isDirectory()) { if (e === dir || e.startsWith(dir + '_')) hits.push('directory ' + p); if (s.dev === dev) walk(p); continue; } if (e !== 'package.json' || !s.isFile()) continue; read++; const text = fs.readFileSync(p, 'utf8'); if (!text.includes(quoted)) continue; let j = null; try { j = JSON.parse(text); } catch { if (text.includes(JSON.stringify(version))) hits.push('unreadable ' + p); continue; } if (j !== null && typeof j === 'object' && j.name === name && j.version === version) hits.push('package ' + p); } }; walk(top); console.error(read + ' package.json files read under ' + top); if (read < 1) process.exit(2); console.log(hits.sort().map((h) => h + ' ').join(''));"; \
+    for d in "$connect" "$sdk" "$old" "$busboy" "$new"; do [ -f "$d/package.json" ] || fail "$d is not there."; done; \
+    [ "$(said "$connect")" = @connectrpc/connect-node@1.4.0 ] || fail "$connect is $(said "$connect"), not @connectrpc/connect-node@1.4.0, the release this file was read for."; \
+    [ "$(said "$sdk")" = @depot/sdk-node@1.0.0 ] || fail "$sdk is $(said "$sdk"), not @depot/sdk-node@1.0.0, connect-node's one requirer as read."; \
+    [ "$(said "$old")" = undici@5.29.0 ] || fail "$old is $(said "$old"), not undici@5.29.0, the release this file removes."; \
+    [ "$(said "$busboy")" = @fastify/busboy@2.1.1 ] || fail "$busboy is $(said "$busboy"), not @fastify/busboy@2.1.1, the release this file removes."; \
+    [ "$(said "$new")" = undici@6.29.1 ] || fail "$new is $(said "$new"), not undici@6.29.1, the release this file gives connect-node."; \
+    { [ -L "$sdk_link" ] && [ "$(readlink -f "$sdk_link")" = "$(readlink -f "$connect")" ]; } || fail "$sdk_link is not pnpm's link to $connect: connect-node is not where its one requirer was read to find it."; \
+    [ "$(declared "$connect")" = '{"undici":"^5.28.3"}' ] || fail "$connect declares $(declared "$connect"), not undici ^5.28.3 alone, as read."; \
+    named="$(cd "$connect" && grep -rHoE --include='*.js' --include='*.cjs' --include='*.mjs' "(require\(|from |import\()[[:space:]]*[\"']undici(/[^\"']*)?[\"']" . | tr -d "\"'" | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ "$named" = "./dist/cjs/node-headers-polyfill.js:require(undici ./dist/esm/node-headers-polyfill.js:from undici " ] || fail "in $connect, these name undici: ${named:-none}; this file was read for two, each build's node-headers-polyfill.js, which uses undici's Headers only on Node before 18."; \
+    { [ -L "$undici_link" ] && [ "$(readlink "$undici_link")" = "$undici_from" ]; } || fail "$undici_link is not pnpm's link to $undici_from: connect-node's undici is not where it was read."; \
+    [ "$(readlink -f "$undici_link")" = "$(readlink -f "$old")" ] || fail "$undici_link does not resolve to $old."; \
+    [ "$(cd "${undici_link%/*}" && readlink -f "$undici_to")" = "$(readlink -f "$new")" ] || fail "$undici_to, from ${undici_link%/*}, is not $new."; \
+    [ "$(ls -A "$old_store")" = node_modules ] || fail "$old_store holds more than pnpm's node_modules: $(ls -A "$old_store" | tr '\n' ' ')"; \
+    held="$(cd "$old_store/node_modules" && find . -mindepth 1 -maxdepth 2 ! -path './undici/*' | LC_ALL=C sort | tr '\n' ' ')"; \
+    [ "$held" = "./@fastify ./@fastify/busboy ./undici " ] || fail "$old_store/node_modules holds: ${held:-nothing}; this file was read for undici 5.29.0 and pnpm's link to its one dependency, @fastify/busboy."; \
+    [ "$(declared "$old")" = '{"@fastify/busboy":"^2.0.0"}' ] || fail "$old declares $(declared "$old"), not @fastify/busboy ^2.0.0 alone, as read."; \
+    { [ ! -L "$old" ] && [ -L "$busboy_link" ] && [ "$(readlink -f "$busboy_link")" = "$(readlink -f "$busboy")" ]; } || fail "in $old_store, undici 5.29.0 is a link, or $busboy_link is not pnpm's link to $busboy."; \
+    [ "$(ls -A "$busboy_store")" = node_modules ] || fail "$busboy_store holds more than pnpm's node_modules: $(ls -A "$busboy_store" | tr '\n' ' ')"; \
+    held="$(cd "$busboy_store/node_modules" && find . -mindepth 1 -maxdepth 2 ! -path './@fastify/busboy/*' | LC_ALL=C sort | tr '\n' ' ')"; \
+    { [ "$held" = "./@fastify ./@fastify/busboy " ] && [ ! -L "$busboy" ]; } || fail "$busboy_store/node_modules holds: ${held:-nothing}; this file was read for @fastify/busboy 2.1.1 alone, which has no dependency."; \
+    [ "$(declared "$new")" = '{}' ] || fail "$new declares $(declared "$new"); undici 6.29.1 as npm published it declares none, and nothing is linked for it."; \
+    held="$(cd "$new_store" && find . -mindepth 1 -maxdepth 2 ! -path './node_modules/undici/*' | LC_ALL=C sort | tr '\n' ' ')"; \
+    { [ "$held" = "./node_modules ./node_modules/undici " ] && [ ! -L "$new" ]; } || fail "$new_store holds: ${held:-nothing}; this file was read for undici 6.29.1 alone, the package, in pnpm's node_modules."; \
+    [ -z "$(find "$new" -path "$new/node_modules" -prune -o ! -type f ! -type d -print)" ] || fail "$new holds more than files and directories."; \
+    [ "$(tree "$new")" = "$new_tree" ] || { files "$new" >&2; fail "$new is not the published undici 6.29.1, file for file (above)."; }; \
+    want="directory $old_store link $undici_link package $old/package.json "; \
+    found="$(node -e "$where" "$top" "$old_store" undici 5.29.0)" || fail "$top could not be read for undici 5.29.0 (above); nothing is changed yet."; \
+    [ "$found" = "$want" ] || fail "under $top, undici 5.29.0 is: ${found:-nothing}; this file was read for one copy, $old, in $old_store, and one link into it, connect-node's, $undici_link (pnpm hoists undici 6.29.1 here)."; \
+    want_hoist=""; if [ -L "$busboy_hoist" ]; then want_hoist="link $busboy_hoist "; fi; \
+    want="directory $busboy_store ${want_hoist}link $busboy_link package $busboy/package.json "; \
+    found="$(node -e "$where" "$top" "$busboy_store" @fastify/busboy 2.1.1)" || fail "$top could not be read for @fastify/busboy 2.1.1 (above); nothing is changed yet."; \
+    [ "$found" = "$want" ] || fail "under $top, @fastify/busboy 2.1.1 is: ${found:-nothing}; this file was read for one copy, $busboy, in $busboy_store, linked by undici 5.29.0, $busboy_link, and by pnpm's hoist, $busboy_hoist, where it is there."; \
+    for d in "$webapp/build" "$webapp/public"; do [ -d "$d" ] || fail "$d is not there: the webapp's build is not where it was read."; done; \
+    found="$(grep -rlF -e undici:request:create "$webapp/build" "$webapp/public")" && st=0 || st=$?; \
+    [ "$st" = 1 ] || fail "the webapp's own build carries undici's undici:request:create (grep exits $st): ${found:-}. A copy of undici bundled there is one this relink does not reach."; \
+    before="$(state)"; \
+    owner="$(stat -c %u:%g "$undici_link")"; \
+    rm "$undici_link"; \
+    ln -s "$undici_to" "$undici_link"; \
+    chown -h "$owner" "$undici_link"; \
+    rm -r "$old_store" "$busboy_store"; \
+    if [ -L "$busboy_hoist" ]; then rm "$busboy_hoist"; fi; \
+    { [ -L "$undici_link" ] && [ "$(readlink "$undici_link")" = "$undici_to" ]; } || fail "$undici_link is not a link to $undici_to after the relink."; \
+    [ "$(readlink -f "$undici_link")" = "$(readlink -f "$new")" ] || fail "$undici_link does not resolve to $new after the relink."; \
+    [ "$(stat -c %u:%g "$undici_link")" = "$owner" ] || fail "$undici_link is $(stat -c %u:%g "$undici_link")'s after the relink, not $owner's, as pnpm's link was."; \
+    for p in "$old_store" "$busboy_store" "$busboy_hoist"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
+    found="$(node -e "$where" "$top" "$old_store" undici 5.29.0)" || fail "$top could not be read for undici 5.29.0 after the removal (above)."; \
+    [ -z "$found" ] || fail "after the removal, undici 5.29.0 is still under $top: $found"; \
+    found="$(node -e "$where" "$top" "$busboy_store" @fastify/busboy 2.1.1)" || fail "$top could not be read for @fastify/busboy 2.1.1 after the removal (above)."; \
+    [ -z "$found" ] || fail "after the removal, @fastify/busboy 2.1.1 is still under $top: $found"; \
+    [ "$(state)" = "$before" ] || fail "outside connect-node's undici link and what went with undici 5.29.0, a path was added or removed, or an entry's owner, mode, size or times changed, while it was relinked."; \
+    (cd "$connect" && node -e "const fs = require('fs'); const p = fs.realpathSync(require.resolve('undici')); const v = require('undici/package.json').version; const h = typeof require('undici').Headers; console.log('require(undici): ' + p + ' ' + v + ', Headers ' + h); if (p !== fs.realpathSync(process.argv[1] + '/index.js') || v !== '6.29.1' || h !== 'function') process.exit(1);" "$new") || fail "from $connect, require('undici') does not load undici 6.29.1 and its Headers from $new."; \
+    (cd "$connect" && node --input-type=module -e "import { realpathSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; const p = realpathSync(fileURLToPath(import.meta.resolve('undici'))); const { Headers } = await import('undici'); console.log('import(undici): ' + p + ', Headers ' + typeof Headers); if (p !== realpathSync(process.argv[1] + '/index.js') || typeof Headers !== 'function') process.exit(1);" "$new") || fail "from $connect, import('undici') does not give undici 6.29.1's Headers by name from $new."; \
+    (cd "$sdk" && node -e "if (typeof require('@connectrpc/connect-node').createConnectTransport !== 'function') process.exit(1);") || fail "from $sdk, require('@connectrpc/connect-node') does not load with undici 6.29.1."; \
+    (cd "$sdk" && node --input-type=module -e "if (typeof (await import('@connectrpc/connect-node')).createConnectTransport !== 'function') process.exit(1);") || fail "from $sdk, import('@connectrpc/connect-node') does not load with undici 6.29.1: its dist/esm imports Headers from undici by name."; \
+    (cd "$webapp" && node -e "const fs = require('fs'); const [sdk, nu] = process.argv.slice(1); const at = fs.realpathSync(require.resolve('@depot/sdk-node')); const { depot } = require('@depot/sdk-node'); const undici = fs.realpathSync(nu + '/index.js'); console.log('require(@depot/sdk-node): ' + at + '; undici: ' + (require.cache[undici] ? undici : 'not ' + undici)); if (!at.startsWith(fs.realpathSync(sdk) + '/') || typeof depot.build.v1.BuildService.createBuild !== 'function' || !require.cache[undici]) process.exit(1);" "$sdk" "$new") || fail "from $webapp, @depot/sdk-node does not load connect-node with undici 6.29.1 from $new."; \
+    echo "$me: connect-node 1.4.0 links undici 6.29.1, the store's, as npm published it ($new_tree); undici 5.29.0 and @fastify/busboy 2.1.1 went with every link into them; nothing else in the image changed; from the webapp, @depot/sdk-node loads connect-node with undici 6.29.1."
 
 # Still as root, and the last of root's RUNs: the Debian packages nothing here
 # runs or loads, purged (THE DEBIAN PACKAGES NOTHING RUNS, above).
