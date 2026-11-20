@@ -19,9 +19,11 @@
 # and libcurl 8.23.0-r0 and brotli-libs 1.2.1-r0 carry those fixes. curl goes
 # all the same: nothing here runs it, and what is not installed brings no
 # next finding. Docker Hub pushed the tag's linux/amd64 image (fc9cbc10…) on
-# 2026-11-05 at 20:52 UTC, its linux/arm64 image (9ee99810…) at 23:52, and the
-# index (the digest below) on 2026-11-06 at 08:52; both images hold the same
-# packages, read from the registry on 2026-11-06.
+# 2026-11-05 at 20:52 UTC, its linux/arm64 image (9ee99810…) at 23:52, and an
+# index of them on 2026-11-06 at 08:52 (0bbb055b…); both images hold the same
+# packages, read from the registry on 2026-11-06. The index below is of
+# 2026-11-13 at 08:52: the same images and attestations, and a linux/riscv64
+# image, the one change (both indexes read from the registry on 2026-11-20).
 #
 # WHY NOTHING HERE NEEDS CURL. Caddy is one statically linked Go binary, and
 # nothing in Caddy runs curl. Nothing else does in this container either: the
