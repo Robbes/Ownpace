@@ -4,6 +4,21 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, after T2: #1984's CI is green, and T4's first fix is built as #1985 (a draft, not
+merged).**
+- **#1984** passed every workflow on its pull request. CI run 44838311907 includes the
+  integration tests on amd64 and arm64 and `ci-complete`; Security Scan run 44838311872 includes
+  the two osv-scanner steps.
+- **#1985, the tag length**, on `claude/ownpace-public-readiness-y7orc6-gcm-tag-length` from
+  `main` at `bf9ede75`. This is the fix §4.3 calls real and small, and the one
+  `gcm-no-tag-length` needs before it may block.
+  - `packages/core/src/secrets.ts`'s `createCipheriv` and `createDecipheriv` both pass
+    `authTagLength: AUTH_TAG_LENGTH` (16 bytes). That is GCM's default, which both sides
+    already used, so every stored secret decrypts as before.
+  - A new case cuts a real tag to 12 bytes and holds both calls to the option. Dropping the
+    option fails it. With the length check removed, Node itself still refuses the tag.
+  - `packages/core`'s unit tests pass (98 files, 1,067 tests), as do ESLint and the typecheck.
+
 **2026-11-20, at the end: T2, osv-scanner, built as #1984 (a draft, not merged).** On the branch
 `claude/ownpace-public-readiness-y7orc6-osv-scanner`, from `main` at `bf9ede75`; step 1 of §5, as
 D1 decided.
@@ -112,7 +127,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | 🔨 **Built** in #1984, a draft, not merged (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | 📋 **Planned** (D3) | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned** | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T4 Fix or answer each spot | builder | 📋 **Planned**; 🔨 **the tag length built** in #1985, a draft, not merged | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
