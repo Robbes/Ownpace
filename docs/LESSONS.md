@@ -1116,7 +1116,7 @@ reading a file drops off its entry by itself.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
-### `deploy/compose/docker-socket-proxy/docker-entrypoint.sh`
+### `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
 
 - [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
@@ -3614,7 +3614,7 @@ Reads:
 - `.github/dependabot.yml`
 - `.github/workflows/images.yml`
 - `apps/worker/package.json`
-- `deploy/compose/docker-socket-proxy/docker-entrypoint.sh`
+- `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/redis/Dockerfile`
 - `deploy/compose/supervisor/Dockerfile`
@@ -5899,7 +5899,7 @@ Reads:
 
 - `.github/dependabot.yml`
 - `.github/workflows/images.yml`
-- `deploy/compose/docker-socket-proxy/docker-entrypoint.sh`
+- `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
 - `deploy/compose/managed.yml`
 
 ### [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts)
@@ -6347,7 +6347,7 @@ Reads:
 - `apps/selfhost/Dockerfile`
 - `apps/worker/task-image/Dockerfile`
 - `apps/worker/trigger.config.ts`
-- `deploy/compose/docker-socket-proxy/docker-entrypoint.sh`
+- `deploy/compose/docker-socket-proxy/system_files/usr/local/bin/docker-entrypoint.sh`
 - `deploy/compose/managed.yml`
 - `deploy/compose/redis/Dockerfile`
 - `deploy/compose/trigger.dev/Dockerfile`

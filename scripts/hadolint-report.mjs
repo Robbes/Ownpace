@@ -116,11 +116,11 @@ export const RULE_CODES = {
 export const EXCEPTIONS = {
   'deploy/compose/docker-socket-proxy/Dockerfile': {
     'non-root':
-      "Tecnativa's docker-socket-proxy v0.5.0 as upstream ships it, `USER root` included. HAProxy connects to the host's Docker " +
+      "Tecnativa's docker-socket-proxy v0.6.0 as upstream ships it, `USER root` included. HAProxy connects to the host's Docker " +
       "socket, root:docker at mode 0660, whose group id differs from host to host, so another user would need each host's " +
       'docker group id passed in from its .env (group_add), for little: the socket is the power either way. The ' +
       "Dockerfile's WHY ROOT says so, and what managed.yml gives the proxy instead",
-    'numeric-user': "upstream's own line, `USER root`: a-tag-upstream-never-rebuilds holds every instruction but the FROM and the check to upstream's",
+    'numeric-user': "upstream's own line, `USER root`: a-tag-upstream-never-rebuilds holds every instruction but the base's FROM and the check to upstream's",
   },
 
   'deploy/compose/pgbouncer/Dockerfile': {
@@ -153,7 +153,7 @@ export const KNOWN_FINDINGS = {
   'deploy/compose/docker-socket-proxy/Dockerfile': {
     DL3064:
       "`SECRETS=0` in upstream's ENV names no secret: it is the switch that refuses Docker's secrets endpoint, and " +
-      "a-tag-upstream-never-rebuilds holds every instruction but the FROM and the check to upstream's",
+      "a-tag-upstream-never-rebuilds holds every instruction but the base's FROM and the check to upstream's",
   },
   'deploy/compose/redis/Dockerfile': {
     SC2016:

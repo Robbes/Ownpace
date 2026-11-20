@@ -31,7 +31,7 @@
  *               Trigger.dev's webapp and supervisor without the files nothing
  *               here runs since 0146 T16, under the names `trigger.dev` and
  *               `supervisor` the pulled images had; the Docker socket proxy,
- *               upstream's v0.5.0 on a current HAProxy, since 2026-10-30,
+ *               upstream's v0.6.0 on a current HAProxy, since 2026-10-30,
  *               deploy/compose/docker-socket-proxy, under the name
  *               `docker-socket-proxy` the pulled image had; the dashboard's TLS
  *               front, Caddy's image without curl, since 2026-10-31,

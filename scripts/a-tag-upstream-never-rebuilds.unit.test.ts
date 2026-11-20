@@ -16,27 +16,32 @@
  * digest move could not help, and a newer release did not exist.
  *
  * So `deploy/compose/docker-socket-proxy/` builds the same thing here:
- * upstream's Dockerfile at v0.5.0, with haproxy.cfg and docker-entrypoint.sh
- * beside it byte for byte, on the newest HAProxy of the line that release
- * chose (3.4), by tag and index digest. Its header says what changed (the
- * base, and one RUN that checks the two files by SHA-256) and how it moves.
- * This holds:
+ * upstream's Dockerfile at its release (v0.5.0, and v0.6.0 since 2026-11-20),
+ * with the two files it copies beside it byte for byte, on the newest HAProxy
+ * of the line that release chose (3.4), by tag and index digest. Its header
+ * says what changed (the base, and one RUN that checks the two files by
+ * SHA-256) and how it moves. This holds:
  *
  *  - THE DOCKERFILE IS UPSTREAM'S BUT FOR ITS BASE. One FROM, the official
- *    `haproxy:<x.y.z>-alpine` by index digest, on upstream's line; the release
- *    it was read at named above it (`# docker-socket-proxy v0.5.0`, which the
- *    pin watch compares with upstream's git tags); every other instruction
- *    line but the check upstream's, in upstream's order, by the SHA-256 of
- *    upstream's at the release; no parser directive, no ADD, no `--mount`,
- *    and no COPY but upstream's two;
+ *    `haproxy:<x.y.z>-alpine` by index digest, on upstream's line, in place of
+ *    the lines upstream's base takes (five since v0.6.0: its `lts` tag by an
+ *    ARG, and every Alpine package upgraded as root while it builds, which no
+ *    RUN here may do); the release it was read at named above it
+ *    (`# docker-socket-proxy v0.6.0`, which the pin watch compares with
+ *    upstream's git tags); every other instruction line but the check
+ *    upstream's, in upstream's order, by the SHA-256 of upstream's at the
+ *    release, and upstream's base lines followed by them are its whole
+ *    Dockerfile; no parser directive, no ADD, no `--mount`, and no COPY but
+ *    upstream's;
  *  - THE NAME COVERS THE FILES. The image's name hashes the Dockerfile's
  *    instruction lines and nothing else (`builtTag`, as for the databases), and
  *    COPY reads files that hash never sees. So the check RUN names each copied
  *    file's SHA-256, which must be the file's in the directory: a file that
  *    changes fails here and in the build until the check moves, and the name
- *    with it. The directory holds the Dockerfile and those two files, and
- *    nothing else the builder could read; each is upstream's at the release,
- *    by its git blob id, and the entrypoint keeps its executable bit;
+ *    with it. The directory holds the Dockerfile and those two files, under
+ *    system_files/ since v0.6.0, whose COPY takes all of it, and nothing else
+ *    the builder could read; each is upstream's at the release, by its git
+ *    blob id, and the entrypoint keeps its executable bit;
  *  - managed.yml runs it as `localhost/docker-socket-proxy:<builtTag>`, with
  *    `build: ./docker-socket-proxy` and `pull_policy: never`, no `user:`, the
  *    socket read-only, and an environment whose every key upstream's ENV
@@ -68,7 +73,7 @@ import { createHash } from 'node:crypto';
 import { mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { LineCounter, parse as parseYaml, parseDocument } from 'yaml';
 import { builtTag, dockerfileBase, parseRef, readImages } from './idp-pin-watch.mjs';
@@ -80,26 +85,53 @@ const CONTEXT = 'deploy/compose/docker-socket-proxy';
 const DOCKERFILE = `${CONTEXT}/Dockerfile`;
 const MANAGED = 'deploy/compose/managed.yml';
 const IMAGES_WORKFLOW = '.github/workflows/images.yml';
-const HAPROXY_CFG = `${CONTEXT}/haproxy.cfg`;
+const ENTRYPOINT = 'system_files/usr/local/bin/docker-entrypoint.sh';
+const TEMPLATE = 'system_files/usr/local/etc/haproxy/haproxy.cfg.template';
+const HAPROXY_CFG = `${CONTEXT}/${TEMPLATE}`;
 const SERVICE = 'trigger-docker-proxy';
 const NAME = 'localhost/docker-socket-proxy';
 
 /**
  * Upstream at the release this is built from: github.com/Tecnativa/docker-socket-proxy
- * at the tag v0.5.0, read on 2026-10-30. A move to another release moves this
- * record with the files, after reading them.
+ * at the tag v0.6.0, read on 2026-11-20 (v0.5.0, commit 2e118a0c, read on
+ * 2026-10-30, until then). A move to another release moves this record with
+ * the files, after reading them.
  */
 const UPSTREAM = {
-  release: 'v0.5.0',
-  commit: '2e118a0c0c66e1831f68b7afd6d49ad3e2f96b5d',
-  /** Its Dockerfile's FROM, by tag alone: the HAProxy line it chose. */
-  from: 'haproxy:3.4.2-alpine',
-  /** The SHA-256 of its Dockerfile's instruction lines but the FROM, each with its newline, comments and blank lines left out. */
-  instructions: '75f93565d799f3df0dc9abe546a99df2ba2e72c9f322ed62d8f0a8a43d6ddc4b',
-  /** The files it copies, by their git blob ids at the tag (`git ls-tree v0.5.0`), where they go, and their mode there. */
+  release: 'v0.6.0',
+  commit: '1d2966298e83ca5253e1b95b54e9cf6d081855af',
+  /**
+   * Its Dockerfile's base, by tag alone: `FROM haproxy:${HAPROXY_VERSION}-alpine`
+   * after `ARG HAPROXY_VERSION=lts`. v0.5.0's was `haproxy:3.4.2-alpine`.
+   */
+  from: 'haproxy:lts-alpine',
+  /**
+   * The HAProxy line that tag named when the release was read: Docker Hub's
+   * `lts-alpine` was the index of `3.4-alpine` and `3.4.8-alpine`
+   * (`8aa6458a…`) on 2026-11-20, and upstream builds `3.4` by name too.
+   */
+  line: '3.4',
+  /**
+   * The instruction lines its base takes, at the top of its Dockerfile, in its
+   * order: the tag by an ARG, then every Alpine package upgraded as root while
+   * the image builds, and the base's user, haproxy, given back. The FROM here
+   * stands for all of them (the Dockerfile's header).
+   */
+  base: ['ARG HAPROXY_VERSION=lts', 'FROM haproxy:${HAPROXY_VERSION}-alpine', 'USER root', 'RUN apk upgrade --no-cache', 'USER haproxy'],
+  /** The SHA-256 of its Dockerfile's instruction lines (git blob 8e06e203), each with its newline, comments and blank lines left out. */
+  dockerfile: 'a6c7af81cc6fbfe525876d0d5714aa925a7d02d9dbf06aa0e94618e98a112592',
+  /** The same of its instruction lines after the base's. */
+  instructions: '5c9cc362655fd16f0c5fcf7461bd5aa6c29a75d17b9893782ffc17e51317fb60',
+  /** Its one COPY: the directory below, onto the image's root. v0.5.0 copied its two files by name. */
+  copy: 'COPY system_files/ /',
+  /**
+   * The files it copies, by their path at the tag (`git ls-tree -r v0.6.0`),
+   * their git blob ids there, where they go, and their mode. The same blobs as
+   * v0.5.0's, which kept them at the top as docker-entrypoint.sh and haproxy.cfg.
+   */
   files: {
-    'docker-entrypoint.sh': { blob: '2303cee20c41b4d2993a2bbc7f783ebaf65e37e4', target: '/usr/local/bin/docker-entrypoint.sh', executable: true },
-    'haproxy.cfg': { blob: 'd61b1d4dd91d822a074f6dc5e6944ea5681ae0ae', target: '/usr/local/etc/haproxy/haproxy.cfg.template', executable: false },
+    [ENTRYPOINT]: { blob: '2303cee20c41b4d2993a2bbc7f783ebaf65e37e4', target: '/usr/local/bin/docker-entrypoint.sh', executable: true },
+    [TEMPLATE]: { blob: 'd61b1d4dd91d822a074f6dc5e6944ea5681ae0ae', target: '/usr/local/etc/haproxy/haproxy.cfg.template', executable: false },
   },
 } as const;
 type FileName = keyof typeof UPSTREAM.files;
@@ -144,13 +176,14 @@ function dockerfileProblems(text: string, files: Readonly<Record<string, Buffer>
   } catch (error) {
     problems.push(error instanceof Error ? error.message : String(error));
   }
-  const upstreamLine = lineOf(parseRef(UPSTREAM.from).tag);
   if (base) {
     if (base.repo !== 'haproxy') problems.push(`it builds on ${base.repo}, not the official haproxy image upstream builds on`);
     const line = lineOf(base.tag);
-    if (!line) problems.push(`its base is ${base.tag}, not an exact HAProxy release on Alpine (\`3.4.7-alpine\`), as upstream's is`);
-    else if (line !== upstreamLine) {
-      problems.push(`its base is HAProxy ${line}, and ${UPSTREAM.release} chose ${upstreamLine}: another line is the owner's call, taken with a release of docker-socket-proxy`);
+    if (!line) problems.push(`its base is ${base.tag}, not an exact HAProxy release on Alpine (\`3.4.7-alpine\`), on the line upstream's names`);
+    else if (line !== UPSTREAM.line) {
+      problems.push(
+        `its base is HAProxy ${line}, and ${UPSTREAM.release} chose ${UPSTREAM.line} (${UPSTREAM.from} when it was read): another line is the owner's call, taken with a release of docker-socket-proxy`,
+      );
     }
   }
   const releases = [...text.matchAll(/^# docker-socket-proxy (\S+)$/gm)].map((m) => m[1]);
@@ -165,10 +198,16 @@ function dockerfileProblems(text: string, files: Readonly<Record<string, Buffer>
     problems.push(`\`${line}\` is a parser directive: it changes the build, and the image's name skips it as a comment. Remove it`);
   }
   const instructions = text.split('\n').filter(isInstruction);
-  const upstreamCopies = FILES.map((f) => `COPY ${f} ${dirname(UPSTREAM.files[f].target)}${f === 'docker-entrypoint.sh' ? '/' : `/${UPSTREAM.files[f].target.split('/').at(-1)}`}`);
   for (const line of instructions) {
-    if ((/^(COPY|ADD)\s/i.test(line) && !upstreamCopies.includes(line)) || /--mount\b/i.test(line)) {
-      problems.push(`\`${line}\` reads files or an image that neither the image's name nor the check covers. Upstream's two COPY lines are the only ones`);
+    if ((/^(COPY|ADD)\s/i.test(line) && line !== UPSTREAM.copy) || /--mount\b/i.test(line)) {
+      problems.push(`\`${line}\` reads files or an image that neither the image's name nor the check covers. Upstream's \`${UPSTREAM.copy}\` is the only COPY`);
+    }
+    // Upstream's base upgrades Alpine's packages while it builds (v0.6.0); the FROM here stands for that, by its digest.
+    if (/\bapk\s+(?:add|fix|update|upgrade)\b/.test(line)) {
+      problems.push(
+        `\`${line.trim()}\` fetches packages while the image builds: what it installs is what Alpine serves that day, which the name does not say. ` +
+          "The base moves by its digest, in Dependabot's pull requests (the header's WHAT IT IS, 1)",
+      );
     }
   }
   // The check: each copied file by the SHA-256 it has here, and the entrypoint executable.
@@ -186,24 +225,39 @@ function dockerfileProblems(text: string, files: Readonly<Record<string, Buffer>
     if (!check.executable) problems.push('the check does not end in `test -x /usr/local/bin/docker-entrypoint.sh`: an entrypoint without its executable bit would build');
   }
   // Every other instruction line is upstream's, in its order.
-  const checkLines = new Set(check?.lines ?? []);
-  const rest = instructions.filter((line) => !/^FROM\s/i.test(line) && !checkLines.has(line));
+  const rest = restOf(text);
   const restHash = sha256(rest.map((line) => `${line}\n`).join(''));
   if (restHash !== UPSTREAM.instructions) {
     problems.push(
-      `its instructions but the FROM and the check are not upstream's at ${UPSTREAM.release} (SHA-256 ${restHash}, upstream's ${UPSTREAM.instructions}): ` +
+      `its instructions but the FROM and the check are not upstream's at ${UPSTREAM.release} after its base (SHA-256 ${restHash}, upstream's ${UPSTREAM.instructions}): ` +
         "the header says the base is all that changed. Write upstream's lines back, or move to a release by its header's route",
     );
   }
   return problems;
 }
 
+/** The Dockerfile's instruction lines but the FROM and the check: upstream's, after its base. */
+function restOf(text: string): string[] {
+  const checkLines = new Set(checkRun(text)?.lines ?? []);
+  return text.split('\n').filter((line) => isInstruction(line) && !/^FROM\s/i.test(line) && !checkLines.has(line));
+}
+
+/** What the directory must hold: the Dockerfile, upstream's two files, and the directories they are in (`dir/`). */
+function wantedEntries(): string[] {
+  const dirs = new Set<string>();
+  for (const f of FILES) for (let d = dirname(f); d !== '.'; d = dirname(d)) dirs.add(`${d}/`);
+  return ['Dockerfile', ...FILES, ...dirs].sort();
+}
+
 /** What is wrong with the directory's files; empty when it holds. */
 function contextProblems(names: readonly string[], files: Readonly<Record<string, Buffer>>, executable: (name: string) => boolean): string[] {
   const problems: string[] = [];
-  const want = ['Dockerfile', ...FILES].sort();
+  const want = wantedEntries();
   if (JSON.stringify([...names].sort()) !== JSON.stringify(want)) {
-    problems.push(`${CONTEXT} holds ${JSON.stringify([...names].sort())}, not ${JSON.stringify(want)}: the builder could read a file the name does not cover`);
+    problems.push(
+      `${CONTEXT} holds ${JSON.stringify([...names].sort())}, not ${JSON.stringify(want)}: ` +
+        `the builder could read a file the name does not cover, and \`${UPSTREAM.copy}\` puts all of system_files/ in the image`,
+    );
   }
   for (const f of FILES) {
     const data = files[f];
@@ -254,7 +308,12 @@ function composeProblems(managed: string, dockerfile: string): string[] {
   if (!svc) return [`${MANAGED} has no ${SERVICE}`];
   for (const [name, other] of Object.entries(services)) {
     const repo = other.image ? parseRef(other.image).repo : '';
-    if (repo === 'tecnativa/docker-socket-proxy') problems.push(`${MANAGED}:${name} runs ${other.image}, upstream's image as it was built in July: run ${want}, built from ./docker-socket-proxy`);
+    if (repo === 'tecnativa/docker-socket-proxy') {
+      problems.push(
+        `${MANAGED}:${name} runs ${other.image}, upstream's own image: v0.5.0's as it was built in July, or since v0.6.0 a weekly rebuild under a tag that names no release. ` +
+          `Run ${want}, built from ./docker-socket-proxy`,
+      );
+    }
     else if (repo === NAME && name !== SERVICE) problems.push(`${MANAGED}:${name} runs the proxy's build too, which only ${SERVICE} may`);
   }
   if (svc.image !== want) {
@@ -524,15 +583,28 @@ function verdictProblems(workflow: string, dockerfile: string): string[] {
   return [];
 }
 
-const contextNames = () => readdirSync(join(REPO_ROOT, CONTEXT));
+/** Everything under the directory, by its path there, a directory with its `/`: a link is listed as itself, never followed. */
+const contextNames = () =>
+  readdirSync(join(REPO_ROOT, CONTEXT), { recursive: true, withFileTypes: true }).map((entry) => {
+    const path = relative(join(REPO_ROOT, CONTEXT), join(entry.parentPath, entry.name)).split(sep).join('/');
+    return entry.isDirectory() ? `${path}/` : path;
+  });
 const contextFiles = (): Record<string, Buffer> => Object.fromEntries(FILES.map((f) => [f, readFileSync(join(REPO_ROOT, CONTEXT, f))]));
 const executable = (f: string) => (statSync(join(REPO_ROOT, CONTEXT, f)).mode & 0o111) !== 0;
 
 describe('the Docker socket proxy is upstream\'s release, built here on a current HAProxy of its line', () => {
   const dockerfile = read(DOCKERFILE);
 
-  it("the Dockerfile is upstream's v0.5.0 but for its base and the check", () => {
+  it(`the Dockerfile is upstream's ${UPSTREAM.release} but for its base and the check`, () => {
     expect(dockerfileProblems(dockerfile, contextFiles())).toEqual([]);
+  });
+
+  it("the FROM stands for upstream's base lines and nothing more: after them, the lines here are upstream's whole Dockerfile", () => {
+    // The record's base holds one FROM, which is the tag it names once its ARG's default is put in.
+    const arg = /^ARG HAPROXY_VERSION=(\S+)$/.exec(UPSTREAM.base.find((line) => line.startsWith('ARG ')) ?? '')?.[1];
+    const froms = UPSTREAM.base.filter((line) => /^FROM\s/.test(line)).map((line) => line.replace('${HAPROXY_VERSION}', String(arg)));
+    expect(froms).toEqual([`FROM ${UPSTREAM.from}`]);
+    expect(sha256([...UPSTREAM.base, ...restOf(dockerfile)].map((line) => `${line}\n`).join(''))).toBe(UPSTREAM.dockerfile);
   });
 
   it("the directory holds upstream's two files byte for byte, and nothing else", () => {
@@ -556,18 +628,29 @@ describe('the Docker socket proxy is upstream\'s release, built here on a curren
     expect(swap(/^# docker-socket-proxy v[\d.]+\n/m, '')).toEqual([expect.stringContaining('as its docker-socket-proxy release')]);
     expect(swap(/^# docker-socket-proxy v[\d.]+$/m, '# docker-socket-proxy v0.4.2')).toEqual([expect.stringContaining('as its docker-socket-proxy release')]);
     // An upstream instruction changed: a default switched on, the user dropped.
-    expect(swap(/^ {4}EXEC=0 \\$/m, '    EXEC=1 \\')).toEqual([expect.stringContaining("not upstream's at v0.5.0")]);
-    expect(swap(/^USER root\n/m, '')).toEqual([expect.stringContaining("not upstream's at v0.5.0")]);
+    expect(swap(/^ {4}EXEC=0 \\$/m, '    EXEC=1 \\')).toEqual([expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
+    expect(swap(/^USER root\n/m, '')).toEqual([expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
+    // Upstream's base written back as v0.6.0 has it after its FROM: its packages upgraded while the image builds.
+    expect(swap(/^(EXPOSE 2375)$/m, 'USER root\nRUN apk upgrade --no-cache\nUSER haproxy\n\n$1')).toEqual([
+      expect.stringContaining('`RUN apk upgrade --no-cache` fetches packages while the image builds'),
+      expect.stringContaining(`not upstream's at ${UPSTREAM.release} after its base`),
+    ]);
+    // v0.5.0's two COPY lines, by name, in place of v0.6.0's one of the directory.
+    const byName = ['COPY docker-entrypoint.sh /usr/local/bin/', 'COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg.template'];
+    expect(swap(/^COPY system_files\/ \/$/m, byName.join('\n'))).toEqual([
+      ...byName.map((line) => expect.stringContaining(`\`${line}\` reads files or an image`)),
+      expect.stringContaining(`not upstream's at ${UPSTREAM.release}`),
+    ]);
     // What the builder reads that neither the name nor the check covers.
     expect(dockerfileProblems(`# syntax=docker/dockerfile:1\n${dockerfile}`, files)).toEqual([expect.stringContaining('is a parser directive')]);
     for (const line of ['COPY extra.cfg /usr/local/etc/haproxy/', 'ADD https://example.org/x.cfg /tmp/', 'RUN --mount=type=bind,target=/src true']) {
       expect(dockerfileProblems(dockerfile.replace(/^(USER root)$/m, `${line}\n$1`), files), line).toEqual([
         expect.stringContaining(`\`${line}\` reads files or an image`),
-        expect.stringContaining("not upstream's at v0.5.0"),
+        expect.stringContaining(`not upstream's at ${UPSTREAM.release}`),
       ]);
     }
     // A copied file changed without the check: the name would not move.
-    const edited = { ...files, 'haproxy.cfg': Buffer.concat([files['haproxy.cfg']!, Buffer.from('# one more line\n')]) };
+    const edited = { ...files, [TEMPLATE]: Buffer.concat([files[TEMPLATE]!, Buffer.from('# one more line\n')]) };
     expect(dockerfileProblems(dockerfile, edited)).toEqual([expect.stringContaining('move the check with the files')]);
     // The check gone, or without the executable bit's test.
     const check = checkRun(dockerfile)!;
@@ -580,10 +663,16 @@ describe('the Docker socket proxy is upstream\'s release, built here on a curren
 
   it("refuses a file that is not upstream's, a lost executable bit, and anything else in the directory", () => {
     const files = contextFiles();
-    const changed = { ...files, 'docker-entrypoint.sh': Buffer.from(files['docker-entrypoint.sh']!.toString().replace('set -e', 'set -eu')) };
+    const changed = { ...files, [ENTRYPOINT]: Buffer.from(files[ENTRYPOINT]!.toString().replace('set -e', 'set -eu')) };
     expect(contextProblems(contextNames(), changed, executable)).toEqual([expect.stringContaining('docker-entrypoint.sh is git blob')]);
     expect(contextProblems(contextNames(), files, () => false)).toEqual([expect.stringContaining('docker-entrypoint.sh is not executable')]);
     expect(contextProblems([...contextNames(), '.dockerignore'], files, executable)).toEqual([expect.stringContaining('the builder could read a file')]);
+    // The COPY takes all of system_files/: another file there, or a directory, would be in the image under the same name.
+    expect(contextNames()).toEqual(expect.arrayContaining([ENTRYPOINT, TEMPLATE, 'system_files/usr/local/etc/haproxy/']));
+    expect(contextProblems([...contextNames(), 'system_files/etc/', 'system_files/etc/extra.cfg'], files, executable)).toEqual([
+      expect.stringContaining('puts all of system_files/ in the image'),
+    ]);
+    expect(contextProblems([...contextNames(), 'system_files/tmp/'], files, executable)).toEqual([expect.stringContaining('puts all of system_files/ in the image')]);
   });
 });
 
@@ -628,10 +717,9 @@ describe("managed.yml runs that build, by the name its instructions give it, wit
       return composeProblems(text, dockerfile);
     };
     const image = /^(\s*image:\s*)localhost\/docker-socket-proxy:\S+$/m;
-    expect(swap(image, '$1tecnativa/docker-socket-proxy:v0.5.0')).toEqual([
-      expect.stringContaining("upstream's image as it was built in July"),
-      expect.stringContaining('not localhost/docker-socket-proxy:'),
-    ]);
+    for (const upstream of ['tecnativa/docker-socket-proxy:v0.5.0', 'tecnativa/docker-socket-proxy:lts']) {
+      expect(swap(image, `$1${upstream}`), upstream).toEqual([expect.stringContaining("upstream's own image"), expect.stringContaining('not localhost/docker-socket-proxy:')]);
+    }
     expect(swap(/^(\s*)build: \.\/docker-socket-proxy$/m, '$1build:\n$1  context: ./docker-socket-proxy')).toEqual([expect.stringContaining('not the bare `./docker-socket-proxy`')]);
     expect(swap(/^(\s*build: \.\/docker-socket-proxy\n)\s*pull_policy: never\n/m, '$1')).toEqual([expect.stringContaining('not never')]);
     expect(swap(/^(\s*build: \.\/docker-socket-proxy\n)/m, '$1    user: "1000"\n')).toEqual([expect.stringContaining('sets user: 1000')]);
@@ -702,7 +790,7 @@ describe("images.yml builds it on a pull request and asks it what the stack's pr
     ]);
     // An allow rule written another way is one the guard cannot read, so it says so.
     const rewritten = swapped(cfg, '/tasks } { env(TASKS) -m bool }', '/tasks } { env(TASKS) -m int gt 0 }');
-    expect(workflowProblems(workflow, managed, dockerfile, rewritten)).toEqual([expect.stringContaining('read 27 of deploy/compose/docker-socket-proxy/haproxy.cfg\'s 28 allow rules')]);
+    expect(workflowProblems(workflow, managed, dockerfile, rewritten)).toEqual([expect.stringContaining(`read 27 of ${HAPROXY_CFG}'s 28 allow rules`)]);
     // The verdict, by its text: the step ends in it.
     expect(problems(swapped(workflow, 'exit "$failed"', 'exit 0'))).toEqual([expect.stringContaining('its last command is `exit 0`')]);
     expect(problems(swapped(workflow, '          failed=0\n', '          failed=0\n          [ -n "${SKIP_PROBES:-}" ] && exit 0\n'))).toEqual([expect.stringContaining('exits before the probes\' verdict, and not to fail')]);
