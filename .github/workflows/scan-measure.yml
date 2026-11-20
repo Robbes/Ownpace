@@ -29,7 +29,7 @@ jobs:
         run: |
           set +e
           mkdir -p out
-          for pack in default javascript typescript react nodejs expressjs secrets; do
+          for pack in security-audit owasp-top-ten r2c-security-audit xss jwt; do
             start=$(date +%s)
             docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" \
               semgrep scan --config "p/$pack" --metrics=off --json --output "/src/out/semgrep-$pack.json" --quiet
