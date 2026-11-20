@@ -4,6 +4,36 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
+  2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
+  (workplan 0119). The image scan read six highs in the two, each fixed only in their next
+  major: five in undici 5.29.0, and one in busboy 2.1.1, which only undici 5 needed. Their one
+  user is `@connectrpc/connect-node` 1.4.0, which Depot's SDK brings and the webapp loads at every
+  start, and which loads undici only to stand in for the `Headers` class on Node before 18;
+  trigger-api runs Node 24. The image's build now points connect-node at the undici 6.29.1 it
+  already installs for Remix, after checking every release, link and file it was read for, and
+  removes undici 5.29.0 and busboy 2.1.1 with every link into them. As the image builds, it
+  proves from where the webapp loads them that connect-node and Depot's SDK load with 6.29.1.
+  Nothing is downloaded for it. The image has a new name, which each machine builds at its next
+  deploy.
+
+## [0.2.0-alpha.12] - 2026-11-20
+
+Two destinations are new. Cirrux takes mail, calendars, contacts and tasks, and its Drive
+takes files once a deployment has a Cirrux client of its own, with a button that ends the
+Drive sign-in alone. Infomaniak takes mail, calendars, contacts and tasks, its mail signed in
+with the mailbox's own login. Neither has run against a live account yet. Nothing written to
+either names a guest, and an event there that lists guests is left as it is: Cirrux emails every
+guest it is shown, and Infomaniak is not yet tested. *Who is it for?* now chooses you, Moves and
+Deletions name the item each row asks about, and a data type that fails no longer holds back the
+ones after it. Underneath, the identity provider moves to Zitadel v4.20.4, the web, GoAccess and
+the Trigger.dev dashboard's TLS front no longer run as root, every workflow job names the token
+it uses, and the deploy tool's copy of effect moves past a high advisory. Live's deploy from
+alpha.11 is one-way: ledger migrations 0068 and 0069 and managed migration 0061 move, and so
+does the identity provider's pin.
+
 ### Added
 
 - **Infomaniak as a destination** (workplan 0161). An **Infomaniak** card, on *Where does it go?*
@@ -89,6 +119,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The identity provider moves to Zitadel v4.20.4, a patch whose two server changes this stack
+  meets are in the sign-in providers it can add and in the password check** (workplan 0135 T7,
+  0119). The Google, Microsoft and GitHub sign-ins `setup-zitadel.sh` can add now send a PKCE
+  challenge on top of their client secret, so a code the provider issues is redeemed only by the
+  sign-in that asked for it; Apple's is unchanged. Live offers none of these, only email and
+  password, so there it changes nothing. Where the identity provider reads an account's password
+  state, at sign-in or in a password change or reset, it now reads only the checks since the
+  account's count of wrong passwords was last reset, where it read every check the account ever
+  made; upstream keeps the count, and with it the lockout after ten wrong passwords, as they were.
+  Its other fixes are in Zitadel's separate login application, which does not run here, and in a
+  GitHub Enterprise Server sign-in, which is not configured here. Upstream's advisories could not
+  be read when this was written, and none of its six commits reads as a security fix in what runs
+  here, so it is not taken under the floor's exception: it is taken inside its three-day floor, which
+  ends on 2026-11-20 at 13:38 UTC from its tip commit of 2026-11-17, on the owner's word of
+  2026-11-19. No setup step is expected, so the database's schema stays where
+  v4.20.3 left it and the way back is v4.20.3: read from upstream's diff, not run. v4.20.5 is left:
+  its one fix is in that separate login application.
 - **CI's migration lint moves to Atlas v1.4.0** (workplan 0119), from alpha.11's v1.3.10. Docker
   Hub published it on 2026-11-17 at 15:20 UTC, and it is taken inside its three-day floor, which
   ends on 2026-11-20 at 15:20, on the owner's word of 2026-11-19. Each architecture is checked by the SHA-256 of `/atlas` in the
@@ -124,18 +171,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
-- **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
-  2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
-  (workplan 0119). The image scan read six highs in the two, each fixed only in their next
-  major: five in undici 5.29.0, and one in busboy 2.1.1, which only undici 5 needed. Their one
-  user is `@connectrpc/connect-node` 1.4.0, which Depot's SDK brings and the webapp loads at every
-  start, and which loads undici only to stand in for the `Headers` class on Node before 18;
-  trigger-api runs Node 24. The image's build now points connect-node at the undici 6.29.1 it
-  already installs for Remix, after checking every release, link and file it was read for, and
-  removes undici 5.29.0 and busboy 2.1.1 with every link into them. As the image builds, it
-  proves from where the webapp loads them that connect-node and Depot's SDK load with 6.29.1.
-  Nothing is downloaded for it. The image has a new name, which each machine builds at its next
-  deploy.
 - **The deploy CLI's copy of effect moves to 3.22.4, past a regular expression that could take
   exponential time** (workplan 0119). pnpm audit named GHSA-7589-6fvf-x4pw (high) on the evening
   of 2026-11-19: the expression effect's `Schema.TemplateLiteral` compiles, in every version to
