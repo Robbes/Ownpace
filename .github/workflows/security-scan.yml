@@ -480,19 +480,39 @@ jobs:
 
       - name: Attach SBOM to GitHub release
         if: startsWith(github.ref, 'refs/tags/') && hashFiles('bom.json') != ''
-        uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
-        with:
-          files: bom.json
-          # A hyphen in the version is what SemVer calls a pre-release, and it
-          # is what keeps `0.1.0-rc.1` from being presented as this project's
-          # current release. The same rule governs the image tags: metadata-
-          # action's `latest=auto` withholds `latest` from a pre-release, which
-          # is why nothing here has to ask for that behaviour.
-          prerelease: ${{ contains(github.ref_name, '-') }}
-          body_path: release-body.md
-          # append_body keeps hand-written prose if the release already exists
-          # (the human may create it with notes before the workflow finishes).
-          append_body: true
+        # With the runner's own `gh` since 2026-11-20, where
+        # softprops/action-gh-release v3.0.4 was (zizmor's superfluous-actions:
+        # one action fewer in the job that holds `contents: write`), doing what
+        # it did: make the release if it is not there, named after the tag,
+        # with this body and bom.json; or, when windows-payload.yml's attach
+        # made it first, replace bom.json on it and append this body to what
+        # it says, which keeps hand-written prose. A create that fails for any
+        # other reason fails at the `view` below.
+        #
+        # A hyphen in the version is what SemVer calls a pre-release, and it
+        # is what keeps `0.1.0-rc.1` from being presented as this project's
+        # current release. The same rule governs the image tags: metadata-
+        # action's `latest=auto` withholds `latest` from a pre-release, which
+        # is why nothing here has to ask for that behaviour.
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          pre=false
+          if [[ "$tag" == *-* ]]; then pre=true; fi
+          if gh release create "$tag" --verify-tag --title "$tag" --prerelease="$pre" --notes-file release-body.md bom.json; then
+            exit 0
+          fi
+          gh release view "$tag" --json tagName > /dev/null
+          gh release upload "$tag" bom.json --clobber
+          {
+            gh release view "$tag" --json body --jq .body
+            echo
+            cat release-body.md
+          } > release-notes.md
+          gh release edit "$tag" --prerelease="$pre" --notes-file release-notes.md
 
       # ---------- A SCAN THAT SKIPPED ITSELF IS NOT A SCAN ----------
       #

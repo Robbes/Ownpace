@@ -891,6 +891,7 @@ jobs:
           # keyed on the machine since 2026-11-08, when a push started running
           # on GitHub's arm64 runner during the alpha (the header).
           VITEST_MAX_WORKERS: ${{ runner.environment == 'self-hosted' && '4' || '' }}
+          SHARD: ${{ matrix.shard }}
         # No `--`: pnpm forwards it literally, and vitest's CLI parser discards
         # everything after it. `pnpm test -- --coverage` therefore ran
         # `vitest run --project unit --project unit-browser -- --coverage`,
@@ -899,8 +900,15 @@ jobs:
         # e2e.yml.
         #
         # `--shard=N/4` only on a pull request's legs; the `all` leg runs
-        # every file.
-        run: pnpm test --coverage ${{ matrix.shard != 'all' && format('--shard={0}/4', matrix.shard) || '' }}
+        # every file. The leg's name reaches the shell through `env:`, never
+        # pasted into the script (zizmor's template-injection, 2026-11-20):
+        # SHARD, in the step's env above.
+        run: |
+          if [ "$SHARD" = all ]; then
+            pnpm test --coverage
+          else
+            pnpm test --coverage "--shard=${SHARD}/4"
+          fi
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2

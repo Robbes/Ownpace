@@ -380,13 +380,17 @@ jobs:
         # `cosign verify` — which deploy/selfhost/README.md tells operators to
         # run — fails against it until this step succeeds. Red means "re-run
         # this job", not "nothing shipped".
+        # The digest reaches the shell through `env:`, never pasted into the
+        # script (zizmor's template-injection, 2026-11-20).
+        env:
+          BUILT_DIGEST: ${{ steps.build_retry.outputs.digest || steps.build_attempt.outputs.digest }}
         run: |
           # Whichever attempt actually published — the retry step's output is
           # empty when it was skipped, and `||` takes the first non-empty. An
           # empty digest would make `ref` end in a bare `@` and cosign would
           # fail on a malformed reference, so refuse here with the reason
           # rather than there with a parse error.
-          digest="${{ steps.build_retry.outputs.digest || steps.build_attempt.outputs.digest }}"
+          digest="$BUILT_DIGEST"
           if [ -z "$digest" ]; then
             echo "::error::No image digest from either build attempt — nothing was published, so there is nothing to sign."
             exit 1

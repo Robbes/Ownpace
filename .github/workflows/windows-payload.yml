@@ -121,10 +121,14 @@ jobs:
       # each stop the build: this is somebody else's binary that we ship to
       # customers. `a-runtime-only-its-own-host-vouched-for` holds all of it.
       - name: Stage the payload
+        # The platform reaches the shell through `env:`, here and below, never
+        # pasted into a script (zizmor's template-injection, 2026-11-20).
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
           node scripts/package-appliance.mjs \
-            --out "dist/ownpace-appliance-${{ matrix.platform }}" \
-            --with-node "${{ matrix.platform }}"
+            --out "dist/ownpace-appliance-${PLATFORM}" \
+            --with-node "${PLATFORM}"
 
       # What `smoke` holds the payload to, read here from this commit rather
       # than from the payload it is checking: the Node version through the
@@ -157,9 +161,11 @@ jobs:
       # So the artefact is the DIRECTORY, and GitHub does the one zip.
       - name: Checksums, inside the payload
         id: pack
+        env:
+          PLATFORM: ${{ matrix.platform }}
         run: |
           set -euo pipefail
-          NAME="ownpace-appliance-${{ matrix.platform }}"
+          NAME="ownpace-appliance-${PLATFORM}"
           # A manifest that survives the round trip. A hash of our own zip would
           # not: GitHub discards that zip and makes its own.
           ( cd "dist/${NAME}" && find . -type f ! -name SHA256SUMS.txt -print0 \
@@ -180,15 +186,20 @@ jobs:
           if-no-files-found: error
 
       - name: Summary
+        env:
+          PLATFORM: ${{ matrix.platform }}
+          SIZE: ${{ steps.pack.outputs.size }}
+          FILES: ${{ steps.pack.outputs.files }}
+          STAMP: ${{ steps.pack.outputs.stamp }}
         run: |
           cat >> "$GITHUB_STEP_SUMMARY" <<SUMMARY
-          ## Windows payload — \`${{ matrix.platform }}\`
+          ## Windows payload — \`${PLATFORM}\`
 
           | | |
           |---|---|
-          | commit | \`${{ github.sha }}\` |
-          | size | ${{ steps.pack.outputs.size }}, ${{ steps.pack.outputs.files }} files |
-          | build stamp | \`${{ steps.pack.outputs.stamp }}\` |
+          | commit | \`${GITHUB_SHA}\` |
+          | size | ${SIZE}, ${FILES} files |
+          | build stamp | \`${STAMP}\` |
 
           Download the artefact below and extract it. **It expands straight to
           the payload**: \`start.mjs\`, \`appliance.mjs\`, \`node.exe\`, \`ui\`,
@@ -669,7 +680,27 @@ jobs:
           set -euo pipefail
           ( cd "dist/${NAME}" && sha256sum --check --strict --quiet SHA256SUMS.txt )
           ( cd dist && zip -qr "${NAME}-${GITHUB_REF_NAME}.zip" "${NAME}" )
-      - uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4
-        with:
-          files: dist/${{ needs.build.outputs.name }}-${{ github.ref_name }}.zip
-          prerelease: ${{ contains(github.ref_name, '-') }}
+      # With the runner's own `gh` since 2026-11-20, where
+      # softprops/action-gh-release v3.0.4 was (zizmor's superfluous-actions),
+      # doing what it did: make the release if it is not there, named after
+      # the tag, with this zip; or, when Security Scan's attach made it first,
+      # replace the zip on it, leaving its body as it is. A create that fails
+      # for any other reason fails at the `view` below. A hyphen in the
+      # version marks a pre-release, as Security Scan's attach says.
+      - name: Attach the zip to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          NAME: ${{ needs.build.outputs.name }}
+        run: |
+          set -euo pipefail
+          tag="$GITHUB_REF_NAME"
+          zip="dist/${NAME}-${tag}.zip"
+          pre=false
+          if [[ "$tag" == *-* ]]; then pre=true; fi
+          if gh release create "$tag" --verify-tag --title "$tag" --prerelease="$pre" --notes "" "$zip"; then
+            exit 0
+          fi
+          gh release view "$tag" --json tagName > /dev/null
+          gh release upload "$tag" "$zip" --clobber
+          gh release edit "$tag" --prerelease="$pre"
