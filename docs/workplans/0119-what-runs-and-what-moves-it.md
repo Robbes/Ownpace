@@ -43,6 +43,12 @@ what was read and where.
   `setup-stalwart.sh`'s `IMAGE`, the phone-home, fixture and pin-watch guards fail (9 of 168
   tests in 3 files). Each file was put back `cmp`-equal. ESLint passes on the changed files, and
   `tsc --noEmit` reports nothing in them.
+- **The image scan**, Security Scan run 44681205602 on the branch, dispatched with its image scans:
+  v1.1.1 reads 0 critical and 107 high, 1 of them with a fix, zlib1g's CVE-2026-85091 (fixed in
+  1:1.3.dfsg+really1.3.1-1+deb13u1). `main`'s last scan, run 44637576014 on `3ec5670d`, read
+  v0.16.27 at 1, 109 and 4: brotli's CVE-2026-111497 (critical), apt's CVE-2026-109518 in apt and
+  libapt-pkg7.0, and the same zlib finding. The 106 with no fix, in 23 packages, are the same in
+  both. So the move takes away the critical and two highs, and nothing else.
 - **The two-phase run on the new tag, proved:** CI's `integration-tests` job on `26ff78ae` (run
   44677802203), on amd64 and on arm64, passed 98 test files and 829 tests each, the eleven that
   use Stalwart among them, the JMAP file target's 6 and file sync's 3 tests included.

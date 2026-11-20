@@ -56,6 +56,9 @@ Before it merges: the CI `integration-tests` job, then E2E (self-hosted) and E2E
 of v0.16.27 reads brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and
 apt 3.0.3, both with a fix in Debian, and no v0.16 release follows it. v1.1.1's image (Debian 13.7)
 carries brotli 1.1.0-2+deb13u1 and apt 3.0.4, and zlib 1:1.3.dfsg+really1.3.1-1+b1, still unfixed.
+The image scan on the branch (Security Scan run 44681205602, 2026-11-20) reads v1.1.1 at 0 critical
+and 107 high, 1 of them with a fix (zlib1g's CVE-2026-85091), where `main`'s last (run 44637576014)
+read v0.16.27 at 1, 109 and 4; the 106 with no fix, in 23 packages, are the same in both.
 Pushed to Docker Hub on 2026-11-16 at 11:47:29 UTC (index `sha256:5ebdf474…`), so its three-day
 floor ended on 2026-11-19 at 11:47 UTC; still the newest tag on 2026-11-20 at 04:35 UTC. v1 is
 another line, and `UPGRADING/` at v1.1.1 is v0.16.27's byte for byte, with no note for it. So this
