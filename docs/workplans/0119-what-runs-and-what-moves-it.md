@@ -56,14 +56,47 @@ what was read and where.
   `e2e-selfhost`, attempt 1). It proves `setup-stalwart.sh`'s two-phase start on v1.1.1 with
   stalwart-cli 1.0.14, the source mailbox seeded over IMAPS, and the self-host gates after them,
   whose mail goes from Stalwart's IMAPS to its JMAP.
-- **Owed before the merge:** E2E (managed) on the branch after alpha.12's tag; and
-  `scripts/jmap-target-spike.ts` again, which needs a Docker daemon and asks with v0.16's names
-  (`recurrenceRules`, a FileNode create without `@type`).
-- **The owner's, before E2E (managed):** the OTA demo's Stalwart volume, `ownpace-stalwart-data`,
-  made at v0.16.10. v1.1.1 refuses it, so E2E (managed) on the branch fails at phase 1 on it, and
-  `main`'s nightly runs v0.16.27 on it until the merge. v0.16.27 refuses a store v1 made too (its
-  `try_migrate` finds no schema version where it looks, and data; read, not run). So the branch's
-  run needs a volume of its own, or the volume is replaced only at the merge.
+- **Owed before the merge:** the one-time reset of the OTA demo's mail lane (below), then E2E
+  (managed) on the branch after alpha.12's tag; and `scripts/jmap-target-spike.ts` again, which
+  needs a Docker daemon and asks with v0.16's names (`recurrenceRules`, a FileNode create without
+  `@type`).
+- **The OTA demo's switch, decided: a one-time reset, by hand.** The demo's Stalwart volume,
+  `ownpace-stalwart-data`, was made at v0.16.10. v1.1.1 refuses it, so E2E (managed) on the branch
+  fails at phase 1 on it, and `main`'s nightly runs v0.16.27 on it until the merge. v0.16.27
+  refuses a store v1 made too (its `try_migrate` finds no schema version where it looks, and data;
+  read, not run). And a new volume is not enough, because the stack's database outlives it:
+  organisation A's mail migration holds the seeded messages as copied, a pass skips mail it has
+  copied (`classifyKnownItem`), and nothing would reach the empty v1 target, so the smoke's verify
+  floor and its cutover gate would both fail. Asked at about 10:25 UTC on 2026-11-20, the owner
+  chose *"One-time reset (Recommended)"*: *"Right after a nightly test, you run one reset command I
+  prepare (it clears only the test fixtures' mail data and their copy records on OTA, nothing
+  real). I then run the branch test and merge straight away. Least code, nothing left behind."*
+  ADR-0022's update of 2026-11-20 quotes the question too.
+  - **The command**, `deploy/compose/reset-demo-mail.sh`, run by hand on the OTA stack. Without
+    `--yes` it shows what it would do, with counts, and changes nothing. With it, it removes the
+    container `ownpace-stalwart` and the volume `ownpace-stalwart-data`, then clears that one
+    migration's rows in sixteen tables, in one transaction that refuses unless every count after
+    is 0: `item`, `cursor`, `run` and `run_event`, `migration_status`, `migration_discovery`,
+    `verification_run` and `verification`, the three cutover tables, `decision`, `apply_receipt`,
+    `share_grant`, and `sync_checkpoint` and `collection_mapping`, which nothing reads today. Its
+    header says why for each. It keeps `ownpace-stalwart-config` (`config.json` alone), the
+    migration's own rows and settings (the seed writes them again), its phase, the logs and the
+    organisation's meters. It refuses live, any migration but the demo's (checked in the database
+    against seed-managed.ts's ids and connections) and a pass still running.
+  - **The order:** once a nightly E2E (managed) of `main` has finished, the reset with `--yes`;
+    then E2E (managed) on the branch; then the merge, before the next nightly. A nightly in between
+    means the reset runs again. Nothing in the gate or the bring-up calls it.
+  - **The volume keeps its name:** nothing is left behind under it, and a second name would not let
+    the two lines take turns, since one ledger, one container and one network alias serve both.
+  - **Proved here**, on Node 22.22.0:
+    `scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts`, 28 tests against a
+    stand-in `docker`, pass. 34 mutations of the script, of seed-managed.ts,
+    smoke-managed.sh, setup-managed-demo.sh and e2e-managed.yml each fail the case they aim at, and
+    each file was put back `cmp`-equal. The SQL the script sends, captured from the stand-in, ran
+    on a throwaway Postgres 16 with both migration chains (`scripts/local-pg.sh`): it cleared the
+    demo migration's rows in all sixteen tables, left a second migration of organisation A and
+    organisation B's untouched, cleared nothing on a second run, and raised each refusal. `bash -n`
+    and shellcheck pass on it. The script itself never ran against a stack.
 
 **2026-11-19, late: the deploy CLI's copy of effect moves to 3.22.4 by an override, past
 GHSA-7589-6fvf-x4pw, a high pnpm audit named that evening.** The advisory gate passed on pull

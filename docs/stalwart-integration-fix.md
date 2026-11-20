@@ -50,7 +50,9 @@ the same change:
 - the image three days past its push (CONTRIBUTING.md's age), unless a security fix needs it
   sooner.
 
-Before it merges: the CI `integration-tests` job, then E2E (self-hosted) and E2E (managed).
+Before it merges: the CI `integration-tests` job, then E2E (self-hosted) and E2E (managed). A tag
+that cannot open the OTA demo's volume needs that volume and the demo's ledger reset once, by hand,
+before E2E (managed): the move to v1.1.1 below says how.
 
 **v0.16.27 → v1.1.1 (2026-11-20, ADR-0022's update of that date; workplan 0119).** Why: the scan
 of v0.16.27 reads brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and
@@ -72,7 +74,31 @@ run). What touches this repository:
   the schema; read, not run). Testcontainers makes a new volume every run, and E2E (self-hosted)
   removes its own before and after. The OTA demo's (`ownpace-stalwart-data`, made at v0.16.10) is
   long-lived, so it is refused, and the way back the v0.16.27 move proved does not hold: what a
-  v0.16.27 start makes of a volume v1.1.1 has written to is unread.
+  v0.16.27 start makes of a volume v1.1.1 has written to is unread. So the demo switches once, by
+  a reset (next item).
+- **The OTA demo's switch: a one-time reset, by hand** (the owner's choice of 2026-11-20, quoted in
+  ADR-0022's update of that date). A new volume alone is not enough, because the stack's database
+  outlives it. Demo organisation A's mail migration holds the seeded messages
+  (`<seed-N@dev.local>`) as copied; mail carries no source version, so a pass skips them
+  (`classifyKnownItem`) and nothing reaches the empty v1 target. The managed smoke would then fail
+  at its verify floor and at its cutover gate, which needs 0.99 of the ledger's rows on the
+  target. `deploy/compose/reset-demo-mail.sh` removes the demo's Stalwart container and its data
+  volume, and clears that one migration's rows in sixteen tables (its header names each, with
+  why), so that its next pass is a first pass. It keeps the config volume, which holds
+  `config.json` alone, written again by every setup. It refuses live, any migration but the
+  demo's, and a pass still running; without `--yes` it shows what it would do, with counts, and
+  changes nothing. Nothing in the gate or the bring-up calls it. The order:
+  1. once a nightly E2E (managed) of `main` has finished, the owner runs it from the OTA stack's
+     checkout, first without `--yes`, then with it;
+  2. E2E (managed) is dispatched on the branch: its bring-up makes the volume again with v1.1.1,
+     seeds the source mailbox, and the smoke's first pass copies it;
+  3. the merge follows before the next nightly. A nightly in between runs `main`'s v0.16.27,
+     which makes the volume again and copies the demo into it: then the reset runs again before
+     step 2.
+
+  The volume keeps its name, `ownpace-stalwart-data`: the reset leaves nothing behind under it,
+  and a second name would not let the two lines take turns, since one ledger, one container and
+  one network alias `stalwart` serve both.
 - **Within v1, upstream upgrades in place**, and each release's entry names what an upgraded server
   needs: `STALWART_UPDATE_ROLE_PERMISSIONS=true`, set once, adds the permissions v1.0.3 and v1.1.0
   brought to the default roles, and v1.0.2 sets to `Disabled` the encryption at rest of every
@@ -121,8 +147,8 @@ JMAP file target and file sync on the newer FileNode names, JMAP contacts (targe
 mailboxes, the shared mailbox, IMAP to DAV, and SMTPS. E2E (self-hosted) is green on `5c97d6d8`
 (run 44684133193, 2026-11-20): `setup-stalwart.sh`'s two-phase start on v1.1.1 with stalwart-cli
 1.0.14, the source seeded over IMAPS, and the gates after them, whose mail goes from Stalwart's
-IMAPS to its JMAP. Owed before it merges: E2E (managed) on the branch after alpha.12's tag, once
-the OTA demo's volume is decided; and the spike's re-run, which needs a Docker daemon.
+IMAPS to its JMAP. Owed before it merges: the one-time reset above, then E2E (managed) on the
+branch, after alpha.12's tag; and the spike's re-run, which needs a Docker daemon.
 
 **v0.16.10 → v0.16.27 (2026-10-25, workplan 0146 T11 (b)).** Why: the image scan read v0.16.10 at
 3 critical and 114 high, v0.16.27 (Debian 13.7) at 0 and 47, none of the 47 with a fix. Pushed to

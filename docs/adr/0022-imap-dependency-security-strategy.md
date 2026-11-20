@@ -103,6 +103,24 @@
 > v1.1.1 refuses the OTA demo's Stalwart volume, which v0.16.10 made, so
 > what happens to that volume is decided before that run.
 >
+> **The OTA demo's switch, decided the same day.** Put to the owner at
+> about 10:25 UTC on 2026-11-20: *"For later (alpha.13), Stalwart v1.1.1 on
+> the test stack (OTA): the new mail server can't read the old test-mail
+> data, and the test stack's database still lists those test mails as
+> copied, so the nightly test would fail after the switch. How should the
+> switch go?"* The owner chose *"One-time reset (Recommended)"*, whose
+> description read: *"Right after a nightly test, you run one reset command
+> I prepare (it clears only the test fixtures' mail data and their copy
+> records on OTA, nothing real). I then run the branch test and merge
+> straight away. Least code, nothing left behind."* The command is
+> `deploy/compose/reset-demo-mail.sh`. Run by hand with `--yes` once a
+> nightly E2E (managed) of `main` has finished, it removes the demo's
+> Stalwart container and its data volume and clears the demo mail
+> migration's rows. E2E (managed) then runs on the branch, and the merge
+> follows before the next nightly; a nightly in between means the reset
+> runs again. Nothing calls it by itself. The fix doc, "Moving the pin", has
+> the order and what it clears.
+>
 > **The rule for the next move** is the operative bullet above, unchanged
 > but for the version.
 

@@ -98,6 +98,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   again; it holds fixtures only. Its WebUI now comes from the release `v2`, a tag upstream moves,
   and is fetched again after 90 days rather than 30; its ASN lists come from GitHub only.
   stalwart-cli stays at 1.0.14.
+- **The OTA demo's mail lane is reset once, by hand, for that move** (workplan 0119, ADR-0022),
+  on the owner's choice of 2026-11-20: `deploy/compose/reset-demo-mail.sh`. v1.1.1 cannot open the
+  demo's mail volume, and the demo's records still count its test messages as copied, so the
+  nightly gate would fail after the switch. Run with `--yes` once a nightly of `main` has
+  finished, it removes the demo's Stalwart and its data volume and clears the demo mail
+  migration's own records, nothing else; without `--yes` it only shows what it would do. It
+  refuses live. Nothing runs it by itself.
 - **CI's migration lint moves to Atlas v1.4.0** (workplan 0119), from alpha.11's v1.3.10. Docker
   Hub published it on 2026-11-17 at 15:20 UTC, and it is taken inside its three-day floor, which
   ends on 2026-11-20 at 15:20, on the owner's word of 2026-11-19. Each architecture is checked by the SHA-256 of `/atlas` in the

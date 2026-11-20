@@ -3446,7 +3446,11 @@ database daily from `github.com/sapics/ip-location-db`
 `crates/registry/src/schema/structs_impl.rs`, at v1.1.1). v0.16.27 asked for
 its WebUI from the release `v1.0.11`, every 30 days, and an older database
 kept `cdn.jsdelivr.net` for its ASN lists (the OTA demo's, made at v0.16.10).
-v1 opens no database an earlier line made, so that address is gone with it.
+v1 opens no database an earlier line made, so that address is gone with it:
+the OTA demo's goes once, by hand, at the switch to v1.1.1, with the demo mail
+migration's rows (`deploy/compose/reset-demo-mail.sh`;
+`docs/stalwart-integration-fix.md`, "Moving the pin"), and the next bring-up
+makes it again at v1.1.1 under the same name.
 They are downloads rather than reports about anybody. They are
 objects in its database, not in `config.json`, so switching them off is new
 objects in the provisioning plan, a change that has to be run and watched on

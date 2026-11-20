@@ -20,7 +20,10 @@ set -euo pipefail
 # v1.1.1 stops at start with "The data store was created by a Stalwart version prior to
 # 1.0 ... and cannot be opened by this version" (crates/common/src/manager/schema.rs), so
 # phase 1 below reports "never came up" with that line in the logs it prints. The volume
-# holds fixtures only: remove it (`docker volume rm "$VOLUME"`) and run this again.
+# holds fixtures only: remove it (`docker volume rm "$VOLUME"`) and run this again. Not so the
+# OTA demo's: that stack's database still counts what was copied into it, so its volume goes
+# with the demo mail migration's rows, once, by deploy/compose/reset-demo-mail.sh
+# (docs/stalwart-integration-fix.md, "Moving the pin").
 #
 # Uses ONLY the official image (no custom build — docs/stalwart-integration-fix.md's own
 # "Verified Image" finding: a custom image provided no benefit over the official one).
