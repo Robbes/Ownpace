@@ -2,7 +2,7 @@
 // Testcontainers setup for integration tests.
 // Spins up Postgres and Stalwart programmatically.
 //
-// IMPORTANT: Stalwart v0.16.27 requires a two-phase startup:
+// IMPORTANT: Stalwart v1.1.1 requires a two-phase startup:
 //   Phase 1: Recovery mode container - provisions accounts via stalwart-cli
 //   Phase 2: Normal mode container - starts with mail listeners enabled
 // Both phases share the same Docker named volume for data persistence.
@@ -550,7 +550,7 @@ async function startStalwart(): Promise<{
   // Use Docker-managed NAMED VOLUME (not host bind mount) for consistent UID/permissions
   // The source is the Docker volume name, which Docker handles with proper permissions
   // CRITICAL: Attach log consumer BEFORE start() to capture ALL logs from container creation
-  const containerA = await new GenericContainer('stalwartlabs/stalwart:v0.16.27')
+  const containerA = await new GenericContainer('stalwartlabs/stalwart:v1.1.1')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])
@@ -585,7 +585,7 @@ async function startStalwart(): Promise<{
 
   console.log('[StalwartSetup] Provisioning accounts via stalwart-cli...');
   
-  // Stalwart v0.16.x account format - name is local part, account ID is the key
+  // Stalwart account format since v0.16 (v1.1.1 reads the same) - name is local part, account ID is the key
   // With config.json present, server starts in recovery mode (not bootstrap)
   // Can directly create Domain and Account objects
   const plan = [
@@ -764,7 +764,7 @@ async function startStalwart(): Promise<{
   // Phase 2: Normal mode container (no recovery mode env vars)
   // Uses SAME bind mount approach as Phase 1 (host path -> container path)
   // withUser('root') sidesteps any UID/permission issues with the bind-mounted directory
-  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v0.16.27')
+  const containerBBuilder = new GenericContainer('stalwartlabs/stalwart:v1.1.1')
     .withBindMounts([
       { source: STALWART_DATA_VOLUME, target: '/opt/stalwart/data' },
     ])

@@ -1608,7 +1608,7 @@ describe('the routine pins, in one summary issue', () => {
   it('holds the copies together: www.yml with the web image, the scripts with the compose busybox, Stalwart with itself', async () => {
     const www = REAL.read('deploy/compose/www.yml')!.replace(/image: nginx:\S+/, 'image: nginx:1.1-alpine');
     const smoke = REAL.read('deploy/compose/smoke-managed.sh')!.replace(/busybox:[0-9][\w.-]*/, 'busybox:1.2');
-    const fixture = REAL.read('deploy/selfhost/setup-stalwart.sh')!.replace(/stalwartlabs\/stalwart:v[\d.]+/, 'stalwartlabs/stalwart:v0.16.1');
+    const fixture = REAL.read('deploy/selfhost/setup-stalwart.sh')!.replace(/stalwartlabs\/stalwart:v[\d.]+/, `stalwartlabs/stalwart:${STALWART_IN_LINE}`);
     const repo = withFiles({ 'deploy/compose/www.yml': www, 'deploy/compose/smoke-managed.sh': smoke, 'deploy/selfhost/setup-stalwart.sh': fixture });
     const { rows } = await routineRows(repo, fakeNet(registry()));
     const state = Object.fromEntries(rows.map((r) => [r.name, r.state]));
@@ -1620,6 +1620,13 @@ describe('the routine pins, in one summary issue', () => {
 
   /** AGENTS.md: it moves "only on the owner's decision, recorded in ADR-0022". The issue says whose call. */
   const STALWART_RULE = "the owner's call: it moves only by docs/stalwart-integration-fix.md and ADR-0022, every copy together (AGENTS.md)";
+  /**
+   * Another tag of the pin's own minor line, which the row compares within
+   * (`newestLike(..., 2)`), derived from the pin so these cases hold when it
+   * moves: until 2026-11-20 they named v0.16 tags, and a pin on v1.1 compared
+   * with v0.16.999 reads as current, not behind.
+   */
+  const STALWART_IN_LINE = (/stalwartlabs\/stalwart:(v\d+\.\d+)\.\d+/.exec(REAL.read('deploy/selfhost/setup-stalwart.sh')!)?.[1] ?? 'v?') + '.999';
 
   it("compares the GoAccess release the visit count builds with upstream's git tags, two-part and three-part, and holds the image's name to it (#1675)", async () => {
     expect(GOACCESS_RELEASE).toMatch(/^v\d+\.\d+/);
@@ -1668,11 +1675,11 @@ describe('the routine pins, in one summary issue', () => {
   });
 
   it('names the rule Stalwart moves by, in the summary issue, beside its line', async () => {
-    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'stalwartlabs/stalwart': 'v0.16.999' })));
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'stalwartlabs/stalwart': STALWART_IN_LINE })));
     const stalwart = rows.find((r) => r.name === 'stalwartlabs/stalwart')!;
-    expect(stalwart).toMatchObject({ state: 'behind', newest: 'v0.16.999', notes: [STALWART_RULE] });
+    expect(stalwart).toMatchObject({ state: 'behind', newest: STALWART_IN_LINE, notes: [STALWART_RULE] });
     const line = (summaryOf(rows, status).body ?? '').split('\n').find((l) => l.startsWith('- `stalwartlabs/stalwart`'));
-    expect(line).toContain(`newest **v0.16.999**; ${STALWART_RULE}`);
+    expect(line).toContain(`newest **${STALWART_IN_LINE}**; ${STALWART_RULE}`);
     for (const doc of ['docs/stalwart-integration-fix.md', 'docs/adr/0022-imap-dependency-security-strategy.md']) {
       expect(REAL.read(doc), `${doc} is gone`).not.toBeNull();
     }

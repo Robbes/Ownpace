@@ -89,6 +89,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The Stalwart the tests and the demo start is v1.1.1** (workplan 0119, ADR-0022), from
+  v0.16.27, on the owner's decision of 2026-11-19: the integration tests, the self-hosted
+  end-to-end run and the OTA demo run it, live never does. Its image carries Debian's fixes for
+  brotli (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and apt; zlib's are still
+  not there. v1 has a new database layout and opens no volume an earlier version made, so a
+  developer's `ownpace-dev-stalwart-data` from v0.16 is removed before `setup-stalwart.sh` runs
+  again; it holds fixtures only. Its WebUI now comes from the release `v2`, a tag upstream moves,
+  and is fetched again after 90 days rather than 30; its ASN lists come from GitHub only.
+  stalwart-cli stays at 1.0.14.
 - **CI's migration lint moves to Atlas v1.4.0** (workplan 0119), from alpha.11's v1.3.10. Docker
   Hub published it on 2026-11-17 at 15:20 UTC, and it is taken inside its three-day floor, which
   ends on 2026-11-20 at 15:20, on the owner's word of 2026-11-19. Each architecture is checked by the SHA-256 of `/atlas` in the

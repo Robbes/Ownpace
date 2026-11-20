@@ -1,17 +1,18 @@
-# Stalwart v0.16.27 Testcontainers Integration — Authoritative Reference
+# Stalwart v1.1.1 Testcontainers Integration — Authoritative Reference
 
-DO NOT deviate from this. DO NOT change the pinned version (v0.16.27) except on
+DO NOT deviate from this. DO NOT change the pinned version (v1.1.1) except on
 the owner's decision, recorded in ADR-0022, with every copy moved in the same change and the
 two-phase run proved on the new tag first — see "Moving the pin" below. DO NOT put
 accounts/domains/listeners in config.json. DO NOT skip the shadow-pass tests. Prior sessions
 repeatedly re-fabricated the config below; this file is the corrected ground truth.
 
-## Verified Image: stalwartlabs/stalwart:v0.16.27 (official, no custom image needed)
+## Verified Image: stalwartlabs/stalwart:v1.1.1 (official, no custom image needed)
 
 **Finding**: The custom image `stalwart-test-custom:latest` provides NO benefit over the official
 image. It was previously thought to contain workarounds for config or listener issues, but those
-were solving non-problems. The official image (`stalwartlabs/stalwart:v0.16.10` then, v0.16.27
-now) works correctly when used with the proper two-phase startup pattern.
+were solving non-problems. The official image (`stalwartlabs/stalwart:v0.16.10`, then v0.16.27,
+and v1.1.1 now: what is proved on it is under "Moving the pin") works correctly when used with the
+proper two-phase startup pattern.
 
 **Dockerfile inspection** (from prior session):
 ```
@@ -50,6 +51,68 @@ the same change:
   sooner.
 
 Before it merges: the CI `integration-tests` job, then E2E (self-hosted) and E2E (managed).
+
+**v0.16.27 → v1.1.1 (2026-11-20, ADR-0022's update of that date; workplan 0119).** Why: the scan
+of v0.16.27 reads brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and
+apt 3.0.3, both with a fix in Debian, and no v0.16 release follows it. v1.1.1's image (Debian 13.7)
+carries brotli 1.1.0-2+deb13u1 and apt 3.0.4, and zlib 1:1.3.dfsg+really1.3.1-1+b1, still unfixed.
+Pushed to Docker Hub on 2026-11-16 at 11:47:29 UTC (index `sha256:5ebdf474…`), so its three-day
+floor ended on 2026-11-19 at 11:47 UTC; still the newest tag on 2026-11-20 at 04:35 UTC. v1 is
+another line, and `UPGRADING/` at v1.1.1 is v0.16.27's byte for byte, with no note for it. So this
+was read from upstream's changelog, 1.0.0 to 1.1.1, and the source at both tags (`git show`, nothing
+run). What touches this repository:
+- **A new database layout.** 1.0.0: *"existing v0.16.x deployments cannot be upgraded in place"*;
+  data moves with upstream's migration tool. v1.1.1 aborts its start on a store an earlier line
+  made (`crates/common/src/manager/schema.rs`: *"created by a Stalwart version prior to 1.0 …
+  cannot be opened by this version"*), and only after it has opened that store and written its
+  default objects into it (`BootManager::init` runs `insert_safe_defaults` before `main.rs` checks
+  the schema; read, not run). Testcontainers makes a new volume every run, and E2E (self-hosted)
+  removes its own before and after. The OTA demo's (`ownpace-stalwart-data`, made at v0.16.10) is
+  long-lived, so it is refused, and the way back the v0.16.27 move proved does not hold: what a
+  v0.16.27 start makes of a volume v1.1.1 has written to is unread.
+- **Within v1, upstream upgrades in place**, and each release's entry names what an upgraded server
+  needs: `STALWART_UPDATE_ROLE_PERMISSIONS=true`, set once, adds the permissions v1.0.3 and v1.1.0
+  brought to the default roles, and v1.0.2 sets to `Disabled` the encryption at rest of every
+  account that had it on. A new volume needs neither; the next move within v1 reads those entries.
+- **Recovery mode, `config.json` and the plan, unchanged.** `STALWART_RECOVERY_MODE`,
+  `STALWART_RECOVERY_ADMIN` and `STALWART_HOSTNAME` read as they did
+  (`crates/store/src/registry/local.rs`), recovery listens on 8080, and
+  `{"@type":"RocksDb","path":…}` is still the `DataStore`. Every field the plan upserts is there
+  (`crates/registry/src/schema/structs.rs`): `Domain`'s `name`, and an `Account` of `@type` `User`
+  with `name`, `domainId`, `credentials` (`Password`, `secret`), `roles` `User`, `permissions`
+  `Inherit` and `encryptionAtRest` `Disabled`. `EncryptionAtRest`'s four ciphers became one
+  `Enabled` (v1.0.2), and `Domain`'s `isEnabled` is `enable`, default true; the plan sets neither.
+- **stalwart-cli 1.0.14 still provisions it, as read.** It loads the schema the server serves at
+  `/api/schema` and speaks `urn:stalwart:jmap` and its `x:` methods, which v1.1.1 still serves.
+  v1.1.1's schema carries every key and tag 1.0.14's types require (`src/schema/types.rs`), checked
+  over its 162 objects and 2,423 fields; its one new value, the string format `sieve`, 1.0.14
+  already knows. So the CLI pin stays. Its v2.0.0 (2026-11-16) is another major, which the pin
+  watch's stalwart-cli row does not compare with (it reads the pin's own major), so it is named
+  here and in workplan 0119.
+- **JMAP.** The session adds `urn:ietf:params:jmap:metadata`, which nothing here reads; every URN
+  `jmap-capabilities.ts` asks for is still there. `/.well-known/jmap` still answers 307 to
+  `/jmap/session`, which answers an anonymous session without credentials, and `/healthz/live` and
+  `/healthz/ready` are there. Three changes reach this repository:
+  - FileNode follows a newer draft: a node's kind is `@type` (`"File"`, `"Directory"`), required on
+    create, and its media type `mediaType`; `nodeType` and `type` are gone, dropped when asked for
+    and refused when sent. `JmapFileTarget` speaks both drafts, chosen by the account's filenode
+    capability (`supportedNodeTypes`, which only the newer draft carries), and sends a v0.16 server
+    exactly what it sent before.
+  - JSCalendar names one `recurrenceRule` (draft-ietf-calext-jscalendarbis-22) where the spike
+    asks with `recurrenceRules`, so its re-run asks by the new name before it says anything about
+    0031 T1.
+  - v1.0.1: `Mailbox/set`, `AddressBook/set`, `ContactCard/set` and `Identity/set` return only the
+    id of what they created; the writers here read only `id`.
+- **The image** is shaped as v0.16.27's: user `stalwart`, uid and gid 2000 (its config's `User`,
+  its `/etc/passwd`), the binary as its entrypoint, and `curl` and `/bin/sh`, which
+  `setup-stalwart.sh` uses inside it. Its healthcheck drops v0.16.27's `X-Forwarded-For` header.
+- **What it downloads**: `setup-stalwart.sh`'s header and "Nothing phones home" say it again. Its
+  WebUI comes from the release `v2`, a tag upstream moves within 2.x, again 90 days on and in
+  recovery mode too; its spam rules as before; its ASN lists from GitHub only.
+
+Owed before it merges: the CI `integration-tests` job, the two-phase run on the new tag; E2E
+(self-hosted); E2E (managed) on the branch after alpha.12's tag, once the OTA demo's volume is
+decided; and the spike's re-run, which needs a Docker daemon.
 
 **v0.16.10 → v0.16.27 (2026-10-25, workplan 0146 T11 (b)).** Why: the image scan read v0.16.10 at
 3 critical and 114 high, v0.16.27 (Debian 13.7) at 0 and 47, none of the 47 with a fix. Pushed to
@@ -95,7 +158,7 @@ the database and are provisioned via stalwart-cli — never in config.json. Mail
   wall).
 
 ## Two-phase startup (required — provisioning and serving cannot share one process)
-Phase 1 (provisioning): image stalwartlabs/stalwart:v0.16.27, config.json mounted, data volume,
+Phase 1 (provisioning): image stalwartlabs/stalwart:v1.1.1, config.json mounted, data volume,
   STALWART_RECOVERY_MODE=1 + STALWART_RECOVERY_ADMIN=admin:<pw>. Recovery mode exposes only the
   management API (mail listeners suspended). Provision via stalwart-cli, then STOP the container.
 Phase 2 (serving): new container, SAME config.json, SAME data volume, NO recovery env vars →
@@ -154,8 +217,8 @@ observed to prevent "LOCK: Resource temporarily unavailable" errors:
 ## Verified Findings from Integration Testing
 
 **Image**: The official `stalwartlabs/stalwart` image works correctly (v0.16.10 and
-v0.16.27). No custom image is needed. The custom image `stalwart-test-custom:latest`
-provided no benefit.
+v0.16.27, and v1.1.1 as "Moving the pin" records). No custom image is needed. The custom image
+`stalwart-test-custom:latest` provided no benefit.
 
 **TLS Ports**: Stalwart in Normal Mode auto-binds TLS listeners:
 - IMAPS on port 993 (implicit TLS)
@@ -170,6 +233,8 @@ IMAPS). Read from `/proc/net/tcp` inside the normal-mode container on 2026-10-25
 v0.16.27 listen on the same seven ports: 25, 443, 465, 993, 995, 4190 and 8080. So plain SMTP on
 25 and ManageSieve on 4190 ARE bound (this section said 25 was not until then); nothing here
 publishes either — `setup-stalwart.sh` publishes 8080 and 993, Testcontainers 8080, 993 and 465.
+v1.1.1's `crates/common/src/manager/defaults.rs` inserts the same seven listeners on a new
+database (read at the tag on 2026-11-20, not yet read from a running container).
 
 ## IMAP Authentication Fix (Resolved)
 
