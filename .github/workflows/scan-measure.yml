@@ -29,13 +29,16 @@ jobs:
         run: |
           set +e
           mkdir -p out
-          for pack in security-audit owasp-top-ten r2c-security-audit xss jwt; do
+          # Every community rule under the JavaScript and TypeScript namespaces,
+          # not only those in packs: `r/<prefix>` fetches each rule whose id
+          # starts with the prefix.
+          for pack in javascript typescript; do
             start=$(date +%s)
             docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" \
-              semgrep scan --config "p/$pack" --metrics=off --json --output "/src/out/semgrep-$pack.json" --quiet
+              semgrep scan --config "r/$pack" --metrics=off --json --output "/src/out/semgrep-$pack.json" --quiet
             rc=$?
-            echo "pack p/$pack: exit $rc, $(( $(date +%s) - start ))s"
-            [ -s "out/semgrep-$pack.json" ] || { echo "::error::p/$pack wrote no report"; exit 1; }
+            echo "namespace r/$pack: exit $rc, $(( $(date +%s) - start ))s"
+            [ -s "out/semgrep-$pack.json" ] || { echo "::error::r/$pack wrote no report"; exit 1; }
           done
       - name: List what each pack found (rule, file, line)
         run: |
