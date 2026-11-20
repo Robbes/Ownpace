@@ -4,6 +4,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **Infomaniak keeps the guests on copied calendar events** (workplan 0161; ADR-0043, amended
+  2026-11-20). Events and tasks written to Infomaniak now carry their guests and organiser, each
+  marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
+  Until now they were written without them, each kept as a comment that names the person, because
+  nobody had tested whether Infomaniak's calendar server emails the guests it is given. That is
+  still not observed, and an invitation it might send cannot be taken back; the first live test
+  watches for one (0161 T2). An event there that lists guests is now rewritten and removed as at
+  any other target, and one copied without its guests gets them the next time it changes at the
+  source and is written again. The Test's scheduling line, and the audit row the first calendar
+  pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
+  nothing written to it names a guest.
+
 ### Security
 
 - **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`

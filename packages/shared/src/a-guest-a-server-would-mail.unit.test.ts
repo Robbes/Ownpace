@@ -201,28 +201,37 @@ describe('namesGuests: does the copy a target holds still list a guest?', () => 
 });
 
 describe('mailsGuestsItself', () => {
-  it('names Cirrux, which mailed guests, and no target it has no evidence against but Infomaniak', () => {
+  it('names Cirrux, which mailed guests, and no target it has no evidence against', () => {
     expect(mailsGuestsItself('cirrux')).toBe(true);
-    for (const kind of ['nextcloud', 'caldav', 'soverin', undefined]) {
+    for (const kind of ['nextcloud', 'caldav', 'soverin', 'infomaniak', undefined]) {
       expect(mailsGuestsItself(kind), String(kind)).toBe(false);
     }
   });
 
-  it('names Infomaniak from the day its kind arrives, because no pass has shown it sends nothing (0161)', () => {
-    // Not on evidence of an invitation, as Cirrux was: on the absence of a
-    // test. Its SabreDAV may honour SCHEDULE-AGENT=CLIENT, as Nextcloud's
-    // does; nobody has seen it, and an invitation sent cannot be taken back.
-    // 0161 T2's pass is what may take it off the list.
-    expect(mailsGuestsItself('infomaniak')).toBe(true);
-    // On the list as untested, and said to be so: never said to mail guests.
-    expect(guestsUntestedAt('infomaniak')).toBe(true);
-    expect(guestsUntestedAt('cirrux')).toBe(false);
+  it('leaves Infomaniak off since 2026-11-20, so its copies keep their guests, as Nextcloud’s do (0161, ADR-0043)', () => {
+    // It was on the list untested from the day its kind arrived. ADR-0043's
+    // amendment of 2026-11-20 took it off both: its writers are told nothing,
+    // as Nextcloud's are, and each guest and organiser goes out marked
+    // SCHEDULE-AGENT=CLIENT. Mail seen at Infomaniak (0161 T2) puts it back
+    // on the list, as a kind seen mailing guests.
+    expect(mailsGuestsItself('infomaniak')).toBe(false);
+    // Nor is it said anywhere to be kept without guests as untested.
+    expect(guestsUntestedAt('infomaniak')).toBe(false);
+  });
+
+  it('holds no kind as untested since then, and the empty set answers no for every kind', () => {
+    // Kept, with its reader, for the next kind that arrives untested.
+    expect([...TARGETS_UNTESTED_FOR_GUESTS]).toEqual([]);
+    for (const kind of ['infomaniak', 'cirrux', 'nextcloud', '', undefined]) {
+      expect(guestsUntestedAt(kind), String(kind)).toBe(false);
+    }
   });
 
   it('every kind kept guestless as untested is on the list the writers read', () => {
     // The untested set only changes what a person reads; the writers read the
     // list. A kind in the first and not the second would be said to be kept
-    // without guests while its guests were written.
+    // without guests while its guests were written. With the set empty this
+    // holds of nothing, and is kept for the next kind put in it.
     for (const kind of TARGETS_UNTESTED_FOR_GUESTS) {
       expect(TARGETS_THAT_MAIL_GUESTS.has(kind), kind).toBe(true);
     }

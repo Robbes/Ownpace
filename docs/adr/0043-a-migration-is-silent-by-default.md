@@ -2,7 +2,7 @@
 
 - **Status:** Accepted; amended 2026-11-19 (a target that emails guests whatever the marker says,
   or that no pass has tested yet, gets none, and a copy there that already lists guests is left as
-  it is)
+  it is) and 2026-11-20 (Infomaniak's copies keep their guests, as Nextcloud's do)
 - **Date:** 2026-08-25
 - **Deciders:** Owner, 2026-08-25 — "do T1 and T2, and the rest", instructing
   workplan 0103's proposed posture to be built as written. The research that
@@ -21,10 +21,10 @@
   explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
   kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
 - **Except a target that may email guests whatever the parameter says** (2026-11-19):
-  a kind in `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160; Infomaniak, untested, 0161) gets neither; each
-  becomes a `COMMENT` naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`.
-  Undone by taking the kind off the list once its target can be written without mailing guests,
-  shown by a pass that sends nothing.
+  a kind in `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160) gets neither; each becomes a `COMMENT`
+  naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. A kind
+  leaves the list on a pass that sends nothing, or by a dated amendment of this ADR (Infomaniak,
+  2026-11-20, 0161).
 - **At such a target, a copy that already lists guests is left as it is** (2026-11-19): neither
   rewritten nor deleted, and reported, since either would mail each guest:
   `packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`.
@@ -62,6 +62,38 @@ moves the mail to the second pass — are in workplan 0103 with sources.
   is what T3's measurement and T4's documented switches exist for; the gate
   (T2) turns any regression on our own stack into a red run.
 
+## Amendment 2026-11-20: Infomaniak's copies keep their guests
+
+On 2026-11-20, at about 10:25 UTC, the owner was asked:
+
+> "Infomaniak as a target: keep leaving guests off copied calendar events until a test shows
+> Infomaniak sends no invitation mails? (Cirrux did mail every guest, which is why this guard
+> exists.)"
+
+The options were:
+
+- *"Yes, keep guests off (Recommended)"*: *"As built now: copied events land without guests, so
+  nobody gets an invitation mail. Undoing it after a clean test is a one-line change."*
+- *"No, copy the guests"*: *"Copied events keep their guests. Risk: Infomaniak may mail an
+  invitation to every guest, as Cirrux did."*
+
+The answer was *"No, copy the guests"*.
+
+What holds since:
+
+- `infomaniak` is in neither `TARGETS_THAT_MAIL_GUESTS` nor `TARGETS_UNTESTED_FOR_GUESTS`
+  (`packages/shared/src/calendar-scheduling.ts`). The second is empty, and is kept with its reader
+  for the next kind that arrives untested.
+- Infomaniak is written as Nextcloud is: each `ATTENDEE` and `ORGANIZER` is kept and marked
+  `SCHEDULE-AGENT=CLIENT`, and a copy there that lists guests is rewritten and removed as at any
+  target not on the list
+  (`packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`). Its Test and
+  its audit row say what its server advertises, as for Nextcloud.
+- An invitation it might send cannot be taken back.
+- Whether it sends one is watched on a normal build, by workplan 0161 T2's two-event test. Mail at
+  any step puts `infomaniak` back on `TARGETS_THAT_MAIL_GUESTS`, as a kind seen mailing guests, as
+  Cirrux is.
+
 ## Amendment log
 
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
@@ -88,3 +120,6 @@ moves the mail to the second pass — are in workplan 0103 with sources.
   is, as at Cirrux. What a person reads about such a target says it is untested, never that it
   mails guests (`TARGETS_UNTESTED_FOR_GUESTS`). It leaves the list on the evidence of a pass that
   sent none (workplan 0161 T2).
+- **2026-11-20** — **Amended**, by the owner (*"No, copy the guests"*): Infomaniak's copies keep
+  their guests, as Nextcloud's do, and `infomaniak` leaves both lists (workplan 0161). Record: the
+  section "Amendment 2026-11-20: Infomaniak's copies keep their guests".
