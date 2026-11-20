@@ -118,9 +118,34 @@ export interface SourceConnector {
      * read as "nothing was deleted".
      */
     removed?: ReadonlyArray<string>;
+    /**
+     * Items this read RETURNED that a test migration's marker set aside
+     * (`MarkedOnly`, workplan 0162): their own title does not carry the
+     * marker, so they are not in `items`. Counted so a read the marker emptied
+     * is not mistaken for one that saw nothing (`firstReadSawNothing` in
+     * `domain-sync.ts`), which would store no cursor and list the collection
+     * whole again on every pass. Absent from every source that is not wrapped.
+     */
+    unmarked?: number;
   }>;
   /** Fetch the full RFC822 bytes for an item. */
   fetch(item: MailItem): Promise<RawMessage>;
+  /**
+   * This source lists only what a test migration's marker selects
+   * (`MarkedOnly`, workplan 0162 §4), and counts the rest as `unmarked`. Set
+   * by that wrapper and by nothing else; absent, the loop behaves as it always
+   * has.
+   *
+   * It changes two things in the sync loop. A collection is made on the
+   * target when its first listed item is written, not the first time a pass
+   * sees it, so the owner's other folders, labels and calendars are never made
+   * empty on a test target. And for files, whose key is their path, an
+   * unexplained absence is not counted: a file renamed out of the marker
+   * presents exactly as one deleted, and losing the marker deletes nothing
+   * (§2 (f)). Positive evidence, a removal the source reports or an item in
+   * its bin, is read as for any migration.
+   */
+  readonly markedOnly?: true;
 }
 
 /**
@@ -184,7 +209,11 @@ export interface CalendarSource {
      * this at all.
      */
     removed?: ReadonlyArray<string>;
+    /** Items the marker set aside. See `SourceConnector.listSince`. */
+    unmarked?: number;
   }>;
+  /** Lists only what a test migration's marker selects. See `SourceConnector.markedOnly`. */
+  readonly markedOnly?: true;
 }
 
 /**
@@ -229,6 +258,8 @@ export interface ContactSource {
     unreadable?: number;
     /** Hrefs the server reported as removed. See `CalendarSource.listSince`. */
     removed?: ReadonlyArray<string>;
+    /** Items the marker set aside. See `SourceConnector.listSince`. */
+    unmarked?: number;
   }>;
   /**
    * The rest of ONE card, for the pass that is about to write it.
@@ -251,6 +282,8 @@ export interface ContactSource {
    * ever reached its destination with its photo.
    */
   fetch?(item: RawContact): Promise<RawContact>;
+  /** Lists only what a test migration's marker selects. See `SourceConnector.markedOnly`. */
+  readonly markedOnly?: true;
 }
 
 /**
@@ -332,6 +365,8 @@ export interface FileSource {
      * Absent from every source whose listing is a folder's own children.
      */
     listedElsewhere?: number;
+    /** Files the marker set aside. See `SourceConnector.listSince`. */
+    unmarked?: number;
   }>;
   /**
    * Fetch one file's bytes. Called once per item by the sync loop.
@@ -399,6 +434,14 @@ export interface FileSource {
    * has, and the result is not an error but SILENCE.
    */
   listTrashedPaths?(): Promise<TrashListing>;
+  /**
+   * Lists only what a test migration's marker selects. See
+   * `SourceConnector.markedOnly`, and for files in particular: an absence from
+   * a marked listing is evidence of nothing, so it is not counted. Beside
+   * `snapshot` rather than the same flag, because a move between two marked
+   * names is still a move to report, where a snapshot reports none.
+   */
+  readonly markedOnly?: true;
 }
 
 /**

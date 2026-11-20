@@ -886,10 +886,12 @@ reading a file drops off its entry by itself.
 ### `apps/worker/src/jobs/run-apply-deletion.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+- [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
 ### `apps/worker/src/jobs/run-apply-relocation.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+- [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
 ### `apps/worker/src/jobs/run-confirmation.ts`
 
@@ -906,6 +908,7 @@ reading a file drops off its entry by itself.
 - [a-month-billed-as-one-pass](../scripts/a-month-billed-as-one-pass.unit.test.ts) — A month of passes must not be billed as the last one — and the freeze that lets the rows it is derived from be deleted must stay.
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
+- [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [an-alpha-both-halves-know-about](../scripts/an-alpha-both-halves-know-about.unit.test.ts) — AN ALPHA BOTH HALVES KNOW ABOUT (workplan 0131 T1).
 - [the-end-of-the-alpha-names-every-switch](../scripts/the-end-of-the-alpha-names-every-switch.unit.test.ts) — THE END OF THE ALPHA NAMES EVERY SWITCH (docs/ending-the-alpha.md).
@@ -914,6 +917,7 @@ reading a file drops off its entry by itself.
 
 - [a-domain-union-typed-out-by-hand](../scripts/a-domain-union-typed-out-by-hand.unit.test.ts) — The sync domains are ONE list — nobody types the four out again (workplan 0113 T1).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+- [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
 ### `apps/worker/src/jobs/run-rollback.ts`
 
@@ -2647,10 +2651,12 @@ reading a file drops off its entry by itself.
 - [a-client-the-worker-never-got](../scripts/a-client-the-worker-never-got.unit.test.ts) — A CLIENT THE API HAS AND THE WORKER DOES NOT.
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+- [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
 ### `packages/orchestration/src/build-deps.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+- [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
 ### `packages/orchestration/src/build-reindexers.ts`
 
@@ -2685,6 +2691,7 @@ reading a file drops off its entry by itself.
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
+- [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts) — A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
 
 ### `packages/orchestration/src/probe-connection.ts`
 
@@ -5754,6 +5761,20 @@ Reads:
 - `docs/adr/0014-cost-recovery-billing.md`
 - `packages/ledger/src/mapping-status-audit.ts`
 - `site/pages/en/pricing.md`
+
+### [a-source-built-without-its-marker](../scripts/a-source-built-without-its-marker.unit.test.ts)
+
+A SOURCE BUILT WITHOUT ITS MARKER would copy a real account whole into a test target (workplan 0162 T2, §2 (d)).
+
+Reads:
+
+- `apps/worker/src/jobs/run-apply-deletion.ts`
+- `apps/worker/src/jobs/run-apply-relocation.ts`
+- `apps/worker/src/jobs/run-delta-sync.ts`
+- `apps/worker/src/jobs/run-discovery.ts`
+- `packages/orchestration/src/build-deps-from-mapping.ts`
+- `packages/orchestration/src/build-deps.ts`
+- `packages/orchestration/src/orchestration.ts`
 
 ### [a-source-that-only-reads](../scripts/a-source-that-only-reads.unit.test.ts)
 

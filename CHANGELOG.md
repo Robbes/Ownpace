@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A migration can carry a test marker, and then copies only the items whose own title carries
+  it** (workplan 0162 T2). Nothing sets one yet, so no migration copies differently: the step that
+  marks a test organisation, and records its marker on each migration made there, is next (0162
+  T1). The marker is a new column of the ledger (migration 0070), empty for a migration that is
+  not a test, 3 to 64 characters with no control character, and never changed once written: the
+  database refuses any change to it. With a marker, the pass, the preflight count and the applies
+  of a deletion or a relocation, in both editions, see only the items whose own title carries it,
+  in any case: a message's subject, an event's or a task's title (a recurring event by its
+  series), a contact's full name, a file's own name. Nothing else is copied, written to the ledger
+  or made on the target: a folder, calendar or address book is made there when its first marked
+  item is copied. A marked item deleted at the source still reaches the deletion queue; one whose
+  marker is taken out of its title is left as it was last copied, and is neither reported as
+  deleted nor moved.
+
 ### Changed
 
 - **Infomaniak keeps the guests on copied calendar events** (workplan 0161; ADR-0043, amended
