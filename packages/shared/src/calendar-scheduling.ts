@@ -84,17 +84,27 @@ export function neutraliseScheduling(icalendar: string): string {
  * THE TARGETS THAT MAIL GUESTS WHATEVER THE MARKER SAYS (workplan 0160).
  *
  * `neutraliseScheduling` rests on RFC 6638 §7.1: a server handed
- * `SCHEDULE-AGENT=CLIENT` stores the property and sends nothing. Cirrux's
- * CalDAV server does not honour it. On 2026-11-19 the first calendar pass
- * into a Cirrux test mailbox wrote events with every attendee and organiser
- * marked so, and Cirrux mailed invitations for them, past events included
- * (the owner's report that day). For a target kind named here, the writer
- * keeps no ATTENDEE and no ORGANIZER at all (`withoutGuests`): with nobody
- * invited, a server has nobody to mail.
+ * `SCHEDULE-AGENT=CLIENT` stores the property and sends nothing. For a target
+ * kind named here, the writer keeps no ATTENDEE and no ORGANIZER at all
+ * (`withoutGuests`): with nobody invited, a server has nobody to mail. A kind
+ * joins on the evidence of the invitations it sent. It leaves on the evidence
+ * of a pass that sent none, or by a decision dated in ADR-0043.
  *
- * One kind is here: Cirrux, on the evidence of the invitations it sent. A
- * kind leaves this list on the evidence of a pass that sent none, or by a
- * decision dated in ADR-0043.
+ * No kind is here since 2026-11-20. The list is kept, with its reader
+ * (`mailsGuestsItself`) and the writer's path for a copy that already lists
+ * guests (`namesGuests`), for the next kind seen mailing guests. The tests
+ * hand the reader a list of their own, and the writers their flag, so what a
+ * kind on the list gets stays proven while the list is empty.
+ *
+ * Cirrux was here from 2026-11-19 to 2026-11-20. On 2026-11-19 the first
+ * calendar pass into a Cirrux test mailbox wrote events with every attendee
+ * and organiser marked so, and Cirrux's CalDAV server, which did not honour
+ * the marker, mailed invitations for them, past events included (the owner's
+ * report that day). Cirrux said on 2026-11-20 that its server honours it now,
+ * and ADR-0043's amendment of that day took `cirrux` off, on that word and on
+ * the owner's test of it (workplan 0160 §4): its copies are written as
+ * Nextcloud's are, with their guests and organiser, each marked
+ * `SCHEDULE-AGENT=CLIENT`. Mail seen at Cirrux puts it back here.
  *
  * Infomaniak is not here. It was, untested, from the day its kind arrived
  * (workplan 0161) to 2026-11-20, when ADR-0043's amendment of that day took
@@ -107,11 +117,20 @@ export function neutraliseScheduling(icalendar: string): string {
  * taken back. Mail seen at Infomaniak (0161 T2) puts it back here, as a kind
  * seen mailing guests.
  */
-export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set(['cirrux']);
+export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set<string>();
 
-/** Does a target of this kind send invitations itself, whatever SCHEDULE-AGENT says? */
-export function mailsGuestsItself(kind: string | undefined): boolean {
-  return kind !== undefined && TARGETS_THAT_MAIL_GUESTS.has(kind);
+/**
+ * Does a target of this kind send invitations itself, whatever SCHEDULE-AGENT says?
+ *
+ * `kindsThatMailGuests` is `TARGETS_THAT_MAIL_GUESTS` everywhere but in a
+ * test, which hands its own so that what a kind on the list gets stays proven
+ * while the list is empty.
+ */
+export function mailsGuestsItself(
+  kind: string | undefined,
+  kindsThatMailGuests: ReadonlySet<string> = TARGETS_THAT_MAIL_GUESTS,
+): boolean {
+  return kind !== undefined && kindsThatMailGuests.has(kind);
 }
 
 /**
@@ -174,12 +193,12 @@ export function withoutGuests(icalendar: string): string {
  *
  * True when any ATTENDEE stands outside a VALARM. The writer asks it of the
  * copy a target ALREADY HOLDS before it rewrites or deletes that copy, because
- * the change itself is what gets mailed. Cirrux mails a guest a cancellation
- * (`METHOD:CANCEL`) when they are taken off an event, and when the event is
- * deleted: a test of each on 2026-11-19 mailed one. A rewrite through
- * `withoutGuests` takes every guest off at once, so an event written before
- * the guests came out (#1947) would mail all of them. So such a copy is left
- * exactly as it is.
+ * the change itself is what gets mailed. Cirrux, while it was on the list,
+ * mailed a guest a cancellation (`METHOD:CANCEL`) when they were taken off an
+ * event, and when the event was deleted: a test of each on 2026-11-19 mailed
+ * one. A rewrite through `withoutGuests` takes every guest off at once, so an
+ * event written before the guests came out (#1947) would have mailed all of
+ * them. So such a copy is left exactly as it is.
  *
  * An ORGANIZER alone is not a guest: with nobody invited there is nobody to
  * mail. A COMMENT naming one (what `withoutGuests` writes) is not either. An

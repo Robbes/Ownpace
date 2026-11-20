@@ -248,8 +248,8 @@ after each (SHA-256 compared):**
    source and run a pass; delete the other there and, once the Deletions page lists it, approve its
    removal; watch the inbox after each. **No mail at any step** is the evidence that Infomaniak
    keeps to the marker, and goes into §1. **Mail at any step** puts `infomaniak` back on
-   `TARGETS_THAT_MAIL_GUESTS` as a kind seen mailing guests, as Cirrux is (not in
-   `TARGETS_UNTESTED_FOR_GUESTS`, which holds kinds nobody has tested), and the step it came at
+   `TARGETS_THAT_MAIL_GUESTS` as a kind seen mailing guests, as Cirrux was until 2026-11-20 (not
+   in `TARGETS_UNTESTED_FOR_GUESTS`, which holds kinds nobody has tested), and the step it came at
    goes into §1.
 9. Delete the migration, then the account, and revoke both passwords at Infomaniak.
 
