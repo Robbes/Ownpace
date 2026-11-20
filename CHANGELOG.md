@@ -4,6 +4,50 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **The Stalwart the tests and the demo start is v1.1.1** (workplan 0119, ADR-0022), from
+  v0.16.27, on the owner's decision of 2026-11-19: the integration tests, the self-hosted
+  end-to-end run and the OTA demo run it, live never does. Its image carries Debian's fixes for
+  brotli (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and apt; zlib's are still
+  not there. v1 has a new database layout and opens no volume an earlier version made, so a
+  developer's `ownpace-dev-stalwart-data` from v0.16 is removed before `setup-stalwart.sh` runs
+  again; it holds fixtures only. Its WebUI now comes from the release `v2`, a tag upstream moves,
+  and is fetched again after 90 days rather than 30; its ASN lists come from GitHub only.
+  stalwart-cli stays at 1.0.14.
+- **The OTA demo's mail lane is reset once, by hand, for that move** (workplan 0119, ADR-0022),
+  on the owner's choice of 2026-11-20: `deploy/compose/reset-demo-mail.sh`. v1.1.1 cannot open the
+  demo's mail volume, and the demo's records still count its test messages as copied, so the
+  nightly gate would fail after the switch. Run with `--yes` once a nightly of `main` has
+  finished, it removes the demo's Stalwart and its data volume and clears the demo mail
+  migration's own records, nothing else; without `--yes` it only shows what it would do. It
+  refuses live. Nothing runs it by itself.
+
+### Fixed
+
+- **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
+  a file node's kind `@type` and requires it when a node is made, and calls its media type
+  `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
+  file from a folder nor make either. It now speaks both, chosen by what the account's session
+  says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
+  are still recognised as its own. To v1 it gives a media type without its parameters
+  (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
+
+## [0.2.0-alpha.12] - 2026-11-20
+
+Two destinations are new. Cirrux takes mail, calendars, contacts and tasks, and its Drive
+takes files once a deployment has a Cirrux client of its own, with a button that ends the
+Drive sign-in alone. Infomaniak takes mail, calendars, contacts and tasks, its mail signed in
+with the mailbox's own login. Neither has run against a live account yet. Nothing written to
+either names a guest, and an event there that lists guests is left as it is: Cirrux emails every
+guest it is shown, and Infomaniak is not yet tested. *Who is it for?* now chooses you, Moves and
+Deletions name the item each row asks about, and a data type that fails no longer holds back the
+ones after it. Underneath, the identity provider moves to Zitadel v4.20.4, the web, GoAccess and
+the Trigger.dev dashboard's TLS front no longer run as root, every workflow job names the token
+it uses, and the deploy tool's copy of effect moves past a high advisory. Live's deploy from
+alpha.11 is one-way: ledger migrations 0068 and 0069 and managed migration 0061 move, and so
+does the identity provider's pin.
+
 ### Added
 
 - **Infomaniak as a destination** (workplan 0161). An **Infomaniak** card, on *Where does it go?*
@@ -89,22 +133,23 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **The Stalwart the tests and the demo start is v1.1.1** (workplan 0119, ADR-0022), from
-  v0.16.27, on the owner's decision of 2026-11-19: the integration tests, the self-hosted
-  end-to-end run and the OTA demo run it, live never does. Its image carries Debian's fixes for
-  brotli (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and apt; zlib's are still
-  not there. v1 has a new database layout and opens no volume an earlier version made, so a
-  developer's `ownpace-dev-stalwart-data` from v0.16 is removed before `setup-stalwart.sh` runs
-  again; it holds fixtures only. Its WebUI now comes from the release `v2`, a tag upstream moves,
-  and is fetched again after 90 days rather than 30; its ASN lists come from GitHub only.
-  stalwart-cli stays at 1.0.14.
-- **The OTA demo's mail lane is reset once, by hand, for that move** (workplan 0119, ADR-0022),
-  on the owner's choice of 2026-11-20: `deploy/compose/reset-demo-mail.sh`. v1.1.1 cannot open the
-  demo's mail volume, and the demo's records still count its test messages as copied, so the
-  nightly gate would fail after the switch. Run with `--yes` once a nightly of `main` has
-  finished, it removes the demo's Stalwart and its data volume and clears the demo mail
-  migration's own records, nothing else; without `--yes` it only shows what it would do. It
-  refuses live. Nothing runs it by itself.
+- **The identity provider moves to Zitadel v4.20.4, a patch whose two server changes this stack
+  meets are in the sign-in providers it can add and in the password check** (workplan 0135 T7,
+  0119). The Google, Microsoft and GitHub sign-ins `setup-zitadel.sh` can add now send a PKCE
+  challenge on top of their client secret, so a code the provider issues is redeemed only by the
+  sign-in that asked for it; Apple's is unchanged. Live offers none of these, only email and
+  password, so there it changes nothing. Where the identity provider reads an account's password
+  state, at sign-in or in a password change or reset, it now reads only the checks since the
+  account's count of wrong passwords was last reset, where it read every check the account ever
+  made; upstream keeps the count, and with it the lockout after ten wrong passwords, as they were.
+  Its other fixes are in Zitadel's separate login application, which does not run here, and in a
+  GitHub Enterprise Server sign-in, which is not configured here. Upstream's advisories could not
+  be read when this was written, and none of its six commits reads as a security fix in what runs
+  here, so it is not taken under the floor's exception: it is taken inside its three-day floor, which
+  ends on 2026-11-20 at 13:38 UTC from its tip commit of 2026-11-17, on the owner's word of
+  2026-11-19. No setup step is expected, so the database's schema stays where
+  v4.20.3 left it and the way back is v4.20.3: read from upstream's diff, not run. v4.20.5 is left:
+  its one fix is in that separate login application.
 - **CI's migration lint moves to Atlas v1.4.0** (workplan 0119), from alpha.11's v1.3.10. Docker
   Hub published it on 2026-11-17 at 15:20 UTC, and it is taken inside its three-day floor, which
   ends on 2026-11-20 at 15:20, on the owner's word of 2026-11-19. Each architecture is checked by the SHA-256 of `/atlas` in the
@@ -197,13 +242,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
-- **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
-  a file node's kind `@type` and requires it when a node is made, and calls its media type
-  `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
-  file from a folder nor make either. It now speaks both, chosen by what the account's session
-  says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
-  are still recognised as its own. To v1 it gives a media type without its parameters
-  (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
 - **Moves and Deletions name the item each row asks about** (workplan 0159): a file renamed at
   the top of a drive read only `/ renamed` beside an ID and now reads
   `/report.pdf → report-final.pdf`, a moved file shows its name in both folders, and a message,
