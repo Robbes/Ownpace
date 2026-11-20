@@ -17,6 +17,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   source and is written again. The Test's scheduling line, and the audit row the first calendar
   pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
   nothing written to it names a guest.
+- **The Docker socket proxy is built from Tecnativa's docker-socket-proxy v0.6.0, which allows
+  and refuses what v0.5.0 did** (workplan 0119). v0.6.0 keeps v0.5.0's configuration and
+  entrypoint byte for byte, moved into a `system_files/` directory that one COPY takes, and the
+  same environment switches with the same defaults, so what the Trigger.dev supervisor may ask
+  Docker, and what it may not, is unchanged, and no switch allows more than before. Its
+  Dockerfile now builds on HAProxy's `lts` tag and upgrades every Alpine package while the
+  image builds. Neither is taken here: `lts` is HAProxy 3.4, the line this build already runs,
+  and the base stays the pinned `haproxy:3.4.7-alpine` digest, which Dependabot moves, so the
+  image holds what its name says. The image has a new name, so each machine builds it at its
+  first `up` and restarts the proxy once. Upstream tagged v0.6.0 on 2026-11-17 at 09:25 UTC,
+  and it is taken after its three-day floor.
 
 ### Security
 
