@@ -4,6 +4,34 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, at the end: T2, osv-scanner, built as #1984 (a draft, not merged).** On the branch
+`claude/ownpace-public-readiness-y7orc6-osv-scanner`, from `main` at `bf9ede75`; step 1 of §5, as
+D1 decided.
+- **What it does.** The Security Scan's repository job installs osv-scanner from its GitHub
+  release, checked by its sha256 for both architectures, and reads `pnpm-lock.yaml` with it on
+  every pull request, push to `main`, tag and Monday. `scripts/osv-report.mjs` reads the result:
+  - a package an OSV `MAL-` record names, by its id or an alias, fails the job;
+  - a scan that did not finish fails it too: an exit code other than 0 or 1, a report it cannot
+    read, findings that disagree with the exit code, or fewer than 100 packages read;
+  - every other advisory is listed in the job summary and passes.
+
+  Both steps run after a red audit. The pin watch has an `osv-scanner` row against upstream's git
+  tags.
+- **The version is v2.7.1, not §5's 2.6.0.** 2.6.0 is two releases behind, so the pin watch would
+  have called it behind on its first run. Its results come from the live OSV database, so the
+  engine's version matters little for agreeing with the outside check. v2.7.1's assets were
+  uploaded on 2026-11-09, past the three-day floor.
+- **Proved.** The pull request's own Security Scan, run 44838311872, passed with both new steps on
+  `ubuntu-24.04`. By construction, that means both sums matched, the binary called itself 2.7.1,
+  and the report found no malicious package in a lockfile read whole. The steps' own output could
+  not be read from here: the log tool returns the last 5,000 lines, and this session's network
+  refuses the log archive's host. Locally, on Node 22.23.5:
+  - every guard and the e2e unit tests pass: 305 files, 7,453 tests, the same 33 skipped;
+  - the new guard (`a-malicious-package-nothing-read`, 17 tests) fails on each of seven mutations
+    of the report and the workflow, and the files were put back `cmp`-equal;
+  - the pin guard's new block holds each refusal and each runtime fault by a mutation of the step;
+  - ESLint and `pnpm typecheck` pass.
+
 **2026-11-20, latest: findings 7 and 4 are set aside, on the owner's word (T10, T11, D6).** Docs
 only.
 - **Finding 7.** Told that no community rule reports it and that four candidates fit it, the
@@ -82,7 +110,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised); ⏳ **Owner** (D7) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
-| T2 osv-scanner | builder | 📋 **Planned** (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
+| T2 osv-scanner | builder | 🔨 **Built** in #1984, a draft, not merged (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | 📋 **Planned** (D3) | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned** | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
@@ -321,7 +349,7 @@ an exact apk or apt pin, and hadolint stays report only.
 
 | Step | Add | Finding | Fail or report | Tool and pin | Trigger | CI time | Noise today | Kept current by |
 |---|---|---|---|---|---|---|---|---|
-| 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
+| 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`). Built with v2.7.1, the newest release past the three-day floor (Status, 2026-11-20, at the end) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
 | 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
 | 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `js-open-redirect-from-function`, `react-href-var`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` and `detect-redos` (both report only for good). The rules are fetched by id, so a rule in no pack is as easy to name as one in a pack | 5, 6, 8, 9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
 | 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
