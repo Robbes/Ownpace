@@ -41,7 +41,7 @@
 # connect-node's undici is the store's 6.29.1 in place of 5.29.0, and undici
 # 5.29.0 and its @fastify/busboy 2.1.1 go (WHAT IS RELINKED: UNDICI): the scan
 # of main on 2026-11-19 read 1, 19 and 8 (Security Scan run 44637576014), and
-# 1, 13 and 2 are expected.
+# the branch's read 1, 13 and 2 (Security Scan run 44651070464).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -561,8 +561,9 @@
 # fix are Debian 12's: one more of zlib1g's, one each in gzip, libacl1,
 # libtinfo6, ncurses-base, ncurses-bin and perl-base, and four in libpam's
 # packages). Since connect-node runs the store's 6.29.1, both go (WHAT IS
-# RELINKED: UNDICI): 1, 13 and 2 are expected, which the branch's image scan
-# measures.
+# RELINKED: UNDICI): the branch's image scan read 1 critical, 13 high and 2
+# with a fix, turbo-stream's and deepmerge-ts' (Security Scan run
+# 44651070464).
 #
 # THE DEBIAN PACKAGES NOTHING RUNS (since 2026-11-06, for alpha.6; workplan
 # 0119 §3 item 11, the owner's decision of 2026-11-03 for the appliance and the

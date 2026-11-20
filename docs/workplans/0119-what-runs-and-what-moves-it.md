@@ -93,8 +93,12 @@ approved relinking undici 5 to 6 for this image. turbo-stream and deepmerge-ts s
   the webapp's image at 1 critical, 19 high and 8 with a fix, and the production-internal tier at
   2, 42 and 19; the eight with a fix are undici 5.29.0's five, busboy's one, turbo-stream's and
   deepmerge-ts'. So 1, 13 and 2 are expected for the image, and 2, 36 and 13 for the tier.
-- **Measured:** owed, on the pull request: CI's `build (trigger, amd64)` and `build (trigger,
-  arm64)`, which run the RUN on the real images, and the branch's image scan.
+- **Measured** on `ad639829`: Images run 44650378335 built the image with the RUN on both
+  platforms (`build (trigger, amd64)` and `build (trigger, arm64)`), the layout read from the
+  lockfile matching the real store, and Security Scan run 44651070464 (2026-11-20, 01:06 to 01:09
+  UTC) reads `localhost/trigger.dev:v4.8.5-f7b52b1d2670` at 1 critical, 13 high and 2 with a fix,
+  turbo-stream's and deepmerge-ts', and the production-internal tier at 2, 36 and 13, as expected.
+  Neither undici 5.29.0 nor busboy 2.1.1 is in the report.
 - **Owed before the merge:** E2E (managed) on the head, which starts trigger-api on this image.
   Not read: whether connect-node's load is the first undici the webapp loads, and so whether the
   process's global dispatcher, which Node's own fetch uses too, is now a 6.29.1 Agent where it was
