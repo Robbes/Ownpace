@@ -4,6 +4,23 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, last: D7 answered and built as #1980; findings 8 and 9 found; 4 and 7 asked of the
+owner (T9, T4, D6).** Docs only on this branch.
+- **D7.** The owner answered *"D7: yes"*. The deletion is its own draft pull request, #1980, on
+  `claude/ownpace-public-readiness-y7orc6-o365-lane-withdrawn`. 0141's Status of the same day has
+  what it changes and what was proved. Once it merges, finding 1's spots are two, and D2 needs two
+  environments.
+- **D6.** The owner asked what was expected for findings 4, 7 and 8. Before answering, a third
+  measure run (44829612242) ran every community rule under Semgrep's JavaScript and TypeScript
+  namespaces, in a pack or not (`r/javascript` and `r/typescript`, 179 and 36 seconds). It
+  reports one spot each for findings 8 and 9, the counts the outside check gives, each at the
+  first candidate §4.3 had named:
+  `js-open-redirect-from-function` at `apps/web/src/pages/Billing.tsx:760`, and `react-href-var`
+  at `apps/web/src/components/ProviderConsent.tsx:593`. No community rule reports finding 7.
+- **So the owner is asked for two things only**, each as the outside check lists it: the file
+  and line (or the route) of finding 4's two spots, and the file and line of finding 7's two
+  spots. §4.3 names four candidates for 7, all from the Cirrux change merged on 2026-11-19.
+
 **2026-11-20, later: the owner's decisions, D1 to D6, and a question that becomes D7 (T0).** Docs
 only. The owner answered §6 the same day:
 - **D1**, osv-scanner blocks only on a malicious package: *"yes"*.
@@ -58,12 +75,12 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | 📋 **Planned** (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | 📋 **Planned** (D3) | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned**; ⏳ **Owner** (D6, the spots for 7 to 9) | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. For findings 8 and 9, add one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7: name the two spots from the check's detail first (D6). |
+| T4 Fix or answer each spot | builder | 📋 **Planned**; ⏳ **Owner** (D6: the spots of findings 4 and 7) | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7: its two spots, once the owner has copied them (D6). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
-| T9 The O365 lane | owner | ⏳ **Owner** (D7) | Delete `e2e-o365.yml`, in a pull request of its own, with what §6 D7 lists; or keep it and set its secrets in an environment. |
+| T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); 🔨 **Built** in #1980, a draft, not merged | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |
 
 ## 1. Why
 
@@ -158,11 +175,15 @@ advisory, GHSA-g3hv-75wg-m249 (CVE-2026-118764) in minimatch 10.2.6, and exited 
 
 ### 4.3 Semgrep 1.178.0
 
-Two runs, both on Semgrep's community rules from its registry, fetched by pack:
+Three runs, all on Semgrep's community rules from its registry:
 - run 44823064781 ran `p/default`, `p/javascript`, `p/typescript`, `p/react`, `p/nodejs`,
   `p/expressjs` and `p/secrets` (9 minutes for the seven, one after another);
 - run 44824596099 ran `p/security-audit`, `p/owasp-top-ten`, `p/r2c-security-audit`, `p/xss` and
-  `p/jwt` (4 minutes, of which `p/owasp-top-ten` took 102 seconds).
+  `p/jwt` (4 minutes, of which `p/owasp-top-ten` took 102 seconds);
+- run 44829612242 ran every rule whose id starts with `javascript.` or `typescript.`, in a pack or
+  not (`r/javascript`, 179 seconds, 1,443 results; `r/typescript`, 36 seconds, 1,039 results). Most
+  of those results are style and i18n rules (878 `i18next-key-format`, 410
+  `missing-template-string-indicator`), which no proposal here takes.
 
 Each pack scanned 2,209 to 2,929 files; the outside check counts 2,939. Every pack also logged
 parse errors (6 to 234 per pack), which Semgrep skips.
@@ -171,11 +192,11 @@ parse errors (6 to 234 per pack), which Semgrep skips.
 
 | # | Class | Community rule that matched | Spots here | Read as |
 |---|---|---|---|---|
-| 5 | ReDoS | `detect-non-literal-regexp` | 174 in all; 20 outside test files | False positives in kind (below) |
+| 5 | ReDoS | `detect-non-literal-regexp`; and `detect-redos`, in no pack (third run) | 174 in all, 20 outside test files; `detect-redos` 18, 10 outside test files | False positives in kind (below) |
 | 6 | Path from input | `path-join-resolve-traversal` | 1: `apps/worker/src/index.ts:92` | False positive: the path is the worker CLI's own `--config` argument, given by whoever runs the command |
-| 7 | Constant-time comparison | none | 0 | Not reproduced (below) |
-| 8 | Redirect from input | none | 0 | Not reproduced (below) |
-| 9 | React `javascript:` address | none | 0 | Not reproduced (below) |
+| 7 | Constant-time comparison | none, in any of the three runs | 0 | Not reproduced; four candidates (below) |
+| 8 | Redirect from input | `js-open-redirect-from-function`, in no pack (third run) | 1: `apps/web/src/pages/Billing.tsx:760` | Real, low (below) |
+| 9 | React `javascript:` address | `react-href-var`, in no pack (third run) | 1: `apps/web/src/components/ProviderConsent.tsx:593` | Real, low (below) |
 
 - **Class 5, the 20 spots outside tests:**
   - `packages/connectors/src`: `caldav-source.ts:536`, `carddav-source.ts:496`,
@@ -196,24 +217,45 @@ parse errors (6 to 234 per pack), which Semgrep skips.
   does not say; it presumably excludes part of the tests. So the rule would only ever fail the
   build by being rewritten around: each spot would become a literal per element name, which is
   churn with no safety gained. It stays out of any blocking set (D3).
-- **Classes 7, 8 and 9 are not in the community rules at 1.178.0**, or not in a form that matches
-  this code. The outside check's finding 7 is dated "since 2026-11-20", which suggests a rule newer
-  than the release it names or one outside the free registry. Read by hand instead:
-  - **7.** No comparison of a secret with `===` was found in `apps/` or `packages/` outside tests.
-    The comparisons with secret-like names are presence checks (`!== ''`, `!== null`). The two
-    places that compare a token against a stored one already use `timingSafeEqual`
-    (`google-consent.ts`, `packages/ledger/src/mapping-link-store.ts`). The two spots cannot be
-    named from here.
-  - **8.** The candidates are `apps/web/src/pages/Billing.tsx:760`
-    (`window.location.href = result.paymentUrl`, Mollie's checkout address from this API) and
-    `apps/web/src/services/consent-window.ts:123` (the provider's consent address, from this API).
-    Both come from this repository's own API, not from the visitor. That is low risk, but it is the
-    shape such a rule looks for. If one of them is the finding, the fix is a check that the address
-    is `https:` on the expected host before following it.
-  - **9.** The candidates are the `href={…}` values the web app takes from the API. The likeliest
-    is `apps/web/src/components/ProviderConsent.tsx:593` (`unopened.url`); the others are
-    `LegalLinks.tsx:67`, `StatusLink.tsx:53`, `Docs.tsx:211` and `Support.tsx:870`. None was shown
-    to carry visitor input. The same `https:` check closes it.
+- **Classes 8 and 9 have community rules, but in no pack;** the third run found them. Each
+  reports one spot, as the outside check does:
+  - **8,** `js-open-redirect-from-function` at `apps/web/src/pages/Billing.tsx:760`:
+    `window.location.href = result.paymentUrl`. The address is Mollie's checkout address, from
+    this repository's own API, not from the visitor. Low risk, but real: the browser follows
+    whatever comes back, and a `javascript:` address would run in the page.
+  - **9,** `react-href-var` at `apps/web/src/components/ProviderConsent.tsx:593`:
+    `href={unopened.url}`, the provider's consent address, from this API. Low risk and real, for
+    the same reason.
+  - **The fix for both** is one check that the address is `https:` on the host the flow expects,
+    before it is followed or linked (T4). `apps/web/src/services/consent-window.ts:123`, which
+    sends the consent window to the same kind of address, takes the same check, although no rule
+    reports it.
+- **Class 7 has no community rule** under `javascript.` or `typescript.` that reports anything
+  here. The outside check dates it "since 2026-11-20". The Cirrux Drive change (`4db06696`), on
+  `main` since 2026-11-19 at 18:29 UTC, is the only code of those days that compares tokens with
+  `===`:
+  - `packages/connectors/src/cirrux-token-provider.ts:293`: the cached access token against the
+    one a server just refused;
+  - `packages/connectors/src/__testing__/cirrux-fake.ts`, a test server: lines 72 and 78 (its
+    stored refresh token against the one presented) and 376 (the PKCE challenge).
+
+  None of the four compares a secret with a value someone else supplies, so each reads as a
+  false positive, but which two the check counts is not known (D6). Elsewhere in `apps/` and
+  `packages/`, the comparisons with secret-like names are presence checks (`!== ''`, `!== null`),
+  and the two places that compare a presented token with a stored one already use
+  `timingSafeEqual` (`google-consent.ts`, `packages/ledger/src/mapping-link-store.ts`).
+- **`detect-redos`, the 10 spots outside tests:** `apps/api/src/failure-answer.ts:160` (a
+  provider's error text), `apps/api/src/unreadable-body.ts:87`, `apps/web/src/pages/Docs.tsx:282`,
+  `packages/shared/src/reachable-host.ts:324`, and six in `scripts/`. Read by hand, none needs a
+  fix:
+  - the one that reads remote input, `failure-answer.ts`, tests patterns whose repeated parts are
+    each separated by a literal, so they cannot backtrack exponentially;
+  - `Docs.tsx`'s table pattern can backtrack polynomially, but it reads the documentation the web
+    app ships, not input;
+  - the rest read a library's error type, an operator's setting, or this repository's own files.
+
+  Which rule, or which mix, the outside check's 32 counts is not known. Both ReDoS rules stay
+  report only (D3).
 - **What the packs found besides the five classes**, outside tests:
   - `gcm-no-tag-length` at `packages/core/src/secrets.ts:194`: `createDecipheriv` without
     `authTagLength`. The tag's length is checked by hand two lines above, so it is not exploitable
@@ -234,6 +276,12 @@ parse errors (6 to 234 per pack), which Semgrep skips.
     `pnpm-block-exotic-sub-dependencies`, `pnpm-minimum-release-age` at `pnpm-workspace.yaml:448`).
     These are settings questions for 0119, not code findings. They are listed so the owner can
     choose, not proposed here.
+- **What the third run added outside tests,** besides the above: `raw-html-join` at
+  `site/build.mjs:899` (the site's build joins HTML from this repository's own content);
+  `detect-non-literal-fs-filename` at `apps/worker/src/index.ts:93` (the worker CLI's `--config`
+  again); and `unsafe-dynamic-method` at four places in `packages/` that call a method by a name
+  from a closed set. `insecure-innerhtml` and `insecure-document-method` report one test file
+  only.
 - **In test files:** 25 `hardcoded-jwt-secret`, 14 `detected-*` token look-alikes, 3
   `react-insecure-request`, `unsafe-formatstring` and others. All are fixtures.
 
@@ -263,7 +311,7 @@ an exact apk or apt pin, and hadolint stays report only.
 |---|---|---|---|---|---|---|---|---|
 | 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
 | 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
-| 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` (report only for good) | 5, 6 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
+| 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `js-open-redirect-from-function`, `react-href-var`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` and `detect-redos` (both report only for good). The rules are fetched by id, so a rule in no pack is as easy to name as one in a pack | 5, 6, 8, 9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
 | 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
 | 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
 
@@ -284,12 +332,13 @@ an exact apk or apt pin, and hadolint stays report only.
   is proposed instead because its version can match the outside check's, so classes 5 and 6
   agree.
 
-**Findings 7, 8 and 9 have no scanner to add.** The free community rules at the outside check's
-version do not report them on this tree (§4.3). They are better closed by the code and one guard
-in this repository's own style than by a tool: one helper that refuses an address that is not
-`https:` on an expected host, used wherever the web app follows or links an address the API
-returned, and a `scripts/` guard that fails when `location.href =` or an `href` from a variable
-bypasses it (T4). Finding 7 waits for its two spots to be named (D6).
+**Findings 8 and 9 have rules, and finding 7 has none.** `js-open-redirect-from-function` and
+`react-href-var` are community rules in no pack, and each reports one spot, the count the outside
+check gives (§4.3). They join step 3's list and fail the build in step 5 once T4's fix is in: one helper
+that refuses an address that is not `https:` on the host its flow expects, used wherever the web
+app follows or links an address the API returned. A `scripts/` guard in this repository's own
+style can hold the third place, `consent-window.ts:123`, which no rule reports. Finding 7 has no
+community rule; it waits for its two spots to be named (D6).
 
 **What has to be fixed first.** Before a Semgrep rule may fail the build: `secrets.ts`'s
 `authTagLength` (`gcm-no-tag-length`), and the `base_ref` line (`run-shell-injection`), which goes
@@ -337,6 +386,9 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
   and which of §4.3's candidates are findings 8 and 9.** Advice: copy the file and line of each
   from the outside check's detail into the next piece of work. Each one then gets a fix and a
   guard case, or is recorded as intended. **Answer, 2026-11-20: ok.** The owner supplies the spots.
+  Asked then what was expected for 4, 7 and 8, and answered after the third measure run, which
+  found 8 and 9 itself (Status, 2026-11-20, last): only the file and line (or the route) of
+  finding 4's two spots and of finding 7's two, as the outside check lists them.
 - **D7. Delete `e2e-o365.yml`?** The owner asked it with D2: *"why do we still have an O365
   workflow? Perhaps we need to delete that file."* The Status entry of 2026-11-20, later, has the
   facts. Advice: **yes, in a pull request of its own.** It has never run a test in four runs. Its
@@ -367,3 +419,5 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
   - **The alternative.** Keep the lane: set its seven secrets in an `e2e-o365` environment
     limited to `main`, with the owner as a required reviewer, and run it once, so that 0141 T13 (a)
     closes. That keeps a real SMB's credentials in CI for a dry run.
+  - **Answer, 2026-11-20: yes.** Built as #1980, a draft. The guard that held the workflow's
+    variables to the suite now holds `docs/test-tenant.md`'s table to it, both ways.
