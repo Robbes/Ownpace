@@ -60,6 +60,13 @@ export declare const TRIVY_UPSTREAM: string;
 export declare const TRIVY_ARCHES: Record<'AMD64' | 'ARM64', string>;
 export declare const TRIVY_NOTE: string;
 export declare function trivyPin(workflow: string, job: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
+export declare const OSV_SCANNER_WORKFLOW: string;
+export declare const OSV_SCANNER_HOST: string;
+export declare const OSV_SCANNER_UPSTREAM: string;
+export declare const OSV_SCANNER_ARCHES: string[];
+export declare const OSV_SCANNER_NOTE: string;
+/** The osv-scanner the Security Scan installs, read from its one install step; throws for a step not of the shape it must have. */
+export declare function osvScannerPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
 export interface ActionImageSpec {
   action: string;
   input: string;

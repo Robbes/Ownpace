@@ -75,6 +75,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **A package OSV records as malicious fails the Security Scan** (workplan 0163). The scan's
+  repository job reads `pnpm-lock.yaml` with osv-scanner v2.7.1, downloaded from its GitHub release
+  and checked by its SHA-256, on every pull request, push to `main`, tag and Monday. A package an
+  OSV malicious-package record (`MAL-…`) names fails the job, with the package and the record
+  named. Every other advisory is listed in the job summary and passes, because `pnpm audit` stays
+  the vulnerability gate. A scan that did not finish, or read almost none of the lockfile, fails
+  too. The weekly pin watch says when a newer osv-scanner is out.
 - **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
   2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
   (workplan 0119). The image scan read six highs in the two, each fixed only in their next

@@ -386,7 +386,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   because merging the base branch in is how a conflict is resolved here.
 - `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
   and on main) — `pnpm test:ui`, after `lint`, running while `unit-tests` does.
-- `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
+- `security-scan.yml` — pnpm audit + osv-scanner (fails on a package OSV records as malicious, lists
+  the rest) + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
   GitHub-hosted runners, it also scans every container image the stacks run:
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
@@ -460,7 +461,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   major; and the TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
-  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs, the Atlas
+  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy and the osv-scanner the scan
+  runs, the Atlas
   release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
   image's tags on Docker Hub, since upstream's git tags miss most releases), the stalwart-cli
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git

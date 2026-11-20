@@ -221,6 +221,89 @@ jobs:
           pnpm audit --audit-level=moderate --json > pnpm-audit.json || true
           node scripts/audit-advisories.mjs --fail-at=high pnpm-audit.json
 
+      # ---------- A PACKAGE PUBLISHED TO DO HARM, BY OSV's RECORDS ----------
+      #
+      # `pnpm audit` reads npm's advisories: vulnerabilities in packages people
+      # meant to install. It does not read OSV's malicious-package records
+      # (`MAL-…`, from the OpenSSF malicious-packages project): a typosquat, or
+      # a release pushed with a stolen token. Until 2026-11-20 nothing in CI
+      # read them, and an outside, read-only check of the repository did, after
+      # the merge (workplan 0163 T2). The owner's D1 of that day: osv-scanner
+      # FAILS the build on a malicious package, and only REPORTS every other
+      # advisory, because the audit above stays the vulnerability gate with its
+      # `--fail-at=high`, so the two never disagree about what blocks a merge.
+      #
+      # A scan that did not finish fails too (scripts/osv-report.mjs says each
+      # way: an error, no package source, the OSV API down, fewer packages read
+      # than the lockfile holds). A malware check that read nothing is not a
+      # pass. Both steps run unless the job was cancelled, so a red audit above
+      # does not hide a malicious package.
+      #
+      # A NAMED RELEASE, CHECKED BY ITS SHA-256 BEFORE ANYTHING RUNS IT, in the
+      # shape of `ci.yml`'s Atlas step, under names of its own (`binary`, `sum`,
+      # `expected`, `mismatched`), so that the guard's mutations of the Trivy
+      # step below, which read this file's first copy of each statement, can
+      # never land in this one: both architectures fetched and checked
+      # on every run (a pull request lands on amd64 and a push to main on
+      # arm64), then the native one made executable, and its version must be
+      # the release named. WHERE THE SUMS COME FROM: the release's own
+      # `osv-scanner_SHA256SUMS`, read 2026-11-20 (v2.7.1's assets uploaded
+      # 2026-11-09, past the three-day floor). `a-pin-that-knows-it-is-behind`
+      # RUNS this `run:` under bash, with `curl` and `uname` stubbed, and fails
+      # if a wrong sum or another version does not stop it with nothing
+      # installed; the pin watch keeps an issue open while a newer release of
+      # the same major exists. Dependabot cannot see a URL in a `run:`.
+      - name: Install osv-scanner from its GitHub release, checked by its sha256
+        if: ${{ !cancelled() }}
+        env:
+          OSV_SCANNER_VERSION: v2.7.1
+          OSV_SCANNER_SHA256_AMD64: fb7dab19a8bd9bbe5c3189f09d4b7ee1820c9553a23bac202648a56efd2f6ee8
+          OSV_SCANNER_SHA256_ARM64: 983d22fbad9724514e3fcc6acc83b5fa64c5ffa6b0d9f510028f22c1b223ff81
+        run: |
+          set -euo pipefail
+          machine="$(uname -m)"
+          case "$machine" in
+            x86_64) native=amd64 ;;
+            aarch64) native=arm64 ;;
+            *) echo "::error::No osv-scanner is pinned for $machine: only amd64 and arm64."; exit 1 ;;
+          esac
+          mismatched=0
+          for arch in amd64 arm64; do
+            if [ "$arch" = amd64 ]; then expected="$OSV_SCANNER_SHA256_AMD64"; else expected="$OSV_SCANNER_SHA256_ARM64"; fi
+            binary="$RUNNER_TEMP/osv-scanner-$OSV_SCANNER_VERSION-linux-$arch"
+            rm -f "$binary"
+            curl --proto '=https' --tlsv1.2 -sSfL --retry 4 -o "$binary" \
+              "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/osv-scanner_linux_${arch}"
+            sum="$(sha256sum "$binary")"
+            sum="${sum%% *}"
+            if [ "$sum" = "$expected" ]; then
+              echo "osv-scanner $OSV_SCANNER_VERSION linux/$arch: sha256 $sum, as pinned."
+            else
+              echo "::error::osv-scanner $OSV_SCANNER_VERSION linux/$arch is not the build this workflow pins: its sha256 is $sum, and the pin is $expected. Nothing was run."
+              mismatched=1
+            fi
+          done
+          [ "$mismatched" = 0 ] || exit 1
+          mkdir -p "$RUNNER_TEMP/osv-bin"
+          install -m 0755 "$RUNNER_TEMP/osv-scanner-$OSV_SCANNER_VERSION-linux-$native" "$RUNNER_TEMP/osv-bin/osv-scanner"
+          reported="$("$RUNNER_TEMP/osv-bin/osv-scanner" --version)"
+          echo "$reported"
+          if [ "${reported%%$'\n'*}" != "osv-scanner version: ${OSV_SCANNER_VERSION#v}" ]; then
+            echo "::error::The osv-scanner this step installed does not call itself ${OSV_SCANNER_VERSION#v}."
+            exit 1
+          fi
+
+      # The scanner's own exit code goes to the report, which reads 0 and 1
+      # (nothing found, advisories found) and refuses every other, and refuses a
+      # report whose findings disagree with it. `--all-packages` lists every
+      # package read, so a scan that read almost nothing is refused too.
+      - name: osv-scanner over the lockfile (blocks a malicious package, reports the rest)
+        if: ${{ !cancelled() }}
+        run: |
+          code=0
+          "$RUNNER_TEMP/osv-bin/osv-scanner" scan source --lockfile pnpm-lock.yaml --all-packages --format json --output-file osv-scanner.json || code=$?
+          node scripts/osv-report.mjs --exit-code "$code" osv-scanner.json
+
       # ---------- THE DATABASE THIS SCAN NEEDS, KEPT BETWEEN RUNS ----------
       #
       # trivy-action ALREADY CARRIES A CACHE OF ITS OWN, and it is a good one:
