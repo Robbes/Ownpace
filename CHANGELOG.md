@@ -74,6 +74,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A copied message keeps the time it arrived** (workplan 0002, 0001). The IMAP writer gave
+  each message it copied no arrival time, so the target recorded the moment of copying: the time
+  a mail app sorts "received" by, and the one a webmail shows when a message's `Date:` line is
+  missing or unreadable. On 2026-11-20 four old messages copied from Gmail into Cirrux on the
+  test environment showed the evening they were copied. The writer now sends the source's own
+  arrival time (IMAP's INTERNALDATE, or Microsoft Graph's `receivedDateTime`), then the `Date:`
+  line when the source gave none, and otherwise leaves the time to the target, as before. The
+  JMAP writer read only the `Date:` line, and now takes the same order. Messages copied before
+  this keep the time they were given: a later pass finds them by their Message-ID and leaves
+  them as they are.
 - **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
   a file node's kind `@type` and requires it when a node is made, and calls its media type
   `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
