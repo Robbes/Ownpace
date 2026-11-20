@@ -49,6 +49,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   finished, it removes the demo's Stalwart and its data volume and clears the demo mail
   migration's own records, nothing else; without `--yes` it only shows what it would do. It
   refuses live. Nothing runs it by itself.
+- **The managed gate says what was there when its folder press falls short** (workplan 0104).
+  E2E (managed) run 44731893238 failed once on 2026-11-20: the demo target refused the file inside
+  the shared folder with 404, and the second attempt passed. Whether the file was not on the target
+  yet or the share API refused a file it held, the job log could not say, and the cause is not yet
+  known. When the folder press applies fewer than two rows, `smoke-managed.sh` now prints, before it
+  fails, the file's ledger rows, the mapping's passes since the seed, the folder's share rows, and
+  whether the target holds the folder and the file now. Nothing passes or fails differently.
 - **The Docker socket proxy is built from Tecnativa's docker-socket-proxy v0.6.0, which allows
   and refuses what v0.5.0 did** (workplan 0119). v0.6.0 keeps v0.5.0's configuration and
   entrypoint byte for byte, moved into a `system_files/` directory that one COPY takes, and the
