@@ -2,7 +2,26 @@
 
 > **In one line:** Infomaniak, the Swiss provider, as a place to migrate into: mail, calendars, contacts and tasks over the IMAP and DAV servers it publishes, each signed in with its own login, and kDrive files over WebDAV as a later step.
 
-## Status — 2026-11-19 (update this block at the end of every session)
+## Status — 2026-11-20 (update this block at the end of every session)
+
+**2026-11-20: Infomaniak's copies keep their guests, for alpha.13** (ADR-0043, amended; §2 (d),
+T1's guests line in §3, and §4's steps 7 and 8 follow). Asked whether to keep leaving guests off
+copied calendar events until a test shows Infomaniak sends no invitation mails, the owner answered
+*"No, copy the guests"*; ADR-0043's amendment of 2026-11-20 quotes the question, both options and
+the answer. `infomaniak` is off `TARGETS_THAT_MAIL_GUESTS` and `TARGETS_UNTESTED_FOR_GUESTS`; the
+second is empty, and is kept with its reader. Infomaniak is written as Nextcloud is: each guest
+and the organiser kept and marked `SCHEDULE-AGENT=CLIENT`, a copy there that lists guests
+rewritten and removed as at any target not on the list, and the Test and the audit row saying what
+its server advertises. Cirrux is unchanged. An invitation Infomaniak might send cannot be taken
+back; T2's step 8 now watches for one on a normal build. Proven: the four guard files the change
+reaches (`a-guest-a-server-would-mail`, `a-target-that-mails-guests-gets-none`,
+`a-copy-that-lists-guests-is-left-as-it-is`, `target-scheduling`), changed to say so; and three
+mutations, each run against them and the file restored byte for byte: `infomaniak` back on
+`TARGETS_THAT_MAIL_GUESTS` (8 cases fail, in all four files), back in `TARGETS_UNTESTED_FOR_GUESTS`
+(3, in `a-guest-a-server-would-mail`), and back in both (9). Every unit test file that reads a
+changed file, 71 found with `git grep`, passed (2,530 cases), but `create-coherence`, which stops on
+`express`, absent from the checkout it ran in; ESLint and `tsc --noEmit` found nothing in the
+changed packages; the six docs checks passed.
 
 **2026-11-19: T0 read and T1 built.** Infomaniak's help pages were read on 2026-11-19, served
 in French (§1 lists every fact with its FAQ number), and the server was asked, without signing
@@ -27,14 +46,15 @@ label, caught once the guide-label case also asked for a second login's two boxe
 What is not proven: anything against a live Infomaniak account (T2). Whether discovery from
 `sync.infomaniak.com`'s root finds the calendar and address-book homes is the first thing T2
 measures; the server's own redirect of `/.well-known/caldav` to its root is the reason to
-expect it. What Infomaniak's SabreDAV does with `SCHEDULE-AGENT=CLIENT` is unknown, so nothing
-written to it names a guest or an organiser until T2's guests test (§4) shows none is emailed.
-Whether CalDAV also takes the account's email address as its username is not tested.
+expect it. What Infomaniak's SabreDAV does with `SCHEDULE-AGENT=CLIENT` is unknown; until
+2026-11-20 nothing written to it named a guest or an organiser (the entry above says what
+changed), and T2's guests test (§4) is what finds out. Whether CalDAV also takes the account's
+email address as its username is not tested.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 What Infomaniak publishes | builder | ✅ **Read 2026-11-19** | §1. Nine FAQ pages, served in French, and the server's own unauthenticated answers. |
-| T1 The `infomaniak` destination | builder | 🔨 **Built 2026-11-19** | §3. Two logins in one secret; the published servers pre-filled; kDrive a measured "later"; guests not written until T2. |
+| T1 The `infomaniak` destination | builder | 🔨 **Built 2026-11-19** | §3. Two logins in one secret; the published servers pre-filled; kDrive a measured "later"; guests written as at Nextcloud since 2026-11-20 (§2 (d)). |
 | T2 The first live Test and migration | owner | 📋 **Proposed** | §4: the Test, one small pass with each data type, and the two-event guests test. |
 | T3 kDrive files over WebDAV | builder | ⏳ **Later** | §5. A field for the drive's address and its measurement; not offered on every plan. |
 
@@ -86,11 +106,15 @@ address of its own per drive and not on four of the plans (2409): a face some ac
 others refuse needs its own field and measurement, so `file` is a measured "later" with the
 reason (T3).
 
-**(d) Guests are not written until a pass shows none is emailed.** `infomaniak` is in
-`TARGETS_THAT_MAIL_GUESTS` from the day it arrives, not on evidence, as Cirrux was, but because
-nothing has been tested and an invitation sent cannot be taken back (ADR-0043, amended the same
-day). `TARGETS_UNTESTED_FOR_GUESTS` keeps what a person reads true: the connection test and the
-audit row say the target is untested, never that it emails guests.
+**(d) Guests are written, as at Nextcloud, since 2026-11-20.** From the day it arrived,
+`infomaniak` was in `TARGETS_THAT_MAIL_GUESTS`, not on evidence, as Cirrux was, but because nothing
+had been tested, and in `TARGETS_UNTESTED_FOR_GUESTS`, so that the connection test and the audit
+row said the target was untested, never that it emails guests (ADR-0043, amended 2026-11-19). On
+2026-11-20 the owner answered *"No, copy the guests"* (ADR-0043, amended that day, quotes the
+question and both options). `infomaniak` left both sets, and the second is now empty. Its copies
+keep each guest and the organiser, marked `SCHEDULE-AGENT=CLIENT`, and the Test and the audit row
+say what its server advertises, as for Nextcloud. An invitation it might send cannot be taken
+back; T2's step 8 watches for one.
 
 ## 3. T1 — the `infomaniak` destination (built)
 
@@ -124,11 +148,13 @@ audit row say the target is untested, never that it emails guests.
 - **The published settings.** A `PROVIDER_DIRECTORY` row: `sync.infomaniak.com`, `443`,
   `mail.infomaniak.com`, `993`, from FAQ 2427, 1544, 1321 and 2855, seen 2026-11-19. No `url`.
 - **The reasoned no.** The qualification answers the file face with kDrive's reason.
-- **Guests.** `infomaniak` in `TARGETS_THAT_MAIL_GUESTS` and `TARGETS_UNTESTED_FOR_GUESTS`; the
-  scheduling verdict's sentence for an untested target. With workplan 0160's fifth correction
-  merged in, a copy at Infomaniak that lists a guest is neither rewritten nor removed, as at
-  Cirrux: four Infomaniak cases in `a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`,
-  each of which fails when `infomaniak` is taken off the list.
+- **Guests.** Built on 2026-11-19 with `infomaniak` in `TARGETS_THAT_MAIL_GUESTS` and
+  `TARGETS_UNTESTED_FOR_GUESTS`, and the scheduling verdict's sentence for an untested target.
+  Since 2026-11-20 (§2 (d)) it is in neither: its copies are written as Nextcloud's are, each guest
+  and the organiser marked `SCHEDULE-AGENT=CLIENT`, and a copy there that lists a guest is
+  rewritten and removed as at any target not on the list. Four Infomaniak cases in
+  `a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts` say so, each of which fails when
+  `infomaniak` is put back on the list. The untested sentence stays, and no kind reaches it.
 - **Words.** The card's hint, the boxes' lines, four setup steps (the account, the sync login, the
   mail password on the Devices tab, the mail server), the credential retirement and the revocation
   reason naming both places (the application passwords page and the address's Devices tab), all in
@@ -208,19 +234,23 @@ after each (SHA-256 compared):**
    fuller address (FAQ 2046) in **DAV base URL**, and test again. Write down the address (T3's kind
    of correction).
 7. One small migration from a source you own into that account, with email, calendar, contacts and
-   tasks ticked, and one pass. Check: the mail arrived in the mailbox; the events, contacts and tasks
-   arrived, tasks as tasks; no event names a guest (each a `COMMENT`); a second pass copies nothing.
+   tasks ticked, and one pass. Since 2026-11-20 the guests of what it copies are written (§2 (d)),
+   so use a source whose events and tasks list no guest but you, until step 8 has said what
+   Infomaniak does with them. Check: the mail arrived in the mailbox; the events, contacts and tasks
+   arrived, tasks as tasks; a second pass copies nothing.
 8. **The two-event guests test, as it was run for Cirrux** (2026-11-19: two events of one's own, a
    guest on each; taking the guest off one and deleting the other each mailed the guest a
-   cancellation). Only on the test environment, on a build that takes `infomaniak` off
-   `TARGETS_THAT_MAIL_GUESTS` and `TARGETS_UNTESTED_FOR_GUESTS` for that run. In a source calendar
-   you own, two events of your own, each with one guest whose inbox you read. Migrate that calendar
-   alone, so the writer sends both with the guest and the organiser marked `SCHEDULE-AGENT=CLIENT`,
-   and watch the guest's inbox. Then take the guest off one event at the source and run a pass;
-   delete the other there and, once the Deletions page lists it, approve its removal; watch the
-   inbox after each. **No mail at any step** is the evidence to take `infomaniak` off both lists;
-   **mail at any step** moves it from the untested set to the kinds seen mailing guests, as Cirrux
-   is, and the step it came at goes into §1.
+   cancellation). Since 2026-11-20 every build writes Infomaniak's guests (§2 (d)), so this step
+   watches whether Infomaniak mails them on a normal build; no build switch is needed. In a source
+   calendar you own, two events of your own, each with one guest whose inbox you read. Migrate that
+   calendar alone, so the writer sends both with the guest and the organiser marked
+   `SCHEDULE-AGENT=CLIENT`, and watch the guest's inbox. Then take the guest off one event at the
+   source and run a pass; delete the other there and, once the Deletions page lists it, approve its
+   removal; watch the inbox after each. **No mail at any step** is the evidence that Infomaniak
+   keeps to the marker, and goes into §1. **Mail at any step** puts `infomaniak` back on
+   `TARGETS_THAT_MAIL_GUESTS` as a kind seen mailing guests, as Cirrux is (not in
+   `TARGETS_UNTESTED_FOR_GUESTS`, which holds kinds nobody has tested), and the step it came at
+   goes into §1.
 9. Delete the migration, then the account, and revoke both passwords at Infomaniak.
 
 ## 5. T3 — kDrive files over WebDAV (later)
@@ -234,8 +264,9 @@ Until then `file` stays out of `PROVIDER_ACCOUNT_DOMAINS.infomaniak` and the Tes
 ## What the owner does
 
 - T2's steps, in §4, on an Infomaniak account of their own.
-- Step 8 decides whether `infomaniak` stays on the guests list; its result goes into ADR-0043's
-  amendment log and this Status block.
+- Step 8 shows whether Infomaniak mails guests on a normal build. Mail at any step puts
+  `infomaniak` back on the guests list; either result goes into ADR-0043's amendment log and this
+  Status block.
 
 ## Open questions
 
