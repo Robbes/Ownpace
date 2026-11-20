@@ -1,0 +1,176 @@
+# MEASUREMENT ONLY, ON A BRANCH THAT IS NEVER MERGED AND HAS NO PULL REQUEST.
+# It runs the scanners a CI shift-left proposal weighs, once, report only, so
+# the proposal can say what each would find on this tree. Every step records
+# its tool's exit status and fails on nothing it found; a step fails only when
+# a tool could not be installed or did not run. Nothing is uploaded to code
+# scanning. Tools are pinned: release downloads by sha256, the Semgrep image by
+# its index digest.
+name: Scan measure (report only)
+
+on:
+  push:
+    branches: [claude/ownpace-public-readiness-y7orc6-ci-scan-measure]
+
+permissions:
+  contents: read
+
+jobs:
+  semgrep:
+    name: semgrep 1.178.0 (registry packs)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      SEMGREP_IMAGE: semgrep/semgrep:1.178.0@sha256:32e459968daabe7ab86968184a29109b9564aa00392401156f9788452b42786b
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Run Semgrep over the tree, one pack at a time
+        run: |
+          set +e
+          mkdir -p out
+          for pack in default javascript typescript react nodejs expressjs secrets; do
+            start=$(date +%s)
+            docker run --rm -v "$PWD:/src" -w /src "$SEMGREP_IMAGE" \
+              semgrep scan --config "p/$pack" --metrics=off --json --output "/src/out/semgrep-$pack.json" --quiet
+            rc=$?
+            echo "pack p/$pack: exit $rc, $(( $(date +%s) - start ))s"
+            [ -s "out/semgrep-$pack.json" ] || { echo "::error::p/$pack wrote no report"; exit 1; }
+          done
+      - name: List what each pack found (rule, file, line)
+        run: |
+          for f in out/semgrep-*.json; do
+            echo "=== $f: $(jq '.results | length' "$f") results, $(jq '.errors | length' "$f") errors, $(jq '.paths.scanned | length' "$f") files scanned"
+            jq -r '.results[] | "\(.check_id) \(.path):\(.start.line)"' "$f" | sort
+          done
+          echo "=== all packs, one row per rule and spot"
+          jq -r '.results[] | "\(.check_id) \(.path):\(.start.line)"' out/semgrep-*.json | sort -u | tee out/semgrep-all.txt
+          echo "=== counts per rule"
+          awk '{print $1}' out/semgrep-all.txt | sort | uniq -c | sort -rn
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: always()
+        with:
+          name: semgrep
+          path: out/
+          retention-days: 7
+
+  gitleaks:
+    name: gitleaks 8.30.1 (history and files)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      GITLEAKS_VERSION: 8.30.1
+      GITLEAKS_SHA256: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install gitleaks from its release, checked by sha256
+        run: |
+          d="$RUNNER_TEMP/gitleaks"; mkdir -p "$d"
+          curl -fsSL --retry 4 -o "$d/g.tgz" "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz"
+          echo "$GITLEAKS_SHA256  $d/g.tgz" | sha256sum -c -
+          tar -xzf "$d/g.tgz" -C "$d" gitleaks
+          "$d/gitleaks" version
+      - name: Scan history and the checked-out files (redacted; rule and file only)
+        run: |
+          set +e
+          g="$RUNNER_TEMP/gitleaks/gitleaks"
+          "$g" git --redact --no-banner --report-format json --report-path gl-git.json .; echo "git: exit $?"
+          "$g" dir --redact --no-banner --report-format json --report-path gl-dir.json .; echo "dir: exit $?"
+          for f in gl-git.json gl-dir.json; do
+            [ -s "$f" ] || { echo "::error::$f missing"; exit 1; }
+            echo "=== $f: $(jq length "$f")"
+            jq -r '.[] | "\(.RuleID) \(.File)"' "$f" | sort | uniq -c
+          done
+
+  osv:
+    name: osv-scanner 2.6.0 (lockfile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      OSV_VERSION: 2.6.0
+      OSV_SHA256: ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install osv-scanner from its release, checked by sha256
+        run: |
+          d="$RUNNER_TEMP/osv"; mkdir -p "$d"
+          curl -fsSL --retry 4 -o "$d/osv-scanner" "https://github.com/google/osv-scanner/releases/download/v${OSV_VERSION}/osv-scanner_linux_amd64"
+          echo "$OSV_SHA256  $d/osv-scanner" | sha256sum -c -
+          chmod +x "$d/osv-scanner"; "$d/osv-scanner" --version
+      - name: Scan every lockfile in the tree
+        run: |
+          set +e
+          start=$(date +%s)
+          "$RUNNER_TEMP/osv/osv-scanner" scan source -r --format json --output osv.json .
+          echo "exit $?, $(( $(date +%s) - start ))s"
+          [ -s osv.json ] || { echo "::error::no report"; exit 1; }
+          jq -r '.results[] | .source.path as $p | .packages[] | .package as $k | .vulnerabilities[] | "\(.id) \($k.name)@\($k.version) \($p) aliases=\((.aliases // []) | join(","))"' osv.json | sed "s|$PWD/||" | sort -u
+
+  trivy-config:
+    name: trivy 0.76.2 config (misconfiguration)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    env:
+      TRIVY_VERSION: v0.76.2
+      TRIVY_SHA256: bc0fc726e017b8927a62b2d3531d7a84ee01769daf5c99ed866dced54089fdbf
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Trivy from its release, checked by sha256 (the Security Scan's pin)
+        run: |
+          d="$RUNNER_TEMP/trivy"; mkdir -p "$d"
+          curl -fsSL --retry 4 -o "$d/t.tgz" "https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/trivy_${TRIVY_VERSION#v}_Linux-64bit.tar.gz"
+          echo "$TRIVY_SHA256  $d/t.tgz" | sha256sum -c -
+          tar -xzf "$d/t.tgz" -C "$d" trivy; "$d/trivy" --version
+      - name: Misconfiguration scan of the tree
+        run: |
+          set +e
+          start=$(date +%s)
+          "$RUNNER_TEMP/trivy/trivy" config --format json --output trivy-config.json .
+          echo "exit $?, $(( $(date +%s) - start ))s"
+          [ -s trivy-config.json ] || { echo "::error::no report"; exit 1; }
+          echo "=== failures by severity, rule and file"
+          jq -r '.Results[]? | .Target as $t | .Misconfigurations[]? | select(.Status=="FAIL") | "\(.Severity) \(.ID) \($t)"' trivy-config.json | sort | uniq -c
+          echo "=== files with a misconfiguration result: $(jq '[.Results[]? | select(.MisconfSummary != null)] | length' trivy-config.json)"
+
+  sbom:
+    name: SBOM, the repository's CycloneDX against syft 1.52.0
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      SYFT_VERSION: 1.52.0
+      SYFT_SHA256: caeedb81fb0491615f1ebd1761e4145d41ee86dd2cc7bf80669f9f5ad9d6133d
+    steps:
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+      - run: pnpm install --frozen-lockfile
+      - name: The repository's SBOM, as the Security Scan makes it
+        run: npx --yes=false @cyclonedx/cyclonedx-npm --output-format JSON --output-file bom.json --ignore-npm-errors
+      - name: Install syft from its release, checked by sha256
+        run: |
+          d="$RUNNER_TEMP/syft"; mkdir -p "$d"
+          curl -fsSL --retry 4 -o "$d/s.tgz" "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          echo "$SYFT_SHA256  $d/s.tgz" | sha256sum -c -
+          tar -xzf "$d/s.tgz" -C "$d" syft; "$d/syft" version
+      - name: syft over the lockfile alone, and the two lists compared
+        run: |
+          mkdir lockonly && cp pnpm-lock.yaml lockonly/
+          "$RUNNER_TEMP/syft/syft" scan dir:lockonly -o cyclonedx-json=syft.json -q
+          jq -r '.components[] | select(.type=="library") | "\(.name)@\(.version)"' bom.json | sort -u > repo.txt
+          jq -r '.components[] | select(.type=="library") | "\(.name)@\(.version)"' syft.json | sort -u > syft.txt
+          echo "repository SBOM: $(wc -l < repo.txt) name@version; syft (lockfile): $(wc -l < syft.txt)"
+          echo "=== in syft's, not the repository's (first 60)"; comm -13 repo.txt syft.txt | sed -n 1,60p
+          echo "=== in the repository's, not syft's (first 60)"; comm -23 repo.txt syft.txt | sed -n 1,60p
+          echo "=== repository SBOM metadata component"; jq -c '.metadata.component | {name, version, purl}' bom.json
