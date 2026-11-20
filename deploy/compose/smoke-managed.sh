@@ -5944,6 +5944,80 @@ if [ -n "$BALANCE_TAG" ]; then
       echo "  failed attempts included, and another run's press inside that window spends the same 20."
     fi
   }
+  # WHAT WAS THERE WHEN THE FOLDER PRESS FELL SHORT (E2E (managed) run
+  # 44731893238, attempt 1, 2026-11-20 12:00-12:07 UTC). The press applied the
+  # folder, and the target refused the file inside it: `target_refused`, status
+  # 404. Attempt 2 of the same run passed, as did every other recent run.
+  # Attempt 1's log differed before the press: prepare saw an eligible item
+  # after 2s and one VTODO row (green runs: 6s and two), and the sync before the
+  # verify took 26s with itemsProcessed=4 (green: 12s and 0). Yet at the
+  # balance the ledger held what a green run's holds, the file included. Passes
+  # of one mapping do not overlap (`run-delta-sync`'s queue has
+  # concurrencyLimit 1, and every pass is enqueued with the mapping as its
+  # concurrencyKey), and the WebDAV writer makes a missing parent collection
+  # before its PUT. So either the file was not on the target yet when the press
+  # asked, or it was and the share API answered 404 all the same. Nothing in the
+  # log said which, and the evidence file cannot be downloaded where a failure
+  # is read; the job log can.
+  #
+  # So, before the branch fails, it prints:
+  #   - the file's ledger row(s) for this run's tag: status, when first seen,
+  #     last synced and updated, and the path it was written to;
+  #   - the passes on the APPLY mapping that were not over before the seed (the
+  #     tag's own time), oldest first: those that started since it, and any
+  #     that started in the hour before it and ran over it;
+  #   - the folder's share rows: state, and when the press decided one (a row
+  #     the target refused stays open, and the press records nothing on it);
+  #   - whether the target holds the folder and the file now: a PROPFIND Depth 0
+  #     on each, as the target's own account, through the same door as every
+  #     other read of the target here, with the status alone printed.
+  # Read together: a file the target holds now, with a ledger row older than
+  # the folder's decision, points at the share API; a 404 now, or a row newer
+  # than the decision, points at the copy. It reads and prints, nothing else:
+  # no retry, no wait, and the branch fails exactly as before. Nothing printed
+  # is secret: not the source's share (its `raw` carries a token), not an
+  # address, not a URL, and the target path loses any scheme and host.
+  utc_sql() { # utc_sql <timestamp column> — SQL for its time of day in UTC, to the millisecond, or '-'
+    printf "rpad(coalesce(to_char(%s AT TIME ZONE 'UTC', 'HH24:MI:SS.MS'), '-'), 12)" "$1"
+  }
+  evidence_rows() { # evidence_rows <query> <what no row means> — each row indented, or why there is none
+    local rows
+    if ! rows="$(q "$1")"; then
+      echo "    (the database did not answer, so this is unknown)"
+    elif [ -z "$rows" ]; then
+      echo "    ($2)"
+    else
+      printf '%s\n' "$rows" | sed 's/^/    /'
+    fi
+  }
+  folder_press_evidence() { # folder_press_evidence <folder> <the file inside it> — what the ledger and the target hold
+    local name="${2##*/}" seeded="" p code
+    echo "  what was there, read just after the press (times are UTC):"
+    echo "  the file's ledger row(s): status, first seen, last synced, updated, the path it was written to"
+    evidence_rows "SELECT concat_ws('  ', format('%-14s', status), $(utc_sql first_seen_at), $(utc_sql last_synced_at), $(utc_sql updated_at), coalesce(nullif(regexp_replace(coalesce(target_ref->>'id', ''), '^[a-zA-Z]+://[^/]*', ''), ''), '(no target path)'), nullif(last_error_category, '')) FROM item WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND domain='file' AND ($HREF_EXPR LIKE '%${name}%' OR natural_key LIKE '%${name}%') ORDER BY first_seen_at" \
+      "none: the ledger holds no row for ${name}"
+    if [[ "$BALANCE_TAG" =~ ^smoke-([0-9]{4})([0-9]{2})([0-9]{2})T([0-9]{2})([0-9]{2})([0-9]{2})Z- ]]; then
+      seeded="${BASH_REMATCH[1]}-${BASH_REMATCH[2]}-${BASH_REMATCH[3]} ${BASH_REMATCH[4]}:${BASH_REMATCH[5]}:${BASH_REMATCH[6]}+00"
+    fi
+    if [ -z "$seeded" ]; then
+      echo "  the passes on this mapping: unknown, the tag ${BALANCE_TAG} carries no time to start from"
+    else
+      echo "  the passes on this mapping that started since the seed at ${seeded:11:8}, or ran over it, oldest first:"
+      echo "  ref, kind, status, started, finished, itemsProcessed"
+      evidence_rows "SELECT concat_ws('  ', format('%-29s', coalesce(orchestrator_ref, '(no ref)')), format('%-12s', kind), format('%-9s', status), $(utc_sql started_at), $(utc_sql finished_at), coalesce(stats->>'itemsProcessed', '?')) FROM run WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND coalesce(finished_at, now()) >= timestamptz '${seeded}' AND coalesce(started_at, created_at) >= timestamptz '${seeded}' - interval '1 hour' ORDER BY coalesce(started_at, created_at), created_at" \
+        "none: no pass of this mapping ran since the seed"
+    fi
+    echo "  the share rows of ${1}: item, state, when the press decided it, what it is on"
+    evidence_rows "SELECT concat_ws('  ', format('%-6s', CASE is_container WHEN true THEN 'folder' WHEN false THEN 'file' ELSE '?' END), format('%-11s', state), $(utc_sql decided_at), on_label) FROM share_grant WHERE tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING' AND (item_key='${1}' OR parent_key='${1}') ORDER BY is_container DESC NULLS LAST, on_label" \
+      "none: no share row is on ${1} or inside it"
+    echo "  on the target now, PROPFIND Depth 0 as ${TARGET_DAV_USER} (207 there, 404 not there, 000 no answer):"
+    for p in "$1" "$2"; do
+      code="$(curl -s -o /dev/null -w '%{http_code}' -X PROPFIND -H 'Depth: 0' \
+        -u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}" \
+        "${NC}/remote.php/dav/files/${TARGET_DAV_USER}/${p}" 2>/dev/null)"
+      echo "    ${code:-000}  ${p}"
+    done
+  }
   note "the moment, pressed"
   rescan_out="$(curl -sS -X POST -H "Authorization: Bearer $APPLY_TOKEN" -w $'\n%{http_code}' \
     "$API/api/migrations/$APPLY_MAPPING/sharing/rescan")"
@@ -6028,6 +6102,7 @@ if [ -n "$BALANCE_TAG" ]; then
         echo "the folder press applied ${fpress_applied:-0} row(s), expected the folder AND"
         echo "the file inside it — the two the seed shared at the same level:"
         refused_rows "${fpress_out%$'\n'*}"
+        folder_press_evidence "$folder_parent" "${folder_parent}/openmig-demo-folder-file-${BALANCE_TAG}.txt"
         fail_at
       else
         echo "folder press applied ${fpress_applied} grant(s) in one action"

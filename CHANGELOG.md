@@ -17,6 +17,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   source and is written again. The Test's scheduling line, and the audit row the first calendar
   pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
   nothing written to it names a guest.
+- **The managed gate says what was there when its folder press falls short** (workplan 0104).
+  E2E (managed) run 44731893238 failed once on 2026-11-20: the demo target refused the file inside
+  the shared folder with 404, and the second attempt passed. Whether the file was not on the target
+  yet or the share API refused a file it held, the job log could not say, and the cause is not yet
+  known. When the folder press applies fewer than two rows, `smoke-managed.sh` now prints, before it
+  fails, the file's ledger rows, the mapping's passes since the seed, the folder's share rows, and
+  whether the target holds the folder and the file now. Nothing passes or fails differently.
 
 ## [0.2.0-alpha.12] - 2026-11-20
 
