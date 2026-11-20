@@ -195,7 +195,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
   file from a folder nor make either. It now speaks both, chosen by what the account's session
   says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
-  are still recognised as its own.
+  are still recognised as its own. To v1 it gives a media type without its parameters
+  (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
 - **Moves and Deletions name the item each row asks about** (workplan 0159): a file renamed at
   the top of a drive read only `/ renamed` beside an ID and now reads
   `/report.pdf → report-final.pdf`, a moved file shows its name in both folders, and a message,

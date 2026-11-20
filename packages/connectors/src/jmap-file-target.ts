@@ -568,10 +568,16 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     return this.wire.sendsKind ? { '@type': kind === 'file' ? this.wire.file : this.wire.directory } : {};
   }
 
-  /** The source's media type, under the name this account's draft gives it; nothing when the source gave none. */
+  /**
+   * The source's media type, under the name this account's draft gives it;
+   * nothing when the source gave none. To the v0.16 draft as it always was;
+   * to the newer one by its essence alone (`mediaTypeEssence`).
+   */
   private mediaTypeOf(raw: RawFileItem): Pick<FileNode, 'type' | 'mediaType'> {
     if (!raw.item.mimeType) return {};
-    return this.wire.mediaTypeKey === 'mediaType' ? { mediaType: raw.item.mimeType } : { type: raw.item.mimeType };
+    if (this.wire.mediaTypeKey === 'type') return { type: raw.item.mimeType };
+    const essence = mediaTypeEssence(raw.item.mimeType);
+    return essence ? { mediaType: essence } : {};
   }
 
   /**
@@ -1291,6 +1297,23 @@ function nodeKind(node: FileNode, wire: NodeWire): 'file' | 'directory' {
       `'${wire.file}' nor '${wire.directory}'. Guessing would either skip a file forever or write over a ` +
       `directory, so this refuses.`,
   );
+}
+
+/**
+ * A media type without its parameters, `text/plain; charset=utf-8` read as
+ * `text/plain`, as the newer FileNode draft takes it.
+ *
+ * Stalwart v1.1.1 refuses a whole create or update whose `mediaType` is not a
+ * bare `type/subtype` of restricted names, each at most 127 characters
+ * (`is_valid_media_type` in `crates/types/src/media_type/mod.rs`, read at
+ * v1.1.1), where v0.16 took any string as `type`. So a parameter a source adds
+ * would cost the file its copy. Undefined when even the essence is not a media
+ * type: the server's own default then stands, and the bytes still arrive.
+ */
+function mediaTypeEssence(value: string): string | undefined {
+  const essence = value.split(';', 1)[0]!.trim();
+  const name = '[A-Za-z0-9][A-Za-z0-9!#$&^_.+-]{0,126}';
+  return new RegExp(`^${name}/${name}$`).test(essence) ? essence : undefined;
 }
 
 /** Is `node` inside the subtree rooted at `ancestorId`? */

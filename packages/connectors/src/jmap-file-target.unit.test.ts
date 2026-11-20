@@ -884,6 +884,26 @@ describe('an account on the newer FileNode draft', () => {
     expect(updates[0]).toEqual({ blobId: 'uploaded-1', mediaType: 'text/plain' });
   });
 
+  it('sends a media type by its essence alone, and none when even that is not one', async () => {
+    // v1.1.1 refuses the whole create when `mediaType` carries a parameter,
+    // where v0.16 took any string as `type`: the file would never arrive.
+    const creates: Array<Record<string, unknown>> = [];
+    responders['FileNode/get'] = () => ({ list: [] });
+    responders['FileNode/set'] = (args) => {
+      creates.push((args.create as Record<string, Record<string, unknown>>)['0']!);
+      return { created: { '0': { id: `f${creates.length}` } } };
+    };
+
+    await target().upsertFile('', rawFile('notes.txt', CONTENT, 'text/plain; charset=utf-8'));
+    await target().upsertFile('', rawFile('odd.bin', CONTENT, 'not a media type'));
+
+    expect(creates[0]).toMatchObject({ '@type': 'File', name: 'notes.txt', mediaType: 'text/plain' });
+    expect(creates[1]).toMatchObject({ '@type': 'File', name: 'odd.bin' });
+    expect(creates[1]).not.toHaveProperty('mediaType');
+    // The upload still says what the source said: only the node's field is narrowed.
+    expect(uploads.map((u) => u.contentType)).toEqual(['text/plain; charset=utf-8', 'not a media type']);
+  });
+
   it('refuses a node of a kind it does not write, as it does on v0.16', async () => {
     responders['FileNode/get'] = treeResponder([
       { id: 'x', name: 'link', parentId: null, '@type': 'SymLink' },

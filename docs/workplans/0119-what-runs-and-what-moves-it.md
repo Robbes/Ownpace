@@ -31,12 +31,15 @@ what was read and where.
   drafts: `@type` and `mediaType` where the account's filenode capability lists
   `supportedNodeTypes`, as v1.1.1's does, and the very requests it sent before where it does not.
   On v1.1.1 it read every node as neither file nor folder (`nodeType` is dropped there) and every
-  create was refused (`@type is required on creation.`).
+  create was refused (`@type is required on creation.`). v1.1.1 also refuses a `mediaType` with
+  parameters, so the newer wire sends the type's essence (`text/plain`, not
+  `text/plain; charset=utf-8`), or none when that is not a media type either.
 - **Proved here**, in a worktree, on Node 22.22.0: of the 44 unit test files that name Stalwart or
   read what changed, 38 pass (1,368 tests) and 6 stop on `@electric-sql/pglite`, a per-package
-  install the worktree lacks. The file target's file, 38 tests, 7 of them new, ran with undici
+  install the worktree lacks. The file target's file, 39 tests, 8 of them new, ran with undici
   8.12.3 from the store standing in for the locked 8.12.4, which `fetch`'s stub never reaches;
-  with the draft always read as v0.16, its 5 newer-draft cases fail. With v0.16.27 left in
+  with the draft always read as v0.16, its 5 newer-draft cases fail, and with the media type sent
+  whole, the essence case fails (1 of 39). With v0.16.27 left in
   `setup-stalwart.sh`'s `IMAGE`, the phone-home, fixture and pin-watch guards fail (9 of 168
   tests in 3 files). Each file was put back `cmp`-equal. ESLint passes on the changed files, and
   `tsc --noEmit` reports nothing in them.

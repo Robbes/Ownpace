@@ -97,7 +97,8 @@ run). What touches this repository:
     create, and its media type `mediaType`; `nodeType` and `type` are gone, dropped when asked for
     and refused when sent. `JmapFileTarget` speaks both drafts, chosen by the account's filenode
     capability (`supportedNodeTypes`, which only the newer draft carries), and sends a v0.16 server
-    exactly what it sent before.
+    exactly what it sent before. v1.1.1 refuses a `mediaType` with parameters, so the newer wire
+    sends the type's essence, or none when that is not a media type either.
   - JSCalendar names one `recurrenceRule` (draft-ietf-calext-jscalendarbis-22) where the spike
     asks with `recurrenceRules`, so its re-run asks by the new name before it says anything about
     0031 T1.
