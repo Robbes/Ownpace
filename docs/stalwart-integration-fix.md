@@ -111,9 +111,13 @@ run). What touches this repository:
   WebUI comes from the release `v2`, a tag upstream moves within 2.x, again 90 days on and in
   recovery mode too; its spam rules as before; its ASN lists from GitHub only.
 
-Owed before it merges: the CI `integration-tests` job, the two-phase run on the new tag; E2E
-(self-hosted); E2E (managed) on the branch after alpha.12's tag, once the OTA demo's volume is
-decided; and the spike's re-run, which needs a Docker daemon.
+The two-phase run is proved on the new tag: CI's `integration-tests` job on `26ff78ae` (run
+44677802203, 2026-11-20), on amd64 and on arm64, passed 98 test files and 829 tests each. The
+eleven that use Stalwart are among them: the shadow pass, the reindex, the capability probe, the
+JMAP file target and file sync on the newer FileNode names, JMAP contacts (target and sync) and
+mailboxes, the shared mailbox, IMAP to DAV, and SMTPS. Owed before it merges: E2E (self-hosted);
+E2E (managed) on the branch after alpha.12's tag, once the OTA demo's volume is decided; and the
+spike's re-run, which needs a Docker daemon.
 
 **v0.16.10 → v0.16.27 (2026-10-25, workplan 0146 T11 (b)).** Why: the image scan read v0.16.10 at
 3 critical and 114 high, v0.16.27 (Debian 13.7) at 0 and 47, none of the 47 with a fix. Pushed to
