@@ -110,7 +110,7 @@
 #     asks it for TLS on 3443; then dispatch E2E (managed) on the branch,
 #     whose smoke asks the same front.
 #   - Another major: the owner's call, and Dependabot is told to leave it.
-FROM caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
+FROM caddy:2.11.9-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
 
 # Not upstream's: curl out, and what only curl needed (the header).
 RUN set -eu; \
