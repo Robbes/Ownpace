@@ -4,6 +4,39 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, later: the owner's decisions, D1 to D6, and a question that becomes D7 (T0).** Docs
+only. The owner answered §6 the same day:
+- **D1**, osv-scanner blocks only on a malicious package: *"yes"*.
+- **D2**, the nine secrets into three environments, starting with the O365 one: *"yes, but why do
+  we still have an O365 workflow? Perhaps we need to delete that file."*
+- **D3**, Semgrep as a named list, report only, the ReDoS rule never blocking: *"yes; CodeQL not
+  now"*.
+- **D4**, gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore
+  comments: *"yes."*
+- **D5**, the release SBOM keeps listing what is installed: *"keep as is"*.
+- **D6**, the exact spots for findings 4, 7, 8 and 9, copied from the outside check's detail:
+  *"ok"*. The owner supplies them, and T4's spots for 7 to 9 and finding 4's two routes wait for
+  them.
+
+**The O365 lane, read on 2026-11-20 to answer D2's question (now D7).** `e2e-o365.yml` is the
+read-only, dispatch-only dry run of the Microsoft 365 source against the real SMB tenant
+(`docs/test-tenant.md`, 0008 T7). 0141 carries it as T13 (a). It has never run a test:
+- **Four runs, none of them past its first step.** The two of 2026-09-06 were cancelled before a
+  runner took them. 41273625023 (2026-11-01) waited about 21 hours for a runner label no runner
+  carried yet, and was cancelled. 41418432093 (2026-11-02) got the runner and failed at
+  *Validate required secrets*: `O365_CLIENT_ID` and `O365_TENANT_ID` reached it empty, because
+  they are not set as repository secrets. 0141's Status of 2026-11-20 says they are still not set,
+  and that run is still the newest.
+- **No release needs it.** Release does not read the lane. Every alpha since alpha.4 was tagged
+  without it, under the owner's waiver for alpha.4 to alpha.11 (0141 T13).
+  `scripts/connector-coverage.unit.test.ts` records the Graph sources as *owed*, not driven.
+- **So seven of finding 1's nine spots name secrets that do not exist.** Moving them into an
+  environment would move nothing. Deleting the workflow removes them, and leaves two secrets for
+  D2: `e2e-managed.yml`'s `TRIGGER_ACCESS_TOKEN` and `exposure-probe.yml`'s `EXPOSURE_PROBE_HOST`.
+
+§6 D7 puts the deletion to the owner, with what it changes. The deletion is a workflow change, so
+it is not made on this plan's branch.
+
 **2026-11-20: proposed.** An evaluation, not a build. Nothing in `.github/` changes on this plan's
 branch. Each recommendation below is the owner's to accept, change or refuse (§6). The candidate
 tools were run once, report only, on a separate branch that is never merged and has no pull request
@@ -21,15 +54,16 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The decisions | owner | 📋 **Proposed** | §6: D1 to D6, each with advice. |
-| T1 Secrets into environments | builder | 📋 **Proposed** | Finding 1. Three GitHub environments, nine secrets moved, `environment:` on three jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
-| T2 osv-scanner | builder | 📋 **Proposed** | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
-| T3 Semgrep, report only | builder | 📋 **Proposed** | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Proposed** | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. For findings 8 and 9, add one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7: name the two spots from the check's detail first (D6). |
-| T5 Semgrep fails the build, rule by rule | builder | 📋 **Proposed** | A rule moves to blocking once it reports nothing on `main` (§5, step 5). |
-| T6 gitleaks on a pull request's own commits | builder | 📋 **Proposed** | Report only first; D4 decides on the allowlist (§5, step 4). |
+| T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised); ⏳ **Owner** (D7) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
+| T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
+| T2 osv-scanner | builder | 📋 **Planned** (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
+| T3 Semgrep, report only | builder | 📋 **Planned** (D3) | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
+| T4 Fix or answer each spot | builder | 📋 **Planned**; ⏳ **Owner** (D6, the spots for 7 to 9) | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. For findings 8 and 9, add one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7: name the two spots from the check's detail first (D6). |
+| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
+| T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
-| T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. |
+| T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
+| T9 The O365 lane | owner | ⏳ **Owner** (D7) | Delete `e2e-o365.yml`, in a pull request of its own, with what §6 D7 lists; or keep it and set its secrets in an environment. |
 
 ## 1. Why
 
@@ -228,7 +262,7 @@ an exact apk or apt pin, and hadolint stays report only.
 | Step | Add | Finding | Fail or report | Tool and pin | Trigger | CI time | Noise today | Kept current by |
 |---|---|---|---|---|---|---|---|---|
 | 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
-| 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before | GEN-26's pin-watch row |
+| 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
 | 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` (report only for good) | 5, 6 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
 | 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
 | 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
@@ -262,7 +296,7 @@ bypasses it (T4). Finding 7 waits for its two spots to be named (D6).
 with GEN-26. `path-join-resolve-traversal` and `unknown-value-with-script-tag` each have one false
 positive. Each is answered in the plan, and the rule waits until the spot is reworded, or stays
 report only; it is never silenced in the code (§4.3). Finding 1 is fixed by moving secrets (T1), which is a repository-settings change plus
-three `environment:` lines. osv-scanner's one finding is accepted and is not a malicious-package
+two or three `environment:` lines (D7). osv-scanner's one finding is accepted and is not a malicious-package
 record, so step 1 can fail the build at once. gitleaks blocks only on what a pull request adds,
 so nothing in the tree has to change first. Only D4's allowlist question has to be answered.
 
@@ -271,29 +305,65 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
 - **D1. osv-scanner fails the build on a malicious package, and only reports vulnerabilities?**
   Advice: yes. pnpm audit stays the vulnerability gate, so the two never disagree about what
   blocks, and OSV's malicious-package records are something nothing here reads today.
+  **Answer, 2026-11-20: yes.**
 - **D2. Move the nine secrets into three GitHub environments (`e2e-o365`, `e2e-managed`,
   `exposure-probe`)?** Advice: yes, starting with `e2e-o365`, whose seven secrets reach the real
   tenant. An environment can be limited to `main` (deployment branch rule), so a workflow changed on
   a branch cannot read them. This is a settings change the owner makes; the pull request only adds
   `environment:`. Then report `secrets-outside-env` only (it stays report only because zizmor marks
-  it as needing judgement).
+  it as needing judgement). **Answer, 2026-11-20: yes, with the question D7 answers.** If D7
+  deletes the O365 lane, two environments are left, `e2e-managed` and `exposure-probe`.
 - **D3. Semgrep with a named list of rules, report only first, and `detect-non-literal-regexp`
   report only for good?** Advice: yes to both. The ReDoS rule flags the way a regular expression is
   built, not what reaches it. Every one of its 20 spots outside tests is fed a constant or an
-  escaped value (§4.3), so it can never be made quiet honestly. Before
-  rules from the Semgrep Registry are vendored into this public repository, the owner reads the
-  Semgrep Rules License v1.0. The registry repository's licence file points to it, and this plan
+  escaped value (§4.3), so it can never be made quiet honestly. Before rules from the Semgrep
+  Registry are vendored into this public repository, the owner reads the Semgrep Rules License
+  v1.0. The registry repository's licence file points to it, and this plan
   could not read the page from where it was written. Fetching a rule by id at run time keeps no
   copy here; writing a short rule in the repository's own words avoids the question entirely.
-  CodeQL: not now.
+  CodeQL: not now. **Answer, 2026-11-20: yes; CodeQL not now.**
 - **D4. gitleaks on a pull request's own commits: what may be allowlisted?** Advice: allowlist by
   path pattern for test files only (`*.unit.test.ts`, `*.integration.test.ts`) and for the one
-  documentation placeholder file. Never use inline `gitleaks:allow` comments. Then fail the build.
-  The alternative, no allowlist, keeps gitleaks report only for good.
+  documentation placeholder file, `docs/o365-setup.md`. Never use inline `gitleaks:allow`
+  comments. Then fail the build. The alternative, no allowlist, keeps gitleaks report only for
+  good. **Answer, 2026-11-20: yes.** gitleaks reads what a commit adds, so the other hits in §4.2
+  (two workplans and the GoAccess Dockerfile) come back only if a pull request adds those lines
+  again, and then they are read like any new hit.
 - **D5. Should the release SBOM list what is installed (as today) or everything the lockfile
   resolves?** Advice: keep today's. It describes what ships, and a release that lists platform
-  binaries it never contains would be the less accurate document.
+  binaries it never contains would be the less accurate document. **Answer, 2026-11-20: keep as
+  is.**
 - **D6. The spots this plan cannot name: finding 4's two routes, finding 7's two comparisons,
   and which of §4.3's candidates are findings 8 and 9.** Advice: copy the file and line of each
-  from the outside check's detail into the next piece of work. Each one then gets a fix and a guard case, or is
-  recorded as intended.
+  from the outside check's detail into the next piece of work. Each one then gets a fix and a
+  guard case, or is recorded as intended. **Answer, 2026-11-20: ok.** The owner supplies the spots.
+- **D7. Delete `e2e-o365.yml`?** The owner asked it with D2: *"why do we still have an O365
+  workflow? Perhaps we need to delete that file."* The Status entry of 2026-11-20, later, has the
+  facts. Advice: **yes, in a pull request of its own.** It has never run a test in four runs. Its
+  secrets were never set. Every alpha since alpha.4 shipped without it. Kept and wired, it would
+  put a real SMB's credentials on the self-hosted runner, which holds live during the alpha
+  (`security-scan.yml`'s header), for a dry run the owner can make by hand.
+  - **What that pull request changes.**
+    - It deletes `.github/workflows/e2e-o365.yml`.
+    - It keeps the harness: `test/e2e/o365-scenario.ts`, its `.e2e.test.ts` and its unit test, so
+      that the owner, who holds the tenant's credentials, can still run it by hand with Docker as
+      `docs/testing.md` describes. `docs/test-tenant.md` says so, in place of the seven CI secrets.
+    - The guards that name the file change with it:
+      - `scripts/connector-coverage.unit.test.ts` reads it among the E2E workflows; its Graph rows
+        stay *owed*, with the reason updated.
+      - `scripts/a-token-the-job-never-asked-for.unit.test.ts` and
+        `scripts/a-gate-on-a-version-nothing-ships.unit.test.ts` list its job.
+      - `scripts/a-machine-called-by-its-product-name.unit.test.ts` uses its name in a fixture and
+        in its header's history.
+      - `.github/workflows/ci.yml`'s header names it.
+    - The docs change too: `docs/testing.md`, `docs/test-tenant.md`, and the architecture's §22,
+      whose pyramid names an end-to-end run against the real SMB O365 source (no ADR carries the
+      lane). 0141 T13 (a) closes as withdrawn, not owed. `docs/LESSONS.md` is regenerated.
+    - In Settings, the owner deletes any `O365_*` repository secret. None is set, by the run of
+      2026-11-02 and 0141's Status.
+  - **What it costs.** The Microsoft 365 source then has no lane against a real tenant in CI; it
+    never had one that ran. Its unit and contract tests stay. A live-account proof in 0141's Live
+    proofs table stays the way to prove it on a real account.
+  - **The alternative.** Keep the lane: set its seven secrets in an `e2e-o365` environment
+    limited to `main`, with the owner as a required reviewer, and run it once, so that 0141 T13 (a)
+    closes. That keeps a real SMB's credentials in CI for a dry run.
