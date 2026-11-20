@@ -4,12 +4,19 @@
  * A COPY THAT STILL LISTS GUESTS IS LEFT AS IT IS, AT A TARGET THAT MAILS THEM
  * (workplan 0160, 2026-11-19).
  *
- * Cirrux mails a guest a cancellation when they are taken off an event, and
- * when the event is deleted: a test of each that evening mailed one. Since
- * #1947 the writer sends Cirrux no guests at all, so an event copied before
- * that still lists its guests there, and any rewrite (which takes them all
- * off) or delete of it would mail every one. So for such a target the writer
- * reads the copy first, and when it lists a guest neither PUTs nor DELETEs.
+ * Cirrux mailed a guest a cancellation when they were taken off an event, and
+ * when the event was deleted: a test of each that evening mailed one. From
+ * #1947 the writer sent Cirrux no guests at all, so an event copied before
+ * that still listed its guests there, and any rewrite (which takes them all
+ * off) or delete of it would have mailed every one. So for such a target the
+ * writer reads the copy first, and when it lists a guest neither PUTs nor
+ * DELETEs.
+ *
+ * No kind is on `TARGETS_THAT_MAIL_GUESTS` since 2026-11-20 (ADR-0043):
+ * Cirrux left it that day, as the last block below says. The path is kept for
+ * the next kind seen mailing guests, and every case before the last two
+ * blocks hands the writer its flag itself, so they hold it to its word while
+ * the list is empty.
  *
  * The fake below keeps what it holds and answers GET, PUT and DELETE as a DAV
  * server does, `If-Match` included, so "nothing was sent" is what the server
@@ -46,7 +53,7 @@ const WITH_GUESTS = [
   '',
 ].join('\r\n');
 
-/** The same event as the writer has sent Cirrux since #1947. */
+/** The same event as the writer sends a target that mails guests, as it sent Cirrux from #1947 to 2026-11-20. */
 const WITHOUT_GUESTS = WITH_GUESTS.replace(
   /^ORGANIZER.*\r\nATTENDEE.*\r\n/m,
   'COMMENT:Organised at the source by: Someone <organiser@example.org>\r\nCOMMENT:Invited at the source: A Guest <guest@example.org>\r\n',
@@ -345,6 +352,82 @@ describe('an Infomaniak target, written as a Nextcloud one is (workplan 0161, 20
     expect(put?.headers?.['If-Match']).toBe('"v1"');
     expect(put?.body).toContain('SUMMARY:A meeting, moved');
     expect(put?.body).toContain('\r\nATTENDEE;CN=A Guest;SCHEDULE-AGENT=CLIENT:mailto:guest@example.org\r\n');
+  });
+
+  it('removes a copy that lists guests, a task as an event, and reads nothing first', async () => {
+    for (const domain of ['calendar', 'task'] as const) {
+      const body = domain === 'task' ? WITH_GUESTS.replace(/VEVENT/g, 'VTODO') : WITH_GUESTS;
+      const t = target({ body, etag: 'v1' });
+
+      const result = await writer(t.client, mailsGuests, domain).removeItem(EVENT, { expectedTargetVersion: 'v1' });
+
+      expect(result, domain).toEqual({ kind: 'deleted' });
+      expect(t.sent('GET'), domain).toHaveLength(0);
+      expect(t.sent('DELETE'), domain).toHaveLength(1);
+      expect(t.held(), domain).toBeUndefined();
+    }
+  });
+});
+
+/**
+ * A CIRRUX TARGET IS WRITTEN AS A NEXTCLOUD ONE IS, AGAIN (workplan 0160;
+ * ADR-0043, amended 2026-11-20). `cirrux` was on `TARGETS_THAT_MAIL_GUESTS`
+ * from 2026-11-19, on the evidence of the invitations it mailed, until that
+ * amendment took it off, on Cirrux's word that its server now keeps to
+ * `SCHEDULE-AGENT=CLIENT` and on the owner's test of it (0160 §4). Its writers
+ * are told nothing, as Nextcloud's are: they keep each guest and the
+ * organiser, marked, read nothing first, and rewrite and remove a copy that
+ * lists guests as at any target not on the list. A copy written while it was
+ * on the list names its guests in comments, and gets them back at its next
+ * rewrite. Mail seen at Cirrux puts it back on the list, and then these cases
+ * fail, as they should.
+ */
+describe('a Cirrux target, written as a Nextcloud one is again (workplan 0160, 2026-11-20)', () => {
+  const mailsGuests = mailsGuestsItself('cirrux');
+
+  it('is not a target the writers treat as one that mails guests', () => {
+    expect(mailsGuests).toBe(false);
+  });
+
+  it('gets a first copy with its guest and organiser, each marked SCHEDULE-AGENT=CLIENT', async () => {
+    const t = target(undefined);
+    const atSource = WITH_GUESTS.replace(/;SCHEDULE-AGENT=CLIENT/g, '');
+
+    await writer(t.client, mailsGuests).upsertCalendarEvent(CALENDAR, {
+      item: { uid: 'evt-1', type: 'event', summary: 'A meeting', start: '', etag: 'e1', sourcePath: '', icalendar: atSource },
+      icalendar: atSource,
+    });
+
+    const body = t.sent('PUT')[0]?.body;
+    expect(body).toContain('\r\nORGANIZER;SCHEDULE-AGENT=CLIENT;CN=Someone:mailto:organiser@example.org\r\n');
+    expect(body).toContain('\r\nATTENDEE;SCHEDULE-AGENT=CLIENT;CN=A Guest:mailto:guest@example.org\r\n');
+    expect(body).not.toContain('COMMENT:');
+  });
+
+  it('rewrites a copy that lists guests with its guests kept, and reads nothing first', async () => {
+    const t = target({ body: WITH_GUESTS, etag: 'v1' });
+
+    const result = await rewrite(writer(t.client, mailsGuests));
+
+    expect(result).toMatchObject({ targetId: EVENT, created: false, updated: true });
+    expect(t.sent('GET')).toHaveLength(0);
+    const [put] = t.sent('PUT');
+    expect(put?.headers?.['If-Match']).toBe('"v1"');
+    expect(put?.body).toContain('SUMMARY:A meeting, moved');
+    expect(put?.body).toContain('\r\nATTENDEE;CN=A Guest;SCHEDULE-AGENT=CLIENT:mailto:guest@example.org\r\n');
+  });
+
+  it('gives a copy written while it was on the list its guests back at its next rewrite, the comments gone', async () => {
+    const t = target({ body: WITHOUT_GUESTS, etag: 'v1' });
+
+    const result = await rewrite(writer(t.client, mailsGuests));
+
+    expect(result).toMatchObject({ targetId: EVENT, created: false, updated: true });
+    const [put] = t.sent('PUT');
+    expect(put?.headers?.['If-Match']).toBe('"v1"');
+    expect(put?.body).toContain('\r\nORGANIZER;CN=Someone;SCHEDULE-AGENT=CLIENT:mailto:organiser@example.org\r\n');
+    expect(put?.body).toContain('\r\nATTENDEE;CN=A Guest;SCHEDULE-AGENT=CLIENT:mailto:guest@example.org\r\n');
+    expect(put?.body).not.toContain('COMMENT:');
   });
 
   it('removes a copy that lists guests, a task as an event, and reads nothing first', async () => {

@@ -8,6 +8,11 @@
  * (`mailsGuests`), but only a deps builder knows the target's kind. Every
  * calendar and task writer either builder makes is therefore built with the
  * kind's answer, and this guard fails the day one of them is built without.
+ *
+ * No kind is on the list since 2026-11-20, when Cirrux left it (ADR-0043).
+ * The builders still ask, so the next kind put on it is answered at once, and
+ * the cases below hand the reader a list of their own where they need a kind
+ * on it.
  */
 
 import { readFileSync } from 'node:fs';
@@ -64,7 +69,9 @@ describe('every scheduling verdict is told the kind, so a target that mails gues
   const CALLERS: ReadonlyArray<{ file: string; name: string; kind: string }> = [
     { file: 'build-deps-from-mapping.ts', name: 'schedulingRecorder', kind: 'tgt.kind' },
     { file: 'build-deps.ts', name: 'schedulingRecorder', kind: 'targetConfig.type' },
-    { file: 'target-scheduling.ts', name: 'measureTargetScheduling', kind: 'kind' },
+    // The recorder hands on the list a test may hand it, after the kind; no
+    // caller in the product passes one (2026-11-20).
+    { file: 'target-scheduling.ts', name: 'measureTargetScheduling', kind: 'kind, kindsThatMailGuests' },
     { file: 'probe-connection.ts', name: 'measureTargetScheduling', kind: 'targetType' },
     { file: 'account-qualification.ts', name: 'measureTargetScheduling', kind: 'kind' },
     { file: '../../../apps/api/src/routes/permissions.ts', name: 'measureTargetScheduling', kind: 'target.kind' },
@@ -112,10 +119,16 @@ describe('the factories hand the answer to the writer', () => {
   const deps = { ledger: {} as never, tenantId: 't' as never, mappingId: 'm' as never };
   const configOf = (writer: unknown) => (writer as { config: { mailsGuests?: boolean } }).config;
 
-  it('for Cirrux, both writers drop guests', () => {
-    const options = { mailsGuests: mailsGuestsItself('cirrux') };
+  it('for a kind on the list, both writers drop guests, though the list is empty today', () => {
+    const options = { mailsGuests: mailsGuestsItself('a-kind-that-mails', new Set(['a-kind-that-mails'])) };
     expect(configOf(buildCalendarTarget(endpoint, deps, options)).mailsGuests).toBe(true);
     expect(configOf(buildTaskTarget(endpoint, deps, options)).mailsGuests).toBe(true);
+  });
+
+  it('for Cirrux, since 2026-11-20, both keep guests, as for Nextcloud (workplan 0160, ADR-0043)', () => {
+    const options = { mailsGuests: mailsGuestsItself('cirrux') };
+    expect(configOf(buildCalendarTarget(endpoint, deps, options)).mailsGuests).toBeUndefined();
+    expect(configOf(buildTaskTarget(endpoint, deps, options)).mailsGuests).toBeUndefined();
   });
 
   it('for Infomaniak, since 2026-11-20, both keep guests, as for Nextcloud (workplan 0161, ADR-0043)', () => {

@@ -6,6 +6,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Cirrux keeps the guests on copied calendar events again** (workplan 0160; ADR-0043, amended
+  2026-11-20). Events and tasks written to Cirrux carry their guests and organiser again, each
+  marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
+  In alpha.12 they were written without them, each kept as a comment that names the person,
+  because on 2026-11-19 Cirrux's calendar server emailed an invitation to every guest of what it
+  was given, whatever the marker said. Cirrux has since said that its server did not honour the
+  marker then, and does now. An invitation it might still send cannot be taken back, so the change
+  was held for a test on the test environment: one event in the future whose only guest is the
+  owner's own second address, watched for mail at its first copy, at a change of its title and at
+  its removal (0160 §4). An event at Cirrux that lists guests is now rewritten and removed as at
+  any other target. One copied while the guests were left out keeps them as comments until its
+  next rewrite, the next time it changes at the source, and then gets its guests. The Test's
+  scheduling line, and the audit row the first calendar pass writes, say what Cirrux's server
+  advertises, as for Nextcloud.
 - **Infomaniak keeps the guests on copied calendar events** (workplan 0161; ADR-0043, amended
   2026-11-20). Events and tasks written to Infomaniak now carry their guests and organiser, each
   marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
@@ -15,8 +29,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   watches for one (0161 T2). An event there that lists guests is now rewritten and removed as at
   any other target, and one copied without its guests gets them the next time it changes at the
   source and is written again. The Test's scheduling line, and the audit row the first calendar
-  pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
-  nothing written to it names a guest.
+  pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux follows, in the
+  entry above.
 
 ### Security
 
