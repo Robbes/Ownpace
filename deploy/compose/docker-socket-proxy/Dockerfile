@@ -1,7 +1,7 @@
 # The Docker socket proxy between the Trigger.dev supervisor and the host's
 # Docker socket (managed.yml's trigger-docker-proxy), built here: Tecnativa's
-# docker-socket-proxy at its release v0.5.0, on the newest HAProxy of the same
-# line (workplan 0119, 2026-10-30).
+# docker-socket-proxy at its release v0.6.0, on the newest HAProxy of the same
+# line (workplan 0119, 2026-10-30; v0.6.0 since 2026-11-20, v0.5.0 before).
 #
 # WHY IT IS BUILT HERE. The service ran `tecnativa/docker-socket-proxy:v0.5.0`,
 # pushed to Docker Hub on 2026-07-27 and not rebuilt since. Docker Hub lists no
@@ -17,27 +17,51 @@
 # ca-certificates 20260611 to 20261020, libcrypto3 and libssl3 (openssl) 3.5.7
 # to 3.5.9, musl and musl-utils 1.2.6-r2 to -r3, pcre2 10.47 to 10.49 and zlib
 # 1.3.2-r0 to -r1. Upstream's image had exactly 3.4.2-alpine's packages.
+# v0.6.0 pushes no image named for its release either: Docker Hub lists its
+# build of 2026-11-17 as `lts`, `latest` (the same image) and `3.4` alone, and
+# its README says those three are rebuilt weekly. A digest of one would pin a
+# week's build, whose packages are what Alpine served that week, under a tag
+# that names no release, so it is still built here.
 #
-# WHAT IT IS. Upstream's own Dockerfile at the tag v0.5.0
-# (github.com/Tecnativa/docker-socket-proxy, commit 2e118a0c), with the two
-# files it copies beside it, byte for byte: haproxy.cfg (git blob d61b1d4d) and
-# docker-entrypoint.sh (git blob 2303cee2, mode 755). Upstream's licence is
-# Apache-2.0, as this repository's is. Two things differ, and nothing else:
+# WHAT IT IS. Upstream's own Dockerfile at the tag v0.6.0
+# (github.com/Tecnativa/docker-socket-proxy, commit 1d296629, the Dockerfile's
+# git blob 8e06e203), with the directory it copies beside it, byte for byte:
+# system_files/, whose two files are usr/local/bin/docker-entrypoint.sh (git
+# blob 2303cee2, mode 755) and usr/local/etc/haproxy/haproxy.cfg.template (git
+# blob d61b1d4d). They are v0.5.0's two files, the same blobs, which that
+# release kept at the top as docker-entrypoint.sh and haproxy.cfg and copied
+# one by one to the same two paths. Upstream's licence is Apache-2.0, as this
+# repository's is. Two things differ, and nothing else:
 #
-#   1. The base. Upstream's FROM is `haproxy:3.4.2-alpine`, by tag alone. This
-#      one is the newest release of the same line, 3.4.7, by the digest of its
-#      index: Docker Hub's rebuild of the tag on Alpine 3.24.4, whose index it
-#      pushed on 2026-11-05 at 23:56 UTC, taken on 2026-11-09, past the
-#      three-day floor (CONTRIBUTING.md). Its platforms include linux/amd64 and
-#      linux/arm64. Against the tag's build of 2026-10-24 on Alpine 3.24.3,
-#      taken on 2026-10-30, the rebuild moves alpine-release, apk-tools and
-#      libapk (3.0.8 to 3.0.9) and nothing else but the build's own
-#      `.haproxy-rundeps` marker, on both platforms; HAProxy is the same 3.4.7
-#      source. The base's user, entrypoint, command, working directory and
-#      stop signal are the same at 3.4.2 and 3.4.7, read from the registry on
-#      2026-10-30, and the rebuild's again on 2026-11-09.
-#   2. One RUN, after the two COPY lines, that checks both files by SHA-256 and
-#      the entrypoint's executable bit. The name managed.yml builds this under
+#   1. The base. Upstream's is five lines: `ARG HAPROXY_VERSION=lts` and `FROM
+#      haproxy:${HAPROXY_VERSION}-alpine`, HAProxy's long-term line by tag
+#      alone, then `USER root`, `RUN apk upgrade --no-cache` and `USER
+#      haproxy`, which upgrade every Alpine package while the image builds and
+#      give the base's user back (v0.5.0's was `FROM haproxy:3.4.2-alpine`
+#      alone). This one is one FROM: the newest release of the same line,
+#      3.4.7, by the digest of its index: Docker Hub's rebuild of the tag on
+#      Alpine 3.24.4, whose index it pushed on 2026-11-05 at 23:56 UTC, taken
+#      on 2026-11-09, past the three-day floor (CONTRIBUTING.md). Its platforms
+#      include linux/amd64 and linux/arm64. Against the tag's build of
+#      2026-10-24 on Alpine 3.24.3, taken on 2026-10-30, the rebuild moves
+#      alpine-release, apk-tools and libapk (3.0.8 to 3.0.9) and nothing else
+#      but the build's own `.haproxy-rundeps` marker, on both platforms;
+#      HAProxy is the same 3.4.7 source. Nothing upgrades it while it builds:
+#      an upgrade installs what Alpine serves on the day of the build, which
+#      the name below does not say, and the base moves by its digest instead,
+#      in Dependabot's pull requests (HOW IT MOVES), where each move is read
+#      and is a new name. `lts` named 3.4 when v0.6.0 was taken (Docker Hub's
+#      `lts-alpine` was the index of `3.4-alpine` and `3.4.8-alpine`,
+#      2026-11-20), the line v0.5.0 chose, and upstream builds `3.4` by name
+#      too (its docker-bake.hcl), so the line stays. The base's user,
+#      entrypoint, command, working directory and stop signal are the same at
+#      3.4.2 and 3.4.7, read from the registry on 2026-10-30, and the
+#      rebuild's again on 2026-11-09 and 2026-11-20. Its user is haproxy, so
+#      upstream's `USER root` and `USER haproxy` around the upgrade end where
+#      the base starts, and the two RUNs after the COPY run as haproxy here,
+#      as upstream's one does.
+#   2. One RUN, after the COPY, that checks both files by SHA-256 and the
+#      entrypoint's executable bit. The name managed.yml builds this under
 #      hashes this file's instruction lines and nothing else (THE NAME, below),
 #      so the files' hashes are written into one: a file that changes fails the
 #      build until that line moves, and the name moves with it. It adds nothing
@@ -47,14 +71,16 @@
 #      (hadolint's DL4006).
 #
 # The rest is upstream's, in upstream's order: the port, every environment
-# variable with its default, the two COPY lines, the server-state file, `USER
-# root` and the command. So the image takes the environment managed.yml sets
+# variable with its default, the COPY, the server-state file, `USER root` and
+# the command. So the image takes the environment managed.yml sets
 # (CONTAINERS, IMAGES, NETWORKS, VOLUMES and POST) and allows and refuses what
-# upstream's v0.5.0 does. images.yml's `build (docker-socket-proxy)` builds it
-# on a pull request that touches deploy/, starts it on the runner's Docker
-# socket with managed.yml's environment, and asks it for what the supervisor
-# uses, which Docker must answer, and for every endpoint switch left off, which
-# the proxy must refuse with its own 403.
+# upstream's v0.6.0 does, which is what v0.5.0 did: the same configuration,
+# entrypoint and defaults, and its README lists the same switches (read on
+# 2026-11-20). images.yml's `build (docker-socket-proxy)` builds it on a pull
+# request that touches deploy/, starts it on the runner's Docker socket with
+# managed.yml's environment, and asks it for what the supervisor uses, which
+# Docker must answer, and for every endpoint switch left off, which the proxy
+# must refuse with its own 403.
 #
 # WHY ROOT. `USER root` is upstream's, and stays: HAProxy connects to the
 # host's Docker socket, which is root's and the docker group's at mode 0660,
@@ -78,7 +104,8 @@
 # header). scripts/a-tag-upstream-never-rebuilds.unit.test.ts holds the image
 # line to it, and when an instruction changes, its failure prints the `sed`
 # that moves the line. No parser directive, no ADD and no --mount, and no COPY
-# but upstream's two, of the files the check names.
+# but upstream's one, of system_files/, which holds the two files the check
+# names and nothing else.
 #
 # HOW IT MOVES.
 #   - A newer HAProxy 3.4, or a rebuild of the tag: Dependabot's pull request
@@ -89,15 +116,17 @@
 #     this proxy.
 #   - A newer release of docker-socket-proxy: the pin watch's summary issue
 #     lists it (scripts/idp-pin-watch.mjs, against upstream's git tags). In a
-#     pull request of its own, copy haproxy.cfg and docker-entrypoint.sh at the
-#     new tag, write its Dockerfile's instructions here, with its FROM's tag by
-#     the digest of its index, and move the release named below, the two
-#     hashes, the name, and the guard's record of upstream's files.
+#     pull request of its own, copy system_files/ at the new tag, write its
+#     Dockerfile's instructions here, its base as one FROM of the line's
+#     newest release by the digest of its index, and move the release named
+#     below, the two hashes, the name, and the guard's record of upstream's
+#     Dockerfile and files.
 #   - Another HAProxy line (3.4 to 3.5, or the next long-term 3.6): the
-#     owner's call. Upstream chose 3.4 at v0.5.0, and Dependabot is told to
-#     leave the line alone.
+#     owner's call. Upstream chose 3.4 at v0.5.0, and at v0.6.0 builds `lts`,
+#     which is 3.4 until the next long-term line, and `3.4` by name; Dependabot
+#     is told to leave the line alone.
 #
-# docker-socket-proxy v0.5.0
+# docker-socket-proxy v0.6.0
 FROM haproxy:3.4.7-alpine@sha256:5312d37032c079c4937d45ef63758852434351f3b425a3703521fd999837abcf
 
 EXPOSE 2375
@@ -131,9 +160,8 @@ ENV ALLOW_RESTARTS=0 \
     TASKS=0 \
     VERSION=1 \
     VOLUMES=0
-COPY docker-entrypoint.sh /usr/local/bin/
-COPY haproxy.cfg /usr/local/etc/haproxy/haproxy.cfg.template
-# Not upstream's: the two files above by SHA-256, so the name covers them (the header).
+COPY system_files/ /
+# Not upstream's: the two files the COPY puts in place, by SHA-256, so the name covers them (the header).
 RUN test "$(sha256sum < /usr/local/bin/docker-entrypoint.sh)" = '2cd4c4414b7693fed10160386b2ba394b6e3bca55c61a773fb5225ea45606059  -' \
       || { echo '/usr/local/bin/docker-entrypoint.sh is not the file this Dockerfile names by its SHA-256' >&2; exit 1; }; \
     test "$(sha256sum < /usr/local/etc/haproxy/haproxy.cfg.template)" = '2de85de4cac6c8ae93de8be68d69b655533a77e1f5170b625e0eed4b126e8b4d  -' \

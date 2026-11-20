@@ -72,8 +72,10 @@
 #       EXPOSURE_NOT_OURS that exposure-check.sh refuses (an Ownpace container
 #       in the second), or with which it would fail an address
 #       either stack binds on (asked of exposure-check.sh itself, so loopback
-#       needs no entry); WEB_URL
-#       or CORS_ORIGIN not https://app.ownpace.eu; the identity provider not
+#       needs no entry); WEB_URL,
+#       CORS_ORIGIN or API_URL not https://app.ownpace.eu (API_URL is what
+#       the api builds every consent's redirect from: workplan 0140, Status,
+#       2026-11-20); the identity provider not
 #       at id.ownpace.eu on 443, secure, TLS ended in front; NODE_ENV not
 #       production (T4); ALERT_ENABLED not exactly true (testers are on live,
 #       so it is not stood up without alerts: workplan 0142 T0, the owner,
@@ -673,6 +675,17 @@ check_settings() {
     _p+=("WEB_URL: not https://${LIVE_APP}, live's production name (T1b step 4).")
   [ "$(env_value "$ENV_FILE" CORS_ORIGIN)" = "https://${LIVE_APP}" ] ||
     _p+=("CORS_ORIGIN: not https://${LIVE_APP}, live's production name (T1b step 4).")
+  # The third of the addresses T1b step 4 names (0091 T1's list), and the one
+  # this script did not ask until a stand-up left managed.env.example's
+  # localhost in it: the api builds every consent's redirect from it, Google's
+  # among them, and Google refused live's first connect with
+  # redirect_uri_mismatch (workplan 0140, Status, 2026-11-20). From outside,
+  # live's api is reached at the app's origin alone (API_BIND stays empty,
+  # above; 0158 D10), so it is the same name. deploy-live.sh asks the three
+  # at every deploy after this one.
+  [ "$(env_value "$ENV_FILE" API_URL)" = "https://${LIVE_APP}" ] ||
+    _p+=("API_URL: not https://${LIVE_APP}, live's production name, the app's origin, where live's api is reached from outside. The api builds every consent's redirect from it, and Google refuses one it does not list (T1b step 4; workplan 0140, Status, 2026-11-20):
+      ./deploy/compose/env-upsert.sh deploy/compose/.env API_URL=https://${LIVE_APP}")
   [ "$(env_value "$ENV_FILE" ZITADEL_EXTERNALDOMAIN)" = "$LIVE_IDP" ] ||
     _p+=("ZITADEL_EXTERNALDOMAIN: not ${LIVE_IDP}. It goes into every token's issuer at the provider's first start, and cannot be changed after (T1d).")
   [ "$(env_value "$ENV_FILE" ZITADEL_EXTERNALPORT)" = 443 ] ||

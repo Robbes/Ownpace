@@ -282,7 +282,7 @@ export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
 /**
  * The Docker socket proxy, built here since 2026-10-30 (workplan 0119):
  * Tecnativa's docker-socket-proxy at the release its Dockerfile names
- * (`# docker-socket-proxy v0.5.0`), on a current HAProxy of the line that
+ * (`# docker-socket-proxy v0.6.0`), on a current HAProxy of the line that
  * release chose. Until then managed.yml ran upstream's image, and this watch
  * compared its tag with Docker Hub's; it compares the release with upstream's
  * git tags now, as GoAccess's.
@@ -1771,7 +1771,7 @@ export async function routineRows(repo, net) {
   // upstream's git tags, of its own 0.x major, as the image's tag was.
   jobs.push(['tecnativa/docker-socket-proxy', SOCKET_PROXY_DOCKERFILE, async () => {
     const release = /^# docker-socket-proxy (v\d+\.\d+\.\d+)$/m.exec(need(repo, SOCKET_PROXY_DOCKERFILE))?.[1];
-    if (!release) throw new Error(`${SOCKET_PROXY_DOCKERFILE} names no docker-socket-proxy release ("# docker-socket-proxy v0.5.0") above its FROM`);
+    if (!release) throw new Error(`${SOCKET_PROXY_DOCKERFILE} names no docker-socket-proxy release ("# docker-socket-proxy v0.6.0") above its FROM`);
     const newest = newestLike(release, tagsOf(await net.lsRemote(SOCKET_PROXY_UPSTREAM)));
     return { pin: release, newest, state: stateOf(release, newest) };
   }]);

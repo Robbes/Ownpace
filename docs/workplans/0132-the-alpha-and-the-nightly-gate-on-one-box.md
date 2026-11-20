@@ -4,6 +4,49 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, later: live's deploy refuses its three addresses unless they are live's own (T6 (a),
+T1b step 4; 0140 T11).** Built on the branch `claude/ownpace-public-readiness-y7orc6-live-api-url`,
+not merged. Before alpha.12's deploy, Google refused live's first connect with
+`redirect_uri_mismatch`: live's `API_URL` still named `managed.env.example`'s localhost, and the
+api builds every consent's redirect from it (0140's Status, 2026-11-20). Nothing in the deploy
+path asked it: `stand-up-live.sh` held `WEB_URL` and `CORS_ORIGIN` to `https://app.ownpace.eu`
+and not `API_URL`, the guide's step 6 for live did not set it, and the api refuses a localhost
+`API_URL` only with `MOLLIE_API_KEY` set, which live keeps empty during the Alpha.
+- **`deploy-live.sh`** refuses, before the fetch, the checkout and any docker call, in `--dry-run`
+  too and in the same words, a `.env` whose `WEB_URL`, `API_URL` or `CORS_ORIGIN` is not set or
+  empty, not `https://`, or localhost or a loopback address (`localhost`, a name under `.localhost`,
+  a loopback address of either IP version, or the unspecified one), and one whose `API_URL` or
+  `CORS_ORIGIN` is not the origin in `WEB_URL` with nothing after it. That last rule is certain on
+  live, not a preference: live's api port stays on loopback (T1b step 3, which the stand-up
+  enforces), and the web image refuses a `VITE_API_URL` that is not a path of the app's origin (0158
+  D10), so from outside the api is reached at the app's origin alone, under `/api`; the three say
+  the same on live since 2026-11-20. Compared as origins: case, the default https port written out
+  and trailing slashes make no difference. The refusal names each key, never its value, among live's
+  other settings, with one `env-upsert.sh` line that sets the keys it names,
+  `https://app.example.eu` standing for live's name. It takes the place of the refusal of an empty
+  or non-http(s) `WEB_URL`. `WEB_URL` is read as the deploy's checks and `setup-zitadel.sh` read it,
+  double quotes and all; the other two as Compose hands them to the api.
+- **`stand-up-live.sh`** refuses an `API_URL` that is not `https://app.ownpace.eu`, as it refuses
+  `WEB_URL` and `CORS_ORIGIN`, with the line that sets it, and `docs/managed-bring-up.md`'s step 6
+  for live sets it.
+- **Why the deploy scripts, and not the api's boot guard.** `config-guards.ts` also runs on the OTA
+  stack and in tests, so what makes the api refuse to start is a wider decision; live's deploy
+  path already refuses live's settings by key before anything moves, and this is one more.
+- **When it applies.** `deploy-live.sh` runs the checkout's copy from before the checkout moves, so
+  the refusal first applies at the deploy after the one that moves live onto a release that
+  carries it. Live's `.env` passes it already: the three say `https://app.ownpace.eu` since
+  2026-11-20. Nothing for the owner to do.
+- **The guards.** `scripts/a-deploy-from-a-named-tag.unit.test.ts` has 35 new cases (263 in all): 26
+  refused, each by the deploy and by its dry run, whose words must be the same, with nothing moved,
+  no docker call and no value printed; one beside `NODE_ENV`; six the dry run takes (trailing
+  slashes, either quotes where they are allowed, capitals and the default port written out, a
+  comment); a deploy that takes and asks the app at `WEB_URL`'s origin; and the example's three on
+  localhost. `scripts/a-first-bring-up-of-live.unit.test.ts` has 4 for `API_URL` (207 in all), and
+  `scripts/one-rule-for-a-release-tag.unit.test.ts`'s live `.env` carries the three. With the check
+  taken out of `deploy-live.sh`, 27 of the 35 failed (the 26 refused and the one beside `NODE_ENV`),
+  and so did the older case of a `.env` without `WEB_URL`, whose refusal it carries now; with the
+  stand-up's line taken out, the 4. Each script was put back byte for byte (`cmp`).
+
 **2026-11-20: live runs `v0.2.0-alpha.12`, one-way over alpha.11 by ledger migrations 0068 and 0069,
 managed migration 0061 and the identity provider's pin, on a copy of alpha.11's databases (T6,
 T9).** The owner deployed it on 2026-11-20, before any tester, pasting the sheet's checked blocks
@@ -4383,7 +4426,11 @@ question 2. D7 answers it again: the gate is not paused; it keeps the OTA stack.
    for the OTA names (T1d). The status page's probes default to `WEB_URL` and to the provider's
    own domain, so they follow without a setting of their own. `NODE_ENV=production` (T4).
    *2026-10-04:* and `ALERT_ENABLED=true` (0142 T0); `stand-up-live.sh` refuses live without
-   either.
+   either. *2026-11-20:* `API_URL`, one of 0091 T1's list, was the one the stand-up did not ask:
+   it kept `managed.env.example`'s localhost until the owner set it, after Google refused live's
+   first connect (0140's Status, 2026-11-20). `stand-up-live.sh` refuses it now as it refuses
+   `WEB_URL` and `CORS_ORIGIN`, and `deploy-live.sh` refuses any of the three that is not live's
+   own https address (Status, 2026-11-20, later).
 5. **Passwords before the first bring-up (D8).** `ensure-env-secrets.sh` is the right tool for a
    new stack: every secret it knows is blank or a shipped placeholder, and the `env` phase fills
    each one with a fresh value.
@@ -5140,6 +5187,9 @@ document is changed to mark staged rollout and a backup before migrating as not 
   step 9 to `~/.persistent/ownpace-live/deploys.log`.
   - It refuses a ref that is not a tag, a `.env` without live's marker (T1g), no open hold,
     passes still in flight, a working tree that is not clean, and `--with-demo`.
+    *2026-11-20: and a `.env` whose `WEB_URL`, `API_URL` or `CORS_ORIGIN` is not set, not
+    `https://`, or localhost or a loopback address, or whose `API_URL` or `CORS_ORIGIN` is not
+    the origin in `WEB_URL` (Status, 2026-11-20, later).*
   - It reads `platform_pause` the way `operator.sh` reaches the database. If it composes an owner
     URL, it has to be listed in `docs/rls-guide.md` §2, which
     `a-connection-the-docs-did-not-know-about` enforces.

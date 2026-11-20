@@ -132,7 +132,15 @@
 #       creates organisations with fixed, published credentials (0132 T5)
 #   a .env without live's marker (stack_is_live, stack-kind.sh): this deploys
 #       ownpace-live and nothing else; the OTA stack is the gate's
-#   a .env with no WEB_URL, the origin the checks ask
+#   a .env whose WEB_URL, API_URL or CORS_ORIGIN is not set or empty, not
+#       https://, or names localhost or a loopback address, or whose API_URL
+#       or CORS_ORIGIN is not the origin in WEB_URL with nothing after it
+#       (live_address, below). Live is reached from outside at the app's
+#       origin alone, over https, and the api builds every consent's redirect
+#       from API_URL: Google refused live's first connect while it named a
+#       local address (workplan 0140, Status, 2026-11-20). Named with the
+#       settings below, at once, each by key, with the env-upsert.sh line
+#       that sets them
 #   a .env whose NODE_ENV is not production (workplan 0132 T4: managed.yml
 #       takes no default), or whose ALERT_ENABLED is not exactly true (0142
 #       T0: testers are on live, so nobody deploys it without alerts; the
@@ -382,6 +390,71 @@ env_as_the_app_reads() {
   printf '%s' "$value"
 }
 
+# live_address <value> — how <value> reads as one of live's three addresses
+# from outside (main says which, and why), one line:
+#
+#   empty        nothing, which managed.yml replaces with its default, a
+#                localhost address
+#   loopback     a host that is the asker's own machine, whatever the scheme:
+#                localhost or a name under .localhost (RFC 6761), any
+#                127.x.x.x, [::1], or the unspecified 0.0.0.0 or [::], which
+#                reaches the machine it is asked on too. Before the scheme, so
+#                managed.env.example's values are named for what they are
+#   not-https    no https:// in front, or nothing where the host goes
+#   origin <o>   https://<host>[:<port>], and nothing after it but slashes,
+#                which the api takes off API_URL before it adds a path
+#   path <o>     the same, with a path, a query or a fragment after it
+#
+# <o> is the origin as a browser compares it: the host in lower case without
+# a trailing dot, a user part before '@' left out, and no port when it is
+# 443. The scheme is compared as written, https and nothing else: the docs,
+# the example and env-upsert.sh write it so, and setup-zitadel.sh, which the
+# bring-up runs, stops on a WEB_URL that does not start with http:// or
+# https:// in lower case.
+live_address() {
+  local value="$1" scheme rest authority host port=''
+  if [ -z "$value" ]; then
+    echo empty
+    return 0
+  fi
+  case "$value" in
+    *://*)
+      scheme="${value%%://*}"
+      rest="${value#*://}"
+      ;;
+    *)
+      echo not-https
+      return 0
+      ;;
+  esac
+  authority="${rest%%[/?#]*}"
+  rest="${rest#"$authority"}"
+  authority="${authority##*@}"
+  case "$authority" in
+    \[*\]:*) host="${authority%%]*}]" port="${authority##*]:}" ;;
+    \[*) host="$authority" ;;
+    *:*) host="${authority%%:*}" port="${authority#*:}" ;;
+    *) host="$authority" ;;
+  esac
+  host="${host,,}"
+  host="${host%.}"
+  if [ "$host" = localhost ] || [[ "$host" == *.localhost ]] || [[ "$host" =~ ^127\.[0-9]+\.[0-9]+\.[0-9]+$ ]] ||
+    [ "$host" = '[::1]' ] || [ "$host" = 0.0.0.0 ] || [ "$host" = '[::]' ]; then
+    echo loopback
+    return 0
+  fi
+  if [ "$scheme" != https ] || [ -z "$host" ]; then
+    echo not-https
+    return 0
+  fi
+  [ -z "$port" ] || [ "$port" = 443 ] || host="${host}:${port}"
+  if [ -z "${rest//\//}" ]; then
+    echo "origin https://${host}"
+  else
+    echo "path https://${host}"
+  fi
+}
+
 # The whole run is one function, read by bash before any of it runs: the
 # checkout below replaces this very file with the tag's copy.
 main() {
@@ -416,16 +489,6 @@ main() {
       "This script deploys ownpace-live and nothing else. The OTA stack follows main through the nightly gate, and is never deployed by hand from a tag." \
       "If this is live's checkout, its .env must carry that line exactly, beside COMPOSE_PROJECT_NAME=ownpace-live (workplan 0132 T1b)."
   fi
-  local web_url app_origin
-  web_url="$(env_value "$ENV_FILE" WEB_URL)"
-  case "$web_url" in
-    http://* | https://*) ;;
-    *)
-      refuse "WEB_URL in ${ENV_FILE} is empty or not an http(s) origin. The checks ask the app at that origin (on live, its public name)." \
-        "Set it to the address browsers use for the web app, as the bring-up does."
-      ;;
-  esac
-  app_origin="${web_url%/}"
   # Live's mode and its alerts (the owner, 2026-10-04): NODE_ENV production
   # (workplan 0132 T4: managed.yml takes no default) and ALERT_ENABLED true
   # (0142 T0: testers are on live, so nobody deploys it without alerts). Read
@@ -445,6 +508,69 @@ main() {
     [ -n "$unread_line" ] || continue
     unready+=("${unread_key}: set on line ${unread_line} in a form this script does not read (indented, a space before '=', or ':' for '='), and Compose and the bring-up read it all the same. Write it KEY=value at the start of its line.")
   done <<<"$(unread_keys "$ENV_FILE")"
+  # Live's three addresses from outside (workplan 0132 T1b step 4, which
+  # names 0091 T1's list; 0140's Status, 2026-11-20). Live's .env was made from
+  # managed.env.example, whose three name localhost, and nothing refused one
+  # that stayed: API_URL did, the api built every consent's redirect from it
+  # (Google's, Microsoft's, Dropbox's and Cirrux Drive's; GET
+  # /api/redirect-uris lists them), and Google refused live's first connect
+  # with redirect_uri_mismatch. The api's own refusal of a localhost API_URL
+  # waits for MOLLIE_API_KEY (config-guards.ts), which live keeps empty
+  # during the Alpha. So, by key, never the value:
+  #
+  #   each not set or empty (managed.yml then hands the app its default, a
+  #   localhost address), not https://, or localhost or a loopback address
+  #   (live_address): live is reached from outside over https alone, at the
+  #   front that ends TLS, and a loopback address is the asker's own machine;
+  #
+  #   API_URL and CORS_ORIGIN another origin than WEB_URL's, or with a path
+  #   after it. That is certainly wrong on live, not a preference: the api's
+  #   port is never published beyond loopback (API_BIND stays empty, T1b step
+  #   3, which stand-up-live.sh refuses otherwise), so from outside the api is
+  #   reached at the app's origin alone, under /api, which the web image's
+  #   nginx passes on (0158 D10: the web image refuses a VITE_API_URL that is
+  #   not a path there). API_URL is what the api puts /api/… after, so another
+  #   origin sends a tester's consent to a host that is not live's api (the
+  #   OTA stack's app, say, whose Google client live shares: 0140, 2026-10-05),
+  #   and a path makes every redirect miss it, and differ from the one GET
+  #   /api/redirect-uris lists, which keeps the origin alone; CORS_ORIGIN is
+  #   the one origin the api accepts from a browser, and an origin is nothing
+  #   but scheme, host and port. The three say the same on live (0132's and
+  #   0140's Status, 2026-11-20). Compared as origins (live_address): case,
+  #   :443 and trailing slashes make no difference.
+  #
+  # WEB_URL is read as this script's checks and the bring-up's setup-zitadel.sh
+  # read it (env_value: double quotes are part of it, and setup-zitadel.sh
+  # stops on them); API_URL and CORS_ORIGIN, which only the api reads, as
+  # Compose hands them to it (env_as_the_app_reads). Neither the value nor
+  # live's name is printed: the line that sets them says app.example.eu.
+  local address_key address_said web_origin='' address_fix=''
+  for address_key in WEB_URL API_URL CORS_ORIGIN; do
+    if [ "$address_key" = WEB_URL ]; then
+      address_said="$(live_address "$(env_value "$ENV_FILE" WEB_URL)")"
+    else
+      address_said="$(live_address "$(env_as_the_app_reads "$address_key")")"
+    fi
+    case "$address_said" in
+      empty) unready+=("${address_key}: not set, or empty, so managed.yml hands the app its default, a localhost address.") ;;
+      loopback) unready+=("${address_key}: localhost or a loopback address (managed.env.example's value is one). From outside, that is the machine of whoever is sent there, never live.") ;;
+      not-https) unready+=("${address_key}: not an https:// address with a host. Live is reached from outside over https alone.") ;;
+      *)
+        if [ "$address_key" = WEB_URL ]; then
+          web_origin="${address_said#* }"
+          continue
+        fi
+        # A WEB_URL that is wrong itself is named above, and nothing is
+        # compared with it.
+        if [ -z "$web_origin" ] || [ "$address_said" = "origin ${web_origin}" ]; then continue; fi
+        unready+=("${address_key}: not the origin WEB_URL names, with nothing after it. From outside, live's api is reached at the app's origin alone, under /api (workplan 0158 D10).")
+        ;;
+    esac
+    address_fix+=" ${address_key}=https://app.example.eu"
+  done
+  [ -z "$address_fix" ] ||
+    unready+=("Set each to live's own address, the app's origin, the same for the three: WEB_URL is where the checks after the bring-up ask the app, CORS_ORIGIN the one origin the api accepts from a browser, and API_URL what the api builds every consent's redirect from (docs/managed-bring-up.md, §8e, step 4; workplan 0140, Status, 2026-11-20). With live's name for app.example.eu:" \
+      "  ./deploy/compose/env-upsert.sh deploy/compose/.env${address_fix}")
   [ "$(env_value "$ENV_FILE" NODE_ENV)" = production ] ||
     unready+=("NODE_ENV: not production. Live runs production, and managed.yml takes no default (workplan 0132 T4):" \
       "  ./deploy/compose/env-upsert.sh deploy/compose/.env NODE_ENV=production")
@@ -501,6 +627,11 @@ main() {
   if [ "${#unready[@]}" -gt 0 ]; then
     refuse "live's .env is not ready for a deploy. Each line names a key, never its value:" "${unready[@]}"
   fi
+  # The origin the checks after the bring-up ask (T6 step 7): WEB_URL, which
+  # the refusal above holds to https:// and a host that is not this machine.
+  local app_origin
+  app_origin="$(env_value "$ENV_FILE" WEB_URL)"
+  app_origin="${app_origin%/}"
   for arg in COMPOSE_ENV_FILES COMPOSE_FILE; do
     if [ -n "${!arg+set}" ]; then
       refuse "this shell has ${arg} set. The bring-up's Compose would follow it to another stack's files instead of this checkout's." \
