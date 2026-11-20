@@ -10,7 +10,7 @@ merged).**
   integration tests on amd64 and arm64 and `ci-complete`; Security Scan run 44838311872 includes
   the two osv-scanner steps.
 - **#1985, the tag length**, on `claude/ownpace-public-readiness-y7orc6-gcm-tag-length` from
-  `main` at `bf9ede75`. This is the fix §4.3 calls real and small, and the one
+  `main` at `5a0a2eff`. This is the fix §4.3 calls real and small, and the one
   `gcm-no-tag-length` needs before it may block.
   - `packages/core/src/secrets.ts`'s `createCipheriv` and `createDecipheriv` both pass
     `authTagLength: AUTH_TAG_LENGTH` (16 bytes). That is GCM's default, which both sides
@@ -20,7 +20,7 @@ merged).**
   - `packages/core`'s unit tests pass (98 files, 1,067 tests), as do ESLint and the typecheck.
 
 **2026-11-20, at the end: T2, osv-scanner, built as #1984 (a draft, not merged).** On the branch
-`claude/ownpace-public-readiness-y7orc6-osv-scanner`, from `main` at `bf9ede75`; step 1 of §5, as
+`claude/ownpace-public-readiness-y7orc6-osv-scanner`, from `main` at `8b8fac07`; step 1 of §5, as
 D1 decided.
 - **What it does.** The Security Scan's repository job installs osv-scanner from its GitHub
   release, checked by its sha256 for both architectures, and reads `pnpm-lock.yaml` with it on
