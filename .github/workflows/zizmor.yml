@@ -10,8 +10,9 @@
 # before merge. This job runs the same zizmor on every pull request and push
 # that touches a workflow, so a change it would flag fails before it lands.
 #
-# BLOCKING. Its first run on the branch that added it found nothing on the
-# whole tree, so a finding fails this job, and nothing is silenced: zizmor
+# BLOCKING. Its first run, on the branch that added it, found 24 findings
+# already on main; that branch fixed each, and its second run found none. So
+# a finding fails this job, and nothing is silenced: zizmor
 # runs with --no-config, so no zizmor.yml can turn a rule or a location off,
 # and --no-ignores, so no ignore comment in a workflow can either. A finding
 # is fixed in the workflow, or the pull request says why it cannot be.

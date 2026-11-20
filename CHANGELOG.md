@@ -19,7 +19,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `.github/`, and fails on any finding. The pin watch lists a newer zizmor in its summary issue.
   Its first run found 24 more findings already on `main`, now fixed: values a run cannot choose
   but zizmor cannot tell apart (a matrix leg, a step's output, the base branch's name) reach
-  eleven shell scripts through `env:` instead of being pasted in; the release attaches in Security
+  six steps' scripts through `env:` instead of being pasted in; the release attaches in Security
   Scan and the Windows payload use the runner's own `gh` instead of `softprops/action-gh-release`,
   doing what it did; and Dependabot proposes a version update only for a release at least seven
   days old (security updates are not delayed).

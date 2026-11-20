@@ -51,7 +51,9 @@
  * 2026-11-20), on every pull request and push to main that touches `.github/`
  * or an action file, offline (`--offline`, `--network none`, no token), with
  * `--no-config` and `--no-ignores`, so nothing in the tree can turn a rule or
- * a location off. Its first run found nothing, and a finding fails it. The pin
+ * a location off. Its first run found 24 findings already on main (template
+ * injection, Dependabot's cooldown, two release actions the runner's `gh`
+ * replaces), all fixed with it; a finding fails it now. The pin
  * watch's row `ghcr.io/zizmorcore/zizmor` lists a newer release.
  * This holds the job to that, each rule broken on purpose below as well; that
  * no zizmor config file exists and no workflow carries an ignore comment; and
