@@ -103,8 +103,10 @@ DAV base URL left empty because Cirrux publishes no path. ⏳ built, not yet run
 Cirrux mailbox (0160 T2): that discovery from the host's root finds the calendar home is what
 the first Test measures. Since 2026-11-20 (ADR-0043) its events and tasks keep their guests and
 organiser again, each marked `SCHEDULE-AGENT=CLIENT`, as at Nextcloud, on Cirrux's word that its
-server, which mailed the guests of what was written on 2026-11-19, keeps to the marker now; the
-owner's test on the test environment watches for mail (0160 §4, steps 10 and 11).
+server, which mailed the guests of what was written on 2026-11-19, keeps to the marker now. The
+owner's test on the test environment, on 2026-11-20, saw no mail at a first write, a change or a
+guest taken off; a removal was not reached, because Google's calendars report no deletions here
+(0160 §4, steps 10 and 11).
 
 Also a target: **Infomaniak** (`infomaniak`, workplan 0161) — Soverin's account shape again:
 calendars and task lists over `sync.infomaniak.com`, the one server Infomaniak names for them,
@@ -467,7 +469,7 @@ These hold across all object types, and are features rather than gaps:
 | Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and *Start a migration* asks for it on *What moves?* with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
 | Box against a real account | ⏳ built, unproven | workplan 0056 T3(a) |
 | Cirrux Drive as a files target against a live Cirrux client (the consent, the rotating refresh written back, an upload, a replace under `base_ctag`, a trash) | ⏳ built against a fake; waits for the client Cirrux registers | workplan 0160 T2b; ADR-0052 |
-| Cirrux's calendar server and `SCHEDULE-AGENT=CLIENT`: whether an event written into it with its guests marked mails any of them, at the first write, a change or a removal | ⏳ guests are written, marked, as at Nextcloud (ADR-0043, 2026-11-20), on Cirrux's word that its server keeps to the marker now; the owner's test watches for mail at each of the three | workplan 0160 §4, steps 10 and 11 |
+| Cirrux's calendar server and `SCHEDULE-AGENT=CLIENT` at a removal: whether removing a copy whose guests are marked mails any of them | ⏳ guests are written, marked, as at Nextcloud (ADR-0043, 2026-11-20); the owner's test on 2026-11-20 saw no mail at a first write, a change or a guest taken off, and could not reach a removal, because Google's calendars report no deletions here | workplan 0160 §4, steps 10 and 11 |
 | Infomaniak against a real account: the sync login and the mailbox's login each reaching its faces, one small pass, and whether its SabreDAV mails the guests of an event written into it | ⏳ built, unproven; guests are written, marked `SCHEDULE-AGENT=CLIENT`, as at Nextcloud (ADR-0043, 2026-11-20), and that pass watches whether any is emailed | workplan 0161 T2 |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
