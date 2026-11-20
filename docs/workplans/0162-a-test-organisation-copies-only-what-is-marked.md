@@ -4,8 +4,8 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
-**2026-11-20: proposed. The owner decided the same day to build a test scope; the decisions in
-§2 wait for the owner's OK.** No lane reads a Google account. A fresh Google account made only
+**2026-11-20: proposed and agreed.** The owner decided to build a test scope, and the same evening
+agreed to the decisions in §2 as written. T1 to T3 are next. No lane reads a Google account. A fresh Google account made only
 for testing was suspended by Google on 2026-11-20. The account that is there is the operator's
 own, which 0141's proofs already ran against by hand, and copying it whole is the wrong test:
 - it moves years of private mail and calendars into a test target;
@@ -25,7 +25,7 @@ Nothing is built yet.
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The decisions | owner | ⏳ **Proposed 2026-11-20**, for the owner's OK | §2. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
+| T0 The decisions | owner | ✅ **Decided 2026-11-20** | §2, agreed as written. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
 | T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. |
 | T2 The marker where the source is first listed | builder | 📋 **Planned** | §4. One wrapper per source port, applied where the source is built, as `GmailFolderView` is. Covers mail, events, contacts, tasks and files, plus the cursor and collection rules a filter needs. |
 | T3 Never finished, never switched over | builder | 📋 **Planned** | §5. Finish, ending or keeping a data type, the cutover gate and the cutover commands refuse a test migration and name the reason; it ends by being deleted. |
@@ -55,8 +55,7 @@ Nothing is built yet.
 
 ## 2. The decisions (T0)
 
-Proposed on 2026-11-20. The owner decided that day to build a test scope; (a)–(h) wait for the
-owner's OK.
+Proposed on 2026-11-20, and agreed by the owner that evening as written.
 
 - **(a) A marker, in the item's own title.** The default is `[Ownpace-test]`. An item is in
   scope when its own title contains the marker, ignoring case:
