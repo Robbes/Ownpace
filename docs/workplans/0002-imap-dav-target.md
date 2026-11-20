@@ -24,7 +24,10 @@ then none, which leaves it to the server as before (`arrivalTimeOf`,
 `packages/shared/src/mail-arrival.ts`). A time before 1971 counts as none, because Graph's
 source writes the epoch when it has no time. The JMAP writer (0001) read the `Date:` line only,
 and now takes the same order. Unit tests cover the order, the placeholders and both writers;
-seven mutations were each caught. Messages already copied keep the time they were given.
+seven mutations were each caught. `imap-dav-target.integration.test.ts`, against a real
+Stalwart on every pull request, now also reads the copied message's INTERNALDATE back through
+its own connection and expects the source's arrival time. Messages already copied keep the time
+they were given.
 
 **Gates:**
 - ✅ Lint: `pnpm lint` passes
