@@ -1269,14 +1269,15 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
     // its guests itself (workplan 0160, 2026-11-19).
     //
     // The rewrite below goes through `withoutGuests`, which takes every guest
-    // off, and Cirrux mails a guest a cancellation when they are taken off an
-    // event. A copy written before the guests came out (#1947) still lists
-    // them. So the copy the target holds is read first, and left exactly as it
-    // is when it lists a guest: the copy's guests are the ones who would be
-    // mailed, whatever the source says now. Gone (404, 410), there is nobody
-    // to mail and the rewrite goes on as before. A read that cannot say, a
-    // refusal or an answer with no calendar object in it, throws, with
-    // nothing written: an unknown copy is not a copy without guests.
+    // off, and Cirrux, while it was on the list, mailed a guest a cancellation
+    // when they were taken off an event (2026-11-19). A copy written before
+    // the guests came out (#1947) still lists them. So the copy the target
+    // holds is read first, and left exactly as it is when it lists a guest:
+    // the copy's guests are the ones who would be mailed, whatever the source
+    // says now. Gone (404, 410), there is nobody to mail and the rewrite goes
+    // on as before. A read that cannot say, a refusal or an answer with no
+    // calendar object in it, throws, with nothing written: an unknown copy is
+    // not a copy without guests.
     if (overwrite && this.config.mailsGuests) {
       const held = await this.requestWithRetry({
         method: 'GET',
@@ -1329,9 +1330,10 @@ export class CalDAVTargetWriter implements CalendarTargetWriter, TargetReindexer
       // cannot disturb change detection: calendarContentHash fingerprints
       // UID/SUMMARY/DESCRIPTION/LOCATION only, pinned by test.
       //
-      // A target that mails guests regardless (Cirrux, 2026-11-19, workplan
-      // 0160) gets no guest at all: each ATTENDEE and ORGANIZER becomes a
-      // COMMENT naming them, which is not fingerprinted either.
+      // A target that mails guests regardless (Cirrux from 2026-11-19 to
+      // 2026-11-20, workplan 0160) gets no guest at all: each ATTENDEE and
+      // ORGANIZER becomes a COMMENT naming them, which is not fingerprinted
+      // either.
       body: neutraliseScheduling(this.config.mailsGuests ? withoutGuests(raw.icalendar) : raw.icalendar),
       headers: {
         'Content-Type': 'text/calendar',

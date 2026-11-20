@@ -99,20 +99,25 @@ describe('schedulingRecorder: measured before the first write, once per mapping 
 });
 
 describe('a target that mails guests whatever the marker says is said to be one (workplan 0160)', () => {
-  // Cirrux mailed invitations on 2026-11-19 for events whose every attendee
-  // carried SCHEDULE-AGENT=CLIENT. The writer now gives it no guests, and the
+  // The writer gives a kind on TARGETS_THAT_MAIL_GUESTS no guests, and the
   // sentence a person reads, and the audit row, say that instead of the
-  // promise the marker was meant to keep.
+  // promise the marker was meant to keep. Cirrux was such a kind from
+  // 2026-11-19, when it mailed invitations for events whose every attendee
+  // carried SCHEDULE-AGENT=CLIENT, to 2026-11-20 (ADR-0043). The list is
+  // empty since, so these cases hand the verdict a list of their own, and the
+  // sentence stays proven for the next kind put on it.
   const answering = (dav: string) => ({
     request: async () => ({ status: 200, body: '', headers: { DAV: dav } }),
   });
+  const MAILING = 'a-kind-that-mails';
+  const KINDS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set([MAILING]);
 
   it('says no guests are written, whatever the server advertises, and keeps the capability as measured', async () => {
     for (const [dav, capability] of [
       ['1, 2, calendar-access, calendar-auto-schedule', 'auto-schedule'],
       ['1, 2, calendar-access', 'none'],
     ] as const) {
-      const verdict = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering(dav), 'cirrux');
+      const verdict = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering(dav), MAILING, KINDS_THAT_MAIL_GUESTS);
       expect(verdict.capability).toBe(capability);
       expect(verdict.sentence).toContain('without their guests and organiser');
       expect(verdict.sentence).not.toContain('cannot happen here');
@@ -124,7 +129,7 @@ describe('a target that mails guests whatever the marker says is said to be one 
     const ledger = fakeLedger();
     vi.stubGlobal('fetch', optionsAnsweringFetch('1, 2, calendar-access, calendar-auto-schedule'));
     try {
-      await schedulingRecorder(ENDPOINT, { ledger, tenantId: TENANT, mappingId: MAPPING }, 'cirrux')();
+      await schedulingRecorder(ENDPOINT, { ledger, tenantId: TENANT, mappingId: MAPPING }, MAILING, KINDS_THAT_MAIL_GUESTS)();
     } finally {
       vi.unstubAllGlobals();
     }
@@ -170,9 +175,32 @@ describe('a target that mails guests whatever the marker says is said to be one 
     }
     expect(ledger.recorded[0]?.detail).toMatchObject({ capability: 'auto-schedule' });
     expect(String(ledger.recorded[0]?.detail?.sentence)).toContain('measured on this target, not assumed');
+  });
 
-    // And Cirrux, which mailed guests, still says so.
-    const cirrux = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering('1, 2, calendar-access'), 'cirrux');
-    expect(cirrux.sentence).toContain('This target emails every guest');
+  it('says of Cirrux what its server earned, as of Nextcloud, at the Test and in the audit row (0160, 2026-11-20)', async () => {
+    // Cirrux left the list on 2026-11-20 (ADR-0043): its copies keep their
+    // guests, each marked SCHEDULE-AGENT=CLIENT, as Nextcloud's do. So nothing
+    // a person reads about it says it is written without guests, or that it
+    // emails them.
+    for (const [dav, capability, words] of [
+      ['1, 2, calendar-access, calendar-auto-schedule', 'auto-schedule', 'measured on this target, not assumed'],
+      ['1, 2, calendar-access', 'none', 'cannot happen here'],
+    ] as const) {
+      const verdict = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering(dav), 'cirrux');
+      expect(verdict.capability).toBe(capability);
+      expect(verdict.sentence).toContain(words);
+      expect(verdict.sentence).not.toContain('This target emails every guest');
+      expect(verdict.sentence).not.toContain('without their guests and organiser');
+    }
+
+    const ledger = fakeLedger();
+    vi.stubGlobal('fetch', optionsAnsweringFetch('1, 2, calendar-access, calendar-auto-schedule'));
+    try {
+      await schedulingRecorder(ENDPOINT, { ledger, tenantId: TENANT, mappingId: MAPPING }, 'cirrux')();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(ledger.recorded[0]?.detail).toMatchObject({ capability: 'auto-schedule' });
+    expect(String(ledger.recorded[0]?.detail?.sentence)).toContain('measured on this target, not assumed');
   });
 });
