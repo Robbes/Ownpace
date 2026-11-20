@@ -6,6 +6,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Cirrux keeps the guests on copied calendar events again** (workplan 0160; ADR-0043, amended
+  2026-11-20). Events and tasks written to Cirrux carry their guests and organiser again, each
+  marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
+  In alpha.12 they were written without them, each kept as a comment that names the person,
+  because on 2026-11-19 Cirrux's calendar server emailed an invitation to every guest of what it
+  was given, whatever the marker said. Cirrux has since said that its server did not honour the
+  marker then, and does now. An invitation it might still send cannot be taken back, so the change
+  was held for a test on the test environment, run on 2026-11-20: an event in the future whose only
+  guest was the owner's own second address sent no mail at its first copy, at a change of its title
+  and time, or when the guest was taken off at the source (0160 §4). Its removal could not be
+  tested from Google, whose calendars report no deletions. An event at Cirrux that lists guests is
+  now rewritten and removed as at
+  any other target. One copied while the guests were left out keeps them as comments until its
+  next rewrite, the next time it changes at the source, and then gets its guests. The Test's
+  scheduling line, and the audit row the first calendar pass writes, say what Cirrux's server
+  advertises, as for Nextcloud.
 - **Infomaniak keeps the guests on copied calendar events** (workplan 0161; ADR-0043, amended
   2026-11-20). Events and tasks written to Infomaniak now carry their guests and organiser, each
   marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
@@ -15,8 +31,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   watches for one (0161 T2). An event there that lists guests is now rewritten and removed as at
   any other target, and one copied without its guests gets them the next time it changes at the
   source and is written again. The Test's scheduling line, and the audit row the first calendar
-  pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
-  nothing written to it names a guest.
+  pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux follows, in the
+  entry above.
 - **The Stalwart the tests and the demo start is v1.1.1** (workplan 0119, ADR-0022), from
   v0.16.27, on the owner's decision of 2026-11-19: the integration tests, the self-hosted
   end-to-end run and the OTA demo run it, live never does. Its image carries Debian's fixes for
@@ -74,6 +90,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A copied message keeps the time it arrived** (workplan 0002, 0001). The IMAP writer gave
+  each message it copied no arrival time, so the target recorded the moment of copying: the time
+  a mail app sorts "received" by, and the one a webmail shows when a message's `Date:` line is
+  missing or unreadable. On 2026-11-20 four old messages copied from Gmail into Cirrux on the
+  test environment showed the evening they were copied. The writer now sends the source's own
+  arrival time (IMAP's INTERNALDATE, or Microsoft Graph's `receivedDateTime`), then the `Date:`
+  line when the source gave none, and otherwise leaves the time to the target, as before. The
+  JMAP writer read only the `Date:` line, and now takes the same order. Messages copied before
+  this keep the time they were given: a later pass finds them by their Message-ID and leaves
+  them as they are.
 - **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
   a file node's kind `@type` and requires it when a node is made, and calls its media type
   `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
