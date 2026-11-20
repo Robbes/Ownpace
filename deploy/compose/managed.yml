@@ -1574,9 +1574,9 @@ services:
     # authenticator.
     # The owner said yes to v4.20.4 on 2026-11-18, and dumped the OTA
     # instance's `zitadel` database first, on v4.20.3, with
-    # deploy/compose/dump-idp.sh (21:24 UTC, 701 entries read back). This
-    # line merges after E2E (managed) on its branch, which
-    # applies it to the OTA instance, and after the owner's hand check
+    # deploy/compose/dump-idp.sh (21:24 UTC, 701 entries read back). It
+    # merged on 2026-11-20 (#1938) after E2E (managed) on its branch, which
+    # applied it to the OTA instance, and after the owner's hand check
     # there, as for v4.20.3: one sign-in in a browser (login v1), and one
     # forgot-password mail, read in the mail catcher and its link opened.
     image: ghcr.io/zitadel/zitadel:v4.20.4
