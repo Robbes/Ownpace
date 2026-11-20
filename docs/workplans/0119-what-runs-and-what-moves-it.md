@@ -52,9 +52,16 @@ branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-nonroot`.
   and requires it in `load_env` before the file is sourced. `a-privilege-no-service-uses` reviews
   the step's two `exec`s. Ten tests that run the bring-up's scripts put
   `scripts/fixtures/docker-socket/stat` first on the script's PATH. It answers only that question,
-  as group 988, so the unit tier does not depend on the machine having a socket. Mutations: 22,
-  each made on disk, its test run, and the file restored and checked with `cmp`. All 22 were
-  caught.
+  as group 988, so the unit tier does not depend on the machine having a socket. Mutations: 24,
+  each made on disk, its test run, and the file restored and checked with `cmp`. All 24 were
+  caught, the last two being a plain `/run` in `managed.yml` and in the job.
+- **What the first CI run found.** The job's first run as uid 99 stopped at HAProxy's start:
+  `Cannot create pidfile /run/haproxy.pid`. The `/tmp` tmpfs was writable, because the entrypoint
+  rendered the config there, but the `/run` tmpfs took the root ownership of the image's `/run`. A
+  stack would have stopped the same way, because `managed.yml` mounted `/run` like that too. Both
+  now mount `/run:uid=99,gid=99,mode=0755`, and the guard holds that string in both places and
+  refuses a plain `/run`. On failure, the job prints the owner of `/tmp` and `/run` as the proxy
+  sees them.
 - **Open.** The CI job on this branch is the first run of the image as uid 99 on a real socket.
   E2E (managed) on the shared daemon was not dispatched (this work never dispatches it); it is the
   proof on the OTA stack, and live takes it from a release tag.

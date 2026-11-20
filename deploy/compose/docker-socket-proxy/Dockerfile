@@ -92,7 +92,10 @@
 # the entrypoint renders haproxy.cfg into /tmp, and its `ulimit -n` may fail
 # and is ignored; HAProxy writes its pidfile to /run, binds 2375, above 1024,
 # and only reads the server-state file. managed.yml mounts /tmp and /run as
-# tmpfs on a read-only root filesystem, which uid 99 can write. The socket is
+# tmpfs on a read-only root filesystem, /run as uid 99's
+# (`/run:uid=99,gid=99,mode=0755`): a plain tmpfs there is root's, as the
+# image's /run is, and HAProxy as 99 stops with `Cannot create pidfile
+# /run/haproxy.pid`, which images.yml's first run as 99 showed. The socket is
 # root's and a group's at mode 0660, whose id differs from host to host, so
 # managed.yml adds that group to the container (`group_add`), read from the
 # socket itself (`stat -L -c %g`) by seed_docker_socket_gid in env-read.sh,

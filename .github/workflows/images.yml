@@ -843,7 +843,7 @@ jobs:
           gid="$(env_value "$envfile" DOCKER_SOCKET_GID)"
           # managed.yml's settings, environment, group and socket for trigger-docker-proxy, as they are there.
           docker run -d --name socket-proxy \
-            --read-only --tmpfs /tmp --tmpfs /run --cap-drop ALL --security-opt no-new-privileges:true \
+            --read-only --tmpfs /tmp --tmpfs /run:uid=99,gid=99,mode=0755 --cap-drop ALL --security-opt no-new-privileges:true \
             --group-add "$gid" \
             -e CONTAINERS=1 -e IMAGES=1 -e NETWORKS=1 -e VOLUMES=1 -e POST=1 \
             -v /var/run/docker.sock:/var/run/docker.sock:ro \
@@ -923,7 +923,11 @@ jobs:
 
       - name: The proxy's log, when it did not answer as it should
         if: failure()
-        run: docker logs socket-proxy || true
+        run: |
+          docker logs socket-proxy || true
+          # Who owns the two directories it writes, as managed.yml mounts them.
+          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/docker-socket-proxy:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml)"
+          docker run --rm --read-only --tmpfs /tmp --tmpfs /run:uid=99,gid=99,mode=0755 --entrypoint stat "$ref" -c '%n %a %u:%g' /tmp /run || true
 
       - name: Remove the proxy
         if: always()

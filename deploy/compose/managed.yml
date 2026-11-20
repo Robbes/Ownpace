@@ -899,14 +899,17 @@ services:
     # ensure-env-secrets.sh and every bootstrap-managed.sh run write into .env,
     # never typed. Unset, Compose refuses: there is no fallback to root or to
     # no group. Read-only; the entrypoint writes haproxy.cfg to /tmp and
-    # HAProxy its pidfile to /run, both tmpfs, which uid 99 can write.
+    # HAProxy its pidfile to /run, both tmpfs. /run is mounted as uid 99's:
+    # a tmpfs over a directory of the image takes that directory's owner,
+    # root's for /run, and HAProxy as 99 then stops with `Cannot create
+    # pidfile /run/haproxy.pid` (images.yml's first run as 99, 2026-11-20).
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     cap_add: []
     group_add:
       - "${DOCKER_SOCKET_GID:?the group id of /var/run/docker.sock; deploy/compose/ensure-env-secrets.sh or bootstrap-managed.sh writes it from the socket}"
     read_only: true
-    tmpfs: [/tmp, /run]
+    tmpfs: [/tmp, "/run:uid=99,gid=99,mode=0755"]
     environment:
       CONTAINERS: 1
       IMAGES: 1

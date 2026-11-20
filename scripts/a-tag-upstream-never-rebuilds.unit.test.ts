@@ -107,6 +107,12 @@ const NAME = 'localhost/docker-socket-proxy';
 /** The user it ends as since 2026-11-20: the base's haproxy, by number. Upstream's line in its place is `USER root`. */
 const USER_LINE = 'USER 99:99';
 const UPSTREAM_USER_LINE = 'USER root';
+/**
+ * /run as uid 99's: a tmpfs over a directory of the image takes that directory's owner, root's for
+ * /run, and HAProxy as 99 then stopped with `Cannot create pidfile /run/haproxy.pid` (images.yml's
+ * first run as 99, 2026-11-20). The same in managed.yml and in the job.
+ */
+const RUN_TMPFS = '/run:uid=99,gid=99,mode=0755';
 /** managed.yml's group for the socket: required, with Compose's refusal, and nothing to fall back on. */
 const GROUP_ADD = /^\$\{DOCKER_SOCKET_GID:\?[^}]+\}$/;
 
@@ -384,8 +390,11 @@ function composeProblems(managed: string, dockerfile: string): string[] {
         'and without the `:?` refusal an unset value would start it with no group, or a default with the wrong one',
     );
   }
-  if (svc.read_only !== true || !['/tmp', '/run'].every((dir) => svc.tmpfs?.includes(dir))) {
-    problems.push(`${SERVICE} is read_only ${String(svc.read_only)} with tmpfs ${JSON.stringify(svc.tmpfs)}: a read-only root filesystem with /tmp and /run on tmpfs, where uid 99 writes haproxy.cfg and the pidfile`);
+  if (svc.read_only !== true || JSON.stringify(svc.tmpfs) !== JSON.stringify(['/tmp', RUN_TMPFS])) {
+    problems.push(
+      `${SERVICE} is read_only ${String(svc.read_only)} with tmpfs ${JSON.stringify(svc.tmpfs)}: a read-only root filesystem with /tmp and \`${RUN_TMPFS}\` on tmpfs, ` +
+        "where uid 99 writes haproxy.cfg and the pidfile (a plain /run tmpfs is root's, as the image's /run is)",
+    );
   }
   const names = declared(dockerfile);
   for (const pair of environment(svc)) {
@@ -435,7 +444,7 @@ function workflowProblems(workflow: string, managed: string, dockerfile: string,
   const mounts = [...run.matchAll(/-v (\S+)/g)].map((m) => m[1]!);
   if (svc && JSON.stringify(mounts) !== JSON.stringify(svc.volumes ?? [])) problems.push(`it mounts ${JSON.stringify(mounts)}, and ${SERVICE} mounts ${JSON.stringify(svc.volumes ?? [])}`);
   // managed.yml's settings, and the socket's group as the stack's .env gets it.
-  for (const flag of ['--read-only', '--tmpfs /tmp', '--tmpfs /run', '--cap-drop ALL', '--security-opt no-new-privileges:true', '--group-add "$gid"']) {
+  for (const flag of ['--read-only', '--tmpfs /tmp', `--tmpfs ${RUN_TMPFS}`, '--cap-drop ALL', '--security-opt no-new-privileges:true', '--group-add "$gid"']) {
     if (!run.includes(` ${flag} `)) problems.push(`it does not start the proxy with \`${flag}\`, as ${MANAGED} runs it`);
   }
   if (!/^\s*seed_docker_socket_gid "\$envfile"$/m.test(run) || !run.includes('gid="$(env_value "$envfile" DOCKER_SOCKET_GID)"')) {
@@ -829,8 +838,11 @@ describe("managed.yml runs that build, by the name its instructions give it, wit
     expect(swap(group, '    group_add:\n      - "${DOCKER_SOCKET_GID:?read it from the socket}"\n      - "0"\n')).toEqual([expect.stringContaining('group_add is')]);
     expect(swap(group, '    group_add: []\n')).toEqual([expect.stringContaining('group_add is []')]);
     // The read-only root filesystem and its two tmpfs, where uid 99 writes.
-    expect(swap(/^(\s*)read_only: true\n(\s*tmpfs: \[\/tmp, \/run\]\n)(\s*environment:\n\s*CONTAINERS: 1)/m, '$2$3')).toEqual([expect.stringContaining('is read_only undefined')]);
-    expect(swap(/^(\s*)tmpfs: \[\/tmp, \/run\]\n(\s*environment:\n\s*CONTAINERS: 1)/m, '$1tmpfs: [/tmp]\n$2')).toEqual([expect.stringContaining('with tmpfs ["/tmp"]')]);
+    const tmpfs = /^(\s*)tmpfs: \[\/tmp, "\/run:uid=99,gid=99,mode=0755"\]\n(\s*environment:\n\s*CONTAINERS: 1)/m;
+    expect(swap(/^(\s*)read_only: true\n(\s*tmpfs: \[\/tmp, "\/run:uid=99,gid=99,mode=0755"\]\n)(\s*environment:\n\s*CONTAINERS: 1)/m, '$2$3')).toEqual([expect.stringContaining('is read_only undefined')]);
+    expect(swap(tmpfs, '$1tmpfs: [/tmp]\n$2')).toEqual([expect.stringContaining('with tmpfs ["/tmp"]')]);
+    // A plain /run tmpfs is root's, as the image's /run is: HAProxy as 99 cannot write its pidfile there.
+    expect(swap(tmpfs, '$1tmpfs: [/tmp, /run]\n$2')).toEqual([expect.stringContaining('with tmpfs ["/tmp","/run"]')]);
   });
 });
 
@@ -882,7 +894,7 @@ describe("images.yml builds it on a pull request and asks it what the stack's pr
     expect(problems(swapped(workflow, `--tag "$ref" ${CONTEXT}\n`, '--tag "$ref" deploy/compose/postgres\n'))).toEqual([expect.stringContaining(`does not build ${CONTEXT}`)]);
     expect(problems(swapped(workflow, "want='\"99:99\"", "want='\"root\""))).toEqual([expect.stringContaining('does not check the built image runs')]);
     // managed.yml's settings and the socket's group, each dropped.
-    for (const flag of ['--read-only', '--tmpfs /tmp', '--tmpfs /run', '--cap-drop ALL', '--security-opt no-new-privileges:true', '--group-add "$gid"']) {
+    for (const flag of ['--read-only', '--tmpfs /tmp', `--tmpfs ${RUN_TMPFS}`, '--cap-drop ALL', '--security-opt no-new-privileges:true', '--group-add "$gid"']) {
       expect(problems(swapped(workflow, ` ${flag} `, ' ')), flag).toEqual([expect.stringContaining(`with \`${flag}\``)]);
     }
     expect(problems(swapped(workflow, 'seed_docker_socket_gid "$envfile"\n', 'true\n'))).toEqual([expect.stringContaining('seed_docker_socket_gid')]);
