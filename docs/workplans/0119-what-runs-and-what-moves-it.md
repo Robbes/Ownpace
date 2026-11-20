@@ -52,9 +52,13 @@ what was read and where.
 - **The two-phase run on the new tag, proved:** CI's `integration-tests` job on `26ff78ae` (run
   44677802203), on amd64 and on arm64, passed 98 test files and 829 tests each, the eleven that
   use Stalwart among them, the JMAP file target's 6 and file sync's 3 tests included.
-- **Owed before the merge:** E2E (self-hosted); E2E (managed) on the branch after alpha.12's tag;
-  and `scripts/jmap-target-spike.ts` again, which needs a Docker daemon and asks with v0.16's
-  names (`recurrenceRules`, a FileNode create without `@type`).
+- **E2E (self-hosted), green:** run 44684133193 on `5c97d6d8`, 05:54:38 to 06:00:33 UTC (job
+  `e2e-selfhost`, attempt 1). It proves `setup-stalwart.sh`'s two-phase start on v1.1.1 with
+  stalwart-cli 1.0.14, the source mailbox seeded over IMAPS, and the self-host gates after them,
+  whose mail goes from Stalwart's IMAPS to its JMAP.
+- **Owed before the merge:** E2E (managed) on the branch after alpha.12's tag; and
+  `scripts/jmap-target-spike.ts` again, which needs a Docker daemon and asks with v0.16's names
+  (`recurrenceRules`, a FileNode create without `@type`).
 - **The owner's, before E2E (managed):** the OTA demo's Stalwart volume, `ownpace-stalwart-data`,
   made at v0.16.10. v1.1.1 refuses it, so E2E (managed) on the branch fails at phase 1 on it, and
   `main`'s nightly runs v0.16.27 on it until the merge. v0.16.27 refuses a store v1 made too (its
