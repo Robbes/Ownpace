@@ -71,6 +71,11 @@ const MAILS_GUESTS_SENTENCE =
  * (`TARGETS_UNTESTED_FOR_GUESTS`, workplan 0161): the writer does the same,
  * and the sentence does not claim the target mails guests, which nobody has
  * seen it do.
+ *
+ * No kind is given it since 2026-11-20: Infomaniak, the one kind that was,
+ * left both lists that day (ADR-0043), and its Test and audit row say what
+ * its server earns, as Nextcloud's do. Kept for the next kind that arrives
+ * untested.
  */
 const UNTESTED_GUESTS_SENTENCE =
   'Whether this target emails the guests an event lists has not been tested yet. ' +

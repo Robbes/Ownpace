@@ -491,10 +491,10 @@ live in [README.md](./README.md), the register.
   explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
   kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
 - **Except a target that may email guests whatever the parameter says** (2026-11-19):
-  a kind in `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160; Infomaniak, untested, 0161) gets neither; each
-  becomes a `COMMENT` naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`.
-  Undone by taking the kind off the list once its target can be written without mailing guests,
-  shown by a pass that sends nothing.
+  a kind in `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160) gets neither; each becomes a `COMMENT`
+  naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. A kind
+  leaves the list on a pass that sends nothing, or by a dated amendment of this ADR (Infomaniak,
+  2026-11-20, 0161).
 - **At such a target, a copy that already lists guests is left as it is** (2026-11-19): neither
   rewritten nor deleted, and reported, since either would mail each guest:
   `packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`.

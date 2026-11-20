@@ -108,8 +108,9 @@ calendars and task lists over `sync.infomaniak.com`, the one server Infomaniak n
 signed in with the account's sync login (a short username such as `AB12345` and an application
 password, or the account's password without two-step validation), with the DAV base URL left
 empty: the server answers `/.well-known/caldav` with a redirect to its own root, where the homes
-are discovered. Nothing written there names a guest or an organiser until a pass shows its
-SabreDAV sends no invitation. ⏳ built, not yet run against a live Infomaniak account (0161 T2).
+are discovered. Since 2026-11-20 (ADR-0043) its events and tasks keep their guests and organiser,
+each marked `SCHEDULE-AGENT=CLIENT`, as at Nextcloud; what its SabreDAV does with the marker is not
+yet observed. ⏳ built, not yet run against a live Infomaniak account (0161 T2).
 
 Also a target: **Nextcloud** (`nextcloud`) — the second **account** kind, and the
 one a person is most likely to be running themselves: one connection row carrying calendars,
@@ -463,7 +464,7 @@ These hold across all object types, and are features rather than gaps:
 | Dropbox native formats: a Paper doc, or any file Dropbox hands over only as an export | ⏳ a Paper doc is exported as Markdown or HTML once the migration names a format: the appliance's mapping file takes it, and *Start a migration* asks for it on *What moves?* with Markdown suggested, the migration's page changes it, and the confirm screen counts the Paper docs left behind before Start; unset, a Paper doc is refused by name and parked on first sight, and every other such file always is | workplan 0150 T3, T4 |
 | Box against a real account | ⏳ built, unproven | workplan 0056 T3(a) |
 | Cirrux Drive as a files target against a live Cirrux client (the consent, the rotating refresh written back, an upload, a replace under `base_ctag`, a trash) | ⏳ built against a fake; waits for the client Cirrux registers | workplan 0160 T2b; ADR-0052 |
-| Infomaniak against a real account: the sync login and the mailbox's login each reaching its faces, one small pass, and whether its SabreDAV mails the guests of an event written into it | ⏳ built, unproven; guests are not written until that pass shows none is emailed | workplan 0161 T2 |
+| Infomaniak against a real account: the sync login and the mailbox's login each reaching its faces, one small pass, and whether its SabreDAV mails the guests of an event written into it | ⏳ built, unproven; guests are written, marked `SCHEDULE-AGENT=CLIENT`, as at Nextcloud (ADR-0043, 2026-11-20), and that pass watches whether any is emailed | workplan 0161 T2 |
 | Whole-tenant Google migration (domain-wide delegation, opt-in) | ⏳ built, awaiting first contact with a real Workspace | ADR-0033; workplan 0053 |
 | Drive incremental delta (`changes.list`) | ⛔ deliberate cost/correctness trade | workplan 0042 T1 |
 | Per-domain throttle limiters (today: one merged limiter per mapping) | ⛔ future work | `DomainConfig.throttleConfig` |

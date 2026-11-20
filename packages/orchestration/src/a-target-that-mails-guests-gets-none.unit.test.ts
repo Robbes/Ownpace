@@ -118,10 +118,10 @@ describe('the factories hand the answer to the writer', () => {
     expect(configOf(buildTaskTarget(endpoint, deps, options)).mailsGuests).toBe(true);
   });
 
-  it('for Infomaniak too, until a pass shows it sends nothing (workplan 0161)', () => {
+  it('for Infomaniak, since 2026-11-20, both keep guests, as for Nextcloud (workplan 0161, ADR-0043)', () => {
     const options = { mailsGuests: mailsGuestsItself('infomaniak') };
-    expect(configOf(buildCalendarTarget(endpoint, deps, options)).mailsGuests).toBe(true);
-    expect(configOf(buildTaskTarget(endpoint, deps, options)).mailsGuests).toBe(true);
+    expect(configOf(buildCalendarTarget(endpoint, deps, options)).mailsGuests).toBeUndefined();
+    expect(configOf(buildTaskTarget(endpoint, deps, options)).mailsGuests).toBeUndefined();
   });
 
   it('for any other target, and when nothing is said, they keep guests as before', () => {

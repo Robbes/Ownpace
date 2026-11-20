@@ -98,6 +98,106 @@ what was read and where.
     organisation B's untouched, cleared nothing on a second run, and raised each refusal. `bash -n`
     and shellcheck pass on it. The script itself never ran against a stack.
 
+**2026-11-20: the Trigger.dev webapp's connect-node loads the store's undici 6.29.1, and undici
+5.29.0 and `@fastify/busboy` 2.1.1 leave the image; built on a branch, a draft pull request.** On
+the branch `claude/ownpace-public-readiness-y7orc6-trigger-undici-6`, from `main` at `3ec5670d`
+(#1961). The entry of 2026-11-19 below (*Which of the four a layer here could take*) proposed it
+as a change to decide first, since it moves a dependency that loads across a major; the owner
+approved relinking undici 5 to 6 for this image. turbo-stream and deepmerge-ts stay as they are.
+- **Read, and nothing run.** Upstream's `pnpm-lock.yaml` at `v4.8.5` (`d412e08a`), in a sparse
+  clone: undici 5.29.0's one requirer is `@connectrpc/connect-node` 1.4.0 (`"undici": "^5.28.3"`),
+  whose one requirer is `@depot/sdk-node` 1.0.0, an `apps/webapp` dependency; `@fastify/busboy`
+  2.1.1's one is undici 5.29.0; and undici 6.29.1 is in the same store, for `@remix-run/node`
+  2.17.5, another `apps/webapp` dependency, and `@ai-sdk/provider-utils` 4.0.56, by the override
+  `undici@>=6 <6.29.1: ^6.29.1`, which reaches no undici 5. The published tarballs of
+  connect-node 1.4.0, `@depot/sdk-node` 1.0.0, undici 5.29.0 and 6.29.1, busboy 2.1.1,
+  `@remix-run/node` 2.17.5 and `@ai-sdk/provider-utils` 4.0.56, each hashed to the sha512 the
+  lockfile names, read with grep and python: connect-node's dist names undici twice,
+  `require("undici")` in `dist/cjs/node-headers-polyfill.js` and `import { Headers as
+  HeadersPolyfill } from "undici"` in `dist/esm/node-headers-polyfill.js`, each putting `Headers` on
+  `globalThis` only on Node before 18 (trigger-api runs Node 24.22.3); undici 6.29.1 is CommonJS
+  with no exports map, asks for Node >=18.17, declares no dependency, requires nothing but Node's
+  own modules, and exports `Headers` as 5.29.0 does (`module.exports.Headers = ...`), so no file
+  of it needs busboy; both run the same `lib/global.js` at load. `@depot/sdk-node` has no exports
+  and no type, so its CommonJS `dist/index.js` loads connect-node's `dist/cjs`; the webapp loads
+  it at every start (`app/entry.server.tsx` imports `remoteBuildsEnabled` from
+  `app/v3/remoteImageBuilder.server.ts`), from node_modules, since neither package is in Vite's
+  SSR `noExternal`; the transport it makes connects only for a request, which the webapp makes
+  only with `DEPOT_TOKEN` and `DEPOT_ORG_ID` set, and trigger-api sets neither.
+  `@remix-run/node` requires undici only in `installGlobals({ nativeFetch })`,
+  which the webapp does not call, and `@ai-sdk/provider-utils` only when it downloads. undici
+  6.29.1's tree, the RUN's `tree()` over npm's tarball, is `5f8644a9…`, the value the swap of
+  2026-11-03 to 2026-11-13 pinned and proved in the image. The image's own layers could not be
+  read here (GHCR's blob host is refused by this session's network), so the store's layout is
+  inferred from the lockfile and pnpm's directory names, and the build checks it.
+- **The change.** `deploy/compose/trigger.dev/Dockerfile` gains a third RUN as root, after
+  goose's and before the purge. Before it changes anything it checks connect-node,
+  `@depot/sdk-node`, both undici and busboy by `package.json`, `@depot/sdk-node`'s link to
+  connect-node, connect-node's declared range and the two files that name undici, the link's text
+  (`../../undici@5.29.0/node_modules/undici`), each pnpm directory's content, undici 6.29.1's tree
+  file for file, two walks of the whole image (cross-spawn's, with pnpm's plus for a scope's
+  slash: undici 5.29.0 one copy with one link into it, busboy 2.1.1 one copy linked by undici
+  5.29.0 and by pnpm's hoist where it is there), and that the webapp's own build carries no
+  `undici:request:create`. Then it points the link at `../../undici@6.29.1/node_modules/undici`
+  with the old link's owner, removes pnpm's directories for undici 5.29.0 and busboy 2.1.1, and
+  the hoist where it is there. After: the link, the removals, the walks again, a stat of every
+  other entry of the image (as goose's RUN), and loads from each requirer's directory: undici by
+  require and import from connect-node, connect-node by require and import from
+  `@depot/sdk-node`, and `@depot/sdk-node` from the webapp, whose loaded undici must be 6.29.1's
+  `index.js`. The header's *WHAT IS RELINKED: UNDICI* and *HOW UNDICI IS RELINKED, AND PROVED* say
+  why and how, *WHAT STAYS* drops the two, and *THE WAY OUT* says when the RUN goes.
+  `managed.yml`'s name moves, by the `sed` the guard printed, to
+  `localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-f7b52b1d2670` (was `-c3d2ec340994`), with a
+  sentence in its comment; the CHANGELOG says it under Security.
+- **The guard.** `a-binary-the-stack-never-runs`: RELINK (the link, both targets, undici 6.29.1's
+  tree and the three paths that go, each with why and where read), `relinkProblems` in the shape
+  test (the paths, its place among the RUNs, 28 checks before the change and 12 proofs after, the
+  change, `state()` and the walk), and the stand-in's store laid out as pnpm lays it by the
+  lockfile, with a stand-in connect-node, undici 6.29.1 and `@depot/sdk-node`. Eight new tests,
+  86 to 94: the shape and RELINK; the walk, cross-spawn's but for the scope; 66 ways the RUN's
+  text could slip (each of the 28 checks and 12 proofs dropped, four lines moved across the
+  change, the change's five parts, three paths, `state()`, the walk's nine fragments, and the
+  RUN's place, user and absence); the run over the stand-in on both platforms, and without
+  busboy's hoist; 29 ways the image could differ, each failing with nothing changed; and twelve
+  cases in which a proof after the change fails on the change it is there to see, among them an
+  undici 6.29.1 whose `Headers` Node's ESM loader cannot read by name
+  (`Object.assign(module.exports, ...)`, read on Node 22 on 2026-11-20), which passes every check
+  of names, versions and files and fails the import.
+- **Broken on disk and put back byte for byte.** Each mutation was made in the real file, the
+  guard run (94 tests), and the file put back from a copy (`cmp` equal). The first two ran in the
+  worktree; a restart of this session's machine then stopped the third with it applied, which was
+  put back, `cmp` equal, before anything else ran, and the other seven ran in a copy of the tree,
+  whose unmutated run passed 94 of 94. Failed tests of 94, with the new ones among them:
+  - connect-node's new link not made (`ln -s` dropped), 33: RELINK's shape test, the slip test,
+    the runs over the stand-in on both platforms and without busboy's hoist, and the proofs test,
+    besides every full build;
+  - busboy's hoist left (its `rm` dropped), 32, the same but the run without the hoist;
+  - busboy 2.1.1 left (`rm -r "$old_store"` alone), 33, as the first;
+  - undici 5.29.0's walk not compared, 10: the shape and slip tests, and the image test, where a
+    requirer, a hoist or a second copy it was not read for now goes through;
+  - undici 6.29.1's tree not checked, 10: the same three, where a file more, or the pinned tree
+    over the stand-in's, now goes through;
+  - the state proof after the change dropped, 10: the shape, slip and proofs tests;
+  - connect-node's import of undici not proved, 12, and the webapp's load not proved, 12: the shape
+    and slip tests, both platforms' runs (each reads that proof's line) and the proofs test;
+  - the webapp's build not read for undici, 10: the shape, slip and image tests.
+  The rest of each count is `managed.yml`'s two name tests (a changed instruction line is a new
+  name) and the older shape tests, which compare whole lists of problems.
+- **Expected, and measured.** Security Scan run 44637576014 (main at `3ec5670d`, 2026-11-19) reads
+  the webapp's image at 1 critical, 19 high and 8 with a fix, and the production-internal tier at
+  2, 42 and 19; the eight with a fix are undici 5.29.0's five, busboy's one, turbo-stream's and
+  deepmerge-ts'. So 1, 13 and 2 are expected for the image, and 2, 36 and 13 for the tier.
+- **Measured** on `ad639829`: Images run 44650378335 built the image with the RUN on both
+  platforms (`build (trigger, amd64)` and `build (trigger, arm64)`), the layout read from the
+  lockfile matching the real store, and Security Scan run 44651070464 (2026-11-20, 01:06 to 01:09
+  UTC) reads `localhost/trigger.dev:v4.8.5-f7b52b1d2670` at 1 critical, 13 high and 2 with a fix,
+  turbo-stream's and deepmerge-ts', and the production-internal tier at 2, 36 and 13, as expected.
+  Neither undici 5.29.0 nor busboy 2.1.1 is in the report.
+- **Owed before the merge:** E2E (managed) on the head, which starts trigger-api on this image.
+  Not read: whether connect-node's load is the first undici the webapp loads, and so whether the
+  process's global dispatcher, which Node's own fetch uses too, is now a 6.29.1 Agent where it was
+  a 5.29.0 one (both releases run the same `lib/global.js`).
+
 **2026-11-20, later: the identity provider's Zitadel v4.20.4 merged** (#1938, `068182c6`, at
 09:25 UTC). E2E (managed) run 44670840102 on its head, 03:54 to 04:02 UTC, applied it to the OTA
 instance and passed its smoke. The owner's hand check there came next, with no E2E (managed) in

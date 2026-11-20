@@ -145,22 +145,33 @@ describe('a target that mails guests whatever the marker says is said to be one 
     }
   });
 
-  it('says of an untested target that it is untested, and never that it emails guests (0161)', async () => {
-    // Infomaniak is on the list because no pass has been run against it, not
-    // because it was seen to mail anybody. The writer drops guests for it as
-    // for Cirrux; the sentence a person reads must not claim what nobody saw.
-    const verdict = await measureTargetScheduling(
-      ENDPOINT.url,
-      'probe',
-      'pw',
-      answering('1, 2, calendar-access, calendar-auto-schedule'),
-      'infomaniak',
-    );
-    expect(verdict.capability).toBe('auto-schedule');
-    expect(verdict.sentence).toContain('has not been tested yet');
-    expect(verdict.sentence).toContain('without their guests and organiser');
-    expect(verdict.sentence).not.toContain('This target emails every guest');
-    // And Cirrux, which did, still says so.
+  it('says of Infomaniak what its server earned, as of Nextcloud, at the Test and in the audit row (0161, 2026-11-20)', async () => {
+    // Infomaniak left the list on 2026-11-20 (ADR-0043): its copies keep
+    // their guests, each marked SCHEDULE-AGENT=CLIENT, as Nextcloud's do. So
+    // nothing a person reads about it says it is untested, or that it is
+    // written without guests.
+    for (const [dav, capability, words] of [
+      ['1, 2, calendar-access, calendar-auto-schedule', 'auto-schedule', 'measured on this target, not assumed'],
+      ['1, 2, calendar-access', 'none', 'cannot happen here'],
+    ] as const) {
+      const verdict = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering(dav), 'infomaniak');
+      expect(verdict.capability).toBe(capability);
+      expect(verdict.sentence).toContain(words);
+      expect(verdict.sentence).not.toContain('has not been tested yet');
+      expect(verdict.sentence).not.toContain('without their guests and organiser');
+    }
+
+    const ledger = fakeLedger();
+    vi.stubGlobal('fetch', optionsAnsweringFetch('1, 2, calendar-access, calendar-auto-schedule'));
+    try {
+      await schedulingRecorder(ENDPOINT, { ledger, tenantId: TENANT, mappingId: MAPPING }, 'infomaniak')();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(ledger.recorded[0]?.detail).toMatchObject({ capability: 'auto-schedule' });
+    expect(String(ledger.recorded[0]?.detail?.sentence)).toContain('measured on this target, not assumed');
+
+    // And Cirrux, which mailed guests, still says so.
     const cirrux = await measureTargetScheduling(ENDPOINT.url, 'probe', 'pw', answering('1, 2, calendar-access'), 'cirrux');
     expect(cirrux.sentence).toContain('This target emails every guest');
   });

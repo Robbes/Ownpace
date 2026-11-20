@@ -92,17 +92,22 @@ export function neutraliseScheduling(icalendar: string): string {
  * keeps no ATTENDEE and no ORGANIZER at all (`withoutGuests`): with nobody
  * invited, a server has nobody to mail.
  *
- * Two kinds are here, for two different reasons. Cirrux joined on the
- * evidence of the invitations it sent. Infomaniak starts on the list on the
- * day its kind arrives (workplan 0161), because no pass has been run against
- * it: its CalDAV server is SabreDAV (`sync.infomaniak.com` answers with
+ * One kind is here: Cirrux, on the evidence of the invitations it sent. A
+ * kind leaves this list on the evidence of a pass that sent none, or by a
+ * decision dated in ADR-0043.
+ *
+ * Infomaniak is not here. It was, untested, from the day its kind arrived
+ * (workplan 0161) to 2026-11-20, when ADR-0043's amendment of that day took
+ * it off: its copies are written as Nextcloud's are, with their guests and
+ * organiser, each marked `SCHEDULE-AGENT=CLIENT`. Its CalDAV server is
+ * SabreDAV (`sync.infomaniak.com` answers with
  * `WWW-Authenticate: Basic realm="sabre/dav"`, read 2026-11-19), which in
- * Nextcloud was seen to honour `SCHEDULE-AGENT=CLIENT` (workplan 0103), but
- * nobody has seen what Infomaniak's does with it, and an invitation sent
- * cannot be taken back. A kind leaves this list only on the evidence of a
- * pass that sent none: Infomaniak's is 0161 T2.
+ * Nextcloud was seen to honour the marker (workplan 0103); what Infomaniak's
+ * does with it has not been seen, and an invitation it might send cannot be
+ * taken back. Mail seen at Infomaniak (0161 T2) puts it back here, as a kind
+ * seen mailing guests.
  */
-export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set(['cirrux', 'infomaniak']);
+export const TARGETS_THAT_MAIL_GUESTS: ReadonlySet<string> = new Set(['cirrux']);
 
 /** Does a target of this kind send invitations itself, whatever SCHEDULE-AGENT says? */
 export function mailsGuestsItself(kind: string | undefined): boolean {
@@ -117,8 +122,11 @@ export function mailsGuestsItself(kind: string | undefined): boolean {
  * tested, and never that it emails guests, which nobody has seen it do. A
  * kind leaves this set when it leaves the list, or when a pass shows it mails
  * guests after all.
+ *
+ * Empty since 2026-11-20, when Infomaniak, the one kind it held, left both
+ * (ADR-0043). Kept, with its reader, for the next kind that arrives untested.
  */
-export const TARGETS_UNTESTED_FOR_GUESTS: ReadonlySet<string> = new Set(['infomaniak']);
+export const TARGETS_UNTESTED_FOR_GUESTS: ReadonlySet<string> = new Set<string>();
 
 /** Is this kind kept without guests because it is untested, rather than because it mailed them? */
 export function guestsUntestedAt(kind: string | undefined): boolean {

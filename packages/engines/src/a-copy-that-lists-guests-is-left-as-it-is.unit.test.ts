@@ -302,48 +302,62 @@ describe('a removal at a target that mails guests', () => {
 });
 
 /**
- * THE SAME AT INFOMANIAK (workplan 0161). `infomaniak` is on
- * `TARGETS_THAT_MAIL_GUESTS` from the day its kind arrives, untested, and a
- * writer's flag is that list's answer for its kind (`mailsGuestsItself`, which
- * the factories hand over). This writer sends Infomaniak no guest, so a copy
- * there that lists one was given it at Infomaniak; it is neither rewritten nor
- * removed, exactly as at Cirrux.
+ * AN INFOMANIAK TARGET IS WRITTEN AS A NEXTCLOUD ONE IS (workplan 0161;
+ * ADR-0043, amended 2026-11-20). `infomaniak` was on
+ * `TARGETS_THAT_MAIL_GUESTS`, untested, from the day its kind arrived until
+ * that amendment took it off. A writer's flag is that list's answer for its
+ * kind (`mailsGuestsItself`, which the factories hand over), so Infomaniak's
+ * writers keep each guest and the organiser, marked `SCHEDULE-AGENT=CLIENT`,
+ * read nothing first, and rewrite and remove a copy that lists guests as at
+ * any target not on the list. Mail seen at Infomaniak (0161 T2) puts it back
+ * on the list, and then these cases fail, as they should.
  */
-describe('a copy that lists guests at an Infomaniak target (workplan 0161)', () => {
+describe('an Infomaniak target, written as a Nextcloud one is (workplan 0161, 2026-11-20)', () => {
   const mailsGuests = mailsGuestsItself('infomaniak');
 
-  it('is at a target the writers treat as one that mails guests', () => {
-    expect(mailsGuests).toBe(true);
+  it('is not a target the writers treat as one that mails guests', () => {
+    expect(mailsGuests).toBe(false);
   });
 
-  it('is not rewritten: nothing is sent, and the copy stays as it was', async () => {
+  it('gets a first copy with its guest and organiser, each marked SCHEDULE-AGENT=CLIENT', async () => {
+    const t = target(undefined);
+    const atSource = WITH_GUESTS.replace(/;SCHEDULE-AGENT=CLIENT/g, '');
+
+    await writer(t.client, mailsGuests).upsertCalendarEvent(CALENDAR, {
+      item: { uid: 'evt-1', type: 'event', summary: 'A meeting', start: '', etag: 'e1', sourcePath: '', icalendar: atSource },
+      icalendar: atSource,
+    });
+
+    const body = t.sent('PUT')[0]?.body;
+    expect(body).toContain('\r\nORGANIZER;SCHEDULE-AGENT=CLIENT;CN=Someone:mailto:organiser@example.org\r\n');
+    expect(body).toContain('\r\nATTENDEE;SCHEDULE-AGENT=CLIENT;CN=A Guest:mailto:guest@example.org\r\n');
+    expect(body).not.toContain('COMMENT:');
+  });
+
+  it('rewrites a copy that lists guests with its guests kept, and reads nothing first', async () => {
     const t = target({ body: WITH_GUESTS, etag: 'v1' });
 
     const result = await rewrite(writer(t.client, mailsGuests));
 
-    expect(result).toEqual({ targetId: EVENT, created: false, keptForGuests: true });
-    expect(t.sent('PUT'), 'a PUT here takes the guest off').toHaveLength(0);
-    expect(t.held()).toEqual({ body: WITH_GUESTS, etag: 'v1' });
+    expect(result).toMatchObject({ targetId: EVENT, created: false, updated: true });
+    expect(t.sent('GET')).toHaveLength(0);
+    const [put] = t.sent('PUT');
+    expect(put?.headers?.['If-Match']).toBe('"v1"');
+    expect(put?.body).toContain('SUMMARY:A meeting, moved');
+    expect(put?.body).toContain('\r\nATTENDEE;CN=A Guest;SCHEDULE-AGENT=CLIENT:mailto:guest@example.org\r\n');
   });
 
-  it('is not removed either, a task as an event', async () => {
+  it('removes a copy that lists guests, a task as an event, and reads nothing first', async () => {
     for (const domain of ['calendar', 'task'] as const) {
       const body = domain === 'task' ? WITH_GUESTS.replace(/VEVENT/g, 'VTODO') : WITH_GUESTS;
       const t = target({ body, etag: 'v1' });
 
       const result = await writer(t.client, mailsGuests, domain).removeItem(EVENT, { expectedTargetVersion: 'v1' });
 
-      expect(result, domain).toEqual({ keptForGuests: true });
-      expect(t.sent('DELETE'), domain).toHaveLength(0);
+      expect(result, domain).toEqual({ kind: 'deleted' });
+      expect(t.sent('GET'), domain).toHaveLength(0);
+      expect(t.sent('DELETE'), domain).toHaveLength(1);
+      expect(t.held(), domain).toBeUndefined();
     }
-  });
-
-  it('still rewrites a copy that lists nobody, as every copy this writer made there does', async () => {
-    const t = target({ body: WITHOUT_GUESTS, etag: 'v1' });
-
-    const result = await rewrite(writer(t.client, mailsGuests));
-
-    expect(result).toMatchObject({ targetId: EVENT, created: false, updated: true });
-    expect(t.sent('PUT')[0]?.body).not.toMatch(/^(ATTENDEE|ORGANIZER)/m);
   });
 });
