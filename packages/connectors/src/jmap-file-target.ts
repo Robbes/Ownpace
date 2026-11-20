@@ -129,7 +129,8 @@ const RATE_LIMIT_ATTEMPTS = 5;
 const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
 
 /**
- * The ONLY property list this file uses for reading nodes.
+ * The ONLY property list this file uses for reading nodes, as the FileNode
+ * draft Stalwart v0.16 speaks names them.
  *
  * `blobId` is in it for the reason in the header: the stored handle is not the
  * uploaded one, so anything that wants the content has to ask the node. `size`
@@ -138,6 +139,69 @@ const RATE_LIMIT_BASE_BACKOFF_MS = 1000;
  * the path is reconstructed from — omit either and every key is wrong.
  */
 const NODE_PROPERTIES = ['id', 'parentId', 'name', 'nodeType', 'blobId', 'size', 'type'] as const;
+
+/**
+ * THE TWO FILENODE DRAFTS THIS WRITER HAS MET ON THE WIRE.
+ *
+ * Stalwart v0.16 speaks the draft it shipped with: a node's kind is `nodeType`
+ * (`"file"`, `"directory"`), its media type is `type`, and a create that sends
+ * `@type` is refused with `invalidProperties: ["@type"]` (the spike). From
+ * v1.0 it speaks a newer draft (draft-ietf-jmap-filenode-18 at 1.0.0, -20 by
+ * 1.1.0): the kind is `@type` (`"File"`, `"Directory"`), REQUIRED on create
+ * (`@type is required on creation.`), and the media type is `mediaType`.
+ * `nodeType` and `type` are not properties there at all: asked for, they are
+ * dropped from the answer, so every node would read as neither kind; sent,
+ * they are refused. Read at v1.1.1, `crates/jmap-proto/src/object/file_node.rs`
+ * and `crates/jmap/src/file/set.rs` (2026-11-20).
+ *
+ * The newer draft says which it is: the account's filenode capability carries
+ * `supportedNodeTypes`, which the older one does not. That is what picks the
+ * wire, once per session, never a guess from a node's shape.
+ *
+ * The v0.16 wire is exactly what this file sent before the newer one existed,
+ * byte for byte, so the fingerprints recorded against a v0.16 server (the
+ * ownership guard, `fingerprintOf`) still match what it is asked for.
+ */
+interface NodeWire {
+  /** What `FileNode/get` asks for. */
+  readonly properties: ReadonlyArray<string>;
+  /** The property that says what kind of node it is. */
+  readonly kindKey: 'nodeType' | '@type';
+  /** Its value for a file, and for a directory. */
+  readonly file: string;
+  readonly directory: string;
+  /** The property a file's media type is written to. */
+  readonly mediaTypeKey: 'type' | 'mediaType';
+  /** Does a create send the kind? The older draft refuses it, the newer requires it. */
+  readonly sendsKind: boolean;
+}
+
+const V016_WIRE: NodeWire = {
+  properties: NODE_PROPERTIES,
+  kindKey: 'nodeType',
+  file: 'file',
+  directory: 'directory',
+  mediaTypeKey: 'type',
+  sendsKind: false,
+};
+
+const TYPED_WIRE: NodeWire = {
+  properties: ['id', 'parentId', 'name', '@type', 'blobId', 'size', 'mediaType'],
+  kindKey: '@type',
+  file: 'File',
+  directory: 'Directory',
+  mediaTypeKey: 'mediaType',
+  sendsKind: true,
+};
+
+/**
+ * Which draft the session's account speaks: the newer one when its filenode
+ * capability lists `supportedNodeTypes`, the v0.16 one otherwise.
+ */
+function wireOf(session: JmapSession, accountId: string): NodeWire {
+  const capability = session.accounts?.[accountId]?.accountCapabilities?.['urn:ietf:params:jmap:filenode'];
+  return Array.isArray(capability?.supportedNodeTypes) ? TYPED_WIRE : V016_WIRE;
+}
 
 /** The capabilities every request here declares. */
 const USING = ['urn:ietf:params:jmap:core', 'urn:ietf:params:jmap:filenode'] as const;
@@ -151,15 +215,17 @@ export interface JmapFileTargetConfig {
   readonly wellKnownPath?: string;
 }
 
-/** A FileNode as it comes off the wire. */
+/** A FileNode as it comes off the wire, in either draft (`NodeWire`). */
 interface FileNode {
   readonly id: string;
   readonly parentId?: string | null;
   readonly name?: string;
   readonly nodeType?: string;
+  readonly '@type'?: string;
   readonly blobId?: string | null;
   readonly size?: number | null;
   readonly type?: string | null;
+  readonly mediaType?: string | null;
 }
 
 interface NodeGetResponse {
@@ -177,7 +243,16 @@ interface NodeSetResponse {
 }
 
 interface JmapSession {
-  readonly accounts?: Record<string, { id?: string; name?: string; email?: string }>;
+  readonly accounts?: Record<
+    string,
+    {
+      id?: string;
+      name?: string;
+      email?: string;
+      /** RFC 8620 §2: per-account capability objects; the filenode one says which draft (`wireOf`). */
+      accountCapabilities?: Record<string, { readonly supportedNodeTypes?: unknown } | undefined>;
+    }
+  >;
   readonly primaryAccounts?: Record<string, string>;
   readonly downloadUrl?: string;
   /** RFC 8620 §2: the core capability carries the largest upload, in octets. */
@@ -212,6 +287,8 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
    * decides, and its refusal is the failure (0143 T3b).
    */
   private maxSizeUpload: number | undefined;
+  /** Which FileNode draft the account speaks, read from its session at connect (`wireOf`). */
+  private wire: NodeWire = V016_WIRE;
   private connectPromise: Promise<void> | null = null;
   /**
    * The account's file tree as of the first read this pass.
@@ -307,6 +384,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       );
     }
     this.accountId = resolved;
+    this.wire = wireOf(session, resolved);
   }
 
   // ---------------------------------------------------------------------
@@ -415,7 +493,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     const response = await this.apiRequest<NodeGetResponse>('FileNode/get', {
       accountId: this.accountId,
       ids: null,
-      properties: [...NODE_PROPERTIES],
+      properties: [...this.wire.properties],
     });
 
     const raw = response.list ?? [];
@@ -438,7 +516,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     const files = new Map<string, FileNode>();
     const directories = new Map<string, FileNode>();
     for (const node of raw) {
-      const kind = nodeKind(node);
+      const kind = nodeKind(node, this.wire);
       const path = reconstructFileNodePath(node.id, nodes);
       if (!path.ok) {
         // Refuse loudly. A partial or guessed path is a well-formed string
@@ -479,6 +557,23 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     this.treeSnapshot = null;
   }
 
+  /** A node's kind, in the property and spelling this account's draft uses (`NodeWire`). */
+  private kindOf(kind: 'file' | 'directory'): Pick<FileNode, 'nodeType' | '@type'> {
+    const value = kind === 'file' ? this.wire.file : this.wire.directory;
+    return this.wire.kindKey === '@type' ? { '@type': value } : { nodeType: value };
+  }
+
+  /** The kind a create sends: nothing to the v0.16 draft, which refuses it; `@type` to the newer one, which requires it. */
+  private kindOnCreate(kind: 'file' | 'directory'): Pick<FileNode, '@type'> {
+    return this.wire.sendsKind ? { '@type': kind === 'file' ? this.wire.file : this.wire.directory } : {};
+  }
+
+  /** The source's media type, under the name this account's draft gives it; nothing when the source gave none. */
+  private mediaTypeOf(raw: RawFileItem): Pick<FileNode, 'type' | 'mediaType'> {
+    if (!raw.item.mimeType) return {};
+    return this.wire.mediaTypeKey === 'mediaType' ? { mediaType: raw.item.mimeType } : { type: raw.item.mimeType };
+  }
+
   /**
    * Record something we just created into the cached tree.
    *
@@ -494,7 +589,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       name: node.name ?? lastSegment(path),
       parentId: node.parentId ?? null,
     });
-    (nodeKind(node) === 'directory' ? snapshot.directories : snapshot.files).set(path, node);
+    (nodeKind(node, this.wire) === 'directory' ? snapshot.directories : snapshot.files).set(path, node);
   }
 
   // ---------------------------------------------------------------------
@@ -567,14 +662,15 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
   ): Promise<string> {
     const response = await this.apiRequest<NodeSetResponse>('FileNode/set', {
       accountId: this.accountId,
-      // No `@type`. Stalwart refused it with `invalidProperties: ["@type"]`
-      // during the spike — recorded so nobody adds it back.
-      create: { '0': { name, parentId } },
+      // `@type` only where the draft asks for it (`NodeWire`): Stalwart v0.16
+      // refused it with `invalidProperties: ["@type"]` during the spike, and
+      // v1 refuses a create without it.
+      create: { '0': { ...this.kindOnCreate('directory'), name, parentId } },
     });
 
     const id = response.created?.['0']?.id;
     if (id) {
-      this.remember(fullPath, { id, name, parentId, nodeType: 'directory' }, snapshot);
+      this.remember(fullPath, { id, name, parentId, ...this.kindOf('directory') }, snapshot);
       return id;
     }
 
@@ -673,10 +769,11 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       accountId: this.accountId,
       create: {
         '0': {
+          ...this.kindOnCreate('file'),
           name: lastSegment(naturalKey),
           parentId: parentIdFor(parentNodeId),
           blobId,
-          ...(raw.item.mimeType ? { type: raw.item.mimeType } : {}),
+          ...this.mediaTypeOf(raw),
         },
       },
     });
@@ -705,7 +802,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
         id: createdId,
         name: lastSegment(naturalKey),
         parentId: parentIdFor(parentNodeId),
-        nodeType: 'file',
+        ...this.kindOf('file'),
       },
       snapshot,
     );
@@ -773,7 +870,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
       update: {
         [targetId]: {
           blobId,
-          ...(raw.item.mimeType ? { type: raw.item.mimeType } : {}),
+          ...this.mediaTypeOf(raw),
         },
       },
     });
@@ -963,7 +1060,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     const response = await this.apiRequest<NodeGetResponse>('FileNode/get', {
       accountId: this.accountId,
       ids: [entry.targetId],
-      properties: [...NODE_PROPERTIES],
+      properties: [...this.wire.properties],
     });
     const blobId = response.list?.[0]?.blobId;
     if (!blobId) {
@@ -1023,7 +1120,8 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
    * A stable fingerprint of one node AS THE SERVER STORES IT.
    *
    * The ownership marker this transport does not otherwise have — see
-   * `rewriteFile`. Built over the fixed `NODE_PROPERTIES` list so it is
+   * `rewriteFile`. Built over the fixed property list of the account's draft
+   * (`NodeWire`; on v0.16, `NODE_PROPERTIES`, as before the newer draft) so it is
    * deterministic, canonicalised because JMAP makes no promise about key order
    * and Stalwart demonstrably varies it between reads: hashing the raw JSON
    * would report a conflict on every rewrite and quietly stop update
@@ -1075,7 +1173,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     const response = await this.apiRequest<NodeGetResponse>('FileNode/get', {
       accountId: this.accountId,
       ids: [targetId],
-      properties: [...NODE_PROPERTIES],
+      properties: [...this.wire.properties],
     });
     const node = response.list?.[0];
     if (!node) return undefined;
@@ -1105,7 +1203,7 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
     const response = await this.apiRequest<NodeGetResponse>('FileNode/get', {
       accountId: this.accountId,
       ids: [targetId],
-      properties: [...NODE_PROPERTIES],
+      properties: [...this.wire.properties],
     });
     if (response.list?.some((node) => node.id === targetId)) return true;
     if (response.notFound?.includes(targetId)) return false;
@@ -1177,17 +1275,20 @@ export class JmapFileTarget implements FileTargetWriter, TargetReindexer, Target
 /**
  * File or directory, refusing to guess.
  *
- * `nodeType` is what the spike observed (`"file"` / `"directory"`). Inferring
- * it from the presence of a `blobId` would be a guess, and the two answers
+ * `nodeType` is what the spike observed on v0.16 (`"file"` / `"directory"`),
+ * and `@type` (`"File"` / `"Directory"`) what the newer draft names it
+ * (`NodeWire`); the account's draft says which to read. Inferring it from the
+ * presence of a `blobId` would be a guess, and the two answers
  * lead to opposite destructive outcomes: a file mistaken for a directory is
  * never migrated, a directory mistaken for a file is written over.
  */
-function nodeKind(node: FileNode): 'file' | 'directory' {
-  if (node.nodeType === 'file') return 'file';
-  if (node.nodeType === 'directory') return 'directory';
+function nodeKind(node: FileNode, wire: NodeWire): 'file' | 'directory' {
+  const kind = node[wire.kindKey];
+  if (kind === wire.file) return 'file';
+  if (kind === wire.directory) return 'directory';
   throw new Error(
-    `FileNode ${node.id} reports nodeType ${JSON.stringify(node.nodeType)}, which is neither ` +
-      `'file' nor 'directory'. Guessing would either skip a file forever or write over a ` +
+    `FileNode ${node.id} reports ${wire.kindKey} ${JSON.stringify(kind)}, which is neither ` +
+      `'${wire.file}' nor '${wire.directory}'. Guessing would either skip a file forever or write over a ` +
       `directory, so this refuses.`,
   );
 }

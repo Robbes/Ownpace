@@ -181,6 +181,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
+  a file node's kind `@type` and requires it when a node is made, and calls its media type
+  `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
+  file from a folder nor make either. It now speaks both, chosen by what the account's session
+  says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
+  are still recognised as its own.
 - **Moves and Deletions name the item each row asks about** (workplan 0159): a file renamed at
   the top of a drive read only `/ renamed` beside an ID and now reads
   `/report.pdf → report-final.pdf`, a moved file shows its name in both folders, and a message,
