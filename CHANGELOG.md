@@ -49,6 +49,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   finished, it removes the demo's Stalwart and its data volume and clears the demo mail
   migration's own records, nothing else; without `--yes` it only shows what it would do. It
   refuses live. Nothing runs it by itself.
+- **The managed gate says what was there when its folder press falls short** (workplan 0104).
+  E2E (managed) run 44731893238 failed once on 2026-11-20: the demo target refused the file inside
+  the shared folder with 404, and the second attempt passed. Whether the file was not on the target
+  yet or the share API refused a file it held, the job log could not say, and the cause is not yet
+  known. When the folder press applies fewer than two rows, `smoke-managed.sh` now prints, before it
+  fails, the file's ledger rows, the mapping's passes since the seed, the folder's share rows, and
+  whether the target holds the folder and the file now. Nothing passes or fails differently.
 - **The Docker socket proxy is built from Tecnativa's docker-socket-proxy v0.6.0, which allows
   and refuses what v0.5.0 did** (workplan 0119). v0.6.0 keeps v0.5.0's configuration and
   entrypoint byte for byte, moved into a `system_files/` directory that one COPY takes, and the
@@ -103,6 +110,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A copied message keeps the time it arrived** (workplan 0002, 0001). The IMAP writer gave
+  each message it copied no arrival time, so the target recorded the moment of copying: the time
+  a mail app sorts "received" by, and the one a webmail shows when a message's `Date:` line is
+  missing or unreadable. On 2026-11-20 four old messages copied from Gmail into Cirrux on the
+  test environment showed the evening they were copied. The writer now sends the source's own
+  arrival time (IMAP's INTERNALDATE, or Microsoft Graph's `receivedDateTime`), then the `Date:`
+  line when the source gave none, and otherwise leaves the time to the target, as before. The
+  JMAP writer read only the `Date:` line, and now takes the same order. Messages copied before
+  this keep the time they were given: a later pass finds them by their Message-ID and leaves
+  them as they are.
 - **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
   a file node's kind `@type` and requires it when a node is made, and calls its media type
   `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a

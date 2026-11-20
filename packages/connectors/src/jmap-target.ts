@@ -17,7 +17,7 @@ import type {
   RemovalResult,
 } from "@openmig/shared";
 import { contentHash } from "@openmig/shared";
-import { log } from '@openmig/shared';
+import { arrivalTimeOf, log } from '@openmig/shared';
 
 /**
  * Above this many messages already on the target, stop enumerating it up front
@@ -979,9 +979,6 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
       }
     }
 
-    // Parse headers from raw message to get receivedAt date
-    const headers = this.parseRfc822Headers(raw.rfc822);
-
     // Step 1: Upload the raw RFC822 message as a blob
     // The Blob/upload endpoint expects BodyInit (Blob, File, ArrayBuffer, string, etc.)
     // Note: blobFileName is computed but not used - uploadBlob doesn't require a filename
@@ -1006,14 +1003,10 @@ export class JmapTargetWriter implements TargetWriter, TargetReindexer {
     const blobId = blobUploadResponse.blobId;
 
     
-    // Parse the date from headers and convert to ISO 8601 UTC format for JMAP
-    let receivedAt: string;
-    if (headers.date) {
-      const parsedDate = new Date(headers.date);
-      receivedAt = !isNaN(parsedDate.getTime()) ? parsedDate.toISOString() : new Date().toISOString();
-    } else {
-      receivedAt = new Date().toISOString();
-    }
+    // The message's own arrival time: the source's first, then its `Date:`
+    // line, then this clock (`arrivalTimeOf` says why, in that order). It was
+    // the `Date:` line alone, so a source's INTERNALDATE never reached here.
+    const receivedAt = (arrivalTimeOf(raw) ?? new Date()).toISOString();
     
     // Step 2: Import the email from the blob using Email/import
     const importRequest = {
