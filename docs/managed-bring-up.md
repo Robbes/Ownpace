@@ -1618,7 +1618,12 @@ began, and marks an open one nobody signed in to or nothing is connected to;
 *Not in use* shows only those. Each organisation's page ends with *Close this
 organisation*, the close `operator.sh close` makes, audited under your name with
 the request you name (workplan 0139 T7 (b)). It is how to end an organisation a
-granted request made, which `clean empty-tenant` refuses.
+granted request made, which `clean empty-tenant` refuses. From the close on, the
+organisation takes nobody in: its unanswered invitation is neither taken up at a
+sign-in nor offered, so somebody who signs up with that address afterwards is
+told they belong to no organisation and is offered *Ask for access*. A Reopen
+before the erasure gives it back, and it binds at their next sign-in. Somebody
+already in it when you close it stays in it.
 
 **How many grant links an organisation may hold at once.** As many live grant
 links as its tier runs migrations at the same time:
