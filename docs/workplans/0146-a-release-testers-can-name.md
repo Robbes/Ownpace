@@ -4,6 +4,68 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, evening: live runs `v0.2.0-alpha.12`, one-way, on a copy of alpha.11's databases
+(T2).** The owner deployed it from the tag on 2026-11-20: one run of alpha.11's `deploy-live.sh`,
+from about 17:20 UTC, which took at 17:22:57, one-way over alpha.11 by ledger migrations 0068 and
+0069, managed migration 0061 and the identity provider's pin, as the fold's entry below expected.
+First the owner set live's `API_URL` to its outside address, which Google's consent needs and live's
+`.env` did not have (0140), and, on their word, *"A: fix with the deploy"*, deleted the copy before
+alpha.11, of alpha.10's databases and not proven, by hand, so the take made the copy before
+alpha.12, of alpha.11's databases, at 17:20:23: the way back from alpha.12. After it the api and the
+web run their builds from the tag, the new api applied 0068, 0069 and 0061 at 17:21, the sign-in
+service runs Zitadel v4.20.4, the pooler, the socket proxy and the TLS front run their new builds,
+the front as 65532 with no capability, and the tasks deployed as `20261120.1` on 4.8.5; every other
+service kept its container. Every check after it passed, and the hold, on from 17:00:21, came off at
+18:01:46; 0132's Status of 2026-11-20 has the blocks. Still the owner's: the first invitation's date
+(0131 T5), the migration on live that proves alpha.12 (0132 T9), and Google's consent on live (0140
+T11).
+
+**2026-11-20, later: `v0.2.0-alpha.12` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-20. Times are UTC.
+
+- **C is `b4d11ee7`**, the squash of #1962 (the fold), merged on 2026-11-20 at 09:50:15 on
+  `068182c6` (#1938). Its tree is that of the fold's head, `d973fe56`. On C, all green: CI run
+  44714081278 (its `ci-complete` passed at 10:15:26), Security Scan run 44714081020, Images run
+  44714080992, Nextcloud second major run 44714080941 and Dockerfile lint run 44714081130.
+- **In the counted nights' place**, waived for alpha.12 (*"I waive waiting time / nights if
+  needed."*, #1958), dispatched on `main` at C, all green: E2E (managed) run 44714114777
+  (09:50:32 to 09:58:31), then E2E (self-hosted) on Postgres, run 44715322756 (09:59:18 to
+  10:05:48), and on PGlite, run 44718476043 (10:21:02 to 10:26:25), one at a time, each once the
+  run before it had ended green; beside them Security Scan with the image scans, run 44714118831
+  (29 jobs), and `windows-payload.yml` run 44714123093 (win-x64).
+- **Release.** The owner dispatched the runs from their own account and approved in the `release`
+  environment. The preflight, run 44725673026 (11:12 to 11:13), was green. Release run
+  44726032197, with `waive_nights` set to *I waive waiting time / nights.*, in one attempt: its
+  preflight passed (11:15:04 to 11:15:54) and it waited at its approve job until the owner
+  approved (11:26); then the gate scan of C (run 44727684552, on `release-gate/v0.2.0-alpha.12`,
+  11:26:54 to 11:27:57) and the tag (11:28:26) succeeded. The publish job's Security Scan on the
+  tag, run 44727940823 (11:28:51 to 11:30:04), made the release with its body and SBOM; the
+  images, run 44728198020 (11:30:43 to 11:32:01), and the Windows zip, run 44728204031 (11:30:46
+  to 11:32:26), both on the tag, were green; and verify passed (11:32:54 to 11:33:47).
+- **The tag.** `v0.2.0-alpha.12` is tag object `0a2b3244…` on `b4d11ee7`, made by
+  `github-actions[bot]` at 11:28:26. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/44726032197*, *Proved by: CI run #5670, Security
+  Scan run #5788 on main, windows-payload run #48; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/44727684552* and *Nights waived by Robbes, in
+  their words: "I waive waiting time / nights."*
+- **The scheduled E2E (managed) of 2026-11-20 ran C**, run 44731893238: red on its first attempt
+  (12:00 to 12:07), at the smoke's *the moment, pressed*: the press of the shared folder applied
+  the folder's grant, and the target refused the grant on the file inside it with a 404, not
+  finding the file; green on its second attempt (12:13:48 to 12:20:45). Why the file was not
+  there yet is not known.
+- **The image scan after the tag**, Security Scan run 44737760682 (`image_scans`, on `main` at
+  `71144ed2`, 12:40:33 to 12:44:33, 29 jobs), reads alpha.12's own images, `ownpace-api`,
+  `ownpace-web` and `ownpace-selfhost` at `0.2.0-alpha.12`, at 0, 0 and 0. Its tiers read `main`'s
+  pins, which by then carried #1963's Trigger.dev webapp image. alpha.12's own, read on C by run
+  44714118831, are (critical, high, with a fix): what the internet reaches on live 0, 6 and 6; what
+  live runs inside 2, 41 and 18, the Trigger.dev webapp 1, 20 and 9 of them (on `main` after #1963:
+  2, 35 and 12, the webapp 1, 14 and 3); the appliance 0, 0 and 0 (0119). The gate scan and the
+  scan on the tag scan the repository, not the images.
+- **The O365 lane** is not read by Release. alpha.12 is tagged without a run of it, and no waiver
+  of the lane for alpha.12 is recorded (0141, the entry of this day).
+- **Owed after the tag:** live's deploy from alpha.11, one-way by ledger migrations 0068 and 0069,
+  managed migration 0061 and the identity provider's pin (the fold's entry, below).
+
 **2026-11-20: the fold for `v0.2.0-alpha.12` (T2).** `package.json` and the API contract say
 `0.2.0-alpha.12`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
 its section, dated 2026-11-20, under a summary; [Unreleased] stays, empty. alpha.12 carries what
