@@ -55,6 +55,9 @@ const SESSION = {
   downloadUrl: 'https://0.0.0.0/jmap/download/{accountId}/{blobId}/{name}?accept={type}',
 };
 
+/** The session the fake serves; `SESSION` unless a test says otherwise. */
+let session: Record<string, unknown> = SESSION;
+
 /** One JMAP method call, as the fake transport recorded it. */
 interface Call {
   readonly url: string;
@@ -135,10 +138,11 @@ beforeEach(() => {
   blobs = new Map();
   for (const k of Object.keys(seen)) delete seen[k];
   responders = {};
+  session = SESSION;
 
   vi.stubGlobal('fetch', async (url: string, init: RequestInit) => {
     if (url.includes('/.well-known/jmap')) {
-      return new Response(JSON.stringify(SESSION), {
+      return new Response(JSON.stringify(session), {
         status: 200,
         headers: { 'Content-Type': 'application/json' },
       });
@@ -756,5 +760,191 @@ describe('the session', () => {
     // Stalwart advertises `https://0.0.0.0/jmap/`, which is unroutable.
     expect(calls[0]!.url).toBe('http://jmap.test/jmap');
     expect(calls[0]!.using).toContain('urn:ietf:params:jmap:filenode');
+  });
+});
+
+// =======================================================================
+// The FileNode draft the account speaks (Stalwart v1, 2026-11-20)
+// =======================================================================
+
+/**
+ * Stalwart from v1.0 speaks a newer FileNode draft than the v0.16 every test
+ * above models: a node's kind is `@type` (`"File"`, `"Directory"`), REQUIRED
+ * on create, and its media type is `mediaType`. `nodeType` and `type` are not
+ * properties there: asked for, they are dropped from the answer, which is
+ * what `treeResponder` does with any name it was not asked for; sent, they
+ * are refused. The account's filenode capability says which draft, by
+ * carrying `supportedNodeTypes`, as v1.1.1's session does
+ * (`crates/common/src/config/mailstore/capabilities.rs` at v1.1.1).
+ */
+const V1_SESSION = {
+  ...SESSION,
+  accounts: {
+    acct: {
+      email: 'target@dev.local',
+      accountCapabilities: {
+        'urn:ietf:params:jmap:filenode': { supportedNodeTypes: ['Directory', 'File', 'SymLink'] },
+      },
+    },
+  },
+};
+
+function v1Directory(id: string, name: string, parentId: string | null): Record<string, unknown> {
+  return { id, name, parentId, '@type': 'Directory' };
+}
+
+function v1File(
+  id: string,
+  name: string,
+  parentId: string | null,
+  extra: Record<string, unknown> = {},
+): Record<string, unknown> {
+  return {
+    id,
+    name,
+    parentId,
+    '@type': 'File',
+    blobId: `stored-${id}`,
+    size: CONTENT.byteLength,
+    mediaType: 'text/plain',
+    ...extra,
+  };
+}
+
+describe('an account on the newer FileNode draft', () => {
+  beforeEach(() => {
+    session = V1_SESSION;
+  });
+
+  it('reads the kind from @type, asking for the newer names and never nodeType or type', async () => {
+    responders['FileNode/get'] = treeResponder([
+      v1Directory('d1', 'Documents', null),
+      v1File('f1', 'report.pdf', 'd1'),
+    ]);
+
+    const entries: TargetEntry[] = [];
+    for await (const entry of target().listEntries()) entries.push(entry);
+
+    expect(entries.map((e) => e.naturalKey)).toEqual(['Documents/report.pdf']);
+    expect(entries[0]!.sizeBytes).toBe(CONTENT.byteLength);
+    const asked = calls.find((c) => c.method === 'FileNode/get')!.args.properties as string[];
+    expect(asked).toEqual(['id', 'parentId', 'name', '@type', 'blobId', 'size', 'mediaType']);
+  });
+
+  it('creates each directory and the file with @type, and sends the media type as mediaType', async () => {
+    const madeDirs: Array<Record<string, unknown>> = [];
+    let fileCreate: Record<string, unknown> | undefined;
+    responders['FileNode/get'] = () => ({ list: [] });
+    responders['FileNode/set'] = (args) => {
+      const create = (args.create as Record<string, Record<string, unknown>>)['0']!;
+      if (create.blobId) {
+        fileCreate = create;
+        return { created: { '0': { id: 'f1' } } };
+      }
+      madeDirs.push(create);
+      return { created: { '0': { id: `d${madeDirs.length}` } } };
+    };
+
+    const result = await target().upsertFile('', rawFile('Documents/2026/report.pdf'));
+    expect(result.created).toBe(true);
+
+    // The whole create, not a subset: a `type` or `nodeType` beside the new
+    // names is refused by the newer draft, so their absence is the point.
+    expect(madeDirs).toEqual([
+      { '@type': 'Directory', name: 'Documents', parentId: null },
+      { '@type': 'Directory', name: '2026', parentId: 'd1' },
+    ]);
+    expect(fileCreate).toEqual({
+      '@type': 'File',
+      name: 'report.pdf',
+      parentId: 'd2',
+      blobId: 'uploaded-1',
+      mediaType: 'text/plain',
+    });
+  });
+
+  it('rewrites the media type as mediaType, and holds a stable fingerprint over the newer names', async () => {
+    const updates: Array<Record<string, unknown>> = [];
+    responders['FileNode/get'] = treeResponder([v1File('f1', 'report.pdf', null)]);
+    responders['FileNode/set'] = (args) => {
+      updates.push((args.update as Record<string, Record<string, unknown>>).f1!);
+      return { updated: { f1: null } };
+    };
+
+    const t = target();
+    const first = await t.upsertFile('', rawFile('report.pdf'), { overwrite: true });
+    expect(first.updated).toBe(true);
+    expect(first.targetVersion).toBeDefined();
+    const second = await t.upsertFile('', rawFile('report.pdf'), {
+      overwrite: true,
+      expectedTargetVersion: first.targetVersion,
+    });
+    expect(second.conflicted).toBeUndefined();
+    expect(second.updated).toBe(true);
+    expect(updates[0]).toEqual({ blobId: 'uploaded-1', mediaType: 'text/plain' });
+  });
+
+  it('sends a media type by its essence alone, and none when even that is not one', async () => {
+    // v1.1.1 refuses the whole create when `mediaType` carries a parameter,
+    // where v0.16 took any string as `type`: the file would never arrive.
+    const creates: Array<Record<string, unknown>> = [];
+    responders['FileNode/get'] = () => ({ list: [] });
+    responders['FileNode/set'] = (args) => {
+      creates.push((args.create as Record<string, Record<string, unknown>>)['0']!);
+      return { created: { '0': { id: `f${creates.length}` } } };
+    };
+
+    await target().upsertFile('', rawFile('notes.txt', CONTENT, 'text/plain; charset=utf-8'));
+    await target().upsertFile('', rawFile('odd.bin', CONTENT, 'not a media type'));
+
+    expect(creates[0]).toMatchObject({ '@type': 'File', name: 'notes.txt', mediaType: 'text/plain' });
+    expect(creates[1]).toMatchObject({ '@type': 'File', name: 'odd.bin' });
+    expect(creates[1]).not.toHaveProperty('mediaType');
+    // The upload still says what the source said: only the node's field is narrowed.
+    expect(uploads.map((u) => u.contentType)).toEqual(['text/plain; charset=utf-8', 'not a media type']);
+  });
+
+  it('refuses a node of a kind it does not write, as it does on v0.16', async () => {
+    responders['FileNode/get'] = treeResponder([
+      { id: 'x', name: 'link', parentId: null, '@type': 'SymLink' },
+    ]);
+    await expect(async () => {
+      for await (const _ of target().listEntries()) void _;
+    }).rejects.toThrow(/@type "SymLink", which is neither 'File' nor 'Directory'/);
+  });
+
+  it('fails loudly, rather than skip files, on a node with no @type', async () => {
+    // A node shaped the v0.16 way answers this draft's question with nothing:
+    // the server drops the names it does not know. Reading that as "not a
+    // file" would leave the file behind forever.
+    responders['FileNode/get'] = treeResponder([fileNode('f1', 'report.pdf', null)]);
+    await expect(async () => {
+      for await (const _ of target().listEntries()) void _;
+    }).rejects.toThrow(/neither 'File' nor 'Directory'/);
+  });
+});
+
+describe('an account on the v0.16 FileNode draft keeps the wire it always had', () => {
+  it('asks for exactly the properties it asked for before the newer draft, so recorded fingerprints still match', async () => {
+    responders['FileNode/get'] = treeResponder([]);
+    for await (const _ of target().listEntries()) void _;
+    expect(calls[0]!.args.properties).toEqual(['id', 'parentId', 'name', 'nodeType', 'blobId', 'size', 'type']);
+  });
+
+  it('chooses it when the filenode capability does not list supportedNodeTypes', async () => {
+    session = {
+      ...SESSION,
+      accounts: {
+        acct: { email: 'target@dev.local', accountCapabilities: { 'urn:ietf:params:jmap:filenode': {} } },
+      },
+    };
+    responders['FileNode/get'] = () => ({ list: [] });
+    let create: Record<string, unknown> | undefined;
+    responders['FileNode/set'] = (args) => {
+      create = (args.create as Record<string, Record<string, unknown>>)['0']!;
+      return { created: { '0': { id: 'f1' } } };
+    };
+    await target().upsertFile('', rawFile('report.pdf'));
+    expect(create).toEqual({ name: 'report.pdf', parentId: null, blobId: 'uploaded-1', type: 'text/plain' });
   });
 });

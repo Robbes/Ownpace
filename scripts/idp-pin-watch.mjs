@@ -68,9 +68,10 @@
  *                      Dockerfile's FROM, the tag its own name starts with,
  *                      its line saying that Dependabot reads that one too; the
  *                      busybox copies in the scripts, www.yml's nginx against
- *                      apps/web/Dockerfile's, Stalwart's copies and its newest
- *                      v0.16.x, the GoAccess release site-visits.sh builds
- *                      against upstream's git tags, the docker-socket-proxy
+ *                      apps/web/Dockerfile's, Stalwart's copies and the newest
+ *                      release of their minor line, the GoAccess release
+ *                      site-visits.sh builds against upstream's git tags,
+ *                      the docker-socket-proxy
  *                      release trigger-docker-proxy is built from against
  *                      upstream's git tags (its base, HAProxy, is compared
  *                      within its line, `LINES`), the Trivy the Security
