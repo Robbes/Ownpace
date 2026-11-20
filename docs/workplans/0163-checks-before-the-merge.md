@@ -7,8 +7,12 @@
 **2026-11-20: proposed.** An evaluation, not a build. Nothing in `.github/` changes on this plan's
 branch. Each recommendation below is the owner's to accept, change or refuse (§6). The candidate
 tools were run once, report only, on a separate branch that is never merged and has no pull request
-(`claude/ownpace-public-readiness-y7orc6-ci-scan-measure`, run 44823064781, on `main` at
-`bf9ede7`). §4 has what each one found.
+(`claude/ownpace-public-readiness-y7orc6-ci-scan-measure`, runs 44823064781 and 44824596099, on
+`main` at `bf9ede7`). §4 has what each one found. In short: osv-scanner reproduces finding 3 exactly
+and Semgrep reproduces findings 5 and 6, but nothing free reproduces 7 to 9, and every Semgrep and
+gitleaks spot read so far is a false positive or low risk. The two exceptions are
+`packages/core/src/secrets.ts`'s missing `authTagLength`, and finding 1, which is real and is a
+settings change.
 
 The outside check read `main` around `b4d11ee7` on 2026-11-19 and 2026-11-20. Its findings are
 transcribed from a screenshot, so a count here is the screenshot's count. Two of them belong to
@@ -20,8 +24,8 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T0 The decisions | owner | 📋 **Proposed** | §6: D1 to D6, each with advice. |
 | T1 Secrets into environments | builder | 📋 **Proposed** | Finding 1. Three GitHub environments, nine secrets moved, `environment:` on three jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | 📋 **Proposed** | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
-| T3 Semgrep, report only | builder | 📋 **Proposed** | Findings 5 to 9. A short list of named rules, not whole packs (§5, step 3). |
-| T4 Fix or answer each Semgrep spot | builder | 📋 **Proposed** | §4.3. Each spot is fixed or recorded as not reachable, one pull request per class. |
+| T3 Semgrep, report only | builder | 📋 **Proposed** | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
+| T4 Fix or answer each spot | builder | 📋 **Proposed** | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. For findings 8 and 9, add one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7: name the two spots from the check's detail first (D6). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Proposed** | A rule moves to blocking once it reports nothing on `main` (§5, step 5). |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Proposed** | Report only first; D4 decides on the allowlist (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
@@ -86,12 +90,12 @@ measure branch (§4).
 | — | Passed: React build variables, source maps, agent configuration, Express settings, secrets in image layers, images as root and risky ports | Partly, by the repository's own guards. | Nothing proposed; each passed. |
 | — | Measured: tools in an image production does not need (3) | Partly: `a-binary-the-stack-never-runs`. | Not named in the screenshot; nothing proposed. |
 | — | Partly measured: other infrastructure files (Trivy 0.74.0, 14 Dockerfiles) | Not run in CI. | Measured with the Security Scan's Trivy v0.76.2: 14 config files read and 14 failures. One is CRITICAL DS-0031 in the socket proxy's Dockerfile: it matches the proxy's `AUTH=0` and `SECRETS=0` switches, which are API permissions, not secrets, so it is a false positive. One is HIGH DS-0002, the same file ending as root (GEN-21). Twelve are LOW DS-0026, no HEALTHCHECK, which overlaps hadolint's findings. |
-| — | GEN-21, the socket proxy as root | Handled in another session. | Listed only. |
-| — | GEN-26, three `setup-node` steps zizmor flags; zizmor in CI | Handled in another session. | Listed only. |
+| — | GEN-21, the socket proxy as root | Handled in its own work. | Listed only. |
+| — | GEN-26, three `setup-node` steps zizmor flags; zizmor in CI | Handled in its own work. | Listed only. |
 
 ## 4. What the candidates found on this tree
 
-Measure run 44823064781, on `main` at `bf9ede7` with one added workflow, on `ubuntu-24.04`. Every
+Measure runs 44823064781 and 44824596099 (the second for Semgrep's audit packs), on `main` at `bf9ede7` with one added workflow, on `ubuntu-24.04`. Every
 tool was pinned (release sha256, or the image's index digest). Every exit status was recorded and
 nothing failed on a finding. Nothing was uploaded to code scanning. Below, a finding is named by
 its rule and file only.
@@ -120,7 +124,84 @@ advisory, GHSA-g3hv-75wg-m249 (CVE-2026-118764) in minimatch 10.2.6, and exited 
 
 ### 4.3 Semgrep 1.178.0
 
-Pending: the measure run's Semgrep job had not finished when this was written.
+Two runs, both on Semgrep's community rules from its registry, fetched by pack:
+- run 44823064781 ran `p/default`, `p/javascript`, `p/typescript`, `p/react`, `p/nodejs`,
+  `p/expressjs` and `p/secrets` (9 minutes for the seven, one after another);
+- run 44824596099 ran `p/security-audit`, `p/owasp-top-ten`, `p/r2c-security-audit`, `p/xss` and
+  `p/jwt` (4 minutes, of which `p/owasp-top-ten` took 102 seconds).
+
+Each pack scanned 2,209 to 2,929 files; the outside check counts 2,939. Every pack also logged
+parse errors (6 to 234 per pack), which Semgrep skips.
+
+**What they reproduce of the outside check's five classes:**
+
+| # | Class | Community rule that matched | Spots here | Read as |
+|---|---|---|---|---|
+| 5 | ReDoS | `detect-non-literal-regexp` | 174 in all; 20 outside test files | False positives in kind (below) |
+| 6 | Path from input | `path-join-resolve-traversal` | 1: `apps/worker/src/index.ts:92` | False positive: the path is the worker CLI's own `--config` argument, given by whoever runs the command |
+| 7 | Constant-time comparison | none | 0 | Not reproduced (below) |
+| 8 | Redirect from input | none | 0 | Not reproduced (below) |
+| 9 | React `javascript:` address | none | 0 | Not reproduced (below) |
+
+- **Class 5, the 20 spots outside tests:**
+  - `packages/connectors/src`: `caldav-source.ts:536`, `carddav-source.ts:496`,
+    `takeout-archive-reader.ts:546`;
+  - `packages/engines/src/dav-multistatus.ts`: lines 30 and 62;
+  - `packages/shared/src`: `calendar-scheduling.ts:241`, `dav-refusal.ts:104`,
+    `mail-headers.ts:60`, `remote-refusal.ts:107`;
+  - `scripts/`: `dav-target-probe.mjs:225`, `idp-pin-watch.mjs` (five), `nginx-config.mjs:141`,
+    `release-names-agree.mjs:149`, `release-preflight.mjs:177`, `release-verify.mjs` (two).
+
+  The rule flags any regular expression built at run time, whatever goes into it. Read here, every
+  value interpolated in `packages/` is either a constant at its call site, or escaped first
+  (`escapeForPattern`, `escapeRegExp`). The constants are element names such as `'response'`,
+  `'address-data'` | `'calendar-data'`, `'code'` and `'CN'`. The one value read from a remote
+  answer is `remote-refusal.ts`'s namespace prefix, which `XML_ROOT` has already limited to
+  `[A-Za-z_][A-Za-z0-9_-]*`, so it cannot add a quantifier. The `scripts/` ones read this
+  repository's own files. The other 154 are in test files. Which 32 the outside check counts, it
+  does not say; it presumably excludes part of the tests. So the rule would only ever fail the
+  build by being rewritten around: each spot would become a literal per element name, which is
+  churn with no safety gained. It stays out of any blocking set (D3).
+- **Classes 7, 8 and 9 are not in the community rules at 1.178.0**, or not in a form that matches
+  this code. The outside check's finding 7 is dated "since 2026-11-20", which suggests a rule newer
+  than the release it names or one outside the free registry. Read by hand instead:
+  - **7.** No comparison of a secret with `===` was found in `apps/` or `packages/` outside tests.
+    The comparisons with secret-like names are presence checks (`!== ''`, `!== null`). The two
+    places that compare a token against a stored one already use `timingSafeEqual`
+    (`google-consent.ts`, `packages/ledger/src/mapping-link-store.ts`). The two spots cannot be
+    named from here.
+  - **8.** The candidates are `apps/web/src/pages/Billing.tsx:760`
+    (`window.location.href = result.paymentUrl`, Mollie's checkout address from this API) and
+    `apps/web/src/services/consent-window.ts:123` (the provider's consent address, from this API).
+    Both come from this repository's own API, not from the visitor. That is low risk, but it is the
+    shape such a rule looks for. If one of them is the finding, the fix is a check that the address
+    is `https:` on the expected host before following it.
+  - **9.** The candidates are the `href={…}` values the web app takes from the API. The likeliest
+    is `apps/web/src/components/ProviderConsent.tsx:593` (`unopened.url`); the others are
+    `LegalLinks.tsx:67`, `StatusLink.tsx:53`, `Docs.tsx:211` and `Support.tsx:870`. None was shown
+    to carry visitor input. The same `https:` check closes it.
+- **What the packs found besides the five classes**, outside tests:
+  - `gcm-no-tag-length` at `packages/core/src/secrets.ts:194`: `createDecipheriv` without
+    `authTagLength`. The tag's length is checked by hand two lines above, so it is not exploitable
+    as written, but the option is a one-line hardening. **Real, small; fix.**
+  - `run-shell-injection` at `.github/workflows/no-committed-artifacts.yml:41`:
+    `${{ github.base_ref }}` inside `run:`. The base branch is one of this repository's own, so the
+    risk is low, but the fix is the usual one (pass it through `env:`). zizmor's
+    `template-injection` audit (GEN-26) reports the same line, so it belongs there.
+  - `gha-workflow-env-secret`, 8 spots: finding 1's secrets again, seen from another rule.
+  - `unknown-value-with-script-tag` at `apps/api/src/routes/migrations/google-consent.ts:832`:
+    false positive; the value goes through `jsString` (JSON) inside the script.
+  - `bypass-tls-verification` at `packages/connectors/src/smtp-transport.ts:83`: intended for a
+    self-signed test catcher, and `readNotifierConfig` refuses the setting in production. Also at
+    `scripts/clock-watch.mjs:344`. Accepted as written.
+  - `request-host-used` (nginx), 3 spots, and `last-user-is-root` (GEN-21).
+  - The supply-chain settings rules: `dependabot-missing-cooldown` (11 entries in
+    `.github/dependabot.yml`), and the pnpm ones (`pnpm-trust-policy`,
+    `pnpm-block-exotic-sub-dependencies`, `pnpm-minimum-release-age` at `pnpm-workspace.yaml:448`).
+    These are settings questions for 0119, not code findings. They are listed so the owner can
+    choose, not proposed here.
+- **In test files:** 25 `hardcoded-jwt-secret`, 14 `detected-*` token look-alikes, 3
+  `react-insecure-request`, `unsafe-formatstring` and others. All are fixtures.
 
 ### 4.4 Trivy v0.76.2, misconfiguration (`trivy config`)
 
@@ -148,9 +229,9 @@ an exact apk or apt pin, and hadolint stays report only.
 |---|---|---|---|---|---|---|---|---|
 | 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
 | 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before | GEN-26's pin-watch row |
-| 3 | Semgrep with a short list of named rules (§4.3), not whole packs | 5–9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short | pull request, push to `main` | pending (§4.3) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
+| 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` (report only for good) | 5, 6 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
 | 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
-| 5 | Semgrep moves to failing the build, one rule at a time | 5–9 | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
+| 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
 
 **Not worth adding:**
 - **Trivy's misconfiguration scan.** §4.4: it repeats hadolint and a guard, and its one CRITICAL
@@ -163,11 +244,24 @@ an exact apk or apt pin, and hadolint stays report only.
   Once the two spots are known, each one becomes a guard case or an answer (D6).
 - **Anything more for findings 2, 11 and 12.** They are covered, report only, by owner decisions
   already in force.
+- **Whole Semgrep packs.** Twelve packs found 174 plus about 100 more spots, almost all in tests,
+  and still not findings 7 to 9. A named list keeps the signal and runs in a minute or two.
 - **CodeQL**, unless D3 says so. Its JavaScript queries overlap the Semgrep classes above. Semgrep
-  is proposed instead because its version can match the outside check's, so the two agree.
+  is proposed instead because its version can match the outside check's, so classes 5 and 6
+  agree.
 
-**What has to be fixed first.** Only Semgrep's spots stand between a rule and failing the build
-(T4, §4.3). Finding 1 is fixed by moving secrets (T1), which is a repository-settings change plus
+**Findings 7, 8 and 9 have no scanner to add.** The free community rules at the outside check's
+version do not report them on this tree (§4.3). They are better closed by the code and one guard
+in this repository's own style than by a tool: one helper that refuses an address that is not
+`https:` on an expected host, used wherever the web app follows or links an address the API
+returned, and a `scripts/` guard that fails when `location.href =` or an `href` from a variable
+bypasses it (T4). Finding 7 waits for its two spots to be named (D6).
+
+**What has to be fixed first.** Before a Semgrep rule may fail the build: `secrets.ts`'s
+`authTagLength` (`gcm-no-tag-length`), and the `base_ref` line (`run-shell-injection`), which goes
+with GEN-26. `path-join-resolve-traversal` and `unknown-value-with-script-tag` each have one false
+positive. Each is answered in the plan, and the rule waits until the spot is reworded, or stays
+report only; it is never silenced in the code (§4.3). Finding 1 is fixed by moving secrets (T1), which is a repository-settings change plus
 three `environment:` lines. osv-scanner's one finding is accepted and is not a malicious-package
 record, so step 1 can fail the build at once. gitleaks blocks only on what a pull request adds,
 so nothing in the tree has to change first. Only D4's allowlist question has to be answered.
@@ -183,8 +277,10 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
   a branch cannot read them. This is a settings change the owner makes; the pull request only adds
   `environment:`. Then report `secrets-outside-env` only (it stays report only because zizmor marks
   it as needing judgement).
-- **D3. Semgrep with a named list of rules, report only first?** Advice: yes, and not whole packs:
-  §4.3 shows how much more the packs report than the five classes the outside check counts. Before
+- **D3. Semgrep with a named list of rules, report only first, and `detect-non-literal-regexp`
+  report only for good?** Advice: yes to both. The ReDoS rule flags the way a regular expression is
+  built, not what reaches it. Every one of its 20 spots outside tests is fed a constant or an
+  escaped value (§4.3), so it can never be made quiet honestly. Before
   rules from the Semgrep Registry are vendored into this public repository, the owner reads the
   Semgrep Rules License v1.0. The registry repository's licence file points to it, and this plan
   could not read the page from where it was written. Fetching a rule by id at run time keeps no
@@ -197,5 +293,7 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
 - **D5. Should the release SBOM list what is installed (as today) or everything the lockfile
   resolves?** Advice: keep today's. It describes what ships, and a release that lists platform
   binaries it never contains would be the less accurate document.
-- **D6. Finding 4's two routes.** Advice: read them from the outside check's detail and bring them
-  to a session. Each one either gets a case in the existing door guards or is recorded as intended.
+- **D6. The spots this plan cannot name: finding 4's two routes, finding 7's two comparisons,
+  and which of §4.3's candidates are findings 8 and 9.** Advice: copy the file and line of each
+  from the outside check's detail into the next piece of work. Each one then gets a fix and a guard case, or is
+  recorded as intended.
