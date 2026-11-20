@@ -148,6 +148,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(ROOT, 'deploy/compose');
@@ -494,7 +495,7 @@ function runDuties(s: Stage, extra: NodeJS.ProcessEnv = {}, args: string[] = [])
   // A clean environment, so the shell this test runs in cannot choose a stack.
   const r = spawnSync(join(s.compose, 'box-duties.sh'), args, {
     encoding: 'utf8',
-    env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: s.root, STUB_LOG: s.log, ...extra },
+    env: { PATH: `${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: s.root, STUB_LOG: s.log, ...extra },
     cwd: s.root,
     timeout: 60_000,
   });
@@ -591,7 +592,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
       writeFileSync(done, '');
       const child = spawn(join(s.compose, 'box-duties.sh'), [], {
         env: {
-          PATH: process.env.PATH ?? '/usr/bin:/bin',
+          PATH: `${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`,
           HOME: s.root,
           STUB_LOG: s.log,
           STUB_DONE: done,
@@ -665,7 +666,7 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
       const r = spawnSync(join(s.compose, 'box-duties.sh'), [], {
         encoding: 'utf8',
         env: {
-          PATH: process.env.PATH ?? '/usr/bin:/bin',
+          PATH: `${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`,
           HOME: s.root,
           STUB_LOG: s.log,
           STUB_FAIL: 'copies',
@@ -920,7 +921,7 @@ describe("the site's duty, run for real: www-live.sh check (0139 T10)", () => {
   function check(s: ReturnType<typeof siteStage>, extra: NodeJS.ProcessEnv = {}) {
     const r = spawnSync(join(s.compose, 'www-live.sh'), ['check'], {
       encoding: 'utf8',
-      env: { PATH: `${s.bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: s.root, STUB_LOG: s.log, ...extra },
+      env: { PATH: `${s.bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: s.root, STUB_LOG: s.log, ...extra },
       cwd: s.root,
       timeout: 30_000,
     });
@@ -994,14 +995,14 @@ describe("the site's duty, run for real: www-live.sh check (0139 T10)", () => {
     const s = siteStage(LIVE_ENV);
     const r = spawnSync(join(s.compose, 'www-live.sh'), ['up'], {
       encoding: 'utf8',
-      env: { PATH: `${s.bin}:${process.env.PATH ?? ''}`, HOME: s.root, STUB_LOG: s.log },
+      env: { PATH: `${s.bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? ''}`, HOME: s.root, STUB_LOG: s.log },
     });
     expect(r.status).toBe(2);
   });
 
   it('end to end: box-duties.sh with the real www-live.sh fails site, and only it', () => {
     const s = siteStage(LIVE_ENV);
-    const r = runDuties(s, { PATH: `${s.bin}:${process.env.PATH ?? ''}`, STUB_LIVE_WWW: 'ownpace-live' });
+    const r = runDuties(s, { PATH: `${s.bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? ''}`, STUB_LIVE_WWW: 'ownpace-live' });
     expect(r.status, r.out).toBe(1);
     expect(failed(r.out)).toEqual(['site']);
     expect(r.out).toMatch(/\(1 of 8 duties\)/);
@@ -1102,7 +1103,7 @@ function provider(opts: { expiresInDays: number; orgs?: unknown; orgsStatus?: nu
     root,
     compose,
     env: {
-      PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`,
       HOME: root,
       STUB_CALLS: calls,
       STUB_DOCKER: docker,

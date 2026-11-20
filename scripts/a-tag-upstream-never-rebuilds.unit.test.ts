@@ -19,8 +19,8 @@
  * upstream's Dockerfile at its release (v0.5.0, and v0.6.0 since 2026-11-20),
  * with the two files it copies beside it byte for byte, on the newest HAProxy
  * of the line that release chose (3.4), by tag and index digest. Its header
- * says what changed (the base, and one RUN that checks the two files by
- * SHA-256) and how it moves. This holds:
+ * says what changed (the base, one RUN that checks the two files by SHA-256,
+ * and since 2026-11-20 the user it ends as) and how it moves. This holds:
  *
  *  - THE DOCKERFILE IS UPSTREAM'S BUT FOR ITS BASE. One FROM, the official
  *    `haproxy:<x.y.z>-alpine` by index digest, on upstream's line, in place of
@@ -33,6 +33,12 @@
  *    release, and upstream's base lines followed by them are its whole
  *    Dockerfile; no parser directive, no ADD, no `--mount`, and no COPY but
  *    upstream's;
+ *  - IT ENDS AS UID 99, NEVER ROOT (2026-11-20; an outside, read-only check of
+ *    the repository, GEN-21). One USER, `USER 99:99`, the base's haproxy by
+ *    number, where upstream's `USER root` stands, before the CMD: `USER root`
+ *    back, uid 0, another user or none at all fails here by name, beside
+ *    a-dockerfile-that-ends-as-root's rule for every Dockerfile, whose
+ *    EXCEPTIONS no longer name this one;
  *  - THE NAME COVERS THE FILES. The image's name hashes the Dockerfile's
  *    instruction lines and nothing else (`builtTag`, as for the databases), and
  *    COPY reads files that hash never sees. So the check RUN names each copied
@@ -45,13 +51,21 @@
  *  - managed.yml runs it as `localhost/docker-socket-proxy:<builtTag>`, with
  *    `build: ./docker-socket-proxy` and `pull_policy: never`, no `user:`, the
  *    socket read-only, and an environment whose every key upstream's ENV
- *    declares: the interface is upstream's, unchanged. A name the Dockerfile
+ *    declares: the interface is upstream's, unchanged. It reaches the socket
+ *    through the socket's group, `group_add: ["${DOCKER_SOCKET_GID:?…}"]`,
+ *    which Compose refuses to run without: no default, no fallback to root
+ *    or to no group; on a read-only root filesystem with /tmp and /run on
+ *    tmpfs, where uid 99 writes the config and the pidfile. A name the Dockerfile
  *    moved past is one failure that prints the `sed` that moves it, and the
  *    `sed` is run here to show that it does;
  *  - images.yml's `build (docker-socket-proxy)` builds this directory under
- *    that name on a pull request, checks upstream's user, entrypoint and
- *    command, and starts it with managed.yml's environment and socket,
- *    word for word, so what it allows and refuses is what the stack's proxy
+ *    that name on a pull request, checks its user (99:99, the base's
+ *    haproxy) and upstream's entrypoint and command, and starts it with
+ *    managed.yml's settings, environment and socket, word for word, with the
+ *    socket's group as seed_docker_socket_gid reads it; every process in the
+ *    container must then run as uid 99 and HAProxy hold that group, and the
+ *    step is run here against a stub that reports uid 0, which must fail.
+ *    So what it allows and refuses is what the stack's proxy
  *    allows and refuses. What it asks is read from upstream's own rules
  *    (haproxy.cfg's allow lines, the ENV's defaults, managed.yml's values):
  *    a request Docker must answer for every switch managed.yml turns on, and
@@ -90,6 +104,11 @@ const TEMPLATE = 'system_files/usr/local/etc/haproxy/haproxy.cfg.template';
 const HAPROXY_CFG = `${CONTEXT}/${TEMPLATE}`;
 const SERVICE = 'trigger-docker-proxy';
 const NAME = 'localhost/docker-socket-proxy';
+/** The user it ends as since 2026-11-20: the base's haproxy, by number. Upstream's line in its place is `USER root`. */
+const USER_LINE = 'USER 99:99';
+const UPSTREAM_USER_LINE = 'USER root';
+/** managed.yml's group for the socket: required, with Compose's refusal, and nothing to fall back on. */
+const GROUP_ADD = /^\$\{DOCKER_SOCKET_GID:\?[^}]+\}$/;
 
 /**
  * Upstream at the release this is built from: github.com/Tecnativa/docker-socket-proxy
@@ -210,6 +229,17 @@ function dockerfileProblems(text: string, files: Readonly<Record<string, Buffer>
       );
     }
   }
+  // The user: one USER, uid 99, where upstream's `USER root` stands. restOf reads it back as upstream's line, so this is what holds it.
+  const users = instructions.filter((line) => /^USER\s/i.test(line));
+  if (users.length === 0) {
+    problems.push(`it names no USER, so it runs as its base's last USER says, which a reading of the file takes for root (GEN-21): end it with \`${USER_LINE}\``);
+  } else if (users.length !== 1 || users[0] !== USER_LINE) {
+    const root = users.some((line) => /^USER\s+(root|0)(:\S*)?\s*$/i.test(line));
+    problems.push(
+      `its USER lines are ${JSON.stringify(users)}, not \`${USER_LINE}\` alone${root ? ': it runs as root again (GEN-21)' : ''}. ` +
+        "It ends as uid 99, the base's haproxy, in the place of upstream's `USER root` (the header's HOW IT RUNS)",
+    );
+  }
   // The check: each copied file by the SHA-256 it has here, and the entrypoint executable.
   const check = checkRun(text);
   if (!check) {
@@ -239,7 +269,10 @@ function dockerfileProblems(text: string, files: Readonly<Record<string, Buffer>
 /** The Dockerfile's instruction lines but the FROM and the check: upstream's, after its base. */
 function restOf(text: string): string[] {
   const checkLines = new Set(checkRun(text)?.lines ?? []);
-  return text.split('\n').filter((line) => isInstruction(line) && !/^FROM\s/i.test(line) && !checkLines.has(line));
+  return text
+    .split('\n')
+    .filter((line) => isInstruction(line) && !/^FROM\s/i.test(line) && !checkLines.has(line))
+    .map((line) => (line === USER_LINE ? UPSTREAM_USER_LINE : line));
 }
 
 /** What the directory must hold: the Dockerfile, upstream's two files, and the directories they are in (`dir/`). */
@@ -278,6 +311,9 @@ interface Service {
   build?: string | { context?: string };
   pull_policy?: string;
   user?: string | number;
+  group_add?: unknown;
+  read_only?: boolean;
+  tmpfs?: string[];
   environment?: Record<string, string | number | boolean | null> | string[];
   volumes?: string[];
 }
@@ -339,7 +375,18 @@ function composeProblems(managed: string, dockerfile: string): string[] {
     problems.push(`${SERVICE}'s build: is ${JSON.stringify(svc.build)}, not the bare \`./docker-socket-proxy\`: args, a target or a Dockerfile of its own are inputs the name does not carry`);
   }
   if (svc.pull_policy !== 'never') problems.push(`${SERVICE} has pull_policy ${String(svc.pull_policy)}, not never: no registry serves ${want}`);
-  if (svc.user !== undefined) problems.push(`${SERVICE} sets user: ${String(svc.user)}; upstream's image runs as root, and its entrypoint writes /tmp/haproxy.cfg as that user`);
+  if (svc.user !== undefined) problems.push(`${SERVICE} sets user: ${String(svc.user)}; the image's own, uid 99, is the user images.yml proves, and its server-state file is that user's`);
+  // The socket's group, required: Compose refuses without it, and nothing falls back to root or to no group.
+  const groups = Array.isArray(svc.group_add) ? svc.group_add : [];
+  if (groups.length !== 1 || typeof groups[0] !== 'string' || !GROUP_ADD.test(groups[0])) {
+    problems.push(
+      `${SERVICE}'s group_add is ${JSON.stringify(svc.group_add)}, not one \`\${DOCKER_SOCKET_GID:?<why>}\`: as uid 99 it reaches the socket through the socket's group alone, ` +
+        'and without the `:?` refusal an unset value would start it with no group, or a default with the wrong one',
+    );
+  }
+  if (svc.read_only !== true || !['/tmp', '/run'].every((dir) => svc.tmpfs?.includes(dir))) {
+    problems.push(`${SERVICE} is read_only ${String(svc.read_only)} with tmpfs ${JSON.stringify(svc.tmpfs)}: a read-only root filesystem with /tmp and /run on tmpfs, where uid 99 writes haproxy.cfg and the pidfile`);
+  }
   const names = declared(dockerfile);
   for (const pair of environment(svc)) {
     const key = pair.split('=')[0]!;
@@ -387,6 +434,16 @@ function workflowProblems(workflow: string, managed: string, dockerfile: string,
   }
   const mounts = [...run.matchAll(/-v (\S+)/g)].map((m) => m[1]!);
   if (svc && JSON.stringify(mounts) !== JSON.stringify(svc.volumes ?? [])) problems.push(`it mounts ${JSON.stringify(mounts)}, and ${SERVICE} mounts ${JSON.stringify(svc.volumes ?? [])}`);
+  // managed.yml's settings, and the socket's group as the stack's .env gets it.
+  for (const flag of ['--read-only', '--tmpfs /tmp', '--tmpfs /run', '--cap-drop ALL', '--security-opt no-new-privileges:true', '--group-add "$gid"']) {
+    if (!run.includes(` ${flag} `)) problems.push(`it does not start the proxy with \`${flag}\`, as ${MANAGED} runs it`);
+  }
+  if (!/^\s*seed_docker_socket_gid "\$envfile"$/m.test(run) || !run.includes('gid="$(env_value "$envfile" DOCKER_SOCKET_GID)"')) {
+    problems.push("it does not read the socket's group with seed_docker_socket_gid, as the stack's bring-up does");
+  }
+  // Not root: the user's name and number, and every running process's uid.
+  if (!run.includes('docker run --rm --entrypoint id "$ref"')) problems.push("it does not ask the image's user for its uid and gid");
+  if (!run.includes(`!= '99 99 99 99'`) || !run.includes('/proc/[0-9]*/status')) problems.push('it does not check that every process in the container runs as uid 99');
   // Upstream's user, entrypoint and command, as the Dockerfile writes the two it sets.
   const user = [...dockerfile.matchAll(/^USER\s+(\S+)\s*$/gm)].map((m) => m[1]).at(-1);
   const cmd = /^CMD\s+(\[.*\])\s*$/m.exec(dockerfile)?.[1];
@@ -468,7 +525,9 @@ function defaultsOf(dockerfile: string): Map<string, string> {
  * The stubs the step runs against, as shell functions ahead of it, so that a
  * run forks and never starts another program for them. `docker`: the build
  * and the run succeed, the image runs `$CONFIG` (user, entrypoint, command),
- * and every call is logged. `curl`: the readiness check (`-f`) succeeds, and
+ * and every call is logged; `id` in the image prints `$WHO`, and `exec` reads
+ * pid 1's uids (`$PROC_UID`, four of them) and groups (`$PROC_GROUP` beside
+ * 99), with pid 7's as 99. `stat` reads the socket as group 118. `curl`: the readiness check (`-f`) succeeds, and
  * a probe's `-w` is written with the status and Api-Version that `$ANSWERS`
  * gives its `METHOD /path` (a tab, then `<status> <version>`, the version
  * empty where HAProxy answered itself); a request it has no answer for
@@ -478,8 +537,13 @@ const STUBS = `docker() {
   printf '%s\\n' "$*" >> "$DOCKER_LOG"
   case "$1" in
     build) return 0 ;;
-    run) echo 0123456789ab ;;
+    run) case "$*" in *'--entrypoint id'*) printf '%s\\n' "$WHO" ;; *) echo 0123456789ab ;; esac ;;
     image) case "\${4:-}" in *.Config.User*) printf '%s\\n' "$CONFIG" ;; *) echo "linux/amd64 sha256:stub" ;; esac ;;
+    exec) case "$*" in
+        *Uid*) printf '/proc/1/status:Uid:\\t%s\\t%s\\t%s\\t%s\\n' $PROC_UID; printf '/proc/7/status:Uid:\\t99\\t99\\t99\\t99\\n' ;;
+        *Groups*) echo "99 $PROC_GROUP" ;;
+        *) echo "unexpected: docker $*" >&2; return 3 ;;
+      esac ;;
     *) echo "unexpected: docker $*" >&2; return 3 ;;
   esac
 }
@@ -508,6 +572,7 @@ curl() {
   if [ "$code" = 000 ]; then echo "curl: (7) Failed to connect to 127.0.0.1 port 2375" >&2; return 7; fi
 }
 sleep() { :; }
+stat() { echo 'socket 118'; }
 `;
 
 interface StepRun {
@@ -518,7 +583,7 @@ interface StepRun {
 }
 
 /** Runs the step as GitHub runs it (bash -eo pipefail, CI and GITHUB_ACTIONS set), in this checkout, after the stubs, with the given answers. */
-function runProbeStep(run: string, answers: ReadonlyMap<string, string>, config: string): StepRun {
+function runProbeStep(run: string, answers: ReadonlyMap<string, string>, config: string, proc: Readonly<Partial<Record<'WHO' | 'PROC_UID' | 'PROC_GROUP', string>>> = {}): StepRun {
   const dir = mkdtempSync(join(tmpdir(), 'socket-proxy-step-'));
   try {
     const script = join(dir, 'step.sh');
@@ -530,7 +595,20 @@ function runProbeStep(run: string, answers: ReadonlyMap<string, string>, config:
     const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', script], {
       cwd: REPO_ROOT,
       encoding: 'utf8',
-      env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir, CI: 'true', GITHUB_ACTIONS: 'true', DOCKER_LOG: log, ANSWERS: table, CONFIG: config },
+      env: {
+        PATH: process.env.PATH ?? '/usr/bin:/bin',
+        HOME: dir,
+        TMPDIR: dir,
+        CI: 'true',
+        GITHUB_ACTIONS: 'true',
+        DOCKER_LOG: log,
+        ANSWERS: table,
+        CONFIG: config,
+        WHO: 'uid=99(haproxy) gid=99(haproxy) groups=99(haproxy)',
+        PROC_UID: '99 99 99 99',
+        PROC_GROUP: '118',
+        ...proc,
+      },
     });
     return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, docker: readFileSync(log, 'utf8').split('\n').filter(Boolean) };
   } finally {
@@ -627,12 +705,19 @@ describe('the Docker socket proxy is upstream\'s release, built here on a curren
     // The release line, gone or another.
     expect(swap(/^# docker-socket-proxy v[\d.]+\n/m, '')).toEqual([expect.stringContaining('as its docker-socket-proxy release')]);
     expect(swap(/^# docker-socket-proxy v[\d.]+$/m, '# docker-socket-proxy v0.4.2')).toEqual([expect.stringContaining('as its docker-socket-proxy release')]);
-    // An upstream instruction changed: a default switched on, the user dropped.
+    // An upstream instruction changed: a default switched on.
     expect(swap(/^ {4}EXEC=0 \\$/m, '    EXEC=1 \\')).toEqual([expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
-    expect(swap(/^USER root\n/m, '')).toEqual([expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
+    // The user: dropped, upstream's root back, uid 0, another user, or a second USER after it.
+    expect(swap(/^USER 99:99\n/m, '')).toEqual([expect.stringContaining('it names no USER'), expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
+    expect(swap(/^USER 99:99$/m, 'USER root')).toEqual([expect.stringContaining('it runs as root again (GEN-21)')]);
+    expect(swap(/^USER 99:99$/m, 'USER 0:0')).toEqual([expect.stringContaining('it runs as root again (GEN-21)'), expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
+    expect(swap(/^USER 99:99$/m, 'USER 1000:1000')).toEqual([expect.stringContaining('not `USER 99:99` alone'), expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
+    expect(swap(/^USER 99:99$/m, 'USER haproxy')).toEqual([expect.stringContaining('not `USER 99:99` alone'), expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
+    expect(swap(/^(USER 99:99)$/m, '$1\nUSER root')).toEqual([expect.stringContaining('it runs as root again (GEN-21)'), expect.stringContaining(`not upstream's at ${UPSTREAM.release}`)]);
     // Upstream's base written back as v0.6.0 has it after its FROM: its packages upgraded while the image builds.
     expect(swap(/^(EXPOSE 2375)$/m, 'USER root\nRUN apk upgrade --no-cache\nUSER haproxy\n\n$1')).toEqual([
       expect.stringContaining('`RUN apk upgrade --no-cache` fetches packages while the image builds'),
+      expect.stringContaining('it runs as root again (GEN-21)'),
       expect.stringContaining(`not upstream's at ${UPSTREAM.release} after its base`),
     ]);
     // v0.5.0's two COPY lines, by name, in place of v0.6.0's one of the directory.
@@ -644,7 +729,7 @@ describe('the Docker socket proxy is upstream\'s release, built here on a curren
     // What the builder reads that neither the name nor the check covers.
     expect(dockerfileProblems(`# syntax=docker/dockerfile:1\n${dockerfile}`, files)).toEqual([expect.stringContaining('is a parser directive')]);
     for (const line of ['COPY extra.cfg /usr/local/etc/haproxy/', 'ADD https://example.org/x.cfg /tmp/', 'RUN --mount=type=bind,target=/src true']) {
-      expect(dockerfileProblems(dockerfile.replace(/^(USER root)$/m, `${line}\n$1`), files), line).toEqual([
+      expect(dockerfileProblems(dockerfile.replace(/^(USER 99:99)$/m, `${line}\n$1`), files), line).toEqual([
         expect.stringContaining(`\`${line}\` reads files or an image`),
         expect.stringContaining(`not upstream's at ${UPSTREAM.release}`),
       ]);
@@ -726,6 +811,27 @@ describe("managed.yml runs that build, by the name its instructions give it, wit
     expect(swap(/^(\s*)POST: 1$/m, '$1POST: 1\n$1BIND_ADDRESS: "0.0.0.0"')).toEqual([expect.stringContaining('sets BIND_ADDRESS, which upstream')]);
     expect(swap(/\/var\/run\/docker\.sock:\/var\/run\/docker\.sock:ro/, '/var/run/docker.sock:/var/run/docker.sock')).toEqual([expect.stringContaining('not the socket alone, read-only')]);
   });
+
+  it("refuses the proxy without the socket's group, without Compose's refusal, or off its read-only filesystem", () => {
+    const swap = (from: RegExp, to: string) => {
+      const text = managed.replace(from, to);
+      expect(text, `${String(from)} matched nothing`).not.toBe(managed);
+      return composeProblems(text, dockerfile);
+    };
+    const group = /^ {4}group_add:\n {6}- "\$\{DOCKER_SOCKET_GID:\?[^}]+\}"\n/m;
+    expect(managed).toMatch(group);
+    // Gone: as uid 99 it could not open the socket.
+    expect(swap(group, '')).toEqual([expect.stringContaining("group_add is undefined, not one `${DOCKER_SOCKET_GID:?<why>}`")]);
+    // A default in place of the refusal: an unset value would start it with a group nobody read from the socket, or none.
+    for (const to of ['${DOCKER_SOCKET_GID:-0}', '${DOCKER_SOCKET_GID-999}', '${DOCKER_SOCKET_GID}', '${DOCKER_SOCKET_GID:?}', '999', 'docker']) {
+      expect(swap(group, `    group_add:\n      - "${to}"\n`), to).toEqual([expect.stringContaining("group_add is")]);
+    }
+    expect(swap(group, '    group_add:\n      - "${DOCKER_SOCKET_GID:?read it from the socket}"\n      - "0"\n')).toEqual([expect.stringContaining('group_add is')]);
+    expect(swap(group, '    group_add: []\n')).toEqual([expect.stringContaining('group_add is []')]);
+    // The read-only root filesystem and its two tmpfs, where uid 99 writes.
+    expect(swap(/^(\s*)read_only: true\n(\s*tmpfs: \[\/tmp, \/run\]\n)(\s*environment:\n\s*CONTAINERS: 1)/m, '$2$3')).toEqual([expect.stringContaining('is read_only undefined')]);
+    expect(swap(/^(\s*)tmpfs: \[\/tmp, \/run\]\n(\s*environment:\n\s*CONTAINERS: 1)/m, '$1tmpfs: [/tmp]\n$2')).toEqual([expect.stringContaining('with tmpfs ["/tmp"]')]);
+  });
 });
 
 describe("images.yml builds it on a pull request and asks it what the stack's proxy allows and refuses", () => {
@@ -774,7 +880,15 @@ describe("images.yml builds it on a pull request and asks it what the stack's pr
     ]);
     expect(problems(swapped(workflow, '/var/run/docker.sock:/var/run/docker.sock:ro \\', '/var/run/docker.sock:/var/run/docker.sock \\'))).toEqual([expect.stringContaining('it mounts')]);
     expect(problems(swapped(workflow, `--tag "$ref" ${CONTEXT}\n`, '--tag "$ref" deploy/compose/postgres\n'))).toEqual([expect.stringContaining(`does not build ${CONTEXT}`)]);
-    expect(problems(swapped(workflow, "want='\"root\"", "want='\"haproxy\""))).toEqual([expect.stringContaining('does not check the built image runs')]);
+    expect(problems(swapped(workflow, "want='\"99:99\"", "want='\"root\""))).toEqual([expect.stringContaining('does not check the built image runs')]);
+    // managed.yml's settings and the socket's group, each dropped.
+    for (const flag of ['--read-only', '--tmpfs /tmp', '--tmpfs /run', '--cap-drop ALL', '--security-opt no-new-privileges:true', '--group-add "$gid"']) {
+      expect(problems(swapped(workflow, ` ${flag} `, ' ')), flag).toEqual([expect.stringContaining(`with \`${flag}\``)]);
+    }
+    expect(problems(swapped(workflow, 'seed_docker_socket_gid "$envfile"\n', 'true\n'))).toEqual([expect.stringContaining('seed_docker_socket_gid')]);
+    // Not root, no longer asked.
+    expect(problems(swapped(workflow, 'who="$(docker run --rm --entrypoint id "$ref")"', 'who=uid=99(haproxy)\\ gid=99(haproxy)'))).toEqual([expect.stringContaining("ask the image's user")]);
+    expect(problems(swapped(workflow, "!= '99 99 99 99'", "= 'never'"))).toEqual([expect.stringContaining('every process in the container runs as uid 99')]);
     expect(problems(swapped(workflow, 'name: build (docker-socket-proxy)', 'name: build (proxy)'))).toEqual([expect.stringContaining('every-pr-check-is-classified')]);
     // A refusal no longer asked for, each by the switch upstream's rules name.
     expect(problems(swapped(workflow, '"GET /exec/socket-proxy-probe-none/json" "POST /exec/socket-proxy-probe-none/start" \\', '\\'))).toEqual([
@@ -828,6 +942,82 @@ describe("images.yml builds it on a pull request and asks it what the stack's pr
     // Docker's answer no longer read: every probe Docker must answer fails, so the step is red when nothing is wrong.
     expect(verdict(swapped(workflow, " %header{api-version}'", "'"))).toEqual([expect.stringMatching(/^with every probe answered as it should, the step exits 1:/)]);
   }, 60_000);
+
+  it('fails the step when the image is not uid 99, a process runs as uid 0, or HAProxy lacks the socket\'s group', () => {
+    const run = stepOf(workflow);
+    const { allowed, refused } = probesOf(run);
+    const right = new Map<string, string>([...allowed.map((p) => [p, DOCKER_ANSWERS] as const), ...refused.map((p) => [p, PROXY_REFUSES] as const)]);
+    const config = '"99:99" ["docker-entrypoint.sh"] ["haproxy","-f","/tmp/haproxy.cfg"]';
+    const ok = runProbeStep(run, right, config);
+    expect(ok.status, ok.out).toBe(0);
+    expect(ok.out).toContain("not root: every process runs as uid 99, and HAProxy holds the socket's group 118 (groups 99 118)");
+    expect(ok.docker).toEqual(expect.arrayContaining([expect.stringContaining('--group-add 118 ')]));
+    const cases: Array<[string, string, Parameters<typeof runProbeStep>[3]]> = [
+      ['the image built as root', `"root"${config.slice('"99:99"'.length)}`, {}],
+      ['an image whose 99 is not haproxy', config, { WHO: 'uid=99(nobody) gid=99(nobody)' }],
+      ['HAProxy running as uid 0', config, { PROC_UID: '0 0 0 0' }],
+      ['HAProxy with a saved uid 0', config, { PROC_UID: '99 99 0 99' }],
+      ['HAProxy without the socket group', config, { PROC_GROUP: '' }],
+    ];
+    for (const [what, image, proc] of cases) {
+      const r = runProbeStep(run, right, image, proc);
+      expect(r.status, `${what}:\n${r.out}`).not.toBe(0);
+      expect(r.out, what).toMatch(/^::error::/m);
+    }
+  }, 60_000);
+});
+
+/** seed_docker_socket_gid, sourced from the real env-read.sh, on a .env holding `text`, with `stat` answering `statSays` (or failing on `!`). */
+function seedGroup(text: string | null, statSays: string): { status: number; out: string; env: string | null } {
+  const dir = mkdtempSync(join(tmpdir(), 'socket-gid-'));
+  try {
+    const env = join(dir, '.env');
+    if (text !== null) writeFileSync(env, text);
+    const stat = statSays.startsWith('!') ? `stat() { echo "${statSays.slice(1)}" >&2; return 1; }` : `stat() { echo '${statSays}'; }`;
+    const script = `set -euo pipefail\n. deploy/compose/env-read.sh\n${stat}\nseed_docker_socket_gid "$1"\n`;
+    const r = spawnSync('bash', ['--noprofile', '--norc', '-c', script, 'seed', env], { cwd: REPO_ROOT, encoding: 'utf8', env: { PATH: process.env.PATH ?? '/usr/bin:/bin', HOME: dir } });
+    let after: string | null = null;
+    try {
+      after = readFileSync(env, 'utf8');
+    } catch {
+      after = null;
+    }
+    return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, env: after };
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+describe("the socket's group is read from the socket and written into .env, never typed", () => {
+  it('writes it, follows a group that moved, and keeps one that did not', () => {
+    const fresh = seedGroup('A=1\n', 'socket 988');
+    expect(fresh.status, fresh.out).toBe(0);
+    expect(fresh.env).toBe('A=1\nDOCKER_SOCKET_GID=988\n');
+    expect(fresh.out).toContain('wrote DOCKER_SOCKET_GID=988, the group of /var/run/docker.sock');
+    const moved = seedGroup('A=1\nDOCKER_SOCKET_GID=118\nB=2\n', 'socket 988');
+    expect(moved.status, moved.out).toBe(0);
+    expect(moved.env).toBe('A=1\nDOCKER_SOCKET_GID=988\nB=2\n');
+    expect(moved.out).toContain('in place of 118');
+    const kept = seedGroup('DOCKER_SOCKET_GID=988\n', 'socket 988');
+    expect(kept).toEqual({ status: 0, out: '', env: 'DOCKER_SOCKET_GID=988\n' });
+  });
+
+  it('writes nothing, and fails, without a socket it can read', () => {
+    for (const [what, says] of [
+      ['no socket', "!stat: cannot statx '/var/run/docker.sock': No such file or directory"],
+      ['a regular file', 'regular empty file 0'],
+      ['a directory', 'directory 0'],
+      ['no group', 'socket '],
+    ] as const) {
+      const r = seedGroup('A=1\n', says);
+      expect(r.status, `${what}: ${r.out}`).toBe(1);
+      expect(r.env, what).toBe('A=1\n');
+      expect(r.out, what).toMatch(/^seed_docker_socket_gid: .*Nothing was written\.$/m);
+    }
+    const none = seedGroup(null, 'socket 988');
+    expect(none.status).toBe(1);
+    expect(none.out).toContain('no .env at');
+  });
 });
 
 describe('Dependabot moves its base within its line, in a pull request of its own', () => {

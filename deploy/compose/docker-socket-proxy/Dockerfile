@@ -31,7 +31,7 @@
 # blob d61b1d4d). They are v0.5.0's two files, the same blobs, which that
 # release kept at the top as docker-entrypoint.sh and haproxy.cfg and copied
 # one by one to the same two paths. Upstream's licence is Apache-2.0, as this
-# repository's is. Two things differ, and nothing else:
+# repository's is. Three things differ, and nothing else:
 #
 #   1. The base. Upstream's is five lines: `ARG HAPROXY_VERSION=lts` and `FROM
 #      haproxy:${HAPROXY_VERSION}-alpine`, HAProxy's long-term line by tag
@@ -69,10 +69,13 @@
 #      compares the hash with the one it names; until then it piped a list
 #      into `sha256sum -c -`, and a RUN with no pipe needs no `pipefail`
 #      (hadolint's DL4006).
+#   3. The user it ends as: `USER 99:99`, the base's own haproxy user and
+#      group by number, in the place of upstream's `USER root` (HOW IT RUNS,
+#      below; since 2026-11-20).
 #
 # The rest is upstream's, in upstream's order: the port, every environment
-# variable with its default, the COPY, the server-state file, `USER root` and
-# the command. So the image takes the environment managed.yml sets
+# variable with its default, the COPY, the server-state file and the command.
+# So the image takes the environment managed.yml sets
 # (CONTAINERS, IMAGES, NETWORKS, VOLUMES and POST) and allows and refuses what
 # upstream's v0.6.0 does, which is what v0.5.0 did: the same configuration,
 # entrypoint and defaults, and its README lists the same switches (read on
@@ -82,16 +85,25 @@
 # Docker must answer, and for every endpoint switch left off, which the proxy
 # must refuse with its own 403.
 #
-# WHY ROOT. `USER root` is upstream's, and stays: HAProxy connects to the
-# host's Docker socket, which is root's and the docker group's at mode 0660,
-# and that group's id differs from host to host. Another user would need each
-# host's docker group id passed in from its .env (`group_add`), on every host
-# and on the runner, for little: whoever can use the socket holds the host
-# either way. What managed.yml gives the proxy instead is no capability,
-# no-new-privileges, a read-only root filesystem and one internal network,
-# which the supervisor alone shares. (This paragraph since 2026-11-19,
-# workplan 0119: a read-only check of the repository read the image as one
-# that runs as root.)
+# HOW IT RUNS (since 2026-11-20, workplan 0119; until then `USER root`, as
+# upstream's, which an outside, read-only check of the repository reported as
+# GEN-21). As uid 99, the base's haproxy, which owns the server-state file the
+# RUN above creates. Nothing the entrypoint or HAProxy does needs root here:
+# the entrypoint renders haproxy.cfg into /tmp, and its `ulimit -n` may fail
+# and is ignored; HAProxy writes its pidfile to /run, binds 2375, above 1024,
+# and only reads the server-state file. managed.yml mounts /tmp and /run as
+# tmpfs on a read-only root filesystem, which uid 99 can write. The socket is
+# root's and a group's at mode 0660, whose id differs from host to host, so
+# managed.yml adds that group to the container (`group_add`), read from the
+# socket itself (`stat -L -c %g`) by seed_docker_socket_gid in env-read.sh,
+# which ensure-env-secrets.sh and every bootstrap-managed.sh run write into
+# .env, so nobody types it. Unset, Compose refuses to run anything: no
+# fallback to root or to no group. With it, managed.yml still gives the proxy
+# no capability, no-new-privileges and one internal network, which the
+# supervisor alone shares: whoever can use the socket holds the host either
+# way. images.yml's job starts it so on the runner's socket, with the
+# socket's group, and fails unless the image's user is 99:99 and the running
+# process is uid 99, not 0.
 #
 # THE NAME. managed.yml builds this as
 # `localhost/docker-socket-proxy:<base tag>-<12 hex>`, a name no registry
@@ -168,5 +180,5 @@ RUN test "$(sha256sum < /usr/local/bin/docker-entrypoint.sh)" = '2cd4c4414b7693f
       || { echo '/usr/local/etc/haproxy/haproxy.cfg.template is not the file this Dockerfile names by its SHA-256' >&2; exit 1; }; \
     test -x /usr/local/bin/docker-entrypoint.sh
 RUN touch /var/lib/haproxy/server-state
-USER root
+USER 99:99
 CMD ["haproxy", "-f", "/tmp/haproxy.cfg"]

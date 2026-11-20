@@ -3286,7 +3286,7 @@ whose program needs a capability its service does not keep.
 | `trigger-api` | root | Docker's default | no | read: its entrypoint chowns the shared volume, copies files into directories `node` owns and writes the worker token there; its image cannot be pulled where this was measured |
 | `clickhouse` | root, then uid 101 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: a new volume needs CHOWN, a data directory root owns (a copy restored by root) needs DAC_READ_SEARCH as well, `clickhouse su` needs SETUID and SETGID. The server runs with no capability either way, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added |
 | `trigger-registry` | root | none | yes, `/tmp` in memory | measured: a push, a pull and a restart |
-| `trigger-docker-proxy` | root | none | yes, `/tmp` and `/run` in memory | measured: create, start and delete a container through it; without either directory it does not start |
+| `trigger-docker-proxy` | uid 99 (haproxy), with the socket's group | none | yes, `/tmp` and `/run` in memory | read (2026-11-20): its image ends as `USER 99:99` (`deploy/compose/docker-socket-proxy`), and the container gets the group of `/var/run/docker.sock` from `DOCKER_SOCKET_GID`, which the bring-up reads from the socket and writes into `.env` (*The Docker socket's group*, below); images.yml's `build (docker-socket-proxy)` starts it so on the runner's socket and fails unless every process runs as uid 99. E2E (managed) is the proof. Until then root, measured: create, start and delete a container through it; without either directory it does not start |
 | `trigger-supervisor` | node | none | no | read: its image's user from the first process, and its base carries no setuid binary and no file capability |
 | `minio` | uid 65532 | none | no | measured |
 | `minio-init` | uid 65532 | none | yes, `/tmp` in memory | measured: without `/tmp` mc cannot write its config |
@@ -4923,6 +4923,22 @@ A rollback to a checkout without it puts the proxy back on
 place: Compose removes no network its file does not declare. It is harmless, is
 reused by the next move forward, and can be removed by hand once empty with
 `docker network rm <project>_trigger-docker-socket`.
+
+**The Docker socket's group, with no step of yours either (2026-11-20).**
+`trigger-docker-proxy` runs as uid 99, not root, and reaches
+`/var/run/docker.sock` through the socket's group, whose id is each machine's
+own. `managed.yml` requires it as `DOCKER_SOCKET_GID`, and nobody types it:
+`ensure-env-secrets.sh` and every run of `bootstrap-managed.sh`, `--from`
+included, read it from the socket (`stat -L -c %g /var/run/docker.sock`) and
+write it into `.env`, again whenever the group moves. So live's deploy and the
+nightly gate write it before their first `docker compose` call. Compose
+interpolates the whole file for every command, so after a pull that brings it
+in, and before one of those has run, a `docker compose` command by hand stops
+with `required variable DOCKER_SOCKET_GID is missing a value`: run
+`./deploy/compose/ensure-env-secrets.sh` from the checkout once. It writes the
+group and fills only what is missing. The first `up` after it builds the proxy's
+new image and recreates the proxy. Like the network move above, the supervisor
+cannot reach Docker for the seconds between the two.
 
 **The stores' and the fronts' images move with the checkout, never with a
 `docker pull`.** Both databases, Trigger.dev's Redis, the dashboard's TLS
