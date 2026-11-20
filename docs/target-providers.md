@@ -152,13 +152,21 @@ runs.
    calendar home is found by asking, as the address book home is (0160 §5). In that home it
    answered an MKCALENDAR at a name of ours with 201 and kept the new calendar under an id of
    its own, so a new calendar is asked for at a UUID and read back (0160 §5).
-3. **Invitations:** Cirrux emails every guest of an event it is given, also over CalDAV. On
-   2026-11-19 it emailed an invitation, in the test mailbox's name and past events included, for
-   events written with every attendee marked `SCHEDULE-AGENT=CLIENT`, and the marker was gone from
-   the invitation it sent (0160 §5). Its API page says the mailbox is always the organiser, and
-   that guests are emailed invitations, updates and cancellations
-   (`https://cirrux.co/help/api/calendar`). So nothing written to Cirrux carries an `ATTENDEE` or
-   an `ORGANIZER`: each becomes a `COMMENT` that names the person (`TARGETS_THAT_MAIL_GUESTS`).
+3. **Invitations: guests are written again, as at Nextcloud.** On 2026-11-19 Cirrux emailed an
+   invitation, in the test mailbox's name and past events included, for events written over
+   CalDAV with every attendee marked `SCHEDULE-AGENT=CLIENT`, and the marker was gone from the
+   invitation it sent (0160 §5). Its API page says the mailbox is always the organiser, and that
+   guests are emailed invitations, updates and cancellations
+   (`https://cirrux.co/help/api/calendar`). From then until 2026-11-20 nothing written to Cirrux
+   carried an `ATTENDEE` or an `ORGANIZER`: each became a `COMMENT` that names the person
+   (`TARGETS_THAT_MAIL_GUESTS`). Cirrux answered on 2026-11-20 that its server had not honoured
+   the marker, and that it does now (0160 §1). Since 2026-11-20 (ADR-0043) each `ATTENDEE` and
+   `ORGANIZER` written to Cirrux is kept and marked `SCHEDULE-AGENT=CLIENT`, as at Nextcloud, and
+   `TARGETS_THAT_MAIL_GUESTS` is empty. A copy written while it was on the list keeps its
+   `COMMENT`s until its next rewrite, when the event changes at the source. An invitation it might
+   still send cannot be taken back: whether it sends one is what the owner's test on the test
+   environment watches (0160 §4, steps 10 and 11), and mail at any step puts `cirrux` back on the
+   list.
 4. **Server-side filters** run "as mail arrives" and can forward (`https://cirrux.co/help/mailboxes`);
    the webhook documentation says imported mail and mail saved over IMAP never counts as
    received (`https://cirrux.co/help/api/webhooks`). Whether filters run on appended mail is
@@ -291,7 +299,8 @@ naming `mailUsername`/`mailPassword`.
    Infomaniak is kept and marked `SCHEDULE-AGENT=CLIENT`, as at Nextcloud: `infomaniak` is in
    neither `TARGETS_THAT_MAIL_GUESTS` nor `TARGETS_UNTESTED_FOR_GUESTS`. An invitation it might send
    cannot be taken back. Whether it sends one is watched in 0161 T2; mail seen there puts
-   `infomaniak` on `TARGETS_THAT_MAIL_GUESTS` as a kind seen mailing guests, as Cirrux is.
+   `infomaniak` on `TARGETS_THAT_MAIL_GUESTS` as a kind seen mailing guests, as Cirrux was until
+   2026-11-20.
 2. **kDrive** is "INDISPONIBLE" on kSuite Free, kSuite Standard, my kSuite and my kSuite+
    (`ik.me`, `etik.com`, `ikmail.com`) (2409, updated 12/11/2026), and its address is one per
    drive. The `infomaniak` account carries no file face yet, and its Test says why (0161 T3).

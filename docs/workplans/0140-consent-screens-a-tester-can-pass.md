@@ -4,6 +4,16 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, later: a live `.env` whose `API_URL` is not live's own address is refused before a
+deploy moves anything (T11).** Built on the branch
+`claude/ownpace-public-readiness-y7orc6-live-api-url`, not merged: `deploy-live.sh` refuses, in the
+deploy and its dry run, a live `.env` whose `API_URL`, `WEB_URL` or `CORS_ORIGIN` is not set, not
+`https://`, or localhost or a loopback address, or whose `API_URL` or `CORS_ORIGIN` is not the
+origin in `WEB_URL`, by key, with the `env-upsert.sh` line that sets them; and `stand-up-live.sh`
+asks `API_URL` beside the other two (0132's Status, 2026-11-20, later). It first applies at the
+deploy after the one that moves live onto a release that carries it, and live's `.env` passes it
+since the entry below. What is left of T11 is unchanged.
+
 **2026-11-20: live's `API_URL`, which T11's `.env` part did not list, set before alpha.12's deploy
 (T11).** On 2026-11-20, while live ran alpha.11, Google refused the owner's first connect of a
 Google account on live with `redirect_uri_mismatch`. The api builds every consent's redirect from

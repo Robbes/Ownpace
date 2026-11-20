@@ -646,7 +646,10 @@ new volumes with a list of its own, the same five.
   public https addresses. `API_URL` is where **Mollie's servers** deliver
   payment webhooks: with `MOLLIE_API_KEY` set, the API refuses to boot in
   production on a localhost `API_URL`, because the alternative is payments
-  that complete while invoices never leave `sent`.
+  that complete while invoices never leave `sent`. Every consent's redirect
+  is built from it too, without Mollie (§8e, step 4). On `ownpace-live`,
+  `deploy-live.sh` refuses any of the three that is not live's own https
+  address (*`ownpace-live`: a release tag, with `deploy-live.sh`*).
 - `PRICING_*` — integer **cents**, never euros. They are a template for *new*
   tenants; each tenant's agreed prices are pinned in the `tenant_pricing` table
   the first time their money is computed and never follow this file again. That
@@ -4215,6 +4218,7 @@ No script can do these. The script checks each one before it changes anything.
      WEB_BIND=<front-address> ZITADEL_BIND=<front-address> STATUS_BIND=<front-address> \
      EXPOSURE_ALLOW=<address,address> EXPOSURE_NOT_OURS=<name,name> \
      WEB_URL=https://app.ownpace.eu CORS_ORIGIN=https://app.ownpace.eu \
+     API_URL=https://app.ownpace.eu \
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
      NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 TRUST_PROXY=2 \
@@ -4246,7 +4250,14 @@ No script can do these. The script checks each one before it changes anything.
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses
    such a line. `NODE_ENV=production` is live's mode: `managed.yml` takes no
-   default, and the script refuses anything else.
+   default, and the script refuses anything else. `API_URL` is the app's
+   address too: from outside, live's API is reached at the app's origin
+   alone, and it builds every consent's redirect from it (§8e, step 4). Left
+   at the example's localhost, Google answers live's first connect with
+   `redirect_uri_mismatch`, as it did on 2026-11-20, so the script refuses
+   anything but `https://app.ownpace.eu` for it, as for `WEB_URL` and
+   `CORS_ORIGIN`, and `deploy-live.sh` refuses, at every deploy after, any of
+   the three that is not live's own https address.
    `ALERT_ENABLED=true` turns on the mail a red status row sends you, and the
    script refuses live without it, since testers are on live. With it on, a row
    that stays red for three minutes during the bring-up
@@ -5722,7 +5733,15 @@ tag, older ones included.
 
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
-marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
+marker (`STACK_KIND=production`, `stack-kind.sh`); a `.env` whose `WEB_URL`,
+`API_URL` or `CORS_ORIGIN` is not set, not `https://`, or localhost or a
+loopback address, or whose `API_URL` or `CORS_ORIGIN` is not the origin in
+`WEB_URL` with nothing after it (from outside, live's API is reached at the
+app's origin alone, and it builds every consent's redirect from `API_URL`:
+§8e, step 4), named with the line that sets them, `app.example.eu` standing
+for live's name (first asked by the deploy after the one that moves live onto
+a release that carries it, since a deploy runs the script the checkout had
+before it moved); a
 `.env` whose `NODE_ENV` is not `production` or whose `ALERT_ENABLED` is not
 exactly `true` (testers are on live, so nobody deploys it without alerts), or
 that sets a sign-in provider's `IDP_*` key (live's sign-in page offers email and
