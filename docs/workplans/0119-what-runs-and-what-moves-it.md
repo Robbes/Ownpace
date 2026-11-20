@@ -27,6 +27,109 @@ merged at 18:29:56 UTC), the test mail server on Stalwart v1.1.1, after the owne
 of the OTA demo's mail and E2E (managed) run 44791527667 (18:18 to 18:26 UTC, deployment
 `20261120.7`, smoke passed), which reaches the next tag.
 
+**2026-11-20: the test mail server moves to Stalwart v1.1.1, on the owner's decision of 2026-11-19,
+and the JMAP file target learns v1's FileNode names; merged as #1964 the same day (`cfa70e80`),
+after the owner's one-time reset of the OTA demo's mail and E2E (managed) run 44791527667 (*was:*
+built on a branch, not merged).** On the branch
+`claude/ownpace-public-readiness-y7orc6-stalwart-1-1-1`, from `main` at `3ec5670d` (#1961). Put to
+the owner on 2026-11-19: *"Move the test mail server to Stalwart v1.1.1? Yes, after alpha.12, on its
+own branch, with the two-step run proven first. It fixes the brotli and apt CVEs, but not zlib."*
+The answer, at about 18:36 UTC: *"3. Yes"*. ADR-0022's update of 2026-11-20 records it, and
+`docs/stalwart-integration-fix.md`, *Moving the pin*, has what was read and where.
+- **The image, read on 2026-11-20** from Docker Hub's registry and tag API, nothing run:
+  `stalwartlabs/stalwart:v1.1.1`, index
+  `sha256:5ebdf474b237161742fe4309396af4ae8797c938e8e6eb7e2d4837332c4f9851` (the body hashes to
+  it), linux/amd64 `544760db…` and linux/arm64 `01322ccb…`, pushed 2026-11-16 at 11:47:29 UTC,
+  and still the newest tag at 04:35 UTC, with no v1.1.2. Its revision label is `3adead91`, the
+  commit upstream's tag names. Its user is `stalwart`, uid and gid 2000 (its config's `User`, its
+  `/etc/passwd`), and its apt layer's package database holds brotli 1.1.0-2+deb13u1, apt 3.0.4 and
+  zlib1g 1:1.3.dfsg+really1.3.1-1+b1, on Debian 13.7.
+- **What v1 changes here.** A new database layout: v1.1.1 refuses at start every volume v0.16
+  made, after it has written its defaults into it (read, not run). The recovery-mode variables,
+  `config.json` and every object the plan upserts read the same. stalwart-cli 1.0.14 reads
+  v1.1.1's schema (checked against its schema types over 162 objects and 2,423 fields), so its pin
+  stays; its v2.0.0 is another major. JMAP adds `urn:ietf:params:jmap:metadata`, FileNode follows
+  a newer draft, and JSCalendar names one `recurrenceRule`. The WebUI comes from the tag `v2`,
+  which upstream moves, and its cached copy expires after 90 days (30 at v0.16.27).
+- **The JMAP file target** (`packages/connectors/src/jmap-file-target.ts`) speaks both FileNode
+  drafts: `@type` and `mediaType` where the account's filenode capability lists
+  `supportedNodeTypes`, as v1.1.1's does, and the very requests it sent before where it does not.
+  On v1.1.1 it read every node as neither file nor folder (`nodeType` is dropped there) and every
+  create was refused (`@type is required on creation.`). v1.1.1 also refuses a `mediaType` with
+  parameters, so the newer wire sends the type's essence (`text/plain`, not
+  `text/plain; charset=utf-8`), or none when that is not a media type either.
+- **Proved here**, in a worktree, on Node 22.22.0: of the 44 unit test files that name Stalwart or
+  read what changed, 38 pass (1,368 tests) and 6 stop on `@electric-sql/pglite`, a per-package
+  install the worktree lacks. The file target's file, 39 tests, 8 of them new, ran with undici
+  8.12.3 from the store standing in for the locked 8.12.4, which `fetch`'s stub never reaches;
+  with the draft always read as v0.16, its 5 newer-draft cases fail, and with the media type sent
+  whole, the essence case fails (1 of 39). With v0.16.27 left in
+  `setup-stalwart.sh`'s `IMAGE`, the phone-home, fixture and pin-watch guards fail (9 of 168
+  tests in 3 files). Each file was put back `cmp`-equal. ESLint passes on the changed files, and
+  `tsc --noEmit` reports nothing in them.
+- **The image scan**, Security Scan run 44681205602 on the branch, dispatched with its image scans:
+  v1.1.1 reads 0 critical and 107 high, 1 of them with a fix, zlib1g's CVE-2026-85091 (fixed in
+  1:1.3.dfsg+really1.3.1-1+deb13u1). `main`'s last scan, run 44637576014 on `3ec5670d`, read
+  v0.16.27 at 1, 109 and 4: brotli's CVE-2026-111497 (critical), apt's CVE-2026-109518 in apt and
+  libapt-pkg7.0, and the same zlib finding. The 106 with no fix, in 23 packages, are the same in
+  both. So the move takes away the critical and two highs, and nothing else.
+- **The two-phase run on the new tag, proved:** CI's `integration-tests` job on `26ff78ae` (run
+  44677802203), on amd64 and on arm64, passed 98 test files and 829 tests each, the eleven that
+  use Stalwart among them, the JMAP file target's 6 and file sync's 3 tests included.
+- **E2E (self-hosted), green:** run 44684133193 on `5c97d6d8`, 05:54:38 to 06:00:33 UTC (job
+  `e2e-selfhost`, attempt 1). It proves `setup-stalwart.sh`'s two-phase start on v1.1.1 with
+  stalwart-cli 1.0.14, the source mailbox seeded over IMAPS, and the self-host gates after them,
+  whose mail goes from Stalwart's IMAPS to its JMAP.
+- **Done before the merge, on 2026-11-20 (*was:* owed).** After live's deploy of alpha.12 (0132's
+  Status, 2026-11-20), the owner ran the one-time reset of the OTA demo's mail lane (below) on the
+  branch's head: its dry run named the demo's container on v0.16.27, its data volume and the demo
+  migration's row counts, and changed nothing; then, at about 18:16 UTC, `--yes`, which ended
+  *done.* with every count at 0. E2E (managed) run 44791527667 followed at once on that head,
+  `81f3ba90`, which carries `main` at `71144ed2` (18:18:35 to 18:26:26 UTC, job `e2e-managed`,
+  attempt 1): its bring-up started the demo's Stalwart on v1.1.1 on a new data volume, with
+  stalwart-cli 1.0.14 as pinned, the tasks deployed as `20261120.7`, and the smoke passed, its first
+  pass copying the demo's mail into v1.1.1. No E2E (managed) ran between the reset and that run.
+  #1964 merged at 18:29:56 UTC, before the next nightly of `main`. Still owed, after the merge:
+  `scripts/jmap-target-spike.ts` again, which needs a Docker daemon and asks with v0.16's names
+  (`recurrenceRules`, a FileNode create without `@type`), so its names move first.
+- **The OTA demo's switch, decided: a one-time reset, by hand.** The demo's Stalwart volume,
+  `ownpace-stalwart-data`, was made at v0.16.10. v1.1.1 refuses it, so E2E (managed) on the branch
+  fails at phase 1 on it, and `main`'s nightly runs v0.16.27 on it until the merge. v0.16.27
+  refuses a store v1 made too (its `try_migrate` finds no schema version where it looks, and data;
+  read, not run). And a new volume is not enough, because the stack's database outlives it:
+  organisation A's mail migration holds the seeded messages as copied, a pass skips mail it has
+  copied (`classifyKnownItem`), and nothing would reach the empty v1 target, so the smoke's verify
+  floor and its cutover gate would both fail. Asked at about 10:25 UTC on 2026-11-20, the owner
+  chose *"One-time reset (Recommended)"*: *"Right after a nightly test, you run one reset command I
+  prepare (it clears only the test fixtures' mail data and their copy records on OTA, nothing
+  real). I then run the branch test and merge straight away. Least code, nothing left behind."*
+  ADR-0022's update of 2026-11-20 quotes the question too.
+  - **The command**, `deploy/compose/reset-demo-mail.sh`, run by hand on the OTA stack. Without
+    `--yes` it shows what it would do, with counts, and changes nothing. With it, it removes the
+    container `ownpace-stalwart` and the volume `ownpace-stalwart-data`, then clears that one
+    migration's rows in sixteen tables, in one transaction that refuses unless every count after
+    is 0: `item`, `cursor`, `run` and `run_event`, `migration_status`, `migration_discovery`,
+    `verification_run` and `verification`, the three cutover tables, `decision`, `apply_receipt`,
+    `share_grant`, and `sync_checkpoint` and `collection_mapping`, which nothing reads today. Its
+    header says why for each. It keeps `ownpace-stalwart-config` (`config.json` alone), the
+    migration's own rows and settings (the seed writes them again), its phase, the logs and the
+    organisation's meters. It refuses live, any migration but the demo's (checked in the database
+    against seed-managed.ts's ids and connections) and a pass still running.
+  - **The order:** once a nightly E2E (managed) of `main` has finished, the reset with `--yes`;
+    then E2E (managed) on the branch; then the merge, before the next nightly. A nightly in between
+    means the reset runs again. Nothing in the gate or the bring-up calls it.
+  - **The volume keeps its name:** nothing is left behind under it, and a second name would not let
+    the two lines take turns, since one ledger, one container and one network alias serve both.
+  - **Proved here**, on Node 22.22.0:
+    `scripts/a-ledger-that-outlived-its-mail-server.unit.test.ts`, 28 tests against a
+    stand-in `docker`, pass. 34 mutations of the script, of seed-managed.ts,
+    smoke-managed.sh, setup-managed-demo.sh and e2e-managed.yml each fail the case they aim at, and
+    each file was put back `cmp`-equal. The SQL the script sends, captured from the stand-in, ran
+    on a throwaway Postgres 16 with both migration chains (`scripts/local-pg.sh`): it cleared the
+    demo migration's rows in all sixteen tables, left a second migration of organisation A and
+    organisation B's untouched, cleared nothing on a second run, and raised each refusal. `bash -n`
+    and shellcheck pass on it. The script itself never ran against a stack.
+
 **2026-11-20: the Trigger.dev webapp's connect-node loads the store's undici 6.29.1, and undici
 5.29.0 and `@fastify/busboy` 2.1.1 leave the image; built on a branch, a draft pull request.** On
 the branch `claude/ownpace-public-readiness-y7orc6-trigger-undici-6`, from `main` at `3ec5670d`
@@ -467,7 +570,8 @@ vulnerabilities; nothing read was run. Times are UTC.
   Stalwart v1.1.0 (pushed 2026-11-09) and v1.1.1 (2026-11-16 11:47, past its floor today) carry
   brotli 1.1.0-2+deb13u1 and apt 3.0.4, and zlib unfixed. A move to v1 is another line: the
   owner's call under ADR-0022, from upstream's `UPGRADING/` notes, with the two-phase run proved on
-  the new tag and every copy moved together. Not taken here.
+  the new tag and every copy moved together. Not taken here. (The owner answered yes that
+  evening; the move is the entry of 2026-11-20 above.)
 - **Trigger.dev's base, `ghcr.io/triggerdotdev/trigger.dev:v4.8.5@sha256:6e6d38a9…`.** A check
   that reads the FROM sees upstream's image; the build here removes or replaces what nothing runs
   (the Dockerfile's header), so it sees, as this plan's scans read them: the six criticals in
@@ -8857,7 +8961,7 @@ it updates itself when GitHub asks it to: watched, nothing owed.
 |---|---|---|---|---|---|---|
 | Atlas CLI, community edition | `.github/workflows/ci.yml`, `migration-lint`, which runs when a migration or `ci.yml` changes: on hosted amd64 and arm64 for a pull request (since 2026-11-01), on hosted arm64 for a push to `main` (since 2026-11-08; the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`) | v1.4.0 (from 2026-11-18, on its branch, which waits for its three-day floor to 2026-11-20 15:20 UTC) from `atlasbinaries.com` by name, each architecture checked by its SHA-256 before anything is made executable (amd64 `5f964b94…`, arm64 `f2c6eb9f…`), then by the version it prints; the sums are those of `/atlas` in `arigaio/atlas:1.4.0-community@sha256:972b99f8…`, read through the registry's digests (2026-11-18), the same reading that gives v1.3.10's two sums from its image. Before it v1.3.10 (from 2026-11-14, #1888; amd64 `d2b4d2e1…`, arm64 `71e988ff…`), v1.3.9 (from 2026-11-12, #1875; amd64 `53a032b5…`, arm64 `c51b4335…`), v1.3.8 (from 2026-11-08, #1851; amd64 `819846b0…`, arm64 `ce12859d…`), v1.3.6 (from 2026-11-01; amd64 `bb6e8167…`, arm64 `723e4cac…`), and before that `atlas-community-linux-<arch>-latest`, with no version and no checksum: a canary of upstream's master (`v1.3.1-f851298-canary` on `main` at 00:14 UTC on 2026-11-01) | v1.4.0 (Docker Hub, 2026-11-17 15:20 UTC, so inside its three-day floor until 2026-11-20 15:20, which the move waits for): Ariga's official build (`-tags=official`, version v1.4.0, Go 1.26.10), whose Go build information names upstream commit `e933d0b70620` of 2026-11-17, the one upstream's git tag v1.4.0 names and the head of its public git (2026-11-18), and differs from v1.3.10's in that commit, the version and the build date alone; clean for amd64 while arm64 reports `vcs.modified=true`, as v1.3.6's, v1.3.8's, v1.3.9's and v1.3.10's did; the two commits after v1.3.10's `90dacfc6c25f` move only `README.md` and the Go SDK, `atlasexec`, which no package of the CLI imports. Upstream's git has a tag for v1.3.0 (2026-07-29) and one for v1.4.0, and none for the releases between them, so the release list is the community image's tags | current | by hand, when the pin watch's summary issue lists a newer `<version>-community` three days old (`scripts/idp-pin-watch.mjs`, its Atlas row): the version and both sums in one pull request, as the step's header says; Dependabot cannot see a URL in a `run:` | CI only, never deployed; a new major is read like any other major, with its lint output compared |
 | `node.exe`, the Windows payload's Node (win-x64; win-arm64 by dispatch) | `scripts/package-appliance.mjs` `--with-node`, run by `windows-payload.yml` on a dispatch and on every release tag, whose zip the release attaches | since 2026-11-01, the version `apps/selfhost/Dockerfile` names, v26.13.1 (2026-11-12, on its branch, nodejs.org's security release of 2026-11-11, with the `node` and distroless rows; v26.13.0 before), from `nodejs.org` by name, its bytes checked against the SHA-256 committed in `NODE_RUNTIME_SHA256` (win-x64 `f5109dc8…`, 100,089,160 bytes; win-arm64 `00edc356…`, 88,396,104; at v26.13.0 `14319838…`, 100,097,864, and `4c9baa04…`, 88,331,080), sums of `node.exe` itself and not of the release's `.zip`. Before anything is fetched, `gpgv` checks the release's own `SHASUMS256.txt`, committed with its `.sig` in `scripts/node-release/`, against the Node.js release keyring committed beside it (`gpg-only-active-keys/pubring.kbx` of nodejs/release-keys at `481637f8`, 2026-09-01, blob `bae91a9c…`): good, at v26.13.1 by primary key `5BE8A3F6…`, one of the keyring's eight (at v26.13.0 `C82FA3AE…`), and giving the same two sums. Read twice more for each version: the release announcement's clear-signed list in nodejs/nodejs.org (good, by the same key, the same 34 lines) and each `node.exe` downloaded and hashed (2026-11-01; 2026-11-12). Until then: checked only against a `SHASUMS256.txt` fetched from the same directory as the binary, with no signature read | v26.13.1 (the Dockerfile's; the image's version is the `node` row's in §2.1) | current | Dependabot's image pull request moves the Dockerfile's version and cannot move the sums: `a-runtime-only-its-own-host-vouched-for` fails it until the release's `SHASUMS256.txt` and `.sig` and the two sums are pushed to it (the commands are above `NODE_RUNTIME_SHA256` and in `docs/windows-appliance-runbook.md`). The keyring moves by hand, with the commit and blob id in `NODE_RELEASE_KEYS`, when the pin watch's summary issue lists a newer nodejs/release-keys commit whose `gpg-only-active-keys/pubring.kbx` differs (its `Node.js release keys` row, weekly, since #1780's review: a key retired, revoked, added or given a new expiry), or when a release is signed by a key not in it (the build says so). A key that expired after it signed does not stop the build; one revoked, or expired before it signed, does | shipped to every Windows install, and held to the tagged commit's sum by the release's `verify` job (since #1780's review); `pnpm test` needs `gpgv`; the owner's Windows 11 check of a zip on 26.13.0, owed since 2026-10-31, was dropped by the owner on 2026-11-02 and replaced by `windows-payload.yml`'s `smoke` job, Phases 1 and 2 of the Windows runbook on `windows-2025`, which the release attach needs (Status, 2026-11-02; proven once it runs green) |
-| stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, hosted arm64 for a push since 2026-11-08, the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022) and stays at v0.16.27 |
+| stalwart-cli | `.github/workflows/ci.yml` (`integration-tests`: hosted amd64 and arm64 for a pull request, hosted arm64 for a push since 2026-11-08, the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`), `e2e.yml` and `e2e-managed.yml` (the self-hosted runner, nightly and on dispatch): one step, word for word in the three | v1.0.14 from its GitHub release by name, `stalwart-cli-<arch>-unknown-linux-gnu.tar.xz` for x86_64 (`78584b23…`) and aarch64 (`a30f0c1a…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `sha256.sum`, each file's `.sha256`, `dist-manifest.json` and its installer all give (2026-11-01). Before it `releases/latest/download/stalwart-cli-installer.sh` piped to `sh`, which installed whatever release was newest (1.0.14 since 2026-10-25, 1.0.13 before) | v1.0.14 (git tag `c1083410`, release assets uploaded 2026-10-25 18:14 UTC, npm 18:15 UTC; three days old on 2026-10-28) in its major; v2.0.0 (its changelog's date 2026-11-16) is another major, which the row does not compare with | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its stalwart-cli row, against upstream's git tags): the version and both sums in all three workflows in one pull request, as `ci.yml`'s step header says, and the release in the three install hints a developer reads (`STALWART_CLI_HINTS`: the fix doc, `setup-stalwart.sh`, `testcontainers-setup.ts`), which the guard holds to it; Dependabot cannot see a URL in a `run:` | CI and the E2E gates only, never deployed. Not the server pin, which is the owner's (ADR-0022): v1.1.1 since 2026-11-20, which 1.0.14 provisions as read (`docs/stalwart-integration-fix.md`, *Moving the pin*) |
 | Atlas's dev database (`postgres`) | `.github/workflows/ci.yml`, `migration-lint`'s `--dev-url`, the disposable database Atlas replays both migration chains into | `docker://postgres/18.7-alpine@sha256:75dcac3d…/dev` since 2026-11-13, merged as #1882 (`18.6-alpine@sha256:10a5c69a…` from 2026-11-01): the base `deploy/compose/postgres/Dockerfile` builds the stacks' Postgres on, tag and index digest. Atlas's docker driver (`FromURL` at v1.3.6's commit, unchanged at v1.3.8's, at the one v1.3.9 and v1.3.10 are built from, and at v1.4.0's) takes the path's first part as the tag and runs `docker run … postgres:<tag>`, so a tag carrying `@sha256:` reaches `docker run` whole. Before it `docker://postgres/18/dev`, Docker Hub's floating `18` (Debian) | the stacks' FROM, which Dependabot moves | current | with the FROM: Dependabot's pull request for `deploy/compose/postgres/Dockerfile` fails `a-gate-on-a-version-nothing-ships` until the dev URL moves too, and the failure prints the `sed`, which since 2026-11-13 moves the `--dev-url` line alone (it rewrote the comment above it too, Status) | CI only; the major is the deployments' (that guard's older rule) |
 | binfmt (`tonistiigi/binfmt`) | `.github/workflows/images.yml`, `build`: `docker/setup-qemu-action`'s `image` input, run with `--privileged` in the job that holds `packages: write` and `id-token: write`; on a pull request too since 2026-11-01, so a moved pin runs before the merge push that publishes | `qemu-v10.2.3@sha256:400a4873…` (2026-11-01), what `latest` named that day (pushed 2026-06-08). Before it the action's default, `docker.io/tonistiigi/binfmt:latest` | `latest` = `qemu-v10.2.3` | current | by hand, when the pin watch's summary issue says `latest` names another digest (its row compares the two): the tag that carries that digest, three days old | CI only: the emulators the published images' arm64 builds run under |
 | Trivy, the scanner every image-scan figure in this plan comes from | `.github/workflows/security-scan.yml`: the repository scan (`security-scan`: hosted arm64 for a push to `main` since 2026-11-08 and for a dispatch with `push_runner`, the self-hosted runner while the repository variable `CI_PUSH_ON_SELF_HOSTED` is `true`; hosted amd64 for a pull request, the weekly schedule and any other dispatch) and every image leg (`image-scan`: the schedule, and a dispatch with `image_scans`; hosted arm64 for an image built here, hosted amd64 for one read from its registry). One install step, word for word in both jobs, which `a-pin-that-knows-it-is-behind` holds together and runs under bash with `curl` stubbed | v0.76.2 from its GitHub release by name, `trivy_<version>_Linux-64bit.tar.gz` (`bc0fc726…`) and `trivy_<version>_Linux-ARM64.tar.gz` (`ab9d51f8…`), each checked by its SHA-256 before anything is unpacked, then by the version the binary prints; the sums are the ones the release's `trivy_0.76.2_checksums.txt` gives, and each archive's own (2026-11-07). Both trivy-action steps name the same release and install nothing (`skip-setup-trivy`). Before it v0.76.1: by this step from 2026-11-04, and before that by trivy-action's own `setup-trivy`, which fetched the archive from `get.trivy.dev` with only the checksum file from GitHub | v0.76.2 (git tag `3f6334d2`, 2026-11-05 11:50 UTC; assets uploaded 12:50 UTC; three days old on 2026-11-08) | current | by hand, when the pin watch's summary issue lists a newer release three days old (`scripts/idp-pin-watch.mjs`, its Trivy row, against upstream's git tags): the version and both sums in both copies of the step, and `version:` on each trivy-action step, in one pull request, as the step's header says; Dependabot moves trivy-action, not the engine it runs | CI only, never deployed. A move can change an image's counts with nothing shipped changing, so each reading in this plan names its Trivy |

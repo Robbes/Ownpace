@@ -10,7 +10,8 @@
  * runs as root, since its last stage names no USER, and for a base that
  * floats, since its FROM carried no digest. The image does neither: its
  * base's config says `User: stalwart`, uid and gid 2000 in its /etc/passwd
- * (read at the index digest on 2026-11-19). And nothing builds the file. It
+ * (read at the index digest on 2026-11-19, and at v1.1.1's on 2026-11-20,
+ * the same). And nothing builds the file. It
  * is the `stalwart-test-custom` image of 2026-07-05; the integration tests
  * (`packages/testing/src/testcontainers-setup.ts`) and `setup-stalwart.sh`
  * start the official image itself, as root on purpose
@@ -23,12 +24,12 @@
  * USER, and that the tag is the pin the other copies name, which moves only by
  * ADR-0022 ("Moving the pin" in the fix doc, which names this file).
  *
- * What it does not change: the image the tests run, whose scan still reads
- * Debian 13's brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited
- * vulnerabilities, fixed in 1.1.0-2+deb13u1), apt 3.0.3 and zlib. No v0.16
- * release after v0.16.27 exists, and its tag still names the index of
- * 2026-10-18; Stalwart v1.1.0's and v1.1.1's images carry the brotli fix.
- * Another line is the owner's call (workplan 0119, 2026-11-19).
+ * What it did not change: the image the tests ran, whose scan read Debian
+ * 13's brotli 1.1.0-2 (CVE-2026-111497, on CISA's list of exploited
+ * vulnerabilities, fixed in 1.1.0-2+deb13u1), apt 3.0.3 and zlib at
+ * v0.16.27, the last v0.16. The owner took another line for that: the pin is
+ * v1.1.1 (ADR-0022, 2026-11-20), whose image carries brotli 1.1.0-2+deb13u1
+ * and apt 3.0.4, and zlib 1:1.3.dfsg+really1.3.1-1+b1 still unfixed.
  */
 
 import { describe, it, expect } from 'vitest';

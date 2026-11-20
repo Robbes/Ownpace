@@ -39,6 +39,9 @@
 #                               a value; --print and the two timer modes are
 #                               not refused (0140 T10: stack_may_be_live,
 #                               live_sign_in_keys_set)
+#   reset-demo-mail.sh          refuses live before Docker is asked
+#                               anything: it resets the OTA demo's mail lane
+#                               once, by hand (0119: stack_may_be_live)
 #
 # Each of them reads the marker's name from here, so it is spelled once. Live's
 # .env carries the line

@@ -1,7 +1,7 @@
 # ADR-0022: IMAP Dependency Security Strategy
 
 **Status:** Accepted — and **the migration this deferred was carried out on 2026-08-06**; since 2026-10-25 it also records the owner's decisions on the Stalwart test fixture's pin  
-**Date:** 2026-07-08 (updates: 2026-08-06, 2026-10-25)  
+**Date:** 2026-07-08 (updates: 2026-08-06, 2026-10-25, 2026-11-20)\
 **Authors:** OpenHands Agent  
 **Supersedes:** None
 
@@ -13,7 +13,7 @@
 
 - The vulnerable chain is **gone, not overridden**: `imap-simple`→`utf7`→`semver@5.3.0` left the lockfile with the imapflow migration (workplan 0032).
 - The `semver` pnpm override **stays** — it was never only about that chain; removing it is a separate decision with its own blast radius. Since 2026-10-21 it is one scoped entry per fixed line (5.7.2, 6.3.1, 7.5.2): a 5.x, 6.x or 7.x below its fix is lifted within its major, and nothing is moved to 7.
-- The Stalwart test fixture is pinned at **v0.16.27** (2026-10-25). It moves only on the owner's decision, recorded here as a dated update, with every copy in one change, as `docs/stalwart-integration-fix.md`, "Moving the pin", lists.
+- The Stalwart test fixture is pinned at **v1.1.1** (2026-11-20, on the owner's decision of 2026-11-19). It moves only on the owner's decision, recorded here as a dated update, with every copy in one change, as `docs/stalwart-integration-fix.md`, "Moving the pin", lists.
 
 > ## Update, 2026-08-06 — the workaround is no longer load-bearing
 >
@@ -69,6 +69,60 @@
 >
 > **The rule for the next move** is the operative bullet above, and its
 > checklist lives in the fix doc. The `semver` decision is untouched.
+
+> ## Update, 2026-11-20 — the Stalwart pin moves to v1.1.1, on the owner's decision
+>
+> **The question and the answer.** Put to the owner on 2026-11-19: *"Move
+> the test mail server to Stalwart v1.1.1? Yes, after alpha.12, on its own
+> branch, with the two-step run proven first. It fixes the brotli and apt
+> CVEs, but not zlib."* The owner answered at about 18:36 UTC that day:
+> *"3. Yes"*.
+>
+> **Why it moves.** The scan of v0.16.27 reads Debian's brotli 1.1.0-2
+> (CVE-2026-111497, on CISA's list of exploited vulnerabilities) and apt
+> 3.0.3, both fixed in Debian, and no v0.16 release follows it (workplan
+> 0119, 2026-11-19). v1.1.1's image carries brotli 1.1.0-2+deb13u1 and apt
+> 3.0.4; zlib is still unfixed there. It was pushed to Docker Hub on
+> 2026-11-16 at 11:47 UTC, so CONTRIBUTING.md's three days passed on
+> 2026-11-19.
+>
+> **Why it is not a binary swap.** v1 is another line: upstream's 1.0.0
+> entry says a v0.16 deployment cannot be upgraded in place, because the
+> database layout is new, and v1.1.1 refuses at start a store an earlier
+> line made. Upstream wrote no `UPGRADING/` note for it, so the move was read
+> from the changelog between the two tags and the source at both. The
+> recovery-mode variables, `config.json` and every object the provisioning
+> plan upserts read the same, and stalwart-cli 1.0.14 stays. One connector
+> changes with it: JMAP files follow a newer FileNode draft on v1, so
+> `JmapFileTarget` speaks both, chosen by what the account's session says.
+> The fix doc, "Moving the pin", has the detail.
+>
+> **How it merges.** On its own branch, after alpha.12, as the owner said:
+> first the CI integration tests on the new tag (the two-phase run), then
+> E2E (self-hosted), and E2E (managed) on the branch after alpha.12's tag.
+> v1.1.1 refuses the OTA demo's Stalwart volume, which v0.16.10 made, so
+> what happens to that volume is decided before that run.
+>
+> **The OTA demo's switch, decided the same day.** Put to the owner at
+> about 10:25 UTC on 2026-11-20: *"For later (alpha.13), Stalwart v1.1.1 on
+> the test stack (OTA): the new mail server can't read the old test-mail
+> data, and the test stack's database still lists those test mails as
+> copied, so the nightly test would fail after the switch. How should the
+> switch go?"* The owner chose *"One-time reset (Recommended)"*, whose
+> description read: *"Right after a nightly test, you run one reset command
+> I prepare (it clears only the test fixtures' mail data and their copy
+> records on OTA, nothing real). I then run the branch test and merge
+> straight away. Least code, nothing left behind."* The command is
+> `deploy/compose/reset-demo-mail.sh`. Run by hand with `--yes` once a
+> nightly E2E (managed) of `main` has finished, it removes the demo's
+> Stalwart container and its data volume and clears the demo mail
+> migration's rows. E2E (managed) then runs on the branch, and the merge
+> follows before the next nightly; a nightly in between means the reset
+> runs again. Nothing calls it by itself. The fix doc, "Moving the pin", has
+> the order and what it clears.
+>
+> **The rule for the next move** is the operative bullet above, unchanged
+> but for the version.
 
 ## Context
 

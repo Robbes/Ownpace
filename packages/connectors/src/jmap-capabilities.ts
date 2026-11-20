@@ -29,8 +29,10 @@
  *
  * **2. "The server speaks it" is not "this product can carry it."** Stalwart
  * advertises `urn:ietf:params:jmap:calendars`, and there is no JMAP calendar
- * target — 0031 T1 is PARKED because that server refuses `recurrenceRules`
- * over JMAP, so a calendar target would write a recurring series as a single
+ * target — 0031 T1 is PARKED because that server refused `recurrenceRules`
+ * over JMAP up to v0.16.27 (v1.1.1 names one `recurrenceRule` instead, and
+ * the spike has not asked it yet), so a calendar target would write a
+ * recurring series as a single
  * event plus orphaned overrides, silently. A picker that offered JMAP
  * calendars because the URN was present would be offering a data-loss bug.
  * So `serverSpeaks` and `supportedByThisProduct` are separate fields and
@@ -101,10 +103,12 @@ const DOMAIN_REQUIREMENTS: ReadonlyArray<{
     supportedByThisProduct: false,
     unsupportedReason:
       'This product has no JMAP calendar target. Workplan 0031 T1 is parked by owner decision: ' +
-      'Stalwart refuses `recurrenceRules` over JMAP (v0.16.10, and v0.16.27 when re-checked on ' +
+      'Stalwart refused `recurrenceRules` over JMAP (v0.16.10, and v0.16.27 when re-checked on ' +
       '2026-10-25) while its own CalDAV path accepts ' +
       'them, so a JMAP calendar target would write a recurring series as a single event plus ' +
-      'orphaned overrides — silently, since every write succeeds. Calendars travel over CalDAV.',
+      'orphaned overrides — silently, since every write succeeds. Stalwart v1.1.1 names one ' +
+      '`recurrenceRule` instead (a newer JSCalendar draft) and has not been asked yet. ' +
+      'Calendars travel over CalDAV.',
   },
 ];
 
