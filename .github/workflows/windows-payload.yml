@@ -66,6 +66,7 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # No token left in .git/config for the steps after this one (workplan
@@ -643,6 +644,7 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # No token left in .git/config for the steps after this one (workplan

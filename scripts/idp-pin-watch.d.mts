@@ -53,6 +53,10 @@ export declare const HADOLINT_WORKFLOW: string;
 export declare const HADOLINT_NOTE: string;
 /** The one image hadolint.yml names, hadolint/hadolint by a release tag and its index digest; throws for any other line. */
 export declare function hadolintPin(workflow: string): Omit<Image, 'line'>;
+export declare const ZIZMOR_WORKFLOW: string;
+export declare const ZIZMOR_NOTE: string;
+/** The one image zizmor.yml names, ghcr.io/zizmorcore/zizmor by a release tag and its index digest; throws for any other line. */
+export declare function zizmorPin(workflow: string): Omit<Image, 'line'>;
 export declare const TRIVY_WORKFLOW: string;
 export declare const TRIVY_JOBS: string[];
 export declare const TRIVY_HOST: string;
