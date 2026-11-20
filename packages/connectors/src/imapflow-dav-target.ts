@@ -71,7 +71,7 @@ import type {
   RemovalResult,
   UpsertResult,
 } from '@openmig/shared';
-import { contentHash, log } from '@openmig/shared';
+import { arrivalTimeOf, contentHash, log } from '@openmig/shared';
 import { reachableHost } from '@openmig/shared/reachable-host';
 import {
   mapImapSpecialUse,
@@ -364,10 +364,17 @@ export class ImapFlowDavMailTarget implements TargetWriter, TargetReindexer, Tar
     // `\Seen` by default, matching `ImapDavMailTarget`. Not a preference: a
     // migration that silently marked a mailbox unread would hand the owner
     // thousands of "new" messages on cutover day.
+    //
+    // And the message's own arrival time, as its INTERNALDATE: without it the
+    // server records the moment of copying, which is what a mail app sorts
+    // "received" by and what a webmail shows when the `Date:` line is missing
+    // (`arrivalTimeOf`, which says where the time comes from). Undefined when
+    // there is none to give, and then the server's clock, as before.
     const appended = await client.append(
       mailboxId,
       Buffer.from(raw.rfc822),
       flags.length > 0 ? flags : ['\\Seen'],
+      arrivalTimeOf(raw),
     );
 
     if (!appended) {

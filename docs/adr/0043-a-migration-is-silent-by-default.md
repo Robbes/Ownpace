@@ -2,7 +2,8 @@
 
 - **Status:** Accepted; amended 2026-11-19 (a target that emails guests whatever the marker says,
   or that no pass has tested yet, gets none, and a copy there that already lists guests is left as
-  it is) and 2026-11-20 (Infomaniak's copies keep their guests, as Nextcloud's do)
+  it is) and 2026-11-20 (Infomaniak's copies keep their guests, as Nextcloud's do, and so do
+  Cirrux's again, once the owner's test sends no mail)
 - **Date:** 2026-08-25
 - **Deciders:** Owner, 2026-08-25 — "do T1 and T2, and the rest", instructing
   workplan 0103's proposed posture to be built as written. The research that
@@ -21,10 +22,10 @@
   explicit `SCHEDULE-AGENT=SERVER` from the source is rewritten too; explicit `CLIENT`/`NONE` are
   kept byte-for-byte: `packages/shared/src/calendar-scheduling.unit.test.ts`.
 - **Except a target that may email guests whatever the parameter says** (2026-11-19):
-  a kind in `TARGETS_THAT_MAIL_GUESTS` (Cirrux, 0160) gets neither; each becomes a `COMMENT`
-  naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. A kind
-  leaves the list on a pass that sends nothing, or by a dated amendment of this ADR (Infomaniak,
-  2026-11-20, 0161).
+  a kind in `TARGETS_THAT_MAIL_GUESTS` (none since 2026-11-20) gets neither; each becomes a
+  `COMMENT` naming the person: `packages/shared/src/a-guest-a-server-would-mail.unit.test.ts`. A
+  kind leaves the list on a pass that sends nothing, or by a dated amendment of this ADR
+  (Infomaniak, 0161, and Cirrux, 0160, 2026-11-20).
 - **At such a target, a copy that already lists guests is left as it is** (2026-11-19): neither
   rewritten nor deleted, and reported, since either would mail each guest:
   `packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`.
@@ -94,6 +95,57 @@ What holds since:
   any step puts `infomaniak` back on `TARGETS_THAT_MAIL_GUESTS`, as a kind seen mailing guests, as
   Cirrux is.
 
+## Amendment 2026-11-20: Cirrux's copies keep their guests again, once a test sends no mail
+
+On 2026-11-20 the owner was asked:
+
+> "Decision for alpha.13, no rush: copy guests to Cirrux again?"
+
+The options were:
+
+- *"Yes, test first (recommended): I build it on a branch and put it on the test stack (OTA) after
+  tonight's deploy. You run one small test migration there: one event whose only guest is your own
+  second address. If no mail arrives, I merge it. If one does, I drop it and you tell Cirrux."*
+- *"Keep the guard: guests stay as notes on Cirrux events."*
+- *"Copy now, no test: it rests on Cirrux's word alone, and their mail went out once already."*
+
+The answer was *"Yes, copy to Cirrux again, but we need to test"*.
+
+Cirrux had answered the same day, and workplan 0160 §1 records what it said: its server had not
+honoured `SCHEDULE-AGENT=CLIENT`, and honours it now.
+
+What holds since:
+
+- `cirrux` is not in `TARGETS_THAT_MAIL_GUESTS` (`packages/shared/src/calendar-scheduling.ts`),
+  which is empty since. The list is kept, with its reader and the path for a copy there that
+  already lists guests (the second amendment of 2026-11-19), for the next kind seen mailing
+  guests. The tests hand the reader a list of their own, and the writers their flag, so both stay
+  proven while the list is empty.
+- Cirrux is written as Nextcloud is: each `ATTENDEE` and `ORGANIZER` is kept and marked
+  `SCHEDULE-AGENT=CLIENT`, and a copy there that lists guests is rewritten and removed as at any
+  target not on the list
+  (`packages/engines/src/a-copy-that-lists-guests-is-left-as-it-is.unit.test.ts`). Its Test and
+  its audit row say what its server advertises, as for Nextcloud.
+- A copy written while `cirrux` was on the list names its guests in `COMMENT` lines. It gets its
+  guests at its next rewrite, the next time the event changes at the source.
+- An invitation Cirrux might still send cannot be taken back, and Cirrux's word is the only
+  evidence that it will not. So the change merges only on workplan 0160 §4's test, on the test
+  environment: one future event whose only guest is the owner's own second address, through a
+  first pass, a changed title and an applied removal. Mail at any step, and it does not merge, and
+  `cirrux` goes back on `TARGETS_THAT_MAIL_GUESTS`.
+
+**The test, run on 2026-11-20.** On the test environment, with this change deployed, a new
+migration of the owner's own Google calendars into Cirrux copied 6,211 events with their guests,
+and the owner saw no mail from it. The event whose only guest was the owner's second address
+arrived with that guest and sent no invitation; a change of its title and time arrived with the
+guest kept and sent no update. The applied removal could not be run: Google's calendars report no
+deletions to this service, so the deleted event never reached the Deletions queue and nothing was
+removed at Cirrux (workplan 0160, Status of 2026-11-20). In its place the other change that mailed
+on 2026-11-19 was run, a guest taken off an event at the source and copied by the next pass, and it
+sent no cancellation. The owner's answer was *"4b sends no mail, but did sync. Continue."*, and the
+change merged on it. Not observed: a removal applied at Cirrux to a copy that lists guests, which
+only a source that reports deletions can reach, one item at a time.
+
 ## Amendment log
 
 - **2026-10-03** — Operative rules cut to the [ADR-0051](./0051-an-adr-reads-as-it-stands.md) budget; nothing was
@@ -123,3 +175,13 @@ What holds since:
 - **2026-11-20** — **Amended**, by the owner (*"No, copy the guests"*): Infomaniak's copies keep
   their guests, as Nextcloud's do, and `infomaniak` leaves both lists (workplan 0161). Record: the
   section "Amendment 2026-11-20: Infomaniak's copies keep their guests".
+- **2026-11-20** — **Amended** again, by the owner (*"Yes, copy to Cirrux again, but we need to
+  test"*): Cirrux's copies keep their guests again, as Nextcloud's do, and `cirrux` leaves
+  `TARGETS_THAT_MAIL_GUESTS`, which is empty since. It rests on Cirrux's answer of that day, that
+  its server now honours the marker, and on the owner's test before the merge (workplan 0160).
+  Record: the section "Amendment 2026-11-20: Cirrux's copies keep their guests again, once a test
+  sends no mail".
+- **2026-11-20** — The owner's test on the test environment sent no mail at a first copy, a change,
+  or a guest taken off, and the change merged (*"4b sends no mail, but did sync. Continue."*). The
+  removal step could not be run from Google, whose calendars report no deletions. Record: "The
+  test, run on 2026-11-20" in the same section.
