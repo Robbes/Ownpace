@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, latest: finding 7 is set aside, on the owner's word (T10, D6).** Docs only. Told
+that no community rule reports finding 7 and that four candidates fit it, the owner answered:
+*"Leave that Finding 7 / unfindable for now."* It is parked as T10, and §4.3 keeps the four
+candidates for when it is taken up. D6 now asks the owner for finding 4's two spots alone; T4
+covers findings 8 and 9 and the small fixes.
+
 **2026-11-20, last: D7 answered and built as #1980; findings 8 and 9 found; 4 and 7 asked of the
 owner (T9, T4, D6).** Docs only on this branch.
 - **D7.** The owner answered *"D7: yes"*. The deletion is its own draft pull request, #1980, on
@@ -75,12 +81,13 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | 📋 **Planned** (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | 📋 **Planned** (D3) | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned**; ⏳ **Owner** (D6: the spots of findings 4 and 7) | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7: its two spots, once the owner has copied them (D6). |
+| T4 Fix or answer each spot | builder | 📋 **Planned**; ⏳ **Owner** (D6: the spots of finding 4) | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7 is parked (T10). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
 | T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); 🔨 **Built** in #1980, a draft, not merged | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |
+| T10 Finding 7, secrets not compared in constant time | owner | 🅿️ **Parked 2026-11-20, by owner decision** (*"Leave that Finding 7 / unfindable for now."*; trigger: the owner takes it up) | No community rule reports it (§4.3). Four candidates fit it, all from the Cirrux change of 2026-11-19, and none compares a secret with a value someone else supplies. |
 
 ## 1. Why
 
@@ -240,7 +247,8 @@ parse errors (6 to 234 per pack), which Semgrep skips.
     stored refresh token against the one presented) and 376 (the PKCE challenge).
 
   None of the four compares a secret with a value someone else supplies, so each reads as a
-  false positive, but which two the check counts is not known (D6). Elsewhere in `apps/` and
+  false positive, but which two the check counts is not known. The owner set the finding aside
+  on 2026-11-20 (T10). Elsewhere in `apps/` and
   `packages/`, the comparisons with secret-like names are presence checks (`!== ''`, `!== null`),
   and the two places that compare a presented token with a stored one already use
   `timingSafeEqual` (`google-consent.ts`, `packages/ledger/src/mapping-link-store.ts`).
@@ -338,7 +346,7 @@ check gives (§4.3). They join step 3's list and fail the build in step 5 once T
 that refuses an address that is not `https:` on the host its flow expects, used wherever the web
 app follows or links an address the API returned. A `scripts/` guard in this repository's own
 style can hold the third place, `consent-window.ts:123`, which no rule reports. Finding 7 has no
-community rule; it waits for its two spots to be named (D6).
+community rule, and the owner set it aside on 2026-11-20 (T10).
 
 **What has to be fixed first.** Before a Semgrep rule may fail the build: `secrets.ts`'s
 `authTagLength` (`gcm-no-tag-length`), and the `base_ref` line (`run-shell-injection`), which goes
@@ -388,7 +396,9 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
   guard case, or is recorded as intended. **Answer, 2026-11-20: ok.** The owner supplies the spots.
   Asked then what was expected for 4, 7 and 8, and answered after the third measure run, which
   found 8 and 9 itself (Status, 2026-11-20, last): only the file and line (or the route) of
-  finding 4's two spots and of finding 7's two, as the outside check lists them.
+  finding 4's two spots and of finding 7's two, as the outside check lists them. The owner then
+  set finding 7 aside (*"Leave that Finding 7 / unfindable for now."*, T10), so D6 asks for
+  finding 4's two spots alone.
 - **D7. Delete `e2e-o365.yml`?** The owner asked it with D2: *"why do we still have an O365
   workflow? Perhaps we need to delete that file."* The Status entry of 2026-11-20, later, has the
   facts. Advice: **yes, in a pull request of its own.** It has never run a test in four runs. Its
