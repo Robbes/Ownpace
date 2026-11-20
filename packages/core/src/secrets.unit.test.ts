@@ -32,6 +32,8 @@
  */
 
 import { describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   encryptSecret,
   decryptSecret,
@@ -142,6 +144,22 @@ describe('Secret Encryption', () => {
       };
 
       expect(() => decryptSecret(tampered)).toThrow(/authentication failed|Decryption failed/i);
+    });
+
+    it('refuses a tag cut short, and Node holds the cipher and decipher to the full tag (workplan 0163 T4)', () => {
+      const encrypted = encryptSecret('secret');
+      // The first 12 of the tag's 16 bytes: a decipher left to GCM's default
+      // takes a tag that short at setAuthTag, which is what a forgery needs.
+      const truncated: EncryptedSecret = {
+        ...encrypted,
+        t: Buffer.from(encrypted.t, 'base64').subarray(0, 12).toString('base64'),
+      };
+      expect(() => decryptSecret(truncated)).toThrow(/Invalid auth tag length: 12 \(expected 16\)/);
+      // And the check is not the only thing that stops it: both calls name
+      // the tag's length, so Node refuses a short tag even without the check.
+      const source = readFileSync(fileURLToPath(new URL('./secrets.ts', import.meta.url)), 'utf8');
+      const calls = [...source.matchAll(/\bcreate(?:Cipher|Decipher)iv\(([^)]*)\)/g)].map((m) => m[1]);
+      expect(calls).toEqual(['ALGORITHM, key, nonce, { authTagLength: AUTH_TAG_LENGTH }', 'ALGORITHM, key, nonce, { authTagLength: AUTH_TAG_LENGTH }']);
     });
 
     it('should throw on tampered nonce', () => {

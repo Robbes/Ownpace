@@ -126,7 +126,11 @@ export function encryptSecret(plaintext: string): EncryptedSecret {
   const nonce = randomBytes(NONCE_LENGTH);
 
   // Create cipher
-  const cipher = createCipheriv(ALGORITHM, key, nonce);
+  // The tag's length is named on both sides, so Node itself holds GCM to it
+  // (workplan 0163 T4): a decipher left to the default accepts a shorter tag
+  // at `setAuthTag`, and only the length check in `decryptSecret` stood
+  // between that and a truncated tag.
+  const cipher = createCipheriv(ALGORITHM, key, nonce, { authTagLength: AUTH_TAG_LENGTH });
 
   // Encrypt the plaintext
   const ciphertext = Buffer.concat([
@@ -191,7 +195,7 @@ export function decryptSecret(encrypted: EncryptedSecret): string {
     }
 
     // Create decipher
-    const decipher = createDecipheriv(ALGORITHM, key, nonce);
+    const decipher = createDecipheriv(ALGORITHM, key, nonce, { authTagLength: AUTH_TAG_LENGTH });
 
     // Set the auth tag for verification
     decipher.setAuthTag(authTag);

@@ -82,6 +82,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **A stored credential is decrypted only with its full authentication tag** (workplan 0163).
+  The credential store's AES-GCM cipher and decipher now both name the tag's length, 16 bytes, so
+  Node itself refuses a shorter tag. Until now only a length check before decryption did.
 - **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
   2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
   (workplan 0119). The image scan read six highs in the two, each fixed only in their next
