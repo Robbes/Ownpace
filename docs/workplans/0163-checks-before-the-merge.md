@@ -4,11 +4,14 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
-**2026-11-20, latest: finding 7 is set aside, on the owner's word (T10, D6).** Docs only. Told
-that no community rule reports finding 7 and that four candidates fit it, the owner answered:
-*"Leave that Finding 7 / unfindable for now."* It is parked as T10, and §4.3 keeps the four
-candidates for when it is taken up. D6 now asks the owner for finding 4's two spots alone; T4
-covers findings 8 and 9 and the small fixes.
+**2026-11-20, latest: findings 7 and 4 are set aside, on the owner's word (T10, T11, D6).** Docs
+only.
+- **Finding 7.** Told that no community rule reports it and that four candidates fit it, the
+  owner answered: *"Leave that Finding 7 / unfindable for now."* It is parked as T10, and §4.3
+  keeps the four candidates for when it is taken up.
+- **Finding 4.** Then: *"finding 4: also park, we pick up later"*. It is parked as T11; its two
+  spots are still not named here (§3).
+- **So D6 asks the owner for nothing now.** T4 covers findings 8 and 9 and the small fixes.
 
 **2026-11-20, last: D7 answered and built as #1980; findings 8 and 9 found; 4 and 7 asked of the
 owner (T9, T4, D6).** Docs only on this branch.
@@ -81,13 +84,14 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | 📋 **Planned** (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | 📋 **Planned** (D3) | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned**; ⏳ **Owner** (D6: the spots of finding 4) | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Finding 7 is parked (T10). |
+| T4 Fix or answer each spot | builder | 📋 **Planned** | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
 | T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); 🔨 **Built** in #1980, a draft, not merged | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |
 | T10 Finding 7, secrets not compared in constant time | owner | 🅿️ **Parked 2026-11-20, by owner decision** (*"Leave that Finding 7 / unfindable for now."*; trigger: the owner takes it up) | No community rule reports it (§4.3). Four candidates fit it, all from the Cirrux change of 2026-11-19, and none compares a secret with a value someone else supplies. |
+| T11 Finding 4, the overview of routes and who may use them | owner | 🅿️ **Parked 2026-11-20, by owner decision** (*"finding 4: also park, we pick up later"*; trigger: the owner takes it up) | The outside check's own rules; the screenshot does not name its two spots (§3). When it is taken up, each spot gets a case in `apps/api`'s door guards or is recorded as intended (§5). |
 
 ## 1. Why
 
@@ -133,7 +137,7 @@ measure branch (§4).
 | 1 | Secrets used by the build automation not in the right place (9) | **Not covered.** | Measured by reading: exactly nine `secrets.*` references sit in jobs with no `environment:`. Seven are in `e2e-o365.yml` (O365 client, tenant, scope, refresh token, user name, password), one is in `e2e-managed.yml` (`TRIGGER_ACCESS_TOKEN`) and one is in `exposure-probe.yml` (`EXPOSURE_PROBE_HOST`). This is zizmor's `secrets-outside-env` audit (added in v1.23.0). Since v1.24.0 it reports only under the `auditor` persona, so the zizmor run GEN-26 adds will not show it at the default persona. The outside check names gitleaks as the tool; the count and the wording match zizmor's audit. Only `release.yml`'s publish job has an environment today (`release`). |
 | 2 | Base-image vulnerabilities with a fix (15) | **Covered, report only:** the Monday image scans, SARIF in code scanning. | Nothing to add. The count depends on the day's database. A fix arrives through Dependabot or the pin watch, and the next scan confirms it. |
 | 3 | A known vulnerability in a package (1, one lockfile) | **Covered, report only:** pnpm audit lists it as moderate on every run. | Measured: osv-scanner 2.6.0 finds exactly one, GHSA-g3hv-75wg-m249 in minimatch 10.2.6, `pnpm-lock.yaml`. It is the one path `pnpm-workspace.yaml` deliberately keeps on 10.x for the Trigger.dev deploy CLI. The comment there gives the reason, and why the advisory's code does not run on that path. Known, accepted and documented. |
-| 4 | Overview of routes and who may use them (2) | **Partly covered:** `apps/api` holds guards over its doors (`openapi-spec`, `a-hold-that-holds-every-door`, `an-organisation-closed-at-every-door`, `a-route-that-opened-the-owners-pool` and others). | The check uses its own rules, and the screenshot does not name the two spots, so this plan cannot say which routes they are. The owner reads them from the check's detail (D6). |
+| 4 | Overview of routes and who may use them (2) | **Partly covered:** `apps/api` holds guards over its doors (`openapi-spec`, `a-hold-that-holds-every-door`, `an-organisation-closed-at-every-door`, `a-route-that-opened-the-owners-pool` and others). | The check uses its own rules, and the screenshot does not name the two spots, so this plan cannot say which routes they are. Parked by the owner on 2026-11-20 (T11). |
 | 5 | ReDoS-prone regular expressions (32) | **Not covered.** | §4.3. |
 | 6 | A file path built from input (1) | **Not covered.** | §4.3. |
 | 7 | Secrets not compared in constant time (2) | **Not covered.** | §4.3. |
@@ -331,7 +335,8 @@ an exact apk or apt pin, and hadolint stays report only.
   wants the release SBOM to list every resolvable package, that is a change to how `bom.json` is
   made, not a new check (D5).
 - **A route-inventory tool** for finding 4: the repository's own door guards are the right place.
-  Once the two spots are known, each one becomes a guard case or an answer (D6).
+  Once the two spots are known, each one becomes a guard case or an answer. Parked for now
+  (T11).
 - **Anything more for findings 2, 11 and 12.** They are covered, report only, by owner decisions
   already in force.
 - **Whole Semgrep packs.** Twelve packs found 174 plus about 100 more spots, almost all in tests,
@@ -398,7 +403,8 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
   found 8 and 9 itself (Status, 2026-11-20, last): only the file and line (or the route) of
   finding 4's two spots and of finding 7's two, as the outside check lists them. The owner then
   set finding 7 aside (*"Leave that Finding 7 / unfindable for now."*, T10), so D6 asks for
-  finding 4's two spots alone.
+  finding 4's two spots alone. Then finding 4 too (*"finding 4: also park, we pick up later"*,
+  T11), so D6 asks for nothing now.
 - **D7. Delete `e2e-o365.yml`?** The owner asked it with D2: *"why do we still have an O365
   workflow? Perhaps we need to delete that file."* The Status entry of 2026-11-20, later, has the
   facts. Advice: **yes, in a pull request of its own.** It has never run a test in four runs. Its
