@@ -767,10 +767,13 @@ jobs:
   # 2026-10-30). managed.yml's trigger-docker-proxy runs
   # `localhost/docker-socket-proxy:<tag>-<hash>`, which compose builds on the
   # machine from deploy/compose/docker-socket-proxy: Tecnativa's
-  # docker-socket-proxy v0.5.0, its files byte for byte, on the newest HAProxy
-  # of the line that release chose. Nothing publishes it, so the matrix above
-  # never builds it, and without this job the first build of a pull request
-  # that moved its FROM would be the branch's E2E (managed).
+  # docker-socket-proxy v0.6.0 (v0.5.0 until 2026-11-20), its files byte for
+  # byte, on the newest HAProxy of the line that release chose. v0.6.0 allows
+  # and refuses what v0.5.0 did: the same configuration, entrypoint and
+  # defaults, so the probes below did not change with it. Nothing publishes
+  # it, so the matrix above never builds it, and without this job the first
+  # build of a pull request that moved its FROM would be the branch's E2E
+  # (managed).
   #
   # It builds the directory under the name managed.yml gives it, checks the
   # image's user, entrypoint and command are upstream's, and starts it on this
@@ -781,7 +784,7 @@ jobs:
   # answers, and the answer must carry the Api-Version header Docker sets on
   # every response, so that HAProxy's own 403, or its 503 when the socket stops
   # answering, never counts as Docker's. And for every endpoint switch
-  # upstream's v0.5.0 leaves off and managed.yml does not turn on (auth, build,
+  # upstream's v0.6.0 leaves off and managed.yml does not turn on (auth, build,
   # commit, configs, distribution, exec, grpc, info, nodes, plugins, secrets,
   # services, session, swarm, the system, tasks): the proxy must answer 403
   # itself, without that header. The job exits with the verdict of every
@@ -817,7 +820,7 @@ jobs:
           have="$(docker image inspect --format '{{json .Config.User}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' "$ref")"
           want='"root" ["docker-entrypoint.sh"] ["haproxy","-f","/tmp/haproxy.cfg"]'
           if [ "$have" != "$want" ]; then
-            echo "::error::${ref} runs ${have} (user, entrypoint, command), and upstream's v0.5.0 runs ${want}"
+            echo "::error::${ref} runs ${have} (user, entrypoint, command), and upstream's v0.6.0 runs ${want}"
             exit 1
           fi
           # managed.yml's environment and socket for trigger-docker-proxy, as they are there.
@@ -859,7 +862,7 @@ jobs:
               echo "allowed: ${probe} -> ${code} (Docker's answer, API ${version})"
             fi
           done
-          # One request for each endpoint switch upstream's v0.5.0 leaves off and managed.yml does not turn on: the proxy's own 403.
+          # One request for each endpoint switch upstream's v0.6.0 leaves off and managed.yml does not turn on: the proxy's own 403.
           for probe in \
             "POST /auth" "POST /build" "POST /commit" "GET /configs" \
             "GET /distribution/socket-proxy-probe-none/json" \
@@ -869,7 +872,7 @@ jobs:
             read -r method path <<<"$probe"
             read -r code version <<<"$(answer "$method" "$path")"
             if [ "$code" != 403 ] || [ -n "$version" ]; then
-              echo "::error::${probe}: ${code}${version:+ from Docker (Api-Version ${version})}, and upstream's v0.5.0 refuses it with the proxy's own 403 under managed.yml's environment"
+              echo "::error::${probe}: ${code}${version:+ from Docker (Api-Version ${version})}, and upstream's v0.6.0 refuses it with the proxy's own 403 under managed.yml's environment"
               failed=1
             else
               echo "refused: ${probe} -> 403 (the proxy's own)"

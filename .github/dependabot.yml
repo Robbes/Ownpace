@@ -218,7 +218,7 @@ updates:
 
   # The Trigger.dev supervisor's Docker socket proxy
   # (deploy/compose/docker-socket-proxy/Dockerfile, workplan 0119, 2026-10-30):
-  # Tecnativa's docker-socket-proxy v0.5.0 on the newest HAProxy of the line
+  # Tecnativa's docker-socket-proxy v0.6.0 on the newest HAProxy of the line
   # that release chose, which managed.yml builds as
   # `localhost/docker-socket-proxy:<tag>-<12 hex>`, the hex being the hash of
   # the Dockerfile's instructions. So this pull request, a newer 3.4 or a new
