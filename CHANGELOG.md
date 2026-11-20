@@ -33,6 +33,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   finished, it removes the demo's Stalwart and its data volume and clears the demo mail
   migration's own records, nothing else; without `--yes` it only shows what it would do. It
   refuses live. Nothing runs it by itself.
+- **Live's deploy refuses an `API_URL`, `WEB_URL` or `CORS_ORIGIN` that is not live's own
+  address** (workplans 0132 T6 and T1b, 0140 T11). The API builds every consent's redirect, for
+  Google, Microsoft, Dropbox and Cirrux Drive, from `API_URL`, and on 2026-11-20 Google refused
+  live's first connect with `redirect_uri_mismatch` while it still named `managed.env.example`'s
+  localhost; nothing in the deploy path had asked it. `deploy-live.sh` now refuses live's
+  settings, in the deploy and its dry run, before anything moves, while any of the three is not
+  set, not `https://`, or localhost or a loopback address, or while `API_URL` or `CORS_ORIGIN` is
+  not the origin in `WEB_URL`, where live's API is reached from outside. It names each key, never
+  its value, with the `env-upsert.sh` line that sets them. `stand-up-live.sh` asks `API_URL`
+  beside `WEB_URL` and `CORS_ORIGIN`, and the guide's step 6 for live sets it. The refusal first
+  applies at the deploy after the one that moves live onto this release: `deploy-live.sh` runs
+  its copy from before the checkout moves.
 
 ### Security
 

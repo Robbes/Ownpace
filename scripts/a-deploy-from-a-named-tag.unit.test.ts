@@ -41,6 +41,14 @@
  *   (indented, a space before `=`, `:` for `=`), by line and key: an
  *   indented `NODE_ENV` after a correct one would pass the check and run.
  *   Live's own `.env`, the Alpha's stage with both keys empty, still deploys.
+ *   Nor may a live `.env` whose `API_URL`, `WEB_URL` or `CORS_ORIGIN` is not
+ *   set, not `https://`, or localhost or a loopback address, or whose
+ *   `API_URL` or `CORS_ORIGIN` is not the origin `WEB_URL` names (workplan
+ *   0140, Status, 2026-11-20: live's `API_URL` kept `managed.env.example`'s
+ *   localhost, the api built every consent's redirect from it, and Google
+ *   refused live's first connect with `redirect_uri_mismatch`). They are
+ *   named with the rest, by key, with the one line that sets them, and the
+ *   dry run says the same, word for word.
  *
  *   Its dry run moves something, or refuses less. `--dry-run` is what the
  *   owner runs, with the hold on, to learn whether the deploy can be undone
@@ -627,7 +635,12 @@ interface Stage {
 const LIVE_ENV = [
   'COMPOSE_PROJECT_NAME=ownpace-live',
   'STACK_KIND=production',
+  // Live's three addresses from outside, one origin, as live has them since
+  // 2026-11-20 (workplan 0140, Status): the deploy refuses any of them unset,
+  // not https://, on localhost, or, for the last two, another origin.
   `WEB_URL=https://${APP_HOST}`,
+  `API_URL=https://${APP_HOST}`,
+  `CORS_ORIGIN=https://${APP_HOST}`,
   'POSTGRES_USER=openmigrate',
   'POSTGRES_DB=openmigrate',
   // Live names its mode (workplan 0132 T4) and has its alerts on (0142 T0):
@@ -1583,6 +1596,184 @@ describe("live's .env admits no host inside our networks, and sets no payment ke
         expectNothingChanged(s, r.out);
         expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
       }
+    },
+    CASE_MS,
+  );
+});
+
+// Live's three addresses from outside (workplan 0140, Status, 2026-11-20).
+// Live's .env was made from managed.env.example, whose WEB_URL, CORS_ORIGIN
+// and API_URL name localhost, and the stand-up set the first two. API_URL kept
+// the example's: the api built every consent's redirect from it, and Google
+// refused live's first connect with redirect_uri_mismatch. Nothing in the
+// deploy path noticed, and the api refuses a localhost API_URL only with
+// MOLLIE_API_KEY set, which live keeps empty during the Alpha. So the deploy
+// refuses, before the fetch and any docker call, each of the three not set or
+// empty, not https://, or localhost or a loopback address, and an API_URL or
+// CORS_ORIGIN that is not the origin WEB_URL names: from outside, live's api is
+// reached at the app's origin alone (0158 D10). WEB_URL is read as the checks
+// and setup-zitadel.sh read it, double quotes and all; the other two as
+// Compose hands them to the api. By key, never the value, with one line that
+// sets them; and the dry run says the same, word for word.
+const ADDRESS_KEYS = ['WEB_URL', 'API_URL', 'CORS_ORIGIN'] as const;
+type AddressKey = (typeof ADDRESS_KEYS)[number];
+/** What the refusal says of a key, after `<KEY>: `. */
+const UNSET = 'not set, or empty, so managed.yml hands the app its default, a localhost address.';
+const LOOPBACK = "localhost or a loopback address (managed.env.example's value is one).";
+const NOT_HTTPS = 'not an https:// address with a host.';
+const OTHER_ORIGIN = 'not the origin WEB_URL names, with nothing after it.';
+/** The OTA stack's app, a name live's .env could be copied from. Never to be printed. */
+const OTA_APP = 'app.ota.example.test';
+
+/** LIVE_ENV with one address line set to `value`, or taken out when it is undefined. */
+function withAddress(key: AddressKey, value: string | undefined, dotEnv: string = LIVE_ENV): string {
+  const line = `${key}=https://${APP_HOST}\n`;
+  if (!dotEnv.includes(line)) throw new Error(`the fixture has no line ${line.trim()}`);
+  return dotEnv.replace(line, value === undefined ? '' : `${key}=${value}\n`);
+}
+
+/** The line that sets the keys a refusal names, in the order it names them. */
+const setLine = (keys: AddressKey[]): string =>
+  `  ./deploy/compose/env-upsert.sh deploy/compose/.env ${keys.map((k) => `${k}=https://app.example.eu`).join(' ')}\n`;
+
+describe("live's three addresses from outside: each https and not this machine, and API_URL and CORS_ORIGIN the origin in WEB_URL (workplan 0140, Status, 2026-11-20)", () => {
+  it("managed.env.example writes the three, on localhost, which is what live's .env was made from", () => {
+    const example = readFileSync(join(COMPOSE_DIR, 'managed.env.example'), 'utf8').split('\n');
+    for (const key of ADDRESS_KEYS) {
+      expect(example.filter((l) => l.startsWith(`${key}=http://localhost:`)), `managed.env.example: ${key}`).toHaveLength(1);
+    }
+  });
+
+  // [label, the .env, [key, what is said of it] for each key named, values never to be printed]
+  const REFUSED: Array<[string, string, Array<[AddressKey, string]>, string[]]> = [
+    ['API_URL absent, as live had it until 2026-11-20', withAddress('API_URL', undefined), [['API_URL', UNSET]], []],
+    ['API_URL left empty', withAddress('API_URL', ''), [['API_URL', UNSET]], []],
+    ['API_URL in empty double quotes, which Compose hands the api as empty', withAddress('API_URL', '""'), [['API_URL', UNSET]], []],
+    ["API_URL the example's, on localhost over http", withAddress('API_URL', 'http://localhost:3001'), [['API_URL', LOOPBACK]], ['localhost:3001']],
+    ['API_URL on localhost over https, in capitals', withAddress('API_URL', 'https://LOCALHOST:3001/'), [['API_URL', LOOPBACK]], ['LOCALHOST']],
+    ['API_URL on a loopback address', withAddress('API_URL', 'https://127.0.0.2'), [['API_URL', LOOPBACK]], ['127.0.0.2']],
+    ['API_URL on the loopback address of IPv6', withAddress('API_URL', 'https://[::1]:3001'), [['API_URL', LOOPBACK]], ['[::1]']],
+    ['API_URL a name under .localhost', withAddress('API_URL', 'https://api-q1.localhost'), [['API_URL', LOOPBACK]], ['api-q1']],
+    ['API_URL the unspecified address, which reaches the machine it is asked on', withAddress('API_URL', 'https://0.0.0.0'), [['API_URL', LOOPBACK]], ['0.0.0.0']],
+    ['API_URL over plain http', withAddress('API_URL', `http://${APP_HOST}`), [['API_URL', NOT_HTTPS]], [APP_HOST]],
+    ['API_URL with no scheme', withAddress('API_URL', APP_HOST), [['API_URL', NOT_HTTPS]], [APP_HOST]],
+    ['API_URL with no host', withAddress('API_URL', 'https:///api'), [['API_URL', NOT_HTTPS]], []],
+    ["API_URL the OTA stack's app, whose Google client live shares", withAddress('API_URL', `https://${OTA_APP}`), [['API_URL', OTHER_ORIGIN]], [OTA_APP]],
+    ['API_URL the app with /api after it, which the api adds itself', withAddress('API_URL', `https://${APP_HOST}/api`), [['API_URL', OTHER_ORIGIN]], [APP_HOST]],
+    ['API_URL the app on another port', withAddress('API_URL', `https://${APP_HOST}:8443`), [['API_URL', OTHER_ORIGIN]], [APP_HOST]],
+    ['CORS_ORIGIN absent', withAddress('CORS_ORIGIN', undefined), [['CORS_ORIGIN', UNSET]], []],
+    ["CORS_ORIGIN the example's, on localhost", withAddress('CORS_ORIGIN', 'http://localhost:3123'), [['CORS_ORIGIN', LOOPBACK]], ['localhost:3123']],
+    ['CORS_ORIGIN over plain http', withAddress('CORS_ORIGIN', `http://${APP_HOST}`), [['CORS_ORIGIN', NOT_HTTPS]], [APP_HOST]],
+    ["CORS_ORIGIN the OTA stack's app", withAddress('CORS_ORIGIN', `https://${OTA_APP}`), [['CORS_ORIGIN', OTHER_ORIGIN]], [OTA_APP]],
+    ['CORS_ORIGIN with a path, which no origin has', withAddress('CORS_ORIGIN', `https://${APP_HOST}/app`), [['CORS_ORIGIN', OTHER_ORIGIN]], [APP_HOST]],
+    // WEB_URL wrong: named, and the other two not compared with it.
+    ['WEB_URL absent', withAddress('WEB_URL', undefined), [['WEB_URL', UNSET]], []],
+    ["WEB_URL the example's, on localhost", withAddress('WEB_URL', 'http://localhost:3123'), [['WEB_URL', LOOPBACK]], ['localhost:3123']],
+    ['WEB_URL over plain http', withAddress('WEB_URL', `http://${APP_HOST}`), [['WEB_URL', NOT_HTTPS]], [APP_HOST]],
+    ['WEB_URL in double quotes, which setup-zitadel.sh and the checks read as part of it', withAddress('WEB_URL', `"https://${APP_HOST}"`), [['WEB_URL', NOT_HTTPS]], [APP_HOST]],
+    [
+      'the three as managed.env.example ships them: each named, one line sets them',
+      withAddress('WEB_URL', 'http://localhost:3123', withAddress('API_URL', 'http://localhost:3001', withAddress('CORS_ORIGIN', 'http://localhost:3123'))),
+      [['WEB_URL', LOOPBACK], ['API_URL', LOOPBACK], ['CORS_ORIGIN', LOOPBACK]],
+      ['localhost:3001', 'localhost:3123'],
+    ],
+    [
+      'WEB_URL over plain http beside an API_URL of the same host: WEB_URL is named, and nothing is compared with it',
+      withAddress('WEB_URL', `http://${OTA_APP}`, withAddress('API_URL', `https://${OTA_APP}`)),
+      [['WEB_URL', NOT_HTTPS]],
+      [OTA_APP],
+    ],
+  ];
+
+  it.each(REFUSED)(
+    'refused before the fetch and any docker call, by key, and the dry run says the same: %s',
+    (_label, dotEnv, named, values) => {
+      const s = stage({ releases: [NEXT], dotEnv });
+      const deploy = run(s, [NEXT.tag]);
+      const dry = run(s, ['--dry-run', NEXT.tag]);
+      expect(dry.out, 'the dry run says what the deploy says').toBe(deploy.out);
+      for (const r of [deploy, dry]) {
+        expect(r.status, r.out).toBe(1);
+        expect(r.out).toContain("[deploy-live] refused: live's .env is not ready for a deploy. Each line names a key, never its value:");
+        for (const [key, said] of named) expect(r.out).toContain(`  ${key}: ${said}`);
+        const keys = named.map(([key]) => key);
+        for (const key of ADDRESS_KEYS.filter((k) => !keys.includes(k))) {
+          expect(r.out, `${key} is as it should be, and is named`).not.toContain(`${key}:`);
+        }
+        // The one line that sets them, with a placeholder for live's name.
+        expect(r.out).toContain(setLine(ADDRESS_KEYS.filter((k) => keys.includes(k))));
+        expect(r.out).toContain('docs/managed-bring-up.md, §8e, step 4');
+        for (const value of values) expect(r.out, "the file's own value is never printed").not.toContain(value);
+        expect(r.out).toContain('The checkout and the stack are as they were.');
+        expect(r.out, 'it fetched before refusing').not.toContain('fetching tags');
+        expectNothingChanged(s, r.out);
+        expect(called(s, 'copy-before-update'), 'a copy was taken for a deploy that is refused').toEqual([]);
+      }
+    },
+    CASE_MS,
+  );
+
+  it(
+    'named at once with the rest of the settings: API_URL absent and NODE_ENV absent',
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: withAddress('API_URL', undefined).replace('NODE_ENV=production\n', '') });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(1);
+      expect(r.out).toContain(`  API_URL: ${UNSET}`);
+      expect(r.out).toContain('  NODE_ENV: not production.');
+      expect(r.out).toContain(setLine(['API_URL']));
+      expect(r.out).toContain('env-upsert.sh deploy/compose/.env NODE_ENV=production');
+      expectNothingChanged(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  // [label, the .env]: each the app's origin, as the api and a browser compare it.
+  const TAKEN: Array<[string, string]> = [
+    ['the three as live has them since 2026-11-20, one origin', LIVE_ENV],
+    [
+      'each with a trailing slash, which the api takes off API_URL',
+      withAddress('WEB_URL', `https://${APP_HOST}/`, withAddress('API_URL', `https://${APP_HOST}/`, withAddress('CORS_ORIGIN', `https://${APP_HOST}/`))),
+    ],
+    [
+      'API_URL and CORS_ORIGIN in double quotes, which Compose takes off before the api reads them',
+      withAddress('API_URL', `"https://${APP_HOST}"`, withAddress('CORS_ORIGIN', `"https://${APP_HOST}"`)),
+    ],
+    [
+      'each in single quotes, which every reader takes off',
+      withAddress('WEB_URL', `'https://${APP_HOST}'`, withAddress('API_URL', `'https://${APP_HOST}'`, withAddress('CORS_ORIGIN', `'https://${APP_HOST}'`))),
+    ],
+    [
+      "the host in capitals and https's own port written out, the same origin",
+      withAddress('API_URL', `https://${APP_HOST.toUpperCase()}:443`, withAddress('CORS_ORIGIN', `https://${APP_HOST.toUpperCase()}`)),
+    ],
+    ['API_URL with a comment after it', withAddress('API_URL', `https://${APP_HOST}   # the app origin`)],
+  ];
+
+  it.each(TAKEN)(
+    'taken by the dry run: %s',
+    (_label, dotEnv) => {
+      const s = stage({ releases: [NEXT], dotEnv });
+      const r = run(s, ['--dry-run', NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toContain(`dry run: a deploy of ${NEXT.tag} now would be reversible.`);
+      for (const key of ADDRESS_KEYS) expect(r.out).not.toContain(`${key}:`);
+      expect(r.out, "the file's own value is never printed").not.toContain(APP_HOST);
+      expect(r.out, "the file's own value is never printed").not.toContain(APP_HOST.toUpperCase());
+    },
+    CASE_MS,
+  );
+
+  it(
+    "taken: the deploy goes through with the three as live has them, and asks the app at WEB_URL's origin",
+    () => {
+      const s = stage({ releases: [NEXT], dotEnv: withAddress('WEB_URL', `https://${APP_HOST}/`) });
+      const r = run(s, [NEXT.tag]);
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the deploy took/);
+      expect(called(s, 'curl')[0]).toBe(`curl https://${APP_HOST}/api/version`);
+      for (const key of ADDRESS_KEYS) expect(r.out).not.toContain(`${key}:`);
+      expect(r.out).not.toContain(APP_HOST);
     },
     CASE_MS,
   );

@@ -81,10 +81,11 @@ printf 'yes|1|900|0\\n'
 `;
 const BOOTSTRAP_STUB = '#!/usr/bin/env bash\nexit 0\n';
 
-// NODE_ENV and ALERT_ENABLED as live has them, so that deploy-live.sh gets
-// past its settings (workplan 0132 T4, 0142 T0) to the tag's rule.
+// NODE_ENV and ALERT_ENABLED as live has them, and its three addresses from
+// outside, one origin, so that deploy-live.sh gets past its settings
+// (workplan 0132 T4, 0142 T0, 0140's Status of 2026-11-20) to the tag's rule.
 const LIVE_ENV =
-  'COMPOSE_PROJECT_NAME=ownpace-live\nSTACK_KIND=production\nWEB_URL=https://app.example.test\nNODE_ENV=production\nALERT_ENABLED=true\n';
+  'COMPOSE_PROJECT_NAME=ownpace-live\nSTACK_KIND=production\nWEB_URL=https://app.example.test\nAPI_URL=https://app.example.test\nCORS_ORIGIN=https://app.example.test\nNODE_ENV=production\nALERT_ENABLED=true\n';
 
 const gitEnv = (home: string): NodeJS.ProcessEnv => ({
   PATH: `${dirname(process.execPath)}:${process.env.PATH ?? ''}`,
