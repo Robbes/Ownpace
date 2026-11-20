@@ -18,6 +18,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
   nothing written to it names a guest.
 
+### Security
+
+- **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
+  2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
+  (workplan 0119). The image scan read six highs in the two, each fixed only in their next
+  major: five in undici 5.29.0, and one in busboy 2.1.1, which only undici 5 needed. Their one
+  user is `@connectrpc/connect-node` 1.4.0, which Depot's SDK brings and the webapp loads at every
+  start, and which loads undici only to stand in for the `Headers` class on Node before 18;
+  trigger-api runs Node 24. The image's build now points connect-node at the undici 6.29.1 it
+  already installs for Remix, after checking every release, link and file it was read for, and
+  removes undici 5.29.0 and busboy 2.1.1 with every link into them. As the image builds, it
+  proves from where the webapp loads them that connect-node and Depot's SDK load with 6.29.1.
+  Nothing is downloaded for it. The image has a new name, which each machine builds at its next
+  deploy.
+
 ## [0.2.0-alpha.12] - 2026-11-20
 
 Two destinations are new. Cirrux takes mail, calendars, contacts and tasks, and its Drive
