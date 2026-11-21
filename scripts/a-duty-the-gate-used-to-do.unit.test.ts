@@ -639,8 +639,12 @@ describe('box-duties.sh runs every duty, and names every one that failed', () =>
         if (!gone) {
           try {
             process.kill(-pid, 'SIGKILL');
-          } catch {
-            // Gone meanwhile.
+          } catch (err) {
+            // Gone meanwhile (ESRCH). Anything else leaves the group running,
+            // and is said: a throw from a `finally` would replace the test's own.
+            if ((err as NodeJS.ErrnoException).code !== 'ESRCH') {
+              console.warn(`box-duties.sh's process group ${pid} could not be killed, and may still run: ${String(err)}`);
+            }
           }
         }
       }

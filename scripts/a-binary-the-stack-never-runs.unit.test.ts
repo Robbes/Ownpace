@@ -668,8 +668,11 @@ const COREPACK_CHECK = /\[ "\$\(node -p "require\('\$corepack_dir\/package\.json
 /** What is wrong with a Dockerfile's shape, in words; empty when it holds. */
 function shapeProblems(name: Name, text: string): string[] {
   const problems: string[] = [];
+  // The FROM's tag, or null when the FROM is wrong, which this says once.
+  let fromTag: string | null = null;
   try {
     const base = dockerfileBase(text);
+    fromTag = base.tag;
     if (base.repo !== `ghcr.io/triggerdotdev/${name}`) problems.push(`it builds on ${base.repo}, not ghcr.io/triggerdotdev/${name}`);
     if (!/^v\d+\.\d+\.\d+$/.test(base.tag)) problems.push(`its FROM tag is ${base.tag}, not a release (vX.Y.Z)`);
   } catch (error) {
@@ -696,12 +699,6 @@ function shapeProblems(name: Name, text: string): string[] {
   // Read at one release: the FROM's, and the build refuses any other.
   const vars = assignments(removing?.args ?? '');
   const readAt = vars.get('read_at');
-  let fromTag: string | null = null;
-  try {
-    fromTag = dockerfileBase(text).tag;
-  } catch {
-    // Said above.
-  }
   if (!readAt) problems.push('the removing RUN names no read_at, the release its reasons were read in');
   else if (fromTag !== null && readAt !== fromTag) {
     problems.push(`read_at is ${readAt}, and the FROM is ${fromTag}: read the header's reasons again at ${fromTag}, then move read_at (trigger-version.sh pin leaves it)`);

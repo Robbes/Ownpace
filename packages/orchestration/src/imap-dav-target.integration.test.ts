@@ -192,9 +192,11 @@ if (!STALWART_IMAP_HOST) {
     try {
       return await body(client);
     } finally {
-      // The only swallow in this file, and only because a throw from a `finally`
-      // REPLACES the error that brought us here. The answer is already in hand.
-      await client.logout().catch(() => undefined);
+      // Said, not thrown: a throw from a `finally` REPLACES the error that
+      // brought us here, and otherwise the answer is already in hand.
+      await client.logout().catch((err: unknown) => {
+        console.warn(`[imap-dav-target test] logout failed: ${err instanceof Error ? err.message : String(err)}`);
+      });
     }
   }
 
