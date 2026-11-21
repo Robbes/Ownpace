@@ -82,9 +82,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
-- **A stored credential is decrypted only with its full authentication tag** (workplan 0163).
-  The credential store's AES-GCM cipher and decipher now both name the tag's length, 16 bytes, so
-  Node itself refuses a shorter tag. Until now only a length check before decryption did.
 - **The Docker socket proxy no longer runs as root: it runs as HAProxy's own uid 99, and reaches
   the Docker socket through the socket's group, which the bring-up reads from the socket**
   (workplan 0119). An outside, read-only check of the repository reported the image's
@@ -110,6 +107,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   proves from where the webapp loads them that connect-node and Depot's SDK load with 6.29.1.
   Nothing is downloaded for it. The image has a new name, which each machine builds at its next
   deploy.
+
+- **A stored credential is decrypted only with its full authentication tag** (workplan 0163).
+  The credential store's AES-GCM cipher and decipher now both name the tag's length, 16 bytes, so
+  Node itself refuses a shorter tag. Until now only a length check before decryption did.
 
 ### Fixed
 
