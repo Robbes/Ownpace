@@ -81,7 +81,7 @@ const CREDENTIAL_CALLERS: ReadonlyArray<{ path: string; why: string }> = [
   },
   {
     path: '.github/workflows/e2e-managed.yml',
-    why: 'runs the whole managed gate with the token as a repository secret',
+    why: 'runs the whole managed gate with the token as its environment\'s secret (0163 T1)',
   },
 ];
 
