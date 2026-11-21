@@ -127,6 +127,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
   are still recognised as its own. To v1 it gives a media type without its parameters
   (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
+- **A sign-in no longer binds anybody to a closed organisation** (workplan 0139 T7 (b)). An
+  organisation a granted access request had made, closed before anybody signed in to it, was still
+  taken up at the first sign-in with its address: the person became the active owner of an
+  organisation that starts nothing (409 `account_closed`), and was never sent to ask for another.
+  An invitation into a closed organisation was offered, and could be accepted, the same way. Now an
+  organisation that is closed, or whose erasure is running, takes nobody in: its row stays as it
+  was, `GET /api/me` lists neither it nor its invitation, and accepting that invitation answers
+  404. A reopen before the erasure gives the row back at the next sign-in. A suspended
+  organisation, which nothing writes, is unchanged. Somebody already bound to a closed
+  organisation stays in it until it is reopened or erased.
 
 ## [0.2.0-alpha.12] - 2026-11-20
 
