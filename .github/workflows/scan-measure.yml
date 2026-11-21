@@ -101,6 +101,25 @@ jobs:
             git -C "$1" -c user.name=proof -c user.email=proof@example.invalid add -A
             git -C "$1" -c user.name=proof -c user.email=proof@example.invalid commit -q -m "$2" > /dev/null
           }
+          # The merge cases: a branch named side stands for main, its last commit, $t, for the pull
+          # request's base, and main for the pull request's branch, which merges side in.
+          # resolve <repo> <file> <line>: merges side in, which must conflict, and <line> resolves it.
+          resolve() {
+            git -C "$1" -c user.name=proof -c user.email=proof@example.invalid merge -q side > /dev/null 2>&1
+            if [ -z "$(git -C "$1" ls-files -u)" ]; then echo "::error::the merge in $1 did not conflict"; wrong=1; fi
+            printf '%s\n' "$3" > "$1/$2"
+            commit "$1" "merge side, resolved"
+          }
+          # conflict <repo> <file> <base> <side> <pr>: the three versions of <file> a conflict needs.
+          conflict() {
+            mkdir -p "$(dirname "$1/$2")"
+            printf '%s\n' "$3" > "$1/$2"; commit "$1" start
+            git -C "$1" checkout -q -b side
+            printf '%s\n' "$4" > "$1/$2"; commit "$1" side
+            t="$(git -C "$1" rev-parse HEAD)"
+            git -C "$1" checkout -q main
+            printf '%s\n' "$5" > "$1/$2"; commit "$1" pr
+          }
           # judge <case> <expected exit> <repo> <base>: runs the report over base..HEAD and compares.
           judge() {
             local name="$1" want="$2" repo="$3" base="$4" head got
@@ -108,7 +127,7 @@ jobs:
             (cd "$repo" && RUNNER_TEMP="$repo.out" node scripts/gitleaks-report.mjs "$base" "$head") > "$repo.log" 2>&1
             got=$?
             if [ "$got" = "$want" ]; then
-              echo "as it must: $name: exit $got; $(grep -E '^(Nothing found|[0-9]+ findings?|The scan did not finish)' "$repo.log")"
+              echo "as it must: $name: exit $got; $(grep -E '^(Nothing found|[0-9]+ findings?|The scan did not finish)' "$repo.log") $(grep -o -E 'file=[^,]+' "$repo.log" | sort -u | tr '\n' ' ')"
             else
               echo "::error::NOT as it must: $name: exit $got, not $want"
               grep -v -F "$token" "$repo.log"
@@ -157,5 +176,37 @@ jobs:
           mkdir -p "$r/apps/api/src"; printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/config.ts"; commit "$r" secret
           printf '%s:apps/api/src/config.ts:github-pat:1\n' "$(git -C "$r" rev-parse HEAD)" > "$r/.gitleaksignore"
           judge "a .gitleaksignore that lists the finding is refused" 1 "$r" "$b"
+
+          next
+          conflict "$r" apps/api/src/mode.ts 'export const mode = "base";' 'export const mode = "side";' 'export const mode = "pr";'
+          resolve "$r" apps/api/src/mode.ts "export const token = \"$token\";"
+          judge "a token written while resolving a conflict fails (the merge's remerge diff)" 1 "$r" "$t"
+
+          next
+          conflict "$r" apps/api/src/mode.unit.test.ts 'export const mode = "base";' 'export const mode = "side";' 'export const mode = "pr";'
+          resolve "$r" apps/api/src/mode.unit.test.ts "export const token = \"$token\";"
+          judge "the same resolution in a unit test file passes (the allowlist)" 0 "$r" "$t"
+
+          next
+          conflict "$r" docs/o365-setup.md 'O365_TENANT=base' 'O365_TENANT=side' 'O365_TENANT=pr'
+          resolve "$r" docs/o365-setup.md "O365_CLIENT_SECRET=$token"
+          judge "the same resolution in docs/o365-setup.md fails (a conflict's file is named b/..., not the anchored path)" 1 "$r" "$t"
+
+          next
+          git -C "$r" checkout -q -b side
+          mkdir -p "$r/apps/api/src"; printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/side.ts"; commit "$r" side
+          t="$(git -C "$r" rev-parse HEAD)"; git -C "$r" checkout -q main
+          mkdir -p "$r/apps/api/src"; printf 'export const answer = 42;\n' > "$r/apps/api/src/plain.ts"; commit "$r" pr
+          git -C "$r" -c user.name=proof -c user.email=proof@example.invalid merge -q --no-edit side > /dev/null 2>&1
+          judge "a clean merge that brings main's own lines is not judged for them" 0 "$r" "$t"
+
+          next
+          git -C "$r" checkout -q -b side
+          mkdir -p "$r/apps/api/src"; printf 'export const a = 1;\n' > "$r/apps/api/src/a.ts"; commit "$r" side
+          t="$(git -C "$r" rev-parse HEAD)"; git -C "$r" checkout -q main
+          mkdir -p "$r/apps/api/src"; printf 'export const b = 2;\n' > "$r/apps/api/src/b.ts"; commit "$r" pr
+          git -C "$r" -c user.name=proof -c user.email=proof@example.invalid merge -q --no-commit --no-ff side > /dev/null 2>&1
+          printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/beside.ts"; commit "$r" "merge side, and a file"
+          judge "a token a merge adds beside what it merges fails" 1 "$r" "$t"
 
           [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
