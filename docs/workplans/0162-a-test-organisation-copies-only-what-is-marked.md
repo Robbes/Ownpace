@@ -205,11 +205,13 @@ marker's backticks (1).
 
 Gates, on this branch merged with `main` at `f716c5a0`, with Node 22.22.0: every unit file of
 `apps/api` with the three report files of `packages/core`, 180 files, 2,415 cases passed, and the
-report's files again after the code span; every guard under `scripts/`, 309 files, 7,535 cases passed and 37 skipped, but for the 2 files
-that run pnpm, as before (3 files found the machine's disk full on the first run, making their
-temporary directories, and passed when run again); `tsc --noEmit` for the root and `apps/web`,
-ESLint on the 51 changed files, and the six docs checks found nothing. On Postgres 16.15, 46 integration files passed, 440 cases: every integration file
-of `apps/api` (41), the three of `packages/managed`, the system role's, and the stop door's.
+report's files again after the code span; every guard under `scripts/`, 309 files, 7,535 cases
+passed and 37 skipped, but for the 2 files that run pnpm, as before (3 files found the machine's
+disk full on the first run, making their temporary directories, and passed when run again);
+`tsc --noEmit` for the root and `apps/web`, ESLint on the 51 changed files, and the six docs
+checks found nothing. On Postgres 16.15, 46 integration files passed, 440 cases: every
+integration file of `apps/api` (41), the three of `packages/managed`, the system role's, and the
+stop door's.
 
 **2026-11-21, later: four of the five things T1 settles first, settled, on
 `claude/ownpace-public-readiness-y7orc6-0162-t1-doors`, from `main` at `17548646`, as #2011;
