@@ -441,3 +441,121 @@ jobs:
             wrong=1
           fi
           [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
+
+  zizmor-secrets-report-proof:
+    name: zizmor's secrets-outside-env report, as the report step runs it, on four trees
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: claude/ownpace-public-readiness-y7orc6-zizmor-secrets-report
+          path: report
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: claude/ownpace-public-readiness-y7orc6-secrets-environments
+          path: on-t1
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true
+          package-manager-cache: false
+      - name: Run the report step's zizmor and the report over each tree, and say whether each ended as it must
+        env:
+          ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+        run: |
+          # Workplan 0163 T1, the report: the zizmor run and the report exactly as the report
+          # step in zizmor.yml has them, over (1) the report's own branch, main plus the step,
+          # where the probe's secret is read outside an environment, (2) the T1 branch, where
+          # it is not, (3) a made-up workflow with one secret read outside an environment,
+          # GITHUB_TOKEN beside it and one secret in a job that names an environment, and (4) a
+          # tree with no workflow, which zizmor cannot read. No real secret is involved: the
+          # made-up workflow names made-up secrets and is never run.
+          set -uo pipefail
+          docker pull --quiet "$ZIZMOR_IMAGE" > /dev/null
+          REPORT="$GITHUB_WORKSPACE/report/scripts/zizmor-secrets-report.mjs"
+          wrong=0
+          verdict() { if [ "$1" = yes ]; then echo "as it must: $2"; else echo "::error::NOT as it must: $2"; wrong=1; fi; }
+          zizmor_json() {  # $1 the tree, $2 a name; sets status
+            status=0
+            docker run --rm --pull never \
+              --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+              --user "$(id -u):$(id -g)" \
+              --volume "$1:/repo:ro" --workdir /repo \
+              "$ZIZMOR_IMAGE" \
+              --offline --config .github/zizmor.yml --no-ignores --no-progress --color never \
+              --persona auditor --format json-v1 \
+              . > "$RUNNER_TEMP/$2.json" 2> "$RUNNER_TEMP/$2.log" || status=$?
+          }
+          report() {  # $1 a name, $2 the exit code to hand it; sets code
+            code=0
+            GITHUB_STEP_SUMMARY="$RUNNER_TEMP/$1.summary.md" node "$REPORT" --exit-code "$2" "$RUNNER_TEMP/$1.json" > "$RUNNER_TEMP/$1.out" 2>&1 || code=$?
+            echo "--- $1: zizmor exited $status, the report $code"
+            cat "$RUNNER_TEMP/$1.out"
+            [ -f "$RUNNER_TEMP/$1.summary.md" ] && grep -F '| `' "$RUNNER_TEMP/$1.summary.md" || true
+          }
+          warnings() { grep -c '^::warning file=' "$RUNNER_TEMP/$1.out" || true; }
+
+          # (1) The report's own branch: one secret, the probe's, on the line zizmor's own
+          # plain output gives for the same finding (json-v1 counts from 0, the report from 1).
+          zizmor_json "$GITHUB_WORKSPACE/report" own; report own "$status"
+          docker run --rm --pull never --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" --volume "$GITHUB_WORKSPACE/report:/repo:ro" --workdir /repo "$ZIZMOR_IMAGE" \
+            --offline --config .github/zizmor.yml --no-ignores --no-progress --color never --persona auditor \
+            . > "$RUNNER_TEMP/own.plain" 2>&1 || true
+          grep -A4 -F '[secrets-outside-env]' "$RUNNER_TEMP/own.plain" > "$RUNNER_TEMP/own.places" || true
+          plain="$(grep -o -m 1 -E '\.github/workflows/exposure-probe\.yml:[0-9]+' "$RUNNER_TEMP/own.places" || true)"
+          echo "zizmor's plain output names: ${plain:-nothing}"
+          [ "$code" = 0 ] && [ "$(warnings own)" = 1 ] && verdict yes "the report's branch: one secret, the report passed" || verdict no "the report's branch: exit $code, $(warnings own) warnings"
+          if [ -n "$plain" ] && grep -q -F "| \`$plain\` | \`probe\` | \`secrets.EXPOSURE_PROBE_HOST\` |" "$RUNNER_TEMP/own.summary.md"; then
+            verdict yes "the summary names $plain, the line zizmor's plain output gives, in job probe"
+          else
+            verdict no "the summary does not name ${plain:-the line of the plain output} in job probe"
+          fi
+          # A status from another run with this report.
+          report own 0
+          [ "$code" = 1 ] && grep -q -F 'the status does not belong to the report' "$RUNNER_TEMP/own.out" && verdict yes "exit 0 with this report fails" || verdict no "exit 0 with this report: the report exited $code"
+
+          # (2) The T1 branch: no secret outside an environment.
+          zizmor_json "$GITHUB_WORKSPACE/on-t1" t1; report t1 "$status"
+          [ "$code" = 0 ] && [ "$(warnings t1)" = 0 ] && verdict yes "the T1 branch: none, the report passed" || verdict no "the T1 branch: exit $code, $(warnings t1) warnings"
+
+          # (3) A made-up workflow. `d` keeps the expressions out of this workflow's own text.
+          made="$RUNNER_TEMP/made-up"; mkdir -p "$made/.github/workflows"
+          cp "$GITHUB_WORKSPACE/report/.github/zizmor.yml" "$made/.github/zizmor.yml"
+          d='$'
+          printf '%s\n' \
+            'name: made up' \
+            'on: push' \
+            'permissions: {}' \
+            'jobs:' \
+            '  plain:' \
+            '    runs-on: ubuntu-24.04' \
+            '    steps:' \
+            '      - run: echo "$A$T"' \
+            '        env:' \
+            "          A: ${d}{{ secrets.MADE_UP_SECRET }}" \
+            "          T: ${d}{{ secrets.GITHUB_TOKEN }}" \
+            '  kept:' \
+            '    runs-on: ubuntu-24.04' \
+            '    environment: made-up' \
+            '    steps:' \
+            '      - run: echo "$B"' \
+            '        env:' \
+            "          B: ${d}{{ secrets.KEPT_SECRET }}" \
+            > "$made/.github/workflows/made-up.yml"
+          zizmor_json "$made" made; report made "$status"
+          [ "$code" = 0 ] && [ "$(warnings made)" = 1 ] && grep -q -F '| `.github/workflows/made-up.yml:10` | `plain` | `secrets.MADE_UP_SECRET` |' "$RUNNER_TEMP/made.summary.md" \
+            && verdict yes "the made-up workflow: only secrets.MADE_UP_SECRET, at line 10 of job plain" \
+            || verdict no "the made-up workflow: exit $code, $(warnings made) warnings"
+
+          # (4) A tree with no workflow: zizmor reads nothing, and the report fails.
+          empty="$RUNNER_TEMP/empty"; mkdir -p "$empty/.github"
+          cp "$GITHUB_WORKSPACE/report/.github/zizmor.yml" "$empty/.github/zizmor.yml"
+          zizmor_json "$empty" empty; report empty "$status"
+          [ "$status" = 3 ] && [ "$code" = 1 ] && grep -q -F 'collected no inputs (exit 3)' "$RUNNER_TEMP/empty.out" \
+            && verdict yes "no workflow: zizmor exit 3, the report failed" || verdict no "no workflow: zizmor exit $status, the report $code"
+
+          [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
