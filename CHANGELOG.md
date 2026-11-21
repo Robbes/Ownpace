@@ -4,6 +4,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **pnpm is 11.28.13, from 11.28.12** (workplan 0119; the pin watch's #1989): CI and the images
+  take pnpm from `packageManager`, and the pnpm a host deploys with switches itself to it. Its
+  security fix: after the default or a scoped registry changed, `pnpm install` reused what it had
+  resolved against the old one and skipped the `minimumReleaseAge` and `trustPolicy` checks
+  against the new one. This repository names no registry. It also makes `pnpm audit` report an
+  advisory whose id is a string, which it dropped before, so the advisory gate now reads those
+  too. Published on 2026-11-17 and taken after pnpm's three days. CI installs from the lockfile as
+  it is.
+
 ### Fixed
 
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the

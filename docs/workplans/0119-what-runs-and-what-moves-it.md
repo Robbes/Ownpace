@@ -4,6 +4,29 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21: pnpm 11.28.13, the one `packageManager` line (#1989).** Times are UTC.
+
+- **pnpm 11.28.13, from 11.28.12.** npm dates it 2026-11-17 at 20:01:02 and names it `latest-11`
+  (read on 2026-11-21 at about 07:55; `latest` is 12.21.0, a major and the owner's call, as the pin
+  watch's issue says). It passed the three-day floor at 20:01:02 on 2026-11-20, and its pull
+  request was pushed after that. Read for it: the 11.28.13 entry of the package's own
+  `CHANGELOG.md`, from the tarball whose sha512 is the `dist.integrity` npm lists for it. It names
+  a security fix: after the default or a scoped registry changed, `pnpm install` reused what it
+  had resolved against the old registry and skipped the `minimumReleaseAge` and `trustPolicy`
+  checks against the new one; `pnpm dlx` likewise reused a cache made under looser settings. This
+  repository names no registry (no `.npmrc`, none in `pnpm-workspace.yaml`) and runs no `pnpm dlx`,
+  so neither changes anything here. One fix does: `pnpm audit` dropped every advisory whose `id`
+  is a string and reported no vulnerabilities for it. The advisory gate reads `pnpm audit`
+  (`security-scan.yml`, `scripts/audit-advisories.mjs`, which takes the advisories by value, not
+  by key), so from this move it reads those advisories too. 11.28.13 also fixes an offline
+  install failing the `minimumReleaseAge` check, and peer, override and injected-package
+  resolution. npm signed it with the key that signed 11.28.12 (`SHA256:DhQ8wR5A…`, both
+  versions' `dist.signatures`), which corepack 0.36.0 checks in the images. CI takes it from the
+  same field through `pnpm/action-setup`, and every CI install is `--frozen-lockfile`. On a
+  host, the pnpm the deploy runs switches itself to it in the checkout, so live's first deploy of
+  a tag with it fetches 11.28.13 there. CI on its pull request, and the image builds on `main`
+  after the merge; no E2E, as for 11.28.12.
+
 **2026-11-21: what alpha.13 moves.** The fold for `v0.2.0-alpha.13` (0146's entry of the same
 day) carries what `main` merged after alpha.12's tag, #1963 to #1986 (0146's entry lists them).
 For live:
