@@ -3042,8 +3042,12 @@ paths:
             `end_refused`, with `refused` the stable part and a `reason`:
             `not_running` (the migration or the data type is paused or never
             started; `status` names it), `not_a_path` (the migration does not
-            carry this data type), or `unresolved_failures` (`count` of its
-            own failures waiting on a decision; `forceable` true).
+            carry this data type), `unresolved_failures` (`count` of its
+            own failures waiting on a decision; `forceable` true), or
+            `test_migration` (a test migration is never finished, workplan
+            0162 T3: delete it when the test is over). That last one is said
+            in both languages: `message` and `reason` in English, `messageNl`
+            and `reasonNl` in Dutch.
 
   /api/migrations/{mappingId}/domains/{domain}/keep:
     parameters:
@@ -3094,7 +3098,9 @@ paths:
         '409':
           description: |
             `keep_refused`, with `refused` and a `reason`: `not_running`,
-            `not_a_path`, or `stopped` (resume it first, or end it). Or
+            `not_a_path`, `stopped` (resume it first, or end it), or
+            `test_migration` (a test migration is never finished, workplan
+            0162 T3; in both languages, as End says it). Or
             `account_closed` (`AccountClosed`): the organisation was closed
             (workplan 0085 T2), and nothing was written. Ending one is not
             refused for that.
@@ -3286,8 +3292,10 @@ paths:
             with the CLI's `--kind`), `whole_under_way` (a `domain` was named
             while the whole migration's cutover is under way: carry on with
             that one, or roll it back first), `not_a_path` (the migration does
-            not carry the `domain` named). `state` names the ledger state that
-            refused, where one did.
+            not carry the `domain` named), `test_migration` (a test migration
+            is never switched over, workplan 0162 T3: delete it when the test
+            is over; asked before the ledger). `state` names the ledger state
+            that refused, where one did.
 
             `platform_held`: the ledger would allow it, and an operator hold is
             open (`PlatformHeld`). `account_closed`: the ledger would allow it,
@@ -3302,7 +3310,7 @@ paths:
                       error: { type: string, enum: [cutover_refused] }
                       message: { type: string }
                       hint: { type: string }
-                      code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path] }
+                      code: { type: string, enum: [under_way, closed, cut_over_by_data_type, whole_under_way, not_a_path, test_migration] }
                       state: { type: string, enum: [CUTOVER_IN_PROGRESS, GRACE_PERIOD, COMPLETED] }
                   - { $ref: '#/components/schemas/PlatformHeld' }
                   - { $ref: '#/components/schemas/AccountClosed' }
@@ -5288,7 +5296,12 @@ paths:
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404': { $ref: '#/components/responses/NotFound' }
         '409':
-          description: Refused — decisions are still outstanding.
+          description: |
+            Refused, with a stable `code`: `unresolved_failures` (decisions
+            are still outstanding; `force` goes over them), `paused` (never
+            started), or `test_migration` (a test migration is never
+            finished, workplan 0162 T3: delete it when the test is over;
+            `force` does not go over it).
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Error' }
@@ -9329,7 +9342,10 @@ components:
             `canProceedToCutover`, and a `contentEvidence` of `checked`,
             `partial` or `none` — how much of the content leg actually ran.
             `none` means not one sampled item could be compared, so the verdict
-            rests on counts and sizes alone; it does NOT close the gate.
+            rests on counts and sizes alone; it does NOT close the gate. A
+            test migration's report carries its `testMarker` (workplan 0162
+            T3): it is measured as any other, `canProceedToCutover` is false
+            whatever the verdict, and the first recommendation says why.
           additionalProperties: { type: object }
       required: [state, startedAt]
 

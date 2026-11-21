@@ -34,7 +34,7 @@ import * as schemaPg from '@openmig/ledger/schema-pg';
 import { runVerification, createRealVerificationDeps } from '@openmig/core';
 import type { VerificationResult } from '@openmig/shared';
 import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-domains';
-import { ledgerReaderFor, verificationConfigFor } from './cutover-gate.ts';
+import { ledgerReaderFor, testMarkerOf, verificationConfigFor } from './cutover-gate.ts';
 import { buildTargetReindexers } from '@openmig/orchestration/build-reindexers';
 
 const VerificationJobSchema = z.object({
@@ -103,6 +103,9 @@ export async function verifyForTheOwner(
     const enabled = await enabledDomains(pool, tenantId, mappingId);
     // And those its owner stopped (0128 T4, D6): skipped, *stopped by you*.
     const stopped = await stoppedDomains(pool, tenantId, mappingId);
+    // And a test migration's marker (workplan 0162 T3): measured as any
+    // other, and its report never clears it for its cutover.
+    const testMarker = await testMarkerOf(pool, tenantId, mappingId);
 
     // One reindexer per domain (a domain with no reindexer reports
     // NOT_VERIFIABLE rather than being measured against another domain's
@@ -117,8 +120,9 @@ export async function verifyForTheOwner(
           tenantId: asTenantId(tenantId),
           mappingId: asMappingId(mappingId),
           // The gate's own configuration, as the cutover asks it: the
-          // selected data types, less those their owner stopped.
-          config: verificationConfigFor(enabled, stopped),
+          // selected data types, less those their owner stopped, and a
+          // test's marker.
+          config: verificationConfigFor(enabled, stopped, testMarker),
           verificationReader,
           targetReindexers: targets.reindexers,
           // Asked before each listing of a target and each sample it

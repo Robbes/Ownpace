@@ -17,6 +17,7 @@ import {
   confirmed,
   rollbackCutover,
   verifyCutover,
+  approveCutover,
   executeCutover,
   completeCutover,
   startCutover,
@@ -24,6 +25,7 @@ import {
   lifecycleLine,
   type CutoverCliDeps,
 } from './cutover-commands.ts';
+import { A_TEST_IS_NOT_SWITCHED_OVER } from '@openmig/shared';
 
 const TENANT = asTenantId('5e1b0000-e29b-41d4-a716-4466554402a1' as never);
 const MAPPING = asMappingId('5e1b0000-e29b-41d4-a716-4466554402a2' as never);
@@ -1070,5 +1072,92 @@ describe('the cutover of one data type', () => {
     expect(out).toContain('The calendar path cutover -> active');
     expect(out).not.toContain('MX record');
     expect(out).not.toContain('stays on the target');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// A TEST MIGRATION IS NEVER SWITCHED OVER (workplan 0162 §2 (e), T3).
+//
+// A migration with a test marker copies only the items whose title carries
+// it. `approve`, `execute` and `complete` refuse it before anything is read
+// or written, with or without `--yes`, for the whole migration and for one
+// data type, and say why. The same steps without a marker go through.
+// ---------------------------------------------------------------------------
+
+describe('a test migration, at the cutover steps', () => {
+  const MARKER = '[Ownpace-test]';
+  let logged: string[];
+
+  beforeEach(() => {
+    logged = [];
+    vi.spyOn(console, 'log').mockImplementation((...args: unknown[]) => {
+      logged.push(args.join(' '));
+    });
+    vi.spyOn(process, 'exit').mockImplementation(((code?: number) => {
+      throw new Error(`process.exit(${code})`);
+    }) as never);
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const steps = [
+    ['approve', approveCutover, 'READY_FOR_CUTOVER', 'APPROVED'],
+    ['execute', executeCutover, 'APPROVED', 'GRACE_PERIOD'],
+    ['complete', completeCutover, 'GRACE_PERIOD', 'COMPLETED'],
+  ] as const;
+
+  it.each(steps)('%s refuses it before anything is read or written, and names the reason', async (_step, run, from) => {
+    const propagation = vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const store = makeStore(from);
+    const mapping = makeMapping('active');
+
+    await expect(run({ ...makeDeps(store, true, mapping), testMarker: MARKER })).rejects.toThrow('process.exit(1)');
+
+    expect(store.loadCutoverState).not.toHaveBeenCalled();
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(mapping.readStatus).not.toHaveBeenCalled();
+    expect(mapping.setStatus).not.toHaveBeenCalled();
+    expect(propagation).not.toHaveBeenCalled();
+    const out = logged.join('\n');
+    expect(out).toContain(A_TEST_IS_NOT_SWITCHED_OVER.en);
+    expect(out).toContain('Nothing was changed.');
+  });
+
+  it.each(steps)('%s refuses it without --yes too, with the reason and not the question', async (_step, run, from) => {
+    const store = makeStore(from);
+
+    await expect(run({ ...makeDeps(store), testMarker: MARKER })).rejects.toThrow('process.exit(1)');
+
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(logged.join('\n')).toContain(A_TEST_IS_NOT_SWITCHED_OVER.en);
+    expect(logged.join('\n')).not.toContain('--yes');
+  });
+
+  it.each(steps)('%s refuses one data type of it too', async (_step, run, from) => {
+    const store = makeStore(from);
+    const mapping = makeMapping('active');
+
+    await expect(
+      run({ ...makeDeps(store, true, mapping), kind: 'calendar', testMarker: MARKER }),
+    ).rejects.toThrow('process.exit(1)');
+
+    expect(store.transitionState).not.toHaveBeenCalled();
+    expect(mapping.setStatus).not.toHaveBeenCalled();
+  });
+
+  it.each(steps)('%s goes through for the same migration without a marker', async (_step, run, from, to) => {
+    vi.spyOn(core, 'checkPropagation').mockResolvedValue(true as never);
+    const store = makeStore(from);
+    // Each transition lands where it was asked to, so `approve` can print it.
+    store.transitionState.mockImplementation(async (_t: unknown, _m: unknown, state: string) => ({
+      currentState: state,
+    }));
+
+    await run(makeDeps(store, true, makeMapping(from === 'GRACE_PERIOD' ? 'cutover' : 'active')));
+
+    expect(store.transitionState.mock.calls.map((c) => c[2]).at(-1)).toBe(to);
+    expect(logged.join('\n')).not.toContain(A_TEST_IS_NOT_SWITCHED_OVER.en);
   });
 });
