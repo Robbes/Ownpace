@@ -35,8 +35,18 @@ second half (T1), built on `claude/ownpace-public-readiness-y7orc6-zizmor-secret
 - **What this branch's own run should show:** one finding, at
   `.github/workflows/exposure-probe.yml`, until #2001 merges, and none after.
 
+**2026-11-21, at the end: the Dutch sentence for a payment Mollie gives no checkout says
+*om via te betalen* (a T4 follow-up).** On `claude/ownpace-public-readiness-y7orc6-pay-sentence`,
+from `main` at `ad2ffbe7`.
+- **What changed.** `NO_CHECKOUT.nl` in `apps/api/src/routes/billing/index.ts` now reads *Mollie
+  gaf geen betaalpagina om via te betalen. Probeer het over een minuut opnieuw.* It said *om op te
+  betalen*. The English sentence is unchanged, and so is the 502 `no_checkout` it comes with.
+  `a-draft-is-not-paid.unit.test.ts` holds the new sentence.
+- **The two other sentences stand** as #1990 and #1996 wrote them: `billing.payNotMollie` and
+  `account.consent.notTheProvider`.
+
 **2026-11-21, after T5's first part: the grant page's two buttons go to Google's own page only,
-built as #1996 (a T4 follow-up).** On `claude/ownpace-public-readiness-y7orc6-grant-consent-host`,
+built as #1996 (a T4 follow-up), merged on 2026-11-21 (`40bb3476`).** On `claude/ownpace-public-readiness-y7orc6-grant-consent-host`,
 from `main` at `45a758af`.
 - **What #1990 found and left.** `apps/web/src/pages/Grant.tsx` sends the whole page to the
   consent address the API answers, with `location.assign`: *Continue with Google* on a migration's
@@ -341,7 +351,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 🔨 **Built** in two drafts, not merged: #2001, the two jobs name their environments, and the secrets move in Settings, by the owner; and the report, zizmor's `secrets-outside-env`, on its own branch (Status, 2026-11-21) (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); 🔨 **the grant page's two buttons, built** as #1996 (Status, 2026-11-21, after T5's first part) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); 🔨 **the no-checkout sentence in Dutch, reworded** (Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
