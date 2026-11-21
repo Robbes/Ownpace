@@ -4,6 +4,47 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, late: GEN-26's three setup-node lines are fixed, and zizmor 1.30.1 runs in CI,
+blocking (draft pull request #1977, branch `claude/ownpace-public-readiness-y7orc6-workflow-audit`,
+from `main` at `bf9ede75`; not merged).** An outside, read-only check named
+`images.yml:107`, `security-scan.yml:151` and `windows-payload.yml:65` at `b4d11ee7`, each
+`actions/setup-node@949feb24… # v7.1.0`, all still there on `main`. The pin was right. What fired
+is zizmor's `cache-poisoning` audit, read in its source at v1.30.1
+(`crates/zizmor/src/audit/cache_poisoning.rs`): in a workflow a tag push, a `release` event or a
+release branch starts, every cache-aware step is a finding unless it turns its cache off in a way
+zizmor reads, and for setup-node v5+ that means `package-manager-cache: false` as well as no
+`cache:`. The three were a sample: ci.yml (on `v*`) had four setup-node steps with `cache: pnpm`
+and two actions/cache steps, and the four tag workflows thirteen setup-node steps in all.
+- **The fix.** Every setup-node in `ci.yml`, `images.yml`, `security-scan.yml` and
+  `windows-payload.yml` says `package-manager-cache: false`. ci.yml's pnpm store is an
+  `actions/cache` step of its own (key: OS, arch, the lockfile's hash, as setup-node keyed it), and
+  every cache there says `lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}`: a pull request
+  and `main` restore as before, a tag's run restores nothing. The Chromium install also runs on a
+  tag, since lookup-only still reports a hit. No step relied on setup-node's cache in the three
+  publishing jobs: they set Node up before their checkout, and `packageManager` names pnpm.
+- **zizmor in CI** (`.github/workflows/zizmor.yml`): `ghcr.io/zizmorcore/zizmor:1.30.1` by index
+  digest `a2eb396d886c…` (linux/amd64 `f8451d87…`, linux/arm64 `6c439cfa…`, read on ghcr.io on
+  2026-11-20; git tag v1.30.1 is `99a054ed` of 2026-09-09), over the whole checkout, on a pull
+  request and a push to `main` that touch `.github/` or an action file, and on dispatch. OFFLINE:
+  `--offline`, `--network none`, no token; the online audits call GitHub's API, so the job would
+  also fail on a rate limit, and the pins' commits are already held by
+  `a-tag-the-publisher-can-move`. `--no-config` and `--no-ignores`, so nothing in the tree can
+  turn a rule or a location off. Kept current like hadolint: the pin watch's routine row
+  `ghcr.io/zizmorcore/zizmor` (against ghcr.io's tags of its shape and major; 1.32.0 is newer, so
+  it lists as behind until moved on purpose), and `scripts/a-workflow-zizmor-would-flag.unit.test.ts`
+  holds the job, the pin and its reading, and the cache rule on every workflow.
+- **Its first run (run 44825314314) found 24 more findings, all on `main` before this branch, and
+  none of cache-poisoning:** `dependabot-cooldown` on all eleven Dependabot entries;
+  `template-injection` in six steps (eleven findings, one high: no-committed-artifacts.yml pasted
+  `github.base_ref` into its script); `superfluous-actions` on the two
+  `softprops/action-gh-release` steps. Fixed: those values reach the scripts through `env:`; both
+  release attaches use the runner's `gh` (create the release named after the tag, or replace the
+  asset and, for Security Scan, append its body, as the action did); every Dependabot entry has
+  `cooldown: default-days: 7` (above CONTRIBUTING.md's three days; security updates are not
+  delayed). BLOCKING, since the second run is clean: see the pull request's body for that run.
+- **Not proven here:** the two `gh release` attaches run only on a tag; the next release is their
+  first run (`release-verify.mjs` checks the release, its body and both assets).
+
 **2026-11-20, late: the dashboard's TLS front takes Caddy 2.11.9-alpine's index of 2026-11-13,
 whose linux/amd64 and linux/arm64 images are the ones it ran, for alpha.13.** On the branch
 `claude/ownpace-public-readiness-y7orc6-caddy-003a978`, from Dependabot's #1970 (`abb30ae6`), which

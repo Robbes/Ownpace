@@ -91,6 +91,9 @@
  *                      hadolint image hadolint.yml lints every Dockerfile
  *                      with (`HADOLINT_IMAGE`, 2026-11-19), against Docker
  *                      Hub's tags of its shape and major; and the
+ *                      zizmor image zizmor.yml audits the workflows with
+ *                      (`ZIZMOR_IMAGE`, 2026-11-20), against ghcr.io's tags
+ *                      of its shape and major; and the
  *                      Node.js release keyring the Windows payload's
  *                      `node.exe` check reads (`NODE_RELEASE_KEYS` in
  *                      scripts/package-appliance.mjs, 2026-11-01), the file
@@ -272,6 +275,32 @@ export function hadolintPin(text) {
   const [image] = named;
   if (image.repo !== 'hadolint/hadolint' || !/^v\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
     throw new Error(`${HADOLINT_WORKFLOW} names ${image.ref}, not hadolint/hadolint by a release tag and its index digest`);
+  }
+  return image;
+}
+
+/**
+ * The zizmor `zizmor.yml` audits the workflows with, blocking (workplan 0119,
+ * 2026-11-20): its job's one `ZIZMOR_IMAGE:` line. Dependabot reads no
+ * workflow env, so this row is what says a newer release is tagged.
+ */
+export const ZIZMOR_WORKFLOW = '.github/workflows/zizmor.yml';
+
+/** Said beside the zizmor row when it is behind. */
+export const ZIZMOR_NOTE =
+  "1.30.1 is the zizmor the outside check of GEN-26 runs: move `ZIZMOR_IMAGE` in zizmor.yml by tag and index digest when that check moves, or on purpose, with the comment above it and `ZIZMOR` in a-workflow-zizmor-would-flag saying what was read, in a pull request of its own three days after the release; a newer zizmor brings new audits, and the job is blocking, so fix what it finds in the same pull request";
+
+/**
+ * The image `zizmor.yml` runs: its one `ZIZMOR_IMAGE:` line, as
+ * `ghcr.io/zizmorcore/zizmor:<x.y.z>@sha256:…`. None, two, another image, a
+ * release candidate or no digest is an error, never "current".
+ */
+export function zizmorPin(text) {
+  const named = [...text.matchAll(/^\s*ZIZMOR_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${ZIZMOR_WORKFLOW} sets ZIZMOR_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'ghcr.io/zizmorcore/zizmor' || !/^\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${ZIZMOR_WORKFLOW} names ${image.ref}, not ghcr.io/zizmorcore/zizmor by a release tag and its index digest`);
   }
   return image;
 }
@@ -1731,6 +1760,16 @@ export async function routineRows(repo, net) {
     const newest = newestLike(image.tag, await tagsFor(image.repo));
     const state = stateOf(image.tag, newest);
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [HADOLINT_NOTE] } : {}) };
+  }]);
+
+  // zizmor (0119, 2026-11-20): the image zizmor.yml audits the workflows with,
+  // against ghcr.io's newest tag of its shape and major (an `<x.y.z>`, never a
+  // release candidate or `latest`).
+  jobs.push(['ghcr.io/zizmorcore/zizmor', ZIZMOR_WORKFLOW, async () => {
+    const image = zizmorPin(need(repo, ZIZMOR_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [ZIZMOR_NOTE] } : {}) };
   }]);
 
   // The tasks' prebuilt base (0119 §3 item 13, 2026-11-06): trigger.config.ts's
