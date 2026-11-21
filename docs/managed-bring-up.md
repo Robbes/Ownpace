@@ -5204,7 +5204,11 @@ and gid 999 from its first process. 24 of the image's 34 high findings were in
 util-linux's eight, and nothing in this container runs or loads any of the
 eleven. From `v0.2.0-alpha.7` this build and the webapp's also purge
 libsystemd0 and libudev1, thirteen packages: one high each, and only four of
-the eleven depended on them. After the purge the build fails if a file of a
+the eleven depended on them. From alpha.14 both purge linux-pam's four
+packages too (libpam0g, libpam-modules, libpam-modules-bin and
+libpam-runtime, one high each with no fix), and login, passwd and adduser,
+which depend on them and run nowhere here: twenty packages (workplan 0166 T4).
+After the purge the build fails if a file of a
 removed library is left, or if any ELF file in the image needs one (its
 `DT_NEEDED`) or names one. Redis itself, its command, its volume and its
 append-only file are as they were.
@@ -5233,7 +5237,7 @@ append-only file are as they were.
   `plane-tokens.sh`'s `redis-cli`, over TCP, which answers the same.
 - **Moving it.** A newer Redis 7.4, or a rebuild of its tag, is Dependabot's
   pull request (the directory's own entry, never a major). A rebuild builds
-  when the base still has the thirteen and nothing new depends on them; a new
+  when the base still has the twenty and nothing new depends on them; a new
   release stops at the Dockerfile's last RUN, which asks redis-server for the
   FROM's release: read the new image's packages and scan, move that release
   and the header, and then `scripts/an-essential-nothing-runs.unit.test.ts`
@@ -6496,8 +6500,10 @@ util-linux builds in Debian 12 (24 highs with no fix), and e2fsprogs, which
 depends on two of those and has no finding of its own. So `trigger-api` has no
 apt: nothing installs in it, and a change is a rebuild. From alpha.7 it purges
 libsystemd0 and libudev1 too, systemd's two libraries, which
-only apt, libapt-pkg6.0, util-linux and bsdutils needed there. A base where
-something still depends on one of the thirteen stops the build, since dpkg
+only apt, libapt-pkg6.0, util-linux and bsdutils needed there. From alpha.14
+it purges linux-pam's four packages too, and login, passwd and adduser, which
+depend on them: twenty (workplan 0166 T4). A base where
+something still depends on one of the twenty stops the build, since dpkg
 refuses without `--force-depends`, and so does one that renamed or dropped one
 of them. From alpha.9 until Trigger.dev v4.8.8 both builds also removed
 cross-spawn 5.1.0 (CVE-2024-21538, high, fixed in 6.0.6) from pnpm's store,
