@@ -15,7 +15,7 @@
 | H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
 | I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
 | J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | 🔨 Built 2026-11-19 on branch `claude/ownpace-public-readiness-y7orc6-bl-errors`, not pushed: 23 sites changed, 2 left as they were (nothing swallowed); the unit and web tests, both type checks and lint green; the three JMAP integration files changed are CI's to prove. See §J | asked for, 2026-11-19 |
-| L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | 🔨 Built 2026-11-21 (21:20 UTC) on branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`, not merged: none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left, for the owner (D2). See §L | asked for, 2026-11-21 |
+| L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | 🔨 Built 2026-11-21 (21:20 UTC) on branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`, not merged: none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -292,7 +292,7 @@ synchronous `node:zlib` calls and `pbkdf2Sync`/`scryptSync`, on `f5c013e`:
 | Spot on `f5c013e` | Call | Kind | What is done |
 |---|---|---|---|
 | `packages/core/src/build-identity.ts:26` | `readFileSync` of the root `package.json`, on every call | (a) | **Fixed.** `buildIdentity()` answers `GET /version` on both editions, on every request, and is called for each problem report and each unreadable-answer line. The read was small and cached by the system, so the wait was short, but it was on a request path. The file is now read once per process; the env stamp is still read on every call and still wins. Shown by `build-identity.unit.test.ts`, *reads package.json once*: three more calls make no more reads; with the old file it saw four reads |
-| `packages/shared/src/container-hash.ts:181` | `inflateRawSync` of each member of a zip | on a pass | **Left, for the owner (D2 below).** Reached only for a rendering this product asked Google Drive to export (ADR-0046), during the file pass and when a WebDAV target is read back. On the appliance, passes share the process with the web server, so an inflate holds up its requests while it runs. Measured here: 1.5 ms for 1 MB of inflated content, 16 ms for 10 MB, 52 ms for 50 MB; Drive refuses to export past a size of its own (`exportSizeLimitExceeded`), which bounds it. The sha256 that every file of every pass already gets is as long again, and is synchronous too, so moving the inflate alone off the event loop would halve the wait, not end it; ending it means making the reconcile core's `contentHash` hook async |
+| `packages/shared/src/container-hash.ts:181` | `inflateRawSync` of each member of a zip | on a pass | **Left as it is (D2 below).** Reached only for a rendering this product asked Google Drive to export (ADR-0046), during the file pass and when a WebDAV target is read back. On the appliance, passes share the process with the web server, so an inflate holds up its requests while it runs. Measured here: 1.5 ms for 1 MB of inflated content, 16 ms for 10 MB, 52 ms for 50 MB; Drive refuses to export past a size of its own (`exportSizeLimitExceeded`), which bounds it. The sha256 that every file of every pass already gets is as long again, and is synchronous too, so moving the inflate alone off the event loop would halve the wait, not end it; ending it means making the reconcile core's `contentHash` hook async |
 | `apps/selfhost/src/config-dir.ts:77`, `:87` | `readdirSync`, `readFileSync` of the mapping files | (b) | `loadConfigDir` runs once in `start()`, before anything is scheduled or served |
 | `apps/worker/src/index.ts:93` | `readFileSync` of `--config` | (b) | the worker CLI's first step, before its first pass |
 | `packages/testing/src/testcontainers-setup.ts`, `packages/connectors/src/zip-test-writer.ts`, the `__tests__/` helpers in `apps/api`, `packages/ledger` and `packages/managed` | many | (c) | test support, never imported by product code |
@@ -305,6 +305,17 @@ customers' archives, already inflates with the streaming `createInflateRaw`.
 whose only purpose is to make it quiet. Test code on `f5c013e` holds about 3,500 synchronous
 file, process or zlib calls in some 470 files, most of them the guards in `scripts/` reading the
 source they check.
+
+**Decided (the owner, 2026-11-21).** Both as advised:
+
+- **D1, the 24 test spots: leave them as they are.** Each blocks only its own test worker.
+  Moving them, or the other test calls of the same shape, to the async variants gains nothing
+  at run time.
+- **D2, `inflateRawSync` in `container-hash.ts`: leave it as it is.** The stall is bounded by
+  the size Drive will export, and the sha256 every file already gets is as long and as
+  synchronous. Moving the inflate alone would halve the wait for renderings only; moving all
+  hashing off the event loop would change the reconcile core's `contentHash` hook. Neither is
+  planned.
 
 ---
 
