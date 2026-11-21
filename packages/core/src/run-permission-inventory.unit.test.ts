@@ -110,6 +110,14 @@ describe('the findings', () => {
     const bare = await runPermissionInventory({ delegationReason: REASON });
     // Nothing here reads a clock.
     expect(bare).not.toContain('**Generated:**');
+    expect(bare).not.toContain('**Test migration:**');
+  });
+
+  it("pass a test migration's marker through, which the report's head names (0162)", async () => {
+    const md = await runPermissionInventory({ delegationReason: REASON, testMarker: '[Ownpace-test]' });
+    expect(md).toContain('**Test migration:** only the rights on items whose own name contains `[Ownpace-test]`');
+    const nl = await runPermissionInventory({ delegationReason: REASON, testMarker: '[Ownpace-test]', lang: 'nl' });
+    expect(nl).toContain('**Testmigratie:** alleen de rechten op items waarvan de eigen naam `[Ownpace-test]` bevat');
   });
 });
 

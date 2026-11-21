@@ -50,6 +50,13 @@ export interface PermissionReportInput {
   /** ISO date, passed in rather than read: this module stays pure. */
   readonly generatedOn?: string;
   /**
+   * A test migration's marker (workplan 0162): its rights were kept only on
+   * the items whose own name carries it, and the header says so, beside the
+   * migration's name. The Finish page's banner is not in the Markdown it
+   * downloads, so the document says it itself.
+   */
+  readonly testMarker?: string;
+  /**
    * What the TARGET will do with what this migration writes (0105 T0) —
    * will-do/cannot-do sentences MEASURED against the target, never assumed.
    * Rendered right after the header, before the blind spots: it answers the
@@ -75,6 +82,9 @@ const WORDS = {
     title: '# Who can see what, and what happens to it',
     migration: '**Migration:**',
     generated: '**Generated:**',
+    testOnly: (marker: string) =>
+      `**Test migration:** only the rights on items whose own name contains ${codeSpan(marker)} are ` +
+      'listed. Every other right in the account is left out.',
     nothingApplied:
       '**Nothing in this document has been applied, and nothing will be applied automatically.** ' +
       'Where a right has a clean equivalent on the target, that equivalent is named — but ' +
@@ -114,6 +124,9 @@ const WORDS = {
     title: '# Wie kan wat zien, en wat gebeurt ermee',
     migration: '**Migratie:**',
     generated: '**Gemaakt op:**',
+    testOnly: (marker: string) =>
+      `**Testmigratie:** alleen de rechten op items waarvan de eigen naam ${codeSpan(marker)} bevat, ` +
+      'staan hierin. Alle andere rechten in het account zijn weggelaten.',
     nothingApplied:
       '**Niets in dit document is toegepast, en niets wordt vanzelf toegepast.** ' +
       'Heeft een recht een duidelijke tegenhanger op het nieuwe systeem, dan staat die erbij. ' +
@@ -147,7 +160,7 @@ const WORDS = {
       'hetzelfde als "er hoeft niets te gebeuren". Alles hierboven moet u nog aanmaken op het ' +
       'nieuwe systeem. En wat in het eerste deel staat, is niet gelezen.',
   },
-} as const satisfies Record<ReportLanguage, Record<string, string>>;
+} as const satisfies Record<ReportLanguage, Record<string, string | ((marker: string) => string)>>;
 
 /** Render the permission inventory as Markdown. Always returns a document. */
 export function renderPermissionReport(input: PermissionReportInput): string {
@@ -161,6 +174,7 @@ export function renderPermissionReport(input: PermissionReportInput): string {
   out.push('');
   if (input.mappingLabel) out.push(`${w.migration} ${input.mappingLabel}  `);
   if (input.generatedOn) out.push(`${w.generated} ${input.generatedOn}  `);
+  if (input.testMarker !== undefined) out.push(`${w.testOnly(input.testMarker)}  `);
   out.push('');
   out.push(w.nothingApplied);
   out.push('');
@@ -246,6 +260,19 @@ export function renderPermissionReport(input: PermissionReportInput): string {
   if (manual.length > 0) out.push('');
 
   return out.join('\n');
+}
+
+/**
+ * Text as a Markdown code span, whatever backticks it holds: CommonMark's
+ * fence one backtick longer than the text's longest run, with a space inside
+ * it when the text has one. A test's marker is the operator's own text, and a
+ * backtick is a printable character it may hold.
+ */
+function codeSpan(text: string): string {
+  const longest = Math.max(0, ...(text.match(/`+/g) ?? []).map((run) => run.length));
+  if (longest === 0) return `\`${text}\``;
+  const fence = '`'.repeat(longest + 1);
+  return `${fence} ${text} ${fence}`;
 }
 
 /** Keep a source's own words from breaking the table they sit in. */

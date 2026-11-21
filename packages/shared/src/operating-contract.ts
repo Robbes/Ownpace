@@ -592,6 +592,21 @@ export interface StatusReport {
      * it, and the page then offers no ending rather than guessing one.
      */
     readonly endings?: readonly PathEndingChoice[];
+    /**
+     * THE MIGRATION'S TEST MARKER (workplan 0162 T1; ADR-0053), when it is a
+     * test: the text an item's own title must contain to be copied
+     * (`mailbox_mapping.test_marker`), copied from its organisation when it
+     * was made, and never changed. Every page of a test migration says so in
+     * a banner, with the marker, and that it cannot be finished; the lists
+     * show a *Test* badge; the Finish page offers its data types neither End
+     * nor Keep (`pathEndingChoices`).
+     *
+     * Managed serves it on `GET /migrations/{id}` as `testMarker`, and on each
+     * row of `GET /migrations`. The appliance has no test migrations (0162
+     * §3: no operator marks one) and never sets it. Absent for every migration
+     * that is not a test: absent is "not a test", and never an empty marker.
+     */
+    readonly testMarker?: string;
   }>;
 }
 

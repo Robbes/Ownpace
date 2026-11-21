@@ -53,12 +53,14 @@ const DATA = {
   sendAsMailbox: 'sales@acme.nl',
   oddRight: 'SomeExchangeRoleFrom2027',
   grantee: 'anna@acme.nl',
+  marker: '[Ownpace-test]',
 } as const;
 
-/** A report that reaches every branch: conduct, a blind spot, each mapping, a manual step. */
+/** A report that reaches every branch: a test's marker, conduct, a blind spot, each mapping, a manual step. */
 const everything: PermissionReportInput = {
   mappingLabel: DATA.label,
   generatedOn: DATA.date,
+  testMarker: DATA.marker,
   targetConduct: [DATA.conduct],
   sections: [
     { title: DATA.blindTitle, listing: { kind: 'not_discoverable', reason: DATA.blindReason } },
@@ -115,6 +117,9 @@ describe('the Dutch report', () => {
     expect(nl).toContain('# Wie kan wat zien, en wat gebeurt ermee');
     expect(nl).toContain('**Migratie:** pat@acme.nl');
     expect(nl).toContain('**Gemaakt op:** 2026-10-16');
+    expect(nl).toContain(
+      '**Testmigratie:** alleen de rechten op items waarvan de eigen naam `[Ownpace-test]` bevat, staan hierin.',
+    );
     expect(nl).toContain('## Wat het nieuwe systeem doet met wat wij schrijven');
     expect(nl).toContain('## Lees dit eerst: wat NIET is gelezen');
     expect(nl).toContain('## Wat is gevonden');

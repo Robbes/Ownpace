@@ -194,6 +194,11 @@ export const PURGED_TABLES = [
   // T8 (d), managed 0028): a setting about the customer, with nobody left to
   // apply it to. The key would cascade; named so the receipt counts it.
   'grant_link_allowance',
+  // That the organisation is a test, and its marker (0162 T1, managed 0062):
+  // the operator's setting about the customer, as the allowance above is, with
+  // nobody left to apply it to. The key would cascade; named so the receipt
+  // counts it.
+  'test_organisation',
   'payment_method',
   'usage_metric',
   // Which versions of the texts each member accepted, and when (workplan 0139

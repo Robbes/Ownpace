@@ -151,4 +151,27 @@ describe('the header', () => {
     // Pure by construction: it never reads a clock.
     expect(renderPermissionReport({ sections: [] })).not.toContain('**Generated:**');
   });
+
+  it("says a test migration's report lists the rights on marked items only, above the findings (0162)", () => {
+    const md = renderPermissionReport({
+      sections: [listed('Calendars', [grant({ on: '[Ownpace-test] Team' })])],
+      mappingLabel: 'pat@acme.nl',
+      testMarker: '[Ownpace-test]',
+    });
+    const line =
+      '**Test migration:** only the rights on items whose own name contains `[Ownpace-test]` are ' +
+      'listed. Every other right in the account is left out.';
+    expect(md).toContain(line);
+    expect(md.indexOf(line)).toBeGreaterThan(md.indexOf('pat@acme.nl'));
+    expect(md.indexOf(line)).toBeLessThan(md.indexOf('Nothing in this document has been applied'));
+  });
+
+  it("keeps a marker's own backticks inside its code span", () => {
+    const md = renderPermissionReport({ sections: [], testMarker: 'a`b``c' });
+    expect(md).toContain('contains ``` a`b``c ``` are listed.');
+  });
+
+  it('says nothing of a test for a migration that is not one', () => {
+    expect(renderPermissionReport({ sections: [], mappingLabel: 'pat@acme.nl' })).not.toContain('Test migration');
+  });
 });

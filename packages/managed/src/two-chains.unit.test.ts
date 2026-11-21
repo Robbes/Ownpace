@@ -163,6 +163,9 @@ const MANAGED_TABLES = [
   'tenant_pricing',
   'tenant_closure',
   'access_request',
+  // An organisation marked as a test (workplan 0162 T1, managed 0062): the
+  // appliance has no operator to mark one, and no table to hold the mark.
+  'test_organisation',
 ];
 
 async function tablesIn(conn: LedgerConnection): Promise<Set<string>> {

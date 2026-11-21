@@ -131,6 +131,12 @@ export const AUDIT_DETAIL_FIELDS = {
   // other.
   windowDays: 'keep',
   reference: 'keep',
+  // An organisation marked as a test, or no longer (workplan 0162 T1): the
+  // marker an item's title must contain, as the operator typed it, and the
+  // one it replaced. A label for test items, naming nobody; an address inside
+  // one is replaced like any other.
+  marker: 'keep',
+  replaced: 'keep',
   // Who deleted a migration or a connection, replaced an account or prepared
   // a cutover (0137 T4): the status the migration had, the connection's side
   // (`source` or `target`), whether the new account was stored, the

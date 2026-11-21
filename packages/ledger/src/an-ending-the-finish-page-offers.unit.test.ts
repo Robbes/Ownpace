@@ -80,6 +80,41 @@ describe('each data type, as the Finish page offers it', () => {
     ]);
   });
 
+  // A TEST MIGRATION (workplan 0162 T1, the fifth thing T3 left to settle):
+  // never finished, so its data types are listed where they are and offered
+  // neither, in every phase where another migration's would be offered one.
+  // The page's banner says why, and the door refuses a press (T3).
+  it('offers a test migration neither End nor Keep, and lists each data type where it is', () => {
+    const marked = { testMarker: '[Ownpace-test]' };
+    expect(
+      pathEndingChoices({
+        ...facts('active', [
+          { domain: 'email', phase: 'active', stopped: false },
+          { domain: 'calendar', phase: 'cutover', stopped: false },
+          { domain: 'file', phase: 'active', stopped: true },
+        ]),
+        ...marked,
+      }),
+    ).toEqual([
+      { domain: 'email', phase: 'active', stopped: false, offers: [] },
+      { domain: 'calendar', phase: 'cutover', stopped: false, offers: [] },
+      { domain: 'file', phase: 'active', stopped: true, offers: [] },
+    ]);
+    expect(
+      pathEndingChoices({
+        ...facts('continuous', [
+          { domain: 'email', phase: 'done', stopped: false },
+          { domain: 'file', phase: 'continuous', stopped: false },
+        ]),
+        ...marked,
+      }).map((c) => c.offers),
+    ).toEqual([[], []]);
+    // The same facts without a marker are offered as above.
+    expect(
+      pathEndingChoices(facts('active', [{ domain: 'email', phase: 'active', stopped: false }]))[0]!.offers,
+    ).toEqual(['end', 'keep']);
+  });
+
   it('offers nothing for one that never ran: it starts with its migration', () => {
     expect(
       pathEndingChoices(
