@@ -196,4 +196,12 @@ export interface VerificationResult extends Record<VerificationDomain, DataTypeV
   // Recommendations
   canProceedToCutover: boolean;
   recommendations: string[];
+  /**
+   * The marker of a test migration (workplan 0162 T3), when the migration is
+   * one; absent for every other. A test migration is measured as any other,
+   * and never switched over: `canProceedToCutover` is false whatever the
+   * verdict, and the first recommendation says why. The pages read this, and
+   * not the recommendation's text, to say it in their reader's language.
+   */
+  testMarker?: string;
 }

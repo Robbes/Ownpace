@@ -4,8 +4,93 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21: two review findings on T2 fixed on its branch, and three prerequisites for T1
-recorded.** Still not merged, and still inert: nothing sets the column.
+**2026-11-21: T3 built, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished`, from
+`main` at `87663d70`; not merged.** Inert, as T2 is: nothing sets the column yet, so no migration
+is refused today. T2 merged as #1975 on 2026-11-21 (`45a758af`). Its E2E (managed) run
+44881786816 was green and applied ledger migration 0070 on the test environment.
+
+- **Each door reads the marker from the migration's own row**, where it never changes, and
+  refuses with one of two sentences. They are in `lifecycle.ts`, English and Dutch side by side
+  (`A_TEST_IS_NOT_FINISHED`, `A_TEST_IS_NOT_SWITCHED_OVER`).
+  - **Finish.** `finishTransition` takes the marker and refuses with *A test migration is not
+    finished: delete it when the test is over.*, code `test_migration`, just before its `paused`
+    refusal. `force` does not go over it. The managed route reads the marker in `scope()`, with
+    the status.
+  - **Ending or keeping a data type.** `endOrKeepDataType` (`path-lifecycle-wiring.ts`) reads it
+    with `readPathPhases`, in the press's own transaction, and refuses End and Keep with the same
+    sentence. The route answers it in both languages (`message` and `messageNl`, `reason` and
+    `reasonNl`). The Finish page shows the half in its reader's language.
+  - **The cutover's preparation.** `prepareCutover`, the `run-cutover` job's body, refuses before
+    anything else: no ledger is made, no final sync runs, no gate is asked, and READY_FOR_CUTOVER
+    is never reached. It is a refusal, not a failed cutover, so nothing is recorded and nothing is
+    retried. The task reads the marker with `testMarkerOf` (`cutover-gate.ts`). The door that
+    enqueues the job, `POST /api/migrations/:id/cutover`, refuses it too, by its own rule that it
+    never accepts what the job refuses, and enqueues nothing.
+  - **The cutover commands.** `approveCutover`, `executeCutover` and `completeCutover` refuse with
+    *A test migration is not switched over: delete it when the test is over.*, before anything is
+    read or written, with or without `--yes`, and for one data type too. The CLI reads the marker
+    once.
+  - **The gate's report.** `runCutoverGate` and the owner's Finish check (`run-verification`) hand
+    the marker to `verificationConfigFor`. `runVerification` measures as before.
+    `canProceedToCutover` is false whatever the verdict, the first recommendation is the
+    sentence, and the report carries `testMarker`. The Verify page's box and the Finish page's
+    step 1 say why from that marker, in English and Dutch.
+  - **Delete stays open.** Nothing in delete reads the marker. A test migration is deleted through
+    the real route, and then its account, which is refused while the migration uses it, as any
+    account is.
+- **Not in §5, and left as it is.**
+  - `PUT /api/migrations/:id`: a status update still declares a test migration's cutover
+    (`active` to `cutover`, `updateTransition`) and enters the lane from there.
+  - The appliance has no test migrations (§3). Its Finish, its ending of a data type
+    (`endOrKeepPath`, called directly) and its check (`verifyMapping`) pass no marker.
+  - `start-cutover` and `verify` in the CLI are not refused. `verify` cannot move a test's ledger
+    on, because the gate's report holds it.
+  - The progress lines read `canProceedToCutover` (`checkFactsOf`), so they say a test whose check
+    passed did not pass.
+  - The Finish page offers End and Keep for a test's data types: `pathEndingChoices` does not read
+    the marker. The press is refused, in the reader's language.
+- **Two more for T1**, after the three in the entry on T2's review findings below:
+  4. **A status update still declares a test migration's cutover.** `PUT /api/migrations/:id`
+     moves it from `active` or `paused` to `cutover` (`updateTransition`). It is then after its
+     cutover: the source is no longer the authority, a status update may enter the continuous
+     lane from there, and only the CLI's rollback brings it back. Every later door of the cutover
+     refuses it, but §2 (e) says a test is never switched over, so this door has to refuse it too
+     before any marker is set.
+  5. **The Finish page offers End and Keep for a test's data types**, and each press is refused.
+     With T1's banner, the page should offer neither.
+
+What is proven, and how. 54 new cases: 53 in eight unit test files, four of them new, and one in
+`a-pass-under-row-security.integration.test.ts`; one case of `a-final-sync-of-every-data-type`
+now reads the marker in the two calls it reads. Each door refuses with a marker and lets the same
+migration through without one:
+- the API's own routes on PGlite, with the rows read outside any route (10): Finish, forced or
+  not; End and Keep, in both languages; the cutover's door, with nothing enqueued; and delete,
+  then the account;
+- `finishTransition` and the two sentences (8); `runVerification` (5); `prepareCutover`, the
+  gate's configuration, `testMarkerOf` on PGlite, and the doors that read the marker, read as text
+  (9); `approve`, `execute` and `complete`, each refusing before any read, without `--yes` and for
+  one data type (12); the Verify page (3), the Finish page (5) and the web service (1);
+- on Postgres 16 (`local-pg.sh`), under row security as `app_user`: the marker read in its
+  organisation's scope and not in another's, and the gate's report holding it.
+
+Twenty-three mutations, each one change, each caught, each file restored byte for byte (`cmp`):
+each refusal taken out (`finishTransition` 5 of 62 fail, `endOrKeepDataType` 2 of 38, the
+preparation 3 of 41, the cutover's door 1 of 18, `approve`, `execute` and `complete` 3 of 67
+each, `canProceedToCutover` 2 of 12), each reader or hand-on of the marker taken out (the Finish
+route 2 of 10, the task 1 of 41, the CLI 1 of 41, the gate 2 of 41, the Finish check 2 of 41, the
+configuration 1 of 41, `testMarkerOf` 1 of 41, and on Postgres 1 of 15), and each word of it (the
+recommendation 2 of 12, the report's marker 1 of 12, the Dutch half at the route 2 of 10, in the
+web service 1 of 10 and on the page 1 of 59, the Verify page 2 of 26, the Finish page's step 1
+2 of 59). Gates: `pnpm typecheck` and ESLint on the changed files found nothing. The whole
+`unit` project passed, in four runs, 1,155 files and 18,066 cases with 33 skipped, `scripts/`
+among them (304 files, 7,433 passed); `unit-browser` (`apps/web`), 189 files and 3,723 cases. Five
+integration files that run the touched doors passed on Postgres 16.15, 60 cases. Node 22.22.0 ran
+them all: no Node 26 is installed here.
+
+Not done: the E2E smoke of a test migration waits for T1, which is what makes one.
+
+**2026-11-21: two review findings on T2 fixed on its branch, merged as #1975 (`45a758af`; *was:*
+still not merged), and three prerequisites for T1 recorded.** Still inert: nothing sets the column.
 
 - **An item still at the source is no deletion under a marker (§2 (f)).** An event whose title
   carried the marker was copied, the marker was taken out of its title, and it then moved to
@@ -162,9 +247,9 @@ Nothing was built with it.
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** | §2, agreed as written. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
-| T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. Three things to settle before any marker is set: Status, 2026-11-21. |
-| T2 The marker where the source is first listed | builder | 🔨 **Built 2026-11-20, inert until T1 sets the column** | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`, and since 2026-11-21 a set-aside item counted as seen by the removals and the bin; the column it reads (ledger 0070). Not merged. The E2E smoke waits for T1. |
-| T3 Never finished, never switched over | builder | 📋 **Planned** | §5. Finish, ending or keeping a data type, the cutover gate and the cutover commands refuse a test migration and name the reason; it ends by being deleted. |
+| T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. Five things to settle first, in Status, 2026-11-21: three found with T2's review findings and two with T3. |
+| T2 The marker where the source is first listed | builder | ✅ **Merged** as #1975 on 2026-11-21 (`45a758af`), inert until T1 sets the column | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`, and since 2026-11-21 a set-aside item counted as seen by the removals and the bin; the column it reads (ledger 0070). E2E (managed) run 44881786816 was green and applied ledger migration 0070. The E2E smoke of a marked migration waits for T1. |
+| T3 Never finished, never switched over | builder | 🔨 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished` | §5. Finish, ending or keeping a data type, the cutover's preparation (its door and its job), the gate's report and `approve`, `execute` and `complete` refuse a test migration and name the reason; the Verify and Finish pages say it in English and Dutch; delete stays open. Inert until T1 sets the column. Not merged. |
 | T4 The scenarios on live | owner | 📋 **Proposed** | §6. Marked items and an unmarked control of each data type in a real Google account; copy, change, delete and a lost marker, each watched at the target and in the guest's inbox. |
 | T5 Asking Google first | builder | 🅿️ **Parked** | §7. Server-side search, so that Ownpace never reads an unmarked title. Trigger: a test account too large to list whole, or the owner asking for it. |
 

@@ -414,10 +414,11 @@ describe('the gate verifies the data types the migration has', () => {
   it("the managed Finish check asks the gate's own question, stops included (0128 T4, D6)", () => {
     const job = readFileSync(join(HERE, 'run-verification.ts'), 'utf8');
     expect(job).toMatch(/const stopped = await stoppedDomains\(pool, tenantId, mappingId\)/);
-    expect(job).toContain('config: verificationConfigFor(enabled, stopped)');
+    // And a test migration's marker beside the stops (workplan 0162 T3).
+    expect(job).toContain('config: verificationConfigFor(enabled, stopped, testMarker)');
     const gate = readFileSync(join(HERE, 'cutover-gate.ts'), 'utf8');
     expect(gate).toMatch(/const stopped = await stoppedDomains\(pool, tenantId, mappingId\)/);
-    expect(gate).toContain('config: verificationConfigFor(selected, stopped)');
+    expect(gate).toContain('config: verificationConfigFor(selected, stopped, testMarker)');
   });
 
   it('a mail-only migration is asked about mail alone', () => {

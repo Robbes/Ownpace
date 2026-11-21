@@ -868,10 +868,16 @@ export async function fetchMappingDataTypes(mappingId: string): Promise<MappingD
 export interface PathEndingRefusal {
   /** `end_refused` or `keep_refused`. */
   readonly error: string;
-  /** The code: `not_running`, `not_a_path`, `stopped` or `unresolved_failures`. */
+  /**
+   * The code: `not_running`, `not_a_path`, `stopped`, `unresolved_failures`,
+   * or `test_migration` (a test migration is never ended or kept, workplan
+   * 0162 T3).
+   */
   readonly refused: string;
   /** The door's own sentence. */
   readonly message: string;
+  /** Its Dutch half, where the door sent one: the page shows it to a Dutch reader. */
+  readonly messageNl?: string;
   /** Only the open failures' refusal is one a forced End goes over. */
   readonly forceable?: true;
   /** How many of the data type's items wait on a decision, for that refusal. */
@@ -917,6 +923,7 @@ export async function endOrKeepDataType(
         error: res.data.error ?? `${ending}_refused`,
         refused: res.data.refused,
         message: res.data.message ?? res.data.refused,
+        ...(typeof res.data.messageNl === 'string' ? { messageNl: res.data.messageNl } : {}),
         ...(res.data.forceable === true ? { forceable: true as const } : {}),
         ...(typeof res.data.count === 'number' ? { count: res.data.count } : {}),
       });
