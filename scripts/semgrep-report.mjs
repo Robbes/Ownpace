@@ -86,7 +86,7 @@
  * request; 1 on any other event, when the scan did not finish.
  */
 
-import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync } from 'node:fs';
+import { appendFileSync, chmodSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve as resolvePath } from 'node:path';
@@ -114,6 +114,8 @@ export const MIN_FILES = 1000;
 /** The two reports' file names, in the directory mounted for them. */
 export const JSON_REPORT = 'semgrep.json';
 export const SARIF_REPORT = 'semgrep.sarif';
+/** What code scanning receives: SARIF_REPORT without the rules that never block (forCodeScanning). */
+export const CODE_SCANNING_REPORT = 'semgrep-code-scanning.sarif';
 
 /**
  * The rules, by their registry id, in the order the summary lists them, with
@@ -181,6 +183,29 @@ export const RULES = [
     what: 'a value written inside a `<script>` tag',
   },
 ];
+
+/**
+ * The SARIF code scanning receives (workplan 0163, Status 2026-11-21): Semgrep's
+ * own, with each result of a rule that never blocks taken out (`never`, the
+ * two ReDoS rules, D3). Their spots stay in the job's summary, counted and
+ * listed; code scanning lists the spots of the six rules that may block. The
+ * rules Semgrep lists as run stay whole, and Semgrep's report is not changed.
+ * Returns `{ sarif, kept, dropped }`.
+ */
+export function forCodeScanning(sarif, rules = RULES) {
+  let kept = 0;
+  let dropped = 0;
+  const runs = (Array.isArray(sarif?.runs) ? sarif.runs : []).map((run) => ({
+    ...run,
+    results: (Array.isArray(run?.results) ? run.results : []).filter((result) => {
+      const never = ruleOf(result?.ruleId ?? '', rules)?.never === true;
+      if (never) dropped += 1;
+      else kept += 1;
+      return !never;
+    }),
+  }));
+  return { sarif: { ...sarif, runs }, kept, dropped };
+}
 
 /** A rule's own name: the last part of its registry id. */
 export const nameOf = (id) => String(id).split('.').at(-1) ?? '';
@@ -318,8 +343,15 @@ export function readScan(ran, out) {
     notes,
     timeouts: Array.isArray(timing) ? timing.map(readTimeout) : null,
     ran: listed.map((r) => r.id),
-    sarif: join(out, SARIF_REPORT),
+    ...toCodeScanning(sarif.value, out),
   };
+}
+
+/** Writes CODE_SCANNING_REPORT beside Semgrep's SARIF, and says how many results it kept and left out. */
+function toCodeScanning(sarif, out) {
+  const upload = forCodeScanning(sarif);
+  writeFileSync(join(out, CODE_SCANNING_REPORT), JSON.stringify(upload.sarif));
+  return { sarif: join(out, CODE_SCANNING_REPORT), uploaded: { kept: upload.kept, dropped: upload.dropped } };
 }
 
 /**
@@ -384,7 +416,7 @@ const namesOf = (list) => {
  * finished. `stopped` says why there is no reading at all; `timeouts` is null
  * when Semgrep's report has no timing section (READ ONLY IN PART, above).
  */
-export function report({ image, event, stopped = null, version = '', scanned = 0, findings = [], notes = [], timeouts = [], ran = [], sarif = '', rules = RULES, known = KNOWN_FINDINGS }) {
+export function report({ image, event, stopped = null, version = '', scanned = 0, findings = [], notes = [], timeouts = [], ran = [], sarif = '', uploaded = null, rules = RULES, known = KNOWN_FINDINGS }) {
   const pr = event === 'pull_request';
   const tag = IMAGE.exec(image)?.[1] ?? '';
   // Each place read only in part, with the rules that can have timed out there.
@@ -541,6 +573,11 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
     : `${plural(total, 'spot')} from ${plural(rules.length, 'rule')}: ${neverTotal} under the two rules that never block, ${knownTotal} known, ${toRead} to read.`;
   md.push(`**${tally}**`, '');
   lines.push(`${tally} Report only: no finding fails this job.`);
+  if (!failed && uploaded) {
+    const said = `Code scanning, from a push to main: ${plural(uploaded.kept, 'spot')} of the rules that may block. ${plural(uploaded.dropped, 'spot')} of the two that never block ${uploaded.dropped === 1 ? 'is' : 'are'} in this summary only.`;
+    md.push(said, '');
+    lines.push(said);
+  }
   if (failed) {
     lines.push(pr ? '::warning::Semgrep: the scan did not finish; on a pull request the job passes all the same (the summary says why).' : '::error::Semgrep: the scan did not finish; outside a pull request the run is the record, so it fails.');
   }
@@ -586,7 +623,7 @@ export async function run({
   }
   mkdirSync(out, { recursive: true });
   chmodSync(out, 0o777);
-  for (const file of [JSON_REPORT, SARIF_REPORT]) rmSync(join(out, file), { force: true });
+  for (const file of [JSON_REPORT, SARIF_REPORT, CODE_SCANNING_REPORT]) rmSync(join(out, file), { force: true });
   const pulled = await pull(image, docker, wait);
   if (pulled) return report({ ...base, stopped: pulled });
   return report({ ...base, ...readScan(docker(scanArgs(image, { root, out })), out) });
