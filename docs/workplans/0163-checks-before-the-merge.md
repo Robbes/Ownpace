@@ -4,6 +4,44 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after #1995 merged: T1, the two secrets left, each in its job's environment, built
+as #2001 (a draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-secrets-environments`,
+from `main` at `02e88d52`; the first half of step 2 of §5, as D2 decided.
+- **Two secrets, not nine.** D7 took the O365 lane out with its seven, so two are left, each read
+  by one job: `TRIGGER_ACCESS_TOKEN` by `e2e-managed.yml`'s `e2e-managed`, and
+  `EXPOSURE_PROBE_HOST` by `exposure-probe.yml`'s `probe`.
+- **What it does.** Each job names a GitHub environment, `e2e-managed` and `exposure-probe`.
+  - The token moved from the workflow's top-level `env:`, which no environment reaches, into its
+    job's `env:`, with `TRIGGER_API_URL` beside it.
+  - The new guard `a-secret-kept-where-its-job-is` holds each secret to its one job, read nowhere
+    else, and that job to its environment. A secret added later is left to zizmor's
+    `secrets-outside-env` report (step 2's second half, report only by D2).
+- **Nothing changes until Settings does.** A job in an environment still reads the repository's
+  secrets, and GitHub makes an environment the first time a job names it. So both jobs run as
+  before until the owner moves the secrets.
+- **The owner's part, in Settings → Environments:**
+  1. `exposure-probe`: add the secret `EXPOSURE_PROBE_HOST`. Deployment branches: selected,
+     `main`, since the probe is dispatched from `main`.
+  2. `e2e-managed`: add the secret `TRIGGER_ACCESS_TOKEN`, with no required reviewer, since the
+     nightly runs unattended. Deployment branches is the owner's choice:
+     - `main` alone keeps a workflow changed on a branch away from the token, which is D2's point.
+       But E2E (managed) could then no longer run on a pull request's branch, as it does today
+       before a merge.
+     - With no branch rule, it runs as today. The token is then out of reach of every job that
+       does not name the environment, and a job on a branch that names it can still read it.
+  3. Then delete the two repository secrets (Settings → Secrets and variables → Actions).
+- **zizmor's own audit, as the outside check reads finding 1** (the measure branch, run
+  44888863792): zizmor 1.32.0 as `zizmor.yml` pins it, offline and read-only, with the auditor
+  persona, the only one that shows `secrets-outside-env` since zizmor 1.24.0. On `main` it finds
+  one, in `.github/workflows/exposure-probe.yml`, the probe's step that reads
+  `EXPOSURE_PROBE_HOST`; on the T1 branch, none. It does not read a workflow's top-level `env:`,
+  where the token sat on `main`, so it never flagged `e2e-managed.yml`; the guard does.
+- **Not in this:** zizmor's `secrets-outside-env` report, a second zizmor run in `zizmor.yml`
+  (step 2's second half). Since it does not read a top-level `env:`, the guard stays beside it.
+- **Tests:** the new guard (4 tests, its mutations among them). With the 21 guards that read the
+  two workflows, the guards that read every workflow and the doc guards: 55 files, 1,641 tests.
+  `pnpm typecheck` and ESLint pass.
+
 **2026-11-21, after the merges: T6, gitleaks on a pull request's own commits, built as #1992 (a
 draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-gitleaks`, from `main` at
 `45dfead1`; step 4 of §5, as D4 decided: it fails the build.
@@ -403,7 +441,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised); ⏳ **Owner** (D7) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
-| T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
+| T1 Secrets into environments | builder | 🔨 **Built** in two drafts, not merged: #2001, the two jobs name their environments, and the secrets move in Settings, by the owner; and #2007, the report, zizmor's `secrets-outside-env` (Status, 2026-11-21) (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); ✅ **the no-checkout sentence in Dutch, merged** as #2005 on 2026-11-21 (`55eab78b`; Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
