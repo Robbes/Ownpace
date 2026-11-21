@@ -71,8 +71,9 @@ const NOT_REQUIRABLE = new Map([
       'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
       'a red run is a finding about the other major, for the owner, not a merge gate.',
   ],
-  // zizmor.yml (workplan 0119, 2026-11-20): zizmor 1.30.1 over the workflows,
-  // blocking, on a pull request that touches .github/ or an action file.
+  // zizmor.yml (workplan 0119, 2026-11-20): zizmor over the workflows (1.32.0
+  // since 2026-11-21), blocking, on a pull request that touches .github/ or an
+  // action file.
   [
     'zizmor',
     'zizmor.yml carries a `paths:` filter on its pull_request trigger (.github/** and action files), ' +
