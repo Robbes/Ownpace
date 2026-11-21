@@ -789,8 +789,8 @@ describe('what code scanning receives: the spots of the six rules that may block
     const { sarif: sent, kept, dropped } = forCodeScanning(sarif);
     expect(dropped).toBe(3);
     expect(kept).toBe(7);
-    expect(sent.runs[0].results.map((r: { ruleId: string }) => r.ruleId)).toEqual([...may.map((r) => r.id), 'a.rule.no.one.named']);
-    expect(sent.runs[0].tool).toEqual(sarif.runs[0]!.tool);
+    expect(sent.runs[0]!.results.map((r) => r.ruleId)).toEqual([...may.map((r) => r.id), 'a.rule.no.one.named']);
+    expect(sent.runs[0]!.tool).toEqual(sarif.runs[0]!.tool);
     // The report it was given is not changed.
     expect(JSON.stringify(sarif)).toBe(before);
   });

@@ -18,6 +18,32 @@ export declare const MIN_FILES: number;
 /** The two reports' file names. */
 export declare const JSON_REPORT: string;
 export declare const SARIF_REPORT: string;
+/** What code scanning receives: SARIF_REPORT without the rules that never block (forCodeScanning). */
+export declare const CODE_SCANNING_REPORT: string;
+
+/** One result of a SARIF run, as far as forCodeScanning reads it. */
+export interface SarifResult {
+  readonly ruleId?: string;
+  readonly [key: string]: unknown;
+}
+
+/** One SARIF run, as far as forCodeScanning reads it. */
+export interface SarifRun {
+  readonly results?: ReadonlyArray<SarifResult>;
+  readonly [key: string]: unknown;
+}
+
+/** A SARIF report, as far as forCodeScanning reads it. */
+export interface Sarif {
+  readonly runs?: ReadonlyArray<SarifRun>;
+  readonly [key: string]: unknown;
+}
+
+/** How many results code scanning receives, and how many stay in the summary only. */
+export interface Uploaded {
+  readonly kept: number;
+  readonly dropped: number;
+}
 
 export interface Rule {
   /** The registry id, fetched as `r/<id>`. */
@@ -37,6 +63,15 @@ export interface Rule {
 
 /** The eight rules, in the summary's order. */
 export declare const RULES: ReadonlyArray<Rule>;
+/**
+ * Semgrep's SARIF with each result of a rule that never blocks taken out,
+ * every run's other fields kept, and how many results it kept and left out.
+ * The report it is given is not changed.
+ */
+export declare function forCodeScanning(
+  sarif: Sarif,
+  rules?: ReadonlyArray<Rule>,
+): { sarif: Sarif & { readonly runs: ReadonlyArray<SarifRun & { readonly results: ReadonlyArray<SarifResult> }> } } & Uploaded;
 /** A rule's own name: the last part of its id. */
 export declare function nameOf(id: string): string;
 /** Which named rule an id Semgrep reports is, or null. */
@@ -104,7 +139,10 @@ export interface Scan {
   /** The places read only in part, or null when the report has no timing section. */
   readonly timeouts?: ReadonlyArray<Timeout> | null;
   readonly ran?: ReadonlyArray<string>;
+  /** CODE_SCANNING_REPORT's path when the scan finished. */
   readonly sarif?: string;
+  /** What that report holds, or null when there is none. */
+  readonly uploaded?: Uploaded | null;
 }
 
 /** What one run of Semgrep left in `out`. */
@@ -117,7 +155,7 @@ export interface Report {
   readonly lines: ReadonlyArray<string>;
   /** 0, or 1 outside a pull request when the scan did not finish. */
   readonly code: 0 | 1;
-  /** The SARIF report's path when the scan finished, else empty. */
+  /** CODE_SCANNING_REPORT's path when the scan finished, else empty: the file the upload sends. */
   readonly sarif: string;
 }
 
