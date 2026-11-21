@@ -44,8 +44,9 @@ export interface ProbeConfig {
   readonly ports: readonly number[];
   /**
    * EXPOSURE_PROBE_FRONT_PORTS: ports the front answers by itself, a note on
-   * a production name's address while they do not answer as PostgreSQL.
-   * Absent or empty: every answer fails.
+   * a production name's address while they do not answer as PostgreSQL and
+   * present no certificate from Caddy's own local CA. Absent or empty: every
+   * answer fails.
    */
   readonly frontPorts?: readonly number[];
   /** EXPOSURE_PROBE_HOST: the machine's own address or name, or ''. */
@@ -94,12 +95,29 @@ export interface HeadersAnswer {
 /** PostgreSQL's SSLRequest: eight bytes, answered by PostgreSQL with `S` or `N`. */
 export declare const SSL_REQUEST: Buffer;
 
+/**
+ * What a TLS hello with no server name met: a certificate, by its issuer's
+ * common names only; a connection that finished no handshake; or not tried.
+ */
+export type CertificateAnswer =
+  | { readonly kind: 'tls'; readonly issuer: readonly string[] }
+  | { readonly kind: 'not-tls' }
+  | { readonly untried: string };
+
+/** The name Caddy's own local CA gives itself, the issuer of the Trigger.dev dashboard front's certificate. */
+export declare const CADDY_LOCAL_CA: string;
+
+/** Whether a certificate's issuer, by its common names, is Caddy's own local CA. */
+export declare function fromCaddyLocalCa(issuer: readonly string[]): boolean;
+
 /** The network and the log, so a test can hand the probe its own. */
 export interface ProbeIo {
   resolve(name: string): Promise<{ readonly addresses: readonly string[]; readonly error?: string }>;
   connect(address: string, port: number): Promise<ConnectAnswer>;
   /** Asked only of a port the front holds by itself, after it answered. */
   postgres(address: string, port: number): Promise<PostgresAnswer>;
+  /** A TLS hello with no server name, asked only of a port the front holds by itself, after it answered. */
+  certificate(address: string, port: number): Promise<CertificateAnswer>;
   tls(name: string): Promise<TlsAnswer>;
   issuer(url: string): Promise<{ readonly issuer?: string; readonly why?: string }>;
   page(url: string): Promise<PageAnswer>;
@@ -140,4 +158,6 @@ export declare function realNetwork(timeouts?: {
   readonly fetchMs?: number;
   /** For each git call that reads the app's template (workplan 0158 T4). */
   readonly gitMs?: number;
+  /** `tls.connect`, replaceable for the guard: the hello on a front port goes through it. */
+  readonly connectTls?: (options: Record<string, unknown>) => unknown;
 }): Omit<ProbeIo, 'print'>;

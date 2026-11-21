@@ -243,7 +243,11 @@ To reach it from your laptop, before the `trigger` phase set:
 `TRIGGER_TLS_BIND` publishes the port on that address; without it the
 dashboard answers on the machine only, whatever `TRIGGER_TLS_HOST` says. It is
 the IP address the host names, never a name, even where `TRIGGER_TLS_HOST` is
-one (*Which address a port answers on*, below).
+one (*Which address a port answers on*, below). Published on the mesh, the
+dashboard is within reach of a forward from the front, so the outside probe
+knows it by its certificate, from Caddy's own local CA (`tls internal`), on
+any port the front answers by itself (*After the script: the owner's steps*,
+step 5).
 
 The API origin the server advertises is fixed in `managed.yml` to
 `http://127.0.0.1:<TRIGGER_PORT>`, and `.env` does not change it. The deploy CLI
@@ -399,9 +403,10 @@ arrive once each as the app's template states them at the commit live's own
 the machine, goes in the optional repository variable
 `EXPOSURE_PROBE_FRONT_PORTS`, and only after a capture on the machine during a
 probe run has shown that nothing arrives. On a production name's address such a
-port answering is then a note, unless it answers as PostgreSQL, which fails; on
-the machine's own address, and on an address only the OTA names resolve to, it
-fails.
+port answering is then a note, unless it answers as PostgreSQL, or presents a
+certificate from Caddy's own local CA as the Trigger.dev dashboard's TLS front
+does (*Addressing the dashboard*, above), and either fails; on the machine's own
+address, and on an address only the OTA names resolve to, it fails.
 
 **The OTA site is recreated by hand, and only by hand.** No workflow runs
 `www.yml`, and the bring-up does not start the site (*The public site*, below).
@@ -4496,10 +4501,15 @@ it says which and logs nothing; fix it and run it again with `--resume`.
    the front forwards something, so close it; your own mesh devices' show up
    too, from their own addresses. Nothing from the front: the front holds the
    port itself, and
-   `gh variable set EXPOSURE_PROBE_FRONT_PORTS --body '<port>'` makes it a
-   note, with PostgreSQL's handshake as its tripwire. That tripwire knows
-   only PostgreSQL: anything else that answers on a listed port is a note,
-   which is why the capture comes first.
+   `gh variable set EXPOSURE_PROBE_FRONT_PORTS --body '<every listed port>'`
+   (the whole list in one value, since it replaces the old one) makes it a note,
+   behind two tripwires: PostgreSQL's handshake, and a TLS hello with no
+   server name, which fails on a certificate from Caddy's own local CA, the
+   one the Trigger.dev dashboard's TLS front presents. They know only those
+   two: anything else that answers on a listed port is a note, which is why
+   the capture comes first. And the hello names no server, so a service that
+   routes by a name it was given (a TLS service) answers it nothing, which is
+   why NetBird's dashboard comes before both.
 6. **Live's logs name the visitor** (privacy §4.5).
    From outside the NetBird network, send one request to the app and one to
    the site, each with a forged header, `192.0.2.1` being a documentation
