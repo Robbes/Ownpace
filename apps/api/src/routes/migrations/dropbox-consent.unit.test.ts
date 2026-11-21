@@ -1,8 +1,8 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 import { describe, it, expect, vi } from 'vitest';
+import { DROPBOX_AUTH_ENDPOINT } from '@openmig/shared';
 import {
-  DROPBOX_AUTH_ENDPOINT,
   DROPBOX_TOKEN_ENDPOINT,
   dropboxConsentUrl,
   exchangeDropboxCode,
