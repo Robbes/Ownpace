@@ -6,7 +6,7 @@
  *
  * `deploy/compose/managed.yml` pins ClickHouse 26.8.37.168-lts (26.8.36.3-lts
  * until 2026-11-14), ahead of the 26.2.19.43 Trigger.dev v4.8.3 pins, and
- * v4.8.5 too, for CVE-2026-116366. 26.8 changed
+ * v4.8.5 and v4.8.8 too, for CVE-2026-116366. 26.8 changed
  * defaults Trigger.dev's schema and writes meet, and two files mounted with
  * the pin put 26.2's back:
  *

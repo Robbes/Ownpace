@@ -10,8 +10,8 @@
  * read at the version this repository pins; five are switched off, and
  * Nextcloud is not yet:
  *
- *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6, v4.8.1, v4.8.3
- *    and v4.8.5), three ways.
+ *  - TRIGGER.DEV'S WEBAPP (read at v4.7.2, and again at v4.7.6, v4.8.1, v4.8.3,
+ *    v4.8.5 and v4.8.8), three ways.
  *    Its server's PostHog identified
  *    the user by id, email and name at every sign-in (`services/postAuth.server.ts`
  *    calls `telemetry.user.identify`, `services/telemetry.server.ts`) and sent
@@ -77,7 +77,25 @@
  *    `services/trustedDeploys/github.server.ts`) to check a bearer token a
  *    caller sends, before it looks up any grant: only on such a request, and
  *    nothing here sends one. prisma 6.14.0, pnpm 10.33.2 and goose v3.27.1
- *    are unchanged.
+ *    are unchanged. At v4.8.8 (read 2026-11-21, with v4.8.6 and v4.8.7)
+ *    postAuth.server.ts, usePostHog.ts, root.tsx, the entrypoint and the
+ *    Dockerfile are v4.8.5's byte for byte; telemetry.server.ts adds one
+ *    event, `mcp_feedback_submitted`, through the same client the opt-out
+ *    leaves unmade, sent from the remote MCP server new in this range, which
+ *    is served at `/mcp` only with `MCP_SERVER_ENABLED`, off by default and
+ *    not set here (entry.server.tsx, server.ts). Its OAuth clients may be
+ *    named by an https metadata URL, which the webapp then fetches
+ *    (`services/oauth/cimdFetch.server.ts`: https only, public addresses
+ *    only, no redirect, 64 KiB at most): a host the requester names, only on
+ *    such a request. The new keys of `env.server.ts` name no third party but
+ *    `ATTIO_MEMBER_SYNC_ENABLED`, on by default where `APP_ENV` is production,
+ *    whose client is made only with `ATTIO_API_KEY` (`services/attio.server.ts`),
+ *    a third party below; the rest (the MCP server and its OAuth grants, a
+ *    secret proxy and environment encryption by AWS KMS, both off by default,
+ *    audit-log recording, off without its plugin, a deployment-checks worker
+ *    on the stack's own Redis, ingress body limits, run engine and worker
+ *    source limits, a separate health port) name no host. prisma 6.14.0,
+ *    pnpm 10.33.2 and goose v3.27.1 are unchanged.
  *  - ZITADEL (v4.19.2) sends a "service ping" once a day to
  *    `https://zitadel.com/api/ping`: the version, and the id, creation date and
  *    domains of every instance, and with `ResourceCount` the number of users,
@@ -250,11 +268,13 @@
  * trigger-supervisor's builds refuse it), but a container keeps the environment
  * it was started with until a deploy recreates it, which is why
  * `docs/managed-bring-up.md`, *Nothing phones home*, has the check to run on the
- * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6, 4.8.1, 4.8.3 and 4.8.5
+ * machine. The deploy CLI, which runs on the host: at 4.7.2, 4.7.6, 4.8.1, 4.8.3, 4.8.5 and 4.8.8
  * `packages/cli-v3/src/telemetry/tracing.ts` is gone, and `handleTelemetry` in
  * `src/cli/common.ts` only runs the command, so no exporter of its own was
  * found; its one PostHog client is the MCP server's feedback tool
- * (`src/mcp/telemetry.ts`), which `deploy` never starts. The integration tests' throwaway Nextcloud and Stalwart, started by
+ * (`src/mcp/telemetry.ts`), which `deploy` never starts (4.8.8's `dist/esm/cli/common.js`
+ * changes only how a command's error is printed, its `mcp/telemetry.js` is 4.8.5's, and
+ * its `dist/esm` names the same URLs). The integration tests' throwaway Nextcloud and Stalwart, started by
  * Testcontainers on a CI runner. And what a service does once somebody
  * configures it to: every key the webapp is given is in `WEBAPP_KEYS` below
  * with its reason, and any other key fails here until somebody has read what
@@ -435,7 +455,7 @@ export const WEBAPP_KEYS: Readonly<Record<string, string>> = Object.freeze({
   SESSION_SECRET: 'a secret; names no host',
   MAGIC_LINK_SECRET: 'a secret; names no host',
   ENCRYPTION_KEY: 'a secret; names no host',
-  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5 does not read it',
+  LOGIN_SECRET: 'a secret; names no host, and env.server.ts at v4.7.2, v4.7.6, v4.8.1, v4.8.3, v4.8.5 and v4.8.8 does not read it',
   MANAGED_WORKER_SECRET: 'a secret; names no host',
   APP_ORIGIN: "the dashboard's own origin",
   LOGIN_ORIGIN: "the dashboard's own origin",
@@ -648,7 +668,7 @@ interface Row {
  * held to the Dockerfile's FROM, without its digest: a version move is still
  * a re-read.
  */
-const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.5';
+const TRIGGER_WEBAPP = 'ghcr.io/triggerdotdev/trigger.dev:v4.8.8';
 const ZITADEL = 'ghcr.io/zitadel/zitadel:v4.20.4';
 const CLICKHOUSE =
   'clickhouse/clickhouse-server:26.8.37.168@sha256:a56702852d7c8055a021a42a3a60f49daa49e9204a949ea033e51bb327948648';
@@ -724,7 +744,7 @@ export const SWITCHED: Readonly<Record<string, Row>> = {
     why:
       "PostHog from the server at every sign-in (id, email, name) and on user, organisation and project creation, PostHog in " +
       "the dashboard's browser with the signed-in user's id and email, and Prisma's checkpoint to checkpoint.prisma.io at every " +
-      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5; ' +
+      'start (telemetry.server.ts, postAuth.server.ts, usePostHog.ts, env.server.ts, docker/scripts/entrypoint.sh at v4.7.2, v4.7.6, v4.8.1, v4.8.3, v4.8.5 and v4.8.8; ' +
       'prisma 6.14.0 CLI.ts and utils/checkpoint.ts); built here from that image, with files deleted and nothing added that runs',
     holds: (svc, entry) => {
       const { from, problems } = builtFrom(svc, entry);
@@ -863,7 +883,7 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
   'deploy/compose/managed.yml:trigger-supervisor': {
     readAt: 'build',
     why:
-      "its settings at v4.7.2, v4.7.6, v4.8.1, v4.8.3 and v4.8.5 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
+      "its settings at v4.7.2, v4.7.6, v4.8.1, v4.8.3, v4.8.5 and v4.8.8 (apps/supervisor/src/env.ts; the entrypoint.sh it has since v4.7.7 only preloads " +
       "the local distrust-cas.cjs) have no analytics or error report; it sends its traces to the webapp's " +
       'own /otel and serves its metrics on its own loopback; built here from ghcr.io/triggerdotdev/supervisor with a copy of pnpm deleted (0146 T16)',
     holds: (svc, entry) => {
