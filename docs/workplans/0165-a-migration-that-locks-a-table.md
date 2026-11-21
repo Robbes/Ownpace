@@ -1,8 +1,19 @@
 # Workplan 0165 — A migration that locks a table
 
-> **In one line:** Which migrations lock a table, why migration-lint's Atlas cannot see it, and a squawk report on each migration a pull request adds or changes, report only; blocking, a lock timeout in the runner and CONCURRENTLY are the owner's to decide.
+> **In one line:** Which migrations lock a table, why migration-lint's Atlas cannot see it, and a squawk report on each migration a pull request adds or changes, report only; by the owner's answers, no rule blocks, the runner gets a lock timeout, and no file runs outside a transaction.
 
 ## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21, later: the owner's answers, and squawk's first reading.**
+- **The answers.** Asked D1 to D4 (§6), the owner answered *"I take your recommendation.
+  Continue"*. So: D1, the report stays as built, on squawk v2.73.0. D2, no rule blocks now. D3, a
+  lock timeout in the runner, in its own pull request with a test. D4, no file runs outside a
+  transaction. D3 named no value; the builder chose 5 seconds (T4).
+- **What squawk read in CI** (#2000's run, job 136798002326, on GitHub's amd64 runner). Both sums
+  were as pinned, the binary said `squawk 2.73.0`, and it read all 129 files, none refused. §5
+  has the counts. Two rules fire on 123 files each: `require-lock-timeout` and
+  `require-statement-timeout`. squawk reads each file alone, so it cannot see a timeout the
+  runner sets; T4 marks the first one as met by the runner in the report.
 
 **2026-11-21: read, and a report built, report only.** On
 `claude/ownpace-public-readiness-y7orc6-migration-locks`, from `main` at `87663d7`.
@@ -42,12 +53,12 @@
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The decisions | owner | ⏳ **Owner** (D1 to D4) | §6. |
+| T0 The decisions | owner | ✅ **Decided 2026-11-21** (D1 to D4, as advised) | §6. The owner's answer is quoted in the Status entry of 2026-11-21, later. |
 | T1 Read the finding | builder | ✅ **Done 2026-11-21** | §2 to §4: each listed place, what it locks, the rest of both chains, and what Atlas reads. |
 | T2 squawk, report only | builder | 🔨 **Built**, a draft pull request (D1) | `migration-locks.yml`, `scripts/migration-locks-report.mjs`, a pin-watch row, two guards. Fails nothing; not a required check. |
-| T3 A squawk rule that blocks | builder | 📋 **Proposed: not now** (D2) | If ever: only for files a pull request adds, and only rules a migration here can meet (§5, option C). |
-| T4 A lock timeout in the runner | builder | 📋 **Proposed** (D3) | `SET LOCAL lock_timeout` per file in `applyOne`, with a test. A code change, not a check. |
-| T5 A file applied outside a transaction | — | 📋 **Proposed: no** (D4) | Would make CONCURRENTLY possible and give up the all-or-nothing file the runner keeps. |
+| T3 A squawk rule that blocks | builder | 🅿️ **Parked 2026-11-21, by owner decision** (D2: not now; trigger: a lock measured to hurt) | If ever: only for files a pull request adds, and only rules a migration here can meet (§5, option C). |
+| T4 A lock timeout in the runner | builder | 📋 **Decided 2026-11-21** (D3); 🔨 **building**, on `claude/ownpace-public-readiness-y7orc6-migration-lock-timeout` | `SET LOCAL lock_timeout = '5s'` per file in `applyOne`, with a test, in its own pull request. The report then marks `require-lock-timeout` as met by the runner. |
+| T5 A file applied outside a transaction | — | ✅ **Decided 2026-11-21: no** (D4) | Would make CONCURRENTLY possible and give up the all-or-nothing file the runner keeps. |
 
 ## 1. Why
 
@@ -187,10 +198,24 @@ Postgres 18. It runs when a migration changes.
   here". A file squawk could not read is listed and warned about. Nothing fails the job except the
   install step refusing a download whose sum is wrong, which runs nothing.
 
-**What is not known until it runs.** squawk's exact output with these options, and how its counts
-compare with §3's. With `--assume-in-transaction`, squawk's documentation says
-`require-concurrent-index-creation` ignores an index on a table created in the same transaction,
-so the 35 such places should drop out. This pull request's own run is the first reading.
+**What it read, on its first run** (#2000, job 136798002326, 2026-11-21). All 129 files, none
+refused; no file was changed by the pull request, so every file counted as history:
+
+| Rule | Places | Files | What it is here |
+|---|---:|---:|---|
+| `require-lock-timeout` | 123 | 123 | No file sets `lock_timeout`. D3 sets it in the runner, which squawk, reading each file alone, cannot see |
+| `require-statement-timeout` | 123 | 123 | No file sets `statement_timeout`. D3 sets none on purpose: a migration that holds its lock and is working, such as an index build, should finish, not be cut off halfway |
+| `ban-drop-constraint` | 65 | 41 | The drop that comes before each re-added CHECK, as in the connection-kind widenings |
+| `constraint-missing-not-valid` | 62 | 40 | §3's CHECKs, and the baseline's |
+| `prefer-bigint-over-int` | 21 | 8 | A column type preference, not a lock |
+| `require-concurrent-index-creation` | 19 | 13 | Cannot be met here. The 35 indexes on a table the same file creates dropped out, as squawk's documentation says |
+| `adding-foreign-key-constraint` | 8 | 6 | §3's foreign keys |
+| `ban-drop-not-null` | 1 | 1 | Managed 0001:581 |
+| `disallowed-unique-constraint` | 1 | 1 | Ledger 0067:49 |
+| `require-concurrent-index-deletion` | 1 | 1 | Cannot be met here: ledger 0022:32 |
+
+So squawk and §3's reading agree on the lock classes, within the baseline's few. squawk also counts
+rules §3 did not look for. None of them fails anything.
 
 ## 6. Decisions for the owner
 
@@ -202,6 +227,7 @@ so the 35 such places should drop out. This pull request's own run is the first 
   - Advice: **keep it as built.** It is the only check that sees a lock before the merge, and
     report only means its noise costs a reading, not a merge. The newest release is what the pin
     watch would ask for in a week anyway.
+  - **Answer, 2026-11-21: as advised.**
 - **D2. Should a squawk rule ever block a merge?**
   - Options: never; not now, and decided again when a lock is measured to hurt; or now, for files
     a pull request adds.
@@ -215,6 +241,7 @@ so the 35 such places should drop out. This pull request's own run is the first 
     `adding-required-field`, which no file has broken yet. Never the two `CONCURRENTLY` rules while
     each file is one transaction. Keep the job out of `ci-complete` until it reports nothing on
     `main`, as 0163 did with its checks.
+  - **Answer, 2026-11-21: as advised, not now** (T3, parked).
 - **D3. Give each migration file a lock timeout in the runner?**
   - What: `SET LOCAL lock_timeout` at the start of each file's transaction in `applyOne`, so a
     migration that waits behind a long query fails after a few seconds instead of making every
@@ -222,12 +249,15 @@ so the 35 such places should drop out. This pull request's own run is the first 
   - Options: yes, with a value the owner picks (a few seconds); or no.
   - Advice: **yes, in its own pull request, with a test.** At this size, waiting for a lock is a
     likelier outage than the lock itself. It is a code change, not a CI check.
+  - **Answer, 2026-11-21: as advised.** No value was named; the builder chose 5 seconds, a named
+    constant in `migrate.ts`, so moving it is a one-line change (T4).
 - **D4. Allow a migration file to run outside a transaction, so `CONCURRENTLY` can be used?**
   - Options: no; or a marker in the file that `applyOne` reads.
   - Advice: **no, not now.** Each file is all-or-nothing with its bookkeeping row today. Without
     the transaction, a file that fails halfway leaves the schema half-changed, and only a hand
     repair fixes that. 0023's header names the answer if a table ever grows that large: an index
     built out of band, not a change to the runner.
+  - **Answer, 2026-11-21: as advised, no.**
 
 ## 7. What was read, and from where
 
