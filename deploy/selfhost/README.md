@@ -30,7 +30,7 @@ The full NAS/Pi/WSL2 walkthrough, backup (different on PGlite — no
 | Path | What |
 |---|---|
 | `compose.yml` | The two-service stack (bundled Postgres + app). |
-| `postgres/Dockerfile` | The bundled Postgres: the official image without gosu, started as its own user (uid 70, never root). The first `up` builds it, from Docker Hub alone; nothing pulls it. |
+| `postgres/Dockerfile` | The bundled Postgres: the official image without gosu, started as its own user (uid 70, never root). The first `up` builds it, from Docker Hub and, for libxml2 2.13.9-r3 (workplan 0166 T3), Alpine's mirror; nothing pulls it. |
 | `compose.pglite.yml` | Override: drops the Postgres service, `SELFHOST_PERSISTENCE=pglite` — the single-container shape (and what the future native installer ships). |
 | `compose.dev.yml` | Dev conveniences (source mounts); not for production. |
 | `selfhost.env.example` | Env template — copy to `.env`, `chmod 600`. |

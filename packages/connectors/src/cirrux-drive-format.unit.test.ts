@@ -26,6 +26,8 @@
 
 import { describe, it, expect } from 'vitest';
 import { randomBytes } from 'node:crypto';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import {
   CXDRV2_FIRST_CHUNK_INDEX,
   cxdrv2ChunkAad,
@@ -123,6 +125,17 @@ describe('the known-answer vector, computed outside the encoder', () => {
     expect(() =>
       decryptCxdrv2({ object: Buffer.from(VECTOR, 'hex'), key: KEY, fileUuid: UUID, plaintextSizeBytes: 20, firstIndex: 1 }),
     ).toThrow();
+  });
+
+  it('and refuses a tag cut short, and Node holds its decipher to the full 16 bytes (workplan 0166 T2)', () => {
+    // The last chunk's tag, four bytes short.
+    const cut = Buffer.from(VECTOR, 'hex').subarray(0, VECTOR.length / 2 - 4);
+    expect(() => decryptCxdrv2({ object: cut, key: KEY, fileUuid: UUID, plaintextSizeBytes: 20 })).toThrow(/cut short/);
+    // The check is not the only thing that stops it: the decipher names the
+    // tag's length, so Node refuses a short tag even without the check.
+    const source = readFileSync(fileURLToPath(new URL('./__testing__/cirrux-fake.ts', import.meta.url)), 'utf8');
+    const calls = [...source.matchAll(/\bcreateDecipheriv\(([^)]*)\)/g)].map((m) => m[1]);
+    expect(calls).toEqual(["'aes-256-gcm', p.key, iv, { authTagLength: 16 }"]);
   });
 
   it('and binds the file: another uuid does not decrypt it', () => {
