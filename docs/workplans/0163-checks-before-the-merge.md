@@ -33,7 +33,7 @@ from `main` at `02e88d52`; the first half of step 2 of §5, as D2 decided.
 - **zizmor's own audit, as the outside check reads finding 1** (the measure branch, run
   44888863792): zizmor 1.32.0 as `zizmor.yml` pins it, offline and read-only, with the auditor
   persona, the only one that shows `secrets-outside-env` since zizmor 1.24.0. On `main` it finds
-  one, at `.github/workflows/exposure-probe.yml:120`, the probe's step that reads
+  one, in `.github/workflows/exposure-probe.yml`, the probe's step that reads
   `EXPOSURE_PROBE_HOST`; on the T1 branch, none. It does not read a workflow's top-level `env:`,
   where the token sat on `main`, so it never flagged `e2e-managed.yml`; the guard does.
 - **Not in this:** zizmor's `secrets-outside-env` report, a second zizmor run in `zizmor.yml`
