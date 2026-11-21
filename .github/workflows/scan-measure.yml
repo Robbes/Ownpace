@@ -1,12 +1,13 @@
 # MEASUREMENT ONLY, ON A BRANCH THAT IS NEVER MERGED AND HAS NO PULL REQUEST.
-# Its earlier proofs (gitleaks, Semgrep, the GoAccess rename, zizmor's secrets-outside-env) are in
-# this branch's history and their runs; this file now holds only the next one.
+# Its earlier proofs (gitleaks, Semgrep, the GoAccess rename, zizmor's secrets-outside-env, and
+# what the listed front ports and the dashboard's front present over TLS) are in this branch's
+# history and their runs; this file now holds only the next one.
 #
-# The outside probe's ports the front holds by itself (workplan 0132 T3 (c), 2026-11-21): before
-# the probe learns the Trigger.dev dashboard's certificate, what does each listed port on the
-# front present over TLS today, and what does the dashboard's own front present? The front is
-# NetBird's shared proxy, so its answers on the listed ports are printed as booleans only: never
-# an address, a name, or a certificate's contents. measure/front-tls.mjs says what it prints.
+# The outside probe's second tripwire (workplan 0132 T3 (c), 2026-11-21), on the probe branch:
+# its whole probe, run as exposure-probe.yml runs it, against today's front with today's
+# variables and without the machine's own address; then its TLS hello and issuer check against
+# the dashboard's TLS front as main builds and configures it, on loopback. The probe's log never
+# names an address; the front on loopback has a documentation address or a made-up name.
 name: Scan measure (report only)
 
 on:
@@ -17,13 +18,18 @@ permissions:
   contents: read
 
 jobs:
-  front-tls:
-    name: The listed front ports over TLS, and the dashboard's front as this repository runs it
+  probe-branch:
+    name: The probe branch's probe against today's front, and its hello against the dashboard's front
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: claude/ownpace-public-readiness-y7orc6-probe-dashboard-tls
+          path: pr-tree
           persist-credentials: false
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -35,15 +41,19 @@ jobs:
           node-version: '26'
           check-latest: true
           package-manager-cache: false
-      - name: Each listed port on the front, over TLS with no server name (booleans only)
+      - name: The probe branch's probe, as exposure-probe.yml runs it, without the machine's own address
+        working-directory: pr-tree
         env:
-          PORTS: ${{ vars.EXPOSURE_PROBE_FRONT_PORTS }}
-        run: node measure/front-tls.mjs front
-      - name: The dashboard's front as main builds and configures it, for an address and for a name
+          EXPOSURE_PROBE_LIVE_PORTS: ${{ vars.EXPOSURE_PROBE_LIVE_PORTS }}
+          EXPOSURE_PROBE_FRONT_PORTS: ${{ vars.EXPOSURE_PROBE_FRONT_PORTS }}
+          EXPOSURE_PROBE_OTA_NAMES: report
+          EXPOSURE_PROBE_SITE_NAME: report
+        run: node scripts/exposure-probe.mjs
+      - name: The probe branch's hello against main's dashboard front, for an address and for a name
         run: |
           set -euo pipefail
           docker build --quiet -t measure-caddy main-tree/deploy/compose/caddy
-          for host in 100.64.0.1 dashboard.mesh.test; do
+          for host in 192.0.2.1 dashboard.mesh.test; do
             echo "TRIGGER_TLS_HOST=${host}"
             docker run -d --name front \
               -e TRIGGER_TLS_HOST="${host}" \
@@ -53,7 +63,7 @@ jobs:
               -v "${GITHUB_WORKSPACE}/main-tree/deploy/compose/trigger-tls.Caddyfile:/etc/caddy/Caddyfile:ro" \
               measure-caddy > /dev/null
             status=0
-            node measure/front-tls.mjs local 3443 || status=$?
+            node measure/probe-hello.mjs pr-tree 3443 || status=$?
             if [ "$status" -ne 0 ]; then docker logs front; exit "$status"; fi
             docker rm -f front > /dev/null
           done
