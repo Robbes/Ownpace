@@ -449,11 +449,11 @@ services:
     # highs the image scan read in v3.29.0's, and taken before its three-day
     # floor on the owner's waiver of 2026-11-13, "Waive all waiting time."
     # (its header, WHAT IS REPLACED: GOOSE);
-    # so its build reaches github.com as well as the npm registry. Since
-    # 2026-11-14 it also removes cross-spawn 5.1.0 (CVE-2024-21538) and
-    # spawndamnit's link to it, its one requirer, under the root's
-    # @changesets/cli, release tooling nothing here runs (its header, WHAT
-    # GOES). Since 2026-11-20 connect-node, the one requirer of undici
+    # so its build reaches github.com as well as the npm registry. From
+    # 2026-11-14 until Trigger.dev v4.8.8, whose own override takes
+    # cross-spawn 7.0.6 in its place, it also removed cross-spawn 5.1.0
+    # (CVE-2024-21538) and spawndamnit's link to it (its header, WHAT UPSTREAM
+    # NOW SHIPS FIXED). Since 2026-11-20 connect-node, the one requirer of undici
     # 5.29.0, links the store's undici 6.29.1 in its place, and undici 5.29.0
     # and its @fastify/busboy 2.1.1 go, six highs that only their next major
     # fixes; nothing is fetched for it (its header, WHAT IS RELINKED: UNDICI).
@@ -472,7 +472,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.5}-f7b52b1d2670
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.8}-51450211433a
     build:
       context: ./trigger.dev
       args:
@@ -687,7 +687,7 @@ services:
   #
   # AHEAD OF THEIR PIN ON PURPOSE: option 2 of workplan 0119 §3 item 9, the
   # owner's decision of 2026-11-02. Trigger.dev v4.8.3 still pins 26.2.19.43
-  # (and v4.8.5 does too: its docker/ compose is v4.8.3's),
+  # (and v4.8.5 and v4.8.8 do too: their docker/ compose is v4.8.3's),
   # a line ClickHouse no longer supports, and CVE-2026-116366 (critical: code
   # execution with no password) has no 26.2 fix. 26.8.36.3-lts carried it
   # first. Read release by release from 26.3 to 26.8, and every 26.8 patch note to
@@ -937,12 +937,12 @@ services:
     # place of 10.33.2 (since 2026-11-02), without node-gyp's tree (tar was in
     # it) in node's, and without npm (from 2026-11-03 until v4.8.5, which
     # ships 5.33.19 itself, it also put systeminformation 5.33.19 in place of
-    # 5.31.7); since 2026-11-14 also without cross-spawn 5.1.0
-    # (CVE-2024-21538) and the links pnpm made to it, spawndamnit's and its
-    # hoist (its header, CROSS-SPAWN 5.1.0). No `user:`, so
+    # 5.31.7); from 2026-11-14 until v4.8.8, whose own override takes 7.0.6
+    # in its place, also without cross-spawn 5.1.0 (CVE-2024-21538) and the
+    # links pnpm made to it (its header, CROSS-SPAWN 5.1.0). No `user:`, so
     # it runs as the image's node, whose copy its CMD runs and the Dockerfile
     # keeps.
-    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.5}-e3631e107ba7
+    image: localhost/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.8}-f21dbbd335dd
     build:
       context: ./supervisor
       args:
@@ -2761,7 +2761,7 @@ networks:
   # 26.3.62.3-lts, 26.8.36.3-lts, 26.9.27.3-stable and 26.10.3.7-stable. The
   # clickhouse service above ran 26.2, which ClickHouse's SECURITY.md lists as
   # unsupported, so no fix will come for it, and Trigger.dev still pins it at
-  # v4.8.3 (and at v4.8.5). The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
+  # v4.8.3 (and at v4.8.5 and v4.8.8). The pin is 26.8.36.3-lts from the owner's decision of 2026-11-02
   # (§3 item 9, option 2), 26.8.37.168-lts since 2026-11-14 (the clickhouse
   # service above), and this network stays as it is. Who can
   # reach the server is this file's, and until this network it was everybody:

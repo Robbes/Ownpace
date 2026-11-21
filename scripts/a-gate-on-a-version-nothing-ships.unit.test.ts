@@ -645,8 +645,8 @@ async function buildFor(target: BuildContext['target']): Promise<{ layers: Build
 
 /**
  * SHA-256 of the eight `EMSIGN_COMPROMISE_REJECTED_INTERMEDIATES` of
- * trigger.dev 4.8.5 (`dist/esm/deploy/emsignRejectedIntermediates.js`, the same
- * file as 4.8.1's and 4.8.3's), each as the CLI writes it (its `pemLines`, a
+ * trigger.dev 4.8.8 (`dist/esm/deploy/emsignRejectedIntermediates.js`, the same
+ * file as 4.8.1's, 4.8.3's and 4.8.5's), each as the CLI writes it (its `pemLines`, a
  * newline after each), in file-name order: the bytes the vendored files must be.
  */
 const CLI_REJECTED_SHA256 = 'f4b2b13e9429b1beeda72e78bd7c48a13c0556c2c33ab77236eac90d187832ac';
@@ -660,7 +660,7 @@ const REJECTED_DIR = 'apps/worker/task-image/emsign-block';
  * CLI reaches the tasks only by hand, through a new base and a new pin. A
  * Trigger.dev move fails here until they have been read again.
  */
-const CLI_READ_AT = '4.8.5';
+const CLI_READ_AT = '4.8.8';
 
 /** The DER certificate at the head of a `TRUSTED CERTIFICATE` PEM, without OpenSSL's trust settings after it. */
 function certificateOf(pem: string): X509Certificate {

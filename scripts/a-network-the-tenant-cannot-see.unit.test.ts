@@ -23,7 +23,7 @@
  *
  * One service talks to the Docker API: `trigger-supervisor`, whose
  * `DOCKER_HOST` names the proxy. Its task runs get no `DOCKER_HOST` (Trigger.dev
- * v4.8.3's supervisor, and v4.8.5's, whose `docker.ts` is the same, hands a
+ * v4.8.3's supervisor, and v4.8.5's and v4.8.8's, whose `docker.ts` is the same, hands a
  * run its own workload API and `trigger-api`'s
  * `/otel`), and `trigger-api` runs no Docker client. So the proxy is on one
  * network, `trigger-docker-socket`, `internal`, and the supervisor alone shares
