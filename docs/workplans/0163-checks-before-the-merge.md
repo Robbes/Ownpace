@@ -44,6 +44,8 @@ as D3 decided.
   - the check classified as not required.
   - Locally: 307 files, 7,465 tests passed, 33 skipped. Sixteen mutations of the report and
     three of the pin row each fail a guard.
+- **GEN-21**, which this plan only lists, was fixed on `main` in its own work (`7cbb1093`,
+  workplan 0119): the Docker socket proxy runs as HAProxy's uid 99, no longer as root.
 
 **2026-11-20, after T2: #1984's CI is green, and T4's first fix is built as #1985 (a draft, not
 merged).**
@@ -236,7 +238,7 @@ measure branch (§4).
 | — | Passed: React build variables, source maps, agent configuration, Express settings, secrets in image layers, images as root and risky ports | Partly, by the repository's own guards. | Nothing proposed; each passed. |
 | — | Measured: tools in an image production does not need (3) | Partly: `a-binary-the-stack-never-runs`. | Not named in the screenshot; nothing proposed. |
 | — | Partly measured: other infrastructure files (Trivy 0.74.0, 14 Dockerfiles) | Not run in CI. | Measured with the Security Scan's Trivy v0.76.2: 14 config files read and 14 failures. One is CRITICAL DS-0031 in the socket proxy's Dockerfile: it matches the proxy's `AUTH=0` and `SECRETS=0` switches, which are API permissions, not secrets, so it is a false positive. One is HIGH DS-0002, the same file ending as root (GEN-21). Twelve are LOW DS-0026, no HEALTHCHECK, which overlaps hadolint's findings. |
-| — | GEN-21, the socket proxy as root | Handled in its own work. | Listed only. |
+| — | GEN-21, the socket proxy as root | Handled in its own work, and fixed on `main` on 2026-11-21 (`7cbb1093`, workplan 0119): the proxy runs as HAProxy's uid 99. | Listed only. |
 | — | GEN-26, three `setup-node` steps zizmor flags; zizmor in CI | Handled in its own work. | Listed only. |
 
 ## 4. What the candidates found on this tree
