@@ -148,6 +148,11 @@ import {
   GOACCESS_DOCKERFILE,
   LINES,
   NODE_RELEASE_KEYS_FILE,
+  OSV_SCANNER_ARCHES,
+  OSV_SCANNER_HOST,
+  OSV_SCANNER_NOTE,
+  OSV_SCANNER_UPSTREAM,
+  OSV_SCANNER_WORKFLOW,
   NODE_RELEASE_KEYS_NOTE,
   NEXTCLOUD_SECOND_MAJOR_NOTE,
   NEXTCLOUD_SECOND_MAJOR_WORKFLOW,
@@ -193,6 +198,7 @@ import {
   newestLike,
   newestRelease,
   nodeVersionOf,
+  osvScannerPin,
   pnpmRow,
   readImages,
   readPin,
@@ -910,6 +916,8 @@ const cosignDefault = (): Record<string, string> =>
 
 /** The Atlas release migration-lint installs (0119, 2026-11-01), and its tag on the community image. */
 const ATLAS = atlasPin(REAL.read(ATLAS_WORKFLOW)!);
+/** The osv-scanner release the Security Scan installs (0163 T2, 2026-11-20). */
+const OSV = osvScannerPin(REAL.read(OSV_SCANNER_WORKFLOW)!);
 const ATLAS_TAG = `${ATLAS.version.slice(1)}-community`;
 
 /**
@@ -1370,6 +1378,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
       [SOCKET_PROXY_UPSTREAM]: lsRemote('v0.1.0', 'v0.4.2', SOCKET_PROXY_RELEASE, ...(newer.socketProxy ? [newer.socketProxy] : [])),
       // stalwart-cli's releases as upstream tags them, up to the one the workflows install, and another major.
       [STALWART_CLI_UPSTREAM]: lsRemote('v1.0.9', 'v1.0.10', STALWART_CLI.version, 'v2.0.0', ...(newer.stalwartCli ? [newer.stalwartCli] : [])),
+      // osv-scanner's releases as upstream tags them, up to the one the Security Scan installs, and another major.
+      [OSV_SCANNER_UPSTREAM]: lsRemote('v1.9.2', 'v2.6.0', OSV.version, 'v3.0.0', ...(newer.osvScanner ? [newer.osvScanner] : [])),
     },
   };
 }
@@ -1904,6 +1914,196 @@ describe('the Atlas CLI migration-lint runs: a named release, checked by its sha
  * the pin) reached nothing. Its row compares the file at upstream's newest
  * commit with the blob id the pin records.
  */
+/**
+ * THE OSV-SCANNER THE SECURITY SCAN READS THE LOCKFILE WITH (workplan 0163 T2,
+ * 2026-11-20). It fails the build on a malicious package, so the binary that
+ * decides must be the release named, as Atlas's is: `OSV_SCANNER_VERSION`, a
+ * sha256 for both architectures a runner here has, both read and compared
+ * before anything is made executable, and a check that what was installed
+ * calls itself that release. `osvScannerPin` reads the step's text, each
+ * refusal held by a mutation of it; the step is also RUN under bash with the
+ * same `curl` and `uname` stubs, and each way to keep the text and lose the
+ * refusal is a mutation that must fail it; and the row says when a newer
+ * release of the same major is tagged.
+ */
+const osvScratch = mkdtempSync(join(tmpdir(), 'osv-step-'));
+afterAll(() => rmSync(osvScratch, { recursive: true, force: true }));
+/** The bytes served for each architecture: fixed, so each has one sum. */
+const OSV_STAND_IN = Object.fromEntries(
+  OSV_SCANNER_ARCHES.map((arch) => [
+    arch,
+    `#!/bin/sh\n# Not osv-scanner: the linux/${arch} stand-in a-pin-that-knows-it-is-behind serves.\n: > "$STUB_RAN"\nprintf '%s\\n' "$STUB_SAYS" 'osv-scalibr version: 0.0.0'\n`,
+  ]),
+) as Record<'amd64' | 'arm64', string>;
+const OSV_STAND_IN_SHA256 = Object.fromEntries(
+  OSV_SCANNER_ARCHES.map((arch) => [`OSV_SCANNER_SHA256_${arch.toUpperCase()}`, createHash('sha256').update(OSV_STAND_IN[arch as 'amd64' | 'arm64']).digest('hex')]),
+);
+
+/** The `run:` and `env:` of the one step of `workflow` that downloads from OSV_SCANNER_HOST. */
+function osvStep(workflow: string): { run: string; env: Record<string, string> } {
+  type Step = { run?: unknown; env?: Record<string, unknown>; shell?: unknown };
+  const jobs = (parseYaml(workflow) as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const steps = Object.values(jobs).flatMap((job) => (job.steps ?? []).filter((s) => typeof s.run === 'string' && s.run.includes(OSV_SCANNER_HOST)));
+  if (steps.length !== 1) throw new Error(`${steps.length} steps of ${OSV_SCANNER_WORKFLOW} download from ${OSV_SCANNER_HOST}; one installs osv-scanner`);
+  const step = steps[0]!;
+  if (step.shell !== undefined) throw new Error(`the osv-scanner step names shell: ${String(step.shell)}; this runs it as a step with none`);
+  if ((step.run as string).includes('${{')) throw new Error('the osv-scanner step carries a ${{ }} expression, which this does not render');
+  return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
+}
+
+/** Run the step on `machine` (what `uname -m` says), with these sums in its env and a stand-in whose first line is `says`. */
+function runOsvStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string) {
+  const dir = mkdtempSync(join(osvScratch, 'run-'));
+  const temp = join(dir, 'runner-temp');
+  const served = join(dir, 'served');
+  mkdirSync(temp);
+  mkdirSync(served);
+  for (const arch of OSV_SCANNER_ARCHES) writeFileSync(join(served, `osv-scanner_linux_${arch}`), OSV_STAND_IN[arch as 'amd64' | 'arm64']);
+  const files = { script: join(dir, 'step.sh'), ran: join(dir, 'ran'), fetched: join(dir, 'fetched') };
+  writeFileSync(files.script, step.run);
+  writeFileSync(files.fetched, '');
+  const r = spawnSync('bash', ['-e', files.script], {
+    encoding: 'utf8',
+    timeout: 20_000,
+    env: {
+      PATH: `${STUBS}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: dir,
+      ...step.env,
+      ...sums,
+      RUNNER_TEMP: temp,
+      STUB_PREFIX: `${OSV_SCANNER_HOST}${step.env.OSV_SCANNER_VERSION}/`,
+      STUB_SERVED: served,
+      STUB_MACHINE: machine,
+      STUB_SAYS: says,
+      STUB_RAN: files.ran,
+      STUB_FETCHED: files.fetched,
+    },
+  });
+  const bin = join(temp, 'osv-bin', 'osv-scanner');
+  return {
+    status: r.status,
+    installed: existsSync(bin) ? readFileSync(bin, 'utf8') : undefined,
+    ran: existsSync(files.ran),
+    fetched: readFileSync(files.fetched, 'utf8').split('\n').filter(Boolean),
+    log: `${r.stdout}${r.stderr}`.trim(),
+  };
+}
+
+/**
+ * What the osv-scanner step of `workflow` does that it must not, run on both
+ * machines: install and run anything but the native release when both
+ * architectures' bytes are the pinned ones (and fetch both), finish with
+ * anything installed or run when either sum is wrong, accept a binary that
+ * calls itself another version, or install anything on a machine no release
+ * is pinned for. Empty when the step is right.
+ */
+function osvStepFaults(workflow: string): string[] {
+  const step = osvStep(workflow);
+  const version = step.env.OSV_SCANNER_VERSION!;
+  const release = `osv-scanner version: ${version.slice(1)}`;
+  const urls = OSV_SCANNER_ARCHES.map((arch) => `${OSV_SCANNER_HOST}${version}/osv-scanner_linux_${arch}`);
+  const faults: string[] = [];
+  for (const [machine, arch] of [['x86_64', 'amd64'], ['aarch64', 'arm64']] as const) {
+    const ok = runOsvStep(step, machine, OSV_STAND_IN_SHA256, release);
+    if (!(ok.status === 0 && ok.installed === OSV_STAND_IN[arch] && ok.ran && ok.fetched.join(' ') === urls.join(' '))) {
+      faults.push(`installs no release on ${machine}: exit ${ok.status}, fetched ${ok.fetched.join(' ') || 'nothing'}\n${ok.log}`);
+    }
+    const names = OSV_SCANNER_ARCHES.map((a) => `OSV_SCANNER_SHA256_${a.toUpperCase()}`);
+    for (const wrong of [...names.map((n) => [n]), names]) {
+      // A wrong sum is the pin the workflow commits: the stand-in is not those bytes.
+      const sums = { ...OSV_STAND_IN_SHA256, ...Object.fromEntries(wrong.map((name) => [name, step.env[name] ?? ''])) };
+      const r = runOsvStep(step, machine, sums, release);
+      if (r.status === 0 || r.installed !== undefined || r.ran) {
+        faults.push(`goes on past a wrong ${wrong.join(' and ')} on ${machine}: exit ${r.status}, installed ${r.installed !== undefined}, ran ${r.ran}\n${r.log}`);
+      }
+    }
+    const older = runOsvStep(step, machine, OSV_STAND_IN_SHA256, 'osv-scanner version: 2.6.0');
+    if (older.status === 0) faults.push(`accepts a binary that calls itself osv-scanner 2.6.0 on ${machine}\n${older.log}`);
+  }
+  const other = runOsvStep(step, 'riscv64', OSV_STAND_IN_SHA256, release);
+  if (other.status === 0 || other.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${other.status}`);
+  return faults;
+}
+
+describe('the osv-scanner the Security Scan runs: a named release, checked by its sha256 first', () => {
+  const scan = REAL.read(OSV_SCANNER_WORKFLOW)!;
+  /** security-scan.yml with one change, which must be a change. */
+  const mutate = (from: string | RegExp, to: string): string => {
+    const next = scan.replace(from, to);
+    expect(next, `${String(from)} is not in ${OSV_SCANNER_WORKFLOW}`).not.toBe(scan);
+    return next;
+  };
+
+  it('names a release and a sha256 for each architecture a runner here has', () => {
+    expect(OSV.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(Object.keys(OSV.sha256).sort()).toEqual([...OSV_SCANNER_ARCHES].sort());
+    for (const arch of OSV_SCANNER_ARCHES) expect(OSV.sha256[arch as 'amd64' | 'arm64']).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('refuses a name with no version, a version that is no release, a missing or shared sum, a download run before it is checked, and no version check', () => {
+    expect(() => osvScannerPin(mutate('${OSV_SCANNER_VERSION}/osv-scanner_linux_${arch}', 'latest/osv-scanner_linux_${arch}'))).toThrow(/downloads a name with no version/);
+    expect(() => osvScannerPin(mutate(/OSV_SCANNER_VERSION: v\d+\.\d+\.\d+/, 'OSV_SCANNER_VERSION: latest'))).toThrow(/names no release/);
+    expect(() => osvScannerPin(mutate(/\n +OSV_SCANNER_SHA256_ARM64: [0-9a-f]{64}/, ''))).toThrow(/no sha256 for linux\/arm64/);
+    expect(() => osvScannerPin(mutate(`OSV_SCANNER_SHA256_ARM64: ${OSV.sha256.arm64}`, `OSV_SCANNER_SHA256_ARM64: ${OSV.sha256.amd64}`))).toThrow(
+      /one sha256 for two architectures/,
+    );
+    // Made executable before the loop that reads the sums.
+    const install = /\n( +install -m 0755 "\$RUNNER_TEMP\/osv-scanner-[^\n]+)/.exec(scan)![1]!;
+    const early = mutate(`\n${install}`, '').replace(/\n( +)mismatched=0\n/, (all, space: string) => `\n${space}${install.trim()}${all}`);
+    expect(() => osvScannerPin(early)).toThrow(/executable before its sha256 is read/);
+    // Read, but a mismatch no longer stops the step.
+    expect(() => osvScannerPin(mutate(/\n +\[ "\$mismatched" = 0 \] \|\| exit 1/, ''))).toThrow(/executable before its sha256 is read/);
+    expect(() => osvScannerPin(mutate(/\n +sum="\$\(sha256sum "\$binary"\)"/, ''))).toThrow(/never reads a sha256/);
+    expect(() => osvScannerPin(mutate('"osv-scanner version: ${OSV_SCANNER_VERSION#v}"', '"osv-scanner"'))).toThrow(/calls itself the release named/);
+  });
+
+  it('refuses a step that compares with anything but the pinned sum, fetches from elsewhere or pipes to a shell, or makes another file executable', () => {
+    expect(() => osvScannerPin(mutate('if [ "$sum" = "$expected" ]; then', 'if true; then'))).toThrow(/never compares the sum it read/);
+    expect(() =>
+      osvScannerPin(mutate('expected="$OSV_SCANNER_SHA256_AMD64"', 'expected="$(curl -sSfL "https://mirror.example/osv-scanner_${OSV_SCANNER_VERSION}.sha256")"')),
+    ).toThrow(/fetches from somewhere other than/);
+    expect(() => osvScannerPin(mutate('expected="$OSV_SCANNER_SHA256_ARM64"', 'expected="$(cat "$RUNNER_TEMP/arm64.sha256")"'))).toThrow(/expected sum is not only/);
+    const install = /\n( +)install -m 0755 "\$RUNNER_TEMP\/osv-scanner-\$OSV_SCANNER_VERSION-linux-\$native"/;
+    expect(() =>
+      osvScannerPin(mutate(install, '\n$1curl -sSfL "https://github.com/google/osv-scanner/releases/download/${OSV_SCANNER_VERSION}/install.sh" | sh\n$1install -m 0755 "$RUNNER_TEMP/osv-scanner-$OSV_SCANNER_VERSION-linux-$native"')),
+    ).toThrow(/pipes something to a shell/);
+    expect(() => osvScannerPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" "$OSV_MIRROR"\n$1install -m 0755 "$RUNNER_TEMP/x"'))).toThrow(
+      /fetches something that is not the release/,
+    );
+    expect(() => osvScannerPin(mutate(install, '\n$1install -m 0755 "$RUNNER_TEMP/osv-scanner-$OSV_SCANNER_VERSION-linux-amd64"'))).toThrow(
+      /makes executable something other than the file it hashed/,
+    );
+  });
+
+  it('runs: the native release when both sums are the pinned ones, and nothing when either is not or it calls itself another version', () => {
+    expect(osvStepFaults(scan)).toEqual([]);
+  });
+
+  it('runs: a mismatch that no longer stops it, or a version check that no longer fails, fails it, each by a mutation of the real step', () => {
+    const faults = (from: string | RegExp, to: string): string => osvStepFaults(mutate(from, to)).join('\n');
+    expect(faults(/\n +mismatched=1\n/, '\n')).toMatch(/goes on past a wrong OSV_SCANNER_SHA256_AMD64 on x86_64/);
+    expect(faults('if [ "$sum" = "$expected" ]', 'if [ "$sum" = "$sum" ]')).toMatch(/goes on past a wrong OSV_SCANNER_SHA256_ARM64 on aarch64/);
+    expect(faults(/\n +\[ "\$mismatched" = 0 \] \|\| exit 1/, '')).toMatch(/goes on past a wrong OSV_SCANNER_SHA256_ARM64 on x86_64/);
+    expect(faults(/(does not call itself \$\{OSV_SCANNER_VERSION#v\}\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself osv-scanner 2\.6\.0 on x86_64/);
+  });
+
+  it('is a routine pin, current while upstream tags no newer release of its major, another major included', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'osv-scanner')).toEqual({ name: 'osv-scanner', where: OSV_SCANNER_WORKFLOW, pin: OSV.version, newest: OSV.version, state: 'current' });
+  });
+
+  it('is behind when a newer release of its major is tagged, and says the three values move together', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry({ osvScanner: 'v2.99.0' })));
+    expect(rows.find((r) => r.name === 'osv-scanner')).toMatchObject({ pin: OSV.version, newest: 'v2.99.0', state: 'behind', notes: [OSV_SCANNER_NOTE] });
+  });
+
+  it('is never current when the step cannot be read', async () => {
+    const gone = withFiles({ [OSV_SCANNER_WORKFLOW]: mutate('https://github.com/google/osv-scanner/releases/download/', 'https://mirror.example/osv-scanner/') });
+    const row = (await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'osv-scanner');
+    expect(row).toMatchObject({ state: 'error' });
+  });
+});
+
 describe('the Node.js release keyring, against the file at upstream\'s newest commit', () => {
   const PACKAGER = REAL.read(NODE_RELEASE_KEYS_FILE)!;
   const NEWER = 'f'.repeat(40);

@@ -177,6 +177,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/security-scan.yml`
 
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
@@ -2951,6 +2952,7 @@ reading a file drops off its entry by itself.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 
 ### `pnpm-workspace.yaml`
@@ -3056,6 +3058,10 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
+
+### `scripts/audit-advisories.mjs`
+
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 
 ### `scripts/bootstrap-managed.unit.test.ts`
 
@@ -3252,6 +3258,10 @@ reading a file drops off its entry by itself.
 ### `scripts/nothing-ever-parsed-the-bring-up.unit.test.ts`
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+
+### `scripts/osv-report.mjs`
+
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 
 ### `scripts/package-appliance.mjs`
 
@@ -4758,6 +4768,17 @@ Reads:
 - `docs/workplans/README.md`
 - `pnpm-lock.yaml`
 - `scripts/machine-product-name.mjs`
+
+### [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts)
+
+A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
+
+Reads:
+
+- `.github/workflows/security-scan.yml`
+- `pnpm-lock.yaml`
+- `scripts/audit-advisories.mjs`
+- `scripts/osv-report.mjs`
 
 ### [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts)
 

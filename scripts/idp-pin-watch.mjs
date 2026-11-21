@@ -77,6 +77,8 @@
  *                      within its line, `LINES`), the Trivy the Security
  *                      Scan installs from its GitHub release and checks by
  *                      its sha256 (2026-11-04), both copies together, the
+ *                      osv-scanner it installs the same way, beside it, to
+ *                      read the lockfile (2026-11-20), the
  *                      cosign the workflows name, every
  *                      copy together, and the Atlas release ci.yml's
  *                      migration-lint downloads and checks by its sha256
@@ -411,6 +413,22 @@ export const TRIVY_ARCHES = { AMD64: '64bit', ARM64: 'ARM64' };
 /** Said beside the Trivy row when it is behind: the values move together, in both copies, with every `version:`. */
 export const TRIVY_NOTE =
   "move INSTALL_TRIVY_VERSION and both INSTALL_TRIVY_SHA256_* together in both copies of security-scan.yml's install step (it says where each sum is read), and `version:` on every trivy-action step, once the release is three days old";
+
+/**
+ * The osv-scanner the Security Scan reads the lockfile with (workplan 0163 T2,
+ * 2026-11-20): a named release from its GitHub release page, a bare binary for
+ * each architecture a runner here has, with a SHA-256 for each set in the
+ * `env:` of its one install step, in the shape of the Atlas step. It FAILS
+ * the build on a malicious package (scripts/osv-report.mjs). Upstream tags
+ * every release in git. Dependabot cannot see a URL in a `run:`.
+ */
+export const OSV_SCANNER_WORKFLOW = '.github/workflows/security-scan.yml';
+export const OSV_SCANNER_HOST = 'https://github.com/google/osv-scanner/releases/download/';
+export const OSV_SCANNER_UPSTREAM = 'https://github.com/google/osv-scanner';
+export const OSV_SCANNER_ARCHES = ['amd64', 'arm64'];
+/** Said beside the osv-scanner row when it is behind: the three values move together. */
+export const OSV_SCANNER_NOTE =
+  "move OSV_SCANNER_VERSION and both OSV_SCANNER_SHA256_* in security-scan.yml's install step together, each sum from the release's osv-scanner_SHA256SUMS, once the release is three days old";
 
 /**
  * The images two actions in images.yml run, named in their inputs (workplan
@@ -1108,6 +1126,85 @@ export function trivyPin(workflow, job) {
     if (step.with.version !== version) throw new Error(`job ${job} runs trivy-action with version: ${step.with.version || 'none'}, and installs ${version}`);
   }
   return { version, sha256, line: lineOffset + start + 1 };
+}
+
+/**
+ * The osv-scanner OSV_SCANNER_WORKFLOW installs, read from its one step that
+ * downloads from OSV_SCANNER_HOST: `{ version, sha256: { amd64, arm64 }, line }`
+ * (workplan 0163 T2, 2026-11-20). Throws for a step not of the shape it must
+ * have, as `atlasPin` does: a fetch from anywhere but OSV_SCANNER_HOST, of a
+ * name not under `${OSV_SCANNER_VERSION}/`, or into anything but the file it
+ * hashes; a version that is not a release (`v2.7.1`); an architecture with no
+ * 64-digit sum, or one sum for both; a sum compared with anything but the
+ * pinned one in `env:`; a file made executable that is not the native one
+ * hashed, or before a `sha256sum` has read the downloads with an `exit 1`
+ * between; or no check that the binary calls itself the release named. Text
+ * only: the guard also runs the step's `run:` under bash. The osv-scanner row
+ * reads its version with this.
+ */
+export function osvScannerPin(workflow) {
+  const { start, code, logical, env } = downloadStep(workflow, OSV_SCANNER_HOST, 'OSV_SCANNER_', 'osv-scanner');
+  const version = env.OSV_SCANNER_VERSION;
+  if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
+    throw new Error(`the osv-scanner step names no release in OSV_SCANNER_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
+  }
+  const sha256 = {};
+  for (const arch of OSV_SCANNER_ARCHES) {
+    const sum = env[`OSV_SCANNER_SHA256_${arch.toUpperCase()}`];
+    if (!/^[0-9a-f]{64}$/.test(sum ?? '')) throw new Error(`the osv-scanner step pins no sha256 for linux/${arch} (OSV_SCANNER_SHA256_${arch.toUpperCase()})`);
+    sha256[arch] = sum;
+  }
+  if (sha256.amd64 === sha256.arm64) throw new Error('the osv-scanner step pins one sha256 for two architectures');
+  // Every fetch is the release from OSV_SCANNER_HOST, by a name under the
+  // version, into the file the loop hashes; the sum it is compared with is the
+  // pinned one; and what is made executable is that same file, for the native
+  // architecture.
+  for (const text of logical) {
+    if (/\|\s*(?:sudo\s+)?(?:ba|da|z)?sh\b/.test(text)) throw new Error(`the osv-scanner step pipes something to a shell: ${text}`);
+    for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(OSV_SCANNER_HOST)) throw new Error(`the osv-scanner step fetches from somewhere other than ${OSV_SCANNER_HOST}: ${url}`);
+      if (/latest/i.test(url) || !url.startsWith(`${OSV_SCANNER_HOST}\${OSV_SCANNER_VERSION}/`)) {
+        throw new Error(`the osv-scanner step downloads a name with no version: ${url} (it must be under ${OSV_SCANNER_HOST}\${OSV_SCANNER_VERSION}/)`);
+      }
+    }
+  }
+  // Under names of its own (`binary`, `sum`, `expected`), not the Atlas and
+  // Trivy steps' `download`, `seen` and `pinned`: the guard's mutations of the
+  // Trivy step in the same file read its first copy of each statement.
+  const hashed = '"$RUNNER_TEMP/osv-scanner-$OSV_SCANNER_VERSION-linux-$arch"';
+  const native = hashed.replace('$arch', '$native');
+  const has = (statement) => logical.some((text) => text === statement || text.startsWith(`${statement};`));
+  if (!has(`binary=${hashed}`)) throw new Error(`the osv-scanner step does not download each architecture to binary=${hashed}`);
+  for (const text of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!text.includes(OSV_SCANNER_HOST) || !/\s-o "\$binary"\s/.test(text)) {
+      throw new Error(`the osv-scanner step fetches something that is not the release into "$binary": ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (text !== 'sum="$(sha256sum "$binary")"') throw new Error(`the osv-scanner step hashes something other than "$binary": ${text}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bexpected=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = OSV_SCANNER_ARCHES.map((arch) => `"$OSV_SCANNER_SHA256_${arch.toUpperCase()}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`the osv-scanner step's expected sum is not only ${fromEnv.join(' or ')}: expected=${pins.join(', expected=') || 'nothing'}`);
+  }
+  if (!has('if [ "$sum" = "$expected" ]; then')) throw new Error('the osv-scanner step never compares the sum it read ("$sum") with the pinned one ("$expected")');
+  for (const text of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    const made = /\bchmod\s+\S+\s+(\S+)/.exec(text)?.[1] ?? /\binstall\s+-m\s+\S+\s+(\S+)/.exec(text)?.[1];
+    if (made !== native) throw new Error(`the osv-scanner step makes executable something other than the file it hashed, ${native}: ${text}`);
+  }
+  const first = (re) => code.findIndex((text) => re.test(text));
+  const read = first(/\bsha256sum\b/);
+  const runnable = first(/\bchmod\b|\binstall\s+-m\b/);
+  if (read < 0) throw new Error('the osv-scanner step never reads a sha256 of what it downloads');
+  if (runnable < 0) throw new Error('the osv-scanner step makes nothing executable, so it cannot be what installs osv-scanner');
+  if (!(read < runnable && code.slice(read, runnable).some((text) => /\bexit 1\b/.test(text)))) {
+    throw new Error('the osv-scanner step makes its download executable before its sha256 is read and a mismatch has stopped it');
+  }
+  if (!code.some((text) => text.includes('"osv-scanner version: ${OSV_SCANNER_VERSION#v}"'))) {
+    throw new Error('the osv-scanner step never checks that what it installed calls itself the release named');
+  }
+  return { version, sha256, line: start + 1 };
 }
 
 /** A tag that names a release: three numbers, and no channel word. */
@@ -1826,6 +1923,16 @@ export async function routineRows(repo, net) {
     const state = disagree ? 'behind' : stateOf(versions[0], newest);
     const notes = [...(disagree ? ['the copies disagree'] : []), ...(state === 'behind' ? [TRIVY_NOTE] : [])];
     return { pin: versions.join(' / '), newest, state, ...(notes.length ? { notes } : {}) };
+  }]);
+
+  // osv-scanner (0163 T2, 2026-11-20): the binary the Security Scan reads the
+  // lockfile with, from its GitHub release by its sha256, against upstream's
+  // git tags of the same major.
+  jobs.push(['osv-scanner', OSV_SCANNER_WORKFLOW, async () => {
+    const { version } = osvScannerPin(need(repo, OSV_SCANNER_WORKFLOW));
+    const newest = newestLike(version, tagsOf(await net.lsRemote(OSV_SCANNER_UPSTREAM)));
+    const state = stateOf(version, newest);
+    return { pin: version, newest, state, ...(state === 'behind' ? { notes: [OSV_SCANNER_NOTE] } : {}) };
   }]);
 
   // cosign: what signs the images and what checks them. Named in a step

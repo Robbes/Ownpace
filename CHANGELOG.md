@@ -99,6 +99,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **A package OSV records as malicious fails the Security Scan** (workplan 0163). The scan's
+  repository job reads `pnpm-lock.yaml` with osv-scanner v2.7.1, downloaded from its GitHub release
+  and checked by its SHA-256, on every pull request, push to `main`, tag and Monday. A package an
+  OSV malicious-package record (`MAL-…`) names fails the job, with the package and the record
+  named. Every other advisory is listed in the job summary and passes, because `pnpm audit` stays
+  the vulnerability gate. A scan that did not finish, or read almost none of the lockfile, fails
+  too. The weekly pin watch says when a newer osv-scanner is out.
 - **The Docker socket proxy no longer runs as root: it runs as HAProxy's own uid 99, and reaches
   the Docker socket through the socket's group, which the bring-up reads from the socket**
   (workplan 0119). An outside, read-only check of the repository reported the image's
