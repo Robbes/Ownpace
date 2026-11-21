@@ -166,6 +166,14 @@ const NOT_REQUIRABLE = new Map([
       'only until a rule reports nothing on main and turns blocking, one rule at a time (workplan 0163, step 5), so ' +
       'requiring it would gate nothing. Once a rule blocks, its check is required, under the name it takes then.',
   ],
+  // migration-locks.yml (workplan 0165): squawk over every migration, report
+  // only, on the paths of the two chains.
+  [
+    'squawk (report only)',
+    'migration-locks.yml reports and fails no pull request, whatever squawk finds, and carries a `paths:` filter on ' +
+      'its pull_request trigger (the two migration chains, the workflow and its script), so on a PR touching none of ' +
+      'those the context is never reported. Whether any rule ever blocks is the owner\'s decision (workplan 0165, D2).',
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:
