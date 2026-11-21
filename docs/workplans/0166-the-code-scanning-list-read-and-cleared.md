@@ -4,6 +4,29 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, last: the branch image scans of T3 and T4, and two findings §1 does not have.**
+- **T3** (#2015, Security Scan run 44932855500 on its branch): `postgres-managed` and
+  `postgres-selfhost` read 0 critical and 0 high; CVE-2026-86144 is gone from both.
+- **T4** (#2016, Security Scan run 44932858060 on its branch): the four `libpam*` findings are gone
+  from `redis` (1/11 to 1/7) and `trigger.dev` (1/14 to 1/10), and nothing was added.
+- **T5's condition:** run 44932855500 scanned `trigger.dev` at v4.8.8 without the PAM purge, and
+  its 15 findings are the v4.8.5 scan's, effect 3.21.2's CVE-2026-121707 among them, as
+  v4.8.8's lockfile says (the Status entry of 2026-11-21, after the answers: T5).
+- **New since §1, in both runs and not in run 44878860013:** the vulnerability database moved.
+  Read from the report job of run 44932855500 (136933963788):
+  - `stdlib` CVE-2026-97054 (high) in `gatus` (Go 1.27.3, fixed in 1.27.4), `zitadel` (1.26.10,
+    fixed in 1.26.11), `caddy` (1.27.3, fixed in 1.27.4) and `registry` (1.26.8, its `stdlib`
+    line now fixed in 1.26.11). A fix exists, in Go; each binary is upstream's, so each closes
+    with an upstream release or rebuild on that Go, the §3 B trigger each already has. Caddy's
+    build here keeps upstream's binary, so it is the same.
+  - `libssl3t64` 3.5.7-1~deb13u3 (high) in `ownpace-api-edge`, `ownpace-api-release`,
+    `trigger-task-base`, `ownpace-selfhost-edge` and `ownpace-selfhost-release` (and the
+    test-only `nextcloud` and `stalwart`). The report lists it under *no fix yet*: Debian 13 has no
+    fixed `libssl3t64`, so a rebuild on today's Debian takes nothing, and nothing changes for
+    alpha.14. It goes to §3 B, its trigger Debian's fix, which a rebuild of each image then takes.
+  - Neither is in code scanning on `main` yet: `main`'s next image scan (the weekly run of
+    2026-11-23) uploads them, 4 and 5 alerts by the counting of §1.2.
+
 **2026-11-21, later still: T1 and T7, the list read and the five dismissed, by the owner.**
 - **T1, the count.** The owner read the open list on 2026-11-21: 46 open after the first two
   dismissals, so 48 before them, one fewer than the 49 of §1.2. The total after all five was not
