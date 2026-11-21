@@ -273,8 +273,10 @@ The first start builds the database's image, which takes a few seconds:
 compose pulls the official `postgres:18.7-alpine` image by the digest
 `deploy/selfhost/postgres/Dockerfile` pins, removes gosu from it (a critical
 finding a scanner reports in that image, which needs gosu only to drop from
-root), and starts it as PostgreSQL's own user, uid 70. So the first start
-needs Docker Hub, and nothing else. No registry serves the built image's name,
+root), takes libxml2 2.13.9-r3 from Alpine's mirror (`dl-cdn.alpinelinux.org`;
+Alpine's fix for CVE-2026-86144, which the image does not carry yet), and starts
+it as PostgreSQL's own user, uid 70. So the first start needs Docker Hub and
+Alpine's mirror, and nothing else. No registry serves the built image's name,
 so nothing ever pulls it, and no login is needed. Then Postgres comes up and
 passes its healthcheck → the app applies the ledger migrations under an
 advisory lock → the app becomes healthy. Check it:
@@ -872,6 +874,16 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   packages), or run that one `up -d` with `DOCKER_BUILDKIT=0` in front, which
   builds with the engine's classic builder where the engine still has one:
   the Dockerfile needs nothing BuildKit adds.
+- **`up` stops while it builds the database's image, at the step that takes
+  libxml2 2.13.9-r3** (apk says it is `unable to select packages`, or the
+  step says `libxml2 is … in the base, not 2.13.9-r2`): this release's
+  database build takes that one package from Alpine's mirror at exactly that
+  version. If this machine cannot reach `dl-cdn.alpinelinux.org`, let it, and
+  run `up -d` again. If it can, Alpine's mirror serves a newer build of
+  libxml2 by now and no longer this one (it keeps only the newest), or the
+  base already carries it: update Ownpace to its newest release (*Upgrades*,
+  above), whose build takes the version it names, or none. A machine that
+  already has the image keeps running it.
 - **`up` stops while it builds the database's image, saying `Alpine's
   brotli-libs 1.2.1-r0 and libcurl 8.23.0-r0 could not be installed`** (or
   naming four, `brotli-libs 1.2.1-r0, krb5-libs 1.22.3-r0, libcurl 8.23.0-r0
@@ -886,9 +898,9 @@ docker compose -f deploy/selfhost/compose.yml down -v       # ALSO delete the DB
   database image can no longer be built on a machine that does not have it
   yet (a new install, an update that moves its name, or after `docker image
   prune -a`). Update Ownpace to its newest release (*Upgrades*, above: back
-  up, check out its tag, pull, `up -d`), whose build needs Docker Hub alone.
-  A machine that already has the image keeps running it, and nothing here
-  removes it.
+  up, check out its tag, pull, `up -d`), whose build takes only the packages
+  it names, at the versions it names. A machine that already has the image
+  keeps running it, and nothing here removes it.
 - **The database exits with `exec: gosu: not found`:** something starts the
   database as root (a `user:` on the `postgres` service, or `-u 0` on a `run`
   that starts the server rather than another command). Remove it: the image

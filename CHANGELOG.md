@@ -144,6 +144,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **Both Postgres builds take libxml2 2.13.9-r3, Alpine's fix for CVE-2026-86144** (workplan 0166
+  T3, the owner's D3). The managed stack's database image and the appliance's carried libxml2
+  2.13.9-r2, which PostgreSQL links for its `xml` type and the image scan reads at one high. Each
+  build now takes 2.13.9-r3 from Alpine's signed repository at that exact version, and stops if
+  its base carries any other than -r2, so the step goes when the base moves. So the first build
+  needs Alpine's mirror (`dl-cdn.alpinelinux.org`) again, besides Docker Hub. Both images have a
+  new name, `localhost/postgres:18.7-alpine-6adabb723757`, which each machine builds at its next
+  `up`, restarting its databases once.
 - **CI's two secrets are each kept for the one job that reads them** (workplan 0163 T1, the owner's
   decision D2 of 2026-11-20). The Trigger.dev token the managed E2E gate deploys with and the
   machine's address the exposure probe asks from outside were repository secrets, which every job
