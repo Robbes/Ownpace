@@ -91,6 +91,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   three days. A guard refuses any other setting, so no audit is turned off and no place is
   ignored, and it refuses a Dependabot entry that waits less than three days. Security updates
   still come without a cooldown.
+- **Trigger.dev is v4.8.8, from v4.8.5** (workplan 0119; the pin watch's #1935). Both images,
+  the SDK, the deploy CLI and the scheduler's package move together, by `trigger-version.sh pin`,
+  taken before its three-day floor on the owner's waiver of alpha.14's waits: five
+  `minimumReleaseAgeExclude` entries, which come out once 4.8.8 is past the floor on 2026-11-23.
+  A deployed task process now gets the environment's secret variables only with its run, not when
+  it starts; a run the kernel kills for memory is reported as that; a run's suspend is no longer
+  lost when the supervisor's first hand-off fails; and a Node 26 deploy builds Node's compile cache
+  for the task code, with esbuild 0.28. The webapp applies new Prisma migrations when it starts,
+  one way (five new tables and some columns, none of which holds a run), so each stack takes it
+  in a window, drained and with `triggerdb` backed up first. The two builds here were read again
+  at v4.8.8: cross-spawn 5.1.0 is no longer removed, since upstream's own override replaces it
+  with 7.0.6, and the esbuild binary removed is 0.28.2's. The deploy CLI takes no minimatch any
+  more, so its override went, and minimatch 10.2.6 with its moderate advisory left the tree.
 
 ### Fixed
 

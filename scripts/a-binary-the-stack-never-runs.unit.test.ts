@@ -42,7 +42,10 @@
  * BY LOADING IT). The third, the
  * sixth and the seventh came with package swaps that went at Trigger.dev
  * v4.8.5 (2026-11-13), whose lockfile resolves each fixed release itself:
- * they are kept below as what happened, and nothing here holds them now.
+ * they are kept below as what happened, and nothing here holds them now. The
+ * eighth came with a removal that went at v4.8.8 (2026-11-21), whose
+ * lockfile no longer resolves cross-spawn 5.1.0: it is kept as what happened
+ * too, and its walk is held where the relink RUN runs it.
  *
  *  - TRIVY DOES NOT SEE A HARD-LINKED SECOND NAME. The postinstall of
  *    @depot/cli and of esbuild hard-links the platform package's binary over
@@ -178,7 +181,11 @@
  *    was not read for, removes pnpm's directory for it with each link
  *    CROSS_SPAWN names where it is there, and proves after that no directory,
  *    package.json or link of cross-spawn 5.1.0 is left. Over the stand-in,
- *    both stores are laid out as pnpm lays them by that lockfile.
+ *    both stores were laid out as pnpm lays them by that lockfile. Since
+ *    v4.8.8 upstream's root package.json overrides `cross-spawn@<6.0.6` to
+ *    ^7.0.6, its lockfile resolves 7.0.6 alone, and both removals went with
+ *    CROSS_SPAWN, their rows and their tests; the walk they ran is the
+ *    relink's (WHERE_READS).
  *  - A NAME AN ESM IMPORT TAKES FROM COMMONJS IS PROVED BY LOADING IT
  *    (2026-11-20). undici 5.29.0 (5 highs) and its @fastify/busboy 2.1.1 (1)
  *    are fixed only in their next major. Their one requirer is
@@ -219,7 +226,8 @@
  *    were read in (`read_at`), which must be the FROM's tag, and refuses an
  *    image of another version; and it pins the entrypoint read there by its
  *    SHA-256, since who runs pnpm is decided there. A path that did not move
- *    across releases (depot and esbuild did not, from 4.7.6 to 4.8.5) proves
+ *    across releases (depot did not, from 4.7.6 to 4.8.8, and esbuild 0.23.0
+ *    did not to 4.8.5) proves
  *    nothing about the code that reaches it, so a version move is red until
  *    someone reads the reasons again;
  *  - REMOVED below, each path with why nothing runs it, equals what the
@@ -248,12 +256,6 @@
  *    slip fails (no rewrite, no read-back, a wrong hash, a copy already
  *    there, an upstream that moved, a package.json naming packageManager
  *    twice, an owner left behind, a copy of another version in either home);
- *  - CROSS_SPAWN below equals what both removing RUNs name: pnpm's directory
- *    for cross-spawn 5.1.0 and each link into it they remove where it is
- *    there. Before anything is removed, the package says cross-spawn 5.1.0,
- *    the directory holds it and links alone, and the walk of the image finds
- *    it the one copy with no other link into it; after, nothing of it is
- *    left. Run over the stand-in, each way that could slip fails;
  *  - RELINK below equals what the webapp's relink RUN names (connect-node's
  *    link and both its targets, undici 6.29.1's tree as npm published it,
  *    the two directories it removes and pnpm's hoist of busboy); that RUN
@@ -344,37 +346,6 @@ const TSC = {
   typescript: `${PNPM}/typescript@7.0.2/node_modules/typescript`,
   prisma: `${PNPM}/prisma@6.14.0_magicast@0.3.5_typescript@7.0.2/node_modules/prisma`,
 } as const;
-
-/** The supervisor's pnpm store, where `pnpm deploy --legacy --prod` put the deployed tree (upstream's apps/supervisor/Containerfile). */
-const SUPERVISOR_PNPM = '/app/apps/supervisor/node_modules/.pnpm';
-
-interface CrossSpawn {
-  /** pnpm's directory for cross-spawn 5.1.0, which the build removes whole. */
-  readonly store: string;
-  /** The package in it, where the scan reads it and the build checks it. */
-  readonly package: string;
-  /** Each link into it the build removes where it is there, by the variable its RUN names it with. */
-  readonly links: Readonly<Record<string, string>>;
-}
-
-/**
- * cross-spawn 5.1.0 in each image (REMOVED, since 2026-11-14), and the links
- * pnpm makes to it by upstream's lockfile at v4.8.5: spawndamnit 2.0.0's in
- * both, and pnpm's hoist in the supervisor's deploy, where 5.1.0 is the one
- * cross-spawn. The webapp's hoist is 7.0.6's, and stays.
- */
-const CROSS_SPAWN: Readonly<Record<Name, CrossSpawn>> = {
-  'trigger.dev': {
-    store: `${PNPM}/cross-spawn@5.1.0`,
-    package: `${PNPM}/cross-spawn@5.1.0/node_modules/cross-spawn`,
-    links: { xspawn_link: `${PNPM}/spawndamnit@2.0.0/node_modules/cross-spawn` },
-  },
-  supervisor: {
-    store: `${SUPERVISOR_PNPM}/cross-spawn@5.1.0`,
-    package: `${SUPERVISOR_PNPM}/cross-spawn@5.1.0/node_modules/cross-spawn`,
-    links: { xspawn_hoist: `${SUPERVISOR_PNPM}/node_modules/cross-spawn`, xspawn_link: `${SUPERVISOR_PNPM}/spawndamnit@2.0.0/node_modules/cross-spawn` },
-  },
-};
 
 /** pnpm's directory for connect-node 1.4.0, named by its lockfile key with its two peers, as pnpm names it. */
 const CONNECT_STORE = `${PNPM}/@connectrpc+connect-node@1.4.0_@bufbuild+protobuf@1.10.0_@connectrpc+connect@1.4.0_@bufbuild+protobuf@1.10.0_`;
@@ -480,7 +451,7 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
     {
       path: `${PNPM}/@depot+cli-$plat@0.0.1-cli.2.80.0/node_modules/@depot/cli-$plat/bin/depot`,
       why: "depot's Go binary: the webapp runs it only for `depot push`, with DEPOT_TOKEN and DEPOT_ORG_ID set (DEPOT_REGION has a default), neither of which trigger-api has",
-      evidence: 'finalizeDeploymentV2.server.ts and remoteImageBuilder.server.ts at v4.8.1, v4.8.3 and v4.8.5; @depot/cli lib/main.js (depot, depotBinaryPath, generateBinPath)',
+      evidence: 'finalizeDeploymentV2.server.ts and remoteImageBuilder.server.ts at v4.8.1, v4.8.3, v4.8.5 and v4.8.8 (where finalizeDeploymentV2 adds a template check for sandbox tasks alone); @depot/cli lib/main.js (depot, depotBinaryPath, generateBinPath)',
     },
     {
       path: `${PNPM}/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli/bin/depot`,
@@ -488,89 +459,65 @@ const REMOVED: Readonly<Record<Name, readonly Removal[]>> = {
       evidence: '@depot/cli install.js (maybeOptimizePackage); trivy v0.76.1 pkg/fanal/walker/tar.go',
     },
     {
-      path: `${PNPM}/@esbuild+$plat@0.23.0/node_modules/@esbuild/$plat/bin/esbuild`,
-      why: "esbuild's Go binary, spawned only by a build, transform or context call; it is installed for the trigger.dev CLI, which nothing in the image runs",
-      evidence: 'esbuild 0.23.0 lib/main.js (ensureServiceIsRunning); packages/cli-v3 and internal-packages/dashboard-agent package.json at v4.8.1, v4.8.3 and v4.8.5',
+      path: `${PNPM}/@esbuild+$plat@0.28.2/node_modules/@esbuild/$plat/bin/esbuild`,
+      why: "esbuild's Go binary (Go 1.26.5, 0.28.2's since v4.8.8; 0.23.0's, on Go 1.22.4, until v4.8.5), spawned only by a build, transform or context call; it is installed for the trigger.dev CLI, which nothing in the image runs",
+      evidence:
+        "esbuild 0.23.0 and 0.28.2 lib/main.js (ensureServiceIsRunning), as npm published them by the lockfile's sha512, and the release string in 0.28.2's linux-arm64 and linux-x64 binaries, read as bytes and never run; packages/cli-v3 (esbuild ^0.28.2 from v4.8.6) and internal-packages/dashboard-agent package.json at v4.8.1, v4.8.3, v4.8.5 and v4.8.8; upstream's pnpm-lock.yaml at v4.8.8, whose production closure for the webapp holds esbuild 0.28.2 alone",
     },
     {
-      path: `${PNPM}/esbuild@0.23.0/node_modules/esbuild/bin/esbuild`,
+      path: `${PNPM}/esbuild@0.28.2/node_modules/esbuild/bin/esbuild`,
       why: "the same binary under its second name: esbuild's postinstall hard-links it over its JavaScript shim, and Trivy does not read hard links",
-      evidence: 'esbuild 0.23.0 install.js (maybeOptimizePackage); trivy v0.76.1 pkg/fanal/walker/tar.go',
+      evidence: 'esbuild 0.23.0 and 0.28.2 install.js (maybeOptimizePackage); trivy v0.76.1 pkg/fanal/walker/tar.go',
     },
     {
       path: `${COPY('/root', SWAP.to)}/dist/node_modules`,
       why: "node-gyp 11.5.0 and the packages it brings, installed flat in the copy of pnpm trigger-api runs, 10.34.9's since 2026-11-02 (in 10.33.2's: tar 7.5.13 first, the owner, 2026-10-27, and since 2026-10-31 the rest, brace-expansion 2.1.0 and ip-address 10.1.0 among them, 6 fixable highs; in 10.34.9's npm lists two moderates and no high). pnpm resolves node-gyp's bin in a try, only to hand a package script its path, and the entrypoint's pnpm runs three migration scripts that call no node-gyp and install nothing",
-      evidence: "pnpm 10.33.2 and 10.34.9 as npm published them: pnpm.cjs and worker.js bundle what pnpm runs, and outside dist/node_modules only pnpm.cjs's resolveFrom(__dirname, 'node-gyp/bin/node-gyp') and require.resolve('picomatch') (fdir's, for a glob() nothing calls) and bin/pnpm.cjs's require('v8-compile-cache') (only when module.enableCompileCache() answers nothing) name it, each in a try; pnpm run and exec of those files without it, 10.33.2's on Node 22.22.0 and 10.34.9's on Node 24.22.1 with corepack 0.36.0; docker/scripts/entrypoint.sh at v4.8.1, v4.8.3 and v4.8.5; Trivy 0.76.1 over 10.33.2's copy",
+      evidence: "pnpm 10.33.2 and 10.34.9 as npm published them: pnpm.cjs and worker.js bundle what pnpm runs, and outside dist/node_modules only pnpm.cjs's resolveFrom(__dirname, 'node-gyp/bin/node-gyp') and require.resolve('picomatch') (fdir's, for a glob() nothing calls) and bin/pnpm.cjs's require('v8-compile-cache') (only when module.enableCompileCache() answers nothing) name it, each in a try; pnpm run and exec of those files without it, 10.33.2's on Node 22.22.0 and 10.34.9's on Node 24.22.1 with corepack 0.36.0; docker/scripts/entrypoint.sh at v4.8.1, v4.8.3, v4.8.5 and v4.8.8; Trivy 0.76.1 over 10.33.2's copy",
     },
     {
       path: `${COPY('/root', SWAP.to)}/dist/node-gyp-bin`,
       why: "the shim pnpm puts on a package script's PATH so that a script can call node-gyp, which went with dist/node_modules; no script the entrypoint's pnpm runs calls node-gyp, and a PATH entry that is not there is passed over",
-      evidence: "pnpm 10.33.2 and 10.34.9 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); the migration scripts at v4.8.1, v4.8.3 and v4.8.5: prisma migrate deploy, node scripts/migrate.mjs deploy, node migrate.mjs; under 10.34.9 without it, a script that calls node-gyp says `node-gyp: not found`",
+      evidence: "pnpm 10.33.2 and 10.34.9 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); the migration scripts at v4.8.1, v4.8.3, v4.8.5 and v4.8.8: prisma migrate deploy, node scripts/migrate.mjs deploy, node migrate.mjs; under 10.34.9 without it, a script that calls node-gyp says `node-gyp: not found`",
     },
     {
       path: COPY('/root', SWAP.from),
       why: "root's copy of pnpm 10.33.2, the one upstream ships for the user trigger-api runs as: the build installs 10.34.9 beside it and rewrites packageManager to pnpm@10.34.9 (SWAP), so corepack runs 10.34.9's copy and never looks at this one",
-      evidence: "upstream's package.json (packageManager pnpm@10.33.2) and docker/Dockerfile at v4.8.3 and v4.8.5; corepack 0.36.0 (Node 24.22.1's and 24.22.3's) installVersion, which takes the version from packageManager; the RUN on Node 24.22.1 with corepack 0.36.0, offline, 2026-11-02",
+      evidence: "upstream's package.json (packageManager pnpm@10.33.2) and docker/Dockerfile at v4.8.3, v4.8.5 and v4.8.8; corepack 0.36.0 (Node 24.22.1's and 24.22.3's) installVersion, which takes the version from packageManager; the RUN on Node 24.22.1 with corepack 0.36.0, offline, 2026-11-02",
     },
     {
       path: COPY('/home/node', SWAP.from),
       why: "node's copy of pnpm, with tar 7.5.13 in it: trigger-api runs as root (managed.yml), so every pnpm of the entrypoint runs root's copy",
-      evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1, v4.8.3 and v4.8.5; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's and 24.22.3's) getCorepackHomeFolder and installVersion",
+      evidence: "docker/Dockerfile and docker/scripts/entrypoint.sh at v4.8.1, v4.8.3, v4.8.5 and v4.8.8; managed.yml `user: root`; corepack 0.36.0 (Node 24.22.1's and 24.22.3's) getCorepackHomeFolder and installVersion",
     },
     ...npmRemovals('trigger-api', 'the entrypoint runs pnpm (through corepack), goose and node, the migrations prisma and node, the healthcheck `node -e`, and the bring-up execs only `test` and `chown` into it'),
     {
       path: TSC.path,
       why: "TypeScript 7's native compiler (Go 1.26.4, golang.org/x/text v0.38.0: 15 fixable highs), the one ELF of typescript 7.0.2's platform package, there because typescript 7.0.2 is a resolved peer of prisma 6.14.0, @remix-run/* and class-variance-authority. `typescript` 7.0.2 exports \".\" as lib/version.cjs, which holds no compiler; the binary is reached only through bin/tsc or the unstable API's getExePath, and the image's one caller of the package, prisma's build/index.js, reads `(await import(\"typescript\")).default.version`",
-      evidence: "typescript 7.0.2 and @typescript/typescript-linux-x64 and -arm64 7.0.2 as npm published them (package.json exports, lib/version.cjs, lib/getExePath.js, lib/tsc.js, dist/api/options.js; each lib/tsc's SHA-256, one name, no install script); upstream's pnpm-lock.yaml, docker/scripts/entrypoint.sh, apps/webapp and internal-packages at v4.8.3, and the files v4.8.5 changes there (tsc only in @trigger.dev/database's build, dev and typecheck scripts); prisma 6.14.0 build/index.js; the RUN's lines over a tree pnpm 10.33.2 installed, on Node 24.22.1, 2026-11-03",
-    },
-    {
-      path: CROSS_SPAWN['trigger.dev'].store,
-      why: "pnpm's directory for cross-spawn 5.1.0 (CVE-2024-21538, high, fixed in 6.0.6 and 7.0.5): the package, and pnpm's links to its three dependencies. Its one requirer is spawndamnit 2.0.0, whose two are @changesets/cli 2.26.2, a dependency of the root package.json, which is why `pnpm install --prod` installs it, and @changesets/git 2.0.0, @changesets/cli's own: release tooling, which only the root's changeset:* scripts run, and nothing here runs those. pnpm hoists cross-spawn 7.0.6 here, so a package that requires cross-spawn without declaring it gets 7.0.6, as before",
-      evidence: "upstream's pnpm-lock.yaml and package.json at v4.8.5 (d412e08a): cross-spawn 5.1.0's one requirer spawndamnit 2.0.0, spawndamnit's two @changesets/cli 2.26.2 and @changesets/git 2.0.0, @changesets/cli in the root's dependencies; cross-env 7.0.3, an apps/webapp dependency, and six more requiring 7.0.6, which pnpm's hoister meets a level nearer the importers; no file of apps/webapp/app, internal-packages, docker/scripts or scripts naming cross-spawn, spawndamnit or @changesets/; docker/Dockerfile's `pnpm install --prod`; Security Scan run 43651014145, by path",
-    },
-    {
-      path: CROSS_SPAWN['trigger.dev'].links.xspawn_link!,
-      why: "spawndamnit 2.0.0's link to cross-spawn 5.1.0, which pnpm makes beside spawndamnit and which would dangle once the package is gone: removed with it where it is there. Nothing here loads spawndamnit: only @changesets/cli and @changesets/git require it",
-      evidence: "pnpm's layout, each package's dependencies linked in its own node_modules in the store; upstream's pnpm-lock.yaml at v4.8.5 (spawndamnit 2.0.0: cross-spawn 5.1.0 and signal-exit 3.0.7; required by @changesets/cli 2.26.2 and @changesets/git 2.0.0 alone)",
+      evidence: "typescript 7.0.2 and @typescript/typescript-linux-x64 and -arm64 7.0.2 as npm published them (package.json exports, lib/version.cjs, lib/getExePath.js, lib/tsc.js, dist/api/options.js; each lib/tsc's SHA-256, one name, no install script); upstream's pnpm-lock.yaml, docker/scripts/entrypoint.sh, apps/webapp and internal-packages at v4.8.3, and the files v4.8.5 changes there (tsc only in @trigger.dev/database's build, dev and typecheck scripts); upstream's pnpm-lock.yaml at v4.8.8 (typescript 7.0.2, its two platform packages and prisma 6.14.0's snapshot as at v4.8.5) and @trigger.dev/database's package.json, v4.8.5's byte for byte; prisma 6.14.0 build/index.js; the RUN's lines over a tree pnpm 10.33.2 installed, on Node 24.22.1, 2026-11-03",
     },
   ],
   supervisor: [
     {
       path: COPY('/root', SWAP.from),
       why: "root's copy of pnpm, with tar 7.5.13 in it: trigger-supervisor runs as the image's node (no `user:`), whose copy its CMD runs",
-      evidence: "apps/supervisor/Containerfile and entrypoint.sh at v4.8.1, v4.8.3 and v4.8.5; managed.yml (no `user:`); corepack 0.36.0 (Node 24.22.1's and 24.22.3's) getCorepackHomeFolder and installVersion",
+      evidence: "apps/supervisor/Containerfile and entrypoint.sh at v4.8.1, v4.8.3, v4.8.5 and v4.8.8; managed.yml (no `user:`); corepack 0.36.0 (Node 24.22.1's and 24.22.3's) getCorepackHomeFolder and installVersion",
     },
     {
       path: COPY('/home/node', SWAP.from),
       why: "node's copy of pnpm 10.33.2, the one upstream ships for the user trigger-supervisor runs as: the build installs 10.34.9 beside it, as node's, and rewrites packageManager to pnpm@10.34.9 (SWAP), so the CMD's corepack runs 10.34.9's copy and never looks at this one",
-      evidence: "apps/supervisor/Containerfile and the root package.json (packageManager pnpm@10.33.2) at v4.8.3 and v4.8.5; corepack 0.36.0 installVersion; the RUNs on Node 24.22.1 with corepack 0.36.0, offline, 2026-11-02",
+      evidence: "apps/supervisor/Containerfile and the root package.json (packageManager pnpm@10.33.2) at v4.8.3, v4.8.5 and v4.8.8; corepack 0.36.0 installVersion; the RUNs on Node 24.22.1 with corepack 0.36.0, offline, 2026-11-02",
     },
     {
       path: `${COPY('/home/node', SWAP.to)}/dist/node_modules`,
       why: "node-gyp 11.5.0 and the packages it brings, installed flat in the copy of pnpm the supervisor runs, 10.34.9's since 2026-11-02 (in 10.33.2's: tar 7.5.13 first, the owner, 2026-10-27, and since 2026-10-31 the rest, brace-expansion 2.1.0 and ip-address 10.1.0 among them, 6 fixable highs). The CMD's `pnpm run` runs `node dist/index.js`, which calls no node-gyp and installs nothing",
-      evidence: "pnpm 10.33.2 and 10.34.9 as npm published them (the webapp's entry); apps/supervisor/package.json's start at v4.8.1, v4.8.3 and v4.8.5; Trivy 0.76.1 over 10.33.2's copy",
+      evidence: "pnpm 10.33.2 and 10.34.9 as npm published them (the webapp's entry); apps/supervisor/package.json's start at v4.8.1, v4.8.3, v4.8.5 and v4.8.8; Trivy 0.76.1 over 10.33.2's copy",
     },
     {
       path: `${COPY('/home/node', SWAP.to)}/dist/node-gyp-bin`,
       why: "the shim pnpm puts on a package script's PATH so that a script can call node-gyp, which went with dist/node_modules; the supervisor's start script calls no node-gyp",
-      evidence: "pnpm 10.33.2 and 10.34.9 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); apps/supervisor/package.json's start at v4.8.1, v4.8.3 and v4.8.5",
+      evidence: "pnpm 10.33.2 and 10.34.9 pnpm.cjs (@pnpm/npm-lifecycle's extendPath with node-gyp-bin); apps/supervisor/package.json's start at v4.8.1, v4.8.3, v4.8.5 and v4.8.8",
     },
     ...npmRemovals('trigger-supervisor', 'the CMD runs pnpm (through corepack), the entrypoint dumb-init, the healthcheck `node -e`, nothing execs into it but the smoke, by `node -e` too (since 2026-11-02), and the supervisor spawns nothing'),
-    {
-      path: CROSS_SPAWN.supervisor.store,
-      why: "pnpm's directory for cross-spawn 5.1.0 (CVE-2024-21538, high, fixed in 6.0.6 and 7.0.5) in the supervisor's deploy: the package, and pnpm's links to its three dependencies. `pnpm deploy --legacy --prod` put the root package.json's dependencies in it, @changesets/cli 2.26.2 among them, which brings spawndamnit 2.0.0, its one requirer: release tooling the supervisor never runs (its CMD's pnpm runs `node dist/index.js`). Neither the supervisor's own dependencies nor @trigger.dev/core's hold a cross-spawn",
-      evidence: "upstream's apps/supervisor/Containerfile, pnpm-lock.yaml and package.json at v4.8.5 (d412e08a): the closure of the supervisor's, @trigger.dev/core's and the root's dependencies, 568 packages, holds cross-spawn 5.1.0 alone, by spawndamnit 2.0.0 under @changesets/cli, and the supervisor's and core's alone hold none; no file of apps/supervisor/src or packages/core/src naming cross-spawn, spawndamnit or @changesets/; Security Scan run 43651014145, by path",
-    },
-    {
-      path: CROSS_SPAWN.supervisor.links.xspawn_hoist!,
-      why: "pnpm's hoisted link to cross-spawn 5.1.0, the deploy's one cross-spawn, through which a package that requires cross-spawn without declaring it would reach it, and which would dangle once the package is gone: removed with it where it is there. The lockfile names no requirer of cross-spawn in the deploy but spawndamnit, and E2E (managed) runs the supervisor",
-      evidence: "pnpm's default hoist-pattern, `*`, into node_modules/.pnpm/node_modules, the first version its hoister meets; upstream's pnpm-workspace.yaml at v4.8.5 sets no hoist-pattern (its publicHoistPattern names *prisma* alone); upstream's pnpm-lock.yaml at v4.8.5 (no cross-spawn but 5.1.0 in the deploy's closure)",
-    },
-    {
-      path: CROSS_SPAWN.supervisor.links.xspawn_link!,
-      why: "spawndamnit 2.0.0's link to cross-spawn 5.1.0, which would dangle once the package is gone: removed with it where it is there. Nothing the supervisor runs loads spawndamnit: only @changesets/cli and @changesets/git require it",
-      evidence: "pnpm's layout, each package's dependencies linked in its own node_modules in the store; upstream's pnpm-lock.yaml at v4.8.5 (spawndamnit 2.0.0: cross-spawn 5.1.0 and signal-exit 3.0.7; required by @changesets/cli 2.26.2 and @changesets/git 2.0.0 alone)",
-    },
   ],
 };
 
@@ -579,7 +526,7 @@ function npmRemovals(service: string, runs: string): Removal[] {
   const why = (what: string) =>
     `${what}: no process of ${service} runs npm or npx (${runs}); pnpm looks for npm only to read its builtin npmrc, in a try, and Node's npm carries none. npm's bundled brace-expansion 5.0.9 and undici 6.28.0 were 6 fixable highs`;
   const evidence =
-    'node:24.22.1-bookworm-slim and node:24.22.1-alpine by digest (Trivy 0.76.1) and Node 24.22.1\'s tarball (bin/npm, bin/npx); node:24.22.3-bookworm-slim and node:24.22.3-alpine, v4.8.5\'s bases, their layers read by digest on 2026-11-13 (npm 11.19.1 with brace-expansion 5.0.9 and undici 6.28.0, no npmrc, the same two links); pnpm 10.33.2 pnpm.cjs (@pnpm/npm-conf: require.resolve("npm") from the global folder, failedToLoadBuiltInConfig read only by pnpm doctor)';
+    'node:24.22.1-bookworm-slim and node:24.22.1-alpine by digest (Trivy 0.76.1) and Node 24.22.1\'s tarball (bin/npm, bin/npx); node:24.22.3-bookworm-slim and node:24.22.3-alpine, v4.8.5\'s bases and v4.8.8\'s (the same first five layers on both platforms), their layers read by digest on 2026-11-13 (npm 11.19.1 with brace-expansion 5.0.9 and undici 6.28.0, no npmrc, the same two links); pnpm 10.33.2 pnpm.cjs (@pnpm/npm-conf: require.resolve("npm") from the global folder, failedToLoadBuiltInConfig read only by pnpm doctor)';
   return [
     { path: '/usr/local/lib/node_modules/npm', why: why('npm 11.19.1, which Node 24.22.3 bundles, as 24.22.1 did'), evidence },
     { path: '/usr/local/bin/npm', why: why("Node's link to npm's bin/npm-cli.js"), evidence },
@@ -831,7 +778,6 @@ function shapeProblems(name: Name, text: string): string[] {
   }
   problems.push(...swapProblems(name, removingArgs));
   if (name === 'trigger.dev') problems.push(...tscProblems(removingArgs));
-  problems.push(...xspawnProblems(name, removingArgs));
   problems.push(...relinkProblems(name, text));
   return problems;
 }
@@ -979,10 +925,13 @@ function tscProblems(args: string): string[] {
 }
 
 /**
- * What the removing RUN's `where` program must do, read in its text: each
+ * What the walk program a RUN names `where` must do, read in its text: each
  * fragment, and what it is there for. It walks the image once and prints
- * every directory pnpm names for cross-spawn 5.1.0, every package.json of it
- * and every link into pnpm's directory for it.
+ * every directory pnpm names for a release, every package.json of it and
+ * every link into pnpm's directory for it. Both removing RUNs ran it for
+ * cross-spawn 5.1.0 from 2026-11-14 until v4.8.8 (2026-11-21), whose lockfile
+ * no longer resolves that release; the relink RUN runs it for undici 5.29.0
+ * and busboy 2.1.1 (RELINK_WHERE_READS).
  */
 const WHERE_READS: ReadonlyArray<readonly [string, string]> = [
   ['const s = fs.lstatSync(p);', 'read each entry without following a link'],
@@ -996,67 +945,11 @@ const WHERE_READS: ReadonlyArray<readonly [string, string]> = [
   ['if (read < 1) process.exit(2);', 'fail when it read no package.json at all'],
 ];
 
-/** The walk before the removal, and the check that it found what the RUN removes and nothing more. */
-const WHERE_BEFORE = /found="\$\(node -e "\$where" "\$top" "\$xspawn_store" cross-spawn 5\.1\.0\)" \|\| fail [^\n]*\n\s*\[ "\$found" = "\$want" \] \|\| fail /;
-/** The walk after the removal, and the check that it found nothing. */
-const WHERE_AFTER = /found="\$\(node -e "\$where" "\$top" "\$xspawn_store" cross-spawn 5\.1\.0\)" \|\| fail [^\n]*\n\s*\[ -z "\$found" \] \|\| fail /;
-
-/**
- * What is wrong with a removing RUN's removal of cross-spawn 5.1.0
- * (CROSS_SPAWN), in words; empty when it holds. Before anything is removed:
- * the package is there and says cross-spawn 5.1.0, pnpm's directory for it
- * holds its node_modules alone, with nothing in that but the package and links,
- * and the walk of the image finds that directory, one package.json and each
- * link CROSS_SPAWN names where it is a link, and nothing else. Then the
- * directory goes with `rm -r`, and each of those links where it is there; and
- * after the removal the walk finds nothing.
- */
-function xspawnProblems(name: Name, args: string): string[] {
-  const problems: string[] = [];
-  const cs = CROSS_SPAWN[name];
-  const vars = resolvedAssignments(args);
-  for (const [k, v] of [['xspawn_store', cs.store], ['xspawn', cs.package], ['top', '/'], ...Object.entries(cs.links)] as const) {
-    if (vars.get(k) !== v) problems.push(`the removing RUN's ${k}= is ${vars.get(k) ?? 'not there'}, not ${v}`);
-  }
-  // What the walk must find before the removal: the walk prints its lines sorted, so the links come in the order of their paths.
-  const expected = `directory ${cs.store} ${Object.values(cs.links)
-    .sort()
-    .map((l) => `link ${l} `)
-    .join('')}package ${cs.package}/package.json `;
-  if (vars.get('want') !== expected) problems.push(`the removing RUN's want= is ${vars.get('want') ?? 'not there'}, not ${expected}: pnpm's directory, each link it removes, and the one copy, as the walk prints them`);
-  const firstRm = args.search(/(^|[;\s])rm\s/);
-  const lastRm = Math.max(-1, ...[...args.matchAll(/(^|[;\s])rm\s/g)].map((m) => m.index!));
-  const before: ReadonlyArray<[RegExp, string]> = [
-    [/\[ -f "\$xspawn\/package\.json" \] \|\| fail /, 'that cross-spawn 5.1.0 is where it was read'],
-    [/said="\$\(node -p "const j = require\('\$xspawn\/package\.json'\); j\.name \+ '@' \+ j\.version"\)"; \s*\[ "\$said" = cross-spawn@5\.1\.0 \] \|\| fail /, 'that its package.json says cross-spawn 5.1.0'],
-    [/\[ "\$\(ls -A "\$xspawn_store"\)" = node_modules \] \|\| fail /, "that pnpm's directory for it holds its node_modules alone"],
-    [/held="\$\(cd "\$xspawn_store\/node_modules" && find \. -mindepth 1 -maxdepth 1 ! -type l\)"; \s*\[ "\$held" = \.\/cross-spawn \] \|\| fail /, 'that nothing is in that but the package and links to its dependencies'],
-    [WHERE_BEFORE, 'that, walking the image, it is the one copy, and nothing links into it but what the RUN removes with it'],
-  ];
-  for (const [re, what] of before) {
-    const i = args.search(re);
-    if (i < 0 || (firstRm >= 0 && i > firstRm)) problems.push(`no check, before anything is removed, ${what}`);
-  }
-  for (const k of Object.keys(cs.links)) {
-    const w = `want_${k.slice('xspawn_'.length)}`;
-    if (!new RegExp(`(?:^|[;\\s])${w}=""; if \\[ -L "\\$${k}" \\]; then ${w}="link \\$${k} "; fi;`).test(args)) {
-      problems.push(`the removing RUN does not expect $${k} where it is a link, and only there (${w})`);
-    }
-    if (!new RegExp(`(?:^|[;\\s])if \\[ -L "\\$${k}" \\]; then rm "\\$${k}"; fi;`).test(args)) problems.push(`the removing RUN does not remove $${k} where it is there`);
-  }
-  if (!/(?:^|[;\s])rm -r "\$xspawn_store";/.test(args)) problems.push('the removing RUN does not remove pnpm\'s directory for cross-spawn 5.1.0 (rm -r "$xspawn_store")');
-  const post = args.search(WHERE_AFTER);
-  if (post < 0 || post < lastRm) problems.push('no proof, after the removal, that no directory, package.json or link of cross-spawn 5.1.0 is left');
-  const where = assignments(args).get('where') ?? '';
-  for (const [needle, what] of WHERE_READS) if (!where.includes(needle)) problems.push(`$where does not ${what}`);
-  return problems;
-}
-
 /** The RUN that relinks connect-node's undici: the one that names its link (the webapp's, since 2026-11-20). */
 const relinkRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])undici_link="/.test(r.args));
 /** How many each Dockerfile has: the supervisor's deploy has no connect-node. */
 const RELINKS: Readonly<Record<Name, number>> = { 'trigger.dev': 1, supervisor: 0 };
-/** The relink's walk: cross-spawn's, with pnpm's name for a scoped package's directory, a plus for its slash. */
+/** The relink's walk: the one the removing RUNs ran for cross-spawn, with pnpm's name for a scoped package's directory, a plus for its slash. */
 const RELINK_WHERE_READS: ReadonlyArray<readonly [string, string]> = [
   ...WHERE_READS,
   ["const dir = name.replace('/', '+') + '@' + version;", "name a scoped package's directory as pnpm does, a plus for its slash"],
@@ -1711,45 +1604,6 @@ function dpkgOf(box: Sandbox): { db: DpkgDb; calls: string[] } {
   return { db, calls: log.split('\n').filter((l) => /^dpkg(-query)? /.test(l)) };
 }
 
-/**
- * cross-spawn in a stand-in's pnpm store, laid out as pnpm lays it out by
- * upstream's lockfile at v4.8.5: pnpm's directory for 5.1.0, with the package
- * and its links to its three dependencies; spawndamnit 2.0.0, its one
- * requirer, with its link to it, and spawndamnit's own hoist; and pnpm's hoist
- * of cross-spawn, which in the webapp is 7.0.6's (cross-env 7.0.3 requires it,
- * and both stay) and in the supervisor's deploy 5.1.0's, its one cross-spawn.
- */
-function crossSpawnTree(name: Name): { files: Record<string, string>; links: Array<{ path: string; target: string }> } {
-  const store = dirname(CROSS_SPAWN[name].store);
-  const pkg = (dir: string, json: Readonly<Record<string, unknown>>) => ({ [`${store}/${dir}/package.json`]: `${JSON.stringify(json)}\n` });
-  const deps = [['lru-cache', '4.1.5'], ['shebang-command', '1.2.0'], ['which', '1.3.1']] as const;
-  const files: Record<string, string> = {
-    ...pkg('cross-spawn@5.1.0/node_modules/cross-spawn', { name: 'cross-spawn', version: '5.1.0', main: 'index.js', dependencies: { 'lru-cache': '^4.0.1', 'shebang-command': '^1.2.0', which: '^1.2.9' } }),
-    [`${CROSS_SPAWN[name].package}/index.js`]: "module.exports = require('./lib/enoent');\n",
-    ...pkg('spawndamnit@2.0.0/node_modules/spawndamnit', { name: 'spawndamnit', version: '2.0.0', dependencies: { 'cross-spawn': '^5.1.0', 'signal-exit': '^3.0.2' } }),
-    ...Object.assign({}, ...deps.map(([n, v]) => pkg(`${n}@${v}/node_modules/${n}`, { name: n, version: v }))),
-  };
-  const links = [
-    ...deps.map(([n, v]) => ({ path: `${CROSS_SPAWN[name].store}/node_modules/${n}`, target: `../../${n}@${v}/node_modules/${n}` })),
-    { path: `${store}/spawndamnit@2.0.0/node_modules/cross-spawn`, target: '../../cross-spawn@5.1.0/node_modules/cross-spawn' },
-    { path: `${store}/node_modules/spawndamnit`, target: '../spawndamnit@2.0.0/node_modules/spawndamnit' },
-  ];
-  if (name === 'trigger.dev') {
-    Object.assign(
-      files,
-      pkg('cross-spawn@7.0.6/node_modules/cross-spawn', { name: 'cross-spawn', version: '7.0.6' }),
-      pkg('cross-env@7.0.3/node_modules/cross-env', { name: 'cross-env', version: '7.0.3', dependencies: { 'cross-spawn': '^7.0.1' } }),
-    );
-    links.push(
-      { path: `${store}/cross-env@7.0.3/node_modules/cross-spawn`, target: '../../cross-spawn@7.0.6/node_modules/cross-spawn' },
-      { path: `${store}/node_modules/cross-spawn`, target: '../cross-spawn@7.0.6/node_modules/cross-spawn' },
-    );
-  } else {
-    links.push({ path: `${store}/node_modules/cross-spawn`, target: '../cross-spawn@5.1.0/node_modules/cross-spawn' });
-  }
-  return { files, links };
-}
-
 /** The webapp's own directory in the image, whose build the relink reads and from which it loads @depot/sdk-node. */
 const WEBAPP_DIR = '/triggerdotdev/apps/webapp';
 
@@ -1847,20 +1701,18 @@ function relinkTree(): { files: Record<string, string>; links: Array<{ path: str
 }
 
 function treeOf(name: Name, plat: string): Tree {
-  const xs = crossSpawnTree(name);
   if (name === 'supervisor') {
     return {
       files: {
         [ROOT_PKG.supervisor]: `{"packageManager":"pnpm@${SWAP.from}"}\n`,
-        '/app/packages/core/package.json': '{"version":"4.8.5"}\n',
+        '/app/packages/core/package.json': '{"version":"4.8.8"}\n',
         [ENTRYPOINT.supervisor]: STAND_IN_ENTRYPOINT,
         ...pnpmCopy('/root', SWAP.from),
         ...pnpmCopy('/home/node', SWAP.from),
         ...NODE_GLOBALS,
-        ...xs.files,
       },
       binaries: [],
-      links: [...NODE_LINKS, ...xs.links],
+      links: [...NODE_LINKS],
       pnpm: PUBLISHED,
     };
   }
@@ -1870,7 +1722,7 @@ function treeOf(name: Name, plat: string): Tree {
   const rl = relinkTree();
   const goose = GOOSE.assets[plat as Plat];
   return {
-    links: [...NODE_LINKS, ...ts.links!, ...xs.links, ...rl.links],
+    links: [...NODE_LINKS, ...ts.links!, ...rl.links],
     pnpm: PUBLISHED,
     registry: goose ? { [goose.url]: STAND_IN_GOOSE_NEW } : {},
     standIn: { goose: sha256(STAND_IN_GOOSE_NEW), undici: rl.undici },
@@ -1880,17 +1732,16 @@ function treeOf(name: Name, plat: string): Tree {
     dpkg,
     files: {
       [ROOT_PKG['trigger.dev']]: `{"packageManager":"pnpm@${SWAP.from}"}\n`,
-      '/triggerdotdev/packages/core/package.json': '{"version":"4.8.5"}\n',
+      '/triggerdotdev/packages/core/package.json': '{"version":"4.8.8"}\n',
       [ENTRYPOINT['trigger.dev']]: STAND_IN_ENTRYPOINT,
       ...pkg(`${PNPM}/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli`),
-      ...pkg(`${PNPM}/esbuild@0.23.0/node_modules/esbuild`),
+      ...pkg(`${PNPM}/esbuild@0.28.2/node_modules/esbuild`),
       // pnpm's own shims are scripts, and stay.
       [`${PNPM}/node_modules/.bin/esbuild`]: '#!/bin/sh\nexec node "$@"\n',
       ...pnpmCopy('/root', SWAP.from),
       ...pnpmCopy('/home/node', SWAP.from),
       ...NODE_GLOBALS,
       ...ts.files,
-      ...xs.files,
       ...rl.files,
     },
     binaries: [
@@ -1899,8 +1750,8 @@ function treeOf(name: Name, plat: string): Tree {
         link: `${PNPM}/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli/bin/depot`,
       },
       {
-        path: `${PNPM}/@esbuild+${plat}@0.23.0/node_modules/@esbuild/${plat}/bin/esbuild`,
-        link: `${PNPM}/esbuild@0.23.0/node_modules/esbuild/bin/esbuild`,
+        path: `${PNPM}/@esbuild+${plat}@0.28.2/node_modules/@esbuild/${plat}/bin/esbuild`,
+        link: `${PNPM}/esbuild@0.28.2/node_modules/esbuild/bin/esbuild`,
       },
       // TypeScript 7's compiler: one name, no postinstall.
       { path: expand(TSC.path, plat) },
@@ -2318,7 +2169,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     };
     expect(swap(/^(FROM \S+)@sha256:[0-9a-f]{64}$/m, '$1')).toEqual([expect.stringContaining('carries no tag and digest')]);
     expect(swap(/^FROM ghcr\.io\/triggerdotdev\/trigger\.dev:/m, 'FROM ghcr.io/someone/trigger.dev:')).toEqual([expect.stringContaining('not ghcr.io/triggerdotdev/trigger.dev')]);
-    expect(swap(/^ARG TRIGGER_IMAGE_TAG$/m, 'ARG TRIGGER_IMAGE_TAG=v4.8.5')).toEqual([expect.stringContaining('not one `ARG TRIGGER_IMAGE_TAG` with no default')]);
+    expect(swap(/^ARG TRIGGER_IMAGE_TAG$/m, 'ARG TRIGGER_IMAGE_TAG=v4.8.8')).toEqual([expect.stringContaining('not one `ARG TRIGGER_IMAGE_TAG` with no default')]);
     expect(swap(/^USER root$/m, 'USER node')).toContainEqual(expect.stringContaining('the removing RUN runs as node, not root'));
     expect(swap(/\n# Upstream's own user, which this image keeps\.\nUSER node\n/, '\n')).toEqual([
       expect.stringContaining('its last USER is root'),
@@ -2335,9 +2186,9 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     expect(shapeProblems('trigger.dev', `# syntax=docker/dockerfile:1\n${real}`)).toEqual([expect.stringContaining('is a parser directive')]);
     // Read at one release, the FROM's, and refused before anything is removed at any other.
     expect(swap(/^ {4}read_at=v[\d.]+; \\\n/m, '')).toEqual(['the removing RUN names no read_at, the release its reasons were read in']);
-    expect(swap(/^( {4}read_at=)v[\d.]+;/m, '$1v4.8.0;')).toEqual([expect.stringContaining('read_at is v4.8.0, and the FROM is v4.8.5')]);
+    expect(swap(/^( {4}read_at=)v[\d.]+;/m, '$1v4.8.0;')).toEqual([expect.stringContaining('read_at is v4.8.0, and the FROM is v4.8.8')]);
     // What `trigger-version.sh pin` does: the FROM moves, read_at stays, and this says to read again.
-    expect(swap(/^(FROM \S+:)v[\d.]+@/m, '$1v4.9.0@')).toEqual([expect.stringContaining('read_at is v4.8.5, and the FROM is v4.9.0: read the header')]);
+    expect(swap(/^(FROM \S+:)v[\d.]+@/m, '$1v4.9.0@')).toEqual([expect.stringContaining('read_at is v4.8.8, and the FROM is v4.9.0: read the header')]);
     expect(swap(/^ {4}\[ "\$core" = "\$read_at" \] \|\| fail [^\n]*\n/m, '')).toEqual([
       'the removing RUN does not refuse an image of another version than read_at before it removes anything',
     ]);
@@ -2493,7 +2344,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     for (const plat of name === 'trigger.dev' ? PLATFORMS : (['linux-arm64'] as const)) {
       it(`${name} on ${plat}: removes REMOVED and nothing else, keeps the copy its service runs, and proves both users`, () => {
         withSandbox(treeOf(name, plat), (box) => {
-          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.5' });
+          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.8' });
           expect(run.status, run.out).toBe(0);
           const home = name === 'trigger.dev' ? '/root' : '/home/node';
           const kept = COPY(home, SWAP.to);
@@ -2542,7 +2393,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       withSandbox(treeOf(name, 'linux-x64'), (box) => {
         const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag: 'v4.9.0' });
         expect(run.status).not.toBe(0);
-        expect(run.out).toContain('the .env names TRIGGER_IMAGE_TAG=v4.9.0, and this checkout builds Trigger.dev v4.8.5');
+        expect(run.out).toContain('the .env names TRIGGER_IMAGE_TAG=v4.9.0, and this checkout builds Trigger.dev v4.8.8');
         expect(removedBy(box, run), name).toEqual([]);
       });
     }
@@ -2557,7 +2408,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         withSandbox({ ...tree, files: { ...tree.files, [core]: '{"version":"4.9.0"}\n' } }, (box) => {
           const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag });
           expect(run.status, `${name}, TRIGGER_IMAGE_TAG=${tag}`).not.toBe(0);
-          expect(run.out).toContain(`was read in Trigger.dev v4.8.5's source, and this image is v4.9.0`);
+          expect(run.out).toContain(`was read in Trigger.dev v4.8.8's source, and this image is v4.9.0`);
           expect(run.out).toContain('then move read_at');
           expect(removedBy(box, run), name).toEqual([]);
         });
@@ -2566,7 +2417,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       withSandbox(tree, (box) => {
         const run = build(dockerfiles[name], box, { plat: 'linux-x64', pinnedEntrypoint: true });
         expect(run.status, name).not.toBe(0);
-        expect(run.out).toContain(`${box.fs}${ENTRYPOINT[name]} is not the one read at v4.8.5`);
+        expect(run.out).toContain(`${box.fs}${ENTRYPOINT[name]} is not the one read at v4.8.8`);
         expect(removedBy(box, run), name).toEqual([]);
       });
     }
@@ -2594,7 +2445,6 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         [`${COPY('/home/node', SWAP.from)}/dist/node_modules/tar`, `${COPY('/home/node', SWAP.from)}/dist/node_modules/tar`],
         [`${COPY('/root', SWAP.from)}/.corepack`, `${COPY('/root', SWAP.from)}/.corepack`],
         ...npmAndCorepack,
-        [`${CROSS_SPAWN['trigger.dev'].package}/package.json`, `${CROSS_SPAWN['trigger.dev'].package} is not there.`],
       ],
       supervisor: [
         ['/app/package.json', '/app/package.json'],
@@ -2604,7 +2454,6 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         [`${COPY('/root', SWAP.from)}/dist/node_modules/tar`, `${COPY('/root', SWAP.from)}/dist/node_modules/tar`],
         [`${COPY('/home/node', SWAP.from)}/.corepack`, `${COPY('/home/node', SWAP.from)}/.corepack`],
         ...npmAndCorepack,
-        [`${CROSS_SPAWN.supervisor.package}/package.json`, `${CROSS_SPAWN.supervisor.package} is not there.`],
       ],
     };
     for (const name of NAMES) {
@@ -2619,7 +2468,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
         };
         expect(JSON.stringify(without), `${path} is not in the stand-in`).not.toBe(JSON.stringify(tree));
         withSandbox(without, (box) => {
-          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.5' });
+          const run = build(dockerfiles[name], box, { plat, tag: 'v4.8.8' });
           expect(run.status, `${name} built without ${path}`).not.toBe(0);
           expect(run.out, `${name} without ${path} did not say which`).toContain(`${box.fs}${named}`);
           expect(removedBy(box, run), `${name} removed something before it failed without ${path}`).toEqual([]);
@@ -2651,7 +2500,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       ];
       for (const [what, changed, said] of cases) {
         withSandbox(changed, (box) => {
-          const run = build(dockerfiles[name], box, { plat: 'linux-arm64', tag: 'v4.8.5' });
+          const run = build(dockerfiles[name], box, { plat: 'linux-arm64', tag: 'v4.8.8' });
           expect(run.status, `${name}, ${what}: ${run.out}`).not.toBe(0);
           expect(run.out, `${name}, ${what}`).toContain(said(box.fs));
           expect(removedBy(box, run), `${name}, ${what}`).toEqual([]);
@@ -2676,7 +2525,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       ];
       for (const [where, version, says] of cases) {
         withSandbox({ ...tree, files: { ...tree.files, ...pnpmCopy(where, version) } }, (box) => {
-          const run = build(dockerfiles[name], box, { tag: 'v4.8.5' });
+          const run = build(dockerfiles[name], box, { tag: 'v4.8.8' });
           const what = `${name}, a copy of ${version} under ${where}`;
           expect(run.status, `${what}: ${run.out}`).not.toBe(0);
           const dir = `${box.fs}${where}/.cache/node/corepack/v1/pnpm`.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -2695,13 +2544,13 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       expect(readBack.test(real), name).toBe(true);
       // Without the rewrite, the read-back stops the build.
       withSandbox(treeOf(name, 'linux-arm64'), (box) => {
-        const run = build(real.replace(rewrite, ''), box, { tag: 'v4.8.5' });
+        const run = build(real.replace(rewrite, ''), box, { tag: 'v4.8.8' });
         expect(run.status, name).not.toBe(0);
         expect(run.out).toContain(`${box.fs}${ROOT_PKG[name]} names pnpm@${SWAP.from} after the rewrite, not pnpm@${SWAP.to}`);
       });
       // Without both, the proof as the service's user does: corepack, offline, looks for the copy the build removed.
       withSandbox(treeOf(name, 'linux-arm64'), (box) => {
-        const run = build(real.replace(rewrite, '').replace(readBack, ''), box, { tag: 'v4.8.5' });
+        const run = build(real.replace(rewrite, '').replace(readBack, ''), box, { tag: 'v4.8.8' });
         expect(run.status, name).not.toBe(0);
         expect(run.out).toContain('Network access disabled by the environment');
         expect(run.out).toContain(name === 'trigger.dev' ? 'as root, the user trigger-api runs as, pnpm 10.34.9 does not start offline' : 'as node, the user trigger-supervisor runs as, pnpm 10.34.9 does not start offline');
@@ -2710,7 +2559,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       const tree = treeOf(name, 'linux-arm64');
       const twice = `{"packageManager": "pnpm@${SWAP.from}", "devEngines": {"packageManager": "pnpm@${SWAP.from}"}}\n`;
       withSandbox({ ...tree, files: { ...tree.files, [ROOT_PKG[name]]: twice } }, (box) => {
-        const run = build(real, box, { tag: 'v4.8.5' });
+        const run = build(real, box, { tag: 'v4.8.8' });
         expect(run.status, name).not.toBe(0);
         expect(run.out).toContain(`names packageManager as: pnpm@${SWAP.from}, pnpm@${SWAP.from}`);
         expect(run.out).toContain(`${box.fs}${ROOT_PKG[name]}'s packageManager was not rewritten to pnpm@${SWAP.to}`);
@@ -2719,7 +2568,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       // The file's own spacing is kept: one field moves, and nothing else of the file.
       const spaced = `{\n  "name": "triggerdotdev",\n  "packageManager": "pnpm@${SWAP.from}",\n  "private": true\n}\n`;
       withSandbox({ ...tree, files: { ...tree.files, [ROOT_PKG[name]]: spaced } }, (box) => {
-        const run = build(real, box, { tag: 'v4.8.5' });
+        const run = build(real, box, { tag: 'v4.8.8' });
         expect(run.status, run.out).toBe(0);
         expect(readFileSync(join(box.fs, ROOT_PKG[name]), 'utf8')).toBe(spaced.replace(`pnpm@${SWAP.from}`, `pnpm@${SWAP.to}`));
       });
@@ -2750,14 +2599,14 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
     };
     // Root's one RUN, the removing RUN (until v4.8.5 the swap table's RUN came after it, with a chown of its own).
     withSandbox({ ...treeOf('supervisor', 'linux-arm64'), tools }, (box) => {
-      const run = build(dockerfiles.supervisor, box, { only: 'root', tag: 'v4.8.5' });
+      const run = build(dockerfiles.supervisor, box, { only: 'root', tag: 'v4.8.8' });
       expect(run.status, run.out).toBe(0);
       const chowns = readFileSync(join(box.root, 'tools.log'), 'utf8').split('\n').filter((l) => l.startsWith('chown '));
       expect(chowns).toEqual([`chown -R 4242:4343 ${box.fs}${COREPACK_HOME('/home/node')}`]);
     });
     expect(narrow).not.toBe(dockerfiles.supervisor);
     withSandbox({ ...treeOf('supervisor', 'linux-arm64'), tools }, (box) => {
-      const run = build(narrow, box, { only: 'root', tag: 'v4.8.5' });
+      const run = build(narrow, box, { only: 'root', tag: 'v4.8.8' });
       expect(run.status).not.toBe(0);
       // Two owners: the new copy's, given, and root's on what the chown passed over (lastKnownGood.json, v1, v1/pnpm).
       expect(run.out).toMatch(/\/home\/node\/\.cache\/node\/corepack the owners are (?:\S+ ){2}, not 4242:4343 alone/);
@@ -2827,7 +2676,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       for (const [what, files, named] of cases) {
         expect(JSON.stringify({ ...PUBLISHED.files, ...files }), what).not.toBe(JSON.stringify(PUBLISHED.files));
         withSandbox({ ...tree, pnpm: { ...PUBLISHED, files: { ...PUBLISHED.files, ...files } } }, (box) => {
-          const run = build(dockerfiles[name], box, { tag: 'v4.8.5' });
+          const run = build(dockerfiles[name], box, { tag: 'v4.8.8' });
           expect(run.status, `${name}, ${what}`).not.toBe(0);
           expect(run.out, `${name}, ${what}`).toContain(`these name a package inside it: ${box.fs}${copy}/bin/pnpm.cjs:require(v8-compile-cache `);
           expect(run.out, `${name}, ${what}`).toContain(`${box.fs}${named}`);
@@ -2857,7 +2706,7 @@ describe('the Dockerfiles delete only what never runs, and fail loudly when upst
       ];
       for (const [what, changed, said] of cases) {
         withSandbox(changed, (box) => {
-          const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag: 'v4.8.5' });
+          const run = build(dockerfiles[name], box, { plat: 'linux-x64', tag: 'v4.8.8' });
           expect(run.status, `${name}, ${what}`).not.toBe(0);
           expect(run.out, `${name}, ${what}`).toContain(said(box.fs));
           expect(removedBy(box, run), `${name}, ${what}`).toEqual([]);
@@ -2986,7 +2835,7 @@ describe("the webapp's build removes TypeScript 7's native compiler by its publi
     const tree = treeOf('trigger.dev', plat);
     // The pinned hash, which the stand-in's tsc is not.
     withSandbox(tree, (box) => {
-      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.5', pinnedTsc: true });
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.8', pinnedTsc: true });
       expect(run.status, run.out).not.toBe(0);
       expect(run.out).toContain(`${box.fs}${expand(TSC.path, plat)} is not TypeScript 7.0.2's tsc for ${plat} as npm published it (SHA-256 ${TSC.sha256[plat]})`);
       expect(removedBy(box, run)).toEqual([]);
@@ -2995,189 +2844,31 @@ describe("the webapp's build removes TypeScript 7's native compiler by its publi
     // A second name: the scan would read 0 while the same ELF stayed.
     const second = `${PNPM}/@typescript+typescript-${plat}@7.0.2/node_modules/@typescript/typescript-${plat}/bin/tsc-native`;
     withSandbox({ ...tree, binaries: tree.binaries.map((b) => (b.path.endsWith('/lib/tsc') ? { ...b, link: second } : b)) }, (box) => {
-      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.5' });
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.8' });
       expect(run.status, run.out).not.toBe(0);
       expect(run.out).toContain(`${box.fs}${expand(TSC.path, plat)} has 2 names: a second name would keep the binary`);
       expect(removedBy(box, run)).toEqual([]);
     });
     // prisma without its link to typescript 7.0.2: the proof after the removal fails.
     withSandbox({ ...tree, links: tree.links!.filter((l) => l.path !== `${dirname(TSC.prisma)}/typescript`) }, (box) => {
-      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.5' });
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.8' });
       expect(run.status).not.toBe(0);
       expect(run.out).toContain(`from ${box.fs}${TSC.prisma}, require('typescript') does not give 7.0.2 from ${box.fs}${TSC.typescript} without its binary.`);
     });
     // A typescript whose "." is no longer lib/version.cjs, though it says 7.0.2.
     const moved = { ...tree.files, [`${TSC.typescript}/package.json`]: `${JSON.stringify({ name: 'typescript', version: '7.0.2', type: 'module', exports: { [`./${'package'}.json`]: `./${'package'}.json`, '.': './lib/api.cjs' } })}\n`, [`${TSC.typescript}/lib/api.cjs`]: 'exports.version = "7.0.2";\n' };
     withSandbox({ ...tree, files: moved }, (box) => {
-      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.5' });
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.8' });
       expect(run.status).not.toBe(0);
       expect(run.out).toContain(`require(typescript): ${box.fs}${TSC.typescript}/lib/api.cjs 7.0.2`);
     });
     // Another TypeScript's native binary, which REMOVED does not name: the build stops rather than ship it.
     const other = `${PNPM}/@typescript+native-preview-${plat}@7.1.0/node_modules/@typescript/native-preview-${plat}/lib/tsgo`;
     withSandbox({ ...tree, binaries: [...tree.binaries, { path: other }] }, (box) => {
-      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.5' });
+      const run = build(webapp, box, { ...removingOnlyRun, plat, tag: 'v4.8.8' });
       expect(run.status).not.toBe(0);
       expect(run.out).toContain(`a depot, esbuild or tsc binary is still there: ${box.fs}${other}`);
     });
-  });
-});
-
-describe('both builds remove cross-spawn 5.1.0 with every link pnpm made to it, and refuse a layout they were not read for (2026-11-14)', () => {
-  it('each removing RUN checks it before anything is removed, removes it with each link CROSS_SPAWN names, and proves after that nothing of it is left', () => {
-    for (const name of NAMES) {
-      expect(xspawnProblems(name, removingRun(dockerfiles[name])!.args), name).toEqual([]);
-      expect(REMOVED[name].map((r) => r.path), name).toEqual(expect.arrayContaining([CROSS_SPAWN[name].store, ...Object.values(CROSS_SPAWN[name].links)]));
-      expect(dockerfiles[name], name).toContain('CVE-2024-21538');
-    }
-    // One walk, the same in both builds.
-    const [webapp, supervisor] = NAMES.map((n) => assignments(removingRun(dockerfiles[n])!.args).get('where'));
-    expect(webapp?.length).toBeGreaterThan(500);
-    expect(supervisor).toBe(webapp);
-    // an-essential-nothing-runs takes `if (read === 0) process.exit(2); ` out of the webapp's text where it first
-    // occurs, to prove the purge's scan needs it; the walk comes first in the file, so it must not hold that text.
-    expect(webapp).not.toContain('if (read === 0)');
-  });
-
-  it('refuses each way the removal could slip, in both builds', () => {
-    for (const name of NAMES) {
-      const real = dockerfiles[name];
-      const cs = CROSS_SPAWN[name];
-      const problems = (text: string) => shapeProblems(name, text);
-      const rmDir = /^ {4}rm -r "\$xspawn_store"; \\$/;
-      // Each check before the removal, dropped.
-      expect(problems(dropLine(real, /^ {4}\[ -f "\$xspawn\/package\.json" \] \|\| fail /)), name).toEqual(['no check, before anything is removed, that cross-spawn 5.1.0 is where it was read']);
-      expect(problems(dropLine(real, /^ {4}\[ "\$said" = cross-spawn@5\.1\.0 \] \|\| fail /)), name).toEqual(['no check, before anything is removed, that its package.json says cross-spawn 5.1.0']);
-      expect(problems(dropLine(real, /^ {4}\[ "\$\(ls -A "\$xspawn_store"\)" = node_modules \]/)), name).toEqual(["no check, before anything is removed, that pnpm's directory for it holds its node_modules alone"]);
-      expect(problems(dropLine(real, /^ {4}\[ "\$held" = \.\/cross-spawn \]/)), name).toEqual(['no check, before anything is removed, that nothing is in that but the package and links to its dependencies']);
-      const walked = 'no check, before anything is removed, that, walking the image, it is the one copy, and nothing links into it but what the RUN removes with it';
-      expect(problems(dropLine(real, /^ {4}\[ "\$found" = "\$want" \]/)), name).toEqual([walked]);
-      // The walk and its check, moved after the removal: they read nothing in time.
-      const late = moveLine(moveLine(real, /^ {4}\[ "\$found" = "\$want" \]/, rmDir), /^ {4}found=.*nothing is removed yet/, rmDir);
-      expect(problems(late), name).toEqual([walked]);
-      // What the walk must find: a link it removes left out of it.
-      expect(problems(real.replace('${want_link}package', 'package')), name).toEqual([expect.stringContaining("the removing RUN's want= is")]);
-      for (const k of Object.keys(cs.links)) {
-        const w = `want_${k.slice('xspawn_'.length)}`;
-        // Expected whether it is a link or not: an image without it would fail, one with something else there would pass the walk.
-        expect(problems(real.replace(`${w}=""; if [ -L "$${k}" ]; then ${w}="link $${k} "; fi;`, `${w}="link $${k} ";`)), `${name}: ${k}`).toEqual([`the removing RUN does not expect $${k} where it is a link, and only there (${w})`]);
-        expect(problems(dropLine(real, new RegExp(`^ {4}if \\[ -L "\\$${k}" \\]; then rm "\\$${k}"; fi; \\\\$`))), `${name}: ${k}`).toEqual([`the removing RUN does not remove $${k} where it is there`]);
-      }
-      // The directory: not removed, or removed with a flag that passes over a path that is not there.
-      const notRemoved = 'the removing RUN does not remove pnpm\'s directory for cross-spawn 5.1.0 (rm -r "$xspawn_store")';
-      expect(problems(dropLine(real, rmDir)), name).toEqual([notRemoved]);
-      expect(problems(real.replace('rm -r "$xspawn_store";', 'rm -rf "$xspawn_store";')), name).toEqual([expect.stringContaining('`rm -f` or `rm -rf`'), notRemoved]);
-      // Another release's paths.
-      expect(problems(real.replace('xspawn_store="$s/cross-spawn@5.1.0";', 'xspawn_store="$s/cross-spawn@5.1.1";')), name).toEqual([
-        `the removing RUN's xspawn_store= is ${cs.store.replace('5.1.0', '5.1.1')}, not ${cs.store}`,
-        `the removing RUN's xspawn= is ${cs.package.replace('5.1.0', '5.1.1')}, not ${cs.package}`,
-        expect.stringContaining("the removing RUN's want= is"),
-      ]);
-      // The proof after the removal: dropped, or moved before the last `rm`.
-      const left = 'no proof, after the removal, that no directory, package.json or link of cross-spawn 5.1.0 is left';
-      expect(problems(dropLine(real, /^ {4}\[ -z "\$found" \]/)), name).toEqual([left]);
-      const early = moveLine(moveLine(real, /^ {4}\[ -z "\$found" \]/, /^ {4}rm -r "\$unused"/), /^ {4}found=.*after the removal \(above\)/, /^ {4}rm -r "\$unused"/);
-      expect(problems(early), name).toEqual([left]);
-      // The walk, doing less than it must.
-      for (const [needle, what] of WHERE_READS) {
-        const less = real.replace(needle, needle === 'if (s.dev === dev) walk(p);' ? 'walk(p);' : '');
-        expect(less, needle).not.toBe(real);
-        expect(problems(less), `${name}: ${needle}`).toEqual([`$where does not ${what}`]);
-      }
-    }
-  });
-
-  it("over the stand-in, a link it names that is not there fails nothing: pnpm's directory goes alone; and the webapp's hoist, 7.0.6's, stays", () => {
-    for (const name of NAMES) {
-      const tree = treeOf(name, 'linux-arm64');
-      const named = Object.values(CROSS_SPAWN[name].links);
-      withSandbox({ ...tree, links: tree.links!.filter((l) => !named.includes(l.path)) }, (box) => {
-        const run = build(dockerfiles[name], box, { tag: 'v4.8.5' });
-        expect(run.status, run.out).toBe(0);
-        const removed = removedBy(box, run);
-        expect(removed, name).toContain(CROSS_SPAWN[name].store);
-        for (const l of named) expect(removed, `${name}: ${l}`).not.toContain(l);
-        expect(run.out).toMatch(/^[1-9]\d* package\.json files read under /m);
-      });
-    }
-    withSandbox(treeOf('trigger.dev', 'linux-x64'), (box) => {
-      const run = build(dockerfiles['trigger.dev'], box, { plat: 'linux-x64', tag: 'v4.8.5' });
-      expect(run.status, run.out).toBe(0);
-      const hoist = join(box.fs, PNPM, 'node_modules/cross-spawn');
-      expect(readlinkSync(hoist)).toBe('../cross-spawn@7.0.6/node_modules/cross-spawn');
-      expect(JSON.parse(readFileSync(join(hoist, 'package.json'), 'utf8'))).toEqual({ name: 'cross-spawn', version: '7.0.6' });
-      expect(run.left).toEqual(expect.arrayContaining([`${PNPM}/cross-env@7.0.3/node_modules/cross-spawn`, `${PNPM}/spawndamnit@2.0.0/node_modules/spawndamnit/package.json`, `${PNPM}/which@1.3.1/node_modules/which/package.json`]));
-      expect(run.out).toContain('cross-spawn 5.1.0 with every link into it');
-    });
-  });
-
-  it('another package at its path, more in its directory, a link it was not read for or a second copy fails it, before anything is removed', () => {
-    for (const name of NAMES) {
-      const tree = treeOf(name, 'linux-arm64');
-      const cs = CROSS_SPAWN[name];
-      const store = dirname(cs.store);
-      const withFiles = (files: Record<string, string>): Tree => ({ ...tree, files: { ...tree.files, ...files } });
-      const withLinks = (links: ReadonlyArray<{ path: string; target: string }>, drop: readonly string[] = []): Tree => ({ ...tree, links: [...tree.links!.filter((l) => !drop.includes(l.path)), ...links] });
-      const others = (fs: string) =>
-        Object.entries(cs.links)
-          .filter(([k]) => k !== 'xspawn_link')
-          .map(([, l]) => `link ${fs}${l} `)
-          .join('');
-      const cases: ReadonlyArray<[string, Tree, (fs: string) => string]> = [
-        ['another release at its path', withFiles({ [`${cs.package}/package.json`]: '{"name":"cross-spawn","version":"5.1.1"}\n' }), (fs) => `${fs}${cs.package} is cross-spawn@5.1.1, not cross-spawn@5.1.0, the release this file removes.`],
-        ['another package at its path', withFiles({ [`${cs.package}/package.json`]: '{"name":"cross-spawn-async","version":"5.1.0"}\n' }), (fs) => `${fs}${cs.package} is cross-spawn-async@5.1.0, not cross-spawn@5.1.0`],
-        ["a file beside pnpm's node_modules", withFiles({ [`${cs.store}/README.md`]: 'x\n' }), (fs) => `${fs}${cs.store} holds more than pnpm's node_modules: README.md node_modules `],
-        ['a package beside it that is no link', withFiles({ [`${cs.store}/node_modules/extra/package.json`]: '{"name":"extra","version":"1.0.0"}\n' }), (fs) => `in ${fs}${cs.store}/node_modules, these are no links: `],
-        ['a requirer it was not read for', withLinks([{ path: `${store}/foreground-child@3.3.1/node_modules/cross-spawn`, target: '../../cross-spawn@5.1.0/node_modules/cross-spawn' }]), (fs) => `link ${fs}${store}/foreground-child@3.3.1/node_modules/cross-spawn `],
-        ["a link in the importer's own node_modules", withLinks([{ path: `${dirname(store)}/cross-spawn`, target: '.pnpm/cross-spawn@5.1.0/node_modules/cross-spawn' }]), (fs) => `link ${fs}${dirname(store)}/cross-spawn `],
-        ['a second copy', withFiles({ '/opt/vendor/cross-spawn/package.json': '{"name":"cross-spawn","version":"5.1.0"}\n' }), (fs) => `package ${fs}/opt/vendor/cross-spawn/package.json `],
-        ['a second copy that does not parse', withFiles({ '/opt/vendor/x/package.json': '{"name": "cross-spawn", "version": "5.1.0",}\n' }), (fs) => `unreadable ${fs}/opt/vendor/x/package.json `],
-        [
-          "spawndamnit's link to another package",
-          withLinks([{ path: cs.links.xspawn_link!, target: '../../which@1.3.1/node_modules/which' }], [cs.links.xspawn_link!]),
-          (fs) => `under ${fs}, cross-spawn 5.1.0 is: directory ${fs}${cs.store} ${others(fs)}package ${fs}${cs.package}/package.json ; this file was read for one copy`,
-        ],
-      ];
-      for (const [what, changed, said] of cases) {
-        withSandbox(changed, (box) => {
-          const run = build(dockerfiles[name], box, { tag: 'v4.8.5' });
-          expect(run.status, `${name}, ${what}: ${run.out}`).not.toBe(0);
-          expect(run.out, `${name}, ${what}`).toContain(said(box.fs));
-          expect(removedBy(box, run), `${name}, ${what}`).toEqual([]);
-          expect(corepackCalls(box), `${name}, ${what}: pnpm was installed before it failed`).toEqual([]);
-        });
-      }
-    }
-    // The webapp's hoist into 5.1.0, which pnpm does not make there by the lockfile: one more link it was not read for.
-    const tree = treeOf('trigger.dev', 'linux-arm64');
-    const hoist = `${PNPM}/node_modules/cross-spawn`;
-    withSandbox({ ...tree, links: tree.links!.map((l) => (l.path === hoist ? { path: hoist, target: '../cross-spawn@5.1.0/node_modules/cross-spawn' } : l)) }, (box) => {
-      const run = build(dockerfiles['trigger.dev'], box, { tag: 'v4.8.5' });
-      expect(run.status, run.out).not.toBe(0);
-      expect(run.out).toContain(`link ${box.fs}${hoist} link ${box.fs}${CROSS_SPAWN['trigger.dev'].links.xspawn_link} `);
-      expect(run.out).toContain('(pnpm hoists cross-spawn 7.0.6 here)');
-      expect(removedBy(box, run)).toEqual([]);
-    });
-  });
-
-  it('anything of cross-spawn 5.1.0 left after the removal fails it: a copy, a directory by its name, a link into it, a package.json that does not parse', () => {
-    for (const name of NAMES) {
-      const store = dirname(CROSS_SPAWN[name].store);
-      const after = (line: string) => insertAfter(dockerfiles[name], /^ {4}rm -r "\$xspawn_store"; \\$/, line);
-      const cases: ReadonlyArray<[string, string, string]> = [
-        ['a copy', `mkdir -p ${store}/x/cross-spawn; printf '%s\\n' '{"name":"cross-spawn","version":"5.1.0"}' > ${store}/x/cross-spawn/package.json;`, `package ${store}/x/cross-spawn/package.json`],
-        ["a directory by pnpm's name for it", `mkdir ${store}/cross-spawn@5.1.0_x;`, `directory ${store}/cross-spawn@5.1.0_x`],
-        ['a link into it, dangling', `ln -s ../cross-spawn@5.1.0/node_modules/cross-spawn ${store}/node_modules/cross-spawn-5;`, `link ${store}/node_modules/cross-spawn-5`],
-        ['a package.json that does not parse', `mkdir -p ${store}/y; printf '%s\\n' '{"name": "cross-spawn", "version": "5.1.0",}' > ${store}/y/package.json;`, `unreadable ${store}/y/package.json`],
-      ];
-      for (const [what, line, hit] of cases) {
-        withSandbox(treeOf(name, 'linux-arm64'), (box) => {
-          const run = build(after(line), box, { tag: 'v4.8.5' });
-          expect(run.status, `${name}, ${what}: ${run.out}`).not.toBe(0);
-          expect(run.out, `${name}, ${what}`).toContain(`after the removal, cross-spawn 5.1.0 is still under ${box.fs}: ${hit.replace(/(^\S+ )/, `$1${box.fs}`)} `);
-        });
-      }
-    }
   });
 });
 
@@ -3243,10 +2934,11 @@ describe("the webapp's build relinks connect-node's undici to the store's 6.29.1
     expect(relinkTree().undici).not.toBe(RELINK.tree);
   });
 
-  it("its walk is cross-spawn's, but for pnpm's name for a scoped package's directory", () => {
-    const first = assignments(removingRun(webapp)!.args).get('where')!;
+  it("its walk names a scoped package's directory as pnpm does, and the removing RUN runs no walk since cross-spawn's went (v4.8.8)", () => {
+    expect(assignments(removingRun(webapp)!.args).has('where')).toBe(false);
     const mine = assignments(relink().args).get('where')!;
-    expect(mine).toBe(first.replace("const dir = name + '@' + version;", "const dir = name.replace('/', '+') + '@' + version;"));
+    expect(mine).toContain("const dir = name.replace('/', '+') + '@' + version;");
+    expect(mine).not.toContain("const dir = name + '@' + version;");
     // an-essential-nothing-runs takes the purge's `if (read === 0)` out where it first occurs; this RUN comes before the purge.
     expect(mine).not.toContain('if (read === 0)');
   });
@@ -3840,7 +3532,7 @@ describe("the webapp's last RUN as root purges the Debian packages nothing here 
   for (const plat of PLATFORMS) {
     it(`on ${plat}: dpkg-query of the list first, then the audit, the libraries, the purge with the two flags and no other, the audit again and each package read gone`, () => {
       withSandbox(treeOf('trigger.dev', plat), (box) => {
-        const run = build(webapp, box, { plat, tag: 'v4.8.5' });
+        const run = build(webapp, box, { plat, tag: 'v4.8.8' });
         expect(run.status, run.out).toBe(0);
         const { db, calls } = dpkgOf(box);
         expect(calls).toEqual([
@@ -4407,7 +4099,7 @@ describe('managed.yml runs the two builds by the names their content gives them'
   it('refuses a FROM at another version than the defaults, a wider build, a pull, a fetch of pnpm and a moved home', () => {
     const fromMoved = dockerfiles.supervisor.replace(/^FROM (\S+):v[\d.]+@/m, 'FROM $1:v4.9.0@');
     expect(composeProblems(managedText, { ...dockerfiles, supervisor: fromMoved }, workerManifest)).toContainEqual(
-      expect.stringContaining('deploy/compose/supervisor/Dockerfile builds on v4.9.0, and deploy/compose/managed.yml pins v4.8.5'),
+      expect.stringContaining('deploy/compose/supervisor/Dockerfile builds on v4.9.0, and deploy/compose/managed.yml pins v4.8.8'),
     );
     const swap = (from: string | RegExp, to: string) => {
       const text = managedText.replace(from, to);
@@ -4428,7 +4120,7 @@ describe('managed.yml runs the two builds by the names their content gives them'
     }
     // The pulled image back, with nothing else: refused, with what to run instead.
     expect(swap(/image: localhost\/supervisor:(\$\{TRIGGER_IMAGE_TAG:-v[\d.]+\})-[0-9a-f]{12}/, 'image: ghcr.io/triggerdotdev/supervisor:$1')).toEqual([
-      expect.stringContaining('trigger-supervisor runs ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.5}, not localhost/supervisor:'),
+      expect.stringContaining('trigger-supervisor runs ghcr.io/triggerdotdev/supervisor:${TRIGGER_IMAGE_TAG:-v4.8.8}, not localhost/supervisor:'),
     ]);
   });
 });
