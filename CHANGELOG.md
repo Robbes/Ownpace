@@ -58,6 +58,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   row says so. A consent's window and its link are held the same way: they go only to the
   provider's own sign-in host, Google's, Dropbox's, Microsoft's or Cirrux's, and any other address
   closes the window and is said in the consent's note.
+- **The grant page goes only to Google's own page** (workplan 0163 T4). Its two buttons,
+  *Continue with Google* on a migration's link and one per account on a person's link, sent the
+  page to whatever address the API answered. They now follow it only when it is `https:` on
+  `accounts.google.com`, the check *Pay* and the consent window use. Any other address opens
+  nothing, the page says it is not Google's own page, in the reader's language, and the button
+  can be pressed again.
 
 ## [0.2.0-alpha.13] - 2026-11-21
 

@@ -77,6 +77,13 @@
  * (workplan 0139 T10). They are named as everywhere else in the app
  * (`acceptance.doc.*`), and kept apart by a dot rather than one space.
  *
+ * **Only to Google's own page** (workplan 0163 T4). Both buttons send the page
+ * to the consent address the API answers, and until 2026-11-21 they followed
+ * whatever came back. Now the address goes through `consentToFollow('google',
+ * …)` (`services/address-to-follow.ts`), the check *Pay* and the consent
+ * window use: `https:` on `accounts.google.com` exactly, or nothing is opened
+ * and the page says the address is not Google's own page.
+ *
  * ## What it must never do
  *
  * Never show a token, never receive one, never postMessage. The refresh token
@@ -98,10 +105,19 @@ import { grantApi, type GrantSubject, type PersonGrantSubject } from '../service
  */
 const isPersonSubject = (s: GrantSubject | PersonGrantSubject): s is PersonGrantSubject =>
   'kind' in s && s.kind === 'person';
+
+/** A failure that is no request: the address the API answered is not Google's own page. */
+const NOT_GOOGLE = Symbol('not-google');
+
+/** What a failure says: the refusal above, or the server's sentence in the page's language. */
+function failureSentence(error: unknown, locale: Locale, t: ReturnType<typeof useT>): string {
+  return error === NOT_GOOGLE ? t('account.consent.notTheProvider', { provider: 'Google' }) : linkRefusal(error, locale, t);
+}
 import { linkRefusal } from '../services/link-refusal.ts';
+import { consentToFollow } from '../services/address-to-follow.ts';
 import { legalLinks } from '../services/legal-links.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
-import type { StringKey } from '../i18n/strings.ts';
+import type { Locale, StringKey } from '../i18n/strings.ts';
 import BuildStamp from '../components/BuildStamp.tsx';
 import LanguageSwitch from '../components/LanguageSwitch.tsx';
 import ReportThisLink from '../components/ReportThisLink.tsx';
@@ -177,7 +193,13 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
     setFailure(null);
     try {
       const { url } = await grantApi.authorize(link, locale, account);
-      globalThis.location.assign(url);
+      const consent = consentToFollow('google', url);
+      if (consent === null) {
+        setFailure({ account, error: NOT_GOOGLE });
+        setStarting(null);
+        return;
+      }
+      globalThis.location.assign(consent);
     } catch (error) {
       setFailure({ account, error });
       setStarting(null);
@@ -286,7 +308,7 @@ const PersonGrant: React.FC<{ data: PersonGrantSubject; link: string }> = ({ dat
                 </button>
                 {failure?.account === a.account && (
                   <p role="alert" className="mt-3 text-sm text-amber-800">
-                    {linkRefusal(failure.error, locale, t)}
+                    {failureSentence(failure.error, locale, t)}
                   </p>
                 )}
               </>
@@ -354,10 +376,16 @@ const Grant: React.FC = () => {
     try {
       // The page's language, so the ending after Google is in it too.
       const { url } = await grantApi.authorize(link, locale);
+      const consent = consentToFollow('google', url);
+      if (consent === null) {
+        setFailure(NOT_GOOGLE);
+        setStarting(false);
+        return;
+      }
       // A full navigation, not a popup: there is no wizard window behind this
       // page to hand anything back to, and a popup blocked by the browser
       // would look exactly like a button that does nothing.
-      globalThis.location.assign(url);
+      globalThis.location.assign(consent);
     } catch (err) {
       setFailure(err);
       setStarting(false);
@@ -500,7 +528,7 @@ const Grant: React.FC = () => {
 
           {failure != null && (
             <p role="alert" className="mt-3 text-sm text-amber-800">
-              {linkRefusal(failure, locale, t)}
+              {failureSentence(failure, locale, t)}
             </p>
           )}
 
