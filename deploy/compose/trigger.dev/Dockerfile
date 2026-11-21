@@ -35,13 +35,16 @@
 # November security release; the scan of main on 2026-11-13 read 1, 19 and 11
 # (Security Scan run 43492635512). With goose v3.30.1 about 1, 17 and 9 were
 # expected, goose's two going (WHAT IS REPLACED: GOOSE), and the scan of
-# alpha.8's tag commit read that (Security Scan run 43577138736). Since
-# 2026-11-14 (for alpha.9) cross-spawn 5.1.0 goes too, with spawndamnit's link
-# to it (WHAT GOES): about 1, 16 and 8 are expected. Since 2026-11-20
+# alpha.8's tag commit read that (Security Scan run 43577138736). From
+# 2026-11-14 (for alpha.9) cross-spawn 5.1.0 went too, with spawndamnit's link
+# to it: about 1, 16 and 8 were expected. Since 2026-11-20
 # connect-node's undici is the store's 6.29.1 in place of 5.29.0, and undici
 # 5.29.0 and its @fastify/busboy 2.1.1 go (WHAT IS RELINKED: UNDICI): the scan
 # of main on 2026-11-19 read 1, 19 and 8 (Security Scan run 44637576014), and
-# the branch's read 1, 13 and 2 (Security Scan run 44651070464).
+# the branch's read 1, 13 and 2 (Security Scan run 44651070464). Since v4.8.8
+# (2026-11-21, for alpha.14) upstream's own override takes cross-spawn 7.0.6
+# in 5.1.0's place, so that removal went (WHAT UPSTREAM NOW SHIPS FIXED), and
+# the esbuild binary that goes is 0.28.2's, the CLI's since v4.8.6 (WHAT GOES).
 #
 # WHY. Trivy 0.76.1 read 8 critical findings in
 # ghcr.io/triggerdotdev/trigger.dev:v4.8.1 (linux/arm64, 2026-10-26). Six are
@@ -97,8 +100,8 @@
 # branch's own scan read exactly that (Security Scan run 41527113857).
 #
 # WHAT GOES, AND WHY NOTHING RUNS IT. Read in upstream's source at v4.8.1, again
-# at v4.8.3 and at v4.8.5, and in the published packages, whose sha512 is the
-# one pnpm-lock.yaml names:
+# at v4.8.3, at v4.8.5 and at v4.8.8, and in the published packages, whose
+# sha512 is the one pnpm-lock.yaml names:
 #   - @depot/cli's binary. Loading @depot/cli (lib/main.js) defines functions
 #     and reads DEPOT_BINARY_PATH as a string; the binary is looked up only
 #     inside depot(...), through depotBinaryPath() and generateBinPath(). The
@@ -110,14 +113,22 @@
 #     scripts/a-service-that-phones-home.unit.test.ts refuses DEPOT_TOKEN.
 #     Called anyway, it would throw a JavaScript error into that one request
 #     and start nothing.
-#   - esbuild 0.23.0's binary. Loading esbuild starts nothing; the binary is
-#     found and spawned at the first build, transform or context call
-#     (ensureServiceIsRunning() in lib/main.js). Nothing in the image makes
-#     one. It is installed only because packages/cli-v3, the `trigger.dev`
-#     CLI, depends on it, and cli-v3 enters the webapp's pruned workspace
-#     through internal-packages/dashboard-agent's devDependency
+#   - esbuild's binary: 0.23.0's until v4.8.5, and 0.28.2's since v4.8.8,
+#     since packages/cli-v3 asks for esbuild ^0.28.2 from v4.8.6 (upstream's
+#     lockfile at v4.8.8 resolves 0.28.2 for it, and 0.23.0 for tsx 4.17.0
+#     alone, a devDependency). Its binaries are built with Go 1.26.5 (the
+#     release string in both platforms' binaries, read as bytes, never run),
+#     where 0.23.0's were Go 1.22.4. Loading esbuild starts nothing; the binary
+#     is found and spawned at the first build, transform or context call
+#     (ensureServiceIsRunning() in lib/main.js, the same at 0.28.2), and its
+#     postinstall still hard-links it over bin/esbuild (install.js,
+#     maybeOptimizePackage). Nothing in the image makes one. It is installed
+#     only because packages/cli-v3, the `trigger.dev` CLI, depends on it, and
+#     cli-v3 enters the webapp's pruned workspace through
+#     internal-packages/dashboard-agent's devDependency
 #     `"trigger.dev": "workspace:*"`; `pnpm install --prod` over that workspace
-#     installs the CLI's dependencies. server.js imports neither the CLI nor
+#     installs the CLI's dependencies. By upstream's lockfile at v4.8.8, that
+#     install holds esbuild 0.28.2 alone. server.js imports neither the CLI nor
 #     esbuild, and the entrypoint runs prisma, node scripts, goose and
 #     build/server.js. (tsdown and tsx are not in the production install.)
 #   - node's copy of pnpm, /home/node/.cache/node/corepack/v1/pnpm/10.33.2.
@@ -176,7 +187,7 @@
 #     The entrypoint's pnpm runs three migration scripts that call neither.
 #     The build checks that those three are all any file of the copy outside
 #     dist/node_modules names of it, before it removes anything.
-#   - npm 11.19.1, which Node 24.22.1 bundles, and 24.22.3 at v4.8.5:
+#   - npm 11.19.1, which Node 24.22.1 bundles, and 24.22.3 at v4.8.5 and v4.8.8:
 #     /usr/local/lib/node_modules/npm,
 #     and Node's two links to it, /usr/local/bin/npm and /usr/local/bin/npx. No
 #     process of this stack runs either. The entrypoint runs pnpm, goose, node
@@ -214,35 +225,14 @@
 #     directory and from prisma's, require and import of `typescript`
 #     still give 7.0.2 from typescript 7.0.2's lib/version.cjs. The rest of
 #     the platform package (its lib.*.d.ts) stays.
-#   - since 2026-11-14 (for alpha.9), cross-spawn 5.1.0 (CVE-2024-21538,
-#     high, fixed in 6.0.6 and 7.0.5), which Security Scan run 43651014145
-#     reads at node_modules/.pnpm/cross-spawn@5.1.0/node_modules/cross-spawn:
-#     pnpm's whole directory for it, node_modules/.pnpm/cross-spawn@5.1.0 (the
-#     package, and pnpm's links to its three dependencies), and spawndamnit
-#     2.0.0's link to it,
-#     node_modules/.pnpm/spawndamnit@2.0.0/node_modules/cross-spawn, which
-#     would dangle. Read in upstream's pnpm-lock.yaml and root package.json at
-#     v4.8.5: its one requirer is spawndamnit 2.0.0, and spawndamnit's two are
-#     @changesets/cli 2.26.2 and @changesets/git 2.0.0, @changesets/cli's own.
-#     @changesets/cli is in the root package.json's dependencies, which is why
-#     `pnpm install --prod` installs it, and it is release tooling: only the
-#     root's changeset:* scripts run it, and nothing here runs those. No file
-#     of apps/webapp/app, apps/webapp/server.ts, internal-packages,
-#     docker/scripts or scripts, nor the webapp's package.json, imports or
-#     depends on cross-spawn, spawndamnit or an @changesets/ package. Its
-#     other release, 7.0.6, stays: cross-env 7.0.3, an apps/webapp dependency,
-#     and six more require it, and pnpm hoists 7.0.6, not 5.1.0, into
-#     node_modules/.pnpm/node_modules, since its hoister takes the first
-#     version it meets, nearest the importers, and cross-env is a level nearer
-#     than spawndamnit. So a package that requires cross-spawn without
-#     declaring it gets 7.0.6, before and after. Before anything is removed,
-#     the build checks that the package is there and its package.json says
-#     cross-spawn 5.1.0, that pnpm's directory holds it and links alone, and,
-#     walking the whole image, that it is the one copy of cross-spawn 5.1.0
-#     and that no link reaches into the directory but spawndamnit's, removed
-#     with it where it is there; after, that no directory, package.json or
-#     link of it is left. The supervisor's build removes it the same way, with
-#     pnpm's hoist there, which is 5.1.0's.
+#   - from 2026-11-14 (for alpha.9) to 2026-11-21, cross-spawn 5.1.0
+#     (CVE-2024-21538, high, fixed in 6.0.6 and 7.0.5), with spawndamnit
+#     2.0.0's link to it: its one requirer, under the root's @changesets/cli,
+#     release tooling nothing here runs (upstream's pnpm-lock.yaml at v4.8.5).
+#     Since v4.8.8 upstream's root package.json overrides `cross-spawn@<6.0.6`
+#     to ^7.0.6, its lockfile resolves 7.0.6 alone, and spawndamnit links
+#     7.0.6, so the image holds no 5.1.0 and the removal went (WHAT UPSTREAM
+#     NOW SHIPS FIXED), its check, its walk and its proof with it.
 #     The build proves as root, after every removal, that pnpm 10.34.9 starts
 #     offline and runs a command in @trigger.dev/database's package, as the
 #     migrations do. That command is a `pnpm exec`, which does not pass through
@@ -323,6 +313,14 @@
 # from the npm registry now but pnpm 10.34.9, which corepack installs (WHAT IS
 # REPLACED: PNPM); the undici relink fetches nothing, and gives connect-node
 # the store's 6.29.1 (WHAT IS RELINKED: UNDICI).
+# Since v4.8.8 (2026-11-21) upstream's root package.json also overrides
+# `cross-spawn@<6.0.6` to ^7.0.6, and its lockfile resolves cross-spawn 7.0.6
+# alone: spawndamnit 2.0.0, its one requirer under the root's @changesets/cli,
+# links 7.0.6, and 5.1.0 and the six packages that came with it (lru-cache
+# 4.1.5, pseudomap, shebang-command 1.2.0, shebang-regex 1.0.0, which 1.3.1,
+# yallist 2.1.2) are gone. So the removal of 5.1.0 went from both builds, with
+# its rows and the guard's CROSS_SPAWN, as THE WAY OUT said: its check stops
+# the build where it is not there.
 #
 # WHAT IS REPLACED: GOOSE v3.27.1 BY v3.30.1 (by v3.29.0 from 2026-11-03; by
 # v3.30.1 since 2026-11-13, for alpha.8). Upstream's
@@ -529,7 +527,9 @@
 # it loaded is 6.29.1's index.js. scripts/a-binary-the-stack-never-runs.unit.test.ts
 # holds the RUN's shape and runs it over its stand-in.
 #
-# WHAT STAYS, and why (2026-11-03; read again at v4.8.5 on 2026-11-13;
+# WHAT STAYS, and why (2026-11-03; read again at v4.8.5 on 2026-11-13, and at
+# v4.8.8 on 2026-11-21, whose lockfile resolves turbo-stream 2.4.1 and
+# deepmerge-ts 7.1.5 as v4.8.5's did;
 # triggerdotdev/trigger.dev#5084 asks upstream for all of it). Expected at
 # v4.8.5, by arithmetic from the scan of the image built for alpha.7 (Security
 # Scan run 42440765278: 1 critical, 22 high, 14 with a fix): 1 critical, about
@@ -552,9 +552,9 @@
 # @prisma/config 6.14.0 and 6.19.0) and body-parser 2.3.0 (2.4.0 needs
 # iconv-lite ^0.7.3, and pnpm linked 0.7.2 for it) stayed too. Until
 # 2026-11-14 cross-spawn 5.1.0 (fixed in 6.0.6; spawndamnit's, under the
-# root's @changesets/cli) stayed as well: it goes since (WHAT GOES), and about
-# 16 high and about 8 with a fix are expected, which the branch's image scan
-# measures. Until 2026-11-20 undici 5.29.0 (5 highs,
+# root's @changesets/cli) stayed as well: this build removed it from then
+# until v4.8.8, whose override takes 7.0.6 in its place (WHAT UPSTREAM NOW
+# SHIPS FIXED). Until 2026-11-20 undici 5.29.0 (5 highs,
 # @connectrpc/connect-node's; fixed in 6) and its @fastify/busboy 2.1.1 (1,
 # fixed in 3) stayed too. The scan of main on 2026-11-19 read 1 critical, 19
 # high and 8 with a fix (Security Scan run 44637576014; its 11 highs with no
@@ -762,9 +762,9 @@
 #
 # READ AT ONE RELEASE. Why each removal is safe was read in upstream's source at
 # read_at (below): the depot gate, what build/server.js imports, the entrypoint
-# and the copies of pnpm. A release that keeps @depot/cli 0.0.1-cli.2.80.0 and
-# esbuild 0.23.0 at the same paths (4.7.6, 4.8.0, 4.8.1, 4.8.3 and 4.8.5 all
-# do) would pass every path check here while code this stack reaches started
+# and the copies of pnpm. A release that keeps @depot/cli 0.0.1-cli.2.80.0 at
+# the same path (4.7.6 to 4.8.8 all do; esbuild 0.23.0 stayed from 4.7.6 to
+# 4.8.5) would pass every path check here while code this stack reaches started
 # to run one of them. So the build refuses any other version than read_at, and
 # `trigger-version.sh pin` leaves read_at where it is: a version move's pull
 # request is red (here, in `build (trigger, …)` and in E2E (managed)) until
@@ -777,10 +777,10 @@
 # its packageManager is pnpm@10.33.2 (the one the swap replaces, WHAT IS
 # REPLACED: PNPM), and it runs on linux-arm64 or linux-x64; npm's and
 # corepack's directories name no version, so their package.json must say
-# 11.19.1 and 0.36.0, Node 24.22.3's at v4.8.5 as they were 24.22.1's. Each
-# file is tested before a plain
-# `rm`, never `rm -f`, and checked gone after. A Trigger.dev that moves
-# @depot/cli, esbuild, TypeScript 7, cross-spawn 5.1.0, pnpm or Node, or drops
+# 11.19.1 and 0.36.0, Node 24.22.3's at v4.8.5 and v4.8.8 as they were
+# 24.22.1's. Each file is tested before a plain `rm`, never `rm -f`, and
+# checked gone after. A Trigger.dev that moves @depot/cli, esbuild, TypeScript
+# 7, pnpm or Node, or drops
 # one, fails here and names the path: re-read this header against it, and
 # drop the removal upstream fixed. The replacement names the version it replaces the same
 # way (goose v3.27.1), and fails by name when upstream moves it: drop it
@@ -820,11 +820,10 @@
 # rest fails its check, delete that removal and its row in the guard's
 # REMOVED table. TypeScript 7's tsc goes
 # out with its REMOVED row when upstream's lockfile no longer resolves
-# typescript 7.0.2 (or drops the peer that brings it). cross-spawn 5.1.0 goes
-# out, in both Dockerfiles, with its REMOVED rows and the guard's CROSS_SPAWN,
-# when upstream's lockfile no longer resolves it (a @changesets/cli whose
-# spawndamnit takes cross-spawn 7, or none in the root's dependencies): its
-# check stops the build where it is not there. The undici relink goes, its RUN
+# typescript 7.0.2 (or drops the peer that brings it). cross-spawn 5.1.0 went
+# out at v4.8.8, in both Dockerfiles, with its REMOVED rows and the guard's
+# CROSS_SPAWN, when upstream's lockfile stopped resolving it (its override
+# takes 7.0.6 for spawndamnit). The undici relink goes, its RUN
 # with the guard's RELINK, when upstream's lockfile no longer resolves undici
 # 5.29.0 for connect-node (a connect-node on undici 6 or later, or a
 # @depot/sdk-node that takes none): its checks stop the build where
@@ -854,7 +853,7 @@
 # `pin`ned backwards: its checks hold for read_at only, so going back to an
 # older release means running the checkout that pinned it (a revert of the
 # move, or the older release's tag), whose own Dockerfile and name come with it.
-FROM ghcr.io/triggerdotdev/trigger.dev:v4.8.5@sha256:6e6d38a94699b93a9be63deb5a8646d5c36fc0e5af60fb9047c5d5ec16e3e92c
+FROM ghcr.io/triggerdotdev/trigger.dev:v4.8.8@sha256:09b183fb83c006e24d8693b60c433459b053d9b607e694c0fd5d80a8b0e5dc69
 
 # Given by managed.yml from the .env, empty when the .env sets none. It only refuses.
 ARG TRIGGER_IMAGE_TAG
@@ -864,7 +863,7 @@ USER root
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read this file's header against the new tag, or drop the removal upstream fixed." >&2; exit 1; }; \
-    read_at=v4.8.5; \
+    read_at=v4.8.8; \
     core="v$(node -p "require('/triggerdotdev/packages/core/package.json').version")"; \
     if [ -n "${TRIGGER_IMAGE_TAG:-}" ] && [ "$TRIGGER_IMAGE_TAG" != "$core" ]; then \
       echo "$me: the .env names TRIGGER_IMAGE_TAG=$TRIGGER_IMAGE_TAG, and this checkout builds Trigger.dev $core. Either set TRIGGER_IMAGE_TAG=$core in the .env, or run a checkout that pins $TRIGGER_IMAGE_TAG: the release that ran it, or a move to it (trigger-version.sh pin $TRIGGER_IMAGE_TAG, docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; \
@@ -886,17 +885,12 @@ RUN set -eu; \
     s=/triggerdotdev/node_modules/.pnpm; \
     depot_bin="$s/@depot+cli-$plat@0.0.1-cli.2.80.0/node_modules/@depot/cli-$plat/bin/depot"; \
     depot_link="$s/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli/bin/depot"; \
-    esbuild_bin="$s/@esbuild+$plat@0.23.0/node_modules/@esbuild/$plat/bin/esbuild"; \
-    esbuild_link="$s/esbuild@0.23.0/node_modules/esbuild/bin/esbuild"; \
+    esbuild_bin="$s/@esbuild+$plat@0.28.2/node_modules/@esbuild/$plat/bin/esbuild"; \
+    esbuild_link="$s/esbuild@0.28.2/node_modules/esbuild/bin/esbuild"; \
     tsc_bin="$s/@typescript+typescript-$plat@7.0.2/node_modules/@typescript/typescript-$plat/lib/tsc"; \
     case "$plat" in linux-arm64) tsc_sha256=f86e8070c267b12d6c119bf567cb82d8b245e9d93da1864bc7c603cea10a8b2f;; linux-x64) tsc_sha256=4f2de678286401759b3fb4475bafe35b8f32b4b3a07d92642bbf37eadc9b34a4;; esac; \
     typescript="$s/typescript@7.0.2/node_modules/typescript"; \
     prisma="$s/prisma@6.14.0_magicast@0.3.5_typescript@7.0.2/node_modules/prisma"; \
-    xspawn_store="$s/cross-spawn@5.1.0"; \
-    xspawn="$xspawn_store/node_modules/cross-spawn"; \
-    xspawn_link="$s/spawndamnit@2.0.0/node_modules/cross-spawn"; \
-    top=/; \
-    where="const fs = require('fs'); const path = require('path'); const [top, gone, name, version] = process.argv.slice(1); const dev = fs.statSync(top).dev; const real = fs.existsSync(gone) ? fs.realpathSync(gone) : gone; const into = (t) => [gone, real].some((g) => t === g || t.startsWith(g + '/')); const dir = name + '@' + version; const quoted = JSON.stringify(name); let read = 0; const hits = []; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isSymbolicLink()) { if (!into(p) && (into(path.resolve(d, fs.readlinkSync(p))) || (fs.existsSync(p) && into(fs.realpathSync(p))))) hits.push('link ' + p); continue; } if (s.isDirectory()) { if (e === dir || e.startsWith(dir + '_')) hits.push('directory ' + p); if (s.dev === dev) walk(p); continue; } if (e !== 'package.json' || !s.isFile()) continue; read++; const text = fs.readFileSync(p, 'utf8'); if (!text.includes(quoted)) continue; let j = null; try { j = JSON.parse(text); } catch { if (text.includes(JSON.stringify(version))) hits.push('unreadable ' + p); continue; } if (j !== null && typeof j === 'object' && j.name === name && j.version === version) hits.push('package ' + p); } }; walk(top); console.error(read + ' package.json files read under ' + top); if (read < 1) process.exit(2); console.log(hits.sort().map((h) => h + ' ').join(''));"; \
     unused=/home/node/.cache/node/corepack/v1/pnpm/10.33.2; \
     replaced=/root/.cache/node/corepack/v1/pnpm/10.33.2; \
     kept="/root/.cache/node/corepack/v1/pnpm/$pnpm_to"; \
@@ -931,16 +925,6 @@ RUN set -eu; \
     into="$(find /usr/local/bin -type l -exec sh -c 'for link; do case "$(readlink -f "$link")" in "$0"/*) echo "$link" ;; esac; done' "$(readlink -f "$npm_dir")" {} + | LC_ALL=C sort | tr '\n' ' ')"; \
     [ "$into" = "$npm_link $npx_link " ] || fail "these link into $npm_dir: ${into:-nothing}, not npm and npx alone."; \
     [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "$corepack_dir is not corepack 0.36.0, Node 24.22.3's, which runs every pnpm here."; \
-    [ -f "$xspawn/package.json" ] || fail "$xspawn is not there."; \
-    said="$(node -p "const j = require('$xspawn/package.json'); j.name + '@' + j.version")"; \
-    [ "$said" = cross-spawn@5.1.0 ] || fail "$xspawn is $said, not cross-spawn@5.1.0, the release this file removes."; \
-    [ "$(ls -A "$xspawn_store")" = node_modules ] || fail "$xspawn_store holds more than pnpm's node_modules: $(ls -A "$xspawn_store" | tr '\n' ' ')"; \
-    held="$(cd "$xspawn_store/node_modules" && find . -mindepth 1 -maxdepth 1 ! -type l)"; \
-    [ "$held" = ./cross-spawn ] || fail "in $xspawn_store/node_modules, these are no links: ${held:-none}; this file removes cross-spawn 5.1.0 and pnpm's links to its dependencies alone."; \
-    want_link=""; if [ -L "$xspawn_link" ]; then want_link="link $xspawn_link "; fi; \
-    want="directory $xspawn_store ${want_link}package $xspawn/package.json "; \
-    found="$(node -e "$where" "$top" "$xspawn_store" cross-spawn 5.1.0)" || fail "$top could not be read for cross-spawn 5.1.0 (above); nothing is removed yet."; \
-    [ "$found" = "$want" ] || fail "under $top, cross-spawn 5.1.0 is: ${found:-nothing}; this file was read for one copy, $xspawn, in $xspawn_store, and no link into it but spawndamnit 2.0.0's, $xspawn_link, removed with it where it is there (pnpm hoists cross-spawn 7.0.6 here)."; \
     corepack install -g "pnpm@$pnpm_to+sha512.$pnpm_to_sha512" || fail "corepack did not install pnpm $pnpm_to by the sha512 npm published for it; nothing is removed yet."; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack is not there after the install: corepack put pnpm $pnpm_to elsewhere."; \
     [ "$(node -p "require('$kept/package.json').version")" = "$pnpm_to" ] || fail "$kept is not pnpm $pnpm_to."; \
@@ -952,30 +936,26 @@ RUN set -eu; \
     [ "$named" = "$kept/bin/pnpm.cjs:require(v8-compile-cache $kept/dist/pnpm.cjs:require.resolve(picomatch $kept/dist/pnpm.cjs:resolveFrom(__dirname, node-gyp/bin/node-gyp " ] || fail "in $kept, outside $kept_modules, these name a package inside it: ${named:-none}; this file was read for three, each in a try: bin/pnpm.cjs's v8-compile-cache, and dist/pnpm.cjs's picomatch and node-gyp/bin/node-gyp."; \
     rm "$depot_bin" "$depot_link" "$esbuild_bin" "$esbuild_link" "$tsc_bin" "$npm_link" "$npx_link"; \
     rm -r "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir"; \
-    rm -r "$xspawn_store"; \
-    if [ -L "$xspawn_link" ]; then rm "$xspawn_link"; fi; \
     node -e "const fs = require('fs'); const [file, from, to] = process.argv.slice(1); const text = fs.readFileSync(file, 'utf8'); const field = /(\"packageManager\"[ \t]*:[ \t]*\")([^\"]*)(\")/g; const found = [...text.matchAll(field)].map((m) => m[2]); if (found.length !== 1 || found[0] !== from) { console.error(file + ' names packageManager as: ' + (found.join(', ') || 'nothing')); process.exit(1); } fs.writeFileSync(file, text.replace(field, (all, key, value, end) => key + to + end));" "$root_pkg" "$pm_upstream" "pnpm@$pnpm_to" || fail "$root_pkg's packageManager was not rewritten to pnpm@$pnpm_to: the file does not name it once, as $pm_upstream."; \
     pm="$(node -p "require('$root_pkg').packageManager")"; \
     [ "$pm" = "pnpm@$pnpm_to" ] || fail "$root_pkg names $pm after the rewrite, not pnpm@$pnpm_to: corepack would look for a copy this file removed."; \
     left="$(find "$s" -type f \( -name depot -o -name esbuild -o -name tsc -o -name tsgo \) -exec sh -c 'for f; do [ "$(head -c4 "$f" | od -An -tx1 | tr -d " \n")" != 7f454c46 ] || echo "$f"; done' sh {} +)"; \
     [ -z "$left" ] || fail "a depot, esbuild or tsc binary is still there: $left"; \
-    for p in "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir" "$npm_link" "$npx_link" "$tsc_bin" "$xspawn_store" "$xspawn_link"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
-    found="$(node -e "$where" "$top" "$xspawn_store" cross-spawn 5.1.0)" || fail "$top could not be read for cross-spawn 5.1.0 after the removal (above)."; \
-    [ -z "$found" ] || fail "after the removal, cross-spawn 5.1.0 is still under $top: $found"; \
+    for p in "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir" "$npm_link" "$npx_link" "$tsc_bin"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack went with the removal."; \
     pnpm_copies="$(find "${kept%/*}" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ')"; \
     [ "$pnpm_copies" = "$pnpm_to " ] || fail "${kept%/*} holds ${pnpm_copies}and not pnpm $pnpm_to alone: a copy this file was not read for."; \
     pnpm_copies="$(find "${unused%/*}" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ')"; \
     [ -z "$pnpm_copies" ] || fail "${unused%/*} still holds ${pnpm_copies}after the removals: a copy this file was not read for."; \
     [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "corepack 0.36.0 went with npm."; \
-    node -e "require('$s/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli'); require('$s/esbuild@0.23.0/node_modules/esbuild')" || fail "@depot/cli or esbuild no longer loads without its binary."; \
+    node -e "require('$s/@depot+cli@0.0.1-cli.2.80.0/node_modules/@depot/cli'); require('$s/esbuild@0.28.2/node_modules/esbuild')" || fail "@depot/cli or esbuild no longer loads without its binary."; \
     for d in "$typescript" "$prisma"; do \
       (cd "$d" && node -e "const fs = require('fs'); const p = fs.realpathSync(require.resolve('typescript')); const v = require('typescript').version; console.log('require(typescript): ' + p + ' ' + v); if (p !== fs.realpathSync(process.argv[1] + '/lib/version.cjs') || v !== '7.0.2') process.exit(1);" "$typescript") || fail "from $d, require('typescript') does not give 7.0.2 from $typescript without its binary."; \
       (cd "$d" && node --input-type=module -e "import { realpathSync } from 'node:fs'; import { fileURLToPath } from 'node:url'; const p = realpathSync(fileURLToPath(import.meta.resolve('typescript'))); const v = (await import('typescript')).default.version; console.log('import(typescript): ' + p + ' ' + v); if (p !== realpathSync(process.argv[1] + '/lib/version.cjs') || v !== '7.0.2') process.exit(1);" "$typescript") || fail "from $d, import('typescript') does not give 7.0.2 from $typescript without its binary."; \
     done; \
     [ "$(cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --version)" = 10.34.9 ] || fail "as root, the user trigger-api runs as, pnpm 10.34.9 does not start offline."; \
     (cd /triggerdotdev && COREPACK_ENABLE_NETWORK=0 pnpm --fail-if-no-match --filter @trigger.dev/database exec node -e 0) || fail "as root, pnpm without node-gyp's tree does not run a command in @trigger.dev/database offline, as the entrypoint's migrations need."; \
-    echo "$me: removed both names of depot and esbuild, TypeScript 7.0.2's tsc, cross-spawn 5.1.0 with every link into it, node's copy of pnpm, root's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten), node-gyp's tree from root's and npm; corepack 0.36.0 stays, and as root pnpm $pnpm_to starts and runs a workspace command offline."
+    echo "$me: removed both names of depot and esbuild, TypeScript 7.0.2's tsc, node's copy of pnpm, root's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten), node-gyp's tree from root's and npm; corepack 0.36.0 stays, and as root pnpm $pnpm_to starts and runs a workspace command offline."
 
 # Still as root: goose v3.27.1 replaced by goose v3.30.1's release binary
 # (WHAT IS REPLACED: GOOSE and HOW GOOSE IS REPLACED, above).

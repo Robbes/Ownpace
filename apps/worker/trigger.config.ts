@@ -35,7 +35,8 @@ import { defineConfig } from '@trigger.dev/sdk';
  * below sets the build manifest's `image.base` to it and adds NO LAYER, so the
  * CLI builds nothing into it: the base stage of the Containerfile it writes is
  * `FROM <this> AS base` with one ENV line, and the runtime stage is `FROM base
- * AS final` with no RUN (trigger.dev 4.8.3 and 4.8.5,
+ * AS final` with no RUN (trigger.dev 4.8.3, 4.8.5 and 4.8.8, whose runtime
+ * stage adds one COPY, Node's compile cache from the indexer stage;
  * `generateNodeContainerfile` in `dist/esm/deploy/buildImage.js`). A layer,
  * even one ENV line, would make the CLI write its apt repair into the base
  * stage, which has no shell to run it:
@@ -81,8 +82,9 @@ const TASK_BASE_IMAGE =
 const TASK_BASE = 'task-base';
 
 /**
- * The CLI's own build-stage image for `node-26` at trigger.dev 4.8.5
- * (`BUILD_IMAGE['node-26']` in `dist/esm/deploy/buildImage.js`; Docker Hub's
+ * The CLI's own build-stage image for `node-26` at trigger.dev 4.8.5, and
+ * 4.8.8's the same (`BUILD_IMAGE['node-26']` in
+ * `dist/esm/deploy/buildImage.js`; Docker Hub's
  * `26-bookworm-build-20261111-000000-9cbcf9c`, pushed 2026-11-12 00:03 UTC,
  * Node 26.13.1 in its amd64 and arm64 configs): its runtime image with
  * python3, make and g++. Named as the manifest's `image.buildBase`, the CLI's
@@ -115,7 +117,7 @@ export default defineConfig({
   // two together; it was 24 until 2026-10-31 (workplan 0119 §2.4). It is set
   // explicitly because without it the CLI takes the server project's default
   // runtime, or else its own `node`, which in the 4.5.16 CLI is
-  // triggerdotdev/node:21-bookworm (in 4.8.5, triggerdotdev/node:24-bookworm):
+  // triggerdotdev/node:21-bookworm (in 4.8.5 and 4.8.8, triggerdotdev/node:24-bookworm):
   // the tasks ran Node 21 until this line.
   // For node-26 the CLI would build on triggerdotdev/node:26-bookworm; the
   // extension below names the prebuilt base instead, and the build stage
