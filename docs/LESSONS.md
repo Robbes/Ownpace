@@ -49,6 +49,7 @@ reading a file drops off its entry by itself.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
 - [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
+- [a-lock-a-migration-takes](../scripts/a-lock-a-migration-takes.unit.test.ts) — A lock a migration takes, read before the merge, and reported only (workplan 0165).
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
@@ -149,6 +150,10 @@ reading a file drops off its entry by itself.
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
+
+### `.github/workflows/migration-locks.yml`
+
+- [a-lock-a-migration-takes](../scripts/a-lock-a-migration-takes.unit.test.ts) — A lock a migration takes, read before the merge, and reported only (workplan 0165).
 
 ### `.github/workflows/nextcloud-second-major.yml`
 
@@ -2534,6 +2539,7 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/migrate.ts`
 
 - [a-chain-that-only-grows](../scripts/a-chain-that-only-grows.unit.test.ts) — A CHAIN THAT ONLY GROWS: nothing said when pre-release ended, so nothing refused a squash, an edit or a deletion of a migration a release had shipped, and the squash script's own advice was to drop a database that would not start (workpl…
+- [a-lock-a-migration-takes](../scripts/a-lock-a-migration-takes.unit.test.ts) — A lock a migration takes, read before the merge, and reported only (workplan 0165).
 - [a-zip-no-windows-had-started](../scripts/a-zip-no-windows-had-started.unit.test.ts) — A ZIP NO WINDOWS HAD STARTED: every release tag attached a Windows zip that no Windows machine had run, because the only Windows check was a person's, by hand, and it was owed (workplan 0119, Status 2026-11-02).
 
 ### `packages/ledger/src/retention.ts`
@@ -3254,6 +3260,10 @@ reading a file drops off its entry by itself.
 ### `scripts/machine-product-name.mjs`
 
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
+
+### `scripts/migration-locks-report.mjs`
+
+- [a-lock-a-migration-takes](../scripts/a-lock-a-migration-takes.unit.test.ts) — A lock a migration takes, read before the merge, and reported only (workplan 0165).
 
 ### `scripts/nextcloud-suites.mjs`
 
@@ -4756,6 +4766,17 @@ A LIVE PROGRESS THAT NEEDED F5.
 Reads:
 
 - `apps/web/src/pages/MappingDetail.tsx`
+
+### [a-lock-a-migration-takes](../scripts/a-lock-a-migration-takes.unit.test.ts)
+
+A lock a migration takes, read before the merge, and reported only (workplan 0165).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/migration-locks.yml`
+- `packages/ledger/src/migrate.ts`
+- `scripts/migration-locks-report.mjs`
 
 ### [a-log-that-kept-the-link](../scripts/a-log-that-kept-the-link.unit.test.ts)
 
