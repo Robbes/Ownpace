@@ -132,7 +132,10 @@ export function decryptCxdrv2(p: {
     aad.writeUInt32LE((p.firstIndex ?? 0) + i, 16);
     aad.writeUInt32LE(count, 20);
     aad.writeUInt32LE(size, 24);
-    const decipher = createDecipheriv('aes-256-gcm', p.key, iv);
+    // The tag's length is named, as the encoder names it, so Node itself
+    // refuses a shorter tag at setAuthTag and not only the check above
+    // (workplan 0166 T2, Semgrep's gcm-no-tag-length).
+    const decipher = createDecipheriv('aes-256-gcm', p.key, iv, { authTagLength: 16 });
     decipher.setAAD(aad);
     decipher.setAuthTag(tag);
     out.push(Buffer.concat([decipher.update(ciphertext), decipher.final()]));

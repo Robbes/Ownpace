@@ -181,6 +181,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and `docs/o365-setup.md`'s placeholders are allowed by path in `.gitleaks.toml`; nothing else
   is, and no `gitleaks:allow` comment or `.gitleaksignore` counts. `main`'s history is not
   judged. The weekly pin watch says when a newer gitleaks is tagged.
+- **The Cirrux test server's decipher names its tag's length too** (workplan 0166 T2). The fake
+  Cirrux Drive the connector's tests run against decrypts each `CXDRV2` chunk with AES-GCM, and
+  left the tag's length to GCM's default, which accepts a short tag. It now names 16 bytes, as the
+  encoder and the credential store do, so Node refuses a shorter tag itself. Nothing shipped
+  changes: the fake runs in tests only. Semgrep's `gcm-no-tag-length` reports nothing after it.
 
 ## [0.2.0-alpha.13] - 2026-11-21
 
