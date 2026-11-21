@@ -2,7 +2,48 @@
 
 > **In one line:** Which scanners and checks CI should add so that what an outside, read-only check finds is caught before a merge: what runs today, what each finding is, and in what order to add Semgrep, osv-scanner, zizmor's secrets audit, gitleaks and the rest, each failing the build or only reporting.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21: T3, Semgrep report only, built as #1986 (a draft, not merged).** On
+`claude/ownpace-public-readiness-y7orc6-semgrep-report`, from `main` at `5a0a2eff`; step 3 of §5,
+as D3 decided.
+- **What it does.** `semgrep.yml` is a workflow of its own, in the shape of `hadolint.yml`. It runs
+  on every pull request, on a push to `main` and on dispatch, on a GitHub-hosted runner, and is not
+  a required check.
+  - `scripts/semgrep-report.mjs` runs Semgrep once over the checkout, mounted read-only, as the
+    image's own user, with the eight rules of step 3. Each rule is fetched from the registry by
+    id, so no copy is kept here and D3's licence question does not arise.
+  - It writes each rule's spots to the job summary, and marks a spot of a rule that may block on
+    its line.
+  - On a push to `main` the SARIF goes to code scanning, never from a pull request.
+- **Known, never ignored:** the two spots §4.3 read as false positives, `apps/worker/src/index.ts`
+  (the worker CLI's own `--config`) and `google-consent.ts` (its value goes through `jsString`).
+  The two ReDoS rules are listed apart and never block.
+- **Report only, and a scan that did not finish is not green:** a warning on a pull request, a
+  failure on `main`. Finished means Semgrep exited 0, wrote both reports, calls itself the pinned
+  release, ran the eight rules and no other, and read at least 1,000 files.
+- **1.186.0, not 1.178.0**, for T2's reason: 1.178.0 is eight releases behind. The pin watch now
+  has a `semgrep/semgrep` row. 1.186.0 was pushed on 2026-11-18 at 00:21 UTC, three days before it
+  was pinned.
+- **What the pull request's runs read** (44844096091 and 44844804194, the same both times): 210
+  spots.
+  - 203 are the two ReDoS rules': 185 from `detect-non-literal-regexp` (§4.3 counted 174, on an
+    older tree with an older Semgrep) and 18 from `detect-redos`.
+  - 2 are known.
+  - 5 are to read, the spots that keep a rule from blocking:
+    - `packages/core/src/secrets.ts:194` (`gcm-no-tag-length`), fixed in #1985;
+    - `packages/connectors/src/__testing__/cirrux-fake.ts:135` (`gcm-no-tag-length`), the
+      Cirrux test server's decipher, which wants the same option;
+    - `apps/web/src/pages/Billing.tsx:760` and `apps/web/src/components/ProviderConsent.tsx:593`,
+      findings 8 and 9 (T4);
+    - `.github/workflows/no-committed-artifacts.yml:41` (`run-shell-injection`), which goes with
+      GEN-26.
+- **Tests:**
+  - the new guard `a-finding-only-an-outside-check-saw` (18 tests);
+  - a Semgrep block in `a-pin-that-knows-it-is-behind`;
+  - the check classified as not required.
+  - Locally: 307 files, 7,465 tests passed, 33 skipped. Sixteen mutations of the report and
+    three of the pin row each fail a guard.
 
 **2026-11-20, after T2: #1984's CI is green, and T4's first fix is built as #1985 (a draft, not
 merged).**
@@ -126,8 +167,8 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised); ⏳ **Owner** (D7) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | 🔨 **Built** in #1984, a draft, not merged (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
-| T3 Semgrep, report only | builder | 📋 **Planned** (D3) | Findings 5 and 6, plus `gcm-no-tag-length` and the template injection. A short named list of rules, not whole packs. The community rules do not reproduce findings 7 to 9 (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned**; 🔨 **the tag length built** in #1985, a draft, not merged | §4.3. Fix `secrets.ts`'s `authTagLength`; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T3 Semgrep, report only | builder | 🔨 **Built** in #1986, a draft, not merged (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
+| T4 Fix or answer each spot | builder | 📋 **Planned**; 🔨 **the tag length built** in #1985, a draft, not merged | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
@@ -366,7 +407,7 @@ an exact apk or apt pin, and hadolint stays report only.
 |---|---|---|---|---|---|---|---|---|
 | 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`). Built with v2.7.1, the newest release past the three-day floor (Status, 2026-11-20, at the end) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
 | 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
-| 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `js-open-redirect-from-function`, `react-href-var`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` and `detect-redos` (both report only for good). The rules are fetched by id, so a rule in no pack is as easy to name as one in a pack | 5, 6, 8, 9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
+| 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `js-open-redirect-from-function`, `react-href-var`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` and `detect-redos` (both report only for good). The rules are fetched by id, so a rule in no pack is as easy to name as one in a pack | 5, 6, 8, 9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short. Built with 1.186.0, the newest release past the three-day floor, and the ids in `RULES` in `scripts/semgrep-report.mjs` (Status, 2026-11-21) | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
 | 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
 | 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
 
