@@ -224,7 +224,11 @@ describe('only while it is open, and only for the organisation on the page', () 
     expect(within(await section()).getByRole('textbox')).not.toHaveAttribute('maxlength');
   });
 
-  it('offers the next organisation its own marker, not what was typed for the last', async () => {
+  it('offers each organisation its own marker, never what was typed on another’s page', async () => {
+    // The page is kept mounted from one organisation to the next. An
+    // organisation read for the first time is loaded afresh, but one already
+    // read comes back from the cache at once, into the same page: that is
+    // where a section that kept its state would offer the last one's marker.
     const OTHER: SupportTenant = { ...ORG, tenant_id: '0162d100-0000-0000-0000-000000000002', tenant_name: 'Ander BV' };
     vi.mocked(getSupportTenant).mockImplementation(async (id: string) => ({
       tenant: id === OTHER.tenant_id ? OTHER : ORG,
@@ -233,34 +237,45 @@ describe('only while it is open, and only for the organisation on the page', () 
       invoices: [],
       members: [],
     }));
-    const Next: React.FC = () => {
+    const Go: React.FC = () => {
       const navigate = useNavigate();
       return (
-        <button type="button" onClick={() => navigate(`/support/tenants/${OTHER.tenant_id}`)}>
-          next organisation
-        </button>
+        <>
+          <button type="button" onClick={() => navigate(`/support/tenants/${OTHER.tenant_id}`)}>
+            to Ander
+          </button>
+          <button type="button" onClick={() => navigate(`/support/tenants/${ORG.tenant_id}`)}>
+            to Proefjes
+          </button>
+        </>
       );
     };
     const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
     render(
       <QueryClientProvider client={client}>
         <MemoryRouter initialEntries={[`/support/tenants/${ORG.tenant_id}`]}>
-          <Next />
+          <Go />
           <Routes>
             <Route path="/support/tenants/:tenantId" element={<SupportTenantDetail />} />
           </Routes>
         </MemoryRouter>
       </QueryClientProvider>,
     );
-    const first = within(await section());
-    fireEvent.change(first.getByRole('textbox'), { target: { value: '[Typed-for-Proefjes]' } });
-    fireEvent.click(first.getByRole('button', { name: S['support.test.arm'] }));
-    fireEvent.click(screen.getByRole('button', { name: 'next organisation' }));
+    await screen.findByRole('heading', { name: /Proefjes BV/ });
+    fireEvent.click(screen.getByRole('button', { name: 'to Ander' }));
     await screen.findByRole('heading', { name: /Ander BV/ });
-    const next = within(await section());
-    expect(next.getByRole('textbox')).toHaveValue('[Ownpace-test]');
-    expect(next.getByRole('button', { name: S['support.test.arm'] })).toBeEnabled();
-    expect(next.queryByText(fill(S['support.test.confirm'], { name: 'Ander BV', marker: '[Typed-for-Proefjes]' }))).toBeNull();
+    const there = within(await section());
+    fireEvent.change(there.getByRole('textbox'), { target: { value: '[Typed-for-Ander]' } });
+    fireEvent.click(there.getByRole('button', { name: S['support.test.arm'] }));
+    expect(there.getByText(fill(S['support.test.confirm'], { name: 'Ander BV', marker: '[Typed-for-Ander]' }))).toBeInTheDocument();
+
+    // Back to the first, which comes from the cache into the same page.
+    fireEvent.click(screen.getByRole('button', { name: 'to Proefjes' }));
+    await screen.findByRole('heading', { name: /Proefjes BV/ });
+    const back = within(await section());
+    expect(back.getByRole('textbox')).toHaveValue('[Ownpace-test]');
+    expect(back.getByRole('button', { name: S['support.test.arm'] })).toBeEnabled();
+    expect(back.queryByText(/\[Typed-for-Ander\]/)).toBeNull();
   });
 });
 
