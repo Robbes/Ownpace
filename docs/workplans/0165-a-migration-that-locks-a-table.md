@@ -1,8 +1,25 @@
 # Workplan 0165 — A migration that locks a table
 
-> **In one line:** Which migrations lock a table, why migration-lint's Atlas cannot see it, and a squawk report on each migration a pull request adds or changes, report only; by the owner's answers, no rule blocks, the runner gets a lock timeout, and no file runs outside a transaction.
+> **In one line:** Which migrations lock a table, why migration-lint's Atlas cannot see it, and a squawk report on each migration a pull request adds or changes, report only; as decided, no rule blocks, the runner gets a lock timeout, and no file runs outside a transaction.
 
 ## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21, last: T4, a lock timeout in the runner, built as #2002, and the report reads it.**
+On `claude/ownpace-public-readiness-y7orc6-migration-lock-timeout`, from `main` at `77eea91d`, with
+#2000's branch merged in, then `main` at `55eab78b`, which carries #2000 (`f1a6921a`) and #2005.
+- **The runner.** `applyOne` (`packages/ledger/src/migrate.ts`) runs `SET LOCAL lock_timeout` to
+  `MIGRATION_LOCK_TIMEOUT`, five seconds, right after each file's `BEGIN`. Past it the file rolls
+  back with nothing applied, the start fails with a message that says it waited for a lock, and
+  the next start tries again. The advisory lock taken before any file still waits for another
+  migrator, and there is no `statement_timeout`. D3 named no value; moving it is one line. The
+  managed chain goes through the same runner. ADR-0045 records it.
+- **The report.** `require-lock-timeout`, which squawk raises on 123 files because it reads each
+  file alone, is now marked *met by the runner* (`MET_BY_THE_RUNNER` in
+  `scripts/migration-locks-report.mjs`): a changed file's finding is listed with that mark and
+  gets no warning on its line, and the history counts say why. `a-lock-a-migration-takes` holds
+  the mark to the runner: it fails if `applyOne` stops setting a lock timeout between `BEGIN` and
+  the file. Three mutations each fail it: the rule taken out of the map (2 tests), the mark's
+  warning put back (1), the runner's `SET LOCAL` removed (1).
 
 **2026-11-21, later: the owner's answers, and squawk's first reading.**
 - **The answers.** Asked D1 to D4 (§6), the owner answered *"I take your recommendation.
@@ -15,7 +32,7 @@
   `require-statement-timeout`. squawk reads each file alone, so it cannot see a timeout the
   runner sets; T4 marks the first one as met by the runner in the report.
 
-**2026-11-21: read, and a report built, report only.** On
+**2026-11-21: read, and a report built, report only, merged as #2000 on 2026-11-21 (`f1a6921a`).** On
 `claude/ownpace-public-readiness-y7orc6-migration-locks`, from `main` at `87663d7`.
 - **The finding.** An outside, read-only check (DATA-1b, "Database changes that lock a table",
   of 2026-11-21, on `75d7949d`) ran squawk 2.66.0 with its own configuration over the migrations'
@@ -55,9 +72,9 @@
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21** (D1 to D4, as advised) | §6. The owner's answer is quoted in the Status entry of 2026-11-21, later. |
 | T1 Read the finding | builder | ✅ **Done 2026-11-21** | §2 to §4: each listed place, what it locks, the rest of both chains, and what Atlas reads. |
-| T2 squawk, report only | builder | 🔨 **Built**, a draft pull request (D1) | `migration-locks.yml`, `scripts/migration-locks-report.mjs`, a pin-watch row, two guards. Fails nothing; not a required check. |
-| T3 A squawk rule that blocks | builder | 🅿️ **Parked 2026-11-21, by owner decision** (D2: not now; trigger: a lock measured to hurt) | If ever: only for files a pull request adds, and only rules a migration here can meet (§5, option C). |
-| T4 A lock timeout in the runner | builder | 📋 **Decided 2026-11-21** (D3); 🔨 **building**, on `claude/ownpace-public-readiness-y7orc6-migration-lock-timeout` | `SET LOCAL lock_timeout = '5s'` per file in `applyOne`, with a test, in its own pull request. The report then marks `require-lock-timeout` as met by the runner. |
+| T2 squawk, report only | builder | ✅ **Merged** as #2000 on 2026-11-21 (`f1a6921a`) (D1) | `migration-locks.yml`, `scripts/migration-locks-report.mjs`, a pin-watch row, two guards. Fails nothing; not a required check. |
+| T3 A squawk rule that blocks | builder | 🅿️ **Parked 2026-11-21** (D2: not now; trigger: a lock measured to hurt) | If ever: only for files a pull request adds, and only rules a migration here can meet (§5, option C). |
+| T4 A lock timeout in the runner | builder | 📋 **Decided 2026-11-21** (D3); 🔨 **built** as #2002 (Status, 2026-11-21, last) | `SET LOCAL lock_timeout = '5s'` per file in `applyOne`, with a test, in its own pull request. The report then marks `require-lock-timeout` as met by the runner. |
 | T5 A file applied outside a transaction | — | ✅ **Decided 2026-11-21: no** (D4) | Would make CONCURRENTLY possible and give up the all-or-nothing file the runner keeps. |
 
 ## 1. Why
@@ -203,7 +220,7 @@ refused; no file was changed by the pull request, so every file counted as histo
 
 | Rule | Places | Files | What it is here |
 |---|---:|---:|---|
-| `require-lock-timeout` | 123 | 123 | No file sets `lock_timeout`. D3 sets it in the runner, which squawk, reading each file alone, cannot see |
+| `require-lock-timeout` | 123 | 123 | No file sets `lock_timeout`. Since T4 the runner sets it for each file, which squawk, reading each file alone, cannot see; the report marks it met by the runner |
 | `require-statement-timeout` | 123 | 123 | No file sets `statement_timeout`. D3 sets none on purpose: a migration that holds its lock and is working, such as an index build, should finish, not be cut off halfway |
 | `ban-drop-constraint` | 65 | 41 | The drop that comes before each re-added CHECK, as in the connection-kind widenings |
 | `constraint-missing-not-valid` | 62 | 40 | §3's CHECKs, and the baseline's |
