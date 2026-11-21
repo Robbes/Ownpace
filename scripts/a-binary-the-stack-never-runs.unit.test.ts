@@ -1455,6 +1455,10 @@ const SHIPPED_BY: Readonly<Record<string, string>> = {
   'libapt-private.so.0.0': 'apt',
   'libsystemd.so.0': 'libsystemd0',
   'libudev.so.1': 'libudev1',
+  // Since 2026-11-21 (workplan 0166 T4): linux-pam's three.
+  'libpam.so.0': 'libpam0g',
+  'libpam_misc.so.0': 'libpam0g',
+  'libpamc.so.0': 'libpam0g',
 };
 
 /** What stays after the purge, in the stand-in's Debian 12: nothing it keeps depends on what it purged. */
@@ -1470,7 +1474,10 @@ const STAYS = ['coreutils', 'tar', 'dpkg', 'libacl1', 'zlib1g', 'libext2fs2', 'l
  * on libapt-pkg6.0 and libsystemd0, libapt-pkg6.0 on libsystemd0 and
  * libudev1, bsdutils on libsystemd0, e2fsprogs on libblkid1 and libuuid1 and
  * on its own libraries, which stay, and libsystemd0 on its own, which stay
- * too: read 2026-11-08 in the Redis and Node images' dpkg status), and
+ * too: read 2026-11-08 in the Redis and Node images' dpkg status; and since
+ * 2026-11-21 util-linux on libpam0g, apt on adduser, adduser on passwd, login
+ * and passwd on libpam0g and libpam-modules, login on libpam-runtime too, and
+ * the three of libpam on each other, read that day the same way), and
  * packages that stay and depend on none of them.
  */
 function debian12(plat: string, text: string = dockerfiles['trigger.dev']): DpkgDb {
@@ -1478,15 +1485,22 @@ function debian12(plat: string, text: string = dockerfiles['trigger.dev']): Dpkg
   const { packages, libraries } = purgeLists(text);
   const ships = (name: string) => libraries.filter((so) => SHIPPED_BY[so] === name).flatMap(lib);
   const depends: Readonly<Record<string, readonly string[]>> = {
-    'util-linux': ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1', 'util-linux-extra', 'libacl1', 'libsystemd0', 'libudev1'],
+    'util-linux': ['libblkid1', 'libmount1', 'libsmartcols1', 'libuuid1', 'util-linux-extra', 'libacl1', 'libsystemd0', 'libudev1', 'libpam0g'],
     'util-linux-extra': ['libblkid1', 'libsmartcols1', 'libuuid1'],
     mount: ['util-linux', 'libblkid1', 'libmount1', 'libsmartcols1'],
     bsdutils: ['libsystemd0'],
     libmount1: ['libblkid1'],
-    apt: ['libapt-pkg6.0', 'zlib1g', 'libsystemd0'],
+    apt: ['libapt-pkg6.0', 'zlib1g', 'libsystemd0', 'adduser'],
     'libapt-pkg6.0': ['zlib1g', 'libsystemd0', 'libudev1'],
     e2fsprogs: ['libblkid1', 'libcom-err2', 'libext2fs2', 'libss2', 'libuuid1', 'logsave'],
     libsystemd0: ['libcap2', 'libgcrypt20', 'liblz4-1', 'liblzma5', 'libzstd1'],
+    // Since 2026-11-21 (workplan 0166 T4), read that day in the Redis and Node images' dpkg status.
+    'libpam-modules': ['libpam-modules-bin', 'libpam0g'],
+    'libpam-modules-bin': ['libpam0g'],
+    'libpam-runtime': ['libpam-modules'],
+    login: ['libpam0g', 'libpam-modules', 'libpam-runtime'],
+    passwd: ['libpam0g', 'libpam-modules'],
+    adduser: ['passwd'],
   };
   const out: Record<string, DpkgPackage> = {
     coreutils: { version: '9.1-1', status: 'installed', essential: true, depends: ['libacl1'] },
@@ -1510,7 +1524,7 @@ function debian12(plat: string, text: string = dockerfiles['trigger.dev']): Dpkg
     out[name] = {
       version: '1',
       status: 'installed',
-      essential: name === 'util-linux' || name === 'bsdutils',
+      essential: name === 'util-linux' || name === 'bsdutils' || name === 'login',
       depends: depends[name] ?? [],
       files: [`/usr/share/doc/${name}/copyright`, ...ships(name)],
     };

@@ -115,6 +115,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   rule reads the `access` in that name as a key's and the commit id as its value. With gitleaks
   failing a pull request on what it adds (0163 T6), the next GoAccess bump would have failed on its
   own line. The image is built from the same commit as before.
+- **The Redis and Trigger.dev webapp images no longer carry PAM** (workplan 0166 T4, the owner's
+  D1). Both builds now also purge linux-pam's four packages (libpam0g, libpam-modules,
+  libpam-modules-bin and libpam-runtime, one high finding each with no fix in Debian), and login,
+  passwd and adduser, which depend on them. Nothing in either container logs anyone in, makes a
+  user or changes a password, and their users were made in the upstream images' own builds. The
+  purge takes the same two dpkg flags as before, and the build still fails if a file of a removed
+  library is left, or any ELF file needs or names one. Both images have a new name, which the
+  managed stack builds at its next `up`, restarting Redis and the webapp once.
 
 ### Fixed
 
@@ -179,6 +187,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   and `docs/o365-setup.md`'s placeholders are allowed by path in `.gitleaks.toml`; nothing else
   is, and no `gitleaks:allow` comment or `.gitleaksignore` counts. `main`'s history is not
   judged. The weekly pin watch says when a newer gitleaks is tagged.
+- **The Cirrux test server's decipher names its tag's length too** (workplan 0166 T2). The fake
+  Cirrux Drive the connector's tests run against decrypts each `CXDRV2` chunk with AES-GCM, and
+  left the tag's length to GCM's default, which accepts a short tag. It now names 16 bytes, as the
+  encoder and the credential store do, so Node refuses a shorter tag itself. Nothing shipped
+  changes: the fake runs in tests only. Semgrep's `gcm-no-tag-length` reports nothing after it.
 
 ## [0.2.0-alpha.13] - 2026-11-21
 
