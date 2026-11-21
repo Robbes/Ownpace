@@ -4,7 +4,141 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built.** On
+**2026-11-21, last: the branch image scans of T3 and T4, and two findings §1 does not have.**
+- **T3** (#2015, Security Scan run 44932855500 on its branch): `postgres-managed` and
+  `postgres-selfhost` read 0 critical and 0 high; CVE-2026-86144 is gone from both.
+- **T4** (#2016, Security Scan run 44932858060 on its branch): the four `libpam*` findings are gone
+  from `redis` (1/11 to 1/7) and `trigger.dev` (1/14 to 1/10), and nothing was added.
+- **T5's condition:** run 44932855500 scanned `trigger.dev` at v4.8.8 without the PAM purge, and
+  its 15 findings are the v4.8.5 scan's, effect 3.21.2's CVE-2026-121707 among them, as
+  v4.8.8's lockfile says (the Status entry of 2026-11-21, after the answers: T5).
+- **New since §1, in both runs and not in run 44878860013:** the vulnerability database moved.
+  Read from the report job of run 44932855500 (136933963788):
+  - `stdlib` CVE-2026-97054 (high) in `gatus` (Go 1.27.3, fixed in 1.27.4), `zitadel` (1.26.10,
+    fixed in 1.26.11), `caddy` (1.27.3, fixed in 1.27.4) and `registry` (1.26.8, its `stdlib`
+    line now fixed in 1.26.11). A fix exists, in Go; each binary is upstream's, so each closes
+    with an upstream release or rebuild on that Go, the §3 B trigger each already has. Caddy's
+    build here keeps upstream's binary, so it is the same.
+  - `libssl3t64` 3.5.7-1~deb13u3 (high) in `ownpace-api-edge`, `ownpace-api-release`,
+    `trigger-task-base`, `ownpace-selfhost-edge` and `ownpace-selfhost-release` (and the
+    test-only `nextcloud` and `stalwart`). The report lists it under *no fix yet*: Debian 13 has no
+    fixed `libssl3t64`, so a rebuild on today's Debian takes nothing, and nothing changes for
+    alpha.14. It goes to §3 B, its trigger Debian's fix, which a rebuild of each image then takes.
+  - Neither is in code scanning on `main` yet: `main`'s next image scan (the weekly run of
+    2026-11-23) uploads them, 4 and 5 alerts by the counting of §1.2.
+
+**2026-11-21, later still: T1 and T7, the list read and the five dismissed, by the owner.**
+- **T1, the count.** The owner read the open list on 2026-11-21: 46 open after the first two
+  dismissals, so 48 before them, one fewer than the 49 of §1.2. The total after all five was not
+  read; 43 is what the arithmetic gives, not a count.
+- **T7, the dismissals,** made by the owner between about 17:32 and 17:50 UTC, each with the reason
+  §3 D gives:
+  - #1679 (`trivy-image-trigger.dev`) and #1760 (`trivy-image-redis`), CVE-2023-45853 in `zlib1g`,
+    as *Won't fix*: minizip is not in `zlib1g`, and nothing in the image uses it;
+  - Semgrep's `path-join-resolve-traversal` (`apps/worker/src/index.ts`),
+    `unknown-value-with-script-tag` (`apps/api/src/routes/migrations/google-consent.ts`) and
+    `js-open-redirect-from-function` (`apps/web/src/pages/Billing.tsx`), as *False positive*, with
+    0163 §4.3's reasons and #1990's.
+- **Left of Semgrep:** one alert, #1919, `gcm-no-tag-length` in the Cirrux test fake, which #2014
+  (T2) fixes. So Semgrep had 4 before the dismissals, as §1.6 says, and the one alert missing from
+  the 49 is a Trivy one.
+- **Which one, from the uploads.** No upload after §1's could have closed it. After the image scan
+  of Security Scan run 44878860013 (07:08 UTC) no run on `main` scanned the images: the runs on
+  `main` since were pushes (44880510965 to 44933026519), which upload the repository scan, 617
+  bytes and no result, and Semgrep, 4 spots from 16:06 UTC. So the image categories held what
+  run 44878860013 sent. The likeliest reading is one alert where §1.2 counts two findings: in
+  `trivy-image-registry`, CVE-2026-78669 is in two packages of the same binary, `bin/registry`'s
+  `golang.org/x/net` and its Go `stdlib` (§1.4). The report counts 8 findings with 7 distinct
+  ids there, and code scanning keeps one alert per rule and location. That was not read on the
+  list; the registry's category there shows 7 alerts if it holds. Whether two findings with one
+  id are one alert depends on the location Trivy's SARIF gives each, which was not read here; in
+  the Debian images the four PAM packages are four alerts (#1864 to #1867).
+- **§1.2, read with that:** 44 Trivy alerts and 4 Semgrep, 48, not 45 and 4.
+
+**2026-11-21, after the answers: T5, effect 3.22.4 in the Trigger.dev webapp, built (D2).** On
+`claude/ownpace-public-readiness-y7orc6-effect-swap`, from `main` at `66138ba9`.
+- **v4.8.8's lockfile, read first.** Upstream's `pnpm-lock.yaml` at v4.8.8 resolves effect 3.21.2
+  alone (its override `effect@>=3 <3.20.0` to ^3.20.0), linked by the webapp (`^3.21.2`),
+  `@trigger.dev/schema-to-json` 4.8.8 (`^3`) and `@prisma/config` 6.14.0 and 6.19.0. So D2's swap
+  applies.
+- **Which release.** 3.22.4, published 2026-10-22 20:49 UTC: in every range above, past its
+  floor, and the release this build swapped in until v4.8.5. 3.22.5, npm's newest 3.x, was
+  published 2026-11-19 21:22 UTC, inside its three-day floor, so not it. Both tarballs read by
+  their integrity: the same main, module, types, dependencies and 179 exports, and 7 files more
+  (`internal/stackTraceLimit`). 3.22.4's tree is the one pinned for it before (`b7d6b7cb…`),
+  which checks the reading.
+- **What changed.** The webapp's Dockerfile has the swap-table RUN it had until v4.8.5, after
+  the undici relink and before the purge, with one row, and a header section with its way out.
+  Its name moves to `…:v4.8.8}-c8ebb4044c16`.
+- **The guard.** `a-binary-the-stack-never-runs` holds the RUN to `EFFECT` (`effectProblems`,
+  ported from the guard of the table until v4.8.5), checks the floor, and runs the RUN over a
+  stand-in store with a stand-in registry: it swaps, fetches that one tarball and loads from
+  each requirer, and stops with nothing changed on the pinned trees, another release where 3.21.2
+  was, another requirer, a wrong sha512, a registry that does not answer, a tarball that is gone
+  and a bundled copy. Taking the sha512 check out of the RUN fails it three ways.
+- **Owed before the merge:** the image scan on the branch (`trigger.dev`) and E2E (managed).
+
+**2026-11-21, after the answers: T3, libxml2 2.13.9-r3 in both Postgres builds, built (D3), merged as #2015 on 2026-11-21 (`6e9c1d04`).**
+On `claude/ownpace-public-readiness-y7orc6-postgres-libxml2`, from `main` at `6afa68cd`.
+- **What changed.** `deploy/compose/postgres/Dockerfile` and `deploy/selfhost/postgres/Dockerfile`
+  gain one RUN, word for word the same in both: it reads libxml2's version from
+  `/lib/apk/db/installed`, stops unless the base carries 2.13.9-r2, runs `apk add --no-cache
+  libxml2=2.13.9-r3`, and stops unless the version is then 2.13.9-r3. The builds' name is
+  `localhost/postgres:18.7-alpine-6adabb723757` now, in `managed.yml`, `dev.yml` and the
+  appliance's `compose.yml`.
+- **How it goes.** Once the base carries -r3 or later (a rebuild of the tag, or the next
+  PostgreSQL release Dependabot offers), the first check stops the build. The RUN and its comment
+  are then deleted in both Dockerfiles, the names move by the `sed` the guard prints, and the four
+  documents go back to *Docker Hub alone*. Alpine's mirror keeps only a package's newest build,
+  so a newer libxml2 there also stops a fresh build: the same way out, or a newer exact version.
+- **The guard.** `a-database-started-as-root` already admitted an exact-version `apk add`. It
+  now holds the Dockerfile to that one package at that version, and to both checks, read from
+  apk's database. Four mutations each fail it: the check before removed, the check after removed,
+  another version, and another file read. All 22 tests pass.
+- **Docs.** The self-host quickstart (the first start, and a new troubleshooting entry),
+  `docs/testing.md`, `deploy/selfhost/README.md` and `docs/managed-bring-up.md` say the build
+  takes libxml2 from Alpine's mirror.
+- **Proved before the merge.** The image scan on the branch (Security Scan run 44932855500, on
+  `df5e42fb`): `postgres-managed` and `postgres-selfhost` read 0 critical and 0 high, CVE-2026-86144
+  gone from both and nothing added. E2E (managed) run 44936647689 and E2E (self-hosted, on
+  Postgres) run 44938011033 passed, and CI run 44936646316 with Images run 44936646343 on the head
+  that merged, `d5de7b8c`.
+
+**2026-11-21, after the answers: T4, PAM out of the Redis and Trigger.dev webapp builds, built
+(D1), merged as #2016 on 2026-11-21 (`2d249b3c`).** On `claude/ownpace-public-readiness-y7orc6-pam-purge`, from `main` at `6afa68cd`.
+- **What depends on the four.** Read as text from the images' dpkg status on 2026-11-21:
+  Redis's fourth layer (`sha256:1b21ec79…`, linux/arm64), Debian 12.15's base layer
+  (`sha256:2d66c782…`, the first of both images) and `node:24.22.3-bookworm-slim`'s fourth, which
+  is the webapp's fourth. In each, libpam0g, libpam-modules, libpam-modules-bin and
+  libpam-runtime are depended on only by each other, util-linux (already purged), `login` and
+  `passwd`; `passwd` only by `adduser`, and `adduser` only by `apt` (already purged). So seven go:
+  the four, `login` (Essential), `passwd` and `adduser`. Their purge scripts remove their own
+  configuration with `rm`, `rmdir`, debconf and `dpkg-maintscript-helper`, which stay.
+- **What links them.** Every ELF file of the base layer (693) and of Redis's fourth (9) and of
+  Node's layers (one more, `node`), read as bytes: only files of the seven and util-linux's `su`
+  and `runuser` name `libpam.so.0`, `libpam_misc.so.0` or `libpamc.so.0`. Nothing execs a
+  program of the seven into either container (`redis-cli` and `find` into Redis; `chown` and
+  `test` into the webapp). The webapp's runner-stage layer is on GHCR's blob host, which this
+  session cannot reach; the build's dpkg refusal and its checks read it.
+- **What changed.** Both purge RUNs name the twenty packages and the eleven libraries, with the
+  same two flags. The checks after the purge (no file of a removed library left, no ELF file
+  needing or naming one) cover the three new libraries. The headers say why each may go. Redis's
+  name moves to `localhost/redis:7.4.12-bookworm-65e47a4df92f`, the webapp's to
+  `…:v4.8.8}-4b33ed9f685b`, both in `managed.yml`.
+- **Guards.** `an-essential-nothing-runs` holds both lists, each package's reason and the
+  headers' reasons, and refuses the thirteen of before (two new cases) and a list without
+  `adduser`. `a-binary-the-stack-never-runs`'s stand-in Debian 12 carries the seven's
+  dependencies, `login` as Essential and the three libraries. The scripts unit project passes
+  but for `every-release-is-a-starting-point`, which reads local tags this shallow clone lacks.
+- **Proved before the merge.** The image scan on the branch (Security Scan run 44932858060, on
+  `0a967bc2`): the four libpam packages are gone from `redis` (1 critical and 11 high before, 1
+  and 7 after) and from `trigger.dev` (1 and 14 before, 1 and 10 after), and nothing was added.
+  E2E (managed) run 44934069888 passed on `656c9787`, with `main` at `2e5d4c8a` merged in,
+  from 18:10 to 18:19 UTC. CI run 44935158670 with Images run 44935158695 passed on the head that
+  merged, `a385bc6b`.
+
+**2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built, merged as #2014 on
+2026-11-21 (`8c24f286`).** On
 `claude/ownpace-public-readiness-y7orc6-cirrux-fake-tag-length`, from `main` at `58e10d96`.
 - **What changed.** `decryptCxdrv2` in `packages/connectors/src/__testing__/cirrux-fake.ts` calls
   `createDecipheriv('aes-256-gcm', p.key, iv, { authTagLength: 16 })`, as #1985 did in
@@ -14,6 +148,11 @@
   The other 22 cases pass unchanged.
 - **The alert** (`gcm-no-tag-length`, Semgrep) closes at the first Semgrep upload from `main`
   after the merge.
+- **Proved before the merge:** CI run 44933122412 on `ca5b978b`, with `main` at `2e5d4c8a`
+  merged in. CI only: it changes test code and builds no image.
+- **After the merge.** `main`'s Semgrep run 44935053956 on `8c24f286` (18:22 UTC) uploaded 3 spots,
+  the three the owner dismissed, and no `gcm-no-tag-length`, so code scanning should close #1919
+  as fixed. Not read on the list.
 
 **2026-11-21, later: the owner's answers, all as advised.** Asked D1 to D5 (§4), the owner
 answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
@@ -48,13 +187,13 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21** (D1 to D5, as advised) | §4. The owner's answer is quoted in the Status entry of 2026-11-21, later. |
-| T1 Read the list after Semgrep's upload | owner | ⏳ **Owner** | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
-| T2 The Cirrux test fake's decipher | builder | 🔨 **Built 2026-11-21** (0163 T4; the Status entry of 2026-11-21, after the answers) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
-| T3 libxml2 in both Postgres builds | builder | 📋 **Decided 2026-11-21** (D3: the pin) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
-| T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 📋 **Decided 2026-11-21** (D1: yes) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
-| T5 effect in the Trigger.dev webapp | builder | 📋 **Decided 2026-11-21** (D2: yes) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
+| T1 Read the list after Semgrep's upload | owner | ✅ **Read 2026-11-21**: 48 open, not 49 (the Status entry of 2026-11-21, later still) | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
+| T2 The Cirrux test fake's decipher | builder | ✅ **Merged** as #2014 on 2026-11-21 (`8c24f286`) (0163 T4; the Status entry of 2026-11-21, after the answers) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
+| T3 libxml2 in both Postgres builds | builder | ✅ **Merged** as #2015 on 2026-11-21 (`6e9c1d04`) (D3: the pin; the Status entry of 2026-11-21, after the answers: T3) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
+| T4 PAM out of the Redis and Trigger.dev webapp builds | builder | ✅ **Merged** as #2016 on 2026-11-21 (`2d249b3c`) (D1: yes; the Status entry of 2026-11-21, after the answers: T4) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
+| T5 effect in the Trigger.dev webapp | builder | 🔨 **Built 2026-11-21** (D2: yes; the Status entry of 2026-11-21, after the answers: T5) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
-| T7 The owner's dismissals | owner | ⏳ **Owner** (D4: yes, decided 2026-11-21) | The 5 alerts of §3 D, each with its reason. |
+| T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
 
 ## 1. The inventory

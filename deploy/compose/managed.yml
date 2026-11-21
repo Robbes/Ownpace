@@ -185,7 +185,7 @@ services:
     # registry serves this name, so `docker compose pull` passes it by rather
     # than failing on it, and `up` builds it when it is missing without first
     # asking whatever answers on this host's port 443 for it.
-    image: localhost/postgres:18.7-alpine-2d3b1894d8f1
+    image: localhost/postgres:18.7-alpine-6adabb723757
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-db
@@ -336,7 +336,7 @@ services:
   # Trigger.dev Backend
   trigger-db:
     # The same build as postgres above.
-    image: localhost/postgres:18.7-alpine-2d3b1894d8f1
+    image: localhost/postgres:18.7-alpine-6adabb723757
     build: ./postgres
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-db
@@ -399,7 +399,7 @@ services:
   # It holds the run queues: on live it changes only at a deploy, and
   # deploy-live.sh refuses one without the hold or with a pass still in flight.
   trigger-redis:
-    image: localhost/redis:7.4.12-bookworm-d5301e0623d4
+    image: localhost/redis:7.4.12-bookworm-65e47a4df92f
     build: ./redis
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-redis
@@ -472,7 +472,7 @@ services:
     # why). `user: root` decides which copy of pnpm the entrypoint runs, and so
     # which one the Dockerfile may delete:
     # scripts/a-binary-the-stack-never-runs.unit.test.ts holds the two together.
-    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.8}-51450211433a
+    image: localhost/trigger.dev:${TRIGGER_IMAGE_TAG:-v4.8.8}-c8ebb4044c16
     build:
       context: ./trigger.dev
       args:
