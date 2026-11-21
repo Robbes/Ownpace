@@ -156,8 +156,13 @@ hold (step 3), because the privacy policy promises it for the end of the Alpha.
    columns, indexes, an enum value and two tables of trusted deploys, none of which holds a
    run, among them `api_keys.last_used_ip`, the address an additional API key made on
    the dashboard was last used from (the scripts here use the environment's own key, which is
-   not in that table); v4.8.5 adds none, and neither adds a ClickHouse migration, so the list
-   below holds):
+   not in that table); v4.8.5 adds none, and neither adds a ClickHouse migration; v4.8.6 to
+   v4.8.8 add five tables (OAuth clients of the dashboard's MCP server and their refresh tokens,
+   an environment's encryption policy and keys, and the environment variables a team chose to
+   ignore), columns (an organisation's second-factor settings, who invited a member and how
+   they joined, a deploy's credential kind, a task's execution mode) and enums, none of which
+   holds a run, read from `schema.prisma` at both tags, whose migration files were not listed,
+   and the ClickHouse client the webapp writes with is v4.8.5's, so the list below holds):
    - **`triggerdb`**, its database: the runs, their payloads, outputs and errors, and their log
      events (`EVENT_REPOSITORY_DEFAULT_STORE` is not set, so they are kept there).
    - **ClickHouse**, although runs are not copied there (`RUN_REPLICATION_ENABLED` is not set,

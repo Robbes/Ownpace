@@ -17,8 +17,8 @@ allowBuilds:
   # which is the thing moving the CLI into the lockfile was for. Nothing here runs depot. The
   # CLI resolves the binary only inside depot() (lib/main.js, depotBinaryPath), which it calls
   # for a REMOTE build; a deploy to a self-hosted instance has no external build data and builds
-  # locally with buildx (trigger.dev 4.8.3, and 4.8.5 since 2026-11-13, commands/deploy.js:
-  # isLocalBuild).
+  # locally with buildx (trigger.dev 4.8.3, 4.8.5 since 2026-11-13 and 4.8.8 since 2026-11-21,
+  # whose commands/deploy.js is 4.8.5's byte for byte: isLocalBuild).
   "@depot/cli": false
   better-sqlite3: true
   # DENIED, and the failure it silences is a real one that never mattered.
@@ -67,25 +67,13 @@ overrides:
   # container all passed on them. Drop both once eslint, typescript-eslint and archiver ask for
   # the fixed majors themselves. Workplan 0119, Status of 2026-11-02.
   "minimatch@<11.0.1": ^11.0.3
-  # ONE EXCEPTION, AND IT IS THE DEPLOY CLI (2026-11-02, the day it moved from `npx` into the
-  # lockfile). trigger.dev 4.8.3 imports `makeRe` from minimatch (dist/esm/build/externals.js,
-  # line 1, on every command's import path; 4.8.5's is the same file, read 2026-11-13, and still
-  # asks for minimatch ^10.2.3) and calls it on each name its deploy is told to keep
-  # external. minimatch 11 builds no regular expressions at all and exports no makeRe, so on the
-  # entry above the CLI does not start: "The requested module 'minimatch' does not provide an
-  # export named 'makeRe'", for whoami, login and deploy alike. A pnpm patch would have to
-  # rewrite how the CLI builds those expressions. So the CLI keeps 10.2.6, the newest 10.x, and
-  # pnpm audit names GHSA-g3hv-75wg-m249 (moderate) again, on this one path. What reaches makeRe
-  # there is the list of externals the self-hosted instance returns, or the CLI's own built-in
-  # list, never anybody's input. pnpm applies a parent-scoped entry before a general one, so
-  # every other consumer stays on 11. Drop this when a trigger.dev release takes minimatch 11.
-  # And the advisory's code does not run on this path (read 2026-11-08, in the installed
-  # packages). GHSA-g3hv-75wg-m249 is in firstPhasePreProcess(), which minimatch 10.2.6 calls
-  # only when `optimizationLevel >= 2`, and the option's default is 1 (dist/esm/index.js, lines
-  # 332 to 335). trigger.dev 4.8.3 calls `makeRe(externalName)` with no options
-  # (dist/esm/build/externals.js, line 311), its one call into minimatch. A CLI release that
-  # passes optimizationLevel 2 or more reopens it.
-  "trigger.dev>minimatch": ^10.2.6
+  # The deploy CLI's own exception, `"trigger.dev>minimatch": ^10.2.6`, stood here from
+  # 2026-11-02 to 2026-11-21: trigger.dev 4.8.3 to 4.8.5 imported `makeRe` from minimatch
+  # (dist/esm/build/externals.js), which minimatch 11 does not export, so the CLI kept 10.2.6
+  # and pnpm audit named GHSA-g3hv-75wg-m249 (moderate) on that one path. From 4.8.6 the CLI
+  # declares no minimatch, and 4.8.8's externals.js imports none: it escapes each external's
+  # name into the filter instead (escapeRegExp, read in the published 4.8.8). So the entry went
+  # with the move to 4.8.8, and minimatch 10.2.6, whose one requirer was the CLI, left the tree.
   # picomatch GHSA-fc5q-39xc-vjpf (CVE-2026-112366, HIGH, reviewed 2026-11-17) HAS NO ENTRY HERE,
   # because no picomatch release fixes it: it covers every one (<=4.0.7), so there is no version to
   # move to. It reaches 4.0.7 through vitest, vite and typescript-eslint (tinyglobby), and 2.3.2
@@ -257,13 +245,12 @@ overrides:
   # (scripts/how-migrations-are-authored.mjs), because generating into the real migration chain is
   # what it used to do.
   #
-  # 2026-11-02. This entry now holds a second consumer, and the one with more at stake: the deploy
-  # CLI (trigger.dev 4.8.3, apps/worker's devDependency) asks for `esbuild: ^0.23.0`, as 4.8.5
-  # does, and gets 0.25.12 through it, past the 0.24 and 0.25 minors. That esbuild bundles the
-  # task code that ships in the deployed task image, so its proof is an E2E (managed) deploy,
-  # not a unit test.
-  # Dropping or narrowing this entry (say, once drizzle-kit is fixed) sends the CLI back to 0.23.x,
-  # which is under GHSA-67mh-4wv8-2f99.
+  # From 2026-11-02 to 2026-11-21 this entry held a second consumer, the deploy CLI (trigger.dev
+  # 4.8.3 and 4.8.5, apps/worker's devDependency), which asked for `esbuild: ^0.23.0` and got
+  # 0.25.12 through it. From 4.8.6 the CLI asks for `^0.28.2` itself, and 4.8.8, since
+  # 2026-11-21, takes 0.28.2, the copy the root's own devDependency already held, outside this
+  # entry. That esbuild bundles the task code that ships in the deployed task image, so its proof
+  # is an E2E (managed) deploy, not a unit test.
   esbuild@<0.25.0: ^0.25.0
   #
   # 2026-10-03. Six HIGH and three MODERATE, every one DEV-ONLY, published after the gate last
@@ -317,7 +304,8 @@ overrides:
   #   deepmerge-ts GHSA-ggr8-5vv4-36mx: merging a recursive object graph exhausts the stack;
   #     every version below 8.0.0, fixed only in the new major (8.0.2, 2026-08-21), with no 7.x
   #     backport. Reached through trigger.dev -> @trigger.dev/build 4.8.3 (4.8.5 since
-  #     2026-11-13) -> @prisma/config 6.19.3, which pins 7.1.5 exactly. So this entry crosses a
+  #     2026-11-13, 4.8.8 since 2026-11-21, which asks for the same ^6.10.0) -> @prisma/config
+  #     6.19.3, which pins 7.1.5 exactly. So this entry crosses a
   #     major, like minimatch's and glob's at the top. It holds because @prisma/config takes
   #     one export, `deepmerge`, which 8.x keeps with the same call (8.0.0's breaking changes
   #     are deepmergeInto's and type names), and imports it lazily, inside loadConfigTsOrJs,
@@ -330,10 +318,11 @@ overrides:
   # Schema.TemplateLiteral compiles can take exponential time on a crafted string; every version
   # to 3.22.0, fixed in 3.22.1 (2026-07-30). pnpm audit named it on the evening of 2026-11-19,
   # red on main and on every pull request again (the tree, not the diff). DEV-ONLY, on the one
-  # path deepmerge-ts's entry above is on: apps/worker > trigger.dev (the deploy CLI, 4.8.5) >
-  # @trigger.dev/build > @prisma/config 6.19.3, which pins 3.21.0 exactly. @prisma/config calls
-  # Schema's Struct, optional, String, Boolean, Literal, Union, NullOr, Array, extend, mutable,
-  # declare and decodeUnknownEither, Either, and Function's pipe, and no TemplateLiteral
+  # path deepmerge-ts's entry above is on: apps/worker > trigger.dev (the deploy CLI, 4.8.5, and
+  # 4.8.8 since 2026-11-21) > @trigger.dev/build > @prisma/config 6.19.3, which pins 3.21.0
+  # exactly. @prisma/config calls Schema's Struct, optional, String, Boolean, Literal, Union,
+  # NullOr, Array, extend, mutable, declare and decodeUnknownEither, Either, and Function's pipe,
+  # and no TemplateLiteral
   # (dist/index.js, read 2026-11-19), so the vulnerable code is never called; and only
   # @trigger.dev/build's prisma extension loads @prisma/config, which apps/worker's
   # trigger.config.ts does not use. Raised to 3.22.4, the copy the lockfile already held for
@@ -344,8 +333,8 @@ overrides:
   "effect@<3.22.1": ^3.22.4
   #
   # 2026-11-13. hono and `@hono/node-server`: seven advisories (six MODERATE, one LOW), all
-  # DEV-ONLY and all on one path, apps/worker > trigger.dev (the deploy CLI, 4.8.5) >
-  # `@modelcontextprotocol/sdk` 1.32.2. The SDK asks for `hono: ^4.11.4` and
+  # DEV-ONLY and all on one path, apps/worker > trigger.dev (the deploy CLI, 4.8.5, and 4.8.8
+  # since 2026-11-21, which asks for the same ^1.31.0) > `@modelcontextprotocol/sdk` 1.32.2. The SDK asks for `hono: ^4.11.4` and
   # `@hono/node-server: ^1.19.9 || ^2.0.5`; the lockfile held 4.13.14 and 2.1.5.
   #   hono, all five fixed in 4.13.16 (2026-11-01):
   #     GHSA-4m76-xfj5-7975  mount() can forward a path past middleware scoped inside the prefix
@@ -453,3 +442,18 @@ minimumReleaseAgeExclude:
   - socket.io-parser@4.2.7
   - js-yaml@4.3.2
   - esbuild@0.25.12
+  # 2026-11-21. Trigger.dev v4.8.8, for alpha.14, taken before its three-day floor on the owner's
+  # waiver: "I also waive waitings for alpha 14." (2026-11-21), and asked at about 10:00 UTC that
+  # day whether v4.8.8 goes into alpha.14, "Q4: yes, but asap". It covers v4.8.8 and nothing
+  # else: the five 4.8.8 packages the lockfile installs, and no transitive one (the one release
+  # the CLI moves to beside them, esbuild 0.28.2, was published 2026-08-08 and was in the
+  # lockfile already). npm published the five between 12:06:22 and 12:07:51 UTC on 2026-11-20,
+  # the SDK last (pnpm dates them by their provenance: the CLI 12:05:06, the SDK 12:05:11), so
+  # the floor passes 2026-11-23 12:08 UTC. Without these entries a frozen install exits 1 and
+  # names the first of them it meets. Each comes out once 4.8.8 is past the floor; the guard
+  # a-gate-that-was-never-switched-on fails on an entry the lockfile no longer installs.
+  - "@trigger.dev/build@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
+  - "@trigger.dev/core@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
+  - "@trigger.dev/schema-to-json@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
+  - "@trigger.dev/sdk@4.8.8" # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC
+  - trigger.dev@4.8.8 # alpha.14's waiver; comes out once past the floor, 2026-11-23 12:08 UTC

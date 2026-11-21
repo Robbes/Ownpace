@@ -8,8 +8,9 @@
 # security fix (WHAT IS REPLACED: PNPM, below). From 2026-11-03 to
 # 2026-11-13 systeminformation was 5.33.19 in place of 5.31.7; upstream ships
 # 5.33.19 itself since v4.8.4, and the RUN went at v4.8.5 (SYSTEMINFORMATION,
-# below). Since 2026-11-14 (for alpha.9) cross-spawn 5.1.0 goes too, with the
-# links pnpm made to it (CROSS-SPAWN 5.1.0, below). The header of
+# below). From 2026-11-14 (for alpha.9) to 2026-11-21 cross-spawn 5.1.0 went
+# too, with the links pnpm made to it; since v4.8.8 upstream's own override
+# takes 7.0.6 in its place (CROSS-SPAWN 5.1.0, below). The header of
 # deploy/compose/trigger.dev/Dockerfile says the rest, and all of it holds
 # here: the name and its hash, the version argument, read_at, what may not be
 # in this file, how it fails when upstream moves, the pnpm swap's reasons, and
@@ -18,7 +19,9 @@
 # WHY. Trivy 0.76.1 read 2 critical findings in
 # ghcr.io/triggerdotdev/supervisor:v4.8.1 (linux/arm64, 2026-10-26; v4.8.3 builds
 # the same Containerfile, entrypoint and pnpm, and v4.8.5 too, but for its Node
-# base, node:24.22.3-alpine on Alpine 3.24.4), both tar
+# base, node:24.22.3-alpine on Alpine 3.24.4; v4.8.8's Containerfile and
+# entrypoint are v4.8.5's byte for byte, and its index's first five layers are
+# v4.8.5's on both platforms), both tar
 # 7.5.13 (CVE-2026-59873) in corepack's pnpm 10.33.2: once in root's copy and
 # once in node's (which since 2026-11-02 goes whole, for 10.34.9).
 # managed.yml's trigger-supervisor sets no `user:`, so it runs as the image's
@@ -97,30 +100,23 @@
 # cross-spawn 5.1.0, as the scan of alpha.8's tag commit read (Security Scan
 # run 43577138736), until 2026-11-14 (next).
 #
-# CROSS-SPAWN 5.1.0 (since 2026-11-14, for alpha.9), as the webapp's WHAT GOES
-# removes it there. Security Scan run 43651014145 reads cross-spawn 5.1.0
-# (CVE-2024-21538, high, fixed in 6.0.6 and 7.0.5) at
-# /app/apps/supervisor/node_modules/.pnpm/cross-spawn@5.1.0/node_modules/cross-spawn,
-# in the tree `pnpm deploy --legacy --prod` made, which holds the root
-# package.json's dependencies besides the supervisor's. Read in upstream's
-# pnpm-lock.yaml at v4.8.5: the supervisor's dependencies and
-# @trigger.dev/core's, 317 packages, hold no cross-spawn; with the root's,
-# 568, they hold cross-spawn 5.1.0 alone, whose one requirer is spawndamnit
-# 2.0.0, under @changesets/cli 2.26.2 (and @changesets/git 2.0.0, its own):
-# release tooling nothing here runs. The CMD's pnpm runs `node dist/index.js`,
-# and no file of apps/supervisor/src or packages/core/src at v4.8.5, nor
-# either's package.json, imports or depends on cross-spawn, spawndamnit or an
-# @changesets/ package. Here it is the deploy's one cross-spawn, so pnpm's
-# hoist, node_modules/.pnpm/node_modules/cross-spawn, is a link to it too: a
-# package that requires cross-spawn without declaring it reaches 5.1.0 there,
-# and none after. The lockfile names no requirer of cross-spawn in the deploy
-# but spawndamnit, and E2E (managed) runs the supervisor. So the first RUN
-# removes pnpm's whole directory for it, node_modules/.pnpm/cross-spawn@5.1.0
-# (the package, and pnpm's links to its three dependencies), and each of the
-# two links into it that is there, pnpm's hoist and spawndamnit's, after the
-# webapp's checks, the same walk of the image among them; after, no
-# directory, package.json or link of it is left. So 0, 1 and 1 become 0, 0
-# and 0 (arithmetic, for the branch's image scan to measure).
+# CROSS-SPAWN 5.1.0 (2026-11-14 to 2026-11-21). From alpha.9 the first RUN
+# removed cross-spawn 5.1.0 (CVE-2024-21538, high, fixed in 6.0.6 and 7.0.5)
+# from the tree `pnpm deploy --legacy --prod` made, where the root
+# package.json's @changesets/cli brought it through spawndamnit 2.0.0, its one
+# requirer, and pnpm's hoist linked it as the deploy's one cross-spawn: pnpm's
+# directory for it, spawndamnit's link and the hoist, after the webapp's
+# checks and walk. Since v4.8.8 upstream's root package.json overrides
+# `cross-spawn@<6.0.6` to ^7.0.6, and its lockfile resolves 7.0.6 alone, so
+# the deploy holds 7.0.6 (spawndamnit's, and the hoist's), and the removal
+# went, as the webapp's THE WAY OUT said: by upstream's lockfile at v4.8.8 the
+# deploy's closure (the supervisor's, @trigger.dev/core's and the root's
+# dependencies) holds no cross-spawn 5.1.0. Since v4.8.8 the supervisor also
+# depends on undici ^7.30.1 itself (7.30.1, the floor of upstream's override
+# for undici 7), to keep its connections to the webapp open longer
+# (SUPERVISOR_HTTP_KEEPALIVE_TIMEOUT_MS, 30 s by default, src/index.ts):
+# nothing is removed for it, and the CMD's pnpm runs `node dist/index.js` as
+# before.
 #
 # THE USER COUPLING, the webapp's the other way round. No `user:` here, so this
 # removes root's copy, installs 10.34.9 in node's home, and proves node's
@@ -136,7 +132,7 @@
 # copy that is gone. So the entrypoint read at read_at is pinned by its SHA-256
 # below, and images.yml's `build (trigger, …)` checks the base's user, command
 # and entrypoint are the ones read.
-FROM ghcr.io/triggerdotdev/supervisor:v4.8.5@sha256:71464cc191472ac7695052e6e9ed8c65de946a6b8f032608d6e68a2526e68cbd
+FROM ghcr.io/triggerdotdev/supervisor:v4.8.8@sha256:baae2ecfecca8700e187d964630416d0fb54051c1a6ef1d3ae4750c8f8dce829
 
 # Given by managed.yml from the .env, empty when the .env sets none. It only refuses.
 ARG TRIGGER_IMAGE_TAG
@@ -146,7 +142,7 @@ USER root
 RUN set -eu; \
     me=deploy/compose/supervisor/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read this file's header against the new tag, or drop the removal upstream fixed." >&2; exit 1; }; \
-    read_at=v4.8.5; \
+    read_at=v4.8.8; \
     core="v$(node -p "require('/app/packages/core/package.json').version")"; \
     if [ -n "${TRIGGER_IMAGE_TAG:-}" ] && [ "$TRIGGER_IMAGE_TAG" != "$core" ]; then \
       echo "$me: the .env names TRIGGER_IMAGE_TAG=$TRIGGER_IMAGE_TAG, and this checkout builds Trigger.dev $core. Either set TRIGGER_IMAGE_TAG=$core in the .env, or run a checkout that pins $TRIGGER_IMAGE_TAG: the release that ran it, or a move to it (trigger-version.sh pin $TRIGGER_IMAGE_TAG, docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; \
@@ -173,13 +169,6 @@ RUN set -eu; \
     npm_link=/usr/local/bin/npm; \
     npx_link=/usr/local/bin/npx; \
     corepack_dir=/usr/local/lib/node_modules/corepack; \
-    s=/app/apps/supervisor/node_modules/.pnpm; \
-    xspawn_store="$s/cross-spawn@5.1.0"; \
-    xspawn="$xspawn_store/node_modules/cross-spawn"; \
-    xspawn_link="$s/spawndamnit@2.0.0/node_modules/cross-spawn"; \
-    xspawn_hoist="$s/node_modules/cross-spawn"; \
-    top=/; \
-    where="const fs = require('fs'); const path = require('path'); const [top, gone, name, version] = process.argv.slice(1); const dev = fs.statSync(top).dev; const real = fs.existsSync(gone) ? fs.realpathSync(gone) : gone; const into = (t) => [gone, real].some((g) => t === g || t.startsWith(g + '/')); const dir = name + '@' + version; const quoted = JSON.stringify(name); let read = 0; const hits = []; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isSymbolicLink()) { if (!into(p) && (into(path.resolve(d, fs.readlinkSync(p))) || (fs.existsSync(p) && into(fs.realpathSync(p))))) hits.push('link ' + p); continue; } if (s.isDirectory()) { if (e === dir || e.startsWith(dir + '_')) hits.push('directory ' + p); if (s.dev === dev) walk(p); continue; } if (e !== 'package.json' || !s.isFile()) continue; read++; const text = fs.readFileSync(p, 'utf8'); if (!text.includes(quoted)) continue; let j = null; try { j = JSON.parse(text); } catch { if (text.includes(JSON.stringify(version))) hits.push('unreadable ' + p); continue; } if (j !== null && typeof j === 'object' && j.name === name && j.version === version) hits.push('package ' + p); } }; walk(top); console.error(read + ' package.json files read under ' + top); if (read < 1) process.exit(2); console.log(hits.sort().map((h) => h + ' ').join(''));"; \
     [ -f "$unused/.corepack" ] || fail "$unused/.corepack is not there: root's copy of pnpm is not where it was."; \
     [ -d "$unused/dist/node_modules/tar" ] || fail "$unused/dist/node_modules/tar is not there: root's copy of pnpm no longer carries tar."; \
     [ -f "$replaced/.corepack" ] || fail "$replaced/.corepack is not there: node's copy of pnpm $pm_upstream, which this file replaces with $pnpm_to, is not where it was."; \
@@ -193,17 +182,6 @@ RUN set -eu; \
     into="$(find /usr/local/bin -type l -exec sh -c 'for link; do case "$(readlink -f "$link")" in "$0"/*) echo "$link" ;; esac; done' "$(readlink -f "$npm_dir")" {} + | LC_ALL=C sort | tr '\n' ' ')"; \
     [ "$into" = "$npm_link $npx_link " ] || fail "these link into $npm_dir: ${into:-nothing}, not npm and npx alone."; \
     [ "$(node -p "require('$corepack_dir/package.json').version")" = 0.36.0 ] || fail "$corepack_dir is not corepack 0.36.0, Node 24.22.3's, which runs every pnpm here."; \
-    [ -f "$xspawn/package.json" ] || fail "$xspawn is not there."; \
-    said="$(node -p "const j = require('$xspawn/package.json'); j.name + '@' + j.version")"; \
-    [ "$said" = cross-spawn@5.1.0 ] || fail "$xspawn is $said, not cross-spawn@5.1.0, the release this file removes."; \
-    [ "$(ls -A "$xspawn_store")" = node_modules ] || fail "$xspawn_store holds more than pnpm's node_modules: $(ls -A "$xspawn_store" | tr '\n' ' ')"; \
-    held="$(cd "$xspawn_store/node_modules" && find . -mindepth 1 -maxdepth 1 ! -type l)"; \
-    [ "$held" = ./cross-spawn ] || fail "in $xspawn_store/node_modules, these are no links: ${held:-none}; this file removes cross-spawn 5.1.0 and pnpm's links to its dependencies alone."; \
-    want_hoist=""; if [ -L "$xspawn_hoist" ]; then want_hoist="link $xspawn_hoist "; fi; \
-    want_link=""; if [ -L "$xspawn_link" ]; then want_link="link $xspawn_link "; fi; \
-    want="directory $xspawn_store $want_hoist${want_link}package $xspawn/package.json "; \
-    found="$(node -e "$where" "$top" "$xspawn_store" cross-spawn 5.1.0)" || fail "$top could not be read for cross-spawn 5.1.0 (above); nothing is removed yet."; \
-    [ "$found" = "$want" ] || fail "under $top, cross-spawn 5.1.0 is: ${found:-nothing}; this file was read for one copy, $xspawn, in $xspawn_store, and no link into it but pnpm's hoist, $xspawn_hoist, and spawndamnit 2.0.0's, $xspawn_link, each removed with it where it is there."; \
     HOME=/home/node corepack install -g "pnpm@$pnpm_to+sha512.$pnpm_to_sha512" || fail "corepack did not install pnpm $pnpm_to by the sha512 npm published for it; nothing is removed yet."; \
     chown -R "$owner" "$node_corepack"; \
     owners="$(find "$node_corepack" -exec stat -c %u:%g {} + | LC_ALL=C sort -u | tr '\n' ' ')"; \
@@ -218,15 +196,10 @@ RUN set -eu; \
     [ "$named" = "$kept/bin/pnpm.cjs:require(v8-compile-cache $kept/dist/pnpm.cjs:require.resolve(picomatch $kept/dist/pnpm.cjs:resolveFrom(__dirname, node-gyp/bin/node-gyp " ] || fail "in $kept, outside $kept_modules, these name a package inside it: ${named:-none}; this file was read for three, each in a try: bin/pnpm.cjs's v8-compile-cache, and dist/pnpm.cjs's picomatch and node-gyp/bin/node-gyp."; \
     rm "$npm_link" "$npx_link"; \
     rm -r "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir"; \
-    rm -r "$xspawn_store"; \
-    if [ -L "$xspawn_link" ]; then rm "$xspawn_link"; fi; \
-    if [ -L "$xspawn_hoist" ]; then rm "$xspawn_hoist"; fi; \
     node -e "const fs = require('fs'); const [file, from, to] = process.argv.slice(1); const text = fs.readFileSync(file, 'utf8'); const field = /(\"packageManager\"[ \t]*:[ \t]*\")([^\"]*)(\")/g; const found = [...text.matchAll(field)].map((m) => m[2]); if (found.length !== 1 || found[0] !== from) { console.error(file + ' names packageManager as: ' + (found.join(', ') || 'nothing')); process.exit(1); } fs.writeFileSync(file, text.replace(field, (all, key, value, end) => key + to + end));" "$root_pkg" "$pm_upstream" "pnpm@$pnpm_to" || fail "$root_pkg's packageManager was not rewritten to pnpm@$pnpm_to: the file does not name it once, as $pm_upstream."; \
     pm="$(node -p "require('$root_pkg').packageManager")"; \
     [ "$pm" = "pnpm@$pnpm_to" ] || fail "$root_pkg names $pm after the rewrite, not pnpm@$pnpm_to: corepack would look for a copy this file removed."; \
-    for p in "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir" "$npm_link" "$npx_link" "$xspawn_store" "$xspawn_link" "$xspawn_hoist"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
-    found="$(node -e "$where" "$top" "$xspawn_store" cross-spawn 5.1.0)" || fail "$top could not be read for cross-spawn 5.1.0 after the removal (above)."; \
-    [ -z "$found" ] || fail "after the removal, cross-spawn 5.1.0 is still under $top: $found"; \
+    for p in "$unused" "$replaced" "$kept_modules" "$kept_gyp_bin" "$npm_dir" "$npm_link" "$npx_link"; do { [ ! -e "$p" ] && [ ! -L "$p" ]; } || fail "$p is still there."; done; \
     [ -f "$kept/.corepack" ] || fail "$kept/.corepack went with the removal."; \
     pnpm_copies="$(find "${kept%/*}" -mindepth 1 -maxdepth 1 -exec basename {} \; | LC_ALL=C sort | tr '\n' ' ')"; \
     [ "$pnpm_copies" = "$pnpm_to " ] || fail "${kept%/*} holds ${pnpm_copies}and not pnpm $pnpm_to alone: a copy this file was not read for."; \
@@ -236,7 +209,7 @@ RUN set -eu; \
     if (cd /app && COREPACK_ENABLE_NETWORK=0 pnpm --version) >/dev/null 2>&1; then \
       fail "as root, pnpm still starts offline, so a copy of pnpm $pnpm_to is in root's home, or corepack reads another home."; \
     fi; \
-    echo "$me: removed root's copy of pnpm, node's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten, owned as node's was), node-gyp's tree from node's, npm, and cross-spawn 5.1.0 with every link into it; corepack 0.36.0 stays, and as root pnpm does not start offline, as it should not: the supervisor runs as node."
+    echo "$me: removed root's copy of pnpm, node's $pm_upstream for pnpm $pnpm_to (by the sha512 npm published, packageManager rewritten, owned as node's was), node-gyp's tree from node's, and npm; corepack 0.36.0 stays, and as root pnpm does not start offline, as it should not: the supervisor runs as node."
 
 # Upstream's own user, which this image keeps.
 USER node
