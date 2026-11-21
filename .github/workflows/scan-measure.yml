@@ -1,4 +1,5 @@
 # MEASUREMENT ONLY, ON A BRANCH THAT IS NEVER MERGED AND HAS NO PULL REQUEST.
+# Two proofs, each with the real tool: gitleaks (0163 T6) and Semgrep's rules that block (0163 T5).
 # Proves the pull request job of workplan 0163 T6 with the real gitleaks and the
 # real config: the gitleaks branch's .gitleaks.toml and scripts/gitleaks-report.mjs,
 # run against made-up commits in throwaway repositories on the runner. A value
@@ -208,5 +209,68 @@ jobs:
           git -C "$r" -c user.name=proof -c user.email=proof@example.invalid merge -q --no-commit --no-ff side > /dev/null 2>&1
           printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/beside.ts"; commit "$r" "merge side, and a file"
           judge "a token a merge adds beside what it merges fails" 1 "$r" "$t"
+
+          [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
+
+  semgrep-proof:
+    name: Semgrep proof (the job's report with the real Semgrep, the tree as it is and with two old spots back)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: claude/ownpace-public-readiness-y7orc6-semgrep-blocking
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true
+          package-manager-cache: false
+      - name: The report as the job runs it, on the tree, on two old spots, and on an image it cannot pull
+        env:
+          SEMGREP_IMAGE: semgrep/semgrep:1.186.0@sha256:6e1b04340e60e910fbb4ddbf3c857ab0918f064417ad5ac530014ccb3cf8c8f1
+        run: |
+          # Workplan 0163 T5: the step 5 branch's scripts/semgrep-report.mjs with the real Semgrep, read
+          # as a pull request reads it, then as a push. The two old spots are the two files as they were
+          # when each rule that now blocks last reported a spot on main: ProviderConsent.tsx before #1990
+          # (react-href-var) and no-committed-artifacts.yml before #1977 (run-shell-injection). Each
+          # case's exit is judged here; the job fails unless every case is as it must be.
+          set +e
+          set -uo pipefail
+          wrong=0
+          # judge <case> <expected exit> <log> <exit>: the exit, the tally and the lines marked as errors.
+          judge() {
+            local name="$1" want="$2" log="$3" got="$4"
+            if [ "$got" = "$want" ]; then
+              echo "as it must: $name: exit $got"
+            else
+              echo "::error::NOT as it must: $name: exit $got, not $want"
+              wrong=1
+            fi
+            grep -E 'spots? from [0-9]+ rules' "$log"
+            grep -o -E '^::error file=[^,]+,line=[0-9]+,title=Semgrep [a-z-]+ \(blocks\)' "$log" | sed 's/^::error /  marked as an error: /'
+            grep -E '^not finished:' "$log"
+          }
+          GITHUB_EVENT_NAME=pull_request node scripts/semgrep-report.mjs > "$RUNNER_TEMP/tree.log" 2>&1
+          judge "the tree as it is passes a pull request: no rule that blocks finds a spot" 0 "$RUNNER_TEMP/tree.log" $?
+
+          git show 75d7949d:apps/web/src/components/ProviderConsent.tsx > apps/web/src/components/ProviderConsent.tsx
+          git show 5cac662b^:.github/workflows/no-committed-artifacts.yml > .github/workflows/no-committed-artifacts.yml
+          GITHUB_EVENT_NAME=pull_request node scripts/semgrep-report.mjs > "$RUNNER_TEMP/spots.log" 2>&1
+          judge "the two old spots back fail a pull request, each marked on its line" 1 "$RUNNER_TEMP/spots.log" $?
+          for spot in 'apps/web/src/components/ProviderConsent.tsx,line=[0-9]+,title=Semgrep react-href-var' '.github/workflows/no-committed-artifacts.yml,line=[0-9]+,title=Semgrep run-shell-injection'; do
+            if ! grep -q -E "^::error file=${spot} \(blocks\)" "$RUNNER_TEMP/spots.log"; then
+              echo "::error::NOT as it must: no error marked for ${spot}"
+              wrong=1
+            fi
+          done
+          GITHUB_EVENT_NAME=push node scripts/semgrep-report.mjs > "$RUNNER_TEMP/spots-push.log" 2>&1
+          judge "the same spots fail a push to main" 1 "$RUNNER_TEMP/spots-push.log" $?
+          git show HEAD:apps/web/src/components/ProviderConsent.tsx > apps/web/src/components/ProviderConsent.tsx
+          git show HEAD:.github/workflows/no-committed-artifacts.yml > .github/workflows/no-committed-artifacts.yml
+
+          SEMGREP_IMAGE="semgrep/semgrep:1.186.0@sha256:$(printf '0%.0s' $(seq 64))" GITHUB_EVENT_NAME=pull_request node scripts/semgrep-report.mjs > "$RUNNER_TEMP/unpulled.log" 2>&1
+          judge "an image it cannot pull fails a pull request: a scan that did not finish" 1 "$RUNNER_TEMP/unpulled.log" $?
 
           [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
