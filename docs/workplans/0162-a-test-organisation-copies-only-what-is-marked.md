@@ -4,10 +4,129 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, later: four of the five things T1 settles first, settled, on
+`claude/ownpace-public-readiness-y7orc6-0162-t1-doors`, from `main` at `17548646`; not merged.**
+T3 merged as #2003 on 2026-11-21 (`cba6c64d`); its E2E (managed) run 44911194184 was green on
+its head. Still inert: nothing sets the column, and no migration anywhere carries a marker. The
+fifth, the Finish page's End and Keep, comes with T1.
+
+1. **The sharing rescan and the permission report keep only what the marker selects.** Both read
+   the account's sharing through `migrationInventoryScans` (`apps/api/src/routes/permissions.ts`).
+   It now reads the migration's marker from its own row and, under one, runs the two scans once
+   and keeps a grant only when the thing it is on carries the marker in its own name, by T2's
+   `carriesMarker` (`markedSharesOnly`, `marked-only.ts`). The thing's own name decides, as for a
+   file: a marked folder's share is kept, an unmarked file in it is not, and a marked file in an
+   unmarked folder is. So nothing about an unmarked item is saved into `share_grant` or returned
+   in the report.
+   - Each scan now says that name beside the label around it (`PermissionGrant.ownName`): a Drive
+     file's name, the last segment of a Nextcloud share's path, and Graph's item and calendar
+     names. Never the mailbox a calendar's label starts with, and never the id a Graph label ends
+     in where Graph gave no name.
+   - A grant a scan gave without a name (a Nextcloud share without a path; a Drive file, a Graph
+     item or a calendar without a name) can be neither kept nor set aside. The rescan then
+     answers 409 and saves nothing, and the report answers 409, both with `code: test_migration`
+     and one sentence in English and Dutch (`A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING`, in
+     shared's `permissions.ts`). The Sharing page shows a refused rescan's reason in its reader's
+     language, where it said the request did not complete; that holds for every migration, and
+     for a closed organisation's refusal and a migration that records no mailbox too.
+   - The report asked for by address (`?mailbox=`) names no migration and reads every source the
+     organisation connected. It is refused, with `code: test_organisation`, in an organisation one
+     of whose migrations carries a marker (`A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION`).
+   - No row needs cleaning up: no migration has carried a marker, so no rescan saved a test's
+     sharing.
+2. **A Dropbox rename and the bin: confirmed, and fixed.** Through the real `DropboxFileSource`
+   over a fake HTTP answer: a marked file renamed out of the marker is listed under its new name
+   with the same `id`, and its old, marked path answers `list_folder` with `include_deleted` as a
+   tombstone, which has no id. The pass recorded the old path's copy as `trashed`, the evidence
+   an apply may act on, on every pass, while the file was still there. A rename between two
+   marked names got the same `trashed` beside its relocation.
+   - What ties the two is the ledger: the row the old path keys holds the `id` its copy was made
+     from (`sourceRef`), and the listing gives the same `id` under the new name. Under a marker
+     the file pass now gathers the handle of every file the source lists, kept or set aside
+     (`listedFileRefs`, `domain-sync.ts`), and the bin passes over a row whose handle is among
+     them. A file renamed out of the marker and then deleted for good is still reported as
+     `trashed`, at once.
+   - Dropbox's developer documentation could not be reached from where this was built, so the
+     fake follows the connector's own reading of the API (`DropboxEntry`, `listTrashedPaths`) and
+     is unconfirmed against Dropbox. The fix does not rest on it: it reads the row's handle and
+     the listing, never the tombstone's fields.
+   - Found on the way, and left as it is: without a marker the same tombstone is read as the bin
+     too, beside the relocation. Changing that changes what every Dropbox migration reports,
+     which is not this plan's to decide; a test holds that a migration that is not a test
+     reports as before.
+3. **IMAP subjects in memory: they stay as they are.** Every path that receives a listed message
+   was read, and none stores or logs `MailItem.subject`:
+   - the pass (`reconcile.ts`): a message is keyed by its Message-ID and named from the bytes it
+     fetched (`displayNameForMessage`), which is also the name a failure row stores; the loop's
+     log lines carry key prefixes;
+   - its bin read: keys only;
+   - discovery (`discoverSource`): counts, sizes and key hashes;
+   - `fetch` and the two mail writers (`jmap-target.ts`, `imapflow-dav-target.ts`): they read
+     `raw.rfc822` only;
+   - the wrappers between (`GmailFolderView`, `MailSourceWithGraphFallback`, `MarkedOnlyMail`):
+     none logs, and imapflow's own logger is off (`logger: false`).
+
+   The one reader is T2's mail filter (`MarkedOnlyMail`, `carriesMarker(item.subject, …)`), and it
+   needs it: without a subject no message carries the marker.
+4. **A status update no longer switches a test migration over.** `updateTransition` takes the
+   migration's marker and refuses the four moves that would: declaring the cutover (`active` or
+   `paused` to `cutover`) and entering the lane (`cutover` or `done` to `continuous`). It answers
+   with `test_migration` and T3's sentence in both languages (`A_TEST_IS_NOT_SWITCHED_OVER`).
+   `PUT /api/migrations/:id` reads the marker with the status, in its own transaction, and
+   answers `message` and `messageNl`. Pausing stays open, as does leaving the lane, and a resume
+   is still Start's, which takes a test. `active` or `paused` to `continuous` keeps the table's
+   own refusal (`before_cutover`). The appliance passes no marker.
+
+What is proven, and how. 50 new cases in ten unit test files, four of them new. Each door or rule
+refuses or filters with a marker, and lets the same migration through without one:
+
+- the sharing rescan and the permission report, at the API's own doors on PGlite, through the real
+  Nextcloud scan over a faked OCS answer and the real Drive scan over a faked Drive answer, with
+  `share_grant` read outside any route (10): the marked things saved and reported and no unmarked
+  one, nor anyone an unmarked thing was shared with; the refusals in both languages, with nothing
+  written; the report asked for by address refused in a test organisation, and made in another; and
+  every share kept for a migration without a marker;
+- `markedSharesOnly` (5), and the name each of the four scans gives and does not give (4);
+- the Dropbox rename, through the real `DropboxFileSource` and `runFileSync` (7);
+- the status update, at the API's own door on PGlite with the rows, the paths and the audit read
+  outside it (7), in `updateTransition`'s whole table (13), and in the handler's text (1);
+- the Sharing page, in English and Dutch (3).
+
+Twenty-two mutations, each one change, each caught, each file restored byte for byte (`cmp`): each
+refusal taken out (the update's 9 of 20, its declare half 5, its enter half 4; the handler's marker
+7 of 58, its Dutch 4 of 20; the rescan's and the report's 1 of 10 each; the report asked for by
+address 1 of 10; an unnamed grant kept 3 of 42), each filter undone (every grant kept 6 of 42, the
+label read instead of the name 4 of 42, the marker ignored by the scans 5 of 10), each name left out
+(Nextcloud 4 of 20, Drive 2 of 53, Graph's calendar and item 1 of 12 each, Graph naming by id 1 of
+12), the Dropbox rule (the bin's check 3 of 7, the set-aside handles 2 of 7, the kept ones 1 of 7,
+the rule for every migration 1 of 7), and the page 2 of 21.
+
+Gates: `tsc --noEmit` (the root, `apps/web`, `test/ui` and `site`), TypeScript 6's second opinion,
+and ESLint over the whole repository found nothing; the six docs checks pass. The whole `unit`
+project passed, 1,154 files and 18,044 cases with 37 skipped, but for two guards under `scripts/`
+that run pnpm themselves (`ui-build-output`, and three cases of
+`a-measurement-that-could-not-reach-the-deployments-client`), which could not run it on the machine
+that built this: the pnpm version `main` names is not installed there. `unit-browser` (`apps/web`)
+passed, 190 files and 3,748 cases. Six integration files that drive the touched doors passed on
+Postgres 16.15 (`local-pg.sh`), 77 cases. Node 22.22.0 ran them all: no Node 26 is installed there.
+The edits after the long runs, comments and the fixtures' addresses, were run again in the files
+that read them, and the mutations were run again on the final files.
+
+Not done:
+- T1 itself, and with it the fifth thing, the Finish page's End and Keep.
+- A test organisation that holds no migration, between two runs (§6 step 7), is not known to the
+  report asked for by address until T1 records the organisation's own marker, which goes beside
+  `testsWithAMarker`.
+- The appliance has no test migrations (§3): its sharing rescan, its report and its status update
+  read no marker.
+- A test migration's permission report does not say in itself that it lists marked things only:
+  T1's banner is not in the Markdown the Finish page downloads.
+
 **2026-11-21: T3 built, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished`, from
-`main` at `87663d70`; not merged.** Inert, as T2 is: nothing sets the column yet, so no migration
-is refused today. T2 merged as #1975 on 2026-11-21 (`45a758af`). Its E2E (managed) run
-44881786816 was green and applied ledger migration 0070 on the test environment.
+`main` at `87663d70`, merged as #2003 (`cba6c64d`; *was:* not merged).** Inert, as T2 is:
+nothing sets the column yet, so no migration is refused today. T2 merged as #1975 on 2026-11-21
+(`45a758af`). Its E2E (managed) run 44881786816 was green and applied ledger migration 0070 on
+the test environment.
 
 - **Each door reads the marker from the migration's own row**, where it never changes, and
   refuses with one of two sentences. They are in `lifecycle.ts`, English and Dutch side by side
@@ -249,7 +368,7 @@ Nothing was built with it.
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** | §2, agreed as written. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
 | T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. Five things to settle first, in Status, 2026-11-21: three found with T2's review findings and two with T3. |
 | T2 The marker where the source is first listed | builder | ✅ **Merged** as #1975 on 2026-11-21 (`45a758af`), inert until T1 sets the column | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`, and since 2026-11-21 a set-aside item counted as seen by the removals and the bin; the column it reads (ledger 0070). E2E (managed) run 44881786816 was green and applied ledger migration 0070. The E2E smoke of a marked migration waits for T1. |
-| T3 Never finished, never switched over | builder | 🔨 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished` | §5. Finish, ending or keeping a data type, the cutover's preparation (its door and its job), the gate's report and `approve`, `execute` and `complete` refuse a test migration and name the reason; the Verify and Finish pages say it in English and Dutch; delete stays open. Inert until T1 sets the column. Not merged. |
+| T3 Never finished, never switched over | builder | ✅ **Merged** as #2003 on 2026-11-21 (`cba6c64d`), inert until T1 sets the column | §5. Finish, ending or keeping a data type, the cutover's preparation (its door and its job), the gate's report and `approve`, `execute` and `complete` refuse a test migration and name the reason; the Verify and Finish pages say it in English and Dutch; delete stays open. E2E (managed) run 44911194184 was green on its head. |
 | T4 The scenarios on live | owner | 📋 **Proposed** | §6. Marked items and an unmarked control of each data type in a real Google account; copy, change, delete and a lost marker, each watched at the target and in the guest's inbox. |
 | T5 Asking Google first | builder | 🅿️ **Parked** | §7. Server-side search, so that Ownpace never reads an unmarked title. Trigger: a test account too large to list whole, or the owner asking for it. |
 

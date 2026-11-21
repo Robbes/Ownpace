@@ -509,17 +509,46 @@ export function keepsCopyingThroughGrace(decision: CutoverTransition): boolean {
  * Six moves, five no-ops, fourteen refusals — each refusal with a stable code
  * a screen can branch on, and a hint naming the door that does what was asked.
  * A refusal means NOTHING is written.
+ *
+ * A TEST MIGRATION IS NEVER SWITCHED OVER (workplan 0162 §2 (e); the fourth
+ * thing T1 settles first). `testMarker` is the migration's own marker
+ * (`mailbox_mapping.test_marker`), absent for every migration that is not a
+ * test. Of the six moves, the four that switch it over are refused, with
+ * `test_migration` and T3's sentence in both languages: declaring the cutover
+ * (`active` or `paused` to `cutover`), and entering the lane (`cutover` or
+ * `done` to `continuous`). Every later door of the cutover refuses a test
+ * already; this one let a status update declare it, after which the source
+ * was no longer the authority and the lane was open. Pausing stays open, as
+ * does leaving the lane (`stop`), and every other answer is the table's own:
+ * `paused` to `active` is still Start's, which a test may press. The
+ * appliance passes no marker: it has no test migrations (§3).
  */
-export type UpdateRefuseCode = 'own_door' | 'after_cutover' | 'finished' | 'before_cutover' | 'unknown';
+export type UpdateRefuseCode =
+  | 'own_door'
+  | 'after_cutover'
+  | 'finished'
+  | 'before_cutover'
+  | 'unknown'
+  | 'test_migration';
 
 export type UpdateTransition =
   | { readonly apply: true; readonly from: string; readonly to: string }
   /** Restating the status a mapping already has: a request, not a transition. */
   | { readonly apply: false; readonly from: string; readonly alreadySo: true }
-  | { readonly refuse: string; readonly hint: string; readonly code: UpdateRefuseCode };
+  | {
+      readonly refuse: string;
+      /**
+       * The same refusal in Dutch, where its sentence is ours in both
+       * languages: a test migration's (`A_TEST_IS_NOT_SWITCHED_OVER`). The
+       * door answers it as `messageNl`, and a page shows its reader's half.
+       */
+      readonly refuseNl?: string;
+      readonly hint: string;
+      readonly code: UpdateRefuseCode;
+    };
 
-/** Decide what a status update from `from` to `to` may do. */
-export function updateTransition(from: string, to: string): UpdateTransition {
+/** Decide what a status update from `from` to `to` may do; `testMarker` as above. */
+export function updateTransition(from: string, to: string, testMarker?: string): UpdateTransition {
   const known = (s: string): boolean => (MAPPING_LIFECYCLES as readonly string[]).includes(s);
   if (!known(from) || !known(to)) {
     // Hard rule 9, as in the other decisions: a state this product does not
@@ -579,6 +608,18 @@ export function updateTransition(from: string, to: string): UpdateTransition {
         "that is not yet true of a migration still syncing. Declare the cutover first (status " +
         "'cutover'), or finish. Nothing was changed.",
       code: 'before_cutover',
+    };
+  }
+  // What is left is the table's six moves. A test migration is refused the
+  // four that switch it over: here `continuous` can only come from `cutover`
+  // or `done` (the lane entered), and `cutover` from before it, `active` or
+  // `paused` (the cutover declared). See the note above the table.
+  if (testMarker !== undefined && (to === 'continuous' || (to === 'cutover' && !isAfterCutover(from)))) {
+    return {
+      refuse: A_TEST_IS_NOT_SWITCHED_OVER.en,
+      refuseNl: A_TEST_IS_NOT_SWITCHED_OVER.nl,
+      hint: 'Nothing was changed.',
+      code: 'test_migration',
     };
   }
   return { apply: true, from, to };

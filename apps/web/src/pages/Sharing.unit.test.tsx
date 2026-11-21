@@ -14,7 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
-import type { ShareGrantRow } from '@openmig/shared';
+import { A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING, type ShareGrantRow } from '@openmig/shared';
 
 const { fetchSharing, decideSharing, rescanSharing, DecisionRefusedError } = vi.hoisted(() => {
   class DecisionRefusedError extends Error {
@@ -260,6 +260,80 @@ describe('the blind spots after a rescan', () => {
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }
+  });
+});
+
+/**
+ * A rescan the server refused, with a reason it wrote in both languages: a
+ * test migration whose old system gave a share without saying what it is on
+ * (workplan 0162), which saves nothing. The page says why, in its reader's
+ * half, where it said "the request failed".
+ */
+describe('a refused rescan, in the reader’s language', () => {
+  /** The page's own line for a request that failed (`common.requestFailed`). */
+  const EN_REQUEST_FAILED = 'The request did not complete.';
+  const empty = {
+    migrationStatus: 'active',
+    summary: { total: 0, open: 0, applied: 0, doneManual: 0, skipped: 0, openManual: 0 },
+    grants: [],
+  };
+  const refused = (data: Record<string, unknown>) =>
+    Object.assign(new Error('Request failed with status code 409'), { response: { status: 409, data } });
+
+  it('says the server’s reason to an English reader', async () => {
+    fetchSharing.mockResolvedValue(empty);
+    rescanSharing.mockRejectedValue(
+      refused({
+        error: 'Conflict',
+        reason: A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.en,
+        reasonNl: A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.nl,
+        code: 'test_migration',
+      }),
+    );
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: /Refresh from the source/ }));
+    expect(await screen.findByText(A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.en)).toBeInTheDocument();
+    expect(screen.queryByText(EN_REQUEST_FAILED)).not.toBeInTheDocument();
+  });
+
+  it('says its Dutch half to a Dutch reader', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchSharing.mockResolvedValue(empty);
+      rescanSharing.mockRejectedValue(
+        refused({
+          error: 'Conflict',
+          reason: A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.en,
+          reasonNl: A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.nl,
+          code: 'test_migration',
+        }),
+      );
+      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+      render(
+        <LocaleProvider>
+          <QueryClientProvider client={qc}>
+            <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
+              <Routes>
+                <Route path="/mappings/:mappingId/sharing" element={<Sharing />} />
+              </Routes>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </LocaleProvider>,
+      );
+      fireEvent.click(await screen.findByRole('button', { name: /opnieuw/i }));
+      expect(await screen.findByText(A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.nl)).toBeInTheDocument();
+      expect(screen.queryByText(A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.en)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('says the page’s own line when the server gave no reason', async () => {
+    fetchSharing.mockResolvedValue(empty);
+    rescanSharing.mockRejectedValue(new Error('Network Error'));
+    renderScreen();
+    fireEvent.click(await screen.findByRole('button', { name: /Refresh from the source/ }));
+    expect(await screen.findByText(EN_REQUEST_FAILED)).toBeInTheDocument();
   });
 });
 

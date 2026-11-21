@@ -36,6 +36,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   test is over.* Its check measures it as any other, and never clears it for its cutover; the
   check's page and the Finish page say why, in English and Dutch, as does a refused end or keep.
   Deleting a test migration, and then its account, works as for any other.
+- **A test migration's sharing lists only its marked items, a status update never switches it
+  over, and a Dropbox file renamed out of its marker is not read as deleted** (workplan 0162 T1,
+  four of the five things it settles first). Nothing sets a marker yet (0162 T1), so no
+  migration changes today. With a marker, the sharing checklist's *Refresh from the source*
+  saves, and the permission list shows, only the shares on a file, folder or calendar whose own
+  name carries it. A share the old system gives without saying what it is on stops both, which
+  then save and show nothing and say why, in English and Dutch. A permission list asked for by
+  address, which names no migration, is refused in an organisation whose migrations carry a
+  marker. A status update that would declare a test migration's cutover, or put it in the
+  continuous lane, is refused with *A test migration is not switched over: delete it when the
+  test is over.*, in English and Dutch; pausing still works. A marked Dropbox file renamed out
+  of the marker leaves a tombstone under its old name, which was read as the owner deleting it:
+  while the file is listed under another name, it no longer is. And for every migration, the
+  Sharing page now says why a refresh was refused (a closed organisation, a migration that
+  records no mailbox, a test's sharing that could not be read), in its reader's language, where
+  it said the request did not complete.
 
 ### Changed
 

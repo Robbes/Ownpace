@@ -73,6 +73,19 @@ export interface PermissionGrant {
   readonly itemKey?: string;
   readonly parentKey?: string;
   readonly isContainer?: boolean;
+  /**
+   * THE NAME THE THING WAS GIVEN, as the source gave it: a file's or a
+   * folder's own name, a calendar's, and never the path or the address `on`
+   * may carry around it (workplan 0162).
+   *
+   * What a test migration's marker is matched against: its sharing keeps a
+   * grant only when the thing it is on carries the marker in its own name, as
+   * a file is copied by its own name (`markedSharesOnly`). Absent where the
+   * source gave no name, and a test migration then reads no sharing at all,
+   * since a grant it cannot tie to a name is one it cannot keep or set aside.
+   * Nothing else reads it.
+   */
+  readonly ownName?: string;
 }
 
 /**
@@ -304,3 +317,42 @@ export function microsoftAccountFileSharingNotRead(): Bilingual {
       'aanmelding is gekoppeld. Noteer met wie u bestanden en mappen deelde voordat u overstapt',
   });
 }
+
+/**
+ * WHY A TEST MIGRATION'S SHARING WAS NOT READ (workplan 0162, the first thing
+ * T1 settles before any marker can be set). A test migration copies only the
+ * items whose own name carries its marker, and nothing about any other is
+ * stored or reported: its sharing keeps only the grants on such things, by
+ * the name each was given (`PermissionGrant.ownName`, `markedSharesOnly`).
+ * When the old system gave a grant without saying what it is on, the grant
+ * can neither be kept nor set aside, so the rescan saves nothing and the
+ * report is not made. The rescan answers this as `reason` and `reasonNl`, the
+ * report as `message` and `messageNl`, and the page shows its reader's half.
+ */
+export const A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING: Bilingual = {
+  en:
+    "A test migration lists only the sharing on items whose name contains its marker, and " +
+    'the old system gave a share without saying what it is on. So no sharing was read for ' +
+    'this migration, and nothing was saved.',
+  nl:
+    'Een testmigratie toont alleen het delen van items waarvan de naam de markering bevat, ' +
+    'en het oude systeem gaf een deelrecht zonder te zeggen waar het op staat. Daarom is ' +
+    'voor deze migratie niets van het delen gelezen, en is er niets bewaard.',
+};
+
+/**
+ * WHY AN ORGANISATION-WIDE PERMISSION LIST IS NOT MADE IN A TEST ORGANISATION
+ * (workplan 0162). `GET /api/permissions/report?mailbox=…` names no migration,
+ * and reads every source the organisation connected, whole. Where a
+ * migration of the organisation carries a test marker, its accounts are a
+ * test's, and their sharing is read per migration, keeping only the grants
+ * on marked items, so this list is refused rather than made from all of it.
+ */
+export const A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION: Bilingual = {
+  en:
+    'This organisation tests Ownpace, and a test reads sharing per migration, only on items ' +
+    'whose name contains its marker. Ask for the list of a migration: ?mappingId= and its id.',
+  nl:
+    'Deze organisatie test Ownpace, en een test leest het delen per migratie, alleen van items ' +
+    'waarvan de naam de markering bevat. Vraag de lijst van een migratie op: ?mappingId= en de id ervan.',
+};

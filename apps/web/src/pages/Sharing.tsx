@@ -808,7 +808,22 @@ const Sharing: React.FC = () => {
         setBlindSpotLists({ en: r.blindSpots, nl: r.blindSpotsNl });
         refresh();
       })
-      .catch(() => setBlindSpotLists({ en: [t('common.requestFailed')] }))
+      // A refused rescan says why, where the server wrote the reason itself,
+      // with its Dutch beside it: a test migration's sharing that could not
+      // be read (workplan 0162), a migration that records no mailbox, or a
+      // closed organisation.
+      // Anything else is the page's own failure line.
+      .catch((err: unknown) => {
+        const said = (err as { response?: { data?: { reason?: unknown; reasonNl?: unknown } } })?.response?.data;
+        setBlindSpotLists(
+          typeof said?.reason === 'string' && said.reason !== ''
+            ? {
+                en: [said.reason],
+                ...(typeof said.reasonNl === 'string' && said.reasonNl !== '' ? { nl: [said.reasonNl] } : {}),
+              }
+            : { en: [t('common.requestFailed')] },
+        );
+      })
       .finally(() => setRescanning(false));
   };
 

@@ -49,6 +49,8 @@ import { withTenant, type PgDatabase } from '@openmig/ledger';
 import { authenticate, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import {
+  A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING,
+  A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION,
   calendarSharingNotReadForThisSourceSaid,
   fileSharingNotReadForThisSourceSaid,
   googleMailboxDelegationNotReadSaid,
@@ -94,6 +96,7 @@ import {
   microsoftSourceKinds,
 } from '@openmig/orchestration/source-face-builders';
 import { sourceCredentialsFor } from '@openmig/orchestration/build-deps-from-mapping';
+import { markedSharesOnly, type MarkedShares } from '@openmig/orchestration/marked-only';
 import { measureTargetScheduling } from '@openmig/orchestration/target-scheduling';
 import {
   qualificationReportLines,
@@ -219,18 +222,40 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     // Finish page of a Microsoft migration listed a Google migration's Drive
     // shares). An address asked for directly names no migration, and keeps
     // the organisation-wide answer it always had.
-    const scans =
-      mappingId !== '' && asked === ''
-        ? await migrationInventoryScans(tenantId, mappingId, mailbox)
-        : await tenantInventoryScans(tenantId, mailbox);
+    const ofItsMigration = mappingId !== '' && asked === '';
+    // Except in a test organisation (workplan 0162): that answer reads its
+    // accounts whole, and a test's sharing is read per migration, only on the
+    // items its marker selects. Refused before anything is read.
+    if (!ofItsMigration && (await testsWithAMarker(tenantId))) {
+      res.status(409).json({
+        error: 'Conflict',
+        message: A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION.en,
+        messageNl: A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION.nl,
+        code: 'test_organisation',
+      });
+      return;
+    }
+    const scans = ofItsMigration
+      ? await migrationInventoryScans(tenantId, mappingId, mailbox)
+      : await tenantInventoryScans(tenantId, mailbox);
+    // A test migration whose old system gave a share without saying what it
+    // is on: no report is made, as no list is saved (`InventoryScans.refused`).
+    if (scans.refused) {
+      res.status(409).json({
+        error: 'Conflict',
+        message: scans.refused.en,
+        messageNl: scans.refused.nl,
+        code: 'test_migration',
+      });
+      return;
+    }
 
     // The target's side of the story (0105 T0): measured live at report
     // time, same derive-on-every-read philosophy as the scans. Undefined for
     // a tenant with no DAV target — the section then does not appear.
-    const measureTargetConduct =
-      mappingId !== '' && asked === ''
-        ? await migrationTargetConduct(tenantId, mappingId)
-        : await tenantTargetConduct(tenantId);
+    const measureTargetConduct = ofItsMigration
+      ? await migrationTargetConduct(tenantId, mappingId)
+      : await tenantTargetConduct(tenantId);
 
     const markdown = await runPermissionInventory({
       mappingLabel: mailbox,
@@ -502,8 +527,99 @@ export async function tenantInventoryScans(
  * A migration whose source mailbox names no connection, a row older than that
  * column, keeps the organisation-wide answer it has always had, said in the
  * log, as the pass falls back for the same rows.
+ *
+ * A TEST MIGRATION'S SCANS KEEP ONLY WHAT ITS MARKER SELECTS (workplan 0162,
+ * the first thing T1 settles before any marker can be set). The scans read
+ * the account's sharing whole, and the rescan saves it into `share_grant`
+ * while the report returns it as text, so under a marker every grant on a
+ * thing whose own name does not carry it is dropped here, before either sees
+ * it (`markedSharesOnly`, T2's `carriesMarker`). A grant the scan could not
+ * name refuses both: `refused` is set, and each scan answers that sentence.
+ * Read for every migration, fallback or not, from the migration's own row,
+ * where the marker never changes.
  */
 export async function migrationInventoryScans(
+  tenantId: string,
+  mappingId: string,
+  mailbox: string,
+): Promise<InventoryScans> {
+  const scans = await sourceInventoryScans(tenantId, mappingId, mailbox);
+  const marker = await testMarkerOf(tenantId, mappingId);
+  return marker === undefined ? scans : onlyMarkedShares(scans, marker);
+}
+
+/** A migration's own test marker, or undefined for one that is not a test. */
+async function testMarkerOf(tenantId: string, mappingId: string): Promise<string | undefined> {
+  const rows = await inTenant(tenantId, (db) =>
+    rowsOf<{ test_marker: string | null }>(
+      db,
+      sql`SELECT test_marker FROM mailbox_mapping WHERE tenant_id = ${tenantId} AND id = ${mappingId}`,
+    ),
+  );
+  return rows[0]?.test_marker ?? undefined;
+}
+
+/**
+ * Whether this organisation tests with a marker: one of its migrations
+ * carries one. An organisation becomes a test only while it holds no
+ * migration, and every migration it then creates carries its marker (§2
+ * (b)), so a test organisation holding none is not known here; the
+ * organisation's own marker comes with T1.
+ */
+async function testsWithAMarker(tenantId: string): Promise<boolean> {
+  const rows = await inTenant(tenantId, (db) =>
+    rowsOf<{ one: number }>(
+      db,
+      sql`SELECT 1 AS one FROM mailbox_mapping
+       WHERE tenant_id = ${tenantId} AND test_marker IS NOT NULL LIMIT 1`,
+    ),
+  );
+  return rows.length > 0;
+}
+
+/** One scan's answer under a marker: what it keeps, what it could not name, or what it threw. */
+type Kept = MarkedShares | { readonly threw: unknown };
+
+async function keptBy(scan: () => Promise<PermissionListing>, marker: string): Promise<Kept> {
+  try {
+    return markedSharesOnly(await scan(), marker);
+  } catch (threw) {
+    return { threw };
+  }
+}
+
+/** A scan answering again what it kept, or throwing again what it threw. */
+function givenAgain(kept: Exclude<Kept, { readonly untied: number }>): () => Promise<PermissionListing> {
+  return async () => {
+    if ('threw' in kept) throw kept.threw;
+    return kept.listing;
+  };
+}
+
+/**
+ * The two scans for a test migration: each run once, here, and given again
+ * with only the grants on marked things. A scan that threw throws again when
+ * asked, so the report states it and the rescan fails as they always did. A
+ * grant either scan could not name makes both answer the refusal instead,
+ * and sets `refused`, which both doors answer with before writing anything.
+ */
+async function onlyMarkedShares(scans: InventoryScans, marker: string): Promise<InventoryScans> {
+  const calendars = await keptBy(scans.scanCalendars, marker);
+  const drive = await keptBy(scans.scanDrive, marker);
+  if ('untied' in calendars || 'untied' in drive) {
+    const refusal = notReadListing(A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING);
+    return {
+      ...scans,
+      refused: A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING,
+      scanCalendars: async () => refusal,
+      scanDrive: async () => refusal,
+    };
+  }
+  return { ...scans, scanCalendars: givenAgain(calendars), scanDrive: givenAgain(drive) };
+}
+
+/** The two scans from the migration's own source, before any marker is applied. */
+async function sourceInventoryScans(
   tenantId: string,
   mappingId: string,
   mailbox: string,
@@ -603,6 +719,14 @@ export interface InventoryScans {
   delegationReason: string;
   /** The same, in Dutch, for the Sharing checklist (the owner, 2026-10-16). */
   delegationReasonNl: string;
+  /**
+   * Set for a test migration whose scans gave a grant without the name of
+   * what it is on (workplan 0162): a grant that can be neither kept nor set
+   * aside. The rescan and the report answer with it, in the reader's
+   * language, and write and return nothing; each scan answers it as a blind
+   * spot too, so a caller that did not ask reads nothing either.
+   */
+  refused?: Bilingual;
 }
 
 /** A connection's own stored credentials: its secret, or what its config carries. */

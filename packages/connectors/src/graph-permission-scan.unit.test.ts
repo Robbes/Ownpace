@@ -53,6 +53,22 @@ describe('scanning a mailbox’s calendars', () => {
     expect(result.grants[1]?.grantee).toBe('jan@acme.nl');
   });
 
+  it('says each calendar\u2019s own name apart from the mailbox before it, and none for one Graph left unnamed (0162)', async () => {
+    const http = routed([
+      ['/calendars?', { value: [{ id: 'c1', name: '[Ownpace-test] Agenda' }, { id: 'c2' }] }],
+      ['/calendars/c1/calendarPermissions', { value: [{ role: 'read', emailAddress: { address: 'anna@example.com' } }] }],
+      ['/calendars/c2/calendarPermissions', { value: [{ role: 'read', emailAddress: { address: 'jan@example.com' } }] }],
+    ]);
+    const result = await scanCalendarPermissions('pat@example.com', token, http, APP);
+
+    if (result.kind !== 'listed') throw new Error('expected a listing');
+    expect(result.grants.map((g) => [g.on, g.ownName])).toEqual([
+      ['pat@example.com — [Ownpace-test] Agenda', '[Ownpace-test] Agenda'],
+      ['pat@example.com', undefined],
+    ]);
+    expect(result.grants[1]).not.toHaveProperty('ownName');
+  });
+
   it('fails the WHOLE listing when one calendar cannot be read', async () => {
     const http = routed([
       ['/calendars?', { value: [{ id: 'c1', name: 'Calendar' }, { id: 'c2', name: 'Secret' }] }],
@@ -98,6 +114,23 @@ describe('scanning a drive', () => {
     // a handful of requests and a hundred thousand.
     expect(result.grants).toHaveLength(1);
     expect(result.grants[0]?.on).toBe('/Budget.xlsx');
+  });
+
+  it('says each item\u2019s own name apart from its path, and none where Graph gave no name and the path ends in its id (0162)', async () => {
+    const http = routed([
+      ['/items/f1/children', { value: [{ id: 'i9', name: '[Ownpace-test] Deep.txt', shared: {} }, { id: 'i8', shared: {} }] }],
+      ['/root/children', { value: [{ id: 'f1', name: 'Team', folder: { childCount: 2 } }] }],
+      ['/items/i9/permissions', { value: [{ roles: ['write'] }] }],
+      ['/items/i8/permissions', { value: [{ roles: ['read'] }] }],
+    ]);
+    const result = await scanDrivePermissions('d1', token, http, APP);
+
+    if (result.kind !== 'listed') throw new Error('expected a listing');
+    expect(result.grants.map((g) => [g.on, g.ownName])).toEqual([
+      ['/Team/[Ownpace-test] Deep.txt', '[Ownpace-test] Deep.txt'],
+      ['/Team/i8', undefined],
+    ]);
+    expect(result.grants[1]).not.toHaveProperty('ownName');
   });
 
   it('descends into folders and keeps the path readable', async () => {
