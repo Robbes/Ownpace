@@ -47,6 +47,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   test is over.* Its check measures it as any other, and never clears it for its cutover; the
   check's page and the Finish page say why, in English and Dutch, as does a refused end or keep.
   Deleting a test migration, and then its account, works as for any other.
+- **An operator can mark an organisation as a test, and every migration made there then copies
+  only what carries its marker** (workplan 0162 T1; ADR-0053). On an organisation's Support page an
+  appointed operator marks it as a test organisation, with a marker: `[Ownpace-test]` is offered,
+  and any other of 3 to 64 printable characters can be typed, none of them one that looks blank
+  but the space. The mark can be taken off again. Both are refused while the organisation is not
+  open or holds any migration, and both are recorded in the audit log; the same marker again
+  changes and records nothing. Anybody who is not an operator is answered as if the organisation
+  did not exist, and the database itself writes the mark for an appointed operator only. Each
+  migration made in a test organisation copies the marker onto itself when it is created, and
+  nothing changes it afterwards: it copies only the items whose own title contains the marker
+  (0162 T2), and is never finished or switched over (0162 T3). Every page of a test migration says
+  so in a banner, in English and Dutch, with its marker; the lists show a *Test* badge; and the
+  Finish page offers its data types neither End nor Keep. The appliance has no test
+  organisations.
 
 ### Changed
 
@@ -126,6 +140,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **An organisation's id in capitals no longer takes a second migrations lock** (workplan 0162 T1's
+  review). The lock that makes creates wait for each other, and holds
+  `MAX_MIGRATIONS_PER_ORGANISATION`, was keyed on the organisation's id as the request spelled it,
+  in the `X-Ownpace-Tenant` header or a support page's path. The database reads `ABC…` and `abc…`
+  as one organisation, but the lock took two, so two creates, one of each spelling, could pass the
+  cap together, and a create could pass a test mark. The lock is now keyed on the id as the
+  database spells it, and the API reads a named id in lower case.
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
   billing page and never reached Mollie: the API answered the page Mollie sends the customer back
   to after paying, the app's own billing page, as the address to pay at. It now answers the

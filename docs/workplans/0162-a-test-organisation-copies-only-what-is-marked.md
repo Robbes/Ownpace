@@ -4,8 +4,167 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, later: T1 built, on `claude/ownpace-public-readiness-y7orc6-0162-t1-marker`, from
+`main` at `17548646`; not merged.** It merges after the pull request that settles the first four
+things to settle below (the sharing rescan and the permission report, the Dropbox bin, IMAP
+subjects, and the status door of `PUT /api/migrations/:id`), which are not in it; it settles the
+fifth. Once both are merged, an operator can mark an organisation, and its migrations copy only
+what is marked. T3 merged as #2003 on 2026-11-21 (`cba6c64d`).
+
+- **The organisation's marker** is a row of `test_organisation` (managed migration 0062, which only
+  adds): one per test organisation, with 0070's CHECK and a trimmed marker, under row security,
+  purged with the organisation. `POST /api/support/tenants/:tenantId/test` with `{ marker }` sets
+  it, or replaces it; `DELETE` clears it.
+  - **Only an appointed operator.** The route asks the operator's view (`support_tenants`), as
+    reopen does, and the doors ask `platform_operator` beneath it (`isAppointedOperator`, now
+    exported from `close-account.ts`). Anybody else, and an absent id, get the same 404.
+  - **Holds a migration** is any `mailbox_mapping` row that names the organisation, whatever its
+    status, a draft and a finished one alike. That is what `support_tenants.migration_count`
+    serves and `operator.sh clean empty-tenant` counts. The close asks nothing of the
+    organisation's migrations. While it holds one, either door answers 409 `holds_a_migration`
+    with `held` and the sentence the Support screen shows, and writes nothing.
+  - **One after the other.** Both doors take the organisation's migrations lock first, the
+    advisory lock the create takes before it counts (`holdTheOrganisationsMigrations`, split out
+    of `holdTheCap`). A mark that arrives while a create is open waits, then sees its migration
+    and refuses; a create that arrives while a mark is open waits, then copies the marker.
+  - **An audit row each**, in the door's transaction: `tenant.test_marker_set` with the marker and
+    the one it replaced, `tenant.test_marker_cleared` with the one cleared, under the operator,
+    `via: operator`. `marker` and `replaced` are classified `keep` for the audit export. Clearing
+    an organisation that is not a test changes and records nothing.
+- **The marker's form** (`readTestMarker`, shared): trimmed, then 3 to 64 characters counted by
+  code point, as `char_length` counts them, none of them a control, format, separator, surrogate
+  or private-use character. Required: 400 `bad_marker` otherwise, before anything is read.
+  `[Ownpace-test]` is the field's starting value (`DEFAULT_TEST_MARKER`), never the API's.
+- **Each migration's own copy.** `POST /api/migrations` reads the organisation's marker under that
+  lock and writes it in the insert that creates the migration. Its answer, each row of
+  `GET /api/migrations` and `GET /api/migrations/:id` carry it as `testMarker`. The guard
+  `a-test-marker-only-a-create-writes` reads every update of `mailbox_mapping` in the tracked
+  tree (26 today: 12 drizzle `.set()`s, 13 SQL `UPDATE`s and one upsert, the appliance's mapping
+  file) and refuses any that names the column, or whose keys it cannot read. A spread is followed
+  to what it spreads. Tests are not read: the trigger's own proof updates the column on purpose.
+- **The contract and the screens.** `StatusReport.mappings[].testMarker` (operating-contract.ts);
+  managed serves it on the migration's read, and the appliance never sets it. The banner is drawn
+  once, by `Layout`, above every page under `/mappings/:id` (the hub and its nine screens), from the
+  read the bar already makes, with the marker as code: *Test: only items whose title contains
+  `[Ownpace-test]` are copied. This migration cannot be finished.*, and in Dutch *Test: alleen
+  items waarvan de titel `[Ownpace-test]` bevat, worden gemigreerd. Deze migratie kan niet worden
+  afgerond.* (*gemigreerd* and *afgerond* as the glossary says them, which has a row for it). The
+  Migrations page, a person's page and Support's list of an organisation's migrations show a
+  *Test* badge beside the name, and a test migration's support page its marker.
+- **The fifth thing to settle.** `readPathStopFacts` reads `test_marker`, and `pathEndingChoices`
+  lists a test migration's data types where they are, with `offers: []`: the Finish page offers
+  neither End nor Keep, and the banner says why. Both editions read the same rule.
+- **The Support screen.** A *Test organisation* section on the organisation's page, built as Close
+  and Reopen are: the field offers `[Ownpace-test]`, marking and unmarking each arm and confirm,
+  the page reads the organisation again, and a refusal is the API's own sentence. English only:
+  ADR-0013's operative rule keeps the operator's screens English (`operator-strings.ts`,
+  `EnglishOnly`), so the control has no Dutch.
+- **ADR-0053**, *A test organisation copies only what is marked*, records §2 (a)–(h) and how T1
+  holds (b) and (c).
+
+What is proven, and how. 89 new cases: in eight new test files, the guard (8), the marker's
+form (6), the table on PGlite (7), the doors and the create through the real routes on PGlite
+with both chains (22), the lock on Postgres 16.15 (`local-pg.sh`, two connections: 2), the banner
+on every route under a migration read from `AppRoutes.tsx` (24), the banner and the badge (6) and
+the Support control (10); and one case each in four files, the endings on paper and on PGlite and
+the two lists' badges. On that Postgres, eight integration files passed, 79 cases: the lock's,
+the system role's exact grants (with `test_organisation`'s), the cap's race, the managed upgrade
+path, pricing and metering, the stop door, and a closed organisation's doors.
+
+Twenty-one mutations, each one change, each caught, each file restored byte for byte (`cmp`):
+each door's refusal while it holds a migration (3 and 1 cases fail), each door's operator check
+(1 each), the route's view check (1), the audit row (5), the lock (1, on Postgres), the marker's
+unprintable, length and trim rules (4, 2, 4), the create's copy (3, the guard among them), the
+endings offered to a test (3) and the facts read without the marker (2), the banner not drawn (11
+of 24), each badge (1 each), the table's trim CHECK (1), the view's marker (2), the Support
+screen's refusal unsaid (1), and two plants the guard must catch: `testMarker: null` in a real
+`.set()` and `test_marker = NULL` in a real SQL `UPDATE` (1 each). Two of the first run survived
+(each door's operator check, under the route's own) and gained a case of their own.
+
+Gates, on this branch merged with `main` at `c27eb47f`, with Node 22.22.0: the whole `unit`
+project, 1,155 files, 18,112 cases passed and 37 skipped, but for the 2 files that run pnpm
+themselves, which a stand-in for pnpm refused, because the checkout names a pnpm version that was
+not installed where they ran (`ui-build-output`, whose build fails before its cases, and
+`a-measurement-that-could-not-reach-the-deployments-client`, 3 cases); `unit-browser`, 193 files,
+3,787 passed; `tsc --noEmit` for the root and `apps/web`, ESLint on the 40 changed TypeScript
+files, and the six docs checks found nothing. On that tree the twenty-one mutations ran again,
+each caught and each file restored, and the eight integration files passed again.
+
+Not done:
+- the appliance (§3): it has no operator, and no test migration;
+- the E2E smoke of a test migration. It could be cheap: `smoke-managed.sh` already holds an
+  operator token, writes an organisation and its owner by SQL (the invitations block) and seeds
+  fresh items with `seed-demo-dav-content.sh --fresh` and the IMAP seeder. A fresh organisation,
+  marked through the new door before it holds anything, one migration over the demo sources with
+  one marked and one unmarked item per data type (a seeder option to put the marker in the title),
+  one pass, then the counts, the target and `endingChoices` read, and the migration deleted and
+  the mark cleared. The E2E workflow does not change.
+
+**The review of T1, fixed on the same branch (2026-11-21).** An independent reading of the pull
+request at `5c58becd` found the points below. Each is now fixed, with a case that fails without it.
+- **The database writes the mark for an appointed operator only.** Managed 0062 had not been applied
+  anywhere, so it was changed in place. INSERT, UPDATE and DELETE on `test_organisation` ask that
+  `app.current_user` names a row of `platform_operator`, and a row is written only in that
+  operator's own name, as 0023 and 0055 guard theirs. SELECT stays the organisation's, for the
+  create. Each door sets `app.current_user`, asks `platform_operator` and writes in one transaction
+  (`actingAsAppointedOperator`, `close-account.ts`). An `app_user` in the organisation's scope who
+  is not an operator inserts, updates and deletes nothing.
+- **One lock per organisation, whatever the case of its id.** The organisation's migrations lock was
+  keyed on the id as the request spelled it, in the `X-Ownpace-Tenant` header or the support page's
+  path. `ABC…` and `abc…` took two locks, so a create could pass a mark, and two creates could pass
+  `MAX_MIGRATIONS_PER_ORGANISATION` together, a hole since 0143 T2a. The key is now
+  `id::uuid::text`, and `resolveTenant` and the support routes read a named id in lower case.
+- **Only while it is open.** Both doors answer 409 `not_open` for a closed or erasing organisation,
+  as the close and the reopen do, and the Support control offers nothing for one. The same marker
+  again writes and records nothing, and answers `unchanged`.
+- **No marker that looks blank.** `readTestMarker` also refuses every space separator but U+0020,
+  and the fillers U+115F, U+1160, U+3164, U+FFA0 and U+2800.
+- **No fallback on what the doors act on** (hard rule 9): the count of migrations held and the
+  marker read throw on an answer that is not one, instead of reading it as none.
+- **0070's trigger is the guarantee, and the guard an early warning**, as ADR-0053 and the guard's
+  header now say. The guard also reads `MERGE`, ends a statement at its first `;` outside a quoted
+  literal, and refuses a drizzle update whose table is not named as itself (an alias,
+  `schema['…']`). SQL built from pieces, `sql.identifier()` and a statement past forty lines it
+  still cannot see.
+- **Tests that passed with the bug present.** The Postgres race test now drives the real
+  `POST /api/migrations` and the real mark route, each side spelling the id in the other case.
+  "Nobody signed in" now reaches the route's own 401. A parse test holds `testMarker` in the web's
+  two mapping schemas. The Support field sets no length of its own, and its state belongs to one
+  organisation.
+- **Merge order.** The doors' pull request, #2011, merges first. Its
+  `a-status-update-that-switches-a-test-over` and `the-sharing-a-test-migration-keeps` are the cases
+  that require both of its refusals. Two things need its code and come after it lands, on this
+  branch: the permission report asked for by address is to be refused (409 `test_organisation`) in
+  an organisation that carries the marker itself, beside its `testsWithAMarker`, so that one whose
+  migration was deleted, or that holds none yet, is not reported whole; and the downloaded report
+  (`run-permission-inventory.ts`) is to say that it lists marked items only, for a test.
+
+What is proven, and how. 21 new cases: the guard (3), `readTestMarker` (1), the table on PGlite (4:
+the database refusing a non-operator's insert, update and delete, and a malformed answer throwing),
+the doors through the real routes (5), the tenant resolution (1), the web's parse (2) and the
+Support control (5). The two cases of the Postgres race test were rewritten to drive the real
+routes. Forty-one mutations, each one change, each caught, each file restored byte for byte (`cmp`):
+the first round's twenty-one, rewritten where the review changed the code they break, and twenty for
+the review. These are the lock keyed on the id as typed and the create reading the marker before the
+lock (1 each, on Postgres); the support route's and the header's id not lowered (1 each); the INSERT
+and the UPDATE policies asking for no operator, and a row in anybody's name (1 each); the same
+marker written again (1); the mark's open check (1); the blank-looking rule (3); the count and the
+rows read as none (1 each); the guard reading any table's name, reading no `MERGE`, and cutting
+inside a literal (1 each); the Support section kept across organisations (1) and offered when not
+open (2); each web schema dropping the marker (1 each); and the mark route's own 401 (1). The
+section kept across organisations survived the first run, because an organisation read for the first
+time is loaded afresh into a new section; its case now goes back to one read before, which comes
+from the cache into the same page.
+
+Gates, on this branch merged with `main` at `2e5d4c8a`: the whole `unit` project, 1,158 files,
+18,182 cases passed and 37 skipped, but for the 2 files that run pnpm themselves, as above;
+`unit-browser`, 193 files, 3,794 passed; `tsc --noEmit` for the root and `apps/web`, ESLint on the
+43 changed files, and the six docs checks found nothing. On Postgres 16.15, 46 integration files
+passed, 438 cases: every integration file of `apps/api` (41), the three of `packages/managed`, the
+system role's, and the stop door's.
+
 **2026-11-21: T3 built, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished`, from
-`main` at `87663d70`; not merged.** Inert, as T2 is: nothing sets the column yet, so no migration
+`main` at `87663d70`; merged as #2003 (`cba6c64d`; *was:* not merged).** Inert, as T2 is: nothing sets the column yet, so no migration
 is refused today. T2 merged as #1975 on 2026-11-21 (`45a758af`). Its E2E (managed) run
 44881786816 was green and applied ledger migration 0070 on the test environment.
 
@@ -247,9 +406,9 @@ Nothing was built with it.
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** | §2, agreed as written. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
-| T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. Five things to settle first, in Status, 2026-11-21: three found with T2's review findings and two with T3. |
+| T1 The test organisation and its marker | builder | 🔨 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0162-t1-marker` | §3. Support marks an organisation (`POST` and `DELETE /api/support/tenants/{tenantId}/test`, managed migration 0062), only while it holds no migration; `POST /api/migrations` copies the marker onto each migration made there, and no update anywhere names the column (`a-test-marker-only-a-create-writes`); every page of a test migration says so, the lists show a *Test* badge, and the Finish page offers its data types no ending (the fifth thing to settle). ADR-0053. Not merged: it merges after the pull request that settles the first four, in Status, 2026-11-21. |
 | T2 The marker where the source is first listed | builder | ✅ **Merged** as #1975 on 2026-11-21 (`45a758af`), inert until T1 sets the column | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`, and since 2026-11-21 a set-aside item counted as seen by the removals and the bin; the column it reads (ledger 0070). E2E (managed) run 44881786816 was green and applied ledger migration 0070. The E2E smoke of a marked migration waits for T1. |
-| T3 Never finished, never switched over | builder | 🔨 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished` | §5. Finish, ending or keeping a data type, the cutover's preparation (its door and its job), the gate's report and `approve`, `execute` and `complete` refuse a test migration and name the reason; the Verify and Finish pages say it in English and Dutch; delete stays open. Inert until T1 sets the column. Not merged. |
+| T3 Never finished, never switched over | builder | ✅ **Merged** as #2003 on 2026-11-21 (`cba6c64d`) | §5. Finish, ending or keeping a data type, the cutover's preparation (its door and its job), the gate's report and `approve`, `execute` and `complete` refuse a test migration and name the reason; the Verify and Finish pages say it in English and Dutch; delete stays open. Inert until T1 sets the column. |
 | T4 The scenarios on live | owner | 📋 **Proposed** | §6. Marked items and an unmarked control of each data type in a real Google account; copy, change, delete and a lost marker, each watched at the target and in the guest's inbox. |
 | T5 Asking Google first | builder | 🅿️ **Parked** | §7. Server-side search, so that Ownpace never reads an unmarked title. Trigger: a test account too large to list whole, or the owner asking for it. |
 
@@ -328,14 +487,36 @@ Proposed on 2026-11-20, and agreed by the owner that evening as written.
   - Both routes sit behind `isAppointedOperator`, and anyone else gets a 404, as for `reopen`.
   - Each refuses while the organisation holds a migration.
   - Each writes an audit row.
+
+  *Built 2026-11-21:* managed migration 0062 makes `test_organisation`, one row per test
+  organisation, with 0070's CHECK and a trimmed marker, under row security, purged with the
+  organisation. A second `POST` replaces the marker. The route asks the operator's view first and
+  the doors ask `platform_operator` beneath it, each held by its own test. *Holds a migration* is
+  any `mailbox_mapping` row that names the organisation, whatever its status, as
+  `support_tenants.migration_count` and `operator.sh clean empty-tenant` count it: 409
+  `holds_a_migration`, with the sentence the screen shows. Both doors take the organisation's
+  migrations lock first, the advisory lock the create takes before it counts, so a mark and a
+  create are decided one after the other. The audit rows are `tenant.test_marker_set` and
+  `tenant.test_marker_cleared`.
 - **The marker's form:** 3 to 64 printable characters, with no control characters, trimmed. The
   default `[Ownpace-test]` is offered, not assumed.
+
+  *Built 2026-11-21:* `readTestMarker` (shared) counts characters by code point, as `char_length`
+  does, and refuses control, format, separator, surrogate and private-use characters: 400
+  `bad_marker`. The API fills in no marker; the Support screen's field starts at
+  `DEFAULT_TEST_MARKER`.
 - **Each migration's own copy.** Ledger migration 0070 adds `mailbox_mapping.test_marker text
   NULL`, and only adds.
   - `POST /api/migrations` copies the organisation's marker into it, in the transaction that
     creates the migration.
   - No route writes it afterwards. A guard reads every `UPDATE` of `mailbox_mapping` in the
     repository, and refuses any that names the column.
+
+  *Built 2026-11-21:* the create reads the marker under the lock `holdTheCap` takes, in its
+  transaction, and the answer carries it as `testMarker`. The guard is
+  `a-test-marker-only-a-create-writes`: SQL `UPDATE`s and the update half of an upsert in every
+  tracked file but tests, and drizzle `.set()`s from the syntax tree, a spread followed to what
+  it spreads; a key it cannot read refuses too.
 - **Why a column, and not `scope_selection.filters`.** That `jsonb` is per data type and read
   by nothing. Its check constraint admits `email`, `calendar`, `contact` and `file`, but not
   `task`. A column that every builder of a source must read is harder to forget than a key
@@ -345,6 +526,16 @@ Proposed on 2026-11-20, and agreed by the owner that evening as written.
   - Every page of a test migration shows a banner, in both languages: *Test: only items whose
     title contains `[Ownpace-test]` are copied. This migration cannot be finished.*
   - The lists show a *Test* badge.
+
+  *Built 2026-11-21:* `StatusReport.mappings[].testMarker`, which managed serves on
+  `GET /api/migrations/{id}` and on each row of `GET /api/migrations`. The banner is drawn once,
+  by `Layout`, above every page under `/mappings/{id}`, from the read the bar makes, with the
+  marker as code; in Dutch: *Test: alleen items waarvan de titel `[Ownpace-test]` bevat, worden
+  gemigreerd. Deze migratie kan niet worden afgerond.* The badge is on the Migrations page, a
+  person's page and Support's list of an organisation's migrations. The Finish page offers a test
+  migration's data types neither End nor Keep: `pathEndingChoices` reads the marker from the facts
+  `readPathStopFacts` reads. The Support control is English, as every operator screen is
+  (ADR-0013).
 - **ADR-0053**, *A test organisation copies only what is marked*, records (a)–(h) with T1.
 - **Self-host** is not in T1, because it has no operator role. Its `MappingConfig` can carry a
   marker later, if the appliance needs one.

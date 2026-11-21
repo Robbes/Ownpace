@@ -105,6 +105,14 @@ export interface PathStopFacts {
     readonly phase?: PathState;
     readonly stopped: boolean;
   }>;
+  /**
+   * The migration's test marker (`mailbox_mapping.test_marker`, ledger
+   * migration 0070; workplan 0162), when it is a test. A test migration's data
+   * types are never ended or kept (§2 (e)): the Finish page offers neither
+   * (`pathEndingChoices`). Absent for every other migration, and from a
+   * caller that builds the facts by hand.
+   */
+  readonly testMarker?: string;
 }
 
 /** What the door would do: refuse, change nothing, or change it in `phase`. */
@@ -151,7 +159,7 @@ export async function readPathStopFacts(
   const forUpdate = lock ? sql`FOR UPDATE` : sql``;
   const [mapping] = rowsOf(
     await db.execute(sql`
-      SELECT status FROM mailbox_mapping
+      SELECT status, test_marker FROM mailbox_mapping
        WHERE id = ${mappingId} AND tenant_id = ${tenantId}
        ${forUpdate}`),
   );
@@ -177,6 +185,7 @@ export async function readPathStopFacts(
       const row = rows.get(domain);
       return row === undefined ? { domain, stopped: false } : { domain, ...row };
     }),
+    ...(mapping.test_marker == null ? {} : { testMarker: String(mapping.test_marker) }),
   };
 }
 

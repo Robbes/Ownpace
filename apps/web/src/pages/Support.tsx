@@ -54,6 +54,7 @@ import { Link, useParams, useSearchParams } from 'react-router';
 import { LifeBuoy, ArrowLeft, AlertTriangle, Clock } from 'lucide-react';
 import {
   CLOSE_WINDOWS_DAYS,
+  DEFAULT_TEST_MARKER,
   FAILURE_CATEGORIES,
   isFailureCategory,
   isFailureSide,
@@ -86,6 +87,8 @@ import {
   closeSupportTenant,
   reopenSupportTenant,
   type SupportClosedAccount,
+  setSupportTestMarker,
+  clearSupportTestMarker,
 } from '../services/support.ts';
 import { readApplianceLog } from '../services/operating-service.ts';
 import { idpConsoleUserUrl, localSubjectKind } from '../services/idp-console.ts';
@@ -1052,6 +1055,16 @@ export const SupportTenantDetail: React.FC = () => {
                   >
                     {m.name ?? m.mapping_id}
                   </Link>
+                  {/* A test migration (workplan 0162 T1): its own marker, never its organisation's. */}
+                  {m.test_marker && (
+                    <span
+                      data-test-badge
+                      title={m.test_marker}
+                      className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900"
+                    >
+                      {t('support.test.badge')}
+                    </span>
+                  )}
                 </td>
                 <td className="px-3 py-2 text-gray-600">{m.lifecycle}</td>
                 <td className="px-3 py-2 text-gray-600">{m.mode ?? '—'}</td>
@@ -1099,8 +1112,170 @@ export const SupportTenantDetail: React.FC = () => {
         </table>
       </Section>
 
+      {/* Keyed by the organisation, so what was typed for one is never offered
+          on the next: the route keeps this page mounted from one organisation
+          to another. */}
+      <TestOrganisation key={tenant.tenant_id} tenant={tenant} />
       <Closure tenant={tenant} />
     </div>
+  );
+};
+
+/* ------------------------------------------------------- a test organisation */
+
+/**
+ * MARKING AN ORGANISATION AS A TEST, FROM ITS PAGE (workplan 0162 T1, §3; the
+ * owner's §2 (b); ADR-0053).
+ *
+ * Built as the close and the reopen below are: the API decides who may (a
+ * subject who is not an appointed operator gets "not found", and this section
+ * is only reached from a page the same rule already served), the press is
+ * armed and then confirmed, and the page reads the organisation again after
+ * it. A refusal is the API's own sentence, shown as it says it: while the
+ * organisation holds a migration it can be neither marked nor unmarked.
+ *
+ * The marker is offered, not assumed: the field starts at `[Ownpace-test]`
+ * (`DEFAULT_TEST_MARKER`), or at the organisation's own marker, and the API
+ * requires one and fills in none. The field sets no length of its own: the
+ * API counts the marker once trimmed, by code point, and is the judge.
+ *
+ * An organisation that is not open is neither marked nor unmarked, as it is
+ * neither closed nor reopened twice: the section says what it is, and offers
+ * nothing.
+ */
+const TestOrganisation: React.FC<{ tenant: SupportTenant }> = ({ tenant }) => {
+  const t = useOperatorT();
+  const client = useQueryClient();
+  const current = tenant.test_marker ?? null;
+  const [marker, setMarker] = React.useState(current ?? DEFAULT_TEST_MARKER);
+  const [armed, setArmed] = React.useState<'mark' | 'unmark' | null>(null);
+  const [said, setSaid] = React.useState<string | null>(null);
+  const mark = useMutation({
+    mutationFn: () => setSupportTestMarker(tenant.tenant_id, marker.trim()),
+    onSuccess: async (answer) => {
+      setArmed(null);
+      setSaid(
+        answer.unchanged
+          ? t('support.test.unchanged', { marker: answer.testMarker })
+          : t('support.test.done', { marker: answer.testMarker }),
+      );
+      await readTheChangeBack(client, tenant.tenant_id);
+    },
+  });
+  const unmark = useMutation({
+    mutationFn: () => clearSupportTestMarker(tenant.tenant_id),
+    onSuccess: async () => {
+      setArmed(null);
+      setMarker(DEFAULT_TEST_MARKER);
+      setSaid(t('support.test.undone'));
+      await readTheChangeBack(client, tenant.tenant_id);
+    },
+  });
+  const pending = mark.isPending || unmark.isPending;
+  const typed = marker.trim();
+  const open = tenant.tenant_status === 'active';
+  return (
+    <section className="mb-6 rounded-md border border-amber-200 bg-white p-4" aria-labelledby="support-test-title">
+      <h2 id="support-test-title" className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
+        {t('support.test.title')}
+      </h2>
+      {said && (
+        <p role="status" className="mb-3 rounded-md border border-green-200 bg-green-50 p-3 text-sm text-gray-900">
+          {said}
+        </p>
+      )}
+      <div className="text-sm">
+        <p className="mb-2 text-gray-700">{t('support.test.intro')}</p>
+        <p className="mb-3 text-gray-600">{t('support.test.when')}</p>
+        {current ? (
+          <p className="mb-3 text-gray-900">
+            {t('support.test.is')} <code className="rounded bg-amber-50 px-1 font-mono">{current}</code>
+          </p>
+        ) : (
+          <p className="mb-3 text-gray-900">{t('support.test.isNot')}</p>
+        )}
+        {open ? (
+          <>
+            <label className="mb-3 block">
+              <span className="block font-medium text-gray-900">{t('support.test.marker')}</span>
+              <span className="block text-gray-600">{t('support.test.marker.hint')}</span>
+              <input
+                type="text"
+                value={marker}
+                disabled={armed !== null}
+                onChange={(e) => setMarker(e.target.value)}
+                className="mt-1 w-full max-w-md rounded-md border border-gray-300 px-2 py-1 font-mono"
+              />
+            </label>
+            {armed === null ? (
+              <span className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={typed === '' || typed === current}
+                  onClick={() => {
+                    setSaid(null);
+                    setArmed('mark');
+                  }}
+                  className="rounded-md border border-amber-300 px-3 py-1 text-amber-900 hover:bg-amber-50 disabled:opacity-50"
+                >
+                  {current ? t('support.test.change') : t('support.test.arm')}
+                </button>
+                {current && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaid(null);
+                      setArmed('unmark');
+                    }}
+                    className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+                  >
+                    {t('support.test.unarm')}
+                  </button>
+                )}
+              </span>
+            ) : (
+              <div className="rounded-md bg-amber-50 p-3">
+                <p className="mb-2 font-medium text-gray-900">
+                  {armed === 'mark'
+                    ? t('support.test.confirm', { name: tenant.tenant_name, marker: typed })
+                    : t('support.test.unconfirm', { name: tenant.tenant_name })}
+                </p>
+                <span className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => (armed === 'mark' ? mark.mutate() : unmark.mutate())}
+                    className="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {armed === 'mark' ? t('support.test.yes') : t('support.test.unyes')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => setArmed(null)}
+                    className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </span>
+              </div>
+            )}
+            {mark.isError && (
+              <p role="alert" className="mt-2 text-red-700">
+                {t('support.test.failed', { message: serverMessage(mark.error) })}
+              </p>
+            )}
+            {unmark.isError && (
+              <p role="alert" className="mt-2 text-red-700">
+                {t('support.test.unfailed', { message: serverMessage(unmark.error) })}
+              </p>
+            )}
+          </>
+        ) : (
+          <p className="text-gray-600">{t('support.test.notOpen')}</p>
+        )}
+      </div>
+    </section>
   );
 };
 
@@ -1493,6 +1668,12 @@ export const SupportMigrationDetail: React.FC = () => {
         {migration.lifecycle}
         {migration.schedule ? ` · ${migration.schedule}` : ''}
       </p>
+      {/* A test migration (workplan 0162 T1): its own marker, which it was made with. */}
+      {migration.test_marker && (
+        <p data-test-migration className="mb-4 text-sm text-gray-900">
+          {t('support.test.migration')} <code className="rounded bg-amber-50 px-1 font-mono">{migration.test_marker}</code>
+        </p>
+      )}
       <p className="mb-4 text-sm text-gray-600">
         {asCount((migration.pending_decision_count ?? 0) as number | string) > 0
           ? t('support.waiting.some', { count: asCount((migration.pending_decision_count ?? 0) as number | string) })

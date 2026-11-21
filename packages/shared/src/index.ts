@@ -31,6 +31,8 @@ export * from './queue-guidance.ts';
 export * from './migration-view.ts';
 export * from './completion-report.ts';
 export * from './lifecycle.ts';
+// Workplan 0162 T1: a test organisation's marker, as the operator types it.
+export * from './test-marker.ts';
 export * from './path-phase.ts';
 // Workplan 0154 T1 (a): where a migration is, in a person's words, read from
 // the lifecycle and path phase beside it.

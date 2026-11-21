@@ -1039,3 +1039,26 @@ describe('Migrations — on a phone, a migration draws its two tiles once, under
     expect(await screen.findByText('the migration page')).toBeInTheDocument();
   });
 });
+
+describe('Migrations — a test migration carries a Test badge (workplan 0162 T1)', () => {
+  it('beside its name, with its marker as the title, and none beside one that is not a test', async () => {
+    const TEST = sampleMapping({ id: 'm-test', name: 'Anna — the test', testMarker: '[Ownpace-test]' });
+    const REAL = sampleMapping({ id: 'm-real', name: 'Anna — the real one' });
+    listMock.mockResolvedValue([TEST, REAL]);
+    peopleMock.mockResolvedValue({
+      people: [
+        person('p-anna', 'Anna', [
+          { id: 'm-test', status: 'active' },
+          { id: 'm-real', status: 'active' },
+        ]),
+      ],
+      unassigned: [],
+    });
+    renderMappings();
+    await screen.findByRole('region', { name: 'Anna' });
+    const badgeOf = (id: string) => document.querySelector(`[data-migration="${id}"] [data-test-badge]`);
+    expect(badgeOf('m-test')).toHaveTextContent('Test');
+    expect(badgeOf('m-test')).toHaveAttribute('title', '[Ownpace-test]');
+    expect(badgeOf('m-real')).toBeNull();
+  });
+});

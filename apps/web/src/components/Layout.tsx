@@ -34,6 +34,7 @@ import { needsYouTotal } from '../services/needs-you.ts';
 import PlatformPauseBanner from './PlatformPauseBanner.tsx';
 import NewVersionPrompt from './NewVersionPrompt.tsx';
 import AlphaNote from './AlphaNote.tsx';
+import { TestMigrationBanner } from './TestMigration.tsx';
 import { supportAddress } from './SupportLine.tsx';
 import { useNewPageAtTheTop } from './NewPageAtTheTop.tsx';
 import {
@@ -664,6 +665,12 @@ const Layout: React.FC = () => {
               another build, most likely after a deploy while the tab stayed
               open. Both editions; nothing while the page is current. */}
           <NewVersionPrompt />
+          {/* A test migration (workplan 0162 T1), above every page under it:
+              the hub and each of its screens, from the read the bar makes.
+              Here rather than on each page, so a page added under a migration
+              says it too. Nothing for a migration that is not a test, and
+              nothing on the appliance, which has none. */}
+          {routeCtx && <TestMigrationBanner marker={headerMapping.data?.testMarker} />}
           <Outlet />
           {/* Under a step page of a migration, the way on to the next step. */}
           {routeCtx?.screen && <NextStepLink mappingId={routeCtx.mappingId} screen={routeCtx.screen} />}

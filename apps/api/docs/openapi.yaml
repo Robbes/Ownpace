@@ -2465,6 +2465,14 @@ paths:
 
         A created migration starts `paused`: it does not sync until the owner
         reviews the discovery counts and green-lights it via `/start`.
+
+        In an organisation an operator marked as a test (workplan 0162 T1,
+        `POST /api/support/tenants/{tenantId}/test`), the migration copies the
+        organisation's marker onto its own row, in the transaction that
+        creates it, and the answer carries it as `testMarker`. It then copies
+        only the items whose own title contains the marker, and is never
+        finished or switched over. Nothing in the body sets or changes it, and
+        no route writes it afterwards.
       requestBody:
         required: true
         content:
@@ -2614,6 +2622,13 @@ paths:
         through a later error, and only for the data types the migration
         carries, by the rule `…/discovery` reads by. Both are absent, never 0,
         when discovery could not count the data type.
+
+        `testMarker` (workplan 0162 T1) is a test migration's marker: the text
+        an item's own title must contain to be copied, copied from its
+        organisation when it was made and never changed. Absent for every
+        migration that is not a test. A test migration is never finished, so
+        its `endingChoices` offer nothing: each data type is listed where it
+        is, with `offers: []`.
       responses:
         '200':
           description: |
@@ -7584,6 +7599,109 @@ paths:
         '409':
           description: It is not closed, or its window has run out, which a window of 0 has from the start (`cannot_reopen`).
 
+  /api/support/tenants/{tenantId}/test:
+    parameters:
+      - name: tenantId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    post:
+      tags: [Support]
+      summary: Mark an organisation as a test, with its marker, as the operator
+      description: |
+        Workplan 0162 T1 (ADR-0053): every migration made in a test
+        organisation afterwards copies the marker onto its own row when it is
+        created, and then copies only the items whose own title contains it,
+        ignoring case. It is never finished or switched over. A second set
+        replaces the marker. Recorded as `tenant.test_marker_set` under the
+        operator, with `via: operator`, the marker, and the one it replaced.
+        The marker it already has is answered `unchanged: true`, and nothing
+        is written or recorded.
+
+        Asked about twice, as the close is: the organisation must be on the
+        subject's `support_tenants`, and `platform_operator` must hold the
+        subject, asked in the transaction that writes; the database itself
+        writes the row for an appointed operator only, in their own name.
+        Anybody else gets the `404` an absent id gets, and nothing is
+        written. Refused for an organisation that is not open, and while it
+        holds any migration, whatever its status, under the lock
+        `POST /api/migrations` takes, so a mark and a create are decided one
+        after the other. The id is read in either case.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [marker]
+              properties:
+                marker:
+                  type: string
+                  minLength: 3
+                  maxLength: 64
+                  description: |
+                    The text an item's own title must contain to be copied.
+                    Trimmed, then 3 to 64 printable characters, counted by code
+                    point: no control or formatting character, and none that
+                    looks blank but the space (a no-break space, a filler).
+                    Required: `[Ownpace-test]` is what the Support screen
+                    offers, never what is assumed.
+                  examples: ['[Ownpace-test]']
+      responses:
+        '200':
+          description: |
+            Marked. `replaced` is the marker it had before, if another;
+            `unchanged` is there when it had this one already, and then
+            nothing was written or recorded.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  testMarker: { type: string }
+                  replaced: { type: string }
+                  unchanged: { type: boolean, const: true }
+        '400':
+          description: The tenantId is not a uuid, or the marker is missing or not 3 to 64 printable characters once trimmed (`bad_marker`).
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such organisation, or a subject who is not an operator (the same answer).
+        '409':
+          description: |
+            It is not open (`not_open`): closed, or being erased; or it holds a
+            migration (`holds_a_migration`): `held` says how many, and
+            `message` the sentence the Support screen shows. An organisation
+            becomes a test, or stops being one, only while it is open and holds
+            none.
+    delete:
+      tags: [Support]
+      summary: Clear an organisation's test marker, as the operator
+      description: |
+        Workplan 0162 T1: the organisation is an ordinary one again, and
+        migrations made in it afterwards copy everything they are given.
+        Recorded as `tenant.test_marker_cleared` with the marker cleared. An
+        organisation that was not a test is answered with `cleared: null`,
+        and nothing is recorded. Asked about twice, and refused for an
+        organisation that is not open and while it holds a migration, as the
+        set is: each test migration keeps its marker until it is deleted.
+      responses:
+        '200':
+          description: Cleared, or nothing to clear.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  testMarker: { type: 'null' }
+                  cleared: { type: [string, 'null'] }
+        '400':
+          description: The tenantId is not a uuid.
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: No such organisation, or a subject who is not an operator (the same answer).
+        '409':
+          description: It is not open (`not_open`), or it holds a migration (`holds_a_migration`), as for the set.
+
   /api/support/audit-export:
     get:
       tags: [Support]
@@ -8068,6 +8186,12 @@ components:
           description: |
             The day the purge erases it, or null while it is open. It can be
             reopened until then, and never after a window of 0.
+        test_marker:
+          type: string
+          nullable: true
+          description: |
+            Its marker, when an operator marked it as a test organisation
+            (workplan 0162 T1, managed migration 0062), or null.
     SupportConnection:
       type: object
       description: |
@@ -8100,6 +8224,10 @@ components:
         schedule: { type: string }
         created_at: { type: string, format: date-time }
         updated_at: { type: string, format: date-time }
+        test_marker:
+          type: string
+          nullable: true
+          description: The migration's own test marker (workplan 0162 T1), or null for one that is not a test.
     SupportInvoice:
       type: object
       properties:
@@ -9240,6 +9368,13 @@ components:
           type: [string, 'null']
           format: date-time
           description: The newest domain completion. Absent means no domain has ever completed.
+        testMarker:
+          type: string
+          minLength: 3
+          maxLength: 64
+          description: |
+            A test migration's own marker (workplan 0162 T1), for the lists'
+            *Test* badge. Absent for every migration that is not a test.
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
       required: [id, tenantId, name, status, domains]
