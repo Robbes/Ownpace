@@ -569,11 +569,12 @@ export interface UpsertResult {
    * guests, and the target mails its guests itself (`mailsGuestsItself`,
    * workplan 0160). Nothing was written and nobody was mailed.
    *
-   * Cirrux mails a guest a cancellation when they are taken off an event, and
-   * a rewrite for such a target takes every guest off (`withoutGuests`). So a
-   * copy written before the guests came out is left as it is, however the
-   * source changes. Not an error and not a conflict: nobody edited the copy,
-   * so the ledger row stays as it was and the next pass asks again.
+   * Cirrux, while it was on the list, mailed a guest a cancellation when they
+   * were taken off an event (2026-11-19), and a rewrite for such a target
+   * takes every guest off (`withoutGuests`). So a copy written before the
+   * guests came out is left as it is, however the source changes. Not an
+   * error and not a conflict: nobody edited the copy, so the ledger row stays
+   * as it was and the next pass asks again.
    */
   readonly keptForGuests?: boolean;
   /**
@@ -809,9 +810,10 @@ export interface RemovalResult {
    * The copy still lists guests, and the target mails its guests itself
    * (`mailsGuestsItself`, workplan 0160), so nothing was removed.
    *
-   * Cirrux mails each guest a cancellation when an event they are on is
-   * deleted. Answered only by a writer told its target does that; asked of
-   * the copy the target holds, just before the DELETE would have gone.
+   * Cirrux, while it was on the list, mailed each guest a cancellation when an
+   * event they were on was deleted (2026-11-19). Answered only by a writer
+   * told its target does that; asked of the copy the target holds, just
+   * before the DELETE would have gone.
    */
   readonly keptForGuests?: boolean;
   /**

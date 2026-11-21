@@ -2,7 +2,116 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21, later: alpha.14's counted nights are waived, in the owner's words, before its
+fold.** The owner, on 2026-11-21: *"I also waive waitings for alpha 14."* So `v0.2.0-alpha.14`
+joins `WAIVER_VERSIONS` in `scripts/release-nights.mjs`, beside alpha.3 to alpha.13, with those
+words, which Release's `waive_nights` must carry. The two guards that read the list name it, with
+`v0.2.0-alpha.15` now the version a waiver is refused for, and `docs/release.md` lists it. It lands
+before alpha.14's fold, so C carries the list: Release reads `WAIVER_VERSIONS` from `main`'s own
+scripts. The words also cover alpha.14's other waits: a release taken inside its three-day floor
+for alpha.14 says so in its own pull request, and is taken only where an item needs it.
+
+**2026-11-21, morning: `v0.2.0-alpha.13` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-21. Times are UTC.
+
+- **C is `45dfead1`**, the squash of #1988, merged on 2026-11-21 at 03:36:12 on `758a7101` (#1987,
+  the fold). Its tree is that of #1988's head, `62fae33a`. On C, all green: CI run 44861980844
+  (03:36:16 to 03:59:33, `ci-complete` included), Security Scan run 44861980861, Images run
+  44861980832, Semgrep run 44861980857 and Dockerfile lint run 44861980870. Nextcloud's second
+  major did not run on C, whose change touches none of its paths; it ran green on the fold, run
+  44858028072.
+- **C moved once.** The fold's squash was C until `main`'s first CI run on it, 44858028059, failed
+  in `a-deploy-from-a-named-tag` (2 failed, 21,461 passed): the fixture tag's commit id, made
+  afresh each run, held `65536`. Everything else on the fold was green, its three E2E runs
+  included. #1988 takes git object ids out before that check, and every check below ran again on
+  its squash.
+- **In the counted nights' place**, waived for alpha.13 (*"Continue, I waive the waiting/nights,
+  just work autonomously and efficient on the upcoming alpha."*, #1981), dispatched on `main` at
+  C, all green: E2E (managed) run 44861999800 (03:36:29 to 03:44:20), then E2E (self-hosted) on
+  Postgres, run 44862698651 (03:45:01 to 03:50:31), and on PGlite, run 44863213596 (03:51:23 to
+  03:56:27), one at a time, each once the run before it had ended green; beside them Security
+  Scan with the image scans, run 44861995033 (29 jobs), and `windows-payload.yml` run 44861997300
+  (win-x64).
+- **Release.** The owner dispatched it from their own account and approved in the `release`
+  environment, with no preflight run of its own first. Release run 44877601837, with
+  `waive_nights` set to the words above, in one attempt: its preflight passed (06:52:40 to
+  06:53:23), and it waited at its approve job until the owner approved (06:58:47); then the gate
+  scan of C (run 44878077836, on `release-gate/v0.2.0-alpha.13`, 06:59:09 to 07:00:13) and the tag
+  (07:01:02) succeeded. The publish job's Security Scan on the tag, run 44878266527 (07:01:23 to
+  07:02:32), made the release with its body and SBOM; the images, run 44878416496 (07:03:14 to
+  07:04:30), and the Windows zip, run 44878419932 (07:03:16 to 07:04:55), both on the tag, were
+  green; and verify passed (07:05:22 to 07:06:20).
+- **The two attaches, first through the runner's own `gh`** (#1977): `bom.json` (2,064,513
+  bytes, 07:02:28) and `ownpace-appliance-win-x64-v0.2.0-alpha.13.zip` (50,022,706 bytes,
+  07:04:48), both uploaded by `github-actions[bot]`. Verify, which reads both, passed.
+- **The tag.** `v0.2.0-alpha.13` is tag object `aafb94b4…` on `45dfead1`, made by
+  `github-actions[bot]` at 07:01:02. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/44877601837*, *Proved by: CI run #5774, Security
+  Scan run #5897 on main, windows-payload run #51; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/44878077836* and *Nights waived by Robbes, in
+  their words: "Continue, I waive the waiting/nights, just work autonomously and efficient on the
+  upcoming alpha."*
+- **The image scan after the tag**, Security Scan run 44878860013 (`image_scans`, on `main` at C,
+  07:08:51 to 07:12:19, 29 jobs), was green and left each of the 26 images' issues untouched: no
+  finding moved since C's own scan, run 44861995033.
+- **Owed after the tag:** live's deploy from alpha.12, reversible: no migration and no pin moves
+  (the fold's entry, below).
+
+**2026-11-21: the fold for `v0.2.0-alpha.13` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.13`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-21, under a summary; [Unreleased] stays, empty. alpha.13 carries what
+`main` merged after alpha.12's tag:
+
+- Infomaniak keeping the guests on copied calendar events, each marked `SCHEDULE-AGENT=CLIENT`
+  (#1965), and Cirrux again, once a test sent no mail (#1968);
+- the Trigger.dev webapp's image without undici 5.29.0 and its busboy (#1963);
+- the test mail server on Stalwart v1.1.1, with the JMAP file target on v1's names (#1964);
+- the Docker socket proxy from docker-socket-proxy v0.6.0 (#1967), then as HAProxy's uid 99,
+  reaching the socket through its group (#1979);
+- live's deploy refusing an address that is not live's own (#1973);
+- a copied message keeping the time it arrived (#1976);
+- what the managed gate prints when a folder press falls short (#1966);
+- a closed organisation taking nobody in (#1972);
+- the dashboard's TLS front on Caddy 2.11.9-alpine's index of 2026-11-13 (#1982);
+- the npm minor-and-patch group, 14 updates (#1971);
+- the credential store naming GCM's tag length (#1985);
+- in CI alone: no cache restored in a run a tag starts, and zizmor over every workflow change
+  (#1977), the O365 lane deleted (#1980), osv-scanner over the lockfile (#1984) and Semgrep,
+  report only (#1986), with workplan 0163 (#1978);
+- the records of alpha.12's release and live deploy (#1969), workplan 0162 (#1974) and the nights
+  waiver (#1981).
+
+- **C and the freeze.** The fold's squash, `758a7101`, was C until `main`'s first CI run on it
+  failed in `a-deploy-from-a-named-tag`: the fixture tag's commit id, made afresh each run, held
+  `65536`, a number the test checks a refusal never prints. #1988 takes git object ids out
+  before that check, and C is its squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.13 (*"Continue, I waive the waiting/nights, just work
+  autonomously and efficient on the upcoming alpha."*): E2E (managed) and E2E (self-hosted) on
+  Postgres and on PGlite, dispatched on `main` at C, one at a time, beside C's push runs and its
+  Windows smoke.
+- **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
+  `waive_nights` set to those words, and the approval in the `release` environment. Its first tag
+  runs the two release attaches on the runner's own `gh` (#1977), which `release-verify.mjs`
+  checks.
+- **Live's deploy** from alpha.12 is reversible by the deploy's own rule: no file in either
+  migration chain is added, changed or removed, and none of the Trigger.dev (v4.8.5), identity
+  provider (Zitadel v4.20.4) and ClickHouse pins moves. The images each machine builds change: the
+  Docker socket proxy (`3.4.7-alpine-98dbd75c6730`), which runs as uid 99 with the socket's group,
+  `DOCKER_SOCKET_GID`, that the bring-up writes into `.env`; the dashboard's TLS front
+  (`2.11.9-alpine-9c1f752119a3`); and the Trigger.dev webapp (`v4.8.5-f7b52b1d2670`).
+
+**2026-11-20, late: alpha.13's counted nights are waived, in the owner's words, before its fold.**
+The owner, on 2026-11-20: *"Continue, I waive the waiting/nights, just work autonomously and
+efficient on the upcoming alpha."* So `v0.2.0-alpha.13` joins `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs`, beside alpha.3 to alpha.12, with those words, which Release's
+`waive_nights` must carry. The two guards that read the list name it, with `v0.2.0-alpha.14` now
+the version a waiver is refused for, and `docs/release.md` lists it. It lands before alpha.13's
+fold, so C, the fold's squash, carries the list: Release reads `WAIVER_VERSIONS` from `main`'s own
+scripts. Owed before the tag: the pull requests queued for alpha.13, each through E2E (managed)
+on the test environment where it changes what runs; the fold; C green on CI, the scans and E2E;
+and the owner's dispatch of Release.
 
 **2026-11-20, evening: live runs `v0.2.0-alpha.12`, one-way, on a copy of alpha.11's databases
 (T2).** The owner deployed it from the tag on 2026-11-20: one run of alpha.11's `deploy-live.sh`,

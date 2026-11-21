@@ -77,6 +77,8 @@
  *                      within its line, `LINES`), the Trivy the Security
  *                      Scan installs from its GitHub release and checks by
  *                      its sha256 (2026-11-04), both copies together, the
+ *                      osv-scanner it installs the same way, beside it, to
+ *                      read the lockfile (2026-11-20), the
  *                      cosign the workflows name, every
  *                      copy together, and the Atlas release ci.yml's
  *                      migration-lint downloads and checks by its sha256
@@ -91,6 +93,11 @@
  *                      hadolint image hadolint.yml lints every Dockerfile
  *                      with (`HADOLINT_IMAGE`, 2026-11-19), against Docker
  *                      Hub's tags of its shape and major; and the
+ *                      Semgrep image semgrep.yml scans the tree with
+ *                      (`SEMGREP_IMAGE`, 2026-11-21), the same way; and the
+ *                      zizmor image zizmor.yml audits the workflows with
+ *                      (`ZIZMOR_IMAGE`, 2026-11-20), against ghcr.io's tags
+ *                      of its shape and major; and the
  *                      Node.js release keyring the Windows payload's
  *                      `node.exe` check reads (`NODE_RELEASE_KEYS` in
  *                      scripts/package-appliance.mjs, 2026-11-01), the file
@@ -276,6 +283,59 @@ export function hadolintPin(text) {
   return image;
 }
 
+/**
+ * The Semgrep `semgrep.yml` scans the tree with, report only (workplan 0163
+ * T3, the owner's decision D3 of 2026-11-20): its job's one `SEMGREP_IMAGE:`
+ * line. Dependabot reads no workflow env, so this row is what says a newer
+ * release is tagged.
+ */
+export const SEMGREP_WORKFLOW = '.github/workflows/semgrep.yml';
+
+/** Said beside the Semgrep row when it is behind. */
+export const SEMGREP_NOTE =
+  "move `SEMGREP_IMAGE` in semgrep.yml by tag and index digest, with the comment above it and `SEMGREP` in a-finding-only-an-outside-check-saw saying what was read, in a pull request of its own three days after the tag's push; a newer Semgrep can read more or fewer spots with the same rules, so read the job's summary on that pull request";
+
+/**
+ * The image `semgrep.yml` runs: its one `SEMGREP_IMAGE:` line, as
+ * `semgrep/semgrep:<x.y.z>@sha256:…`. None, two, another image or no digest
+ * is an error, never "current".
+ */
+export function semgrepPin(text) {
+  const named = [...text.matchAll(/^\s*SEMGREP_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${SEMGREP_WORKFLOW} sets SEMGREP_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'semgrep/semgrep' || !/^\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${SEMGREP_WORKFLOW} names ${image.ref}, not semgrep/semgrep by a release tag and its index digest`);
+  }
+  return image;
+}
+
+/**
+ * The zizmor `zizmor.yml` audits the workflows with, blocking (workplan 0119,
+ * 2026-11-20): its job's one `ZIZMOR_IMAGE:` line. Dependabot reads no
+ * workflow env, so this row is what says a newer release is tagged.
+ */
+export const ZIZMOR_WORKFLOW = '.github/workflows/zizmor.yml';
+
+/** Said beside the zizmor row when it is behind. */
+export const ZIZMOR_NOTE =
+  "1.30.1 is the zizmor the outside check of GEN-26 runs: move `ZIZMOR_IMAGE` in zizmor.yml by tag and index digest when that check moves, or on purpose, with the comment above it and `ZIZMOR` in a-workflow-zizmor-would-flag saying what was read, in a pull request of its own three days after the release; a newer zizmor brings new audits, and the job is blocking, so fix what it finds in the same pull request";
+
+/**
+ * The image `zizmor.yml` runs: its one `ZIZMOR_IMAGE:` line, as
+ * `ghcr.io/zizmorcore/zizmor:<x.y.z>@sha256:…`. None, two, another image, a
+ * release candidate or no digest is an error, never "current".
+ */
+export function zizmorPin(text) {
+  const named = [...text.matchAll(/^\s*ZIZMOR_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${ZIZMOR_WORKFLOW} sets ZIZMOR_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'ghcr.io/zizmorcore/zizmor' || !/^\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${ZIZMOR_WORKFLOW} names ${image.ref}, not ghcr.io/zizmorcore/zizmor by a release tag and its index digest`);
+  }
+  return image;
+}
+
 /** The visit count's GoAccess, built here (#1675). */
 export const GOACCESS_DOCKERFILE = 'deploy/compose/goaccess/Dockerfile';
 
@@ -382,6 +442,22 @@ export const TRIVY_ARCHES = { AMD64: '64bit', ARM64: 'ARM64' };
 /** Said beside the Trivy row when it is behind: the values move together, in both copies, with every `version:`. */
 export const TRIVY_NOTE =
   "move INSTALL_TRIVY_VERSION and both INSTALL_TRIVY_SHA256_* together in both copies of security-scan.yml's install step (it says where each sum is read), and `version:` on every trivy-action step, once the release is three days old";
+
+/**
+ * The osv-scanner the Security Scan reads the lockfile with (workplan 0163 T2,
+ * 2026-11-20): a named release from its GitHub release page, a bare binary for
+ * each architecture a runner here has, with a SHA-256 for each set in the
+ * `env:` of its one install step, in the shape of the Atlas step. It FAILS
+ * the build on a malicious package (scripts/osv-report.mjs). Upstream tags
+ * every release in git. Dependabot cannot see a URL in a `run:`.
+ */
+export const OSV_SCANNER_WORKFLOW = '.github/workflows/security-scan.yml';
+export const OSV_SCANNER_HOST = 'https://github.com/google/osv-scanner/releases/download/';
+export const OSV_SCANNER_UPSTREAM = 'https://github.com/google/osv-scanner';
+export const OSV_SCANNER_ARCHES = ['amd64', 'arm64'];
+/** Said beside the osv-scanner row when it is behind: the three values move together. */
+export const OSV_SCANNER_NOTE =
+  "move OSV_SCANNER_VERSION and both OSV_SCANNER_SHA256_* in security-scan.yml's install step together, each sum from the release's osv-scanner_SHA256SUMS, once the release is three days old";
 
 /**
  * The images two actions in images.yml run, named in their inputs (workplan
@@ -1081,6 +1157,85 @@ export function trivyPin(workflow, job) {
   return { version, sha256, line: lineOffset + start + 1 };
 }
 
+/**
+ * The osv-scanner OSV_SCANNER_WORKFLOW installs, read from its one step that
+ * downloads from OSV_SCANNER_HOST: `{ version, sha256: { amd64, arm64 }, line }`
+ * (workplan 0163 T2, 2026-11-20). Throws for a step not of the shape it must
+ * have, as `atlasPin` does: a fetch from anywhere but OSV_SCANNER_HOST, of a
+ * name not under `${OSV_SCANNER_VERSION}/`, or into anything but the file it
+ * hashes; a version that is not a release (`v2.7.1`); an architecture with no
+ * 64-digit sum, or one sum for both; a sum compared with anything but the
+ * pinned one in `env:`; a file made executable that is not the native one
+ * hashed, or before a `sha256sum` has read the downloads with an `exit 1`
+ * between; or no check that the binary calls itself the release named. Text
+ * only: the guard also runs the step's `run:` under bash. The osv-scanner row
+ * reads its version with this.
+ */
+export function osvScannerPin(workflow) {
+  const { start, code, logical, env } = downloadStep(workflow, OSV_SCANNER_HOST, 'OSV_SCANNER_', 'osv-scanner');
+  const version = env.OSV_SCANNER_VERSION;
+  if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
+    throw new Error(`the osv-scanner step names no release in OSV_SCANNER_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
+  }
+  const sha256 = {};
+  for (const arch of OSV_SCANNER_ARCHES) {
+    const sum = env[`OSV_SCANNER_SHA256_${arch.toUpperCase()}`];
+    if (!/^[0-9a-f]{64}$/.test(sum ?? '')) throw new Error(`the osv-scanner step pins no sha256 for linux/${arch} (OSV_SCANNER_SHA256_${arch.toUpperCase()})`);
+    sha256[arch] = sum;
+  }
+  if (sha256.amd64 === sha256.arm64) throw new Error('the osv-scanner step pins one sha256 for two architectures');
+  // Every fetch is the release from OSV_SCANNER_HOST, by a name under the
+  // version, into the file the loop hashes; the sum it is compared with is the
+  // pinned one; and what is made executable is that same file, for the native
+  // architecture.
+  for (const text of logical) {
+    if (/\|\s*(?:sudo\s+)?(?:ba|da|z)?sh\b/.test(text)) throw new Error(`the osv-scanner step pipes something to a shell: ${text}`);
+    for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(OSV_SCANNER_HOST)) throw new Error(`the osv-scanner step fetches from somewhere other than ${OSV_SCANNER_HOST}: ${url}`);
+      if (/latest/i.test(url) || !url.startsWith(`${OSV_SCANNER_HOST}\${OSV_SCANNER_VERSION}/`)) {
+        throw new Error(`the osv-scanner step downloads a name with no version: ${url} (it must be under ${OSV_SCANNER_HOST}\${OSV_SCANNER_VERSION}/)`);
+      }
+    }
+  }
+  // Under names of its own (`binary`, `sum`, `expected`), not the Atlas and
+  // Trivy steps' `download`, `seen` and `pinned`: the guard's mutations of the
+  // Trivy step in the same file read its first copy of each statement.
+  const hashed = '"$RUNNER_TEMP/osv-scanner-$OSV_SCANNER_VERSION-linux-$arch"';
+  const native = hashed.replace('$arch', '$native');
+  const has = (statement) => logical.some((text) => text === statement || text.startsWith(`${statement};`));
+  if (!has(`binary=${hashed}`)) throw new Error(`the osv-scanner step does not download each architecture to binary=${hashed}`);
+  for (const text of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!text.includes(OSV_SCANNER_HOST) || !/\s-o "\$binary"\s/.test(text)) {
+      throw new Error(`the osv-scanner step fetches something that is not the release into "$binary": ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (text !== 'sum="$(sha256sum "$binary")"') throw new Error(`the osv-scanner step hashes something other than "$binary": ${text}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bexpected=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = OSV_SCANNER_ARCHES.map((arch) => `"$OSV_SCANNER_SHA256_${arch.toUpperCase()}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`the osv-scanner step's expected sum is not only ${fromEnv.join(' or ')}: expected=${pins.join(', expected=') || 'nothing'}`);
+  }
+  if (!has('if [ "$sum" = "$expected" ]; then')) throw new Error('the osv-scanner step never compares the sum it read ("$sum") with the pinned one ("$expected")');
+  for (const text of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    const made = /\bchmod\s+\S+\s+(\S+)/.exec(text)?.[1] ?? /\binstall\s+-m\s+\S+\s+(\S+)/.exec(text)?.[1];
+    if (made !== native) throw new Error(`the osv-scanner step makes executable something other than the file it hashed, ${native}: ${text}`);
+  }
+  const first = (re) => code.findIndex((text) => re.test(text));
+  const read = first(/\bsha256sum\b/);
+  const runnable = first(/\bchmod\b|\binstall\s+-m\b/);
+  if (read < 0) throw new Error('the osv-scanner step never reads a sha256 of what it downloads');
+  if (runnable < 0) throw new Error('the osv-scanner step makes nothing executable, so it cannot be what installs osv-scanner');
+  if (!(read < runnable && code.slice(read, runnable).some((text) => /\bexit 1\b/.test(text)))) {
+    throw new Error('the osv-scanner step makes its download executable before its sha256 is read and a mismatch has stopped it');
+  }
+  if (!code.some((text) => text.includes('"osv-scanner version: ${OSV_SCANNER_VERSION#v}"'))) {
+    throw new Error('the osv-scanner step never checks that what it installed calls itself the release named');
+  }
+  return { version, sha256, line: start + 1 };
+}
+
 /** A tag that names a release: three numbers, and no channel word. */
 const RELEASE_TAG = /\d+\.\d+\.\d+/;
 const CHANNEL_WORD = /(?:^|[-_.])(?:latest|stable|nightly|master|main|edge|dev|rc\d*|beta|alpha)(?=$|[-_.\d])/i;
@@ -1733,6 +1888,26 @@ export async function routineRows(repo, net) {
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [HADOLINT_NOTE] } : {}) };
   }]);
 
+  // Semgrep (0163 T3, 2026-11-21): the image semgrep.yml scans the tree with,
+  // against Docker Hub's newest tag of its shape and major (an `<x.y.z>`, never
+  // a `-nonroot` build, `latest`, `canary` or a commit's tag).
+  jobs.push(['semgrep/semgrep', SEMGREP_WORKFLOW, async () => {
+    const image = semgrepPin(need(repo, SEMGREP_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [SEMGREP_NOTE] } : {}) };
+  }]);
+
+  // zizmor (0119, 2026-11-20): the image zizmor.yml audits the workflows with,
+  // against ghcr.io's newest tag of its shape and major (an `<x.y.z>`, never a
+  // release candidate or `latest`).
+  jobs.push(['ghcr.io/zizmorcore/zizmor', ZIZMOR_WORKFLOW, async () => {
+    const image = zizmorPin(need(repo, ZIZMOR_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [ZIZMOR_NOTE] } : {}) };
+  }]);
+
   // The tasks' prebuilt base (0119 §3 item 13, 2026-11-06): trigger.config.ts's
   // pin against main's `edge`, by layers, since every merge republishes it
   // under a new digest (taskBaseRow).
@@ -1787,6 +1962,16 @@ export async function routineRows(repo, net) {
     const state = disagree ? 'behind' : stateOf(versions[0], newest);
     const notes = [...(disagree ? ['the copies disagree'] : []), ...(state === 'behind' ? [TRIVY_NOTE] : [])];
     return { pin: versions.join(' / '), newest, state, ...(notes.length ? { notes } : {}) };
+  }]);
+
+  // osv-scanner (0163 T2, 2026-11-20): the binary the Security Scan reads the
+  // lockfile with, from its GitHub release by its sha256, against upstream's
+  // git tags of the same major.
+  jobs.push(['osv-scanner', OSV_SCANNER_WORKFLOW, async () => {
+    const { version } = osvScannerPin(need(repo, OSV_SCANNER_WORKFLOW));
+    const newest = newestLike(version, tagsOf(await net.lsRemote(OSV_SCANNER_UPSTREAM)));
+    const state = stateOf(version, newest);
+    return { pin: version, newest, state, ...(state === 'behind' ? { notes: [OSV_SCANNER_NOTE] } : {}) };
   }]);
 
   // cosign: what signs the images and what checks them. Named in a step

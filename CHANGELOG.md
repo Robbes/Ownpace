@@ -20,8 +20,76 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   marker is taken out of its title is left as it was last copied, and is neither reported as
   deleted nor moved.
 
+## [0.2.0-alpha.13] - 2026-11-21
+
+Cirrux and Infomaniak keep the guests on copied calendar events, each guest and the organiser
+marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as at Nextcloud. A
+copied message keeps the time it arrived, a closed organisation takes nobody in, and files reach a
+Stalwart v1 server over JMAP. Live's deploy refuses an `API_URL`, `WEB_URL` or `CORS_ORIGIN` that
+is not live's own. Underneath, the Docker socket proxy is built from docker-socket-proxy v0.6.0
+and runs as HAProxy's own user instead of root, the Trigger.dev dashboard's TLS front takes
+Caddy's newest index, the Trigger.dev webapp's image no longer carries undici 5.29.0, and a stored
+credential is decrypted only with its full authentication tag. In CI, a run that a tag starts
+restores no cache and zizmor audits every workflow change, osv-scanner fails the Security Scan on a
+package OSV records as malicious, Semgrep reports what eight named rules find, and the O365 lane,
+which never ran a test, is gone. Live's deploy from alpha.12 is reversible: no migration moves, and
+neither do the Trigger.dev, identity-provider and ClickHouse pins.
+
+### Added
+
+- **Semgrep reads the tree on every pull request with eight named rules, and reports what they
+  find without failing anything** (workplan 0163 T3; the owner's decision D3 of 2026-11-20). An
+  outside, read-only check of 2026-11-20 listed classes of finding that no check in CI had a rule
+  for. *Semgrep* (`.github/workflows/semgrep.yml`) now runs Semgrep 1.186.0, pinned by its index
+  digest, with eight community rules fetched from Semgrep's registry by id: five for four of those
+  classes (a regular expression built at run time, a path joined from a value, the browser sent to
+  an address a function returned, a React link to an address from a value), and three that found a
+  spot each when workplan 0163 measured Semgrep on this tree. The job's summary lists each rule's spots, a spot read and left as it stands
+  marked known with the reason, and on `main` the results go to code scanning too. No finding fails
+  the job: a rule turns blocking on its own once it reports nothing on `main`, and the two ReDoS
+  rules never do. The weekly pin watch says when a newer Semgrep is tagged.
+
 ### Changed
 
+- **No workflow reads the real Microsoft 365 tenant; its harness runs by hand** (workplan 0141).
+  The O365 lane, `.github/workflows/e2e-o365.yml`, never ran a test: its secrets were never set.
+  It is deleted, so the tenant's credentials stay out of CI. The harness,
+  `test/e2e/o365-scenario.e2e.test.ts`, runs as before on a machine that holds them;
+  `docs/test-tenant.md` says how and lists every variable it reads, and a unit test holds that list
+  to the suite.
+- **No cache is restored in a run a tag starts, and every workflow change is audited before it
+  merges** (workplan 0119). An outside, read-only check (GEN-26) named three `actions/setup-node`
+  lines by zizmor 1.30.1's `cache-poisoning` audit: setup-node caches by default since v5, and the
+  workflows they sit in run on a `v*` tag. Every setup-node in the four workflows a tag starts
+  (`ci.yml`, `images.yml`, `security-scan.yml`, `windows-payload.yml`) now says
+  `package-manager-cache: false`. `ci.yml`'s pnpm store, which setup-node's `cache: pnpm`
+  restored, is an `actions/cache` step of its own, and every cache there restores on a pull request
+  and on `main` as before but only looks on a tag; the Chromium install runs on a tag whatever the
+  cache says. A new workflow, `zizmor.yml`, runs zizmor 1.30.1 by tag and index digest, offline
+  and with no config or ignore comments, on every pull request and push to `main` that touches
+  `.github/`, and fails on any finding. The pin watch lists a newer zizmor in its summary issue.
+  Its first run found 24 more findings already on `main`, now fixed: values a run cannot choose
+  but zizmor cannot tell apart (a matrix leg, a step's output, the base branch's name) reach
+  six steps' scripts through `env:` instead of being pasted in; the release attaches in Security
+  Scan and the Windows payload use the runner's own `gh` instead of `softprops/action-gh-release`,
+  doing what it did; and Dependabot proposes a version update only for a release at least seven
+  days old (security updates are not delayed).
+- **Cirrux keeps the guests on copied calendar events again** (workplan 0160; ADR-0043, amended
+  2026-11-20). Events and tasks written to Cirrux carry their guests and organiser again, each
+  marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
+  In alpha.12 they were written without them, each kept as a comment that names the person,
+  because on 2026-11-19 Cirrux's calendar server emailed an invitation to every guest of what it
+  was given, whatever the marker said. Cirrux has since said that its server did not honour the
+  marker then, and does now. An invitation it might still send cannot be taken back, so the change
+  was held for a test on the test environment, run on 2026-11-20: an event in the future whose only
+  guest was the owner's own second address sent no mail at its first copy, at a change of its title
+  and time, or when the guest was taken off at the source (0160 §4). Its removal could not be
+  tested from Google, whose calendars report no deletions. An event at Cirrux that lists guests is
+  now rewritten and removed as at
+  any other target. One copied while the guests were left out keeps them as comments until its
+  next rewrite, the next time it changes at the source, and then gets its guests. The Test's
+  scheduling line, and the audit row the first calendar pass writes, say what Cirrux's server
+  advertises, as for Nextcloud.
 - **Infomaniak keeps the guests on copied calendar events** (workplan 0161; ADR-0043, amended
   2026-11-20). Events and tasks written to Infomaniak now carry their guests and organiser, each
   marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
@@ -31,8 +99,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   watches for one (0161 T2). An event there that lists guests is now rewritten and removed as at
   any other target, and one copied without its guests gets them the next time it changes at the
   source and is written again. The Test's scheduling line, and the audit row the first calendar
-  pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux is unchanged:
-  nothing written to it names a guest.
+  pass writes, say what Infomaniak's server advertises, as for Nextcloud. Cirrux follows, in the
+  entry above.
 - **The Stalwart the tests and the demo start is v1.1.1** (workplan 0119, ADR-0022), from
   v0.16.27, on the owner's decision of 2026-11-19: the integration tests, the self-hosted
   end-to-end run and the OTA demo run it, live never does. Its image carries Debian's fixes for
@@ -49,6 +117,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   finished, it removes the demo's Stalwart and its data volume and clears the demo mail
   migration's own records, nothing else; without `--yes` it only shows what it would do. It
   refuses live. Nothing runs it by itself.
+- **The managed gate says what was there when its folder press falls short** (workplan 0104).
+  E2E (managed) run 44731893238 failed once on 2026-11-20: the demo target refused the file inside
+  the shared folder with 404, and the second attempt passed. Whether the file was not on the target
+  yet or the share API refused a file it held, the job log could not say, and the cause is not yet
+  known. When the folder press applies fewer than two rows, `smoke-managed.sh` now prints, before it
+  fails, the file's ledger rows, the mapping's passes since the seed, the folder's share rows, and
+  whether the target holds the folder and the file now. Nothing passes or fails differently.
 - **The Docker socket proxy is built from Tecnativa's docker-socket-proxy v0.6.0, which allows
   and refuses what v0.5.0 did** (workplan 0119). v0.6.0 keeps v0.5.0's configuration and
   entrypoint byte for byte, moved into a `system_files/` directory that one COPY takes, and the
@@ -72,9 +147,43 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   beside `WEB_URL` and `CORS_ORIGIN`, and the guide's step 6 for live sets it. The refusal first
   applies at the deploy after the one that moves live onto this release: `deploy-live.sh` runs
   its copy from before the checkout moves.
+- **The Trigger.dev dashboard's TLS front is built from Caddy 2.11.9-alpine's index of 2026-11-13**
+  (workplan 0119; Dependabot, #1982). That index is the one of 2026-11-06 with a linux/riscv64
+  image and its attestation added: the amd64 and arm64 images are the ones the front already ran,
+  each read from the registry and hashed to its digest. The front's image name carries the hash of
+  its Dockerfile's instructions, so `trigger-tls` and `trigger-tls-init` move to
+  `localhost/caddy:2.11.9-alpine-9c1f752119a3`, built at the next bring-up.
+- **The npm minor-and-patch group, 14 updates** (workplan 0119; Dependabot, #1971): at run time
+  imapflow 2.12.1 and nodemailer 10.6.0 for the connectors, and croner 11.0.1 for the scheduler
+  and the worker; in the web bundle `@tanstack/react-query` 5.108.0 and lucide-react 1.74.0; and
+  build and test tools (eslint 10.15.0, typescript-eslint 8.73.0 with its plugin and parser, jsdom
+  31.0.1, playwright-core 1.65.1, `@cyclonedx/cyclonedx-npm` 7.0.1, `@testing-library/user-event`
+  14.6.12 and `@tanstack/react-query-devtools` 5.108.0). Taken after E2E (managed) was green on its
+  head, and with the mail integration test reading each copy's arrival time back from a real
+  Stalwart on imapflow 2.12.1.
 
 ### Security
 
+- **A package OSV records as malicious fails the Security Scan** (workplan 0163). The scan's
+  repository job reads `pnpm-lock.yaml` with osv-scanner v2.7.1, downloaded from its GitHub release
+  and checked by its SHA-256, on every pull request, push to `main`, tag and Monday. A package an
+  OSV malicious-package record (`MAL-…`) names fails the job, with the package and the record
+  named. Every other advisory is listed in the job summary and passes, because `pnpm audit` stays
+  the vulnerability gate. A scan that did not finish, or read almost none of the lockfile, fails
+  too. The weekly pin watch says when a newer osv-scanner is out.
+- **The Docker socket proxy no longer runs as root: it runs as HAProxy's own uid 99, and reaches
+  the Docker socket through the socket's group, which the bring-up reads from the socket**
+  (workplan 0119). An outside, read-only check of the repository reported the image's
+  `USER root` (GEN-21). The image now ends as `USER 99:99`, the base's haproxy user, and
+  `managed.yml` adds the host socket's group to the container, from `DOCKER_SOCKET_GID` in
+  `.env`. Nobody sets that value: `ensure-env-secrets.sh` and every `bootstrap-managed.sh` run
+  read it from `/var/run/docker.sock` and write it, so live's deploy script and the OTA gate
+  both write it before their first `docker compose` call. Without it, Compose refuses to run;
+  there is no fallback to root or to no group. The proxy keeps no capability, no-new-privileges,
+  a read-only root filesystem and its one internal network. On every pull request that touches
+  `deploy/`, CI starts the image on the runner's socket with managed.yml's settings and fails
+  unless the image's user is 99:99 and every process in the container runs as uid 99. The image
+  has a new name, which each machine builds at its next deploy.
 - **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
   2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
   (workplan 0119). The image scan read six highs in the two, each fixed only in their next
@@ -88,8 +197,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Nothing is downloaded for it. The image has a new name, which each machine builds at its next
   deploy.
 
+- **A stored credential is decrypted only with its full authentication tag** (workplan 0163).
+  The credential store's AES-GCM cipher and decipher now both name the tag's length, 16 bytes, so
+  Node itself refuses a shorter tag. Until now only a length check before decryption did.
+
 ### Fixed
 
+- **A copied message keeps the time it arrived** (workplan 0002, 0001). The IMAP writer gave
+  each message it copied no arrival time, so the target recorded the moment of copying: the time
+  a mail app sorts "received" by, and the one a webmail shows when a message's `Date:` line is
+  missing or unreadable. On 2026-11-20 four old messages copied from Gmail into Cirrux on the
+  test environment showed the evening they were copied. The writer now sends the source's own
+  arrival time (IMAP's INTERNALDATE, or Microsoft Graph's `receivedDateTime`), then the `Date:`
+  line when the source gave none, and otherwise leaves the time to the target, as before. The
+  JMAP writer read only the `Date:` line, and now takes the same order. Messages copied before
+  this keep the time they were given: a later pass finds them by their Message-ID and leaves
+  them as they are.
 - **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
   a file node's kind `@type` and requires it when a node is made, and calls its media type
   `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
@@ -97,6 +220,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
   are still recognised as its own. To v1 it gives a media type without its parameters
   (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
+- **A sign-in no longer binds anybody to a closed organisation** (workplan 0139 T7 (b)). An
+  organisation a granted access request had made, closed before anybody signed in to it, was still
+  taken up at the first sign-in with its address: the person became the active owner of an
+  organisation that starts nothing (409 `account_closed`), and was never sent to ask for another.
+  An invitation into a closed organisation was offered, and could be accepted, the same way. Now an
+  organisation that is closed, or whose erasure is running, takes nobody in: its row stays as it
+  was, `GET /api/me` lists neither it nor its invitation, and accepting that invitation answers
+  404. A reopen before the erasure gives the row back at the next sign-in. A suspended
+  organisation, which nothing writes, is unchanged. Somebody already bound to a closed
+  organisation stays in it until it is reopened or erased.
 
 ## [0.2.0-alpha.12] - 2026-11-20
 

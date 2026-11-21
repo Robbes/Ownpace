@@ -152,8 +152,11 @@ describe('the dev stack agrees on what things are called', () => {
     // `docs/release.md` is the checklist somebody verifies the release against
     // — three copies of one string, none next to another.
     const workflow = read('.github/workflows/windows-payload.yml');
-    expect(workflow).toContain('--out "dist/ownpace-appliance-${{ matrix.platform }}"');
-    expect(workflow).toContain('NAME="ownpace-appliance-${{ matrix.platform }}"');
+    // The platform reaches both steps through `env:` since 2026-11-20 (zizmor's
+    // template-injection), so each says where PLATFORM comes from as well.
+    expect(workflow).toContain('--out "dist/ownpace-appliance-${PLATFORM}"');
+    expect(workflow).toContain('NAME="ownpace-appliance-${PLATFORM}"');
+    expect(workflow.match(/^ {10}PLATFORM: \$\{\{ matrix\.platform \}\}$/gm)?.length ?? 0).toBeGreaterThanOrEqual(2);
     expect(read('docs/release.md')).toContain('ownpace-appliance-win-x64-v');
     expect(read('docs/windows-appliance-runbook.md')).toContain('cd ownpace-appliance-win-x64');
   });
