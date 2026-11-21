@@ -54,7 +54,8 @@ draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-gitleaks`, from
   a `.tsx` test file, so the allowlist's `.ts` suffixes miss none. Three lines are outside the
   allowlist: one in each of two workplans, 0132 and 0133, and `deploy/compose/goaccess/Dockerfile`'s
   `ARG GOACCESS_COMMIT=` line, which `generic-api-key` matches because the name holds `access`. A
-  pull request that rewrites one of them fails. The next GoAccess bump rewrites the third: D8.
+  pull request that rewrites one of them fails. The next GoAccess bump rewrites the third: D8,
+  which the owner answered on 2026-11-21 with the rename, built as #1998.
 - **The pull request's own run** read its one commit (about 76 KB of added lines) and found
   nothing: both sums as pinned, the binary calling itself 8.30.1.
 - **Tests:**
@@ -716,4 +717,6 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
   example `UPSTREAM_COMMIT`), in a pull request of its own, with
   `a-service-that-phones-home`'s check of that line renamed with it. The allowlist stays as D4
   has it. The alternative: a second allowlist entry for that one file and that one line's shape
-  (`^ARG GOACCESS_COMMIT=[0-9a-f]{40}$`), which widens D4.
+  (`^ARG GOACCESS_COMMIT=[0-9a-f]{40}$`), which widens D4. **Answer, 2026-11-21: rename the
+  argument.** Built as #1998, a draft: the argument is `UPSTREAM_COMMIT`, with a comment saying
+  why, and the image is built from the same commit.
