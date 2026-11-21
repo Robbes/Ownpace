@@ -17,6 +17,7 @@
  *   runbook        Generate the guided DNS migration runbook (Markdown)
  *   reindex        Rebuild the ledger FROM the target (ADR-0020 recovery)
  *   check-access   Prove the O365 consent runbook actually worked
+ *   measure-google-sync  What Google answers to sync-collection (workplan 0164 T1), read-only
  */
 
 import {
@@ -38,6 +39,7 @@ import {
   directoryAvailability,
 } from '@openmig/connectors';
 import * as cutoverCli from './cutover-commands.ts';
+import { measureGoogleSyncAtTheMachine } from './measure-google-sync.ts';
 import { runCutoverGate, testMarkerOf } from '../jobs/cutover-gate.ts';
 import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
 import { log } from '@openmig/shared';
@@ -122,6 +124,14 @@ Commands:
                    O365 tenant id) and OAUTH2_CLIENT_ID/OAUTH2_CLIENT_SECRET;
                    pass --mailbox to also prove the two mailbox-scoped
                    permissions.
+  measure-google-sync
+                   What Google answers to sync-collection (workplan 0164 T1).
+                   Chooses the newest migration whose calendars come from
+                   Google over CalDAV itself, reads each calendar twice with
+                   PROPFIND and REPORT only, and asks you in between to change
+                   one event and delete one at Google. Writes nothing and
+                   prints counts and status codes only. Takes no options; run
+                   it with ./deploy/compose/operator.sh measure-google-sync.
 
 Options:
   --tenant, -t <id>         Tenant ID (required, except for "runbook")
@@ -199,8 +209,18 @@ Environment Variables:
   }
 
   if (!command) {
-    log.error('Error: command required (start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex, check-access)');
+    log.error('Error: command required (start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex, check-access, measure-google-sync)');
     process.exit(1);
+  }
+
+  // "measure-google-sync" chooses its own migration (workplan 0164 T1), so
+  // nobody types an id; an option given anyway would look as if it chose one.
+  if (command === 'measure-google-sync') {
+    if (args.length > 1) {
+      log.error('Error: measure-google-sync takes no options: it chooses its migration itself, and prints which.');
+      process.exit(1);
+    }
+    return { command, tenantId: '', mappingId: '', domain: '', assumeYes: false };
   }
 
   if (kind !== undefined && !(DISCOVERY_DOMAINS as readonly string[]).includes(kind)) {
@@ -309,12 +329,28 @@ async function main() {
   // Initialize database connection
   const dbUrl = process.env.DATABASE_URL;
   if (!dbUrl) {
-    log.error('Error: DATABASE_URL environment variable required');
+    log.error(
+      command === 'measure-google-sync'
+        ? 'Error: DATABASE_URL is not set. Run ./deploy/compose/operator.sh measure-google-sync, which composes ' +
+            "the stack's owner connection and loads its .env."
+        : 'Error: DATABASE_URL environment variable required',
+    );
     process.exit(1);
   }
 
   const { Pool } = await import('pg');
   const pool = new Pool({ connectionString: dbUrl });
+
+  // Workplan 0164 T1: read-only, at the machine, on the owner's connection,
+  // which it reads in one READ ONLY transaction (measure-google-sync.ts).
+  if (command === 'measure-google-sync') {
+    try {
+      process.exitCode = await measureGoogleSyncAtTheMachine(pool);
+    } finally {
+      await pool.end();
+    }
+    return;
+  }
 
   // The cutover ledger is row-secured since migration 0055 (FORCEd, like every
   // tenant table): a session that is not a superuser sees it only with the
@@ -455,7 +491,7 @@ async function main() {
     }
     default:
       log.error(`Unknown cutover command: ${command}`);
-      log.error('Use: start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex');
+      log.error('Use: start-cutover, verify, approve, execute, complete, rollback, status, runbook, reindex, check-access, measure-google-sync');
       process.exit(1);
   }
 }

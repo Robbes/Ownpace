@@ -6,6 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **A read-only measurement of what Google answers to `sync-collection`** (workplan 0164 T1):
+  `./deploy/compose/operator.sh measure-google-sync`, a command of the worker's CLI, run once at
+  the machine of a managed stack. It chooses the newest migration whose calendars come from Google
+  over CalDAV and names it by its id and creation date, then reads each calendar of that account
+  with one `sync-collection` REPORT, before and after the owner changes one event and deletes
+  another at Google. It ends with the plan's verdict: the deleted event listed as a 404 makes
+  `sync-collection` the reader, not listed makes Google's Calendar API the reader. It sends
+  Google's calendars PROPFIND and REPORT only, refusing anything else before it is sent, reads the
+  database in a transaction opened read only, keeps the sync tokens in memory, and prints counts
+  and status codes only: no href, name, title, address, token, ETag or answer. The appliance does
+  not have it.
 - **A report of the locks a migration takes, before the merge** (workplan 0165). An outside,
   read-only check counted migrations that lock or scan a table while they run: CHECKs and foreign
   keys added without `NOT VALID`, and indexes made or dropped without `CONCURRENTLY`. Nothing in CI
@@ -55,6 +66,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Code scanning lists the spots of the six Semgrep rules that may block** (workplan 0163).
+  On a push to `main`, the SARIF the Semgrep job uploads now leaves out the two ReDoS rules,
+  `detect-non-literal-regexp` and `detect-redos`, which never block: on `main` they made 202 of
+  its 206 spots. Those spots stay in the job summary, counted and listed, and code scanning closes
+  their alerts at the next upload. Semgrep's own report is unchanged.
 - **A migration waits at most five seconds for a table lock** (workplan 0165, D3).
   Each migration file runs in one transaction, and until now nothing limited how long it waited
   for a lock: one asking to change a table behind a long query waited for that query, and every
@@ -96,6 +112,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   three days. A guard refuses any other setting, so no audit is turned off and no place is
   ignored, and it refuses a Dependabot entry that waits less than three days. Security updates
   still come without a cooldown.
+- **Trigger.dev is v4.8.8, from v4.8.5** (workplan 0119; the pin watch's #1935). Both images,
+  the SDK, the deploy CLI and the scheduler's package move together, by `trigger-version.sh pin`,
+  taken before its three-day floor on the owner's waiver of alpha.14's waits: five
+  `minimumReleaseAgeExclude` entries, which come out once 4.8.8 is past the floor on 2026-11-23.
+  A deployed task process now gets the environment's secret variables only with its run, not when
+  it starts; a run the kernel kills for memory is reported as that; a run's suspend is no longer
+  lost when the supervisor's first hand-off fails; and a Node 26 deploy builds Node's compile cache
+  for the task code, with esbuild 0.28. The webapp applies new Prisma migrations when it starts,
+  one way (five new tables and some columns, none of which holds a run), so each stack takes it
+  in a window, drained and with `triggerdb` backed up first. The two builds here were read again
+  at v4.8.8: cross-spawn 5.1.0 is no longer removed, since upstream's own override replaces it
+  with 7.0.6, and the esbuild binary removed is 0.28.2's. The deploy CLI takes no minimatch any
+  more, so its override went, and minimatch 10.2.6 with its moderate advisory left the tree.
 
 ### Fixed
 

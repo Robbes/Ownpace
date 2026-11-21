@@ -32,6 +32,14 @@
  * scripts. It claims only that every verb offered can be dispatched and every
  * verb implemented can be found, which is the half a half-finished addition
  * gets wrong.
+ *
+ * ONE VERB IS THE WORKER'S (workplan 0164 T1). `measure-google-sync` is a
+ * command of the worker's CLI, `apps/worker/src/cli/index.ts`, and the wrapper
+ * hands it there with `exec node` before the pnpm line, on the same owner
+ * connection. The same handshake holds for it with the worker's CLI as the
+ * third file: offered in both lists, dispatched before the API's line, and run
+ * by the CLI it is handed to. A verb the wrapper hands the worker and the CLI
+ * does not know reaches the CLI's `default:` and prints its list of commands.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -44,14 +52,31 @@ const read = (path: string): string => readFileSync(join(REPO_ROOT, path), 'utf8
 
 const WRAPPER = read('deploy/compose/operator.sh');
 const SCRIPT = read('apps/api/src/scripts/operator.ts');
+const WORKER_CLI = read('apps/worker/src/cli/index.ts');
 const API_PACKAGE = JSON.parse(read('apps/api/package.json')) as {
   scripts: Record<string, string>;
 };
 
 /** The verbs the wrapper puts in front of somebody, in either of its two lists. */
 const advertised = new Set(
-  [...WRAPPER.matchAll(/operator\.sh (?<verb>[a-z]+)/g)].map((m) => m.groups!.verb!),
+  [...WRAPPER.matchAll(/operator\.sh (?<verb>[a-z]+(?:-[a-z]+)*)/g)].map((m) => m.groups!.verb!),
 );
+
+/** The line that hands a verb to the worker's CLI instead of to pnpm. */
+const TO_THE_WORKER = 'exec node "$REPO_ROOT/apps/worker/src/cli/index.ts" "$@"';
+
+/** The verbs the wrapper hands to the worker's CLI: an `if` on the verb, then that line. */
+const handedToTheWorker = new Set(
+  [...WRAPPER.matchAll(/^if \[ "\$1" = "(?<verb>[a-z]+(?:-[a-z]+)*)" \]; then\n(?<body>(?: {2}.*\n)+?)fi$/gm)]
+    .filter((m) => m.groups!.body!.includes(TO_THE_WORKER))
+    .map((m) => m.groups!.verb!),
+);
+
+/** The commands the worker's CLI runs: its `case` labels and the ones it asks for by name. */
+const workerRuns = new Set([
+  ...[...WORKER_CLI.matchAll(/^ {4}case '(?<verb>[a-z-]+)': \{$/gm)].map((m) => m.groups!.verb!),
+  ...[...WORKER_CLI.matchAll(/command === '(?<verb>[a-z-]+)'/g)].map((m) => m.groups!.verb!),
+]);
 
 /** The verbs `operator.ts` actually implements. */
 const implemented = new Set(
@@ -72,10 +97,13 @@ describe('operator.sh, package.json and operator.ts agree on one set of verbs', 
     expect(advertised.size, 'no verbs found in operator.sh').toBeGreaterThan(3);
     expect(implemented.size, 'no `case` verbs found in operator.ts').toBeGreaterThan(3);
     expect(dispatchable.size, 'no operator:* scripts in apps/api/package.json').toBeGreaterThan(3);
+    expect(handedToTheWorker.size, "no verb is handed to the worker's CLI").toBeGreaterThan(0);
+    expect(workerRuns.size, "no commands found in the worker's CLI").toBeGreaterThan(3);
   });
 
   it('every verb the wrapper offers can be dispatched by pnpm', () => {
     for (const verb of advertised) {
+      if (handedToTheWorker.has(verb)) continue;
       expect(
         dispatchable.has(verb),
         `operator.sh offers \`${verb}\`, and apps/api/package.json has no ` +
@@ -118,10 +146,27 @@ describe('operator.sh, package.json and operator.ts agree on one set of verbs', 
     const from = WRAPPER.indexOf('FATAL: no sub-command');
     expect(from, 'the bare-run refusal is gone').toBeGreaterThan(0);
     const fatal = WRAPPER.slice(from, WRAPPER.indexOf('exit 1', from));
-    for (const verb of implemented) {
+    for (const verb of [...implemented, ...handedToTheWorker]) {
       expect(
         fatal.includes(`operator.sh ${verb}`),
         `running operator.sh with no arguments does not mention \`${verb}\`.`,
+      ).toBe(true);
+    }
+  });
+
+  it("every verb handed to the worker's CLI is offered, comes before the API's line, and is run there", () => {
+    const apiLine = WRAPPER.indexOf('--filter @openmig/api "operator:$1"');
+    expect(apiLine, "the API's dispatch line is gone").toBeGreaterThan(0);
+    for (const verb of handedToTheWorker) {
+      expect(advertised.has(verb), `operator.sh hands \`${verb}\` to the worker and never names it.`).toBe(true);
+      expect(
+        WRAPPER.indexOf(`if [ "$1" = "${verb}" ]; then`),
+        `\`${verb}\` is handed to the worker after the API's line, so pnpm is asked for it first.`,
+      ).toBeLessThan(apiLine);
+      expect(
+        workerRuns.has(verb),
+        `operator.sh hands \`${verb}\` to apps/worker/src/cli/index.ts, which does not run it: it reaches ` +
+          "the CLI's `default:` and prints its list of commands.",
       ).toBe(true);
     }
   });
