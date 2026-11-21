@@ -45,8 +45,8 @@
  * `a-pin-that-knows-it-is-behind`.
  */
 
-import { describe, it, expect } from 'vitest';
-import { existsSync, mkdtempSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { afterAll, describe, it, expect } from 'vitest';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -330,6 +330,16 @@ describe('the rules: the eight workplan 0163 names, each by its registry id (1)'
 describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)', () => {
   const image = (parseYaml(read(WORKFLOW)) as Workflow).jobs![JOB]!.env!['SEMGREP_IMAGE'] as string;
   const version = IMAGE.exec(image)![1]!;
+  /** Each run's reports directory, made here and removed when the block is done. */
+  const made: string[] = [];
+  const reportsDir = (): string => {
+    const dir = mkdtempSync(join(tmpdir(), 'semgrep-report-'));
+    made.push(dir);
+    return dir;
+  };
+  afterAll(() => {
+    for (const dir of made) rmSync(dir, { recursive: true, force: true });
+  });
 
   interface Spot {
     readonly rule: string;
@@ -389,7 +399,7 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
   };
 
   const at = (event: string, s: ReturnType<typeof stub>, env: Record<string, string> = {}) => {
-    const out = mkdtempSync(join(tmpdir(), 'semgrep-report-'));
+    const out = reportsDir();
     return run({ root: REPO_ROOT, env: { SEMGREP_IMAGE: image, GITHUB_EVENT_NAME: event, ...env }, docker: s.docker, wait: s.wait, out }).then((r) => ({ ...r, out }));
   };
 
@@ -479,7 +489,7 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
   });
 
   it('reads no report an earlier run left behind', async () => {
-    const out = mkdtempSync(join(tmpdir(), 'semgrep-report-'));
+    const out = reportsDir();
     const left = reports(everyRule);
     writeFileSync(join(out, JSON_REPORT), JSON.stringify(left.json));
     writeFileSync(join(out, SARIF_REPORT), JSON.stringify(left.sarif));
