@@ -679,9 +679,10 @@ describe('the OTA names, on the mesh only from the owner\'s step (open question 
  * answer. Everywhere else every answer still fails.
  *
  * THE DASHBOARD'S CERTIFICATE (the owner, 2026-11-21). Five more ports were
- * listed that day, the numbers the OTA stack, the demo and live publish; of
- * the services behind them only the Trigger.dev dashboard's TLS front is on
- * the machine's mesh address. A second tripwire sends each listed port a TLS
+ * listed that day; of this repository's services, the one a forward from the
+ * front could reach and that is not public otherwise is the Trigger.dev
+ * dashboard's TLS front, published on the mesh address with
+ * `TRIGGER_TLS_BIND`. A second tripwire sends each listed port a TLS
  * hello with no server name and fails on a certificate from Caddy's own local
  * CA, which that front presents, and on a hello it could not send. The
  * issuer is read and never printed.

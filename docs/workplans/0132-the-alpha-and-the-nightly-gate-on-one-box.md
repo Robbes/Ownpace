@@ -9,21 +9,19 @@ itself (T3 (c)).** Built on the branch `claude/ownpace-public-readiness-y7orc6-p
 not merged.
 - **What the probe found.** Run 44930537313 on `main`, dispatched to check that it reads
   `EXPOSURE_PROBE_HOST` from its environment (0163 T1), failed on five more ports answering on
-  both of live's front IPv4 addresses: 3001, 3090, 3443, 18081 and 25106. Run 42448301600 of
-  2026-11-08 tried the same 25 ports and met only 5432. The production names point at NetBird's
-  shared reverse proxy.
+  both of live's front IPv4 addresses. Run 42448301600 of 2026-11-08 tried the same ports and met
+  only 5432. The production names point at NetBird's shared reverse proxy.
 - **What the owner checked.** NetBird's dashboard holds no TCP, TLS or UDP service on any of the
   five. A capture of every new connection over the mesh interface across run 44936535281 saw
   nothing arrive in the seconds the probe tried the ports; only its HTTPS requests to `app.`,
   `id.` and `status.ownpace.eu` arrived, at live's own ports for them. So the proxy holds the five
-  for someone else, and the owner set `EXPOSURE_PROBE_FRONT_PORTS` to
-  `5432 3001 3090 3443 18081 25106`: run 44938020917 passed with them as notes.
-- **What a forward could reach.** On the machine, 3001 (the OTA stack's API), 3090 (its
-  Trigger.dev webapp) and 18081 (the demo's Stalwart JMAP) are published on loopback only, and
-  25106 is live's web app, public as `app.ownpace.eu` anyway. 3443, the OTA stack's Trigger.dev
-  dashboard through its TLS front, is published on the mesh address too (`TRIGGER_TLS_BIND`), so
-  the owner can open it from a laptop: a forward from the front could reach it, and on a listed
-  port that answer was only a note.
+  for someone else, and the owner listed them in `EXPOSURE_PROBE_FRONT_PORTS` beside 5432: run
+  44938020917 passed with them as notes.
+- **What a forward could reach.** On the machine, the OTA stack's API and Trigger.dev webapp and
+  the demo's Stalwart are published on loopback only, and live's services are public through the
+  front anyway. The OTA stack's Trigger.dev dashboard, through its TLS front, is published on the
+  mesh address too (`TRIGGER_TLS_BIND`), so the owner can open it from a laptop: a forward from
+  the front could reach it, and on a listed port that answer was only a note.
 - **The second tripwire (the owner's choice, 2026-11-21).** Each listed port that answers on a
   production name's address now also gets a TLS hello with no server name, and a certificate
   from Caddy's own local CA (`tls internal`; its intermediate is *Caddy Local Authority - ECC

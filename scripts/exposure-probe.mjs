@@ -75,14 +75,12 @@
  * optional; unset, every answer fails, as before.
  *
  * THE DASHBOARD'S CERTIFICATE, A SECOND TRIPWIRE (the owner, 2026-11-21).
- * That day five more ports answered on both front addresses, 3001, 3090,
- * 3443, 18081 and 25106, the same numbers the OTA stack, the demo's Stalwart
- * and live publish, and a capture on the machine's mesh interface across a
- * probe run saw nothing arrive: the front is NetBird's shared proxy, and holds
- * them for someone else. The owner listed them. Of the services behind those
- * numbers only one is published on the machine's mesh address, where a
- * forward from the front could reach it: the OTA stack's Trigger.dev
- * dashboard, through its TLS front (`trigger-tls`,
+ * That day five more ports answered on both front addresses, and a capture
+ * on the machine's mesh interface across a probe run saw nothing arrive: the
+ * front is NetBird's shared proxy, and holds them for someone else. The owner
+ * listed them. Of this repository's services, the one a forward from the
+ * front could reach and that is not public otherwise is the OTA stack's
+ * Trigger.dev dashboard, through its TLS front (`trigger-tls`,
  * `deploy/compose/trigger-tls.Caddyfile`, with `TRIGGER_TLS_BIND`). That
  * front presents a certificate from Caddy's own local CA (`tls internal`),
  * for whatever address or name `TRIGGER_TLS_HOST` gives it. So the probe also

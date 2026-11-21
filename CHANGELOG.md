@@ -188,15 +188,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   changes: the fake runs in tests only. Semgrep's `gcm-no-tag-length` reports nothing after it.
 - **The outside probe knows the Trigger.dev dashboard on a port the front answers by itself**
   (workplan 0132 T3 (c), the owner's choice of 2026-11-21). Five more ports answered on both of
-  live's front addresses that day, 3001, 3090, 3443, 18081 and 25106: NetBird's shared proxy holds
-  them for someone else, and a capture on the machine across a probe run saw nothing arrive. The
-  owner listed them in `EXPOSURE_PROBE_FRONT_PORTS` beside 5432, where a port that answers is a
-  note behind PostgreSQL's handshake. Of the services that publish those numbers on the machine,
-  only the OTA stack's Trigger.dev dashboard is on the mesh address, where a forward from the front
-  could reach it. So the probe also sends each listed port a TLS hello with no server name, and
-  fails on a certificate from Caddy's own local CA, which the dashboard's TLS front presents for
-  whatever address or name `TRIGGER_TLS_HOST` gives it, and on a hello it could not send. The
-  issuer is read and never printed.
+  live's front addresses that day: NetBird's shared proxy holds them for someone else, and a
+  capture on the machine across a probe run saw nothing arrive. The owner listed them in
+  `EXPOSURE_PROBE_FRONT_PORTS` beside 5432, where a port that answers is a note behind
+  PostgreSQL's handshake. Of this repository's services, the one a forward from the front could
+  reach and that is not public otherwise is the OTA stack's Trigger.dev dashboard, which
+  `TRIGGER_TLS_BIND` publishes on the mesh address. So the probe also sends each listed port a
+  TLS hello with no server name, and fails on a certificate from Caddy's own local CA, which the
+  dashboard's TLS front presents for whatever address or name `TRIGGER_TLS_HOST` gives it, and on
+  a hello it could not send. The issuer is read and never printed.
 
 ## [0.2.0-alpha.13] - 2026-11-21
 
