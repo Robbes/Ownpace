@@ -24,13 +24,14 @@ held for alpha.14.** On `claude/ownpace-public-readiness-y7orc6-t4-pay-checkout`
     authorize endpoints moved to `packages/shared/src/consent-endpoints.ts`.
   - Anything else is refused, and the screen says so: at the invoice's row, or in the consent's
     note, with the blank window closed.
-- **Mollie's checkout host is the one value not read from a source here.** `@mollie/api-client`
-  4.6.0 says to send the customer to `_links.checkout`, but gives no example address. The only
-  host it names for a page a person opens is `www.mollie.com` (Mollie Checkout's page, the
-  dashboard); its API is `api.mollie.com`. Mollie's API reference, which the client's types cite,
-  could not be read from the session that built this: its network refused the host. The billing
-  rehearsal's step 4 (`docs/billing-rehearsal-on-ota.md`) is where a real test payment shows it.
-  On any other host, the row says the address is not Mollie's checkout.
+- **Mollie's checkout host, `www.mollie.com`, is read from Mollie's API reference.**
+  `@mollie/api-client` 4.6.0 says to send the customer to `_links.checkout`, but gives no example
+  address. Mollie's API reference for creating and getting a payment (docs.mollie.com, read on
+  2026-11-21, which the client's types cite) gives every `_links.checkout.href` on
+  `www.mollie.com`, under `/checkout/`, test mode's `/checkout/test-mode` included, and no
+  checkout on any other host; its API is `api.mollie.com`. The billing rehearsal's step 4
+  (`docs/billing-rehearsal-on-ota.md`) shows it again with a real test payment. On any other host,
+  the row says the address is not Mollie's checkout.
 - **Tests.**
   - The new guard `apps/web/src/an-address-followed-on-the-apis-word.unit.test.tsx` (78 tests,
     English and Dutch) holds each refusal by the check that makes it: `http:`, another host, a

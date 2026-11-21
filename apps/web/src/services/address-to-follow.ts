@@ -49,10 +49,12 @@ export function addressToFollow(address: string, host: string): string | null {
 /**
  * The host of Mollie's hosted checkout. The checkout's address itself comes
  * from Mollie, as the payment's `_links.checkout` (the client library's
- * `getCheckoutUrl()`), and the API hands it on. `www.mollie.com` is the one
- * host `@mollie/api-client` 4.6.0 names for a page a person opens, Mollie
- * Checkout's and the dashboard's among them; its API is at `api.mollie.com`.
- * A checkout on any other host is refused, and the invoice's row says so.
+ * `getCheckoutUrl()`), and the API hands it on. Mollie's API reference for
+ * creating and getting a payment (docs.mollie.com, read on 2026-11-21) gives
+ * every `_links.checkout.href` on `www.mollie.com`, under `/checkout/`, test
+ * mode's `/checkout/test-mode` included, and no checkout on any other host;
+ * its API is at `api.mollie.com`. A checkout on any other host is refused,
+ * and the invoice's row says so.
  */
 export const MOLLIE_CHECKOUT_HOST = 'www.mollie.com';
 
