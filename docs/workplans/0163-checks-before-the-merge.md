@@ -4,6 +4,32 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after #2007 merged: T1 and T6 are on `main`, D8 and the six rules' upload too, and
+the secrets are in their environments.** In merge order (times UTC):
+- **#2006** (`2448f0a8`, 16:05): code scanning gets only the spots of the six rules that may block.
+  Semgrep's next upload from `main` (run 44922596746, 16:06) sent 4 and kept the two ReDoS rules'
+  204 in its job summary.
+- **#1992** (`17a9a460`), T6: gitleaks reads every commit a pull request adds, and a finding fails
+  it. CI was green on its head (run 44922717586), its own `gitleaks` job included.
+- **#1998** (`58e10d96`), D8: GoAccess's pinned commit is the build argument `UPSTREAM_COMMIT`.
+  On its head, with #1992 merged in, `gitleaks` read the renamed line and found nothing (CI run
+  44924152362).
+- **#2001** (`6afa68cd`), T1's first half: the two jobs name their environments. E2E (managed) run
+  44922496092 was green with its job in `e2e-managed`, whose workflow files are the merged head's.
+- **#2007** (`66138ba9`), T1's second half: the report lists each secret read outside an
+  environment. On its merged head it listed none: 32 findings for the auditor persona, 0 of them
+  `secrets-outside-env` (Workflow audit run 44927704872).
+- **The owner's steps in Settings, done the same evening, as #2001 lists them and as the owner
+  reported them:**
+  - `exposure-probe` holds `EXPOSURE_PROBE_HOST`, with deployment branches limited to `main`;
+  - `e2e-managed` holds `TRIGGER_ACCESS_TOKEN`, with no branch rule and no reviewer, so E2E
+    (managed) still runs on a pull request's branch;
+  - both repository secrets are deleted.
+- **The proof after the deletion:** E2E (managed) run 44930541955, dispatched on `main` at
+  `66138ba9`, was green: `verify: done   apply: applied`, SMOKE PASS, nothing unhealthy. Its tasks
+  deployed with the token from the environment, since no repository secret of that name is left.
+  The exposure probe's secret is read at its next dispatch.
+
 **2026-11-21, after T1's first half: zizmor's `secrets-outside-env`, report only, step 2's
 second half (T1), built as #2007, a draft.** On
 `claude/ownpace-public-readiness-y7orc6-zizmor-secrets-report`, from `main` at `ad2ffbe7`. The
@@ -484,12 +510,12 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised; D7, *"yes"*, built as T9) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
-| T1 Secrets into environments | builder | 🔨 **Built** in two drafts, not merged: #2001, the two jobs name their environments, and the secrets move in Settings, by the owner; and #2007, the report, zizmor's `secrets-outside-env` (Status, 2026-11-21) (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
+| T1 Secrets into environments | builder | ✅ **Merged** on 2026-11-21: #2001 (`6afa68cd`), the jobs name their environments, and #2007 (`66138ba9`), the report; ✅ **the secrets moved** in Settings by the owner the same day (Status, 2026-11-21, after #2007 merged) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); ✅ **the no-checkout sentence in Dutch, merged** as #2005 on 2026-11-21 (`55eab78b`; Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
-| T6 gitleaks on a pull request's own commits | builder | 🔨 **Built** in #1992, a draft, not merged (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
+| T6 gitleaks on a pull request's own commits | builder | ✅ **Merged** as #1992 on 2026-11-21 (`17a9a460`) (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
 | T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); ✅ **Merged** as #1980 on 2026-11-21 (`a4e9f331`) | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |
