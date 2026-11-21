@@ -659,10 +659,26 @@ describe('listOwnedShareGrants (workplan 0029, the Google half)', () => {
     expect(domain).toMatchObject({ role: 'commenter', grantee: 'example.nl' });
     // raw keeps Drive's own fields verbatim, file id included.
     expect(JSON.parse(person!.raw)).toMatchObject({ fileId: 'f-1', type: 'user', role: 'writer' });
+    // The name the file was given, which a test migration's marker reads (0162).
+    expect(listing.grants.map((g) => g.ownName)).toEqual(['budget.xlsx', 'budget.xlsx', 'budget.xlsx']);
     // The query scopes to OWNED, untrashed files — outbound shares only.
     const asked = decodeURIComponent(calls[0]!.url);
     expect(asked).toContain("'me' in owners and trashed=false");
     expect(asked).toContain('permissions(');
+  });
+
+  it('says no name for a file Drive answered without one, so a test migration cannot mistake it (0162)', async () => {
+    const { transport } = fakeDrive({
+      [SHARES_LIST]: {
+        files: [{ id: 'f-9', shared: true, permissions: [{ type: 'user', role: 'reader', emailAddress: 'x@example.com' }] }],
+      },
+    });
+    const listing = await new GoogleDriveSource(transport, { baseUrl: BASE }).listOwnedShareGrants();
+
+    expect(listing.kind).toBe('listed');
+    if (listing.kind !== 'listed') return;
+    expect(listing.grants).toHaveLength(1);
+    expect(listing.grants[0]).not.toHaveProperty('ownName');
   });
 
   it('a hit cap answers not_discoverable — never a short list dressed as the whole one', async () => {

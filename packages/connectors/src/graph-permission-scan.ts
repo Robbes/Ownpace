@@ -117,7 +117,10 @@ export async function scanCalendarPermissions(
       // answer must not be dressed as a complete one.
       return listing;
     }
-    grants.push(...listing.grants);
+    // The calendar's own name beside the label that puts the mailbox before
+    // it: a test migration's marker reads the name (workplan 0162). A
+    // calendar Graph listed without one has none.
+    grants.push(...listing.grants.map((g) => withOwnName(g, calendar.name)));
   }
 
   log.debug(`[permission-scan] ${mailbox}: ${grants.length} calendar grant(s)`);
@@ -219,7 +222,7 @@ export async function scanDrivePermissions(
   const queue: Array<{ url: string; path: string }> = [
     { url: `${base}/drives/${encodeURIComponent(driveId)}/root/children`, path: '' },
   ];
-  const shared: Array<{ id: string; label: string }> = [];
+  const shared: Array<{ id: string; label: string; name?: string }> = [];
   let folders = 0;
 
   while (queue.length > 0) {
@@ -259,7 +262,9 @@ export async function scanDrivePermissions(
             ),
           };
         }
-        shared.push({ id: item.id, label });
+        // The label ends in the id where Graph gave no name; the name is kept
+        // apart, so a test migration's marker never reads an id (0162).
+        shared.push({ id: item.id, label, ...(item.name ? { name: item.name } : {}) });
       }
       if (item.folder) {
         queue.push({
@@ -281,13 +286,22 @@ export async function scanDrivePermissions(
       options,
     );
     if (listing.kind === 'not_discoverable') return listing;
-    grants.push(...listing.grants);
+    grants.push(...listing.grants.map((g) => withOwnName(g, item.name)));
   }
 
   log.debug(
     `[permission-scan] drive ${driveId}: ${grants.length} grant(s) across ${shared.length} shared item(s)`,
   );
   return { kind: 'listed', grants };
+}
+
+/**
+ * A grant with the name of what it is on (`PermissionGrant.ownName`), when
+ * Graph gave one. The labels this file builds put a mailbox or a path around
+ * it, and a test migration's marker is read in the name alone (workplan 0162).
+ */
+function withOwnName(grant: PermissionGrant, name: string | undefined): PermissionGrant {
+  return name ? { ...grant, ownName: name } : grant;
 }
 
 type Fetched<T> =

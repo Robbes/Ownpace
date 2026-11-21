@@ -3357,11 +3357,13 @@ router.put(
         // The status this mapping holds BEFORE the write, read inside the same
         // transaction so nothing can move it in between. Only needed when the
         // body actually carries a status — otherwise this is not a lifecycle
-        // transition and there is nothing to record.
-        const previousStatus = updateData.status
+        // transition and there is nothing to record. Its test marker beside it
+        // (workplan 0162): a test migration is never switched over, and the
+        // marker is read from the migration's own row, where it never changes.
+        const previous = updateData.status
           ? (
               await db
-                .select({ status: schema.mailboxMapping.status })
+                .select({ status: schema.mailboxMapping.status, testMarker: schema.mailboxMapping.testMarker })
                 .from(schema.mailboxMapping)
                 .where(
                   and(
@@ -3369,8 +3371,9 @@ router.put(
                     eq(schema.mailboxMapping.tenantId, tenantId),
                   ),
                 )
-            )[0]?.status
+            )[0]
           : undefined;
+        const previousStatus = previous?.status;
         // THE LIFECYCLE IS ASKED BEFORE THE ROW IS WRITTEN (ADR-0049). Until
         // 2026-09-20 this route wrote whatever status its schema admitted:
         // `cutover` -> `active` went through here while `/start` refused it,
@@ -3379,8 +3382,10 @@ router.put(
         // `/finish` exists to apply. Two doors to one state, one guarded. The
         // decision is `shared`'s, like every other door's, and it runs on the
         // status read inside THIS transaction so nothing can move in between.
+        // A test migration's marker goes with it: the update that declares its
+        // cutover, or enters the lane, is refused (workplan 0162 §2 (e)).
         if (updateData.status && previousStatus) {
-          const transition = updateTransition(previousStatus, updateData.status);
+          const transition = updateTransition(previousStatus, updateData.status, previous?.testMarker ?? undefined);
           if ('refuse' in transition) {
             // A literal discriminant, not `'refused' in outcome`: TS normalises the
             // two return shapes into one union with the other's keys optional,
@@ -3552,6 +3557,9 @@ router.put(
         res.status(409).json({
           error: 'lifecycle_refused',
           message: outcome.refused.refuse,
+          // Its Dutch where the sentence is ours in both languages: a test
+          // migration's, so a page shows its reader's half.
+          ...(outcome.refused.refuseNl !== undefined ? { messageNl: outcome.refused.refuseNl } : {}),
           hint: outcome.refused.hint,
           code: outcome.refused.code,
           from: outcome.from,

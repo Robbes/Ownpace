@@ -59,6 +59,14 @@
  * deleted is not. The bin (`listTrashedPaths`) is filtered by name like a
  * listing, because the bin scan sees the marked set too (§2 (d)).
  *
+ * ## Sharing, by the same rule
+ *
+ * The sharing rescan and the permission report read an account's sharing
+ * through the scans, not through these wrappers, so `markedSharesOnly` holds
+ * them to the same rule: a grant is kept when the thing it is on carries the
+ * marker in its own name, and a grant the scans could not name refuses the
+ * listing (workplan 0162, the first thing T1 settles).
+ *
  * ## What it reads (§7)
  *
  * Only titles the listings already return. It keeps none that is unmarked:
@@ -77,6 +85,7 @@ import type {
   FileSource,
   MailFolder,
   MailItem,
+  PermissionListing,
   RawCalendarEvent,
   RawContact,
   RawFileItem,
@@ -456,6 +465,47 @@ export function markedOnlyContacts(source: ContactSource, marker: string | null 
 /** A mapping's file source, wrapped when the mapping carries a marker. */
 export function markedOnlyFiles(source: FileSource, marker: string | null | undefined): FileSource {
   return marker === null || marker === undefined ? source : new MarkedOnlyFiles(source, marker);
+}
+
+// ---------------------------------------------------------------------------
+// Sharing: the grants on what the marker selects (workplan 0162, T1's first)
+// ---------------------------------------------------------------------------
+
+/**
+ * What a test migration's sharing keeps: the listing, with only the grants on
+ * marked things, or the number of grants it could not tie to a name at all.
+ */
+export type MarkedShares =
+  | { readonly listing: PermissionListing }
+  | { readonly untied: number };
+
+/**
+ * A TEST MIGRATION'S SHARING, by the rule its listings keep (§2 (a)).
+ *
+ * The sharing rescan and the permission report read an account's sharing
+ * whole, as the scans read it (`listOwnedShareGrants`, `scanNextcloudShares`,
+ * Graph's two), and neither reads through the wrappers above. Under a marker
+ * nothing about an unmarked item is stored or reported, as nothing about one
+ * is written by a pass. So a grant is kept when the thing it is on carries
+ * the marker in its own name, by `carriesMarker`: a file's or a folder's name,
+ * a calendar's, never the path or the address around it. The thing's own
+ * name decides, as a file's own name decides whether it is copied: a grant
+ * on a marked folder is kept, and one on an unmarked folder is not, whatever
+ * it holds.
+ *
+ * The scans say the name as `ownName`. A grant without one cannot be tied to
+ * anything the marker selects, so it can be neither kept nor set aside, and
+ * the whole listing answers `untied` for the caller to refuse. A listing that
+ * read nothing (`not_discoverable`) names no item and passes as it came.
+ */
+export function markedSharesOnly(listing: PermissionListing, marker: string): MarkedShares {
+  const usable = assertUsableMarker(marker);
+  if (listing.kind !== 'listed') return { listing };
+  const untied = listing.grants.filter((g) => g.ownName === undefined || g.ownName === '').length;
+  if (untied > 0) return { untied };
+  return {
+    listing: { kind: 'listed', grants: listing.grants.filter((g) => carriesMarker(g.ownName, usable)) },
+  };
 }
 
 /** Is this source a test migration's marked one? The guard's question. */
