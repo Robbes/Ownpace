@@ -78,8 +78,6 @@
   and a bundled copy. Taking the sha512 check out of the RUN fails it three ways.
 - **Owed before the merge:** the image scan on the branch (`trigger.dev`) and E2E (managed).
 
-**2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built, merged as #2014 on 2026-11-21 (`8c24f286`).** On
-
 **2026-11-21, after the answers: T3, libxml2 2.13.9-r3 in both Postgres builds, built (D3), merged as #2015 on 2026-11-21 (`6e9c1d04`).**
 On `claude/ownpace-public-readiness-y7orc6-postgres-libxml2`, from `main` at `6afa68cd`.
 - **What changed.** `deploy/compose/postgres/Dockerfile` and `deploy/selfhost/postgres/Dockerfile`
@@ -100,8 +98,11 @@ On `claude/ownpace-public-readiness-y7orc6-postgres-libxml2`, from `main` at `6a
 - **Docs.** The self-host quickstart (the first start, and a new troubleshooting entry),
   `docs/testing.md`, `deploy/selfhost/README.md` and `docs/managed-bring-up.md` say the build
   takes libxml2 from Alpine's mirror.
-- **Owed before the merge:** the image scan on the branch (`postgres-managed`,
-  `postgres-selfhost`), E2E (managed) and E2E (self-hosted) on Postgres.
+- **Proved before the merge.** The image scan on the branch (Security Scan run 44932855500, on
+  `df5e42fb`): `postgres-managed` and `postgres-selfhost` read 0 critical and 0 high, CVE-2026-86144
+  gone from both and nothing added. E2E (managed) run 44936647689 and E2E (self-hosted, on
+  Postgres) run 44938011033 passed, and CI run 44936646316 with Images run 44936646343 on the head
+  that merged, `d5de7b8c`.
 
 **2026-11-21, after the answers: T4, PAM out of the Redis and Trigger.dev webapp builds, built
 (D1), merged as #2016 on 2026-11-21 (`2d249b3c`).** On `claude/ownpace-public-readiness-y7orc6-pam-purge`, from `main` at `6afa68cd`.
@@ -133,9 +134,11 @@ On `claude/ownpace-public-readiness-y7orc6-postgres-libxml2`, from `main` at `6a
   `0a967bc2`): the four libpam packages are gone from `redis` (1 critical and 11 high before, 1
   and 7 after) and from `trigger.dev` (1 and 14 before, 1 and 10 after), and nothing was added.
   E2E (managed) run 44934069888 passed on `656c9787`, with `main` at `2e5d4c8a` merged in,
-  from 18:10 to 18:19 UTC.
+  from 18:10 to 18:19 UTC. CI run 44935158670 with Images run 44935158695 passed on the head that
+  merged, `a385bc6b`.
 
-**2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built.** On
+**2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built, merged as #2014 on
+2026-11-21 (`8c24f286`).** On
 `claude/ownpace-public-readiness-y7orc6-cirrux-fake-tag-length`, from `main` at `58e10d96`.
 - **What changed.** `decryptCxdrv2` in `packages/connectors/src/__testing__/cirrux-fake.ts` calls
   `createDecipheriv('aes-256-gcm', p.key, iv, { authTagLength: 16 })`, as #1985 did in
@@ -145,6 +148,11 @@ On `claude/ownpace-public-readiness-y7orc6-postgres-libxml2`, from `main` at `6a
   The other 22 cases pass unchanged.
 - **The alert** (`gcm-no-tag-length`, Semgrep) closes at the first Semgrep upload from `main`
   after the merge.
+- **Proved before the merge:** CI run 44933122412 on `ca5b978b`, with `main` at `2e5d4c8a`
+  merged in. CI only: it changes test code and builds no image.
+- **After the merge.** `main`'s Semgrep run 44935053956 on `8c24f286` (18:22 UTC) uploaded 3 spots,
+  the three the owner dismissed, and no `gcm-no-tag-length`, so code scanning should close #1919
+  as fixed. Not read on the list.
 
 **2026-11-21, later: the owner's answers, all as advised.** Asked D1 to D5 (§4), the owner
 answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
