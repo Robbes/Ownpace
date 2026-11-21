@@ -844,6 +844,11 @@ reading a file drops off its entry by itself.
 
 - [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+- [a-verb-three-files-have-to-agree-on](../scripts/a-verb-three-files-have-to-agree-on.unit.test.ts) — A SUB-COMMAND IS A HANDSHAKE BETWEEN THREE FILES, and none of them checks the other two.
+
+### `apps/worker/src/cli/measure-google-sync.ts`
+
+- [a-client-that-reaches-a-tenant-host](../scripts/a-client-that-reaches-a-tenant-host.unit.test.ts) — A CLIENT THAT REACHES A TENANT'S HOST (workplan 0136 T1).
 
 ### `apps/worker/src/index.ts`
 
@@ -3797,6 +3802,7 @@ Reads:
 - `apps/api/src/routes/ready.ts`
 - `apps/api/src/services/zammad.ts`
 - `apps/worker/src/cli/index.ts`
+- `apps/worker/src/cli/measure-google-sync.ts`
 - `apps/worker/src/jobs/managed-drift-detect.ts`
 - `apps/worker/src/jobs/managed-group-discovery.ts`
 - `packages/connectors/src/box-file-source.ts`
@@ -6103,6 +6109,7 @@ Reads:
 
 - `apps/api/package.json`
 - `apps/api/src/scripts/operator.ts`
+- `apps/worker/src/cli/index.ts`
 - `deploy/compose/operator.sh`
 
 ### [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts)

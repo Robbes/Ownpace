@@ -4,6 +4,28 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, later: T1 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t1-measure`, and
+not yet run.** `./deploy/compose/operator.sh measure-google-sync` is a command of the worker's CLI
+(`apps/worker/src/cli/measure-google-sync.ts`). It chooses the migration itself, the newest whose
+calendars come from Google over CalDAV, and prints its id and creation date. It reads each calendar
+with one `sync-collection` with no token, asks the owner in English and Dutch to change one event
+and delete another at Google, reads each calendar again with that token, and ends with §3.1's
+verdict. Its tests hold four things:
+- nothing but PROPFIND and REPORT, and nothing but Google's CalDAV host, is sent to a calendar,
+  refused before sending, a redirect included;
+- the database is read in one transaction opened `READ ONLY`, rolled back before Google is asked;
+- every line it prints is counts and status codes, and a run over hrefs, names, titles, tokens and
+  ETags that carry an address prints none of them;
+- a 404 inside a propstat is not a removal.
+
+Eleven mutants, each breaking one of those or the wrapper's hand-off to the worker, each made a
+test fail. The selection query ran on a real Postgres
+with both chains: it chose the newest of three qualifying migrations and skipped a closed
+organisation, a migration without calendars, a withdrawn grant and a CalDAV source. The sign-in
+mints an access token as every pass does and keeps it in memory; nothing is written.
+- **Next:** the owner runs it on the test environment, by *How to run T1* (§3.1), once E2E
+  (managed) has run on the branch. What it prints goes here, then T2 on what it shows.
+
 **2026-11-21: the decisions (T0), each as advised.** Nothing is built yet. §5 has each one.
 - **(a) The reader:** A, `sync-collection`, measured first (T1). B, Google's Calendar API, only if
   T1 shows Google lists no removed event through CalDAV.
@@ -30,7 +52,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
-| T1 What Google answers | builder | 📋 **Next** (T0 (d): yes) | §3.1. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
+| T1 What Google answers | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t1-measure`; the run waits on the owner | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 📋 **Proposed** | §3. A, or B if T1 shows Google reports no removals through CalDAV |
 | T3 Apply in bulk | builder | 📋 **Decided** (T0 (b)), after T2 | §4.2. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
@@ -89,6 +111,40 @@ test migration on the test environment, read-only and with their yes:
   person's main calendar is their address, so no href, title or address goes into a record.
 
 If Google lists the deleted event as a 404, A is the reader. If it does not, B is.
+
+**Built as `measure-google-sync`** (T1), a command of the worker's CLI that the owner runs once on
+the test environment: `./deploy/compose/operator.sh measure-google-sync`
+(`apps/worker/src/cli/measure-google-sync.ts`). Its REPORT asks for what the CalDAV source asks
+for (`resourcetype`, `getetag`, `calendar-data`) and adds `sync-level` 1, which RFC 6578 puts in
+every `sync-collection` and the source leaves out. Should Google refuse that with 400, it asks
+once more without it, as the source does, and says so. A truncated answer (a 507 for the calendar)
+is followed with its token. The verdict line is the rule above, with the changed event as the
+control: when Google lists no change either, it says so rather than presenting that as a measured
+B. A member with another status (a 410, say) is named, not counted as either.
+
+#### How to run T1
+
+On the test environment's host, after E2E (managed) has run on the branch. The command needs this
+branch's checkout, the stack's database and its `.env`; nothing deployed runs it.
+
+Before step 1, in Google Calendar, in the account the test migration copies from: have two events
+made for this test, there before step 5 starts (make two, on any day, if there are none). The
+command asks you to change one and delete the other.
+
+1. `git -C ~/ownpace-managed fetch origin claude/ownpace-public-readiness-y7orc6-0164-t1-measure`
+2. `git -C ~/ownpace-managed worktree add --detach ~/ownpace-0164-t1 FETCH_HEAD`
+3. `ln -s ~/ownpace-managed/deploy/compose/.env ~/ownpace-0164-t1/deploy/compose/.env`
+4. `cd ~/ownpace-0164-t1 && pnpm install --frozen-lockfile`
+5. `cd ~/ownpace-0164-t1 && ./deploy/compose/operator.sh measure-google-sync`
+
+   It prints the migration it chose, by id and creation date: check that it is the test migration
+   (Ctrl-C stops it at any point, and nothing at Google has changed). It reads every calendar,
+   then asks, in English and Dutch, for the change and the deletion. Make both at Google, come
+   back, and press Enter. It reads every calendar again and ends with `Verdict:`. Send back all it
+   printed: it is counts and status codes only.
+6. `git -C ~/ownpace-managed worktree remove --force ~/ownpace-0164-t1`
+
+   This removes the folder of steps 2 to 4 and nothing else; the `.env` the link points to stays.
 
 ### 3.2 B: the Google Calendar API
 
