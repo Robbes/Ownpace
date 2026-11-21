@@ -115,6 +115,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   rule reads the `access` in that name as a key's and the commit id as its value. With gitleaks
   failing a pull request on what it adds (0163 T6), the next GoAccess bump would have failed on its
   own line. The image is built from the same commit as before.
+- **The Redis and Trigger.dev webapp images no longer carry PAM** (workplan 0166 T4, the owner's
+  D1). Both builds now also purge linux-pam's four packages (libpam0g, libpam-modules,
+  libpam-modules-bin and libpam-runtime, one high finding each with no fix in Debian), and login,
+  passwd and adduser, which depend on them. Nothing in either container logs anyone in, makes a
+  user or changes a password, and their users were made in the upstream images' own builds. The
+  purge takes the same two dpkg flags as before, and the build still fails if a file of a removed
+  library is left, or any ELF file needs or names one. Both images have a new name, which the
+  managed stack builds at its next `up`, restarting Redis and the webapp once.
 
 ### Fixed
 

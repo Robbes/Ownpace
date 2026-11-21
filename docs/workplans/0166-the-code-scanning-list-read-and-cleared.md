@@ -4,6 +4,35 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after the answers: T4, PAM out of the Redis and Trigger.dev webapp builds, built
+(D1).** On `claude/ownpace-public-readiness-y7orc6-pam-purge`, from `main` at `6afa68cd`.
+- **What depends on the four.** Read as text from the images' dpkg status on 2026-11-21:
+  Redis's fourth layer (`sha256:1b21ec79…`, linux/arm64), Debian 12.15's base layer
+  (`sha256:2d66c782…`, the first of both images) and `node:24.22.3-bookworm-slim`'s fourth, which
+  is the webapp's fourth. In each, libpam0g, libpam-modules, libpam-modules-bin and
+  libpam-runtime are depended on only by each other, util-linux (already purged), `login` and
+  `passwd`; `passwd` only by `adduser`, and `adduser` only by `apt` (already purged). So seven go:
+  the four, `login` (Essential), `passwd` and `adduser`. Their purge scripts remove their own
+  configuration with `rm`, `rmdir`, debconf and `dpkg-maintscript-helper`, which stay.
+- **What links them.** Every ELF file of the base layer (693) and of Redis's fourth (9) and of
+  Node's layers (one more, `node`), read as bytes: only files of the seven and util-linux's `su`
+  and `runuser` name `libpam.so.0`, `libpam_misc.so.0` or `libpamc.so.0`. Nothing execs a
+  program of the seven into either container (`redis-cli` and `find` into Redis; `chown` and
+  `test` into the webapp). The webapp's runner-stage layer is on GHCR's blob host, which this
+  session cannot reach; the build's dpkg refusal and its checks read it.
+- **What changed.** Both purge RUNs name the twenty packages and the eleven libraries, with the
+  same two flags. The checks after the purge (no file of a removed library left, no ELF file
+  needing or naming one) cover the three new libraries. The headers say why each may go. Redis's
+  name moves to `localhost/redis:7.4.12-bookworm-65e47a4df92f`, the webapp's to
+  `…:v4.8.8}-4b33ed9f685b`, both in `managed.yml`.
+- **Guards.** `an-essential-nothing-runs` holds both lists, each package's reason and the
+  headers' reasons, and refuses the thirteen of before (two new cases) and a list without
+  `adduser`. `a-binary-the-stack-never-runs`'s stand-in Debian 12 carries the seven's
+  dependencies, `login` as Essential and the three libraries. The scripts unit project passes
+  but for `every-release-is-a-starting-point`, which reads local tags this shallow clone lacks.
+- **Owed before the merge:** the image scan on the branch (`redis`, `trigger.dev`) and E2E
+  (managed).
+
 **2026-11-21, later: the owner's answers, all as advised.** Asked D1 to D5 (§4), the owner
 answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 - **D1, yes:** the four `libpam*` packages are purged in the Redis and Trigger.dev webapp builds
@@ -40,7 +69,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T1 Read the list after Semgrep's upload | owner | ⏳ **Owner** | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
 | T2 The Cirrux test fake's decipher | builder | 📋 **Planned** (0163 T4) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
 | T3 libxml2 in both Postgres builds | builder | 📋 **Decided 2026-11-21** (D3: the pin) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
-| T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 📋 **Decided 2026-11-21** (D1: yes) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
+| T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 🔨 **Built 2026-11-21** (D1: yes; the Status entry of 2026-11-21, after the answers: T4) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
 | T5 effect in the Trigger.dev webapp | builder | 📋 **Decided 2026-11-21** (D2: yes) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
 | T7 The owner's dismissals | owner | ⏳ **Owner** (D4: yes, decided 2026-11-21) | The 5 alerts of §3 D, each with its reason. |
