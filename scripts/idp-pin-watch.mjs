@@ -81,7 +81,9 @@
  *                      read the lockfile (2026-11-20), the gitleaks
  *                      ci.yml's `gitleaks` job installs the same way, from
  *                      an archive, to read a pull request's commits
- *                      (2026-11-21), the
+ *                      (2026-11-21), the squawk the Migration locks
+ *                      workflow installs the same way, to read the
+ *                      migrations (2026-11-21), the
  *                      cosign the workflows name, every
  *                      copy together, and the Atlas release ci.yml's
  *                      migration-lint downloads and checks by its sha256
@@ -479,6 +481,23 @@ export const GITLEAKS_ARCHES = ['x64', 'arm64'];
 /** Said beside the gitleaks row when it is behind: the three values move together. */
 export const GITLEAKS_NOTE =
   "move GITLEAKS_VERSION and both GITLEAKS_SHA256_* in ci.yml's gitleaks install step together, each sum from the release's checksums file, once the release is three days old; a newer gitleaks can bring new rules, so read that pull request's own gitleaks run";
+
+/**
+ * The squawk the Migration locks workflow reads every migration with (workplan
+ * 0165, 2026-11-21): a named release from its GitHub release page, the static
+ * musl build for each architecture a runner here has, with a SHA-256 for each
+ * set in the `env:` of its one install step, in the shape of the osv-scanner
+ * step. It is report only and fails nothing (scripts/migration-locks-report.mjs).
+ * Upstream tags every release in git. Dependabot cannot see a URL in a `run:`.
+ */
+export const SQUAWK_WORKFLOW = '.github/workflows/migration-locks.yml';
+export const SQUAWK_HOST = 'https://github.com/sbdchd/squawk/releases/download/';
+export const SQUAWK_UPSTREAM = 'https://github.com/sbdchd/squawk';
+/** The architectures as squawk's release names its assets (`squawk-linux-musl-<arch>`). */
+export const SQUAWK_ARCHES = ['x64', 'arm64'];
+/** Said beside the squawk row when it is behind: the three values move together. */
+export const SQUAWK_NOTE =
+  "move SQUAWK_VERSION and both SQUAWK_SHA256_* in migration-locks.yml's install step together, each sum the one GitHub's release page shows for squawk-linux-musl-x64 and -arm64 and the sum of the downloaded bytes, once the release is three days old";
 
 /**
  * The images two actions in images.yml run, named in their inputs (workplan
@@ -1337,6 +1356,80 @@ export function gitleaksPin(workflow) {
   return { version, sha256, line: start + 1 };
 }
 
+/**
+ * The squawk SQUAWK_WORKFLOW installs, read from its one step that downloads
+ * from SQUAWK_HOST: `{ version, sha256: { x64, arm64 }, line }` (workplan
+ * 0165, 2026-11-21). Throws for a step not of the shape it must have, as
+ * `osvScannerPin` does: a fetch from anywhere but SQUAWK_HOST, of a name not
+ * under `${SQUAWK_VERSION}/`, or into anything but the file it hashes; a
+ * version that is not a release (`v2.73.0`); an architecture with no 64-digit
+ * sum, or one sum for both; a sum compared with anything but the pinned one in
+ * `env:`; a file made executable that is not the native one hashed, or before
+ * a `sha256sum` has read the downloads with an `exit 1` between; or no check
+ * that the binary calls itself the release named. Text only: the guard also
+ * runs the step's `run:` under bash. The squawk row reads its version with
+ * this.
+ */
+export function squawkPin(workflow) {
+  const { start, code, logical, env } = downloadStep(workflow, SQUAWK_HOST, 'SQUAWK_', 'squawk');
+  const version = env.SQUAWK_VERSION;
+  if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
+    throw new Error(`the squawk step names no release in SQUAWK_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
+  }
+  const sha256 = {};
+  for (const arch of SQUAWK_ARCHES) {
+    const sum = env[`SQUAWK_SHA256_${arch.toUpperCase()}`];
+    if (!/^[0-9a-f]{64}$/.test(sum ?? '')) throw new Error(`the squawk step pins no sha256 for linux-musl/${arch} (SQUAWK_SHA256_${arch.toUpperCase()})`);
+    sha256[arch] = sum;
+  }
+  if (sha256.x64 === sha256.arm64) throw new Error('the squawk step pins one sha256 for two architectures');
+  for (const text of logical) {
+    if (/\|\s*(?:sudo\s+)?(?:ba|da|z)?sh\b/.test(text)) throw new Error(`the squawk step pipes something to a shell: ${text}`);
+    for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(SQUAWK_HOST)) throw new Error(`the squawk step fetches from somewhere other than ${SQUAWK_HOST}: ${url}`);
+      if (/latest/i.test(url) || !url.startsWith(`${SQUAWK_HOST}\${SQUAWK_VERSION}/`)) {
+        throw new Error(`the squawk step downloads a name with no version: ${url} (it must be under ${SQUAWK_HOST}\${SQUAWK_VERSION}/)`);
+      }
+    }
+  }
+  // Under names of its own (`asset`, `got`, `want`, `differs`), as the
+  // osv-scanner step has its own.
+  const hashed = '"$RUNNER_TEMP/squawk-$SQUAWK_VERSION-linux-musl-$arch"';
+  const native = hashed.replace('$arch', '$native');
+  const has = (statement) => logical.some((text) => text === statement || text.startsWith(`${statement};`));
+  if (!has(`asset=${hashed}`)) throw new Error(`the squawk step does not download each architecture to asset=${hashed}`);
+  for (const text of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!text.includes(SQUAWK_HOST) || !/\s-o "\$asset"\s/.test(text)) {
+      throw new Error(`the squawk step fetches something that is not the release into "$asset": ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (text !== 'got="$(sha256sum "$asset")"') throw new Error(`the squawk step hashes something other than "$asset": ${text}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bwant=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = SQUAWK_ARCHES.map((arch) => `"$SQUAWK_SHA256_${arch.toUpperCase()}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`the squawk step's wanted sum is not only ${fromEnv.join(' or ')}: want=${pins.join(', want=') || 'nothing'}`);
+  }
+  if (!has('if [ "$got" = "$want" ]; then')) throw new Error('the squawk step never compares the sum it read ("$got") with the pinned one ("$want")');
+  for (const text of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    const made = /\bchmod\s+\S+\s+(\S+)/.exec(text)?.[1] ?? /\binstall\s+-m\s+\S+\s+(\S+)/.exec(text)?.[1];
+    if (made !== native) throw new Error(`the squawk step makes executable something other than the file it hashed, ${native}: ${text}`);
+  }
+  const first = (re) => code.findIndex((text) => re.test(text));
+  const read = first(/\bsha256sum\b/);
+  const runnable = first(/\bchmod\b|\binstall\s+-m\b/);
+  if (read < 0) throw new Error('the squawk step never reads a sha256 of what it downloads');
+  if (runnable < 0) throw new Error('the squawk step makes nothing executable, so it cannot be what installs squawk');
+  if (!(read < runnable && code.slice(read, runnable).some((text) => /\bexit 1\b/.test(text)))) {
+    throw new Error('the squawk step makes its download executable before its sha256 is read and a mismatch has stopped it');
+  }
+  if (!code.some((text) => text.includes('"squawk ${SQUAWK_VERSION#v}"'))) {
+    throw new Error('the squawk step never checks that what it installed calls itself the release named');
+  }
+  return { version, sha256, line: start + 1 };
+}
+
 /** A tag that names a release: three numbers, and no channel word. */
 const RELEASE_TAG = /\d+\.\d+\.\d+/;
 const CHANNEL_WORD = /(?:^|[-_.])(?:latest|stable|nightly|master|main|edge|dev|rc\d*|beta|alpha)(?=$|[-_.\d])/i;
@@ -2083,6 +2176,16 @@ export async function routineRows(repo, net) {
     const newest = newestLike(version, tagsOf(await net.lsRemote(GITLEAKS_UPSTREAM)));
     const state = stateOf(version, newest);
     return { pin: version, newest, state, ...(state === 'behind' ? { notes: [GITLEAKS_NOTE] } : {}) };
+  }]);
+
+  // squawk (0165, 2026-11-21): the binary the Migration locks workflow reads
+  // every migration with, report only, from its GitHub release by its sha256,
+  // against upstream's git tags of the same major.
+  jobs.push(['squawk', SQUAWK_WORKFLOW, async () => {
+    const { version } = squawkPin(need(repo, SQUAWK_WORKFLOW));
+    const newest = newestLike(version, tagsOf(await net.lsRemote(SQUAWK_UPSTREAM)));
+    const state = stateOf(version, newest);
+    return { pin: version, newest, state, ...(state === 'behind' ? { notes: [SQUAWK_NOTE] } : {}) };
   }]);
 
   // cosign: what signs the images and what checks them. Named in a step
