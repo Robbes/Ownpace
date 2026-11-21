@@ -8,6 +8,7 @@
  * - approve: Approve cutover after verification
  * - execute: the mapping stops and the ledger enters the cutover; lands in GRACE_PERIOD (ADR-0048)
  * - complete: Close out the grace period (GRACE_PERIOD -> COMPLETED); a mapping still running is stopped
+ *   (approve, execute and complete refuse a test migration, which is never switched over: workplan 0162 T3)
  * - rollback: the setback — ledger ROLLED_BACK and the mapping back to syncing (ADR-0047)
  * - status: Show current cutover status
  * 
@@ -33,6 +34,7 @@ import {
 } from '@openmig/core';
 import {
   log,
+  A_TEST_IS_NOT_SWITCHED_OVER,
   cutoverTransition,
   rollbackTransition,
   isAfterCutover,
@@ -94,6 +96,13 @@ export interface CutoverCliDeps {
    * over without an MX record to check, point or revert.
    */
   kind?: DiscoveryDomain;
+  /**
+   * The migration's test marker (workplan 0162 T3), when it is a test; the
+   * entrypoint reads it from the migration's row (`testMarkerOf`), where it
+   * never changes. A test is never switched over: `approve`, `execute` and
+   * `complete` refuse it before anything is read or written.
+   */
+  testMarker?: string;
 }
 
 /** Whether this cutover moves mail, and so has an MX record to check, point and revert. */
@@ -163,6 +172,18 @@ export function confirmed(
   }
   CutoverCliOutput.info('Re-run the same command with --yes to proceed.');
   return false;
+}
+
+/**
+ * Refuse a test migration at a cutover step (workplan 0162 §2 (e), T3), and
+ * say why: before `--yes` is asked for, and before anything is read or
+ * written. True when the step must stop; the caller exits.
+ */
+export function refusedAsATest(deps: Pick<CutoverCliDeps, 'testMarker'>): boolean {
+  if (deps.testMarker === undefined) return false;
+  CutoverCliOutput.error(A_TEST_IS_NOT_SWITCHED_OVER.en);
+  CutoverCliOutput.info('Nothing was changed.');
+  return true;
 }
 
 /**
@@ -510,6 +531,7 @@ export async function verifyCutover(deps: CutoverCliDeps): Promise<boolean> {
  */
 export async function approveCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Approving Cutover');
+  if (refusedAsATest(deps)) process.exit(1);
 
   try {
     const state = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
@@ -562,6 +584,7 @@ export async function approveCutover(deps: CutoverCliDeps): Promise<void> {
  */
 export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Executing Cutover');
+  if (refusedAsATest(deps)) process.exit(1);
 
   try {
     const state = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);
@@ -723,6 +746,7 @@ export async function executeCutover(deps: CutoverCliDeps): Promise<void> {
  */
 export async function completeCutover(deps: CutoverCliDeps): Promise<void> {
   CutoverCliOutput.section('Completing Cutover');
+  if (refusedAsATest(deps)) process.exit(1);
 
   try {
     const state = await deps.cutoverPersistence.loadCutoverState(deps.tenantId, deps.mappingId);

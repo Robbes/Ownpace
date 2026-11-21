@@ -19,6 +19,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   item is copied. A marked item deleted at the source still reaches the deletion queue; one whose
   marker is taken out of its title is left as it was last copied, and is neither reported as
   deleted nor moved.
+- **A test migration is never finished or switched over** (workplan 0162 T3). Nothing sets a
+  marker yet (0162 T1), so no migration is refused today. A migration with a marker is refused,
+  and told why, by *Finish*, by ending or keeping one of its data types, by the cutover's
+  preparation, which then prepares nothing, and by the operator's `approve`, `execute` and
+  `complete`: *A test migration is not finished* (or *not switched over*)*: delete it when the
+  test is over.* Its check measures it as any other, and never clears it for its cutover; the
+  check's page and the Finish page say why, in English and Dutch, as does a refused end or keep.
+  Deleting a test migration, and then its account, works as for any other.
 
 ### Changed
 

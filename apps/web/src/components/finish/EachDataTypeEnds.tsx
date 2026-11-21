@@ -12,7 +12,10 @@
  * `endings` comes from the ending door's own rule (`pathEndingChoices`), so
  * a button shown is a press the door accepts. End is offered without counting
  * the data type's open failures: the door refuses over them with its own
- * sentence, shown verbatim, and only that refusal offers the force.
+ * sentence, shown verbatim, and only that refusal offers the force. A test
+ * migration's data types are offered as any other's, and the managed door
+ * refuses them (workplan 0162 T3) in both languages: the reader's half is
+ * shown.
  *
  * ## Mail waits for its delivery (D3, D8)
  *
@@ -56,8 +59,12 @@ const PHASE_KEY: Readonly<Record<string, StringKey>> = {
 
 type Said =
   | { readonly state: 'pending' }
-  /** The door refused and said why; the force only where it said it is forceable. */
-  | { readonly state: 'refused'; readonly message: string; readonly forceable: boolean }
+  /**
+   * The door refused and said why; the force only where it said it is
+   * forceable. A refusal the door also said in Dutch (a test migration's,
+   * workplan 0162 T3) is shown in its reader's half.
+   */
+  | { readonly state: 'refused'; readonly message: string; readonly messageNl?: string; readonly forceable: boolean }
   /** Anything else: the server's words, and never a force. */
   | { readonly state: 'failed'; readonly message: string };
 
@@ -98,7 +105,12 @@ const EachDataTypeEnds: React.FC<{
         ...s,
         [domain]:
           err instanceof PathEndingRefusedError
-            ? { state: 'refused', message: err.refusal.message, forceable: err.refusal.forceable === true }
+            ? {
+                state: 'refused',
+                message: err.refusal.message,
+                ...(err.refusal.messageNl !== undefined ? { messageNl: err.refusal.messageNl } : {}),
+                forceable: err.refusal.forceable === true,
+              }
             : { state: 'failed', message: serverMessage(err) },
       }));
     }
@@ -203,7 +215,7 @@ const EachDataTypeEnds: React.FC<{
               <div className="mt-2 text-sm">
                 <p className="flex items-start gap-2 text-amber-800">
                   <AlertTriangle className="w-4 h-4 mt-0.5 flex-shrink-0" />
-                  {s.message}
+                  {locale === 'nl' && s.messageNl !== undefined ? s.messageNl : s.message}
                 </p>
                 {/* Only after the refusal has said what it costs, and only
                     for the refusal a forced End can satisfy (0038 T1). */}

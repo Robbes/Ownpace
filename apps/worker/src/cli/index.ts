@@ -38,7 +38,7 @@ import {
   directoryAvailability,
 } from '@openmig/connectors';
 import * as cutoverCli from './cutover-commands.ts';
-import { runCutoverGate } from '../jobs/cutover-gate.ts';
+import { runCutoverGate, testMarkerOf } from '../jobs/cutover-gate.ts';
 import { raiseThePeakWhereThereIsOne } from '../the-peak-where-there-is-one.ts';
 import { log } from '@openmig/shared';
 
@@ -340,6 +340,9 @@ async function main() {
   }
   const cutoverPersistence = kind === undefined ? wholeLedger : bindCutoverLedger(wholeLedger, kind);
   const onSlotsTaken = raiseThePeakWhereThereIsOne(tenantId as TenantId);
+  // A test migration's marker, from its own row, where it never changes
+  // (workplan 0162 T3): approve, execute and complete refuse a test.
+  const testMarker = await testMarkerOf(pool, tenantId, mappingId);
 
   const deps: cutoverCli.CutoverCliDeps = {
     tenantId: tenantId as TenantId,
@@ -360,6 +363,7 @@ async function main() {
         : pathLifecyclePort(pool, tenantId, mappingId, kind, 'cli', { onSlotsTaken }),
     ...(reason ? { rollbackReason: reason } : {}),
     ...(kind !== undefined ? { kind } : {}),
+    ...(testMarker !== undefined ? { testMarker } : {}),
     // The real §20 gate, the one the preparation task runs (cutover-gate.ts):
     // the data types the migration has, each against its own target, or the
     // one this cutover is of. A closure so nothing connects to a target unless

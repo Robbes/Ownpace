@@ -101,6 +101,24 @@ describe('a refusal, told from a failure', () => {
     });
   });
 
+  it('keeps the Dutch half of a refusal the door said in both languages (workplan 0162 T3)', async () => {
+    postMock.mockRejectedValue(
+      refusal({
+        error: 'end_refused',
+        refused: 'test_migration',
+        message: 'A test migration is not finished: delete it when the test is over.',
+        messageNl: 'Een testmigratie wordt niet afgerond: verwijder hem als de test voorbij is.',
+      }),
+    );
+    const err = (await endOrKeepDataType('m-1', 'email', 'end').catch((e: unknown) => e)) as PathEndingRefusedError;
+    expect(err.refusal).toEqual({
+      error: 'end_refused',
+      refused: 'test_migration',
+      message: 'A test migration is not finished: delete it when the test is over.',
+      messageNl: 'Een testmigratie wordt niet afgerond: verwijder hem als de test voorbij is.',
+    });
+  });
+
   it('a refusal force cannot satisfy says so by leaving it out', async () => {
     postMock.mockRejectedValue(refusal({ error: 'keep_refused', refused: 'stopped', message: 'email is stopped.' }));
     const err = (await endOrKeepDataType('m-1', 'email', 'keep').catch((e: unknown) => e)) as PathEndingRefusedError;
