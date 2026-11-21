@@ -1653,6 +1653,23 @@ why it is a question worth asking; `operator-housekeeping.integration.test.ts`
 runs all of them against a real database, because SQL nobody has executed is SQL
 nobody has checked.
 
+**What Google answers to `sync-collection`** (workplan 0164 T1), once, at the machine, on the
+stack whose `.env` the checkout names:
+
+```bash
+./deploy/compose/operator.sh measure-google-sync
+```
+
+The one verb here that is the worker's CLI rather than the API's script, on the same owner
+connection. It chooses the newest migration whose calendars come from Google over CalDAV and
+prints that migration's id and creation date, reads each calendar of the account with one
+`sync-collection` REPORT, asks you to change one event and delete another at Google and waits
+for Enter, reads each calendar again with the first reading's token, and ends with the verdict
+workplan 0164 §3.1 asks for. It sends Google's calendars PROPFIND and REPORT only, reads the
+database in a transaction opened `READ ONLY`, writes nothing, and prints counts and status codes
+only, so what it prints can be pasted anywhere. The steps for the OTA stack are in that plan,
+*How to run T1*.
+
 **The books** (`operator.sh moneybird`) are a step of their own:
 *8i. The books and payments*, below.
 

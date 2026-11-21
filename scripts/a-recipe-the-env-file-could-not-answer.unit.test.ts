@@ -227,8 +227,14 @@ describe('operator.sh composes what the host cannot inherit', () => {
       join(bin, 'pnpm'),
       '#!/usr/bin/env bash\necho "URL=$DATABASE_URL"\necho "ARGV=$*"\n',
     );
+    // And for node, which the worker's one verb is handed to (workplan 0164 T1).
+    writeFileSync(
+      join(bin, 'node'),
+      '#!/usr/bin/env bash\necho "URL=$DATABASE_URL"\necho "NODE=$*"\n',
+    );
     chmodSync(join(bin, 'docker'), 0o755);
     chmodSync(join(bin, 'pnpm'), 0o755);
+    chmodSync(join(bin, 'node'), 0o755);
     const r = spawnSync('bash', [join(dir, 'operator.sh'), ...args], {
       encoding: 'utf8',
       env: { ...process.env, PATH: `${bin}:${process.env.PATH}` },
@@ -279,6 +285,17 @@ describe('operator.sh composes what the host cannot inherit', () => {
       'the wrapper passes `--` before the arguments again. pnpm forwards it, so\n' +
         'every value shifts one place and the appointment goes to nobody.',
     ).not.toContain(' -- ');
+  });
+
+  it("hands measure-google-sync to the worker's CLI on the same connection, and prints no port first", () => {
+    // Workplan 0164 T1: its output is counts and status codes only, so the
+    // wrapper's own line naming the port must not come before it.
+    const { out, code } = runWrapper('0.0.0.0:55432', ['measure-google-sync']);
+    expect(code).toBe(0);
+    expect(out).toContain('URL=postgresql://owneruser:ownerpw@localhost:55432/ownerdb');
+    expect(out).toMatch(/^NODE=\S*\/apps\/worker\/src\/cli\/index\.ts measure-google-sync$/m);
+    expect(out, 'pnpm was asked for it').not.toContain('ARGV=');
+    expect(out, "the wrapper's banner, which names the port, came first").not.toContain('[operator]');
   });
 
   it('refuses with the three sub-commands when given none', () => {

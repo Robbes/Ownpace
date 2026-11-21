@@ -46,6 +46,7 @@
 #   ./deploy/compose/operator.sh moneybird check
 #   ./deploy/compose/operator.sh moneybird proof
 #   ./deploy/compose/operator.sh moneybird nightly
+#   ./deploy/compose/operator.sh measure-google-sync
 #
 # `<subject>` is the OIDC `sub`, never an email: sign in once, call
 # `GET /api/me`, and read `userId` back. operator.ts's header says why.
@@ -113,6 +114,15 @@
 # it is two minutes or less (a 429 that asks for longer fails at once rather
 # than asking early), and never posts a payment twice. See
 # moneybird-nightly.ts.
+#
+# `measure-google-sync` is the one verb that is not the API's (workplan 0164
+# T1): the worker's CLI, apps/worker/src/cli/index.ts, on this same owner
+# connection and with this .env loaded, since it reads one migration's Google
+# calendars with the key and the Google client in it. It asks Google's
+# calendars with PROPFIND and REPORT only, writes nothing, waits for you to
+# press Enter between its two readings, and prints counts and status codes
+# only, so it starts before the line below that names the port. Run by node,
+# not pnpm, so the terminal stays its own. See measure-google-sync.ts.
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -136,6 +146,7 @@ if [ "$#" -eq 0 ]; then
   echo "  ./deploy/compose/operator.sh moneybird check" >&2
   echo "  ./deploy/compose/operator.sh moneybird proof" >&2
   echo "  ./deploy/compose/operator.sh moneybird nightly" >&2
+  echo "  ./deploy/compose/operator.sh measure-google-sync" >&2
   exit 1
 fi
 
@@ -166,6 +177,13 @@ if [ -z "$hostport" ]; then
 fi
 # compose answers 0.0.0.0:55432, and 0.0.0.0 is not an address to connect TO.
 PGPORT_HOST="${hostport##*:}"
+
+# The worker's verb (see the header): before the line below, so its output is
+# counts and status codes and nothing else.
+if [ "$1" = "measure-google-sync" ]; then
+  DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${PGPORT_HOST}/${POSTGRES_DB:-openmigrate}" \
+    exec node "$REPO_ROOT/apps/worker/src/cli/index.ts" "$@"
+fi
 
 echo "[operator] ${POSTGRES_DB:-openmigrate} via localhost:${PGPORT_HOST} (the port compose reports)"
 
