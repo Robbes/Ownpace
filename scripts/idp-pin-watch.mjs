@@ -321,7 +321,7 @@ export const ZIZMOR_WORKFLOW = '.github/workflows/zizmor.yml';
 
 /** Said beside the zizmor row when it is behind. */
 export const ZIZMOR_NOTE =
-  "1.30.1 is the zizmor the outside check of GEN-26 runs: move `ZIZMOR_IMAGE` in zizmor.yml by tag and index digest when that check moves, or on purpose, with the comment above it and `ZIZMOR` in a-workflow-zizmor-would-flag saying what was read, in a pull request of its own three days after the release; a newer zizmor brings new audits, and the job is blocking, so fix what it finds in the same pull request";
+  "zizmor.yml's zizmor moves on purpose, not with the outside check of GEN-26 (1.30.1): move `ZIZMOR_IMAGE` in zizmor.yml by tag and index digest, with the comment above it and `ZIZMOR` in a-workflow-zizmor-would-flag saying what was read, in a pull request of its own three days after the release; a newer zizmor brings new audits, and the job is blocking, so fix what it finds in the same pull request";
 
 /**
  * The image `zizmor.yml` runs: its one `ZIZMOR_IMAGE:` line, as

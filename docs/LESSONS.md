@@ -38,6 +38,7 @@ reading a file drops off its entry by itself.
 - [a-rebuild-upstream-has-not-made](../scripts/a-rebuild-upstream-has-not-made.unit.test.ts) — A REBUILD UPSTREAM HAS NOT MADE (workplan 0119, 2026-11-13, for alpha.8): the pooler's image carried 79 high findings, every one fixed in Alpine, because the image was built once and never again.
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
+- [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 
@@ -209,6 +210,10 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/zizmor.yml`
 
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
+
+### `.github/zizmor.yml`
+
 - [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 
 ### `.hadolint.yaml`
@@ -6249,11 +6254,13 @@ A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: G
 
 Reads:
 
+- `.github/dependabot.yml`
 - `.github/workflows/ci.yml`
 - `.github/workflows/images.yml`
 - `.github/workflows/security-scan.yml`
 - `.github/workflows/windows-payload.yml`
 - `.github/workflows/zizmor.yml`
+- `.github/zizmor.yml`
 
 ### [a-zip-no-windows-had-started](../scripts/a-zip-no-windows-had-started.unit.test.ts)
 

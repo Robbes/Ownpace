@@ -4,6 +4,86 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, latest: Dependabot waits three days, from seven, and zizmor's `dependabot-cooldown`
+audit is held to three by `.github/zizmor.yml`.** On
+`claude/ownpace-public-readiness-y7orc6-dependabot-cooldown-3`, from `main` at `02e88d52`.
+- **What changed.** Each of the eleven entries in `.github/dependabot.yml` has `cooldown:
+  default-days: 3`, from the 7 set on 2026-11-20 with the zizmor job (Status of that day). Three
+  days is CONTRIBUTING.md's floor for every dependency and what `minimumReleaseAge` in
+  `pnpm-workspace.yaml` enforces. A cooldown does not hold back a security update.
+- **zizmor's setting.** `dependabot-cooldown` finds every Dependabot entry whose cooldown is
+  shorter than its `days`, seven unless set (`rules.dependabot-cooldown.config.days`, zizmor's
+  `docs/audits.md` at v1.32.0). The new `.github/zizmor.yml` sets it to 3 and holds nothing
+  else. The workflow audit passes it with `--config`, which loads that file and no other
+  (`docs/configuration.md` at v1.32.0, global discovery); until now the job ran with
+  `--no-config`. It still runs with `--no-ignores`, so no ignore comment counts either.
+- **The guard.** `a-workflow-zizmor-would-flag` holds the job to `--config .github/zizmor.yml`,
+  the config to exactly that one setting (a `disable`, an `ignore`, another rule or another
+  number is refused), no second config file where zizmor would look, and every Dependabot entry
+  to a cooldown of at least three days. Seven mutations of the real files each fail it: the job
+  back on `--no-config` (2 tests), `days: 1` (2), an audit turned off (2), an ignore list (2),
+  one entry at one day (1), the config removed (2), a second config at the root (1). Each file
+  was put back and compared with `cmp`.
+- **What the outside check of GEN-26 sees.** It runs zizmor 1.30.1 with its own settings. On
+  2026-11-20 it named no Dependabot entry, though none had a cooldown then, so this move should
+  not change what it lists. That is not proven.
+
+**2026-11-21, last: pnpm 11.28.13, the one `packageManager` line (#1989), built as #1994, merged on
+2026-11-21 (`77eea91d`).** Times are UTC.
+
+- **pnpm 11.28.13, from 11.28.12.** npm dates it 2026-11-17 at 20:01:02 and names it `latest-11`
+  (read on 2026-11-21 at about 07:55; `latest` is 12.21.0, a major and the owner's call, as the pin
+  watch's issue says). It passed the three-day floor at 20:01:02 on 2026-11-20, and its pull
+  request was pushed after that. Read for it: the 11.28.13 entry of the package's own
+  `CHANGELOG.md`, from the tarball whose sha512 is the `dist.integrity` npm lists for it. It names
+  a security fix: after the default or a scoped registry changed, `pnpm install` reused what it
+  had resolved against the old registry and skipped the `minimumReleaseAge` and `trustPolicy`
+  checks against the new one; `pnpm dlx` likewise reused a cache made under looser settings. This
+  repository names no registry (no `.npmrc`, none in `pnpm-workspace.yaml`) and runs no `pnpm dlx`,
+  so neither changes anything here. One fix does: `pnpm audit` dropped every advisory whose `id`
+  is a string and reported no vulnerabilities for it. The advisory gate reads `pnpm audit`
+  (`security-scan.yml`, `scripts/audit-advisories.mjs`, which takes the advisories by value, not
+  by key), so from this move it reads those advisories too. 11.28.13 also fixes an offline
+  install failing the `minimumReleaseAge` check, and peer, override and injected-package
+  resolution. npm signed it with the key that signed 11.28.12 (`SHA256:DhQ8wR5A…`, both
+  versions' `dist.signatures`), which corepack 0.36.0 checks in the images. CI takes it from the
+  same field through `pnpm/action-setup`, and every CI install is `--frozen-lockfile`. On a
+  host, the pnpm the deploy runs switches itself to it in the checkout, so live's first deploy of
+  a tag with it fetches 11.28.13 there. CI on its pull request, and the image builds on `main`
+  after the merge; no E2E, as for 11.28.12. On the pull request, under 11.28.13, the advisory
+  gate passed and listed what it lists on `main` and nothing else: GHSA-g3hv-75wg-m249, moderate,
+  on minimatch 10.2.6, a dev dependency.
+
+**2026-11-21, later: the workflow audit runs zizmor 1.32.0, moved on purpose from 1.30.1, built as
+#1995, merged on 2026-11-21 (`02e88d52`; *was:* a draft pull request, not merged).** On
+`claude/ownpace-public-readiness-y7orc6-zizmor-1-32`, from `main` at `75d7949d`. The outside check
+of GEN-26 runs 1.30.1; this job moves on its own.
+- **What moved.** `ZIZMOR_IMAGE` in `zizmor.yml` is `ghcr.io/zizmorcore/zizmor:1.32.0` by index
+  digest `3014cc8f68f6…`, which holds linux/amd64 `bb5d47cd…`, linux/arm64 `4cb7e091…` and two
+  attestation manifests. It was read on 2026-11-21 as the Docker-Content-Digest of the tag's
+  manifest on ghcr.io, whose body hashes to it; the same reading of 1.30.1 gives the digest it
+  replaces, `a2eb396d…`. PyPI lists 1.32.0's upload at 2026-11-02 23:30 UTC and 1.31.0's at
+  2026-10-15, past the three-day floor. The image's config blob was not read, its host being
+  refused where this was done, so nothing here says what its entrypoint or build date is.
+- **What 1.31.0 and 1.32.0 change** (zizmor's release notes and `docs/audits.md` at v1.32.0): no
+  new audit. cache-poisoning skips a job whose `cache-mode:` is `none`, flags an explicit
+  `cache-mode: write` under a dangerous trigger, and knows `pnpm/setup`; dangerous-triggers counts
+  `issue_comment`; template-injection finds a context inside `fromJSON(...)` or `case(...)`. From
+  a Git root, 1.32.0 collects workflows only from `.github/workflows/` and Dependabot only from
+  `.github/`. No workflow here sets `cache-mode:`, and the tree has no nested `.github/`.
+- **The guard's mirrors, read again** in zizmor's source at v1.32.0 against v1.30.1:
+  `KNOWN_PUBLISHER_ACTIONS` has the same nineteen entries; the release triggers come out the same
+  for every shape of `on:`, now read from one normalized set of events; `docs/configuration.md`
+  names the same four config files. The cache-aware actions gained `pnpm/setup`, which
+  `a-workflow-zizmor-would-flag` now names, with a case. `ZIZMOR` there, `docs/testing.md` and
+  0163's §5 step 2 say 1.32.0, and the pin watch's note no longer says the pin follows the outside
+  check.
+- **Its run** (run 44883545988, on the pull request's first head, `4027d064`): the image pulled by
+  its digest, zizmor printed `zizmor v1.32.0`, audited the same eighteen files that 1.30.1
+  audited on `main` in run 44856257104 (at `fbd73f93`; nothing under `.github/` has changed on
+  `main` since), and reported `No findings to report. Good job! (33 suppressed)`, where 1.30.1
+  had 35 suppressed. No workflow needed a change.
+
 **2026-11-21: what alpha.13 moves.** The fold for `v0.2.0-alpha.13` (0146's entry of the same
 day) carries what `main` merged after alpha.12's tag, #1963 to #1986 (0146's entry lists them).
 For live:

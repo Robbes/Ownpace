@@ -13,9 +13,12 @@
 # BLOCKING. Its first run, on the branch that added it, found 24 findings
 # already on main; that branch fixed each, and its second run found none. So
 # a finding fails this job, and nothing is silenced: zizmor
-# runs with --no-config, so no zizmor.yml can turn a rule or a location off,
-# and --no-ignores, so no ignore comment in a workflow can either. A finding
-# is fixed in the workflow, or the pull request says why it cannot be.
+# reads one config, .github/zizmor.yml (--config, so no other file is read),
+# whose one setting holds dependabot-cooldown to Dependabot's three days, and
+# a-workflow-zizmor-would-flag refuses any other, so no config can turn a rule
+# or a location off; and it runs with --no-ignores, so no ignore comment in a
+# workflow can either. A finding is fixed in the workflow, or the pull request
+# says why it cannot be.
 # It is not in ci.yml and not a required check (its `paths:` would leave a
 # pull request that touches no workflow waiting for it forever, the shape
 # every-pr-check-is-classified.unit.test.ts describes for images.yml).
@@ -34,9 +37,14 @@
 # records as read (`ZIZMOR`), and moved by hand: Dependabot reads no workflow
 # env, so the pin watch's row `ghcr.io/zizmorcore/zizmor`
 # (scripts/idp-pin-watch.mjs) reads that line and lists a newer release in its
-# summary issue. 1.30.1 is the version the outside check runs, so a newer one
-# is moved to when that check moves, or on purpose, in a pull request of its
-# own: a newer zizmor brings new audits, and this job is where they land.
+# summary issue. The outside check of GEN-26 runs 1.30.1. This job runs
+# 1.32.0 since 2026-11-21, moved on purpose for what zizmor's audits check
+# that 1.30.1's did not, by its release notes for 1.31.0 and 1.32.0:
+# cache-poisoning reads `cache-mode:` and pnpm/setup, dangerous-triggers
+# counts `issue_comment`, and template-injection sees a context inside
+# `fromJSON(...)` or `case(...)`. A newer one is moved to on purpose too, in a
+# pull request of its own: a newer zizmor brings new audits, and this job is
+# where they land.
 #
 # WHERE. A GitHub-hosted runner: it has a pull_request trigger, and ci.yml's
 # header says why that never reaches the self-hosted runner.
@@ -72,12 +80,13 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     env:
-      # zizmor 1.30.1 by its index digest, `a2eb396d886c…`, with linux/amd64
-      # (`f8451d87…`) and linux/arm64 (`6c439cfa…`) in it, read on 2026-11-20
-      # as the Docker-Content-Digest of the tag's manifest on ghcr.io. Its git
-      # tag v1.30.1 is commit 99a054ed, of 2026-09-09, past the three-day
-      # floor (CONTRIBUTING.md). The image's entrypoint is /usr/bin/zizmor.
-      ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101
+      # zizmor 1.32.0 by its index digest, `3014cc8f68f6…`, with linux/amd64
+      # (`bb5d47cd…`) and linux/arm64 (`4cb7e091…`) in it beside two
+      # attestation manifests, read on 2026-11-21 as the Docker-Content-Digest
+      # of the tag's manifest on ghcr.io, whose body hashes to it. PyPI lists
+      # 1.32.0's upload at 2026-11-02 23:30 UTC, past the three-day floor
+      # (CONTRIBUTING.md).
+      ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -91,11 +100,11 @@ jobs:
             --user "$(id -u):$(id -g)" \
             --volume "$GITHUB_WORKSPACE:/repo:ro" --workdir /repo \
             "$ZIZMOR_IMAGE" \
-            --offline --no-config --no-ignores --no-progress --color never \
+            --offline --config .github/zizmor.yml --no-ignores --no-progress --color never \
             . > "$RUNNER_TEMP/zizmor.txt" 2>&1 || status=$?
           cat "$RUNNER_TEMP/zizmor.txt"
           {
-            echo "## zizmor 1.30.1 (exit $status)"
+            echo "## zizmor 1.32.0 (exit $status)"
             echo
             echo '```'
             cat "$RUNNER_TEMP/zizmor.txt"
