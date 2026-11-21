@@ -14,6 +14,7 @@
 import type { TenantId, MappingId } from '@openmig/shared';
 import {
   ACCOUNT_CLOSED,
+  A_TEST_IS_NOT_SWITCHED_OVER,
   isCredentialRefusal,
   isTargetFolderMissing,
   sameFingerprintVersion,
@@ -68,6 +69,12 @@ export interface VerificationConfig {
    * checking it against the source would show it falling behind as missing.
    */
   stoppedByOwner?: readonly VerificationDomain[];
+  /**
+   * The migration's test marker (workplan 0162 T3), when it is a test; absent
+   * for every other. A test is measured as any other migration is, and
+   * `canProceedToCutover` is false: it is never switched over.
+   */
+  testMarker?: string;
 }
 
 /** Verification dependencies */
@@ -465,9 +472,12 @@ export async function runVerification(
   const allVerifications = VERIFICATION_DOMAINS.map((domain) => byDomain[domain]);
   const overallStatus = calculateOverallStatus(allVerifications);
   const score = calculateVerificationScore(allVerifications, contentHeld);
-  
+  // A test migration (workplan 0162 §2 (e), T3): measured as any other, and
+  // never switched over, whatever the verdict.
+  const testMarker = config.testMarker;
+
   // Generate recommendations
-  const recommendations = generateRecommendations(allVerifications, overallStatus, contentHeld);
+  const recommendations = generateRecommendations(allVerifications, overallStatus, contentHeld, testMarker);
   
   // Calculate totals
   const totalItemsSource = allVerifications.reduce((sum, v) => sum + v.sourceCount, 0);
@@ -498,8 +508,10 @@ export async function runVerification(
     totalItemsTarget,
     totalDiscrepancies,
     totalBytesTransferred,
-    canProceedToCutover: overallStatus === 'PASS' || (overallStatus === 'WARN' && score >= 0.95),
+    canProceedToCutover:
+      testMarker === undefined && (overallStatus === 'PASS' || (overallStatus === 'WARN' && score >= 0.95)),
     recommendations,
+    ...(testMarker !== undefined ? { testMarker } : {}),
   };
 }
 
@@ -1018,9 +1030,15 @@ function generateRecommendations(
   overallStatus: 'PASS' | 'WARN' | 'FAIL',
   /** Domains held because nothing was compared on a target that can hash. */
   contentHeld: ReadonlySet<VerificationDomain>,
+  /** The marker of a test migration, which is never switched over (workplan 0162 T3). */
+  testMarker?: string,
 ): string[] {
   const recommendations: string[] = [];
-  
+
+  // First, because nothing below can open this cutover, and so that a test
+  // whose every check passed is not told it is ready for one.
+  if (testMarker !== undefined) recommendations.push(A_TEST_IS_NOT_SWITCHED_OVER.en);
+
   if (overallStatus === 'FAIL') {
     recommendations.push('Fix all errors before proceeding to cutover');
     recommendations.push('Review verification report for specific issues');
