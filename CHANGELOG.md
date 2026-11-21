@@ -118,6 +118,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **An event deleted in a Google calendar reaches *Deleted on the old system*** (workplan 0164
+  T2). Google answers a `sync-collection` REPORT with every changed event by its address and
+  version, the deleted ones as a 404, in pages, and no calendar data, and the CalDAV source read
+  that as nothing: it listed every Google calendar whole on every pass (6,212 events skipped a pass
+  on the owner's test) and reported no deletion. It now follows the pages to the last one and reads
+  the events it names with `calendar-multiget`, 50 at a time, and keeps the calendar's sync token,
+  so a pass reads what changed. An event deleted at Google is reported as removed by the source:
+  it reaches the deletions queue, and its copy is removed only when the owner applies it, as for
+  every reported removal. A deletion Google names in a reading with no token, as on an existing
+  migration's first pass, is reported when this migration copied the event and passed over when
+  it did not; an event moved between two calendars is a move. A token Google no longer takes is
+  dropped and the calendar read again, once, in the same pass. When a multiget falls short the
+  calendar is listed whole for that pass, as before, keeping the deletions and the token. A server
+  that sends its data with each event, as Nextcloud does, is read as before.
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
   billing page and never reached Mollie: the API answered the page Mollie sends the customer back
   to after paying, the app's own billing page, as the address to pay at. It now answers the

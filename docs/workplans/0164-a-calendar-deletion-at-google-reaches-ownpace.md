@@ -4,6 +4,35 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, latest: T2 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader`, as
+§3.1 A, and not yet on the test environment.** The CalDAV source reads a `sync-collection` answer
+whose members carry no calendar data as a list of members to read, keyed on what the server
+answers and not on its host (`packages/connectors/src/caldav-source.ts`):
+- **The pages are followed to the last** (RFC 6578 §3.6): a 507 for the calendar is a page, and only
+  the last page's token is kept. Up to 400 pages; a reading whose pages do not end is listed whole.
+- **The members are read with `calendar-multiget`** (RFC 4791 §7.9), 50 hrefs a request, and each is
+  handed on under the href `sync-collection` gave, which is what a later 404 names.
+- **The removals are carried up as `removed`**, which the sync loop already turns into `reported`
+  evidence, through every gate it has. Nothing is applied: a person applies a removal by hand, as
+  for any other reported one, and no gate changed.
+- **A 404 in a reading with no token** is reported when the ledger holds a copy of that href and
+  passed over when it does not. An existing Google migration holds no token, so its first pass on
+  this reader sends none, and the deletions made while it listed whole are in that answer alone.
+  The reasoning is in the source and in `docs/dav-sync.md`.
+- **A refused token** (403 or 409 with `DAV:valid-sync-token`) is dropped and the calendar read
+  again with none, once, in the same pass.
+- **A multiget that falls short** lists the calendar whole for that pass, as before, and keeps the
+  removals and the token, so nothing is left out.
+- **The token is saved only once the pass has handled what it read**, by the loop's own rules,
+  unchanged: a retryable failure or an unreached calendar keeps it where it was.
+- **A server that sends its data** (Nextcloud, Infomaniak, Cirrux) is read as before.
+
+Its tests run the real source over `GoogleLikeCalDav`, a fake that answers as Google did (no
+data, pages, 404s with and without a token), in the connectors, in the sync loop, and over a real
+Postgres, where the reported removal is the one the gated apply takes. 25 mutants, 23 each taking
+out one of these rules and 2 one of the loop's own, each made a test fail.
+- **Next:** E2E (managed) on the pull request, then the owner's test (T5) after the merge.
+
 **2026-11-21, later: T1 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t1-measure`, and
 not yet run.** `./deploy/compose/operator.sh measure-google-sync` is a command of the worker's CLI
 (`apps/worker/src/cli/measure-google-sync.ts`). It chooses the migration itself, the newest whose
@@ -53,7 +82,7 @@ Read for this plan, on `main` at `8b8fac07`:
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t1-measure`; the run waits on the owner | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
-| T2 The reader that reports removals | builder | 📋 **Proposed** | §3. A, or B if T1 shows Google reports no removals through CalDAV |
+| T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
 | T3 Apply in bulk | builder | 📋 **Decided** (T0 (b)), after T2 | §4.2. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
