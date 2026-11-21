@@ -55,6 +55,7 @@ import {
   openConsentWindow,
   sendConsentWindow,
 } from '../services/consent-window.ts';
+import { consentToFollow } from '../services/address-to-follow.ts';
 import { useLocale, useT, type StringKey } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
 import { Hint } from './Hint.tsx';
@@ -306,7 +307,17 @@ export function useProviderConsent(opts: {
       // operator's to register, so the line would send them to a console they
       // have no app in (workplan 0148 T2 (a)).
       setRedirect('clientId' in ownPair ? (redirectUri ?? null) : null);
-      if (!sendConsentWindow(consentWindow, url)) setUnopened({ url, pressedAt });
+      // Sent or linked only when it is the provider's own page, `https:` on
+      // its host (0163 T4, finding 9): the window goes wherever it is sent,
+      // and a `javascript:` address would run in this page. Anything else
+      // closes the blank window and says so.
+      const address = consentToFollow(provider, url);
+      if (address === null) {
+        closeConsentWindow(consentWindow);
+        setNote(t('account.consent.notTheProvider', { provider: consentProviderName(provider) }));
+        return;
+      }
+      if (!sendConsentWindow(consentWindow, address)) setUnopened({ url: address, pressedAt });
     } catch (err) {
       closeConsentWindow(consentWindow);
       setNote(refusalText(err));
@@ -577,6 +588,10 @@ export const ConsentWindowLink: React.FC<{
     return () => clearTimeout(timer);
   }, [unopened]);
   if (provider === undefined || unopened === null) return null;
+  // Linked only when it is the provider's own page (0163 T4, finding 9).
+  // Each door refuses any other address before it gets here, and says so.
+  const address = consentToFollow(provider, unopened.url);
+  if (address === null) return null;
   const name = consentProviderName(provider);
   if (expired === unopened) {
     const button = t(`account.${provider}.connect` as StringKey);
@@ -590,7 +605,7 @@ export const ConsentWindowLink: React.FC<{
     <p role="status" className="mt-1 text-sm text-amber-800">
       {t('account.consent.windowBlocked', { provider: name })}{' '}
       <a
-        href={unopened.url}
+        href={address}
         target={consentWindowName(provider)}
         rel="opener"
         className="break-all underline hover:no-underline"
@@ -600,7 +615,7 @@ export const ConsentWindowLink: React.FC<{
           setExpired(unopened);
         }}
       >
-        {consentLinkText(unopened.url)}
+        {consentLinkText(address)}
       </a>
     </p>
   );
