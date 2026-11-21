@@ -19,7 +19,15 @@
  *    (0111 slice 7a): it is credited to the organisation, never paid by it;
  *  - an invoice its credit notes take off in full is refused with 409, and
  *    Mollie is asked nothing; one credited in part is paid for the rest
- *    (slice 7d), whether its credit note is issued or still a draft.
+ *    (slice 7d), whether its credit note is issued or still a draft;
+ *  - the address answered is Mollie's checkout, never the page Mollie sends
+ *    the customer back to (workplan 0163 T4). The stand-in for Mollie gave
+ *    the pay address as its `redirectUrl`, so the route's answering
+ *    `redirectUrl` passed here while *Pay* reloaded our own billing page. It
+ *    now answers as Mollie does: `redirectUrl` is the page the route asked
+ *    for, and the checkout is apart from it;
+ *  - a payment Mollie gives no checkout is refused with 502, in both
+ *    languages, and the invoice records nothing of it.
  *
  * UUID family 01110300-…, unused elsewhere in the repo.
  */
@@ -53,12 +61,20 @@ vi.mock('../../middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-const payments: Array<{ amount: number; metadata?: Record<string, string> }> = [];
+/** Where the stand-in's payment is paid: Mollie's checkout. */
+const CHECKOUT = 'https://www.mollie.com/checkout/tr_test';
+/** The stand-in's checkout for the next payment, or null for one Mollie gives none. */
+let checkout: string | null = CHECKOUT;
+
+type Asked = { amount: number; redirectUrl: string; metadata?: Record<string, string> };
+const payments: Asked[] = [];
 vi.mock('../../services/mollie/index.ts', () => ({
   getMollieService: () => ({
-    createPayment: async (params: { amount: number; metadata?: Record<string, string> }) => {
+    // As Mollie answers: the page to come back to is the one asked for, and
+    // the checkout is apart from it (`MolliePayment.checkoutUrl`).
+    createPayment: async (params: Asked) => {
       payments.push(params);
-      return { id: 'tr_test', status: 'open', redirectUrl: 'https://pay.example/tr_test' };
+      return { id: 'tr_test', status: 'open', redirectUrl: params.redirectUrl, checkoutUrl: checkout };
     },
   }),
 }));
@@ -92,6 +108,7 @@ afterAll(async () => {
 
 beforeEach(async () => {
   payments.length = 0;
+  checkout = CHECKOUT;
   await owner('DELETE FROM invoice');
   await owner(
     `INSERT INTO invoice (id, tenant_id, period_start, period_end, status, subtotal, tax_rate, tax_amount, total, currency, reference, metadata)
@@ -158,7 +175,7 @@ describe('POST /api/billing/invoices/:id/pay', () => {
     const res = await request(app).post(`/api/billing/invoices/${ISSUED}/pay`);
 
     expect(res.status).toBe(200);
-    expect(res.body).toMatchObject({ paymentId: 'tr_test', paymentUrl: 'https://pay.example/tr_test' });
+    expect(res.body).toMatchObject({ paymentId: 'tr_test', paymentUrl: CHECKOUT });
     expect(payments).toHaveLength(1);
     expect(payments[0]!.amount).toBe(1200);
     expect(await row(ISSUED)).toEqual({
@@ -166,6 +183,32 @@ describe('POST /api/billing/invoices/:id/pay', () => {
       payment_id: 'tr_test',
       metadata: { kept: 'yes', mollieInvoiceId: 'tr_test' },
     });
+  });
+
+  it('answers the checkout to pay at, never the billing page Mollie sends the customer back to (0163 T4)', async () => {
+    const res = await request(app).post(`/api/billing/invoices/${ISSUED}/pay`);
+
+    expect(res.status).toBe(200);
+    // The route asks Mollie to send the customer back to our own billing page...
+    expect(payments[0]!.redirectUrl).toMatch(/\/billing$/);
+    // ...and that page is not where they pay.
+    expect(res.body.paymentUrl).toBe(CHECKOUT);
+    expect(res.body.paymentUrl).not.toBe(payments[0]!.redirectUrl);
+  });
+
+  it('refuses a payment Mollie gave no checkout, with 502 in both languages, and records nothing of it', async () => {
+    checkout = null;
+
+    const res = await request(app).post(`/api/billing/invoices/${ISSUED}/pay`);
+
+    expect(res.status).toBe(502);
+    expect(res.body).toEqual({
+      error: 'no_checkout',
+      message: 'Mollie gave no checkout page to pay on. Try again in a minute.',
+      messageNl: 'Mollie gaf geen betaalpagina om op te betalen. Probeer het over een minuut opnieuw.',
+    });
+    expect(payments).toHaveLength(1);
+    expect(await row(ISSUED)).toEqual({ status: 'sent', payment_id: null, metadata: { kept: 'yes' } });
   });
 
   it('refuses a credit note with 409, and asks Mollie nothing', async () => {
