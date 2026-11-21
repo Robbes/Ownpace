@@ -51,6 +51,7 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -106,7 +107,7 @@ function checkout(dotEnv: string): { root: string; compose: string; log: string;
     chmodSync(join(bin, tool), 0o755);
   }
   const env: NodeJS.ProcessEnv = {
-    PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
+    PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${dirname(process.execPath)}:/usr/bin:/bin`,
     HOME: root,
     LANG: 'C',
     STUB_LOG: log,

@@ -82,6 +82,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Docker socket proxy no longer runs as root: it runs as HAProxy's own uid 99, and reaches
+  the Docker socket through the socket's group, which the bring-up reads from the socket**
+  (workplan 0119). An outside, read-only check of the repository reported the image's
+  `USER root` (GEN-21). The image now ends as `USER 99:99`, the base's haproxy user, and
+  `managed.yml` adds the host socket's group to the container, from `DOCKER_SOCKET_GID` in
+  `.env`. Nobody sets that value: `ensure-env-secrets.sh` and every `bootstrap-managed.sh` run
+  read it from `/var/run/docker.sock` and write it, so live's deploy script and the OTA gate
+  both write it before their first `docker compose` call. Without it, Compose refuses to run;
+  there is no fallback to root or to no group. The proxy keeps no capability, no-new-privileges,
+  a read-only root filesystem and its one internal network. On every pull request that touches
+  `deploy/`, CI starts the image on the runner's socket with managed.yml's settings and fails
+  unless the image's user is 99:99 and every process in the container runs as uid 99. The image
+  has a new name, which each machine builds at its next deploy.
 - **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
   2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
   (workplan 0119). The image scan read six highs in the two, each fixed only in their next

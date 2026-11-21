@@ -91,6 +91,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy/compose');
@@ -157,7 +158,7 @@ function bash(
 ): { status: number | null; out: string } {
   const r = spawnSync('bash', ['--noprofile', '--norc', ...args], {
     cwd: opts.cwd,
-    env: { PATH: `${opts.bin ? `${opts.bin}:` : ''}${process.env.PATH ?? '/usr/bin:/bin'}`, ...opts.env },
+    env: { PATH: `${opts.bin ? `${opts.bin}:` : ''}${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`, ...opts.env },
     encoding: 'utf8',
     timeout: 60_000,
   });
