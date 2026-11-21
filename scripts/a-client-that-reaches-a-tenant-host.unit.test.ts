@@ -65,6 +65,9 @@ const FIXED_HOSTS: ReadonlyArray<{ readonly file: string; readonly uses: number;
   { file: 'apps/api/src/routes/migrations/google-consent.ts', uses: 1, host: "Google's token endpoint" },
   { file: 'apps/api/src/routes/migrations/microsoft-consent.ts', uses: 1, host: "Microsoft's token endpoint" },
   { file: 'apps/worker/src/cli/index.ts', uses: 1, host: 'Microsoft Graph' },
+  // Workplan 0164 T1: Google's CalDAV, held to its own origin by the file's guard
+  // (`readOnlyGoogleCalDav`), and Google's token endpoint for the sign-in.
+  { file: 'apps/worker/src/cli/measure-google-sync.ts', uses: 1, host: "Google's CalDAV and its token endpoint" },
   { file: 'apps/worker/src/jobs/managed-drift-detect.ts', uses: 1, host: 'Microsoft Graph' },
   { file: 'apps/worker/src/jobs/managed-group-discovery.ts', uses: 1, host: 'Microsoft Graph' },
   { file: 'packages/connectors/src/box-file-source.ts', uses: 1, host: 'Box' },
