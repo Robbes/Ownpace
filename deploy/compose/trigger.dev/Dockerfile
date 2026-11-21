@@ -309,10 +309,12 @@
 # The supervisor's systeminformation RUN went the same way. The overrides also
 # fix three copies this build could not swap: effect 3.16.12 and 3.18.4, which
 # @prisma/config pinned exactly, and body-parser 2.3.0. This is the npm half of
-# what triggerdotdev/trigger.dev#5084 asked for. Nothing in this build fetches
-# from the npm registry now but pnpm 10.34.9, which corepack installs (WHAT IS
-# REPLACED: PNPM); the undici relink fetches nothing, and gives connect-node
-# the store's 6.29.1 (WHAT IS RELINKED: UNDICI).
+# what triggerdotdev/trigger.dev#5084 asked for. From v4.8.5 to 2026-11-21
+# nothing in this build fetched from the npm registry but pnpm 10.34.9, which
+# corepack installs (WHAT IS REPLACED: PNPM); since 2026-11-21 effect 3.22.4's
+# tarball is fetched too (WHAT IS REPLACED: EFFECT). The undici relink fetches
+# nothing, and gives connect-node the store's 6.29.1 (WHAT IS RELINKED:
+# UNDICI).
 # Since v4.8.8 (2026-11-21) upstream's root package.json also overrides
 # `cross-spawn@<6.0.6` to ^7.0.6, and its lockfile resolves cross-spawn 7.0.6
 # alone: spawndamnit 2.0.0, its one requirer under the root's @changesets/cli,
@@ -526,6 +528,56 @@
 # from the webapp, @depot/sdk-node loads, with its createBuild, and the undici
 # it loaded is 6.29.1's index.js. scripts/a-binary-the-stack-never-runs.unit.test.ts
 # holds the RUN's shape and runs it over its stand-in.
+#
+# WHAT IS REPLACED: EFFECT 3.21.2 BY 3.22.4 (since 2026-11-21, for alpha.14;
+# workplan 0166 T5, the owner's D2 that day: "yes"). Security Scan run
+# 44878860013 (Trivy 0.76.2, linux/arm64) read CVE-2026-121707 (high, a ReDoS
+# in Schema.TemplateLiteral, fixed in 3.22.1) in effect 3.21.2, the one copy
+# of effect upstream's lockfile resolves at v4.8.8 (its override
+# `effect@>=3 <3.20.0` to ^3.20.0, as at v4.8.5). Who requires it, at v4.8.8
+# (pnpm-lock.yaml, and each requirer's package.json): the webapp itself
+# (apps/webapp, "effect": "^3.21.2"), @trigger.dev/schema-to-json 4.8.8
+# (packages/schema-to-json, "^3"), and @prisma/config 6.14.0 and 6.19.0,
+# through the override. 3.22.4 is in every range the override and the two
+# workspace packages give. It is not npm's newest 3.x: 3.22.5 was published
+# on 2026-11-19 at 21:22 UTC, inside its three-day floor (CONTRIBUTING.md) on
+# 2026-11-21. 3.22.4 was published on 2026-10-22 at 20:49 UTC, and this build
+# swapped it in for effect 3.17.1 from 2026-11-06 until v4.8.5. Between the
+# two tarballs, read 2026-11-21 by the integrity npm published for each: the
+# same main, module, types and sideEffects, no type field, the same two
+# dependencies (@standard-schema/spec ^1.0.0 and fast-check ^3.23.1, which
+# the 1.1.0 and 3.23.2 pnpm linked for 3.21.2 meet), the same 179 exports,
+# and 7 files more (internal/stackTraceLimit in cjs, esm, dts and src, with
+# their maps) and none fewer. The server loads it: app/services/metadata/
+# updateMetadata.server.ts imports it, and Vite's SSR build keeps
+# node_modules external, so the code that runs is the new release's. Its mark
+# is effect_internal_function, which effect's Utils carries in both releases
+# and the RUN looks for in the webapp's own build, where a bundled copy would
+# show.
+#
+# HOW IT IS SWAPPED, AND PROVED. The RUN after the undici relink is the swap
+# table this build held until v4.8.5 (rows(), then five rows), with one row:
+# the name, both versions, both trees (the SHA-256 of `sha256sum` over each
+# release's files, sorted by path), the integrity npm published for 3.22.4,
+# the mark, what to load, and who requires it (name@version). Before it
+# fetches anything it checks the row: the directory is the published 3.21.2,
+# file for file (pnpm's own node_modules in it aside); the packages that link
+# it are the four above, found by the links themselves, in the store and in
+# the workspace; no other package.json of effect 3.21.2 is in the image; and
+# the webapp's build carries no effect_internal_function. It then fetches the
+# tarball from the npm registry, refuses it unless its sha512 is npm's,
+# unpacks it apart and checks it is the published 3.22.4, file for file, and
+# only then swaps the directory. After, it proves the directory is 3.22.4,
+# that no other path was added or removed and no other file changed (a stat
+# of every entry outside it, before and after: owner, mode, size and times),
+# that both dependencies load from it, and that from every requirer's own
+# directory require.resolve lands in it and require loads it, on the image's
+# Node. pnpm's records keep 3.21.2, as they kept the old versions before.
+# A fetch that does not answer stops the build with nothing changed, as
+# goose's does. THE WAY OUT: when upstream's lockfile resolves effect past
+# 3.21.2, the first check stops the build by name ("is not there", or "is not
+# 3.21.2"); then this RUN, this section and the guard's row go, and the scan
+# reads what upstream ships.
 #
 # WHAT STAYS, and why (2026-11-03; read again at v4.8.5 on 2026-11-13, and at
 # v4.8.8 on 2026-11-21, whose lockfile resolves turbo-stream 2.4.1 and
@@ -1098,6 +1150,88 @@ RUN set -eu; \
     (cd "$sdk" && node --input-type=module -e "if (typeof (await import('@connectrpc/connect-node')).createConnectTransport !== 'function') process.exit(1);") || fail "from $sdk, import('@connectrpc/connect-node') does not load with undici 6.29.1: its dist/esm imports Headers from undici by name."; \
     (cd "$webapp" && node -e "const fs = require('fs'); const [sdk, nu] = process.argv.slice(1); const at = fs.realpathSync(require.resolve('@depot/sdk-node')); const { depot } = require('@depot/sdk-node'); const undici = fs.realpathSync(nu + '/index.js'); console.log('require(@depot/sdk-node): ' + at + '; undici: ' + (require.cache[undici] ? undici : 'not ' + undici)); if (!at.startsWith(fs.realpathSync(sdk) + '/') || typeof depot.build.v1.BuildService.createBuild !== 'function' || !require.cache[undici]) process.exit(1);" "$sdk" "$new") || fail "from $webapp, @depot/sdk-node does not load connect-node with undici 6.29.1 from $new."; \
     echo "$me: connect-node 1.4.0 links undici 6.29.1, the store's, as npm published it ($new_tree); undici 5.29.0 and @fastify/busboy 2.1.1 went with every link into them; nothing else in the image changed; from the webapp, @depot/sdk-node loads connect-node with undici 6.29.1."
+
+# Still as root, after the relink: effect 3.21.2 replaced by 3.22.4, the release
+# of the same major that fixes CVE-2026-121707, as npm published it (WHAT IS
+# REPLACED: EFFECT and HOW IT IS SWAPPED, AND PROVED, above).
+RUN set -eu; \
+    me=deploy/compose/trigger.dev/Dockerfile; \
+    fail() { echo "$me: $*" >&2; echo "$me: re-read the header's WHAT IS REPLACED: EFFECT against this image, or drop the row of a package upstream moved (THE WAY OUT)." >&2; exit 1; }; \
+    unreachable() { echo "$me: $1 did not answer, or answered with an error (above); nothing was changed, and upstream did not move. Run the bring-up, or deploy-live.sh, with the same tag again once it answers: nothing here needs editing (docs/managed-bring-up.md, Upgrading Trigger.dev)." >&2; exit 1; }; \
+    gone() { echo "$me: $1 is gone (above): its publisher no longer serves it; nothing was changed, and upstream did not move. This tag cannot be built again as pinned: docs/managed-bring-up.md, Upgrading Trigger.dev, says what to do." >&2; exit 1; }; \
+    s=/triggerdotdev/node_modules/.pnpm; \
+    bundles="/triggerdotdev/apps/webapp/build /triggerdotdev/apps/webapp/public"; \
+    top=/; \
+    rows() { \
+      "$@" effect 3.21.2 da670361dc0dcb2c7b3841982c4adce69b152d3a33abb9325f3243cc89f2c954 3.22.4 b7d6b7cbae9262a2e258136292e231646ba675df4e965dd38136cd266d8ac9af sha512-RNshu7AXVxxDh6aS4lothhJ+QoZ4xSykbWNaaVdvDN72RMyVwhCGdALkyl1TbEydgAmRIdD1eTyJqBUGwSBGDA== 'effect_internal_function' effect @prisma/config@6.14.0 @prisma/config@6.19.0 @trigger.dev/schema-to-json@4.8.8 webapp@1.0.0; \
+    }; \
+    version() { node -p "require(process.argv[1] + '/package.json').version" "$1"; }; \
+    files() { (cd "$1" && find . -path ./node_modules -prune -o -type f -print0 | LC_ALL=C sort -z | xargs -0 sha256sum); }; \
+    own() { if [ -d "$1/node_modules" ]; then (cd "$1/node_modules" && find . ! -type d -exec sha256sum {} + | LC_ALL=C sort); fi; }; \
+    tree() { files "$1" | sha256sum | cut -d' ' -f1; }; \
+    state() { { find "$top" -xdev \( $prune \) -prune -o -type d -exec stat -c '%n %u:%g %a' {} + ; find "$top" -xdev \( $prune \) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' {} + ; } | LC_ALL=C sort | sha256sum | cut -d' ' -f1; }; \
+    who="const fs = require('fs'); const path = require('path'); const [s, pkg, name] = process.argv.slice(1); const real = fs.realpathSync(pkg); const out = []; for (const d of fs.readdirSync(s)) { if (d === 'node_modules') continue; const nm = path.join(s, d, 'node_modules'); let st; try { st = fs.lstatSync(path.join(nm, name)); } catch { continue; } if (!st.isSymbolicLink() || fs.realpathSync(path.join(nm, name)) !== real) continue; const own = []; for (const e of fs.readdirSync(nm)) { for (const x of e.startsWith('@') ? fs.readdirSync(path.join(nm, e)).map((y) => e + '/' + y) : [e]) { const p = path.join(nm, x); if (!fs.lstatSync(p).isSymbolicLink() && fs.existsSync(path.join(p, 'package.json'))) own.push(p); } } if (own.length !== 1) { out.push('unknown ' + nm); continue; } const j = JSON.parse(fs.readFileSync(path.join(own[0], 'package.json'), 'utf8')); out.push(j.name + '@' + j.version + ' ' + own[0]); } const walk = (d) => { const l = path.join(d, 'node_modules', name); let st; try { st = fs.lstatSync(l); } catch { st = null; } if (st && st.isSymbolicLink() && fs.realpathSync(l) === real) { const j = JSON.parse(fs.readFileSync(path.join(d, 'package.json'), 'utf8')); out.push(j.name + '@' + j.version + ' ' + d); } for (const e of fs.readdirSync(d, { withFileTypes: true })) if (e.isDirectory() && e.name !== 'node_modules') walk(path.join(d, e.name)); }; walk(path.dirname(path.dirname(s))); if (out.length) console.log(out.sort().join('\n'));"; \
+    same="const fs = require('fs'); const [n, v, ...files] = process.argv.slice(1); for (const f of files) { let j; try { j = JSON.parse(fs.readFileSync(f, 'utf8')); } catch { console.log('unreadable:' + f); continue; } if (j.name === n && j.version === v) console.log(f); }"; \
+    deps="const fs = require('fs'); const path = require('path'); const real = fs.realpathSync(process.argv[1]); const j = JSON.parse(fs.readFileSync(path.join(real, 'package.json'), 'utf8')); for (const d of Object.keys(j.dependencies || {})) { const p = fs.realpathSync(require.resolve(d, { paths: [real] })); require(p); console.log('dependency ' + d + ': ' + p); }"; \
+    load="const fs = require('fs'); const path = require('path'); const [pkg, name, to, list] = process.argv.slice(1); const specs = list.split(','); const real = fs.realpathSync(pkg); const pj = fs.realpathSync(require.resolve(name + '/package.json')); const v = require(name + '/package.json').version; if (pj !== path.join(real, 'package.json') || v !== to) { console.error('require(' + name + '/package.json) is ' + pj + ' ' + v); process.exit(1); } for (const sp of specs) { const p = fs.realpathSync(require.resolve(sp)); if (!p.startsWith(real + path.sep)) { console.error('require(' + sp + ') resolves ' + p); process.exit(1); } const m = require(sp); for (const k of Object.keys(m)) void m[k]; console.log('require(' + sp + '): ' + p + ' ' + v); }"; \
+    check() { \
+      name=$1; from=$2; from_tree=$3; mark=$7; shift 8; pkg="$s/$name@$from/node_modules/$name"; \
+      [ -f "$pkg/package.json" ] || fail "$pkg is not there."; \
+      [ "$(version "$pkg")" = "$from" ] || fail "$pkg is $name $(version "$pkg"), not $from."; \
+      [ -z "$(find "$pkg" -path "$pkg/node_modules" -prune -o ! -type f ! -type d -print)" ] || fail "$pkg holds more than files and directories (pnpm's own node_modules in it aside)."; \
+      [ "$(tree "$pkg")" = "$from_tree" ] || { files "$pkg" >&2; fail "$pkg is not the published $name $from, file for file (above)."; }; \
+      found="$(node -e "$who" "$s" "$pkg" "$name")" || fail "the packages that link $pkg could not be read."; \
+      [ "$(printf '%s\n' "$found" | cut -d' ' -f1 | LC_ALL=C sort -u | tr '\n' ' ')" = "$(printf '%s\n' "$@" | LC_ALL=C sort -u | tr '\n' ' ')" ] || fail "$name $from is linked from: ${found:-nothing}; this file was read for $*."; \
+      if [ -L "$s/node_modules/$name" ] && [ "$(readlink -f "$s/node_modules/$name")" = "$(readlink -f "$pkg")" ]; then echo "$me: pnpm hoists $name $from too: $s/node_modules/$name"; fi; \
+      copies="$(find "$top" -xdev -type f -path "*/$name/package.json" -exec node -e "$same" "$name" "$from" {} +)" || fail "the copies of $name could not be read."; \
+      [ "$copies" = "$pkg/package.json" ] || fail "$name $from's package.json is at: ${copies:-nowhere}; this file replaces $pkg alone (other versions of $name stay)."; \
+      found="$(grep -rlF -e "$mark" $bundles)" && st=0 || st=$?; \
+      [ "$st" = 1 ] || fail "the webapp's own build carries $name's $mark (grep exits $st): ${found:-}. A copy bundled there is not the package this replaces."; \
+    }; \
+    pruned() { prune="$prune -o -path $s/$1@$2/node_modules/$1"; }; \
+    fetched() { \
+      name=$1; from=$2; to=$4; to_tree=$5; want=$6; pkg="$s/$name@$from/node_modules/$name"; url="https://registry.npmjs.org/$name/-/$name-$to.tgz"; \
+      node -e "fetch(process.argv[1]).then(async (r) => { if (!r.ok) { console.error(process.argv[1] + ' answered HTTP ' + r.status); process.exit(r.status === 404 || r.status === 410 ? 4 : 3); } require('fs').writeFileSync(process.argv[2], Buffer.from(await r.arrayBuffer())); }, (e) => { console.error(process.argv[1] + ': ' + (e.cause ? e.cause.message : e.message)); process.exit(3); })" "$url" "$tmp/$name.tgz" && st=0 || st=$?; \
+      case "$st" in 0) ;; 3) unreachable "$url" ;; 4) gone "$url" ;; *) fail "$url could not be fetched (node exits $st); nothing was changed." ;; esac; \
+      got="$(node -p "'sha512-' + require('crypto').createHash('sha512').update(require('fs').readFileSync(process.argv[1])).digest('base64')" "$tmp/$name.tgz")"; \
+      [ "$got" = "$want" ] || fail "$url is $got, not $want, the integrity npm published for $name $to; nothing was changed."; \
+      mkdir "$tmp/$name"; \
+      tar -xzf "$tmp/$name.tgz" -C "$tmp/$name" --no-same-owner || fail "$url does not unpack; nothing was changed."; \
+      new="$tmp/$name/package"; \
+      [ "$(version "$new")" = "$to" ] || fail "$url unpacks to $name $(version "$new"), not $to; nothing was changed."; \
+      [ ! -e "$new/node_modules" ] || fail "$url unpacks a node_modules of its own; nothing was changed."; \
+      { [ -z "$(find "$new" ! -type f ! -type d)" ] && [ "$(tree "$new")" = "$to_tree" ]; } || { files "$new" >&2; fail "$url unpacks to other files than the published $name $to (above); nothing was changed."; }; \
+      chown -R "$(stat -c %u:%g "$pkg/package.json")" "$new"; \
+      own "$pkg" > "$tmp/$name.own"; \
+    }; \
+    swapped() { if [ -e "$s/$1@$2/node_modules/$1/node_modules" ]; then mv "$s/$1@$2/node_modules/$1/node_modules" "$tmp/$1/package/node_modules" || fail "pnpm's node_modules in $s/$1@$2/node_modules/$1 could not be moved to the new release."; fi; rm -r "$s/$1@$2/node_modules/$1" || fail "$s/$1@$2/node_modules/$1 could not be removed."; mv "$tmp/$1/package" "$s/$1@$2/node_modules/$1" || fail "the new $1 could not be moved to $s/$1@$2/node_modules/$1."; }; \
+    proven() { \
+      name=$1; from=$2; to=$4; to_tree=$5; pkg="$s/$name@$from/node_modules/$name"; \
+      { [ "$(version "$pkg")" = "$to" ] && [ "$(tree "$pkg")" = "$to_tree" ]; } || fail "$pkg is not the published $name $to after the swap."; \
+      [ "$(own "$pkg")" = "$(cat "$tmp/$name.own")" ] || fail "$pkg/node_modules, pnpm's own (a bin shim), is not what it was before the swap."; \
+    }; \
+    loaded() { \
+      name=$1; from=$2; to=$4; specs=$8; pkg="$s/$name@$from/node_modules/$name"; \
+      node -e "$deps" "$pkg" || fail "a dependency $name $to declares does not load from $pkg."; \
+      found="$(node -e "$who" "$s" "$pkg" "$name")" || fail "the packages that link $pkg could not be read."; \
+      [ -n "$found" ] || fail "nothing links $pkg after the swap."; \
+      for r in $(printf '%s\n' "$found" | cut -d' ' -f2); do \
+        (cd "$r" && node -e "$load" "$pkg" "$name" "$to" "$specs") || fail "from $r, $name does not load $to from $pkg."; \
+      done; \
+    }; \
+    for d in $bundles; do [ -d "$d" ] || fail "$d is not there: the build is not where it was read."; done; \
+    rows check; \
+    tmp="$(mktemp -d)"; \
+    prune="-path $tmp"; \
+    rows pruned; \
+    before="$(state)"; \
+    rows fetched; \
+    rows swapped; \
+    rows proven; \
+    [ "$(state)" = "$before" ] || fail "outside the swapped directories, a path was added or removed, or an entry's owner, mode, size or times changed, while they were replaced."; \
+    rm -r "$tmp"; \
+    rows loaded; \
+    echo "$me: effect 3.21.2 is 3.22.4, as npm published it; nothing else in the image changed; from every requirer, require loads 3.22.4."
 
 # Still as root, and the last of root's RUNs: the Debian packages nothing here
 # runs or loads, purged (THE DEBIAN PACKAGES NOTHING RUNS, above).

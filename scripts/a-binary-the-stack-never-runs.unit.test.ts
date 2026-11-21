@@ -307,7 +307,7 @@ import { createHash } from 'node:crypto';
 import { chmodSync, existsSync, linkSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, readlinkSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { spawnSync } from 'node:child_process';
-import { dirname, join } from 'node:path';
+import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
 import { builtTag, dockerfileBase, parseRef, readTriggerPin } from './idp-pin-watch.mjs';
@@ -949,6 +949,109 @@ const WHERE_READS: ReadonlyArray<readonly [string, string]> = [
 const relinkRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])undici_link="/.test(r.args));
 /** How many each Dockerfile has: the supervisor's deploy has no connect-node. */
 const RELINKS: Readonly<Record<Name, number>> = { 'trigger.dev': 1, supervisor: 0 };
+
+/** The RUN that swaps effect by its table, rows(): the one that defines rows(). */
+const effectRuns = (text: string) => runs(text).filter((r) => /(^|[;\s])rows\(\) \{/.test(r.args));
+/** How many such RUNs each image has: the webapp's one (since 2026-11-21, workplan 0166 T5). */
+const SWAPS: Readonly<Record<Name, number>> = { 'trigger.dev': 1, supervisor: 0 };
+
+/** The row of rows(), as its RUN joins it: `"$@" name from from_tree to to_tree integrity 'mark' loads requirer…; `. */
+const EFFECT_ROW = /^ {6}"\$@" ([a-z0-9.-]+) (\d+\.\d+\.\d+) ([0-9a-f]{64}) (\d+\.\d+\.\d+) ([0-9a-f]{64}) (sha512-[A-Za-z0-9+/]{86}==) '([^'\n]+)' ([^\s;']+)((?: [^\s;']+)+); $/gm;
+
+/**
+ * What is wrong with the webapp's swap table and the RUN around it, in words;
+ * empty when it holds: the RUN as it was until v4.8.5, with EFFECT its one
+ * row. The row is checked before anything is fetched, the tarball is fetched
+ * and checked before the directory is swapped, and the proofs come after:
+ * the directory the new release, pnpm's own node_modules in it unchanged,
+ * nothing else of the image changed, and each dependency and each requirer's
+ * require loading it.
+ */
+function effectProblems(text: string): string[] {
+  const found = effectRuns(text);
+  if (found.length !== 1) return [`${found.length} RUNs hold a swap table, not 1`];
+  const problems: string[] = [];
+  const ins = instructions(text);
+  const all = runs(text);
+  const run = found[0]!;
+  const args = run.args;
+  if (run.user !== 'root') problems.push(`effect's swap table's RUN runs as ${run.user}, not root`);
+  const at = all.findIndex((r) => r.args === args);
+  if (at <= all.findIndex((r) => /(^|[;\s])undici_link="/.test(r.args))) problems.push("effect's swap table's RUN comes before the relink");
+  if (at >= all.findIndex((r) => /(^|[;\s])dpkg --purge /.test(r.args))) problems.push("effect's swap table's RUN does not come before the purge, the last RUN as root");
+  if (!ins.slice(ins.findIndex((i) => i.keyword === 'RUN' && i.args === args) + 1).some((i) => i.keyword === 'USER' && i.args === 'node')) problems.push("effect's swap table's RUN is not followed by upstream's USER node");
+  const vars = assignments(args);
+  const bundles = `${WEBAPP_DIR}/build ${WEBAPP_DIR}/public`;
+  if (vars.get('s') !== PNPM) problems.push(`effect's swap table's s= is ${vars.get('s') ?? 'not there'}, not ${PNPM}`);
+  if (vars.get('bundles') !== bundles) problems.push(`effect's swap table's bundles= is ${vars.get('bundles') ?? 'not there'}, not ${bundles}`);
+  if (vars.get('top') !== '/') problems.push(`effect's swap table's top= is ${vars.get('top') ?? 'not there'}, not /: it reads the whole image for other copies and other changes`);
+  // The one row is EFFECT's, field for field.
+  const rows = [...args.matchAll(EFFECT_ROW)].map((m) => [m[1], m[2], m[3], m[4], m[5], m[6], m[7], m[8], m[9]!.trim().split(' ').sort().join(' ')].join(' | '));
+  const want = ['effect', EFFECT.from, EFFECT.fromTree, EFFECT.to, EFFECT.toTree, EFFECT.integrity, EFFECT.mark, EFFECT.loads.join(','), [...EFFECT.requirers].sort().join(' ')].join(' | ');
+  for (const row of rows.filter((r) => r !== want)) problems.push(`effect's swap table has a row EFFECT does not: ${row}`);
+  if (!rows.includes(want)) problems.push(`effect's swap table has no row for EFFECT: ${want}`);
+  if (EFFECT.path !== `${PNPM}/effect@${EFFECT.from}/node_modules/effect`) problems.push(`EFFECT's ${EFFECT.path} is not where the swap table works (${PNPM})`);
+  /** The body of a function of the RUN, from `name() {` to its closing line. */
+  const body = (fn: string) => new RegExp(`(?:^|[;\\s])${fn}\\(\\) \\{([\\s\\S]*?)\\n {4}\\}; `).exec(args)?.[1] ?? '';
+  const needs: ReadonlyArray<[string, RegExp, string]> = [
+    ['check', /\[ "\$\(version "\$pkg"\)" = "\$from" \] \|\| fail /, "the old directory's version"],
+    ['check', /\[ -z "\$\(find "\$pkg" -path "\$pkg\/node_modules" -prune -o ! -type f ! -type d -print\)" \] \|\| fail /, 'that the old directory holds files and directories only'],
+    ['check', /\[ "\$\(tree "\$pkg"\)" = "\$from_tree" \] \|\| /, 'the old directory, file for file (from_tree)'],
+    ['check', /found="\$\(node -e "\$who" "\$s" "\$pkg" "\$name"\)" \|\| fail [^\n]*\n {6}\[ "\$\(printf '%s\\n' "\$found" \| cut -d' ' -f1 \| LC_ALL=C sort -u \| tr '\\n' ' '\)" = "\$\(printf '%s\\n' "\$@" \| LC_ALL=C sort -u \| tr '\\n' ' '\)" \] \|\| fail /, 'which packages link it, against the row'],
+    ['check', /copies="\$\(find "\$top" -xdev -type f -path "\*\/\$name\/package\.json" -exec node -e "\$same" "\$name" "\$from" \{\} \+\)" \|\| fail [^\n]*\n {6}\[ "\$copies" = "\$pkg\/package\.json" \] \|\| fail /, 'that no other package.json of that name and version is in the image'],
+    ['check', /found="\$\(grep -rlF -e "\$mark" \$bundles\)" && st=0 \|\| st=\$\?; \s*\[ "\$st" = 1 \] \|\| fail /, "that the image's own build carries no copy of it (its mark; grep's 1, not 2)"],
+    ['fetched', /\[ "\$got" = "\$want" \] \|\| fail /, "the tarball's sha512, against the integrity npm published"],
+    ['fetched', /\[ "\$\(version "\$new"\)" = "\$to" \] \|\| fail /, "the new directory's version"],
+    ['fetched', /\[ ! -e "\$new\/node_modules" \] \|\| fail /, 'that the tarball brings no node_modules'],
+    ['fetched', /\[ "\$\(tree "\$new"\)" = "\$to_tree" \]/, 'the new directory, file for file (to_tree)'],
+    ['fetched', /chown -R "\$\(stat -c %u:%g "\$pkg\/package\.json"\)" "\$new"; /, "the old package.json's owner, given to the new files"],
+    ['fetched', /own "\$pkg" > "\$tmp\/\$name\.own"; /, "pnpm's own node_modules, read before the swap"],
+    ['proven', /\{ \[ "\$\(version "\$pkg"\)" = "\$to" \] && \[ "\$\(tree "\$pkg"\)" = "\$to_tree" \]; \} \|\| fail /, 'that the directory is the new release, file for file'],
+    ['proven', /\[ "\$\(own "\$pkg"\)" = "\$\(cat "\$tmp\/\$name\.own"\)" \] \|\| fail /, "that pnpm's own node_modules is what it was"],
+    ['loaded', /node -e "\$deps" "\$pkg" \|\| fail /, 'that every dependency the new release declares loads from its directory'],
+    ['loaded', /\[ -n "\$found" \] \|\| fail /, 'that something links it after the swap'],
+    ['loaded', /\(cd "\$r" && node -e "\$load" "\$pkg" "\$name" "\$to" "\$specs"\) \|\| fail /, "that from each requirer's own directory require loads the new release from it"],
+  ];
+  for (const [fn, re, what] of needs) if (!re.test(body(fn))) problems.push(`effect's swap table's ${fn}() does not check ${what}`);
+  const whole: ReadonlyArray<[RegExp, string]> = [
+    [/files\(\) \{ \(cd "\$1" && find \. -path \.\/node_modules -prune -o -type f -print0 \| LC_ALL=C sort -z \| xargs -0 sha256sum\); \}/, "tree() leaves pnpm's own node_modules out: pnpm links a package's bin there, a shim naming the install's paths"],
+    [/state\(\) \{ \{ find "\$top" -xdev \\\( \$prune \\\) -prune -o -type d -exec stat -c '%n %u:%g %a' \{\} \+ ; find "\$top" -xdev \\\( \$prune \\\) -prune -o ! -type d -exec stat -c '%n %u:%g %a %s %Y %Z' \{\} \+ ; \}/, "state() reads every entry outside the swapped directories: each directory's owner and mode, and each other entry's owner, mode, size and times"],
+    [/swapped\(\) \{ if \[ -e "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" \]; then mv "\$s\/\$1@\$2\/node_modules\/\$1\/node_modules" "\$tmp\/\$1\/package\/node_modules" \|\| fail "[^"\n]+"; fi; rm -r "\$s\/\$1@\$2\/node_modules\/\$1" \|\| fail "[^"\n]+"; mv "\$tmp\/\$1\/package" "\$s\/\$1@\$2\/node_modules\/\$1" \|\| fail "[^"\n]+"; \}/, "swapped() carries pnpm's own node_modules over, then puts the new release in the old one's place, each step failing by name"],
+    [/load="[^"\n]*if \(pj !== path\.join\(real, 'package\.json'\) \|\| v !== to\)[^"\n]*if \(!p\.startsWith\(real \+ path\.sep\)\)[^"\n]*"/, 'load checks where each require resolves, not only what it says'],
+    [/who="[^"\n]*!st\.isSymbolicLink\(\) \|\| fs\.realpathSync\(path\.join\(nm, name\)\) !== real[^"\n]*"/, 'who finds the requirers by the links that lead to the directory'],
+    [
+      /who="[^"\n]*const walk = \(d\) => \{ const l = path\.join\(d, 'node_modules', name\);[^"\n]*if \(st && st\.isSymbolicLink\(\) && fs\.realpathSync\(l\) === real\) \{ const j = JSON\.parse\(fs\.readFileSync\(path\.join\(d, 'package\.json'\), 'utf8'\)\); out\.push\(j\.name \+ '@' \+ j\.version \+ ' ' \+ d\); \} for \(const e of fs\.readdirSync\(d, \{ withFileTypes: true \}\)\) if \(e\.isDirectory\(\) && e\.name !== 'node_modules'\) walk\(path\.join\(d, e\.name\)\); \}; walk\(path\.dirname\(path\.dirname\(s\)\)\);[^"\n]*"/,
+      "who also finds the workspace's packages that link it from their own node_modules (every directory under the one that holds node_modules/.pnpm, a node_modules aside), each named by its package.json",
+    ],
+    [/same="[^"\n]*j\.name === n && j\.version === v[^"\n]*"/, 'same matches a copy by its name and version, so other versions stay'],
+  ];
+  for (const [re, what] of whole) if (!re.test(args)) problems.push(`effect's swap table's RUN: ${what}, and does not`);
+  problems.push(...fetchProblems(body('fetched'), '$tmp/$name.tgz', "effect's swap table's fetched()").filter((p) => !/unreachable\(\)|gone\(\)/.test(p)));
+  problems.push(...fetchProblems(args, '$tmp/$name.tgz', "effect's swap table's RUN").filter((p) => /unreachable\(\)|gone\(\)/.test(p)));
+  // The order: every row checked, the image read, every tarball fetched and checked, then the swaps, then the proofs.
+  const order: ReadonlyArray<[RegExp, string]> = [
+    [/^ {4}for d in \$bundles; do \[ -d "\$d" \] \|\| fail /m, 'the build output is checked there'],
+    [/^ {4}rows check; $/m, 'every row is checked'],
+    [/^ {4}tmp="\$\(mktemp -d\)"; $/m, 'the staging directory is made'],
+    [/^ {4}prune="-path \$tmp"; $/m, 'the swapped directories are named'],
+    [/^ {4}rows pruned; $/m, 'the swapped directories are named'],
+    [/^ {4}before="\$\(state\)"; $/m, 'the image is read'],
+    [/^ {4}rows fetched; $/m, 'every tarball is fetched and checked'],
+    [/^ {4}rows swapped; $/m, 'the directories are swapped'],
+    [/^ {4}rows proven; $/m, 'each directory is proved the new release'],
+    [/^ {4}\[ "\$\(state\)" = "\$before" \] \|\| fail /m, 'nothing else changed'],
+    [/^ {4}rm -r "\$tmp"; $/m, 'the staging directory goes'],
+    [/^ {4}rows loaded; $/m, 'each requirer loads it'],
+  ];
+  let last = -1;
+  for (const [re, what] of order) {
+    const i = args.search(re);
+    if (i < 0) problems.push(`effect's swap table's RUN does not run its steps in order: missing where ${what}`);
+    else if (i < last) problems.push(`effect's swap table's RUN does not run its steps in order: ${what} too early`);
+    else last = i;
+  }
+  return problems;
+}
 /** The relink's walk: the one the removing RUNs ran for cross-spawn, with pnpm's name for a scoped package's directory, a plus for its slash. */
 const RELINK_WHERE_READS: ReadonlyArray<readonly [string, string]> = [
   ...WHERE_READS,
@@ -1252,6 +1355,8 @@ interface DpkgDb {
 
 interface StandIn {
   readonly goose?: string;
+  /** The stand-in effect's two trees and its tarball's integrity, which take the published ones' place in the effect RUN's row (`build`). */
+  readonly effect?: { readonly fromTree: string; readonly toTree: string; readonly integrity: string };
   /** The stand-in undici 6.29.1's tree (packageTree), which takes the published one's place in the relink RUN (`build`). */
   readonly undici?: string;
 }
@@ -1683,7 +1788,7 @@ function relinkTree(): { files: Record<string, string>; links: Array<{ path: str
     }),
     [`${RELINK.sdk.package}/dist/index.js`]:
       '"use strict";\nvar import_connect_node = require("@connectrpc/connect-node");\nvar transport = (0, import_connect_node.createConnectTransport)({ baseUrl: "https://api.depot.dev", httpVersion: "2" });\nexports.depot = { build: { v1: { BuildService: { createBuild() { return transport; } } } } };\n',
-    [`${WEBAPP_DIR}/package.json`]: json({ name: 'webapp', private: true }),
+    [`${WEBAPP_DIR}/package.json`]: json({ name: 'webapp', version: '1.0.0', private: true }),
     [`${WEBAPP_DIR}/build/server/index.js`]: 'import { remoteBuildsEnabled } from "./assets/remoteImageBuilder.server.js";\nexport { remoteBuildsEnabled };\n',
     [`${WEBAPP_DIR}/public/favicon.ico`]: 'stand-in\n',
   };
@@ -1698,6 +1803,111 @@ function relinkTree(): { files: Record<string, string>; links: Array<{ path: str
     { path: `${WEBAPP_DIR}/node_modules/@depot/sdk-node`, target: '../../../../node_modules/.pnpm/@depot+sdk-node@1.0.0/node_modules/@depot/sdk-node' },
   ];
   return { files, links, undici: packageTree(files, RELINK.undici) };
+}
+
+/**
+ * effect 3.21.2 replaced by 3.22.4 in the webapp's image (workplan 0166 T5,
+ * the owner's D2 of 2026-11-21): the one row of its swap table (rows()), as
+ * its RUN names it. Each tree is the RUN's `tree`, read from the tarball npm
+ * published (2026-11-21); 3.22.4's is the one this build pinned for it from
+ * 2026-11-06 to v4.8.5. The requirers are who links the one copy at v4.8.8:
+ * @prisma/config's two, through upstream's override, and the two workspace
+ * packages that name it.
+ */
+const EFFECT = {
+  path: `${PNPM}/effect@3.21.2/node_modules/effect`,
+  from: '3.21.2',
+  to: '3.22.4',
+  fromTree: 'da670361dc0dcb2c7b3841982c4adce69b152d3a33abb9325f3243cc89f2c954',
+  toTree: 'b7d6b7cbae9262a2e258136292e231646ba675df4e965dd38136cd266d8ac9af',
+  integrity: 'sha512-RNshu7AXVxxDh6aS4lothhJ+QoZ4xSykbWNaaVdvDN72RMyVwhCGdALkyl1TbEydgAmRIdD1eTyJqBUGwSBGDA==',
+  url: 'https://registry.npmjs.org/effect/-/effect-3.22.4.tgz',
+  /** When npm published 3.22.4, and when the row was taken: the three-day floor (CONTRIBUTING.md). */
+  published: '2026-10-22T20:49:57.301Z',
+  taken: '2026-11-21',
+  mark: 'effect_internal_function',
+  loads: ['effect'],
+  requirers: ['@prisma/config@6.14.0', '@prisma/config@6.19.0', '@trigger.dev/schema-to-json@4.8.8', 'webapp@1.0.0'],
+  why: "CVE-2026-121707 (high, a ReDoS in Schema.TemplateLiteral, fixed in 3.22.1) in effect 3.21.2, the one copy upstream's lockfile resolves at v4.8.8; 3.22.4, published 2026-10-22, is in every requirer's range, with the same main, module, types, dependencies and 179 exports, and 7 files more (internal/stackTraceLimit)",
+  evidence: "Security Scan run 44878860013's report (effect 3.21.2, CVE-2026-121707, fixed in 3.22.1); upstream's pnpm-lock.yaml, package.json, apps/webapp/package.json and packages/schema-to-json/package.json at v4.8.8; npm's packument for effect (3.22.4's time and integrity; 3.22.5 published 2026-11-19 21:22 UTC, inside its floor); both tarballs by their integrity, and tree() of each, 2026-11-21",
+} as const;
+
+/** pnpm's directory for each requirer of the store, and the workspace's own, by its directory in the image (pnpm links a workspace package's dependencies from its own node_modules). */
+const EFFECT_STORE_REQUIRERS: Readonly<Record<string, string>> = {
+  '@prisma/config@6.14.0': '@prisma+config@6.14.0_magicast@0.3.5',
+  '@prisma/config@6.19.0': '@prisma+config@6.19.0_magicast@0.3.5',
+};
+const EFFECT_WORKSPACE_REQUIRERS: Readonly<Record<string, string>> = {
+  '@trigger.dev/schema-to-json@4.8.8': '/triggerdotdev/packages/schema-to-json',
+  'webapp@1.0.0': WEBAPP_DIR,
+};
+
+/** A stand-in effect at a version, by path inside its directory: its entry requires fast-check, as the real one's does, and carries effect's mark. */
+function standInEffect(version: string): Record<string, string> {
+  return {
+    'package.json': `${JSON.stringify({ name: 'effect', version, main: 'index.js', dependencies: { '@standard-schema/spec': '^1.0.0', 'fast-check': '^3.23.1' } })}\n`,
+    'index.js': `require('fast-check');\n// ${EFFECT.mark}\nmodule.exports = { version: '${version}' };\n`,
+  };
+}
+
+/** A package's files as npm packs them: a gzipped tar under `package/`. Data only: the RUN unpacks it. */
+function tarball(files: Readonly<Record<string, string>>): Buffer {
+  const dir = mkdtempSync(join(tmpdir(), 'stand-in-tarball-'));
+  try {
+    for (const [path, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(dir, 'package', path)), { recursive: true });
+      writeFileSync(join(dir, 'package', path), text);
+    }
+    const r = spawnSync('tar', ['-czf', join(dir, 'out.tgz'), '-C', dir, 'package'], { encoding: 'utf8' });
+    if (r.status !== 0) throw new Error(`tar could not pack the stand-in: ${r.stderr}`);
+    return readFileSync(join(dir, 'out.tgz'));
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+}
+
+const integrityOf = (bytes: Buffer) => `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+
+/** The stand-in registry's tarball of effect 3.22.4, made once, so its integrity holds across builds. */
+const STAND_IN_EFFECT_TARBALL = tarball(standInEffect(EFFECT.to));
+
+/**
+ * effect in a stand-in of the webapp's store, laid out as pnpm lays it out by
+ * upstream's lockfile at v4.8.8: 3.21.2's directory, its two dependencies
+ * linked beside it, each requirer's link to it (the store's two
+ * @prisma/config, from pnpm's directories for them; the two workspace
+ * packages, from their own node_modules), and the registry's 3.22.4. The
+ * webapp's own package.json and build come from relinkTree.
+ */
+function effectTree(): Required<Pick<Tree, 'files' | 'links' | 'registry'>> & { effect: NonNullable<StandIn['effect']> } {
+  const files: Record<string, string> = {};
+  const links: Array<{ path: string; target: string }> = [];
+  for (const [p, text] of Object.entries(standInEffect(EFFECT.from))) files[`${EFFECT.path}/${p}`] = text;
+  for (const [dep, version] of [['@standard-schema/spec', '1.1.0'], ['fast-check', '3.23.2']] as const) {
+    const dir = `${PNPM}/${dep.replace('/', '+')}@${version}/node_modules/${dep}`;
+    files[`${dir}/package.json`] = `${JSON.stringify({ name: dep, version, main: 'index.js' })}\n`;
+    files[`${dir}/index.js`] = 'module.exports = {};\n';
+    const at = `${dirname(EFFECT.path)}/${dep}`;
+    links.push({ path: at, target: relative(dirname(at), dir) });
+  }
+  for (const req of EFFECT.requirers) {
+    const [name, version] = [req.slice(0, req.lastIndexOf('@')), req.slice(req.lastIndexOf('@') + 1)];
+    const ws = EFFECT_WORKSPACE_REQUIRERS[req];
+    if (ws) {
+      if (ws !== WEBAPP_DIR) files[`${ws}/package.json`] = `${JSON.stringify({ name, version })}\n`;
+      links.push({ path: `${ws}/node_modules/effect`, target: relative(`${ws}/node_modules`, EFFECT.path) });
+      continue;
+    }
+    const nm = `${PNPM}/${EFFECT_STORE_REQUIRERS[req]}/node_modules`;
+    files[`${nm}/${name}/package.json`] = `${JSON.stringify({ name, version })}\n`;
+    links.push({ path: `${nm}/effect`, target: relative(nm, EFFECT.path) });
+  }
+  return {
+    files,
+    links,
+    registry: { [EFFECT.url]: STAND_IN_EFFECT_TARBALL },
+    effect: { fromTree: packageTree(files, EFFECT.path), toTree: packageTree(Object.fromEntries(Object.entries(standInEffect(EFFECT.to)).map(([p, t]) => [`${EFFECT.path}/${p}`, t])), EFFECT.path), integrity: integrityOf(STAND_IN_EFFECT_TARBALL) },
+  };
 }
 
 function treeOf(name: Name, plat: string): Tree {
@@ -1720,12 +1930,13 @@ function treeOf(name: Name, plat: string): Tree {
   const dpkg = debian12(plat);
   const ts = typescriptTree();
   const rl = relinkTree();
+  const ef = effectTree();
   const goose = GOOSE.assets[plat as Plat];
   return {
-    links: [...NODE_LINKS, ...ts.links!, ...rl.links],
+    links: [...NODE_LINKS, ...ts.links!, ...rl.links, ...ef.links],
     pnpm: PUBLISHED,
-    registry: goose ? { [goose.url]: STAND_IN_GOOSE_NEW } : {},
-    standIn: { goose: sha256(STAND_IN_GOOSE_NEW), undici: rl.undici },
+    registry: { ...(goose ? { [goose.url]: STAND_IN_GOOSE_NEW } : {}), ...ef.registry },
+    standIn: { goose: sha256(STAND_IN_GOOSE_NEW), undici: rl.undici, effect: ef.effect },
     // goose is static; openssl, which upstream's runner stage installs, needs what the purge keeps.
     executables: { [GOOSE.path]: STAND_IN_GOOSE_OLD, '/usr/bin/openssl': dynamicElf(['libssl.so.3', 'libcrypto.so.3', 'libc.so.6']) },
     tools: gooseTools(),
@@ -1743,6 +1954,7 @@ function treeOf(name: Name, plat: string): Tree {
       ...NODE_GLOBALS,
       ...ts.files,
       ...rl.files,
+      ...ef.files,
     },
     binaries: [
       {
@@ -2047,12 +2259,14 @@ interface Options {
   readonly pinnedGoose?: boolean;
   /** Keep the tree of undici 6.29.1 the relink RUN pins, which the stand-in's undici is not. */
   readonly pinnedUndici?: boolean;
+  /** Keep effect's two trees and the integrity the effect RUN's row pins, which the stand-in's are not. */
+  readonly pinnedEffect?: boolean;
   /** Only the RUNs this picks. */
   readonly pick?: (run: Instruction) => boolean;
 }
 
 /** Runs a Dockerfile's RUN instructions in order, each as its USER, and stops at the first that fails. */
-function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false, pinnedTsc = false, pinnedGoose = false, pinnedUndici = false, pick }: Options = {}): Run {
+function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', only, pinnedEntrypoint = false, pinnedTsc = false, pinnedGoose = false, pinnedUndici = false, pinnedEffect = false, pick }: Options = {}): Run {
   const [platform, arch] = plat.split('-') as [string, string];
   let out = '';
   for (const run of runs(text)) {
@@ -2063,6 +2277,8 @@ function build(text: string, box: Sandbox, { plat = 'linux-arm64', tag = '', onl
     if (!pinnedTsc) script = script.replace(/(?<=(^|[;\s])tsc_sha256=)[0-9a-f]{64}/g, sha256(STAND_IN_TSC));
     if (!pinnedGoose && standIn.goose) script = script.replace(/(?<=(^|[;\s])goose_sha256=)[0-9a-f]{64}/g, standIn.goose);
     if (!pinnedUndici && standIn.undici) script = script.replace(/(?<=(^|[;\s])new_tree=)[0-9a-f]{64}/g, standIn.undici);
+    const own = standIn.effect;
+    if (!pinnedEffect && own) script = script.replace(`"$@" effect ${EFFECT.from} ${EFFECT.fromTree} ${EFFECT.to} ${EFFECT.toTree} ${EFFECT.integrity} `, `"$@" effect ${EFFECT.from} ${own.fromTree} ${EFFECT.to} ${own.toTree} ${own.integrity} `);
     // The whole file system the replacement walks is the stand-in's root.
     script = rooted(script, box.fs).replace(/(?<=(^|[;\s])top=)\/;/, `${box.fs};`);
     const r = spawnSync('sh', ['-c', script], {
@@ -3284,6 +3500,74 @@ function floorProblems(row: BinaryReplacement, header: string, now = Date.now())
   return problems;
 }
 
+describe("the webapp's build replaces effect 3.21.2 by 3.22.4, the release of the same major that fixes CVE-2026-121707, and nothing else (2026-11-21)", () => {
+  const webapp = dockerfiles['trigger.dev'];
+  const effectOnly = { pick: (r: Instruction) => /(^|[;\s])rows\(\) \{/.test(r.args), only: 'root' as const };
+
+  it('the RUN is held to EFFECT: its row, its checks before anything changes, the swap, and its proofs after', () => {
+    expect(effectProblems(webapp)).toEqual([]);
+    expect(effectRuns(dockerfiles.supervisor)).toEqual([]);
+    expect(EFFECT.why.length).toBeGreaterThan(60);
+    expect(EFFECT.evidence.length).toBeGreaterThan(60);
+    for (const t of ['WHAT IS REPLACED: EFFECT 3.21.2 BY 3.22.4', 'HOW IT IS SWAPPED, AND PROVED', 'CVE-2026-121707', '44878860013', 'THE WAY OUT: when upstream', '3.22.5 was published']) {
+      expect(webapp, t).toContain(t);
+    }
+    // The stand-in's effect is no published one: its own trees and integrity take the row's place in the RUN.
+    expect(effectTree().effect.fromTree).not.toBe(EFFECT.fromTree);
+  });
+
+  it('3.22.4 is past its three-day floor on the day the row was taken, and of the same major as 3.21.2', () => {
+    expect(Date.parse(`${EFFECT.taken}T00:00:00Z`) - Date.parse(EFFECT.published)).toBeGreaterThan(FLOOR_MS);
+    expect(EFFECT.to.split('.')[0]).toBe(EFFECT.from.split('.')[0]);
+    expect(EFFECT.url).toBe(`https://registry.npmjs.org/effect/-/effect-${EFFECT.to}.tgz`);
+  });
+
+  it('over the stand-in, it swaps the directory for the published 3.22.4, fetches that tarball alone, and every requirer loads it', () => {
+    withSandbox(treeOf('trigger.dev', 'linux-arm64'), (box) => {
+      const run = build(webapp, box, effectOnly);
+      expect(run.status, run.out).toBe(0);
+      expect(run.out).toContain('effect 3.21.2 is 3.22.4, as npm published it; nothing else in the image changed; from every requirer, require loads 3.22.4.');
+      expect(JSON.parse(readFileSync(join(box.fs, EFFECT.path, 'package.json'), 'utf8')).version).toBe(EFFECT.to);
+      expect(fetchesOf(box)).toEqual([EFFECT.url]);
+    });
+  });
+
+  it('stops, with nothing changed, on each thing it was not read for', () => {
+    const base = treeOf('trigger.dev', 'linux-arm64');
+    const failing: ReadonlyArray<[string, Tree, string, Options?]> = [
+      ['the pinned trees, against the stand-in', base, `is not the published effect ${EFFECT.from}, file for file`, { pinnedEffect: true }],
+      ['another release where 3.21.2 was (THE WAY OUT)', { ...base, files: { ...base.files, [`${EFFECT.path}/package.json`]: base.files[`${EFFECT.path}/package.json`]!.replace(`"version":"${EFFECT.from}"`, '"version":"3.22.6"') } }, `is effect 3.22.6, not ${EFFECT.from}.`],
+      ['a requirer more than the row names', { ...base, links: [...base.links!, { path: '/triggerdotdev/packages/core/node_modules/effect', target: relative('/triggerdotdev/packages/core/node_modules', EFFECT.path) }] }, `effect ${EFFECT.from} is linked from:`],
+      ['a tarball whose sha512 is not npm\'s', { ...base, registry: { ...base.registry, [EFFECT.url]: tarball({ ...standInEffect(EFFECT.to), 'extra.js': '1;\n' }) } }, 'the integrity npm published for effect 3.22.4; nothing was changed.'],
+      ['the registry not answering', { ...base, answers: { 'registry.npmjs.org': 'unreachable' } }, 'did not answer, or answered with an error (above); nothing was changed'],
+      ['the tarball gone', { ...base, registry: Object.fromEntries(Object.entries(base.registry!).filter(([u]) => u !== EFFECT.url)) }, 'is gone (above): its publisher no longer serves it'],
+      ['a copy bundled in the webapp\'s build', { ...base, files: { ...base.files, [`${WEBAPP_DIR}/build/server/assets/effect.js`]: `// ${EFFECT.mark}\n` } }, `the webapp's own build carries effect's ${EFFECT.mark}`],
+    ];
+    for (const [what, tree, says, options] of failing) {
+      withSandbox(tree, (box) => {
+        const run = build(webapp, box, { ...effectOnly, ...options });
+        expect(run.status, what).not.toBe(0);
+        expect(run.out, what).toContain(says);
+        expect(JSON.parse(readFileSync(join(box.fs, EFFECT.path, 'package.json'), 'utf8')).version, `${what}: nothing was changed`).not.toBe(EFFECT.to);
+      });
+    }
+  });
+
+  it('refuses each way the RUN could slip', () => {
+    const p = (text: string) => effectProblems(text);
+    expect(p(dropLine(webapp, /^ {6}\[ "\$got" = "\$want" \]/))).toEqual(["effect's swap table's fetched() does not check the tarball's sha512, against the integrity npm published"]);
+    expect(p(dropLine(webapp, /^ {6}\[ "\$\(tree "\$pkg"\)" = "\$from_tree" \]/))).toEqual(["effect's swap table's check() does not check the old directory, file for file (from_tree)"]);
+    expect(p(dropLine(webapp, /^ {6}\[ "\$copies" = "\$pkg\/package\.json" \]/))).toEqual(["effect's swap table's check() does not check that no other package.json of that name and version is in the image"]);
+    expect(p(dropLine(webapp, /^ {4}\[ "\$\(state\)" = "\$before" \] \|\| fail "outside the swapped directories/))).toEqual(["effect's swap table's RUN does not run its steps in order: missing where nothing else changed"]);
+    expect(p(webapp.replace(` ${EFFECT.toTree} `, ` ${'0'.repeat(64)} `))).toEqual([
+      expect.stringContaining("effect's swap table has a row EFFECT does not"),
+      expect.stringContaining("effect's swap table has no row for EFFECT"),
+    ]);
+    expect(p(webapp.replace(' webapp@1.0.0; \\', '; \\'))).toHaveLength(2);
+    expect(p(webapp.replace(/(\n# Still as root, after the relink: effect[\s\S]*?nothing else in the image changed; from every requirer, require loads 3\.22\.4\."\n)/, '\n'))).toEqual(['0 RUNs hold a swap table, not 1']);
+  });
+});
+
 describe("goose is v3.30.1's release binary in place of the v3.27.1 upstream builds, root's and executable", () => {
   const webapp = dockerfiles['trigger.dev'];
 
@@ -4312,14 +4596,15 @@ describe('the reading is not vacuous', () => {
   it('found the Dockerfiles and their removing RUNs', () => {
     for (const name of NAMES) {
       expect(statSync(join(REPO_ROOT, dockerfileOf(name))).isFile()).toBe(true);
-      // The removing RUN and the node RUN, goose's, the webapp's relink (since 2026-11-20) and its purge (until v4.8.5
-      // also dompurify's RUN and a swap table's).
-      expect(runs(dockerfiles[name]).length, name).toBe(2 + binaryRows(name).length + RELINKS[name] + PURGES[name]);
+      // The removing RUN and the node RUN, goose's, the webapp's relink (since 2026-11-20), its swap table of one row,
+      // effect's (since 2026-11-21; until v4.8.5 dompurify's RUN and a table of five), and its purge.
+      expect(runs(dockerfiles[name]).length, name).toBe(2 + binaryRows(name).length + RELINKS[name] + SWAPS[name] + PURGES[name]);
+      expect(effectRuns(dockerfiles[name]).length, name).toBe(SWAPS[name]);
       expect(relinkRuns(dockerfiles[name]).length, name).toBe(RELINKS[name]);
       expect(purgeRuns(dockerfiles[name]).length, name).toBe(PURGES[name]);
       expect(gooseRuns(dockerfiles[name]).length, name).toBe(binaryRows(name).length);
-      // No RUN swaps a package any more: none names a tarball's integrity, and none holds a table of rows.
-      expect(runs(dockerfiles[name]).filter((r) => /(^|[;\s])(integrity=|rows\(\) \{)/.test(r.args)), name).toEqual([]);
+      // No other RUN swaps a package: none but effect's holds a table of rows, and none names a tarball's integrity.
+      expect(runs(dockerfiles[name]).filter((r) => /(^|[;\s])(integrity=|rows\(\) \{)/.test(r.args)).length, name).toBe(SWAPS[name]);
       expect(parseRef(dockerfileBase(dockerfiles[name]).ref).digest).toMatch(/^sha256:[0-9a-f]{64}$/);
     }
   });

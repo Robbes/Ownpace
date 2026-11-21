@@ -4,6 +4,29 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after the answers: T5, effect 3.22.4 in the Trigger.dev webapp, built (D2).** On
+`claude/ownpace-public-readiness-y7orc6-effect-swap`, from `main` at `66138ba9`.
+- **v4.8.8's lockfile, read first.** Upstream's `pnpm-lock.yaml` at v4.8.8 resolves effect 3.21.2
+  alone (its override `effect@>=3 <3.20.0` to ^3.20.0), linked by the webapp (`^3.21.2`),
+  `@trigger.dev/schema-to-json` 4.8.8 (`^3`) and `@prisma/config` 6.14.0 and 6.19.0. So D2's swap
+  applies.
+- **Which release.** 3.22.4, published 2026-10-22 20:49 UTC: in every range above, past its
+  floor, and the release this build swapped in until v4.8.5. 3.22.5, npm's newest 3.x, was
+  published 2026-11-19 21:22 UTC, inside its three-day floor, so not it. Both tarballs read by
+  their integrity: the same main, module, types, dependencies and 179 exports, and 7 files more
+  (`internal/stackTraceLimit`). 3.22.4's tree is the one pinned for it before (`b7d6b7cb…`),
+  which checks the reading.
+- **What changed.** The webapp's Dockerfile has the swap-table RUN it had until v4.8.5, after
+  the undici relink and before the purge, with one row, and a header section with its way out.
+  Its name moves to `…:v4.8.8}-2e861564dd7a`.
+- **The guard.** `a-binary-the-stack-never-runs` holds the RUN to `EFFECT` (`effectProblems`,
+  ported from the guard of the table until v4.8.5), checks the floor, and runs the RUN over a
+  stand-in store with a stand-in registry: it swaps, fetches that one tarball and loads from
+  each requirer, and stops with nothing changed on the pinned trees, another release where 3.21.2
+  was, another requirer, a wrong sha512, a registry that does not answer, a tarball that is gone
+  and a bundled copy. Taking the sha512 check out of the RUN fails it three ways.
+- **Owed before the merge:** the image scan on the branch (`trigger.dev`) and E2E (managed).
+
 **2026-11-21, later: the owner's answers, all as advised.** Asked D1 to D5 (§4), the owner
 answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 - **D1, yes:** the four `libpam*` packages are purged in the Redis and Trigger.dev webapp builds
@@ -41,7 +64,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T2 The Cirrux test fake's decipher | builder | 📋 **Planned** (0163 T4) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
 | T3 libxml2 in both Postgres builds | builder | 📋 **Decided 2026-11-21** (D3: the pin) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
 | T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 📋 **Decided 2026-11-21** (D1: yes) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
-| T5 effect in the Trigger.dev webapp | builder | 📋 **Decided 2026-11-21** (D2: yes) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
+| T5 effect in the Trigger.dev webapp | builder | 🔨 **Built 2026-11-21** (D2: yes; the Status entry of 2026-11-21, after the answers: T5) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
 | T7 The owner's dismissals | owner | ⏳ **Owner** (D4: yes, decided 2026-11-21) | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
