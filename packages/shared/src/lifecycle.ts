@@ -18,6 +18,32 @@
  */
 
 import { MAPPING_LIFECYCLES } from './operating-contract.ts';
+import type { Bilingual } from './link-holder-refusals.ts';
+
+/**
+ * WHY A TEST MIGRATION IS REFUSED (workplan 0162 §2 (e), T3).
+ *
+ * A migration that carries a test marker (`mailbox_mapping.test_marker`,
+ * ledger migration 0070) copies only the items whose title carries it. It is
+ * never finished and never switched over: it ends by being deleted, as any
+ * migration is. Each door that would finish it or switch it over refuses it
+ * with one of these two sentences, and the pages say the same.
+ *
+ * The Dutch lives beside its English, in this file, updated together or
+ * neither (`docs/i18n-prose-boundary.md`, class 4). The doors' answers carry
+ * the English as before; where a page shows the refusal, it is answered in
+ * both halves and the page shows the one in its reader's language.
+ */
+export const A_TEST_IS_NOT_FINISHED: Bilingual = {
+  en: 'A test migration is not finished: delete it when the test is over.',
+  nl: 'Een testmigratie wordt niet afgerond: verwijder hem als de test voorbij is.',
+};
+
+/** The same refusal at the cutover's doors: the gate, its preparation and its commands. */
+export const A_TEST_IS_NOT_SWITCHED_OVER: Bilingual = {
+  en: 'A test migration is not switched over: delete it when the test is over.',
+  nl: 'Een testmigratie stapt niet over: verwijder hem als de test voorbij is.',
+};
 
 /**
  * After cutover, the source is no longer the authority on what exists.
@@ -572,8 +598,9 @@ export function startTransition(status: string): StartTransition {
 /** Why a finish was refused — a STABLE discriminant beside the prose, so a
  *  UI can decide what to offer without matching sentence text (0038 T1: only
  *  the unresolved-failures refusal is one that `force` can satisfy, and the
- *  force affordance must never render on the others). */
-export type FinishRefuseCode = 'paused' | 'unresolved_failures';
+ *  force affordance must never render on the others). `test_migration` is a
+ *  migration with a test marker, which is never finished (workplan 0162). */
+export type FinishRefuseCode = 'paused' | 'unresolved_failures' | 'test_migration';
 
 /** What "Finish migration" does for a mapping currently in `status`. */
 export type FinishTransition =
@@ -602,13 +629,26 @@ export type FinishTransition =
  * the target still does, a move means the owner reorganised the source. The
  * safe default for both is already "the target keeps its copy", which is what
  * finishing leaves in place.
+ *
+ * A TEST MIGRATION IS NEVER FINISHED (workplan 0162 §2 (e), T3). `testMarker`
+ * is the migration's own marker (`mailbox_mapping.test_marker`, read as
+ * `MigrationPhases.testMarker`), absent for every migration that is not a
+ * test. Such a migration copied only the items whose title carries it, so
+ * finishing it would close a migration of part of an account as if it were
+ * the whole. It is refused whatever its state, and `force` does not go over
+ * it: the test ends by being deleted. The appliance passes none: it has no
+ * test migrations (§3).
  */
 export function finishTransition(
   status: string,
   unresolvedFailures: number,
   force = false,
+  testMarker?: string,
 ): FinishTransition {
   if (status === 'done') return { finish: false, alreadyDone: true };
+  if (testMarker !== undefined) {
+    return { refuse: A_TEST_IS_NOT_FINISHED.en, hint: 'Nothing was changed.', code: 'test_migration' };
+  }
   if (status === 'paused') {
     // Surface-neutral wording (0038 T7): the old hint said "remove it from
     // the config directory" — an appliance instruction served verbatim to

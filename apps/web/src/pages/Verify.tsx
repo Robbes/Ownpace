@@ -25,7 +25,7 @@ import type {
   VerificationResult,
   VerifyResponse,
 } from '@openmig/shared';
-import { VERIFICATION_DOMAINS } from '@openmig/shared';
+import { A_TEST_IS_NOT_SWITCHED_OVER, VERIFICATION_DOMAINS } from '@openmig/shared';
 import { startVerification, fetchVerifyReport } from '../services/operating-service.ts';
 import { useT, useFormatters, useLocale } from '../i18n/index.tsx';
 import { isSelfHost } from '../services/edition.ts';
@@ -221,7 +221,14 @@ function Report({ mappingId, r }: { mappingId: string; r: VerificationResult }):
           r.canProceedToCutover ? 'bg-emerald-50 text-emerald-900' : 'bg-amber-50 text-amber-900'
         }`}
       >
-        {r.canProceedToCutover ? t('verify.ready') : t('verify.notReady')}
+        {/* A test migration is never switched over (workplan 0162 T3), however
+            the check went: said in the reader's language, from the report's
+            marker rather than from its recommendation's English. */}
+        {r.testMarker !== undefined
+          ? A_TEST_IS_NOT_SWITCHED_OVER[locale]
+          : r.canProceedToCutover
+            ? t('verify.ready')
+            : t('verify.notReady')}
         {/* On the SENTENCE a person acts on, not only in the chip above it.
             "Ready to switch" with nothing compared is the exact reading this
             field exists to prevent. */}
