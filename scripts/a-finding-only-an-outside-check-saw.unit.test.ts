@@ -38,7 +38,12 @@
  *     only when Semgrep exited 0, wrote both reports in their shape, calls
  *     itself the pinned release, ran every named rule and no other, and read
  *     at least `MIN_FILES` files; and calls known exactly what
- *     `KNOWN_FINDINGS` explains, each entry a file that is here.
+ *     `KNOWN_FINDINGS` explains, each entry a file that is here;
+ *  7. A PLACE SEMGREP READ ONLY IN PART IS NAMED: Semgrep runs with `--time`,
+ *     and each place its taint analysis timed out in is listed; one where a
+ *     rule that may block can have timed out is marked on its line; one where
+ *     a rule that blocks can have timed out is a scan that did not finish, and
+ *     so is a report with no timing section; and no rule blocks yet.
  *
  * Finding 7 has no community rule, and the owner set it aside on 2026-11-20
  * (0163 T10). The pin watch's row for this image is held with the others, in
@@ -65,7 +70,9 @@ import {
   report,
   ruleOf,
   run,
+  readScan,
   scanArgs,
+  timedOut,
   type Ran,
 } from './semgrep-report.mjs';
 
@@ -300,6 +307,15 @@ describe('the rules: the eight workplan 0163 names, each by its registry id (1)'
     expect(RULES.map((r) => r.finding)).toEqual([5, 5, 6, 8, 9, null, null, null]);
   });
 
+  it('blocks on no rule yet (7)', () => {
+    // Step 5 turns a rule blocking in a pull request of its own, which also
+    // makes a finding of that rule fail the job and says here which rule.
+    expect(
+      RULES.filter((r) => r.blocks !== false).map((r) => nameOf(r.id)),
+      'a rule blocks: its findings must fail the job too (0163 §5, step 5), and this test name it',
+    ).toEqual([]);
+  });
+
   it('knows a rule by its id, by its id under a prefix, or by its own name, and nothing else', () => {
     const [redos] = RULES;
     expect(ruleOf(redos!.id)).toBe(redos);
@@ -349,7 +365,10 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
   }
 
   /** What Semgrep writes for these spots: its JSON report and its SARIF report, in their shapes. */
-  const reports = (spots: ReadonlyArray<Spot>, o: { version?: string; scanned?: number; ran?: ReadonlyArray<string>; notes?: ReadonlyArray<object> } = {}) => ({
+  const reports = (
+    spots: ReadonlyArray<Spot>,
+    o: { version?: string; scanned?: number; ran?: ReadonlyArray<string>; notes?: ReadonlyArray<object>; timeouts?: ReadonlyArray<object | null> | null } = {},
+  ) => ({
     json: {
       version: o.version ?? version,
       results: spots.map((s) => ({
@@ -361,11 +380,25 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
       })),
       errors: o.notes ?? [],
       paths: { scanned: Array.from({ length: o.scanned ?? 2400 }, (_, i) => `apps/f${i}.ts`) },
+      // The timing section `--time` adds; null leaves it out.
+      ...(o.timeouts === null ? {} : { time: { targets: [], fixpoint_timeouts: o.timeouts ?? [] } }),
     },
     sarif: {
       version: '2.1.0',
       runs: [{ tool: { driver: { name: 'Semgrep OSS', semanticVersion: o.version ?? version, rules: (o.ran ?? RULES.map((r) => r.id)).map((id) => ({ id, name: id })) } }, results: [] }],
     },
+  });
+
+  /**
+   * A place Semgrep's taint analysis timed out in, as its timing section
+   * writes one: the message `Taint_rule_inst.check_timeouts_and_warn` gives,
+   * with the function's place, line 1 for a file's top level.
+   */
+  const timeout = (path: string, line: number, rules: number, first: string) => ({
+    error_type: 'Fixpoint timeout',
+    severity: 'warn',
+    message: `Fixpoint timeout while performing taint analysis at ${path}:${line}:${line === 1 ? 0 : 9} [rules: ${rules}, first: ${first}]`,
+    location: { path, start: { line, col: line === 1 ? 1 : 10, offset: 0 }, end: { line, col: 20, offset: 10 } },
   });
 
   /** One spot per rule, the two known ones among them at the files KNOWN_FINDINGS names. */
@@ -416,7 +449,7 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
       expect(said).toContain(flag);
     }
     expect(SEMGREP_USER).toBe('1000:1000');
-    expect(args.slice(args.indexOf(image), args.indexOf(image) + 6)).toEqual([image, 'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet']);
+    expect(args.slice(args.indexOf(image), args.indexOf(image) + 7)).toEqual([image, 'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time']);
     expect(args.slice(-2)).toEqual([`--json-output=/out/${JSON_REPORT}`, `--sarif-output=/out/${SARIF_REPORT}`]);
     // Report only, and no exclusion of its own: no --error, no --exclude, no baseline.
     for (const flag of ['--error', '--exclude', '--include', '--baseline-commit', '--severity']) expect(said).not.toContain(flag);
@@ -476,6 +509,8 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
       ['a rule not named', stub(reports([], { ran: [...RULES.map((r) => r.id), 'javascript.lang.security.audit.detect-eval-with-expression.detect-eval-with-expression'] })), /Semgrep ran javascript\.lang\.security\.audit\.detect-eval-with-expression\.detect-eval-with-expression, which RULES does not name/],
       ['a finding of a rule not named', stub(reports([{ rule: 'javascript.express.security.audit.xss.direct-response-write', path: 'a.ts', line: 1 }])), /Semgrep reported javascript\.express\.security\.audit\.xss\.direct-response-write, which RULES does not name/],
       ['too few files', stub(reports(everyRule, { scanned: MIN_FILES - 1 })), /Semgrep scanned 999 files, fewer than the 1,000 files a scan of this tree reads/],
+      ['no timing section', stub(reports(everyRule, { timeouts: null })), /Semgrep's JSON report has no time\.fixpoint_timeouts, which --time writes, so what it read only in part is not known/],
+      ['a timing section without its time-outs', stub({ json: { ...full.json, time: { targets: [] } }, sarif: full.sarif }), /has no time\.fixpoint_timeouts/],
     ];
     for (const [what, s, why] of cases) {
       for (const [event, code] of [['pull_request', 0], ['push', 1]] as const) {
@@ -571,5 +606,131 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
     expect(out.markdown).toContain(`Semgrep ${version} scanned 2,400 files, with 1 note (below).`);
     expect(out.lines).toContain(`Semgrep ${version} scanned 2,400 files, with 1 note on what it could not read in full.`);
     expect(out.markdown).toContain('| warn | PartialParsing | `apps/web/src/a.tsx` | Syntax error at line apps/web/src/a.tsx:3: |');
+  });
+
+  it('lists each place Semgrep read only in part, marks one where a rule that may block can have timed out, and fails nothing while no rule blocks (7)', async () => {
+    const [regexp] = RULES;
+    const redirect = RULES.find((r) => nameOf(r.id) === 'js-open-redirect-from-function')!;
+    const timeouts = [
+      timeout('apps/web/src/pages/a-long-page.tsx', 1, 5, regexp!.id),
+      timeout('scripts/a-guard.unit.test.ts', 1, 1, regexp!.id),
+      timeout('apps/web/src/pages/a-pay-page.tsx', 335, 1, redirect.id),
+    ];
+    for (const event of ['pull_request', 'push']) {
+      const out = await at(event, stub(reports(everyRule, { timeouts })));
+      expect(out.code, event).toBe(0);
+      expect(out.sarif, event).toBe(join(out.out, SARIF_REPORT));
+      expect(out.markdown).toContain(`Semgrep ${version} scanned 2,400 files and read 3 places in them only in part (below).`);
+      expect(out.lines).toContain(`Semgrep ${version} scanned 2,400 files and read 3 places in them only in part, where its taint analysis timed out.`);
+      const section = out.markdown.split('### Read only in part')[1]?.split('\n###')[0] ?? '';
+      expect(section, 'no section lists the places').toContain('and no rule blocks yet.');
+      expect(section).toContain('| `apps/web/src/pages/a-long-page.tsx` | 1 | 5 | `detect-non-literal-regexp` | of a rule that may block |');
+      expect(section).toContain('| `scripts/a-guard.unit.test.ts` | 1 | 1 | `detect-non-literal-regexp` | only of a rule that never blocks |');
+      expect(section).toContain('| `apps/web/src/pages/a-pay-page.tsx` | 335 | 1 | `js-open-redirect-from-function` | of a rule that may block |');
+      expect(out.lines).toContain('read only in part apps/web/src/pages/a-long-page.tsx:1: 5 rules timed out, the first detect-non-literal-regexp');
+      expect(out.lines).toContain('read only in part scripts/a-guard.unit.test.ts:1: 1 rule timed out, the first detect-non-literal-regexp [never blocks]');
+      // Marked on its line where a spot of a rule that may block can be missing, and only there.
+      expect(out.lines.filter((l) => l.includes('title=Semgrep read this only in part'))).toEqual([
+        "::warning file=apps/web/src/pages/a-long-page.tsx,line=1,title=Semgrep read this only in part (report only)::Semgrep's taint analysis timed out here for 5 rules, the first detect-non-literal-regexp: a spot of a rule that may block can be missing.",
+        "::warning file=apps/web/src/pages/a-pay-page.tsx,line=335,title=Semgrep read this only in part (report only)::Semgrep's taint analysis timed out here for 1 rule, the first js-open-redirect-from-function: a spot of a rule that may block can be missing.",
+      ]);
+      expect(out.markdown).not.toContain('### The scan did not finish');
+      expect(out.lines.filter((l) => l.startsWith('::error') || l.startsWith('::warning::'))).toEqual([]);
+    }
+    // With no place read only in part, the summary has no such section.
+    const none = await at('push', stub(reports(everyRule)));
+    expect(none.markdown).not.toContain('### Read only in part');
+    expect(none.markdown).toContain(`Semgrep ${version} scanned 2,400 files.`);
+  });
+
+  it('counts a place where a rule that blocks can have timed out as a scan that did not finish, and no other place (7)', () => {
+    const [regexp] = RULES;
+    const redirect = RULES.find((r) => nameOf(r.id) === 'js-open-redirect-from-function')!;
+    const href = RULES.find((r) => nameOf(r.id) === 'react-href-var')!;
+    // As step 5 will one day turn one rule blocking.
+    const rules = RULES.map((r) => (r === redirect ? { ...r, blocks: true } : r));
+    const dir = reportsDir();
+    const scanOf = (timeouts: ReadonlyArray<object>) => {
+      const written = reports(everyRule, { timeouts });
+      writeFileSync(join(dir, JSON_REPORT), JSON.stringify(written.json));
+      writeFileSync(join(dir, SARIF_REPORT), JSON.stringify(written.sarif));
+      return readScan({ status: 0 }, dir);
+    };
+    const cases = [
+      [
+        'the rule that blocks, alone',
+        timeout('apps/web/src/pages/a-pay-page.tsx', 760, 1, redirect.id),
+        /Semgrep read apps\/web\/src\/pages\/a-pay-page\.tsx:760 only in part: its taint analysis timed out there for 1 rule, the first js-open-redirect-from-function, and js-open-redirect-from-function blocks, so a spot it would fail on can be missing there/,
+      ],
+      [
+        'several rules, the first one that never blocks',
+        timeout('apps/web/src/pages/a-long-page.tsx', 1, 3, regexp!.id),
+        /a-long-page\.tsx:1 only in part: its taint analysis timed out there for 3 rules, the first detect-non-literal-regexp, and js-open-redirect-from-function blocks/,
+      ],
+      [
+        'an entry that names no rule',
+        { error_type: 'Fixpoint timeout', location: { path: 'apps/web/src/a.tsx', start: { line: 4 } } },
+        /a\.tsx:4 only in part: its taint analysis timed out there for rules its report does not name, and js-open-redirect-from-function blocks/,
+      ],
+    ] as const;
+    for (const [what, entry, why] of cases) {
+      for (const [event, code] of [['pull_request', 0], ['push', 1]] as const) {
+        const out = report({ ...scanOf([entry]), image, event, rules });
+        expect(out.code, `${what}, ${event}`).toBe(code);
+        expect(out.sarif, `${what}: a scan that did not finish names no SARIF to upload`).toBe('');
+        expect(out.markdown.split('### The scan did not finish')[1] ?? '', what).toMatch(why);
+        expect(out.markdown, what).toContain('| of js-open-redirect-from-function, which blocks: the scan did not finish |');
+        expect(out.lines.filter((l) => l.includes('title=Semgrep read this only in part'))[0], what).toMatch(/: a spot of a rule that blocks can be missing\.$/);
+      }
+    }
+    // One rule timed out, and Semgrep names one that does not block: nothing that blocks is missing.
+    for (const entry of [timeout('apps/web/src/pages/a-long-page.tsx', 1, 1, regexp!.id), timeout('apps/web/src/components/a-consent-link.tsx', 593, 1, href.id)]) {
+      const out = report({ ...scanOf([entry]), image, event: 'push', rules });
+      expect(out.code, JSON.stringify(entry)).toBe(0);
+      expect(out.markdown).not.toContain('### The scan did not finish');
+      expect(out.markdown).not.toContain('no rule blocks yet');
+    }
+  });
+
+  it('reads an entry in another shape as a place any rule can have timed out in, and keeps what Semgrep wrote on one line (7)', () => {
+    const [regexp] = RULES;
+    const dir = reportsDir();
+    const written = reports(everyRule, {
+      timeouts: [
+        // No location: the place is read from the message.
+        { message: `Fixpoint timeout while performing taint analysis at apps/web/src/b.ts:12:3 [rules: 1, first: ${regexp!.id}]` },
+        null,
+        { message: 'Fixpoint timeout, said another way', location: { path: 'apps/web/src/c.ts', start: { line: 7 } } },
+        { location: { path: 'apps/web/x\n::error::y.ts', start: { line: 2 } } },
+      ],
+    });
+    writeFileSync(join(dir, JSON_REPORT), JSON.stringify(written.json));
+    writeFileSync(join(dir, SARIF_REPORT), JSON.stringify(written.sarif));
+    const scan = readScan({ status: 0 }, dir);
+    expect(scan.timeouts).toEqual([
+      { path: 'apps/web/src/b.ts', line: 12, rules: 1, first: regexp!.id },
+      { path: '', line: 0, rules: null, first: null },
+      { path: 'apps/web/src/c.ts', line: 7, rules: null, first: null },
+      { path: 'apps/web/x\n::error::y.ts', line: 2, rules: null, first: null },
+    ]);
+    // The first alone when Semgrep counts one rule and names one RULES has; any rule otherwise.
+    expect(timedOut(scan.timeouts![0]!)).toEqual([regexp]);
+    expect(timedOut(scan.timeouts![1]!)).toEqual(RULES);
+    expect(timedOut({ path: 'a.ts', line: 1, rules: 2, first: regexp!.id })).toEqual(RULES);
+    expect(timedOut({ path: 'a.ts', line: 1, rules: 1, first: 'javascript.lang.security.audit.detect-eval-with-expression.detect-eval-with-expression' })).toEqual(RULES);
+    const out = report({ ...scan, image, event: 'push' });
+    expect(out.code).toBe(0);
+    expect(out.markdown).toContain('| not named |  | not said | not said | of a rule that may block |');
+    expect(out.lines).toContain('read only in part a place Semgrep did not name: the rules not said');
+    expect(out.lines).toContain(
+      "::warning title=Semgrep read this only in part (report only)::Semgrep's taint analysis timed out here for rules its report does not name: a spot of a rule that may block can be missing.",
+    );
+    // A line break in a path starts no workflow command of its own.
+    expect(out.lines).toContain('read only in part apps/web/x ::error::y.ts:2: the rules not said');
+    expect(out.lines).toContain(
+      "::warning file=apps/web/x%0A%3A%3Aerror%3A%3Ay.ts,line=2,title=Semgrep read this only in part (report only)::Semgrep's taint analysis timed out here for rules its report does not name: a spot of a rule that may block can be missing.",
+    );
+    expect(out.lines.some((l) => l.includes('\n'))).toBe(false);
+    expect(out.lines.some((l) => l.startsWith('::error'))).toBe(false);
   });
 });
