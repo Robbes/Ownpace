@@ -390,7 +390,9 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `.gitleaks.toml`, whose one allowlist holds unit and integration test files and
   `docs/o365-setup.md` (workplan 0163 T6, the owner's decision D4 of 2026-11-20). A finding fails
   the pull request, its file, line, rule and commit named and its value never printed; a value a
-  later commit removes is still found, since the history keeps it. No line excuses itself:
+  later commit removes is still found, since the history keeps it. A merge is read as git's
+  remerge diff, so what a merge wrote itself, a conflict's resolution or a file added beside it,
+  is judged, and the lines it brings from `main` are not judged again. No line excuses itself:
   `gitleaks:allow` comments are ignored, and the report refuses to run while a `.gitleaksignore`
   exists. Like `commit-convention` it runs on `pull_request` only and never judges `main`'s
   history. Held by `scripts/a-secret-a-pull-request-could-add.unit.test.ts`, which runs the report

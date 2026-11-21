@@ -12,7 +12,9 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   release and checked by its SHA-256, with gitleaks' default rules. A finding fails the pull
   request, which `ci-complete` then reports as failed; the summary names the file, line, rule and
   commit, and never the value. A value one commit adds and a later one removes is still found,
-  because the history keeps it. Unit and integration test files, whose fake tokens are on purpose,
+  because the history keeps it. A merge commit is read as git's remerge diff: a line written
+  while resolving a conflict is judged, and the lines a merge brings from `main` are not judged
+  again. Unit and integration test files, whose fake tokens are on purpose,
   and `docs/o365-setup.md`'s placeholders are allowed by path in `.gitleaks.toml`; nothing else
   is, and no `gitleaks:allow` comment or `.gitleaksignore` counts. `main`'s history is not
   judged. The weekly pin watch says when a newer gitleaks is tagged.

@@ -38,6 +38,23 @@ draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-gitleaks`, from
     token;
   - a `.gitleaksignore` that lists the finding is refused.
   - No log line printed the value.
+- **A merge's own lines are read too, added after that proof.** `git log -p` shows a merge commit
+  with no diff, so a line written while resolving a conflict went unread, and every branch here
+  merges `main` in. The log options now carry `--diff-merges=remerge`: git's remerge diff shows
+  what a merge itself wrote, against git's own merge of its parents, and not the lines it brings
+  from `main`, which their own pull requests were read for. Proved the same way (run
+  44882209561): the nine cases above again, and five merges, every one as it must:
+  - a token written while resolving a conflict fails in a source file, passes in a unit test file
+    and fails in `docs/o365-setup.md`. gitleaks' diff parser (go-gitdiff 0.9.1) names a file
+    inside a conflict's resolution with git's `b/` in front, so the anchored path does not match
+    it there, and such a hit fails as any other would;
+  - a clean merge that brings the other side's token-shaped line passes;
+  - a token in a file the merge commit adds beside what it merges fails.
+- **What it would flag in today's tree, read again.** Of §4.2's 67 hits in the files, none is in
+  a `.tsx` test file, so the allowlist's `.ts` suffixes miss none. Three lines are outside the
+  allowlist: one in each of two workplans, 0132 and 0133, and `deploy/compose/goaccess/Dockerfile`'s
+  `ARG GOACCESS_COMMIT=` line, which `generic-api-key` matches because the name holds `access`. A
+  pull request that rewrites one of them fails. The next GoAccess bump rewrites the third: D8.
 - **The pull request's own run** read its one commit (about 76 KB of added lines) and found
   nothing: both sums as pinned, the binary calling itself 8.30.1.
 - **Tests:**
@@ -46,8 +63,9 @@ draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-gitleaks`, from
     the report against a stubbed gitleaks and git;
   - a gitleaks block in `a-pin-that-knows-it-is-behind`, which also runs the install step under
     bash against archives built in the test.
-  - Locally: 310 files, 7,549 tests passed, 33 skipped. Thirteen mutations of the report each
-    fail its guard.
+  - Locally: 310 files, 7,549 tests passed, 33 skipped; after the remerge change, the 15 guards
+    that read `ci.yml` (419 tests). Fourteen mutations of the report each fail its guard, the last
+    one dropping `--diff-merges=remerge`.
 
 **2026-11-21, later: T2, T3, T9 and T4's first fix are on `main`, for alpha.13.** They merged in
 this order, each with `main` merged in and CI green on its last head: #1985, the tag length
@@ -590,3 +608,14 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
     closes. That keeps a real SMB's credentials in CI for a dry run.
   - **Answer, 2026-11-20: yes.** Built as #1980, a draft. The guard that held the workflow's
     variables to the suite now holds `docs/test-tenant.md`'s table to it, both ways.
+- **D8. The next GoAccess bump fails the gitleaks job: rename the build argument, or allow that one
+  line?** `deploy/compose/goaccess/Dockerfile` pins upstream's source as
+  `ARG GOACCESS_COMMIT=<40 hex characters>`, and `generic-api-key` matches it: the name holds
+  `access` and the value is long and varied enough. As D4 has it, the line is read like any new
+  hit when a pull request rewrites it, and a bump does. The commit that rewrites it stays in that
+  pull request's history, so a later commit in the same pull request cannot clear it. Advice:
+  **rename the argument before that bump**, to a name holding none of gitleaks' keywords (for
+  example `UPSTREAM_COMMIT`), in a pull request of its own, with
+  `a-service-that-phones-home`'s check of that line renamed with it. The allowlist stays as D4
+  has it. The alternative: a second allowlist entry for that one file and that one line's shape
+  (`^ARG GOACCESS_COMMIT=[0-9a-f]{40}$`), which widens D4.
