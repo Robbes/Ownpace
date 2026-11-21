@@ -26,6 +26,8 @@ export interface Rule {
   readonly finding: number | null;
   /** True for the two ReDoS rules, which never block (D3). */
   readonly never: boolean;
+  /** True for a rule that blocks: a spot of it fails the job, and no entry excuses it (0163 T5). */
+  readonly blocks: boolean;
   /** What it reports, in a few words. */
   readonly what: string;
 }
@@ -93,7 +95,7 @@ export interface Report {
   readonly markdown: string;
   /** What the log prints, the annotations among them. */
   readonly lines: ReadonlyArray<string>;
-  /** 0, or 1 outside a pull request when the scan did not finish. */
+  /** 0, or 1 when a rule that blocks found a spot or the scan did not finish, on every event. */
   readonly code: 0 | 1;
   /** The SARIF report's path when the scan finished, else empty. */
   readonly sarif: string;

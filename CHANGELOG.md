@@ -32,6 +32,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   provider's own sign-in host, Google's, Dropbox's, Microsoft's or Cirrux's, and any other address
   closes the window and is said in the consent's note.
 
+### Security
+
+- **Two Semgrep rules now fail a pull request** (workplan 0163 T5). `react-href-var`, a React link
+  to an address from a value, which can be a `javascript:` address, and `run-shell-injection`, a
+  workflow expression written into a `run:` script, reported nothing on `main` once the Pay and
+  consent fix was in. A spot of either now fails the *Semgrep* check, marked as an error on its
+  line, and no recorded spot can excuse one. The other six rules still report only, each turning
+  blocking once it reports nothing on `main`; the two ReDoS rules never do. A Semgrep scan that did
+  not finish now fails a pull request too, since the check vouches for the rules that block. The
+  check is renamed from *Semgrep (report only)* to *Semgrep*, the name the required checks give it.
+
 ## [0.2.0-alpha.13] - 2026-11-21
 
 Cirrux and Infomaniak keep the guests on copied calendar events, each guest and the organiser
