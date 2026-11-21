@@ -4,6 +4,27 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, last: T1 ran on the test environment, and A is the reader.** Built as #2008
+(`d4c4cfdb`) and run by the owner from `main` at `17a9a460`, on their Google test migration, the
+newest of two whose calendars come from Google over CalDAV. What it printed, counts and status codes
+only:
+- **Five calendars.** The first reading, one `sync-collection` with no token for each, was answered
+  207 every time, with a sync token and no calendar data. Members with 200 and with 404, per
+  calendar: 3,624 and 3, over 15 pages; none; 35 and none; 1,896 and 5, over 8 pages; 673 and 7,
+  over 5 pages.
+- **Between the readings** the owner changed one test event and deleted another, in the same
+  calendar.
+- **The second reading, with each calendar's token,** was answered 207 every time, with a new
+  token. That calendar listed 1 changed member (200) and 1 removed (404); the other four, none.
+- **The verdict line:** "A is the reader. Google listed 1 removed event as 404, and 1 changed one
+  as 200 (workplan 0164 §3.1)."
+- **What it settles.** Google reports a removal through CalDAV once it is asked with a token, so B
+  (Google's Calendar API) is not needed, and neither is a step in the Google Cloud console.
+- **Two things for T2 to read.** Google's answer with no token also lists 404 members: removals it
+  still remembers, which RFC 6578 does not ask for in a first answer. And it pages: 15 pages for
+  3,627 members.
+- **Next:** T2, the reader of §3.1.
+
 **2026-11-21, later: T1 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t1-measure`, and
 not yet run.** `./deploy/compose/operator.sh measure-google-sync` is a command of the worker's CLI
 (`apps/worker/src/cli/measure-google-sync.ts`). It chooses the migration itself, the newest whose
@@ -52,8 +73,8 @@ Read for this plan, on `main` at `8b8fac07`:
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
-| T1 What Google answers | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t1-measure`; the run waits on the owner | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
-| T2 The reader that reports removals | builder | 📋 **Proposed** | §3. A, or B if T1 shows Google reports no removals through CalDAV |
+| T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
+| T2 The reader that reports removals | builder | 📋 **Decided**: A, as T1 showed | §3.1: `sync-collection` with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
 | T3 Apply in bulk | builder | 📋 **Decided** (T0 (b)), after T2 | §4.2. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |

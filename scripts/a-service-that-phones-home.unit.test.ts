@@ -1140,10 +1140,10 @@ describe('what runs outside every compose file is named, at the version it was r
     expect(image, 'the image this checkout builds, under a name no registry serves (#1675)').toBe(GOACCESS);
     const dockerfile = read('deploy/compose/goaccess/Dockerfile');
     expect(
-      /^ARG GOACCESS_COMMIT=([0-9a-f]{40})$/m.exec(dockerfile)?.[1],
+      /^ARG UPSTREAM_COMMIT=([0-9a-f]{40})$/m.exec(dockerfile)?.[1],
       'GoAccess was read at v1.12 (ef3c4f3c) for what it sends (nothing: no telemetry, update check or report). Re-read src/gdns.c and src/websocket.c at the new commit',
     ).toBe(GOACCESS_COMMIT);
-    expect(dockerfile, 'the source is checked against the commit it was read at').toMatch(/test "\$\(git rev-parse HEAD\)" = "\$GOACCESS_COMMIT"/);
+    expect(dockerfile, 'the source is checked against the commit it was read at').toMatch(/test "\$\(git rev-parse HEAD\)" = "\$UPSTREAM_COMMIT"/);
     const froms = [...dockerfile.matchAll(/^FROM\s+(\S+)/gm)].map((m) => m[1]!);
     expect(froms.length, 'the Dockerfile builds FROM nothing').toBeGreaterThan(0);
     for (const from of froms) expect(from, 'pinned by tag and digest, as the images in managed.yml are').toMatch(/^[^@\s]+:[^@\s]+@sha256:[0-9a-f]{64}$/);
