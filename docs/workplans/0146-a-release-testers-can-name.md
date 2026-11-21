@@ -28,7 +28,10 @@ its section, dated 2026-11-21, under a summary; [Unreleased] stays, empty. alpha
 - the records of alpha.12's release and live deploy (#1969), workplan 0162 (#1974) and the nights
   waiver (#1981).
 
-- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **C and the freeze.** The fold's squash, `758a7101`, was C until `main`'s first CI run on it
+  failed in `a-deploy-from-a-named-tag`: the fixture tag's commit id, made afresh each run, held
+  `65536`, a number the test checks a refusal never prints. #1988 takes git object ids out
+  before that check, and C is its squash. From C until the tag nothing merges to `main`.
 - **In the nights' place,** waived for alpha.13 (*"Continue, I waive the waiting/nights, just work
   autonomously and efficient on the upcoming alpha."*): E2E (managed) and E2E (self-hosted) on
   Postgres and on PGlite, dispatched on `main` at C, one at a time, beside C's push runs and its
