@@ -19,6 +19,16 @@
  * allowlist of paths: unit and integration test files, and
  * `docs/o365-setup.md`), the report as JSON in the runner's temporary
  * directory, and:
+ *  - `--diff-merges=remerge` among the log options. `git log -p` shows a merge
+ *    commit with no diff at all, so a line written while resolving a conflict
+ *    went unread, and every branch here merges `main` in. git's remerge diff
+ *    shows what a merge itself wrote, against git's own merge of its parents:
+ *    a conflict's resolution and anything added beside it, and not the lines
+ *    it brings from `main`, which their own pull requests were read for.
+ *    gitleaks' diff parser (go-gitdiff 0.9.1) names a file inside a conflict's
+ *    resolution with git's `b/` in front, so a test file's suffix still excuses
+ *    a hit there and `docs/o365-setup.md`'s anchored path does not: that hit
+ *    fails, as any other would;
  *  - `--redact`: no value is printed, in the log or in the report;
  *  - `--ignore-gitleaks-allow`: a `gitleaks:allow` comment excuses nothing;
  *  - `--exit-code 3`: gitleaks exits 1 for a finding and for a failure alike
@@ -78,12 +88,12 @@ const firstLine = (text) => String(text ?? '').trim().split('\n')[0].slice(0, 30
 
 const plural = (n, one, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
-/** The `gitleaks` arguments that read `<base>..<head>` (WHAT IT RUNS, above). */
+/** The `gitleaks` arguments that read `<base>..<head>`, a merge as git's remerge diff (WHAT IT RUNS, above). */
 export function scanArgs({ base, head, report }) {
   return [
     'git',
     '--config', CONFIG,
-    '--log-opts', `${base}..${head}`,
+    '--log-opts', `--diff-merges=remerge ${base}..${head}`,
     '--redact',
     '--ignore-gitleaks-allow',
     '--exit-code', String(LEAK_EXIT),

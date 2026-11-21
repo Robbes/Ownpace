@@ -278,7 +278,7 @@ describe('the gitleaks report, run against a stubbed gitleaks and git (4)', () =
     return { out, result: run({ root: o.root ?? REPO_ROOT, argv: o.argv ?? [BASE, HEAD], env: o.env ?? { RUNNER_TEMP: '/runner/temp' }, git: s.git, gitleaks: s.gitleaks, out }) };
   };
 
-  it('counts the range, then runs gitleaks once over it with the config, redacted, allow comments off and its own exit code for a finding', () => {
+  it('counts the range, then runs gitleaks once over it with the config, a merge as git’s remerge diff, redacted, allow comments off and its own exit code for a finding', () => {
     const s = stubs();
     const { out, result } = at(s);
     expect(s.calls.git).toEqual([['rev-list', '--count', `${BASE}..${HEAD}`]]);
@@ -287,7 +287,7 @@ describe('the gitleaks report, run against a stubbed gitleaks and git (4)', () =
     expect(s.calls.gitleaks[0]!.args).toEqual([
       'git',
       '--config', CONFIG,
-      '--log-opts', `${BASE}..${HEAD}`,
+      '--log-opts', `--diff-merges=remerge ${BASE}..${HEAD}`,
       '--redact',
       '--ignore-gitleaks-allow',
       '--exit-code', String(LEAK_EXIT),

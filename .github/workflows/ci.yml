@@ -419,14 +419,16 @@ jobs:
     name: gitleaks
     # A SECRET IN A COMMIT IS IN THE HISTORY FOR GOOD (workplan 0163 T6; the
     # owner's decision D4 of 2026-11-20). gitleaks reads every line the commits
-    # of a pull request add (`base..head`, its git mode over `git log -p`), with
-    # its default rules and .gitleaks.toml's one allowlist: unit and integration
-    # test files, and docs/o365-setup.md's placeholders. A finding fails the
-    # pull request, the file, line, rule and commit named and the value never
-    # printed (--redact). A secret added in one commit and removed in a later
-    # one is still found: the history keeps it, and a merge would bring it to
-    # main. No line excuses itself: --ignore-gitleaks-allow, and no
-    # .gitleaksignore (scripts/a-secret-a-pull-request-could-add.unit.test.ts).
+    # of a pull request add (`base..head`, its git mode over `git log -p`, and a
+    # merge as git's remerge diff: what the merge itself wrote, not what it
+    # brings from main), with its default rules and .gitleaks.toml's one
+    # allowlist: unit and integration test files, and docs/o365-setup.md's
+    # placeholders. A finding fails the pull request, the file, line, rule and
+    # commit named and the value never printed (--redact). A secret added in
+    # one commit and removed in a later one is still found: the history keeps
+    # it, and a merge would bring it to main. No line excuses itself:
+    # --ignore-gitleaks-allow, and no .gitleaksignore
+    # (scripts/a-secret-a-pull-request-could-add.unit.test.ts).
     #
     # PULL REQUESTS ONLY, like commit-convention above, and for the same reason:
     # it judges what a branch adds, never main's history, whose 77 hits of
