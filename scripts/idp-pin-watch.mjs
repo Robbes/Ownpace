@@ -1661,8 +1661,8 @@ const refText = (image) => `${image.tag}${image.digest ? `@${image.digest}` : ''
  * Trigger.dev v4.8.3 pins 26.2.19.43, which ClickHouse no longer supports, and
  * CVE-2026-116366 has no 26.2 fix; the stack's pin is the 26.8 LTS line, which
  * carries it: 26.8.36.3-lts from 2026-11-02, and 26.8.37.168-lts, a patch of
- * the same line, since 2026-11-14. Trigger.dev v4.8.5 still pins 26.2.19.43
- * by the same digest.
+ * the same line, since 2026-11-14. Trigger.dev v4.8.5 and v4.8.8 still pin
+ * 26.2.19.43 by the same digest.
  *
  * It holds for this exact pair and nothing else: the row reads it as current
  * (no issue, `intended` in the table, the reason as a note) only while
