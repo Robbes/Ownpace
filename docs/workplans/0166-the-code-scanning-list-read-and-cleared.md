@@ -80,6 +80,29 @@
 
 **2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built, merged as #2014 on 2026-11-21 (`8c24f286`).** On
 
+**2026-11-21, after the answers: T3, libxml2 2.13.9-r3 in both Postgres builds, built (D3), merged as #2015 on 2026-11-21 (`6e9c1d04`).**
+On `claude/ownpace-public-readiness-y7orc6-postgres-libxml2`, from `main` at `6afa68cd`.
+- **What changed.** `deploy/compose/postgres/Dockerfile` and `deploy/selfhost/postgres/Dockerfile`
+  gain one RUN, word for word the same in both: it reads libxml2's version from
+  `/lib/apk/db/installed`, stops unless the base carries 2.13.9-r2, runs `apk add --no-cache
+  libxml2=2.13.9-r3`, and stops unless the version is then 2.13.9-r3. The builds' name is
+  `localhost/postgres:18.7-alpine-6adabb723757` now, in `managed.yml`, `dev.yml` and the
+  appliance's `compose.yml`.
+- **How it goes.** Once the base carries -r3 or later (a rebuild of the tag, or the next
+  PostgreSQL release Dependabot offers), the first check stops the build. The RUN and its comment
+  are then deleted in both Dockerfiles, the names move by the `sed` the guard prints, and the four
+  documents go back to *Docker Hub alone*. Alpine's mirror keeps only a package's newest build,
+  so a newer libxml2 there also stops a fresh build: the same way out, or a newer exact version.
+- **The guard.** `a-database-started-as-root` already admitted an exact-version `apk add`. It
+  now holds the Dockerfile to that one package at that version, and to both checks, read from
+  apk's database. Four mutations each fail it: the check before removed, the check after removed,
+  another version, and another file read. All 22 tests pass.
+- **Docs.** The self-host quickstart (the first start, and a new troubleshooting entry),
+  `docs/testing.md`, `deploy/selfhost/README.md` and `docs/managed-bring-up.md` say the build
+  takes libxml2 from Alpine's mirror.
+- **Owed before the merge:** the image scan on the branch (`postgres-managed`,
+  `postgres-selfhost`), E2E (managed) and E2E (self-hosted) on Postgres.
+
 **2026-11-21, after the answers: T4, PAM out of the Redis and Trigger.dev webapp builds, built
 (D1), merged as #2016 on 2026-11-21 (`2d249b3c`).** On `claude/ownpace-public-readiness-y7orc6-pam-purge`, from `main` at `6afa68cd`.
 - **What depends on the four.** Read as text from the images' dpkg status on 2026-11-21:
@@ -158,7 +181,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | T0 The decisions | owner | ✅ **Decided 2026-11-21** (D1 to D5, as advised) | §4. The owner's answer is quoted in the Status entry of 2026-11-21, later. |
 | T1 Read the list after Semgrep's upload | owner | ✅ **Read 2026-11-21**: 48 open, not 49 (the Status entry of 2026-11-21, later still) | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
 | T2 The Cirrux test fake's decipher | builder | ✅ **Merged** as #2014 on 2026-11-21 (`8c24f286`) (0163 T4; the Status entry of 2026-11-21, after the answers) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
-| T3 libxml2 in both Postgres builds | builder | 📋 **Decided 2026-11-21** (D3: the pin) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
+| T3 libxml2 in both Postgres builds | builder | ✅ **Merged** as #2015 on 2026-11-21 (`6e9c1d04`) (D3: the pin; the Status entry of 2026-11-21, after the answers: T3) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
 | T4 PAM out of the Redis and Trigger.dev webapp builds | builder | ✅ **Merged** as #2016 on 2026-11-21 (`2d249b3c`) (D1: yes; the Status entry of 2026-11-21, after the answers: T4) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
 | T5 effect in the Trigger.dev webapp | builder | 🔨 **Built 2026-11-21** (D2: yes; the Status entry of 2026-11-21, after the answers: T5) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
