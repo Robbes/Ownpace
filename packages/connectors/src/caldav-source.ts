@@ -543,7 +543,8 @@ export class CalDAVSource implements CalendarSource {
      * ever reported. A member listed without its data is now a member to
      * read (`toRead`, read by `calendar-multiget` in `withEveryMemberRead`),
      * so "nothing" means no member and no removal on any page. A server that
-     * sends its data with each member, as Nextcloud does, is read as before.
+     * sends its data with each member, as Nextcloud does, is still read from
+     * that one answer, with no multiget.
      */
     if (reading.kind === 'cut-short') {
       // The pages did not end, so this reading names only part of what

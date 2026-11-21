@@ -3,9 +3,9 @@
 /**
  * A CALENDAR LISTED WITHOUT ITS DATA (workplan 0164 T2).
  *
- * Google answers `sync-collection` (RFC 6578) with a 207 that names every
+ * Google answered `sync-collection` (RFC 6578) with a 207 that named every
  * member by its href and ETag, the removed ones with a 404, in pages, and
- * carries no calendar data (0164 T1, measured on 2026-11-21). The source
+ * carried no calendar data (0164 T1, measured on 2026-11-21). The source
  * read that as "nothing", listed the calendar whole with `calendar-query` on
  * every pass (6,212 events skipped a pass, 0164 §1) and reported no removal:
  * an event deleted at Google never reached *Deleted on the old system*.
@@ -24,7 +24,11 @@
  * - a refused token is dropped and the calendar read whole again, once;
  * - a multiget that falls short leaves nothing out: the calendar is listed
  *   whole, as before, with the removals and the token kept;
- * - a server that sends its data, as Nextcloud does, is read as before.
+ * - a server that sends its data, as Nextcloud does, is read from its one
+ *   answer, with no multiget. What changed for every server, its own
+ *   included, is held here too: the REPORT T1 sent (`sync-level` 1), a
+ *   refused token read again with none, and the token kept after another
+ *   refusal.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
@@ -712,9 +716,11 @@ describe('what the log says (review of #2019)', () => {
 });
 
 /**
- * A SERVER THAT SENDS ITS DATA reads exactly as before: one REPORT, no
- * multiget, the objects and removals it carried. Nextcloud, Infomaniak and
- * Cirrux calendars answer this way, and the Nextcloud suites hold them too.
+ * A SERVER THAT SENDS ITS DATA is read from its one REPORT: no multiget, the
+ * objects and removals it carried. Nextcloud, Infomaniak and Cirrux calendars
+ * answer this way, and the Nextcloud suites hold them too. Not exactly as
+ * before: the REPORT carries `sync-level` 1 now, and a refusal is followed
+ * differently, both held above.
  */
 describe('a server that sends its data with each member', () => {
   const BODY = `<?xml version="1.0" encoding="utf-8"?>
