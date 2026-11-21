@@ -44,11 +44,15 @@
 #                                       probe will not run without them.
 #   variable EXPOSURE_PROBE_FRONT_PORTS optional: ports the front in front of
 #                                       live answers by itself (PostgreSQL's,
-#                                       since 2026-10-29).
+#                                       since 2026-10-29; five more that
+#                                       NetBird's shared proxy holds for
+#                                       others, since 2026-11-21).
 #                                       On a production name's address only, such
 #                                       a port answering is a note, unless it
-#                                       answers as PostgreSQL, which fails. Unset:
-#                                       every answer fails.
+#                                       answers as PostgreSQL or presents a
+#                                       certificate from Caddy's own local CA,
+#                                       the Trigger.dev dashboard's, which fail.
+#                                       Unset: every answer fails.
 #   secret   EXPOSURE_PROBE_HOST        optional: the machine's own public
 #                                       address (or a name for it). Masked, and
 #                                       never printed.
