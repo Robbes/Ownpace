@@ -23,6 +23,17 @@
 # pull request that touches no workflow waiting for it forever, the shape
 # every-pr-check-is-classified.unit.test.ts describes for images.yml).
 #
+# AND ONE REPORT THAT DOES NOT BLOCK (workplan 0163 T1, the owner's D2 of
+# 2026-11-20). The same outside check found nine secrets read by jobs that
+# name no GitHub environment: zizmor's secrets-outside-env, which has shown
+# only under `--persona auditor` since zizmor 1.24.0. So after the audit the
+# same zizmor runs once more with that persona, writing JSON, and
+# scripts/zizmor-secrets-report.mjs lists each secret read outside an
+# environment in the summary and as a warning, and passes; the persona's other
+# findings are counted, not listed. It fails only when zizmor did not finish.
+# The audit takes no persona, so what blocks is what the default persona finds;
+# a-secret-no-environment-holds.unit.test.ts holds the report's own shape.
+#
 # OFFLINE, with no token and no network: --offline, and the container runs
 # with `--network none`. The audits zizmor runs online (impostor-commit,
 # ref-version-mismatch, known-vulnerable-actions, stale-action-refs) call
@@ -111,3 +122,24 @@ jobs:
             echo '```'
           } >> "$GITHUB_STEP_SUMMARY"
           exit "$status"
+      # The report (the header's last part) runs after a red audit too, so a
+      # failed audit still shows each secret read outside an environment.
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        if: ${{ !cancelled() }}
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+      - name: Report each secret read outside a GitHub environment (secrets-outside-env, report only)
+        if: ${{ !cancelled() }}
+        run: |
+          status=0
+          docker run --rm --pull never \
+            --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" \
+            --volume "$GITHUB_WORKSPACE:/repo:ro" --workdir /repo \
+            "$ZIZMOR_IMAGE" \
+            --offline --config .github/zizmor.yml --no-ignores --no-progress --color never \
+            --persona auditor --format json-v1 \
+            . > "$RUNNER_TEMP/zizmor-auditor.json" 2> "$RUNNER_TEMP/zizmor-auditor.log" || status=$?
+          cat "$RUNNER_TEMP/zizmor-auditor.log"
+          node scripts/zizmor-secrets-report.mjs --exit-code "$status" "$RUNNER_TEMP/zizmor-auditor.json"
