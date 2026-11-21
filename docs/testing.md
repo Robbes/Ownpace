@@ -461,7 +461,10 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   answers on the production names, over TLS, with live's issuer, and each of `app.`, `id.`,
   `status.` and `www.ownpace.eu` answers a visitor's first page itself, not a sign-in page in
   front of it, and live's form that founds an organisation, `/ui/login/register/org` at
-  `id.ownpace.eu`, answers 404. Its log names names and ports, never an address.
+  `id.ownpace.eu`, answers 404. A port the front answers by itself, listed in the repository
+  variable `EXPOSURE_PROBE_FRONT_PORTS`, is a note behind two tripwires: PostgreSQL's handshake,
+  and a TLS hello with no server name, which fails on a certificate from Caddy's own local CA,
+  the Trigger.dev dashboard's. Its log names names and ports, never an address.
 - `idp-pin-watch.yml` — weekly (Mondays 06:23 UTC) and on dispatch, on a GitHub-hosted runner:
   every pin Dependabot cannot see, each against its upstream. The
   identity provider's pin in `managed.yml` against upstream's newest release of the same major;
