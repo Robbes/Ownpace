@@ -1,6 +1,7 @@
 # MEASUREMENT ONLY, ON A BRANCH THAT IS NEVER MERGED AND HAS NO PULL REQUEST.
-# Three proofs, each with the real tool: gitleaks (0163 T6), Semgrep's rules that block (0163 T5),
-# and gitleaks on the GoAccess build argument's rename (0163 D8).
+# Four proofs, each with the real tool: gitleaks (0163 T6), Semgrep's rules that block (0163 T5),
+# gitleaks on the GoAccess build argument's rename (0163 D8), and zizmor's secrets-outside-env on
+# the secrets moved into environments (0163 T1).
 # Proves the pull request job of workplan 0163 T6 with the real gitleaks and the
 # real config: the gitleaks branch's .gitleaks.toml and scripts/gitleaks-report.mjs,
 # run against made-up commits in throwaway repositories on the runner. A value
@@ -380,4 +381,63 @@ jobs:
           git -c user.name=proof -c user.email=proof@example.invalid commit -q -am "a bump under the new name" > /dev/null
           judge "the same bump under the new name, UPSTREAM_COMMIT, passes" 0 "$renamed" "$(git rev-parse HEAD)"
 
+          [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
+
+  zizmor-secrets-proof:
+    name: zizmor's secrets-outside-env, auditor persona, on main and on the T1 branch
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          path: on-main
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: claude/ownpace-public-readiness-y7orc6-secrets-environments
+          path: on-t1
+          persist-credentials: false
+      - name: Run zizmor as zizmor.yml pins it, with the auditor persona, over each checkout
+        env:
+          ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d
+        run: |
+          # Workplan 0163 T1: zizmor's secrets-outside-env (shown only under the auditor persona since
+          # 1.24.0) over main, where the two secrets are repository secrets read by jobs with no
+          # environment, and over the T1 branch, where each job names one. Only that audit is counted;
+          # the persona's other findings are not read here. main must show at least one, all in the two
+          # workflows; the T1 branch must show none.
+          set +e
+          set -uo pipefail
+          docker pull --quiet "$ZIZMOR_IMAGE" > /dev/null
+          wrong=0
+          for tree in on-main on-t1; do
+            docker run --rm --pull never \
+              --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+              --user "$(id -u):$(id -g)" \
+              --volume "$GITHUB_WORKSPACE/$tree:/repo:ro" --workdir /repo \
+              "$ZIZMOR_IMAGE" \
+              --offline --no-config --no-ignores --no-progress --color never --persona auditor \
+              . > "$RUNNER_TEMP/$tree.txt" 2>&1
+            echo "zizmor exited $? on $tree"
+            grep -A4 -F '[secrets-outside-env]' "$RUNNER_TEMP/$tree.txt" | grep -o -E '\.github/workflows/[A-Za-z0-9._-]+\.ya?ml:[0-9]+' | sort > "$RUNNER_TEMP/$tree.places"
+            count="$(grep -c -F '[secrets-outside-env]' "$RUNNER_TEMP/$tree.txt")"
+            echo "$tree: $count secrets-outside-env findings"
+            sed 's/^/  at /' "$RUNNER_TEMP/$tree.places"
+            echo "$count" > "$RUNNER_TEMP/$tree.count"
+          done
+          main_count="$(cat "$RUNNER_TEMP/on-main.count")"
+          t1_count="$(cat "$RUNNER_TEMP/on-t1.count")"
+          if [ "$main_count" -ge 1 ] && [ -z "$(grep -v -E '^\.github/workflows/(e2e-managed|exposure-probe)\.yml:' "$RUNNER_TEMP/on-main.places")" ]; then
+            echo "as it must: main shows $main_count, all in e2e-managed.yml and exposure-probe.yml"
+          else
+            echo "::error::NOT as it must: main shows $main_count, or one outside the two workflows"
+            wrong=1
+          fi
+          if [ "$t1_count" = 0 ]; then
+            echo "as it must: the T1 branch shows none"
+          else
+            echo "::error::NOT as it must: the T1 branch shows $t1_count"
+            wrong=1
+          fi
           [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
