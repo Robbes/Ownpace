@@ -4,6 +4,75 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after #2007 merged: T1 and T6 are on `main`, D8 and the six rules' upload too, and
+the secrets are in their environments.** In merge order (times UTC):
+- **#2006** (`2448f0a8`, 16:05): code scanning gets only the spots of the six rules that may block.
+  Semgrep's next upload from `main` (run 44922596746, 16:06) sent 4 and kept the two ReDoS rules'
+  204 in its job summary.
+- **#1992** (`17a9a460`), T6: gitleaks reads every commit a pull request adds, and a finding fails
+  it. CI was green on its head (run 44922717586), its own `gitleaks` job included.
+- **#1998** (`58e10d96`), D8: GoAccess's pinned commit is the build argument `UPSTREAM_COMMIT`.
+  On its head, with #1992 merged in, `gitleaks` read the renamed line and found nothing (CI run
+  44924152362).
+- **#2001** (`6afa68cd`), T1's first half: the two jobs name their environments. E2E (managed) run
+  44922496092 was green with its job in `e2e-managed`, whose workflow files are the merged head's.
+- **#2007** (`66138ba9`), T1's second half: the report lists each secret read outside an
+  environment. On its merged head it listed none: 32 findings for the auditor persona, 0 of them
+  `secrets-outside-env` (Workflow audit run 44927704872).
+- **The owner's steps in Settings, done the same evening, as #2001 lists them and as the owner
+  reported them:**
+  - `exposure-probe` holds `EXPOSURE_PROBE_HOST`, with deployment branches limited to `main`;
+  - `e2e-managed` holds `TRIGGER_ACCESS_TOKEN`, with no branch rule and no reviewer, so E2E
+    (managed) still runs on a pull request's branch;
+  - both repository secrets are deleted.
+- **The proof after the deletion:** E2E (managed) run 44930541955, dispatched on `main` at
+  `66138ba9`, was green: `verify: done   apply: applied`, SMOKE PASS, nothing unhealthy. Its tasks
+  deployed with the token from the environment, since no repository secret of that name is left.
+  The exposure probe's secret is read at its next dispatch.
+
+**2026-11-21, after T1's first half: zizmor's `secrets-outside-env`, report only, step 2's
+second half (T1), built as #2007, a draft.** On
+`claude/ownpace-public-readiness-y7orc6-zizmor-secrets-report`, from `main` at `ad2ffbe7`. The
+first half, the two jobs naming their environments, is #2001.
+- **Why a second run.** zizmor has shown `secrets-outside-env` only under `--persona auditor`
+  since 1.24.0, and `zizmor.yml`'s audit, which blocks, takes no persona
+  (`a-workflow-zizmor-would-flag` holds that). So nothing before a merge named a secret read by a
+  job with no environment, the shape of finding 1.
+- **What it does.** After the audit, and after a red one too, the same image runs once more, as
+  the audit runs it (offline, no network, the one config, `--no-ignores`), with `--persona
+  auditor` and `--format json-v1`. `scripts/zizmor-secrets-report.mjs` reads the JSON:
+  - each `secrets-outside-env` finding is listed in the summary, by file and line, job and the
+    `secrets.*` it reads, and as a warning on its line, and passes (D2);
+  - the persona's other findings are counted, not listed (§5, step 2);
+  - the step fails only when zizmor did not finish: an exit other than 0 or 11 to 14, a report it
+    cannot read or that is not zizmor's shape, or an exit that does not match the report's highest
+    severity.
+- **What it reads, by zizmor's own source at v1.32.0, read only.**
+  - The audit (`crates/zizmor/src/audit/secrets_outside_env.rs`) flags each `secrets.*` context in
+    the body of a job that names no environment. `GITHUB_TOKEN` is never flagged, and neither is a
+    job of a reusable workflow. A workflow's top-level `env:` is not read, which is why #2001's
+    guard reads it.
+  - The JSON (`crates/zizmor/src/output/json/v1.rs`) is a flat list of findings. A finding's
+    primary location names the file, the line counted from 0, and the route to the job.
+  - The exit code is the highest severity's, 11 to 14, or 0 for no finding
+    (`crates/zizmor/src/registry.rs`).
+- **Guards.** The new `a-secret-no-environment-holds` (18 tests) holds the report and the step.
+  `a-workflow-zizmor-would-flag` tells the report from the audit by its name, and refuses a
+  second audit, a second report and the report renamed; the audit is held as before. Each of
+  14 hand-made breaks of the report fails its guard.
+- **What the real zizmor showed.**
+  - #2007's own zizmor job (run 44909520962): the audit passed, and the report listed one
+    `secrets-outside-env` finding, in `.github/workflows/exposure-probe.yml`, the read #2001
+    moves into an environment. The persona's other findings were counted, not listed, and the
+    exit matched the report.
+  - On the measuring branch (run 44910211278), each tree run as the step runs it: one finding
+    on this branch, on the line zizmor's own plain output gives; the same report handed exit 0
+    failed; none on #2001's branch; in a made-up workflow, only the secret read by a job with no
+    environment, not `GITHUB_TOKEN` nor a secret read in a job that names one; and a tree with
+    no workflow, where zizmor exits 3, failed the step.
+  - Once #2001 merges, the report lists none.
+- **CI:** green on `d7e23038`, with `main` at `8fd68a35` merged in (CI run 44909520986).
+
 **2026-11-21, after #1995 merged: T1, the two secrets left, each in its job's environment, built
 as #2001 (a draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-secrets-environments`,
 from `main` at `02e88d52`; the first half of step 2 of §5, as D2 decided.
@@ -440,13 +509,13 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised); ⏳ **Owner** (D7) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
-| T1 Secrets into environments | builder | 🔨 **Built** in two drafts, not merged: #2001, the two jobs name their environments, and the secrets move in Settings, by the owner; and #2007, the report, zizmor's `secrets-outside-env` (Status, 2026-11-21) (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
+| T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised; D7, *"yes"*, built as T9) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
+| T1 Secrets into environments | builder | ✅ **Merged** on 2026-11-21: #2001 (`6afa68cd`), the jobs name their environments, and #2007 (`66138ba9`), the report; ✅ **the secrets moved** in Settings by the owner the same day (Status, 2026-11-21, after #2007 merged) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); ✅ **the no-checkout sentence in Dutch, merged** as #2005 on 2026-11-21 (`55eab78b`; Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
-| T6 gitleaks on a pull request's own commits | builder | 🔨 **Built** in #1992, a draft, not merged (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
+| T6 gitleaks on a pull request's own commits | builder | ✅ **Merged** as #1992 on 2026-11-21 (`17a9a460`) (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
 | T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); ✅ **Merged** as #1980 on 2026-11-21 (`a4e9f331`) | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |

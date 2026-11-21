@@ -590,7 +590,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `zizmor` is BLOCKING: any finding fails it, and it writes zizmor's report to its summary. Held
   by `scripts/a-workflow-zizmor-would-flag.unit.test.ts`, which also holds every cache-aware step
   in a workflow a tag starts to turning its cache off the way zizmor's `cache-poisoning` audit
-  reads it.
+  reads it. After the audit, and after a red one too, the same zizmor runs once more with
+  `--persona auditor` and `--format json-v1`, REPORT ONLY (workplan 0163 T1, the owner's D2):
+  `scripts/zizmor-secrets-report.mjs` lists each secret a job reads while it names no GitHub
+  environment (`secrets-outside-env`, shown only under that persona since zizmor 1.24.0) in the
+  summary and as a warning on its line. The persona's other findings are counted, not listed, and
+  the step fails only when zizmor did not finish. Held by
+  `scripts/a-secret-no-environment-holds.unit.test.ts`.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
