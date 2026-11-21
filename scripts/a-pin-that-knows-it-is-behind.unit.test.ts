@@ -108,6 +108,14 @@
  * and major, past the Debian and Alpine builds and the per-commit tags the
  * same repository lists, and this holds that, the note it is listed with when
  * behind, and that a line it cannot read is an error.
+ *
+ * THE ZIZMOR THE WORKFLOW AUDIT RUNS (workplan 0119, 2026-11-20). The audit,
+ * blocking, runs `ghcr.io/zizmorcore/zizmor` by the tag and index digest of
+ * its job's one `ZIZMOR_IMAGE`, which Dependabot cannot see either. Its row
+ * compares the tag with ghcr.io's newest of the same shape and major, past
+ * the release candidates and `latest` the same repository lists, and this
+ * holds that, the note it is listed with when behind, and that a line it
+ * cannot read is an error.
  */
 
 import { afterAll, describe, it, expect } from 'vitest';
@@ -133,6 +141,8 @@ import {
   COSIGN_FILES,
   HADOLINT_NOTE,
   HADOLINT_WORKFLOW,
+  ZIZMOR_NOTE,
+  ZIZMOR_WORKFLOW,
   ISSUE_TITLE,
   STALWART_FILES,
   GOACCESS_DOCKERFILE,
@@ -182,6 +192,7 @@ import {
   fileInTgz,
   gitBlobId,
   hadolintPin,
+  zizmorPin,
   issueBody,
   keepIssue,
   newestLike,
@@ -1323,6 +1334,10 @@ function registry(newer: Record<string, string> = {}): Stubs {
   // Debian build, `latest`, a commit's per-platform tag) and another major, none of which its row may take for newer.
   const lint = hadolintPin(REAL.read(HADOLINT_WORKFLOW)!);
   pins.set(registryOf(lint.repo).name, [lint.tag, `${lint.tag}-debian`, 'latest', '2eece55955ced00200be9729e9728cb7dacca505-amd64', 'v3.0.0']);
+  // The zizmor the workflow audit runs (0119, 2026-11-20), beside a release candidate, `latest` and another
+  // major, none of which its row may take for newer.
+  const audit = zizmorPin(REAL.read(ZIZMOR_WORKFLOW)!);
+  pins.set(registryOf(audit.repo).name, [audit.tag, '9.0.0-rc1', `${audit.tag.split('.')[0]}.999.0-rc2`, 'latest', '2.0.0']);
   // The Atlas release ci.yml installs, as the community image's tag, beside tags of other shapes
   // and another major that its row must never take for a newer release.
   pins.set(ATLAS_IMAGE, [ATLAS_TAG, 'latest-community', '1.99.0-community-alpine', '1.99.0-extended', '2.0.0-community']);
@@ -2887,6 +2902,51 @@ describe('the hadolint the Dockerfile lint runs, against its newest release on D
     for (const [text, error] of cases) {
       expect(text).not.toBe(LINT);
       const broken = await row({ [HADOLINT_WORKFLOW]: text });
+      expect(broken.state).toBe('error');
+      expect(broken.error).toMatch(error);
+    }
+  });
+});
+
+describe('the zizmor the workflow audit runs, against its newest release on ghcr.io (0119, 2026-11-20)', () => {
+  const AUDIT = REAL.read(ZIZMOR_WORKFLOW)!;
+  const pin = zizmorPin(AUDIT);
+  const row = async (over: Record<string, string | null> = {}, newer: Record<string, string> = {}) =>
+    (await routineRows(Object.keys(over).length ? withFiles(over) : REAL, fakeNet(registry(newer)))).rows.find((r) => r.name === 'ghcr.io/zizmorcore/zizmor')!;
+
+  it('reads the one ZIZMOR_IMAGE the job runs, ghcr.io/zizmorcore/zizmor by a release tag and its index digest', () => {
+    expect(ZIZMOR_WORKFLOW).toBe('.github/workflows/zizmor.yml');
+    expect(pin.repo).toBe('ghcr.io/zizmorcore/zizmor');
+    expect(pin.tag).toMatch(/^\d+\.\d+\.\d+$/);
+    expect(pin.digest).toMatch(/^sha256:[0-9a-f]{64}$/);
+    expect(registryOf(pin.repo)).toEqual({ host: 'ghcr.io', name: 'zizmorcore/zizmor' });
+  });
+
+  it('is current while ghcr.io lists nothing newer of its shape and major: not a release candidate, latest, or 2.0.0', async () => {
+    expect(await row()).toMatchObject({ state: 'current', pin: `${pin.tag}@${pin.digest}`, newest: pin.tag, where: ZIZMOR_WORKFLOW });
+  });
+
+  it('is behind on a newer release of its major, and says how it moves', async () => {
+    const [major, minor] = pin.tag.split('.');
+    const newer = `${major}.${minor}.99`;
+    expect(await row({}, { 'zizmorcore/zizmor': newer })).toMatchObject({ state: 'behind', newest: newer, notes: [ZIZMOR_NOTE] });
+    const { rows, status } = await routineRows(REAL, fakeNet(registry({ 'zizmorcore/zizmor': newer })));
+    const line = (summaryOf(rows, status).body ?? '').split('\n').find((l) => l.startsWith('- `ghcr.io/zizmorcore/zizmor`'));
+    expect(line).toContain(`(${ZIZMOR_WORKFLOW}): ${pin.tag}@${pin.digest}, newest **${newer}**; ${ZIZMOR_NOTE}`);
+  });
+
+  it('a job that names no image, two, another image, a release candidate or no digest is an error, never current', async () => {
+    const line = /^\s*ZIZMOR_IMAGE:.*$/m.exec(AUDIT)![0];
+    const cases: Array<[string, RegExp]> = [
+      [AUDIT.replace(line, ''), /sets ZIZMOR_IMAGE 0 times, not once/],
+      [AUDIT.replace(line, `${line}\n${line}`), /sets ZIZMOR_IMAGE 2 times, not once/],
+      [AUDIT.replace(line, line.replace('ghcr.io/zizmorcore/zizmor:', 'zizmorcore/zizmor:')), /not ghcr\.io\/zizmorcore\/zizmor by a release tag and its index digest/],
+      [AUDIT.replace(line, line.replace(/:[\d.]+@/, ':1.30.0-rc2@')), /not ghcr\.io\/zizmorcore\/zizmor by a release tag and its index digest/],
+      [AUDIT.replace(line, line.replace(/@sha256:[0-9a-f]{64}/, '')), /not ghcr\.io\/zizmorcore\/zizmor by a release tag and its index digest/],
+    ];
+    for (const [text, error] of cases) {
+      expect(text).not.toBe(AUDIT);
+      const broken = await row({ [ZIZMOR_WORKFLOW]: text });
       expect(broken.state).toBe('error');
       expect(broken.error).toMatch(error);
     }

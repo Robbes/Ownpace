@@ -1215,7 +1215,7 @@ services:
   # and why it runs as uid 65532. `never`, as for the databases: no registry
   # serves this name.
   trigger-tls:
-    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
+    image: localhost/caddy:2.11.9-alpine-9c1f752119a3
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
@@ -1272,7 +1272,7 @@ services:
   # root needs the two given back to root first (docs/managed-bring-up.md, "The
   # dashboard's TLS front is a build here too").
   trigger-tls-init:
-    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
+    image: localhost/caddy:2.11.9-alpine-9c1f752119a3
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls-init
