@@ -129,7 +129,7 @@ import { createNextcloudShare } from '@openmig/connectors';
 import { shareRefusalAnswers } from '../../share-refusal-answer.ts';
 import type { ShareGrantRow, ShareLimit, ShareRefusalKind } from '@openmig/shared';
 import { tenantFetch } from '@openmig/shared/reachable-host';
-import { migrationInventoryScans, resolveMappingMailbox } from '../permissions.ts';
+import { MigrationGone, migrationInventoryScans, resolveMappingMailbox } from '../permissions.ts';
 import type { AuthenticatedRequest } from '../../types/api.ts';
 import { recordMappingStatusChange } from './mapping-status-audit.ts';
 import { movePathsWithMapping } from './path-lifecycle-wiring.ts';
@@ -725,8 +725,9 @@ router.post(
       });
       res.json(result);
     } catch (error) {
-      if (error instanceof ShareListWithoutMigration) {
-        // As `scope` answers a migration that is not there.
+      if (error instanceof ShareListWithoutMigration || error instanceof MigrationGone) {
+        // As `scope` answers a migration that is not there: deleted while the
+        // scans ran, or before they read its row (workplan 0162).
         return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
       }
       serverError(res, 'sharing_rescan_failed', 'rescanning sharing', error);

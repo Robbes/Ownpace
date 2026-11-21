@@ -21,6 +21,12 @@
  *     to commit (the writer holds the migration's row, `FOR KEY SHARE`), then
  *     sees it and takes it.
  *
+ * And a third, which needs no second connection: the delete lands after the
+ * door read the migration's mailbox and before the scans read its row
+ * (workplan 0162, the review of #2011). `migrationInventoryScans` then finds
+ * no row and throws `MigrationGone`, as the stub does here; the door answers
+ * 404 and writes nothing, as for the first.
+ *
  * And the control: with nothing in the way, the same stubbed scan does write
  * its rows, so an empty list above is the delete's work and not a scan that
  * found nothing. The ledger's half, a list refused for a migration that is not
@@ -56,8 +62,14 @@ const appUserUrl = (u: string): string => {
 };
 process.env.APP_DATABASE_URL = appUserUrl(PG_CONNECTION_STRING);
 
-/** What the stubbed drive scan does before it answers, set per case. */
-const scan = vi.hoisted(() => ({ meanwhile: undefined as undefined | (() => Promise<void>) }));
+/**
+ * What the stubbed drive scan does before it answers, and what happens before
+ * the scans read the migration's row, set per case.
+ */
+const scan = vi.hoisted(() => ({
+  meanwhile: undefined as undefined | (() => Promise<void>),
+  beforeTheRead: undefined as undefined | (() => Promise<void>),
+}));
 
 /** Two grants the drive scan finds. */
 const FOUND: readonly PermissionGrant[] = [1, 2].map((n) => ({
@@ -72,14 +84,21 @@ vi.mock('../permissions.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../permissions.ts')>();
   return {
     ...actual,
-    migrationInventoryScans: async () => ({
-      delegationReason: 'Mailbox delegation is not read here.',
-      scanCalendars: async () => ({ kind: 'not_discoverable' as const, reason: 'Calendars are not read here.' }),
-      scanDrive: async () => {
-        await scan.meanwhile?.();
-        return { kind: 'listed' as const, grants: FOUND };
-      },
-    }),
+    migrationInventoryScans: async (_tenantId: string, mappingId: string) => {
+      if (scan.beforeTheRead) {
+        // Deleted before the scans read its row: what the real one throws.
+        await scan.beforeTheRead();
+        throw new actual.MigrationGone(mappingId);
+      }
+      return {
+        delegationReason: 'Mailbox delegation is not read here.',
+        scanCalendars: async () => ({ kind: 'not_discoverable' as const, reason: 'Calendars are not read here.' }),
+        scanDrive: async () => {
+          await scan.meanwhile?.();
+          return { kind: 'listed' as const, grants: FOUND };
+        },
+      };
+    },
   };
 });
 
@@ -95,7 +114,9 @@ const KEPT = '0139c800-e29b-41d4-a716-446655440021';
 const DELETED_DURING_THE_SCAN = '0139c800-e29b-41d4-a716-446655440022';
 /** Deleted while its list is being written. */
 const DELETED_DURING_THE_WRITE = '0139c800-e29b-41d4-a716-446655440023';
-const MAPPINGS = [KEPT, DELETED_DURING_THE_SCAN, DELETED_DURING_THE_WRITE];
+/** Deleted before the scans read it. */
+const DELETED_BEFORE_THE_READ = '0139c800-e29b-41d4-a716-446655440024';
+const MAPPINGS = [KEPT, DELETED_DURING_THE_SCAN, DELETED_DURING_THE_WRITE, DELETED_BEFORE_THE_READ];
 
 const USER = `user-${TENANT}`;
 const token = () => jwt.sign({ sub: USER, tenantId: TENANT, email: `${USER}@example.test` }, process.env.JWT_SECRET!);
@@ -146,6 +167,7 @@ describe('a sharing rescan that outlives its migration leaves no list behind', (
 
   beforeEach(async () => {
     scan.meanwhile = undefined;
+    scan.beforeTheRead = undefined;
     await owner.query('DELETE FROM share_grant WHERE tenant_id = $1', [TENANT]);
     await owner.query('DELETE FROM mailbox_mapping WHERE tenant_id = $1', [TENANT]);
     for (const id of MAPPINGS) {
@@ -185,6 +207,22 @@ describe('a sharing rescan that outlives its migration leaves no list behind', (
     expect(res.status, res.text).toBe(404);
     expect(res.body).toEqual({ error: 'Not found', message: 'Mapping not found' });
     // The other migrations are untouched.
+    expect(await exists(KEPT)).toBe(true);
+  });
+
+  it('writes nothing, and answers 404, when the migration is deleted before the scans read it', async () => {
+    let deleted: number | undefined;
+    scan.beforeTheRead = async () => {
+      deleted = (await remove(DELETED_BEFORE_THE_READ)).status;
+    };
+
+    const res = await rescan(DELETED_BEFORE_THE_READ);
+
+    expect(deleted, 'the delete did not go through before the scans read the migration').toBe(200);
+    expect(await exists(DELETED_BEFORE_THE_READ)).toBe(false);
+    expect(await listOf(DELETED_BEFORE_THE_READ)).toEqual([]);
+    expect(res.status, res.text).toBe(404);
+    expect(res.body).toEqual({ error: 'Not found', message: 'Mapping not found' });
     expect(await exists(KEPT)).toBe(true);
   });
 

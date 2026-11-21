@@ -8,10 +8,13 @@
  * migration's test marker, it refuses the four moves that switch a migration
  * over, with T3's sentence in English and Dutch and a code of its own:
  * declaring the cutover (`active` or `paused` to `cutover`) and entering the
- * lane (`cutover` or `done` to `continuous`). Every other cell answers as it
- * does without a marker: pausing stays open, Start stays Start's, and the
- * refusals the table already makes keep their own codes. Without a marker the
- * whole table is what it was.
+ * lane (`cutover` or `done` to `continuous`). And the lane asked for before a
+ * cutover (`active` or `paused` to `continuous`) gets the same sentence, not
+ * the table's own refusal, whose hint names two doors a test is refused too
+ * (the review of #2011). Every other cell answers as it does without a
+ * marker: pausing stays open, Start stays Start's, and the refusals the table
+ * already makes keep their own codes. Without a marker the whole table is
+ * what it was.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -28,8 +31,17 @@ const SWITCHES_OVER: ReadonlyArray<readonly [string, string, string]> = [
   ['done', 'continuous', 'enter'],
 ];
 
-const switchesOver = (from: string, to: string): boolean =>
-  SWITCHES_OVER.some(([f, t]) => f === from && t === to);
+/** The lane asked for before a cutover: the table refuses it anyway, and a test hears T3's sentence. */
+const LANE_BEFORE_CUTOVER: ReadonlyArray<readonly [string, string]> = [
+  ['active', 'continuous'],
+  ['paused', 'continuous'],
+];
+
+/** Every cell a test is answered T3's sentence in. */
+const REFUSED_A_TEST = [...SWITCHES_OVER.map(([f, t]) => [f, t] as const), ...LANE_BEFORE_CUTOVER];
+
+const refusedATest = (from: string, to: string): boolean =>
+  REFUSED_A_TEST.some(([f, t]) => f === from && t === to);
 
 describe('a status update, for a test migration', () => {
   it.each(SWITCHES_OVER)('%s -> %s (%s) is refused, in both languages, and writes nothing', (from, to) => {
@@ -55,10 +67,22 @@ describe('a status update, for a test migration', () => {
     expect(updateTransition('paused', 'active', MARKER)).toMatchObject({ code: 'own_door', refuse: expect.stringContaining('Starting') });
   });
 
+  it.each(LANE_BEFORE_CUTOVER)(
+    '%s -> %s, the lane before a cutover, says the same sentence, not a hint to declare one',
+    (from, to) => {
+      expect(updateTransition(from, to, MARKER)).toEqual({
+        refuse: A_TEST_IS_NOT_SWITCHED_OVER.en,
+        refuseNl: A_TEST_IS_NOT_SWITCHED_OVER.nl,
+        hint: 'Nothing was changed.',
+        code: 'test_migration',
+      });
+    },
+  );
+
   it('answers every other cell exactly as it does without a marker', () => {
     for (const from of MAPPING_LIFECYCLES) {
       for (const to of MAPPING_LIFECYCLES) {
-        if (switchesOver(from, to)) continue;
+        if (refusedATest(from, to)) continue;
         expect(updateTransition(from, to, MARKER), `${from} -> ${to}`).toEqual(updateTransition(from, to));
       }
     }
@@ -69,6 +93,10 @@ describe('the same status updates, for a migration without a marker', () => {
   it.each(SWITCHES_OVER)('%s -> %s (%s) goes through', (from, to) => {
     expect(updateTransition(from, to)).toEqual({ apply: true, from, to });
     expect(updateTransition(from, to, undefined)).toEqual({ apply: true, from, to });
+  });
+
+  it.each(LANE_BEFORE_CUTOVER)('%s -> %s is still sent to declare its cutover first', (from, to) => {
+    expect(updateTransition(from, to)).toMatchObject({ code: 'before_cutover', hint: expect.stringContaining('Declare the cutover first') });
   });
 
   it('carries no Dutch on any refusal: only a test’s sentence is ours in both languages', () => {

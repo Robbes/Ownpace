@@ -14,6 +14,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
+import { AxiosError, AxiosHeaders } from 'axios';
 import { A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING, type ShareGrantRow } from '@openmig/shared';
 
 const { fetchSharing, decideSharing, rescanSharing, DecisionRefusedError } = vi.hoisted(() => {
@@ -267,7 +268,9 @@ describe('the blind spots after a rescan', () => {
  * A rescan the server refused, with a reason it wrote in both languages: a
  * test migration whose old system gave a share without saying what it is on
  * (workplan 0162), which saves nothing. The page says why, in its reader's
- * half, where it said "the request failed".
+ * half, where it said "the request failed". Only a refusal, a 4xx: a fault of
+ * ours, a 500, carries an English sentence only, and a Dutch reader is told
+ * it in Dutch, with its reference (the review of #2011).
  */
 describe('a refused rescan, in the reader’s language', () => {
   /** The page's own line for a request that failed (`common.requestFailed`). */
@@ -279,6 +282,33 @@ describe('a refused rescan, in the reader’s language', () => {
   };
   const refused = (data: Record<string, unknown>) =>
     Object.assign(new Error('Request failed with status code 409'), { response: { status: 409, data } });
+  /** `serverFault`'s answer: an English sentence, with the reference it is logged under. */
+  const FAULT =
+    'Something went wrong rescanning sharing — this is a fault on our side, not something your input ' +
+    'caused. Reference 0a1b2c3d: mention it when you contact us.';
+  const faulted = () =>
+    new AxiosError('Request failed with status code 500', 'ERR_BAD_RESPONSE', undefined, undefined, {
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { error: 'sharing_rescan_failed', reason: FAULT },
+    });
+  /** The page for a Dutch reader, who presses its refresh. */
+  const renderInDutch = () => {
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
+            <Routes>
+              <Route path="/mappings/:mappingId/sharing" element={<Sharing />} />
+            </Routes>
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  };
 
   it('says the server’s reason to an English reader', async () => {
     fetchSharing.mockResolvedValue(empty);
@@ -308,21 +338,28 @@ describe('a refused rescan, in the reader’s language', () => {
           code: 'test_migration',
         }),
       );
-      const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
-      render(
-        <LocaleProvider>
-          <QueryClientProvider client={qc}>
-            <MemoryRouter initialEntries={['/mappings/m1/sharing']}>
-              <Routes>
-                <Route path="/mappings/:mappingId/sharing" element={<Sharing />} />
-              </Routes>
-            </MemoryRouter>
-          </QueryClientProvider>
-        </LocaleProvider>,
-      );
+      renderInDutch();
       fireEvent.click(await screen.findByRole('button', { name: /opnieuw/i }));
       expect(await screen.findByText(A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.nl)).toBeInTheDocument();
       expect(screen.queryByText(A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.en)).not.toBeInTheDocument();
+    } finally {
+      window.localStorage.removeItem('ownpace.locale');
+    }
+  });
+
+  it('says a fault of ours to a Dutch reader in Dutch, with its reference, not the English it was sent', async () => {
+    window.localStorage.setItem('ownpace.locale', 'nl');
+    try {
+      fetchSharing.mockResolvedValue(empty);
+      rescanSharing.mockRejectedValue(faulted());
+      renderInDutch();
+      fireEvent.click(await screen.findByRole('button', { name: /opnieuw/i }));
+      expect(
+        await screen.findByText(
+          'Er ging bij ons iets mis, niet door iets wat u invoerde. Probeer het zo opnieuw. Referentie 0a1b2c3d: noem die als u contact met ons opneemt.',
+        ),
+      ).toBeInTheDocument();
+      expect(screen.queryByText(FAULT)).not.toBeInTheDocument();
     } finally {
       window.localStorage.removeItem('ownpace.locale');
     }

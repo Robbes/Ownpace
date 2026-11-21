@@ -13,8 +13,9 @@ fifth, the Finish page's End and Keep, comes with T1.
 
 1. **The sharing rescan and the permission report keep only what the marker selects.** Both read
    the account's sharing through `migrationInventoryScans` (`apps/api/src/routes/permissions.ts`).
-   It now reads the migration's marker from its own row and, under one, runs the two scans once
-   and keeps a grant only when the thing it is on carries the marker in its own name, by T2's
+   It now reads the migration's marker from its own row, in the same statement as its source,
+   and, under one, runs the two scans once and keeps a grant only when the thing it is on carries
+   the marker in its own name, by T2's
    `carriesMarker` (`markedSharesOnly`, `marked-only.ts`). The thing's own name decides, as for a
    file: a marked folder's share is kept, an unmarked file in it is not, and a marked file in an
    unmarked folder is. So nothing about an unmarked item is saved into `share_grant` or returned
@@ -29,10 +30,18 @@ fifth, the Finish page's End and Keep, comes with T1.
      and one sentence in English and Dutch (`A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING`, in
      shared's `permissions.ts`). The Sharing page shows a refused rescan's reason in its reader's
      language, where it said the request did not complete; that holds for every migration, and
-     for a closed organisation's refusal and a migration that records no mailbox too.
+     for a closed organisation's refusal and a migration that records no mailbox too. Only a
+     refusal's, a 4xx: a fault on our side, a 500, is said in the reader's language with its
+     reference.
    - The report asked for by address (`?mailbox=`) names no migration and reads every source the
      organisation connected. It is refused, with `code: test_organisation`, in an organisation one
-     of whose migrations carries a marker (`A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION`).
+     of whose migrations carries a marker (`A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION`),
+     before the member's test limit counts it.
+   - A migration deleted after its door read its mailbox, and before the scans read the
+     migration, is gone: `migrationInventoryScans` throws `MigrationGone`, and both doors answer
+     404 and read nothing. It used to be read as a migration whose mailbox names no connection:
+     the organisation's accounts were read, and the marker, read after them, found no row, so a
+     test's report listed the whole account.
    - No row needs cleaning up: no migration has carried a marker, so no rescan saved a test's
      sharing.
 2. **A Dropbox rename and the bin: confirmed, and fixed.** Through the real `DropboxFileSource`
@@ -75,8 +84,10 @@ fifth, the Finish page's End and Keep, comes with T1.
    with `test_migration` and T3's sentence in both languages (`A_TEST_IS_NOT_SWITCHED_OVER`).
    `PUT /api/migrations/:id` reads the marker with the status, in its own transaction, and
    answers `message` and `messageNl`. Pausing stays open, as does leaving the lane, and a resume
-   is still Start's, which takes a test. `active` or `paused` to `continuous` keeps the table's
-   own refusal (`before_cutover`). The appliance passes no marker.
+   is still Start's, which takes a test. Asked for the lane from `active` or `paused`, which the
+   table refuses anyway, a test is told the same sentence, not the table's own refusal
+   (`before_cutover`), whose English-only hint names two doors a test is refused. The appliance
+   passes no marker.
 
 What is proven, and how. 50 new cases in ten unit test files, four of them new. Each door or rule
 refuses or filters with a marker, and lets the same migration through without one:
@@ -102,6 +113,30 @@ label read instead of the name 4 of 42, the marker ignored by the scans 5 of 10)
 12), the Dropbox rule (the bin's check 3 of 7, the set-aside handles 2 of 7, the kept ones 1 of 7,
 the rule for every migration 1 of 7), and the page 2 of 21.
 
+**The review of #2011, at `88c7dd26`: no blocker, and six findings, each fixed.**
+1. The marker was read after the scans, so a test migration deleted in between was read as the
+   organisation's: one statement now reads both, and a missing row is `MigrationGone`, 404 at both
+   doors.
+2. The Sharing page showed a 500's English `reason`: it takes `reason` from a 4xx only, and says a
+   fault in its reader's language (`serverMessage`).
+3. No test held the calendar half of the filter: `onlyMarkedShares` is tested over stub scans.
+4. A test asking for the lane from `active` or `paused` was told `before_cutover`, in English: it is
+   told T3's sentence.
+5. The sentence said nothing was read, though both scans read the account: it says none of it was
+   kept.
+6. A refused report asked for by address spent one of the member's tests: it is refused before the
+   limit counts.
+
+13 new unit cases (5 in the sharing doors' test, 4 in the table, 3 at the PUT door, 1 on the
+Sharing page) and one integration case (the rescan's 404), each shown by a mutation, each caught
+and restored byte for byte: the gone row read as the organisation's 2 of 15, the report's 404 out
+1 of 15, the rescan's 1 of 4, the page taking any reason 1 of 22, the calendar half unfiltered 1 of
+15, an unnamed calendar kept 1 of 15, the lane's sentence kept for after a cutover 4 of 27, the
+lane refused without a marker too 7 of 27, and the limit counted first 1 of 15. The fake database
+of `a-report-that-reads-its-own-migration` now answers the source's statement as its LEFT JOIN
+does: a row with no connection where the mailbox names none, and none for a migration that is
+gone.
+
 Gates: `tsc --noEmit` (the root, `apps/web`, `test/ui` and `site`), TypeScript 6's second opinion,
 and ESLint over the whole repository found nothing; the six docs checks pass. The whole `unit`
 project passed, 1,154 files and 18,044 cases with 37 skipped, but for two guards under `scripts/`
@@ -116,8 +151,8 @@ that read them, and the mutations were run again on the final files.
 Not done:
 - T1 itself, and with it the fifth thing, the Finish page's End and Keep.
 - A test organisation that holds no migration, between two runs (§6 step 7), is not known to the
-  report asked for by address until T1 records the organisation's own marker, which goes beside
-  `testsWithAMarker`.
+  report asked for by address until the organisation's own marker is recorded, which goes beside
+  `testsWithAMarker`: #2013 takes it.
 - The appliance has no test migrations (§3): its sharing rescan, its report and its status update
   read no marker.
 - A test migration's permission report does not say in itself that it lists marked things only:

@@ -14,7 +14,11 @@
  *
  *  - declaring the cutover, from `active` and from `paused`;
  *  - entering the lane, from `cutover` and from `done`, states no door gives a
- *    test, set here directly as a row older than these refusals could hold.
+ *    test, set here directly as a row older than these refusals could hold;
+ *  - asking for the lane from `active` and from `paused`, which the table
+ *    refuses anyway, with a hint to declare the cutover or finish: a test is
+ *    told T3's sentence instead, since it is refused both (the review of
+ *    #2011).
  *
  * Each case presses the same door on a migration without a marker, which goes
  * through, and reads the rows directly, outside any route, to see that a
@@ -238,6 +242,31 @@ describe('entering the continuous lane by a status update', () => {
       expect(await rowsOf(TEST)).toEqual({ status: state, paths: [state], changes: [] });
     },
   );
+
+  it.each(['active', 'paused'] as const)(
+    'refuses a test migration that is %s with the same sentence, not a hint to declare its cutover',
+    async (state) => {
+      await started(TEST);
+      if (state === 'paused') expect((await put(TEST, 'paused')).status).toBe(200);
+
+      const res = await put(TEST, 'continuous');
+
+      expect(res.status).toBe(409);
+      expect(res.body).toEqual(refusedFrom(state, 'continuous'));
+      expect((await rowsOf(TEST)).status).toBe(state);
+    },
+  );
+
+  it('still sends the same migration without a marker to declare its cutover first', async () => {
+    await started(PLAIN);
+
+    const res = await put(PLAIN, 'continuous');
+
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ code: 'before_cutover' });
+    expect(res.body).not.toHaveProperty('messageNl');
+    expect(await rowsOf(PLAIN)).toEqual({ status: 'active', paths: ['active'], changes: [] });
+  });
 
   it('enters it for the same migration without a marker, after its cutover', async () => {
     await started(PLAIN);

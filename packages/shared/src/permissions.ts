@@ -319,25 +319,27 @@ export function microsoftAccountFileSharingNotRead(): Bilingual {
 }
 
 /**
- * WHY A TEST MIGRATION'S SHARING WAS NOT READ (workplan 0162, the first thing
- * T1 settles before any marker can be set). A test migration copies only the
- * items whose own name carries its marker, and nothing about any other is
- * stored or reported: its sharing keeps only the grants on such things, by
- * the name each was given (`PermissionGrant.ownName`, `markedSharesOnly`).
- * When the old system gave a grant without saying what it is on, the grant
- * can neither be kept nor set aside, so the rescan saves nothing and the
- * report is not made. The rescan answers this as `reason` and `reasonNl`, the
- * report as `message` and `messageNl`, and the page shows its reader's half.
+ * WHY NONE OF A TEST MIGRATION'S SHARING WAS KEPT (workplan 0162, the first
+ * thing T1 settles before any marker can be set). A test migration copies
+ * only the items whose own name carries its marker, and nothing about any
+ * other is stored or reported: its sharing keeps only the grants on such
+ * things, by the name each was given (`PermissionGrant.ownName`,
+ * `markedSharesOnly`). When the old system gave a grant without saying what it
+ * is on, the grant can neither be kept nor set aside, so the rescan saves
+ * nothing and the report is not made. The scans did read the account, so the
+ * sentence says none of it was kept, not that none was read (the review of
+ * #2011). The rescan answers this as `reason` and `reasonNl`, the report as
+ * `message` and `messageNl`, and the page shows its reader's half.
  */
 export const A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING: Bilingual = {
   en:
     "A test migration lists only the sharing on items whose name contains its marker, and " +
-    'the old system gave a share without saying what it is on. So no sharing was read for ' +
-    'this migration, and nothing was saved.',
+    'the old system gave a share without saying what it is on. So none of it was kept, and ' +
+    'nothing was saved.',
   nl:
     'Een testmigratie toont alleen het delen van items waarvan de naam de markering bevat, ' +
-    'en het oude systeem gaf een deelrecht zonder te zeggen waar het op staat. Daarom is ' +
-    'voor deze migratie niets van het delen gelezen, en is er niets bewaard.',
+    'en het oude systeem gaf een deelrecht zonder te zeggen waar het op staat. Daarom is er ' +
+    'niets van behouden, en is er niets bewaard.',
 };
 
 /**

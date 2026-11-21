@@ -4650,7 +4650,11 @@ paths:
                   open: { type: integer }
                   blindSpots: { type: array, items: { type: string } }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { description: Unknown mapping. }
+        '404':
+          description: |
+            Unknown mapping, or one deleted while the rescan ran: before its
+            scans read it (workplan 0162), or while they read its source.
+            Nothing is written.
         '409':
           description: |
             The mapping records no mailbox to inventory. Or `account_closed`
@@ -6290,6 +6294,14 @@ paths:
             text/markdown:
               schema: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            `Not found`: the migration named by `mappingId` was deleted while
+            its report was being made, after its mailbox was read (workplan
+            0162). Nothing of its account is read.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409':
           description: |
             `Conflict`: the migration named records no mailbox to inventory.

@@ -513,10 +513,13 @@ export function keepsCopyingThroughGrace(decision: CutoverTransition): boolean {
  * A TEST MIGRATION IS NEVER SWITCHED OVER (workplan 0162 §2 (e); the fourth
  * thing T1 settles first). `testMarker` is the migration's own marker
  * (`mailbox_mapping.test_marker`), absent for every migration that is not a
- * test. Of the six moves, the four that switch it over are refused, with
- * `test_migration` and T3's sentence in both languages: declaring the cutover
- * (`active` or `paused` to `cutover`), and entering the lane (`cutover` or
- * `done` to `continuous`). Every later door of the cutover refuses a test
+ * test. Two kinds of update are refused it, with `test_migration` and T3's
+ * sentence in both languages: declaring the cutover (`active` or `paused` to
+ * `cutover`), and asking for the lane (`continuous`) from any status. From
+ * `cutover` or `done` that is the move that enters it; from `active` or
+ * `paused` the table's own refusal (`before_cutover`) would answer, in English
+ * only, with a hint to declare the cutover or finish, which a test is refused
+ * too (the review of #2011). Every later door of the cutover refuses a test
  * already; this one let a status update declare it, after which the source
  * was no longer the authority and the lane was open. Pausing stays open, as
  * does leaving the lane (`stop`), and every other answer is the table's own:
@@ -546,6 +549,14 @@ export type UpdateTransition =
       readonly hint: string;
       readonly code: UpdateRefuseCode;
     };
+
+/** What a test migration is answered when an update would switch it over (see above). */
+const A_TEST_REFUSED: UpdateTransition = {
+  refuse: A_TEST_IS_NOT_SWITCHED_OVER.en,
+  refuseNl: A_TEST_IS_NOT_SWITCHED_OVER.nl,
+  hint: 'Nothing was changed.',
+  code: 'test_migration',
+};
 
 /** Decide what a status update from `from` to `to` may do; `testMarker` as above. */
 export function updateTransition(from: string, to: string, testMarker?: string): UpdateTransition {
@@ -598,6 +609,10 @@ export function updateTransition(from: string, to: string, testMarker?: string):
       code: 'own_door',
     };
   }
+  // A test never enters the lane, whatever it is asked from: T3's sentence,
+  // before the table's own refusal below, whose hint names two doors a test
+  // is refused too.
+  if (testMarker !== undefined && to === 'continuous') return A_TEST_REFUSED;
   if (to === 'continuous' && !isAfterCutover(from)) {
     return {
       refuse:
@@ -610,18 +625,10 @@ export function updateTransition(from: string, to: string, testMarker?: string):
       code: 'before_cutover',
     };
   }
-  // What is left is the table's six moves. A test migration is refused the
-  // four that switch it over: here `continuous` can only come from `cutover`
-  // or `done` (the lane entered), and `cutover` from before it, `active` or
-  // `paused` (the cutover declared). See the note above the table.
-  if (testMarker !== undefined && (to === 'continuous' || (to === 'cutover' && !isAfterCutover(from)))) {
-    return {
-      refuse: A_TEST_IS_NOT_SWITCHED_OVER.en,
-      refuseNl: A_TEST_IS_NOT_SWITCHED_OVER.nl,
-      hint: 'Nothing was changed.',
-      code: 'test_migration',
-    };
-  }
+  // What is left is the table's six moves, and of them a test is refused the
+  // cutover declared: `cutover` from before it, `active` or `paused`. See the
+  // note above the table.
+  if (testMarker !== undefined && to === 'cutover' && !isAfterCutover(from)) return A_TEST_REFUSED;
   return { apply: true, from, to };
 }
 

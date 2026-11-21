@@ -23,7 +23,13 @@
  *  - a share the old system gave without saying what it is on refuses both
  *    doors, in both languages, and the rescan writes nothing;
  *  - an organisation-wide report, which names no migration, is refused in an
- *    organisation whose migrations carry a marker.
+ *    organisation whose migrations carry a marker, and takes nothing from the
+ *    member's test limit;
+ *  - a test migration deleted while a door answers is not read as one without
+ *    a marker: its scans read nothing, and its report answers 404 (the review
+ *    of #2011);
+ *  - the calendar half is filtered as the file half is (`onlyMarkedShares`,
+ *    over stub scans: Graph's calendar scan reads an `o365` source).
  *
  * Each case presses the same door for an organisation whose migration has no
  * marker, which keeps every share, as before. The scans are the real ones,
@@ -50,8 +56,10 @@ import { runManagedMigrations } from '@openmig/managed';
 import {
   A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING,
   A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION,
+  type PermissionGrant,
 } from '@openmig/shared';
 import { SecretStore } from '@openmig/core/secret-store';
+import { resetProbeTestLimit } from '../probe-limit.ts';
 
 const TEST_TENANT = '01620007-e29b-41d4-a716-446655440001';
 const TEST_CONN = '01620007-e29b-41d4-a716-446655440011';
@@ -65,14 +73,27 @@ const GOOGLE_TENANT = '01620007-e29b-41d4-a716-446655440003';
 const GOOGLE_CONN = '01620007-e29b-41d4-a716-446655440013';
 const GOOGLE_BOX = '01620007-e29b-41d4-a716-446655440023';
 const GOOGLE = '01620007-e29b-41d4-a716-446655440033';
+/** Two test migrations of TEST_TENANT, each deleted by its case. */
+const GONE_BOX = '01620007-e29b-41d4-a716-446655440024';
+const GONE = '01620007-e29b-41d4-a716-446655440034';
+const GONE_MEANWHILE_BOX = '01620007-e29b-41d4-a716-446655440025';
+const GONE_MEANWHILE = '01620007-e29b-41d4-a716-446655440035';
 const MARKER = '[Ownpace-test]';
 const ADDRESS = 'tester@example.com';
 const DRIVE = 'https://drive.example.test/v3';
 
 let driver: LedgerDriver;
 
-/** What OCS answers for the account's shares, set by each case. */
-const h = vi.hoisted(() => ({ shares: [] as unknown[], asked: [] as string[] }));
+/**
+ * What OCS answers for the account's shares, set by each case; and what
+ * happens while a door answers (`meanwhile`), after the report has read the
+ * migration's mailbox and before it reads the migration.
+ */
+const h = vi.hoisted(() => ({
+  shares: [] as unknown[],
+  asked: [] as string[],
+  meanwhile: undefined as undefined | (() => Promise<void>),
+}));
 
 vi.mock('../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../middleware/auth.ts')>();
@@ -84,6 +105,20 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
       next();
     },
     getDbPool: () => driver,
+  };
+});
+
+// The report asks whether the organisation is closed after it has read the
+// migration's mailbox and before its scans read the migration: the moment a
+// delete lands in `a test migration deleted while a door answers`.
+vi.mock('../closed-organisation.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../closed-organisation.ts')>();
+  return {
+    ...actual,
+    refusedAsClosed: async (...args: Parameters<typeof actual.refusedAsClosed>) => {
+      await h.meanwhile?.();
+      return actual.refusedAsClosed(...args);
+    },
   };
 });
 
@@ -142,7 +177,13 @@ vi.mock('@openmig/orchestration/drive-source-factory', async (importOriginal) =>
 });
 
 const { default: migrationRoutes } = await import('./migrations/index.ts');
-const { default: permissionRoutes } = await import('./permissions.ts');
+const {
+  default: permissionRoutes,
+  migrationInventoryScans,
+  MigrationGone,
+  onlyMarkedShares,
+} = await import('./permissions.ts');
+type InventoryScans = Awaited<ReturnType<typeof migrationInventoryScans>>;
 
 const app = express();
 app.use(express.json());
@@ -192,6 +233,19 @@ async function anOrganisation(
     `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, test_marker)
      VALUES ($1, $2, $3, 'active', $4)`,
     [mapping, tenant, mailbox, marker],
+  );
+}
+
+/** Another test migration of an organisation's account, from a mailbox of its own. */
+async function anotherMigration(tenant: string, connection: string, mailbox: string, mapping: string): Promise<void> {
+  await query(
+    `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES ($1, $2, $3, 'user', $4)`,
+    [mailbox, tenant, connection, ADDRESS],
+  );
+  await query(
+    `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, test_marker)
+     VALUES ($1, $2, $3, 'active', $4)`,
+    [mapping, tenant, mailbox, MARKER],
   );
 }
 
@@ -283,6 +337,7 @@ afterAll(async () => {
 beforeEach(async () => {
   h.shares = ACCOUNT;
   h.asked.length = 0;
+  h.meanwhile = undefined;
   await query(`DELETE FROM share_grant WHERE mapping_id IN ($1, $2, $3)`, [TEST, PLAIN, GOOGLE]);
 });
 
@@ -408,5 +463,106 @@ describe('the organisation-wide report, which names no migration', () => {
 
     expect(res.status).toBe(200);
     expect(h.asked).toHaveLength(1);
+  });
+
+  it("takes nothing from the member's test limit when it is refused", async () => {
+    // One test left: the refusal must not spend it.
+    resetProbeTestLimit({ windowMs: 60 * 60 * 1000, max: 1 });
+    try {
+      const refused = await request(app)
+        .get(`/api/permissions/report?mailbox=${encodeURIComponent(ADDRESS)}`)
+        .set('x-organisation', TEST_TENANT);
+      expect(refused.status).toBe(409);
+      expect(refused.body).toMatchObject({ code: 'test_organisation' });
+
+      // So the migration's own report, the member's one test, is still made.
+      expect((await reportOf(TEST_TENANT, TEST)).status).toBe(200);
+    } finally {
+      resetProbeTestLimit();
+    }
+  });
+});
+
+describe('a test migration deleted while a door answers', () => {
+  it('is gone to its scans, which read nothing of the account', async () => {
+    await anotherMigration(TEST_TENANT, TEST_CONN, GONE_BOX, GONE);
+    await query('DELETE FROM mailbox_mapping WHERE id = $1', [GONE]);
+
+    await expect(migrationInventoryScans(TEST_TENANT, GONE, ADDRESS)).rejects.toBeInstanceOf(MigrationGone);
+    // Not the organisation's accounts instead, whole.
+    expect(h.asked).toEqual([]);
+  });
+
+  it('is answered 404 by its report, deleted after the report read its mailbox, and nothing is read', async () => {
+    await anotherMigration(TEST_TENANT, TEST_CONN, GONE_MEANWHILE_BOX, GONE_MEANWHILE);
+    h.meanwhile = async () => {
+      await query('DELETE FROM mailbox_mapping WHERE id = $1', [GONE_MEANWHILE]);
+    };
+
+    const res = await reportOf(TEST_TENANT, GONE_MEANWHILE);
+
+    expect(res.status).toBe(404);
+    expect(JSON.parse(res.body as string)).toEqual({ error: 'Not found', message: 'Mapping not found' });
+    expect(h.asked).toEqual([]);
+  });
+});
+
+describe('the two scans a test migration keeps (onlyMarkedShares)', () => {
+  /**
+   * A calendar's grant, as Graph's calendar scan gives it: the label names the
+   * mailbox, the name the calendar. `null` for a calendar given without one.
+   */
+  const calendar = (name: string, grantee: string, ownName: string | null = name): PermissionGrant => ({
+    subject: 'calendar',
+    on: `${ADDRESS} — ${name}`,
+    ...(ownName === null ? {} : { ownName }),
+    grantee,
+    role: 'read',
+    raw: JSON.stringify({ calendar: name, grantee }),
+  });
+  const scansOf = (calendars: readonly PermissionGrant[], read: { calendars: number; files: number }): InventoryScans => ({
+    scanCalendars: async () => {
+      read.calendars += 1;
+      return { kind: 'listed', grants: calendars };
+    },
+    scanDrive: async () => {
+      read.files += 1;
+      return { kind: 'listed', grants: [] };
+    },
+    delegationReason: 'delegation is not read here',
+    delegationReasonNl: 'delegation is not read here',
+  });
+
+  it('keeps only the calendars whose own name carries the marker, and reads each scan once', async () => {
+    const read = { calendars: 0, files: 0 };
+    const kept = await onlyMarkedShares(
+      scansOf([calendar('[Ownpace-test] Family', 'anna@example.com'), calendar('Work', 'boss@example.com')], read),
+      MARKER,
+    );
+
+    expect(await kept.scanCalendars()).toEqual({
+      kind: 'listed',
+      grants: [calendar('[Ownpace-test] Family', 'anna@example.com')],
+    });
+    expect(await kept.scanDrive()).toEqual({ kind: 'listed', grants: [] });
+    expect(read).toEqual({ calendars: 1, files: 1 });
+    expect(kept.refused).toBeUndefined();
+  });
+
+  it('refuses both scans when a calendar was given without its name', async () => {
+    const read = { calendars: 0, files: 0 };
+    const kept = await onlyMarkedShares(
+      scansOf([calendar('[Ownpace-test] Family', 'anna@example.com'), calendar('Shared', 'carla@example.com', null)], read),
+      MARKER,
+    );
+
+    expect(kept.refused).toEqual(A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING);
+    for (const listing of [await kept.scanCalendars(), await kept.scanDrive()]) {
+      expect(listing).toEqual({
+        kind: 'not_discoverable',
+        reason: A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.en,
+        reasonNl: A_TEST_MIGRATIONS_SHARING_NAMED_NOTHING.nl,
+      });
+    }
   });
 });

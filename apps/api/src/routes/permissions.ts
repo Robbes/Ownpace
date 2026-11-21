@@ -213,10 +213,6 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     // the caller's organisation, on the same pool as every read here.
     if (await refusedAsClosed(res, tenantId, pool())) return;
 
-    // The report measures the organisation's own DAV target again, at the
-    // address somebody typed: one test against the member's limit (0136 T3).
-    if (refusedOverTestLimit(req, res)) return;
-
     // A migration's report reads THAT migration's source and target, never
     // whatever else the organisation connected (the owner, 2026-10-03: the
     // Finish page of a Microsoft migration listed a Google migration's Drive
@@ -225,7 +221,8 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     const ofItsMigration = mappingId !== '' && asked === '';
     // Except in a test organisation (workplan 0162): that answer reads its
     // accounts whole, and a test's sharing is read per migration, only on the
-    // items its marker selects. Refused before anything is read.
+    // items its marker selects. Refused before anything is read, and before
+    // the member's test limit counts it: nothing is connected to.
     if (!ofItsMigration && (await testsWithAMarker(tenantId))) {
       res.status(409).json({
         error: 'Conflict',
@@ -235,6 +232,11 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       });
       return;
     }
+
+    // The report measures the organisation's own DAV target again, at the
+    // address somebody typed: one test against the member's limit (0136 T3).
+    if (refusedOverTestLimit(req, res)) return;
+
     const scans = ofItsMigration
       ? await migrationInventoryScans(tenantId, mappingId, mailbox)
       : await tenantInventoryScans(tenantId, mailbox);
@@ -277,6 +279,12 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
 
     res.type('text/markdown; charset=utf-8').send(markdown);
   } catch (error) {
+    // A migration deleted while its report was being made (workplan 0162):
+    // answered as a migration that is not there, never as the organisation's.
+    if (error instanceof MigrationGone) {
+      res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+      return;
+    }
     serverFault(res, 'report_failed', 'rendering the permission report', error);
   }
 });
@@ -536,27 +544,75 @@ export async function tenantInventoryScans(
  * it (`markedSharesOnly`, T2's `carriesMarker`). A grant the scan could not
  * name refuses both: `refused` is set, and each scan answers that sentence.
  * Read for every migration, fallback or not, from the migration's own row,
- * where the marker never changes.
+ * where the marker never changes, in the same statement as its source.
+ *
+ * A MIGRATION THAT IS GONE IS NOT READ AS ONE WITHOUT A MARKER (the review of
+ * #2011). Each door reads the migration's mailbox first, and a delete that
+ * lands before this statement used to find no row here: the organisation's
+ * connections were read instead, as for a mailbox that names none, and a
+ * marker read after them found nothing, so a test's report listed the whole
+ * account. The migration's own row decides now, read once with its source:
+ * absent, nothing is read, and `MigrationGone` is thrown for the door to
+ * answer 404.
  */
 export async function migrationInventoryScans(
   tenantId: string,
   mappingId: string,
   mailbox: string,
 ): Promise<InventoryScans> {
-  const scans = await sourceInventoryScans(tenantId, mappingId, mailbox);
-  const marker = await testMarkerOf(tenantId, mappingId);
+  const own = await migrationSourceOf(tenantId, mappingId);
+  if (own === undefined) throw new MigrationGone(mappingId);
+  const scans = await sourceInventoryScans(tenantId, mappingId, mailbox, own);
+  const marker = own.test_marker ?? undefined;
   return marker === undefined ? scans : onlyMarkedShares(scans, marker);
 }
 
-/** A migration's own test marker, or undefined for one that is not a test. */
-async function testMarkerOf(tenantId: string, mappingId: string): Promise<string | undefined> {
+/**
+ * A migration that is not there when its scans read its row: deleted after
+ * its door read its mailbox. Each door answers it as `scope` answers a
+ * migration that is not there, 404.
+ */
+export class MigrationGone extends Error {
+  readonly mappingId: string;
+
+  constructor(mappingId: string) {
+    super(`migration ${mappingId} is not there`);
+    this.name = 'MigrationGone';
+    this.mappingId = mappingId;
+  }
+}
+
+/** A migration's own row, as its scans read it. */
+interface MigrationSource {
+  /** Its test marker, or null for a migration that is not a test. */
+  readonly test_marker: string | null;
+  /** Its source connection's kind, or null where its source mailbox names none. */
+  readonly kind: string | null;
+  readonly config: unknown;
+  readonly secret_ref: string | null;
+  readonly override: unknown;
+  readonly mapping_secret_ref: string | null;
+  readonly grant_withdrawn_at: Date | string | null;
+}
+
+/**
+ * The migration's marker and its source connection, in one statement, or
+ * undefined when the migration is gone. Joined LEFT, so a migration whose
+ * mailbox names no connection is still found, with a null `kind`.
+ */
+async function migrationSourceOf(tenantId: string, mappingId: string): Promise<MigrationSource | undefined> {
   const rows = await inTenant(tenantId, (db) =>
-    rowsOf<{ test_marker: string | null }>(
+    rowsOf<MigrationSource>(
       db,
-      sql`SELECT test_marker FROM mailbox_mapping WHERE tenant_id = ${tenantId} AND id = ${mappingId}`,
+      sql`SELECT mm.test_marker, c.kind, c.config, c.secret_ref, mm.source_config_override AS override,
+             mm.source_secret_ref AS mapping_secret_ref, mm.grant_withdrawn_at
+       FROM mailbox_mapping mm
+       LEFT JOIN mailbox mb ON mb.id = mm.source_mailbox_id AND mb.tenant_id = mm.tenant_id
+       LEFT JOIN connection c ON c.id = mb.connection_id AND c.tenant_id = mm.tenant_id
+      WHERE mm.tenant_id = ${tenantId} AND mm.id = ${mappingId}`,
     ),
   );
-  return rows[0]?.test_marker ?? undefined;
+  return rows[0];
 }
 
 /**
@@ -602,8 +658,11 @@ function givenAgain(kept: Exclude<Kept, { readonly untied: number }>): () => Pro
  * asked, so the report states it and the rescan fails as they always did. A
  * grant either scan could not name makes both answer the refusal instead,
  * and sets `refused`, which both doors answer with before writing anything.
+ *
+ * Exported for its own test: the calendar half has no source the doors' test
+ * can fake cheaply (Graph's calendar scan reads an `o365` source).
  */
-async function onlyMarkedShares(scans: InventoryScans, marker: string): Promise<InventoryScans> {
+export async function onlyMarkedShares(scans: InventoryScans, marker: string): Promise<InventoryScans> {
   const calendars = await keptBy(scans.scanCalendars, marker);
   const drive = await keptBy(scans.scanDrive, marker);
   if ('untied' in calendars || 'untied' in drive) {
@@ -623,27 +682,10 @@ async function sourceInventoryScans(
   tenantId: string,
   mappingId: string,
   mailbox: string,
+  source: MigrationSource,
 ): Promise<InventoryScans> {
-  const rows = await inTenant(tenantId, (db) =>
-    rowsOf<{
-      kind: string;
-      config: unknown;
-      secret_ref: string | null;
-      override: unknown;
-      mapping_secret_ref: string | null;
-      grant_withdrawn_at: Date | string | null;
-    }>(
-      db,
-      sql`SELECT c.kind, c.config, c.secret_ref, mm.source_config_override AS override,
-             mm.source_secret_ref AS mapping_secret_ref, mm.grant_withdrawn_at
-       FROM mailbox_mapping mm
-       JOIN mailbox mb ON mb.id = mm.source_mailbox_id AND mb.tenant_id = mm.tenant_id
-       JOIN connection c ON c.id = mb.connection_id AND c.tenant_id = mm.tenant_id
-      WHERE mm.tenant_id = ${tenantId} AND mm.id = ${mappingId}`,
-    ),
-  );
-  const source = rows[0];
-  if (!source) {
+  const kind = source.kind;
+  if (kind === null) {
     log.warn(
       `[permissions] migration ${mappingId}: its source mailbox names no connection; ` +
         "reading the organisation's source connections instead. Fine for an organisation " +
@@ -656,7 +698,7 @@ async function sourceInventoryScans(
       notReadSaid(grantWithdrawnRefusal(new Date(source.grant_withdrawn_at))),
     );
     return {
-      ...inventoryScansFrom(mailbox, { sourceKind: source.kind, microsoftRows: [], driveRows: [], davRows: [] }),
+      ...inventoryScansFrom(mailbox, { sourceKind: kind, microsoftRows: [], driveRows: [], davRows: [] }),
       scanCalendars: async () => withdrawn,
       scanDrive: async () => withdrawn,
     };
@@ -669,19 +711,17 @@ async function sourceInventoryScans(
     config,
     credentials: () =>
       sourceCredentialsFor(
-        source.kind,
+        kind,
         'source',
         storedCredentials(source.secret_ref, config),
         source.mapping_secret_ref,
       ),
   };
   return inventoryScansFrom(mailbox, {
-    sourceKind: source.kind,
-    microsoftRows: microsoftSourceKinds().includes(source.kind)
-      ? [{ kind: source.kind, config }]
-      : [],
-    driveRows: connectionKindsWithFace('file', 'google-drive').includes(source.kind) ? [own] : [],
-    davRows: source.kind === 'nextcloud' || source.kind === 'webdav' ? [own] : [],
+    sourceKind: kind,
+    microsoftRows: microsoftSourceKinds().includes(kind) ? [{ kind, config }] : [],
+    driveRows: connectionKindsWithFace('file', 'google-drive').includes(kind) ? [own] : [],
+    davRows: kind === 'nextcloud' || kind === 'webdav' ? [own] : [],
   });
 }
 
