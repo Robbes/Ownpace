@@ -18,9 +18,13 @@
  *    to the unmarked name either: nothing is copied under that name, and no
  *    move pairs with it;
  *  - a rename between two MARKED names is still reported as a relocation, as
- *    in any migration, so the owner can still tidy a test target;
+ *    in any migration, so the owner can still tidy a test target, while a
+ *    file renamed out of the marker in the same pass is not, and an unmarked
+ *    file beside them is never copied;
  *  - a marked file the owner deletes goes to Drive's bin, and reaches the
- *    queue at once on that evidence, which an apply may act on (§6 step 5).
+ *    queue at once on that evidence, which an apply may act on (§6 step 5),
+ *    and on no absence of its own; an unmarked file binned beside it names
+ *    nothing.
  *
  * The same rename in a migration that is not a test is the contrast: there
  * the renamed file is listed, copied under its new name, and paired with the
@@ -65,6 +69,8 @@ interface FakeFile {
  * A one-folder Drive whose files a test changes between passes, answered by
  * the query shapes the connector sends (as `drive-move-detection` does), so a
  * change in how it asks is a loud 404 rather than a quietly wrong answer.
+ * Each file's bytes are its own (`B:` and its id, five bytes as listed), so a
+ * rename pairs only with the file it is.
  */
 function fakeDrive(initial: FakeFile[]) {
   const state = { files: initial, trash: [] as FakeFile[] };
@@ -81,7 +87,10 @@ function fakeDrive(initial: FakeFile[]) {
     if (url.includes('/files/root?fields=id')) return ok({ id: 'drive-root' });
     if (decoded.includes("mimeType='application/vnd.google-apps.folder'")) return ok({ files: [] });
     if (decoded.includes("mimeType!='application/vnd.google-apps.folder'")) return ok({ files: state.files });
-    if (url.includes('alt=media')) return ok({}, new Uint8Array([66, 89, 84, 69, 83]));
+    if (url.includes('alt=media')) {
+      const id = decodeURIComponent(/\/files\/([^?]+)\?alt=media/.exec(url)?.[1] ?? '');
+      return ok({}, new TextEncoder().encode(`B:${id}`));
+    }
     if (url.includes('?fields=id,name,mimeType')) {
       const id = /\/files\/([^?]+)\?/.exec(url)?.[1];
       const file = state.files.find((f) => f.id === id);
@@ -134,6 +143,9 @@ function migration(transport: ReturnType<typeof fakeDrive>['transport'], marker:
 }
 
 const MARKED: FakeFile = { id: 'f-1', name: '[Ownpace-test] report.pdf', size: '5', md5Checksum: 'md5-same' };
+/** A second marked file, and an unmarked control beside them. */
+const OTHER: FakeFile = { id: 'f-2', name: '[Ownpace-test] notes.pdf', size: '5', md5Checksum: 'md5-notes' };
+const CONTROL: FakeFile = { id: 'f-3', name: 'Taxes.pdf', size: '5', md5Checksum: 'md5-taxes' };
 
 describe('a test migration, when the owner takes the marker out of a file’s name', () => {
   it('reports no deletion and no relocation, however many passes run, and the copy stays', async () => {
@@ -177,12 +189,14 @@ describe('a test migration, when the owner takes the marker out of a file’s na
 });
 
 describe('a test migration, with the marker kept', () => {
-  it('reports a rename between two marked names as a relocation, as any migration does', async () => {
-    const { state, transport } = fakeDrive([MARKED]);
+  it('reports a rename between two marked names as a relocation, as any migration does, and nothing for one renamed out of the marker beside it', async () => {
+    const { state, transport } = fakeDrive([MARKED, OTHER, CONTROL]);
     const m = migration(transport, MARKER);
-    await m.pass();
+    // The unmarked control is never copied.
+    expect((await m.pass()).created).toBe(2);
 
-    state.files = [{ ...MARKED, name: '[Ownpace-test] summary.pdf' }];
+    // In one pass: one rename keeps the marker, the other takes it out.
+    state.files = [{ ...MARKED, name: '[Ownpace-test] summary.pdf' }, { ...OTHER, name: 'notes.pdf' }, CONTROL];
     const r = await m.pass();
 
     expect(r.created).toBe(1);
@@ -192,15 +206,27 @@ describe('a test migration, with the marker kept', () => {
       naturalKeyHash: fileNaturalKeyHash('[Ownpace-test] report.pdf'),
       toNaturalKeyHash: fileNaturalKeyHash('[Ownpace-test] summary.pdf'),
     });
+    // The one renamed out of the marker is neither drift nor a deletion, and
+    // its copy stays; nothing is copied under an unmarked name.
+    expect(r.drift).toBe(0);
+    expect(r.deletions).toEqual([]);
+    expect([...m.target.stored.keys()].sort()).toEqual([
+      't/root:[Ownpace-test] notes.pdf',
+      't/root:[Ownpace-test] report.pdf',
+      't/root:[Ownpace-test] summary.pdf',
+    ]);
   });
 
-  it('puts a marked file the owner binned in the queue at once, on evidence an apply may act on', async () => {
-    const { state, transport } = fakeDrive([MARKED]);
+  it('puts a marked file the owner binned in the queue at once, on evidence an apply may act on, and nothing for an unmarked one binned beside it', async () => {
+    const { state, transport } = fakeDrive([MARKED, CONTROL]);
     const m = migration(transport, MARKER);
-    await m.pass();
+    expect((await m.pass()).created).toBe(1);
 
     state.files = [];
-    state.trash = [{ ...MARKED, parents: ['drive-root'] }];
+    state.trash = [
+      { ...MARKED, parents: ['drive-root'] },
+      { ...CONTROL, parents: ['drive-root'] },
+    ];
     const r = await m.pass();
 
     expect(r.deletions).toHaveLength(1);
@@ -208,8 +234,11 @@ describe('a test migration, with the marker kept', () => {
       naturalKeyHash: fileNaturalKeyHash('[Ownpace-test] report.pdf'),
       evidence: 'trashed',
       confirmed: true,
+      absentPasses: 0,
     });
     expect(mayOfferApply(r.deletions[0]!, [])).toBe(true);
+    // On the bin's evidence alone: a marked listing counts no absence.
+    expect(r.drift).toBe(0);
   });
 });
 

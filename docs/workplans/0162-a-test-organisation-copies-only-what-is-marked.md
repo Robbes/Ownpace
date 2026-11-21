@@ -2,7 +2,71 @@
 
 > **In one line:** Testing on live with a real account: an organisation the operator marks as a test copies only the items whose title carries its marker, such as `[Ownpace-test]`, filtered where the source is first listed, and its migrations can never be finished or switched over.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21: two review findings on T2 fixed on its branch, and three prerequisites for T1
+recorded.** Still not merged, and still inert: nothing sets the column.
+
+- **An item still at the source is no deletion under a marker (§2 (f)).** An event whose title
+  carried the marker was copied, the marker was taken out of its title, and it then moved to
+  another calendar. The calendar it left reported its address removed, the one it is in listed
+  it, and the wrapper set it aside, so the pass had not seen its key: it recorded a deletion with
+  the evidence `reported`, the kind an apply may act on. The same account without a marker
+  reports a move and no deletion. Contacts and tasks whose sources report removals took the same
+  path. Now the wrapper hands back what it sets aside (`unmarked` carries the items, no longer
+  only their number), the pass keys them with its own `naturalKey`, and the two conclusions that
+  rest on whether an item was seen alive, a removal the source reports and a key in the owner's
+  bin, count those keys as seen. Nothing else reads them: a file's absence and a former name are
+  decided as before, and nothing about a set-aside item is written. Its copy stays where it was
+  last copied, and no move is recorded for it, since the test no longer copies it. Without a
+  marker no listing carries `unmarked`, the set of set-aside keys is empty, and the pass does
+  what it did.
+  - Proof, in `a-test-migration-copies-only-what-is-marked`, for events, tasks and contacts
+    through the real wrapper and passes: copied, marker taken out, moved gives no deletion and no
+    move, and the copy keeps its last marked title; without a marker the same three steps give
+    `moved: 1` and no deletion; and an item whose marker was taken out and that is then deleted
+    at the source is still reported. With the fix reverted the first fails for all three
+    (`expected [ 'reported' ] to deeply equal []`), and so do two cases in
+    `what-a-marker-changes-in-the-loop`: the removal case, now with an item that left the marked
+    set and moved, and a new bin case, a message listed again under its id without the marker
+    while its marked copy is in the bin (`[ 'trashed' ]`): 5 of 52 fail. Each half taken out
+    alone is caught: the removals (4 of 52), the bin (1 of 52), the keys never gathered (5 of 52).
+- **Tests that passed with the feature removed now fail.** With the four `markedOnly*` factories
+  returning the bare source and the pass's changes reverted (`domain-sync.ts`, `dav-sync.ts` and
+  `reconcile.ts` as at `bf9ede75`), 19 of the 46 cases in the three test files still passed, 10
+  of them beyond the intended controls without a marker. Each of the 10 now depends on the
+  feature:
+  - `what-a-marker-changes-in-the-loop`: the rename between two marked names runs beside a file
+    renamed out of the marker in the same pass (no drift, never a deletion); the binned file is
+    `trashed` on that evidence alone over two passes (no drift, `absentPasses` 0); the removal
+    case holds the item that left the marked set. Its fixture answers every key a folder holds
+    only for files, as the passes do: for the other data types that listing had shown the loop
+    test the key the wrapper set aside, which hid the defect above.
+  - `a-test-migration-copies-only-what-is-marked`: the cursor case asserts that nothing was
+    created and nothing recorded, for all five data types.
+  - `a-file-renamed-out-of-the-marker`: the rename between two marked names runs beside a file
+    renamed out of the marker and an unmarked control; the binned file beside a binned unmarked
+    control, with no absence counted. Each fake file has its own bytes, so a rename pairs only
+    with the file it is.
+
+  The same removal of the feature now fails 44 of 57; the 13 that pass are the controls without
+  a marker, 4 of them new. Every file was restored byte for byte (`cmp`) after each mutation.
+- **For T1, before any marker can be set:**
+  1. **The sharing rescan is not filtered by the marker.** `POST
+     /api/migrations/:mappingId/sharing/rescan` reads the migration's source through
+     `migrationInventoryScans` (`apps/api/src/routes/permissions.ts`), whose `scanDrive` lists a
+     Google Drive source's shares (`listOwnedShareGrants`) or a Nextcloud or WebDAV source's
+     (`scanNextcloudShares`), and saves them through `upsertShareGrants` into `share_grant`: each
+     shared item's label, its grantee and the role, for the whole account. The permission report
+     (`GET /api/permissions/report`) reads the same scans and returns them as text. Neither goes
+     through the builders, so neither is wrapped.
+  2. **Not confirmed: a Dropbox rename and the bin.** A file renamed in Dropbox may leave a
+     tombstone (`.tag: "deleted"`) at its old path, which `listTrashedPaths` lists. Under a marker
+     the bin filter keeps it by its old, marked name, so a file renamed out of the marker would
+     reach the queue as `trashed` while it is still there.
+  3. **Every IMAP message carries its subject in memory.** `imapflow-source.ts` attaches
+     `subject` from the envelope to every listed message of every IMAP migration, marked or not,
+     test or not. Nothing stores it.
 
 **2026-11-20: T2 built, with the ledger column it reads; nothing sets the column yet.** The first
 of two pull requests, on branch `claude/ownpace-public-readiness-y7orc6-test-scope-filter`, not
@@ -98,8 +162,8 @@ Nothing was built with it.
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** | §2, agreed as written. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
-| T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. |
-| T2 The marker where the source is first listed | builder | 🔨 **Built 2026-11-20, inert until T1 sets the column** | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`; the column it reads (ledger 0070). Not merged. The E2E smoke waits for T1. |
+| T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. Three things to settle before any marker is set: Status, 2026-11-21. |
+| T2 The marker where the source is first listed | builder | 🔨 **Built 2026-11-20, inert until T1 sets the column** | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`, and since 2026-11-21 a set-aside item counted as seen by the removals and the bin; the column it reads (ledger 0070). Not merged. The E2E smoke waits for T1. |
 | T3 Never finished, never switched over | builder | 📋 **Planned** | §5. Finish, ending or keeping a data type, the cutover gate and the cutover commands refuse a test migration and name the reason; it ends by being deleted. |
 | T4 The scenarios on live | owner | 📋 **Proposed** | §6. Marked items and an unmarked control of each data type in a real Google account; copy, change, delete and a lost marker, each watched at the target and in the guest's inbox. |
 | T5 Asking Google first | builder | 🅿️ **Parked** | §7. Server-side search, so that Ownpace never reads an unmarked title. Trigger: a test account too large to list whole, or the owner asking for it. |

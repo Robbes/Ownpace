@@ -26,8 +26,12 @@
  *
  * ## What it changes in a listing, and what it leaves alone
  *
- * `items` loses what is not marked, and `unmarked` says how many, so a first
- * read the marker emptied still stores its cursor (`firstReadSawNothing`).
+ * `items` loses what is not marked, and `unmarked` hands back what it set
+ * aside, for two questions the loop asks and nothing else: whether there was
+ * any, so a first read the marker emptied still stores its cursor
+ * (`firstReadSawNothing`); and their keys, so an item still at the source is
+ * never resolved as deleted because the collection it left reported it
+ * removed, or its bin holds its key (§2 (f)). Nothing about them is stored.
  * Everything else a listing carries passes through as it came: `removed`
  * above all, unfiltered, because a removal names no title and the loop already
  * skips a key the ledger never copied (`resolveReportedRemovals`, `if (!row)
@@ -58,7 +62,9 @@
  * ## What it reads (§7)
  *
  * Only titles the listings already return. It keeps none that is unmarked:
- * nothing here stores, logs or writes one.
+ * nothing here stores, logs or writes one, and the loop reads what it hands
+ * back as `unmarked` for their keys, holds those for the pass, and writes
+ * none of them anywhere.
  */
 
 import type {
@@ -276,10 +282,20 @@ const MAIL_MEASURES = ['measureMailbox', 'countMessages'] as const;
 /** Files' measures and listings asked for by name, forwarded as they are. */
 const FILE_EXTRAS = ['nativeRefusals', 'storageUsage', 'listTopLevelFolders'] as const;
 
-/** How many the marker set aside, beside any an inner wrapper already counted. */
-function setAside(listed: number, kept: number, already: number | undefined): { unmarked?: number } {
-  const unmarked = (already ?? 0) + (listed - kept);
-  return unmarked > 0 ? { unmarked } : {};
+/**
+ * A listing's items split by the marker: those it keeps, and those it sets
+ * aside, after any an inner wrapper already set aside. The second are handed
+ * back as `unmarked`, and only when there are some.
+ */
+function byMarker<T>(
+  listed: ReadonlyArray<T>,
+  carries: (item: T, n: number) => boolean,
+  already: ReadonlyArray<T> | undefined,
+): { items: T[]; unmarked?: ReadonlyArray<T> } {
+  const items: T[] = [];
+  const unmarked: T[] = [...(already ?? [])];
+  listed.forEach((item, n) => (carries(item, n) ? items : unmarked).push(item));
+  return unmarked.length > 0 ? { items, unmarked } : { items };
 }
 
 // ---------------------------------------------------------------------------
@@ -306,16 +322,11 @@ export class MarkedOnlyMail implements SourceConnector {
 
   async listSince(folder: MailFolder, cursor?: SyncCursor): ReturnType<SourceConnector['listSince']> {
     const listed = await this.inner.listSince(folder, cursor);
-    const items = listed.items.filter((item) => carriesMarker(item.subject, this.marker));
-    // Promised a copy under a generated id: only what is kept will get one.
-    const unkeyable = items.filter((item) => !item.messageId).length;
     const { items: _all, unkeyable: _counted, unmarked, ...rest } = listed;
-    return {
-      ...rest,
-      items,
-      ...(unkeyable > 0 ? { unkeyable } : {}),
-      ...setAside(listed.items.length, items.length, unmarked),
-    };
+    const split = byMarker(listed.items, (item) => carriesMarker(item.subject, this.marker), unmarked);
+    // Promised a copy under a generated id: only what is kept will get one.
+    const unkeyable = split.items.filter((item) => !item.messageId).length;
+    return { ...rest, ...split, ...(unkeyable > 0 ? { unkeyable } : {}) };
   }
 
   fetch(item: MailItem): Promise<RawMessage> {
@@ -341,9 +352,8 @@ export class MarkedOnlyCalendar implements CalendarSource {
   async listSince(folder: CalendarFolder, cursor?: SyncCursor): ReturnType<CalendarSource['listSince']> {
     const listed = await this.inner.listSince(folder, cursor);
     const titles = calendarTitles(listed.items);
-    const items = listed.items.filter((_item, n) => carriesMarker(titles[n], this.marker));
     const { items: _all, unmarked, ...rest } = listed;
-    return { ...rest, items, ...setAside(listed.items.length, items.length, unmarked) };
+    return { ...rest, ...byMarker(listed.items, (_item, n) => carriesMarker(titles[n], this.marker), unmarked) };
   }
 }
 
@@ -369,9 +379,8 @@ export class MarkedOnlyContacts implements ContactSource {
 
   async listSince(folder: ContactFolder, cursor?: SyncCursor): ReturnType<ContactSource['listSince']> {
     const listed = await this.inner.listSince(folder, cursor);
-    const items = listed.items.filter((item) => carriesMarker(contactTitle(item), this.marker));
     const { items: _all, unmarked, ...rest } = listed;
-    return { ...rest, items, ...setAside(listed.items.length, items.length, unmarked) };
+    return { ...rest, ...byMarker(listed.items, (item) => carriesMarker(contactTitle(item), this.marker), unmarked) };
   }
 }
 
@@ -413,9 +422,11 @@ export class MarkedOnlyFiles implements FileSource {
 
   async listSince(folder: FileFolder, cursor?: SyncCursor): ReturnType<FileSource['listSince']> {
     const listed = await this.inner.listSince(folder, cursor);
-    const items = listed.items.filter((raw: RawFileItem) => carriesMarker(fileTitle(raw.item), this.marker));
     const { items: _all, unmarked, ...rest } = listed;
-    return { ...rest, items, ...setAside(listed.items.length, items.length, unmarked) };
+    return {
+      ...rest,
+      ...byMarker(listed.items, (raw: RawFileItem) => carriesMarker(fileTitle(raw.item), this.marker), unmarked),
+    };
   }
 
   fetch(item: FileItem): Promise<RawFileItem> {

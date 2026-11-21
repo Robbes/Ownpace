@@ -202,7 +202,7 @@ describe('mail', () => {
       fetch: async (item: MailItem) => ({ item, rfc822: new Uint8Array() }),
     }) as SourceConnector;
 
-  it('keeps the marked messages, counts the rest, and passes removals and the unlisted through untouched', async () => {
+  it('keeps the marked messages, hands back the rest, and passes removals and the unlisted through untouched', async () => {
     const source = new MarkedOnlyMail(
       inner([message(1, '[Ownpace-test] a'), message(2, 'private'), message(3, undefined), message(4, 'Re: [ownpace-TEST] b')], {
         removed: ['INBOX:9', 'INBOX:10'],
@@ -212,7 +212,8 @@ describe('mail', () => {
     );
     const listed = await source.listSince(INBOX);
     expect(listed.items.map((i) => i.sourceRef)).toEqual(['INBOX:1', 'INBOX:4']);
-    expect(listed.unmarked).toBe(2);
+    // Handed back for their keys, which the loop asks of a removal or the bin.
+    expect(listed.unmarked?.map((i) => i.sourceRef)).toEqual(['INBOX:2', 'INBOX:3']);
     expect(listed.removed).toEqual(['INBOX:9', 'INBOX:10']);
     expect(listed.unlisted).toBe(2);
     expect(listed.nextCursor).toEqual({ value: 'c' });
@@ -227,7 +228,7 @@ describe('mail', () => {
     expect(listed.unkeyable).toBe(1);
     const none = await new MarkedOnlyMail(inner([message(2, 'private', '')], { unkeyable: 1 }), MARKER).listSince(INBOX);
     expect(none.unkeyable).toBeUndefined();
-    expect(none.unmarked).toBe(1);
+    expect(none.unmarked?.map((i) => i.sourceRef)).toEqual(['INBOX:2']);
   });
 
   it('says nothing about setting aside when nothing was set aside', async () => {
@@ -267,7 +268,7 @@ describe('events and tasks', () => {
     listSince: async () => ({ items, nextCursor: { value: 'token' }, ...extra }),
   });
 
-  it('keeps the marked, counts the rest, and passes removals and the unreadable through', async () => {
+  it('keeps the marked, hands back the rest, and passes removals and the unreadable through', async () => {
     const source = new MarkedOnlyCalendar(
       inner(
         [
@@ -281,7 +282,7 @@ describe('events and tasks', () => {
     );
     const listed = await source.listSince(FOLDER);
     expect(listed.items.map((i) => i.item.uid)).toEqual(['a', 'c']);
-    expect(listed.unmarked).toBe(1);
+    expect(listed.unmarked?.map((i) => i.item.uid)).toEqual(['b']);
     expect(listed.removed).toEqual(['/cal/work/gone.ics']);
     expect(listed.unreadable).toBe(1);
     expect(source.markedOnly).toBe(true);
@@ -304,7 +305,7 @@ describe('contacts', () => {
     const without = new MarkedOnlyContacts(base, MARKER);
     const listed = await without.listSince(FOLDER);
     expect(listed.items.map((i) => i.item.uid)).toEqual(['a']);
-    expect(listed.unmarked).toBe(1);
+    expect(listed.unmarked?.map((i) => i.item.uid)).toEqual(['b']);
     expect(listed.removed).toEqual(['/ab/gone.vcf']);
     // The loop asks `source.fetch ? …`: a fetch with nothing behind it would
     // fail every card.
@@ -322,6 +323,23 @@ describe('contacts', () => {
     const withFetch = new MarkedOnlyContacts(new WithPhotos(), MARKER);
     const full = await withFetch.fetch!(card('a', vcard('a', '[Ownpace-test] Jo')));
     expect(full.vcard.endsWith('PHOTO')).toBe(true);
+  });
+
+  it('carries what an inner wrapper set aside, beside its own, rather than dropping it', async () => {
+    const base: ContactSource = {
+      listFolders: async () => [FOLDER],
+      listSince: async () => ({
+        items: [card('a', vcard('a', '[Ownpace-test] Jo')), card('b', vcard('b', 'Private Person'))],
+        nextCursor: { value: 't' },
+      }),
+    };
+    const twice = new MarkedOnlyContacts(new MarkedOnlyContacts(base, MARKER), 'test] Jo');
+    const listed = await twice.listSince(FOLDER);
+    expect(listed.items.map((i) => i.item.uid)).toEqual(['a']);
+    expect(listed.unmarked?.map((i) => i.item.uid)).toEqual(['b']);
+    const narrower = await new MarkedOnlyContacts(new MarkedOnlyContacts(base, MARKER), 'Annabel').listSince(FOLDER);
+    expect(narrower.items).toEqual([]);
+    expect(narrower.unmarked?.map((i) => i.item.uid)).toEqual(['b', 'a']);
   });
 });
 
@@ -360,10 +378,10 @@ describe('files', () => {
     }
   }
 
-  it('keeps the marked files, counts the rest, and passes removals and what other folders yield through', async () => {
+  it('keeps the marked files, hands back the rest, and passes removals and what other folders yield through', async () => {
     const listed = await new MarkedOnlyFiles(new FullSource(), MARKER).listSince(FOLDER);
     expect(listed.items.map((i) => i.item.path)).toEqual(['Docs/[Ownpace-test] plan.pdf']);
-    expect(listed.unmarked).toBe(1);
+    expect(listed.unmarked?.map((i) => i.item.path)).toEqual(['Docs/taxes.pdf']);
     expect(listed.removed).toEqual(['id:gone']);
     expect(listed.listedElsewhere).toBe(4);
   });

@@ -23,6 +23,11 @@
  *  - the same account WITHOUT a marker copies everything and makes every
  *    collection the first time a pass sees it, as it always did.
  *
+ * And events, tasks and contacts, whose key survives a move to another
+ * collection: one whose marker was taken out and which then moved is reported
+ * removed by the collection it left and listed, set aside, by the one it is
+ * in. It is not a deletion, and its copy stays where it was last copied
+ * (§2 (f)); the same account without a marker reports the move it always did.
  * And events: a recurring series with a moved occurrence goes by its master.
  * A file renamed out of the marker through the real Drive source is
  * `a-file-renamed-out-of-the-marker`.
@@ -108,6 +113,18 @@ class Account {
     this.tick += 1;
     this.removals.set(rec.collection, [...(this.removals.get(rec.collection) ?? []), ref]);
   }
+  /**
+   * The item moves to another collection, unchanged: the one it left reports
+   * its old handle removed (`ref`, as it was there), and the one it is in now
+   * lists it as changed.
+   */
+  move(id: string, to: string, ref: string): void {
+    const rec = this.recs.get(id)!;
+    this.removals.set(rec.collection, [...(this.removals.get(rec.collection) ?? []), ref]);
+    this.collections.add(to);
+    rec.collection = to;
+    rec.changedAt = ++this.tick;
+  }
   /** What a listing of `collection` returns: everything, or what changed since the cursor. */
   since(collection: string, cursor?: SyncCursor): Rec[] {
     const after = cursor ? Number(cursor.value) : -1;
@@ -126,13 +143,15 @@ class Account {
 /** What every data type's world answers, so each case can be asked of all five. */
 interface World {
   readonly account: Account;
+  /** The data type its ledger rows are recorded under. */
+  readonly domain: ItemDeletion['domain'];
   readonly ledger: MemoryLedger;
   readonly cursors: MemoryCursorStore;
   /** The title a renamed item gets in this data type, given the old one. */
   readonly renames: boolean;
   /** The source's own handle for an item, which a removal names. */
   ref(rec: { id: string; collection: string; title: string }): string;
-  pass(): Promise<{ created: number; deletions?: ReadonlyArray<ItemDeletion> }>;
+  pass(): Promise<{ created: number; moved?: number; deletions?: ReadonlyArray<ItemDeletion> }>;
   /** Titles on the target, by the item's id, sorted. */
   copied(): string[];
   /** Collections the target was asked to make, in order. */
@@ -208,6 +227,7 @@ function calendarWorld(marker: string | null, component: 'VEVENT' | 'VTODO'): Wo
   const deps = { tenantId: TENANT, mappingId: MAPPING, source: wrapped, target, ledger, cursors, sourceIsAuthorityOnExistence: true, stillTheAuthority: async () => true };
   return {
     account,
+    domain: component === 'VTODO' ? 'task' : 'calendar',
     ledger,
     cursors,
     renames: true,
@@ -262,7 +282,7 @@ function contactWorld(marker: string | null): World {
     sourceIsAuthorityOnExistence: true,
     stillTheAuthority: async () => true,
   };
-  return { account, ledger, cursors, renames: true, ref, pass: () => runContactSync(deps), copied: () => [...stored.values()].sort(), made: () => made };
+  return { account, domain: 'contact', ledger, cursors, renames: true, ref, pass: () => runContactSync(deps), copied: () => [...stored.values()].sort(), made: () => made };
 }
 
 function fileWorld(marker: string | null): World {
@@ -319,7 +339,7 @@ function fileWorld(marker: string | null): World {
     sourceIsAuthorityOnExistence: true,
     stillTheAuthority: async () => true,
   };
-  return { account, ledger, cursors, renames: true, ref, pass: () => runFileSync(deps), copied: () => [...stored.values()].sort(), made: () => made };
+  return { account, domain: 'file', ledger, cursors, renames: true, ref, pass: () => runFileSync(deps), copied: () => [...stored.values()].sort(), made: () => made };
 }
 
 /**
@@ -367,6 +387,7 @@ function mailWorld(marker: string | null): World {
   };
   return {
     account,
+    domain: 'email',
     ledger,
     cursors,
     renames: false,
@@ -422,8 +443,11 @@ describe.each(WORLDS)('%s, in a test migration', (_name, make) => {
     w.account.add('Private', 'p1', 'Taxes');
     w.account.add('Private', 'p2', 'Holiday');
 
-    await w.pass();
+    const r = await w.pass();
 
+    // The marker emptied this read, and the read still counts as one.
+    expect(r.created).toBe(0);
+    expect(w.ledger.size()).toBe(0);
     expect(await w.cursors.get(TENANT, MAPPING, 'Private')).toBeDefined();
   });
 
@@ -499,6 +523,73 @@ describe.each(WORLDS)('%s, in a migration that is not a test', (_name, make) => 
     expect(r.created).toBe(2);
     expect(w.copied()).toEqual(['Taxes', '[Ownpace-test] Plan']);
     expect([...w.made()].sort()).toEqual(['Empty', 'Private', 'Work']);
+  });
+});
+
+/**
+ * The data types whose key survives a move to another collection, and whose
+ * removal report names the address the move changes.
+ */
+const KEYED_ACROSS_COLLECTIONS = WORLDS.filter(([name]) => ['events', 'tasks', 'contacts'].includes(name));
+
+describe.each(KEYED_ACROSS_COLLECTIONS)('%s: an item whose marker is taken out, and which then moves to another collection', (_name, make) => {
+  /** Copied with the marker, the marker taken out of its title, then moved to another collection. */
+  async function markedThenTakenOutThenMoved(w: World) {
+    w.account.add('Work', 'a', '[Ownpace-test] Plan');
+    expect((await w.pass()).created).toBe(1);
+
+    w.account.retitle('a', 'Plan');
+    const takenOut = await w.pass();
+    expect(takenOut.deletions ?? []).toEqual([]);
+
+    w.account.move('a', 'Home', w.ref(w.account.recs.get('a')!));
+    return w.pass();
+  }
+
+  it('in a test migration, is not reported deleted, and its copy stays where it was last copied', async () => {
+    const w = make(MARKER);
+
+    const r = await markedThenTakenOutThenMoved(w);
+
+    // Still at the source, so no deletion: the old collection's removal names
+    // an item this pass listed, set aside (§2 (f)).
+    expect((r.deletions ?? []).map((d) => d.evidence)).toEqual([]);
+    // And no move either: the test does not copy it any more, so nothing is
+    // recorded about where it went, and its copy keeps the last marked title.
+    expect(r.moved ?? 0).toBe(0);
+    expect(w.copied()).toEqual(['[Ownpace-test] Plan']);
+    expect(w.made()).toEqual(['Work']);
+    // The row still names the address it was copied from, where its copy is.
+    const row = (await w.ledger.findBySourceRef(TENANT, MAPPING, w.domain, w.ref({ id: 'a', collection: 'Work', title: '' })))!;
+    expect(row.status).toBe('copied');
+    expect(row.collection).toBe('Work');
+    expect(row.deletionReportedAt).toBeUndefined();
+    expect(row.movedToCollection).toBeUndefined();
+  });
+
+  it('in a migration that is not a test, is the move it always was, and not a deletion', async () => {
+    const w = make(null);
+
+    const r = await markedThenTakenOutThenMoved(w);
+
+    expect((r.deletions ?? []).map((d) => d.evidence)).toEqual([]);
+    expect(r.moved).toBe(1);
+  });
+
+  it('in a test migration, is reported once it is deleted at the source instead of moved', async () => {
+    const w = make(MARKER);
+    w.account.add('Work', 'a', '[Ownpace-test] Plan');
+    await w.pass();
+    w.account.retitle('a', 'Plan');
+    await w.pass();
+
+    // A real deletion still reaches the queue, marker or not (§2 (f)); the
+    // copy keeps the last marked title, as the taking out left it.
+    w.account.remove('a', w.ref(w.account.recs.get('a')!));
+    const r = await w.pass();
+
+    expect((r.deletions ?? []).map((d) => d.evidence)).toEqual(['reported']);
+    expect(w.copied()).toEqual(['[Ownpace-test] Plan']);
   });
 });
 

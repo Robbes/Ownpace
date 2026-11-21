@@ -5,9 +5,9 @@
  * (workplan 0162 §4; the owner's decisions of 2026-11-20, §2).
  *
  * A test migration's source lists only the items whose own title carries its
- * marker (`MarkedOnly`, packages/orchestration), says how many it set aside
+ * marker (`MarkedOnly`, packages/orchestration), hands back what it set aside
  * (`unmarked`), and says that it does (`markedOnly`). The loop has to meet it
- * in three places, and this holds each, through the real `runDomainSync` with
+ * in four places, and this holds each, through the real `runDomainSync` with
  * memory stores, beside the same pass without a marker, which must not change:
  *
  *  1. a first read the marker emptied stores its cursor, where a first read
@@ -18,7 +18,11 @@
  *  3. a file that leaves the marked set (renamed out of the marker) is neither
  *     drift nor, passes later, an inferred deletion (§2 (f)), while a rename
  *     between two marked names is still reported as a move, and a deletion the
- *     source states (its bin, its removal report) still reaches the queue.
+ *     source states (its bin, its removal report) still reaches the queue;
+ *  4. an item the marker set aside is still at the source: a removal its old
+ *     collection reports, or its key in the bin, is no deletion while this pass
+ *     lists it, set aside (§2 (f)), as it is none without a marker, where the
+ *     same item is listed and processed.
  *
  * The listing here plays the wrapper's part by hand, so what is under test is
  * the loop's side of the contract; the wrapper's own side, through the real
@@ -60,11 +64,13 @@ type Folder = { path: string };
  * A source whose folders a test rearranges between passes, a target that
  * records its own rows (as the real writers do), and the choice of whether
  * this migration is a test's. With a marker the listing does what `MarkedOnly`
- * does: keeps the marked items, counts the rest as `unmarked`, and says
- * `markedOnly`. `listCollectionKeys` answers every key a folder holds, marked
- * or not, as a wrapped file source's unfiltered `listKeys` does.
+ * does: keeps the marked items, hands the rest back as `unmarked`, and says
+ * `markedOnly`. For files, `listCollectionKeys` answers every key a folder
+ * holds, marked or not, as a wrapped file source's unfiltered `listKeys` does;
+ * the other data types have none, as in the real passes, so what the loop
+ * knows of an item set aside there is only what `unmarked` hands back.
  */
-function world(opts: { marker: boolean; domain?: 'file' | 'calendar' }) {
+function world(opts: { marker: boolean; domain?: 'file' | 'calendar' | 'email' }) {
   const domain = opts.domain ?? 'file';
   const folders = new Map<string, Item[]>();
   const target = new Map<string, string>();
@@ -91,16 +97,19 @@ function world(opts: { marker: boolean; domain?: 'file' | 'calendar' }) {
       listSince: async (folder) => {
         const all = folders.get(folder.path) ?? [];
         const items = opts.marker ? all.filter((i) => i.marked) : all;
+        const unmarked = opts.marker ? all.filter((i) => !i.marked) : [];
         const removed = removals.get(folder.path);
         removals.delete(folder.path);
         return {
           items,
           nextCursor: { value: `listed:${folder.path}` },
           ...(removed ? { removed } : {}),
-          ...(all.length > items.length ? { unmarked: all.length - items.length } : {}),
+          ...(unmarked.length > 0 ? { unmarked } : {}),
         };
       },
-      listCollectionKeys: async (folder) => (folders.get(folder.path) ?? []).map((i) => i.key),
+      ...(domain === 'file'
+        ? { listCollectionKeys: async (folder: Folder) => (folders.get(folder.path) ?? []).map((i) => i.key) }
+        : {}),
       listDiscardedKeys: async (): Promise<DiscardedListing> => ({ keys: [...bin], unnameable: 0 }),
       fetchRaw: async (i) => ({ raw: i.body, sizeBytes: i.body.length }),
       upsert: async (collectionId, raw, i, options): Promise<UpsertResult> => {
@@ -134,7 +143,7 @@ function world(opts: { marker: boolean; domain?: 'file' | 'calendar' }) {
 }
 
 const marked = (key: string, body = key, ref?: string): Item => ({ key, body, marked: true, ...(ref ? { ref } : {}) });
-const plain = (key: string, body = key): Item => ({ key, body, marked: false });
+const plain = (key: string, body = key, ref?: string): Item => ({ key, body, marked: false, ...(ref ? { ref } : {}) });
 
 describe('1. a first read the marker emptied stores its cursor', () => {
   it('stores it, so the collection is not listed whole again on every pass', async () => {
@@ -235,12 +244,13 @@ describe('3. a file that leaves the marked set', () => {
     ]);
   });
 
-  it('renamed between two marked names, is still reported as a move', async () => {
+  it('renamed between two marked names, is still reported as a move, beside one renamed out of the marker that is not', async () => {
     const w = world({ marker: true });
-    w.folders.set('Docs', [marked('Docs/[Ownpace-test] a.pdf', 'SAME')]);
+    w.folders.set('Docs', [marked('Docs/[Ownpace-test] a.pdf', 'SAME'), marked('Docs/[Ownpace-test] c.pdf', 'C')]);
     await w.pass();
 
-    w.folders.set('Docs', [marked('Docs/[Ownpace-test] b.pdf', 'SAME')]);
+    // In the same pass: one rename keeps the marker, the other takes it out.
+    w.folders.set('Docs', [marked('Docs/[Ownpace-test] b.pdf', 'SAME'), plain('Docs/c.pdf', 'C')]);
     const r = await w.pass();
 
     expect(r.created).toBe(1);
@@ -253,35 +263,100 @@ describe('3. a file that leaves the marked set', () => {
         toNaturalKeyHash: 'Docs/[Ownpace-test] b.pdf',
       },
     ]);
+    // The pairing runs before the marker's rule, and the rule still holds for
+    // the file nothing paired: no drift, and never an inferred deletion.
+    expect(r.drift).toBe(0);
+    expect(r.deletions).toEqual([]);
+    for (let n = 1; n <= DELETION_CONFIRMATIONS; n += 1) {
+      const later = await w.pass();
+      expect(later.drift, `pass ${n}`).toBe(0);
+      expect(later.deletions, `pass ${n}`).toEqual([]);
+    }
   });
 
-  it('deleted into the bin, still reaches the queue on that evidence', async () => {
+  it('deleted into the bin, still reaches the queue on that evidence, and on no absence of its own', async () => {
     const w = world({ marker: true });
     w.folders.set('Docs', [marked('Docs/[Ownpace-test] gone.pdf')]);
     await w.pass();
 
     w.folders.set('Docs', []);
     w.bin.push('Docs/[Ownpace-test] gone.pdf');
-    const r = await w.pass();
-
-    expect(r.deletions.map((d) => [d.naturalKeyHash, d.evidence])).toEqual([
-      ['Docs/[Ownpace-test] gone.pdf', 'trashed'],
-    ]);
+    for (let n = 1; n <= DELETION_CONFIRMATIONS; n += 1) {
+      const r = await w.pass();
+      // The bin is the evidence, and the only one: a marked listing counts no
+      // absence, so the file is never drift and its run of absences stays 0.
+      expect(r.deletions.map((d) => [d.naturalKeyHash, d.evidence, d.absentPasses]), `pass ${n}`).toEqual([
+        ['Docs/[Ownpace-test] gone.pdf', 'trashed', 0],
+      ]);
+      expect(r.drift, `pass ${n}`).toBe(0);
+    }
   });
 
-  it('a removal the source reports reaches the queue for a marked copy, and names nothing for one never copied', async () => {
+  it('a removal the source reports reaches the queue for a marked copy, and names nothing for one never copied or one still listed outside the marked set', async () => {
     const w = world({ marker: true, domain: 'calendar' });
-    w.folders.set('Cal', [marked('uid-marked', 'M', '/cal/marked.ics'), plain('uid-plain', 'P')]);
+    w.folders.set('Cal', [
+      marked('uid-marked', 'M', '/cal/marked.ics'),
+      plain('uid-plain', 'P'),
+      marked('uid-moved', 'V', '/cal/moved.ics'),
+    ]);
     await w.pass();
 
-    // Both are deleted at the source, and its report names both hrefs: the
-    // listing passes removals through unfiltered, and the loop skips the one
-    // it never copied.
+    // Two are deleted at the source. The third had its marker taken out and
+    // then moved to another calendar, which lists it at a new href, set
+    // aside. The calendar they left reports all three hrefs: the listing
+    // passes removals through unfiltered, the loop skips the one it never
+    // copied, and the one still at the source is not a deletion (§2 (f)).
     w.folders.set('Cal', []);
-    w.removals.set('Cal', ['/cal/marked.ics', '/cal/plain.ics']);
+    w.folders.set('Home', [plain('uid-moved', 'V', '/home/moved.ics')]);
+    w.removals.set('Cal', ['/cal/marked.ics', '/cal/plain.ics', '/cal/moved.ics']);
     const r = await w.pass();
 
     expect(r.deletions.map((d) => [d.naturalKeyHash, d.evidence])).toEqual([['uid-marked', 'reported']]);
     expect(await w.ledger.find(TENANT, MAPPING, 'calendar', 'uid-plain')).toBeUndefined();
+    // Its copy stays where it was last copied: nothing is recorded about it,
+    // neither a deletion nor a move, since the test no longer copies it.
+    expect(r.moved).toBe(0);
+    const left = await w.ledger.find(TENANT, MAPPING, 'calendar', 'uid-moved');
+    expect(left?.status).toBe('copied');
+    expect(left?.collection).toBe('Cal');
+    expect(left?.deletionReportedAt).toBeUndefined();
+    expect(left?.movedToCollection).toBeUndefined();
+    expect(w.madeReady).toEqual(['Cal']);
+  });
+});
+
+describe('4. an item the marker set aside is still at the source', () => {
+  it('without a marker, the same item moved is the move it always was, and not a deletion', async () => {
+    // The contrast for the case above, and what a marker must not add to: the
+    // item is listed in its new calendar, processed, and recorded as moved.
+    const w = world({ marker: false, domain: 'calendar' });
+    w.folders.set('Cal', [marked('uid-moved', 'V', '/cal/moved.ics')]);
+    await w.pass();
+
+    w.folders.set('Cal', []);
+    w.folders.set('Home', [plain('uid-moved', 'V', '/home/moved.ics')]);
+    w.removals.set('Cal', ['/cal/moved.ics']);
+    const r = await w.pass();
+
+    expect(r.deletions.map((d) => d.evidence)).toEqual([]);
+    expect(r.moved).toBe(1);
+  });
+
+  it('a key the bin holds is not trashed while this pass lists it set aside, as it is not without a marker', async () => {
+    for (const marker of [true, false]) {
+      const w = world({ marker, domain: 'email' });
+      w.folders.set('INBOX', [marked('<plan@example.test>', 'first')]);
+      await w.pass();
+
+      // Its subject edited, the marker taken out: the message is listed again
+      // under the same id, and the copy that carried the marker is in the bin.
+      w.folders.set('INBOX', [plain('<plan@example.test>', 'edited')]);
+      w.bin.push('<plan@example.test>');
+      const r = await w.pass();
+
+      expect(r.deletions.map((d) => d.evidence), `marker: ${marker}`).toEqual([]);
+      const row = await w.ledger.find(TENANT, MAPPING, 'email', '<plan@example.test>');
+      expect(row?.deletionTrashedAt, `marker: ${marker}`).toBeUndefined();
+    }
   });
 });
