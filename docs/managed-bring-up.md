@@ -3408,7 +3408,17 @@ Trigger.dev's own cloud only, to Attio, off while `ATTIO_API_KEY` is unset.
 `env.server.ts`'s new keys name no third party. One route new in v4.8.4,
 `/api/v1/trusted-deploys/*`, fetches GitHub's signing keys from
 `token.actions.githubusercontent.com` to check a bearer token a caller sends:
-only on such a request, and nothing here sends one.
+only on such a request, and nothing here sends one. v4.8.8, read with v4.8.6
+and v4.8.7, keeps `postAuth.server.ts`, `usePostHog.ts`, `root.tsx`, the
+entrypoint and the Dockerfile as v4.8.5 had them. `telemetry.server.ts` adds
+one event, from the remote MCP server new in this range, through the same
+client the opt-out leaves unmade; that server answers at `/mcp` only with
+`MCP_SERVER_ENABLED`, which is off by default and not set here. An OAuth
+client of it can be named by an https address, whose metadata the webapp then
+fetches (public addresses only, no redirect, 64 KiB at most): a host the
+requester names, only on such a request. Of `env.server.ts`'s new keys only
+`ATTIO_MEMBER_SYNC_ENABLED` names a third party, and its client exists only
+with `ATTIO_API_KEY`, which stays unset.
 
 `trigger-tls` has no telemetry; its one default that leaves the machine is
 automatic HTTPS, which asks a public certificate authority, and
@@ -3501,12 +3511,12 @@ on an arm64 runner and scans what it built, under the name it always had,
 `goaccess`.
 
 The deploy CLI, which runs on the host, was read only this far: at 4.5.16,
-4.7.2, 4.7.6, 4.8.1, 4.8.3 and 4.8.5 its `src/telemetry/tracing.ts` is gone, and no
+4.7.2, 4.7.6, 4.8.1, 4.8.3, 4.8.5 and 4.8.8 its `src/telemetry/tracing.ts` is gone, and no
 exporter of its own was found; its one PostHog client (4.5.16 had none) is the
 MCP server's feedback tool (`src/mcp/telemetry.ts`), which `deploy` never
 starts. The one host 4.8.3's `dist/esm` names that 4.8.1's did not is
 `http://127.0.0.1`, the loopback its new login listens on for the browser's
-answer. 4.8.5's `dist/esm` names the same hosts as 4.8.3's.
+answer. 4.8.5's `dist/esm` names the same hosts as 4.8.3's, and 4.8.8's as 4.8.5's.
 The integration tests' throwaway Nextcloud and Stalwart, which Testcontainers
 starts on a CI runner, are not switched.
 
@@ -6463,14 +6473,14 @@ libsystemd0 and libudev1 too, systemd's two libraries, which
 only apt, libapt-pkg6.0, util-linux and bsdutils needed there. A base where
 something still depends on one of the thirteen stops the build, since dpkg
 refuses without `--force-depends`, and so does one that renamed or dropped one
-of them. From alpha.9 both builds also remove cross-spawn 5.1.0 (CVE-2024-21538,
-high, fixed in 6.0.6) from pnpm's store, with the links
-pnpm made to it: spawndamnit 2.0.0's in both, and in the supervisor pnpm's
-hoist too, where it is the one cross-spawn. Its one requirer is spawndamnit,
-under the root's `@changesets/cli`, release tooling neither container runs;
-the webapp's other cross-spawn, 7.0.6, stays. Each build walks its image
-first, refuses any other copy of it or link into it, and checks after that
-nothing of it is left.
+of them. From alpha.9 until Trigger.dev v4.8.8 both builds also removed
+cross-spawn 5.1.0 (CVE-2024-21538, high, fixed in 6.0.6) from pnpm's store,
+with the links pnpm made to it, walking the image for any other copy or link
+first: its one requirer was spawndamnit 2.0.0, under the root's
+`@changesets/cli`, release tooling neither container runs. From v4.8.8
+upstream's own override takes cross-spawn 7.0.6 in its place, and its lockfile
+resolves no 5.1.0, so that removal went. The esbuild binary the webapp's build
+removes is 0.28.2's from v4.8.8, the CLI's since v4.8.6, where it was 0.23.0's.
 **When a host does not answer** (or answers with an error) while an
 image is built, at a bring-up or a `deploy-live.sh` on a machine that does not
 hold the image's name yet, the build stops with nothing changed and says that
@@ -6658,7 +6668,7 @@ never reads as "nothing newer", nor as an older newest.
 > moved, move with it, tag and digest, in the same pull request, proven by
 > E2E (managed) on its branch; ClickHouse's data moves forward only. The weekly
 > pin watch says the same while the two differ (its ClickHouse issue). At
-> v4.7.6, v4.7.7, v4.8.1, v4.8.3 and v4.8.5 both say `26.2.19.43@sha256:c2f26055…`.
+> v4.7.6, v4.7.7, v4.8.1, v4.8.3, v4.8.5 and v4.8.8 both say `26.2.19.43@sha256:c2f26055…`.
 > ClickHouse's `SECURITY.md` has not supported 26.2 since its last patch
 > (2026-05-21), and 26.2 has no fix for CVE-2026-116366, so the pin is 26.8,
 > ahead of upstream's 26.2 on purpose (now 26.8.37.168); a stack runs it from
@@ -6714,7 +6724,7 @@ never reads as "nothing newer", nor as an older newest.
 > that owns a stored payload, since the new store starts empty. The hold, and
 > `deploy-live.sh` under it, count Ownpace's own passes only. This reads
 > Trigger.dev's runs that have not finished, the non-final statuses of
-> v4.7.6's `TaskRunStatus` (v4.8.3 and v4.8.5 have the same nine), among the rows that
+> v4.7.6's `TaskRunStatus` (v4.8.3, v4.8.5 and v4.8.8 have the same nine), among the rows that
 > changed in the last 24 hours, and prints no secret. It is the drain read
 > before any restart or move of a stack's Trigger.dev, the host's Docker
 > included:
@@ -6819,7 +6829,7 @@ on every run (phase 5 above).
 now 26.8.37.168-lts, `clickhouse/clickhouse-server:26.8.37.168@sha256:a5670285…`
 (Docker's tag has no `-lts`), amd64 and arm64, and `26.8.36.3@sha256:d426d2f6…`
 on the tags from alpha.4 to alpha.8, where Trigger.dev v4.8.3 and v4.8.5 still
-pin 26.2.19.43.
+pin 26.2.19.43, as v4.8.8 does.
 ClickHouse no longer supports 26.2, and CVE-2026-116366 (critical: code
 execution with no password, for anybody who reaches the server) has no 26.2
 fix; 26.8.36.3 is the LTS release that first carried it. Before the move, every

@@ -16,8 +16,13 @@
  * index digest (`TASK_BASE_IMAGE`) and adds no layer; and the CLI must write
  * no RUN on it. Read at trigger.dev
  * 4.8.3, and again at 4.8.5, whose `buildImage.js` differs only in its
- * image digests (`generateNodeContainerfile` and `parseGenerateOptions` in
- * `dist/esm/deploy/buildImage.js`):
+ * image digests, and at 4.8.8, whose `generateNodeContainerfile` adds one
+ * COPY to the runtime stage, Node's compile cache that the indexer stage
+ * fills for a node-24 or node-26 deploy (`compileCacheDir`, which
+ * `writeContainerfile` passes since 4.8.6), and whose new RUN compiles a Bun
+ * worker, in the bun generator alone (`generateNodeContainerfile` and
+ * `parseGenerateOptions` in `dist/esm/deploy/buildImage.js`, the latter
+ * 4.8.5's byte for byte):
  *
  * - The manifest's `image.base` is the first stage, `FROM <base> AS base`, and
  *   the runtime stage is `FROM base AS final`. With no layer instructions and
@@ -27,8 +32,9 @@
  * - With `image.buildBase` named, the build stage is `FROM <buildBase> AS
  *   build`, so `npm i` and the indexer run there and never on the base.
  * - The runtime stage RUNs nothing: `USER node`, `WORKDIR /app`, ARG and ENV,
- *   three `COPY --chown=node:node`, and `ENTRYPOINT [ "dumb-init", "node",
- *   <controller> ]`, with no PATH or NODE_OPTIONS of its own.
+ *   three `COPY --chown=node:node` (four since 4.8.8: the compile cache, from
+ *   the indexer stage), and `ENTRYPOINT [ "dumb-init", "node", <controller> ]`,
+ *   with no PATH or NODE_OPTIONS of its own.
  *
  * So the base must carry a `node` account, dumb-init and node on its PATH,
  * the CLI's trust edits in its CA bundle and `--use-openssl-ca`, and nothing
@@ -197,13 +203,17 @@ async function installedCli(): Promise<{
 /** What `trigger deploy` writes for a base and a build base, with the layer instructions and packages given. */
 async function containerfileFor(base: string, buildBase: string | undefined, extra: { instructions?: string[]; pkgs?: string[] } = {}) {
   const cli = await installedCli();
-  // `writeContainerfile` in the CLI's build/buildWorker.js passes exactly these.
+  // `writeContainerfile` in the CLI's build/buildWorker.js passes exactly these: since 4.8.6 also
+  // the compile cache's directory, which bundle.js names for a deploy of node, node-24 or node-26
+  // (`supportsNodeCompileCache`) at `.trigger/compile-cache`, rewritten under /app, and the
+  // compiled Bun worker, for a bun runtime alone.
   return cli.generateContainerfile({
     runtime: taskConfig.runtime,
     entrypoint: 'managed-run-controller.js',
     indexScript: 'managed-index-controller.js',
     build: { env: {}, commands: [] },
     image: { base, ...(buildBase ? { buildBase } : {}), ...extra },
+    compileCacheDir: COMPILE_CACHE_DIR,
   });
 }
 
@@ -223,6 +233,9 @@ function shellOnTheBase(containerfile: string): string[] {
 }
 
 const A_BASE = `ghcr.io/robbes/ownpace-task-base:sha-0000000@sha256:${'0'.repeat(64)}`;
+
+/** Where a node-26 deploy's compile cache is, as `writeContainerfile` hands it on (trigger.dev 4.8.8). */
+const COMPILE_CACHE_DIR = '/app/.trigger/compile-cache';
 
 // ------------------------------------------------------------- 1. the CLI ---
 
@@ -250,8 +263,9 @@ describe("the installed CLI writes no step of its own on a base with no layer", 
     expect(final.from).toBe('base');
     expect(final.body).toContain('USER node');
     const copies = final.body.filter((i) => keyword(i) === 'COPY');
-    expect(copies.length, 'the runtime stage copies the code, its node_modules and its index').toBe(3);
+    expect(copies.length, "the runtime stage copies the code, its node_modules, its index and, since 4.8.8, Node's compile cache").toBe(4);
     for (const copy of copies) expect(copy, 'each COPY resolves the node account in the base').toMatch(/^COPY --from=\S+ --chown=node:node /);
+    expect(copies, 'the compile cache comes from the indexer stage, which fills it').toContain(`COPY --from=indexer --chown=node:node ${COMPILE_CACHE_DIR} ${COMPILE_CACHE_DIR}`);
     const entrypoint = final.body.find((i) => keyword(i) === 'ENTRYPOINT');
     expect(entrypoint).toBe('ENTRYPOINT [ "dumb-init", "node", "managed-run-controller.js" ]');
     const env = final.body.filter((i) => keyword(i) === 'ENV').join(' ');
