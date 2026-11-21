@@ -80,7 +80,11 @@
  * and its automatic cache (on by default since v5, `package-manager-cache`)
  * engages only when `packageManager` names npm, and this repository's names
  * pnpm. The pin is right, and `check-latest: true` is
- * `a-gate-on-a-version-nothing-ships`' rule. So those lines did not change.
+ * `a-gate-on-a-version-nothing-ships`' rule. So those lines did not change
+ * that day. They did on 2026-11-20: the check named them again, by zizmor
+ * 1.30.1's `cache-poisoning` audit, which reads the file and not the runner,
+ * so each now says `package-manager-cache: false`, as every setup-node in a
+ * workflow a tag starts does (`a-workflow-zizmor-would-flag`).
  */
 
 import { describe, it, expect } from 'vitest';
