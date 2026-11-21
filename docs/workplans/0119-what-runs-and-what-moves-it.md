@@ -4,6 +4,25 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after #2009 merged: Trigger.dev v4.8.8 is on `main` and on the test environment.**
+The entry below's four steps were taken in order (times UTC):
+1. `build (trigger, amd64)` and `build (trigger, arm64)` were green on the pull request.
+2. **The owner's steps on the OTA stack**, with no E2E (managed) queued or running:
+   - the hold, and the drain query, which listed nothing;
+   - `trigger-version.sh backup before-v4.8.8`, which wrote and verified
+     `triggerdb-20261121T152355Z-before-v4.8.8.sql.gz` (211 MB on disk, 3.0 GB of SQL);
+   - `trigger-supervisor` and `trigger-api` stopped;
+   - `env-upsert.sh` set `TRIGGER_IMAGE_TAG=v4.8.8` in the persisted `.env`, and the hold was lifted.
+3. **E2E (managed) run 44919953478 on the branch was green:** `verify: done   apply: applied`, SMOKE
+   PASS, nothing unhealthy, and both Trigger.dev services healthy on the v4.8.8 images.
+4. **Merged as `c27eb47f`** (#2009) at 15:47, before the next scheduled E2E (managed) on `main`.
+- **Still owed.** The five `minimumReleaseAgeExclude` entries come out once 4.8.8 is past the floor,
+  after 2026-11-23 12:08, in a pull request of their own, and the pin watch's #1935 closes with it.
+  Live takes v4.8.8 at alpha.14's tag, by the steps in the entry below.
+- **Merged earlier the same day:** #2004, Dependabot's minor-and-patch group, as `17548646`
+  (14:30). vitest 5.1.1 and its V8 coverage plugin for development, and lucide-react 1.75.0 in the
+  web app, all three past the three-day floor; CI and E2E (managed) passed on its head.
+
 **2026-11-21, latest still: Trigger.dev v4.8.5 → v4.8.8, for alpha.14, before its three-day floor
 on the owner's waiver; built on a branch, not merged (#1935).** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-4-8-8`, from `main` at `ad2ffbe7` (#1999), with `main`

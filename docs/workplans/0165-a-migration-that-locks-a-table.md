@@ -4,6 +4,12 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, latest: T4 merged as #2002 (`9d695106`).** CI was green on its head, `db9bab66`, and
+E2E (managed) run 44908499453 was green on `a55b21e8`, the head before `main`'s last merge, which
+brought only a workplan (#1983). Every file the runner applies now waits at most 5 seconds for a lock
+(`SET LOCAL lock_timeout = '5s'`) and fails rather than queue behind a long one, and the report marks
+squawk's `require-lock-timeout` as met by the runner.
+
 **2026-11-21, last: T4, a lock timeout in the runner, built as #2002, and the report reads it.**
 On `claude/ownpace-public-readiness-y7orc6-migration-lock-timeout`, from `main` at `77eea91d`, with
 #2000's branch merged in, then `main` at `55eab78b`, which carries #2000 (`f1a6921a`) and #2005.
@@ -74,7 +80,7 @@ On `claude/ownpace-public-readiness-y7orc6-migration-lock-timeout`, from `main` 
 | T1 Read the finding | builder | ✅ **Done 2026-11-21** | §2 to §4: each listed place, what it locks, the rest of both chains, and what Atlas reads. |
 | T2 squawk, report only | builder | ✅ **Merged** as #2000 on 2026-11-21 (`f1a6921a`) (D1) | `migration-locks.yml`, `scripts/migration-locks-report.mjs`, a pin-watch row, two guards. Fails nothing; not a required check. |
 | T3 A squawk rule that blocks | builder | 🅿️ **Parked 2026-11-21** (D2: not now; trigger: a lock measured to hurt) | If ever: only for files a pull request adds, and only rules a migration here can meet (§5, option C). |
-| T4 A lock timeout in the runner | builder | 📋 **Decided 2026-11-21** (D3); 🔨 **built** as #2002 (Status, 2026-11-21, last) | `SET LOCAL lock_timeout = '5s'` per file in `applyOne`, with a test, in its own pull request. The report then marks `require-lock-timeout` as met by the runner. |
+| T4 A lock timeout in the runner | builder | ✅ **Merged** as #2002 on 2026-11-21 (`9d695106`) (D3; Status, 2026-11-21, latest) | `SET LOCAL lock_timeout = '5s'` per file in `applyOne`, with a test, in its own pull request. The report then marks `require-lock-timeout` as met by the runner. |
 | T5 A file applied outside a transaction | — | ✅ **Decided 2026-11-21: no** (D4) | Would make CONCURRENTLY possible and give up the all-or-nothing file the runner keeps. |
 
 ## 1. Why
