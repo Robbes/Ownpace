@@ -979,6 +979,7 @@ reading a file drops off its entry by itself.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [identity-in-the-gate](../scripts/identity-in-the-gate.unit.test.ts) — The identity provider is actually part of the managed gate (workplan 0099).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [no-pipeline-its-own-consumer-can-kill](../scripts/no-pipeline-its-own-consumer-can-kill.unit.test.ts) — A PIPELINE WHOSE CONSUMER EXITS EARLY REPORTS FAILURE WHEN IT SUCCEEDED.
 - [nothing-ever-parsed-the-bring-up](../scripts/nothing-ever-parsed-the-bring-up.unit.test.ts) — NOTHING EVER PARSED THE BRING-UP.
 - [nothing-waits-on-a-health-that-cannot-arrive](../scripts/nothing-waits-on-a-health-that-cannot-arrive.unit.test.ts) — A service with no healthcheck reports no health, for ever.
@@ -1170,6 +1171,7 @@ reading a file drops off its entry by itself.
 - [every-service-somebody-starts](../scripts/every-service-somebody-starts.unit.test.ts) — A SERVICE NOBODY EVER STARTED, TWICE.
 - [exposure-check](../scripts/exposure-check.unit.test.ts) — THE EXPOSURE CHECK ON THE MACHINE (workplan 0132 T3 (b)).
 - [idp-wiring](../scripts/idp-wiring.unit.test.ts) — The identity provider's wiring (ADR-0042), checked where it is checkable.
+- [managed-env-contract](../scripts/managed-env-contract.unit.test.ts) — Every variable `managed.yml` demands can actually be obtained.
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-rule-for-a-release-tag](../scripts/one-rule-for-a-release-tag.unit.test.ts) — ONE RULE FOR A RELEASE TAG, IN TWO SCRIPTS (workplan 0146 T5, 0132 T6 (a) and T1b).
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
@@ -6726,7 +6728,9 @@ Every variable `managed.yml` demands can actually be obtained.
 
 Reads:
 
+- `deploy/compose/bootstrap-managed.sh`
 - `deploy/compose/ensure-env-secrets.sh`
+- `deploy/compose/env-read.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `scripts/a-stack-that-names-its-mode.unit.test.ts`

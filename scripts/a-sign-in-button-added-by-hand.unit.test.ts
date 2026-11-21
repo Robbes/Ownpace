@@ -56,6 +56,7 @@ import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeF
 import { tmpdir } from 'node:os';
 import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(ROOT, 'deploy/compose');
@@ -172,7 +173,7 @@ function runSetup(dotEnv: string, args: string[] = []): Run {
     cwd: root,
     timeout: 60_000,
     env: {
-      PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`,
       HOME: root,
       STUB_CALLS: calls,
       STUB_DOCKER: docker,

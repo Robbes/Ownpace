@@ -28,6 +28,7 @@ import { readFileSync, writeFileSync, copyFileSync, mkdtempSync, mkdirSync, rmSy
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = join(HERE, '..');
@@ -251,7 +252,7 @@ describe('the admin password is one the provider will accept', () => {
   });
   afterEach(() => rmSync(dir, { recursive: true, force: true }));
 
-  const run = () => spawnSync('bash', [join(dir, 'ensure-env-secrets.sh')], { encoding: 'utf8' });
+  const run = () => spawnSync('bash', [join(dir, 'ensure-env-secrets.sh')], { encoding: 'utf8', env: { ...process.env, PATH: `${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
   const envFile = () => readFileSync(join(dir, '.env'), 'utf8');
   const adminPassword = () => /^ZITADEL_ADMIN_PASSWORD=(.*)$/m.exec(envFile())?.[1] ?? '';
 
@@ -974,7 +975,7 @@ describe("the provisioning token's first date is written before the provider fir
       writeFileSync(join(work, '.env'), text);
       const r = spawnSync('bash', [join(work, 'ensure-env-secrets.sh')], {
         encoding: 'utf8',
-        env: { ...process.env, PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}` },
+        env: { ...process.env, PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}` },
       });
       return { status: r.status, out: `${r.stdout}${r.stderr}`, text: readFileSync(join(work, '.env'), 'utf8') };
     };
@@ -1038,7 +1039,7 @@ describe("the provisioning token's first date is written before the provider fir
       const r = spawnSync('bash', ['--noprofile', '--norc', '-c', script], {
         encoding: 'utf8',
         env: {
-          PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+          PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`,
           HOME: dir,
           STUB_LOG: log,
           STUB_ENV: envFile,

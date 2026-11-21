@@ -1,0 +1,19 @@
+#!/bin/sh
+# Copyright 2026 The Ownpace authors (Apache-2.0)
+#
+# stat(1) for the unit tests that run the bring-up's scripts (workplan 0119,
+# 2026-11-20). seed_docker_socket_gid (deploy/compose/env-read.sh) reads the
+# group of /var/run/docker.sock with `stat -L -c '%F %g'`, and a machine that
+# runs the unit tests may have no Docker socket at all. This answers that one
+# question, as a socket of group 988, and hands every other call to the real
+# stat. A test puts this directory first on the PATH of the script it runs:
+# scripts/docker-socket-stub.ts.
+if [ "$#" -eq 4 ] && [ "$1" = -L ] && [ "$2" = -c ] && [ "$3" = '%F %g' ] && [ "$4" = /var/run/docker.sock ]; then
+  echo 'socket 988'
+  exit 0
+fi
+for dir in /usr/bin /bin; do
+  if [ -x "${dir}/stat" ]; then exec "${dir}/stat" "$@"; fi
+done
+echo 'stat: no stat in /usr/bin or /bin' >&2
+exit 127
