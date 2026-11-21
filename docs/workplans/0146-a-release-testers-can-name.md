@@ -7,14 +7,15 @@
 **2026-11-21, latest: the fold for `v0.2.0-alpha.14` (T2).** `package.json` and the API contract
 say `0.2.0-alpha.14`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves
 to its section, dated 2026-11-21, under a summary; [Unreleased] stays, empty. alpha.14 carries what
-`main` merged after alpha.13's tag, `v0.2.0-alpha.13` on `45dfead1`: 31 pull requests, merged on
-2026-11-21 from 07:29 to 20:51 UTC. The npm group (#2004) and react-router (#2012) came from
+`main` merged after alpha.13's tag, `v0.2.0-alpha.13` on `45dfead1`: 32 pull requests, merged on
+2026-11-21 from 07:29 to 21:47 UTC. The npm group (#2004) and react-router (#2012) came from
 Dependabot, so their entries are added at the end of alpha.14's Changed.
 
 - a migration with a test marker copying only its marked items, with ledger migration 0070
   (#1975), never finished or switched over (#2003), and its sharing keeping only its marked items,
-  no status update switching it over and a Dropbox rename not read as its bin (#2011); nothing
-  sets a marker yet (0162 T1);
+  no status update switching it over and a Dropbox rename not read as its bin (#2011); and an
+  appointed operator marking an organisation as a test from Support, so that each migration made
+  there copies its marker, with managed migration 0062 and ADR-0053 (#2013);
 - *Pay* opening Mollie's checkout (#1990), with its Dutch sentence (#2005), and the grant page's
   two buttons going only to Google's own page (#1996);
 - a migration file waiting at most five seconds for a table lock (#2002);
@@ -44,22 +45,24 @@ Dependabot, so their entries are added at the end of alpha.14's Changed.
   `waive_nights` set to those words, and the approval in the `release` environment.
 - **Live's deploy** goes from alpha.12, which live runs since 2026-11-20 (0132's Status); no deploy
   of alpha.13 is recorded, so it takes alpha.13's moves with alpha.14's. It is one-way by the
-  deploy's own rule: ledger migration 0070 is added (#1975), and the Trigger.dev pin moves from
-  v4.8.5 to v4.8.8 (#2009); the identity-provider (Zitadel v4.20.4) and ClickHouse (26.8.37.168)
-  pins do not move. alpha.13 alone moved neither (its fold's entry, below). The images each
-  machine builds change: from alpha.13, the Docker socket proxy (`3.4.7-alpine-98dbd75c6730`), as
-  uid 99 with the socket's group, `DOCKER_SOCKET_GID`, that the bring-up writes into `.env`, and
-  the dashboard's TLS front (`2.11.9-alpine-9c1f752119a3`); from alpha.14, both databases
-  (`18.7-alpine-6adabb723757`), which restart once, Redis (`7.4.12-bookworm-65e47a4df92f`), the
-  supervisor (`v4.8.8-f21dbbd335dd`) and the webapp (`v4.8.8-c8ebb4044c16`). From the first pass
-  after the deploy, the CalDAV source reads a Google calendar by its `sync-collection` answer
-  (#2019), which brings no migration, variable or file in `deploy/` of its own.
+  deploy's own rule: ledger migration 0070 (#1975) and managed migration 0062 (#2013) are added,
+  and the Trigger.dev pin moves from v4.8.5 to v4.8.8 (#2009); the identity-provider (Zitadel
+  v4.20.4) and ClickHouse (26.8.37.168) pins do not move. alpha.13 alone moved none of them (its
+  fold's entry, below). 0062's table, `test_organisation`, is empty until an operator marks an
+  organisation, so every organisation runs as before. The images each machine builds change: from
+  alpha.13, the Docker socket proxy (`3.4.7-alpine-98dbd75c6730`), as uid 99 with the socket's
+  group, `DOCKER_SOCKET_GID`, that the bring-up writes into `.env`, and the dashboard's TLS front
+  (`2.11.9-alpine-9c1f752119a3`); from alpha.14, both databases (`18.7-alpine-6adabb723757`), which
+  restart once, Redis (`7.4.12-bookworm-65e47a4df92f`), the supervisor (`v4.8.8-f21dbbd335dd`) and
+  the webapp (`v4.8.8-c8ebb4044c16`). From the first pass after the deploy, the CalDAV source reads
+  a Google calendar by its `sync-collection` answer (#2019), which brings no migration, variable or
+  file in `deploy/` of its own.
 - **What the deploy's sheet must hold, read from the tree:**
   - the hold and the drain, then `TRIGGER_IMAGE_TAG=v4.8.8` in live's persisted `.env` with
     `env-upsert.sh`: it said `v4.8.5` when it was read on 2026-11-20 (0132's Status), and left
     there the bring-up stops at its `trigger` phase, on the drift from the SDK
     (`docs/managed-bring-up.md`);
-  - the dry run, which says one-way over alpha.12 and names 0070 and the pin's move;
+  - the dry run, which says one-way over alpha.12 and names 0070, 0062 and the pin's move;
   - the take, to which `deploy-live.sh` passes `--trigger`, since the pin moves. With no copy
     there, it takes the copy before alpha.14, of alpha.12's databases and the task runner's. With
     the copy before alpha.12 still kept, unproven, it keeps that one, of alpha.11's databases, and

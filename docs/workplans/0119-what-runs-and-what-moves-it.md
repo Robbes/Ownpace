@@ -6,12 +6,13 @@
 
 **2026-11-21, last: what alpha.14 moves, and what moves for live from alpha.12.** The fold for
 `v0.2.0-alpha.14` (0146's entry of the same day) carries what `main` merged after alpha.13's tag,
-31 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
+32 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
 deploy of alpha.13 is recorded, so live's deploy of alpha.14 takes alpha.13's moves too. For live,
 from alpha.12:
 
-- ledger migration 0070 is added (#1975), and no other file in either migration chain is added,
-  changed or removed;
+- ledger migration 0070 (#1975) and managed migration 0062 (#2013) are added, and no other file in
+  either migration chain is added, changed or removed; 0062's table, `test_organisation`, is empty
+  until an operator marks an organisation;
 - the Trigger.dev pin moves from v4.8.5 to v4.8.8 (#2009, the entries below): both images, the
   SDK, the deploy CLI and the scheduler's package; the webapp applies its new Prisma migrations one
   way when it starts;
@@ -34,14 +35,14 @@ from alpha.12:
   queue, and asks every CalDAV server, Nextcloud's included, with `sync-level` 1 (#2019); it moves
   nothing in either migration chain or in `deploy/`.
 
-So live's deploy from alpha.12 is one-way by the deploy's own rule, by 0070 and the pin; alpha.13
-alone moved neither. CI alone: Semgrep's report naming where it read only in part (#1993), zizmor
-1.32.0 (#1995), Dependabot's three days (#1999), squawk, report only (#2000), code scanning's six
-Semgrep rules (#2006), gitleaks, blocking (#1992), the two secrets each read by one job in its
-environment (#2001), zizmor's secrets-outside-env report (#2007), the outside probe's TLS hello to
-each port the front answers by itself (#2020), and the Cirrux test server's tag length (#2014),
-which runs in tests only. The test stack alone: nothing; it took v4.8.8 before #2009 merged (the
-entry below). The five `minimumReleaseAgeExclude` entries ship in alpha.14 and come out after
+So live's deploy from alpha.12 is one-way by the deploy's own rule, by 0070, 0062 and the pin;
+alpha.13 alone moved none of them. CI alone: Semgrep's report naming where it read only in part
+(#1993), zizmor 1.32.0 (#1995), Dependabot's three days (#1999), squawk, report only (#2000), code
+scanning's six Semgrep rules (#2006), gitleaks, blocking (#1992), the two secrets each read by one
+job in its environment (#2001), zizmor's secrets-outside-env report (#2007), the outside probe's TLS
+hello to each port the front answers by itself (#2020), and the Cirrux test server's tag length
+(#2014), which runs in tests only. The test stack alone: nothing; it took v4.8.8 before #2009 merged
+(the entry below). The five `minimumReleaseAgeExclude` entries ship in alpha.14 and come out after
 2026-11-23 12:08 (the entry below).
 
 **2026-11-21, after #2009 merged: Trigger.dev v4.8.8 is on `main` and on the test environment.**
