@@ -1,0 +1,28 @@
+# gitleaks over the commits a pull request adds (workplan 0163 T6; the owner's
+# decision D4 of 2026-11-20). ci.yml's `gitleaks` job reads this, through
+# scripts/gitleaks-report.mjs, and fails the pull request on any finding.
+#
+# gitleaks' own default rules, built into the release ci.yml pins, and one
+# allowlist of paths: nothing else. Unit and integration test files make fake
+# tokens on purpose (60 of the 67 hits a reading of the tree found on
+# 2026-11-20 were gitleaks' generic-api-key in such files, 0163 §4.2), and
+# docs/o365-setup.md shows the shape of each Microsoft 365 credential with
+# placeholders. Every other file is read, and no line excuses itself: the job
+# runs gitleaks with --ignore-gitleaks-allow, so a gitleaks:allow comment does
+# nothing, and there is no .gitleaksignore. No rule is turned off here, and
+# none is added.
+#
+# scripts/a-secret-a-pull-request-could-add.unit.test.ts holds this file to
+# exactly that.
+title = "Ownpace: gitleaks' default rules; test files and one placeholder doc allowed"
+
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Unit and integration test files' fake tokens, and docs/o365-setup.md's placeholders (workplan 0163 D4)"
+paths = [
+  '''\.unit\.test\.ts$''',
+  '''\.integration\.test\.ts$''',
+  '''^docs/o365-setup\.md$''',
+]

@@ -4,6 +4,70 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after the merges: T6, gitleaks on a pull request's own commits, built as #1992 (a
+draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-gitleaks`, from `main` at
+`45dfead1`; step 4 of §5, as D4 decided: it fails the build.
+- **What it does.** A job of its own in `ci.yml`, `gitleaks`, on pull requests only, like
+  `commit-convention`, and needed by `ci-complete`, so a finding stops the merge with no setting
+  changed.
+  - It installs gitleaks v8.30.1 from its GitHub release. Both architectures' archives are checked
+    against the sums read from the release's checksums file and from the archives themselves; then
+    the native one is unpacked, and the binary must call itself 8.30.1.
+  - `scripts/gitleaks-report.mjs` runs `gitleaks git` over `base..head`, the commits the pull
+    request adds, with `.gitleaks.toml`: gitleaks' default rules and one allowlist of paths, unit
+    and integration test files and `docs/o365-setup.md`, as D4 has it.
+  - A finding fails the job, its file, line, rule and commit named. The value is redacted, and
+    neither the commit's author, address nor message is printed.
+- **No line excuses itself.** `--ignore-gitleaks-allow` turns `gitleaks:allow` comments off.
+  gitleaks reads a `.gitleaksignore` at the root whatever its flags say (its `cmd/root.go` at
+  v8.30.1), so the report refuses to run while one exists.
+- **A scan that did not finish fails too.** gitleaks exits 1 for a finding and for a failure alike,
+  so the job gives a finding its own code, 3, and fails on any other exit, a report it did not
+  write or one that disagrees with the exit, and a range with no commit in it.
+- **8.30.1 is both the outside check's version and gitleaks' newest release**, its assets of
+  2026-03-21, so there was no version to choose. The pin watch has a `gitleaks` row against
+  upstream's git tags.
+- **Proved with the real gitleaks and this config**, on the measure branch (run 44880864945).
+  Throwaway repositories on the runner each held the branch's `.gitleaks.toml` and report, and one
+  made-up commit with a value shaped like a GitHub token, made for the run and committed nowhere
+  else. Every case ended as it must:
+  - a clean change passes;
+  - the token in a source file fails, and so does the token in another document;
+  - the same token in a unit test file, an integration test file and `docs/o365-setup.md` passes;
+  - a `gitleaks:allow` comment excuses nothing, and neither does a later commit that removes the
+    token;
+  - a `.gitleaksignore` that lists the finding is refused.
+  - No log line printed the value.
+- **A merge's own lines are read too, added after that proof.** `git log -p` shows a merge commit
+  with no diff, so a line written while resolving a conflict went unread, and every branch here
+  merges `main` in. The log options now carry `--diff-merges=remerge`: git's remerge diff shows
+  what a merge itself wrote, against git's own merge of its parents, and not the lines it brings
+  from `main`, which their own pull requests were read for. Proved the same way (run
+  44882209561): the nine cases above again, and five merges, every one as it must:
+  - a token written while resolving a conflict fails in a source file, passes in a unit test file
+    and fails in `docs/o365-setup.md`. gitleaks' diff parser (go-gitdiff 0.9.1) names a file
+    inside a conflict's resolution with git's `b/` in front, so the anchored path does not match
+    it there, and such a hit fails as any other would;
+  - a clean merge that brings the other side's token-shaped line passes;
+  - a token in a file the merge commit adds beside what it merges fails.
+- **What it would flag in today's tree, read again.** Of §4.2's 67 hits in the files, none is in
+  a `.tsx` test file, so the allowlist's `.ts` suffixes miss none. Three lines are outside the
+  allowlist: one in each of two workplans, 0132 and 0133, and `deploy/compose/goaccess/Dockerfile`'s
+  `ARG GOACCESS_COMMIT=` line, which `generic-api-key` matches because the name holds `access`. A
+  pull request that rewrites one of them fails. The next GoAccess bump rewrites the third: D8,
+  which the owner answered on 2026-11-21 with the rename, built as #1998.
+- **The pull request's own run** read its one commit (about 76 KB of added lines) and found
+  nothing: both sums as pinned, the binary calling itself 8.30.1.
+- **Tests:**
+  - the new guard `a-secret-a-pull-request-could-add` (17 tests): the config line for line, the
+    allowlist against every tracked file, the job's shape and `ci-complete`'s account of it, and
+    the report against a stubbed gitleaks and git;
+  - a gitleaks block in `a-pin-that-knows-it-is-behind`, which also runs the install step under
+    bash against archives built in the test.
+  - Locally: 310 files, 7,549 tests passed, 33 skipped; after the remerge change, the 15 guards
+    that read `ci.yml` (419 tests). Fourteen mutations of the report each fail its guard, the last
+    one dropping `--diff-merges=remerge`.
+
 **2026-11-21, after the Dutch sentence: code scanning lists the spots of the six rules that may
 block, and the two ReDoS rules' stay in the job summary (a T3 follow-up).** On
 `claude/ownpace-public-readiness-y7orc6-semgrep-six`, from `main` at `ad2ffbe7`.
@@ -344,7 +408,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); ✅ **the no-checkout sentence in Dutch, merged** as #2005 on 2026-11-21 (`55eab78b`; Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
-| T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
+| T6 gitleaks on a pull request's own commits | builder | 🔨 **Built** in #1992, a draft, not merged (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
 | T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); ✅ **Merged** as #1980 on 2026-11-21 (`a4e9f331`) | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |
@@ -582,7 +646,7 @@ an exact apk or apt pin, and hadolint stays report only.
 | 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`). Built with v2.7.1, the newest release past the three-day floor (Status, 2026-11-20, at the end) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
 | 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as `zizmor.yml` pins it (1.32.0 since 2026-11-21; GEN-26 pinned 1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
 | 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `js-open-redirect-from-function`, `react-href-var`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` and `detect-redos` (both report only for good). The rules are fetched by id, so a rule in no pack is as easy to name as one in a pack | 5, 6, 8, 9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short. Built with 1.186.0, the newest release past the three-day floor, and the ids in `RULES` in `scripts/semgrep-report.mjs` (Status, 2026-11-21) | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
-| 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
+| 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases. Built as `ci.yml`'s `gitleaks` job, failing the build, with 8.30.1, still gitleaks' newest release (Status, 2026-11-21, after the merges) |
 | 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
 
 **Not worth adding:**
@@ -695,3 +759,16 @@ so nothing in the tree has to change first. Only D4's allowlist question has to 
     closes. That keeps a real SMB's credentials in CI for a dry run.
   - **Answer, 2026-11-20: yes.** Built as #1980, a draft. The guard that held the workflow's
     variables to the suite now holds `docs/test-tenant.md`'s table to it, both ways.
+- **D8. The next GoAccess bump fails the gitleaks job: rename the build argument, or allow that one
+  line?** `deploy/compose/goaccess/Dockerfile` pins upstream's source as
+  `ARG GOACCESS_COMMIT=<40 hex characters>`, and `generic-api-key` matches it: the name holds
+  `access` and the value is long and varied enough. As D4 has it, the line is read like any new
+  hit when a pull request rewrites it, and a bump does. The commit that rewrites it stays in that
+  pull request's history, so a later commit in the same pull request cannot clear it. Advice:
+  **rename the argument before that bump**, to a name holding none of gitleaks' keywords (for
+  example `UPSTREAM_COMMIT`), in a pull request of its own, with
+  `a-service-that-phones-home`'s check of that line renamed with it. The allowlist stays as D4
+  has it. The alternative: a second allowlist entry for that one file and that one line's shape
+  (`^ARG GOACCESS_COMMIT=[0-9a-f]{40}$`), which widens D4. **Answer, 2026-11-21: rename the
+  argument.** Built as #1998, a draft: the argument is `UPSTREAM_COMMIT`, with a comment saying
+  why, and the image is built from the same commit.
