@@ -50,6 +50,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The Trigger.dev webapp's image runs effect 3.22.4, not 3.21.2** (workplan 0166 T5, the owner's
+  D2). effect 3.21.2, the one copy Trigger.dev v4.8.8 resolves, carries CVE-2026-121707 (high, a
+  ReDoS in `Schema.TemplateLiteral`, fixed in 3.22.1). The webapp's build now replaces its files
+  with 3.22.4's, fetched from the npm registry and refused unless their sha512 is the one npm
+  published, as it replaced five packages until v4.8.5. 3.22.4 is in every range its requirers
+  give, with the same entry points, dependencies and exports. Before anything changes the build
+  checks the old directory file for file, who links it, and that no copy is bundled; after, that
+  nothing else in the image changed and that every requirer loads 3.22.4. 3.22.5, effect's
+  newest 3.x, is two days old and waits for its three-day floor. The image has a new name, which
+  the managed stack builds at its next `up`.
 - **Code scanning lists the spots of the six Semgrep rules that may block** (workplan 0163).
   On a push to `main`, the SARIF the Semgrep job uploads now leaves out the two ReDoS rules,
   `detect-non-literal-regexp` and `detect-redos`, which never block: on `main` they made 202 of
