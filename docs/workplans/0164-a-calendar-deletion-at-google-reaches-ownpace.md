@@ -4,6 +4,65 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, latest: T2 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader`, as
+§3.1 A, reviewed twice and fixed, and not yet on the test environment.** The CalDAV source reads a
+`sync-collection` answer whose members carry no calendar data as a list of members to read, keyed
+on what the server answers and not on its host (`packages/connectors/src/caldav-source.ts`):
+- **The REPORT is the one T1 measured:** the token, `sync-level` 1, then the properties (RFC 6578
+  §6.1). A server that answers `sync-level` with a 400 is asked once more without it, and that
+  answer stands, whatever it is.
+- **The pages are followed to the last** (§3.6): a 507 for the calendar is a page, and only the last
+  page's token is kept. Up to 100 pages; a reading whose pages do not end is listed whole. A page
+  that gives no token keeps the token it was sent.
+- **The members are read with `calendar-multiget`** (RFC 4791 §7.9), 50 hrefs a request, and each is
+  handed on under the href `sync-collection` gave, which is what a later 404 names.
+- **The removals are carried up as `removed`**, which the sync loop turns into `reported` evidence,
+  through every gate it has. Nothing is applied: a person applies a removal by hand, as for any
+  other reported one, and no apply gate changed.
+- **A 404 in a reading with no token** is reported when the ledger holds a copy of that href and
+  passed over when it does not. An existing Google migration holds no token, so its first pass on
+  this reader sends none, and the deletions made while it listed whole are in that answer alone.
+  The reasoning is in the source and in `docs/dav-sync.md`.
+- **A recorded move is never reported as a removal** (`domain-sync.ts`, refusal 5 of
+  `resolveReportedRemovals`): a reading of the calendar it left with no token names the old href,
+  while the calendar it went to, read with its token, names it no more. A file moved by path is not
+  such a move.
+- **A refused token** (403 or 409 with `DAV:valid-sync-token`) is dropped and the calendar read
+  again with none, once, in the same pass. Any other refusal of the first page lists the calendar
+  whole. A 5xx or a rate limit keeps the token it was sent; anything else drops it, so the next pass
+  reads the calendar with none, as this source always did.
+- **A multiget that falls short**, a 404 for a member included, lists the calendar whole for that
+  pass, as before, and keeps the removals and the token, so nothing is left out.
+- **The token is saved only once the pass has handled what it read**, by the loop's rules: a
+  retryable failure or an unreached calendar keeps it where it was. A calendar's token is held for
+  its removals only while one of them can become a deletion, so one whose reading named only
+  removals never copied goes on from its token while another calendar stays unreadable.
+- **For a server that sends its data** (Nextcloud, Infomaniak, Cirrux) the reading is the same,
+  except what is listed above for every server: `sync-level` 1, the retry with no token after a
+  refused token, the token kept after a 5xx or a rate limit, the token kept by a page that gives
+  none, the token's XML entities decoded, and a member that arrives without data read rather than
+  passed over.
+
+The first review of #2019 found a move reported as a removal when the two calendars were read
+differently, a multiget 404 that lost an event, a first reading repeated on every pass while one
+calendar stayed unreadable, the REPORT differing from T1's, a token with an `&` sent back changed,
+five mutants that survived, and a calendar's path in the log. All but the third are fixed and
+tested. The third is fixed for removals that cannot become deletions, and tested; what is left is
+recorded in `docs/dav-sync.md`: while a calendar stays unreadable, a calendar whose reading named
+the removal of a copy is read again from its held cursor on every pass, until a pass reaches every
+calendar.
+
+The second review found two ways a calendar could stop reporting removals for good, and both are
+fixed and tested. A stale token refused without naming `DAV:valid-sync-token`, with a 410, say,
+was kept, so every pass after it listed the calendar whole and reported no removal; any refusal but
+a 5xx or a rate limit now drops the token. And after a 400 to `sync-level`, a refused token in the
+answer to the retry was not heard; the retry's answer now stands. A page that gives no token now
+keeps the one it was sent, which saves a whole reading. The tests run the real source over
+`GoogleLikeCalDav`, a fake that answers as Google did, in the connectors, in the sync loop, and
+over a real Postgres, where the reported removal is the one the gated apply takes. 47 mutants, each
+taking out one rule, each made a test fail.
+- **Next:** E2E (managed) on the pull request, then the owner's test (T5) after the merge.
+
 **2026-11-21, last: T1 ran on the test environment, and A is the reader.** Built as #2008
 (`d4c4cfdb`) and run by the owner from `main` at `17a9a460`, on their Google test migration, the
 newest of two whose calendars come from Google over CalDAV. What it printed, counts and status codes
@@ -74,7 +133,7 @@ Read for this plan, on `main` at `8b8fac07`:
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
-| T2 The reader that reports removals | builder | 📋 **Decided**: A, as T1 showed | §3.1: `sync-collection` with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
+| T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
 | T3 Apply in bulk | builder | 📋 **Decided** (T0 (b)), after T2 | §4.2. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
