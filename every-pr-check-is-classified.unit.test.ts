@@ -156,6 +156,15 @@ const NOT_REQUIRABLE = new Map([
       'report only until the two Trigger.dev Dockerfiles have had their pass (workplan 0119), so requiring it ' +
       'would gate nothing. When it turns blocking it is required, under the name it takes then.',
   ],
+  // semgrep.yml (workplan 0163 T3, the owner's decision D3 of 2026-11-20):
+  // eight named Semgrep rules over the tree, report only until each rule in
+  // turn reports nothing on main.
+  [
+    'Semgrep (report only)',
+    'semgrep.yml reports on every pull request and fails none of them, whatever Semgrep finds: it is report ' +
+      'only until a rule reports nothing on main and turns blocking, one rule at a time (workplan 0163, step 5), so ' +
+      'requiring it would gate nothing. Once a rule blocks, its check is required, under the name it takes then.',
+  ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,
   // the matrix job under its unexpanded name. The scan is report-only by design:

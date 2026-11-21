@@ -93,6 +93,8 @@
  *                      hadolint image hadolint.yml lints every Dockerfile
  *                      with (`HADOLINT_IMAGE`, 2026-11-19), against Docker
  *                      Hub's tags of its shape and major; and the
+ *                      Semgrep image semgrep.yml scans the tree with
+ *                      (`SEMGREP_IMAGE`, 2026-11-21), the same way; and the
  *                      zizmor image zizmor.yml audits the workflows with
  *                      (`ZIZMOR_IMAGE`, 2026-11-20), against ghcr.io's tags
  *                      of its shape and major; and the
@@ -277,6 +279,33 @@ export function hadolintPin(text) {
   const [image] = named;
   if (image.repo !== 'hadolint/hadolint' || !/^v\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
     throw new Error(`${HADOLINT_WORKFLOW} names ${image.ref}, not hadolint/hadolint by a release tag and its index digest`);
+  }
+  return image;
+}
+
+/**
+ * The Semgrep `semgrep.yml` scans the tree with, report only (workplan 0163
+ * T3, the owner's decision D3 of 2026-11-20): its job's one `SEMGREP_IMAGE:`
+ * line. Dependabot reads no workflow env, so this row is what says a newer
+ * release is tagged.
+ */
+export const SEMGREP_WORKFLOW = '.github/workflows/semgrep.yml';
+
+/** Said beside the Semgrep row when it is behind. */
+export const SEMGREP_NOTE =
+  "move `SEMGREP_IMAGE` in semgrep.yml by tag and index digest, with the comment above it and `SEMGREP` in a-finding-only-an-outside-check-saw saying what was read, in a pull request of its own three days after the tag's push; a newer Semgrep can read more or fewer spots with the same rules, so read the job's summary on that pull request";
+
+/**
+ * The image `semgrep.yml` runs: its one `SEMGREP_IMAGE:` line, as
+ * `semgrep/semgrep:<x.y.z>@sha256:…`. None, two, another image or no digest
+ * is an error, never "current".
+ */
+export function semgrepPin(text) {
+  const named = [...text.matchAll(/^\s*SEMGREP_IMAGE:\s*(\S+)\s*$/gm)].map((m) => parseRef(m[1]));
+  if (named.length !== 1) throw new Error(`${SEMGREP_WORKFLOW} sets SEMGREP_IMAGE ${named.length} times, not once`);
+  const [image] = named;
+  if (image.repo !== 'semgrep/semgrep' || !/^\d+\.\d+\.\d+$/.test(image.tag) || !/^sha256:[0-9a-f]{64}$/.test(image.digest)) {
+    throw new Error(`${SEMGREP_WORKFLOW} names ${image.ref}, not semgrep/semgrep by a release tag and its index digest`);
   }
   return image;
 }
@@ -1857,6 +1886,16 @@ export async function routineRows(repo, net) {
     const newest = newestLike(image.tag, await tagsFor(image.repo));
     const state = stateOf(image.tag, newest);
     return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [HADOLINT_NOTE] } : {}) };
+  }]);
+
+  // Semgrep (0163 T3, 2026-11-21): the image semgrep.yml scans the tree with,
+  // against Docker Hub's newest tag of its shape and major (an `<x.y.z>`, never
+  // a `-nonroot` build, `latest`, `canary` or a commit's tag).
+  jobs.push(['semgrep/semgrep', SEMGREP_WORKFLOW, async () => {
+    const image = semgrepPin(need(repo, SEMGREP_WORKFLOW));
+    const newest = newestLike(image.tag, await tagsFor(image.repo));
+    const state = stateOf(image.tag, newest);
+    return { pin: `${image.tag}@${image.digest}`, newest, state, ...(state === 'behind' ? { notes: [SEMGREP_NOTE] } : {}) };
   }]);
 
   // zizmor (0119, 2026-11-20): the image zizmor.yml audits the workflows with,

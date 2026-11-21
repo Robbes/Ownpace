@@ -4,6 +4,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **Semgrep reads the tree on every pull request with eight named rules, and reports what they
+  find without failing anything** (workplan 0163 T3; the owner's decision D3 of 2026-11-20). An
+  outside, read-only check of 2026-11-20 listed classes of finding that no check in CI had a rule
+  for. *Semgrep* (`.github/workflows/semgrep.yml`) now runs Semgrep 1.186.0, pinned by its index
+  digest, with eight community rules fetched from Semgrep's registry by id: five for four of those
+  classes (a regular expression built at run time, a path joined from a value, the browser sent to
+  an address a function returned, a React link to an address from a value), and three that found a
+  spot each when workplan 0163 measured Semgrep on this tree. The job's summary lists each rule's spots, a spot read and left as it stands
+  marked known with the reason, and on `main` the results go to code scanning too. No finding fails
+  the job: a rule turns blocking on its own once it reports nothing on `main`, and the two ReDoS
+  rules never do. The weekly pin watch says when a newer Semgrep is tagged.
+
 ### Changed
 
 - **No workflow reads the real Microsoft 365 tenant; its harness runs by hand** (workplan 0141).
