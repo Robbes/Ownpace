@@ -43,6 +43,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useParams } from 'react-router';
 import { AlertCircle, AlertTriangle, Check, Loader2, Circle } from 'lucide-react';
 import type { DomainStatusReport, MappingLifecycle, PathEndingChoice } from '@openmig/shared';
+import { A_TEST_IS_NOT_FINISHED } from '@openmig/shared';
 import {
   fetchDeletions,
   fetchFailures,
@@ -415,7 +416,21 @@ const Finish: React.FC = () => {
                       {serverMessage(verifyOutcome.error)}
                     </p>
                   ) : verifyOutcome.data?.state === 'done' && verifyOutcome.data.report[id] ? (
-                    verifyOutcome.data.report[id]!.canProceedToCutover ? (
+                    verifyOutcome.data.report[id]!.testMarker !== undefined ? (
+                      // A test migration is never finished (workplan 0162
+                      // T3), however the check went: its report carries the
+                      // marker, and the step says why in the reader's
+                      // language. Its End and Keep are refused the same way.
+                      <p className="mt-1 text-amber-800">
+                        {A_TEST_IS_NOT_FINISHED[locale]}
+                        {verifyOutcome.data.finishedAt && (
+                          <span className="text-gray-500">
+                            {' '}
+                            ({t('verify.checkedAt')} {dateTime(verifyOutcome.data.finishedAt)})
+                          </span>
+                        )}
+                      </p>
+                    ) : verifyOutcome.data.report[id]!.canProceedToCutover ? (
                       <p className="mt-1 text-emerald-700">
                         {t('finish.step1.passed')}
                         {/* WHAT THE CHECK PASSED ON. This is the screen before
