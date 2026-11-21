@@ -205,7 +205,7 @@ describe('POST /api/billing/invoices/:id/pay', () => {
     expect(res.body).toEqual({
       error: 'no_checkout',
       message: 'Mollie gave no checkout page to pay on. Try again in a minute.',
-      messageNl: 'Mollie gaf geen betaalpagina om op te betalen. Probeer het over een minuut opnieuw.',
+      messageNl: 'Mollie gaf geen betaalpagina om via te betalen. Probeer het over een minuut opnieuw.',
     });
     expect(payments).toHaveLength(1);
     expect(await row(ISSUED)).toEqual({ status: 'sent', payment_id: null, metadata: { kept: 'yes' } });
