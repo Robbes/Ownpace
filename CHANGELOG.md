@@ -136,6 +136,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **CI's two secrets are each kept for the one job that reads them** (workplan 0163 T1, the owner's
+  decision D2 of 2026-11-20). The Trigger.dev token the managed E2E gate deploys with and the
+  machine's address the exposure probe asks from outside were repository secrets, which every job
+  of every workflow can read, one added on a branch included. Each job now names a GitHub
+  environment, `e2e-managed` and `exposure-probe`, and the token is read in its job, not in the
+  workflow's shared settings. Once the owner moves each secret into its environment, only that job
+  reads it, on the branches the environment allows. Until then nothing changes: the jobs still
+  read the repository's secrets.
 - **A pull request that adds a secret fails** (workplan 0163 T6, the owner's decision D4 of
   2026-11-20). Nothing read a commit for a secret before it merged. A new CI job, `gitleaks`, reads
   every line the commits of a pull request add with gitleaks 8.30.1, downloaded from its GitHub

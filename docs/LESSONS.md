@@ -91,6 +91,7 @@ reading a file drops off its entry by itself.
 - [a-pool-that-had-not-happened-yet](../scripts/a-pool-that-had-not-happened-yet.unit.test.ts) — A POOL THAT HAD NOT HAPPENED YET.
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+- [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts) — A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
@@ -121,6 +122,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/exposure-probe.yml`
 
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
+- [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts) — A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
 - [exposure-probe](../scripts/exposure-probe.unit.test.ts) — WHAT THE OUTSIDE PROBE PRINTS, AND WHEN IT PASSES (workplan 0132 T3 (c)).
 
 ### `.github/workflows/hadolint.yml`
@@ -5765,6 +5767,15 @@ Reads:
 - `docs/o365-setup.md`
 - `scripts/gitleaks-report.mjs`
 - `scripts/redact-evidence.unit.test.ts`
+
+### [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts)
+
+A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
+
+Reads:
+
+- `.github/workflows/e2e-managed.yml`
+- `.github/workflows/exposure-probe.yml`
 
 ### [a-sentence-the-screen-and-the-api-word-apart](../scripts/a-sentence-the-screen-and-the-api-word-apart.unit.test.ts)
 
