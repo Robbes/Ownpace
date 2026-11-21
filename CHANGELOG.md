@@ -6,6 +6,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **A read-only measurement of what Google answers to `sync-collection`** (workplan 0164 T1):
+  `./deploy/compose/operator.sh measure-google-sync`, a command of the worker's CLI, run once at
+  the machine of a managed stack. It chooses the newest migration whose calendars come from Google
+  over CalDAV and names it by its id and creation date, then reads each calendar of that account
+  with one `sync-collection` REPORT, before and after the owner changes one event and deletes
+  another at Google. It ends with the plan's verdict: the deleted event listed as a 404 makes
+  `sync-collection` the reader, not listed makes Google's Calendar API the reader. It sends
+  Google's calendars PROPFIND and REPORT only, refusing anything else before it is sent, reads the
+  database in a transaction opened read only, keeps the sync tokens in memory, and prints counts
+  and status codes only: no href, name, title, address, token, ETag or answer. The appliance does
+  not have it.
 - **A report of the locks a migration takes, before the merge** (workplan 0165). An outside,
   read-only check counted migrations that lock or scan a table while they run: CHECKs and foreign
   keys added without `NOT VALID`, and indexes made or dropped without `CONCURRENTLY`. Nothing in CI
