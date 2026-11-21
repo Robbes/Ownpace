@@ -76,27 +76,30 @@ jobs:
           # job runs it. A value shaped like a GitHub token is made here for each run and never committed
           # anywhere but these repositories, which the runner throws away. The job fails unless every case
           # ends as it must.
+          # Actions runs this under bash -e; each case's exit is judged here, not by the shell.
+          set +e
           set -uo pipefail
           here="$GITHUB_WORKSPACE"
           export GITLEAKS="$RUNNER_TEMP/gitleaks-bin/gitleaks"
           token="ghp_$(node -e "process.stdout.write(require('node:crypto').randomBytes(27).toString('base64').replace(/[^A-Za-z0-9]/g, 'x').slice(0, 36))")"
           wrong=0
           n=0
-          # new_repo: a repository with the report and the config in its first commit; prints its path.
-          new_repo() {
+          # next: a new repository, $r, with the report and the config in its first commit, $b.
+          next() {
             n=$((n + 1))
-            local repo="$RUNNER_TEMP/proof-$n"
+            r="$RUNNER_TEMP/proof-$n"
+            local repo="$r"
             mkdir -p "$repo/scripts"
             cp "$here/.gitleaks.toml" "$repo/.gitleaks.toml"
             cp "$here/scripts/gitleaks-report.mjs" "$repo/scripts/gitleaks-report.mjs"
             git -C "$repo" init -q -b main
             git -C "$repo" -c user.name=proof -c user.email=proof@example.invalid add -A
-            git -C "$repo" -c user.name=proof -c user.email=proof@example.invalid commit -q -m base
-            printf '%s\n' "$repo"
+            git -C "$repo" -c user.name=proof -c user.email=proof@example.invalid commit -q -m base > /dev/null
+            b="$(git -C "$repo" rev-parse HEAD)"
           }
           commit() {
             git -C "$1" -c user.name=proof -c user.email=proof@example.invalid add -A
-            git -C "$1" -c user.name=proof -c user.email=proof@example.invalid commit -q -m "$2"
+            git -C "$1" -c user.name=proof -c user.email=proof@example.invalid commit -q -m "$2" > /dev/null
           }
           # judge <case> <expected exit> <repo> <base>: runs the report over base..HEAD and compares.
           judge() {
@@ -117,40 +120,40 @@ jobs:
             fi
           }
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/apps/api/src"; printf 'export const answer = 42;\n' > "$r/apps/api/src/plain.ts"; commit "$r" clean
           judge "a change with no secret passes" 0 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/apps/api/src"; printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/config.ts"; commit "$r" secret
           judge "a token in a source file fails" 1 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/apps/api/src"; printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/config.unit.test.ts"; commit "$r" unit
           judge "the same token in a unit test file passes (the allowlist)" 0 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/apps/api/src"; printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/config.integration.test.ts"; commit "$r" integration
           judge "the same token in an integration test file passes (the allowlist)" 0 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/docs"; printf 'O365_CLIENT_SECRET=%s\n' "$token" > "$r/docs/o365-setup.md"; commit "$r" doc
           judge "the same token in docs/o365-setup.md passes (the allowlist)" 0 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/docs"; printf 'O365_CLIENT_SECRET=%s\n' "$token" > "$r/docs/other-setup.md"; commit "$r" otherdoc
           judge "the same token in another document fails" 1 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/apps/api/src"; printf 'export const token = "%s"; // gitleaks:allow\n' "$token" > "$r/apps/api/src/config.ts"; commit "$r" allowed
           judge "a gitleaks:allow comment excuses nothing" 1 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/apps/api/src"; printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/config.ts"; commit "$r" added
           printf 'export const token = process.env.TOKEN;\n' > "$r/apps/api/src/config.ts"; commit "$r" removed
           judge "a token a later commit removes still fails (the history keeps it)" 1 "$r" "$b"
 
-          r="$(new_repo)"; b="$(git -C "$r" rev-parse HEAD)"
+          next
           mkdir -p "$r/apps/api/src"; printf 'export const token = "%s";\n' "$token" > "$r/apps/api/src/config.ts"; commit "$r" secret
           printf '%s:apps/api/src/config.ts:github-pat:1\n' "$(git -C "$r" rev-parse HEAD)" > "$r/.gitleaksignore"
           judge "a .gitleaksignore that lists the finding is refused" 1 "$r" "$b"
