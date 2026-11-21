@@ -252,6 +252,27 @@ describe('a Google calendar deletion reaches the deletions queue as reported (Pg
     expect(await w.cursorRow(w.family)).toBe('sync-token:tok:family:41');
   });
 
+  it('keeps a recorded move a move when the calendar it left is later read with no token (review of #2019)', async () => {
+    const w = world();
+    await w.pass();
+    w.google.move('e2', w.family, w.work);
+    await w.pass();
+    // The calendar the event left holds no token; the one it went to keeps its own.
+    await cursors.set(TENANT, MAPPING, w.family, { value: '' });
+
+    const result = await w.pass();
+
+    expect(result.deletions, 'a recorded move was reported as a deletion').toHaveLength(0);
+    expect(await ledger.listDeletions(TENANT, MAPPING, 'calendar')).toHaveLength(0);
+    const { rows } = await db.execute<{ moved_to_collection: string | null; deletion_reported_at: string | null }>(sql`
+      SELECT moved_to_collection, deletion_reported_at FROM item
+       WHERE tenant_id = ${TENANT} AND mapping_id = ${MAPPING}
+         AND natural_key_hash = ${calendarNaturalKeyHash('e2')}
+    `);
+    expect(rows[0]?.moved_to_collection).toBe(w.work);
+    expect(rows[0]?.deletion_reported_at ?? null).toBeNull();
+  });
+
   it('reports an event moved between two Google calendars as a move, not a deletion', async () => {
     const w = world();
     await w.pass();

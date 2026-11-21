@@ -31,6 +31,7 @@ import {
   log,
   type CalendarFolder,
   type CalendarTargetWriter,
+  type LedgerRecord,
   type RawCalendarEvent,
   type UpsertOptions,
   type UpsertResult,
@@ -39,6 +40,7 @@ import { CalDAVSource } from '../../connectors/src/caldav-source.ts';
 import type { HttpClient, HttpRequestOptions } from '../../connectors/src/dav-http.types.ts';
 import { FAKE_CALDAV_URL, FAKE_HOME, GoogleLikeCalDav } from '../../connectors/src/__testing__/google-like-caldav.ts';
 import { runCalendarSync } from './dav-sync.ts';
+import { aRemovalCanBeReported } from './domain-sync.ts';
 import { MemoryCursorStore, MemoryLedger } from './__testing__/memory.ts';
 
 const TENANT = asTenantId('0164b200-e29b-41d4-a716-446655440001');
@@ -83,11 +85,18 @@ function world() {
 
   /** A calendar whose every REPORT fails, as a calendar the source cannot read. */
   const unreadable = new Set<string>();
+  /** A calendar whose next sync-collection answers 500, once. */
+  const failsOnce = new Set<string>();
   const client: HttpClient = {
-    request: (options: HttpRequestOptions) =>
-      unreadable.has(new URL(options.url).pathname)
-        ? Promise.resolve({ status: 500, headers: {}, body: 'backend error' })
-        : google.client.request(options),
+    request: (options: HttpRequestOptions) => {
+      const path = new URL(options.url).pathname;
+      if (unreadable.has(path)) return Promise.resolve({ status: 500, headers: {}, body: 'backend error' });
+      if (failsOnce.has(path) && String(options.body).includes('sync-collection')) {
+        failsOnce.delete(path);
+        return Promise.resolve({ status: 500, headers: {}, body: 'backend error' });
+      }
+      return google.client.request(options);
+    },
   };
   const source = new CalDAVSource(
     { url: FAKE_CALDAV_URL, username: 'owner@example.com', password: 'app-password' },
@@ -109,7 +118,7 @@ function world() {
       stillTheAuthority: async () => true,
     });
   const cursorOf = async (path: string) => (await cursors.get(TENANT, MAPPING, path))?.value;
-  return { google, family, work, unreadable, target, ledger, cursors, pass, cursorOf };
+  return { google, family, work, unreadable, failsOnce, target, ledger, cursors, pass, cursorOf };
 }
 
 const key = (uid: string): string => calendarNaturalKeyHash(uid);
@@ -219,6 +228,138 @@ describe('an event moved between two Google calendars (the Moves page, #1949)', 
 
     expect(result.deletions).toHaveLength(0);
     expect(result.moves.map((m) => m.naturalKeyHash)).toEqual([key('e2')]);
+  });
+});
+
+/**
+ * THE MOVE, AND THE CALENDAR IT LEFT READ WITH NO TOKEN (review of #2019,
+ * the blocker). The event moved from Family to Work, and a pass with both
+ * tokens recorded the move. Later Family is read with no token while Work
+ * keeps its own: Google's answer for Family names the old href as a removal
+ * it remembers, and Work's names only what changed after its token, so the
+ * event is seen nowhere. Reported, it was a removal a person may apply, and
+ * applying it removed the only copy of a live event.
+ */
+describe('a recorded move, when the calendar it left is read with no token', () => {
+  async function moved() {
+    const w = world();
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    await w.pass();
+    w.google.move('e2', w.family, w.work);
+    const recorded = await w.pass();
+    expect(recorded.moves.map((m) => m.naturalKeyHash)).toEqual([key('e2')]);
+    return w;
+  }
+
+  it('is not a removal when Google refuses that calendar\'s token and it is read again with none', async () => {
+    const w = await moved();
+    w.google.refusedTokens.add((await w.cursorOf(w.family))!.replace(/^sync-token:/, ''));
+
+    const later = await w.pass();
+
+    expect(later.deletions, 'a recorded move was reported as a deletion').toHaveLength(0);
+    expect(await w.ledger.listDeletions(TENANT, MAPPING, 'calendar')).toHaveLength(0);
+    expect((await w.ledger.listMoves(TENANT, MAPPING, 'calendar')).map((m) => m.naturalKeyHash)).toEqual([key('e2')]);
+  });
+
+  it('is not a removal when that calendar holds no token and the other keeps its own', async () => {
+    const w = await moved();
+    await w.cursors.set(TENANT, MAPPING, w.family, { value: '' });
+
+    const later = await w.pass();
+
+    expect(w.google.askedOf('sync-collection', w.work).at(-1)?.token, 'Work was read with no token too').not.toBe('');
+    expect(later.deletions, 'a recorded move was reported as a deletion').toHaveLength(0);
+  });
+
+  it('is not read with no token at all after a 500: the token it was sent is kept', async () => {
+    const w = await moved();
+    const before = await w.cursorOf(w.family);
+    w.failsOnce.add(w.family);
+
+    const during = await w.pass();
+    w.google.asked.length = 0;
+    const after = await w.pass();
+
+    expect(during.deletions).toHaveLength(0);
+    expect(await w.cursorOf(w.family), 'a 500 dropped the token').toBe(before);
+    expect(w.google.askedOf('sync-collection', w.family).map((a) => `sync-token:${a.token}`)).toEqual([before]);
+    expect(after.deletions).toHaveLength(0);
+  });
+});
+
+describe('the one rule for a removal that can become a deletion (review of #2019)', () => {
+  const row = (over: Partial<LedgerRecord>): LedgerRecord => ({
+    tenantId: TENANT,
+    mappingId: MAPPING,
+    itemType: 'calendar',
+    naturalKeyHash: key('e1'),
+    contentHash: 'h',
+    targetId: 't',
+    createdAt: '2026-11-21T00:00:00.000Z',
+    status: 'copied',
+    ...over,
+  });
+
+  it('takes a copy on the target, and nothing else', () => {
+    expect(aRemovalCanBeReported(undefined)).toBe(false);
+    expect(aRemovalCanBeReported(row({}))).toBe(true);
+    expect(aRemovalCanBeReported(row({ status: 'failed' }))).toBe(false);
+  });
+
+  it('refuses an item whose move under the same key is on record', () => {
+    expect(aRemovalCanBeReported(row({ collection: '/a/', movedToCollection: '/b/' }))).toBe(false);
+  });
+
+  it('takes a file moved by path, whose old row and new row share the source\'s id: that removal is a removal', () => {
+    expect(
+      aRemovalCanBeReported(
+        row({ itemType: 'file', collection: '/a/', movedToCollection: '/b/', movedToNaturalKeyHash: 'k-new' }),
+      ),
+      'a removal reported by a moved file\'s id was refused',
+    ).toBe(true);
+  });
+});
+
+describe('a cursor held for removals that cannot become deletions (review of #2019)', () => {
+  it('is not held: beside a calendar that stays unreadable, the other goes on from its token', async () => {
+    const w = world();
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    // Google remembers a removal from before this migration; nothing was copied from it.
+    w.google.rememberRemoval(w.family, 'never-copied');
+    w.unreadable.add(w.work);
+
+    await w.pass();
+    w.google.asked.length = 0;
+    const second = await w.pass();
+
+    expect(await w.cursorOf(w.family), 'held for a removal that could come to nothing').toBe('sync-token:tok:family:40');
+    expect(w.google.askedOf('sync-collection', w.family).map((a) => a.token)).toEqual(['tok:family:40']);
+    expect(w.google.askedOf('calendar-multiget', w.family), 'the calendar was read whole again').toHaveLength(0);
+    expect(second.skipped).toBe(0);
+  });
+});
+
+describe('a multiget that answers 404 for events that are there, in the loop (review of #2019)', () => {
+  it('copies every one of them, from the whole listing', async () => {
+    const w = world();
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    w.google.onMultiget = (_index, hrefs) =>
+      hrefs[0]?.includes('family')
+        ? {
+            status: 207,
+            headers: {},
+            body:
+              '<?xml version="1.0"?><D:multistatus xmlns:D="DAV:">' +
+              hrefs.map((h) => `<D:response><D:href>${h}</D:href><D:status>HTTP/1.1 404 Not Found</D:status></D:response>`).join('') +
+              '</D:multistatus>',
+          }
+        : undefined;
+
+    const result = await w.pass();
+
+    expect(result.created, 'events that are there were taken as gone, and never copied').toBe(45);
+    expect(await w.cursorOf(w.family)).toBe('sync-token:tok:family:40');
   });
 });
 

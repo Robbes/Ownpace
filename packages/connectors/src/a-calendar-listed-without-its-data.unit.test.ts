@@ -311,7 +311,60 @@ describe('a refused token (RFC 6578 §3.2)', () => {
     expect(syncCollections, 'a 403 for another reason was read as a refused token').toBe(1);
     expect(result.items).toHaveLength(2);
     expect(google.askedOf('calendar-query')).toHaveLength(1);
-    expect(result.nextCursor.value).toBe('');
+    // Not the token's fault, so the token stays: the next pass asks from it.
+    expect(result.nextCursor.value).toBe('sync-token:tok:family:2');
+  });
+
+  it('is told apart from a 500, which lists the calendar whole and keeps the token it was sent', async () => {
+    const { google, folder } = calendarOf(3);
+    const source = sourceOn(google.client);
+    const first = await source.listSince(folder, undefined);
+    google.add(folder.path!, 'e4');
+    let failNext = true;
+    const flaky: HttpClient = {
+      request: async (options) => {
+        if (failNext && String(options.body).includes('sync-collection')) {
+          failNext = false;
+          return { status: 500, headers: {}, body: 'backend error' };
+        }
+        return google.client.request(options);
+      },
+    };
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const during = await sourceOn(flaky).listSince(folder, first.nextCursor);
+    google.asked.length = 0;
+    const after = await source.listSince(folder, during.nextCursor);
+
+    expect(uids(during.items)).toEqual(['e1', 'e2', 'e3', 'e4']);
+    expect(during.nextCursor.value, 'a 500 dropped the token, and the next pass read with none').toBe(first.nextCursor.value);
+    expect(google.askedOf('sync-collection').map((a) => a.token)).toEqual([tokenOf(first.nextCursor)]);
+    expect(uids(after.items)).toEqual(['e4']);
+  });
+
+  it('is a 409 as much as a 403', async () => {
+    const { google, folder } = calendarOf(4);
+    google.refusedWith = 409;
+    google.refusedTokens.add('tok:family:4');
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const result = await sourceOn(google.client).listSince(folder, { value: 'sync-token:tok:family:4' });
+
+    expect(google.askedOf('sync-collection').map((a) => a.token)).toEqual(['tok:family:4', '']);
+    expect(google.askedOf('calendar-query'), 'a 409 refusal was not read as a refused token').toHaveLength(0);
+    expect(result.items).toHaveLength(4);
+  });
+
+  it('is not what a reading that sent no token is refused for: it is not asked again', async () => {
+    const { google, folder } = calendarOf(2);
+    google.refusedTokens.add('');
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const result = await sourceOn(google.client).listSince(folder, undefined);
+
+    expect(google.askedOf('sync-collection'), 'a reading with no token was asked again with none').toHaveLength(1);
+    expect(google.askedOf('calendar-query')).toHaveLength(1);
+    expect(result.items).toHaveLength(2);
   });
 });
 
@@ -381,7 +434,29 @@ describe('a calendar-multiget that falls short', () => {
     expect(warned.mock.calls.flat().join(' ')).toContain('socket hang up');
   });
 
-  it('passes over a member gone since the listing, and the next reading reports it', async () => {
+  it('loses none of the members a multiget answers 404 for while they are there', async () => {
+    // Review of #2019: a multiget that cannot find what sync-collection just
+    // named (an href it spells another way, a server's own fault). Passed over,
+    // those members were never copied, and the token retired them for good.
+    const { google, folder } = calendarOf(6);
+    google.onMultiget = (_index, hrefs) => ({
+      status: 207,
+      headers: {},
+      body:
+        '<?xml version="1.0"?><D:multistatus xmlns:D="DAV:">' +
+        hrefs.map((h) => `<D:response><D:href>${h}</D:href><D:status>HTTP/1.1 404 Not Found</D:status></D:response>`).join('') +
+        '</D:multistatus>',
+    });
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const result = await sourceOn(google.client).listSince(folder, undefined);
+
+    expect(uids(result.items), 'members that are there were taken as gone').toEqual(['e1', 'e2', 'e3', 'e4', 'e5', 'e6']);
+    expect(google.askedOf('calendar-query')).toHaveLength(1);
+    expect(result.nextCursor.value).toBe('sync-token:tok:family:6');
+  });
+
+  it('takes a member gone between the listing and the multiget as not read, and the next reading reports it', async () => {
     const { google, folder } = calendarOf(4);
     const source = sourceOn(google.client);
     let removedHref = '';
@@ -390,13 +465,15 @@ describe('a calendar-multiget that falls short', () => {
       if (index === 0) removedHref = google.remove(folder.path!, 'e2');
       return undefined;
     };
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
 
     const first = await source.listSince(folder, undefined);
     google.onMultiget = undefined;
     const second = await source.listSince(folder, first.nextCursor);
 
+    // Listed whole for that pass, which names what is there and not what went.
     expect(uids(first.items)).toEqual(['e1', 'e3', 'e4']);
-    expect(google.askedOf('calendar-query'), 'a member gone since was read as a failure').toHaveLength(0);
+    expect(google.askedOf('calendar-query')).toHaveLength(1);
     expect(second.removed, 'the removal was lost').toEqual([removedHref]);
   });
 
@@ -467,6 +544,170 @@ describe('what is not a member to read', () => {
     const { google, folder } = calendarOf(1);
     await sourceOn(google.client).listSince(folder, undefined);
     expect(google.askedOf('calendar-multiget').map((a) => a.depth)).toEqual(['1']);
+  });
+});
+
+describe('the REPORT T1 measured (review of #2019)', () => {
+  it('names the token, then sync-level 1, then the properties, as T1 asked Google', async () => {
+    const asked: string[] = [];
+    const { google, folder } = calendarOf(1);
+    const recording: HttpClient = {
+      request: (options) => {
+        asked.push(String(options.body));
+        return google.client.request(options);
+      },
+    };
+
+    await sourceOn(recording).listSince(folder, undefined);
+
+    const report = asked.find((b) => b.includes('sync-collection')) ?? '';
+    const at = (needle: string): number => report.indexOf(needle);
+    expect(at('<D:sync-level>1</D:sync-level>'), 'no sync-level, which T1 sent').toBeGreaterThan(-1);
+    expect(at('<D:sync-token/>')).toBeLessThan(at('<D:sync-level>'));
+    expect(at('<D:sync-level>')).toBeLessThan(at('<D:prop>'));
+    expect(report).toContain('<C:calendar-data/>');
+    expect(google.askedOf('sync-collection').map((a) => a.level)).toEqual(['1']);
+  });
+
+  it('is asked again without sync-level when a server refuses it with 400, and every page goes without it', async () => {
+    const { google, folder } = calendarOf(9, 4);
+    google.refusesSyncLevel = 400;
+    const warned = vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const result = await sourceOn(google.client).listSince(folder, undefined);
+
+    expect(google.askedOf('sync-collection').map((a) => a.level ?? 'none')).toEqual(['1', 'none', 'none', 'none']);
+    expect(result.items).toHaveLength(9);
+    expect(google.askedOf('calendar-query')).toHaveLength(0);
+    expect(warned.mock.calls.flat().join(' ')).toContain('without sync-level');
+  });
+
+  it('is not asked again without sync-level for another refusal', async () => {
+    const { google, folder } = calendarOf(2);
+    google.refusesSyncLevel = 500;
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const result = await sourceOn(google.client).listSince(folder, undefined);
+
+    expect(google.askedOf('sync-collection')).toHaveLength(1);
+    expect(google.askedOf('calendar-query')).toHaveLength(1);
+    expect(result.items).toHaveLength(2);
+  });
+});
+
+describe('what goes back to the server as it came (review of #2019)', () => {
+  it('a sync token holding an & is sent back as the server gave it', async () => {
+    const token = 'https://calendar.example.com/sync/family?since=7&amp;page=1';
+    const asked: string[] = [];
+    const client: HttpClient = {
+      request: (options) => {
+        asked.push(String(options.body));
+        return Promise.resolve<HttpResponse>({
+          status: 207,
+          headers: {},
+          body: `<?xml version="1.0"?><D:multistatus xmlns:D="DAV:"><D:sync-token>${token}</D:sync-token></D:multistatus>`,
+        });
+      },
+    };
+    const source = sourceOn(client);
+
+    const first = await source.listSince({ name: 'Family', path: '/caldav/v2/family%40example.com/events/' }, {
+      value: 'sync-token:https://calendar.example.com/sync/family?since=6',
+    });
+    await source.listSince({ name: 'Family', path: '/caldav/v2/family%40example.com/events/' }, first.nextCursor);
+
+    expect(first.nextCursor.value).toBe('sync-token:https://calendar.example.com/sync/family?since=7&page=1');
+    expect(asked[1], 'the token went back changed').toContain(`<D:sync-token>${token}</D:sync-token>`);
+  });
+
+  it('an event whose href holds an & is asked for with it escaped once, and found', async () => {
+    const google = new GoogleLikeCalDav();
+    const path = google.addCalendar('family', 'Family');
+    google.add(path, 'tea&cake');
+    google.add(path, 'e2');
+
+    const result = await sourceOn(google.client).listSince({ name: 'Family', path }, undefined);
+
+    expect(google.askedOf('calendar-query'), 'the multiget asked for an href no event has').toHaveLength(0);
+    expect(uids(result.items)).toEqual(['e2', 'tea&cake']);
+    // Handed on in the multistatus's own spelling, as a later 404 will name it.
+    expect(result.items.map((e) => e.item.sourcePath)).toContain(`${path}tea&amp;cake.ics`);
+  });
+});
+
+describe('a member is read once (review of #2019)', () => {
+  /** A client that adds to each sync-collection answer a copy of one member, written without its data. */
+  const repeating = (google: GoogleLikeCalDav, href: string): HttpClient => ({
+    request: async (options) => {
+      const answer = await google.client.request(options);
+      if (!String(options.body).includes('sync-collection')) return answer;
+      const again =
+        `<D:response><D:href>${href}</D:href><D:propstat><D:prop><D:getetag>"again"</D:getetag></D:prop>` +
+        '<D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>';
+      return { ...answer, body: answer.body.replace('</D:multistatus>', `${again}</D:multistatus>`) };
+    },
+  });
+
+  it('when it is named twice without its data', async () => {
+    const { google, folder } = calendarOf(3);
+
+    const result = await sourceOn(repeating(google, google.hrefOf(folder.path!, 'e2'))).listSince(folder, undefined);
+
+    expect(google.askedOf('calendar-multiget').map((a) => a.hrefs), 'a member named twice was asked for twice').toEqual([3]);
+    expect(result.items).toHaveLength(3);
+  });
+
+  it('when it came with its data and is named again without it', async () => {
+    const { google, folder } = calendarOf(3);
+    const e2 = google.hrefOf(folder.path!, 'e2');
+    google.sendsDataFor.add(e2);
+
+    const result = await sourceOn(repeating(google, e2)).listSince(folder, undefined);
+
+    expect(google.askedOf('calendar-multiget').map((a) => a.hrefs), 'a member read already was asked for again').toEqual([2]);
+    expect(uids(result.items)).toEqual(['e1', 'e2', 'e3']);
+  });
+});
+
+describe('what the log says (review of #2019)', () => {
+  it('names counts and statuses, never a calendar\'s path, which at Google holds an address', async () => {
+    const { google, folder } = calendarOf(30, 10);
+    google.onMultiget = (index) => (index === 0 ? { status: 500, headers: {}, body: 'backend error' } : undefined);
+    google.refusedTokens.add('tok:family:30');
+    const lines: unknown[] = [];
+    vi.spyOn(log, 'warn').mockImplementation((...args) => lines.push(...args));
+    vi.spyOn(log, 'info').mockImplementation((...args) => lines.push(...args));
+    const source = sourceOn(google.client);
+
+    const first = await source.listSince(folder, undefined);
+    google.onMultiget = undefined;
+    await source.listSince(folder, first.nextCursor);
+
+    expect(lines.length, 'nothing was logged to look at').toBeGreaterThan(2);
+    expect(lines.filter((l) => String(l).includes('example.com')), 'a calendar path in the log').toEqual([]);
+  });
+
+  it('names no path either when the report is refused, or a calendar answers nothing', async () => {
+    const google = new GoogleLikeCalDav();
+    const empty = google.addCalendar('empty', 'Empty');
+    const full = google.addCalendar('full', 'Full');
+    google.add(full, 'e1');
+    const refusing: HttpClient = {
+      request: async (options) =>
+        new URL(options.url).pathname === full && String(options.body).includes('sync-collection')
+          ? { status: 501, headers: {}, body: 'not implemented' }
+          : google.client.request(options),
+    };
+    const lines: unknown[] = [];
+    vi.spyOn(log, 'warn').mockImplementation((...args) => lines.push(...args));
+    vi.spyOn(log, 'info').mockImplementation((...args) => lines.push(...args));
+    const source = sourceOn(refusing);
+
+    await source.listSince({ name: 'Empty', path: empty }, undefined);
+    await source.listSince({ name: 'Full', path: full }, { value: 'sync-token:tok:full:1' });
+
+    expect(lines.length).toBeGreaterThanOrEqual(3);
+    expect(lines.filter((l) => String(l).includes('example.com')), 'a calendar path in the log').toEqual([]);
   });
 });
 

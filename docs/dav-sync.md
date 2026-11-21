@@ -384,21 +384,35 @@ answer *"everything that matches"*, and every server must support them.
 > (RFC 4791 §7.9), 50 hrefs a request, and hands each on under the href
 > `sync-collection` gave, which is the href a later 404 names and
 > `findBySourceRef` matches as a plain string. A multiget that falls short (a
-> batch not answered with 207, a member answered with neither data nor a 404,
-> or left out) lists the calendar whole with `calendar-query` for that pass,
-> keeping the removals and the token: the listing is newer than the token, so
-> nothing is left out and nothing is retired unread. A member a multiget
-> answers 404 for went after the listing, and the next reading reports it.
+> batch not answered with 207, a member answered without its data, a 404
+> included, or left out) lists the calendar whole with `calendar-query` for
+> that pass, keeping the removals and the token: the listing is newer than the
+> token, so nothing is left out and nothing is retired unread. A 404 is not
+> taken as "gone since the listing": a multiget that cannot find what
+> `sync-collection` just named is as likely a fault of the multiget, and a
+> member taken as gone while it is there is never copied. If it did go, the
+> listing does not name it, and the next reading reports its removal.
 
 > **Rule.** A truncated answer is followed to its end (RFC 6578 §3.6). A 507
 > for the collection means a page, and only the last page's token stands for
 > the whole reading. A reading whose pages do not end (a later page not a 207,
-> no token to go on with, the same token back, more than 400 pages) is listed
-> whole the same way, keeping what its pages reported.
+> no token to go on with, the same token back, more than 100 pages) is listed
+> whole the same way, keeping what its pages reported. A server whose pages
+> never end costs 100 REPORTs a pass before that.
+
+> **Rule.** The REPORT is the one T1 measured at Google: the token, then
+> `sync-level` 1, then the properties, as RFC 6578 §6.1 orders them. A server
+> that answers `sync-level` with a 400 is asked once more without it, and that
+> reading goes on without it.
 
 > **Rule.** A refused token (a 403 or 409 with `DAV:valid-sync-token`, RFC 6578
 > §3.2) is dropped, and the calendar read again with no token, once, in the
-> same pass, which the log says.
+> same pass, which the log says. Any other refusal of the first page (a 500, a
+> report the server will not answer this once) lists the calendar whole and
+> KEEPS the token it was sent: the listing is newer than the token, and the
+> next pass asks from it instead of reading the calendar whole with none. The
+> token is read with its XML entities decoded, so one holding an `&` goes back
+> as the server gave it.
 
 > **Rule.** A 404 in an answer to no token is a removal like any other. RFC 6578
 > §3.4 has a first reading name no removed member; Google names the removals it
@@ -408,6 +422,26 @@ answer *"everything that matches"*, and every server must support them.
 > An existing Google migration holds no token (the whole listing never had
 > one), so its first pass on this reader sends none, and the deletions made
 > while it listed whole are in that answer and in no later one.
+
+> **Rule.** A removal is never resolved for an item whose move under the same
+> key a pass recorded (`resolveReportedRemovals`, refusal 5; review of #2019).
+> A reading of the collection it left with no token names its old href as a
+> removal long after the move, while the collection it went to, read with a
+> token, names it no more: seen nowhere, the move was reported as the source
+> removing the item, and applying that removed the only copy of a live event.
+> A file moved by path is not such a move (its old row and its new one both
+> hold the source's own id), and a removal reported by that id is a removal.
+> What this leaves out, stated plainly: an item that moved and was then deleted
+> where it went is not reported, since its new href is on no row.
+
+> **Rule.** A collection's cursor is held for its removals only while one of
+> them can become a deletion (`aRemovalCanBeReported`: it names a copy on the
+> target, and not a recorded move). A removal of an href never copied resolves
+> to nothing, and holding the cursor for it read the collection again from the
+> same place on every pass a calendar stayed unreadable: at Google, whole, when
+> it held no token. The cost that remains: while a calendar stays unreadable, a
+> collection whose reading named the removal of a copy is read again from its
+> held cursor on every pass, until a pass reaches every collection.
 
 > **Rule.** One component per `calendar-query`. RFC 4791 §9.7.1 makes sibling
 > `comp-filter`s a conjunction, so naming VEVENT and VTODO together describes a

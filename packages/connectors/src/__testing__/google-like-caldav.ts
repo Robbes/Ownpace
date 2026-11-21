@@ -23,7 +23,8 @@
  *
  * Its tokens are positions in each calendar's own change log, so a reading
  * with a token names exactly what changed after it, and nothing in them is
- * an address or a time. `calendar-multiget` and `calendar-query` answer with
+ * an address or a time. Every href it writes is escaped as XML text, so an
+ * event whose href holds an `&` arrives as `&amp;`, as from any server. `calendar-multiget` and `calendar-query` answer with
  * the data. Anything else it is sent is answered 400 and recorded, so a
  * request the reader should not make fails the test that made it.
  *
@@ -48,6 +49,8 @@ export interface Asked {
   readonly calendar?: string;
   /** For a sync-collection: the token sent, `''` for none. */
   readonly token?: string;
+  /** For a sync-collection: the `sync-level` it named, when it named one. */
+  readonly level?: string;
   /** For a calendar-multiget: how many hrefs it named. */
   readonly hrefs?: number;
   readonly depth?: string;
@@ -105,8 +108,8 @@ const multistatus = (parts: readonly string[], token?: string): HttpResponse => 
     `${token !== undefined ? `<D:sync-token>${escapeXml(token)}</D:sync-token>\n` : ''}</D:multistatus>`,
 });
 
-const refusedToken = (): HttpResponse => ({
-  status: 403,
+const refusedToken = (status: 403 | 409): HttpResponse => ({
+  status,
   headers: {},
   body: '<?xml version="1.0" encoding="UTF-8"?>\n<D:error xmlns:D="DAV:"><D:valid-sync-token/></D:error>',
 });
@@ -134,6 +137,12 @@ export class GoogleLikeCalDav {
   readonly asked: Asked[] = [];
   /** Tokens it no longer takes: a reading sent one is refused (RFC 6578 §3.2). */
   readonly refusedTokens = new Set<string>();
+  /** The status a refused token is answered with: 403 or 409, both RFC 6578 §3.2's. */
+  refusedWith: 403 | 409 = 403;
+  /** Hrefs whose members a sync-collection answer carries WITH their data, as Nextcloud's does. */
+  readonly sendsDataFor = new Set<string>();
+  /** Answer a `sync-level` in the REPORT with this status instead, as a server that will not take it would. */
+  refusesSyncLevel: number | undefined;
   /**
    * Asked before each calendar-multiget is answered, numbered from 0 across
    * the server's life; a response returned is sent in place of the data.
@@ -265,8 +274,12 @@ export class GoogleLikeCalDav {
 
   private syncCollection(calendar: FakeCalendar, body: string): HttpResponse {
     const token = decodeXml(/<D:sync-token>([^<]*)<\/D:sync-token>/.exec(body)?.[1] ?? '').trim();
-    this.asked.push({ kind: 'sync-collection', calendar: calendar.path, token });
-    if (this.refusedTokens.has(token)) return refusedToken();
+    const level = /<D:sync-level>([^<]*)<\/D:sync-level>/.exec(body)?.[1];
+    this.asked.push({ kind: 'sync-collection', calendar: calendar.path, token, ...(level !== undefined ? { level } : {}) });
+    if (level !== undefined && this.refusesSyncLevel !== undefined) {
+      return { status: this.refusesSyncLevel, headers: {}, body: 'sync-level is not supported here' };
+    }
+    if (this.refusedTokens.has(token)) return refusedToken(this.refusedWith);
 
     let reading: { readonly entries: readonly Entry[]; readonly final: string };
     let offset = 0;
@@ -274,7 +287,7 @@ export class GoogleLikeCalDav {
     if (token.startsWith('page:')) {
       const [, id, at] = token.split(':');
       const known = id === undefined ? undefined : this.readings.get(id);
-      if (known === undefined || at === undefined) return refusedToken();
+      if (known === undefined || at === undefined) return refusedToken(this.refusedWith);
       reading = known;
       offset = Number(at);
     } else if (token === '') {
@@ -296,7 +309,7 @@ export class GoogleLikeCalDav {
       };
     } else {
       // A token it never gave.
-      return refusedToken();
+      return refusedToken(this.refusedWith);
     }
 
     const page = reading.entries.slice(offset, offset + this.pageSize);
@@ -309,14 +322,15 @@ export class GoogleLikeCalDav {
     }
     const parts = page.map((entry) => {
       if (entry.gone) {
-        return `<D:response><D:href>${entry.href}</D:href><D:status>HTTP/1.1 404 Not Found</D:status></D:response>`;
+        return `<D:response><D:href>${escapeXml(entry.href)}</D:href><D:status>HTTP/1.1 404 Not Found</D:status></D:response>`;
       }
       const event = calendar.events.get(entry.href);
+      if (event !== undefined && this.sendsDataFor.has(entry.href)) return this.withData(entry.href, event);
       return this.withoutData(entry.href, event?.etag ?? '"0"');
     });
     if (more) {
       parts.push(
-        `<D:response><D:href>${calendar.path}</D:href>` +
+        `<D:response><D:href>${escapeXml(calendar.path)}</D:href>` +
           '<D:status>HTTP/1.1 507 Insufficient Storage</D:status></D:response>',
       );
     }
@@ -337,7 +351,7 @@ export class GoogleLikeCalDav {
         const spelled =
           this.multigetSpelling === 'absolute' ? `${new URL(FAKE_CALDAV_URL).origin}${decodeURIComponent(href)}` : href;
         return event === undefined
-          ? `<D:response><D:href>${spelled}</D:href><D:status>HTTP/1.1 404 Not Found</D:status></D:response>`
+          ? `<D:response><D:href>${escapeXml(spelled)}</D:href><D:status>HTTP/1.1 404 Not Found</D:status></D:response>`
           : this.withData(spelled, event);
       });
     return multistatus(parts);
@@ -345,14 +359,15 @@ export class GoogleLikeCalDav {
 
   private withData(href: string, event: FakeEvent): string {
     return (
-      `<D:response><D:href>${href}</D:href><D:propstat><D:prop>` +
+      `<D:response><D:href>${escapeXml(href)}</D:href><D:propstat><D:prop>` +
       `<D:getetag>${event.etag}</D:getetag>` +
       `<caldav:calendar-data>${escapeXml(icalendarOf(event.uid, event.summary))}</caldav:calendar-data>` +
       '</D:prop><D:status>HTTP/1.1 200 OK</D:status></D:propstat></D:response>'
     );
   }
 
-  private withoutData(href: string, etag: string): string {
+  private withoutData(raw: string, etag: string): string {
+    const href = escapeXml(raw);
     switch (this.shape) {
       case 'status-200':
         return `<D:response><D:href>${href}</D:href><D:status>HTTP/1.1 200 OK</D:status></D:response>`;
