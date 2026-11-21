@@ -62,24 +62,33 @@ what is marked. T3 merged as #2003 on 2026-11-21 (`cba6c64d`).
 - **ADR-0053**, *A test organisation copies only what is marked*, records §2 (a)–(h) and how T1
   holds (b) and (c).
 
-What is proven, and how. 88 new cases: in eight new test files, the guard (8), the marker's
+What is proven, and how. 89 new cases: in eight new test files, the guard (8), the marker's
 form (6), the table on PGlite (7), the doors and the create through the real routes on PGlite
 with both chains (22), the lock on Postgres 16.15 (`local-pg.sh`, two connections: 2), the banner
 on every route under a migration read from `AppRoutes.tsx` (24), the banner and the badge (6) and
-the Support control (9); and one case each in four files, the endings on paper and on PGlite and
+the Support control (10); and one case each in four files, the endings on paper and on PGlite and
 the two lists' badges. On that Postgres, eight integration files passed, 79 cases: the lock's,
 the system role's exact grants (with `test_organisation`'s), the cap's race, the managed upgrade
 path, pricing and metering, the stop door, and a closed organisation's doors.
 
 Twenty-one mutations, each one change, each caught, each file restored byte for byte (`cmp`):
 each door's refusal while it holds a migration (3 and 1 cases fail), each door's operator check
-(1 each), the route's view check (1), the audit row (4), the lock (1, on Postgres), the marker's
+(1 each), the route's view check (1), the audit row (5), the lock (1, on Postgres), the marker's
 unprintable, length and trim rules (4, 2, 4), the create's copy (3, the guard among them), the
 endings offered to a test (3) and the facts read without the marker (2), the banner not drawn (11
 of 24), each badge (1 each), the table's trim CHECK (1), the view's marker (2), the Support
 screen's refusal unsaid (1), and two plants the guard must catch: `testMarker: null` in a real
 `.set()` and `test_marker = NULL` in a real SQL `UPDATE` (1 each). Two of the first run survived
 (each door's operator check, under the route's own) and gained a case of their own.
+
+Gates, on this branch merged with `main` at `c27eb47f`, with Node 22.22.0: the whole `unit`
+project, 1,155 files, 18,112 cases passed and 37 skipped, but for the 2 files that run pnpm
+themselves, which a stand-in for pnpm refused, because the checkout names a pnpm version that was
+not installed where they ran (`ui-build-output`, whose build fails before its cases, and
+`a-measurement-that-could-not-reach-the-deployments-client`, 3 cases); `unit-browser`, 193 files,
+3,787 passed; `tsc --noEmit` for the root and `apps/web`, ESLint on the 40 changed TypeScript
+files, and the six docs checks found nothing. On that tree the twenty-one mutations ran again,
+each caught and each file restored, and the eight integration files passed again.
 
 Not done:
 - the appliance (§3): it has no operator, and no test migration;
