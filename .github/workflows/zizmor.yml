@@ -13,9 +13,12 @@
 # BLOCKING. Its first run, on the branch that added it, found 24 findings
 # already on main; that branch fixed each, and its second run found none. So
 # a finding fails this job, and nothing is silenced: zizmor
-# runs with --no-config, so no zizmor.yml can turn a rule or a location off,
-# and --no-ignores, so no ignore comment in a workflow can either. A finding
-# is fixed in the workflow, or the pull request says why it cannot be.
+# reads one config, .github/zizmor.yml (--config, so no other file is read),
+# whose one setting holds dependabot-cooldown to Dependabot's three days, and
+# a-workflow-zizmor-would-flag refuses any other, so no config can turn a rule
+# or a location off; and it runs with --no-ignores, so no ignore comment in a
+# workflow can either. A finding is fixed in the workflow, or the pull request
+# says why it cannot be.
 # It is not in ci.yml and not a required check (its `paths:` would leave a
 # pull request that touches no workflow waiting for it forever, the shape
 # every-pr-check-is-classified.unit.test.ts describes for images.yml).
@@ -97,7 +100,7 @@ jobs:
             --user "$(id -u):$(id -g)" \
             --volume "$GITHUB_WORKSPACE:/repo:ro" --workdir /repo \
             "$ZIZMOR_IMAGE" \
-            --offline --no-config --no-ignores --no-progress --color never \
+            --offline --config .github/zizmor.yml --no-ignores --no-progress --color never \
             . > "$RUNNER_TEMP/zizmor.txt" 2>&1 || status=$?
           cat "$RUNNER_TEMP/zizmor.txt"
           {
