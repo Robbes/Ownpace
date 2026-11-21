@@ -82,6 +82,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Docker socket proxy no longer runs as root: it runs as HAProxy's own uid 99, and reaches
+  the Docker socket through the socket's group, which the bring-up reads from the socket**
+  (workplan 0119). An outside, read-only check of the repository reported the image's
+  `USER root` (GEN-21). The image now ends as `USER 99:99`, the base's haproxy user, and
+  `managed.yml` adds the host socket's group to the container, from `DOCKER_SOCKET_GID` in
+  `.env`. Nobody sets that value: `ensure-env-secrets.sh` and every `bootstrap-managed.sh` run
+  read it from `/var/run/docker.sock` and write it, so live's deploy script and the OTA gate
+  both write it before their first `docker compose` call. Without it, Compose refuses to run;
+  there is no fallback to root or to no group. The proxy keeps no capability, no-new-privileges,
+  a read-only root filesystem and its one internal network. On every pull request that touches
+  `deploy/`, CI starts the image on the runner's socket with managed.yml's settings and fails
+  unless the image's user is 99:99 and every process in the container runs as uid 99. The image
+  has a new name, which each machine builds at its next deploy.
 - **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
   2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
   (workplan 0119). The image scan read six highs in the two, each fixed only in their next
@@ -114,6 +127,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
   are still recognised as its own. To v1 it gives a media type without its parameters
   (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
+- **A sign-in no longer binds anybody to a closed organisation** (workplan 0139 T7 (b)). An
+  organisation a granted access request had made, closed before anybody signed in to it, was still
+  taken up at the first sign-in with its address: the person became the active owner of an
+  organisation that starts nothing (409 `account_closed`), and was never sent to ask for another.
+  An invitation into a closed organisation was offered, and could be accepted, the same way. Now an
+  organisation that is closed, or whose erasure is running, takes nobody in: its row stays as it
+  was, `GET /api/me` lists neither it nor its invitation, and accepting that invitation answers
+  404. A reopen before the erasure gives the row back at the next sign-in. A suspended
+  organisation, which nothing writes, is unchanged. Somebody already bound to a closed
+  organisation stays in it until it is reopened or erased.
 
 ## [0.2.0-alpha.12] - 2026-11-20
 
