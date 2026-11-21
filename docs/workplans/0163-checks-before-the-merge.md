@@ -4,8 +4,28 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after the Dutch sentence: code scanning lists the spots of the six rules that may
+block, and the two ReDoS rules' stay in the job summary (a T3 follow-up).** On
+`claude/ownpace-public-readiness-y7orc6-semgrep-six`, from `main` at `ad2ffbe7`.
+- **Why.** `main`'s Semgrep run uploads its SARIF to code scanning. On `45dfead1` that was 206
+  spots, 202 of them under `detect-non-literal-regexp` and `detect-redos`, the two rules that
+  never block (D3), every one of them read. Those 202 filled the Security tab beside the
+  4 spots of the six rules that may block.
+- **What it does.** `scripts/semgrep-report.mjs` writes a second SARIF,
+  `semgrep-code-scanning.sarif` (`forCodeScanning`): Semgrep's own, with each result of a rule
+  marked `never` taken out, its rules list kept whole. The upload step sends that one. Semgrep's
+  own report is not changed, and the job summary lists and counts every spot as before, with a
+  line saying how many went to code scanning and how many stayed. At the first upload from
+  `main` after the merge, code scanning closes the two rules' open alerts, since their spots are
+  no longer in it.
+- **Tests.** `a-finding-only-an-outside-check-saw` has 26 tests, 4 new: the six rules' spots
+  are what is uploaded, Semgrep's own SARIF keeps all eight, a rule that never blocks is taken out
+  by its id, a prefixed id or its own name, and an empty report keeps its shape. Four mutations
+  each fail it: nothing taken out (2 tests), everything taken out (2), Semgrep's own SARIF
+  uploaded (4), and the summary line dropped (1).
+
 **2026-11-21, at the end: the Dutch sentence for a payment Mollie gives no checkout says
-*om via te betalen* (a T4 follow-up).** On `claude/ownpace-public-readiness-y7orc6-pay-sentence`,
+*om via te betalen* (a T4 follow-up), merged as #2005 on 2026-11-21 (`55eab78b`).** On `claude/ownpace-public-readiness-y7orc6-pay-sentence`,
 from `main` at `ad2ffbe7`.
 - **What changed.** `NO_CHECKOUT.nl` in `apps/api/src/routes/billing/index.ts` now reads *Mollie
   gaf geen betaalpagina om via te betalen. Probeer het over een minuut opnieuw.* It said *om op te
@@ -153,7 +173,9 @@ as D3 decided.
     id, so no copy is kept here and D3's licence question does not arise.
   - It writes each rule's spots to the job summary, and marks a spot of a rule that may block on
     its line.
-  - On a push to `main` the SARIF goes to code scanning, never from a pull request.
+  - On a push to `main` the SARIF goes to code scanning, never from a pull request. Since
+    2026-11-21 it holds the spots of the six rules that may block only (Status, 2026-11-21,
+    after the Dutch sentence).
 - **Known, never ignored:** the two spots §4.3 read as false positives, `apps/worker/src/index.ts`
   (the worker CLI's own `--config`) and `google-consent.ts` (its value goes through `jsString`).
   The two ReDoS rules are listed apart and never block.
@@ -320,7 +342,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); 🔨 **the no-checkout sentence in Dutch, reworded** (Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); ✅ **the no-checkout sentence in Dutch, merged** as #2005 on 2026-11-21 (`55eab78b`; Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |

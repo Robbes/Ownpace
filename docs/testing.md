@@ -550,7 +550,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   rule that may block can have timed out. No finding fails it. A scan that did not finish is a
   warning on a pull request and fails the run on a push or a dispatch, where the run is the
   record; so is a place where a rule that blocks can have timed out, and a report without the
-  timing section. On a push to `main` its SARIF goes to code scanning; never from a pull request. A rule
+  timing section. On a push to `main` the spots of the six rules that may block go to code scanning,
+  and the two ReDoS rules' spots stay in the summary only; never from a pull request. A rule
   becomes blocking, one at a time, once it reports nothing on `main`; the two ReDoS rules,
   `detect-non-literal-regexp` and `detect-redos`, never do. Held by
   `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`, which runs the report against a

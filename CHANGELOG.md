@@ -50,6 +50,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Code scanning lists the spots of the six Semgrep rules that may block** (workplan 0163).
+  On a push to `main`, the SARIF the Semgrep job uploads now leaves out the two ReDoS rules,
+  `detect-non-literal-regexp` and `detect-redos`, which never block: on `main` they made 202 of
+  its 206 spots. Those spots stay in the job summary, counted and listed, and code scanning closes
+  their alerts at the next upload. Semgrep's own report is unchanged.
 - **A migration waits at most five seconds for a table lock** (workplan 0165, D3).
   Each migration file runs in one transaction, and until now nothing limited how long it waited
   for a lock: one asking to change a table behind a long query waited for that query, and every
