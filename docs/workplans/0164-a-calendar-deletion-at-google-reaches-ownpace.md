@@ -8,7 +8,7 @@
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`, as §4.2, and not yet on the test
 environment.** *Delete all of these here too* on *Deleted on the old system*
 (`apps/web/src/components/queues/DeleteAllPanel.tsx`), on T2 as merged in #2019:
-- **The loop lives in the page** (the brief's option 1). It presses each row's own *Delete it here
+- **The loop lives in the page**, not in a new endpoint that loops server-side. It presses each row's own *Delete it here
   too* in turn, through the same call, and reads each answer to its end before the next press: the
   appliance's answer, or a managed receipt polled to `applied`, `refused` or `failed`
   (`applyEachInTurn`, `packages/shared/src/apply-each-in-turn.ts`). No route was added. Why:
