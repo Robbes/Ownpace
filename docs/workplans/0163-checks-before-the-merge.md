@@ -4,7 +4,17 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21: T3, Semgrep report only, built as #1986 (a draft, not merged).** On
+**2026-11-21, later: T2, T3, T9 and T4's first fix are on `main`, for alpha.13.** They merged in
+this order, each with `main` merged in and CI green on its last head: #1985, the tag length
+(`032bae95`); #1984, osv-scanner (`6265a94c`); #1980, the O365 lane deleted (`a4e9f331`); and #1986,
+Semgrep report only (`fbd73f93`). On #1986's last head Semgrep read 208 spots from its eight
+rules: 203 under the two ReDoS rules, 2 known, and 3 to read, the Cirrux test fake's decipher
+and the two spots T4's `https:`-and-host check is for. GEN-26, which T4's `base_ref` line goes
+with, merged as #1977 (`5cac662b`). Still open: T1, whose secrets move in Settings; the rest of
+T4 (the Cirrux test fake's decipher, findings 8 and 9, and the Pay button); T5; and T6.
+
+**2026-11-21: T3, Semgrep report only, merged as #1986 on 2026-11-21 (`fbd73f93`; *was:* built as a
+draft, not merged).** On
 `claude/ownpace-public-readiness-y7orc6-semgrep-report`, from `main` at `5a0a2eff`; step 3 of §5,
 as D3 decided.
 - **What it does.** `semgrep.yml` is a workflow of its own, in the shape of `hadolint.yml`. It runs
@@ -58,8 +68,8 @@ as D3 decided.
   - T4's fix for finding 8 takes this on. The API returns the checkout address and refuses a
     payment that has none, and the web app follows it only when it is `https:` on Mollie's host.
 
-**2026-11-20, after T2: #1984's CI is green, and T4's first fix is built as #1985 (a draft, not
-merged).**
+**2026-11-20, after T2: #1984's CI is green, and T4's first fix is built as #1985, merged on
+2026-11-21 (`032bae95`; *was:* a draft, not merged).**
 - **#1984** passed every workflow on its pull request. CI run 44838311907 includes the
   integration tests on amd64 and arm64 and `ci-complete`; Security Scan run 44838311872 includes
   the two osv-scanner steps.
@@ -73,7 +83,8 @@ merged).**
     option fails it. With the length check removed, Node itself still refuses the tag.
   - `packages/core`'s unit tests pass (98 files, 1,067 tests), as do ESLint and the typecheck.
 
-**2026-11-20, at the end: T2, osv-scanner, built as #1984 (a draft, not merged).** On the branch
+**2026-11-20, at the end: T2, osv-scanner, built as #1984, merged on 2026-11-21 (`6265a94c`;
+*was:* a draft, not merged).** On the branch
 `claude/ownpace-public-readiness-y7orc6-osv-scanner`, from `main` at `8b8fac07`; step 1 of §5, as
 D1 decided.
 - **What it does.** The Security Scan's repository job installs osv-scanner from its GitHub
@@ -110,8 +121,8 @@ only.
   spots are still not named here (§3).
 - **So D6 asks the owner for nothing now.** T4 covers findings 8 and 9 and the small fixes.
 
-**2026-11-20, last: D7 answered and built as #1980; findings 8 and 9 found; 4 and 7 asked of the
-owner (T9, T4, D6).** Docs only on this branch.
+**2026-11-20, last: D7 answered and built as #1980, merged on 2026-11-21 (`a4e9f331`); findings 8
+and 9 found; 4 and 7 asked of the owner (T9, T4, D6).** Docs only on this branch.
 - **D7.** The owner answered *"D7: yes"*. The deletion is its own draft pull request, #1980, on
   `claude/ownpace-public-readiness-y7orc6-o365-lane-withdrawn`. 0141's Status of the same day has
   what it changes and what was proved. Once it merges, finding 1's spots are two, and D2 needs two
@@ -179,14 +190,14 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised); ⏳ **Owner** (D7) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
-| T2 osv-scanner | builder | 🔨 **Built** in #1984, a draft, not merged (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
-| T3 Semgrep, report only | builder | 🔨 **Built** in #1986, a draft, not merged (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned**; 🔨 **the tag length built** in #1985, a draft, not merged | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
+| T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
+| T4 Fix or answer each spot | builder | 📋 **Planned**; ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
-| T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); 🔨 **Built** in #1980, a draft, not merged | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |
+| T9 The O365 lane | builder | ✅ **Decided 2026-11-20** (*"D7: yes"*); ✅ **Merged** as #1980 on 2026-11-21 (`a4e9f331`) | `e2e-o365.yml` deleted, with what §6 D7 lists; 0141's Status of 2026-11-20, last, has the proof. |
 | T10 Finding 7, secrets not compared in constant time | owner | 🅿️ **Parked 2026-11-20, by owner decision** (*"Leave that Finding 7 / unfindable for now."*; trigger: the owner takes it up) | No community rule reports it (§4.3). Four candidates fit it, all from the Cirrux change of 2026-11-19, and none compares a secret with a value someone else supplies. |
 | T11 Finding 4, the overview of routes and who may use them | owner | 🅿️ **Parked 2026-11-20, by owner decision** (*"finding 4: also park, we pick up later"*; trigger: the owner takes it up) | The outside check's own rules; the screenshot does not name its two spots (§3). When it is taken up, each spot gets a case in `apps/api`'s door guards or is recorded as intended (§5). |
 
