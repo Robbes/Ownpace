@@ -7,7 +7,7 @@
 **2026-11-21, latest still: Trigger.dev v4.8.5 → v4.8.8, for alpha.14, before its three-day floor
 on the owner's waiver; built on a branch, not merged (#1935).** On the branch
 `claude/ownpace-public-readiness-y7orc6-trigger-4-8-8`, from `main` at `ad2ffbe7` (#1999), with `main`
-at `cba6c64d` (#2003) merged in since. Read from
+at `17548646` (#2004) merged in since. Read from
 upstream's tags on raw.githubusercontent.com, file by file (no directory could be listed), npm's
 registry and ghcr's manifests, without a login; nothing read was run. Times are UTC.
 - **The decision, as the owner gave it.** At about 10:00, asked whether v4.8.8 goes into alpha.14:
@@ -117,9 +117,13 @@ registry and ghcr's manifests, without a login; nothing read was run. Times are 
   `9d695106` merged in, the unit project over `scripts/`, `apps/worker` and `packages/scheduler`
   again: 352 files, 7972 passed, 37 skipped, and the same 3 failed in the same 2 files, on the
   refusal; with `cba6c64d` merged in, 353 files, 7993 passed, 37 skipped, and the same 3; the six
-  docs checks and `tsc --noEmit` pass again. No image was built here: that is the pull request's
-  `build (trigger, amd64|arm64)`, green on both platforms at `777666f2` (#2009, Images run
-  44911616693), with CI, Security Scan, Semgrep and Dockerfile lint green on that head.
+  docs checks and `tsc --noEmit` pass again. With `17548646` merged in (#2004: vitest 5.1.1 and
+  lucide-react 1.75.0; its one conflict, the worker's devDependencies, takes both lines), the
+  frozen install in a fresh copy with an empty verdict cache passes again (936 entries), and the
+  unit project, the six docs checks and `tsc --noEmit` give the same. No image was built here: that
+  is the pull request's `build (trigger, amd64|arm64)`, green on both platforms at `777666f2`
+  (#2009, Images run 44911616693) and at `e310a507` (Images run 44914042645), with CI, Security
+  Scan, Semgrep and Dockerfile lint green on each head.
 - **Then, in this order.** (1) `build (trigger, amd64)` and `build (trigger, arm64)` green on the pull
   request. (2) The owner's steps on the OTA stack, with no E2E (managed) queued or running: the hold
   and the drain; `trigger-version.sh backup before-v4.8.8`; `trigger-supervisor` and `trigger-api`
