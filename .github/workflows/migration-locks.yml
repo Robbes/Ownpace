@@ -1,0 +1,135 @@
+# squawk over the migrations, REPORT ONLY (workplan 0165).
+#
+# An outside, read-only check measured "database changes that lock a table"
+# with squawk over both migration chains (check DATA-1b, 2026-11-21). Nothing
+# here looked for that class before the merge: migration-lint's Atlas
+# (ci.yml) runs Atlas's community analyzers, and for Postgres those are four
+# (destructive changes, data-dependent changes, a dropped foreign key,
+# renames), none of which reads a lock. Workplan 0165 §4 has the evidence.
+#
+# This runs squawk over every migration file of both chains, one run per file,
+# configured as `runMigrations` applies them (`--assume-in-transaction`: each
+# file is one transaction, packages/ledger/src/migrate.ts), and writes to the
+# job summary, through scripts/migration-locks-report.mjs:
+#   - every finding in a migration file this change adds or changes, in full,
+#     with a warning annotation on its line;
+#   - for every other file, which is history (an applied migration never
+#     changes, ADR-0045), a count per rule;
+#   - each rule that cannot be met while each file is one transaction,
+#     marked as such.
+#
+# REPORT ONLY. No finding fails this job, nor does a file squawk could not
+# read: that is listed and warned about. The one thing that fails it is the
+# install step refusing a download whose sha256 is not the one pinned, which
+# runs nothing. It is not in ci.yml, so ci-complete never waits for it, and it
+# is not a required check (every-pr-check-is-classified.unit.test.ts,
+# docs/testing.md). Whether any rule ever blocks is the owner's decision
+# (workplan 0165, D2).
+#
+# WHEN. On a pull request or a push to main that changes a migration, this
+# file or its script, and on dispatch, where every file is history.
+# GitHub-hosted, as every pull_request job is (ci.yml's header says why).
+name: Migration locks
+
+on:
+  pull_request:
+    paths:
+      - 'packages/ledger/migrations/**'
+      - 'packages/managed/migrations/**'
+      - '.github/workflows/migration-locks.yml'
+      - 'scripts/migration-locks-report.mjs'
+  push:
+    branches: [main]
+    paths:
+      - 'packages/ledger/migrations/**'
+      - 'packages/managed/migrations/**'
+      - '.github/workflows/migration-locks.yml'
+      - 'scripts/migration-locks-report.mjs'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: migration-locks-${{ github.ref }}
+  # As in ci.yml: a superseded pull request run is cancelled, a run on main is not.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  squawk:
+    name: squawk (report only)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # Two commits: a pull request's merge commit and its base, or a
+          # push's commit and the one before it. The report reads which
+          # migration files changed from `git diff HEAD^1 HEAD`.
+          fetch-depth: 2
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+      # A NAMED RELEASE, CHECKED BY ITS SHA-256 BEFORE ANYTHING RUNS IT, in the
+      # shape of ci.yml's Atlas step and security-scan.yml's osv-scanner step,
+      # under names of its own (`asset`, `got`, `want`, `differs`): both
+      # architectures fetched and checked on every run, then the native one
+      # made executable, and its version must be the release named. The
+      # musl builds, which are static, so neither needs the runner's libc.
+      #
+      # WHERE THE SUMS COME FROM. The sha256 GitHub's release page shows for
+      # each asset of squawk's v2.73.0 (published 2026-11-15, past the
+      # three-day floor of CONTRIBUTING.md), and the same sum read from the
+      # downloaded bytes on 2026-11-21, without running them. squawk publishes
+      # no checksum file. The outside check ran squawk 2.66.0; this pins the
+      # newest release, which the pin watch keeps current
+      # (scripts/idp-pin-watch.mjs, its squawk row; Dependabot cannot see a
+      # URL in a `run:`). `a-pin-that-knows-it-is-behind` RUNS this `run:`
+      # under bash, with `curl` and `uname` stubbed, and fails if a wrong sum
+      # or another version does not stop it with nothing installed.
+      - name: Install squawk from its GitHub release, checked by its sha256
+        env:
+          SQUAWK_VERSION: v2.73.0
+          SQUAWK_SHA256_X64: 2a512e96c913663b2b0a1a75ea1351e0605dcbaf2584112f16e93659fc7329e0
+          SQUAWK_SHA256_ARM64: ac74c0835a2e55b06445ed72c7da316cbe4c897d432a6d8e7445dd6efa02bb6e
+        run: |
+          set -euo pipefail
+          machine="$(uname -m)"
+          case "$machine" in
+            x86_64) native=x64 ;;
+            aarch64) native=arm64 ;;
+            *) echo "::error::No squawk is pinned for $machine: only x64 and arm64."; exit 1 ;;
+          esac
+          differs=0
+          for arch in x64 arm64; do
+            if [ "$arch" = x64 ]; then want="$SQUAWK_SHA256_X64"; else want="$SQUAWK_SHA256_ARM64"; fi
+            asset="$RUNNER_TEMP/squawk-$SQUAWK_VERSION-linux-musl-$arch"
+            rm -f "$asset"
+            curl --proto '=https' --tlsv1.2 -sSfL --retry 4 -o "$asset" \
+              "https://github.com/sbdchd/squawk/releases/download/${SQUAWK_VERSION}/squawk-linux-musl-${arch}"
+            got="$(sha256sum "$asset")"
+            got="${got%% *}"
+            if [ "$got" = "$want" ]; then
+              echo "squawk $SQUAWK_VERSION linux-musl/$arch: sha256 $got, as pinned."
+            else
+              echo "::error::squawk $SQUAWK_VERSION linux-musl/$arch is not the build this workflow pins: its sha256 is $got, and the pin is $want. Nothing was run."
+              differs=1
+            fi
+          done
+          [ "$differs" = 0 ] || exit 1
+          mkdir -p "$RUNNER_TEMP/squawk-bin"
+          install -m 0755 "$RUNNER_TEMP/squawk-$SQUAWK_VERSION-linux-musl-$native" "$RUNNER_TEMP/squawk-bin/squawk"
+          said="$("$RUNNER_TEMP/squawk-bin/squawk" --version)"
+          echo "$said"
+          if [ "${said%%$'\n'*}" != "squawk ${SQUAWK_VERSION#v}" ]; then
+            echo "::error::The squawk this step installed does not call itself ${SQUAWK_VERSION#v}."
+            exit 1
+          fi
+          echo "$RUNNER_TEMP/squawk-bin" >> "$GITHUB_PATH"
+      - name: Read every migration with squawk, and write what it says to the summary
+        env:
+          # Which files this run counts as changed: none on a dispatch.
+          EVENT_NAME: ${{ github.event_name }}
+        run: node scripts/migration-locks-report.mjs
