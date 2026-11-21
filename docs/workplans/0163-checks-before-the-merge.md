@@ -46,6 +46,17 @@ as D3 decided.
     three of the pin row each fail a guard.
 - **GEN-21**, which this plan only lists, was fixed on `main` in its own work (`7cbb1093`,
   workplan 0119): the Docker socket proxy runs as HAProxy's uid 99, no longer as root.
+- **Found while reading finding 8's spot for T4: the Pay button never reaches Mollie.**
+  - `POST /api/billing/invoices/:id/pay` (`apps/api/src/routes/billing/index.ts`) creates the
+    payment with `redirectUrl: ${WEB_URL}/billing`, the page Mollie sends the customer back to.
+    It then returns that same `redirectUrl` as `paymentUrl`.
+  - So `Billing.tsx:760` sends the customer to the app's own billing page. Mollie's checkout
+    address, which `@mollie/api-client` 4.6.0 gives as `getCheckoutUrl()`, is read nowhere:
+    `MollieService.toMolliePayment` keeps only `redirectUrl`.
+  - `a-draft-is-not-paid.unit.test.ts` stubs Mollie with a pay address as its `redirectUrl`, so
+    the test passes with the mistake in it.
+  - T4's fix for finding 8 takes this on. The API returns the checkout address and refuses a
+    payment that has none, and the web app follows it only when it is `https:` on Mollie's host.
 
 **2026-11-20, after T2: #1984's CI is green, and T4's first fix is built as #1985 (a draft, not
 merged).**
