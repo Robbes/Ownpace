@@ -45,7 +45,7 @@ calendar stayed unreadable, the REPORT differing from T1's, a token with an `&` 
 five mutants that survived, and a calendar's path in the log. Each is fixed and tested. The tests
 run the real source over `GoogleLikeCalDav`, a fake that answers as Google did, in the connectors,
 in the sync loop, and over a real Postgres, where the reported removal is the one the gated apply
-takes. 40 mutants, each taking out one rule, each made a test fail.
+takes. 41 mutants, each taking out one rule, each made a test fail.
 - **Next:** E2E (managed) on the pull request, then the owner's test (T5) after the merge.
 
 **2026-11-21, last: T1 ran on the test environment, and A is the reader.** Built as #2008
