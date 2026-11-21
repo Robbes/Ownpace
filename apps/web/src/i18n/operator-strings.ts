@@ -396,6 +396,35 @@ export const OPERATOR_STRINGS = {
   'support.reopen.confirm': 'Reopen {name}? Its migrations start again at the next tick.',
   'support.reopen.yes': 'Yes, reopen it',
   'support.reopen.failed': 'Could not reopen it: {message}',
+  // ---- A test organisation (workplan 0162 T1; ADR-0053): marked here, by an
+  // appointed operator, only while it holds no migration. Every migration
+  // made in it afterwards copies only the items whose own title carries the
+  // marker, and is never finished or switched over. A refusal is the API's
+  // own sentence, shown as it says it.
+  'support.test.title': 'Test organisation',
+  'support.test.intro':
+    'A test organisation copies only the items whose own title contains its marker, ignoring case, and its migrations are never finished or switched over: they end by being deleted. Nobody in the organisation sees this setting.',
+  'support.test.when':
+    'Marked, or unmarked, only while it holds no migration. Each migration made here afterwards keeps the marker it was made with.',
+  'support.test.is': 'This is a test organisation. Its marker:',
+  'support.test.isNot': 'This is not a test organisation.',
+  'support.test.marker': 'Marker',
+  'support.test.marker.hint':
+    '3 to 64 characters, in an item’s own title: a mail’s subject, an event’s or a task’s title, a contact’s name, a file’s name. [Ownpace-test] is offered; type another if you like.',
+  'support.test.arm': 'Mark as a test…',
+  'support.test.change': 'Change the marker…',
+  'support.test.confirm': 'Mark {name} as a test organisation, with the marker {marker}?',
+  'support.test.yes': 'Yes, mark it',
+  'support.test.failed': 'Could not mark it: {message}',
+  'support.test.done': 'Marked. Each migration made here from now on copies only what carries {marker}.',
+  'support.test.unarm': 'Stop being a test…',
+  'support.test.unconfirm': 'Make {name} an ordinary organisation again? Migrations made here afterwards copy everything they are given.',
+  'support.test.unyes': 'Yes, unmark it',
+  'support.test.unfailed': 'Could not unmark it: {message}',
+  'support.test.undone': 'Unmarked. It is an ordinary organisation again.',
+  'support.test.badge': 'Test',
+  'support.test.migration':
+    'A test migration: it copies only the items whose own title contains its marker, and is never finished. Its marker:',
 } as const;
 
 export type OperatorKey = keyof typeof OPERATOR_STRINGS;

@@ -36,6 +36,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   test is over.* Its check measures it as any other, and never clears it for its cutover; the
   check's page and the Finish page say why, in English and Dutch, as does a refused end or keep.
   Deleting a test migration, and then its account, works as for any other.
+- **An operator can mark an organisation as a test, and every migration made there then copies
+  only what carries its marker** (workplan 0162 T1; ADR-0053). On an organisation's Support page an
+  appointed operator marks it as a test organisation, with a marker: `[Ownpace-test]` is offered,
+  and any other of 3 to 64 printable characters can be typed. The mark can be taken off again.
+  Both are refused while the organisation holds any migration, and both are recorded in the audit
+  log; anybody who is not an operator is answered as if the organisation did not exist. Each
+  migration made in a test organisation copies the marker onto itself when it is created, and
+  nothing changes it afterwards: it copies only the items whose own title contains the marker
+  (0162 T2), and is never finished or switched over (0162 T3). Every page of a test migration says
+  so in a banner, in English and Dutch, with its marker; the lists show a *Test* badge; and the
+  Finish page offers its data types neither End nor Keep. The appliance has no test
+  organisations.
 
 ### Changed
 

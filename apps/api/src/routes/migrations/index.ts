@@ -139,6 +139,7 @@ import { startsWhenGrantedFor } from './start-when-granted.ts';
 // load every migration route to answer one question.
 import { accountOnConnection } from './account-on-connection.ts';
 import { holdTheCap, maxMigrationsPerOrganisationFromEnv, PastTheCap } from './migration-cap.ts';
+import { testMarkerOfOrganisation } from '@openmig/managed';
 export { accountOnConnection };
 import {
   DISTRIBUTION_D_NOT_A_MAPPING,
@@ -2371,6 +2372,9 @@ router.get('/', authenticate, async (req: AuthenticatedRequest, res: Response) =
         pattern: m.pattern,
         domains: domainsByMapping.get(m.id) ?? [],
         lastSyncAt: lastSyncByMapping.get(m.id),
+        // A test migration's own marker (0162 T1), for the list's *Test*
+        // badge. Absent for every other.
+        ...(m.testMarker !== null ? { testMarker: m.testMarker } : {}),
         createdAt: m.createdAt,
         updatedAt: m.updatedAt,
       })),
@@ -2562,6 +2566,19 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       // Before anything is written: at most `cap` unfinished migrations per
       // organisation, one create at a time (`migration-cap.ts`).
       await holdTheCap(db, tenantId, cap);
+
+      // A TEST ORGANISATION'S MIGRATION CARRIES ITS MARKER (workplan 0162 T1,
+      // the owner's §2 (b) and (c)): copied onto the migration's own row
+      // below, in this transaction, where nothing ever changes it (ledger
+      // migration 0070's trigger, and the guard
+      // `a-test-marker-only-a-create-writes`). Read under the organisation's
+      // migrations lock `holdTheCap` has just taken, which the doors that
+      // mark the organisation take too: a mark either committed before this
+      // read, and is copied, or waits for this create to commit, and then
+      // refuses, as it refuses any organisation that holds a migration.
+      // Undefined for an organisation that is not a test, and the column
+      // stays NULL.
+      const testMarker = await testMarkerOfOrganisation(db, tenantId);
 
       // Never store plaintext secrets — encrypt via SecretStore. secret_ref is a
       // text column read back by decryptCredentials(string) → parseEncryptedSecret,
@@ -2815,6 +2832,8 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
              */
             sourceConfigOverride: body.sourceConnectionId ? sourceConfigOverride(body) : null,
             targetConfigOverride: body.targetConnectionId ? targetConfigOverride(body) : null,
+            // The organisation's marker, read above: never the body's.
+            testMarker: testMarker ?? null,
           })
           .returning(),
         'mapping',
@@ -2847,6 +2866,9 @@ router.post('/', authenticate, async (req: AuthenticatedRequest, res: Response) 
       mode: created.mode,
       pattern: created.pattern ?? undefined,
       syncConfig: { domains: body.syncConfig.domains, schedule: created.schedule ?? undefined },
+      // A test migration's marker, as it was copied (0162 T1). Absent for
+      // every other.
+      ...(created.testMarker !== null ? { testMarker: created.testMarker } : {}),
       createdAt: created.createdAt.toISOString(),
       updatedAt: created.updatedAt.toISOString(),
     });
@@ -3177,6 +3199,10 @@ router.get('/:mappingId', authenticate, async (req: AuthenticatedRequest, res: R
       // or null. The page says so above everything else: nothing reads the
       // account until they grant it again, whatever the status says.
       grantWithdrawnAt: mapping.grantWithdrawnAt?.toISOString() ?? null,
+      // A TEST MIGRATION'S MARKER (workplan 0162 T1; the operating contract's
+      // `testMarker`): every page of it says so in a banner, and that it
+      // cannot be finished. Absent for every migration that is not a test.
+      ...(mapping.testMarker !== null ? { testMarker: mapping.testMarker } : {}),
       createdAt: mapping.createdAt,
       updatedAt: mapping.updatedAt,
     });

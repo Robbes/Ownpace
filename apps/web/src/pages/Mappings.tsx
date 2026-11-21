@@ -53,6 +53,7 @@ import { SendItToUs } from '../components/SendItToUs.tsx';
 import StateChip from '../components/StateChip.tsx';
 import { providerName } from '../components/ProviderTile.tsx';
 import { MigrationLines, MigrationTiles, lineStages } from '../components/MigrationLines.tsx';
+import { TestBadge } from '../components/TestMigration.tsx';
 import { fetchProgress } from '../services/progress-service.ts';
 import { progressRefetchInterval } from '../services/progress-poll.ts';
 import { linesProgressOf } from '../services/stage-line.ts';
@@ -257,6 +258,9 @@ const Mappings: React.FC = () => {
               className="text-sm font-medium text-gray-900 hover:underline"
             >
               {m.name}
+              {/* A test migration (workplan 0162 T1), inside its name's link,
+                  which keeps the name's row as it is; its page says why. */}
+              <TestBadge marker={m.testMarker} />
             </Link>
             <MigrationTiles migration={m} />
             <div className="flex flex-wrap items-center gap-x-4 gap-y-2" onClick={(e) => e.stopPropagation()}>

@@ -54,6 +54,12 @@ export interface SupportTenant {
   readonly closed_at: string | null;
   /** The day the purge erases it, or null while it is open. Reopenable until then. */
   readonly purge_after: string | null;
+  /**
+   * Its test marker, when an operator marked it as a test (workplan 0162 T1,
+   * managed 0062), or null. Optional: a server older than it sends none, which
+   * says nothing either way.
+   */
+  readonly test_marker?: string | null;
 }
 
 export interface SupportConnection {
@@ -78,6 +84,8 @@ export interface SupportMigration {
   readonly updated_at: string;
   /** THIS migration's pending decisions — a count, never the decisions. */
   readonly pending_decision_count?: number | string;
+  /** Its own test marker (workplan 0162 T1), or null for a migration that is not a test. */
+  readonly test_marker?: string | null;
 }
 
 export interface SupportInvoice {
@@ -330,6 +338,24 @@ export async function closeSupportTenant(
 /** Reopen a closed organisation while its window is open, recorded as `tenant.reopened`. */
 export async function reopenSupportTenant(tenantId: string, reference: string): Promise<void> {
   await apiClient.post(`/support/tenants/${encodeURIComponent(tenantId)}/reopen`, { reference });
+}
+
+/**
+ * Mark an organisation as a test, with the marker typed, or replace its
+ * marker (workplan 0162 T1): recorded as `tenant.test_marker_set`. Refused
+ * while the organisation holds a migration, in the API's own sentence.
+ */
+export async function setSupportTestMarker(tenantId: string, marker: string): Promise<{ testMarker: string }> {
+  const response = await apiClient.post<{ testMarker: string }>(
+    `/support/tenants/${encodeURIComponent(tenantId)}/test`,
+    { marker },
+  );
+  return response.data;
+}
+
+/** Clear an organisation's test marker (workplan 0162 T1): recorded as `tenant.test_marker_cleared`. */
+export async function clearSupportTestMarker(tenantId: string): Promise<void> {
+  await apiClient.delete(`/support/tenants/${encodeURIComponent(tenantId)}/test`);
 }
 
 /**

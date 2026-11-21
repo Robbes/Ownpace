@@ -75,13 +75,26 @@ export class PastTheCap extends Error {
 }
 
 /**
+ * THE ORGANISATION'S MIGRATIONS LOCK: one create at a time per organisation,
+ * and the doors that mark it as a test, or no longer (workplan 0162 T1,
+ * `test-organisation.ts`), one at a time with them. A mark asks whether the
+ * organisation holds a migration under it, and a create reads the
+ * organisation's marker under it, so the two are decided one after the other:
+ * a migration is never made in an organisation while it is being marked, and
+ * misses the marker. `pg_advisory_xact_lock` is released at COMMIT or ROLLBACK,
+ * which a transaction pooler keeps to one connection.
+ */
+export async function holdTheOrganisationsMigrations(db: PgDatabase, tenantId: string): Promise<void> {
+  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`migrations:${tenantId}`}, 0))`);
+}
+
+/**
  * Hold the cap in the create's own transaction, before anything is written:
- * take the organisation's lock, count its unfinished migrations, and throw
- * `PastTheCap` when there is no room. `pg_advisory_xact_lock` is released at
- * COMMIT or ROLLBACK, which a transaction pooler keeps to one connection.
+ * take the organisation's migrations lock, count its unfinished migrations,
+ * and throw `PastTheCap` when there is no room.
  */
 export async function holdTheCap(db: PgDatabase, tenantId: string, cap: number): Promise<void> {
-  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`migrations:${tenantId}`}, 0))`);
+  await holdTheOrganisationsMigrations(db, tenantId);
   const [row] = await db
     .select({ unfinished: count() })
     .from(schema.mailboxMapping)

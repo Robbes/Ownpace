@@ -279,7 +279,7 @@ export const REFERENCE_MAX = 200;
  * not see a row (404), without reading the message.
  */
 export class NotAnAppointedOperator extends Error {
-  constructor(subject: string, nothing: 'closed' | 'reopened') {
+  constructor(subject: string, nothing: 'closed' | 'reopened' | 'marked as a test' | 'unmarked') {
     super(
       `${subject} is not an appointed operator (operator.sh list), so nothing was ${nothing}. ` +
         '--by takes your own subject.',
@@ -299,9 +299,11 @@ export interface CloseCommand {
 /**
  * Whether `subject` is an appointed operator, asked the way the API asks about
  * a signed-in person: as that subject. `platform_operator` shows a subject its
- * own row and nobody else's.
+ * own row and nobody else's. Exported for the support page's other writes in
+ * an organisation's own context, its test marker among them (workplan 0162
+ * T1, `test-organisation.ts`), so every one asks the same question.
  */
-async function isAppointedOperator(
+export async function isAppointedOperator(
   source: Pool | LedgerDriver,
   tenantId: string,
   subject: string,

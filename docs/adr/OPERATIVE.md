@@ -743,3 +743,23 @@ live in [README.md](./README.md), the register.
   asking nothing of Cirrux (`cirrux-oauth-routes.ts`).
 - **The appliance has no Cirrux Drive**: its credentials live in its `.env`, which nothing
   writes back, and it has no consent door.
+
+## [ADR-0053: A test organisation copies only what is marked](./0053-a-test-organisation-copies-only-what-is-marked.md)
+
+- **Only an appointed operator marks an organisation as a test**, with its marker, from Support
+  (`POST`/`DELETE /api/support/tenants/{id}/test`), and only while it holds no migration; anybody
+  else gets a 404. The marker is required: trimmed, 3 to 64 printable characters.
+  `[Ownpace-test]` is offered, never assumed.
+- **A migration copies its organisation's marker when it is created** (`mailbox_mapping.test_marker`),
+  in that transaction, and nothing changes or removes it: a trigger refuses, and
+  `a-test-marker-only-a-create-writes` refuses any update that names it.
+- **An item is in scope when its own title contains the marker**, ignoring case: a subject, an
+  event's or task's title (a series by its master), a contact's name, a file's name. Nothing else
+  decides.
+- **Applied once, where the source is listed** (`MarkedOnly`, at every builder): discovery, the
+  passes, the bin scan, verification and the counts see one marked set.
+- **Never finished or switched over**: every such door refuses it and says why, the Finish page
+  offers neither End nor Keep, and every page says *Test*. It ends by being deleted.
+- **Losing the marker deletes nothing**: only a real deletion at the source reaches the queue.
+- **Guests as for any event; every source kind** reads the marker.
+- **Managed only**: the appliance has no operator and no test migration.

@@ -55,12 +55,14 @@
  *
  * ## The writes, each its own record
  *
- * Three routes here change something rather than read it: the mark that money
- * was given back, and an organisation's close and reopen (0139 T7 (b)). Each is
- * its own record of who and when (`money_given_back`; the audit log's
- * `tenant.closed` and `tenant.reopened`), so none writes a `support_read` row.
- * The close and the reopen are the one place this file asks "is this an
- * operator" itself, and why is said where they are.
+ * Five routes here change something rather than read it: the mark that money
+ * was given back, an organisation's close and reopen (0139 T7 (b)), and the
+ * marking of an organisation as a test and its clearing (0162 T1). Each is its
+ * own record of who and when (`money_given_back`; the audit log's
+ * `tenant.closed`, `tenant.reopened`, `tenant.test_marker_set` and
+ * `tenant.test_marker_cleared`), so none writes a `support_read` row. The
+ * close, the reopen and the two test doors are the one place this file asks
+ * "is this an operator" itself, and why is said where they are.
  */
 
 import { Router } from 'express';
@@ -82,6 +84,7 @@ import {
   markMoneyGivenBack,
   isCloseWindow,
   CLOSE_WINDOWS_DAYS,
+  holdsMigrationsSaid,
 } from '@openmig/managed';
 import { getTriggerClient } from '@openmig/scheduler';
 import { auditPseudonymKey } from '../audit-key.ts';
@@ -91,6 +94,7 @@ import {
   reopenAsOperator,
   runCloseCommand,
 } from '../close-account.ts';
+import { markAsTestAsOperator, unmarkTestAsOperator } from '../test-organisation.ts';
 import {
   LOG_FILTERS,
   LOG_PAGE,
@@ -100,6 +104,7 @@ import {
   pseudonymizer,
   logEventPattern,
   parseLogFilters,
+  readTestMarker,
   type LogFilters,
 } from '@openmig/shared';
 import { authenticateSubject, getDbPool } from '../middleware/auth.ts';
@@ -262,7 +267,8 @@ router.get(
         const head = await db.execute(
           sql`SELECT tenant_id, tenant_name, tenant_status, joined_at,
                      migration_count, failing_domain_count, pending_decision_count,
-                     connection_count, member_count, last_pass_at, closed_at, purge_after
+                     connection_count, member_count, last_pass_at, closed_at, purge_after,
+                     test_marker
                 FROM public.support_tenants WHERE tenant_id = ${tenantId}::uuid`,
         );
         const tenantRows = head.rows as Row[];
@@ -275,7 +281,7 @@ router.get(
         );
         const migrations = await db.execute(
           sql`SELECT mapping_id, name, lifecycle, mode, pattern, schedule,
-                     created_at, updated_at, pending_decision_count
+                     created_at, updated_at, pending_decision_count, test_marker
                 FROM public.support_tenant_migrations
                WHERE tenant_id = ${tenantId}::uuid ORDER BY created_at`,
         );
@@ -522,6 +528,107 @@ router.post(
 );
 
 /**
+ * THE OPERATOR MARKS AN ORGANISATION AS A TEST (workplan 0162 T1, §3; the
+ * owner's §2 (b); ADR-0053): `POST` with `{ marker }` sets its marker, or
+ * replaces it, and `DELETE` clears it. Every migration made in a test
+ * organisation copies the marker onto its own row when it is created, and
+ * then copies only the items whose own title contains it (§2 (a), (c)).
+ *
+ * Asked about twice, as the close is: the organisation must be on the
+ * subject's `support_tenants`, and `platform_operator` must hold the subject
+ * (`markAsTestAsOperator`, `unmarkTestAsOperator`). Anybody else gets the 404
+ * every route here gives, and nothing is written.
+ *
+ * ## What it answers
+ *
+ * 400 for a marker that is not 3 to 64 printable characters once trimmed,
+ * before anything is read (`readTestMarker`): the API requires one, and
+ * `[Ownpace-test]` is what the screen offers, never what is assumed. 409
+ * `holds_a_migration` while the organisation holds any migration, whatever
+ * its status (§2 (b)), with the sentence the screen shows. 200 with the
+ * marker set, or cleared.
+ */
+router.post(
+  '/tenants/:tenantId/test',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const operator = req.userId;
+      if (!operator) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const tenantId = oneUuid(req.params.tenantId);
+      if (!tenantId) {
+        return void res.status(400).json({ error: 'Bad request', message: 'tenantId must be one uuid' });
+      }
+      const read = readTestMarker((req.body as { marker?: unknown } | undefined)?.marker);
+      if ('refused' in read) {
+        return void res.status(400).json({ error: 'bad_marker', message: read.refused });
+      }
+
+      if ((await statusAsServed(operator, tenantId)) === null) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      const marked = await markAsTestAsOperator(pool(), { tenantId, by: operator, marker: read.marker });
+      if ('held' in marked) {
+        return void res.status(409).json({
+          error: 'holds_a_migration',
+          held: marked.held,
+          message: holdsMigrationsSaid(marked.held, 'mark'),
+        });
+      }
+      res.json({ testMarker: marked.marker, ...(marked.replaced !== undefined ? { replaced: marked.replaced } : {}) });
+    } catch (error) {
+      if (error instanceof NotAnAppointedOperator) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      serverFault(res, 'support_test_mark_failed', 'marking an organisation as a test', error);
+    }
+  },
+);
+
+router.delete(
+  '/tenants/:tenantId/test',
+  authenticateSubject,
+  async (req: AuthenticatedRequest, res: Response) => {
+    try {
+      const operator = req.userId;
+      if (!operator) {
+        return void res
+          .status(401)
+          .json({ error: 'Unauthorized', message: 'No subject on this request' });
+      }
+      const tenantId = oneUuid(req.params.tenantId);
+      if (!tenantId) {
+        return void res.status(400).json({ error: 'Bad request', message: 'tenantId must be one uuid' });
+      }
+
+      if ((await statusAsServed(operator, tenantId)) === null) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      const unmarked = await unmarkTestAsOperator(pool(), { tenantId, by: operator });
+      if ('held' in unmarked) {
+        return void res.status(409).json({
+          error: 'holds_a_migration',
+          held: unmarked.held,
+          message: holdsMigrationsSaid(unmarked.held, 'unmark'),
+        });
+      }
+      // Null for an organisation that was not a test: nothing changed, and
+      // nothing was recorded.
+      res.json({ testMarker: null, cleared: unmarked.cleared ?? null });
+    } catch (error) {
+      if (error instanceof NotAnAppointedOperator) {
+        return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+      }
+      serverFault(res, 'support_test_unmark_failed', "clearing an organisation's test marker", error);
+    }
+  },
+);
+
+/**
  * Level 3 — one migration, per domain.
  *
  * There is deliberately no fourth level. A screen that lists items is a screen
@@ -549,7 +656,7 @@ router.get(
       const found = await withSubject(pool(), userId, async (db) => {
         const head = await db.execute(
           sql`SELECT tenant_id, mapping_id, name, lifecycle, mode, pattern, schedule,
-                     created_at, updated_at, pending_decision_count
+                     created_at, updated_at, pending_decision_count, test_marker
                 FROM public.support_tenant_migrations WHERE mapping_id = ${mappingId}::uuid`,
         );
         const migrationRows = head.rows as Row[];

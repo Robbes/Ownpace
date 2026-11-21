@@ -417,6 +417,10 @@ reading a file drops off its entry by itself.
 
 - [a-grant-stored-with-less-than-was-asked](../scripts/a-grant-stored-with-less-than-was-asked.unit.test.ts) — A SILENCE ON ONE SCREEN THAT DEPENDS ON A REFUSAL IN ANOTHER FILE.
 
+### `apps/api/src/routes/migrations/grant-ending.ts`
+
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
+
 ### `apps/api/src/routes/migrations/grant-link-readiness.unit.test.ts`
 
 - [a-read-only-claim-with-its-scope](../scripts/a-read-only-claim-with-its-scope.unit.test.ts) — A READ-ONLY CLAIM WITH ITS SCOPE (workplan 0144 T3).
@@ -431,6 +435,7 @@ reading a file drops off its entry by itself.
 - [a-source-type-the-validator-never-names](../scripts/a-source-type-the-validator-never-names.unit.test.ts) — The create-mapping validator ends in a catch-all that asks for AZURE credentials, and nothing pairs it against the source types that exist.
 - [a-target-secret-a-door-built-by-hand](../scripts/a-target-secret-a-door-built-by-hand.unit.test.ts) — A TARGET SECRET A DOOR BUILT BY HAND (workplan 0161 T1).
 - [a-target-vocabulary-typed-out-in-nine-places](../scripts/a-target-vocabulary-typed-out-in-nine-places.unit.test.ts) — THE TARGET VOCABULARY IS ONE LIST, TYPED OUT IN NINE PLACES.
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
@@ -446,6 +451,7 @@ reading a file drops off its entry by itself.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
 
 ### `apps/api/src/routes/migrations/sync-now.ts`
 
@@ -501,6 +507,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/view.ts`
 
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
+
+### `apps/api/src/routes/withdraw-grant.ts`
+
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
 
 ### `apps/api/src/scripts/live-pass.ts`
 
@@ -568,12 +578,17 @@ reading a file drops off its entry by itself.
 
 - [a-jit-that-compiled-a-crash](../scripts/a-jit-that-compiled-a-crash.unit.test.ts) — A SETTING THAT LOSES AN ALPHABETICAL RACE DOES NOTHING, SILENTLY.
 
+### `apps/selfhost/src/config-dir.ts`
+
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
+
 ### `apps/selfhost/src/index.ts`
 
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
 - [after-cutover-the-source-is-not-the-authority](../scripts/after-cutover-the-source-is-not-the-authority.unit.test.ts) — After cutover the source is no longer the authority on what exists (workplan 0117 **D4**, owner 2026-09-09).
 - [an-appliance-that-could-rewrite-its-own-code](../scripts/an-appliance-that-could-rewrite-its-own-code.unit.test.ts) — AN APPLIANCE THAT COULD REWRITE ITS OWN CODE (workplan 0119, Status of 2026-11-03).
 - [an-integration-test-is-handed-its-database](../scripts/an-integration-test-is-handed-its-database.unit.test.ts) — AN INTEGRATION TEST IS HANDED ITS DATABASE.
@@ -1659,6 +1674,7 @@ reading a file drops off its entry by itself.
 - [a-sync-the-gate-pressed-on-free](../scripts/a-sync-the-gate-pressed-on-free.unit.test.ts) — A SYNC THE GATE PRESSED ON FREE (E2E (managed) #238, 2026-10-05).
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-task-image-dated-1970](../scripts/a-task-image-dated-1970.unit.test.ts) — A TASK IMAGE DATED 1970 (live's deploy of 2026-11-08; workplan 0132 T6, 0119 §3 item 13).
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
 - [a-verdict-that-does-not-say-what-failed](../scripts/a-verdict-that-does-not-say-what-failed.unit.test.ts) — A gate that knows what broke and will not say it.
 - [a-verify-that-measured-a-race](../scripts/a-verify-that-measured-a-race.unit.test.ts) — A verify that measured a race, and reported the race as a result.
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
@@ -2053,6 +2069,7 @@ reading a file drops off its entry by itself.
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [a-disk-that-says-it-is-filling](../scripts/a-disk-that-says-it-is-filling.unit.test.ts) — A DISK THAT SAYS IT IS FILLING, AND DUTIES THAT SAY THEY FAILED (workplan 0142 T3).
 - [a-runbook-for-every-alert](../scripts/a-runbook-for-every-alert.unit.test.ts) — AN ALERT NOBODY KNOWS WHAT TO DO ABOUT IS THE NEXT THING TO BE IGNORED (workplan 0142 T6).
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
 - [an-alert-someone-reads](../scripts/an-alert-someone-reads.unit.test.ts) — AN ALERT SOMEONE READS (workplan 0142 T1).
 - [an-nginx-that-carries-only-what-it-loads](../scripts/an-nginx-that-carries-only-what-it-loads.unit.test.ts) — AN NGINX THAT CARRIES ONLY WHAT IT LOADS (workplan 0146 T12a).
 
@@ -2526,6 +2543,14 @@ reading a file drops off its entry by itself.
 
 - [every-release-is-a-starting-point](../scripts/every-release-is-a-starting-point.unit.test.ts) — EVERY RELEASE IS A STARTING POINT: the upgrade gates a pull request runs started from rc.1 (the shared chain) and alpha.1 (the managed chain) alone, so three releases later no pull request proved an upgrade from the release `ownpace-live…
 
+### `packages/ledger/src/__tests__/the-marker-column.ts`
+
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
+
+### `packages/ledger/src/a-cutover-of-one-data-type.ts`
+
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
+
 ### `packages/ledger/src/direct-url.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -2534,6 +2559,7 @@ reading a file drops off its entry by itself.
 ### `packages/ledger/src/mapping-status-audit.ts`
 
 - [a-sixth-state-added-to-only-one-list](../scripts/a-sixth-state-added-to-only-one-list.unit.test.ts) — A LANE THAT RUNS IN ONE VOCABULARY AND HAS ENDED IN THE OTHER (workplan 0117 T1; owner decisions D6 and D4).
+- [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts) — A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
 
 ### `packages/ledger/src/migrate-upgrade.unit.test.ts`
 
@@ -6054,6 +6080,24 @@ Reads:
 - `deploy/compose/smoke-managed.sh`
 - `deploy/compose/stand-up-live.sh`
 - `docs/managed-bring-up.md`
+
+### [a-test-marker-only-a-create-writes](../scripts/a-test-marker-only-a-create-writes.unit.test.ts)
+
+A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
+
+Reads:
+
+- `apps/api/src/routes/migrations/grant-ending.ts`
+- `apps/api/src/routes/migrations/index.ts`
+- `apps/api/src/routes/migrations/operating-routes.ts`
+- `apps/api/src/routes/withdraw-grant.ts`
+- `apps/selfhost/src/config-dir.ts`
+- `apps/selfhost/src/index.ts`
+- `deploy/compose/smoke-managed.sh`
+- `docs/incident-runbook.md`
+- `packages/ledger/src/__tests__/the-marker-column.ts`
+- `packages/ledger/src/a-cutover-of-one-data-type.ts`
+- `packages/ledger/src/mapping-status-audit.ts`
 
 ### [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts)
 

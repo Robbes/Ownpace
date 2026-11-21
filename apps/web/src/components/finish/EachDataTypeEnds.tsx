@@ -13,9 +13,10 @@
  * a button shown is a press the door accepts. End is offered without counting
  * the data type's open failures: the door refuses over them with its own
  * sentence, shown verbatim, and only that refusal offers the force. A test
- * migration's data types are offered as any other's, and the managed door
- * refuses them (workplan 0162 T3) in both languages: the reader's half is
- * shown.
+ * migration's data types are offered neither (`pathEndingChoices` reads its
+ * marker, workplan 0162 T1): each is listed where it is, with no button, and
+ * the page's banner says why. Should a press reach the managed door anyway, it
+ * refuses in both languages (T3), and the reader's half is shown.
  *
  * ## Mail waits for its delivery (D3, D8)
  *
