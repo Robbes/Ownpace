@@ -718,7 +718,7 @@ describe("the hadolint report, run against a stubbed docker (11, and 9's exit)",
       event: 'push',
       files: [proxy, supervisor],
       results: [
-        { file: proxy, findings: [finding('DL3002', 143)] },
+        { file: proxy, findings: [finding('DL3064', 120)] },
         { file: supervisor, findings: [finding('DL3059', 10), finding('DL3066', 242)] },
       ],
     });
@@ -729,9 +729,9 @@ describe("the hadolint report, run against a stubbed docker (11, and 9's exit)",
     expect(out.markdown).toContain(`- **EXCEPTIONS, numeric-user**: ${EXCEPTIONS[supervisor]!['numeric-user']}`);
     const unreported = out.markdown.split('### Known, and not reported this run')[1] ?? '';
     expect(unreported).toContain(`\`${supervisor}\`: DL4006 (EXCEPTIONS, pipefail) is known, and hadolint did not report it here`);
-    expect(unreported).toContain(`\`${proxy}\`: DL3066 (EXCEPTIONS, numeric-user)`);
-    expect(unreported).toContain(`\`${proxy}\`: DL3064 (KNOWN_FINDINGS)`);
-    expect(unreported, 'the proxy’s DL3002 was reported').not.toContain('DL3002');
+    expect(out.markdown).toContain(`| 120 | [DL3064](https://github.com/hadolint/hadolint/wiki/DL3064) | warning | DL3064 \\| &lt;here&gt; | KNOWN_FINDINGS |`);
+    expect(unreported, 'the proxy’s DL3064 was reported').not.toContain(`\`${proxy}\`: DL3064`);
+    expect(unreported, 'the proxy has no exception since 2026-11-20').not.toContain(`\`${proxy}\`: DL30`);
     expect(out.markdown).toContain('**3 findings in 2 Dockerfiles linted of 2: 2 known, 1 to read.**');
   });
 });
