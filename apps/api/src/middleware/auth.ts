@@ -542,6 +542,55 @@ function firstOpenInvitationNotYetJoined(address: string, userId: string) {
 }
 
 /**
+ * THE ORGANISATION STILL TAKES SOMEBODY IN: it is not closed, and it is not
+ * being erased (workplan 0139 T7 (b), 2026-11-20).
+ *
+ * None of the statements below read `tenant.status`, so a closed
+ * organisation's open rows went on binding. On live, an organisation a granted
+ * request had made, which nobody had signed in to, was closed from the support
+ * page; two days later somebody signed up with that address, and their first
+ * sign-in bound them to it as an active owner. A closed organisation starts
+ * nothing (409 `account_closed`), so they landed in one they could not use and
+ * were never sent to ask for another. An invitation into a closed organisation
+ * was offered, and could be accepted, the same way.
+ *
+ * So the claim of a requested organisation, the list of invitations and the
+ * acceptance of one each ask the organisation too. A row they pass over stays
+ * exactly as it was, `invited`: the claim runs at every sign-in, so a reopen
+ * before the erasure gives it back at the next one, and the purge takes it
+ * with the organisation. Declining is left alone: it binds nobody and joins
+ * nothing.
+ *
+ * `suspended` STILL TAKES SOMEBODY IN, as before. `closed` and `deleting` are
+ * the two states the erasure acts on: a close sets its day
+ * (`tenant_closure.purge_after`), and `deleting` is the purge running. Nothing
+ * writes `suspended` (`organisation-open.ts` in the ledger), and no purge picks
+ * it. Whatever writes it first will mean a hold on an organisation that comes
+ * back, and the person it was made for is better in it then than told to ask
+ * for access meanwhile, which could make them a second one. Every door already
+ * refuses work in it, as in any organisation that is not `active`. Written as
+ * the states that take somebody in rather than the two that do not, so that a
+ * state added to the CHECK later binds nobody until somebody decides it should.
+ *
+ * READ UNDER THE INVITEE'S OWN POLICIES, with no tenant scope.
+ * `tenant_isolation_select` matches nothing there (ledger 0028), and
+ * `see_tenant_you_were_invited_to` (managed 0008, in any case since 0059)
+ * admits exactly the organisations holding an open invitation to the verified
+ * address: every row these statements touch is one, still `invited` in the
+ * statement's snapshot. Without that policy the subquery reads no organisation
+ * and every claim matches nothing, silently, which is why the integration test
+ * binds an open organisation beside a closed one in the same sign-in. And
+ * `EXISTS` of the states that take somebody in, never `NOT EXISTS` of the two
+ * that do not: an organisation the invitee could not read would count as open.
+ */
+function itsOrganisationTakesMembers() {
+  return sql`EXISTS (
+      SELECT 1 FROM tenant org
+       WHERE org.id = ${tenantMember.tenantId}
+         AND org.status IN ('active', 'suspended'))`;
+}
+
+/**
  * The verified address to match invitations by, or nothing.
  *
  * Nothing unless the issuer asserted `email_verified: true`, and nothing for a
@@ -634,6 +683,8 @@ export async function pendingInvitations(
             eq(tenantMember.origin, 'invited'),
             // Once per organisation, and not to one they are in (see the helper).
             firstOpenInvitationNotYetJoined(address, userId),
+            // Never to one that is closed or being erased (see the helper).
+            itsOrganisationTakesMembers(),
           ),
         );
       return rows.map((r) => ({
@@ -678,6 +729,12 @@ export async function pendingInvitations(
  * All this adds is the narrowing `origin = 'requested'` — it cannot widen what
  * the policy allows, and it never writes `origin`.
  *
+ * AN ORGANISATION THAT STILL TAKES SOMEBODY IN (2026-11-20): never one closed,
+ * or being erased, before its person came (`itsOrganisationTakesMembers`
+ * above). Its row stays `invited`, this answers 0, and `GET /api/me` reports no
+ * organisation, so they are sent to ask for access rather than into one that
+ * starts nothing. A reopen before the erasure binds it at the next sign-in.
+ *
  * ## Called at ONE moment
  *
  * `GET /api/me`, before the memberships are read. That is the one call every
@@ -707,6 +764,8 @@ export async function claimRequestedMembership(
             addressedTo(address),
             eq(tenantMember.status, 'invited'),
             eq(tenantMember.origin, 'requested'),
+            // Not into one closed, or being erased, before they came.
+            itsOrganisationTakesMembers(),
           ),
         )
         .returning({ tenantId: tenantMember.tenantId }),
@@ -729,7 +788,8 @@ export type InvitationAnswer = 'accepted' | 'declined' | 'notFound';
  * because you meant to join one is the bug the old blanket claim actually was.
  *
  * The policy does the authorising (migration 0006). This narrows the statement
- * to one tenant; it does not decide who may run it.
+ * to one tenant, and to one that still takes somebody in; it does not decide
+ * who may run it.
  */
 export async function acceptInvitation(
   userId: string,
@@ -755,6 +815,9 @@ export async function acceptInvitation(
             // The row that was offered, and none in an organisation this
             // subject is already in: 404, not UNIQUE's 500 (see the helper).
             firstOpenInvitationNotYetJoined(address, userId),
+            // Nor in one that is closed or being erased: 404, as for a row
+            // that is not offered (see the helper).
+            itsOrganisationTakesMembers(),
           ),
         )
         .returning({ tenantId: tenantMember.tenantId }),
