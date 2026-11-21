@@ -22,6 +22,8 @@ import type {
   FileSource,
   MailFolder,
   MailItem,
+  PermissionGrant,
+  PermissionListing,
   RawCalendarEvent,
   RawContact,
   RawFileItem,
@@ -42,6 +44,7 @@ import {
   markedOnlyContacts,
   markedOnlyFiles,
   markedOnlyMail,
+  markedSharesOnly,
 } from './marked-only.ts';
 
 const MARKER = '[Ownpace-test]';
@@ -417,5 +420,74 @@ describe('files', () => {
       expect(name in bare, name).toBe(false);
     }
     expect(bare.markedOnly).toBe(true);
+  });
+});
+
+/**
+ * A TEST MIGRATION'S SHARING (workplan 0162, the first thing T1 settles): the
+ * grants on things whose own name carries the marker, by the same rule as a
+ * listing, and a refusal where a grant names nothing.
+ */
+describe('markedSharesOnly', () => {
+  const grant = (on: string, ownName: string | undefined, over: Partial<PermissionGrant> = {}): PermissionGrant => ({
+    subject: 'drive_item',
+    on,
+    role: 'reader',
+    raw: '{}',
+    ...(ownName === undefined ? {} : { ownName }),
+    ...over,
+  });
+  const listed = (...grants: PermissionGrant[]): PermissionListing => ({ kind: 'listed', grants });
+
+  it('keeps a grant on a thing whose own name carries the marker, ignoring case, and drops the rest', () => {
+    const kept = markedSharesOnly(
+      listed(
+        grant('[Ownpace-test] plan.pdf', '[Ownpace-test] plan.pdf'),
+        grant('Taxes.pdf', 'Taxes.pdf', { grantee: 'bram@example.com' }),
+        grant('Re [OWNPACE-TEST] notes', 'Re [OWNPACE-TEST] notes', { viaLink: true }),
+      ),
+      MARKER,
+    );
+    expect(kept).toEqual({
+      listing: listed(
+        grant('[Ownpace-test] plan.pdf', '[Ownpace-test] plan.pdf'),
+        grant('Re [OWNPACE-TEST] notes', 'Re [OWNPACE-TEST] notes', { viaLink: true }),
+      ),
+    });
+  });
+
+  it('reads the thing\u2019s own name, never the folder or the address around it', () => {
+    const kept = markedSharesOnly(
+      listed(
+        grant('[Ownpace-test] Folder/budget.xlsx', 'budget.xlsx'),
+        grant('Family/[Ownpace-test] notes.txt', '[Ownpace-test] notes.txt'),
+        grant('[Ownpace-test]@example.com — Family', 'Family', { subject: 'calendar' }),
+        grant('someone@example.com — [Ownpace-test] Agenda', '[Ownpace-test] Agenda', { subject: 'calendar' }),
+      ),
+      MARKER,
+    );
+    expect(kept).toEqual({
+      listing: listed(
+        grant('Family/[Ownpace-test] notes.txt', '[Ownpace-test] notes.txt'),
+        grant('someone@example.com — [Ownpace-test] Agenda', '[Ownpace-test] Agenda', { subject: 'calendar' }),
+      ),
+    });
+  });
+
+  it('refuses the whole listing for a grant whose thing has no name, marked label or not', () => {
+    expect(
+      markedSharesOnly(listed(grant('[Ownpace-test] plan.pdf', '[Ownpace-test] plan.pdf'), grant('[Ownpace-test]', undefined)), MARKER),
+    ).toEqual({ untied: 1 });
+    expect(markedSharesOnly(listed(grant('x', ''), grant('y', undefined)), MARKER)).toEqual({ untied: 2 });
+  });
+
+  it('passes a listing that read nothing as it came, and an empty one as empty', () => {
+    const unread: PermissionListing = { kind: 'not_discoverable', reason: 'not read', reasonNl: 'niet gelezen' };
+    expect(markedSharesOnly(unread, MARKER)).toEqual({ listing: unread });
+    expect(markedSharesOnly(listed(), MARKER)).toEqual({ listing: listed() });
+  });
+
+  it('refuses a marker the database would not have stored, as the wrappers do', () => {
+    expect(() => markedSharesOnly(listed(grant('a', 'a')), ' x ')).toThrow(/fewer than three characters/);
   });
 });

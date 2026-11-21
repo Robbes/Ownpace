@@ -47,6 +47,26 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   test is over.* Its check measures it as any other, and never clears it for its cutover; the
   check's page and the Finish page say why, in English and Dutch, as does a refused end or keep.
   Deleting a test migration, and then its account, works as for any other.
+- **A test migration's sharing lists only its marked items, a status update never switches it
+  over, and a Dropbox file renamed out of its marker is not read as deleted** (workplan 0162 T1,
+  four of the five things it settles first). Nothing sets a marker yet (0162 T1), so no
+  migration changes today. With a marker, the sharing checklist's *Refresh from the source*
+  saves, and the permission list shows, only the shares on a file, folder or calendar whose own
+  name carries it. A share the old system gives without saying what it is on stops both, which
+  then save and show nothing and say why, in English and Dutch. A permission list asked for by
+  address, which names no migration, is refused in an organisation whose migrations carry a
+  marker, and the refusal does not count as one of the member's tests. A status update that
+  would declare a test migration's cutover, from active or paused, or that asks for the
+  continuous lane, from any status, is refused with *A test migration is not switched over:
+  delete it when the test is over.*, in English and Dutch; pausing still works. A marked Dropbox
+  file renamed out of the marker leaves a tombstone under its old name, which was read as the
+  owner deleting it: while the file is listed under another name, it no longer is. For every
+  migration, a permission list or a sharing refresh whose migration is deleted before the
+  migration itself is read is answered as a migration that is not there, where it read the
+  organisation's accounts instead. And the Sharing page now says why a refresh was refused (a
+  closed organisation, a migration that records no mailbox, a test's sharing none of which could
+  be kept), in its reader's language, where it said the request did not complete; a fault on
+  our side is said in the reader's language too, with its reference.
 - **An operator can mark an organisation as a test, and every migration made there then copies
   only what carries its marker** (workplan 0162 T1; ADR-0053). On an organisation's Support page an
   appointed operator marks it as a test organisation, with a marker: `[Ownpace-test]` is offered,
@@ -64,6 +84,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **The Trigger.dev webapp's image runs effect 3.22.4, not 3.21.2** (workplan 0166 T5, the owner's
+  D2). effect 3.21.2, the one copy Trigger.dev v4.8.8 resolves, carries CVE-2026-121707 (high, a
+  ReDoS in `Schema.TemplateLiteral`, fixed in 3.22.1). The webapp's build now replaces its files
+  with 3.22.4's, fetched from the npm registry and refused unless their sha512 is the one npm
+  published, as it replaced five packages until v4.8.5. 3.22.4 is in every range its requirers
+  give, with the same entry points, dependencies and exports. Before anything changes the build
+  checks the old directory file for file, who links it, and that no copy is bundled; after, that
+  nothing else in the image changed and that every requirer loads 3.22.4. 3.22.5, effect's
+  newest 3.x, is two days old and waits for its three-day floor. The image has a new name, which
+  the managed stack builds at its next `up`.
 - **Code scanning lists the spots of the six Semgrep rules that may block** (workplan 0163).
   On a push to `main`, the SARIF the Semgrep job uploads now leaves out the two ReDoS rules,
   `detect-non-literal-regexp` and `detect-redos`, which never block: on `main` they made 202 of
@@ -165,6 +195,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **Both Postgres builds take libxml2 2.13.9-r3, Alpine's fix for CVE-2026-86144** (workplan 0166
+  T3, the owner's D3). The managed stack's database image and the appliance's carried libxml2
+  2.13.9-r2, which PostgreSQL links for its `xml` type and the image scan reads at one high. Each
+  build now takes 2.13.9-r3 from Alpine's signed repository at that exact version, and stops if
+  its base carries any other than -r2, so the step goes when the base moves. So the first build
+  needs Alpine's mirror (`dl-cdn.alpinelinux.org`) again, besides Docker Hub. Both images have a
+  new name, `localhost/postgres:18.7-alpine-6adabb723757`, which each machine builds at its next
+  `up`, restarting its databases once.
 - **CI's two secrets are each kept for the one job that reads them** (workplan 0163 T1, the owner's
   decision D2 of 2026-11-20). The Trigger.dev token the managed E2E gate deploys with and the
   machine's address the exposure probe asks from outside were repository secrets, which every job

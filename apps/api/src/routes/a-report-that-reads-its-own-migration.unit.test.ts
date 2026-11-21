@@ -69,17 +69,19 @@ vi.mock('pg', () => ({
           if (!text.includes('connection')) return { rows: [] };
           h.queries.push({ text, values, tenant });
           if (text.includes('mm.source_config_override')) {
-            // The migration's own source: its mailbox's connection, or nothing
-            // for a mailbox that names none.
+            // The migration's own row, joined LEFT to its source: its
+            // mailbox's connection, nulls for a mailbox that names none, and
+            // no row for a migration that is gone.
             const mapping = h.mappings.find((m) => m.id === values[1]);
-            const conn = h.connections.find((c) => c.id === mapping?.source);
-            if (!mapping || !conn) return { rows: [] };
+            if (!mapping) return { rows: [] };
+            const conn = h.connections.find((c) => c.id === mapping.source);
             return {
               rows: [
                 {
-                  kind: conn.kind,
-                  config: conn.config,
-                  secret_ref: conn.secret_ref,
+                  test_marker: null,
+                  kind: conn?.kind ?? null,
+                  config: conn?.config ?? null,
+                  secret_ref: conn?.secret_ref ?? null,
                   override: mapping.override ?? null,
                   mapping_secret_ref: null,
                   grant_withdrawn_at: mapping.grantWithdrawnAt ?? null,

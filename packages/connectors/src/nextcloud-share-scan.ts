@@ -51,6 +51,12 @@ export interface ScannedGrant {
   readonly parentKey?: string;
   /** From `item_type`. ABSENT when OCS did not say, never guessed `false`. */
   readonly isContainer?: boolean;
+  /**
+   * The name the shared file or folder was given: the path's last segment,
+   * which is what a Nextcloud name is (workplan 0162, a test migration's
+   * marker). ABSENT for a share OCS gave no path.
+   */
+  readonly ownName?: string;
 }
 
 /**
@@ -86,6 +92,13 @@ interface OcsShareItem {
  */
 export function roleFromPermissionBits(permissions: number | undefined): string {
   return ((permissions ?? 1) & (2 | 4 | 8)) !== 0 ? 'writer' : 'reader';
+}
+
+/** A share path's last segment, a folder's trailing slash aside: `{}` when there is none. */
+function ownNameOf(path: string): { readonly ownName?: string } {
+  const segments = path.split('/').filter((s) => s !== '');
+  const name = segments[segments.length - 1];
+  return name === undefined ? {} : { ownName: name };
 }
 
 export async function scanNextcloudShares(
@@ -165,6 +178,10 @@ export async function scanNextcloudShares(
         : item.item_type === 'file'
           ? { isContainer: false }
           : {}),
+      // Its own name, apart from the folders `on` names it under: a test
+      // migration's marker is read in the name only, as a file is copied by
+      // its own name (workplan 0162).
+      ...ownNameOf(path),
     };
   });
   return { kind: 'listed', grants };

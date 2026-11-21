@@ -2731,7 +2731,12 @@ paths:
             `after_cutover` (cutover, done and continuous do not go back to
             active or paused; only a rollback does that), `finished` (done is
             terminal; its one exit is the continuous lane), `before_cutover`
-            (the lane is entered from cutover or done). Nothing was written.
+            (the lane is entered from cutover or done), `test_migration` (a
+            test migration is never switched over, workplan 0162: an update
+            that declares its cutover, from active or paused, or enters the
+            lane, from cutover or done, is refused; pausing is not). A
+            `test_migration` refusal carries its sentence in Dutch too, as
+            `messageNl`. Nothing was written.
 
             `account_closed` (`AccountClosed`, workplan 0085 T2): a move into a
             state that runs passes (`continuous`), for an organisation that was
@@ -2746,10 +2751,11 @@ paths:
                     properties:
                       error: { type: string, enum: [revision_refused, lifecycle_refused, duplicate_mapping] }
                       message: { type: string }
+                      messageNl: { type: string, description: 'The same sentence in Dutch, on a test_migration refusal.' }
                       hint: { type: string }
                       code:
                         type: string
-                        enum: [own_door, after_cutover, finished, before_cutover, unknown]
+                        enum: [own_door, after_cutover, finished, before_cutover, unknown, test_migration]
                       from: { type: string }
                       to: { type: string }
                       existingMappingId: { type: string }
@@ -4659,12 +4665,20 @@ paths:
                   open: { type: integer }
                   blindSpots: { type: array, items: { type: string } }
         '401': { $ref: '#/components/responses/Unauthorized' }
-        '404': { description: Unknown mapping. }
+        '404':
+          description: |
+            Unknown mapping, or one deleted while the rescan ran: before its
+            scans read it (workplan 0162), or while they read its source.
+            Nothing is written.
         '409':
           description: |
             The mapping records no mailbox to inventory. Or `account_closed`
             (`AccountClosed`): the organisation was closed (workplan 0085 T2),
-            and its accounts are not read.
+            and its accounts are not read. Or `code: test_migration`: a test
+            migration (workplan 0162) keeps only the shares on things whose
+            own name carries its marker, and the source gave a share without
+            saying what it is on, so nothing was saved. Its `reason` comes
+            with its Dutch, `reasonNl`.
           content:
             application/json:
               schema:
@@ -6265,6 +6279,11 @@ paths:
         nothing, is English. Values stay as they were found: addresses,
         folder names, rights as the source names them (FullAccess, SendAs),
         and each blind spot's reason as the scan gave it.
+
+        **A test migration's report lists only marked things** (workplan
+        0162): a share is listed when the file, folder or calendar it is on
+        carries the migration's marker in its own name, and nothing about
+        any other is reported.
       parameters:
         - name: mailbox
           in: query
@@ -6290,12 +6309,25 @@ paths:
             text/markdown:
               schema: { type: string }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '404':
+          description: |
+            `Not found`: the migration named by `mappingId` was deleted while
+            its report was being made, after its mailbox was read (workplan
+            0162). Nothing of its account is read.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '409':
           description: |
             `Conflict`: the migration named records no mailbox to inventory.
             Or `account_closed` (`AccountClosed`): the organisation was closed
             (workplan 0085 T2), and the report, which reads its accounts with
-            their stored access, is not made.
+            their stored access, is not made. Or a test (workplan 0162), with
+            `message` and its Dutch, `messageNl`: `code: test_migration`, the
+            source gave a share of a test migration without saying what it is
+            on; `code: test_organisation`, a report that names no migration,
+            asked in an organisation whose migrations carry a marker, which is
+            read per migration (`mappingId`).
           content:
             application/json:
               schema:
@@ -8875,6 +8907,8 @@ components:
         reason: { type: string }
         reasonNl: { type: string, description: "`reason` in Dutch, where the door wrote it in both languages." }
         message: { type: string }
+        messageNl: { type: string, description: "`message` in Dutch, where the door wrote it in both languages." }
+        code: { type: string, description: "A stable name for the refusal, where the door gives one, such as `test_migration`." }
       required: [error]
 
     PlatformHeld:

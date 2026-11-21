@@ -5018,10 +5018,12 @@ the user gosu dropped to, it never does. What that means for you:
   their image changed: the OTA stack at the E2E (managed) run of the branch or
   the next nightly gate, live inside `deploy-live.sh`'s hold and drain, from the
   tag. The build pulls the pinned base when the machine does not have it (as
-  `up` pulled the image before), runs one `rm`, and needs no package mirror.
-  On `v0.2.0-alpha.4` to `v0.2.0-alpha.7` it also takes Alpine's security
-  updates from Alpine's mirror (`dl-cdn.alpinelinux.org`), which PostgreSQL
-  18.7's image, from alpha.8 on, carries itself. The
+  `up` pulled the image before), runs one `rm`, and takes libxml2 2.13.9-r3
+  from Alpine's mirror (`dl-cdn.alpinelinux.org`), Alpine's fix for
+  CVE-2026-86144 (workplan 0166 T3), which the base does not carry yet. On
+  `v0.2.0-alpha.4` to `v0.2.0-alpha.7` it also took four of Alpine's security
+  updates from that mirror, which PostgreSQL 18.7's image, from alpha.8 to
+  alpha.13, carried itself, so those releases needed no package mirror. The
   services say `pull_policy: never`, since no registry serves the name:
   `docker compose pull` passes them by, and `up` builds without asking one.
 - **After that it is built again only when the Dockerfile changes**, which
@@ -6486,8 +6488,13 @@ resolves dompurify 3.4.17, undici 6.29.1, follow-redirects 1.16.2, body-parser
 1.20.9 and 2.4.0, systeminformation 5.33.19 and effect 3.21.2 alone, so the
 current builds swap none, and the two copies of effect and body-parser 2.3.0,
 which no swap here could reach, are fixed too. So the webapp's build reaches
-github.com, for goose, and the npm registry, for pnpm 10.34.9 alone, and the
-supervisor's the npm registry alone. From alpha.6 the webapp's build ends, as
+github.com, for goose, and the npm registry, for pnpm 10.34.9 and, from
+alpha.14, effect 3.22.4, and the supervisor's the npm registry alone. From
+alpha.14 the webapp's build replaces effect 3.21.2, the one copy upstream's
+lockfile resolves at v4.8.8, by 3.22.4, which fixes CVE-2026-121707 (high, a
+ReDoS in `Schema.TemplateLiteral`), fetched by the sha512 npm published and
+checked file for file, as it swapped five packages until v4.8.5 (workplan
+0166 T5). From alpha.6 the webapp's build ends, as
 root, by purging eleven Debian packages nothing in
 `trigger-api` runs or loads, as the appliance and the tasks' base purge theirs:
 apt and libapt-pkg6.0 (CVE-2026-109518, fixed in 2.6.2), the eight packages
