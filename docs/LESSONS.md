@@ -58,6 +58,7 @@ reading a file drops off its entry by itself.
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
 - [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
@@ -123,6 +124,7 @@ reading a file drops off its entry by itself.
 
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
 - [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts) — A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [exposure-probe](../scripts/exposure-probe.unit.test.ts) — WHAT THE OUTSIDE PROBE PRINTS, AND WHEN IT PASSES (workplan 0132 T3 (c)).
 
 ### `.github/workflows/hadolint.yml`
@@ -213,6 +215,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/zizmor.yml`
 
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 
 ### `.github/zizmor.yml`
@@ -3457,6 +3460,10 @@ reading a file drops off its entry by itself.
 
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
 
+### `scripts/zizmor-secrets-report.mjs`
+
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
+
 ### `site/app-screen/screen.json`
 
 - [the-home-page-shows-the-app](../scripts/the-home-page-shows-the-app.unit.test.ts) — THE HOME PAGE SHOWS THE APP (workplan 0152 T3: "drawing now, app screen later").
@@ -5802,6 +5809,17 @@ Reads:
 
 - `.github/workflows/e2e-managed.yml`
 - `.github/workflows/exposure-probe.yml`
+
+### [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts)
+
+A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/exposure-probe.yml`
+- `.github/workflows/zizmor.yml`
+- `scripts/zizmor-secrets-report.mjs`
 
 ### [a-sentence-the-screen-and-the-api-word-apart](../scripts/a-sentence-the-screen-and-the-api-word-apart.unit.test.ts)
 
