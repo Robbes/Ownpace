@@ -68,6 +68,12 @@ export interface PermissionInventoryDeps {
   /** The reader's language for everything this pass and the report say; English when omitted. */
   readonly lang?: ReportLanguage;
   /**
+   * A test migration's marker (workplan 0162), when its scans kept only the
+   * rights on items whose own name carries it: the report says so at its
+   * head. Omitted for every migration that is not a test.
+   */
+  readonly testMarker?: string;
+  /**
    * Why mailbox delegation could not be inventoried, in the source's words.
    * Required, because it is always true of every source this tool speaks to.
    */
@@ -132,6 +138,7 @@ export async function runPermissionInventory(deps: PermissionInventoryDeps): Pro
     ...(targetConduct.length > 0 ? { targetConduct, targetConductLang } : {}),
     ...(deps.mappingLabel ? { mappingLabel: deps.mappingLabel } : {}),
     ...(deps.generatedOn ? { generatedOn: deps.generatedOn } : {}),
+    ...(deps.testMarker !== undefined ? { testMarker: deps.testMarker } : {}),
     lang,
   });
 }

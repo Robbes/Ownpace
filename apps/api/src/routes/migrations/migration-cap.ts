@@ -75,13 +75,36 @@ export class PastTheCap extends Error {
 }
 
 /**
+ * THE ORGANISATION'S MIGRATIONS LOCK: one create at a time per organisation,
+ * and the doors that mark it as a test, or no longer (workplan 0162 T1,
+ * `test-organisation.ts`), one at a time with them. A mark asks whether the
+ * organisation holds a migration under it, and a create reads the
+ * organisation's marker under it, so the two are decided one after the other:
+ * a migration is never made in an organisation while it is being marked, and
+ * misses the marker. `pg_advisory_xact_lock` is released at COMMIT or ROLLBACK,
+ * which a transaction pooler keeps to one connection.
+ *
+ * The key is the organisation's id as the database spells it
+ * (`::uuid::text`, lower case), never as the request did: the create's id
+ * comes from the `X-Ownpace-Tenant` header and a mark's from the support
+ * page's path, and an id in capitals names the same organisation. Keyed on the
+ * text as given, `ABC…` and `abc…` took two locks, and two creates, or a
+ * create and a mark, could pass each other (0162 T1's review), which also let
+ * two creates past `MAX_MIGRATIONS_PER_ORGANISATION` at once.
+ */
+export async function holdTheOrganisationsMigrations(db: PgDatabase, tenantId: string): Promise<void> {
+  await db.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended('migrations:' || ${tenantId}::uuid::text, 0))`,
+  );
+}
+
+/**
  * Hold the cap in the create's own transaction, before anything is written:
- * take the organisation's lock, count its unfinished migrations, and throw
- * `PastTheCap` when there is no room. `pg_advisory_xact_lock` is released at
- * COMMIT or ROLLBACK, which a transaction pooler keeps to one connection.
+ * take the organisation's migrations lock, count its unfinished migrations,
+ * and throw `PastTheCap` when there is no room.
  */
 export async function holdTheCap(db: PgDatabase, tenantId: string, cap: number): Promise<void> {
-  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`migrations:${tenantId}`}, 0))`);
+  await holdTheOrganisationsMigrations(db, tenantId);
   const [row] = await db
     .select({ unfinished: count() })
     .from(schema.mailboxMapping)

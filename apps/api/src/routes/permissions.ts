@@ -46,6 +46,7 @@ import { Router } from 'express';
 import type { Response } from 'express';
 import { sql } from 'drizzle-orm';
 import { withTenant, type PgDatabase } from '@openmig/ledger';
+import { testMarkerOfOrganisation } from '@openmig/managed';
 import { authenticate, getDbPool } from '../middleware/auth.ts';
 import type { AuthenticatedRequest } from '../types/api.ts';
 import {
@@ -221,8 +222,10 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
     const ofItsMigration = mappingId !== '' && asked === '';
     // Except in a test organisation (workplan 0162): that answer reads its
     // accounts whole, and a test's sharing is read per migration, only on the
-    // items its marker selects. Refused before anything is read, and before
-    // the member's test limit counts it: nothing is connected to.
+    // items its marker selects. A test organisation is one that carries the
+    // marker itself (T1), whether or not it holds a migration yet or still,
+    // or one whose migrations carry it. Refused before anything is read, and
+    // before the member's test limit counts it: nothing is connected to.
     if (!ofItsMigration && (await testsWithAMarker(tenantId))) {
       res.status(409).json({
         error: 'Conflict',
@@ -263,6 +266,10 @@ router.get('/report', authenticate, async (req: AuthenticatedRequest, res: Respo
       mappingLabel: mailbox,
       generatedOn: new Date().toISOString().slice(0, 10),
       lang,
+      // A test migration's report says, at its head, that it lists the
+      // rights on marked items only (workplan 0162, #2011's review): the
+      // banner the Finish page shows is not in the Markdown it downloads.
+      ...(scans.testMarker !== undefined ? { testMarker: scans.testMarker } : {}),
       // Always in the report, and now worded for the tenant's own source —
       // see `tenantInventoryScans`.
       delegationReason: scans.delegationReason,
@@ -532,9 +539,12 @@ export async function tenantInventoryScans(
  * A WITHDRAWN GRANT READS NOTHING (ADR-0035): each scan answers with the same
  * sentence the pass refuses with, and no credential is decrypted.
  *
- * A migration whose source mailbox names no connection, a row older than that
- * column, keeps the organisation-wide answer it has always had, said in the
- * log, as the pass falls back for the same rows.
+ * A migration whose source mailbox, or the connection that mailbox names, is
+ * another organisation's, which only a row written by hand reaches, keeps
+ * the organisation-wide answer it has always had, said in the log, as
+ * the pass falls back for the same rows. A withdrawn grant is read before
+ * that fallback, so such a migration reads nothing either once its grant is
+ * taken back.
  *
  * A TEST MIGRATION'S SCANS KEEP ONLY WHAT ITS MARKER SELECTS (workplan 0162,
  * the first thing T1 settles before any marker can be set). The scans read
@@ -564,7 +574,7 @@ export async function migrationInventoryScans(
   if (own === undefined) throw new MigrationGone(mappingId);
   const scans = await sourceInventoryScans(tenantId, mappingId, mailbox, own);
   const marker = own.test_marker ?? undefined;
-  return marker === undefined ? scans : onlyMarkedShares(scans, marker);
+  return marker === undefined ? scans : { ...(await onlyMarkedShares(scans, marker)), testMarker: marker };
 }
 
 /**
@@ -586,7 +596,7 @@ export class MigrationGone extends Error {
 interface MigrationSource {
   /** Its test marker, or null for a migration that is not a test. */
   readonly test_marker: string | null;
-  /** Its source connection's kind, or null where its source mailbox names none. */
+  /** Its source connection's kind, or null where its source mailbox, or that mailbox's connection, is another organisation's. */
   readonly kind: string | null;
   readonly config: unknown;
   readonly secret_ref: string | null;
@@ -598,7 +608,8 @@ interface MigrationSource {
 /**
  * The migration's marker and its source connection, in one statement, or
  * undefined when the migration is gone. Joined LEFT, so a migration whose
- * mailbox names no connection is still found, with a null `kind`.
+ * source mailbox, or that mailbox's connection, is another organisation's is
+ * still found, with a null `kind`.
  */
 async function migrationSourceOf(tenantId: string, mappingId: string): Promise<MigrationSource | undefined> {
   const rows = await inTenant(tenantId, (db) =>
@@ -616,21 +627,24 @@ async function migrationSourceOf(tenantId: string, mappingId: string): Promise<M
 }
 
 /**
- * Whether this organisation tests with a marker: one of its migrations
- * carries one. An organisation becomes a test only while it holds no
- * migration, and every migration it then creates carries its marker (§2
- * (b)), so a test organisation holding none is not known here; the
- * organisation's own marker comes with T1.
+ * Whether this organisation tests with a marker: it carries one itself, or
+ * one of its migrations does. The organisation's own marker (T1,
+ * `test_organisation`) is what makes it a test before its first migration
+ * and after its last, which §6 step 7 deletes while the account stays; and
+ * every migration made in it carries the marker from its creation (§2 (b)).
+ * A migration's marker is asked too, as #2011 asked it, so that one written
+ * by hand still counts.
  */
 async function testsWithAMarker(tenantId: string): Promise<boolean> {
-  const rows = await inTenant(tenantId, (db) =>
-    rowsOf<{ one: number }>(
+  return inTenant(tenantId, async (db) => {
+    if ((await testMarkerOfOrganisation(db, tenantId)) !== undefined) return true;
+    const rows = await rowsOf<{ one: number }>(
       db,
       sql`SELECT 1 AS one FROM mailbox_mapping
        WHERE tenant_id = ${tenantId} AND test_marker IS NOT NULL LIMIT 1`,
-    ),
-  );
-  return rows.length > 0;
+    );
+    return rows.length > 0;
+  });
 }
 
 /** One scan's answer under a marker: what it keeps, what it could not name, or what it threw. */
@@ -685,23 +699,34 @@ async function sourceInventoryScans(
   source: MigrationSource,
 ): Promise<InventoryScans> {
   const kind = source.kind;
-  if (kind === null) {
-    log.warn(
-      `[permissions] migration ${mappingId}: its source mailbox names no connection; ` +
-        "reading the organisation's source connections instead. Fine for an organisation " +
-        'with one source; ambiguous the moment there are two.',
-    );
-    return tenantInventoryScans(tenantId, mailbox);
-  }
+  // A WITHDRAWN GRANT FIRST, whatever the mailbox names (#2011's second
+  // review): read before the fallback below, which would otherwise read the
+  // organisation's connections for a migration whose grant was taken back,
+  // and save their sharing on a rescan. Nothing is read, no provider is
+  // asked, and no credential is decrypted.
   if (source.grant_withdrawn_at) {
     const withdrawn: PermissionListing = notReadListing(
       notReadSaid(grantWithdrawnRefusal(new Date(source.grant_withdrawn_at))),
     );
     return {
-      ...inventoryScansFrom(mailbox, { sourceKind: kind, microsoftRows: [], driveRows: [], davRows: [] }),
+      ...inventoryScansFrom(mailbox, {
+        ...(kind !== null ? { sourceKind: kind } : {}),
+        microsoftRows: [],
+        driveRows: [],
+        davRows: [],
+      }),
       scanCalendars: async () => withdrawn,
       scanDrive: async () => withdrawn,
     };
+  }
+  if (kind === null) {
+    log.warn(
+      `[permissions] migration ${mappingId}: its source mailbox, or the connection that mailbox ` +
+        "names, is not this organisation's (only a row written by hand reaches that); reading " +
+        "the organisation's source connections instead. Fine for an organisation with one " +
+        'source; ambiguous the moment there are two.',
+    );
+    return tenantInventoryScans(tenantId, mailbox);
   }
   const config = {
     ...((source.config ?? {}) as Record<string, unknown>),
@@ -767,6 +792,12 @@ export interface InventoryScans {
    * spot too, so a caller that did not ask reads nothing either.
    */
   refused?: Bilingual;
+  /**
+   * The test migration's marker, set where the scans keep only what it
+   * selects (workplan 0162): the report says at its head that it lists the
+   * rights on marked items only.
+   */
+  testMarker?: string;
 }
 
 /** A connection's own stored credentials: its secret, or what its config carries. */

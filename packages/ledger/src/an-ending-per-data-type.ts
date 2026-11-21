@@ -230,12 +230,19 @@ export async function endOrKeepPath(
  * door answers with a refusal the page can force. None while the migration is
  * paused or never started: the page says where the migration is.
  *
+ * A TEST MIGRATION'S DATA TYPES ARE OFFERED NEITHER (workplan 0162 T1, the
+ * fifth thing T3 left to settle): it is never finished, and the managed door
+ * refuses its End and Keep (`endOrKeepDataType`, T3). So with the facts'
+ * `testMarker` each data type is listed, where it is, with no press, and the
+ * page's banner says why.
+ *
  * With `graceEnds`, a data type still in its cutover whose grace period
  * ended carries when (`graceEndedAt`, slice 7c): nobody chose, and it no
  * longer copies (D7).
  */
 export function pathEndingChoices(facts: PathStopFacts, graceEnds?: GraceEnds): PathEndingChoice[] {
   if (!PHASES_A_DATA_TYPE_ENDS_FROM.includes(facts.status)) return [];
+  const aTest = facts.testMarker !== undefined;
   return facts.carried.map((path) => {
     const phase = believedPhase(facts, path);
     const graceEnded = phase === 'cutover' ? (graceEnds?.of(path.domain) ?? null) : null;
@@ -244,6 +251,7 @@ export function pathEndingChoices(facts: PathStopFacts, graceEnds?: GraceEnds): 
       phase,
       stopped: path.stopped,
       offers: (['end', 'keep'] as const).filter((ending) => {
+        if (aTest) return false;
         const decision = decidePathEnding(facts, path.domain, ending, { unresolvedFailures: 0 });
         return 'changes' in decision && decision.changes;
       }),

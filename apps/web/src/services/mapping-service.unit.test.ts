@@ -188,6 +188,25 @@ describe('a grant the person took back survives the parse (0108 T8 (c))', () => 
   });
 });
 
+describe('a test migration’s marker survives the parse (0162 T1)', () => {
+  // z.object strips a key it does not name, and the page and list tests stand
+  // in for the service above this parse: without these, a schema that lost
+  // `testMarker` would show no banner and no badge, and every test would pass.
+  it('keeps it on a row of the list, and reads its absence, or a marker that is not text, as none', () => {
+    const [marked, plain] = z
+      .array(MappingListItemSchema)
+      .parse([{ ...listFixture[0], testMarker: '[Ownpace-test]' }, listFixture[1]]);
+    expect(marked!.testMarker).toBe('[Ownpace-test]');
+    expect(plain!.testMarker).toBeUndefined();
+    expect(MappingListItemSchema.parse({ ...listFixture[0], testMarker: 42 }).testMarker).toBeUndefined();
+  });
+
+  it('keeps it on the migration’s own read, which the banner is drawn from', () => {
+    expect(MappingSchema.parse({ ...detailFixture, testMarker: '[Ownpace-test]' }).testMarker).toBe('[Ownpace-test]');
+    expect(MappingSchema.parse(detailFixture).testMarker).toBeUndefined();
+  });
+});
+
 describe('CreateMappingResponseSchema vs the 201 body', () => {
   it('parses the create response, so a SUCCESSFUL create reaches onSuccess', () => {
     const parsed = CreateMappingResponseSchema.parse(createFixture);

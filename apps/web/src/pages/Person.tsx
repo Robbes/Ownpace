@@ -74,6 +74,7 @@ import { checksOf } from '../services/cutover-steps.ts';
 import StateChip from '../components/StateChip.tsx';
 import { PaceLine } from '../components/PaceLine.tsx';
 import { MigrationLines, MigrationTiles, lineStages } from '../components/MigrationLines.tsx';
+import { TestBadge } from '../components/TestMigration.tsx';
 import { CutoverSteps } from '../components/CutoverSteps.tsx';
 import { fetchProgress } from '../services/progress-service.ts';
 import { progressRefetchInterval } from '../services/progress-poll.ts';
@@ -106,6 +107,8 @@ const GRANTABLE: ReadonlySet<string> = new Set(['google', 'gmail', 'google-calen
  */
 type PersonRow = Pick<MappingListItem, 'id' | 'sourceType' | 'targetType' | 'status' | 'domains' | 'lastSyncAt'> & {
   readonly name?: string;
+  /** A test migration's own marker (workplan 0162 T1), for its *Test* badge. */
+  readonly testMarker?: string;
 };
 
 /**
@@ -122,6 +125,8 @@ function rowsFromStatus(report: StatusReport): PersonRow[] {
     return {
       id: m.mappingId,
       ...(m.name ? { name: m.name } : {}),
+      // The contract's field, which the appliance never sets (0162 §3).
+      ...(m.testMarker !== undefined ? { testMarker: m.testMarker } : {}),
       sourceType: m.sourceType ?? 'unknown',
       targetType: m.targetType ?? 'unknown',
       status: m.migrationStatus,
@@ -368,7 +373,11 @@ const Person: React.FC = () => {
           migrations.map((m) => (
             <div key={m.id} data-migration={m.id} className="py-3 border-t border-gray-100 first:border-t-0">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-sm font-medium text-gray-900">{label(m)}</span>
+                <span className="text-sm font-medium text-gray-900">
+                  {label(m)}
+                  {/* A test migration (workplan 0162 T1): its page says why. */}
+                  <TestBadge marker={m.testMarker} />
+                </span>
                 <Link to={`/mappings/${encodeURIComponent(m.id)}`} className="text-sm text-blue-700 hover:underline">
                   {t('person.details')} →
                 </Link>

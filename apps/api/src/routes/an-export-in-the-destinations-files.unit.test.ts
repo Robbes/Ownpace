@@ -118,6 +118,14 @@ vi.mock('./migrations/migration-cap.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('./migrations/migration-cap.ts')>();
   return { ...actual, holdTheCap: vi.fn(async () => {}) };
 });
+// The organisation's test marker (workplan 0162 T1), read under that lock with
+// SQL this recording database does not model either. An organisation that is
+// not a test; the copy is proved on a real database in
+// `a-test-organisation-and-its-marker`.
+vi.mock('@openmig/managed', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@openmig/managed')>();
+  return { ...actual, testMarkerOfOrganisation: vi.fn(async () => undefined) };
+});
 vi.mock('@openmig/orchestration/archive-source-factory', async (importOriginal) => {
   const actual =
     await importOriginal<typeof import('@openmig/orchestration/archive-source-factory')>();
