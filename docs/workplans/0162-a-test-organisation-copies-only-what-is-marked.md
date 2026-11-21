@@ -49,6 +49,15 @@ is refused today. T2 merged as #1975 on 2026-11-21 (`45a758af`). Its E2E (manage
     passed did not pass.
   - The Finish page offers End and Keep for a test's data types: `pathEndingChoices` does not read
     the marker. The press is refused, in the reader's language.
+- **Two more for T1**, after the three in the entry on T2's review findings below:
+  4. **A status update still declares a test migration's cutover.** `PUT /api/migrations/:id`
+     moves it from `active` or `paused` to `cutover` (`updateTransition`). It is then after its
+     cutover: the source is no longer the authority, a status update may enter the continuous
+     lane from there, and only the CLI's rollback brings it back. Every later door of the cutover
+     refuses it, but §2 (e) says a test is never switched over, so this door has to refuse it too
+     before any marker is set.
+  5. **The Finish page offers End and Keep for a test's data types**, and each press is refused.
+     With T1's banner, the page should offer neither.
 
 What is proven, and how. 54 new cases: 53 in eight unit test files, four of them new, and one in
 `a-pass-under-row-security.integration.test.ts`; one case of `a-final-sync-of-every-data-type`
@@ -238,7 +247,7 @@ Nothing was built with it.
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-20** | §2, agreed as written. A marker in the item's own title, set on an organisation by an appointed operator, fixed for the life of each migration, applied where the source is first listed; a test migration is never finished or switched over; losing the marker deletes nothing. |
-| T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. Three things to settle before any marker is set: Status, 2026-11-21. |
+| T1 The test organisation and its marker | builder | 📋 **Planned** | §3. Support marks an organisation, only while it holds no migration. Each migration records the marker when it is created, in a ledger column no route updates. ADR-0053. The column, `mailbox_mapping.test_marker` (ledger migration 0070), was built with T2 on 2026-11-20; nothing writes it yet. Five things to settle first, in Status, 2026-11-21: three found with T2's review findings and two with T3. |
 | T2 The marker where the source is first listed | builder | ✅ **Merged** as #1975 on 2026-11-21 (`45a758af`), inert until T1 sets the column | §4. `MarkedOnly`, one wrapper per source port (`marked-only.ts`), applied by every builder of a mapping's source in both editions; the cursor, collection and file rules in `domain-sync.ts`, and since 2026-11-21 a set-aside item counted as seen by the removals and the bin; the column it reads (ledger 0070). E2E (managed) run 44881786816 was green and applied ledger migration 0070. The E2E smoke of a marked migration waits for T1. |
 | T3 Never finished, never switched over | builder | 🔨 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished` | §5. Finish, ending or keeping a data type, the cutover's preparation (its door and its job), the gate's report and `approve`, `execute` and `complete` refuse a test migration and name the reason; the Verify and Finish pages say it in English and Dutch; delete stays open. Inert until T1 sets the column. Not merged. |
 | T4 The scenarios on live | owner | 📋 **Proposed** | §6. Marked items and an unmarked control of each data type in a real Google account; copy, change, delete and a lost marker, each watched at the target and in the guest's inbox. |
