@@ -87,6 +87,8 @@ function world() {
   const unreadable = new Set<string>();
   /** A calendar whose next sync-collection answers 500, once. */
   const failsOnce = new Set<string>();
+  /** Sync tokens answered with a 410, a stale token refused without naming DAV:valid-sync-token. */
+  const goneTokens = new Set<string>();
   const client: HttpClient = {
     request: (options: HttpRequestOptions) => {
       const path = new URL(options.url).pathname;
@@ -94,6 +96,10 @@ function world() {
       if (failsOnce.has(path) && String(options.body).includes('sync-collection')) {
         failsOnce.delete(path);
         return Promise.resolve({ status: 500, headers: {}, body: 'backend error' });
+      }
+      const sent = /<D:sync-token>([^<]*)<\/D:sync-token>/.exec(String(options.body))?.[1];
+      if (sent !== undefined && goneTokens.has(sent) && String(options.body).includes('sync-collection')) {
+        return Promise.resolve({ status: 410, headers: {}, body: 'Gone' });
       }
       return google.client.request(options);
     },
@@ -118,7 +124,7 @@ function world() {
       stillTheAuthority: async () => true,
     });
   const cursorOf = async (path: string) => (await cursors.get(TENANT, MAPPING, path))?.value;
-  return { google, family, work, unreadable, failsOnce, target, ledger, cursors, pass, cursorOf };
+  return { google, family, work, unreadable, failsOnce, goneTokens, target, ledger, cursors, pass, cursorOf };
 }
 
 const key = (uid: string): string => calendarNaturalKeyHash(uid);
@@ -405,6 +411,31 @@ describe('the token is saved only once the pass has handled what it read', () =>
     const next = await w.pass();
 
     expect(next.deletions.map((d) => [d.naturalKeyHash, d.evidence])).toEqual([[key('e7'), 'reported']]);
+    expect(await w.cursorOf(w.family)).toBe('sync-token:tok:family:41');
+  });
+});
+
+describe('a stale token refused with a 410, in the loop (second review of #2019)', () => {
+  /**
+   * A server that refuses a stale token without naming DAV:valid-sync-token,
+   * as Google's REST APIs answer one with a 410. Kept, the token was refused
+   * on every pass, each pass listed the calendar whole, and no removal was
+   * reported from it again.
+   */
+  it('is dropped, so the next pass reads the calendar with none and reports the removal it names', async () => {
+    const w = world();
+    await w.pass();
+    w.goneTokens.add('tok:family:40');
+    w.google.remove(w.family, 'e9');
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const refused = await w.pass();
+    w.google.asked.length = 0;
+    const next = await w.pass();
+
+    expect(refused.deletions.filter((d) => d.evidence === 'reported'), 'a whole listing reports no removal').toEqual([]);
+    expect(w.google.askedOf('sync-collection', w.family).map((a) => a.token)[0], 'the stale token was asked again').toBe('');
+    expect(next.deletions.map((d) => [d.naturalKeyHash, d.evidence])).toEqual([[key('e9'), 'reported']]);
     expect(await w.cursorOf(w.family)).toBe('sync-token:tok:family:41');
   });
 });

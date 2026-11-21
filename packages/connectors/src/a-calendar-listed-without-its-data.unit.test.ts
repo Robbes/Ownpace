@@ -22,20 +22,23 @@
  *   with a token's are, and a 404 inside a propstat is not one of them;
  * - with the token, a pass reads what changed and nothing more;
  * - a refused token is dropped and the calendar read whole again, once;
+ * - any other refusal of the first page keeps the token after a 5xx or a
+ *   rate limit, and drops it after anything else;
+ * - a page that gives no token keeps the token it was sent;
  * - a multiget that falls short leaves nothing out: the calendar is listed
  *   whole, as before, with the removals and the token kept;
  * - a server that sends its data, as Nextcloud does, is read from its one
  *   answer, with no multiget. What changed for every server, its own
  *   included, is held here too: the REPORT T1 sent (`sync-level` 1), a
- *   refused token read again with none, and the token kept after another
- *   refusal.
+ *   refused token read again with none, and the token kept after a 5xx or
+ *   a rate limit and dropped after any other refusal.
  */
 
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { log } from '@openmig/shared';
 import type { CalendarFolder, SyncCursor } from '@openmig/shared';
 import { CalDAVSource, MOST_SYNC_PAGES, MULTIGET_HREFS_PER_REQUEST } from './caldav-source.ts';
-import type { HttpClient, HttpResponse } from './dav-http.types.ts';
+import type { HttpClient, HttpRequestOptions, HttpResponse } from './dav-http.types.ts';
 import { FAKE_CALDAV_URL, FAKE_HOME, GoogleLikeCalDav, type MemberShape } from './__testing__/google-like-caldav.ts';
 
 afterEach(() => {
@@ -63,6 +66,9 @@ function calendarOf(count: number, pageSize = 250): { google: GoogleLikeCalDav; 
 
 const uids = (items: ReadonlyArray<{ item: { uid: string } }>): string[] => items.map((e) => e.item.uid).sort();
 const tokenOf = (cursor: SyncCursor): string => cursor.value.replace(/^sync-token:/, '');
+/** The sync token a request sent, `undefined` for a reading with none. */
+const tokenSent = (options: HttpRequestOptions): string | undefined =>
+  /<D:sync-token>([^<]*)<\/D:sync-token>/.exec(String(options.body))?.[1];
 
 describe('a first reading whose members carry no data', () => {
   it('reads every member with calendar-multiget, a batch at a time, and lists nothing whole', async () => {
@@ -298,7 +304,7 @@ describe('a refused token (RFC 6578 §3.2)', () => {
     expect(result.nextCursor.value).toBe('');
   });
 
-  it('is told apart from another 403: one that names no valid-sync-token lists the calendar as before', async () => {
+  it('is told apart from another 403: one that names no valid-sync-token lists the calendar, and drops the token', async () => {
     const { google, folder } = calendarOf(2);
     let syncCollections = 0;
     const forbidden: HttpClient = {
@@ -315,8 +321,8 @@ describe('a refused token (RFC 6578 §3.2)', () => {
     expect(syncCollections, 'a 403 for another reason was read as a refused token').toBe(1);
     expect(result.items).toHaveLength(2);
     expect(google.askedOf('calendar-query')).toHaveLength(1);
-    // Not the token's fault, so the token stays: the next pass asks from it.
-    expect(result.nextCursor.value).toBe('sync-token:tok:family:2');
+    // It may be the token's, unnamed: the next pass reads with none (second review of #2019).
+    expect(result.nextCursor.value).toBe('');
   });
 
   it('is told apart from a 500, which lists the calendar whole and keeps the token it was sent', async () => {
@@ -369,6 +375,127 @@ describe('a refused token (RFC 6578 §3.2)', () => {
     expect(google.askedOf('sync-collection'), 'a reading with no token was asked again with none').toHaveLength(1);
     expect(google.askedOf('calendar-query')).toHaveLength(1);
     expect(result.items).toHaveLength(2);
+  });
+});
+
+/**
+ * WHAT A REFUSAL OF THE FIRST PAGE DOES TO THE TOKEN IT WAS SENT (second
+ * review of #2019). A 5xx or a rate limit is the server's trouble for the
+ * moment, and keeps it. Anything else drops it: a stale token refused
+ * without `DAV:valid-sync-token`, with a 410, say, as Google's REST APIs
+ * answer one, would otherwise be refused on every pass, and no removal
+ * reported from that calendar again.
+ */
+describe('a refusal of the first page, and the token it was sent', () => {
+  it('drops a stale token refused with a 410, so the next reading asks with none and goes on from its own', async () => {
+    const { google, folder } = calendarOf(5);
+    const stale = new Set<string>();
+    const client: HttpClient = {
+      request: (options) => {
+        const sent = tokenSent(options);
+        return String(options.body).includes('sync-collection') && sent !== undefined && stale.has(sent)
+          ? Promise.resolve<HttpResponse>({ status: 410, headers: {}, body: 'Gone' })
+          : google.client.request(options);
+      },
+    };
+    const source = sourceOn(client);
+    const first = await source.listSince(folder, undefined);
+    stale.add(tokenOf(first.nextCursor));
+    const warned = vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const refused = await source.listSince(folder, first.nextCursor);
+    google.asked.length = 0;
+    const next = await source.listSince(folder, refused.nextCursor);
+
+    expect(refused.items).toHaveLength(5);
+    expect(refused.nextCursor.value, 'a stale token was kept, to be refused on every pass').toBe('');
+    expect(warned.mock.calls.flat().join(' ')).toContain('dropping the sync token');
+    expect(google.askedOf('sync-collection').map((a) => a.token)).toEqual(['']);
+    expect(next.nextCursor.value).toBe('sync-token:tok:family:5');
+  });
+
+  it.each<[string, HttpResponse]>([
+    ['a 429', { status: 429, headers: { 'retry-after': '0' }, body: 'slow down' }],
+    [
+      "Google's 403 rate limit",
+      {
+        status: 403,
+        headers: { 'retry-after': '0' },
+        body:
+          '<?xml version="1.0" encoding="UTF-8"?><errors xmlns="http://schemas.google.com/g/2005">' +
+          '<error><domain>GData</domain><code>rateLimitExceeded</code><internalReason>Rate limit exceeded</internalReason></error></errors>',
+      },
+    ],
+  ])('keeps the token after %s, as after a 5xx', async (_what, refusal) => {
+    const { google, folder } = calendarOf(3);
+    const limited: HttpClient = {
+      request: (options) =>
+        String(options.body).includes('sync-collection') ? Promise.resolve(refusal) : google.client.request(options),
+    };
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const result = await sourceOn(limited).listSince(folder, { value: 'sync-token:tok:family:3' });
+
+    expect(google.askedOf('calendar-query')).toHaveLength(1);
+    expect(result.items).toHaveLength(3);
+    expect(result.nextCursor.value, 'a rate limit dropped the token').toBe('sync-token:tok:family:3');
+  });
+});
+
+/**
+ * A PAGE THAT GIVES NO TOKEN KEEPS THE ONE IT WAS SENT (second review of
+ * #2019). RFC 6578 has every answer carry a token; one that leaves it out
+ * has said nothing past the token it was asked with. Dropped, the next pass
+ * would read the calendar whole with no token.
+ */
+describe('a page that gives no token', () => {
+  /** The server, with the sync token left out of the sync-collection answers `drop` picks. */
+  const leavingOutTheToken = (google: GoogleLikeCalDav, drop: (body: string) => boolean): HttpClient => ({
+    request: async (options) => {
+      const answer = await google.client.request(options);
+      if (!String(options.body).includes('sync-collection') || !drop(answer.body)) return answer;
+      return { ...answer, body: answer.body.replace(/<D:sync-token>[^<]*<\/D:sync-token>/, '') };
+    },
+  });
+
+  it('keeps the token it was sent when it is truncated, and the next reading goes on from there', async () => {
+    const { google, folder } = calendarOf(6, 2);
+    const first = await sourceOn(google.client).listSince(folder, undefined);
+    for (let i = 7; i <= 12; i += 1) google.add(folder.path!, `e${i}`);
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+
+    const cut = await sourceOn(leavingOutTheToken(google, (body) => body.includes('HTTP/1.1 507'))).listSince(
+      folder,
+      first.nextCursor,
+    );
+    google.asked.length = 0;
+    const next = await sourceOn(google.client).listSince(folder, cut.nextCursor);
+
+    expect(cut.items, 'the reading cut short was not listed whole').toHaveLength(12);
+    expect(cut.nextCursor.value, 'the token was dropped, and the next pass read the calendar with none').toBe(
+      first.nextCursor.value,
+    );
+    expect(google.askedOf('sync-collection')[0]?.token).toBe(tokenOf(first.nextCursor));
+    expect(uids(next.items)).toEqual(['e10', 'e11', 'e12', 'e7', 'e8', 'e9']);
+    expect(next.nextCursor.value).toBe('sync-token:tok:family:12');
+  });
+
+  it('keeps the token it was sent when it is the last page, so the next reading names what this one did, and more', async () => {
+    const { google, folder } = calendarOf(3);
+    const first = await sourceOn(google.client).listSince(folder, undefined);
+    google.add(folder.path!, 'e4');
+
+    const read = await sourceOn(leavingOutTheToken(google, () => true)).listSince(folder, first.nextCursor);
+    google.add(folder.path!, 'e5');
+    google.asked.length = 0;
+    const next = await sourceOn(google.client).listSince(folder, read.nextCursor);
+
+    expect(uids(read.items)).toEqual(['e4']);
+    expect(read.nextCursor.value, 'the token was dropped, and the next pass read the calendar with none').toBe(
+      first.nextCursor.value,
+    );
+    expect(google.askedOf('sync-collection').map((a) => a.token)).toEqual([tokenOf(first.nextCursor)]);
+    expect(uids(next.items)).toEqual(['e4', 'e5']);
   });
 });
 
@@ -596,6 +723,28 @@ describe('the REPORT T1 measured (review of #2019)', () => {
     expect(google.askedOf('sync-collection')).toHaveLength(1);
     expect(google.askedOf('calendar-query')).toHaveLength(1);
     expect(result.items).toHaveLength(2);
+  });
+
+  it("hears a refused token behind a 400 to sync-level: the retry's answer stands (second review of #2019)", async () => {
+    const { google, folder } = calendarOf(5);
+    google.refusesSyncLevel = 400;
+    vi.spyOn(log, 'warn').mockImplementation(() => {});
+    const source = sourceOn(google.client);
+    const first = await source.listSince(folder, undefined);
+    google.refusedTokens.add(tokenOf(first.nextCursor));
+    google.asked.length = 0;
+
+    const again = await source.listSince(folder, first.nextCursor);
+
+    expect(google.askedOf('sync-collection').map((a) => `${a.token || '(none)'} ${a.level ?? 'without'}`)).toEqual([
+      'tok:family:5 1',
+      'tok:family:5 without',
+      '(none) 1',
+      '(none) without',
+    ]);
+    expect(google.askedOf('calendar-query'), 'the refused token was not heard, and the calendar listed whole').toHaveLength(0);
+    expect(again.items).toHaveLength(5);
+    expect(again.nextCursor.value).toBe('sync-token:tok:family:5');
   });
 });
 

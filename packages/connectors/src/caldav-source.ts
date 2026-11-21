@@ -87,7 +87,10 @@ type SyncReading =
       readonly kind: 'cut-short';
       readonly why: string;
       readonly removed: string[];
-      /** The last token a page gave, from which the rest of the changes follow. */
+      /**
+       * The last token a page gave, from which the rest of the changes
+       * follow, or, when the page that stopped gave none, the one it was sent.
+       */
       readonly syncToken?: string;
     };
 
@@ -100,6 +103,17 @@ function refusesTheSyncToken(response: HttpResponse): boolean {
     (response.status === 403 || response.status === 409) &&
     /<(?:[A-Za-z][\w-]*:)?valid-sync-token\b/i.test(response.body)
   );
+}
+
+/**
+ * Whether a refusal is the server's trouble for the moment rather than its
+ * word on the request (workplan 0164 T2, second review of #2019): a 5xx, or
+ * what this source already reads as a rate limit, a 429 or Google's 403
+ * rate limit (`asksToSlowDown`). Only such a refusal keeps the sync token it
+ * was sent (`syncCollection`).
+ */
+function refusedForTheMoment(response: HttpResponse): boolean {
+  return response.status >= 500 || asksToSlowDown(response.status, response.body);
 }
 
 /** A `<response>`'s own status, with its propstats taken out: about the resource, not a property. */
@@ -551,14 +565,15 @@ export class CalDAVSource implements CalendarSource {
       // changed. The calendar is listed whole instead, which leaves nothing
       // out, and what the pages did say is kept: the removals the server
       // reported, and the last token a page gave, from which the rest of the
-      // changes follow (RFC 6578 §3.6). The listing was taken after that
+      // changes follow (RFC 6578 §3.6), or, when the page that stopped gave
+      // none, the token that page was sent. The listing was taken after that
       // token, so a change the next pass is told of again, which this
       // listing already copied, is skipped there by the ledger.
       log.warn(
         `[caldav] a calendar's sync-collection answered in pages (RFC 6578 §3.6) and ${reading.why}, ` +
           `so this pass lists the calendar whole with calendar-query (RFC 4791 §7.8), and keeps the ` +
           `${reading.removed.length} removal(s) the pages reported` +
-          `${reading.syncToken !== undefined ? ' and the last token they gave' : ''}.`,
+          `${reading.syncToken !== undefined ? ' and a sync token to read on from' : ''}.`,
       );
       const { objects } = await this.calendarQueryAll(collectionPath);
       return {
@@ -568,10 +583,17 @@ export class CalDAVSource implements CalendarSource {
       };
     }
 
+    let kept: string | undefined;
     if (reading.kind === 'refused') {
+      kept = syncToken !== undefined && refusedForTheMoment(reading.response) ? syncToken : undefined;
       log.warn(
         `[caldav] a calendar's sync-collection answered ${reading.response.status}, not 207 — ` +
-          `falling back to a calendar-query listing (RFC 4791 §7.8). ` +
+          `falling back to a calendar-query listing (RFC 4791 §7.8)` +
+          (syncToken === undefined
+            ? '. '
+            : kept !== undefined
+              ? ', and keeping the sync token it was sent. '
+              : ', and dropping the sync token it was sent, so the next pass reads the calendar with none. ') +
           davRefusalBody(reading.response.body),
       );
     } else {
@@ -605,17 +627,22 @@ export class CalDAVSource implements CalendarSource {
     // own: `calendar-query` answers "everything that matches", and ADR-0020
     // makes cursors non-authoritative, so a re-scan stays idempotent.
     //
-    // THE TOKEN IT WAS SENT IS KEPT when the server refused something other
-    // than the token (workplan 0164 T2, review of #2019): a 500 or a report
-    // it would not answer this once. The listing is newer than that token,
-    // so nothing it stands for is left out, and the next pass asks from it
-    // again rather than reading the calendar whole with no token, whose
-    // answer at Google names every removal it remembers. A token the server
-    // refused as a token was dropped above, and a read that sent none has
-    // none to keep. Should a server refuse a token without naming
-    // `DAV:valid-sync-token`, each pass lists the calendar whole, as every
-    // Google pass did before this reader, and this line names the status.
-    return { objects, ...(syncToken !== undefined ? { syncToken } : {}), removed: [] };
+    // THE TOKEN IT WAS SENT IS KEPT ONLY AFTER A REFUSAL FOR THE MOMENT
+    // (workplan 0164 T2, reviews of #2019): a 5xx or a rate limit
+    // (`refusedForTheMoment`). The listing is newer than that token, so
+    // nothing it stands for is left out, and the next pass asks from it
+    // again rather than reading the calendar whole with no token.
+    //
+    // ANY OTHER REFUSAL DROPS IT, as this source always did: a 410, or a 403
+    // that names no precondition, may be a stale token refused without
+    // `DAV:valid-sync-token`. Kept, such a token is refused on every pass,
+    // each pass lists the calendar whole, and no removal is reported from it
+    // again. Dropped, the next pass reads the calendar with no token, which
+    // costs one whole first reading and, at Google, names the removals it
+    // still remembers; a recorded move is not reported from one
+    // (`resolveReportedRemovals`, refusal 5). A token the server refused as a
+    // token was dropped above, and a read that sent none has none to keep.
+    return { objects, ...(kept !== undefined ? { syncToken: kept } : {}), removed: [] };
   }
 
   /**
@@ -664,14 +691,18 @@ export class CalDAVSource implements CalendarSource {
         // A server that will not take `sync-level` (RFC 6578 §6.1 has it in
         // every request) is asked once more without it, as this source asked
         // before, and every page of this reading goes without it.
-        const without = await ask(next, false);
-        if (without.status === 207) {
+        //
+        // The retry's answer stands, whatever it is (second review of
+        // #2019): a 400 to `sync-level` says nothing of the token, and the
+        // retry may refuse the token itself, with `DAV:valid-sync-token`,
+        // which `syncCollection` reads as a refused token only if it sees it.
+        response = await ask(next, false);
+        if (response.status === 207) {
           log.warn(
             '[caldav] a calendar\'s server answered sync-level 1 with 400 and the same report without it ' +
               'with 207, so this reading goes without sync-level.',
           );
           level = false;
-          response = without;
         }
       }
       if (response.status !== 207) {
@@ -689,13 +720,19 @@ export class CalDAVSource implements CalendarSource {
       objects.push(...page.objects);
       toRead.push(...page.toRead);
       removed.push(...page.removed);
+      // A PAGE THAT GIVES NO TOKEN KEEPS THE ONE IT WAS SENT (second review
+      // of #2019). RFC 6578 has every answer carry one; a server that leaves
+      // it out has said nothing past the token it was asked with, so a
+      // reading from that token again names what this one named, and more,
+      // where dropping it would read the calendar whole with no token.
+      const token = page.syncToken ?? next;
       if (!page.truncated) {
         return {
           kind: 'answered',
           objects,
           toRead,
           removed,
-          ...(page.syncToken !== undefined ? { syncToken: page.syncToken } : {}),
+          ...(token !== undefined ? { syncToken: token } : {}),
           ...(page.ctag !== undefined ? { ctag: page.ctag } : {}),
           pages,
           bytes,
@@ -714,7 +751,7 @@ export class CalDAVSource implements CalendarSource {
           kind: 'cut-short',
           why: stuck,
           removed,
-          ...(page.syncToken !== undefined ? { syncToken: page.syncToken } : {}),
+          ...(token !== undefined ? { syncToken: token } : {}),
         };
       }
       next = page.syncToken;

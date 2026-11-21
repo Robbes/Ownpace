@@ -393,26 +393,42 @@ answer *"everything that matches"*, and every server must support them.
 > while it is there is never copied. If it did go, the listing does not name it,
 > and the next reading reports its removal.
 
-> **Rule.** A truncated answer is followed to its end (RFC 6578 §3.6). A 507
-> for the collection means a page, and only the last page's token stands for
-> the whole reading. A reading whose pages do not end (a later page not a 207,
-> no token to go on with, the same token back, more than 100 pages) is listed
-> whole the same way, keeping what its pages reported. A server whose pages
-> never end costs 100 REPORTs a pass before that.
+> **Rule.** A truncated answer is followed to its end (RFC 6578 §3.6). A 507 for
+> the collection means a page, and only the last page's token stands for the
+> whole reading. A reading whose pages do not end (a later page not a 207, no
+> token to go on with, the same token back, more than 100 pages) is listed whole
+> the same way, keeping what its pages reported. A server whose pages never end
+> costs 100 REPORTs a pass before that. A page that gives no token, the last or
+> one that cuts the reading short, keeps the token it was sent (second review of
+> #2019): RFC 6578 has every answer carry one, a page that leaves it out has
+> said nothing past the token it was asked with, and a later reading from that
+> token names what this one did, and more. Dropped, the next pass would read the
+> calendar whole with no token.
 
 > **Rule.** The REPORT is the one T1 measured at Google: the token, then
 > `sync-level` 1, then the properties, as RFC 6578 §6.1 orders them. A server
 > that answers `sync-level` with a 400 is asked once more without it, and that
-> reading goes on without it.
+> reading goes on without it. The retry's answer stands, whatever it is (second
+> review of #2019): a 400 to `sync-level` says nothing of the token, and a
+> refused token in the retry's answer is read as one, below, rather than lost
+> behind the 400. A server that refuses `sync-level` pays that one extra request
+> for each calendar on every pass.
 
 > **Rule.** A refused token (a 403 or 409 with `DAV:valid-sync-token`, RFC 6578
-> §3.2) is dropped, and the calendar read again with no token, once, in the
-> same pass, which the log says. Any other refusal of the first page (a 500, a
-> report the server will not answer this once) lists the calendar whole and
-> KEEPS the token it was sent: the listing is newer than the token, and the
-> next pass asks from it instead of reading the calendar whole with none. The
-> token is read with its XML entities decoded, so one holding an `&` goes back
-> as the server gave it.
+> §3.2) is dropped, and the calendar read again with no token, once, in the same
+> pass, which the log says. Any other refusal of the first page lists the
+> calendar whole. After a 5xx or a rate limit (a 429, or Google's 403 rate
+> limit) it KEEPS the token it was sent: the server's trouble is for the moment,
+> the listing is newer than the token, and the next pass asks from it instead of
+> reading the calendar whole with none. After anything else it DROPS the token,
+> and the next pass reads the calendar with none, as this source always did
+> (second review of #2019). A 410, or a 403 that names no precondition, may be a
+> stale token refused without `DAV:valid-sync-token`: kept, it would be refused
+> on every pass, every pass would list the calendar whole, and no removal would
+> be reported from that calendar again. Dropped, it costs one whole first
+> reading, which at Google names the removals it still remembers, and which is
+> safe for a recorded move (below). The token is read with its XML entities
+> decoded, so one holding an `&` goes back as the server gave it.
 
 > **Rule.** A 404 in an answer to no token is a removal like any other. RFC 6578
 > §3.4 has a first reading name no removed member; Google named the removals it
