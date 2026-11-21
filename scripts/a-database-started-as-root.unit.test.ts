@@ -55,9 +55,11 @@
  *    (workplan 0119) a RUN also took packages from Alpine's signed
  *    repository, for findings no digest of the base had fixed: brotli-libs
  *    and libcurl, and from 2026-11-12 krb5-libs and libxslt too. PostgreSQL
- *    18.7's base carries all four fixes, so that RUN is gone, and the
- *    documents that say the build needs Docker Hub alone hold only while no
- *    `apk add` comes back. One that does takes each package at the exact
+ *    18.7's base carries all four fixes, so that RUN went. Since 2026-11-21
+ *    one RUN takes libxml2 2.13.9-r3 (workplan 0166 T3, the owner's D3), and
+ *    refuses a base that already carries it, so it goes when the base moves;
+ *    the documents say the build needs Alpine's mirror while it is there and
+ *    Docker Hub alone once it has gone. Any `apk add` takes each package at the exact
  *    version its instruction line names, so the line still says what is
  *    built, or the build fails: `--no-cache` and `name=version-rN` and
  *    nothing else (no floor, no `--upgrade`, which moves the named packages'
@@ -408,13 +410,19 @@ describe('the Postgres of the deploy/compose stacks starts as uid 70, from an im
       expect(dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${line}\n$1`)), line).toEqual([expect.stringContaining(`\`${line}\` reads files or an image`)]);
     }
     // Alpine's packages (0119): the RUN that took four of them went with 18.7's base, which carries every
-    // fix (2026-11-13). One that comes back takes each at the exact version its line names, and nothing
+    // fix (2026-11-13). Since 2026-11-21 one RUN takes libxml2 2.13.9-r3 again (workplan 0166 T3, D3), and
+    // nothing else; whatever comes back takes each package at the exact version its line names, and nothing
     // that moves with the day.
     const added = (run: string) => dockerfileProblems(real.replace(/^(USER 70:70)$/m, `${run}\n$1`));
+    const apkRuns = instructionLines(real).filter((l) => /(?:^|[^\w.-])apk\s/.test(l));
     expect(
-      instructionLines(real).filter((l) => /\bapk\b/.test(l)),
-      "the Dockerfile takes Alpine's packages again: the self-host quickstart, docs/testing.md, deploy/selfhost/README.md and docs/managed-bring-up.md say its build needs Docker Hub alone, and this guard's header says what it reads",
-    ).toEqual([]);
+      apkRuns.map((l) => [...l.matchAll(/\bapk add --no-cache ([^\s;]+)/g)].map((m) => m[1])),
+      "the Dockerfile takes Alpine's packages: the self-host quickstart, docs/testing.md, deploy/selfhost/README.md and docs/managed-bring-up.md say which, and this guard's header says what it reads. When the base carries libxml2 2.13.9-r3 or later the RUN goes (its THE WAY OUT), and so does this line",
+    ).toEqual([['libxml2=2.13.9-r3']]);
+    // The RUN refuses a base that already carries the fix, and checks what the add left (its own checks).
+    expect(apkRuns[0], 'the RUN reads the version before the add and refuses any but 2.13.9-r2').toMatch(/was="\$\(installed libxml2\)"; +if \[ "\$was" != 2\.13\.9-r2 \]; then [^;]*; exit 1; fi; +apk add --no-cache libxml2=2\.13\.9-r3;/);
+    expect(apkRuns[0], 'and the version after it, which must be 2.13.9-r3').toMatch(/now="\$\(installed libxml2\)"; +if \[ "\$now" != 2\.13\.9-r3 \]; then [^;]*; exit 1; fi;/);
+    expect(apkRuns[0], "and reads both from apk's own database").toMatch(/\/lib\/apk\/db\/installed/);
     const pinned = 'apk add --no-cache krb5-libs=1.22.3-r0 libxslt=1.1.43-r4';
     const apk = (to: string) => added(`RUN ${to}`);
     expect(apk(pinned), 'each package at its exact version, with --no-cache').toEqual([]);
