@@ -4,6 +4,34 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, later still: T1 and T7, the list read and the five dismissed, by the owner.**
+- **T1, the count.** The owner read the open list on 2026-11-21: 46 open after the first two
+  dismissals, so 48 before them, one fewer than the 49 of §1.2. The total after all five was not
+  read; 43 is what the arithmetic gives, not a count.
+- **T7, the dismissals,** made by the owner between about 17:32 and 17:50 UTC, each with the reason
+  §3 D gives:
+  - #1679 (`trivy-image-trigger.dev`) and #1760 (`trivy-image-redis`), CVE-2023-45853 in `zlib1g`,
+    as *Won't fix*: minizip is not in `zlib1g`, and nothing in the image uses it;
+  - Semgrep's `path-join-resolve-traversal` (`apps/worker/src/index.ts`),
+    `unknown-value-with-script-tag` (`apps/api/src/routes/migrations/google-consent.ts`) and
+    `js-open-redirect-from-function` (`apps/web/src/pages/Billing.tsx`), as *False positive*, with
+    0163 §4.3's reasons and #1990's.
+- **Left of Semgrep:** one alert, #1919, `gcm-no-tag-length` in the Cirrux test fake, which #2014
+  (T2) fixes. So Semgrep had 4 before the dismissals, as §1.6 says, and the one alert missing from
+  the 49 is a Trivy one.
+- **Which one, from the uploads.** No upload after §1's could have closed it. After the image scan
+  of Security Scan run 44878860013 (07:08 UTC) no run on `main` scanned the images: the runs on
+  `main` since were pushes (44880510965 to 44933026519), which upload the repository scan, 617
+  bytes and no result, and Semgrep, 4 spots from 16:06 UTC. So the image categories held what
+  run 44878860013 sent. The likeliest reading is one alert where §1.2 counts two findings: in
+  `trivy-image-registry`, CVE-2026-78669 is in two packages of the same binary, `bin/registry`'s
+  `golang.org/x/net` and its Go `stdlib` (§1.4). The report counts 8 findings with 7 distinct
+  ids there, and code scanning keeps one alert per rule and location. That was not read on the
+  list; the registry's category there shows 7 alerts if it holds. Whether two findings with one
+  id are one alert depends on the location Trivy's SARIF gives each, which was not read here; in
+  the Debian images the four PAM packages are four alerts (#1864 to #1867).
+- **§1.2, read with that:** 44 Trivy alerts and 4 Semgrep, 48, not 45 and 4.
+
 **2026-11-21, after the answers: T5, effect 3.22.4 in the Trigger.dev webapp, built (D2).** On
 `claude/ownpace-public-readiness-y7orc6-effect-swap`, from `main` at `66138ba9`.
 - **v4.8.8's lockfile, read first.** Upstream's `pnpm-lock.yaml` at v4.8.8 resolves effect 3.21.2
@@ -60,13 +88,13 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 | Task | Owner | Status | Notes |
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21** (D1 to D5, as advised) | §4. The owner's answer is quoted in the Status entry of 2026-11-21, later. |
-| T1 Read the list after Semgrep's upload | owner | ⏳ **Owner** | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
+| T1 Read the list after Semgrep's upload | owner | ✅ **Read 2026-11-21**: 48 open, not 49 (the Status entry of 2026-11-21, later still) | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
 | T2 The Cirrux test fake's decipher | builder | 📋 **Planned** (0163 T4) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
 | T3 libxml2 in both Postgres builds | builder | 📋 **Decided 2026-11-21** (D3: the pin) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
 | T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 📋 **Decided 2026-11-21** (D1: yes) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
 | T5 effect in the Trigger.dev webapp | builder | 🔨 **Built 2026-11-21** (D2: yes; the Status entry of 2026-11-21, after the answers: T5) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
-| T7 The owner's dismissals | owner | ⏳ **Owner** (D4: yes, decided 2026-11-21) | The 5 alerts of §3 D, each with its reason. |
+| T7 The owner's dismissals | owner | ✅ **Done 2026-11-21** (D4), the five of §3 D, 17:32 to 17:50 UTC | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
 
 ## 1. The inventory
