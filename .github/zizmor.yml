@@ -1,0 +1,13 @@
+# zizmor's configuration. The workflow audit (.github/workflows/zizmor.yml) passes it with
+# --config, so zizmor reads this file and no other. It holds one setting, and
+# scripts/a-workflow-zizmor-would-flag.unit.test.ts refuses any other: no audit is turned off
+# and no place is ignored.
+#
+# dependabot-cooldown finds every Dependabot entry whose cooldown is shorter than `days`, seven
+# unless set. Dependabot here waits three days (.github/dependabot.yml), the three days
+# CONTRIBUTING.md asks of every dependency, so the audit is held to three (workplan 0119,
+# 2026-11-21).
+rules:
+  dependabot-cooldown:
+    config:
+      days: 3

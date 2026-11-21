@@ -161,6 +161,11 @@ import {
   OSV_SCANNER_NOTE,
   OSV_SCANNER_UPSTREAM,
   OSV_SCANNER_WORKFLOW,
+  SQUAWK_ARCHES,
+  SQUAWK_HOST,
+  SQUAWK_NOTE,
+  SQUAWK_UPSTREAM,
+  SQUAWK_WORKFLOW,
   NODE_RELEASE_KEYS_NOTE,
   NEXTCLOUD_SECOND_MAJOR_NOTE,
   NEXTCLOUD_SECOND_MAJOR_WORKFLOW,
@@ -208,6 +213,7 @@ import {
   newestRelease,
   nodeVersionOf,
   osvScannerPin,
+  squawkPin,
   pnpmRow,
   readImages,
   readPin,
@@ -927,6 +933,8 @@ const cosignDefault = (): Record<string, string> =>
 const ATLAS = atlasPin(REAL.read(ATLAS_WORKFLOW)!);
 /** The osv-scanner release the Security Scan installs (0163 T2, 2026-11-20). */
 const OSV = osvScannerPin(REAL.read(OSV_SCANNER_WORKFLOW)!);
+/** The squawk release the Migration locks workflow installs (0165, 2026-11-21). */
+const SQUAWK = squawkPin(REAL.read(SQUAWK_WORKFLOW)!);
 const ATLAS_TAG = `${ATLAS.version.slice(1)}-community`;
 
 /**
@@ -1393,6 +1401,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
       [STALWART_CLI_UPSTREAM]: lsRemote('v1.0.9', 'v1.0.10', STALWART_CLI.version, 'v2.0.0', ...(newer.stalwartCli ? [newer.stalwartCli] : [])),
       // osv-scanner's releases as upstream tags them, up to the one the Security Scan installs, and another major.
       [OSV_SCANNER_UPSTREAM]: lsRemote('v1.9.2', 'v2.6.0', OSV.version, 'v3.0.0', ...(newer.osvScanner ? [newer.osvScanner] : [])),
+      // squawk's releases as upstream tags them, up to the one the Migration locks workflow installs, and another major.
+      [SQUAWK_UPSTREAM]: lsRemote('v1.6.1', 'v2.66.0', SQUAWK.version, 'v3.0.0', ...(newer.squawk ? [newer.squawk] : [])),
     },
   };
 }
@@ -2113,6 +2123,196 @@ describe('the osv-scanner the Security Scan runs: a named release, checked by it
   it('is never current when the step cannot be read', async () => {
     const gone = withFiles({ [OSV_SCANNER_WORKFLOW]: mutate('https://github.com/google/osv-scanner/releases/download/', 'https://mirror.example/osv-scanner/') });
     const row = (await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'osv-scanner');
+    expect(row).toMatchObject({ state: 'error' });
+  });
+});
+
+/**
+ * THE SQUAWK THE MIGRATION LOCKS WORKFLOW READS THE MIGRATIONS WITH (workplan
+ * 0165, 2026-11-21). It is report only, and still the binary that runs must be
+ * the release named, as osv-scanner's is: `SQUAWK_VERSION`, a sha256 for both
+ * architectures a runner here has, both read and compared before anything is
+ * made executable, and a check that what was installed calls itself that
+ * release. `squawkPin` reads the step's text, each refusal held by a mutation
+ * of it; the step is also RUN under bash with the same `curl` and `uname`
+ * stubs, and each way to keep the text and lose the refusal is a mutation that
+ * must fail it; and the row says when a newer release of the same major is
+ * tagged.
+ */
+const squawkScratch = mkdtempSync(join(tmpdir(), 'squawk-step-'));
+afterAll(() => rmSync(squawkScratch, { recursive: true, force: true }));
+/** The bytes served for each architecture: fixed, so each has one sum. */
+const SQUAWK_STAND_IN = Object.fromEntries(
+  SQUAWK_ARCHES.map((arch) => [
+    arch,
+    `#!/bin/sh\n# Not squawk: the linux-musl/${arch} stand-in a-pin-that-knows-it-is-behind serves.\n: > "$STUB_RAN"\nprintf '%s\\n' "$STUB_SAYS"\n`,
+  ]),
+) as Record<'x64' | 'arm64', string>;
+const SQUAWK_STAND_IN_SHA256 = Object.fromEntries(
+  SQUAWK_ARCHES.map((arch) => [`SQUAWK_SHA256_${arch.toUpperCase()}`, createHash('sha256').update(SQUAWK_STAND_IN[arch as 'x64' | 'arm64']).digest('hex')]),
+);
+
+/** The `run:` and `env:` of the one step of `workflow` that downloads from SQUAWK_HOST. */
+function squawkStep(workflow: string): { run: string; env: Record<string, string> } {
+  type Step = { run?: unknown; env?: Record<string, unknown>; shell?: unknown };
+  const jobs = (parseYaml(workflow) as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const steps = Object.values(jobs).flatMap((job) => (job.steps ?? []).filter((s) => typeof s.run === 'string' && s.run.includes(SQUAWK_HOST)));
+  if (steps.length !== 1) throw new Error(`${steps.length} steps of ${SQUAWK_WORKFLOW} download from ${SQUAWK_HOST}; one installs squawk`);
+  const step = steps[0]!;
+  if (step.shell !== undefined) throw new Error(`the squawk step names shell: ${String(step.shell)}; this runs it as a step with none`);
+  if ((step.run as string).includes('${{')) throw new Error('the squawk step carries a ${{ }} expression, which this does not render');
+  return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
+}
+
+/** Run the step on `machine` (what `uname -m` says), with these sums in its env and a stand-in whose first line is `says`. */
+function runSquawkStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string) {
+  const dir = mkdtempSync(join(squawkScratch, 'run-'));
+  const temp = join(dir, 'runner-temp');
+  const served = join(dir, 'served');
+  mkdirSync(temp);
+  mkdirSync(served);
+  for (const arch of SQUAWK_ARCHES) writeFileSync(join(served, `squawk-linux-musl-${arch}`), SQUAWK_STAND_IN[arch as 'x64' | 'arm64']);
+  const files = { script: join(dir, 'step.sh'), ran: join(dir, 'ran'), fetched: join(dir, 'fetched'), path: join(dir, 'github-path') };
+  writeFileSync(files.script, step.run);
+  writeFileSync(files.fetched, '');
+  const r = spawnSync('bash', ['-e', files.script], {
+    encoding: 'utf8',
+    timeout: 20_000,
+    env: {
+      PATH: `${STUBS}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: dir,
+      ...step.env,
+      ...sums,
+      RUNNER_TEMP: temp,
+      GITHUB_PATH: files.path,
+      STUB_PREFIX: `${SQUAWK_HOST}${step.env.SQUAWK_VERSION}/`,
+      STUB_SERVED: served,
+      STUB_MACHINE: machine,
+      STUB_SAYS: says,
+      STUB_RAN: files.ran,
+      STUB_FETCHED: files.fetched,
+    },
+  });
+  const bin = join(temp, 'squawk-bin', 'squawk');
+  return {
+    status: r.status,
+    installed: existsSync(bin) ? readFileSync(bin, 'utf8') : undefined,
+    ran: existsSync(files.ran),
+    onPath: existsSync(files.path) && readFileSync(files.path, 'utf8').includes(join(temp, 'squawk-bin')),
+    fetched: readFileSync(files.fetched, 'utf8').split('\n').filter(Boolean),
+    log: `${r.stdout}${r.stderr}`.trim(),
+  };
+}
+
+/**
+ * What the squawk step of `workflow` does that it must not, run on both
+ * machines: install and run anything but the native release when both
+ * architectures' bytes are the pinned ones (and fetch both, and put it on the
+ * PATH), finish with anything installed or run when either sum is wrong, put
+ * on the PATH a binary that calls itself another version, or install anything
+ * on a machine no release is pinned for. Empty when the step is right.
+ */
+function squawkStepFaults(workflow: string): string[] {
+  const step = squawkStep(workflow);
+  const version = step.env.SQUAWK_VERSION!;
+  const release = `squawk ${version.slice(1)}`;
+  const urls = SQUAWK_ARCHES.map((arch) => `${SQUAWK_HOST}${version}/squawk-linux-musl-${arch}`);
+  const faults: string[] = [];
+  for (const [machine, arch] of [['x86_64', 'x64'], ['aarch64', 'arm64']] as const) {
+    const ok = runSquawkStep(step, machine, SQUAWK_STAND_IN_SHA256, release);
+    if (!(ok.status === 0 && ok.installed === SQUAWK_STAND_IN[arch] && ok.ran && ok.onPath && ok.fetched.join(' ') === urls.join(' '))) {
+      faults.push(`installs no release on ${machine}: exit ${ok.status}, fetched ${ok.fetched.join(' ') || 'nothing'}, on the PATH ${ok.onPath}\n${ok.log}`);
+    }
+    const names = SQUAWK_ARCHES.map((a) => `SQUAWK_SHA256_${a.toUpperCase()}`);
+    for (const wrong of [...names.map((n) => [n]), names]) {
+      // A wrong sum is the pin the workflow commits: the stand-in is not those bytes.
+      const sums = { ...SQUAWK_STAND_IN_SHA256, ...Object.fromEntries(wrong.map((name) => [name, step.env[name] ?? ''])) };
+      const r = runSquawkStep(step, machine, sums, release);
+      if (r.status === 0 || r.installed !== undefined || r.ran) {
+        faults.push(`goes on past a wrong ${wrong.join(' and ')} on ${machine}: exit ${r.status}, installed ${r.installed !== undefined}, ran ${r.ran}\n${r.log}`);
+      }
+    }
+    const older = runSquawkStep(step, machine, SQUAWK_STAND_IN_SHA256, 'squawk 2.66.0');
+    if (older.status === 0 || older.onPath) faults.push(`accepts a binary that calls itself squawk 2.66.0 on ${machine}\n${older.log}`);
+  }
+  const other = runSquawkStep(step, 'riscv64', SQUAWK_STAND_IN_SHA256, release);
+  if (other.status === 0 || other.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${other.status}`);
+  return faults;
+}
+
+describe('the squawk the Migration locks workflow runs: a named release, checked by its sha256 first', () => {
+  const locks = REAL.read(SQUAWK_WORKFLOW)!;
+  /** migration-locks.yml with one change, which must be a change. */
+  const mutate = (from: string | RegExp, to: string): string => {
+    const next = locks.replace(from, to);
+    expect(next, `${String(from)} is not in ${SQUAWK_WORKFLOW}`).not.toBe(locks);
+    return next;
+  };
+
+  it('names a release and a sha256 for each architecture a runner here has', () => {
+    expect(SQUAWK.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(Object.keys(SQUAWK.sha256).sort()).toEqual([...SQUAWK_ARCHES].sort());
+    for (const arch of SQUAWK_ARCHES) expect(SQUAWK.sha256[arch as 'x64' | 'arm64']).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('refuses a name with no version, a version that is no release, a missing or shared sum, a download run before it is checked, and no version check', () => {
+    expect(() => squawkPin(mutate('${SQUAWK_VERSION}/squawk-linux-musl-${arch}', 'latest/squawk-linux-musl-${arch}'))).toThrow(/downloads a name with no version/);
+    expect(() => squawkPin(mutate(/SQUAWK_VERSION: v\d+\.\d+\.\d+/, 'SQUAWK_VERSION: latest'))).toThrow(/names no release/);
+    expect(() => squawkPin(mutate(/\n +SQUAWK_SHA256_ARM64: [0-9a-f]{64}/, ''))).toThrow(/no sha256 for linux-musl\/arm64/);
+    expect(() => squawkPin(mutate(`SQUAWK_SHA256_ARM64: ${SQUAWK.sha256.arm64}`, `SQUAWK_SHA256_ARM64: ${SQUAWK.sha256.x64}`))).toThrow(/one sha256 for two architectures/);
+    // Made executable before the loop that reads the sums.
+    const install = /\n( +install -m 0755 "\$RUNNER_TEMP\/squawk-[^\n]+)/.exec(locks)![1]!;
+    const early = mutate(`\n${install}`, '').replace(/\n( +)differs=0\n/, (all, space: string) => `\n${space}${install.trim()}${all}`);
+    expect(() => squawkPin(early)).toThrow(/executable before its sha256 is read/);
+    // Read, but a mismatch no longer stops the step.
+    expect(() => squawkPin(mutate(/\n +\[ "\$differs" = 0 \] \|\| exit 1/, ''))).toThrow(/executable before its sha256 is read/);
+    expect(() => squawkPin(mutate(/\n +got="\$\(sha256sum "\$asset"\)"/, ''))).toThrow(/never reads a sha256/);
+    expect(() => squawkPin(mutate('"squawk ${SQUAWK_VERSION#v}"', '"squawk"'))).toThrow(/calls itself the release named/);
+  });
+
+  it('refuses a step that compares with anything but the pinned sum, fetches from elsewhere or pipes to a shell, or makes another file executable', () => {
+    expect(() => squawkPin(mutate('if [ "$got" = "$want" ]; then', 'if true; then'))).toThrow(/never compares the sum it read/);
+    expect(() => squawkPin(mutate('want="$SQUAWK_SHA256_X64"', 'want="$(curl -sSfL "https://mirror.example/squawk_${SQUAWK_VERSION}.sha256")"'))).toThrow(
+      /fetches from somewhere other than/,
+    );
+    expect(() => squawkPin(mutate('want="$SQUAWK_SHA256_ARM64"', 'want="$(cat "$RUNNER_TEMP/arm64.sha256")"'))).toThrow(/wanted sum is not only/);
+    const install = /\n( +)install -m 0755 "\$RUNNER_TEMP\/squawk-\$SQUAWK_VERSION-linux-musl-\$native"/;
+    expect(() =>
+      squawkPin(mutate(install, '\n$1curl -sSfL "https://github.com/sbdchd/squawk/releases/download/${SQUAWK_VERSION}/install.sh" | sh\n$1install -m 0755 "$RUNNER_TEMP/squawk-$SQUAWK_VERSION-linux-musl-$native"')),
+    ).toThrow(/pipes something to a shell/);
+    expect(() => squawkPin(mutate(install, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" "$SQUAWK_MIRROR"\n$1install -m 0755 "$RUNNER_TEMP/x"'))).toThrow(
+      /fetches something that is not the release/,
+    );
+    expect(() => squawkPin(mutate(install, '\n$1install -m 0755 "$RUNNER_TEMP/squawk-$SQUAWK_VERSION-linux-musl-x64"'))).toThrow(
+      /makes executable something other than the file it hashed/,
+    );
+  });
+
+  it('runs: the native release when both sums are the pinned ones, and nothing when either is not or it calls itself another version', () => {
+    expect(squawkStepFaults(locks)).toEqual([]);
+  });
+
+  it('runs: a mismatch that no longer stops it, or a version check that no longer fails, fails it, each by a mutation of the real step', () => {
+    const faults = (from: string | RegExp, to: string): string => squawkStepFaults(mutate(from, to)).join('\n');
+    expect(faults(/\n +differs=1\n/, '\n')).toMatch(/goes on past a wrong SQUAWK_SHA256_X64 on x86_64/);
+    expect(faults('if [ "$got" = "$want" ]', 'if [ "$got" = "$got" ]')).toMatch(/goes on past a wrong SQUAWK_SHA256_ARM64 on aarch64/);
+    expect(faults(/\n +\[ "\$differs" = 0 \] \|\| exit 1/, '')).toMatch(/goes on past a wrong SQUAWK_SHA256_ARM64 on x86_64/);
+    expect(faults(/(does not call itself \$\{SQUAWK_VERSION#v\}\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself squawk 2\.66\.0 on x86_64/);
+  });
+
+  it('is a routine pin, current while upstream tags no newer release of its major, another major included', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'squawk')).toEqual({ name: 'squawk', where: SQUAWK_WORKFLOW, pin: SQUAWK.version, newest: SQUAWK.version, state: 'current' });
+  });
+
+  it('is behind when a newer release of its major is tagged, and says the three values move together', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry({ squawk: 'v2.99.0' })));
+    expect(rows.find((r) => r.name === 'squawk')).toMatchObject({ pin: SQUAWK.version, newest: 'v2.99.0', state: 'behind', notes: [SQUAWK_NOTE] });
+  });
+
+  it('is never current when the step cannot be read', async () => {
+    const gone = withFiles({ [SQUAWK_WORKFLOW]: mutate('https://github.com/sbdchd/squawk/releases/download/', 'https://mirror.example/squawk/') });
+    const row = (await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'squawk');
     expect(row).toMatchObject({ state: 'error' });
   });
 });

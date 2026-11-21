@@ -6,6 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **A report of the locks a migration takes, before the merge** (workplan 0165). An outside,
+  read-only check counted migrations that lock or scan a table while they run: CHECKs and foreign
+  keys added without `NOT VALID`, and indexes made or dropped without `CONCURRENTLY`. Nothing in CI
+  read that class, since migration-lint's Atlas has no analyzer for it. A new workflow, Migration
+  locks, runs squawk 2.73.0, checked by its sha256 before it runs, over every file of both
+  migration chains, each read as one transaction, as the runner applies it. Its summary lists
+  every finding in a migration the pull request adds or changes, with a warning on its line, and
+  counts the rest as history, since an applied migration never changes. It is report only: no
+  finding fails it, and it is not a required check. The pin watch has a squawk row.
 - **A migration can carry a test marker, and then copies only the items whose own title carries
   it** (workplan 0162 T2). Nothing sets one yet, so no migration copies differently: the step that
   marks a test organisation, and records its marker on each migration made there, is next (0162
@@ -54,6 +63,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   advisory whose id is a string, which it dropped before, so the advisory gate now reads those
   too. Published on 2026-11-17 and taken after pnpm's three days. CI installs from the lockfile as
   it is.
+- **Dependabot proposes a version update once the release is three days old, from seven**
+  (workplan 0119). Three days is what CONTRIBUTING.md asks of every dependency and what pnpm's
+  `minimumReleaseAge` enforces. zizmor's `dependabot-cooldown` audit asks for seven unless it is
+  told otherwise, and CI runs zizmor blocking, so the workflow audit now reads one config,
+  `.github/zizmor.yml` (`--config`, where it read none), whose one setting holds that audit to
+  three days. A guard refuses any other setting, so no audit is turned off and no place is
+  ignored, and it refuses a Dependabot entry that waits less than three days. Security updates
+  still come without a cooldown.
 
 ### Fixed
 
@@ -66,6 +83,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   row says so. A consent's window and its link are held the same way: they go only to the
   provider's own sign-in host, Google's, Dropbox's, Microsoft's or Cirrux's, and any other address
   closes the window and is said in the consent's note.
+- **The grant page goes only to Google's own page** (workplan 0163 T4). Its two buttons,
+  *Continue with Google* on a migration's link and one per account on a person's link, sent the
+  page to whatever address the API answered. They now follow it only when it is `https:` on
+  `accounts.google.com`, the check *Pay* and the consent window use. Any other address opens
+  nothing, the page says it is not Google's own page, in the reader's language, and the button
+  can be pressed again.
 
 ## [0.2.0-alpha.13] - 2026-11-21
 
