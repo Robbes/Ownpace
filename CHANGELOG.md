@@ -6,6 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **A report of the locks a migration takes, before the merge** (workplan 0165). An outside,
+  read-only check counted migrations that lock or scan a table while they run: CHECKs and foreign
+  keys added without `NOT VALID`, and indexes made or dropped without `CONCURRENTLY`. Nothing in CI
+  read that class, since migration-lint's Atlas has no analyzer for it. A new workflow, Migration
+  locks, runs squawk 2.73.0, checked by its sha256 before it runs, over every file of both
+  migration chains, each read as one transaction, as the runner applies it. Its summary lists
+  every finding in a migration the pull request adds or changes, with a warning on its line, and
+  counts the rest as history, since an applied migration never changes. It is report only: no
+  finding fails it, and it is not a required check. The pin watch has a squawk row.
 - **A migration can carry a test marker, and then copies only the items whose own title carries
   it** (workplan 0162 T2). Nothing sets one yet, so no migration copies differently: the step that
   marks a test organisation, and records its marker on each migration made there, is next (0162
@@ -22,6 +31,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **A migration waits at most five seconds for a table lock** (workplan 0165, D3).
+  Each migration file runs in one transaction, and until now nothing limited how long it waited
+  for a lock: one asking to change a table behind a long query waited for that query, and every
+  later query on the table queued behind the migration. The runner now sets a lock timeout of 5
+  seconds for each file's own transaction. Past it the file is rolled back with nothing applied,
+  the start fails with a message that says it waited for a lock, and the next start tries again.
+  The wait for another migrator's advisory lock is unchanged, and there is no statement timeout,
+  so a migration that holds its lock and is working still finishes. The squawk report marks
+  `require-lock-timeout` as met by the runner, with no warning on its line.
 - **Semgrep's report says where Semgrep read the tree only in part** (workplan 0163 T5). Semgrep's
   taint analysis gives each function a time limit of its own. A rule that reaches it reports
   nothing in that function, with no error and exit 0: `main`'s first Semgrep run read one spot
