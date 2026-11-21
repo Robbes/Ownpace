@@ -1,5 +1,6 @@
 # MEASUREMENT ONLY, ON A BRANCH THAT IS NEVER MERGED AND HAS NO PULL REQUEST.
-# Two proofs, each with the real tool: gitleaks (0163 T6) and Semgrep's rules that block (0163 T5).
+# Three proofs, each with the real tool: gitleaks (0163 T6), Semgrep's rules that block (0163 T5),
+# and gitleaks on the GoAccess build argument's rename (0163 D8).
 # Proves the pull request job of workplan 0163 T6 with the real gitleaks and the
 # real config: the gitleaks branch's .gitleaks.toml and scripts/gitleaks-report.mjs,
 # run against made-up commits in throwaway repositories on the runner. A value
@@ -272,5 +273,111 @@ jobs:
 
           SEMGREP_IMAGE="semgrep/semgrep:1.186.0@sha256:$(printf '0%.0s' $(seq 64))" GITHUB_EVENT_NAME=pull_request node scripts/semgrep-report.mjs > "$RUNNER_TEMP/unpulled.log" 2>&1
           judge "an image it cannot pull fails a pull request: a scan that did not finish" 1 "$RUNNER_TEMP/unpulled.log" $?
+
+          [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
+
+  goaccess-arg-proof:
+    name: gitleaks on the GoAccess rename (the pull request job's config and report, on the real history)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: claude/ownpace-public-readiness-y7orc6-goaccess-arg
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: claude/ownpace-public-readiness-y7orc6-gitleaks
+          path: gitleaks-branch
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true
+          package-manager-cache: false
+      - name: Install gitleaks from its GitHub release, checked by its sha256
+        env:
+          GITLEAKS_VERSION: v8.30.1
+          GITLEAKS_SHA256_X64: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          GITLEAKS_SHA256_ARM64: e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
+        run: |
+          set -euo pipefail
+          platform="$(uname -m)"
+          case "$platform" in
+            x86_64) wanted=x64 ;;
+            aarch64) wanted=arm64 ;;
+            *) echo "::error::No gitleaks is pinned for $platform: only x64 and arm64."; exit 1 ;;
+          esac
+          bad=0
+          for arch in x64 arm64; do
+            if [ "$arch" = x64 ]; then pin="$GITLEAKS_SHA256_X64"; else pin="$GITLEAKS_SHA256_ARM64"; fi
+            archive="$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-$arch.tar.gz"
+            rm -f "$archive"
+            curl --proto '=https' --tlsv1.2 -sSfL --retry 4 -o "$archive" \
+              "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_${arch}.tar.gz"
+            got="$(sha256sum "$archive")"
+            got="${got%% *}"
+            if [ "$got" = "$pin" ]; then
+              echo "gitleaks $GITLEAKS_VERSION linux/$arch: sha256 $got, as pinned."
+            else
+              echo "::error::gitleaks $GITLEAKS_VERSION linux/$arch is not the build this workflow pins: its sha256 is $got, and the pin is $pin. Nothing was run."
+              bad=1
+            fi
+          done
+          [ "$bad" = 0 ] || exit 1
+          rm -rf "$RUNNER_TEMP/gitleaks-bin"
+          mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+          tar -xzf "$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-$wanted.tar.gz" -C "$RUNNER_TEMP/gitleaks-bin" --no-same-owner gitleaks
+          answer="$("$RUNNER_TEMP/gitleaks-bin/gitleaks" version)"
+          echo "gitleaks version: $answer"
+          if [ "$answer" != "${GITLEAKS_VERSION#v}" ]; then
+            echo "::error::The gitleaks this step installed calls itself $answer, not ${GITLEAKS_VERSION#v}."
+            exit 1
+          fi
+      - name: The rename's own commit, then a bump of the pin under each name, each read as the job reads it
+        run: |
+          # Workplan 0163 D8: #1992's .gitleaks.toml and report, over this repository's own history. The
+          # rename's commit must pass; a made-up bump of the pin under the old name must fail on
+          # generic-api-key in the Dockerfile, and the same bump under the new name must pass. The bumps
+          # are throwaway commits on the runner, never pushed.
+          set +e
+          set -uo pipefail
+          export GITLEAKS="$RUNNER_TEMP/gitleaks-bin/gitleaks"
+          # Both files sit in the checkout untracked, where the report looks for them (its root is the
+          # directory above its own), and no commit below takes them in.
+          cp gitleaks-branch/.gitleaks.toml .gitleaks.toml
+          cp gitleaks-branch/scripts/gitleaks-report.mjs scripts/gitleaks-report.mjs
+          rm -rf gitleaks-branch
+          wrong=0
+          # judge <case> <expected exit> <base> <head>
+          judge() {
+            local name="$1" want="$2" base="$3" head="$4" log got
+            log="$RUNNER_TEMP/judge-$RANDOM.log"
+            RUNNER_TEMP="$RUNNER_TEMP/out-$RANDOM" node scripts/gitleaks-report.mjs "$base" "$head" > "$log" 2>&1
+            got=$?
+            if [ "$got" = "$want" ]; then
+              echo "as it must: $name: exit $got"
+            else
+              echo "::error::NOT as it must: $name: exit $got, not $want"
+              wrong=1
+            fi
+            grep -E '^(Nothing found|[0-9]+ findings?|The scan did not finish)' "$log"
+            grep -o -E '^::error file=[^,]+,line=[0-9]+,title=gitleaks [a-z-]+' "$log" | sed 's/^::error /  marked as an error: /'
+          }
+          main="$(git rev-parse origin/main)"
+          renamed="$(git rev-parse HEAD)"
+          judge "the rename's own commit passes" 0 "$main" "$renamed"
+
+          dockerfile=deploy/compose/goaccess/Dockerfile
+          bumped="$(git rev-parse HEAD~1)"
+          sed -i -E "s/^ARG UPSTREAM_COMMIT=[0-9a-f]{40}$/ARG GOACCESS_COMMIT=${bumped}/" "$dockerfile"
+          git -c user.name=proof -c user.email=proof@example.invalid commit -q -am "a bump under the old name" > /dev/null
+          judge "a bump of the pin under the old name, GOACCESS_COMMIT, fails" 1 "$renamed" "$(git rev-parse HEAD)"
+
+          git switch -q --detach "$renamed"
+          sed -i -E "s/^ARG UPSTREAM_COMMIT=[0-9a-f]{40}$/ARG UPSTREAM_COMMIT=${bumped}/" "$dockerfile"
+          git -c user.name=proof -c user.email=proof@example.invalid commit -q -am "a bump under the new name" > /dev/null
+          judge "the same bump under the new name, UPSTREAM_COMMIT, passes" 0 "$renamed" "$(git rev-parse HEAD)"
 
           [ "$wrong" = 0 ] && echo "Every case ended as it must." || exit 1
