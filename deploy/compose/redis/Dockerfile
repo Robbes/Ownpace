@@ -58,6 +58,34 @@
 # ncurses-base, ncurses-bin and perl-base, which Debian marks Essential
 # (perl-base runs the checks below).
 #
+# PAM AND WHAT NEEDS IT (since 2026-11-21, for alpha.14; workplan 0166 T4,
+# the owner's D1 that day: "yes"). The image scan of 2026-11-21 (Security Scan
+# run 44878860013) read four highs with no fix in Debian, linux-pam's
+# directory traversal, one in each of libpam0g, libpam-modules,
+# libpam-modules-bin and libpam-runtime 1.5.2-6+deb12u2. Nothing in
+# trigger-redis logs anyone in, changes a password or asks PAM anything. In
+# this image's dpkg status (the fourth layer, sha256:1b21ec79…, linux/arm64,
+# read 2026-11-21) only these depend on the four: each other, util-linux (on
+# the list above), login and passwd; and only adduser depends on passwd, and
+# only apt on adduser (on the list above). So the seven go together: the
+# four, login 1:4.13+dfsg1-1+deb12u2 (Essential: /bin/login, nologin, newgrp,
+# sg, faillog and lastlog), passwd 1:4.13+dfsg1-1+deb12u2 (useradd, usermod,
+# groupadd, passwd, chpasswd and the rest of shadow's tools) and adduser 3.134
+# (adduser, deluser, addgroup and delgroup). None of their programs runs here,
+# and redis's user and group were made in upstream's build, before this one.
+# Their maintainer scripts on purge remove their own configuration
+# (libpam-runtime's /etc/pam.d/common-* and /var/lib/pam, adduser's
+# /etc/adduser.conf) with rm and rmdir, clear their debconf answers when
+# debconf is there, and run dpkg-maintscript-helper for one old conffile
+# each (login's /etc/securetty, passwd's /etc/cron.daily/passwd): coreutils,
+# debconf and dpkg, which stay. libpam0g ships libpam.so.0, libpam_misc.so.0
+# and libpamc.so.0, which the checks below look for as they look for the
+# eight above. Read as bytes on 2026-11-21, every ELF file of the base's
+# first layer (sha256:2d66c782…, 693 on linux/arm64) and of the fourth (9):
+# only files of the seven, and util-linux's su and runuser, name one of the
+# three. So twenty packages and eleven libraries go, and 1, 8 and 0 become 1,
+# 4 and 0.
+#
 # WHY NOTHING RUNS THEM, read 2026-11-07 in the image's layers, each by its
 # digest (linux/arm64):
 #   - What starts in trigger-redis: managed.yml's `redis-server --appendonly
@@ -93,22 +121,22 @@
 #
 # HOW THEY ARE PURGED, AND PROVED. The one RUN as root, as the webapp's purge
 # is the last of its own:
-#   1. `dpkg-query -W` of exactly the thirteen, first: a package renamed or
+#   1. `dpkg-query -W` of exactly the twenty, first: a package renamed or
 #      gone stops the build before anything is purged (a list to read again,
 #      not a name to skip).
 #   2. `dpkg --audit` reads nothing in the image as upstream left it, and the
-#      thirteen ship the eight libraries (`dpkg-query -L`), so the checks in 5
+#      twenty ship the eleven libraries (`dpkg-query -L`), so the checks in 5
 #      and 6 do not look for names nothing had.
 #   3. `dpkg --purge --force-remove-essential --force-remove-protected`, the
 #      two flags of the owner's decision, and no other force. Debian marks
 #      util-linux and bsdutils Essential. Without --force-depends, dpkg refuses
 #      to remove what an installed package still depends on, so a base where
 #      one does stops the build, as e2fsprogs stopped the webapp's first one. A
-#      package that joins the base and depends on one of the thirteen stops the
+#      package that joins the base and depends on one of the twenty stops the
 #      build here the same way: no dependency is left dangling.
-#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the thirteen
+#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the twenty
 #      as gone (no record, or not-installed).
-#   5. No file of the eight is left under / (the image's own file system,
+#   5. No file of the eleven is left under / (the image's own file system,
 #      walked whole) by its name, the library or a link to it, wherever it is.
 #      And no ELF file needs one: its DT_NEEDED entries, read from its program
 #      headers and its dynamic section as the dynamic loader reads them, 32- or
@@ -116,7 +144,7 @@
 #      read counts as needing a library when it names it, since what an ELF
 #      file needs is a string in it; and the check fails when it read no ELF
 #      file that needs a library at all.
-#   6. No ELF file under / names one of the eight, so nothing left links them
+#   6. No ELF file under / names one of the eleven, so nothing left links them
 #      or opens them by name. The checks are perl's, perl-base's, which Debian
 #      marks Essential and this image keeps, as the webapp's are node's: this
 #      image has no node. 5 and 6 run in this RUN, as root, who can read every
@@ -182,7 +210,7 @@
 # HOW IT MOVES.
 #   - A newer Redis 7.4, or a rebuild of the tag: Dependabot's pull request
 #     (.github/dependabot.yml, this directory's own entry, never a major). A
-#     rebuild passes when the base still has the thirteen and nothing new
+#     rebuild passes when the base still has the twenty and nothing new
 #     depends on them; a new release stops at the last RUN, which asks
 #     redis-server for the FROM's release: re-read the image's packages and
 #     scan, then move the release that RUN names and this header. That
@@ -201,8 +229,8 @@ FROM redis:7.4.12-bookworm@sha256:2e3eb11462c4e3759e6972678dd051d150ff54b1e60714
 RUN set -eu; \
     me=deploy/compose/redis/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's THE DEBIAN PACKAGES NOTHING RUNS against this image; a package leaves the list, or joins it, only with its reason." >&2; exit 1; }; \
-    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs libsystemd0 libudev1"; \
-    libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0 libsystemd.so.0 libudev.so.1"; \
+    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs libsystemd0 libudev1 libpam0g libpam-modules libpam-modules-bin libpam-runtime login passwd adduser"; \
+    libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0 libsystemd.so.0 libudev.so.1 libpam.so.0 libpam_misc.so.0 libpamc.so.0"; \
     top=/; \
     needs='my ($top, @names) = @ARGV; my $dev = (stat $top)[0]; my ($read, $dyn, $unread) = (0, 0, 0); my @hits; sub needed { my ($b) = @_; my $l = length $b; my $u = sub { my ($at, $n, $f) = @_; die "short\n" if $at < 0 || $at + $n > $l; return unpack($f, substr($b, $at, $n)); }; my ($c, $o) = ($u->(4, 1, "C"), $u->(5, 1, "C")); die "class\n" unless ($c == 1 || $c == 2) && ($o == 1 || $o == 2); my $w = $c == 2 ? 8 : 4; my ($h, $i) = $o == 1 ? ("v", "V") : ("n", "N"); my $x = $w == 8 ? ($o == 1 ? "Q<" : "Q>") : $i; my ($phoff, $phsz, $phnum) = $w == 8 ? ($u->(32, 8, $x), $u->(54, 2, $h), $u->(56, 2, $h)) : ($u->(28, 4, $x), $u->(42, 2, $h), $u->(44, 2, $h)); my (@load, @dyn); for my $k (0 .. $phnum - 1) { my $p = $phoff + $k * $phsz; my $t = $u->($p, 4, $i); my @f = $w == 8 ? ($u->($p + 8, 8, $x), $u->($p + 16, 8, $x), $u->($p + 32, 8, $x)) : ($u->($p + 4, 4, $x), $u->($p + 8, 4, $x), $u->($p + 16, 4, $x)); push @load, \@f if $t == 1; @dyn = @f if $t == 2; } return [] unless @dyn; my ($str, @need); for (my $p = $dyn[0]; $p + 2 * $w <= $dyn[0] + $dyn[2]; $p += 2 * $w) { my ($t, $v) = ($u->($p, $w, $x), $u->($p + $w, $w, $x)); last if $t == 0; push @need, $v if $t == 1; $str = $v if $t == 5; } return [] unless @need; die "no DT_STRTAB\n" unless defined $str; my ($at) = map { $str - $_->[1] + $_->[0] } grep { $str >= $_->[1] && $str < $_->[1] + $_->[2] } @load; die "DT_STRTAB in no PT_LOAD\n" unless defined $at; return [map { my $s = $at + $_; my $e = $s < $l ? index($b, "\0", $s) : -1; die "a name past the end\n" if $e < 0; substr($b, $s, $e - $s) } @need]; } sub walk { my ($d) = @_; opendir(my $hd, $d) or die "cannot read $d: $!\n"; my @e = sort grep { $_ ne "." && $_ ne ".." } readdir $hd; closedir $hd; for my $e (@e) { my $p = $d eq "/" ? "/$e" : "$d/$e"; my @s = lstat $p or die "cannot stat $p: $!\n"; if (-d _) { walk($p) if $s[0] == $dev; next; } for my $n (@names) { push @hits, "$p: a file of $n is left" if $e eq $n || index($e, "$n.") == 0; } next if !-f _ || $s[7] < 4; open(my $f, "<:raw", $p) or die "cannot open $p: $!\n"; my $m = ""; read($f, $m, 4); if ($m ne "\x7fELF") { close $f; next; } my $b = do { local $/; <$f> }; close $f; $b = $m . (defined $b ? $b : ""); $read++; my $need = eval { needed($b) }; if (!$need) { $unread++; for my $n (@names) { push @hits, "$p: names $n, and its dynamic section cannot be read" if index($b, $n) >= 0; } next; } $dyn++ if @$need; for my $n (@names) { push @hits, "$p: needs $n" if grep { $_ eq $n } @$need; } } } walk($top); print STDERR "$read ELF files read under $top, $dyn of them needing a library, $unread whose dynamic section could not be read\n"; exit 2 if $dyn == 0; if (@hits) { print join(" ", @hits), "\n"; exit 1; }'; \
     elves='my ($top, @names) = @ARGV; my $dev = (stat $top)[0]; my $read = 0; my @hits; sub walk { my ($d) = @_; opendir(my $h, $d) or die "cannot read $d: $!\n"; my @e = sort grep { $_ ne "." && $_ ne ".." } readdir $h; closedir $h; for my $e (@e) { my $p = $d eq "/" ? "/$e" : "$d/$e"; my @s = lstat $p or die "cannot stat $p: $!\n"; if (-d _) { walk($p) if $s[0] == $dev; next; } next if !-f _ || $s[7] < 4; open(my $f, "<:raw", $p) or die "cannot open $p: $!\n"; my $m = ""; read($f, $m, 4); if ($m ne "\x7fELF") { close $f; next; } my $b = do { local $/; <$f> }; close $f; $b = $m . (defined $b ? $b : ""); $read++; for my $n (@names) { push @hits, "$p: $n" if index($b, $n) >= 0; } } } walk($top); print STDERR "$read ELF files read under $top\n"; exit 2 if $read == 0; if (@hits) { print join(" ", @hits), "\n"; exit 1; }'; \

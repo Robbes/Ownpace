@@ -19,7 +19,7 @@
 # with a fix became 14 (WHAT STAYS says what is left, and why). Since
 # 2026-11-06 (for alpha.6, workplan 0119 §3 item 11, confirmed by the owner on
 # 2026-11-07), the last RUN as root purges eleven Debian packages nothing here
-# runs or loads (thirteen since 2026-11-08, below): apt, libapt-pkg6.0, the
+# runs or loads (thirteen since 2026-11-08, twenty since 2026-11-21, below): apt, libapt-pkg6.0, the
 # eight util-linux builds and e2fsprogs, which pre-depends on two of them (THE
 # DEBIAN PACKAGES NOTHING RUNS): 49 high findings become about 23, and 16
 # with a fix about 14. The branch's scan of that image read 1 critical, 24
@@ -618,6 +618,35 @@
 # (openssl, netcat-openbsd, ca-certificates and their libraries, and `apt-get
 # upgrade`) could not be read here, as below: dpkg's refusal reads it.
 #
+# PAM AND WHAT NEEDS IT (since 2026-11-21, for alpha.14; workplan 0166 T4,
+# the owner's D1 that day: "yes"). The image scan of 2026-11-21 (Security Scan
+# run 44878860013) read four highs with no fix in Debian, linux-pam's
+# directory traversal, one in each of libpam0g, libpam-modules,
+# libpam-modules-bin and libpam-runtime 1.5.2-6+deb12u2. Nothing in
+# trigger-api logs anyone in, changes a password or asks PAM anything. In
+# node:24.22.3-bookworm-slim's dpkg status (its fourth layer, which is this
+# image's fourth, linux/arm64, read 2026-11-21), as in Debian 12.15's own,
+# only these depend on the four: each other, util-linux (on the list above),
+# login and passwd; and only adduser depends on passwd, and only apt on
+# adduser (on the list above). So the seven go together: the four, login
+# 1:4.13+dfsg1-1+deb12u2 (Essential: /bin/login, nologin, newgrp, sg, faillog
+# and lastlog), passwd 1:4.13+dfsg1-1+deb12u2 (useradd, usermod, groupadd,
+# passwd, chpasswd and the rest of shadow's tools) and adduser 3.134 (adduser,
+# deluser, addgroup and delgroup). None of their programs runs here, and the
+# node user was made in the Node image's build, before this one. Their
+# maintainer scripts on purge remove their own configuration
+# (libpam-runtime's /etc/pam.d/common-* and /var/lib/pam, adduser's
+# /etc/adduser.conf) with rm and rmdir, clear their debconf answers when
+# debconf is there, and run dpkg-maintscript-helper for one old conffile
+# each (login's /etc/securetty, passwd's /etc/cron.daily/passwd): coreutils,
+# debconf and dpkg, which stay. libpam0g ships libpam.so.0, libpam_misc.so.0
+# and libpamc.so.0, which the checks below look for as they look for the
+# eight above. Read as bytes on 2026-11-21, every ELF file of the Node image's
+# five layers (694 on linux/arm64): only files of the seven, and util-linux's
+# su and runuser, name one of the three. The runner stage's own layer could
+# not be read here, as above: dpkg's refusal and the checks below read it. So
+# twenty packages and eleven libraries go.
+#
 # WHY NOTHING RUNS THEM, read at read_at (below):
 #   - What starts in trigger-api: managed.yml's `sh -c "chown -R node:node
 #     /home/node/shared && exec ./scripts/entrypoint.sh"`. The entrypoint
@@ -685,11 +714,11 @@
 # HOW THEY ARE PURGED, AND PROVED. The last RUN as root, after every other
 # change, as the appliance's purge (apps/selfhost/Dockerfile) and the tasks'
 # (apps/worker/trigger.config.ts) do:
-#   1. `dpkg-query -W` of exactly the thirteen, first: a package renamed or
+#   1. `dpkg-query -W` of exactly the twenty, first: a package renamed or
 #      gone stops the build before anything is purged (a list to read again,
 #      not a name to skip).
 #   2. `dpkg --audit` reads nothing in the image as upstream left it, and the
-#      thirteen ship the eight libraries (`dpkg-query -L`), so the checks in 5
+#      twenty ship the eleven libraries (`dpkg-query -L`), so the checks in 5
 #      and 6 do not look for names nothing had.
 #   3. `dpkg --purge --force-remove-essential --force-remove-protected`, the
 #      two flags of the owner's decision, and no other force. Debian marks
@@ -697,11 +726,11 @@
 #      to remove what an installed package still depends on, so a base where
 #      one does stops the build. That is how e2fsprogs joined the list: this
 #      base has it, and dpkg refused libblkid1 and libuuid1 for it. A package
-#      that joins the base and depends on one of the thirteen stops the build
+#      that joins the base and depends on one of the twenty stops the build
 #      here the same way: no dependency is left dangling.
-#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the thirteen
+#   4. `dpkg --audit` reads nothing after, and dpkg reads each of the twenty
 #      as gone (no record, or not-installed).
-#   5. No file of the eight is left under / (the image's own file system,
+#   5. No file of the eleven is left under / (the image's own file system,
 #      walked whole) by its name, the library or a link to it, wherever it is.
 #      And no ELF file needs one: its DT_NEEDED entries, read from its program
 #      headers and its dynamic section as the dynamic loader reads them, 32- or
@@ -709,7 +738,7 @@
 #      read counts as needing a library when it names it, since what an ELF
 #      file needs is a string in it; and the check fails when it read no ELF
 #      file that needs a library at all.
-#   6. No ELF file under / names one of the eight, so nothing left links them
+#   6. No ELF file under / names one of the eleven, so nothing left links them
 #      or opens them by name. 5 and 6 run in this RUN, as root, who can read
 #      every directory, and nothing after it installs a package.
 #   7. The programs this stack runs here start: grep, cp, tar, gzip and
@@ -787,7 +816,7 @@
 # (THE WAY OUT). The relink names connect-node 1.4.0, both undici releases
 # and busboy 2.1.1 the same way, by path and by package.json, and stops the
 # build on a tree that holds another of them (WHAT IS RELINKED: UNDICI). The
-# purge names its thirteen packages and eight
+# purge names its twenty packages and eleven
 # libraries the same way: `dpkg-query -W` stops the build on a base that
 # renames or drops one, and `dpkg-query -L` on one that no longer ships a
 # library (THE DEBIAN PACKAGES NOTHING RUNS). A pull request that touches
@@ -1104,8 +1133,8 @@ RUN set -eu; \
 RUN set -eu; \
     me=deploy/compose/trigger.dev/Dockerfile; \
     fail() { echo "$me: $*" >&2; echo "$me: re-read the header's THE DEBIAN PACKAGES NOTHING RUNS against this image; a package leaves the list, or joins it, only with its reason." >&2; exit 1; }; \
-    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs libsystemd0 libudev1"; \
-    libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0 libsystemd.so.0 libudev.so.1"; \
+    purge="util-linux util-linux-extra mount bsdutils libblkid1 libmount1 libsmartcols1 libuuid1 apt libapt-pkg6.0 e2fsprogs libsystemd0 libudev1 libpam0g libpam-modules libpam-modules-bin libpam-runtime login passwd adduser"; \
+    libraries="libuuid.so.1 libblkid.so.1 libmount.so.1 libsmartcols.so.1 libapt-pkg.so.6.0 libapt-private.so.0.0 libsystemd.so.0 libudev.so.1 libpam.so.0 libpam_misc.so.0 libpamc.so.0"; \
     top=/; \
     needs="const fs = require('fs'); const path = require('path'); const [top, ...names] = process.argv.slice(1); const dev = fs.statSync(top).dev; const head = Buffer.alloc(4); let read = 0, dyn = 0, unread = 0; const hits = []; const needed = (b) => { const c = b[4], o = b[5]; if ((c !== 1 && c !== 2) || (o !== 1 && o !== 2)) throw new Error('class'); const w = c === 2 ? 8 : 4, le = o === 1; const u16 = (at) => (le ? b.readUInt16LE(at) : b.readUInt16BE(at)); const u32 = (at) => (le ? b.readUInt32LE(at) : b.readUInt32BE(at)); const word = (at) => (w === 8 ? Number(le ? b.readBigUInt64LE(at) : b.readBigUInt64BE(at)) : u32(at)); const phoff = word(w === 8 ? 32 : 28), phsz = u16(w === 8 ? 54 : 42), phnum = u16(w === 8 ? 56 : 44); const load = []; let dynamic = null; for (let k = 0; k < phnum; k++) { const p = phoff + k * phsz, t = u32(p); const f = w === 8 ? [word(p + 8), word(p + 16), word(p + 32)] : [word(p + 4), word(p + 8), word(p + 16)]; if (t === 1) load.push(f); if (t === 2) dynamic = f; } if (!dynamic) return []; let str = null; const need = []; for (let p = dynamic[0]; p + 2 * w <= dynamic[0] + dynamic[2]; p += 2 * w) { const t = word(p), v = word(p + w); if (t === 0) break; if (t === 1) need.push(v); if (t === 5) str = v; } if (!need.length) return []; const seg = str === null ? undefined : load.find((s) => str >= s[1] && str < s[1] + s[2]); if (!seg) throw new Error('strtab'); const at = str - seg[1] + seg[0]; return need.map((v) => { const s = at + v, e = s < b.length ? b.indexOf(0, s) : -1; if (e < 0) throw new Error('name'); return b.toString('latin1', s, e); }); }; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isDirectory()) { if (s.dev === dev) walk(p); continue; } for (const n of names) if (e === n || e.startsWith(n + '.')) hits.push(p + ': a file of ' + n + ' is left'); if (!s.isFile() || s.size < 4) continue; const fd = fs.openSync(p, 'r'); try { fs.readSync(fd, head, 0, 4, 0); } finally { fs.closeSync(fd); } if (head.readUInt32BE(0) !== 0x7f454c46) continue; read++; const b = fs.readFileSync(p); let need; try { need = needed(b); } catch { unread++; for (const n of names) if (b.includes(n)) hits.push(p + ': names ' + n + ', and its dynamic section cannot be read'); continue; } if (need.length) dyn++; for (const n of names) if (need.includes(n)) hits.push(p + ': needs ' + n); } }; walk(top); console.error(read + ' ELF files read under ' + top + ', ' + dyn + ' of them needing a library, ' + unread + ' whose dynamic section could not be read'); if (dyn === 0) process.exit(2); if (hits.length) { console.log(hits.join(' ')); process.exit(1); }"; \
     elves="const fs = require('fs'); const path = require('path'); const [top, ...names] = process.argv.slice(1); const dev = fs.statSync(top).dev; const head = Buffer.alloc(4); let read = 0; const hits = []; const walk = (d) => { for (const e of fs.readdirSync(d)) { const p = path.join(d, e); const s = fs.lstatSync(p); if (s.isDirectory()) { if (s.dev === dev) walk(p); continue; } if (!s.isFile() || s.size < 4) continue; const fd = fs.openSync(p, 'r'); try { fs.readSync(fd, head, 0, 4, 0); } finally { fs.closeSync(fd); } if (head.readUInt32BE(0) !== 0x7f454c46) continue; read++; const b = fs.readFileSync(p); for (const n of names) if (b.includes(n)) hits.push(p + ': ' + n); } }; walk(top); console.error(read + ' ELF files read under ' + top); if (read === 0) process.exit(2); if (hits.length) { console.log(hits.join(' ')); process.exit(1); }"; \
