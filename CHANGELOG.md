@@ -6,6 +6,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **A report of the locks a migration takes, before the merge** (workplan 0165). An outside,
+  read-only check counted migrations that lock or scan a table while they run: CHECKs and foreign
+  keys added without `NOT VALID`, and indexes made or dropped without `CONCURRENTLY`. Nothing in CI
+  read that class, since migration-lint's Atlas has no analyzer for it. A new workflow, Migration
+  locks, runs squawk 2.73.0, checked by its sha256 before it runs, over every file of both
+  migration chains, each read as one transaction, as the runner applies it. Its summary lists
+  every finding in a migration the pull request adds or changes, with a warning on its line, and
+  counts the rest as history, since an applied migration never changes. It is report only: no
+  finding fails it, and it is not a required check. The pin watch has a squawk row.
 - **A migration can carry a test marker, and then copies only the items whose own title carries
   it** (workplan 0162 T2). Nothing sets one yet, so no migration copies differently: the step that
   marks a test organisation, and records its marker on each migration made there, is next (0162
