@@ -46,6 +46,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   advisory whose id is a string, which it dropped before, so the advisory gate now reads those
   too. Published on 2026-11-17 and taken after pnpm's three days. CI installs from the lockfile as
   it is.
+- **Dependabot proposes a version update once the release is three days old, from seven**
+  (workplan 0119). Three days is what CONTRIBUTING.md asks of every dependency and what pnpm's
+  `minimumReleaseAge` enforces. zizmor's `dependabot-cooldown` audit asks for seven unless it is
+  told otherwise, and CI runs zizmor blocking, so the workflow audit now reads one config,
+  `.github/zizmor.yml` (`--config`, where it read none), whose one setting holds that audit to
+  three days. A guard refuses any other setting, so no audit is turned off and no place is
+  ignored, and it refuses a Dependabot entry that waits less than three days. Security updates
+  still come without a cooldown.
 
 - **GoAccess's pinned commit is the build argument `UPSTREAM_COMMIT`** (workplan 0163 D8), in
   `deploy/compose/goaccess/Dockerfile`, where it was `GOACCESS_COMMIT`. gitleaks' generic-api-key
