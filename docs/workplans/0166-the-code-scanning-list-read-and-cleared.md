@@ -78,6 +78,17 @@
   and a bundled copy. Taking the sha512 check out of the RUN fails it three ways.
 - **Owed before the merge:** the image scan on the branch (`trigger.dev`) and E2E (managed).
 
+**2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built, merged as #2014 on 2026-11-21 (`8c24f286`).** On
+`claude/ownpace-public-readiness-y7orc6-cirrux-fake-tag-length`, from `main` at `58e10d96`.
+- **What changed.** `decryptCxdrv2` in `packages/connectors/src/__testing__/cirrux-fake.ts` calls
+  `createDecipheriv('aes-256-gcm', p.key, iv, { authTagLength: 16 })`, as #1985 did in
+  `secrets.ts`. Its length check before stays.
+- **Tests.** `cirrux-drive-format.unit.test.ts` has a new case: a tag cut four bytes short is
+  refused, and the fake's one `createDecipheriv` names the length. Taking the option out fails it.
+  The other 22 cases pass unchanged.
+- **The alert** (`gcm-no-tag-length`, Semgrep) closes at the first Semgrep upload from `main`
+  after the merge.
+
 **2026-11-21, later: the owner's answers, all as advised.** Asked D1 to D5 (§4), the owner
 answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 - **D1, yes:** the four `libpam*` packages are purged in the Redis and Trigger.dev webapp builds
@@ -112,7 +123,7 @@ answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
 |---|---|---|---|
 | T0 The decisions | owner | ✅ **Decided 2026-11-21** (D1 to D5, as advised) | §4. The owner's answer is quoted in the Status entry of 2026-11-21, later. |
 | T1 Read the list after Semgrep's upload | owner | ✅ **Read 2026-11-21**: 48 open, not 49 (the Status entry of 2026-11-21, later still) | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
-| T2 The Cirrux test fake's decipher | builder | 📋 **Planned** (0163 T4) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
+| T2 The Cirrux test fake's decipher | builder | ✅ **Merged** as #2014 on 2026-11-21 (`8c24f286`) (0163 T4; the Status entry of 2026-11-21, after the answers) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
 | T3 libxml2 in both Postgres builds | builder | 📋 **Decided 2026-11-21** (D3: the pin) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
 | T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 📋 **Decided 2026-11-21** (D1: yes) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
 | T5 effect in the Trigger.dev webapp | builder | 🔨 **Built 2026-11-21** (D2: yes; the Status entry of 2026-11-21, after the answers: T5) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
