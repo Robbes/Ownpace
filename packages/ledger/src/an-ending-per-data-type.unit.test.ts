@@ -19,7 +19,8 @@ import { runMigrations } from './migrate.ts';
 import { withTenant } from './db.ts';
 import type { LedgerDriver } from './driver.ts';
 import { PATH_PHASE_ACTION } from './a-cutover-of-one-data-type.ts';
-import { endOrKeepPath, pathEndingRefusalReason, type PathEnding } from './an-ending-per-data-type.ts';
+import { endOrKeepPath, pathEndingRefusalReason, readPathEndingChoices, type PathEnding } from './an-ending-per-data-type.ts';
+import { readPathStopFacts } from './a-stop-per-data-type.ts';
 
 // UUID family 0128e100-…, unused elsewhere in the repo.
 const TENANT = '0128e100-e29b-41d4-a716-446655440001';
@@ -28,6 +29,8 @@ const SOURCE_MAILBOX = '0128e100-e29b-41d4-a716-446655440003';
 const TARGET_MAILBOX = '0128e100-e29b-41d4-a716-446655440004';
 const MAPPING = '0128e100-e29b-41d4-a716-446655440005';
 const GONE = '0128e100-e29b-41d4-a716-446655440006';
+/** A test migration in the same organisation (workplan 0162 T1): its marker on its own row. */
+const MARKED = '0128e100-e29b-41d4-a716-446655440007';
 
 let driver: LedgerDriver;
 
@@ -294,5 +297,50 @@ describe('a migration whose status was written alone', () => {
         [MAPPING],
       ),
     ).toEqual([{ state: 'active', stamped: true }]);
+  });
+});
+
+/*
+ * A TEST MIGRATION'S DATA TYPES ARE OFFERED NEITHER (workplan 0162 T1, the
+ * fifth thing T3 left to settle). The Finish page is offered what
+ * `pathEndingChoices` makes of the facts `readPathStopFacts` reads, and those
+ * now carry the migration's own marker, from its row: so the page offers a
+ * test migration's data types no End and no Keep, where the same organisation's
+ * other migration, in the same phases, is offered both.
+ */
+describe('a test migration, as the Finish page reads it', () => {
+  it('reads the marker off the migration’s row, and offers its data types neither End nor Keep', async () => {
+    await place('active');
+    await query(
+      `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, status, mode, target_folder_prefix, test_marker)
+       VALUES ($1, $2, $3, $4, 'active', 'mirror', 'test', '[Ownpace-test]')`,
+      [MARKED, TENANT, SOURCE_MAILBOX, TARGET_MAILBOX],
+    );
+    try {
+      for (const domain of ['calendar', 'file'] as const) {
+        await query(`INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES ($1, $2, $3, true)`, [
+          TENANT,
+          MARKED,
+          domain,
+        ]);
+        await query(
+          `INSERT INTO path_lifecycle (tenant_id, mapping_id, domain, state, first_activated_at) VALUES ($1, $2, $3, 'active', now())`,
+          [TENANT, MARKED, domain],
+        );
+      }
+      const read = (mapping: string) => withTenant(driver, TENANT, (db) => readPathEndingChoices(db, TENANT, mapping));
+      expect((await withTenant(driver, TENANT, (db) => readPathStopFacts(db, TENANT, MARKED)))?.testMarker).toBe('[Ownpace-test]');
+      expect(await withTenant(driver, TENANT, (db) => readPathStopFacts(db, TENANT, MAPPING))).not.toHaveProperty('testMarker');
+      expect(await read(MARKED)).toEqual([
+        { domain: 'calendar', phase: 'active', stopped: false, offers: [] },
+        { domain: 'file', phase: 'active', stopped: false, offers: [] },
+      ]);
+      expect((await read(MAPPING)).map((c) => c.offers)).toEqual([
+        ['end', 'keep'],
+        ['end', 'keep'],
+      ]);
+    } finally {
+      await query(`DELETE FROM mailbox_mapping WHERE id = $1`, [MARKED]);
+    }
   });
 });

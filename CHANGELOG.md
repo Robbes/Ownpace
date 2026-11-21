@@ -4,6 +4,25 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.14] - 2026-11-21
+
+An appointed operator can mark an organisation as a test from Support, and every migration made
+there then copies only the items whose own title carries its marker. Such a test migration is never
+finished or switched over, its sharing lists only its marked items, and a Dropbox file renamed out
+of its marker is not read as deleted. *Pay* opens Mollie's checkout, the app follows a checkout,
+consent or grant address only to its provider's own host, a migration whose grant was withdrawn
+reads nothing, and a migration waits at most five seconds for a table lock. An event deleted in a
+Google calendar now reaches *Deleted on the old system*: the CalDAV source reads Google's
+`sync-collection` answer, which an operator can also measure, read only. Underneath, Trigger.dev
+moves to v4.8.8, its webapp's image runs effect 3.22.4 and, like Redis's, carries no PAM, both
+Postgres builds take Alpine's fixed libxml2, and pnpm moves to 11.28.13. In CI, a pull request that
+adds a secret fails, squawk reports the locks each migration takes, the two secrets left are each
+read by one job in its own GitHub environment, Dependabot waits three days, zizmor moves to 1.32.0
+and lists each secret a job reads outside an environment, and the outside probe fails when a port
+the front answers by itself presents the Trigger.dev dashboard's certificate. Live's deploy from
+alpha.12 is one-way: ledger migration 0070 and managed migration 0062 move, and so does the
+Trigger.dev pin.
+
 ### Added
 
 - **A read-only measurement of what Google answers to `sync-collection`** (workplan 0164 T1):
@@ -26,47 +45,65 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   every finding in a migration the pull request adds or changes, with a warning on its line, and
   counts the rest as history, since an applied migration never changes. It is report only: no
   finding fails it, and it is not a required check. The pin watch has a squawk row.
-- **A migration can carry a test marker, and then copies only the items whose own title carries
-  it** (workplan 0162 T2). Nothing sets one yet, so no migration copies differently: the step that
-  marks a test organisation, and records its marker on each migration made there, is next (0162
-  T1). The marker is a new column of the ledger (migration 0070), empty for a migration that is
-  not a test, 3 to 64 characters with no control character, and never changed once written: the
-  database refuses any change to it. With a marker, the pass, the preflight count and the applies
-  of a deletion or a relocation, in both editions, see only the items whose own title carries it,
-  in any case: a message's subject, an event's or a task's title (a recurring event by its
-  series), a contact's full name, a file's own name. Nothing else is copied, written to the ledger
-  or made on the target: a folder, calendar or address book is made there when its first marked
-  item is copied. A marked item deleted at the source still reaches the deletion queue; one whose
-  marker is taken out of its title is left as it was last copied, and is neither reported as
-  deleted nor moved.
-- **A test migration is never finished or switched over** (workplan 0162 T3). Nothing sets a
-  marker yet (0162 T1), so no migration is refused today. A migration with a marker is refused,
-  and told why, by *Finish*, by ending or keeping one of its data types, by the cutover's
-  preparation, which then prepares nothing, and by the operator's `approve`, `execute` and
-  `complete`: *A test migration is not finished* (or *not switched over*)*: delete it when the
-  test is over.* Its check measures it as any other, and never clears it for its cutover; the
-  check's page and the Finish page say why, in English and Dutch, as does a refused end or keep.
-  Deleting a test migration, and then its account, works as for any other.
-- **A test migration's sharing lists only its marked items, a status update never switches it
-  over, and a Dropbox file renamed out of its marker is not read as deleted** (workplan 0162 T1,
-  four of the five things it settles first). Nothing sets a marker yet (0162 T1), so no
-  migration changes today. With a marker, the sharing checklist's *Refresh from the source*
-  saves, and the permission list shows, only the shares on a file, folder or calendar whose own
-  name carries it. A share the old system gives without saying what it is on stops both, which
-  then save and show nothing and say why, in English and Dutch. A permission list asked for by
-  address, which names no migration, is refused in an organisation whose migrations carry a
-  marker, and the refusal does not count as one of the member's tests. A status update that
-  would declare a test migration's cutover, from active or paused, or that asks for the
-  continuous lane, from any status, is refused with *A test migration is not switched over:
-  delete it when the test is over.*, in English and Dutch; pausing still works. A marked Dropbox
-  file renamed out of the marker leaves a tombstone under its old name, which was read as the
-  owner deleting it: while the file is listed under another name, it no longer is. For every
-  migration, a permission list or a sharing refresh whose migration is deleted before the
-  migration itself is read is answered as a migration that is not there, where it read the
-  organisation's accounts instead. And the Sharing page now says why a refresh was refused (a
-  closed organisation, a migration that records no mailbox, a test's sharing none of which could
-  be kept), in its reader's language, where it said the request did not complete; a fault on
-  our side is said in the reader's language too, with its reference.
+- **A migration can carry a test marker, and then copies only the items whose own title carries it**
+  (workplan 0162 T2). An appointed operator sets one by marking an organisation as a test from
+  Support, and each migration made there records it (0162 T1, #2013). The marker is a new column of
+  the ledger (migration 0070), empty for a migration that is not a test, 3 to 64 characters with no
+  control character, and never changed once written: the database refuses any change to it. With a
+  marker, the pass, the preflight count and the applies of a deletion or a relocation, in both
+  editions, see only the items whose own title carries it, in any case: a message's subject, an
+  event's or a task's title (a recurring event by its series), a contact's full name, a file's own
+  name. Nothing else is copied, written to the ledger or made on the target: a folder, calendar or
+  address book is made there when its first marked item is copied. A marked item deleted at the
+  source still reaches the deletion queue; one whose marker is taken out of its title is left as it
+  was last copied, and is neither reported as deleted nor moved.
+- **A test migration is never finished or switched over** (workplan 0162 T3). A migration carries a
+  marker when it is made in an organisation that an appointed operator marked as a test from Support
+  (0162 T1, #2013). A migration with a marker is refused, and told why, by *Finish*, by ending or
+  keeping one of its data types, by the cutover's preparation, which then prepares nothing, and by
+  the operator's `approve`, `execute` and `complete`: *A test migration is not finished* (or *not
+  switched over*)*: delete it when the test is over.* Its check measures it as any other, and never
+  clears it for its cutover; the check's page and the Finish page say why, in English and Dutch, as
+  does a refused end or keep. Deleting a test migration, and then its account, works as for any
+  other.
+- **A test migration's sharing lists only its marked items, a status update never switches it over,
+  and a Dropbox file renamed out of its marker is not read as deleted** (workplan 0162 T1, four of
+  the five things it settles first). A migration carries a marker when it is made in an organisation
+  that an appointed operator marked as a test from Support (0162 T1, #2013). With a marker, the
+  sharing checklist's *Refresh from the source* saves, and the permission list shows, only the
+  shares on a file, folder or calendar whose own name carries it. A share the old system gives
+  without saying what it is on stops both, which then save and show nothing and say why, in English
+  and Dutch. A permission list asked for by address, which names no migration, is refused in an
+  organisation whose migrations carry a marker, and the refusal does not count as one of the
+  member's tests. A status update that would declare a test migration's cutover, from active or
+  paused, or that asks for the continuous lane, from any status, is refused with *A test migration
+  is not switched over: delete it when the test is over.*, in English and Dutch; pausing still
+  works. A marked Dropbox file renamed out of the marker leaves a tombstone under its old name,
+  which was read as the owner deleting it: while the file is listed under another name, it no longer
+  is. For every migration, a permission list or a sharing refresh whose migration is deleted before
+  the migration itself is read is answered as a migration that is not there, where it read the
+  organisation's accounts instead. And the Sharing page now says why a refresh was refused (a closed
+  organisation, a migration that records no mailbox, a test's sharing none of which could be kept),
+  in its reader's language, where it said the request did not complete; a fault on our side is said
+  in the reader's language too, with its reference.
+- **An operator can mark an organisation as a test, and every migration made there then copies
+  only what carries its marker** (workplan 0162 T1; ADR-0053). On an organisation's Support page an
+  appointed operator marks it as a test organisation, with a marker: `[Ownpace-test]` is offered,
+  and any other of 3 to 64 printable characters can be typed, none of them one that looks blank
+  but the space. The mark can be taken off again. Both are refused while the organisation is not
+  open or holds any migration, and both are recorded in the audit log; the same marker again
+  changes and records nothing. Anybody who is not an operator is answered as if the organisation
+  did not exist, and the database itself writes the mark for an appointed operator only. Each
+  migration made in a test organisation copies the marker onto itself when it is created, and
+  nothing changes it afterwards: it copies only the items whose own title contains the marker
+  (0162 T2), and is never finished or switched over (0162 T3). Every page of a test migration says
+  so in a banner, in English and Dutch, with its marker; the lists show a *Test* badge; and the
+  Finish page offers its data types neither End nor Keep. A test migration's permission list says
+  at its head, in English and Dutch, that it lists only the rights on items whose own name
+  contains its marker: the banner is not in the Markdown it downloads. A permission list asked for
+  by address, which names no migration, is refused in a test organisation as in one whose
+  migrations carry a marker, also while it holds no migration: before its first, or once its last
+  is deleted and its account kept. The appliance has no test organisations.
 
 ### Changed
 
@@ -144,7 +181,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   at v4.8.8: cross-spawn 5.1.0 is no longer removed, since upstream's own override replaces it
   with 7.0.6, and the esbuild binary removed is 0.28.2's. The deploy CLI takes no minimatch any
   more, so its override went, and minimatch 10.2.6 with its moderate advisory left the tree.
-
 - **GoAccess's pinned commit is the build argument `UPSTREAM_COMMIT`** (workplan 0163 D8), in
   `deploy/compose/goaccess/Dockerfile`, where it was `GOACCESS_COMMIT`. gitleaks' generic-api-key
   rule reads the `access` in that name as a key's and the commit id as its value. With gitleaks
@@ -158,6 +194,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   purge takes the same two dpkg flags as before, and the build still fails if a file of a removed
   library is left, or any ELF file needs or names one. Both images have a new name, which the
   managed stack builds at its next `up`, restarting Redis and the webapp once.
+- **The npm minor-and-patch group, 3 updates** (workplan 0119; Dependabot, #2004): lucide-react
+  1.75.0 in the web bundle, and vitest 5.1.1 with its V8 coverage plugin for the tests. All three
+  are past the three-day floor; taken after CI and E2E (managed) were green on its head.
+- **react-router 8.5.2, from 8.5.1, in the web bundle** (workplan 0119; Dependabot, #2012).
+  Published on 2026-11-18, it was past the three-day floor when taken, after CI, the UI tests over
+  the built bundle included, and E2E (managed) were green on its head.
 
 ### Fixed
 
@@ -185,6 +227,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   server lists without its data is read rather than passed over. The sync loop holds a calendar's
   token for its deletions only while one of them could become a deletion, and does not report a
   removal at the old address of an item whose move it recorded.
+- **A migration whose grant was withdrawn reads nothing, whatever connection its mailbox names**
+  (workplan 0162, #2011's review). A migration whose source mailbox, or that mailbox's connection,
+  is another organisation's, which only a row written by hand reaches, fell back to the
+  organisation's own accounts before its withdrawn grant was asked: its permission list read and
+  listed their sharing, and the sharing checklist's *Refresh from the source* saved it. The
+  withdrawn grant is now asked first, so such a migration lists and saves no share and asks no
+  provider, as the same withdrawal from its own connection does.
+- **An organisation's id in capitals no longer takes a second migrations lock** (workplan 0162 T1's
+  review). The lock that makes creates wait for each other, and holds
+  `MAX_MIGRATIONS_PER_ORGANISATION`, was keyed on the organisation's id as the request spelled it,
+  in the `X-Ownpace-Tenant` header or a support page's path. The database reads `ABC…` and `abc…`
+  as one organisation, but the lock took two, so two creates, one of each spelling, could pass the
+  cap together, and a create could pass a test mark. The lock is now keyed on the id as the
+  database spells it, and the API reads a named id in lower case.
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
   billing page and never reached Mollie: the API answered the page Mollie sends the customer back
   to after paying, the app's own billing page, as the address to pay at. It now answers the
@@ -246,8 +302,8 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   encoder and the credential store do, so Node refuses a shorter tag itself. Nothing shipped
   changes: the fake runs in tests only. Semgrep's `gcm-no-tag-length` reports nothing after it.
 - **The outside probe knows the Trigger.dev dashboard on a port the front answers by itself**
-  (workplan 0132 T3 (c), the owner's choice of 2026-11-21). Five more ports answered on both of
-  live's front addresses that day: NetBird's shared proxy holds them for someone else, and a
+  (workplan 0132 T3 (c)). Five more ports answered on both of live's front addresses on
+  2026-11-21: NetBird's shared proxy holds them for someone else, and a
   capture on the machine across a probe run saw nothing arrive. The owner listed them in
   `EXPOSURE_PROBE_FRONT_PORTS` beside 5432, where a port that answers is a note behind
   PostgreSQL's handshake. Of this repository's services, the one a forward from the front could

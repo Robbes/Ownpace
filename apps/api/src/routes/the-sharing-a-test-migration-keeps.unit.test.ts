@@ -23,8 +23,14 @@
  *  - a share the old system gave without saying what it is on refuses both
  *    doors, in both languages, and the rescan writes nothing;
  *  - an organisation-wide report, which names no migration, is refused in an
- *    organisation whose migrations carry a marker, and takes nothing from the
+ *    organisation whose migrations carry a marker, and in one that carries
+ *    the marker itself while it holds no migration (T1, §6 step 7: the
+ *    migration deleted, the account kept), and takes nothing from the
  *    member's test limit;
+ *  - a migration whose grant was withdrawn reads nothing, for its report and
+ *    its rescan alike, also where its mailbox names another organisation's
+ *    connection, which only a row written by hand reaches (#2011's second
+ *    review): it answers as the same withdrawal from its own connection does;
  *  - a test migration deleted while a door answers is not read as one without
  *    a marker: its scans read nothing, and its report answers 404 (the review
  *    of #2011);
@@ -78,6 +84,21 @@ const GONE_BOX = '01620007-e29b-41d4-a716-446655440024';
 const GONE = '01620007-e29b-41d4-a716-446655440034';
 const GONE_MEANWHILE_BOX = '01620007-e29b-41d4-a716-446655440025';
 const GONE_MEANWHILE = '01620007-e29b-41d4-a716-446655440035';
+/** An organisation marked as a test (T1) that holds no migration: its account kept, its migration deleted. */
+const MARKED_TENANT = '01620007-e29b-41d4-a716-446655440004';
+const MARKED_CONN = '01620007-e29b-41d4-a716-446655440014';
+const MARKED_BOX = '01620007-e29b-41d4-a716-446655440026';
+/**
+ * An organisation whose two migrations' grants were withdrawn: one from a
+ * mailbox that names another organisation's connection (PLAIN's), one, the
+ * control, from a mailbox that names its own.
+ */
+const WITHDRAWN_TENANT = '01620007-e29b-41d4-a716-446655440005';
+const WITHDRAWN_CONN = '01620007-e29b-41d4-a716-446655440015';
+const ELSEWHERE_BOX = '01620007-e29b-41d4-a716-446655440027';
+const ELSEWHERE = '01620007-e29b-41d4-a716-446655440037';
+const OWN_BOX = '01620007-e29b-41d4-a716-446655440028';
+const OWN = '01620007-e29b-41d4-a716-446655440038';
 const MARKER = '[Ownpace-test]';
 const ADDRESS = 'tester@example.com';
 const DRIVE = 'https://drive.example.test/v3';
@@ -296,9 +317,9 @@ async function savedFor(mapping: string): Promise<string[]> {
 const rescan = (tenant: string, mapping: string) =>
   request(app).post(`/api/migrations/${mapping}/sharing/rescan`).set('x-organisation', tenant).send({});
 
-const reportOf = (tenant: string, mapping: string) =>
+const reportOf = (tenant: string, mapping: string, lang: 'en' | 'nl' = 'en') =>
   request(app)
-    .get(`/api/permissions/report?mappingId=${mapping}&lang=en`)
+    .get(`/api/permissions/report?mappingId=${mapping}&lang=${lang}`)
     .set('x-organisation', tenant)
     .buffer(true)
     .parse((res, done) => {
@@ -401,6 +422,18 @@ describe('the permission report of a test migration', () => {
     }
   });
 
+  it("says at its head that it lists the rights on marked items only, in the reader's language", async () => {
+    // The Finish page's banner is not in the Markdown it downloads (#2011's review).
+    const en = (await reportOf(TEST_TENANT, TEST)).body as string;
+    const line = `**Test migration:** only the rights on items whose own name contains \`${MARKER}\` are listed.`;
+    expect(en).toContain(line);
+    expect(en.indexOf(line)).toBeLessThan(en.indexOf('## What was found'));
+
+    const nl = (await reportOf(TEST_TENANT, TEST, 'nl')).body as string;
+    expect(nl).toContain(`**Testmigratie:** alleen de rechten op items waarvan de eigen naam \`${MARKER}\` bevat`);
+    expect(nl).not.toContain('**Test migration:**');
+  });
+
   it('lists every share for the same account in a migration without a marker', async () => {
     const res = await reportOf(PLAIN_TENANT, PLAIN);
 
@@ -409,6 +442,8 @@ describe('the permission report of a test migration', () => {
     for (const any of ['[Ownpace-test] plan.pdf', 'Taxes 2025.pdf', 'Holiday.jpg', 'bram']) {
       expect(report).toContain(any);
     }
+    // Not a test, so its head says nothing of one.
+    expect(report).not.toContain('**Test migration:**');
   });
 
   it('is refused, in both languages, when a share does not say what it is on', async () => {
@@ -480,6 +515,155 @@ describe('the organisation-wide report, which names no migration', () => {
     } finally {
       resetProbeTestLimit();
     }
+  });
+});
+
+describe('the organisation-wide report in an organisation marked as a test (T1)', () => {
+  const markIt = () =>
+    query(
+      `INSERT INTO test_organisation (tenant_id, marker, marked_by) VALUES ($1, $2, 'an-operator')
+       ON CONFLICT (tenant_id) DO NOTHING`,
+      [MARKED_TENANT, MARKER],
+    );
+
+  beforeAll(async () => {
+    // Its account is kept, and its migration deleted (§6 step 7): a source
+    // connection and its mailbox, and no migration.
+    await query('INSERT INTO tenant (id, name) VALUES ($1, $2)', [MARKED_TENANT, 'a marked organisation']);
+    await query(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1, $2, 'source', 'nextcloud', 'an account', $3::jsonb, 'connected', $4)`,
+      [
+        MARKED_CONN,
+        MARKED_TENANT,
+        JSON.stringify({ baseUrl: 'https://cloud.example.test/remote.php/dav/files/tester' }),
+        JSON.stringify(SecretStore.encryptCredentials({ username: 'tester', password: 'p' }).encrypted),
+      ],
+    );
+    await query(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES ($1, $2, $3, 'user', $4)`,
+      [MARKED_BOX, MARKED_TENANT, MARKED_CONN, ADDRESS],
+    );
+    await markIt();
+  });
+
+  it('is refused while it holds no migration, in both languages, before anything is read', async () => {
+    expect(await query('SELECT 1 FROM mailbox_mapping WHERE tenant_id = $1', [MARKED_TENANT])).toEqual([]);
+    const res = await request(app)
+      .get(`/api/permissions/report?mailbox=${encodeURIComponent(ADDRESS)}`)
+      .set('x-organisation', MARKED_TENANT);
+
+    expect(res.status).toBe(409);
+    expect(res.body).toEqual({
+      error: 'Conflict',
+      message: A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION.en,
+      messageNl: A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION.nl,
+      code: 'test_organisation',
+    });
+    expect(h.asked).toEqual([]);
+  });
+
+  it('is made as before once the organisation is a test no longer', async () => {
+    await query('DELETE FROM test_organisation WHERE tenant_id = $1', [MARKED_TENANT]);
+    try {
+      const res = await request(app)
+        .get(`/api/permissions/report?mailbox=${encodeURIComponent(ADDRESS)}`)
+        .set('x-organisation', MARKED_TENANT);
+      expect(res.status).toBe(200);
+      expect(h.asked).toHaveLength(1);
+    } finally {
+      await markIt();
+    }
+  });
+
+  it("takes nothing from the member's test limit when it is refused", async () => {
+    // One test left: the refusal must not spend it.
+    resetProbeTestLimit({ windowMs: 60 * 60 * 1000, max: 1 });
+    try {
+      const refused = await request(app)
+        .get(`/api/permissions/report?mailbox=${encodeURIComponent(ADDRESS)}`)
+        .set('x-organisation', MARKED_TENANT);
+      expect(refused.status).toBe(409);
+      expect(refused.body).toMatchObject({ code: 'test_organisation' });
+
+      // So once the organisation is a test no longer, the member's one test is still made.
+      await query('DELETE FROM test_organisation WHERE tenant_id = $1', [MARKED_TENANT]);
+      const made = await request(app)
+        .get(`/api/permissions/report?mailbox=${encodeURIComponent(ADDRESS)}`)
+        .set('x-organisation', MARKED_TENANT);
+      expect(made.status).toBe(200);
+    } finally {
+      resetProbeTestLimit();
+      await markIt();
+    }
+  });
+});
+
+describe("a withdrawn grant reads nothing, whatever connection its mailbox names (#2011's second review)", () => {
+  beforeAll(async () => {
+    await query('INSERT INTO tenant (id, name) VALUES ($1, $2)', [WITHDRAWN_TENANT, 'a withdrawn organisation']);
+    // Its own source account, which the fallback reads for a mailbox whose
+    // connection the statement cannot see.
+    await query(
+      `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status, secret_ref)
+       VALUES ($1, $2, 'source', 'nextcloud', 'an account', $3::jsonb, 'connected', $4)`,
+      [
+        WITHDRAWN_CONN,
+        WITHDRAWN_TENANT,
+        JSON.stringify({ baseUrl: 'https://cloud.example.test/remote.php/dav/files/tester' }),
+        JSON.stringify(SecretStore.encryptCredentials({ username: 'tester', password: 'p' }).encrypted),
+      ],
+    );
+    // One mailbox names PLAIN's connection, another organisation's: only a
+    // row written by hand reaches that. The control's names its own.
+    await query(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES ($1, $2, $3, 'user', $4)`,
+      [ELSEWHERE_BOX, WITHDRAWN_TENANT, PLAIN_CONN, 'elsewhere@example.com'],
+    );
+    await query(
+      `INSERT INTO mailbox (id, tenant_id, connection_id, kind, primary_address) VALUES ($1, $2, $3, 'user', $4)`,
+      [OWN_BOX, WITHDRAWN_TENANT, WITHDRAWN_CONN, ADDRESS],
+    );
+    for (const [mapping, mailbox] of [
+      [ELSEWHERE, ELSEWHERE_BOX],
+      [OWN, OWN_BOX],
+    ]) {
+      await query(
+        `INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, status, grant_withdrawn_at)
+         VALUES ($1, $2, $3, 'paused', now())`,
+        [mapping, WITHDRAWN_TENANT, mailbox],
+      );
+    }
+  });
+
+  beforeEach(async () => {
+    await query('DELETE FROM share_grant WHERE mapping_id IN ($1, $2)', [ELSEWHERE, OWN]);
+  });
+
+  it('its report lists no share and asks no provider, as the same withdrawal from its own connection', async () => {
+    const control = await reportOf(WITHDRAWN_TENANT, OWN);
+    expect(control.status).toBe(200);
+    expect(h.asked).toEqual([]);
+
+    const res = await reportOf(WITHDRAWN_TENANT, ELSEWHERE);
+    expect(res.status).toBe(200);
+    expect(h.asked).toEqual([]);
+    for (const report of [control.body as string, res.body as string]) {
+      // Said as the withdrawal it is, and nothing of the account listed.
+      expect(report).toContain('withdrew their permission');
+      for (const label of EVERY) expect(report).not.toContain(label);
+    }
+  });
+
+  it('its rescan saves nothing and asks no provider, as the same withdrawal from its own connection', async () => {
+    const control = await rescan(WITHDRAWN_TENANT, OWN);
+    expect(control.status).toBe(200);
+    const res = await rescan(WITHDRAWN_TENANT, ELSEWHERE);
+    expect(res.status).toBe(200);
+    expect(res.body).toEqual(control.body);
+    expect(h.asked).toEqual([]);
+    expect(await savedFor(OWN)).toEqual([]);
+    expect(await savedFor(ELSEWHERE)).toEqual([]);
   });
 });
 

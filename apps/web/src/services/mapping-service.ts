@@ -136,6 +136,11 @@ export const MappingListItemSchema = z.object({
   pattern: z.string().nullish(),
   domains: z.array(DomainEnum),
   lastSyncAt: z.string().nullish(),
+  /**
+   * A test migration's own marker (workplan 0162 T1), for the *Test* badge.
+   * Absent for every other, and from a server older than it.
+   */
+  testMarker: z.string().optional().catch(undefined),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
@@ -390,6 +395,13 @@ export const MappingSchema = z.object({
    * Absent from a server older than this field, which says nothing either way.
    */
   targetFolderPrefix: z.string().nullish(),
+  /**
+   * A TEST MIGRATION'S MARKER (workplan 0162 T1; the operating contract's
+   * `testMarker`): every page of it shows the banner, with the marker.
+   * Absent for every migration that is not a test, and from a server older
+   * than it: absent is "not a test", and never an empty marker.
+   */
+  testMarker: z.string().optional().catch(undefined),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

@@ -927,3 +927,16 @@ describe('waiting for the page', () => {
     await expect(answered()).rejects.toThrow(`the ${read} read has not answered: pending`);
   });
 });
+
+describe("a person's page: a test migration carries a Test badge (workplan 0162 T1)", () => {
+  it('beside its name, with its marker as the title, and none beside one that is not a test', async () => {
+    listMock.mockResolvedValue([{ ...MAIL, testMarker: '[Ownpace-test]' }, FILES]);
+    renderAt();
+    await answered();
+    await screen.findAllByText('Anna mail');
+    const badgeOf = (id: string) => document.querySelector(`[data-migration="${id}"] [data-test-badge]`);
+    expect(badgeOf('m-mail')).toHaveTextContent('Test');
+    expect(badgeOf('m-mail')).toHaveAttribute('title', '[Ownpace-test]');
+    expect(badgeOf('m-files')).toBeNull();
+  });
+});

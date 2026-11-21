@@ -270,8 +270,9 @@ describe('what else the migration says', () => {
     expect(h.built).toEqual([]);
   });
 
-  it("a migration whose mailbox names no connection keeps the organisation's answer", async () => {
-    // A row older than `mailbox.connection_id`: the pass falls back the same way.
+  it("a migration whose mailbox's connection is another organisation's keeps the organisation's answer", async () => {
+    // Only a row written by hand reaches that: the statement sees no
+    // connection, and the pass falls back the same way.
     h.mappings.splice(0, 1, { id: MS_2_NC, source: null });
     const { scanDrive } = await migrationInventoryScans(TENANT, MS_2_NC, MAILBOX);
     expect((await scanDrive()).kind).toBe('listed');

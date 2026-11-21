@@ -444,6 +444,13 @@ export const en = {
   'attention.couldNotRead.why':
     'The count shown is what we were able to read, not what is there — a queue system we could not read is reported as unreadable rather than as empty. The reason one gave is listed beneath it, in the words the server used.',
   'attention.failed': 'This list could not be loaded... try refreshing the page.',
+  // A TEST MIGRATION (workplan 0162 T1; ADR-0053): the banner on every page of
+  // one, with its own marker, which `{marker}` is drawn as; and the badge
+  // beside its name on the lists. Its End and Keep are not offered, and the
+  // banner is why.
+  'testMigration.banner':
+    'Test: only items whose title contains {marker} are copied. This migration cannot be finished.',
+  'testMigration.badge': 'Test',
 } as const;
 
 export const nl: Record<keyof typeof en, string> = {
@@ -735,4 +742,9 @@ export const nl: Record<keyof typeof en, string> = {
   'attention.couldNotRead.why':
     'Het getoonde aantal is wat we konden lezen, en niet per se compleet — wat niet te raadplegen was, wordt als onleesbaar geregistreerd, niet als afwezig. We weten nog niet of u klaar bent met migreren. De redenen voor het niet kunnen lezen staan per item aangegeven, met daarbij wat de server aangaf.',
   'attention.failed': 'Deze lijst kon niet geladen worden.',
+  // *Gemigreerd* for the migration's copying, and *afgerond* for finished, as
+  // the glossary says them; *testmigratie* as T3's refusals say it.
+  'testMigration.banner':
+    'Test: alleen items waarvan de titel {marker} bevat, worden gemigreerd. Deze migratie kan niet worden afgerond.',
+  'testMigration.badge': 'Test',
 };

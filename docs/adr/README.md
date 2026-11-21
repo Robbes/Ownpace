@@ -84,6 +84,7 @@ first.
 | [0050](./0050-a-move-is-a-persons-migrations.md) | A move is a person's migrations | **Accepted 2026-09-28**, by the owner, as proposed; **amended 2026-09-28** (the name in code is *person*) and **2026-11-19** (a person may be the member's own account). Built: the tables and API (0153 T2, #1332), the pages (T3, #1341; T5, #1353), the member's own person (T4) |
 | [0051](./0051-an-adr-reads-as-it-stands.md) | An ADR reads as it stands — a budget for the operative layer, and consolidation in place | Accepted 2026-10-03; amends 0038 |
 | [0052](./0052-a-rotating-refresh-token-is-written-back.md) | A rotating refresh token is written back, one refresh at a time | **Accepted 2026-11-19** by the owner, for Cirrux Drive in alpha.12 (0160 T5); amends 0037 and 0041; built, not yet run against a live Cirrux client (0160 T2b) |
+| [0053](./0053-a-test-organisation-copies-only-what-is-marked.md) | A test organisation copies only what is marked | **Accepted 2026-11-20** by the owner, as workplan 0162 §2 proposed it; built in 0162 (T2 the marker at the source, T3 never finished or switched over, T1 the organisation and its marker); not yet run on live (0162 T4) |
 
 ## Reading the statuses
 

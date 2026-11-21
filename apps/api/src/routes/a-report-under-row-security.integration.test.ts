@@ -26,7 +26,10 @@
  *     and in the rescan, and B's address is in neither answer;
  *   - every section is written for A's own connections: Google's sentences, no
  *     Microsoft or Exchange sentence, and the target's section for A's target,
- *     never B's.
+ *     never B's;
+ *   - a report asked for by address is refused once A is marked as a test
+ *     (workplan 0162 T1), and not for B's mark: A's mark is read as A's own,
+ *     under the same row security.
  *
  * Each of the report's three lookups is held to it, and a lookup asked in the
  * wrong organisation reads nothing here, so each one needs a row of A's to
@@ -210,5 +213,29 @@ describe('the permission report reads one organisation, under row security', () 
     ).toContain('What the target will do with what we write');
     // And it is A's target that was measured, never B's.
     expect(res.text).not.toContain('dav.b.example.test');
+  });
+
+  it('refuses a report asked for by address once the organisation is marked as a test, and not for another', async () => {
+    // As the owner, for the fixture: the support door writes a mark for an
+    // appointed operator only.
+    const mark = (tenant: string) =>
+      pool.query(
+        `INSERT INTO test_organisation (tenant_id, marker, marked_by) VALUES ($1, '[Ownpace-test]', 'an-operator')`,
+        [tenant],
+      );
+    try {
+      // B's mark is not A's: row security shows A none of B's rows.
+      await mark(TENANT_B);
+      const made = await report(`mailbox=${encodeURIComponent(A_ADDRESS)}`);
+      expect(made.status, made.text).toBe(200);
+
+      // A's own is, while none of A's migrations carries a marker of its own.
+      await mark(TENANT_A);
+      const refused = await report(`mailbox=${encodeURIComponent(A_ADDRESS)}`);
+      expect(refused.status, refused.text).toBe(409);
+      expect(refused.body).toMatchObject({ code: 'test_organisation' });
+    } finally {
+      await pool.query(`DELETE FROM test_organisation WHERE tenant_id = ANY($1::uuid[])`, [[TENANT_A, TENANT_B]]);
+    }
   });
 });
