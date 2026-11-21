@@ -17,17 +17,32 @@ export interface BuildIdentity {
   commit: string;
 }
 
-export const buildIdentity = (): BuildIdentity => {
-  let version = process.env.OPENMIG_VERSION ?? '';
-  if (!version) {
+/**
+ * The root package.json's version, read once per process (PERF-1, workplan
+ * 0006 K). `GET /version` answers from here on every request, on both
+ * editions, and a synchronous file read there holds up every other request
+ * for its duration. The file does not change under a running process, so the
+ * first answer is the answer; a file that cannot be read answers `0.0.0`, as
+ * it always did, and is not tried again.
+ */
+let packageVersion: string | undefined;
+
+const packageJsonVersion = (): string => {
+  if (packageVersion === undefined) {
     try {
-      version =
+      packageVersion =
         (JSON.parse(
           readFileSync(new URL('../../../package.json', import.meta.url), 'utf-8'),
         ) as { version?: string }).version ?? '0.0.0';
     } catch {
-      version = '0.0.0';
+      packageVersion = '0.0.0';
     }
   }
-  return { version, commit: process.env.OPENMIG_COMMIT ?? 'unknown' };
+  return packageVersion;
 };
+
+export const buildIdentity = (): BuildIdentity => ({
+  // The env is still read on every call: the launcher and the images stamp it.
+  version: process.env.OPENMIG_VERSION || packageJsonVersion(),
+  commit: process.env.OPENMIG_COMMIT ?? 'unknown',
+});

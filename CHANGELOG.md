@@ -70,6 +70,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **`GET /version` no longer reads a file on every request** (workplan 0006 K). On both editions
+  the build's version came from the root `package.json`, read again for every answer, every
+  problem report and every unreadable-answer line, and each read held up the requests behind it.
+  It is now read once per process; a version stamped in the environment still wins on every call.
+
 - **The Trigger.dev webapp's image runs effect 3.22.4, not 3.21.2** (workplan 0166 T5, the owner's
   D2). effect 3.21.2, the one copy Trigger.dev v4.8.8 resolves, carries CVE-2026-121707 (high, a
   ReDoS in `Schema.TemplateLiteral`, fixed in 3.22.1). The webapp's build now replaces its files
