@@ -19,18 +19,19 @@ pull request, #1995, branch `claude/ownpace-public-readiness-y7orc6-zizmor-1-32`
   `cache-mode: write` under a dangerous trigger, and knows `pnpm/setup`; dangerous-triggers counts
   `issue_comment`; template-injection finds a context inside `fromJSON(...)` or `case(...)`. From
   a Git root, 1.32.0 collects workflows only from `.github/workflows/` and Dependabot only from
-  `.github/`; no workflow here sets `cache-mode:` or has a nested `.github/`.
+  `.github/`. No workflow here sets `cache-mode:`, and the tree has no nested `.github/`.
 - **The guard's mirrors, read again** in zizmor's source at v1.32.0 against v1.30.1:
   `KNOWN_PUBLISHER_ACTIONS` has the same nineteen entries; the release triggers come out the same
   for every shape of `on:`, now read from one normalized set of events; `docs/configuration.md`
   names the same four config files. The cache-aware actions gained `pnpm/setup`, which
-  `a-workflow-zizmor-would-flag` now names, with a case. `ZIZMOR` there, the pin watch's note,
-  `docs/testing.md` and 0163's §5 step 2 say 1.32.0.
+  `a-workflow-zizmor-would-flag` now names, with a case. `ZIZMOR` there, `docs/testing.md` and
+  0163's §5 step 2 say 1.32.0, and the pin watch's note no longer says the pin follows the outside
+  check.
 - **Its run** (run 44883545988, on the pull request's first head, `4027d064`): the image pulled by
-  its digest, zizmor printed `zizmor v1.32.0`, audited the same eighteen files as 1.30.1 on
-  `main` (run 44856257104, at `fbd73f93`, whose `.github/` is the same), and reported `No
-  findings to report. Good job! (33 suppressed)`, where 1.30.1 had 35 suppressed. No workflow
-  needed a change.
+  its digest, zizmor printed `zizmor v1.32.0`, audited the same eighteen files that 1.30.1
+  audited on `main` in run 44856257104 (at `fbd73f93`; nothing under `.github/` has changed on
+  `main` since), and reported `No findings to report. Good job! (33 suppressed)`, where 1.30.1
+  had 35 suppressed. No workflow needed a change.
 
 **2026-11-21: what alpha.13 moves.** The fold for `v0.2.0-alpha.13` (0146's entry of the same
 day) carries what `main` merged after alpha.12's tag, #1963 to #1986 (0146's entry lists them).
