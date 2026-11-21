@@ -16,6 +16,11 @@
  * which is every body the web sends today.
  *
  * The integration test beside this one drives the real route on Postgres.
+ *
+ * Since workplan 0162 the route asks with the migration's test marker too, read
+ * in the same statement as the status: a test migration is refused the update
+ * that declares its cutover or enters the lane. The marker read and handed on
+ * is held here; `a-status-update-that-switches-a-test-over` presses the door.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -23,6 +28,9 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 const SOURCE = readFileSync(join(import.meta.dirname, 'index.ts'), 'utf-8');
+
+/** How the handler asks: the status read inside the transaction, and the migration's marker. */
+const ASKS = 'updateTransition(previousStatus, updateData.status, previous?.testMarker ?? undefined)';
 
 /** The PUT handler's text, from its route registration to the next one. */
 const PUT = (() => {
@@ -34,16 +42,23 @@ const PUT = (() => {
 
 describe('the update route asks the lifecycle before it writes', () => {
   it('asks shared, on the status read inside the same transaction', () => {
-    expect(PUT).toContain('updateTransition(previousStatus, updateData.status)');
+    expect(PUT).toContain(ASKS);
     // Inside the transaction, AFTER the in-transaction read of the current
     // status and BEFORE the write — a decision made on a status read outside
     // it could be made against a row that moved in between.
-    const readAt = PUT.indexOf('const previousStatus = updateData.status');
-    const askAt = PUT.indexOf('updateTransition(previousStatus, updateData.status)');
+    const readAt = PUT.indexOf('const previous = updateData.status');
+    const askAt = PUT.indexOf(ASKS);
     const writeAt = PUT.indexOf('.update(schema.mailboxMapping)');
     expect(readAt).toBeGreaterThan(-1);
     expect(askAt).toBeGreaterThan(readAt);
     expect(writeAt).toBeGreaterThan(askAt);
+  });
+
+  it('reads the test marker in the same statement as the status, and hands it on', () => {
+    const readAt = PUT.indexOf('const previous = updateData.status');
+    const read = PUT.slice(readAt, PUT.indexOf('const previousStatus = previous?.status;'));
+    expect(read).toContain('.select({ status: schema.mailboxMapping.status, testMarker: schema.mailboxMapping.testMarker })');
+    expect(PUT.indexOf(ASKS)).toBeGreaterThan(readAt);
   });
 
   it('answers 409 lifecycle_refused with the stable code and the hint that names the door', () => {
@@ -56,7 +71,7 @@ describe('the update route asks the lifecycle before it writes', () => {
 
   it('returns out of the transaction on a refusal, so nothing is written', () => {
     // The refusal is a `return` before the update, not a check after it.
-    const askAt = PUT.indexOf('updateTransition(previousStatus, updateData.status)');
+    const askAt = PUT.indexOf(ASKS);
     const writeAt = PUT.indexOf('.update(schema.mailboxMapping)');
     expect(PUT.slice(askAt, writeAt)).toContain("return { kind: 'refused', refused: transition");
   });
