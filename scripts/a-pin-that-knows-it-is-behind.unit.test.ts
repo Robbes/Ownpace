@@ -109,6 +109,12 @@
  * same repository lists, and this holds that, the note it is listed with when
  * behind, and that a line it cannot read is an error.
  *
+ * THE GITLEAKS CI READS A PULL REQUEST'S COMMITS WITH (workplan 0163 T6,
+ * 2026-11-21). ci.yml's gitleaks job installs it from its GitHub release, an
+ * archive per architecture checked by its sha256 before it is unpacked, in
+ * the shape of the stalwart-cli step; its row compares the release with
+ * upstream's git tags of the same major.
+ *
  * THE SEMGREP THE TREE IS SCANNED WITH (workplan 0163 T3, 2026-11-21). The
  * scan, report only, runs `semgrep/semgrep` by the tag and index digest of its
  * job's one `SEMGREP_IMAGE`, in the same place, read the same way: against
@@ -156,6 +162,11 @@ import {
   GOACCESS_DOCKERFILE,
   LINES,
   NODE_RELEASE_KEYS_FILE,
+  GITLEAKS_ARCHES,
+  GITLEAKS_HOST,
+  GITLEAKS_NOTE,
+  GITLEAKS_UPSTREAM,
+  GITLEAKS_WORKFLOW,
   OSV_SCANNER_ARCHES,
   OSV_SCANNER_HOST,
   OSV_SCANNER_NOTE,
@@ -207,6 +218,7 @@ import {
   newestLike,
   newestRelease,
   nodeVersionOf,
+  gitleaksPin,
   osvScannerPin,
   pnpmRow,
   readImages,
@@ -927,6 +939,8 @@ const cosignDefault = (): Record<string, string> =>
 const ATLAS = atlasPin(REAL.read(ATLAS_WORKFLOW)!);
 /** The osv-scanner release the Security Scan installs (0163 T2, 2026-11-20). */
 const OSV = osvScannerPin(REAL.read(OSV_SCANNER_WORKFLOW)!);
+/** The gitleaks release ci.yml's gitleaks job installs (0163 T6, 2026-11-21). */
+const GL = gitleaksPin(REAL.read(GITLEAKS_WORKFLOW)!);
 const ATLAS_TAG = `${ATLAS.version.slice(1)}-community`;
 
 /**
@@ -1393,6 +1407,8 @@ function registry(newer: Record<string, string> = {}): Stubs {
       [STALWART_CLI_UPSTREAM]: lsRemote('v1.0.9', 'v1.0.10', STALWART_CLI.version, 'v2.0.0', ...(newer.stalwartCli ? [newer.stalwartCli] : [])),
       // osv-scanner's releases as upstream tags them, up to the one the Security Scan installs, and another major.
       [OSV_SCANNER_UPSTREAM]: lsRemote('v1.9.2', 'v2.6.0', OSV.version, 'v3.0.0', ...(newer.osvScanner ? [newer.osvScanner] : [])),
+      // gitleaks' releases as upstream tags them, up to the one ci.yml installs, and another major.
+      [GITLEAKS_UPSTREAM]: lsRemote('v7.6.1', 'v8.29.1', GL.version, 'v9.0.0', ...(newer.gitleaks ? [newer.gitleaks] : [])),
     },
   };
 }
@@ -2113,6 +2129,201 @@ describe('the osv-scanner the Security Scan runs: a named release, checked by it
   it('is never current when the step cannot be read', async () => {
     const gone = withFiles({ [OSV_SCANNER_WORKFLOW]: mutate('https://github.com/google/osv-scanner/releases/download/', 'https://mirror.example/osv-scanner/') });
     const row = (await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'osv-scanner');
+    expect(row).toMatchObject({ state: 'error' });
+  });
+});
+
+/**
+ * THE GITLEAKS CI READS A PULL REQUEST'S COMMITS WITH (workplan 0163 T6,
+ * 2026-11-21). It fails a pull request on a finding, so the binary that
+ * decides must be the release named, as osv-scanner's is: `GITLEAKS_VERSION`,
+ * a sha256 for both architectures' archives, both read and compared before
+ * anything is unpacked, and a check that what was installed calls itself that
+ * release. `gitleaksPin` reads the step's text, each refusal held by a
+ * mutation of it; the step is also RUN under bash, against archives built here
+ * and served by the same `curl` and `uname` stubs, and each way to keep the
+ * text and lose the refusal is a mutation that must fail it; and the row says
+ * when a newer release of the same major is tagged.
+ */
+const gitleaksScratch = mkdtempSync(join(tmpdir(), 'gitleaks-step-'));
+afterAll(() => rmSync(gitleaksScratch, { recursive: true, force: true }));
+/** The stand-in each archive holds as `gitleaks`: it says what STUB_SAYS says, and that it ran. */
+const GL_STAND_IN = Object.fromEntries(
+  GITLEAKS_ARCHES.map((arch) => [arch, `#!/bin/sh\n# Not gitleaks: the linux/${arch} stand-in a-pin-that-knows-it-is-behind serves.\n: > "$STUB_RAN"\nprintf '%s\\n' "$STUB_SAYS"\n`]),
+) as Record<'x64' | 'arm64', string>;
+/** Each architecture's archive, as the release names it, built once with the stand-in in it. */
+const GL_SERVED = join(gitleaksScratch, 'served');
+mkdirSync(GL_SERVED);
+const GL_ARCHIVE = (arch: string): string => `gitleaks_${GL.version.slice(1)}_linux_${arch}.tar.gz`;
+for (const arch of GITLEAKS_ARCHES) {
+  const packed = join(gitleaksScratch, `packed-${arch}`);
+  mkdirSync(packed);
+  writeFileSync(join(packed, 'gitleaks'), GL_STAND_IN[arch as 'x64' | 'arm64']);
+  chmodSync(join(packed, 'gitleaks'), 0o755);
+  const made = spawnSync('tar', ['-czf', join(GL_SERVED, GL_ARCHIVE(arch)), '-C', packed, 'gitleaks'], { encoding: 'utf8' });
+  if (made.status !== 0) throw new Error(`tar could not build the linux/${arch} stand-in archive: ${made.stderr}`);
+}
+const GL_STAND_IN_SHA256 = Object.fromEntries(
+  GITLEAKS_ARCHES.map((arch) => [`GITLEAKS_SHA256_${arch.toUpperCase()}`, createHash('sha256').update(readFileSync(join(GL_SERVED, GL_ARCHIVE(arch)))).digest('hex')]),
+);
+
+/** The `run:` and `env:` of the one step of `workflow` that downloads from GITLEAKS_HOST. */
+function gitleaksStep(workflow: string): { run: string; env: Record<string, string> } {
+  type Step = { run?: unknown; env?: Record<string, unknown>; shell?: unknown };
+  const jobs = (parseYaml(workflow) as { jobs?: Record<string, { steps?: Step[] }> }).jobs ?? {};
+  const steps = Object.values(jobs).flatMap((job) => (job.steps ?? []).filter((s) => typeof s.run === 'string' && s.run.includes(GITLEAKS_HOST)));
+  if (steps.length !== 1) throw new Error(`${steps.length} steps of ${GITLEAKS_WORKFLOW} download from ${GITLEAKS_HOST}; one installs gitleaks`);
+  const step = steps[0]!;
+  if (step.shell !== undefined) throw new Error(`the gitleaks step names shell: ${String(step.shell)}; this runs it as a step with none`);
+  if ((step.run as string).includes('${{')) throw new Error('the gitleaks step carries a ${{ }} expression, which this does not render');
+  return { run: step.run as string, env: Object.fromEntries(Object.entries(step.env ?? {}).map(([k, v]) => [k, String(v)])) };
+}
+
+/** Run the step on `machine` (what `uname -m` says), with these sums in its env and a stand-in that says `says`. */
+function runGitleaksStep(step: { run: string; env: Record<string, string> }, machine: string, sums: Record<string, string>, says: string) {
+  const dir = mkdtempSync(join(gitleaksScratch, 'run-'));
+  const temp = join(dir, 'runner-temp');
+  mkdirSync(temp);
+  const files = { script: join(dir, 'step.sh'), ran: join(dir, 'ran'), fetched: join(dir, 'fetched') };
+  writeFileSync(files.script, step.run);
+  writeFileSync(files.fetched, '');
+  const r = spawnSync('bash', ['-e', files.script], {
+    encoding: 'utf8',
+    timeout: 20_000,
+    env: {
+      PATH: `${STUBS}:${process.env.PATH ?? '/usr/bin:/bin'}`,
+      HOME: dir,
+      ...step.env,
+      ...sums,
+      RUNNER_TEMP: temp,
+      STUB_PREFIX: `${GITLEAKS_HOST}${step.env.GITLEAKS_VERSION}/`,
+      STUB_SERVED: GL_SERVED,
+      STUB_MACHINE: machine,
+      STUB_SAYS: says,
+      STUB_RAN: files.ran,
+      STUB_FETCHED: files.fetched,
+    },
+  });
+  const bin = join(temp, 'gitleaks-bin', 'gitleaks');
+  return {
+    status: r.status,
+    installed: existsSync(bin) ? readFileSync(bin, 'utf8') : undefined,
+    ran: existsSync(files.ran),
+    fetched: readFileSync(files.fetched, 'utf8').split('\n').filter(Boolean),
+    log: `${r.stdout}${r.stderr}`.trim(),
+  };
+}
+
+/**
+ * What the gitleaks step of `workflow` does that it must not, run on both
+ * machines: install and run anything but the native release when both
+ * architectures' archives are the pinned ones (and fetch both), finish with
+ * anything installed or run when either sum is wrong, accept a binary that
+ * calls itself another version, or install anything on a machine no release
+ * is pinned for. Empty when the step is right.
+ */
+function gitleaksStepFaults(workflow: string): string[] {
+  const step = gitleaksStep(workflow);
+  const version = step.env.GITLEAKS_VERSION!;
+  const release = version.slice(1);
+  const urls = GITLEAKS_ARCHES.map((arch) => `${GITLEAKS_HOST}${version}/${GL_ARCHIVE(arch)}`);
+  const faults: string[] = [];
+  for (const [machine, arch] of [['x86_64', 'x64'], ['aarch64', 'arm64']] as const) {
+    const ok = runGitleaksStep(step, machine, GL_STAND_IN_SHA256, release);
+    if (!(ok.status === 0 && ok.installed === GL_STAND_IN[arch] && ok.ran && ok.fetched.join(' ') === urls.join(' '))) {
+      faults.push(`installs no release on ${machine}: exit ${ok.status}, fetched ${ok.fetched.join(' ') || 'nothing'}\n${ok.log}`);
+    }
+    const names = GITLEAKS_ARCHES.map((a) => `GITLEAKS_SHA256_${a.toUpperCase()}`);
+    for (const wrong of [...names.map((n) => [n]), names]) {
+      // A wrong sum is the pin the workflow commits: the stand-in archives are not those bytes.
+      const sums = { ...GL_STAND_IN_SHA256, ...Object.fromEntries(wrong.map((name) => [name, step.env[name] ?? ''])) };
+      const r = runGitleaksStep(step, machine, sums, release);
+      if (r.status === 0 || r.installed !== undefined || r.ran) {
+        faults.push(`goes on past a wrong ${wrong.join(' and ')} on ${machine}: exit ${r.status}, installed ${r.installed !== undefined}, ran ${r.ran}\n${r.log}`);
+      }
+    }
+    const older = runGitleaksStep(step, machine, GL_STAND_IN_SHA256, '8.29.1');
+    if (older.status === 0) faults.push(`accepts a binary that calls itself gitleaks 8.29.1 on ${machine}\n${older.log}`);
+  }
+  const other = runGitleaksStep(step, 'riscv64', GL_STAND_IN_SHA256, release);
+  if (other.status === 0 || other.installed !== undefined) faults.push(`installs something on riscv64, which no release is pinned for: exit ${other.status}`);
+  return faults;
+}
+
+describe('the gitleaks CI reads a pull request with: a named release, its archive checked by its sha256 first', () => {
+  const ci = REAL.read(GITLEAKS_WORKFLOW)!;
+  /** ci.yml with one change, which must be a change. */
+  const mutate = (from: string | RegExp, to: string): string => {
+    const next = ci.replace(from, to);
+    expect(next, `${String(from)} is not in ${GITLEAKS_WORKFLOW}`).not.toBe(ci);
+    return next;
+  };
+
+  it('names a release and a sha256 for each architecture a runner here has', () => {
+    expect(GL.version).toMatch(/^v\d+\.\d+\.\d+$/);
+    expect(Object.keys(GL.sha256).sort()).toEqual([...GITLEAKS_ARCHES].sort());
+    for (const arch of GITLEAKS_ARCHES) expect(GL.sha256[arch as 'x64' | 'arm64']).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('refuses a name with no version, a version that is no release, a missing or shared sum, an archive unpacked before it is checked, and no version check', () => {
+    expect(() => gitleaksPin(mutate('${GITLEAKS_VERSION}/gitleaks_', 'latest/gitleaks_'))).toThrow(/downloads a name with no version/);
+    expect(() => gitleaksPin(mutate(/GITLEAKS_VERSION: v\d+\.\d+\.\d+/, 'GITLEAKS_VERSION: latest'))).toThrow(/names no release/);
+    expect(() => gitleaksPin(mutate(/\n +GITLEAKS_SHA256_ARM64: [0-9a-f]{64}/, ''))).toThrow(/no sha256 for linux\/arm64/);
+    expect(() => gitleaksPin(mutate(`GITLEAKS_SHA256_ARM64: ${GL.sha256.arm64}`, `GITLEAKS_SHA256_ARM64: ${GL.sha256.x64}`))).toThrow(/one sha256 for two architectures/);
+    // Unpacked before the loop that reads the sums.
+    const unpack = /\n( +tar -xzf "\$RUNNER_TEMP\/gitleaks-[^\n]+)/.exec(ci)![1]!;
+    const early = mutate(`\n${unpack}`, '').replace(/\n( +)bad=0\n/, (all, space: string) => `\n${space}${unpack.trim()}${all}`);
+    expect(() => gitleaksPin(early)).toThrow(/unpacks its download before its sha256 is read/);
+    // Read, but a mismatch no longer stops the step.
+    expect(() => gitleaksPin(mutate(/\n +\[ "\$bad" = 0 \] \|\| exit 1/, ''))).toThrow(/unpacks its download before its sha256 is read/);
+    expect(() => gitleaksPin(mutate(/\n +got="\$\(sha256sum "\$archive"\)"/, ''))).toThrow(/never reads a sha256/);
+    expect(() => gitleaksPin(mutate('if [ "$answer" != "${GITLEAKS_VERSION#v}" ]; then', 'if false; then'))).toThrow(/calls itself the release named/);
+  });
+
+  it('refuses a step that compares with anything but the pinned sum, fetches from elsewhere or pipes to a shell, unpacks another archive or makes a file executable itself', () => {
+    expect(() => gitleaksPin(mutate('if [ "$got" = "$pin" ]; then', 'if true; then'))).toThrow(/never compares the sum it read/);
+    expect(() => gitleaksPin(mutate('pin="$GITLEAKS_SHA256_X64"', 'pin="$(curl -sSfL "https://mirror.example/gitleaks_${GITLEAKS_VERSION}.sha256")"'))).toThrow(
+      /fetches from somewhere other than/,
+    );
+    expect(() => gitleaksPin(mutate('pin="$GITLEAKS_SHA256_ARM64"', 'pin="$(cat "$RUNNER_TEMP/arm64.sha256")"'))).toThrow(/pinned sum is not only/);
+    const unpack = /\n( +)tar -xzf "\$RUNNER_TEMP\/gitleaks-\$GITLEAKS_VERSION-linux-\$wanted\.tar\.gz"/;
+    expect(() =>
+      gitleaksPin(mutate(unpack, '\n$1curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/install.sh" | sh\n$1tar -xzf "$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-$wanted.tar.gz"')),
+    ).toThrow(/pipes something to a shell/);
+    expect(() => gitleaksPin(mutate(unpack, '\n$1curl -sSfL -o "$RUNNER_TEMP/x" "$GITLEAKS_MIRROR"\n$1tar -xzf "$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-$wanted.tar.gz"'))).toThrow(
+      /fetches something that is not the release/,
+    );
+    expect(() => gitleaksPin(mutate(unpack, '\n$1tar -xzf "$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-x64.tar.gz"'))).toThrow(
+      /unpacks something other than the archive it hashed/,
+    );
+    expect(() => gitleaksPin(mutate(/\n( +)answer="/, '\n$1chmod 0755 "$RUNNER_TEMP/gitleaks-bin/gitleaks"\n$1answer="'))).toThrow(/makes something executable itself/);
+  });
+
+  it('runs: the native release when both sums are the pinned ones, and nothing when either is not or it calls itself another version', () => {
+    expect(gitleaksStepFaults(ci)).toEqual([]);
+  });
+
+  it('runs: a mismatch that no longer stops it, or a version check that no longer fails, fails it, each by a mutation of the real step', () => {
+    const faults = (from: string | RegExp, to: string): string => gitleaksStepFaults(mutate(from, to)).join('\n');
+    expect(faults(/\n +bad=1\n/, '\n')).toMatch(/goes on past a wrong GITLEAKS_SHA256_X64 on x86_64/);
+    expect(faults('if [ "$got" = "$pin" ]', 'if [ "$got" = "$got" ]')).toMatch(/goes on past a wrong GITLEAKS_SHA256_ARM64 on aarch64/);
+    expect(faults(/\n +\[ "\$bad" = 0 \] \|\| exit 1/, '')).toMatch(/goes on past a wrong GITLEAKS_SHA256_ARM64 on x86_64/);
+    expect(faults(/(not \$\{GITLEAKS_VERSION#v\}\."\n) +exit 1\n/, '$1')).toMatch(/accepts a binary that calls itself gitleaks 8\.29\.1 on x86_64/);
+  });
+
+  it('is a routine pin, current while upstream tags no newer release of its major, another major included', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry()));
+    expect(rows.find((r) => r.name === 'gitleaks')).toEqual({ name: 'gitleaks', where: GITLEAKS_WORKFLOW, pin: GL.version, newest: GL.version, state: 'current' });
+  });
+
+  it('is behind when a newer release of its major is tagged, and says the three values move together', async () => {
+    const { rows } = await routineRows(REAL, fakeNet(registry({ gitleaks: 'v8.99.0' })));
+    expect(rows.find((r) => r.name === 'gitleaks')).toMatchObject({ pin: GL.version, newest: 'v8.99.0', state: 'behind', notes: [GITLEAKS_NOTE] });
+  });
+
+  it('is never current when the step cannot be read', async () => {
+    const gone = withFiles({ [GITLEAKS_WORKFLOW]: mutate('https://github.com/gitleaks/gitleaks/releases/download/', 'https://mirror.example/gitleaks/') });
+    const row = (await routineRows(gone, fakeNet(registry()))).rows.find((r) => r.name === 'gitleaks');
     expect(row).toMatchObject({ state: 'error' });
   });
 });

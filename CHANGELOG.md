@@ -4,6 +4,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Security
+
+- **A pull request that adds a secret fails** (workplan 0163 T6, the owner's decision D4 of
+  2026-11-20). Nothing read a commit for a secret before it merged. A new CI job, `gitleaks`, reads
+  every line the commits of a pull request add with gitleaks 8.30.1, downloaded from its GitHub
+  release and checked by its SHA-256, with gitleaks' default rules. A finding fails the pull
+  request, which `ci-complete` then reports as failed; the summary names the file, line, rule and
+  commit, and never the value. A value one commit adds and a later one removes is still found,
+  because the history keeps it. Unit and integration test files, whose fake tokens are on purpose,
+  and `docs/o365-setup.md`'s placeholders are allowed by path in `.gitleaks.toml`; nothing else
+  is, and no `gitleaks:allow` comment or `.gitleaksignore` counts. `main`'s history is not
+  judged. The weekly pin watch says when a newer gitleaks is tagged.
+
 ## [0.2.0-alpha.13] - 2026-11-21
 
 Cirrux and Infomaniak keep the guests on copied calendar events, each guest and the organiser
