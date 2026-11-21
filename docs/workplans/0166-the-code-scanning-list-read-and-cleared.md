@@ -30,8 +30,11 @@
   `adduser`. `a-binary-the-stack-never-runs`'s stand-in Debian 12 carries the seven's
   dependencies, `login` as Essential and the three libraries. The scripts unit project passes
   but for `every-release-is-a-starting-point`, which reads local tags this shallow clone lacks.
-- **Owed before the merge:** the image scan on the branch (`redis`, `trigger.dev`) and E2E
-  (managed).
+- **Proved before the merge.** The image scan on the branch (Security Scan run 44932858060, on
+  `0a967bc2`): the four libpam packages are gone from `redis` (1 critical and 11 high before, 1
+  and 7 after) and from `trigger.dev` (1 and 14 before, 1 and 10 after), and nothing was added.
+  E2E (managed) run 44934069888 passed on `656c9787`, with `main` at `2e5d4c8a` merged in,
+  from 18:10 to 18:19 UTC.
 
 **2026-11-21, after the answers: T2, the Cirrux test fake's decipher, built.** On
 `claude/ownpace-public-readiness-y7orc6-cirrux-fake-tag-length`, from `main` at `58e10d96`.
