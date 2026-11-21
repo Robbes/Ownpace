@@ -73,6 +73,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   nothing, the page says it is not Google's own page, in the reader's language, and the button
   can be pressed again.
 
+### Security
+
+- **The workflow audit lists each secret a job reads outside a GitHub environment, report only**
+  (workplan 0163 T1, the owner's D2). A secret kept for the repository reaches every job of every
+  workflow, one added on a branch included; one kept in an environment reaches only a job that
+  names that environment. An outside, read-only check found nine such reads, and zizmor names
+  them in its `secrets-outside-env` audit, but only under `--persona auditor`, which the
+  blocking audit does not take. So `zizmor.yml` runs the same zizmor once more with that persona,
+  and `scripts/zizmor-secrets-report.mjs` lists each one in the job summary and as a warning on
+  its line, and passes. It fails only when zizmor did not finish. The persona's other findings
+  are counted, not listed. Held by `scripts/a-secret-no-environment-holds.unit.test.ts`.
+
 ## [0.2.0-alpha.13] - 2026-11-21
 
 Cirrux and Infomaniak keep the guests on copied calendar events, each guest and the organiser

@@ -55,7 +55,12 @@
  * Its first run found 24 findings already on main (template injection,
  * Dependabot's cooldown, two release actions the runner's `gh` replaces), all
  * fixed with it; a finding fails it now. The pin
- * watch's row `ghcr.io/zizmorcore/zizmor` lists a newer release.
+ * watch's row `ghcr.io/zizmorcore/zizmor` lists a newer release. Since
+ * 2026-11-21 one more step runs the same image: the report of secrets read
+ * outside a GitHub environment (workplan 0163 T1), with `--persona auditor`,
+ * which does not block. It is told from the audit by its name
+ * (`SECRETS_REPORT`), a-secret-no-environment-holds holds its shape, and the
+ * audit still takes no persona.
  * This holds the job to that, each rule broken on purpose below as well; that
  * the one zizmor config, `.github/zizmor.yml`, holds `dependabot-cooldown`'s
  * three days and nothing else (since 2026-11-21, when Dependabot's cooldown
@@ -81,6 +86,15 @@ const ZIZMOR = 'ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3
 
 /** The flags that keep the run offline and let nothing in the tree silence a finding. */
 const FLAGS = ['--offline', '--config .github/zizmor.yml', '--no-ignores', '--network none'];
+
+/**
+ * The one other step that may run zizmor, known by this name: the report of
+ * secrets read outside a GitHub environment (workplan 0163 T1, report only by
+ * the owner's D2), with `--persona auditor`. a-secret-no-environment-holds
+ * holds it to its own shape. Every other step that runs zizmor is the audit,
+ * held below, which takes no persona.
+ */
+const SECRETS_REPORT = 'Report each secret read outside a GitHub environment (secrets-outside-env, report only)';
 
 /** The expression zizmor's tag-push heuristic reads as "on" for a tag. */
 const ON_A_TAG = "${{ startsWith(github.ref, 'refs/tags/') }}";
@@ -281,9 +295,12 @@ export function jobProblems(text: string): string[] {
   steps.forEach((s, i) => {
     if (s['continue-on-error'] !== undefined) out.push(`step ${i + 1} sets continue-on-error (${String(s['continue-on-error'])})`);
   });
-  const audit = steps.filter((s) => typeof s.run === 'string' && s.run.includes('"$ZIZMOR_IMAGE"') && s.run.includes('docker run'));
+  const runsZizmor = steps.filter((s) => typeof s.run === 'string' && s.run.includes('"$ZIZMOR_IMAGE"') && s.run.includes('docker run'));
+  const reports = runsZizmor.filter((s) => s.name === SECRETS_REPORT).length;
+  if (reports > 1) out.push(`${reports} steps run zizmor as the secrets report, not one`);
+  const audit = runsZizmor.filter((s) => s.name !== SECRETS_REPORT);
   if (audit.length !== 1) {
-    out.push(`${audit.length} steps run zizmor, not one`);
+    out.push(`${audit.length} steps run zizmor's audit, not one`);
     return out;
   }
   const run = audit[0]!.run!;
@@ -467,6 +484,26 @@ describe('zizmor in CI, blocking (2026-11-20)', () => {
     expect(mutate('    env:\n      # zizmor', '    env:\n      GH_TOKEN: ${{ github.token }}\n      # zizmor')).toMatch(/hands zizmor a token/);
     expect(mutate('runs-on: ubuntu-24.04', 'runs-on: self-hosted')).toMatch(/not a GitHub-hosted ubuntu runner/);
     expect(mutate("      - '.github/**'\n", '')).toMatch(/does not run on a change under \.github\//);
+  });
+
+  it('tells the secrets report from the audit by its name, and refuses a second audit, a second report and the report renamed', () => {
+    const steps = (parseYaml(text) as Workflow).jobs![JOB]!.steps!;
+    expect(steps.filter((s) => s.name === SECRETS_REPORT), `${WORKFLOW} has no one step named ${SECRETS_REPORT}`).toHaveLength(1);
+    const mutate = (from: string, to: string): string => {
+      const next = text.replace(from, to);
+      expect(next, from).not.toBe(text);
+      return jobProblems(next).join('\n');
+    };
+    // The report renamed is a second audit, and one with a persona.
+    expect(mutate(`name: ${SECRETS_REPORT}`, 'name: Report secrets')).toMatch(/2 steps run zizmor's audit, not one/);
+    // The audit named as the report leaves no audit, and two reports.
+    const audit = 'name: Audit every workflow, action and the Dependabot config with zizmor';
+    expect(mutate(audit, `name: ${SECRETS_REPORT}`)).toMatch(/2 steps run zizmor as the secrets report, not one\n0 steps run zizmor's audit, not one/);
+    // The audit step copied below itself.
+    const start = text.indexOf(`      - ${audit}`);
+    const end = text.indexOf('          exit "$status"\n', start) + '          exit "$status"\n'.length;
+    expect(start > 0 && end > start, `${WORKFLOW}'s audit step was not found to copy`).toBe(true);
+    expect(jobProblems(text.slice(0, end) + text.slice(start, end) + text.slice(end)).join('\n')).toMatch(/2 steps run zizmor's audit, not one/);
   });
 
   it('the one zizmor config holds dependabot-cooldown\'s three days and nothing else, and no workflow carries an ignore comment', () => {
