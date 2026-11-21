@@ -4,6 +4,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Changed
+
+- **`GET /version` no longer reads a file on every request** (workplan 0006 L). On both editions
+  the build's version came from the root `package.json`, read again for every answer, every
+  problem report and every unreadable-answer line, and each read held up the requests behind it.
+  It is now read once per process; a version stamped in the environment still wins on every call.
+
 ## [0.2.0-alpha.14] - 2026-11-21
 
 An appointed operator can mark an organisation as a test from Support, and every migration made
@@ -106,11 +113,6 @@ Trigger.dev pin.
   is deleted and its account kept. The appliance has no test organisations.
 
 ### Changed
-
-- **`GET /version` no longer reads a file on every request** (workplan 0006 L). On both editions
-  the build's version came from the root `package.json`, read again for every answer, every
-  problem report and every unreadable-answer line, and each read held up the requests behind it.
-  It is now read once per process; a version stamped in the environment still wins on every call.
 
 - **The Trigger.dev webapp's image runs effect 3.22.4, not 3.21.2** (workplan 0166 T5, the owner's
   D2). effect 3.21.2, the one copy Trigger.dev v4.8.8 resolves, carries CVE-2026-121707 (high, a
