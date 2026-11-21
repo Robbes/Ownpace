@@ -4,8 +4,32 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21, last: pnpm 11.28.13, the one `packageManager` line (#1989), built as #1994.** Times
-are UTC.
+**2026-11-21, latest: Dependabot waits three days, from seven, and zizmor's `dependabot-cooldown`
+audit is held to three by `.github/zizmor.yml`.** On
+`claude/ownpace-public-readiness-y7orc6-dependabot-cooldown-3`, from `main` at `02e88d52`.
+- **What changed.** Each of the eleven entries in `.github/dependabot.yml` has `cooldown:
+  default-days: 3`, from the 7 set on 2026-11-20 with the zizmor job (Status of that day). Three
+  days is CONTRIBUTING.md's floor for every dependency and what `minimumReleaseAge` in
+  `pnpm-workspace.yaml` enforces. A cooldown does not hold back a security update.
+- **zizmor's setting.** `dependabot-cooldown` finds every Dependabot entry whose cooldown is
+  shorter than its `days`, seven unless set (`rules.dependabot-cooldown.config.days`, zizmor's
+  `docs/audits.md` at v1.32.0). The new `.github/zizmor.yml` sets it to 3 and holds nothing
+  else. The workflow audit passes it with `--config`, which loads that file and no other
+  (`docs/configuration.md` at v1.32.0, global discovery); until now the job ran with
+  `--no-config`. It still runs with `--no-ignores`, so no ignore comment counts either.
+- **The guard.** `a-workflow-zizmor-would-flag` holds the job to `--config .github/zizmor.yml`,
+  the config to exactly that one setting (a `disable`, an `ignore`, another rule or another
+  number is refused), no second config file where zizmor would look, and every Dependabot entry
+  to a cooldown of at least three days. Seven mutations of the real files each fail it: the job
+  back on `--no-config` (2 tests), `days: 1` (2), an audit turned off (2), an ignore list (2),
+  one entry at one day (1), the config removed (2), a second config at the root (1). Each file
+  was put back and compared with `cmp`.
+- **What the outside check of GEN-26 sees.** It runs zizmor 1.30.1 with its own settings. On
+  2026-11-20 it named no Dependabot entry, though none had a cooldown then, so this move should
+  not change what it lists. That is not proven.
+
+**2026-11-21, last: pnpm 11.28.13, the one `packageManager` line (#1989), built as #1994, merged on
+2026-11-21 (`77eea91d`).** Times are UTC.
 
 - **pnpm 11.28.13, from 11.28.12.** npm dates it 2026-11-17 at 20:01:02 and names it `latest-11`
   (read on 2026-11-21 at about 07:55; `latest` is 12.21.0, a major and the owner's call, as the pin

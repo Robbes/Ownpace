@@ -571,7 +571,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   2026-11-21, moved on purpose from 1.30.1, the version the outside check of GEN-26 runs, by the
   tag and index digest `ZIZMOR_IMAGE` names, over the whole checkout (every workflow, any action
   file, `dependabot.yml`), offline (`--offline`, no network, no token) and read-only, with
-  `--no-config` and `--no-ignores`, so nothing in the tree can turn a rule or a location off.
+  `--config .github/zizmor.yml`, whose one setting holds `dependabot-cooldown` to Dependabot's
+  three days, and `--no-ignores`, so nothing in the tree can turn a rule or a location off.
   `zizmor` is BLOCKING: any finding fails it, and it writes zizmor's report to its summary. Held
   by `scripts/a-workflow-zizmor-would-flag.unit.test.ts`, which also holds every cache-aware step
   in a workflow a tag starts to turning its cache off the way zizmor's `cache-poisoning` audit
