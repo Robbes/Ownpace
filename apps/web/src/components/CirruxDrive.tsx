@@ -36,7 +36,14 @@ import {
   type CirruxDriveDisconnected,
   type ConnectionSummary,
 } from '../services/mapping-service.ts';
-import { closeConsentWindow, consentWindowName, openConsentWindow, sendConsentWindow } from '../services/consent-window.ts';
+import {
+  closeConsentWindow,
+  consentProviderName,
+  consentWindowName,
+  openConsentWindow,
+  sendConsentWindow,
+} from '../services/consent-window.ts';
+import { consentToFollow } from '../services/address-to-follow.ts';
 import { serverMessage } from '../services/api.ts';
 import { useLocale } from '../i18n/index.tsx';
 import { ConsentWindowLink, type UnopenedConsent } from './ProviderConsent.tsx';
@@ -126,7 +133,18 @@ export const CirruxDrivePanel: React.FC<{
     const pressedAt = Date.now();
     try {
       const { url } = await mappingApi.cirruxDriveAuthorize({ connectionId: connection.id, locale });
-      if (!sendConsentWindow(consentWindow, url)) setUnopened({ url, pressedAt });
+      // Sent or linked only on Cirrux's own host, `https:` (0163 T4, finding
+      // 9); anything else closes the blank window and says so.
+      const address = consentToFollow('cirrux', url);
+      if (address === null) {
+        closeConsentWindow(consentWindow);
+        setNote({
+          tone: 'refused',
+          text: t('account.consent.notTheProvider', { provider: consentProviderName('cirrux') }),
+        });
+        return;
+      }
+      if (!sendConsentWindow(consentWindow, address)) setUnopened({ url: address, pressedAt });
     } catch (err) {
       closeConsentWindow(consentWindow);
       setNote({ tone: 'refused', text: serverMessage(err) });

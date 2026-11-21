@@ -511,7 +511,7 @@ describe('replacing credentials', () => {
     list.mockResolvedValue([
       conn({ kind: 'google', role: 'source', knownValues: { username: 'anna@acme.net' } }),
     ]);
-    googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.example/o/oauth2/v2/auth?x=1' });
+    googleAuthorize.mockResolvedValue({ url: 'https://accounts.google.com/o/oauth2/v2/auth?x=1' });
     // The window opens in the press, blank, and is sent to the provider once
     // the address arrives (0145 T5, `services/consent-window.ts`).
     const popup = { location: { href: 'about:blank' }, closed: false, close: vi.fn() };
@@ -532,7 +532,7 @@ describe('replacing credentials', () => {
     await waitFor(() => expect(googleAuthorize).toHaveBeenCalled());
     expect(opened).toHaveBeenCalledWith('', 'ownpace-google-consent', expect.stringContaining('popup'));
     await waitFor(() =>
-      expect(popup.location.href).toBe('https://accounts.google.example/o/oauth2/v2/auth?x=1'),
+      expect(popup.location.href).toBe('https://accounts.google.com/o/oauth2/v2/auth?x=1'),
     );
 
     // The popup's answer, over the same postMessage the add form listens for.
