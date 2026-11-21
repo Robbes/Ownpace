@@ -100,6 +100,69 @@ Not done:
   one pass, then the counts, the target and `endingChoices` read, and the migration deleted and
   the mark cleared. The E2E workflow does not change.
 
+**The review of T1, fixed on the same branch (2026-11-21).** An independent reading of the pull
+request at `5c58becd` found the points below. Each is now fixed, with a case that fails without it.
+- **The database writes the mark for an appointed operator only.** Managed 0062 had not been applied
+  anywhere, so it was changed in place. INSERT, UPDATE and DELETE on `test_organisation` ask that
+  `app.current_user` names a row of `platform_operator`, and a row is written only in that
+  operator's own name, as 0023 and 0055 guard theirs. SELECT stays the organisation's, for the
+  create. Each door sets `app.current_user`, asks `platform_operator` and writes in one transaction
+  (`actingAsAppointedOperator`, `close-account.ts`). An `app_user` in the organisation's scope who
+  is not an operator inserts, updates and deletes nothing.
+- **One lock per organisation, whatever the case of its id.** The organisation's migrations lock was
+  keyed on the id as the request spelled it, in the `X-Ownpace-Tenant` header or the support page's
+  path. `ABC…` and `abc…` took two locks, so a create could pass a mark, and two creates could pass
+  `MAX_MIGRATIONS_PER_ORGANISATION` together, a hole since 0143 T2a. The key is now
+  `id::uuid::text`, and `resolveTenant` and the support routes read a named id in lower case.
+- **Only while it is open.** Both doors answer 409 `not_open` for a closed or erasing organisation,
+  as the close and the reopen do, and the Support control offers nothing for one. The same marker
+  again writes and records nothing, and answers `unchanged`.
+- **No marker that looks blank.** `readTestMarker` also refuses every space separator but U+0020,
+  and the fillers U+115F, U+1160, U+3164, U+FFA0 and U+2800.
+- **No fallback on what the doors act on** (hard rule 9): the count of migrations held and the
+  marker read throw on an answer that is not one, instead of reading it as none.
+- **0070's trigger is the guarantee, and the guard an early warning**, as ADR-0053 and the guard's
+  header now say. The guard also reads `MERGE`, ends a statement at its first `;` outside a quoted
+  literal, and refuses a drizzle update whose table is not named as itself (an alias,
+  `schema['…']`). SQL built from pieces, `sql.identifier()` and a statement past forty lines it
+  still cannot see.
+- **Tests that passed with the bug present.** The Postgres race test now drives the real
+  `POST /api/migrations` and the real mark route, each side spelling the id in the other case.
+  "Nobody signed in" now reaches the route's own 401. A parse test holds `testMarker` in the web's
+  two mapping schemas. The Support field sets no length of its own, and its state belongs to one
+  organisation.
+- **Merge order.** The doors' pull request, #2011, merges first. Its
+  `a-status-update-that-switches-a-test-over` and `the-sharing-a-test-migration-keeps` are the cases
+  that require both of its refusals. Two things need its code and come after it lands, on this
+  branch: the permission report asked for by address is to be refused (409 `test_organisation`) in
+  an organisation that carries the marker itself, beside its `testsWithAMarker`, so that one whose
+  migration was deleted, or that holds none yet, is not reported whole; and the downloaded report
+  (`run-permission-inventory.ts`) is to say that it lists marked items only, for a test.
+
+What is proven, and how. 21 new cases: the guard (3), `readTestMarker` (1), the table on PGlite (4:
+the database refusing a non-operator's insert, update and delete, and a malformed answer throwing),
+the doors through the real routes (5), the tenant resolution (1), the web's parse (2) and the
+Support control (5). The two cases of the Postgres race test were rewritten to drive the real
+routes. Forty-one mutations, each one change, each caught, each file restored byte for byte (`cmp`):
+the first round's twenty-one, rewritten where the review changed the code they break, and twenty for
+the review. These are the lock keyed on the id as typed and the create reading the marker before the
+lock (1 each, on Postgres); the support route's and the header's id not lowered (1 each); the INSERT
+and the UPDATE policies asking for no operator, and a row in anybody's name (1 each); the same
+marker written again (1); the mark's open check (1); the blank-looking rule (3); the count and the
+rows read as none (1 each); the guard reading any table's name, reading no `MERGE`, and cutting
+inside a literal (1 each); the Support section kept across organisations (1) and offered when not
+open (2); each web schema dropping the marker (1 each); and the mark route's own 401 (1). The
+section kept across organisations survived the first run, because an organisation read for the first
+time is loaded afresh into a new section; its case now goes back to one read before, which comes
+from the cache into the same page.
+
+Gates, on this branch merged with `main` at `2e5d4c8a`: the whole `unit` project, 1,158 files,
+18,182 cases passed and 37 skipped, but for the 2 files that run pnpm themselves, as above;
+`unit-browser`, 193 files, 3,794 passed; `tsc --noEmit` for the root and `apps/web`, ESLint on the
+43 changed files, and the six docs checks found nothing. On Postgres 16.15, 46 integration files
+passed, 438 cases: every integration file of `apps/api` (41), the three of `packages/managed`, the
+system role's, and the stop door's.
+
 **2026-11-21: T3 built, on `claude/ownpace-public-readiness-y7orc6-0162-t3-never-finished`, from
 `main` at `87663d70`; merged as #2003 (`cba6c64d`; *was:* not merged).** Inert, as T2 is: nothing sets the column yet, so no migration
 is refused today. T2 merged as #1975 on 2026-11-21 (`45a758af`). Its E2E (managed) run
