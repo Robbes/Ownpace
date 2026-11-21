@@ -14,7 +14,7 @@
     "@openmig/engines": "workspace:*",
     "@openmig/ledger": "workspace:*",
     "@openmig/shared": "workspace:*",
-    "croner": "11.0.0",
+    "croner": "11.0.1",
     "drizzle-orm": "catalog:",
     "pg": "catalog:"
   }
