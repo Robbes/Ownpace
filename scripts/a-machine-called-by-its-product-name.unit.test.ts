@@ -69,7 +69,9 @@
  * self-hosted jobs read that day, the O365 lane's one run among them, all
  * ran on the one runner, so the lane lands where it did. The runner keeps its
  * old label, and nothing public names it once the workflow does not. So there
- * are no exceptions: a hit anywhere fails.
+ * are no exceptions: a hit anywhere fails. The lane itself was deleted on
+ * 2026-11-20 (workplan 0141 T13 (a)); the case below keeps its line as a
+ * fixture, written into a scratch repository, not this one.
  *
  * WHERE IT RUNS. `docs-hygiene` in `.github/workflows/ci.yml` runs
  * `node scripts/machine-product-name.mjs --check` on every change, docs-only
@@ -246,8 +248,8 @@ describe('where it runs: on every change, docs-only ones included', () => {
 
   it('a word added to a file turns the check red, naming the file and line and not the word; taken out, green', () => {
     // The command docs-hygiene runs, from another directory, on a repository of
-    // untracked files: the detector, the O365 lane's workflow as it now reads, a
-    // plan, a binary and the lockfile.
+    // untracked files: the detector, the O365 lane's workflow as it read before
+    // its deletion, a plan, a binary and the lockfile.
     const root = mkdtempSync(join(tmpdir(), 'machine-product-name-'));
     dirs.push(root);
     const write = (path: string, body: string | Buffer): void => {

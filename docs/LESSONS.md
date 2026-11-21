@@ -97,12 +97,6 @@ reading a file drops off its entry by itself.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [two-nights-read-from-the-record](../scripts/two-nights-read-from-the-record.unit.test.ts) — TWO NIGHTS READ FROM THE RECORD: the nights a release tag waits for were counted by a person reading two `gh run list` commands, and on 2026-10-06 the alpha was tagged on one green night of two (workplan 0141 T14).
 
-### `.github/workflows/e2e-o365.yml`
-
-- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
-- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
-- [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
-
 ### `.github/workflows/e2e.yml`
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
@@ -4761,7 +4755,6 @@ A MACHINE CALLED BY ITS PRODUCT NAME.
 Reads:
 
 - `.github/workflows/ci.yml`
-- `.github/workflows/e2e-o365.yml`
 - `AGENTS.md`
 - `CHANGELOG.md`
 - `docs/LESSONS.md`
@@ -6000,7 +5993,6 @@ Reads:
 - `.github/workflows/clock-watch.yml`
 - `.github/workflows/e2e-live-target.yml`
 - `.github/workflows/e2e-managed.yml`
-- `.github/workflows/e2e-o365.yml`
 - `.github/workflows/e2e.yml`
 - `.github/workflows/idp-pin-watch.yml`
 - `.github/workflows/images.yml`
@@ -6577,7 +6569,6 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e-managed.yml`
-- `.github/workflows/e2e-o365.yml`
 - `.github/workflows/e2e.yml`
 - `apps/api/src/routes/migrations/index.ts`
 - `packages/connectors/src/takeout-archive-reader.unit.test.ts`

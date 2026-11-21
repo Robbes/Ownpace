@@ -6,8 +6,8 @@ tenant" is a dangerously misleading name for the first.
 
 ## Tenant A — the real tenant (read-only, owner-held)
 
-The tenant behind the secret-gated e2e (`e2e-o365.yml`, workplan 0008 T7) is
-**a real SMB's data**. That line in 0008 is the whole policy:
+The tenant behind the O365 harness (`test/e2e/o365-scenario.e2e.test.ts`, workplan 0008 T7)
+is **a real SMB's data**. That line in 0008 is the whole policy:
 
 - **Read-only, forever.** The e2e suite asserts no write scopes in the token
   claims and aborts otherwise. No experiment that could touch it is run here
@@ -15,26 +15,45 @@ The tenant behind the secret-gated e2e (`e2e-o365.yml`, workplan 0008 T7) is
 - **Global Administrator is held by the owner** and is not shared. This is why
   the consent runbook's live proof (0027 T0) is an owner action: not because
   the steps are hard, but because nobody else has — or should have — the role.
-- **Credentials exist only as GitHub Actions secrets**, consumed by the
-  dispatch-only workflow. Coders with repo access may *trigger* the workflow;
-  no human other than the owner holds the values.
+- **Its credentials are the owner's alone, and never in CI.** No workflow reads
+  this tenant, and its credentials are kept out of the repository's secrets and
+  its environments'. The harness runs by hand, on a machine that holds them, as
+  below.
 
-### The seven CI secrets (documented here, nowhere else)
+### Running the harness by hand
 
-Which flow you are in is decided by which are set, not by a flag — the same
-rule as `managed.env.example`:
+On a machine with Docker and the repository installed (`pnpm install`), with
+the variables below exported:
 
-| Secret | Role |
+```bash
+pnpm test:e2e test/e2e/o365-scenario.e2e.test.ts
+```
+
+Without `O365_CLIENT_ID` and `O365_TENANT_ID` the whole suite skips, and a skip
+reads as a pass, so check that its tests ran. Which flow you are in is decided
+by which credentials are set, not by a flag — the same rule as
+`managed.env.example`:
+
+| Variable | Role |
 |---|---|
 | `O365_TENANT_ID` | Directory (tenant) ID — required |
 | `O365_CLIENT_ID` | App registration's client ID — required |
 | `O365_CLIENT_SECRET` | APPLICATION flow (app-only; shared mailboxes, directory reads) |
 | `O365_REFRESH_TOKEN` | DELEGATED flow (reads only the signed-in mailbox, `/me`) |
-| `O365_USERNAME` / `O365_PASSWORD` | Delegated fallback used by the e2e's token-refresh leg |
+| `O365_USERNAME` | Delegated fallback used by the token-refresh leg, with `O365_PASSWORD` |
+| `O365_PASSWORD` | The delegated fallback's password |
 | `O365_SCOPE` | Optional; defaults to `https://graph.microsoft.com/.default` |
+| `O365_MAIL_ENABLED` | Mail is read unless this is `false` |
+| `O365_CALENDAR_ENABLED` | Calendars are read unless this is `false` |
+| `O365_CONTACTS_ENABLED` | Contacts are read unless this is `false` |
+| `O365_FILES_ENABLED` | Files are read unless this is `false` |
+| `O365_CONCURRENCY` | Parallel reads; defaults to 4 |
+| `SOAK_TEST_24H` | `true` runs the soak test |
+| `SOAK_DURATION_MS` | How long the soak runs, in milliseconds; defaults to 86400000 (24 hours) |
 
-Rotating any of these is a repository-settings action (Settings → Secrets →
-Actions) plus a `workflow_dispatch` of `e2e-o365.yml` to prove the rotation.
+`test/e2e/o365-scenario.unit.test.ts` holds this table to the names the suite
+reads, both ways. Rotating a credential is the owner's, in the tenant's app
+registration; nothing in this repository holds one.
 
 ## Tenant B — the coders' tenant (synthetic, break it freely)
 

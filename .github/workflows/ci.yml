@@ -14,8 +14,8 @@
 # an attacker needs. Every workflow with a `pull_request` trigger follows this:
 # ci.yml and security-scan.yml by the conditional below, and
 # no-committed-artifacts.yml since 2026-08-11, when it was found to be the one
-# exception. e2e.yml and e2e-o365.yml are schedule/dispatch only — no PR path
-# to abuse — which is why they can name the runner unconditionally.
+# exception. e2e.yml is schedule/dispatch only — no PR path to abuse — which
+# is why it can name the runner unconditionally.
 #
 # WHAT THE SPLIT COSTS, stated so it is a known limitation and not a surprise:
 # GitHub's hosted Linux runners are amd64, the machine is arm64, so **a PR is
