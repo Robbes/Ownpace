@@ -23,6 +23,7 @@
  */
 
 import React from 'react';
+import axios from 'axios';
 import { useParams } from 'react-router';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -808,7 +809,30 @@ const Sharing: React.FC = () => {
         setBlindSpotLists({ en: r.blindSpots, nl: r.blindSpotsNl });
         refresh();
       })
-      .catch(() => setBlindSpotLists({ en: [t('common.requestFailed')] }))
+      // A refused rescan says why, where the server wrote the reason itself,
+      // with its Dutch beside it: a test migration's sharing none of which
+      // could be kept (workplan 0162), a migration that records no mailbox,
+      // or a closed organisation. Only a refusal, a 4xx: a fault of ours, a
+      // 500, carries an English sentence only, and is said in the reader's
+      // language with its reference (`serverMessage`). Anything else is the
+      // page's own failure line.
+      .catch((err: unknown) => {
+        const answer = (
+          err as { response?: { status?: unknown; data?: { reason?: unknown; reasonNl?: unknown } } }
+        )?.response;
+        const status = typeof answer?.status === 'number' ? answer.status : 0;
+        const said = answer?.data;
+        if (status >= 400 && status < 500 && typeof said?.reason === 'string' && said.reason !== '') {
+          setBlindSpotLists({
+            en: [said.reason],
+            ...(typeof said.reasonNl === 'string' && said.reasonNl !== '' ? { nl: [said.reasonNl] } : {}),
+          });
+          return;
+        }
+        setBlindSpotLists({
+          en: [axios.isAxiosError(err) && status >= 500 ? serverMessage(err) : t('common.requestFailed')],
+        });
+      })
       .finally(() => setRescanning(false));
   };
 

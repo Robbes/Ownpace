@@ -81,6 +81,29 @@ describe('scanNextcloudShares', () => {
     expect(listing.grants[2]!.grantee).toBeUndefined();
   });
 
+  it('says the name each shared thing was given, apart from its folders, and none without a path (0162)', async () => {
+    const { httpClient } = fakeHttp(
+      200,
+      envelope([
+        { share_type: 0, share_with: 'anna', path: '/Projects/[Ownpace-test] budget.xlsx', permissions: 1 },
+        { share_type: 0, share_with: 'bram', path: '/[Ownpace-test] Plans/', permissions: 1, item_type: 'folder' },
+        { share_type: 0, share_with: 'carla', path: '/Top.pdf', permissions: 1 },
+        { share_type: 0, share_with: 'dora', permissions: 1 },
+      ]),
+    );
+
+    const listing = await scanNextcloudShares(OPTIONS(httpClient));
+    if (listing.kind !== 'listed') throw new Error(listing.reason);
+
+    expect(listing.grants.map((g) => g.ownName)).toEqual([
+      '[Ownpace-test] budget.xlsx',
+      '[Ownpace-test] Plans',
+      'Top.pdf',
+      undefined,
+    ]);
+    expect(listing.grants[3]).not.toHaveProperty('ownName');
+  });
+
   it('a server without OCS is a blind spot with the body shown, never a crash', async () => {
     const { httpClient } = fakeHttp(404, '<html>plain WebDAV, no OCS here</html>');
 

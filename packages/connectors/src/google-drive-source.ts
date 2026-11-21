@@ -799,6 +799,10 @@ export class GoogleDriveSource implements FileSource {
               ...(file.mimeType !== undefined
                 ? { isContainer: file.mimeType === DRIVE_FOLDER_MIME }
                 : {}),
+              // The name it was given, which is all `on` is here, said apart
+              // so a test migration's marker reads a name and never a label
+              // (workplan 0162). A file Drive answered without one has none.
+              ...(typeof file.name === 'string' && file.name !== '' ? { ownName: file.name } : {}),
             });
           }
         }

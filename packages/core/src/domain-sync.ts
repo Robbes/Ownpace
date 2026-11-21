@@ -598,16 +598,19 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * (`SourceConnector.markedOnly`, workplan 0162 §4), carried here from the
    * source by the domain wrappers. Absent, nothing below changes.
    *
-   * Two things follow, and only two. A collection is made on the target when
-   * its first listed item is written, never on first sight, so a test target
-   * receives the folders, labels and calendars that hold a marked item and no
-   * others. And an unexplained absence of a path-keyed item is not counted:
+   * Three things follow, and only three. A collection is made on the target
+   * when its first listed item is written, never on first sight, so a test
+   * target receives the folders, labels and calendars that hold a marked item
+   * and no others. An unexplained absence of a path-keyed item is not counted:
    * a file renamed out of the marker presents exactly as one deleted, and
    * losing the marker deletes nothing (§2 (f)), so it is neither drift nor,
-   * two passes later, an inferred deletion. A move between two marked names
-   * is still paired and reported, and a removal the source reports or an item
-   * in its bin is read as for any migration, against every item the source
-   * still lists, marked or set aside (`unmarked`, `setAsideKeys`).
+   * two passes later, an inferred deletion. And a file in the bin whose copy
+   * was made from a file the source still lists, under any name, is not read
+   * as binned (`listedFileRefs`): a Dropbox rename leaves a tombstone at the
+   * old path. A move between two marked names is still paired and reported, and a
+   * removal the source reports or an item in its bin is read as for any
+   * migration, against every item the source still lists, marked or set aside
+   * (`unmarked`, `setAsideKeys`).
    */
   readonly markedOnly?: boolean;
   /** List folders on the source */
@@ -1330,6 +1333,31 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    */
   const setAsideKeys = new Set<string>();
   /**
+   * THE SOURCE'S OWN HANDLES A TEST MIGRATION'S FILES ARE LISTED UNDER, kept
+   * or set aside, gathered across every folder (workplan 0162, the second
+   * thing T1 settles before any marker can be set). Only for a marked file
+   * listing; empty for every other pass, whose bin is read as before.
+   *
+   * A file's natural key is its path, so a rename gives it a new one, and
+   * Dropbox answers the old path with a tombstone, which its bin read lists.
+   * Under a marker that tombstone passes the bin's filter by its old, marked
+   * name, while the file is listed under its new name, and the pass found the
+   * old path's copy in the bin and alive nowhere: `trashed`, the evidence an
+   * apply may act on, for a file still at the source. A tombstone names a
+   * path and no id. What ties the two is the ledger: the row the old path
+   * keys holds the handle its copy was made from (`sourceRef`, Dropbox's
+   * `id`), and the listing gives the same handle for the file under its new
+   * name. So the bin passes over a row whose handle is listed here
+   * (`resolveDiscardedItems`).
+   *
+   * Files only: every other domain keeps its natural key across a move, so
+   * `setAsideKeys` and the seen-sets already find the item alive, and a mail
+   * handle (`folder:uid`) can name another message after the server renumbers
+   * a folder.
+   */
+  const listedFileRefs = new Set<string>();
+  const gathersFileRefs = markedOnly && domain === 'file';
+  /**
    * CURSORS HELD FOR THEIR REMOVALS (after #1116). A collection that reported
    * removals keeps its cursor until they are resolved, at the end of the pass,
    * and only a pass that reached every collection resolves them. The server
@@ -1761,6 +1789,17 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     for (const left of unmarked ?? []) {
       const key = naturalKey(left);
       if (key !== undefined) setAsideKeys.add(key);
+      // And the handle it is listed under, for the bin (`listedFileRefs`).
+      const ref = gathersFileRefs ? sourceRef?.(left) : undefined;
+      if (ref) listedFileRefs.add(ref);
+    }
+    // The kept files' handles too, whatever becomes of each below: a file
+    // listed and then failed is still at the source.
+    if (gathersFileRefs) {
+      for (const kept of items) {
+        const ref = sourceRef?.(kept);
+        if (ref) listedFileRefs.add(ref);
+      }
     }
 
     // Seed the seen-set with everything the collection holds, so a
@@ -2892,6 +2931,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           discarded: discarded.keys,
           seenByCollection,
           setAside: setAsideKeys,
+          stillListed: listedFileRefs,
         })),
       );
     }
@@ -3207,7 +3247,12 @@ async function resolveReportedRemovals(args: {
  * The same four refusals as `resolveReportedRemovals`, for the same reasons: a
  * key we never copied (most of what is in a bin), an item not on the target, an
  * item this pass saw alive under its natural key, set aside by a test
- * migration's marker or not, and one the owner has already decided about.
+ * migration's marker or not, and one the owner has already decided about. And
+ * a fifth, for a test migration's files (`listedFileRefs`, workplan 0162): a
+ * row whose copy was made from a file the source still lists, under another
+ * name. A Dropbox rename answers the old path with a tombstone, which is how a
+ * file renamed out of the marker reached the queue as `trashed` while it was
+ * still there.
  *
  * ONE RESIDUAL FALSE POSITIVE, stated rather than hidden. A message can exist in
  * both the bin and a live folder — the same Message-ID in two mailboxes is
@@ -3228,8 +3273,10 @@ async function resolveDiscardedItems(args: {
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
   /** Keys a test migration's marker set aside this pass; empty for any other (0162). */
   setAside: ReadonlySet<string>;
+  /** The handles a test migration's files are listed under this pass; empty for any other (0162). */
+  stillListed: ReadonlySet<string>;
 }): Promise<ItemDeletion[]> {
-  const { tenantId, mappingId, domain, ledger, discarded, seenByCollection, setAside } = args;
+  const { tenantId, mappingId, domain, ledger, discarded, seenByCollection, setAside, stillListed } = args;
 
   const seenAnywhere = new Set<string>(setAside);
   for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
@@ -3240,6 +3287,8 @@ async function resolveDiscardedItems(args: {
     const row = await ledger.find(tenantId, mappingId, domain, key);
     if (!row) continue;
     if (!isOnTarget(row.status)) continue;
+    // Its file is listed under another name this pass: renamed, not binned.
+    if (row.sourceRef !== undefined && stillListed.has(row.sourceRef)) continue;
 
     const recorded = await ledger.recordTrashedDeletion(tenantId, mappingId, domain, key);
     if (!recorded) continue;
