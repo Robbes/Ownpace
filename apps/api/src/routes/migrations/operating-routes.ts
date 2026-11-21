@@ -156,6 +156,11 @@ interface Scoped {
    * (ADR-0035 decision 5; `whose-data.ts`).
    */
   readonly personGranted: boolean;
+  /**
+   * Its test marker (`mailbox_mapping.test_marker`, workplan 0162), when it
+   * is a test; absent for every other. Finish refuses a test (T3).
+   */
+  readonly testMarker?: string;
 }
 
 /**
@@ -184,6 +189,7 @@ async function scope(req: AuthenticatedRequest, res: Response): Promise<Scoped |
         status: schema.mailboxMapping.status,
         sourceSecretRef: schema.mailboxMapping.sourceSecretRef,
         grantWithdrawnAt: schema.mailboxMapping.grantWithdrawnAt,
+        testMarker: schema.mailboxMapping.testMarker,
       })
       .from(schema.mailboxMapping)
       .where(
@@ -210,6 +216,7 @@ async function scope(req: AuthenticatedRequest, res: Response): Promise<Scoped |
     mappingId,
     lifecycle: row.status as MappingLifecycle,
     personGranted: readsAPersonsGrant(row),
+    ...(row.testMarker !== null ? { testMarker: row.testMarker } : {}),
   };
 }
 
@@ -1279,8 +1286,9 @@ router.post('/:mappingId/finish', authenticate, async (req: AuthenticatedRequest
     // The decision itself is `@openmig/shared`'s, so the two editions refuse
     // for the same reasons (ADR-0026). Only the ACTING differs, and barely:
     // there is no scheduler to stop here, because the managed poller selects
-    // `status = 'active'` and simply stops seeing this row.
-    const transition = finishTransition(s.lifecycle, unresolved, force);
+    // `status = 'active'` and simply stops seeing this row. A test migration
+    // is refused whatever else is true of it (workplan 0162 T3).
+    const transition = finishTransition(s.lifecycle, unresolved, force, s.testMarker);
 
     if ('refuse' in transition) {
       return void res.status(409).json({ error: transition.refuse, hint: transition.hint, code: transition.code });

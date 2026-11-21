@@ -20,6 +20,7 @@ import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes } from 'react-router';
 import type { PathEndingChoice, StatusReport } from '@openmig/shared';
+import { A_TEST_IS_NOT_FINISHED } from '@openmig/shared';
 import { STRINGS } from '../i18n/strings.ts';
 import { LocaleProvider } from '../i18n/index.tsx';
 
@@ -928,5 +929,94 @@ describe('a stopped data type is named where the final pass is', () => {
     expect(
       await screen.findByText(/Could not read whether a data type is stopped: the status read timed out/),
     ).toBeInTheDocument();
+  });
+});
+
+/**
+ * A TEST MIGRATION IS NEVER FINISHED (workplan 0162 §2 (e), T3).
+ *
+ * Its check may pass, and its report carries the marker with
+ * `canProceedToCutover: false`: step 1 says why, in the reader's language,
+ * from the sentence the Finish door says. Its End and Keep are offered as any
+ * data type's, and the managed door refuses them in both languages: the
+ * reader's half is shown, with no force.
+ */
+describe('a test migration on the Finish page (workplan 0162 T3)', () => {
+  const NOT_FINISHED = A_TEST_IS_NOT_FINISHED;
+
+  function renderIn(locale: 'en' | 'nl') {
+    globalThis.localStorage.setItem('ownpace.locale', locale);
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <LocaleProvider>
+        <QueryClientProvider client={qc}>
+          <MemoryRouter>
+            <Finish />
+          </MemoryRouter>
+        </QueryClientProvider>
+      </LocaleProvider>,
+    );
+  }
+
+  afterEach(() => {
+    globalThis.localStorage.removeItem('ownpace.locale');
+  });
+
+  it.each(['en', 'nl'] as const)('step 1 says it is not finished, in %s, though its check passed', async (locale) => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    fetchVerifyReport.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-08-09T10:00:00Z',
+      finishedAt: '2026-08-09T10:05:00Z',
+      report: {
+        'acme-mail': {
+          overallStatus: 'PASS',
+          canProceedToCutover: false,
+          contentEvidence: 'checked',
+          testMarker: '[Ownpace-test]',
+        },
+      },
+    });
+    renderIn(locale);
+
+    expect(await screen.findByText(NOT_FINISHED[locale], { exact: false })).toBeInTheDocument();
+    expect(screen.queryByText(STRINGS[locale]['finish.step1.passed'])).not.toBeInTheDocument();
+    expect(screen.queryByText(STRINGS[locale]['finish.step1.notPassed'], { exact: false })).not.toBeInTheDocument();
+  });
+
+  it('step 1 says the same passing check passed, without a marker', async () => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    fetchVerifyReport.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-08-09T10:00:00Z',
+      finishedAt: '2026-08-09T10:05:00Z',
+      report: { 'acme-mail': { overallStatus: 'PASS', canProceedToCutover: true, contentEvidence: 'checked' } },
+    });
+    renderIn('en');
+
+    expect(await screen.findByText(STRINGS.en['finish.step1.passed'])).toBeInTheDocument();
+    expect(screen.queryByText(NOT_FINISHED.en, { exact: false })).not.toBeInTheDocument();
+  });
+
+  it.each(['en', 'nl'] as const)('an End refused for the test says the %s half, with no force', async (locale) => {
+    fetchStatus.mockResolvedValue(statusReport('active'));
+    endOrKeepDataType.mockRejectedValueOnce(
+      new PathEndingRefusedError({
+        error: 'end_refused',
+        refused: 'test_migration',
+        message: NOT_FINISHED.en,
+        messageNl: NOT_FINISHED.nl,
+      } as never),
+    );
+    renderIn(locale);
+
+    fireEvent.click(await screen.findByLabelText(STRINGS[locale]['finish.step4.checkbox']));
+    fireEvent.click(
+      screen.getByRole('button', { name: locale === 'en' ? END_MAIL : /^E-mail beëindigen$/ }),
+    );
+
+    expect(await screen.findByText(NOT_FINISHED[locale])).toBeInTheDocument();
+    expect(screen.queryByText(NOT_FINISHED[locale === 'en' ? 'nl' : 'en'])).not.toBeInTheDocument();
+    expect(screen.queryByText(/anyway, leaving them behind|toch beëindigen/)).not.toBeInTheDocument();
   });
 });
