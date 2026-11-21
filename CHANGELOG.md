@@ -22,6 +22,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Code scanning lists the spots of the six Semgrep rules that may block** (workplan 0163).
+  On a push to `main`, the SARIF the Semgrep job uploads now leaves out the two ReDoS rules,
+  `detect-non-literal-regexp` and `detect-redos`, which never block: on `main` they made 202 of
+  its 206 spots. Those spots stay in the job summary, counted and listed, and code scanning closes
+  their alerts at the next upload. Semgrep's own report is unchanged.
 - **Semgrep's report says where Semgrep read the tree only in part** (workplan 0163 T5). Semgrep's
   taint analysis gives each function a time limit of its own. A rule that reaches it reports
   nothing in that function, with no error and exit 0: `main`'s first Semgrep run read one spot

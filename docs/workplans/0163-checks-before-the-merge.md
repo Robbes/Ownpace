@@ -4,6 +4,26 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after the Dutch sentence: code scanning lists the spots of the six rules that may
+block, and the two ReDoS rules' stay in the job summary (a T3 follow-up).** On
+`claude/ownpace-public-readiness-y7orc6-semgrep-six`, from `main` at `ad2ffbe7`.
+- **Why.** `main`'s Semgrep run uploads its SARIF to code scanning. On `45dfead1` that was 206
+  spots, 202 of them under `detect-non-literal-regexp` and `detect-redos`, the two rules that
+  never block (D3), every one of them read. Those 202 filled the Security tab beside the
+  4 spots of the six rules that may block.
+- **What it does.** `scripts/semgrep-report.mjs` writes a second SARIF,
+  `semgrep-code-scanning.sarif` (`forCodeScanning`): Semgrep's own, with each result of a rule
+  marked `never` taken out, its rules list kept whole. The upload step sends that one. Semgrep's
+  own report is not changed, and the job summary lists and counts every spot as before, with a
+  line saying how many went to code scanning and how many stayed. At the first upload from
+  `main` after the merge, code scanning closes the two rules' open alerts, since their spots are
+  no longer in it.
+- **Tests.** `a-finding-only-an-outside-check-saw` has 26 tests, 4 new: the six rules' spots
+  are what is uploaded, Semgrep's own SARIF keeps all eight, a rule that never blocks is taken out
+  by its id, a prefixed id or its own name, and an empty report keeps its shape. Four mutations
+  each fail it: nothing taken out (2 tests), everything taken out (2), Semgrep's own SARIF
+  uploaded (4), and the summary line dropped (1).
+
 **2026-11-21, after T5's first part: the grant page's two buttons go to Google's own page only,
 built as #1996 (a T4 follow-up).** On `claude/ownpace-public-readiness-y7orc6-grant-consent-host`,
 from `main` at `45a758af`.
@@ -143,7 +163,9 @@ as D3 decided.
     id, so no copy is kept here and D3's licence question does not arise.
   - It writes each rule's spots to the job summary, and marks a spot of a rule that may block on
     its line.
-  - On a push to `main` the SARIF goes to code scanning, never from a pull request.
+  - On a push to `main` the SARIF goes to code scanning, never from a pull request. Since
+    2026-11-21 it holds the spots of the six rules that may block only (Status, 2026-11-21,
+    after the Dutch sentence).
 - **Known, never ignored:** the two spots §4.3 read as false positives, `apps/worker/src/index.ts`
   (the worker CLI's own `--config`) and `google-consent.ts` (its value goes through `jsString`).
   The two ReDoS rules are listed apart and never block.
