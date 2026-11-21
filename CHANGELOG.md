@@ -62,6 +62,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Code scanning lists the spots of the six Semgrep rules that may block** (workplan 0163).
+  On a push to `main`, the SARIF the Semgrep job uploads now leaves out the two ReDoS rules,
+  `detect-non-literal-regexp` and `detect-redos`, which never block: on `main` they made 202 of
+  its 206 spots. Those spots stay in the job summary, counted and listed, and code scanning closes
+  their alerts at the next upload. Semgrep's own report is unchanged.
 - **A migration waits at most five seconds for a table lock** (workplan 0165, D3).
   Each migration file runs in one transaction, and until now nothing limited how long it waited
   for a lock: one asking to change a table behind a long query waited for that query, and every
@@ -134,6 +139,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `accounts.google.com`, the check *Pay* and the consent window use. Any other address opens
   nothing, the page says it is not Google's own page, in the reader's language, and the button
   can be pressed again.
+
+### Security
+
+- **A pull request that adds a secret fails** (workplan 0163 T6, the owner's decision D4 of
+  2026-11-20). Nothing read a commit for a secret before it merged. A new CI job, `gitleaks`, reads
+  every line the commits of a pull request add with gitleaks 8.30.1, downloaded from its GitHub
+  release and checked by its SHA-256, with gitleaks' default rules. A finding fails the pull
+  request, which `ci-complete` then reports as failed; the summary names the file, line, rule and
+  commit, and never the value. A value one commit adds and a later one removes is still found,
+  because the history keeps it. A merge commit is read as git's remerge diff: a line written
+  while resolving a conflict is judged, and the lines a merge brings from `main` are not judged
+  again. Unit and integration test files, whose fake tokens are on purpose,
+  and `docs/o365-setup.md`'s placeholders are allowed by path in `.gitleaks.toml`; nothing else
+  is, and no `gitleaks:allow` comment or `.gitleaksignore` counts. `main`'s history is not
+  judged. The weekly pin watch says when a newer gitleaks is tagged.
 
 ## [0.2.0-alpha.13] - 2026-11-21
 
