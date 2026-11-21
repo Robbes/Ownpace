@@ -56,9 +56,9 @@ describe('a marker as the operator typed it', () => {
   it('refuses a character that prints nothing: format, separators, surrogates and private use', () => {
     // Zero-width space, byte order mark, a right-to-left override, a soft hyphen,
     // the line and paragraph separators, a lone surrogate, a private-use character.
-    for (const c of ['​', '﻿', '‮', '­', ' ', ' ', '\ud800', '']) {
+    for (const c of ['\u200b', '\ufeff', '\u202e', '\u00ad', '\u2028', '\u2029', '\ud800', '\ue000']) {
       expect(refused(`[Own${c}pace]`), `U+${c.codePointAt(0)!.toString(16)}`).toBe(true);
     }
-    expect(readTestMarker('[Own​pace]')).toEqual({ refused: expect.stringContaining('prints nothing') });
+    expect(readTestMarker('[Own\u200bpace]')).toEqual({ refused: expect.stringContaining('prints nothing') });
   });
 });

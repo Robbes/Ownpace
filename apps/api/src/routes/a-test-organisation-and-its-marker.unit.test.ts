@@ -247,7 +247,7 @@ describe('the marker is required, and its form is held before anything is read',
     ['too short', { marker: 'ab' }],
     ['too long', { marker: 'a'.repeat(65) }],
     ['a control character', { marker: '[Own\u0007pace]' }],
-    ['a character that prints nothing', { marker: '[Own​pace]' }],
+    ['a character that prints nothing', { marker: '[Own\u200bpace]' }],
     ['not text', { marker: 42 }],
   ])('%s: 400 bad_marker, and nothing written', async (_what, body) => {
     const res = await mark(TEST_ORG, body);
