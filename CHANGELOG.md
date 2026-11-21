@@ -38,6 +38,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   `cache-mode:` setting and the `pnpm/setup` action, dangerous-triggers counts `issue_comment`,
   and template-injection finds a value an attacker controls inside `fromJSON(...)` or
   `case(...)`. On this tree 1.32.0 finds nothing, as 1.30.1 did, in the same eighteen files.
+- **Dependabot proposes a version update once the release is three days old, from seven**
+  (workplan 0119). Three days is what CONTRIBUTING.md asks of every dependency and what pnpm's
+  `minimumReleaseAge` enforces. zizmor's `dependabot-cooldown` audit asks for seven unless it is
+  told otherwise, and CI runs zizmor blocking, so the workflow audit now reads one config,
+  `.github/zizmor.yml` (`--config`, where it read none), whose one setting holds that audit to
+  three days. A guard refuses any other setting, so no audit is turned off and no place is
+  ignored, and it refuses a Dependabot entry that waits less than three days. Security updates
+  still come without a cooldown.
 
 ### Fixed
 

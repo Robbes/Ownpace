@@ -50,14 +50,17 @@
  * then 1.30.1, the version the outside check runs), by tag and index digest
  * (`ZIZMOR`, below, the reference read on 2026-11-21), on every pull request
  * and push to main that touches `.github/` or an action file, offline
- * (`--offline`, `--network none`, no token), with `--no-config` and
- * `--no-ignores`, so nothing in the tree can turn a rule or a location off.
+ * (`--offline`, `--network none`, no token), with `--config .github/zizmor.yml`
+ * and `--no-ignores`, so nothing in the tree can turn a rule or a location off.
  * Its first run found 24 findings already on main (template injection,
  * Dependabot's cooldown, two release actions the runner's `gh` replaces), all
  * fixed with it; a finding fails it now. The pin
  * watch's row `ghcr.io/zizmorcore/zizmor` lists a newer release.
  * This holds the job to that, each rule broken on purpose below as well; that
- * no zizmor config file exists and no workflow carries an ignore comment; and
+ * the one zizmor config, `.github/zizmor.yml`, holds `dependabot-cooldown`'s
+ * three days and nothing else (since 2026-11-21, when Dependabot's cooldown
+ * went from seven days to three), that every Dependabot entry waits at least
+ * that long, and that no workflow carries an ignore comment; and
  * the three changes above, on every workflow, so a step added later is held
  * before zizmor ever reads it.
  */
@@ -77,7 +80,7 @@ const JOB = 'zizmor';
 const ZIZMOR = 'ghcr.io/zizmorcore/zizmor:1.32.0@sha256:3014cc8f68f663935f69b3c3e0e41f5ce102b268d97db13db0f62208747f860d';
 
 /** The flags that keep the run offline and let nothing in the tree silence a finding. */
-const FLAGS = ['--offline', '--no-config', '--no-ignores', '--network none'];
+const FLAGS = ['--offline', '--config .github/zizmor.yml', '--no-ignores', '--network none'];
 
 /** The expression zizmor's tag-push heuristic reads as "on" for a tag. */
 const ON_A_TAG = "${{ startsWith(github.ref, 'refs/tags/') }}";
@@ -297,6 +300,44 @@ export function jobProblems(text: string): string[] {
 /** The files a zizmor config could live in, by its documented discovery (docs/configuration.md at v1.30.1 and v1.32.0, unchanged). */
 const CONFIG_FILES = ['zizmor.yml', 'zizmor.yaml', '.github/zizmor.yml', '.github/zizmor.yaml'];
 
+/** The one config the job passes with `--config`. */
+const CONFIG = '.github/zizmor.yml';
+
+/**
+ * The three days CONTRIBUTING.md asks of every dependency, which Dependabot's
+ * cooldown waits and `dependabot-cooldown`'s `days` is held to (zizmor's own
+ * default is seven; docs/audits.md at v1.32.0).
+ */
+const COOLDOWN_DAYS = 3;
+
+/**
+ * What is wrong with the zizmor config and Dependabot's cooldowns: any setting
+ * but `dependabot-cooldown`'s three days (a `disable`, an `ignore`, another
+ * rule, another number), and any Dependabot entry that waits less than that.
+ */
+export function configProblems(config: string, dependabot: string): string[] {
+  const out: string[] = [];
+  const want = { rules: { 'dependabot-cooldown': { config: { days: COOLDOWN_DAYS } } } };
+  const got: unknown = parseYaml(config);
+  if (JSON.stringify(got) !== JSON.stringify(want)) {
+    out.push(`${CONFIG} holds ${JSON.stringify(got)}, not only dependabot-cooldown's days: ${COOLDOWN_DAYS}`);
+  }
+  const updates = ((parseYaml(dependabot) as { updates?: unknown } | null)?.updates ?? []) as ReadonlyArray<{
+    'package-ecosystem'?: unknown;
+    directory?: unknown;
+    directories?: unknown;
+    cooldown?: { 'default-days'?: unknown } | null;
+  }>;
+  if (updates.length === 0) out.push('dependabot.yml has no updates entry');
+  for (const u of updates) {
+    const days = u.cooldown?.['default-days'];
+    if (typeof days !== 'number' || days < COOLDOWN_DAYS) {
+      out.push(`the ${String(u['package-ecosystem'])} entry for ${JSON.stringify(u.directory ?? u.directories)} waits ${JSON.stringify(days)} days, not at least ${COOLDOWN_DAYS}`);
+    }
+  }
+  return out;
+}
+
 const docs = workflowFiles().map((path) => ({ path, text: read(path), workflow: parseYaml(read(path)) as Workflow }));
 
 describe('no cache-aware step zizmor would flag (cache-poisoning, 2026-11-20)', () => {
@@ -414,7 +455,8 @@ describe('zizmor in CI, blocking (2026-11-20)', () => {
       return jobProblems(next).join('\n');
     };
     expect(mutate('--offline ', '')).toMatch(/does not run with --offline/);
-    expect(mutate('--no-config ', '')).toMatch(/does not run with --no-config/);
+    expect(mutate('--config .github/zizmor.yml ', '')).toMatch(/does not run with --config \.github\/zizmor\.yml/);
+    expect(mutate('--config .github/zizmor.yml ', '--no-config ')).toMatch(/does not run with --config \.github\/zizmor\.yml/);
     expect(mutate('--no-ignores ', '')).toMatch(/does not run with --no-ignores/);
     expect(mutate('--network none ', '')).toMatch(/does not run with --network none/);
     expect(mutate('--no-progress ', '--no-progress --min-severity high ')).toMatch(/narrows what zizmor reports/);
@@ -427,8 +469,27 @@ describe('zizmor in CI, blocking (2026-11-20)', () => {
     expect(mutate("      - '.github/**'\n", '')).toMatch(/does not run on a change under \.github\//);
   });
 
-  it('no zizmor config exists to turn a rule or a location off, and no workflow carries an ignore comment', () => {
-    expect(CONFIG_FILES.filter((f) => existsSync(join(REPO_ROOT, f)))).toEqual([]);
+  it('the one zizmor config holds dependabot-cooldown\'s three days and nothing else, and no workflow carries an ignore comment', () => {
+    expect(CONFIG_FILES.filter((f) => existsSync(join(REPO_ROOT, f)))).toEqual([CONFIG]);
+    expect(configProblems(read(CONFIG), read('.github/dependabot.yml'))).toEqual([]);
     expect(docs.filter(({ text }) => /zizmor:\s*ignore/i.test(text)).map(({ path }) => path)).toEqual([]);
+  });
+
+  it('refuses a config that turns an audit off, ignores a place, adds a rule or lowers the days, and a Dependabot entry that waits less', () => {
+    const config = read(CONFIG);
+    const dependabot = read('.github/dependabot.yml');
+    const mutate = (from: string, to: string, inDependabot = false): string => {
+      const text = inDependabot ? dependabot : config;
+      const next = text.replace(from, to);
+      expect(next, from).not.toBe(text);
+      return (inDependabot ? configProblems(config, next) : configProblems(next, dependabot)).join('\n');
+    };
+    expect(mutate('      days: 3\n', '      days: 1\n')).toMatch(/not only dependabot-cooldown's days: 3/);
+    expect(mutate('      days: 3\n', '      days: 3\n  template-injection:\n    disable: true\n')).toMatch(/not only dependabot-cooldown's days: 3/);
+    expect(mutate('    config:\n', '    ignore:\n      - ci.yml\n    config:\n')).toMatch(/not only dependabot-cooldown's days: 3/);
+    expect(mutate('    config:\n', '    disable: true\n    config:\n')).toMatch(/not only dependabot-cooldown's days: 3/);
+    expect(mutate('rules:\n', 'rules:\n  unpinned-uses:\n    config:\n      policies:\n        "*": any\n')).toMatch(/not only dependabot-cooldown's days: 3/);
+    expect(mutate('      default-days: 3\n', '      default-days: 1\n', true)).toMatch(/waits 1 days, not at least 3/);
+    expect(mutate('    cooldown:\n      default-days: 3\n', '', true)).toMatch(/waits undefined days, not at least 3/);
   });
 });
