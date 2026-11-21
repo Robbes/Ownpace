@@ -53,6 +53,10 @@ export declare const HADOLINT_WORKFLOW: string;
 export declare const HADOLINT_NOTE: string;
 /** The one image hadolint.yml names, hadolint/hadolint by a release tag and its index digest; throws for any other line. */
 export declare function hadolintPin(workflow: string): Omit<Image, 'line'>;
+export declare const SEMGREP_WORKFLOW: string;
+export declare const SEMGREP_NOTE: string;
+/** The one image semgrep.yml names, semgrep/semgrep by a release tag and its index digest; throws for any other line. */
+export declare function semgrepPin(workflow: string): Omit<Image, 'line'>;
 export declare const TRIVY_WORKFLOW: string;
 export declare const TRIVY_JOBS: string[];
 export declare const TRIVY_HOST: string;

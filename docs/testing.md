@@ -466,7 +466,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
   tags), the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), the hadolint
-  image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), and the tasks'
+  image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), the Semgrep image
+  `semgrep.yml` runs (the same way), and the tasks'
   prebuilt base `trigger.config.ts` pins (against main's `edge` by each platform's layers, since
   its digest moves on every merge while its layers do not: behind when they differ, or when the
   pinned index or its signature is gone) share one summary issue; another image a script there
@@ -532,6 +533,22 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   pass.
   Held by `scripts/a-dockerfile-that-ends-as-root.unit.test.ts`, which runs the report against a
   stubbed docker.
+- `semgrep.yml` — on every pull request, on a push to `main` and on dispatch, on a GitHub-hosted
+  runner, never a required check (workplan 0163 T3, the owner's decision D3 of 2026-11-20):
+  Semgrep 1.186.0, by the tag and index digest `SEMGREP_IMAGE` names, over the checkout, mounted
+  read-only, with eight rules fetched from Semgrep's registry by id (`RULES` in
+  `scripts/semgrep-report.mjs`; no copy of a rule is kept here) for the classes an outside,
+  read-only check of 2026-11-20 listed: a regular expression built at run time, a path joined from
+  a value, the browser sent to an address a function returned, a React link to an address from a
+  value, and three more that found a spot each when workplan 0163 measured Semgrep on this tree. `Semgrep (report only)` writes each rule's spots
+  to its summary, a spot `KNOWN_FINDINGS` explains marked known with its reason, and marks on its
+  line a spot of a rule that may block. No finding fails it. A scan that did not finish is a
+  warning on a pull request and fails the run on a push or a dispatch, where the run is the
+  record. On a push to `main` its SARIF goes to code scanning; never from a pull request. A rule
+  becomes blocking, one at a time, once it reports nothing on `main`; the two ReDoS rules,
+  `detect-non-literal-regexp` and `detect-redos`, never do. Held by
+  `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`, which runs the report against a
+  stubbed docker.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -579,7 +596,9 @@ for status to be reported", with nothing queued in Actions to explain it. Full r
 `SCOPE:` comment above `ci-complete` in `ci.yml`. Nor `hadolint (report only)` from
 `hadolint.yml`, for another reason: it reports on every pull request, but it is report only and
 passes whatever hadolint finds, so requiring it would gate nothing. It turns blocking, and is
-required then, after the two Trigger.dev Dockerfiles have had their pass.
+required then, after the two Trigger.dev Dockerfiles have had their pass. Nor `Semgrep (report
+only)` from `semgrep.yml`, for the same reason: it passes whatever Semgrep finds. Once a rule turns
+blocking, its check is required.
 
 **No `pull_request` trigger filters by base branch**, and a guard holds that —
 `every-pr-gets-checked.unit.test.ts`. A `branches: [main]` filter gives a pull request opened
