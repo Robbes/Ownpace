@@ -2,7 +2,17 @@
 
 > **In one line:** An event deleted in a Google calendar during a migration reaches *Deleted on the old system* as a reported removal, so its copy can be removed through the gated path: by hand, as today; in bulk, with one confirmation; and by itself only if the owner changes the rule that forbids it.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21: the decisions (T0), each as advised.** Nothing is built yet. §5 has each one.
+- **(a) The reader:** A, `sync-collection`, measured first (T1). B, Google's Calendar API, only if
+  T1 shows Google lists no removed event through CalDAV.
+- **(b) Bulk apply:** yes (T3), with one confirmation and every gate kept.
+- **(c) Removal by itself:** not in the first build, so T4 stays parked. A reported removal is
+  applied by hand: one at a time, as today, or in bulk once T3 is built.
+- **(d) T1:** yes. Read-only, on the owner's test migration on the test environment, recorded as
+  counts and status codes only.
+- **Next:** T1, then T2 on what it shows.
 
 **2026-11-20: proposed, not yet decided.** Nothing is built. The owner asked for this after the
 test of 0160 §4: an event deleted in Google never reached *Deleted on the old system*. They want
@@ -19,10 +29,10 @@ Read for this plan, on `main` at `8b8fac07`:
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The decisions | owner | 📋 **Proposed** | §5: which reader, bulk apply, and whether anything is ever removed by itself |
-| T1 What Google answers | builder | 📋 **Proposed** | §3.1. Read-only, on the owner's test migration on the test environment, with their yes. Counts and status codes only |
+| T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
+| T1 What Google answers | builder | 📋 **Next** (T0 (d): yes) | §3.1. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 📋 **Proposed** | §3. A, or B if T1 shows Google reports no removals through CalDAV |
-| T3 Apply in bulk | builder | 📋 **Proposed** | §4.2, if decided. ADR-0024 amended |
+| T3 Apply in bulk | builder | 📋 **Decided** (T0 (b)), after T2 | §4.2. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 
@@ -122,7 +132,7 @@ proposal is:
 
 ## 5. The decisions (T0)
 
-Proposed, with the builder's advice; none decided.
+Decided on 2026-11-21, each as advised (Status, 2026-11-21).
 
 - **(a) The reader.** A, measured first (T1); B only if Google reports no removals through
   CalDAV. *Advice:* A. It also ends the whole listing on every pass.
