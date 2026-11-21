@@ -4,6 +4,39 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after #1990 merged: T5, the first two Semgrep rules that block, built as #1997 (a
+draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-semgrep-blocking`, from `main` at
+`45a758af`; step 5 of §5.
+- **Which rules.** On `main` at `5d5c5f55` (run 44881711422), two of the six rules that may block
+  reported nothing: `react-href-var`, quiet since #1990 checks the consent link, and
+  `run-shell-injection`, quiet since the `base_ref` line went with GEN-26 (#1977). Both block now
+  (`blocks` in `RULES`). The other four wait, each on a spot:
+  - `path-join-resolve-traversal` and `unknown-value-with-script-tag`, one known spot each, until
+    the spot is reworded or the rule stays report only (§5);
+  - `gcm-no-tag-length`, on the Cirrux test fake's decipher (`cirrux-fake.ts:135`, T4);
+  - `js-open-redirect-from-function`, on `Billing.tsx:770`, safe since #1990 but read by the rule
+    as unchecked. It stays to read: no known-finding entry is added without the owner.
+- **What blocks.** A spot of a rule that blocks fails the job on a pull request, a push and a
+  dispatch, as an error on its line. No `KNOWN_FINDINGS` entry can excuse it: the report reads
+  none for such a rule, and the guard refuses one. The other rules' spots fail nothing, as
+  before.
+- **A scan that did not finish fails a pull request too.** It was a warning there while nothing
+  blocked; now the check vouches for the rules that block.
+- **The check is `Semgrep`**, renamed from `Semgrep (report only)`, and `docs/testing.md`'s
+  required checks name it, five now; the guard holds the job's name to it. **The owner adds
+  `Semgrep` to the required status checks in Settings when this merges.** Until then it fails
+  where it should, but does not stop a merge.
+- **The SARIF still goes to code scanning from a push to `main`**, now also when a rule that
+  blocks failed the job (`!cancelled()`), since that scan finished.
+- **Tests:**
+  - the guard `a-finding-only-an-outside-check-saw` (20 tests) holds the two rules and only they
+    as blocking, the job's name, the required checks' line, and the report against a stubbed
+    docker: a blocking spot fails every event, an entry excuses none, the rules that report fail
+    nothing, and a scan that did not finish fails a pull request;
+  - `a-dockerfile-that-ends-as-root` reads the required checks' line as five.
+  - Locally: the 41 guards that read the changed files (1,342 tests), ESLint and `pnpm typecheck`.
+    Seven mutations of the report each fail its guard.
+
 **2026-11-21, last: T4's fix for findings 8 and 9, with the Pay button, built as #1990, a draft
 held for alpha.14.** On `claude/ownpace-public-readiness-y7orc6-t4-pay-checkout`, from
 `main` at `45dfead1`. `main` is frozen until the alpha.13 tag, so it merges after that tag.
@@ -253,7 +286,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); 🔨 **findings 8 and 9, with the Pay button, built** as #1990, a draft held for alpha.14 (Status, 2026-11-21, last) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
-| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
+| T5 Semgrep fails the build, rule by rule | builder | 🔨 **Built** for `react-href-var` and `run-shell-injection` in #1997, a draft, not merged; the other four wait on a spot each (Status, 2026-11-21, after #1990 merged) (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
@@ -493,7 +526,7 @@ an exact apk or apt pin, and hadolint stays report only.
 | 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
 | 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `js-open-redirect-from-function`, `react-href-var`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` and `detect-redos` (both report only for good). The rules are fetched by id, so a rule in no pack is as easy to name as one in a pack | 5, 6, 8, 9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short. Built with 1.186.0, the newest release past the three-day floor, and the ids in `RULES` in `scripts/semgrep-report.mjs` (Status, 2026-11-21) | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
 | 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
-| 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
+| 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3. The first two, `react-href-var` and `run-shell-injection`, built as #1997 (Status, 2026-11-21, after #1990 merged) |
 
 **Not worth adding:**
 - **Trivy's misconfiguration scan.** §4.4: it repeats hadolint and a guard, and its one CRITICAL
