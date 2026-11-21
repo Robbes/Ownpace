@@ -593,6 +593,23 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
    * like. Reported removals and a bin, being positive evidence, still count.
    */
   readonly snapshot?: boolean;
+  /**
+   * The source lists only what a test migration's marker selects
+   * (`SourceConnector.markedOnly`, workplan 0162 §4), carried here from the
+   * source by the domain wrappers. Absent, nothing below changes.
+   *
+   * Two things follow, and only two. A collection is made on the target when
+   * its first listed item is written, never on first sight, so a test target
+   * receives the folders, labels and calendars that hold a marked item and no
+   * others. And an unexplained absence of a path-keyed item is not counted:
+   * a file renamed out of the marker presents exactly as one deleted, and
+   * losing the marker deletes nothing (§2 (f)), so it is neither drift nor,
+   * two passes later, an inferred deletion. A move between two marked names
+   * is still paired and reported, and a removal the source reports or an item
+   * in its bin is read as for any migration, against every item the source
+   * still lists, marked or set aside (`unmarked`, `setAsideKeys`).
+   */
+  readonly markedOnly?: boolean;
   /** List folders on the source */
   readonly listFolders: () => Promise<ReadonlyArray<Folder>>;
   /** List items in a folder since a cursor */
@@ -629,6 +646,16 @@ export interface DomainSyncDeps<Source, Target, Item, Folder extends FolderLike 
      * collection's items in another's read, which is every other source.
      */
     listedElsewhere?: number;
+    /**
+     * Items this read RETURNED that a test migration's marker set aside
+     * (`MarkedOnly`, workplan 0162): their title does not carry it. Asked two
+     * things and nothing else. Whether there were any, for the same reason as
+     * `listedElsewhere`, so a read the marker emptied is not mistaken for one
+     * that saw nothing. And their keys (`naturalKey`), so an item still at
+     * the source is never resolved as deleted: see `setAsideKeys`. Absent
+     * from every source that is not a test migration's.
+     */
+    unmarked?: ReadonlyArray<Item>;
   }>;
   /** Fetch raw data for an item */
   readonly fetchRaw: (item: Item) => Promise<{ raw: unknown; sizeBytes: number }>;
@@ -1210,6 +1237,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     downloadMeter,
     firstCopyAllowed,
     snapshot,
+    markedOnly = false,
     deadline,
     now = Date.now,
     whyItStops,
@@ -1278,6 +1306,29 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * ledger row that recorded the href at copy time.
    */
   const reportedRemovals: string[] = [];
+  /**
+   * THE KEYS A TEST MIGRATION'S MARKER SET ASIDE, gathered across every folder
+   * (`unmarked`; workplan 0162, §2 (f)). Empty for every other migration,
+   * whose listings carry no `unmarked`, so nothing below changes for them.
+   *
+   * A test migration's listing keeps only the items whose title carries its
+   * marker, and an item whose marker is taken out is still at the source. So
+   * the two conclusions that rest on whether this pass saw an item alive, a
+   * removal the source reported and a key in the owner's bin, ask these keys
+   * as well as the ones the loop processed: an event whose marker was taken
+   * out and which then moved to another calendar is reported removed by the
+   * calendar it left, and is listed, set aside, by the one it is in. Read as
+   * unseen, it reached the deletion queue as `reported`, the one kind a
+   * person may apply, where the same account without a marker reports a
+   * move. It is neither now: its copy stays where it was last copied, as the
+   * copy of any item the source stops offering does, and the loop records no
+   * move for an item it does not copy.
+   *
+   * Asked of nothing else. The seen-sets that decide a file's absence and a
+   * former name (`seenByCollection`) hold only what the loop processed, as
+   * they always have.
+   */
+  const setAsideKeys = new Set<string>();
   /**
    * CURSORS HELD FOR THEIR REMOVALS (after #1116). A collection that reported
    * removals keeps its cursor until they are resolved, at the end of the pass,
@@ -1623,10 +1674,18 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // One promise per collection, so items written at once share one call. A
     // refusal fails those items, each recorded, where it used to fail the
     // pass before the listing.
+    //
+    // UNDER A TEST MARKER, NOT ON FIRST SIGHT (workplan 0162 §4). A test
+    // migration reads a real account and copies a few marked items out of it,
+    // and making every collection it sees would put every one of the owner's
+    // folders, labels and calendars on the test target, empty. So with a
+    // marker a collection is made when its first marked item is written, by
+    // the same `collectionIdOf` every write already awaits, and a collection
+    // holding none is never made at all. Without one, nothing changes.
     let targetCollection: Promise<string> | undefined;
     const collectionIdOf = (): Promise<string> =>
       (targetCollection ??= timed(phases, 'collectionSetupMs', () => ensureCollection(folder)));
-    if (prev === undefined) await collectionIdOf();
+    if (prev === undefined && !markedOnly) await collectionIdOf();
     phases.collectionsOpened += 1;
 
     // A COLLECTION THE SOURCE WILL NOT LIST IS SKIPPED, NOT THE PASS
@@ -1675,7 +1734,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     }
     unreadInARow = 0;
     listedOne = true;
-    const { items, nextCursor, removed, listedElsewhere } = listing;
+    const { items, nextCursor, removed, listedElsewhere, unmarked } = listing;
     const seenHere = seenByCollection.get(collectionPath) ?? new Set<string>();
     seenByCollection.set(collectionPath, seenHere);
     // Whether an item of this collection waited at the data ceiling: then its
@@ -1694,6 +1753,14 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
     // below unreachable rather than merely unhelpful.
     if (sourceIsAuthorityOnExistence) {
       for (const href of removed ?? []) reportedRemovals.push(href);
+    }
+    // What a test migration's marker set aside is still here, and is asked
+    // about where the removals above are resolved (`setAsideKeys`). Keyed by
+    // the one function every listed item is keyed by; a message the listing
+    // could not key matches no row, and is passed over.
+    for (const left of unmarked ?? []) {
+      const key = naturalKey(left);
+      if (key !== undefined) setAsideKeys.add(key);
     }
 
     // Seed the seen-set with everything the collection holds, so a
@@ -2575,6 +2642,12 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
      * own. Treating that as "saw nothing" would store no cursor for it, ever,
      * and re-read its whole subtree on every pass.
      *
+     * And so does an item a test migration's marker set aside (`unmarked`,
+     * workplan 0162). The read saw it; the marker kept it out of `items`. A
+     * test reads a real account, where nearly every collection holds no
+     * marked item, and treating each of those as "saw nothing" would list it
+     * whole again on every pass.
+     *
      * Deliberately narrow. Once a cursor EXISTS, an empty answer is the normal
      * incremental case — nothing changed — and must go on advancing, or every
      * pass after the first would re-list the whole account for ever.
@@ -2583,7 +2656,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       prev === undefined &&
       items.length === 0 &&
       (removed?.length ?? 0) === 0 &&
-      (listedElsewhere ?? 0) === 0;
+      (listedElsewhere ?? 0) === 0 &&
+      (unmarked?.length ?? 0) === 0;
     // A PAUSED folder keeps its cursor too, for the same reason a retrying
     // one does: advancing it would retire the items the pause left
     // unprocessed, and the next pass — the one the pause promises — would
@@ -2706,6 +2780,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
         ledger,
         removals: reportedRemovals,
         seenByCollection,
+        setAside: setAsideKeys,
       });
       deletions.push(...reported);
     }
@@ -2816,6 +2891,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
           ledger,
           discarded: discarded.keys,
           seenByCollection,
+          setAside: setAsideKeys,
         })),
       );
     }
@@ -2894,6 +2970,7 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       createdThisPass,
       listedByIdentity,
       unfinishedCollections,
+      markedOnly,
     });
     moved += found.moves.length;
     moves.push(...found.moves);
@@ -3043,7 +3120,9 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
  *    an arrival at a new one; a UID deleted and re-created likewise. In both
  *    cases the item is plainly alive, and reporting it deleted because one of its
  *    hrefs died would be exactly wrong. This is why the whole thing waits until
- *    every folder has been listed.
+ *    every folder has been listed. Seen includes SET ASIDE: an item a test
+ *    migration's marker kept out of the listing is just as alive (`setAside`,
+ *    workplan 0162 §2 (f)).
  * 4. **An item the owner has already decided about.** Recorded, not re-reported:
  *    a queue that cannot be emptied stops being read.
  */
@@ -3054,13 +3133,16 @@ async function resolveReportedRemovals(args: {
   ledger: Ledger;
   removals: ReadonlyArray<string>;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Keys a test migration's marker set aside this pass; empty for any other (0162). */
+  setAside: ReadonlySet<string>;
 }): Promise<ItemDeletion[]> {
-  const { tenantId, mappingId, domain, ledger, removals, seenByCollection } = args;
+  const { tenantId, mappingId, domain, ledger, removals, seenByCollection, setAside } = args;
 
   // Every key the pass saw ANYWHERE, which is what makes a move distinguishable
   // from a deletion. Per-collection is the wrong grain here: the point is that
-  // the item still exists, not where.
-  const seenAnywhere = new Set<string>();
+  // the item still exists, not where. And every key a test migration's marker
+  // set aside, for the same reason: it still exists, outside the marked set.
+  const seenAnywhere = new Set<string>(setAside);
   for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
 
   const out: ItemDeletion[] = [];
@@ -3124,8 +3206,8 @@ async function resolveReportedRemovals(args: {
  *
  * The same four refusals as `resolveReportedRemovals`, for the same reasons: a
  * key we never copied (most of what is in a bin), an item not on the target, an
- * item this pass saw alive under its natural key, and one the owner has already
- * decided about.
+ * item this pass saw alive under its natural key, set aside by a test
+ * migration's marker or not, and one the owner has already decided about.
  *
  * ONE RESIDUAL FALSE POSITIVE, stated rather than hidden. A message can exist in
  * both the bin and a live folder — the same Message-ID in two mailboxes is
@@ -3144,10 +3226,12 @@ async function resolveDiscardedItems(args: {
   ledger: Ledger;
   discarded: ReadonlyArray<string>;
   seenByCollection: ReadonlyMap<string, ReadonlySet<string>>;
+  /** Keys a test migration's marker set aside this pass; empty for any other (0162). */
+  setAside: ReadonlySet<string>;
 }): Promise<ItemDeletion[]> {
-  const { tenantId, mappingId, domain, ledger, discarded, seenByCollection } = args;
+  const { tenantId, mappingId, domain, ledger, discarded, seenByCollection, setAside } = args;
 
-  const seenAnywhere = new Set<string>();
+  const seenAnywhere = new Set<string>(setAside);
   for (const keys of seenByCollection.values()) for (const k of keys) seenAnywhere.add(k);
 
   const out: ItemDeletion[] = [];
@@ -3246,10 +3330,12 @@ async function detectPathKeyedMoves(args: {
   >;
   /** Collections the pass stopped before finishing: nothing in them is concluded. */
   unfinishedCollections: ReadonlySet<string>;
+  /** A test migration's marked listing: an unexplained absence proves nothing (0162). */
+  markedOnly: boolean;
 }): Promise<{ moves: ItemMove[]; deletions: ItemDeletion[]; drift: number }> {
   const { tenantId, mappingId, domain, ledger, seenByCollection, createdThisPass, listedByIdentity } =
     args;
-  const { unfinishedCollections, movedByTheLoop } = args;
+  const { unfinishedCollections, movedByTheLoop, markedOnly } = args;
 
   // Content hash -> the new items carrying it, consumed as they are matched.
   // Consuming matters: three identical files deleted and one created is one
@@ -3496,6 +3582,18 @@ async function detectPathKeyedMoves(args: {
       });
       continue;
     }
+
+    // NOT SEEN IN A MARKED LISTING, AND NOTHING EXPLAINS IT (workplan 0162,
+    // §2 (f)). A test migration lists only the files whose own name carries
+    // its marker, so a file renamed out of the marker is absent here exactly
+    // as a deleted one is, and losing the marker deletes nothing: the target
+    // keeps its last copy, as it keeps any item the source stops offering.
+    // Not counted, then, neither as drift nor towards an inferred deletion. A
+    // real deletion still reaches the queue on positive evidence, the bin or a
+    // removal the source reports, which the pass reads before this runs, for
+    // every migration; and a rename between two marked names was paired with
+    // its arrival just above.
+    if (markedOnly) continue;
 
     // GONE, and nothing explains it as a move. Counted rather than concluded:
     // we never observe a deletion, only an absence, and absence has innocent

@@ -113,6 +113,7 @@ import {
   withGraphFallback,
 } from './mail-source-factory.ts';
 import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
+import { markedOnlyCalendar, markedOnlyContacts, markedOnlyFiles, markedOnlyMail } from './marked-only.ts';
 
 /**
  * The mapping's OWN credentials merged over the connection's, key by key
@@ -500,12 +501,13 @@ export async function buildDepsFromMapping(
       }
     : undefined;
 
-  // Build source connector with decrypted credentials
-  const source = buildSourceConnectorFromCredentials(
-    mappingConfig.source,
-    sourceCredentials,
-    throttleLimiter,
-    byteMeter
+  // Build source connector with decrypted credentials. A test migration's
+  // marker wraps it last, over Gmail's view-folders when it is Gmail
+  // (`MarkedOnly`, workplan 0162): every reader of this mapping's mail, a
+  // pass, a count, an apply, gets the marked source from here.
+  const source = markedOnlyMail(
+    buildSourceConnectorFromCredentials(mappingConfig.source, sourceCredentials, throttleLimiter, byteMeter),
+    mappings[0]!.testMarker,
   );
   
   // Build target writer with decrypted credentials: the MAIL login, which for
@@ -581,6 +583,8 @@ async function loadDomainConnections(
   throttleConfig?: Partial<import('@openmig/shared').ThrottleConfig> | null;
   /** Each data type's phase, for `sourceAuthorityFor` (0117 D4, 0128 T5). */
   phaseOf: PathPhaseOf;
+  /** A test migration's marker (migration 0070, workplan 0162), or null. */
+  testMarker: string | null;
 }> {
   return withTenant(pool, tenantId, async (txDb) => {
     const mappingRows = await txDb
@@ -596,6 +600,9 @@ async function loadDomainConnections(
         // path has always had (2026-09-07) — the column existed, this query
         // just never asked for it.
         throttleConfig: mailboxMapping.throttleConfig,
+        // Asked for by name for the same reason: a column this query does
+        // not select is one the four faces it builds never hear of (0162).
+        testMarker: mailboxMapping.testMarker,
       })
       .from(mailboxMapping)
       .where(and(eq(mailboxMapping.tenantId, tenantId), eq(mailboxMapping.id, mappingId)));
@@ -688,6 +695,7 @@ async function loadDomainConnections(
         | Partial<import('@openmig/shared').ThrottleConfig>
         | null,
       phaseOf: phases.phaseOf,
+      testMarker: mapping.testMarker,
     };
   });
 }
@@ -823,6 +831,10 @@ export async function buildDomainDepsFromMapping(
     targetFolderPrefix,
     throttleConfig,
     phaseOf,
+    // A test migration's marker (workplan 0162): each branch below wraps the
+    // source it builds in `MarkedOnly` when it is set, so every reader of
+    // this mapping's calendar, contacts, files or tasks sees the marked set.
+    testMarker,
   } = await loadDomainConnections(pool, tenantId, mappingId);
   // THE FOUR NON-MAIL FACES GET THE TENANT'S BUDGET TOO (2026-09-07).
   // Until today only `buildDepsFromMapping` built one, so every calendar,
@@ -883,7 +895,7 @@ export async function buildDomainDepsFromMapping(
         // the answer is a name. A provider arriving is a row there, and a
         // provider MISSING from there is a failing guard rather than a
         // silent fall-through to DAV.
-        source: buildCalendarSourceFromConnection(src, throttleLimiter),
+        source: markedOnlyCalendar(buildCalendarSourceFromConnection(src, throttleLimiter), testMarker),
         // A target that mails guests whatever SCHEDULE-AGENT says gets none
         // (workplan 0160, `TARGETS_THAT_MAIL_GUESTS`).
         target: buildCalendarTarget(calendarTargetEndpoint, targetDeps, { mailsGuests: mailsGuestsItself(tgt.kind) }),
@@ -905,7 +917,7 @@ export async function buildDomainDepsFromMapping(
     return withClose(
       {
         ...common,
-        source: buildTaskSourceFromConnection(src, throttleLimiter),
+        source: markedOnlyCalendar(buildTaskSourceFromConnection(src, throttleLimiter), testMarker),
         target: buildTaskTarget(davEndpointFromCreds('target', tgt.config, tgt.creds), targetDeps, {
           mailsGuests: mailsGuestsItself(tgt.kind),
         }),
@@ -918,7 +930,7 @@ export async function buildDomainDepsFromMapping(
       {
         ...common,
         // The calendar seam's argument, verbatim, over the contact face.
-        source: buildContactSourceFromConnection(src, throttleLimiter),
+        source: markedOnlyContacts(buildContactSourceFromConnection(src, throttleLimiter), testMarker),
         // Contacts can go over JMAP where the target speaks it (0031 T2).
         // Read off the connection's own `kind`, which has allowed `jmap`
         // since the 0001 baseline, so this needs no migration and no new
@@ -944,10 +956,13 @@ export async function buildDomainDepsFromMapping(
   // no Drive grant, rather than at the first file.
   const cirruxDrive =
     fileTargetProtocol(tgt.kind) === 'cirrux-drive' ? cirruxDriveDepsFor(pool, tenantId, tgt) : undefined;
-  const fileSource = buildFileSourceFromConnection(src, throttleLimiter, {
-    targetStore: () =>
-      archiveStoreInTarget(fileTargetProtocol(tgt.kind), fileTgtEndpoint, tgt.kind),
-  });
+  const fileSource = markedOnlyFiles(
+    buildFileSourceFromConnection(src, throttleLimiter, {
+      targetStore: () =>
+        archiveStoreInTarget(fileTargetProtocol(tgt.kind), fileTgtEndpoint, tgt.kind),
+    }),
+    testMarker,
+  );
   return withClose(
     {
       ...common,
