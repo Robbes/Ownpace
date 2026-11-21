@@ -2,8 +2,9 @@
 
 // O365 real-tenant e2e suite (workplan 0008 T7). Collected by the `e2e` vitest
 // project (`*.e2e.test.ts`). Secret-gated: the whole suite skips unless
-// O365_CLIENT_ID + O365_TENANT_ID are set (the `e2e-o365.yml` workflow supplies
-// them). The token-refresh test sleeps PAST real token expiry, so this is
+// O365_CLIENT_ID + O365_TENANT_ID are set, by hand: docs/test-tenant.md lists
+// every variable it reads, and o365-scenario.unit.test.ts holds that list to
+// this file. The token-refresh test sleeps PAST real token expiry, so this is
 // manual-only — never part of automated CI.
 //
 // The reusable helpers/classes live in ./o365-scenario (also imported by the

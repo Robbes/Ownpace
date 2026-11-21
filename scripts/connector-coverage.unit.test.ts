@@ -72,19 +72,24 @@ const SOURCE_COVERAGE: Record<string, Verdict> = {
   caldav: { driven: 'e2e.yml — Nextcloud calendars, seeded then migrated and verified' },
   carddav: { driven: 'e2e.yml — Nextcloud contacts, same pass' },
   webdav: { driven: 'e2e.yml — Nextcloud files, same pass' },
-  // THE O365 HARNESS HAS NEVER RUN. e2e-o365.yml is workflow_dispatch-only and
-  // has never executed: its only two dispatches (2026-09-06) were cancelled
-  // before any runner took them; the suite it invokes skips silently unless
-  // O365_CLIENT_ID and O365_TENANT_ID are set, so even a run without them
-  // would report pass having executed nothing. It was recorded here as
+  // THE O365 HARNESS HAS NEVER RUN IN A GATE. Its lane, e2e-o365.yml, was
+  // workflow_dispatch-only and never ran a test: the two dispatches of
+  // 2026-09-06 were cancelled before any runner took them, the one of
+  // 2026-11-01 waited for a runner label no runner carried, and the one of
+  // 2026-11-02 stopped at its secrets, which were never set; the suite skips
+  // silently without O365_CLIENT_ID and O365_TENANT_ID, so even a run without
+  // them would report pass having executed nothing. It was recorded here as
   // `driven` on first writing — the exact laundering of an appearance into an
   // assertion this file exists to prevent, caught by asking the API how many
-  // times the workflow had actually run.
+  // times the workflow had actually run. The owner deleted the lane on
+  // 2026-11-20 (workplan 0141 T13 (a)): the real tenant's credentials stay out
+  // of CI, and the harness runs by hand (docs/test-tenant.md). A hand run moves
+  // nothing here, because a `driven` e2e must be one a workflow names (below).
   'graph-mail': {
     owed:
-      'a harness exists (test/e2e/o365-scenario.e2e.test.ts) and has never once ' +
-      'executed. The tenant is real and available, so this is UNWIRED, not ' +
-      'impossible: secrets are not set and no schedule fires it.',
+      'a harness exists (test/e2e/o365-scenario.e2e.test.ts) and runs by hand only. ' +
+      'No lane drives it: one needs a tenant whose credentials may sit in CI, and ' +
+      'those of the real tenant never do (docs/test-tenant.md, Tenant B).',
   },
   'graph-calendar': {
     owed:
@@ -258,7 +263,7 @@ describe('a "driven" verdict names something that actually runs', () => {
    * deleted file, or at one no workflow runs, is the same laundering one step
    * later.
    */
-  const workflows = ['e2e.yml', 'e2e-managed.yml', 'e2e-o365.yml']
+  const workflows = ['e2e.yml', 'e2e-managed.yml']
     .map((f) => readFileSync(REPO + '.github/workflows/' + f, 'utf8'))
     .join('\n');
   const ci = readFileSync(REPO + '.github/workflows/ci.yml', 'utf8');

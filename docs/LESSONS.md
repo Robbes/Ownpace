@@ -47,6 +47,7 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
@@ -57,6 +58,7 @@ reading a file drops off its entry by itself.
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
+- [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 - [an-address-that-was-not-an-example](../scripts/an-address-that-was-not-an-example.unit.test.ts) — AN ADDRESS THAT WAS NOT AN EXAMPLE.
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
@@ -95,12 +97,6 @@ reading a file drops off its entry by itself.
 - [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 - [two-nights-read-from-the-record](../scripts/two-nights-read-from-the-record.unit.test.ts) — TWO NIGHTS READ FROM THE RECORD: the nights a release tag waits for were counted by a person reading two `gh run list` commands, and on 2026-10-06 the alpha was tagged on one green night of two (workplan 0141 T14).
-
-### `.github/workflows/e2e-o365.yml`
-
-- [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
-- [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
-- [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
 ### `.github/workflows/e2e.yml`
 
@@ -149,6 +145,7 @@ reading a file drops off its entry by itself.
 - [a-tag-upstream-never-rebuilds](../scripts/a-tag-upstream-never-rebuilds.unit.test.ts) — A TAG UPSTREAM NEVER REBUILDS (workplan 0119, 2026-10-30): the Docker socket proxy ran an image as old as its release, and nothing could move it.
 - [a-task-base-the-cli-builds-nothing-into](../scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts) — A TASK BASE THE CLI BUILDS NOTHING INTO (workplan 0119 §3 item 13; the owner's decision of 2026-11-03, for alpha.5: "CI builds it, signs it and publishes it to GHCR like the other release images").
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
+- [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 - [an-essential-nothing-runs](../scripts/an-essential-nothing-runs.unit.test.ts) — AN ESSENTIAL PACKAGE NOTHING RUNS, AND 37 OF 44 HIGH FINDINGS IN IT (workplan 0119; the owner's decision of 2026-11-03, for alpha.4).
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
 - [ui-build-output](../scripts/ui-build-output.unit.test.ts) — The operating UI is BUILT, and what comes out of the build is a styled page.
@@ -175,6 +172,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/security-scan.yml`
 
 - [a-dispatch-that-waited-for-the-wrong-run](../scripts/a-dispatch-that-waited-for-the-wrong-run.unit.test.ts) — A DISPATCH THAT WAITED FOR THE WRONG RUN: a workflow dispatch takes a branch or a tag and never a commit, answers without saying which run it started unless asked, and a dispatch sent twice starts two publishers on one tag (the design re…
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-merge-that-ran-beside-the-socket](../scripts/a-merge-that-ran-beside-the-socket.unit.test.ts) — A MERGE THAT RAN BESIDE THE SOCKET: every push to `main` ran CI on the self-hosted runner, which holds the Docker socket of the machine live and its testers' credentials are on (workplan 0132, open question 1).
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-page-with-no-sbom](../scripts/a-release-page-with-no-sbom.unit.test.ts) — A RELEASE PAGE WITH NO SBOM: neither release this repository has published is complete, and nothing said so (workplan 0146, Status of 2026-10-23).
@@ -183,8 +181,14 @@ reading a file drops off its entry by itself.
 - [a-scan-that-skipped-itself](../scripts/a-scan-that-skipped-itself.unit.test.ts) — A security scan that skipped itself, and reported green.
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
+- [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 - [an-advisory-nobody-listed](../scripts/an-advisory-nobody-listed.unit.test.ts) — An advisory nobody listed, in a job that reported green.
 - [an-image-nobody-scanned](../scripts/an-image-nobody-scanned.unit.test.ts) — AN IMAGE NOBODY SCANNED: no container image the stacks run was ever looked inside (workplan 0146 T8, the scan half, 2026-10-22).
+
+### `.github/workflows/semgrep.yml`
+
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 
 ### `.github/workflows/windows-payload.yml`
 
@@ -194,7 +198,13 @@ reading a file drops off its entry by itself.
 - [a-runtime-only-its-own-host-vouched-for](../scripts/a-runtime-only-its-own-host-vouched-for.unit.test.ts) — A RUNTIME ONLY ITS OWN HOST VOUCHED FOR: the `node.exe` every Windows payload ships was checked against a `SHASUMS256.txt` fetched from the same `nodejs.org` release directory as the binary, so whoever could change the one could change t…
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
+- [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 - [a-zip-no-windows-had-started](../scripts/a-zip-no-windows-had-started.unit.test.ts) — A ZIP NO WINDOWS HAD STARTED: every release tag attached a Windows zip that no Windows machine had run, because the only Windows check was a person's, by hand, and it was owed (workplan 0119, Status 2026-11-02).
+
+### `.github/workflows/zizmor.yml`
+
+- [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 
 ### `.hadolint.yaml`
 
@@ -827,6 +837,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/src/index.ts`
 
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
@@ -2154,6 +2165,7 @@ reading a file drops off its entry by itself.
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
 ### `docs/windows-appliance-runbook.md`
@@ -2942,6 +2954,7 @@ reading a file drops off its entry by itself.
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 - [a-nextcloud-the-demo-does-not-run](../scripts/a-nextcloud-the-demo-does-not-run.unit.test.ts) — A NEXTCLOUD THE DEMO DOES NOT RUN: a customer's own server may run a major no suite here ran against (35 while the demo ran 34, workplan 0119, Status of 2026-10-25; 34 since the demo's move, T5).
 
 ### `pnpm-workspace.yaml`
@@ -3047,6 +3060,10 @@ reading a file drops off its entry by itself.
 
 - [a-deploy-from-a-named-tag](../scripts/a-deploy-from-a-named-tag.unit.test.ts) — A DEPLOY FROM A NAMED TAG (workplan 0132 T6 (a), with 0146 T5 (a)).
 - [the-headers-nobody-read-through-the-front](../scripts/the-headers-nobody-read-through-the-front.unit.test.ts) — THE HEADERS NOBODY READ THROUGH THE FRONT (workplan 0158 T4).
+
+### `scripts/audit-advisories.mjs`
+
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
 
 ### `scripts/bootstrap-managed.unit.test.ts`
 
@@ -3244,6 +3261,10 @@ reading a file drops off its entry by itself.
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
 
+### `scripts/osv-report.mjs`
+
+- [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts) — A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
+
 ### `scripts/package-appliance.mjs`
 
 - [a-base-image-that-carried-what-nothing-runs](../scripts/a-base-image-that-carried-what-nothing-runs.unit.test.ts) — A BASE IMAGE THAT CARRIED WHAT NOTHING RUNS (workplan 0146 T12).
@@ -3316,6 +3337,10 @@ reading a file drops off its entry by itself.
 ### `scripts/seed-managed.unit.test.ts`
 
 - [a-disk-that-says-it-is-filling](../scripts/a-disk-that-says-it-is-filling.unit.test.ts) — A DISK THAT SAYS IT IS FILLING, AND DUTIES THAT SAY THEY FAILED (workplan 0142 T3).
+
+### `scripts/semgrep-report.mjs`
+
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
 
 ### `scripts/shoot-the-app-screen.mjs`
 
@@ -4385,6 +4410,18 @@ Reads:
 - `packages/ledger/migrations/0036_a_task_is_not_an_event.sql`
 - `scripts/a-domain-union-typed-out-by-hand.unit.test.ts`
 
+### [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts)
+
+A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/semgrep.yml`
+- `apps/worker/src/index.ts`
+- `docs/testing.md`
+- `scripts/semgrep-report.mjs`
+
 ### [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts)
 
 A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
@@ -4742,13 +4779,23 @@ A MACHINE CALLED BY ITS PRODUCT NAME.
 Reads:
 
 - `.github/workflows/ci.yml`
-- `.github/workflows/e2e-o365.yml`
 - `AGENTS.md`
 - `CHANGELOG.md`
 - `docs/LESSONS.md`
 - `docs/workplans/README.md`
 - `pnpm-lock.yaml`
 - `scripts/machine-product-name.mjs`
+
+### [a-malicious-package-nothing-read](../scripts/a-malicious-package-nothing-read.unit.test.ts)
+
+A MALICIOUS PACKAGE NOTHING HERE WOULD HAVE NAMED (workplan 0163 T2; the owner's D1 of 2026-11-20).
+
+Reads:
+
+- `.github/workflows/security-scan.yml`
+- `pnpm-lock.yaml`
+- `scripts/audit-advisories.mjs`
+- `scripts/osv-report.mjs`
 
 ### [a-measurement-that-could-not-reach-the-deployments-client](../scripts/a-measurement-that-could-not-reach-the-deployments-client.unit.test.ts)
 
@@ -5011,6 +5058,8 @@ Reads:
 - `.github/workflows/images.yml`
 - `.github/workflows/release.yml`
 - `.github/workflows/security-scan.yml`
+- `.github/workflows/semgrep.yml`
+- `.github/workflows/zizmor.yml`
 - `AGENTS.md`
 - `apps/worker/package.json`
 - `apps/worker/trigger.config.ts`
@@ -5969,7 +6018,6 @@ Reads:
 - `.github/workflows/clock-watch.yml`
 - `.github/workflows/e2e-live-target.yml`
 - `.github/workflows/e2e-managed.yml`
-- `.github/workflows/e2e-o365.yml`
 - `.github/workflows/e2e.yml`
 - `.github/workflows/idp-pin-watch.yml`
 - `.github/workflows/images.yml`
@@ -6152,6 +6200,18 @@ AN APOSTROPHE IN A COMMENT TOOK THE WHOLE GATE DOWN.
 Reads:
 
 - `.github/workflows/e2e.yml`
+
+### [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts)
+
+A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/images.yml`
+- `.github/workflows/security-scan.yml`
+- `.github/workflows/windows-payload.yml`
+- `.github/workflows/zizmor.yml`
 
 ### [a-zip-no-windows-had-started](../scripts/a-zip-no-windows-had-started.unit.test.ts)
 
@@ -6534,7 +6594,6 @@ Reads:
 
 - `.github/workflows/ci.yml`
 - `.github/workflows/e2e-managed.yml`
-- `.github/workflows/e2e-o365.yml`
 - `.github/workflows/e2e.yml`
 - `apps/api/src/routes/migrations/index.ts`
 - `packages/connectors/src/takeout-archive-reader.unit.test.ts`
