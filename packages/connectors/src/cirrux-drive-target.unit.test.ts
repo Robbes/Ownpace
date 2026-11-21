@@ -295,6 +295,22 @@ describe('a new file over the simple upload’s cap: the chunked upload, encrypt
     expect(cirrux.requests.filter((r) => r.method === 'POST' && /\/drive\/uploads\/[0-9a-f-]+\/abort$/.test(r.path))).toHaveLength(1);
   });
 
+  it('part URLs Cirrux answers without part_urls fail the file, abort the upload, and leave no file', async () => {
+    // ERR-1 of 2026-11-21 named the `.then` in `partUrls`: the promise is
+    // returned, so its throw reaches the pass, and nothing is sent to storage.
+    const cirrux = new FakeCirrux({ refreshToken: 'rt-0', chunkSize: 64 });
+    const sleep = async () => undefined;
+    const tokens = new CirruxTokenProvider({ clientId: 'test-client', store: new MemoryRotatingGrantStore('rt-0'), fetchImpl: cirrux.fetch, sleep });
+    const fetchImpl = (async (input: string | URL | Request, init?: RequestInit) =>
+      /\/part_urls$/.test(String(input)) ? Response.json({}) : cirrux.fetch(input, init)) as typeof fetch;
+    const api = new CirruxDriveApi({ tokens, fetchImpl, partFetch: cirrux.partFetch, sleep });
+    const target = new CirruxDriveTarget({ api, simpleUploadMaxBytes: 100 });
+    await expect(target.upsertFile('', raw('gone.bin', pattern(200)))).rejects.toThrow(/answered \/drive\/uploads\/[0-9a-f-]+\/part_urls without part_urls/);
+    expect(cirrux.partPuts).toHaveLength(0);
+    expect([...cirrux.files.values()].some((f) => f.name === 'gone.bin')).toBe(false);
+    expect(cirrux.requests.filter((r) => r.method === 'POST' && /\/drive\/uploads\/[0-9a-f-]+\/abort$/.test(r.path))).toHaveLength(1);
+  });
+
   it('an upload Cirrux cannot decrypt is discarded by Cirrux, said in our words, and leaves no file', async () => {
     const { cirrux, api } = setup({ simpleMax: 100, chunkSize: 64 });
     const tampered = new CirruxDriveTarget({

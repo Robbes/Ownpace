@@ -18,6 +18,7 @@ import path from 'node:path';
 import { execFile, execFileSync, execSync } from 'node:child_process';
 import { promisify } from 'node:util';
 import { nextcloudImageAsked, versionstringOf, wrongServer } from './nextcloud-image.ts';
+import { appendToTestLog, removeContainerOrGone } from './container-chores.ts';
 
 const execFileAsync = promisify(execFile);
 
@@ -54,25 +55,13 @@ function createFileLogConsumer(logFileName: string): (stream: NodeJS.ReadableStr
   
   return (logStream: NodeJS.ReadableStream) => {
     logStream.on('data', (line: string) => {
-      try {
-        appendFileSync(logFilePath, line + '\n');
-      } catch {
-        // Ignore write errors - container might be shutting down
-      }
+      appendToTestLog(logFilePath, line + '\n');
     });
     logStream.on('err', (line: string) => {
-      try {
-        appendFileSync(logFilePath, `[ERR] ${line}\n`);
-      } catch {
-        // Ignore write errors
-      }
+      appendToTestLog(logFilePath, `[ERR] ${line}\n`);
     });
     logStream.on('end', () => {
-      try {
-        appendFileSync(logFilePath, `\n=== ${logFileName} ended ===\n`);
-      } catch {
-        // Ignore
-      }
+      appendToTestLog(logFilePath, `\n=== ${logFileName} ended ===\n`);
       console.log(`[TestLogs] Log stream completed for: ${logFileName}`);
     });
   };
@@ -105,25 +94,13 @@ async function streamContainerLogs(
   try {
     const logStream = await container.logs();
     logStream.on('data', (line: string) => {
-      try {
-        appendFileSync(logFilePath, line + '\n');
-      } catch {
-        // Ignore write errors - container might be shutting down
-      }
+      appendToTestLog(logFilePath, line + '\n');
     });
     logStream.on('err', (line: string) => {
-      try {
-        appendFileSync(logFilePath, `[ERR] ${line}\n`);
-      } catch {
-        // Ignore write errors
-      }
+      appendToTestLog(logFilePath, `[ERR] ${line}\n`);
     });
     logStream.on('end', () => {
-      try {
-        appendFileSync(logFilePath, `\n=== ${logFileName} ended ===\n`);
-      } catch {
-        // Ignore
-      }
+      appendToTestLog(logFilePath, `\n=== ${logFileName} ended ===\n`);
       console.log(`[TestLogs] Log stream ended for: ${logFileName}`);
     });
   } catch (err) {
@@ -732,7 +709,7 @@ async function startStalwart(): Promise<{
   
   if (attempts >= maxAttempts) {
     console.warn('[StalwartSetup] Container still appearing, forcing removal...');
-    await execFileAsync('docker', ['rm', '-f', stopContainerId]).catch(() => {});
+    await removeContainerOrGone(stopContainerId, execFileAsync);
     await new Promise(resolve => setTimeout(resolve, 3000));
   }
 
