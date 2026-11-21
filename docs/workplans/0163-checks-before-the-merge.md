@@ -29,6 +29,15 @@ silent (T5, its first part).** On `claude/ownpace-public-readiness-y7orc6-semgre
   - `RULES` now says per rule whether it blocks (`blocks`). None does yet, so no time-out fails a
     run today. A guard test fails once one does, so the pull request that turns a rule blocking
     names it there, and makes that rule's findings fail the job too (§5, step 5).
+- **What CI read.** This pull request's Semgrep run on GitHub's runner (44881446419) read 207
+  spots and listed 7 places, each with 2 to 4 rules timed out: 5 naming
+  `js-open-redirect-from-function` first and 2 naming `path-join-resolve-traversal`. So in CI a
+  time-out can hide a spot of a rule that may block.
+  - Semgrep's limit is 0.2 s of taint analysis per function (`taint_FIXPOINT_TIMEOUT` in its
+    `src/configuring/Limits_semgrep.ml`). No option raises it, and a slower machine reaches it in
+    more places.
+  - Turning either rule blocking as things stand would make every run on `main` a scan that did
+    not finish. So step 5 first chooses how that rule's time-outs are read.
 - **Tests:** the guard `a-finding-only-an-outside-check-saw` has 22 tests (18 before). Twelve
   mutations of the report each fail it.
 
@@ -221,7 +230,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned**; ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
-| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); 🔨 **the time-outs first**, on `claude/ownpace-public-readiness-y7orc6-semgrep-timeouts` | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish (Status, 2026-11-21, last). |
+| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); 🔨 **the time-outs first**, on `claude/ownpace-public-readiness-y7orc6-semgrep-timeouts` | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, last). |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
