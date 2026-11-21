@@ -18,13 +18,13 @@
 - **Pre-release ended with `v0.2.0-alpha.1`** (tagged 2026-10-06; `scripts/release-line.json`'s `preReleaseEndedAt`): both chains only grow. A migration a release shipped is never edited, renamed, squashed or deleted; a change is a new file. `scripts/a-chain-that-only-grows.unit.test.ts` holds it, and `scripts/squash-migrations.sh`, which made `0001_baseline.sql` by dumping an applied database, refuses.
 - Nothing may sort below a chain's baseline; `scripts/a-command-the-docs-told-you-to-run.unit.test.ts` enforces it, because the runner applies files in sorted order.
 
-> **Update 2026-11-21 (workplan 0165, the owner's D3).** An outside, read-only check counted
+> **Update 2026-11-21 (workplan 0165, D3).** An outside, read-only check counted
 > migrations that lock a table. Each file already ran in one transaction, and no file or the
 > runner set a lock timeout, so a migration asking for a strong lock behind a long query waited,
 > and every query on that table queued behind it. `applyOne` now sets `SET LOCAL lock_timeout`
-> to `MIGRATION_LOCK_TIMEOUT` (5 s, the builder's choice) before each file. It ends with the
+> to `MIGRATION_LOCK_TIMEOUT` (5 s; D3 named no value) before each file. It ends with the
 > file's transaction, so the advisory lock taken before any file still waits for another
-> migrator. The owner also answered, with D4, that no file runs outside a transaction.
+> migrator. D4 keeps every file inside a transaction.
 
 ## Context
 

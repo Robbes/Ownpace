@@ -15,7 +15,8 @@
  *   - for every other file, which is history (an applied migration never
  *     changes, ADR-0045), a count per rule;
  *   - each rule that no migration here can meet while each file is one
- *     transaction, marked as such;
+ *     transaction, marked as such, and each rule the runner meets for every
+ *     file (a lock timeout), marked as met and given no warning;
  *   - each file squawk could not read, with what it said.
  *
  * It exits 0 whatever it found, a file it could not read included: that is a
@@ -42,6 +43,17 @@ export const SQUAWK_ARGS = ['--reporter', 'gcc', '--assume-in-transaction', '--p
 export const CANNOT_BE_MET = new Map([
   ['require-concurrent-index-creation', 'CREATE INDEX CONCURRENTLY cannot run inside a transaction, and every migration file is one'],
   ['require-concurrent-index-deletion', 'DROP INDEX CONCURRENTLY cannot run inside a transaction, and every migration file is one'],
+]);
+
+/**
+ * Rules the runner meets for every file, which squawk, reading each file
+ * alone, cannot see: `applyOne` sets `lock_timeout` for each file's own
+ * transaction (`MIGRATION_LOCK_TIMEOUT`, packages/ledger/src/migrate.ts;
+ * workplan 0165, D3 and T4). Such a finding is listed and counted, marked as
+ * met, and gets no warning on its line.
+ */
+export const MET_BY_THE_RUNNER = new Map([
+  ['require-lock-timeout', 'runMigrations sets lock_timeout for each file (MIGRATION_LOCK_TIMEOUT, packages/ledger/src/migrate.ts)'],
 ]);
 
 const GCC_LINE = /^(.+?):(\d+):(\d+):\s*(\w+):\s*(.*)$/;
@@ -115,8 +127,9 @@ export function report({ version, files, changed, results }) {
       const r = results.get(file);
       for (const f of r?.findings ?? []) {
         const why = CANNOT_BE_MET.get(f.rule);
-        rows.push(`| \`${file}:${f.line}\` | \`${f.rule}\`${why ? ' (cannot be met here)' : ''} | ${cell(f.message)} |`);
-        annotations.push(`::warning file=${file},line=${f.line},title=squawk ${f.rule}::${command(f.message)}`);
+        const met = MET_BY_THE_RUNNER.has(f.rule);
+        rows.push(`| \`${file}:${f.line}\` | \`${f.rule}\`${why ? ' (cannot be met here)' : met ? ' (met by the runner)' : ''} | ${cell(f.message)} |`);
+        if (!met) annotations.push(`::warning file=${file},line=${f.line},title=squawk ${f.rule}::${command(f.message)}`);
       }
     }
     if (rows.length === 0) out.push('squawk found nothing in them.', '');
@@ -139,7 +152,7 @@ export function report({ version, files, changed, results }) {
   } else {
     out.push('| Rule | Places | Files | Note |', '|---|---:|---:|---|');
     for (const [rule, seen] of [...byRule].sort((a, b) => b[1].places - a[1].places || a[0].localeCompare(b[0]))) {
-      out.push(`| \`${rule}\` | ${seen.places} | ${seen.files.size} | ${CANNOT_BE_MET.has(rule) ? `cannot be met here: ${CANNOT_BE_MET.get(rule)}` : ''} |`);
+      out.push(`| \`${rule}\` | ${seen.places} | ${seen.files.size} | ${CANNOT_BE_MET.has(rule) ? `cannot be met here: ${CANNOT_BE_MET.get(rule)}` : MET_BY_THE_RUNNER.has(rule) ? `met by the runner: ${MET_BY_THE_RUNNER.get(rule)}` : ''} |`);
     }
     out.push('');
   }

@@ -23,6 +23,8 @@ export type Run = { readonly findings: ReadonlyArray<Finding>; readonly unread?:
 export const CHAINS: ReadonlyArray<string>;
 export const SQUAWK_ARGS: ReadonlyArray<string>;
 export const CANNOT_BE_MET: ReadonlyMap<string, string>;
+/** Rules the runner meets for every file (a lock timeout), marked as met and given no warning. */
+export const MET_BY_THE_RUNNER: ReadonlyMap<string, string>;
 
 export function parseGcc(output: string): Finding[];
 export function readRun(run: { status: number | null; stdout?: string; stderr?: string; error?: Error }): Run;

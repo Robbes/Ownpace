@@ -135,7 +135,7 @@ describe('runMigrations against a driver', () => {
 });
 
 /**
- * A LOCK TIMEOUT PER FILE (workplan 0165, the owner's D3 of 2026-11-21). A
+ * A LOCK TIMEOUT PER FILE (workplan 0165, D3 of 2026-11-21). A
  * file that waits for a table lock gives up after MIGRATION_LOCK_TIMEOUT
  * rather than queueing every query on that table behind it. Set with `SET
  * LOCAL` inside the file's own transaction, before the file runs, so it ends

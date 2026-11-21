@@ -56,7 +56,7 @@ const DEFAULT_BOOKKEEPING_TABLE = 'schema_migrations';
 
 /**
  * How long a migration file may WAIT for a table lock before it gives up
- * (workplan 0165, the owner's D3 of 2026-11-21).
+ * (workplan 0165, D3 of 2026-11-21).
  *
  * Each file runs in one transaction, so every lock it takes is held to its
  * COMMIT. Asking for a strong lock (an `ALTER TABLE`, a `CREATE INDEX`) while a
@@ -71,7 +71,7 @@ const DEFAULT_BOOKKEEPING_TABLE = 'schema_migrations';
  * is never cut short. It bounds the wait for a lock, not the work: there is
  * deliberately no `statement_timeout`, since a migration that holds its lock
  * and is working, such as an index build, should finish rather than be cut off
- * halfway. Five seconds is the builder's choice; D3 named no value. Moving it
+ * halfway. D3 named no value, so five seconds is chosen here. Moving it
  * is this one line.
  */
 export const MIGRATION_LOCK_TIMEOUT = '5s';

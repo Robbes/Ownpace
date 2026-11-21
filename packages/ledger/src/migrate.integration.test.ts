@@ -142,7 +142,7 @@ describe('runMigrations', () => {
 });
 
 /**
- * A FILE THAT WAITS FOR A LOCK GIVES UP (workplan 0165, the owner's D3 of
+ * A FILE THAT WAITS FOR A LOCK GIVES UP (workplan 0165, D3 of
  * 2026-11-21). Another connection holds a lock on a table, in an open
  * transaction, as a long query would; a migration that alters that table must
  * fail within its lock timeout, apply nothing, record nothing, and apply on the
