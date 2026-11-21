@@ -23,8 +23,8 @@ test fail. The selection query ran on a real Postgres
 with both chains: it chose the newest of three qualifying migrations and skipped a closed
 organisation, a migration without calendars, a withdrawn grant and a CalDAV source. The sign-in
 mints an access token as every pass does and keeps it in memory; nothing is written.
-- **Next:** the owner runs it on the test environment, by *How to run T1* (§3.1), once E2E
-  (managed) has run on the branch. What it prints goes here, then T2 on what it shows.
+- **Next:** the owner runs it on the test environment, by *How to run T1* (§3.1), from `main`.
+  What it prints goes here, then T2 on what it shows.
 
 **2026-11-21: the decisions (T0), each as advised.** Nothing is built yet. §5 has each one.
 - **(a) The reader:** A, `sync-collection`, measured first (T1). B, Google's Calendar API, only if
@@ -124,21 +124,22 @@ B. A member with another status (a 410, say) is named, not counted as either.
 
 #### How to run T1
 
-On the test environment's host, after E2E (managed) has run on the branch. The command needs this
-branch's checkout, the stack's database and its `.env`; nothing deployed runs it.
+On the test environment's host. The command needs a checkout of `main` that has it, the stack's
+database and its `.env`; nothing deployed runs it, so the checkout is a folder of its own.
 
 Before step 1, in Google Calendar, in the account the test migration copies from: have two events
 made for this test, there before step 5 starts (make two, on any day, if there are none). The
 command asks you to change one and delete the other.
 
-1. `git -C ~/ownpace-managed fetch origin claude/ownpace-public-readiness-y7orc6-0164-t1-measure`
+1. `git -C ~/ownpace-managed fetch origin main`
 2. `git -C ~/ownpace-managed worktree add --detach ~/ownpace-0164-t1 FETCH_HEAD`
 3. `ln -s ~/ownpace-managed/deploy/compose/.env ~/ownpace-0164-t1/deploy/compose/.env`
 4. `cd ~/ownpace-0164-t1 && pnpm install --frozen-lockfile`
 5. `cd ~/ownpace-0164-t1 && ./deploy/compose/operator.sh measure-google-sync`
 
-   It prints the migration it chose, by id and creation date: check that it is the test migration
-   (Ctrl-C stops it at any point, and nothing at Google has changed). It reads every calendar,
+   It prints the migration it chose, by id and creation date: check that it is the test migration,
+   whose page in Ownpace has that id at the end of its address (Ctrl-C stops it at any point, and
+   nothing at Google has changed). It reads every calendar,
    then asks, in English and Dutch, for the change and the deletion. Make both at Google, come
    back, and press Enter. It reads every calendar again and ends with `Verdict:`. Send back all it
    printed: it is counts and status codes only.
