@@ -24,7 +24,8 @@ import Verify from './Verify.tsx';
 import { LocaleProvider } from '../i18n/index.tsx';
 import * as service from '../services/operating-service.ts';
 import type { VerificationResult } from '@openmig/shared';
-import { VERIFICATION_DOMAINS } from '@openmig/shared';
+import { A_TEST_IS_NOT_SWITCHED_OVER, VERIFICATION_DOMAINS } from '@openmig/shared';
+import { STRINGS } from '../i18n/strings.ts';
 
 vi.mock('../services/operating-service', () => ({
   startVerification: vi.fn(),
@@ -594,5 +595,59 @@ describe('what the check found, in the reader’s words (owner, 2026-10-18)', ()
     expect(core).toMatch(/'NOT_VERIFIABLE',[^;]*TARGET_UNREAD,\s*\);/);
     expect(core).toContain('id: `MISSING_${dataType}`');
     expect(core).toContain('id: `CHECKSUM_${dataType}`');
+  });
+});
+
+/**
+ * A TEST MIGRATION IS NEVER SWITCHED OVER (workplan 0162 §2 (e), T3).
+ *
+ * Its check is measured as any other's and may pass; its report carries the
+ * marker and `canProceedToCutover: false`. The sentence a person acts on says
+ * why, in the reader's language, from the shared sentence the cutover's doors
+ * say, and not from the recommendation's English. Without a marker the same
+ * passing report says it is ready.
+ */
+describe('a test migration’s check (workplan 0162 T3)', () => {
+  const TEST: VerificationResult = {
+    ...RESULT,
+    canProceedToCutover: false,
+    testMarker: '[Ownpace-test]',
+    recommendations: [A_TEST_IS_NOT_SWITCHED_OVER.en],
+  };
+
+  async function renderIn(locale: 'en' | 'nl', result: VerificationResult) {
+    window.localStorage.setItem('ownpace.locale', locale);
+    fetched.mockResolvedValue({
+      state: 'done',
+      startedAt: '2026-07-31T12:00:00Z',
+      finishedAt: '2026-07-31T12:03:00Z',
+      report: { 'mapping-1': result },
+    });
+    render(
+      <LocaleProvider>
+        <MemoryRouter><Verify /></MemoryRouter>
+      </LocaleProvider>,
+    );
+    await screen.findByRole('link', { name: 'mapping-1' });
+  }
+
+  /** Outside the closed fold, where the recommendation's English stays. */
+  const shown = (text: string) => screen.queryAllByText(text, { exact: false }).filter((el) => el.closest('details') === null);
+
+  it.each(['en', 'nl'] as const)('says it is not switched over, in %s, though the check passed', async (locale) => {
+    await renderIn(locale, TEST);
+
+    expect(shown(A_TEST_IS_NOT_SWITCHED_OVER[locale])).toHaveLength(1);
+    expect(shown(STRINGS[locale]['verify.ready'])).toEqual([]);
+    expect(shown(STRINGS[locale]['verify.notReady'])).toEqual([]);
+    // The verdict is still the check's own.
+    expect(screen.getAllByText(STRINGS[locale]['verify.verdict.PASS']).length).toBeGreaterThan(0);
+  });
+
+  it('says the same passing report is ready, without a marker', async () => {
+    await renderIn('en', RESULT);
+
+    expect(shown(STRINGS.en['verify.ready'])).toHaveLength(1);
+    expect(shown(A_TEST_IS_NOT_SWITCHED_OVER.en)).toEqual([]);
   });
 });

@@ -35,7 +35,8 @@
  * PREPARING first, then prepare, so the trail shows the second attempt; a
  * cutover under way or a completed ledger → refuse, and write nothing. A refusal is not a failed
  * cutover and a gate verdict is not a fault, so neither is retried
- * (`preparationFailurePolicy`).
+ * (`preparationFailurePolicy`). A test migration (workplan 0162 T3) is
+ * refused before the ledger is read: it is never switched over.
  *
  * Trigger: Manual (user-initiated)
  */
@@ -43,7 +44,13 @@
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
 import { z } from 'zod';
-import { asTenantId, asMappingId, DISCOVERY_DOMAINS, type DiscoveryDomain } from '@openmig/shared';
+import {
+  asTenantId,
+  asMappingId,
+  A_TEST_IS_NOT_SWITCHED_OVER,
+  DISCOVERY_DOMAINS,
+  type DiscoveryDomain,
+} from '@openmig/shared';
 import { AbortTaskRunError, configure, schemaTask } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
 import { tenantCutoverStore, bindCutoverLedger, type CutoverStateStore } from '@openmig/ledger';
@@ -59,7 +66,7 @@ import {
 import { log as appLog } from '@openmig/shared';
 import { openTaskPools } from './task-pools.ts';
 import { finalSyncReport, type FinalSyncReport } from './final-sync.ts';
-import { runCutoverGate } from './cutover-gate.ts';
+import { runCutoverGate, testMarkerOf } from './cutover-gate.ts';
 
 // Job input schema
 const CutoverJobSchema = z.object({
@@ -113,6 +120,13 @@ export interface CutoverPreparationDeps {
    * migration. It decides which cutover may begin (`cutoverBeginRefusal`).
    */
   domain?: DiscoveryDomain;
+  /**
+   * The migration's test marker (workplan 0162 T3), when it is a test; the
+   * task reads it from the migration's row (`testMarkerOf`). A test is never
+   * switched over, so its preparation is refused before anything is read or
+   * written.
+   */
+  testMarker?: string;
   cutoverStore: Pick<
     CutoverStateStore,
     'initializeCutover' | 'loadCutoverState' | 'transitionState' | 'getEventHistory' | 'loadLedgers'
@@ -192,6 +206,15 @@ export async function prepareCutover(
 ): Promise<CutoverPreparationResult> {
   const tenantId = asTenantId(deps.tenantId);
   const mappingId = asMappingId(deps.mappingId);
+
+  // A test migration is never switched over (workplan 0162 §2 (e), T3), so
+  // its cutover is never prepared: no ledger is made, no final sync runs and
+  // no gate is asked, and READY_FOR_CUTOVER is never reached. A refusal, not
+  // a failed cutover, so nothing is recorded and nothing is retried.
+  if (deps.testMarker !== undefined) {
+    deps.log(`${A_TEST_IS_NOT_SWITCHED_OVER.en} Nothing was changed.`);
+    throw new CutoverRefused(A_TEST_IS_NOT_SWITCHED_OVER.en, 'Nothing was changed.');
+  }
 
   // The whole migration's preparation does not begin once a data type has a
   // cutover of its own (0128 T5, slice 5b), nor a data type's own while the
@@ -356,10 +379,14 @@ export const runCutover = schemaTask({
     const cutoverStore = domain === undefined ? wholeLedger : bindCutoverLedger(wholeLedger, domain);
 
     try {
+      // A test migration's marker, from its own row, where it never changes
+      // (workplan 0162 T3): its preparation is refused at once.
+      const testMarker = await testMarkerOf(pool, tenantId, mappingId);
       return await prepareCutover({
         tenantId,
         mappingId,
         ...(domain !== undefined ? { domain } : {}),
+        ...(testMarker !== undefined ? { testMarker } : {}),
         cutoverStore,
         // The shared log, not `ctx.logger`: Trigger.dev v4's TaskRunContext
         // carries run metadata only (task/attempt/run/queue/environment/...) and
