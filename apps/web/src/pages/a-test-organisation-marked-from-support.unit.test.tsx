@@ -18,12 +18,16 @@
  *     organisation holds a migration, nothing is marked or unmarked.
  *  5. **A test migration carries a *Test* badge** on the organisation's list
  *     of migrations.
+ *  6. **Only while it is open**: an organisation that is not is offered no
+ *     marking at all, and the field never carries over from one organisation
+ *     to the next, nor sets a length of its own: the API is the judge.
  *
  * English only, as every operator screen (ADR-0013, amended 2026-10-11).
  */
 
+import type React from 'react';
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AxiosError, AxiosHeaders } from 'axios';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -189,6 +193,74 @@ describe('marking it', () => {
     fireEvent.click(here.getByRole('button', { name: S['support.test.yes'] }));
     expect(await here.findByRole('alert')).toHaveTextContent(fill(S['support.test.failed'], { message: HOLDS }));
     expect(here.queryByRole('status')).not.toBeInTheDocument();
+  });
+});
+
+describe('the same marker again', () => {
+  it('says that nothing changed, in the API’s answer', async () => {
+    vi.mocked(setSupportTestMarker).mockResolvedValue({ testMarker: '[Ownpace-test]', unchanged: true });
+    mountDetail(ORG);
+    const here = within(await section());
+    fireEvent.click(here.getByRole('button', { name: S['support.test.arm'] }));
+    fireEvent.click(here.getByRole('button', { name: S['support.test.yes'] }));
+    expect(await here.findByRole('status')).toHaveTextContent(
+      fill(S['support.test.unchanged'], { marker: '[Ownpace-test]' }),
+    );
+  });
+});
+
+describe('only while it is open, and only for the organisation on the page', () => {
+  it.each(['closed', 'deleting'])('%s: says what it is, and offers no marking at all', async (status) => {
+    mountDetail({ ...MARKED, tenant_status: status });
+    const here = within(await section());
+    expect(here.getByText(S['support.test.notOpen'])).toBeInTheDocument();
+    expect(here.getByText('[Ownpace-test]', { selector: 'code' })).toBeInTheDocument();
+    expect(here.queryByRole('textbox')).not.toBeInTheDocument();
+    expect(here.queryByRole('button')).not.toBeInTheDocument();
+  });
+
+  it('sets no length of its own on the field: the API counts the marker, trimmed', async () => {
+    mountDetail(ORG);
+    expect(within(await section()).getByRole('textbox')).not.toHaveAttribute('maxlength');
+  });
+
+  it('offers the next organisation its own marker, not what was typed for the last', async () => {
+    const OTHER: SupportTenant = { ...ORG, tenant_id: '0162d100-0000-0000-0000-000000000002', tenant_name: 'Ander BV' };
+    vi.mocked(getSupportTenant).mockImplementation(async (id: string) => ({
+      tenant: id === OTHER.tenant_id ? OTHER : ORG,
+      connections: [],
+      migrations: [],
+      invoices: [],
+      members: [],
+    }));
+    const Next: React.FC = () => {
+      const navigate = useNavigate();
+      return (
+        <button type="button" onClick={() => navigate(`/support/tenants/${OTHER.tenant_id}`)}>
+          next organisation
+        </button>
+      );
+    };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/support/tenants/${ORG.tenant_id}`]}>
+          <Next />
+          <Routes>
+            <Route path="/support/tenants/:tenantId" element={<SupportTenantDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    const first = within(await section());
+    fireEvent.change(first.getByRole('textbox'), { target: { value: '[Typed-for-Proefjes]' } });
+    fireEvent.click(first.getByRole('button', { name: S['support.test.arm'] }));
+    fireEvent.click(screen.getByRole('button', { name: 'next organisation' }));
+    await screen.findByRole('heading', { name: /Ander BV/ });
+    const next = within(await section());
+    expect(next.getByRole('textbox')).toHaveValue('[Ownpace-test]');
+    expect(next.getByRole('button', { name: S['support.test.arm'] })).toBeEnabled();
+    expect(next.queryByText(fill(S['support.test.confirm'], { name: 'Ander BV', marker: '[Typed-for-Proefjes]' }))).toBeNull();
   });
 });
 

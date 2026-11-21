@@ -12,6 +12,8 @@
  *   row, under the operator, and a refused one writes none.
  * - **The marker's form.** Required, trimmed, 3 to 64 printable characters:
  *   400 `bad_marker` otherwise, before anything is read.
+ * - **Only while it is open.** 409 `not_open` for a closed organisation, and
+ *   nothing written; the same marker again changes and records nothing.
  * - **Only while it holds no migration.** 409 `holds_a_migration` with the
  *   sentence the screen shows, for a draft and a finished migration alike,
  *   and for a clear as for a set.
@@ -54,9 +56,10 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../middleware/auth.ts')>();
   return {
     ...actual,
-    authenticateSubject: (req: express.Request, res: express.Response, next: express.NextFunction) => {
-      if (caller === undefined) return void res.status(401).json({ error: 'Unauthorized' });
-      Object.assign(req, { userId: caller });
+    // Nobody signed in passes through with no subject, so that the 401 a
+    // test meets is the route's own, not this stand-in's.
+    authenticateSubject: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+      if (caller !== undefined) Object.assign(req, { userId: caller });
       next();
     },
     authenticate: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
@@ -67,7 +70,7 @@ vi.mock('../middleware/auth.ts', async (importOriginal) => {
   };
 });
 
-const { default: supportRoutes } = await import('./support.ts');
+const { default: supportRoutes, oneUuid } = await import('./support.ts');
 const { default: migrationRoutes } = await import('./migrations/index.ts');
 const { markAsTestAsOperator, unmarkTestAsOperator } = await import('../test-organisation.ts');
 const { NotAnAppointedOperator } = await import('../close-account.ts');
@@ -189,6 +192,44 @@ describe('the operator marks an organisation as a test, and clears it', () => {
       ['tenant.test_marker_cleared', { marker: '[Ownpace-test]', via: 'operator' }],
     ]);
   });
+
+  it('the same marker again changes nothing, records nothing, and says so', async () => {
+    await mark(TEST_ORG, { marker: '[Ownpace-test]' });
+    const again = await mark(TEST_ORG, { marker: ' [Ownpace-test] ' });
+    expect(again.status).toBe(200);
+    expect(again.body).toEqual({ testMarker: '[Ownpace-test]', unchanged: true });
+    expect(await markerOf(TEST_ORG)).toBe('[Ownpace-test]');
+    expect((await audit(TEST_ORG)).map((a) => a.action)).toEqual(['tenant.test_marker_set']);
+  });
+
+  it('reads an id typed in capitals as the organisation it names', async () => {
+    expect(oneUuid(TEST_ORG.toUpperCase())).toBe(TEST_ORG);
+    expect(oneUuid('not-a-uuid')).toBeNull();
+    const res = await mark(TEST_ORG.toUpperCase(), { marker: '[Ownpace-test]' });
+    expect(res.status).toBe(200);
+    expect(await markerOf(TEST_ORG)).toBe('[Ownpace-test]');
+    expect((await unmark(TEST_ORG.toUpperCase())).body).toEqual({ testMarker: null, cleared: '[Ownpace-test]' });
+  });
+});
+
+describe('only while the organisation is open, as the close and the reopen ask', () => {
+  it('a closed organisation is neither marked nor unmarked, and nothing is written', async () => {
+    await mark(TEST_ORG, { marker: '[Ownpace-test]' });
+    await q(`UPDATE tenant SET status = 'closed' WHERE id = $1`, [TEST_ORG]);
+    try {
+      for (const res of [await mark(TEST_ORG, { marker: '[Other-test]' }), await unmark(TEST_ORG)]) {
+        expect(res.status).toBe(409);
+        expect(res.body).toEqual({
+          error: 'not_open',
+          message: 'It is closed: an organisation is marked as a test, or no longer, only while it is open',
+        });
+      }
+      expect(await markerOf(TEST_ORG)).toBe('[Ownpace-test]');
+      expect((await audit(TEST_ORG)).map((a) => a.action)).toEqual(['tenant.test_marker_set']);
+    } finally {
+      await q(`UPDATE tenant SET status = 'active' WHERE id = $1`, [TEST_ORG]);
+    }
+  });
 });
 
 describe('anybody else gets a 404, as for reopen, and nothing is written', () => {
@@ -216,9 +257,13 @@ describe('anybody else gets a 404, as for reopen, and nothing is written', () =>
     expect(await q(`SELECT 1 FROM test_organisation`)).toEqual([]);
   });
 
-  it('nobody signed in', async () => {
+  it('nobody signed in: the route’s own 401, from either door', async () => {
     caller = undefined;
-    expect((await mark(TEST_ORG, { marker: '[Ownpace-test]' })).status).toBe(401);
+    for (const res of [await mark(TEST_ORG, { marker: '[Ownpace-test]' }), await unmark(TEST_ORG)]) {
+      expect(res.status).toBe(401);
+      expect(res.body).toEqual({ error: 'Unauthorized', message: 'No subject on this request' });
+    }
+    expect(await markerOf(TEST_ORG)).toBeUndefined();
   });
 
   // ASKED TWICE, AS THE CLOSE IS: the route asks the operator's view first,
@@ -248,6 +293,8 @@ describe('the marker is required, and its form is held before anything is read',
     ['too long', { marker: 'a'.repeat(65) }],
     ['a control character', { marker: '[Own\u0007pace]' }],
     ['a character that prints nothing', { marker: '[Own\u200bpace]' }],
+    ['a character that looks blank', { marker: '[Own\u00a0pace]' }],
+    ['a filler', { marker: '[Own\u3164pace]' }],
     ['not text', { marker: 42 }],
   ])('%s: 400 bad_marker, and nothing written', async (_what, body) => {
     const res = await mark(TEST_ORG, body);

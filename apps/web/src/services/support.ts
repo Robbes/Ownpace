@@ -343,10 +343,14 @@ export async function reopenSupportTenant(tenantId: string, reference: string): 
 /**
  * Mark an organisation as a test, with the marker typed, or replace its
  * marker (workplan 0162 T1): recorded as `tenant.test_marker_set`. Refused
- * while the organisation holds a migration, in the API's own sentence.
+ * while the organisation holds a migration, or is not open, in the API's own
+ * sentence. The marker it already had answers `unchanged`, and records nothing.
  */
-export async function setSupportTestMarker(tenantId: string, marker: string): Promise<{ testMarker: string }> {
-  const response = await apiClient.post<{ testMarker: string }>(
+export async function setSupportTestMarker(
+  tenantId: string,
+  marker: string,
+): Promise<{ testMarker: string; replaced?: string; unchanged?: true }> {
+  const response = await apiClient.post<{ testMarker: string; replaced?: string; unchanged?: true }>(
     `/support/tenants/${encodeURIComponent(tenantId)}/test`,
     { marker },
   );

@@ -1,7 +1,7 @@
 // Copyright 2026 The Ownpace authors (Apache-2.0)
 
 /**
- * A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, and no update anywhere may name it (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
+ * A TEST MARKER ONLY A CREATE WRITES: a migration's marker is written when it is made and never again, which 0070's trigger guarantees, and this guard warns of any update that names it before the merge (workplan 0162 T1, §3; the owner's §2 (c); ADR-0053).
  *
  * A test migration copies only the items whose own title carries its marker
  * (`mailbox_mapping.test_marker`, ledger migration 0070). Taking the marker
@@ -10,27 +10,37 @@
  * `POST /api/migrations` writes it once, in the transaction that creates the
  * migration, copied from the organisation, and nothing writes it afterwards.
  *
- * 0070's BEFORE UPDATE trigger refuses a change for every role, at the
- * database. This is the second net, before the merge: it reads every update
- * of `mailbox_mapping` in the repository and refuses any that names the
- * column, so a door that tried would be red here rather than a refusal
- * somebody meets on live. It reads:
+ * **The guarantee is 0070's BEFORE UPDATE trigger**, which refuses any change
+ * of the column, for every role, at the database. This guard is an early
+ * warning, before the merge: it reads every update of `mailbox_mapping` it can
+ * recognise in the repository and refuses any that names the column, so a
+ * door that tried is red here rather than a refusal somebody meets on live.
+ * It reads:
  *
  *  - **SQL, in every tracked file that can carry it** (TypeScript, scripts,
  *    shell, SQL, workflows and docs): each `UPDATE` of the table, to the end of
- *    its statement, and each `INSERT` into it with an `ON CONFLICT … DO
- *    UPDATE`, whose update half is read;
- *  - **drizzle, from the syntax tree**: each `.update(…mailboxMapping)` and
- *    the keys its `.set(…)` writes, and each `.insert(…mailboxMapping)` with an
- *    `.onConflictDoUpdate({ set })`. A spread is followed to the object it
- *    spreads: its declaration's literal, and every `x.key = …` and
+ *    its statement, each `INSERT` into it with an `ON CONFLICT … DO UPDATE`,
+ *    whose update half is read, and each `MERGE INTO` it, whose `UPDATE SET`
+ *    clauses are read. A statement ends at its first `;` outside a quoted
+ *    literal, so `'a;b'` does not end one;
+ *  - **drizzle, from the syntax tree**: each `.update(table).set(…)` and each
+ *    `.insert(table)…onConflictDoUpdate({ set })`. The table must be named as
+ *    itself, `schema.<table>` or an imported table, so that `mailboxMapping`
+ *    cannot hide behind another name: an alias (`const t = schema.mailboxMapping`),
+ *    `schema['mailboxMapping']`, or any table argument that is not a defined
+ *    table's own name is refused, whichever table it is. For `mailboxMapping`,
+ *    the keys its `.set(…)` writes are read, and a spread is followed to the
+ *    object it spreads: its declaration's literal, and every `x.key = …` and
  *    `Object.assign(x, …)` in the function around it, as the PUT route builds
  *    its `updateData`. A key it cannot read refuses too: a `.set()` whose keys
  *    nobody can see is one that could name the marker.
  *
- * Tests are not read: the trigger's own proof updates the column on purpose,
- * to watch it refused (`packages/ledger/src/__tests__/the-marker-column.ts`).
- * The planted cases below are this guard's own proof that it catches one.
+ * What it cannot see, the trigger still refuses: SQL built by concatenating
+ * strings, a column named through `sql.identifier()`, a statement longer than
+ * forty lines before its end, and the tests, which are not read because the
+ * trigger's own proof updates the column on purpose, to watch it refused
+ * (`packages/ledger/src/__tests__/the-marker-column.ts`). The planted cases
+ * below are this guard's own proof that it catches what it can see.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -60,7 +70,7 @@ function trackedFiles(): string[] {
 /** One update found: where, what it is, and why it is refused, if it is. */
 export interface Update {
   readonly where: string;
-  readonly kind: 'sql update' | 'sql upsert' | 'drizzle update' | 'drizzle upsert';
+  readonly kind: 'sql update' | 'sql upsert' | 'sql merge' | 'drizzle update' | 'drizzle upsert';
   /** Null when it names no marker; otherwise why it is refused. */
   readonly refused: string | null;
 }
@@ -68,14 +78,47 @@ export interface Update {
 const TABLE = String.raw`(?:ONLY\s+)?(?:"?public"?\s*\.\s*)?"?mailbox_mapping(?![A-Za-z0-9_])"?`;
 const SQL_UPDATE = new RegExp(String.raw`\bUPDATE\s+${TABLE}`, 'gi');
 const SQL_INSERT = new RegExp(String.raw`\bINSERT\s+INTO\s+${TABLE}`, 'gi');
+const SQL_MERGE = new RegExp(String.raw`\bMERGE\s+INTO\s+${TABLE}`, 'gi');
 
 /**
- * A statement from its first word to its end: the next `;`, or forty lines on,
- * whichever comes first, since a statement in a shell script ends at its line
- * and a template literal's at its backtick.
+ * Where a quoted SQL literal that opens at `open` closes, or -1. A literal
+ * closes on its own line (a doubled `''` inside it is a quote, not its end); a
+ * quote that does not close on its line, such as the one that ends a
+ * JavaScript string around the statement, is read as text.
+ */
+function closingQuote(text: string, open: number): number {
+  for (let at = open + 1; at < text.length; at++) {
+    const c = text[at];
+    if (c === '\n') return -1;
+    if (c === "'") {
+      if (text[at + 1] === "'") {
+        at += 1;
+        continue;
+      }
+      return at;
+    }
+  }
+  return -1;
+}
+
+/**
+ * A statement from its first word to its end: the next `;` outside a quoted
+ * literal, or forty lines on, whichever comes first, since a statement in a
+ * shell script ends at its line and a template literal's at its backtick.
  */
 function statementFrom(text: string, at: number): string {
-  const end = text.indexOf(';', at);
+  let end = -1;
+  for (let i = at; i < text.length; i++) {
+    const c = text[i];
+    if (c === ';') {
+      end = i;
+      break;
+    }
+    if (c === "'") {
+      const close = closingQuote(text, i);
+      if (close !== -1) i = close;
+    }
+  }
   const lines = text.slice(at, end === -1 ? undefined : end).split('\n');
   return lines.slice(0, 40).join('\n');
 }
@@ -102,6 +145,19 @@ export function sqlUpdatesIn(file: string, text: string): Update[] {
       kind: 'sql upsert',
       refused: COLUMN_SQL.test(statement.slice(upsert.index))
         ? 'an ON CONFLICT … DO UPDATE on mailbox_mapping names test_marker'
+        : null,
+    });
+  }
+  for (const m of text.matchAll(SQL_MERGE)) {
+    const statement = statementFrom(text, m.index);
+    // Each `UPDATE SET` clause, to the next `WHEN` or the statement's end: the
+    // INSERT branch may carry the marker, as a create does.
+    const updates = [...statement.matchAll(/\bUPDATE\s+SET\b([\s\S]*?)(?=\bWHEN\b|$)/gi)];
+    found.push({
+      where: `${file}:${lineOf(text, m.index)}`,
+      kind: 'sql merge',
+      refused: updates.some((u) => COLUMN_SQL.test(u[1] ?? ''))
+        ? 'a MERGE into mailbox_mapping updates test_marker'
         : null,
     });
   }
@@ -216,9 +272,59 @@ function keysOf(node: ts.Expression, into: Keys, seen: Set<string> = new Set()):
   into.unread.push(node.getText().slice(0, 60));
 }
 
-/** Is this the drizzle table, as any file names it (`schema.mailboxMapping`, `schemaPg.mailboxMapping`, `mailboxMapping`)? */
-const isTheTable = (node: ts.Node | undefined): boolean =>
-  node !== undefined && /(^|\.)mailboxMapping$/.test(node.getText());
+/** The table a drizzle update names: this one, another, or one this guard cannot read. */
+type TableNamed = { readonly is: 'the table' } | { readonly is: 'another table' } | { readonly is: 'unread'; readonly what: string };
+
+/**
+ * Every drizzle table the repository defines (`export const x = pgTable(…)`),
+ * by the name its schema exports: what an update's table argument must be.
+ */
+function definedTables(): Set<string> {
+  const names = new Set<string>();
+  for (const file of trackedFiles()) {
+    if (!/\.(ts|mts|cts)$/.test(file)) continue;
+    const text = readFileSync(join(REPO, file), 'utf8');
+    for (const m of text.matchAll(/export const ([A-Za-z0-9_$]+) = pgTable\(/g)) names.add(m[1]!);
+  }
+  return names;
+}
+
+let tables: Set<string> | undefined;
+/** The defined tables, read once; a planted case can name its own. */
+export function tablesDefined(): Set<string> {
+  return (tables ??= definedTables());
+}
+
+/** What each name a file imports was exported as: `import { connection as c }` is `c` → `connection`. */
+function importedNames(tree: ts.SourceFile): Map<string, string> {
+  const names = new Map<string, string>();
+  for (const statement of tree.statements) {
+    const bindings = ts.isImportDeclaration(statement) ? statement.importClause?.namedBindings : undefined;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    for (const spec of bindings.elements) names.set(spec.name.text, (spec.propertyName ?? spec.name).text);
+  }
+  return names;
+}
+
+/**
+ * The table an update's argument names. Only a defined table's own name is
+ * read: `<anything>.<table>`, or a name imported as one. Anything else, an
+ * alias, `schema['…']`, a call, is a table this guard cannot read, which it
+ * refuses whichever table it is: `mailboxMapping` could be behind it.
+ */
+function tableNamed(node: ts.Expression | undefined, imported: Map<string, string>, defined: Set<string>): TableNamed {
+  const named = (name: string): TableNamed =>
+    name === 'mailboxMapping' ? { is: 'the table' } : { is: 'another table' };
+  if (node === undefined) return { is: 'unread', what: 'no table' };
+  if (ts.isPropertyAccessExpression(node) && ts.isIdentifier(node.name) && defined.has(node.name.text)) {
+    return named(node.name.text);
+  }
+  if (ts.isIdentifier(node)) {
+    const exported = imported.get(node.text);
+    if (exported !== undefined && defined.has(exported)) return named(exported);
+  }
+  return { is: 'unread', what: node.getText().slice(0, 60) };
+}
 
 /** The call `<chain>.<method>(…)` further along the chain that starts at `call`, if any. */
 function laterInChain(call: ts.CallExpression, method: string): ts.CallExpression | undefined {
@@ -237,35 +343,54 @@ function refusalOf(keys: Keys, what: string): string | null {
   return null;
 }
 
-/** Every drizzle update of the table in one TypeScript file, and each upsert. */
-export function drizzleUpdatesIn(file: string, text: string): Update[] {
-  if (!text.includes('mailboxMapping')) return [];
+/**
+ * Every drizzle update of the table in one TypeScript file, and each upsert;
+ * and every drizzle update or upsert of a table this guard cannot read.
+ */
+export function drizzleUpdatesIn(file: string, text: string, defined: Set<string> = tablesDefined()): Update[] {
+  if (!/\.update\(|onConflictDoUpdate/.test(text)) return [];
   const tree = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true, file.endsWith('x') ? ts.ScriptKind.TSX : ts.ScriptKind.TS);
+  const imported = importedNames(tree);
   const found: Update[] = [];
   eachNode(tree, (node) => {
     if (!ts.isCallExpression(node) || !ts.isPropertyAccessExpression(node.expression)) return;
     const method = node.expression.name.text;
-    if ((method !== 'update' && method !== 'insert') || !isTheTable(node.arguments[0])) return;
+    if (method !== 'update' && method !== 'insert') return;
+    const set = method === 'update' ? laterInChain(node, 'set') : undefined;
+    const upsert = method === 'insert' ? laterInChain(node, 'onConflictDoUpdate') : undefined;
+    // An insert that is no upsert writes a new row: the create is one.
+    if (method === 'insert' && upsert === undefined) return;
     const where = `${file}:${tree.getLineAndCharacterOfPosition(node.getStart()).line + 1}`;
+    const kind = method === 'update' ? 'drizzle update' : 'drizzle upsert';
+    const table = tableNamed(node.arguments[0], imported, defined);
+    if (table.is === 'another table') return;
+    if (table.is === 'unread') {
+      // Only a drizzle update is read so: one with a `.set()` after it.
+      // `hash.update(…).digest()` names no table.
+      if (method === 'update' && set === undefined) return;
+      found.push({
+        where,
+        kind,
+        refused: `its table, ${table.what}, is not a table this guard can read: name it as itself (schema.<table>)`,
+      });
+      return;
+    }
     if (method === 'update') {
-      const set = laterInChain(node, 'set');
       const keys: Keys = { keys: new Set(), unread: [] };
       if (set?.arguments[0]) keysOf(set.arguments[0], keys);
       else keys.unread.push('an update with no .set() this guard can find');
-      found.push({ where, kind: 'drizzle update', refused: refusalOf(keys, 'its .set()') });
+      found.push({ where, kind, refused: refusalOf(keys, 'its .set()') });
       return;
     }
-    const upsert = laterInChain(node, 'onConflictDoUpdate');
-    if (!upsert) return;
     const keys: Keys = { keys: new Set(), unread: [] };
-    const config = upsert.arguments[0];
+    const config = upsert?.arguments[0];
     const setProp =
       config && ts.isObjectLiteralExpression(config)
         ? config.properties.find((p) => p.name !== undefined && nameOf(p.name) === 'set')
         : undefined;
     if (setProp && ts.isPropertyAssignment(setProp)) keysOf(setProp.initializer, keys);
     else keys.unread.push('an onConflictDoUpdate whose set this guard cannot find');
-    found.push({ where, kind: 'drizzle upsert', refused: refusalOf(keys, 'its onConflictDoUpdate set') });
+    found.push({ where, kind, refused: refusalOf(keys, 'its onConflictDoUpdate set') });
   });
   return found;
 }
@@ -364,7 +489,11 @@ describe('it catches a planted one', () => {
 
   it('a drizzle .set() that names it, by either spelling, directly or behind a spread', () => {
     expect(refusedOf(drizzle('db.update(schema.mailboxMapping).set({ testMarker: null }).where(x);'))).toEqual([true]);
-    expect(refusedOf(drizzle("db.update(mailboxMapping).set({ status: 'done', 'test_marker': 'y' });"))).toEqual([true]);
+    expect(
+      refusedOf(
+        drizzle("import { mailboxMapping } from '@openmig/ledger';\ndb.update(mailboxMapping).set({ status: 'done', 'test_marker': 'y' });"),
+      ),
+    ).toEqual([true]);
     expect(
       refusedOf(drizzle('const u = { name: "n" };\nif (b) u.testMarker = "x";\ndb.update(schema.mailboxMapping).set({ ...u, updatedAt: now });')),
     ).toEqual([true]);
@@ -386,6 +515,53 @@ describe('it catches a planted one', () => {
     // Another table's update, and the create's insert: not updates of this one.
     expect(drizzle('db.update(schema.mailbox).set({ testMarker: 1 });')).toEqual([]);
     expect(drizzle('db.insert(schema.mailboxMapping).values({ testMarker: m }).returning();')).toEqual([]);
+  });
+
+  it('a table named some other way than as itself, whichever table it is', () => {
+    // An alias, a computed member, a table a function was handed, another
+    // object's member, a call: mailboxMapping could be behind any of them.
+    expect(refusedOf(drizzle("const t = schema.mailboxMapping;\ndb.update(t).set({ status: 'paused' });"))).toEqual([true]);
+    expect(refusedOf(drizzle("db.update(schema['mailboxMapping']).set({ status: 'paused' });"))).toEqual([true]);
+    expect(refusedOf(drizzle("function f(table) { return db.update(table).set({ status: 'paused' }); }"))).toEqual([true]);
+    expect(refusedOf(drizzle("db.update(ctx.table).set({ status: 'paused' });"))).toEqual([true]);
+    expect(
+      refusedOf(drizzle('db.insert(pick()).values(v).onConflictDoUpdate({ target: x, set: { name: n } });')),
+    ).toEqual([true]);
+    // An imported table is read as itself, under whatever name it was imported as.
+    expect(
+      refusedOf(drizzle("import { mailboxMapping as mm } from '@openmig/ledger';\ndb.update(mm).set({ testMarker: null });")),
+    ).toEqual([true]);
+    expect(
+      refusedOf(drizzle("import { mailboxMapping as mm } from '@openmig/ledger';\ndb.update(mm).set({ status: 'paused' });")),
+    ).toEqual([false]);
+    expect(drizzle("import { connection as c } from '@openmig/ledger';\ndb.update(c).set({ status: 'x' });")).toEqual([]);
+    // A hash's update names no table.
+    expect(drizzle("createHash('sha256').update(data).digest('hex');")).toEqual([]);
+  });
+
+  it('a MERGE whose update writes it, and not one whose insert carries it', () => {
+    expect(
+      refusedOf(sql('MERGE INTO mailbox_mapping m USING src s ON m.id = s.id\n WHEN MATCHED THEN UPDATE SET test_marker = s.marker;')),
+    ).toEqual([true]);
+    expect(
+      refusedOf(
+        sql(
+          'MERGE INTO public.mailbox_mapping m USING src s ON m.id = s.id\n' +
+            ' WHEN MATCHED THEN UPDATE SET name = s.name\n' +
+            ' WHEN NOT MATCHED THEN INSERT (id, test_marker) VALUES (s.id, s.marker);',
+        ),
+      ),
+    ).toEqual([false]);
+  });
+
+  it('a statement whose quoted literal holds a semicolon, read to its own end', () => {
+    expect(refusedOf(sql("UPDATE mailbox_mapping SET name = 'a;b', test_marker = NULL WHERE id = $1;"))).toEqual([true]);
+    expect(refusedOf(sql("UPDATE mailbox_mapping SET name = 'it''s; fine' WHERE id = $1;"))).toEqual([false]);
+    // The quote that closes a JavaScript string around the statement is text,
+    // and the statement still ends where it does.
+    expect(
+      refusedOf(sql("db.query('UPDATE mailbox_mapping SET status = $2 WHERE id = $1', [id, s]);\nconst test_marker = 1;")),
+    ).toEqual([false]);
   });
 
   it('an upsert in drizzle whose set writes it', () => {

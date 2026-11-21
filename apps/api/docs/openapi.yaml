@@ -7615,13 +7615,18 @@ paths:
         ignoring case. It is never finished or switched over. A second set
         replaces the marker. Recorded as `tenant.test_marker_set` under the
         operator, with `via: operator`, the marker, and the one it replaced.
+        The marker it already has is answered `unchanged: true`, and nothing
+        is written or recorded.
 
         Asked about twice, as the close is: the organisation must be on the
         subject's `support_tenants`, and `platform_operator` must hold the
-        subject. Anybody else gets the `404` an absent id gets, and nothing is
-        written. Refused while the organisation holds any migration, whatever
-        its status, under the lock `POST /api/migrations` takes, so a mark and
-        a create are decided one after the other.
+        subject, asked in the transaction that writes; the database itself
+        writes the row for an appointed operator only, in their own name.
+        Anybody else gets the `404` an absent id gets, and nothing is
+        written. Refused for an organisation that is not open, and while it
+        holds any migration, whatever its status, under the lock
+        `POST /api/migrations` takes, so a mark and a create are decided one
+        after the other. The id is read in either case.
       requestBody:
         required: true
         content:
@@ -7636,13 +7641,18 @@ paths:
                   maxLength: 64
                   description: |
                     The text an item's own title must contain to be copied.
-                    Trimmed, then 3 to 64 printable characters: no control or
-                    formatting character. Required: `[Ownpace-test]` is what
-                    the Support screen offers, never what is assumed.
+                    Trimmed, then 3 to 64 printable characters, counted by code
+                    point: no control or formatting character, and none that
+                    looks blank but the space (a no-break space, a filler).
+                    Required: `[Ownpace-test]` is what the Support screen
+                    offers, never what is assumed.
                   examples: ['[Ownpace-test]']
       responses:
         '200':
-          description: Marked. `replaced` is the marker it had before, if another.
+          description: |
+            Marked. `replaced` is the marker it had before, if another;
+            `unchanged` is there when it had this one already, and then
+            nothing was written or recorded.
           content:
             application/json:
               schema:
@@ -7650,6 +7660,7 @@ paths:
                 properties:
                   testMarker: { type: string }
                   replaced: { type: string }
+                  unchanged: { type: boolean, const: true }
         '400':
           description: The tenantId is not a uuid, or the marker is missing or not 3 to 64 printable characters once trimmed (`bad_marker`).
         '401': { $ref: '#/components/responses/Unauthorized' }
@@ -7657,10 +7668,11 @@ paths:
           description: No such organisation, or a subject who is not an operator (the same answer).
         '409':
           description: |
-            It holds a migration (`holds_a_migration`): `held` says how many,
-            and `message` the sentence the Support screen shows. An
-            organisation becomes a test, or stops being one, only while it
-            holds none.
+            It is not open (`not_open`): closed, or being erased; or it holds a
+            migration (`holds_a_migration`): `held` says how many, and
+            `message` the sentence the Support screen shows. An organisation
+            becomes a test, or stops being one, only while it is open and holds
+            none.
     delete:
       tags: [Support]
       summary: Clear an organisation's test marker, as the operator
@@ -7669,9 +7681,9 @@ paths:
         migrations made in it afterwards copy everything they are given.
         Recorded as `tenant.test_marker_cleared` with the marker cleared. An
         organisation that was not a test is answered with `cleared: null`,
-        and nothing is recorded. Asked about twice, and refused while it holds
-        a migration, as the set is: each test migration keeps its marker until
-        it is deleted.
+        and nothing is recorded. Asked about twice, and refused for an
+        organisation that is not open and while it holds a migration, as the
+        set is: each test migration keeps its marker until it is deleted.
       responses:
         '200':
           description: Cleared, or nothing to clear.
@@ -7688,7 +7700,7 @@ paths:
         '404':
           description: No such organisation, or a subject who is not an operator (the same answer).
         '409':
-          description: It holds a migration (`holds_a_migration`), as for the set.
+          description: It is not open (`not_open`), or it holds a migration (`holds_a_migration`), as for the set.
 
   /api/support/audit-export:
     get:

@@ -410,13 +410,16 @@ export const OPERATOR_STRINGS = {
   'support.test.isNot': 'This is not a test organisation.',
   'support.test.marker': 'Marker',
   'support.test.marker.hint':
-    '3 to 64 characters, in an item’s own title: a mail’s subject, an event’s or a task’s title, a contact’s name, a file’s name. [Ownpace-test] is offered; type another if you like.',
+    '3 to 64 characters once trimmed, in an item’s own title: a mail’s subject, an event’s or a task’s title, a contact’s name, a file’s name. [Ownpace-test] is offered; type another if you like. The API says whether it can be used.',
   'support.test.arm': 'Mark as a test…',
   'support.test.change': 'Change the marker…',
   'support.test.confirm': 'Mark {name} as a test organisation, with the marker {marker}?',
   'support.test.yes': 'Yes, mark it',
   'support.test.failed': 'Could not mark it: {message}',
   'support.test.done': 'Marked. Each migration made here from now on copies only what carries {marker}.',
+  'support.test.unchanged': 'It is a test organisation with the marker {marker} already. Nothing changed, and nothing was recorded.',
+  'support.test.notOpen':
+    'It is not open, so it is neither marked as a test nor unmarked: an organisation is, only while it is open.',
   'support.test.unarm': 'Stop being a test…',
   'support.test.unconfirm': 'Make {name} an ordinary organisation again? Migrations made here afterwards copy everything they are given.',
   'support.test.unyes': 'Yes, unmark it',

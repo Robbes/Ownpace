@@ -747,12 +747,12 @@ live in [README.md](./README.md), the register.
 ## [ADR-0053: A test organisation copies only what is marked](./0053-a-test-organisation-copies-only-what-is-marked.md)
 
 - **Only an appointed operator marks an organisation as a test**, with its marker, from Support
-  (`POST`/`DELETE /api/support/tenants/{id}/test`), and only while it holds no migration; anybody
-  else gets a 404. The marker is required: trimmed, 3 to 64 printable characters.
-  `[Ownpace-test]` is offered, never assumed.
+  (`POST`/`DELETE /api/support/tenants/{id}/test`), only while it is open and holds no migration;
+  anybody else gets a 404, and the database writes the row for an operator only. The marker is
+  required: trimmed, 3 to 64 printable characters. `[Ownpace-test]` is offered, never assumed.
 - **A migration copies its organisation's marker when it is created** (`mailbox_mapping.test_marker`),
-  in that transaction, and nothing changes or removes it: a trigger refuses, and
-  `a-test-marker-only-a-create-writes` refuses any update that names it.
+  in that transaction, and nothing changes or removes it. 0070's trigger is the guarantee;
+  `a-test-marker-only-a-create-writes` is an early warning before the merge.
 - **An item is in scope when its own title contains the marker**, ignoring case: a subject, an
   event's or task's title (a series by its master), a contact's name, a file's name. Nothing else
   decides.

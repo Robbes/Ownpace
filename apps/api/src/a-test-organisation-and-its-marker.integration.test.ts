@@ -2,11 +2,13 @@
 //
 // A MARK AND A CREATE, ONE AFTER THE OTHER (workplan 0162 T1, §2 (b)), on a
 // real Postgres with two connections: PGlite has one, and cannot show a race.
+// Through the real routes: `POST /api/support/tenants/{tenantId}/test` and
+// `POST /api/migrations`, with only the sign-in stood in for.
 //
 // An organisation becomes a test, or stops being one, only while it holds no
 // migration, and a migration made in a test organisation copies its marker.
 // Both questions are asked under the organisation's migrations lock, the
-// advisory lock the create door takes before it counts (`holdTheCap`), so:
+// advisory lock the create takes before it counts (`holdTheCap`), so:
 //
 //  - a create held open, its migration written and not yet committed, makes a
 //    mark that arrives wait for it, and then see that migration and refuse;
@@ -14,20 +16,31 @@
 //    nothing, and leave a test organisation holding a migration that copies
 //    everything;
 //  - a mark held open makes a create that arrives wait for it, and then read
-//    the marker it committed and copy it; without the lock the create would
-//    read no marker, and the mark would then commit under a migration that
-//    has none.
+//    the marker it committed and copy it; without the lock, or with the marker
+//    read before the lock is taken, the create would read no marker, and the
+//    mark would then commit under a migration that has none.
+//
+// Each side names the organisation in the other case from the other: the lock
+// is keyed on the id as the database spells it, so `ABC…` and `abc…` take one
+// lock (0162 T1's review). The side held open is a transaction of its own, the
+// lock and the row as the door takes and writes them; the side that arrives is
+// the real route.
 //
 // The routes are proved in `routes/a-test-organisation-and-its-marker.unit.test.ts`.
 //
 // UUID Family: 0162e100-e29b-41d4-a716-4466554400xx
 
-import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+process.env.SECRET_ENCRYPTION_KEY =
+  '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef';
+
+import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from 'vitest';
+import express from 'express';
+import request from 'supertest';
+import { sql } from 'drizzle-orm';
 import { Pool } from 'pg';
 import { withTenant, mailboxMapping } from '@openmig/ledger';
-import { markTestOrganisation, migrationsHeldBy, testMarkerOfOrganisation } from '@openmig/managed';
-import { holdTheCap, holdTheOrganisationsMigrations } from './routes/migrations/migration-cap.ts';
-import { markAsTestAsOperator } from './test-organisation.ts';
+import { markTestOrganisation, migrationsHeldBy } from '@openmig/managed';
+import { holdTheOrganisationsMigrations } from './routes/migrations/migration-cap.ts';
 
 const PG = process.env.TEST_DATABASE_URL;
 if (!PG) throw new Error('TEST_DATABASE_URL is not set. Run: pnpm test:integration');
@@ -38,11 +51,58 @@ const BOX = '0162e100-e29b-41d4-a716-446655440021';
 const OPERATOR = 'operator-subject-0162-t1-race';
 
 let pool: Pool;
+/** The organisation the create's sign-in resolves, as a request could spell it. */
+let organisation = TENANT;
+
+vi.mock('./middleware/auth.ts', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./middleware/auth.ts')>();
+  return {
+    ...actual,
+    authenticateSubject: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+      Object.assign(req, { userId: OPERATOR });
+      next();
+    },
+    authenticate: (req: express.Request, _res: express.Response, next: express.NextFunction) => {
+      Object.assign(req, { tenantId: organisation, userId: 'pat', userRole: 'owner' });
+      next();
+    },
+    getDbPool: () => pool,
+  };
+});
+
+const { default: supportRoutes } = await import('./routes/support.ts');
+const { default: migrationRoutes } = await import('./routes/migrations/index.ts');
+
+const app = express();
+app.use(express.json());
+app.use('/api/support', supportRoutes);
+app.use('/api/migrations', migrationRoutes);
+
+let made = 0;
+/** The wizard's create, for a new pair of accounts each time. Sent when awaited. */
+function create() {
+  made += 1;
+  const account = `racer-${made}@example.com`;
+  return request(app)
+    .post('/api/migrations')
+    .send({
+      name: `race ${made}`,
+      sourceType: 'imap',
+      targetType: 'jmap',
+      sourceConfig: { host: 'src.example.com', port: 993, username: account, password: 'p' },
+      targetConfig: { host: 'dst.example.com', port: 443, username: account, password: 'p' },
+      syncConfig: { domains: ['email'] },
+    });
+}
 
 async function clean(): Promise<void> {
   await pool.query('DELETE FROM test_organisation WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM audit_log WHERE tenant_id = $1', [TENANT]);
+  await pool.query('DELETE FROM scope_selection WHERE tenant_id = $1', [TENANT]);
+  await pool.query('DELETE FROM path_lifecycle WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM mailbox_mapping WHERE tenant_id = $1', [TENANT]);
+  await pool.query('DELETE FROM mailbox WHERE tenant_id = $1 AND id <> $2', [TENANT, BOX]);
+  await pool.query('DELETE FROM connection WHERE tenant_id = $1 AND id <> $2', [TENANT, CONN]);
 }
 
 /** A promise, and the function that settles it. */
@@ -63,7 +123,7 @@ async function stillWaiting(p: Promise<unknown>): Promise<boolean> {
 }
 
 beforeAll(async () => {
-  pool = new Pool({ connectionString: PG, max: 4 });
+  pool = new Pool({ connectionString: PG, max: 6 });
   await clean();
   await pool.query('DELETE FROM mailbox WHERE tenant_id = $1', [TENANT]);
   await pool.query('DELETE FROM connection WHERE tenant_id = $1', [TENANT]);
@@ -85,7 +145,10 @@ beforeAll(async () => {
   );
 });
 
-beforeEach(clean);
+beforeEach(async () => {
+  organisation = TENANT;
+  await clean();
+});
 
 afterAll(async () => {
   await clean();
@@ -96,35 +159,34 @@ afterAll(async () => {
   await pool.end();
 });
 
-/** What the create door does in its transaction: the cap's lock, the marker, the migration. */
-const createOne = (hold?: { written: () => void; until: Promise<void> }) =>
-  withTenant(pool, TENANT, async (db) => {
-    await holdTheCap(db, TENANT, 6);
-    const testMarker = await testMarkerOfOrganisation(db, TENANT);
-    await db
-      .insert(mailboxMapping)
-      .values({ tenantId: TENANT, sourceMailboxId: BOX, status: 'paused', testMarker: testMarker ?? null });
-    if (hold) {
-      hold.written();
-      await hold.until;
-    }
-  });
-
 describe('a create held open, and a mark that arrives', () => {
-  it('waits for the create, sees its migration, and marks nothing', async () => {
+  it('waits for the create, sees its migration, and marks nothing, whichever way the id is spelled', async () => {
     const written = gate();
     const release = gate();
-    const create = createOne({ written: written.open, until: release.opened });
+    // The create's transaction, as the create door holds it: the
+    // organisation's lock, then its migration, not yet committed.
+    const held = withTenant(pool, TENANT, async (db) => {
+      await holdTheOrganisationsMigrations(db, TENANT);
+      await db.insert(mailboxMapping).values({ tenantId: TENANT, sourceMailboxId: BOX, status: 'paused' });
+      written.open();
+      await release.opened;
+    });
     await written.opened;
 
-    const mark = markAsTestAsOperator(pool, { tenantId: TENANT, by: OPERATOR, marker: '[Ownpace-test]' });
+    // The real route, with the id in capitals.
+    const mark = request(app)
+      .post(`/api/support/tenants/${TENANT.toUpperCase()}/test`)
+      .send({ marker: '[Ownpace-test]' })
+      .then((res) => res);
     try {
       expect(await stillWaiting(mark), 'the mark was decided while the create was still open').toBe(true);
     } finally {
       release.open();
     }
-    await create;
-    expect(await mark).toEqual({ held: 1 });
+    await held;
+    const res = await mark;
+    expect(res.status).toBe(409);
+    expect(res.body).toMatchObject({ error: 'holds_a_migration', held: 1 });
 
     expect((await pool.query('SELECT 1 FROM test_organisation WHERE tenant_id = $1', [TENANT])).rows).toEqual([]);
     expect(
@@ -134,12 +196,14 @@ describe('a create held open, and a mark that arrives', () => {
 });
 
 describe('a mark held open, and a create that arrives', () => {
-  it('waits for the mark, and copies the marker it committed', async () => {
+  it('waits for the mark, and copies the marker it committed, whichever way the id is spelled', async () => {
     const written = gate();
     const release = gate();
-    // What the mark does in its transaction: the lock, the count, the row.
-    const mark = withTenant(pool, TENANT, async (db) => {
-      await holdTheOrganisationsMigrations(db, TENANT);
+    // The mark's transaction, as the door holds it: acting as the operator,
+    // the organisation's lock (the id in capitals), the count, the row.
+    const held = withTenant(pool, TENANT, async (db) => {
+      await db.execute(sql`SELECT set_config('app.current_user', ${OPERATOR}, true)`);
+      await holdTheOrganisationsMigrations(db, TENANT.toUpperCase());
       expect(await migrationsHeldBy(db, TENANT)).toBe(0);
       await markTestOrganisation(db, TENANT, '[Ownpace-test]', OPERATOR);
       written.open();
@@ -147,13 +211,17 @@ describe('a mark held open, and a create that arrives', () => {
     });
     await written.opened;
 
-    const create = createOne();
+    // The real create, its organisation in lower case.
+    const creating = create().then((res) => res);
     try {
-      expect(await stillWaiting(create), 'the create read the marker while the mark was still open').toBe(true);
+      expect(await stillWaiting(creating), 'the create read the marker while the mark was still open').toBe(true);
     } finally {
       release.open();
     }
-    await Promise.all([mark, create]);
+    await held;
+    const res = await creating;
+    expect(res.status).toBe(201);
+    expect(res.body.testMarker).toBe('[Ownpace-test]');
 
     expect((await pool.query('SELECT test_marker FROM mailbox_mapping WHERE tenant_id = $1', [TENANT])).rows).toEqual([
       { test_marker: '[Ownpace-test]' },

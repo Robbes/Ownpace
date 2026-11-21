@@ -56,7 +56,6 @@ import {
   CLOSE_WINDOWS_DAYS,
   DEFAULT_TEST_MARKER,
   FAILURE_CATEGORIES,
-  TEST_MARKER_MAX,
   isFailureCategory,
   isFailureSide,
   type CloseWindowDays,
@@ -1113,7 +1112,10 @@ export const SupportTenantDetail: React.FC = () => {
         </table>
       </Section>
 
-      <TestOrganisation tenant={tenant} />
+      {/* Keyed by the organisation, so what was typed for one is never offered
+          on the next: the route keeps this page mounted from one organisation
+          to another. */}
+      <TestOrganisation key={tenant.tenant_id} tenant={tenant} />
       <Closure tenant={tenant} />
     </div>
   );
@@ -1134,7 +1136,12 @@ export const SupportTenantDetail: React.FC = () => {
  *
  * The marker is offered, not assumed: the field starts at `[Ownpace-test]`
  * (`DEFAULT_TEST_MARKER`), or at the organisation's own marker, and the API
- * requires one and fills in none.
+ * requires one and fills in none. The field sets no length of its own: the
+ * API counts the marker once trimmed, by code point, and is the judge.
+ *
+ * An organisation that is not open is neither marked nor unmarked, as it is
+ * neither closed nor reopened twice: the section says what it is, and offers
+ * nothing.
  */
 const TestOrganisation: React.FC<{ tenant: SupportTenant }> = ({ tenant }) => {
   const t = useOperatorT();
@@ -1147,7 +1154,11 @@ const TestOrganisation: React.FC<{ tenant: SupportTenant }> = ({ tenant }) => {
     mutationFn: () => setSupportTestMarker(tenant.tenant_id, marker.trim()),
     onSuccess: async (answer) => {
       setArmed(null);
-      setSaid(t('support.test.done', { marker: answer.testMarker }));
+      setSaid(
+        answer.unchanged
+          ? t('support.test.unchanged', { marker: answer.testMarker })
+          : t('support.test.done', { marker: answer.testMarker }),
+      );
       await readTheChangeBack(client, tenant.tenant_id);
     },
   });
@@ -1162,6 +1173,7 @@ const TestOrganisation: React.FC<{ tenant: SupportTenant }> = ({ tenant }) => {
   });
   const pending = mark.isPending || unmark.isPending;
   const typed = marker.trim();
+  const open = tenant.tenant_status === 'active';
   return (
     <section className="mb-6 rounded-md border border-amber-200 bg-white p-4" aria-labelledby="support-test-title">
       <h2 id="support-test-title" className="mb-2 text-sm font-semibold uppercase tracking-wide text-gray-500">
@@ -1182,80 +1194,85 @@ const TestOrganisation: React.FC<{ tenant: SupportTenant }> = ({ tenant }) => {
         ) : (
           <p className="mb-3 text-gray-900">{t('support.test.isNot')}</p>
         )}
-        <label className="mb-3 block">
-          <span className="block font-medium text-gray-900">{t('support.test.marker')}</span>
-          <span className="block text-gray-600">{t('support.test.marker.hint')}</span>
-          <input
-            type="text"
-            value={marker}
-            maxLength={TEST_MARKER_MAX}
-            disabled={armed !== null}
-            onChange={(e) => setMarker(e.target.value)}
-            className="mt-1 w-full max-w-md rounded-md border border-gray-300 px-2 py-1 font-mono"
-          />
-        </label>
-        {armed === null ? (
-          <span className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              disabled={typed === '' || typed === current}
-              onClick={() => {
-                setSaid(null);
-                setArmed('mark');
-              }}
-              className="rounded-md border border-amber-300 px-3 py-1 text-amber-900 hover:bg-amber-50 disabled:opacity-50"
-            >
-              {current ? t('support.test.change') : t('support.test.arm')}
-            </button>
-            {current && (
-              <button
-                type="button"
-                onClick={() => {
-                  setSaid(null);
-                  setArmed('unmark');
-                }}
-                className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
-              >
-                {t('support.test.unarm')}
-              </button>
+        {open ? (
+          <>
+            <label className="mb-3 block">
+              <span className="block font-medium text-gray-900">{t('support.test.marker')}</span>
+              <span className="block text-gray-600">{t('support.test.marker.hint')}</span>
+              <input
+                type="text"
+                value={marker}
+                disabled={armed !== null}
+                onChange={(e) => setMarker(e.target.value)}
+                className="mt-1 w-full max-w-md rounded-md border border-gray-300 px-2 py-1 font-mono"
+              />
+            </label>
+            {armed === null ? (
+              <span className="flex flex-wrap gap-2">
+                <button
+                  type="button"
+                  disabled={typed === '' || typed === current}
+                  onClick={() => {
+                    setSaid(null);
+                    setArmed('mark');
+                  }}
+                  className="rounded-md border border-amber-300 px-3 py-1 text-amber-900 hover:bg-amber-50 disabled:opacity-50"
+                >
+                  {current ? t('support.test.change') : t('support.test.arm')}
+                </button>
+                {current && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSaid(null);
+                      setArmed('unmark');
+                    }}
+                    className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+                  >
+                    {t('support.test.unarm')}
+                  </button>
+                )}
+              </span>
+            ) : (
+              <div className="rounded-md bg-amber-50 p-3">
+                <p className="mb-2 font-medium text-gray-900">
+                  {armed === 'mark'
+                    ? t('support.test.confirm', { name: tenant.tenant_name, marker: typed })
+                    : t('support.test.unconfirm', { name: tenant.tenant_name })}
+                </p>
+                <span className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => (armed === 'mark' ? mark.mutate() : unmark.mutate())}
+                    className="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-700 disabled:opacity-50"
+                  >
+                    {armed === 'mark' ? t('support.test.yes') : t('support.test.unyes')}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pending}
+                    onClick={() => setArmed(null)}
+                    className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
+                  >
+                    {t('common.cancel')}
+                  </button>
+                </span>
+              </div>
             )}
-          </span>
+            {mark.isError && (
+              <p role="alert" className="mt-2 text-red-700">
+                {t('support.test.failed', { message: serverMessage(mark.error) })}
+              </p>
+            )}
+            {unmark.isError && (
+              <p role="alert" className="mt-2 text-red-700">
+                {t('support.test.unfailed', { message: serverMessage(unmark.error) })}
+              </p>
+            )}
+          </>
         ) : (
-          <div className="rounded-md bg-amber-50 p-3">
-            <p className="mb-2 font-medium text-gray-900">
-              {armed === 'mark'
-                ? t('support.test.confirm', { name: tenant.tenant_name, marker: typed })
-                : t('support.test.unconfirm', { name: tenant.tenant_name })}
-            </p>
-            <span className="flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => (armed === 'mark' ? mark.mutate() : unmark.mutate())}
-                className="rounded-md bg-amber-600 px-3 py-1 text-white hover:bg-amber-700 disabled:opacity-50"
-              >
-                {armed === 'mark' ? t('support.test.yes') : t('support.test.unyes')}
-              </button>
-              <button
-                type="button"
-                disabled={pending}
-                onClick={() => setArmed(null)}
-                className="rounded-md border border-gray-300 px-3 py-1 text-gray-700 hover:bg-gray-50"
-              >
-                {t('common.cancel')}
-              </button>
-            </span>
-          </div>
-        )}
-        {mark.isError && (
-          <p role="alert" className="mt-2 text-red-700">
-            {t('support.test.failed', { message: serverMessage(mark.error) })}
-          </p>
-        )}
-        {unmark.isError && (
-          <p role="alert" className="mt-2 text-red-700">
-            {t('support.test.unfailed', { message: serverMessage(unmark.error) })}
-          </p>
+          <p className="text-gray-600">{t('support.test.notOpen')}</p>
         )}
       </div>
     </section>

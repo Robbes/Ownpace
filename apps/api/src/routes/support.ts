@@ -129,16 +129,20 @@ function pool(): Pool | LedgerDriver {
 }
 
 /**
- * A path parameter that is exactly one uuid, or null.
+ * A path parameter that is exactly one uuid, in the one spelling the database
+ * gives it (lower case), or null.
  *
  * Not for safety — every value below goes through a bound parameter — but so
  * that a malformed id is a 400 rather than a `22P02` surfacing as a 500. An
- * operator mistyping an id should be told they mistyped it.
+ * operator mistyping an id should be told they mistyped it. Lower case, because
+ * an id is also a key outside the database: the organisation's migrations lock
+ * is keyed on it (`holdTheOrganisationsMigrations`), and `ABC…` and `abc…`
+ * name one organisation. Exported for its test.
  */
-function oneUuid(value: unknown): string | null {
+export function oneUuid(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
-    ? value
+    ? value.toLowerCase()
     : null;
 }
 
@@ -544,10 +548,27 @@ router.post(
  * 400 for a marker that is not 3 to 64 printable characters once trimmed,
  * before anything is read (`readTestMarker`): the API requires one, and
  * `[Ownpace-test]` is what the screen offers, never what is assumed. 409
- * `holds_a_migration` while the organisation holds any migration, whatever
- * its status (§2 (b)), with the sentence the screen shows. 200 with the
- * marker set, or cleared.
+ * `not_open` for an organisation that is not open, as the close and the
+ * reopen ask: one closed, or being erased, is neither marked nor unmarked.
+ * 409 `holds_a_migration` while the organisation holds any migration,
+ * whatever its status (§2 (b)), with the sentence the screen shows. 200 with
+ * the marker set, or cleared; for the marker it already had, 200 with
+ * `unchanged`, and nothing written or recorded.
  */
+/** The refusal for an organisation that is not open, said for either door. */
+function notOpenForATest(status: string): { error: 'not_open'; message: string } {
+  const only = 'an organisation is marked as a test, or no longer, only while it is open';
+  return {
+    error: 'not_open',
+    message:
+      status === 'closed'
+        ? `It is closed: ${only}`
+        : status === 'deleting'
+          ? 'Its erasure has begun, so it is neither marked as a test nor unmarked'
+          : `It is ${status}: ${only}`,
+  };
+}
+
 router.post(
   '/tenants/:tenantId/test',
   authenticateSubject,
@@ -568,9 +589,11 @@ router.post(
         return void res.status(400).json({ error: 'bad_marker', message: read.refused });
       }
 
-      if ((await statusAsServed(operator, tenantId)) === null) {
+      const status = await statusAsServed(operator, tenantId);
+      if (status === null) {
         return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
       }
+      if (status !== 'active') return void res.status(409).json(notOpenForATest(status));
       const marked = await markAsTestAsOperator(pool(), { tenantId, by: operator, marker: read.marker });
       if ('held' in marked) {
         return void res.status(409).json({
@@ -579,6 +602,7 @@ router.post(
           message: holdsMigrationsSaid(marked.held, 'mark'),
         });
       }
+      if ('unchanged' in marked) return void res.json({ testMarker: marked.marker, unchanged: true });
       res.json({ testMarker: marked.marker, ...(marked.replaced !== undefined ? { replaced: marked.replaced } : {}) });
     } catch (error) {
       if (error instanceof NotAnAppointedOperator) {
@@ -605,9 +629,11 @@ router.delete(
         return void res.status(400).json({ error: 'Bad request', message: 'tenantId must be one uuid' });
       }
 
-      if ((await statusAsServed(operator, tenantId)) === null) {
+      const status = await statusAsServed(operator, tenantId);
+      if (status === null) {
         return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
       }
+      if (status !== 'active') return void res.status(409).json(notOpenForATest(status));
       const unmarked = await unmarkTestAsOperator(pool(), { tenantId, by: operator });
       if ('held' in unmarked) {
         return void res.status(409).json({

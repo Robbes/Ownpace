@@ -14,13 +14,22 @@
  * Every function here runs inside the caller's own transaction, in the
  * organisation's context (`withTenant`): the table is under FORCE ROW LEVEL
  * SECURITY, so outside that context a read finds no marker and a write
- * matches nothing. Deciding WHETHER to write is the caller's: the doors refuse
- * while the organisation holds a migration (`migrationsHeldBy`), under the
- * organisation's migrations lock, which the create door takes too.
+ * matches nothing. A write also needs `app.current_user` to name an appointed
+ * operator, and is made in that operator's name: 0062's policies refuse any
+ * other, so the doors set it in the transaction that writes. Deciding WHETHER
+ * to write is the caller's: the doors refuse while the organisation holds a
+ * migration (`migrationsHeldBy`), under the organisation's migrations lock,
+ * which the create door takes too.
+ *
+ * Nothing here reads a malformed answer as an empty one (hard rule 9): a
+ * result without rows, a marker that is not text, or a count that is not one
+ * whole number throws, because "no migrations" and "no marker" are answers
+ * the doors act on.
  */
 
-import { sql } from 'drizzle-orm';
+import { count, eq, sql } from 'drizzle-orm';
 import type { PgDatabase } from '@openmig/ledger/db';
+import { mailboxMapping } from '@openmig/ledger/schema-pg';
 
 /** The audit action a marker set is recorded under (0162 T1). */
 export const TEST_MARKER_SET_ACTION = 'tenant.test_marker_set';
@@ -29,14 +38,28 @@ export const TEST_MARKER_SET_ACTION = 'tenant.test_marker_set';
 export const TEST_MARKER_CLEARED_ACTION = 'tenant.test_marker_cleared';
 
 type Row = Record<string, unknown>;
-const rowsOf = (result: unknown): Row[] => ((result as { rows?: Row[] } | null)?.rows ?? []) as Row[];
+
+/** The rows a statement answered, or a throw: never an empty list in place of an answer that has none. */
+function rowsOf(result: unknown, what: string): Row[] {
+  const rows = (result as { rows?: unknown } | null)?.rows;
+  if (!Array.isArray(rows)) throw new Error(`${what}: the database answered no rows`);
+  return rows as Row[];
+}
+
+/** A row's marker, which the column holds as text and NOT NULL, or a throw. */
+function markerIn(row: Row, what: string): string {
+  if (typeof row.marker !== 'string') throw new Error(`${what}: a marker that is not text`);
+  return row.marker;
+}
 
 /** The organisation's marker, or undefined for an organisation that is not a test. */
 export async function testMarkerOfOrganisation(db: PgDatabase, tenantId: string): Promise<string | undefined> {
+  const what = `reading the test marker of organisation ${tenantId}`;
   const [row] = rowsOf(
     await db.execute(sql`SELECT marker FROM test_organisation WHERE tenant_id = ${tenantId}::uuid`),
+    what,
   );
-  return row === undefined ? undefined : String(row.marker);
+  return row === undefined ? undefined : markerIn(row, what);
 }
 
 /**
@@ -47,17 +70,22 @@ export async function testMarkerOfOrganisation(db: PgDatabase, tenantId: string)
  * it is deleted, and so is a draft nobody started.
  */
 export async function migrationsHeldBy(db: PgDatabase, tenantId: string): Promise<number> {
-  const [row] = rowsOf(
-    await db.execute(sql`SELECT count(*)::int AS n FROM mailbox_mapping WHERE tenant_id = ${tenantId}::uuid`),
-  );
-  return Number(row?.n ?? 0);
+  const rows = await db.select({ held: count() }).from(mailboxMapping).where(eq(mailboxMapping.tenantId, tenantId));
+  const held = rows.length === 1 ? rows[0]?.held : undefined;
+  if (typeof held !== 'number' || !Number.isInteger(held) || held < 0) {
+    throw new Error(
+      `counting the migrations organisation ${tenantId} holds answered ${JSON.stringify(rows)}, not one count`,
+    );
+  }
+  return held;
 }
 
 /**
  * Set the organisation's marker, or replace the one it had. Returns the marker
  * it replaced, if any. The marker is stored as given: the caller reads what
  * the operator typed first (`readTestMarker`, shared), and the table's CHECK
- * is the floor beneath it.
+ * is the floor beneath it. `markedBy` must be the operator `app.current_user`
+ * names: the policy writes a row in the operator's own name only.
  */
 export async function markTestOrganisation(
   db: PgDatabase,
@@ -85,10 +113,12 @@ export async function unmarkTestOrganisation(
   db: PgDatabase,
   tenantId: string,
 ): Promise<{ readonly cleared: string | undefined }> {
+  const what = `clearing the test marker of organisation ${tenantId}`;
   const [row] = rowsOf(
     await db.execute(sql`DELETE FROM test_organisation WHERE tenant_id = ${tenantId}::uuid RETURNING marker`),
+    what,
   );
-  return { cleared: row === undefined ? undefined : String(row.marker) };
+  return { cleared: row === undefined ? undefined : markerIn(row, what) };
 }
 
 /**

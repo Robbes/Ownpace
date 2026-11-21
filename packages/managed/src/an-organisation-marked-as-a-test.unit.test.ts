@@ -11,6 +11,10 @@
  *    (0070's CHECK) and nothing else: 3 to 64 characters, no control
  *    character, trimmed;
  *  - row security: one organisation can neither read nor write another's;
+ *  - only an appointed operator writes it, in their own name, and the
+ *    database says so: an `app_user` in the organisation's scope who is not
+ *    one inserts, updates and deletes nothing, and still reads the marker, as
+ *    the create door does;
  *  - set, replace, read and clear, each saying what it changed;
  *  - an organisation holds a migration while any `mailbox_mapping` row names
  *    it, whatever its status, a draft and a finished one alike;
@@ -21,6 +25,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
+import { sql } from 'drizzle-orm';
 import { pgliteDriver, runMigrations, withTenant } from '@openmig/ledger';
 import type { LedgerDriver, PgDatabase } from '@openmig/ledger';
 import { runManagedMigrations } from './migrate-managed.ts';
@@ -37,6 +42,7 @@ const TENANT_B = '0162a100-e29b-41d4-a716-446655440002';
 const CONN = '0162a100-e29b-41d4-a716-446655440011';
 const BOX = '0162a100-e29b-41d4-a716-446655440021';
 const OPERATOR = 'operator-subject-0162-t1';
+const NOT_OPERATOR = 'ordinary-subject-0162-t1';
 
 let driver: LedgerDriver;
 
@@ -50,16 +56,27 @@ async function q<T = Record<string, unknown>>(text: string, params: unknown[] = 
   }
 }
 
-/** A statement in one organisation's own scope, as `app_user`, rolled back whatever it did. */
-async function asTenant(tenant: string, text: string, params: unknown[] = []): Promise<Error | null> {
+/**
+ * A statement in one organisation's own scope, as `app_user`, acting as `user`
+ * when one is named, rolled back whatever it did: the error it met, or the rows
+ * it returned, which for a write is the rows it touched (`RETURNING`).
+ */
+async function asTenant(
+  tenant: string,
+  text: string,
+  params: unknown[] = [],
+  user?: string,
+): Promise<Error | { readonly touched: number; readonly rows: Record<string, unknown>[] }> {
   const conn = await driver.acquire();
   try {
     await conn.query('BEGIN');
     await conn.query('SET LOCAL ROLE app_user');
     await conn.query(`SELECT set_config('app.current_tenant', $1, true)`, [tenant]);
+    if (user !== undefined) await conn.query(`SELECT set_config('app.current_user', $1, true)`, [user]);
     try {
-      await conn.query(text, params);
-      return null;
+      // What it touched is what it returned: every write below says RETURNING.
+      const result = await conn.query(text, params);
+      return { touched: result.rows.length, rows: result.rows as Record<string, unknown>[] };
     } catch (e) {
       return e as Error;
     }
@@ -68,6 +85,16 @@ async function asTenant(tenant: string, text: string, params: unknown[] = []): P
     conn.release();
   }
 }
+
+const refusal = (outcome: Awaited<ReturnType<typeof asTenant>>): string | null =>
+  outcome instanceof Error ? outcome.message : null;
+
+/** In one organisation's scope, acting as the operator, as the doors do. */
+const asOperatorIn = <T,>(tenant: string, fn: (db: PgDatabase) => Promise<T>) =>
+  withTenant(driver, tenant, async (db) => {
+    await db.execute(sql`SELECT set_config('app.current_user', ${OPERATOR}, true)`);
+    return fn(db);
+  });
 
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
@@ -89,45 +116,123 @@ beforeEach(async () => {
   await q(`INSERT INTO tenant (id, name, status) VALUES ($1, 'A', 'active'), ($2, 'B', 'active')`, [TENANT_A, TENANT_B]);
 });
 
+/** The operator's insert, in their own name, in A's scope. */
 const insertMarker = (marker: string) =>
-  asTenant(TENANT_A, `INSERT INTO test_organisation (tenant_id, marker, marked_by) VALUES ($1, $2, 'x')`, [
+  asTenant(
     TENANT_A,
-    marker,
-  ]);
+    `INSERT INTO test_organisation (tenant_id, marker, marked_by) VALUES ($1, $2, $3)`,
+    [TENANT_A, marker, OPERATOR],
+    OPERATOR,
+  );
 
 describe('the table holds what a migration can copy', () => {
   it('takes a marker of 3 to 64 characters, any of them printable', async () => {
-    expect(await insertMarker('[Ownpace-test]')).toBeNull();
-    expect(await insertMarker('abc')).toBeNull();
-    expect(await insertMarker('a'.repeat(64))).toBeNull();
-    expect(await insertMarker('🧪🧪🧪')).toBeNull();
+    for (const marker of ['[Ownpace-test]', 'abc', 'a'.repeat(64), '🧪🧪🧪']) {
+      expect(refusal(await insertMarker(marker)), JSON.stringify(marker)).toBeNull();
+    }
   });
 
   it('refuses one too short, too long, with a control character, or untrimmed', async () => {
     for (const marker of ['ab', 'a'.repeat(65), '[Own\u0001pace]', '[Own\u007fpace]', '[Own\u0085pace]', ' [x-y]', '[x-y] ']) {
-      expect((await insertMarker(marker))?.message, JSON.stringify(marker)).toMatch(/test_organisation_marker_check/);
+      expect(refusal(await insertMarker(marker)), JSON.stringify(marker)).toMatch(/test_organisation_marker_check/);
     }
   });
 });
 
 describe('each organisation reads and writes its own', () => {
-  it('cannot read another organisation’s marker, or write one for it', async () => {
-    await withTenant(driver, TENANT_A, (db) => markTestOrganisation(db, TENANT_A, '[Ownpace-test]', OPERATOR));
+  it('cannot read another organisation’s marker, or write one for it, even as an operator', async () => {
+    await asOperatorIn(TENANT_A, (db) => markTestOrganisation(db, TENANT_A, '[Ownpace-test]', OPERATOR));
     expect(await withTenant(driver, TENANT_B, (db) => testMarkerOfOrganisation(db, TENANT_A))).toBeUndefined();
     expect(
-      (await asTenant(TENANT_B, `INSERT INTO test_organisation (tenant_id, marker, marked_by) VALUES ($1, 'abc', 'x')`, [TENANT_A]))
-        ?.message,
+      refusal(
+        await asTenant(
+          TENANT_B,
+          `INSERT INTO test_organisation (tenant_id, marker, marked_by) VALUES ($1, 'abc', $2)`,
+          [TENANT_A, OPERATOR],
+          OPERATOR,
+        ),
+      ),
     ).toMatch(/row-level security/);
-    expect(await withTenant(driver, TENANT_B, (db) => unmarkTestOrganisation(db, TENANT_A))).toEqual({ cleared: undefined });
+    expect(await asOperatorIn(TENANT_B, (db) => unmarkTestOrganisation(db, TENANT_A))).toEqual({ cleared: undefined });
     expect(await q(`SELECT marker FROM test_organisation WHERE tenant_id = $1`, [TENANT_A])).toEqual([
       { marker: '[Ownpace-test]' },
     ]);
   });
 });
 
+describe('only an appointed operator writes it, and the database says so', () => {
+  const insert = (user: string | undefined, markedBy: string) =>
+    asTenant(
+      TENANT_A,
+      `INSERT INTO test_organisation (tenant_id, marker, marked_by) VALUES ($1, '[Ownpace-test]', $2)`,
+      [TENANT_A, markedBy],
+      user,
+    );
+
+  it('refuses the insert of anybody who is not one, and of an operator in somebody else’s name', async () => {
+    // Nobody named, and somebody who is not an appointed operator: the
+    // organisation's own scope is not enough.
+    expect(refusal(await insert(undefined, 'x'))).toMatch(/row-level security/);
+    expect(refusal(await insert(NOT_OPERATOR, NOT_OPERATOR))).toMatch(/row-level security/);
+    // An operator, in another subject's name.
+    expect(refusal(await insert(OPERATOR, NOT_OPERATOR))).toMatch(/row-level security/);
+    // An operator, in their own name.
+    expect(refusal(await insert(OPERATOR, OPERATOR))).toBeNull();
+    expect(await q(`SELECT 1 FROM test_organisation`)).toEqual([]);
+  });
+
+  it('lets anybody else change and clear nothing, and still read the marker the create reads', async () => {
+    await asOperatorIn(TENANT_A, (db) => markTestOrganisation(db, TENANT_A, '[Ownpace-test]', OPERATOR));
+    for (const user of [undefined, NOT_OPERATOR]) {
+      const update = await asTenant(
+        TENANT_A,
+        `UPDATE test_organisation SET marker = 'changed', marked_by = $2 WHERE tenant_id = $1 RETURNING tenant_id`,
+        [TENANT_A, user ?? 'x'],
+        user,
+      );
+      expect(update, String(user)).toEqual({ touched: 0, rows: [] });
+      const clear = await asTenant(
+        TENANT_A,
+        `DELETE FROM test_organisation WHERE tenant_id = $1 RETURNING tenant_id`,
+        [TENANT_A],
+        user,
+      );
+      expect(clear, String(user)).toEqual({ touched: 0, rows: [] });
+      const read = await asTenant(TENANT_A, `SELECT marker FROM test_organisation WHERE tenant_id = $1`, [TENANT_A], user);
+      expect(read, String(user)).toEqual({ touched: 1, rows: [{ marker: '[Ownpace-test]' }] });
+    }
+    // The operator changes it in somebody else's name: refused too.
+    expect(
+      refusal(
+        await asTenant(
+          TENANT_A,
+          `UPDATE test_organisation SET marker = 'changed', marked_by = $2 WHERE tenant_id = $1`,
+          [TENANT_A, NOT_OPERATOR],
+          OPERATOR,
+        ),
+      ),
+    ).toMatch(/row-level security/);
+    expect(await q(`SELECT marker, marked_by FROM test_organisation WHERE tenant_id = $1`, [TENANT_A])).toEqual([
+      { marker: '[Ownpace-test]', marked_by: OPERATOR },
+    ]);
+    // The same statements, as the operator in their own name: each touches the row.
+    expect(
+      await asTenant(
+        TENANT_A,
+        `UPDATE test_organisation SET marker = 'changed', marked_by = $2 WHERE tenant_id = $1 RETURNING tenant_id`,
+        [TENANT_A, OPERATOR],
+        OPERATOR,
+      ),
+    ).toEqual({ touched: 1, rows: [{ tenant_id: TENANT_A }] });
+    expect(
+      await asTenant(TENANT_A, `DELETE FROM test_organisation WHERE tenant_id = $1 RETURNING tenant_id`, [TENANT_A], OPERATOR),
+    ).toEqual({ touched: 1, rows: [{ tenant_id: TENANT_A }] });
+  });
+});
+
 describe('set, replace, read and clear', () => {
   it('says what each changed, and records who set it', async () => {
-    const inA = <T,>(fn: (db: PgDatabase) => Promise<T>) => withTenant(driver, TENANT_A, fn);
+    const inA = <T,>(fn: (db: PgDatabase) => Promise<T>) => asOperatorIn(TENANT_A, fn);
     expect(await inA((db) => testMarkerOfOrganisation(db, TENANT_A))).toBeUndefined();
     expect(await inA((db) => markTestOrganisation(db, TENANT_A, '[Ownpace-test]', OPERATOR))).toEqual({
       replaced: undefined,
@@ -182,7 +287,7 @@ describe('what an organisation holds', () => {
 
 describe('the operator’s support views', () => {
   it('serve the organisation’s marker and each migration’s own, to an operator', async () => {
-    await withTenant(driver, TENANT_A, (db) => markTestOrganisation(db, TENANT_A, '[Ownpace-test]', OPERATOR));
+    await asOperatorIn(TENANT_A, (db) => markTestOrganisation(db, TENANT_A, '[Ownpace-test]', OPERATOR));
     await q(
       `INSERT INTO connection (id, tenant_id, role, kind, display_name, config, status)
        VALUES ($1, $2, 'source', 'imap', 'i', '{}'::jsonb, 'connected')`,

@@ -41,10 +41,20 @@
 --
 -- ## Who reads and writes it
 --
--- The API as `app_user`, in the organisation's own scope: the two doors above,
--- and the create door, which reads it. The purge of a closed organisation, by
--- `tenant_id` (`PURGED_TABLES` in offboarding.ts). And the operator's two
--- support views below, which serve the organisation's marker and each
+-- The API as `app_user`, in the organisation's own scope. Reading is the
+-- organisation's own: the create door reads the marker in the organisation's
+-- scope, where no operator is anywhere near, so SELECT asks only for the
+-- tenant. Writing is an appointed operator's, and the database says so itself,
+-- as 0023 does for a platform hold and 0055 for money given back: INSERT,
+-- UPDATE and DELETE each also ask that `app.current_user` names a row of
+-- `platform_operator`, and a row is written only in the operator's own name
+-- (`marked_by`). The two doors set `app.current_user` in their own
+-- transaction, the one that asks `platform_operator` and writes, so the check
+-- and the write are one transaction; an `app_user` in the organisation's scope
+-- who is not an operator writes nothing here, whatever the API does. The
+-- purge of a closed organisation deletes by `tenant_id` as `ownpace_system`,
+-- which reads past row security (`PURGED_TABLES` in offboarding.ts). And the
+-- operator's two support views below serve the organisation's marker and each
 -- migration's own. A marker is the operator's own setting, no personal data:
 -- who set it is the operator's subject, as on every audit row they write.
 --
@@ -76,29 +86,59 @@ ALTER TABLE public.test_organisation ENABLE ROW LEVEL SECURITY;
 ALTER TABLE ONLY public.test_organisation FORCE ROW LEVEL SECURITY;
 
 -- NULL-safe, as 0004 made the policies: an unset tenant reads as no rows.
+-- Reading is the organisation's own: the create door reads its marker here.
 DROP POLICY IF EXISTS tenant_isolation_select ON public.test_organisation;
 CREATE POLICY tenant_isolation_select ON public.test_organisation FOR SELECT
     USING ((tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid));
-DROP POLICY IF EXISTS tenant_isolation_insert ON public.test_organisation;
-CREATE POLICY tenant_isolation_insert ON public.test_organisation FOR INSERT
-    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid));
-DROP POLICY IF EXISTS tenant_isolation_update ON public.test_organisation;
-CREATE POLICY tenant_isolation_update ON public.test_organisation FOR UPDATE
-    USING ((tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid))
-    WITH CHECK ((tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid));
-DROP POLICY IF EXISTS tenant_isolation_delete ON public.test_organisation;
-CREATE POLICY tenant_isolation_delete ON public.test_organisation FOR DELETE
-    USING ((tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid));
 
--- The doors set it (a second set replaces the marker), clear it, and the
--- create door reads it.
+-- Writing is an appointed operator's, in the organisation's scope, and a row
+-- is written only in the operator's own name.
+DROP POLICY IF EXISTS operator_marks_a_test ON public.test_organisation;
+CREATE POLICY operator_marks_a_test ON public.test_organisation FOR INSERT
+    WITH CHECK (
+      tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid
+      AND marked_by = current_setting('app.current_user'::text, true)
+      AND EXISTS (
+        SELECT 1 FROM public.platform_operator
+         WHERE user_id = current_setting('app.current_user'::text, true)
+      )
+    );
+DROP POLICY IF EXISTS operator_changes_a_test ON public.test_organisation;
+CREATE POLICY operator_changes_a_test ON public.test_organisation FOR UPDATE
+    USING (
+      tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid
+      AND EXISTS (
+        SELECT 1 FROM public.platform_operator
+         WHERE user_id = current_setting('app.current_user'::text, true)
+      )
+    )
+    WITH CHECK (
+      tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid
+      AND marked_by = current_setting('app.current_user'::text, true)
+      AND EXISTS (
+        SELECT 1 FROM public.platform_operator
+         WHERE user_id = current_setting('app.current_user'::text, true)
+      )
+    );
+DROP POLICY IF EXISTS operator_clears_a_test ON public.test_organisation;
+CREATE POLICY operator_clears_a_test ON public.test_organisation FOR DELETE
+    USING (
+      tenant_id = (NULLIF(current_setting('app.current_tenant'::text, true), ''))::uuid
+      AND EXISTS (
+        SELECT 1 FROM public.platform_operator
+         WHERE user_id = current_setting('app.current_user'::text, true)
+      )
+    );
+
+-- The doors set it (a second set replaces the marker) and clear it, as the
+-- policies above allow an operator only, and the create door reads it.
 GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.test_organisation TO app_user;
 
 -- The purge deletes an organisation's row by the column it picks it with.
 GRANT SELECT (tenant_id), DELETE ON TABLE public.test_organisation TO ownpace_system;
 
 COMMENT ON TABLE public.test_organisation IS
-  'An organisation an appointed operator marked as a test, with its marker (workplan 0162 T1, ADR-0053): one row per test organisation, none for every other. Set and cleared only while the organisation holds no migration. Each migration made in it copies the marker onto mailbox_mapping.test_marker when it is created, and never loses it.';
+  'An organisation an appointed operator marked as a test, with its marker (workplan 0162 T1, ADR-0053): one row per test organisation, none for every other. Written only by an appointed operator, in their own name (the policies ask platform_operator), and only while the organisation holds no migration. Each migration made in it copies the marker onto mailbox_mapping.test_marker when it is created, and never loses it.';
 
 CREATE OR REPLACE VIEW public.support_tenants AS
   SELECT

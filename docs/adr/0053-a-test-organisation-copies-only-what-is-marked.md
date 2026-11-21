@@ -20,12 +20,12 @@
      scripts/adr-operative.mjs (drift-guarded by scripts/adr-operative.unit.test.ts). -->
 
 - **Only an appointed operator marks an organisation as a test**, with its marker, from Support
-  (`POST`/`DELETE /api/support/tenants/{id}/test`), and only while it holds no migration; anybody
-  else gets a 404. The marker is required: trimmed, 3 to 64 printable characters.
-  `[Ownpace-test]` is offered, never assumed.
+  (`POST`/`DELETE /api/support/tenants/{id}/test`), only while it is open and holds no migration;
+  anybody else gets a 404, and the database writes the row for an operator only. The marker is
+  required: trimmed, 3 to 64 printable characters. `[Ownpace-test]` is offered, never assumed.
 - **A migration copies its organisation's marker when it is created** (`mailbox_mapping.test_marker`),
-  in that transaction, and nothing changes or removes it: a trigger refuses, and
-  `a-test-marker-only-a-create-writes` refuses any update that names it.
+  in that transaction, and nothing changes or removes it. 0070's trigger is the guarantee;
+  `a-test-marker-only-a-create-writes` is an early warning before the merge.
 - **An item is in scope when its own title contains the marker**, ignoring case: a subject, an
   event's or task's title (a series by its master), a contact's name, a file's name. Nothing else
   decides.
@@ -89,11 +89,23 @@ How T1 holds (b) and (c):
   names the organisation, whatever its status, as `support_tenants.migration_count` and
   `operator.sh clean empty-tenant` count. A mark and a create are therefore decided one after the
   other: the create reads the marker under the same lock, and either copies it or makes the
-  organisation hold a migration before the mark is decided. Each door writes an audit row,
-  `tenant.test_marker_set` or `tenant.test_marker_cleared`.
+  organisation hold a migration before the mark is decided. The lock is keyed on the id as the
+  database spells it, so an id in capitals takes the same lock. Each door writes an audit row,
+  `tenant.test_marker_set` or `tenant.test_marker_cleared`, and the same marker again changes and
+  records nothing.
+- **Only an operator writes the row, and the database says so.** The table's INSERT, UPDATE and
+  DELETE policies ask that `app.current_user` names a row of `platform_operator`, and a row is
+  written only in that operator's name, as 0023 and 0055 guard theirs; reading stays the
+  organisation's, for the create. The doors set `app.current_user` and ask `platform_operator` in
+  the transaction that writes.
 - **Each migration's copy is a column** (ledger migration 0070), because every builder of a source
   must read it, and a column is harder to forget than a key in `scope_selection.filters`, which is
-  per data type, read by nothing, and does not admit `task`.
+  per data type, read by nothing, and does not admit `task`. 0070's BEFORE UPDATE trigger, which
+  refuses any change of it for every role, is what keeps it fixed. The guard
+  `a-test-marker-only-a-create-writes` is an early warning: it reads the updates of the table it
+  can recognise, SQL and drizzle, and refuses any that names the column, or a drizzle update whose
+  table is not named as itself; SQL built from pieces, or a column named at run time, it cannot
+  see, and the trigger still refuses.
 - **The screens.** The operating contract carries `testMarker`. Every page under a test
   migration shows a banner, in English and Dutch, drawn once by the frame around those pages, and
   the lists show a *Test* badge. The Support control is English, as every operator screen is

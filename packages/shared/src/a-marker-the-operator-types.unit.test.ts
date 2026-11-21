@@ -61,4 +61,34 @@ describe('a marker as the operator typed it', () => {
     }
     expect(readTestMarker('[Own\u200bpace]')).toEqual({ refused: expect.stringContaining('prints nothing') });
   });
+
+  it('refuses a character that looks blank and is not the space: other space separators, and the fillers', () => {
+    // A no-break space, an en and an em space, a thin and a narrow no-break
+    // space, a medium mathematical and an ideographic space, the Ogham space
+    // mark; the Hangul fillers and the blank braille pattern.
+    for (const c of [
+      '\u00a0',
+      '\u2002',
+      '\u2003',
+      '\u2009',
+      '\u202f',
+      '\u205f',
+      '\u3000',
+      '\u1680',
+      '\u115f',
+      '\u1160',
+      '\u3164',
+      '\uffa0',
+      '\u2800',
+    ]) {
+      expect(refused(`[Own${c}pace]`), `U+${c.codePointAt(0)!.toString(16)}`).toBe(true);
+    }
+    expect(readTestMarker('[Own\u00a0pace]')).toEqual({ refused: expect.stringContaining('looks blank') });
+    // A filler on its own, three times, is three characters of nothing.
+    expect(refused('\u3164\u3164\u3164')).toBe(true);
+    // The space itself stays a character of the marker, and a blank one at
+    // either end is trimmed away first, as a space is.
+    expect(readTestMarker('Ownpace test')).toEqual({ marker: 'Ownpace test' });
+    expect(readTestMarker('\u00a0[Ownpace-test]\u3000')).toEqual({ marker: '[Ownpace-test]' });
+  });
 });

@@ -20,9 +20,13 @@
  * column's CHECK holds, and none of the characters that print nothing, which
  * a person could not type into a title or see in one: a format character
  * (U+200B and the like, a byte order mark, a bidirectional control), a line or
- * paragraph separator, a lone surrogate or a private-use character. A marker
- * shorter than three would match almost every title; one nobody can see would
- * match none.
+ * paragraph separator, a lone surrogate or a private-use character. Nor any
+ * character that looks blank and is not the space: a space separator other
+ * than U+0020 (a no-break space, an em or ideographic space and the like), and
+ * the fillers that render as nothing (U+115F, U+1160, U+3164, U+FFA0, and the
+ * blank braille pattern U+2800). A marker shorter than three would match
+ * almost every title; one nobody can see, or tell from a plain space, would
+ * match none that anybody typed.
  *
  * ## Offered, not assumed
  *
@@ -48,6 +52,14 @@ export const TEST_MARKER_MAX = 64;
  */
 const UNPRINTABLE = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}\p{Cs}\p{Co}]/u;
 
+/**
+ * Characters that look blank and are not the space (U+0020), which is read
+ * apart: every other space separator (`Zs`), and the fillers that render as
+ * nothing although Unicode calls them letters or symbols: the Hangul fillers
+ * U+115F, U+1160, U+3164 and U+FFA0, and the blank braille pattern U+2800.
+ */
+const LOOKS_BLANK = /[\p{Zs}\u115F\u1160\u3164\uFFA0\u2800]/u;
+
 /** A typed marker, read: the marker to store, or why it is refused (said for the operator). */
 export type TestMarkerReading = { readonly marker: string } | { readonly refused: string };
 
@@ -69,6 +81,13 @@ export function readTestMarker(typed: unknown): TestMarkerReading {
       refused:
         'marker holds a character that prints nothing, such as a control or formatting character: ' +
         'nobody could type it into a title',
+    };
+  }
+  if (LOOKS_BLANK.test(marker.replace(/ /g, ''))) {
+    return {
+      refused:
+        'marker holds a character that looks blank and is not a space, such as a no-break space or a filler: ' +
+        'nobody could tell it from a space, or from nothing, in a title',
     };
   }
   const length = [...marker].length;

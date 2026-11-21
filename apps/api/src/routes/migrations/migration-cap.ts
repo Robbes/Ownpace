@@ -83,9 +83,19 @@ export class PastTheCap extends Error {
  * a migration is never made in an organisation while it is being marked, and
  * misses the marker. `pg_advisory_xact_lock` is released at COMMIT or ROLLBACK,
  * which a transaction pooler keeps to one connection.
+ *
+ * The key is the organisation's id as the database spells it
+ * (`::uuid::text`, lower case), never as the request did: the create's id
+ * comes from the `X-Ownpace-Tenant` header and a mark's from the support
+ * page's path, and an id in capitals names the same organisation. Keyed on the
+ * text as given, `ABC…` and `abc…` took two locks, and two creates, or a
+ * create and a mark, could pass each other (0162 T1's review), which also let
+ * two creates past `MAX_MIGRATIONS_PER_ORGANISATION` at once.
  */
 export async function holdTheOrganisationsMigrations(db: PgDatabase, tenantId: string): Promise<void> {
-  await db.execute(sql`SELECT pg_advisory_xact_lock(hashtextextended(${`migrations:${tenantId}`}, 0))`);
+  await db.execute(
+    sql`SELECT pg_advisory_xact_lock(hashtextextended('migrations:' || ${tenantId}::uuid::text, 0))`,
+  );
 }
 
 /**

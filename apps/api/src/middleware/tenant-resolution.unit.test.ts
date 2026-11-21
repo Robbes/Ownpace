@@ -71,6 +71,15 @@ describe('resolveTenant', () => {
     expect(await resolveTenant({ ...SUBJECT, tenantId: A }, B)).toEqual({ tenantId: B });
   });
 
+  it('answers an id named in capitals, in the header or the claim, as the database spells it', async () => {
+    // The database reads either case as one organisation, but the id is also
+    // a lock's key (the organisation's migrations lock, 0162 T1's review): two
+    // spellings must not take two locks.
+    memberships(A, B);
+    expect(await resolveTenant(SUBJECT, ` ${B.toUpperCase()} `)).toEqual({ tenantId: B });
+    expect(await resolveTenant({ ...SUBJECT, tenantId: A.toUpperCase() }, undefined)).toEqual({ tenantId: A });
+  });
+
   it('REFUSES to guess between several, and names the choices', async () => {
     memberships(A, B);
     const result = await resolveTenant(SUBJECT, undefined);

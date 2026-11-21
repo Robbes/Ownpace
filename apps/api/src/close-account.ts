@@ -76,7 +76,7 @@
 
 import type { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
-import { PgLedger, withTenant, type LedgerDriver } from '@openmig/ledger';
+import { PgLedger, withTenant, type LedgerDriver, type PgDatabase } from '@openmig/ledger';
 import * as schema from '@openmig/ledger/schema-pg';
 import { closeTenant, reopenTenant, type CloseWindowDays } from '@openmig/managed';
 import {
@@ -308,13 +308,22 @@ export async function isAppointedOperator(
   tenantId: string,
   subject: string,
 ): Promise<boolean> {
-  return withTenant(source, tenantId, async (db) => {
-    await db.execute(sql`SELECT set_config('app.current_user', ${subject}, true)`);
-    const found = (await db.execute(
-      sql`SELECT 1 FROM platform_operator WHERE user_id = ${subject}`,
-    )) as unknown as { rows: unknown[] };
-    return found.rows.length > 0;
-  });
+  return withTenant(source, tenantId, (db) => actingAsAppointedOperator(db, subject));
+}
+
+/**
+ * The same question, in the caller's own transaction, which from then on acts
+ * as `subject` (`app.current_user`, transaction-local). For a door whose write
+ * the database itself allows an operator only (managed 0062's
+ * `test_organisation`): the check and the write are then one transaction, and
+ * the policy that guards the write reads the same subject the check did.
+ */
+export async function actingAsAppointedOperator(db: PgDatabase, subject: string): Promise<boolean> {
+  await db.execute(sql`SELECT set_config('app.current_user', ${subject}, true)`);
+  const found = (await db.execute(
+    sql`SELECT 1 FROM platform_operator WHERE user_id = ${subject}`,
+  )) as unknown as { rows: unknown[] };
+  return found.rows.length > 0;
 }
 
 /**
