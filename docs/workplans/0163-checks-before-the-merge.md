@@ -4,6 +4,25 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, T4 follow-up: the grant page's two buttons go to Google's own page only.** On
+`claude/ownpace-public-readiness-y7orc6-grant-consent-host`, from `main` at `45a758af`.
+- **What #1990 found and left.** `apps/web/src/pages/Grant.tsx` sends the whole page to the
+  consent address the API answers, with `location.assign`: *Continue with Google* on a migration's
+  link, and one button per account on a person's link. Both followed whatever came back. No rule
+  reports the two lines, and neither finding names them.
+- **What it does.** Both go through `consentToFollow('google', …)`, the check *Pay* and the
+  consent window use (`apps/web/src/services/address-to-follow.ts`): `https:` on
+  `accounts.google.com` exactly, and the address followed is the one parsed. Anything else opens
+  nothing. The page then says the address is not Google's own page, in the reader's language, with
+  the consent's own sentence (`account.consent.notTheProvider`), and gives the button back.
+- **Tests.** The new guard `apps/web/src/pages/a-grant-button-that-goes-only-to-google.unit.test.tsx`
+  has 22 tests over both buttons. Google's page is followed as parsed. Refused, each for its own
+  reason: `http:` on Google's host, another host, Google's name inside another host, credentials in
+  front of another host, another port, `javascript:` (also one naming Google's host), no address,
+  and a path of our own. The refusal in Dutch. Four mutations each fail it: either button left
+  unchecked (10 tests each), the refusal shown as an unreadable answer (20), and the button left
+  disabled (9).
+
 **2026-11-21, last: T4's fix for findings 8 and 9, with the Pay button, built as #1990, a draft
 held for alpha.14.** On `claude/ownpace-public-readiness-y7orc6-t4-pay-checkout`, from
 `main` at `45dfead1`. `main` is frozen until the alpha.13 tag, so it merges after that tag.
@@ -252,7 +271,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); 🔨 **findings 8 and 9, with the Pay button, built** as #1990, a draft held for alpha.14 (Status, 2026-11-21, last) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); 🔨 **the grant page's two buttons**, on `claude/ownpace-public-readiness-y7orc6-grant-consent-host` (Status, 2026-11-21, T4 follow-up) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
