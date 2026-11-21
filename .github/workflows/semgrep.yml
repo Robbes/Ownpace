@@ -30,10 +30,12 @@
 # (D3): each flags how a pattern is built, not what reaches it, and every spot
 # outside the tests was read as fed a constant or an escaped value.
 #
-# CODE SCANNING. On a push to main the run's SARIF goes to code scanning, so
-# main's spots are listed there beside Trivy's. Never from a pull request:
-# there code scanning adds a check of its own, which can fail on a new alert,
-# and this job is report only.
+# CODE SCANNING. On a push to main the spots of the six rules that may block
+# go to code scanning (CODE_SCANNING_REPORT in scripts/semgrep-report.mjs), so
+# they are listed there beside Trivy's. The two ReDoS rules, which never block
+# (D3), stay in the job's summary only. Never from a pull request: there code
+# scanning adds a check of its own, which can fail on a new alert, and this job
+# is report only.
 #
 # WHICH IMAGE. SEMGREP_IMAGE below, by tag and index digest, which the guard
 # holds to the reference it records as read (`SEMGREP`), and moved by hand:
