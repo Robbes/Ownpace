@@ -6283,7 +6283,13 @@ paths:
         **A test migration's report lists only marked things** (workplan
         0162): a share is listed when the file, folder or calendar it is on
         carries the migration's marker in its own name, and nothing about
-        any other is reported.
+        any other is reported. The report says so at its head, with the
+        marker, in the reader's language.
+
+        **A withdrawn grant reads nothing** (ADR-0035): a migration whose
+        source's grant was withdrawn lists no share and asks no provider,
+        also where its mailbox names a connection that is not the
+        organisation's, which only a row written by hand reaches.
       parameters:
         - name: mailbox
           in: query
@@ -6326,8 +6332,11 @@ paths:
             `message` and its Dutch, `messageNl`: `code: test_migration`, the
             source gave a share of a test migration without saying what it is
             on; `code: test_organisation`, a report that names no migration,
-            asked in an organisation whose migrations carry a marker, which is
-            read per migration (`mappingId`).
+            asked in a test organisation, which is read per migration
+            (`mappingId`): one marked as a test (workplan 0162 T1), also while
+            it holds no migration, or one whose migrations carry a marker.
+            Refused before anything is read, and not counted against the
+            member's test limit.
           content:
             application/json:
               schema:

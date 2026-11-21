@@ -79,8 +79,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   nothing changes it afterwards: it copies only the items whose own title contains the marker
   (0162 T2), and is never finished or switched over (0162 T3). Every page of a test migration says
   so in a banner, in English and Dutch, with its marker; the lists show a *Test* badge; and the
-  Finish page offers its data types neither End nor Keep. The appliance has no test
-  organisations.
+  Finish page offers its data types neither End nor Keep. A test migration's permission list says
+  at its head, in English and Dutch, that it lists only the rights on items whose own name
+  contains its marker: the banner is not in the Markdown it downloads. A permission list asked for
+  by address, which names no migration, is refused in a test organisation as in one whose
+  migrations carry a marker, also while it holds no migration: before its first, or once its last
+  is deleted and its account kept. The appliance has no test organisations.
 
 ### Changed
 
@@ -170,6 +174,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A migration whose grant was withdrawn reads nothing, whatever connection its mailbox names**
+  (workplan 0162, #2011's review). A migration whose source mailbox, or that mailbox's connection,
+  is another organisation's, which only a row written by hand reaches, fell back to the
+  organisation's own accounts before its withdrawn grant was asked: its permission list read and
+  listed their sharing, and the sharing checklist's *Refresh from the source* saved it. The
+  withdrawn grant is now asked first, so such a migration lists and saves no share and asks no
+  provider, as the same withdrawal from its own connection does.
 - **An organisation's id in capitals no longer takes a second migrations lock** (workplan 0162 T1's
   review). The lock that makes creates wait for each other, and holds
   `MAX_MIGRATIONS_PER_ORGANISATION`, was keyed on the organisation's id as the request spelled it,

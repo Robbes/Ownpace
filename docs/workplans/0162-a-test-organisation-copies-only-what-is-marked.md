@@ -131,13 +131,12 @@ request at `5c58becd` found the points below. Each is now fixed, with a case tha
   "Nobody signed in" now reaches the route's own 401. A parse test holds `testMarker` in the web's
   two mapping schemas. The Support field sets no length of its own, and its state belongs to one
   organisation.
-- **Merge order.** The doors' pull request, #2011, merges first. Its
-  `a-status-update-that-switches-a-test-over` and `the-sharing-a-test-migration-keeps` are the cases
-  that require both of its refusals. Two things need its code and come after it lands, on this
-  branch: the permission report asked for by address is to be refused (409 `test_organisation`) in
-  an organisation that carries the marker itself, beside its `testsWithAMarker`, so that one whose
-  migration was deleted, or that holds none yet, is not reported whole; and the downloaded report
-  (`run-permission-inventory.ts`) is to say that it lists marked items only, for a test.
+- **Merge order.** The doors' pull request, #2011, merged first, as `f716c5a0` (*was:* merges
+  first). Its `a-status-update-that-switches-a-test-over` and `the-sharing-a-test-migration-keeps`
+  are the cases that require both of its refusals. The two things that needed its code are built
+  on this branch since: the permission report asked for by address, refused in an organisation
+  that carries the marker itself, and the downloaded report saying that it lists marked items only
+  (below).
 
 What is proven, and how. 21 new cases: the guard (3), `readTestMarker` (1), the table on PGlite (4:
 the database refusing a non-operator's insert, update and delete, and a malformed answer throwing),
@@ -162,6 +161,55 @@ Gates, on this branch merged with `main` at `2e5d4c8a`: the whole `unit` project
 43 changed files, and the six docs checks found nothing. On Postgres 16.15, 46 integration files
 passed, 438 cases: every integration file of `apps/api` (41), the three of `packages/managed`, the
 system role's, and the stop door's.
+
+**After #2011 merged, on the same branch (2026-11-21).** `main` is merged in at `f716c5a0`. The two
+things that needed #2011's code are built on it, with the order its second review asked for here.
+- **A test organisation's report asked for by address is refused, also while it holds no
+  migration.** `testsWithAMarker` asks the organisation's own marker (`testMarkerOfOrganisation`),
+  then its migrations', in one transaction under the organisation's row security. A report that
+  names no migration answers 409 `test_organisation` with
+  `A_TEST_ORGANISATIONS_SHARING_IS_PER_MIGRATION`, in English and Dutch, before anything is read
+  and before the member's test limit counts it: also before the organisation's first migration,
+  and after §6 step 7 deletes its last and keeps its account.
+- **A test migration's report says it lists marked items only.** `migrationInventoryScans` carries
+  the marker on its answer (`InventoryScans.testMarker`), the report route passes it to
+  `runPermissionInventory`, and the report says under its migration and date: *Test migration:
+  only the rights on items whose own name contains `[Ownpace-test]` are listed. Every other right
+  in the account is left out.*, and in Dutch *Testmigratie: alleen de rechten op items waarvan de
+  eigen naam `[Ownpace-test]` bevat, staan hierin. Alle andere rechten in het account zijn
+  weggelaten.* The marker is set as code, in a span that holds any backtick it carries. The Finish
+  page's banner is not in the Markdown it downloads.
+- **A withdrawn grant is asked first** (#2011's second review). A migration whose source mailbox,
+  or that mailbox's connection, is another organisation's, which only a row written by hand
+  reaches, fell back to the organisation's connections before `grant_withdrawn_at` was asked,
+  though the statement carries it. With its grant withdrawn, its report asked the provider once
+  and listed every share, and its rescan saved 8 rows. `sourceInventoryScans` now asks the
+  withdrawn grant first, so both answer as the same withdrawal from the migration's own connection
+  does: no provider asked, no share listed or saved. The fallback's log line and three comments no
+  longer say the mailbox "names no connection": `mailbox.connection_id` is `NOT NULL` since the
+  baseline.
+
+What is proven, and how. 10 new cases, through the real routes on PGlite with both chains, and on
+paper in core: the marked organisation that holds no migration (3: refused in both languages with
+no provider asked, made as before once unmarked, the member's one test left unspent); the
+withdrawn grant beside its control (2: the report and the rescan); and the report's head (5: the
+route in both languages, the renderer (3, one with a marker that holds backticks) and the pass).
+The Dutch report's fixture that reaches every branch now carries a marker too. On Postgres
+16.15, one more, in `a-report-under-row-security`: another organisation's mark does not refuse
+this one's report, and its own does, read under row security as `app_user`. Nine mutations, each
+one change, each caught, each file restored byte for byte (`cmp`): the old order (2 cases fail),
+the organisation's marker not asked (2, and the Postgres case), the refusal after the test limit
+(2: #2011's case and the new one), the head's line unsaid (5), its Dutch said in English (4), the
+marker dropped by the scans, the route or the pass (1, 1 and 2), and a code span that ignores the
+marker's backticks (1).
+
+Gates, on this branch merged with `main` at `f716c5a0`, with Node 22.22.0: every unit file of
+`apps/api` with the three report files of `packages/core`, 180 files, 2,415 cases passed, and the
+report's files again after the code span; every guard under `scripts/`, 309 files, 7,535 cases passed and 37 skipped, but for the 2 files
+that run pnpm, as before (3 files found the machine's disk full on the first run, making their
+temporary directories, and passed when run again); `tsc --noEmit` for the root and `apps/web`,
+ESLint on the 51 changed files, and the six docs checks found nothing. On Postgres 16.15, 46 integration files passed, 440 cases: every integration file
+of `apps/api` (41), the three of `packages/managed`, the system role's, and the stop door's.
 
 **2026-11-21, later: four of the five things T1 settles first, settled, on
 `claude/ownpace-public-readiness-y7orc6-0162-t1-doors`, from `main` at `17548646`, as #2011;
