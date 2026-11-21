@@ -89,7 +89,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { existsSync } from 'node:fs';
-import { chromium, type Browser, type Page } from 'playwright-core';
+import { chromium, errors as playwrightErrors, type Browser, type Page } from 'playwright-core';
 
 const PORT = process.env.SELFHOST_PORT || '8081';
 const BIND = process.env.SELFHOST_BIND || '127.0.0.1';
@@ -213,7 +213,11 @@ describe('the operating UI boots in a real browser', () => {
           undefined,
           { timeout: 15_000 },
         )
-        .catch(() => {});
+        // Only the wait running out: the checks below then say what the
+        // screen shows instead. Anything else, a page gone, is thrown.
+        .catch((err: unknown) => {
+          if (!(err instanceof playwrightErrors.TimeoutError)) throw err;
+        });
       // AFTER the wait, deliberately: the data fetch is part of the load, and a
       // console error or a non-2xx raised BY it is invisible to a check that
       // ran while the screen was still a spinner.

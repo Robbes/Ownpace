@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-21: A to I done (rows corrected 2026-08-01, the work having landed long before); J built on a branch, not merged; L built on a branch, not merged
+## Status — 2026-11-21: A to J done (rows corrected 2026-08-01, the work having landed long before); K built on a branch, not merged; L built on a branch, not merged
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -14,7 +14,8 @@
 | G — Compose duplication & Postgres version drift (root vs `deploy/compose`) | ✅ Done — root compose removed; `deploy/compose/managed.yml` is the one source | approved |
 | H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
 | I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
-| J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | 🔨 Built 2026-11-19 on branch `claude/ownpace-public-readiness-y7orc6-bl-errors`, not pushed: 23 sites changed, 2 left as they were (nothing swallowed); the unit and web tests, both type checks and lint green; the three JMAP integration files changed are CI's to prove. See §J | asked for, 2026-11-19 |
+| J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | ✅ Done 2026-11-19, merged in #1944 (`cd1ff1bc`): 23 sites changed, 2 left as they were (nothing swallowed). See §J | asked for, 2026-11-19 |
+| K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | 🔨 Built 2026-11-21 (UTC) on branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
 | L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | 🔨 Built 2026-11-21 (21:20 UTC) on branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`, not merged: none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
@@ -244,6 +245,42 @@ clean-up (its `.catch(` and `() => undefined` stand on two lines), the poll's ca
 `Confirmed.tsx`, and the two comment-only catches in `unreadable-answer.ts`. And
 `destroyJmapFixtures` reads only the HTTP status, so a destroy the server refuses inside its 200
 (`notDestroyed`) still passes unsaid.
+
+---
+
+## K — Errors caught and dropped, again (the same check, 2026-11-21)
+
+**Evidence.** The same read-only check (ERR-1) ran again on `main` at `75d7949d` (2026-11-21
+08:40) and named 12 spots: one in product code (the Cirrux Drive connector), one in its test
+fake, and ten in tests and the integration tier's set-up. Each was read at `75d7949d` and on
+`main` at `f5c013e`. Only two files changed in between: `cirrux-fake.ts` (a tag length named, 50
+lines below its spot) and `a-binary-the-stack-never-runs.unit.test.ts`, whose spot moved from
+line 755 to 701. Two of the spots are ones §J judged "nothing swallowed", and are again.
+
+**Done (2026-11-21).** By site, with the line on `75d7949d`:
+
+| Site | What it is | Kind | What changed | Shown by |
+|---|---|---|---|---|
+| `packages/connectors/src/cirrux-drive-api.ts:377` | `.then(...)` with no `.catch` in `partUrls` | Nothing swallowed. The promise is returned; `askUrls` in `cirrux-drive-target.ts` awaits it inside the upload's `try`, which aborts the staged upload and throws on. A person would see the file fail in the pass with "Cirrux answered …/part_urls without part_urls", no file in Cirrux, and the next pass try it again | The code: nothing. A test, as none covered the path | `cirrux-drive-target.unit.test.ts`, *part URLs Cirrux answers without part_urls fail the file*; with `.catch(() => [])` added to `partUrls` it fails |
+| `packages/connectors/src/__testing__/cirrux-fake.ts:83` | `this.tail = run.catch(() => undefined)` | Nothing swallowed. The caller gets `run`, with its error; the catch only keeps the lock usable for the next rotation, as the database's store is | Nothing | With `this.tail = run`, three tests fail: the 5xx that keeps the token, the answer that never arrived, and connecting again |
+| `apps/api/src/routes/connection-delete-revokes.integration.test.ts:332` | `.then((res) => res)`, the request started and not awaited at once | Nothing swallowed, as §J found: both are awaited by `Promise.all` a few lines on | Nothing | — |
+| `apps/api/src/routes/tenants/members.integration.test.ts:563` | `answer.catch(() => undefined)` | Nothing swallowed, as §J found: `Promise.all(answers)` awaits the same promises and rejects with their error; the catch only keeps one from being unhandled while the test waits | Nothing | — |
+| `packages/orchestration/src/imap-dav-target.integration.test.ts:197` | `client.logout().catch(() => undefined)` in a `finally` | Expected: a clean-up that must not throw, as a throw from a `finally` replaces the error that brought it there | The failure is said with `console.warn` | CI's integration job; a log line only |
+| `packages/testing/src/testcontainers-setup.ts:73`, `:124` | An empty catch around the log file's last line; the four `data` and `err` handlers beside them the same | Expected: a stream's event handler must not throw, or the run ends. But a log that stopped short said nothing | `appendToTestLog` (`container-chores.ts`), for all six: a failed write said once per file | `container-chores.unit.test.ts`; with the old silent catch, and with it said every time, a test fails |
+| `packages/testing/src/testcontainers-setup.ts:735` | `docker rm -f <id>` with `.catch(() => {})` | Expected: a container already gone. But any other failure was taken as removed, and the next Stalwart started on the same data volume | `removeContainerOrGone`: only `No such container` is let go, anything else thrown | `container-chores.unit.test.ts`; letting everything go, or nothing, a test fails |
+| `scripts/a-binary-the-stack-never-runs.unit.test.ts:755` | An empty catch round a second `dockerfileBase` call | Nothing swallowed: the same call's error is said a few lines above | The FROM is parsed once and its tag kept, so the second call and its catch go | The guard's 94 tests pass |
+| `scripts/a-duty-the-gate-used-to-do.unit.test.ts:642` | An empty catch round `process.kill(-pid, 'SIGKILL')` | Expected: a group gone meanwhile (`ESRCH`) | Only `ESRCH` is let go quietly; anything else, a group left running, is said (a throw from the `finally` would replace the test's own failure, and `no-unsafe-finally` refuses one) | `node`: a reaped child's group answers `ESRCH`; the test passes |
+| `test/e2e/selfhost-backup-restore.e2e.test.ts:213` | An empty catch round reading the app's logs for the failure message | Expected: a diagnostic that must not throw over the real failure. But a read that failed said "(no logs)" | The message says the logs could not be read, and why | E2E (self-hosted); a message only |
+| `test/e2e/selfhost-ui.e2e.test.ts:216` | `waitForFunction(...).catch(() => {})` | Expected: the wait running out, after which the checks say what the screen shows. A page gone was taken for that too | Only Playwright's `TimeoutError` is let go; anything else thrown | Real Chromium: a wait that runs out is a `TimeoutError`, a closed page a `TargetClosedError`, which is not |
+
+Nothing was suppressed, and no comment or marker was added for the check's sake. Gates: the
+changed tests and the guards that read the changed files, both type checks, eslint on the
+changed files, and the docs checks. The integration and E2E files changed are CI's to prove:
+there is no container runtime where this was built.
+
+**Not done.** In `startStalwart`, the `docker ps` loop's `catch { break; }` just above line 735
+takes a failed `docker ps` for a container gone, the same shape the check did not name. The 24
+one-line catches §J left, and its other follow-ups, stand.
 
 ---
 
