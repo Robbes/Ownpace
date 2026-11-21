@@ -4,7 +4,7 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21, 23:55 UTC, latest: T3 is built, on
+**2026-11-21, 22:55 UTC, latest: T3 is built, on
 `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`, as §4.2, and not yet on the test
 environment.** *Delete all of these here too* on *Deleted on the old system*
 (`apps/web/src/components/queues/DeleteAllPanel.tsx`), on T2 as merged in #2019:
@@ -33,7 +33,8 @@ environment.** *Delete all of these here too* on *Deleted on the old system*
   English and Dutch, the server's words and code verbatim under *Technical details*. *Stop*
   presses nothing more, and the rows never reached get their buttons back.
 - **Records:** ADR-0024 (operative rules in place, *Amendment, 2026-11-21*), the arch doc §11.1, the
-  operator runbook, the queues' guidance, the glossary, the CHANGELOG.
+  operator runbook, `docs/i18n-prose-boundary.md` (class 2), the queues' guidance, the glossary,
+  the CHANGELOG.
 - **Tests:** the loop over the real `applyDeletion` and `MemoryLedger`, one row refused by each
   gate and the rest removed, and a breaker that trips mid-run
   (`packages/core/src/a-delete-all-through-every-gate.unit.test.ts`); the loop by itself
