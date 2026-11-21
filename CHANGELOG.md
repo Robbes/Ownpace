@@ -4,8 +4,33 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A migration can carry a test marker, and then copies only the items whose own title carries
+  it** (workplan 0162 T2). Nothing sets one yet, so no migration copies differently: the step that
+  marks a test organisation, and records its marker on each migration made there, is next (0162
+  T1). The marker is a new column of the ledger (migration 0070), empty for a migration that is
+  not a test, 3 to 64 characters with no control character, and never changed once written: the
+  database refuses any change to it. With a marker, the pass, the preflight count and the applies
+  of a deletion or a relocation, in both editions, see only the items whose own title carries it,
+  in any case: a message's subject, an event's or a task's title (a recurring event by its
+  series), a contact's full name, a file's own name. Nothing else is copied, written to the ledger
+  or made on the target: a folder, calendar or address book is made there when its first marked
+  item is copied. A marked item deleted at the source still reaches the deletion queue; one whose
+  marker is taken out of its title is left as it was last copied, and is neither reported as
+  deleted nor moved.
+
 ### Changed
 
+- **Semgrep's report says where Semgrep read the tree only in part** (workplan 0163 T5). Semgrep's
+  taint analysis gives each function a time limit of its own. A rule that reaches it reports
+  nothing in that function, with no error and exit 0: `main`'s first Semgrep run read one spot
+  fewer than its pull request's last run on the same tree. Semgrep names such a place only in the
+  timing section that `--time` adds to its report, which the report did not ask for. It now runs
+  Semgrep with `--time` and lists each place, with how many rules timed out there and the first of
+  them, and marks a place on its line where a rule that may block can have timed out. Once a rule
+  blocks, a place where that rule can have timed out is a scan that did not finish, which fails the
+  run on `main`. No rule blocks yet, so nothing fails today.
 - **pnpm is 11.28.13, from 11.28.12** (workplan 0119; the pin watch's #1989): CI and the images
   take pnpm from `packageManager`, and the pnpm a host deploys with switches itself to it. Its
   security fix: after the default or a scoped registry changed, `pnpm install` reused what it had

@@ -293,6 +293,17 @@ export const mailboxMapping = pgTable(
      * shared parser as the appliance's `throttleConfig`. NULL = no throttling.
      */
     throttleConfig: jsonb('throttle_config'),
+    /**
+     * The marker a test migration copies by (migration 0070, workplan 0162):
+     * only items whose own title contains it, ignoring case, are listed,
+     * copied and counted, because every builder of this mapping's source wraps
+     * it in `MarkedOnly` when this is set. NULL for every migration that is
+     * not a test, and NULL builds every source exactly as before.
+     *
+     * Written when the migration is created and never changed: the database
+     * refuses an UPDATE that changes it, for every role (§2 (c)).
+     */
+    testMarker: text('test_marker'),
     createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
   },

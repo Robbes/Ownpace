@@ -154,6 +154,12 @@ export type PassPhases = {
   readonly grantWithdrawnAt: Date | null;
   /** Each data type's phase. */
   readonly phaseOf: PathPhaseOf;
+  /**
+   * The marker a test migration copies by (`MigrationPhases.testMarker`,
+   * workplan 0162), when it is one. Absent for every other migration, and
+   * from a reader that does not know of it, which builds as before.
+   */
+  readonly testMarker?: string;
 } | null;
 
 /**
