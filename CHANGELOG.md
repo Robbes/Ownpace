@@ -108,6 +108,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   Nothing is downloaded for it. The image has a new name, which each machine builds at its next
   deploy.
 
+- **A stored credential is decrypted only with its full authentication tag** (workplan 0163).
+  The credential store's AES-GCM cipher and decipher now both name the tag's length, 16 bytes, so
+  Node itself refuses a shorter tag. Until now only a length check before decryption did.
+
 ### Fixed
 
 - **A copied message keeps the time it arrived** (workplan 0002, 0001). The IMAP writer gave
