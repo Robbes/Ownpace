@@ -1,8 +1,8 @@
 # Workplan 0006 — Intermediate remediation: repo integrity & findings outside the plan
 
-> **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, errors caught and dropped.
+> **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-19: A to I done (rows corrected 2026-08-01, the work having landed long before); J built on a branch, not merged
+## Status — 2026-11-21: A to J done (rows corrected 2026-08-01, the work having landed long before); K built on a branch, not merged; L built on a branch, not merged
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -14,7 +14,9 @@
 | G — Compose duplication & Postgres version drift (root vs `deploy/compose`) | ✅ Done — root compose removed; `deploy/compose/managed.yml` is the one source | approved |
 | H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
 | I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
-| J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | 🔨 Built 2026-11-19 on branch `claude/ownpace-public-readiness-y7orc6-bl-errors`, not pushed: 23 sites changed, 2 left as they were (nothing swallowed); the unit and web tests, both type checks and lint green; the three JMAP integration files changed are CI's to prove. See §J | asked for, 2026-11-19 |
+| J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | ✅ Done 2026-11-19, merged in #1944 (`cd1ff1bc`): 23 sites changed, 2 left as they were (nothing swallowed). See §J | asked for, 2026-11-19 |
+| K — Errors caught and dropped, again: the 12 spots the same check (ERR-1) named on `75d7949d`, 2026-11-21 | 🔨 Built 2026-11-21 (UTC) on branch `claude/ownpace-public-readiness-y7orc6-err1-nov21`: no real bug; 7 spots narrowed or made to say their failure, all in tests and their set-up; 5 swallow nothing, of which 3 are left as they were, one gains a test (the Cirrux connector) and one a single parse; nothing in the product changes. See §K | asked for, 2026-11-21 |
+| L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | 🔨 Built 2026-11-21 (21:20 UTC) on branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`, not merged: none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left as it is, and so are the 24 test spots: the owner's D1 and D2. See §L | asked for, 2026-11-21; D1 and D2 decided 2026-11-21: leave as is |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -243,6 +245,114 @@ clean-up (its `.catch(` and `() => undefined` stand on two lines), the poll's ca
 `Confirmed.tsx`, and the two comment-only catches in `unreadable-answer.ts`. And
 `destroyJmapFixtures` reads only the HTTP status, so a destroy the server refuses inside its 200
 (`notDestroyed`) still passes unsaid.
+
+---
+
+## K — Errors caught and dropped, again (the same check, 2026-11-21)
+
+**Evidence.** The same read-only check (ERR-1) ran again on `main` at `75d7949d` (2026-11-21
+08:40) and named 12 spots: one in product code (the Cirrux Drive connector), one in its test
+fake, and ten in tests and the integration tier's set-up. Each was read at `75d7949d` and on
+`main` at `f5c013e`. Only two files changed in between: `cirrux-fake.ts` (a tag length named, 50
+lines below its spot) and `a-binary-the-stack-never-runs.unit.test.ts`, whose spot moved from
+line 755 to 701. Two of the spots are ones §J judged "nothing swallowed", and are again.
+
+**Done (2026-11-21).** By site, with the line on `75d7949d`:
+
+| Site | What it is | Kind | What changed | Shown by |
+|---|---|---|---|---|
+| `packages/connectors/src/cirrux-drive-api.ts:377` | `.then(...)` with no `.catch` in `partUrls` | Nothing swallowed. The promise is returned; `askUrls` in `cirrux-drive-target.ts` awaits it inside the upload's `try`, which aborts the staged upload and throws on. A person would see the file fail in the pass with "Cirrux answered …/part_urls without part_urls", no file in Cirrux, and the next pass try it again | The code: nothing. A test, as none covered the path | `cirrux-drive-target.unit.test.ts`, *part URLs Cirrux answers without part_urls fail the file*; with `.catch(() => [])` added to `partUrls` it fails |
+| `packages/connectors/src/__testing__/cirrux-fake.ts:83` | `this.tail = run.catch(() => undefined)` | Nothing swallowed. The caller gets `run`, with its error; the catch only keeps the lock usable for the next rotation, as the database's store is | Nothing | With `this.tail = run`, three tests fail: the 5xx that keeps the token, the answer that never arrived, and connecting again |
+| `apps/api/src/routes/connection-delete-revokes.integration.test.ts:332` | `.then((res) => res)`, the request started and not awaited at once | Nothing swallowed, as §J found: both are awaited by `Promise.all` a few lines on | Nothing | — |
+| `apps/api/src/routes/tenants/members.integration.test.ts:563` | `answer.catch(() => undefined)` | Nothing swallowed, as §J found: `Promise.all(answers)` awaits the same promises and rejects with their error; the catch only keeps one from being unhandled while the test waits | Nothing | — |
+| `packages/orchestration/src/imap-dav-target.integration.test.ts:197` | `client.logout().catch(() => undefined)` in a `finally` | Expected: a clean-up that must not throw, as a throw from a `finally` replaces the error that brought it there | The failure is said with `console.warn` | CI's integration job; a log line only |
+| `packages/testing/src/testcontainers-setup.ts:73`, `:124` | An empty catch around the log file's last line; the four `data` and `err` handlers beside them the same | Expected: a stream's event handler must not throw, or the run ends. But a log that stopped short said nothing | `appendToTestLog` (`container-chores.ts`), for all six: a failed write said once per file | `container-chores.unit.test.ts`; with the old silent catch, and with it said every time, a test fails |
+| `packages/testing/src/testcontainers-setup.ts:735` | `docker rm -f <id>` with `.catch(() => {})` | Expected: a container already gone. But any other failure was taken as removed, and the next Stalwart started on the same data volume | `removeContainerOrGone`: only `No such container` is let go, anything else thrown | `container-chores.unit.test.ts`; letting everything go, or nothing, a test fails |
+| `scripts/a-binary-the-stack-never-runs.unit.test.ts:755` | An empty catch round a second `dockerfileBase` call | Nothing swallowed: the same call's error is said a few lines above | The FROM is parsed once and its tag kept, so the second call and its catch go | The guard's 94 tests pass |
+| `scripts/a-duty-the-gate-used-to-do.unit.test.ts:642` | An empty catch round `process.kill(-pid, 'SIGKILL')` | Expected: a group gone meanwhile (`ESRCH`) | Only `ESRCH` is let go quietly; anything else, a group left running, is said (a throw from the `finally` would replace the test's own failure, and `no-unsafe-finally` refuses one) | `node`: a reaped child's group answers `ESRCH`; the test passes |
+| `test/e2e/selfhost-backup-restore.e2e.test.ts:213` | An empty catch round reading the app's logs for the failure message | Expected: a diagnostic that must not throw over the real failure. But a read that failed said "(no logs)" | The message says the logs could not be read, and why | E2E (self-hosted); a message only |
+| `test/e2e/selfhost-ui.e2e.test.ts:216` | `waitForFunction(...).catch(() => {})` | Expected: the wait running out, after which the checks say what the screen shows. A page gone was taken for that too | Only Playwright's `TimeoutError` is let go; anything else thrown | Real Chromium: a wait that runs out is a `TimeoutError`, a closed page a `TargetClosedError`, which is not |
+
+Nothing was suppressed, and no comment or marker was added for the check's sake. Gates: the
+changed tests and the guards that read the changed files, both type checks, eslint on the
+changed files, and the docs checks. The integration and E2E files changed are CI's to prove:
+there is no container runtime where this was built.
+
+**Not done.** In `startStalwart`, the `docker ps` loop's `catch { break; }` just above line 735
+takes a failed `docker ps` for a container gone, the same shape the check did not name. The 24
+one-line catches §J left, and its other follow-ups, stand.
+
+---
+
+## L — Blocking calls in async code (an outside, read-only check, 2026-11-21)
+
+**Evidence.** An outside, read-only check (PERF-1, "Blocking calls in async code", status
+"Needs attention") read the code on `75d7949d` for calls that make everything else wait inside
+async code: in Node, a `*Sync` call inside an async function or a request handler. Fixed
+patterns, nothing run. The owner's copy lists 25 calls in 19 files, line 135 of
+`notifier-wiring.unit.test.ts` twice: that line holds two calls, a `writeFileSync` of a
+`readFileSync`. Each was read on `75d7949d` and again on `main` at `f5c013e`.
+
+**Sorted.** Three kinds: (a) product code on a path that serves requests or runs passes, where
+the call holds up other work; (b) product code that runs once, before anything is served; (c)
+test code and test set-up, where the call holds up only that test's own worker.
+
+| Spot on `75d7949d` | On `f5c013e` | Call | Kind | Why |
+|---|---|---|---|---|
+| `packages/ledger/src/migrate.ts:225` | `:258`, unchanged | `readFileSync` of one migration file | (b) | `runMigrations` runs at start-up: the appliance's `start()` awaits it before it schedules anything and long before `server.listen`; the API calls `app.listen` only in the `.then` after both chains; `seed-managed` is a CLI. Nothing is served while it reads, and each read is one small file before a database round trip far longer than the read. `listMigrationVersions`' `readdirSync` (`:131` now) is the same case |
+| `vitest.global-setup.ts:73`, `:78` | the same lines | `readdirSync`, `readFileSync` of the migrations | (c) | vitest's global set-up, once per run, before any test |
+| `apps/api/src/a-body-that-would-not-parse.unit.test.ts:274` | same line | `gzipSync` of a small JSON body | (c) | the test's own request body |
+| `apps/api/src/routes/migrations/a-failure-said-in-our-words.unit.test.ts:496`, `:508`, `:510` | same lines | `readFileSync`, `readdirSync` | (c) | the test reads the appliance's source to check its wording |
+| `apps/api/src/routes/ready.unit.test.ts:59` | same line | `readFileSync` of `ready.ts` | (c) | the test reads the route's source |
+| `apps/selfhost/src/a-body-cut-short-on-the-appliance.unit.test.ts:49` | same line | `writeFileSync` | (c) | the mapping file of the test's temporary config directory |
+| `apps/selfhost/src/a-download-that-resumes.unit.test.ts:56` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/a-log-the-appliance-serves.unit.test.ts:47` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/a-name-it-answers-to.unit.test.ts:105` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/a-page-on-another-site.unit.test.ts:46` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/a-press-that-meets-the-share-limit-on-the-appliance.unit.test.ts:110` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/an-apply-pressed-after-cutover.integration.test.ts:75` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/apply-flag.unit.test.ts:80`, `:83` | same lines | `writeFileSync` | (c) | two mapping files of the test |
+| `apps/selfhost/src/decisions-routes.unit.test.ts:50` | same line | `writeFileSync` | (c) | the test's mapping file |
+| `apps/selfhost/src/first-pass-on-activation.unit.test.ts:62` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/notifier-wiring.unit.test.ts:59`, `:135` (two calls) | same lines | `writeFileSync`; `writeFileSync` of a `readFileSync` | (c) | the test copies its mapping file into a second config directory |
+| `apps/selfhost/src/one-person-on-the-appliance.unit.test.ts:47` | same line | `writeFileSync` | (c) | the test's mapping file |
+| `apps/selfhost/src/runs-route.unit.test.ts:54` | same line | `writeFileSync` | (c) | the same |
+| `apps/selfhost/src/selfhost-queues.integration.test.ts:179` | same line | `writeFileSync` | (c) | the same |
+
+None of the 25 is of kind (a): one (b), counted with its `readdirSync`, and 24 (c).
+
+**Searched for what the check did not name.** Product code in `apps/api`, `apps/selfhost`,
+`apps/worker` and `packages/*`, for `readFileSync`, `writeFileSync`, `existsSync`, `statSync`,
+`mkdirSync`, `readdirSync`, `execSync`, `execFileSync`, `spawnSync`, `Atomics.wait`, the
+synchronous `node:zlib` calls and `pbkdf2Sync`/`scryptSync`, on `f5c013e`:
+
+| Spot on `f5c013e` | Call | Kind | What is done |
+|---|---|---|---|
+| `packages/core/src/build-identity.ts:26` | `readFileSync` of the root `package.json`, on every call | (a) | **Fixed.** `buildIdentity()` answers `GET /version` on both editions, on every request, and is called for each problem report and each unreadable-answer line. The read was small and cached by the system, so the wait was short, but it was on a request path. The file is now read once per process; the env stamp is still read on every call and still wins. Shown by `build-identity.unit.test.ts`, *reads package.json once*: three more calls make no more reads; with the old file it saw four reads |
+| `packages/shared/src/container-hash.ts:181` | `inflateRawSync` of each member of a zip | on a pass | **Left as it is (D2 below).** Reached only for a rendering this product asked Google Drive to export (ADR-0046), during the file pass and when a WebDAV target is read back. On the appliance, passes share the process with the web server, so an inflate holds up its requests while it runs. Measured here: 1.5 ms for 1 MB of inflated content, 16 ms for 10 MB, 52 ms for 50 MB; Drive refuses to export past a size of its own (`exportSizeLimitExceeded`), which bounds it. The sha256 that every file of every pass already gets is as long again, and is synchronous too, so moving the inflate alone off the event loop would halve the wait, not end it; ending it means making the reconcile core's `contentHash` hook async |
+| `apps/selfhost/src/config-dir.ts:77`, `:87` | `readdirSync`, `readFileSync` of the mapping files | (b) | `loadConfigDir` runs once in `start()`, before anything is scheduled or served |
+| `apps/worker/src/index.ts:93` | `readFileSync` of `--config` | (b) | the worker CLI's first step, before its first pass |
+| `packages/testing/src/testcontainers-setup.ts`, `packages/connectors/src/zip-test-writer.ts`, the `__tests__/` helpers in `apps/api`, `packages/ledger` and `packages/managed` | many | (c) | test support, never imported by product code |
+
+Nothing else turned up: no `existsSync`, `statSync`, `mkdirSync`, `execSync`, `spawnSync`,
+`Atomics.wait` or synchronous key derivation in product code. `zip-archive.ts`, which reads
+customers' archives, already inflates with the streaming `createInflateRaw`.
+
+**Not done, on purpose.** No test was changed to quiet the check (D1), and nothing was added
+whose only purpose is to make it quiet. Test code on `f5c013e` holds about 3,500 synchronous
+file, process or zlib calls in some 470 files, most of them the guards in `scripts/` reading the
+source they check.
+
+**Decided (the owner, 2026-11-21).** Both as advised:
+
+- **D1, the 24 test spots: leave them as they are.** Each blocks only its own test worker.
+  Moving them, or the other test calls of the same shape, to the async variants gains nothing
+  at run time.
+- **D2, `inflateRawSync` in `container-hash.ts`: leave it as it is.** The stall is bounded by
+  the size Drive will export, and the sha256 every file already gets is as long and as
+  synchronous. Moving the inflate alone would halve the wait for renderings only; moving all
+  hashing off the event loop would change the reconcile core's `contentHash` hook. Neither is
+  planned.
 
 ---
 

@@ -20,6 +20,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   words beside it. Nothing is deleted by itself: no route was added, and the server cannot tell a
   row of a run from one pressed by hand.
 
+### Changed
+
+- **`GET /version` no longer reads a file on every request** (workplan 0006 L). On both editions
+  the build's version came from the root `package.json`, read again for every answer, every
+  problem report and every unreadable-answer line, and each read held up the requests behind it.
+  It is now read once per process; a version stamped in the environment still wins on every call.
+
 ## [0.2.0-alpha.14] - 2026-11-21
 
 An appointed operator can mark an organisation as a test from Support, and every migration made
