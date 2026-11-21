@@ -26,6 +26,11 @@ export interface Rule {
   readonly finding: number | null;
   /** True for the two ReDoS rules, which never block (D3). */
   readonly never: boolean;
+  /**
+   * True once the rule blocks (0163 §5, step 5); none does yet. Read only for
+   * a time-out so far: one this rule can have makes the scan unfinished.
+   */
+  readonly blocks: boolean;
   /** What it reports, in a few words. */
   readonly what: string;
 }
@@ -74,6 +79,21 @@ export interface Note {
   readonly message: string;
 }
 
+/** A place Semgrep's taint analysis timed out in, from `time.fixpoint_timeouts`. */
+export interface Timeout {
+  /** The file, or empty when the entry does not say. */
+  readonly path: string;
+  /** The function's line, 1 for the file's top level, 0 when the entry does not say. */
+  readonly line: number;
+  /** How many rules timed out there, or null when the entry does not say. */
+  readonly rules: number | null;
+  /** The first rule that timed out there, as Semgrep names it, or null. */
+  readonly first: string | null;
+}
+
+/** The rules that can have timed out at a place: the first alone when it was the only one, else any. */
+export declare function timedOut(timeout: Timeout, rules?: ReadonlyArray<Rule>): Rule[];
+
 /** One run's reading, or why there is none. */
 export interface Scan {
   readonly stopped?: string;
@@ -81,6 +101,8 @@ export interface Scan {
   readonly scanned?: number;
   readonly findings?: ReadonlyArray<Finding>;
   readonly notes?: ReadonlyArray<Note>;
+  /** The places read only in part, or null when the report has no timing section. */
+  readonly timeouts?: ReadonlyArray<Timeout> | null;
   readonly ran?: ReadonlyArray<string>;
   readonly sarif?: string;
 }

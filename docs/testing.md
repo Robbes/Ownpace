@@ -544,9 +544,12 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   a value, the browser sent to an address a function returned, a React link to an address from a
   value, and three more that found a spot each when workplan 0163 measured Semgrep on this tree. `Semgrep (report only)` writes each rule's spots
   to its summary, a spot `KNOWN_FINDINGS` explains marked known with its reason, and marks on its
-  line a spot of a rule that may block. No finding fails it. A scan that did not finish is a
+  line a spot of a rule that may block. It runs Semgrep with `--time` and lists each place
+  Semgrep's taint analysis timed out in, where a spot can be missing, marked on its line where a
+  rule that may block can have timed out. No finding fails it. A scan that did not finish is a
   warning on a pull request and fails the run on a push or a dispatch, where the run is the
-  record. On a push to `main` its SARIF goes to code scanning; never from a pull request. A rule
+  record; so is a place where a rule that blocks can have timed out, and a report without the
+  timing section. On a push to `main` its SARIF goes to code scanning; never from a pull request. A rule
   becomes blocking, one at a time, once it reports nothing on `main`; the two ReDoS rules,
   `detect-non-literal-regexp` and `detect-redos`, never do. Held by
   `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`, which runs the report against a

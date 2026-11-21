@@ -22,6 +22,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **Semgrep's report says where Semgrep read the tree only in part** (workplan 0163 T5). Semgrep's
+  taint analysis gives each function a time limit of its own. A rule that reaches it reports
+  nothing in that function, with no error and exit 0: `main`'s first Semgrep run read one spot
+  fewer than its pull request's last run on the same tree. Semgrep names such a place only in the
+  timing section that `--time` adds to its report, which the report did not ask for. It now runs
+  Semgrep with `--time` and lists each place, with how many rules timed out there and the first of
+  them, and marks a place on its line where a rule that may block can have timed out. Once a rule
+  blocks, a place where that rule can have timed out is a scan that did not finish, which fails the
+  run on `main`. No rule blocks yet, so nothing fails today.
 - **The workflow audit runs zizmor 1.32.0, moved on purpose from 1.30.1** (workplan 0119).
   `zizmor.yml` pins it by tag and index digest, read on ghcr.io on 2026-11-21; PyPI lists the
   release on 2026-11-02, past the three-day floor. The outside check of GEN-26 runs 1.30.1.
