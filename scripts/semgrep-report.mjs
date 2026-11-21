@@ -179,8 +179,8 @@ export const KNOWN_FINDINGS = {
   },
 };
 
-/** A test file, by its path: `*.test.*` or a `__testing__` directory. */
-export const TEST_FILE = /\.test\.[cm]?[jt]sx?$|(^|\/)__testing__\//;
+/** A test file, by its path: `*.test.*`, or a file in a `__tests__` or `__testing__` directory. */
+export const TEST_FILE = /\.test\.[cm]?[jt]sx?$|(^|\/)__(tests|testing)__\//;
 
 /** What Semgrep's exit codes say (its `error.py`); 0 is the only one a finished scan gives here. */
 export const EXIT_MEANINGS = {
@@ -355,6 +355,7 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       `Semgrep ${cell(version || '(no version)')} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} (below)` : ''}.`,
       '',
     );
+    lines.push(`Semgrep ${version || '(no version)'} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} on what it could not read in full` : ''}.`);
     for (const r of byRule) {
       for (const s of r.spots) lines.push(`${nameOf(r.rule.id)} ${s.path}:${s.line}${s.known ? ' [known]' : ''}${r.rule.never ? ' [never blocks]' : ''}`);
       if (r.spots.length === 0) continue;

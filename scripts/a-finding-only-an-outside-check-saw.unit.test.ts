@@ -433,6 +433,7 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
       expect(out.markdown).toContain('| **8 rules** | | **8** | **0** | **2** | **4** |');
       expect(out.markdown).toContain('**8 spots from 8 rules: 2 under the two rules that never block, 2 known, 4 to read.**');
       expect(out.markdown).toContain(`Semgrep ${version} scanned 2,400 files.`);
+      expect(out.lines).toContain(`Semgrep ${version} scanned 2,400 files.`);
       for (const rule of RULES) expect(out.markdown).toContain(`[\`${nameOf(rule.id)}\`](https://semgrep.dev/r/${rule.id})`);
       expect(out.lines.filter((l) => l.startsWith('::error') || l.startsWith('::warning::'))).toEqual([]);
       // A spot a rule that may block reports, and no entry explains, is marked on its line; the rest are not.
@@ -542,12 +543,13 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
       { rule: regexp!.id, path: 'packages/shared/src/a-pattern-built-here.ts', line: 60, message: 'RegExp() called with a variable' },
       { rule: regexp!.id, path: 'scripts/a-guard.unit.test.ts', line: 3, message: 'RegExp() called with a variable' },
       { rule: regexp!.id, path: 'packages/connectors/src/__testing__/fake.ts', line: 9, message: 'RegExp() called with a variable' },
+      { rule: regexp!.id, path: 'apps/api/src/__tests__/a-door-helper.ts', line: 12, message: 'RegExp() called with a variable' },
     ];
     const out = report({ image, event: 'pull_request', version, scanned: 2400, findings, notes: [], ran: RULES.map((r) => r.id), sarif: '/tmp/x.sarif' });
     expect(out.markdown).toContain('| never blocks |');
-    expect(out.markdown).toContain('This rule never blocks (D3). 2 spots of 3 are in test files.');
+    expect(out.markdown).toContain('This rule never blocks (D3). 3 spots of 4 are in test files.');
     expect(out.markdown).toContain('<details><summary>Every spot</summary>');
-    expect(out.markdown).toContain('**3 spots from 8 rules: 3 under the two rules that never block, 0 known, 0 to read.**');
+    expect(out.markdown).toContain('**4 spots from 8 rules: 4 under the two rules that never block, 0 known, 0 to read.**');
     expect(out.lines.filter((l) => l.startsWith('::')), 'a rule that never blocks marks no line').toEqual([]);
   });
 
@@ -567,6 +569,7 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
     expect(out.code).toBe(0);
     expect(out.sarif).toBe(join(out.out, SARIF_REPORT));
     expect(out.markdown).toContain(`Semgrep ${version} scanned 2,400 files, with 1 note (below).`);
+    expect(out.lines).toContain(`Semgrep ${version} scanned 2,400 files, with 1 note on what it could not read in full.`);
     expect(out.markdown).toContain('| warn | PartialParsing | `apps/web/src/a.tsx` | Syntax error at line apps/web/src/a.tsx:3: |');
   });
 });
