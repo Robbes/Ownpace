@@ -4,9 +4,36 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21, later: the workflow audit runs zizmor 1.32.0, moved on purpose from 1.30.1 (a draft
-pull request, #1995, branch `claude/ownpace-public-readiness-y7orc6-zizmor-1-32`, from `main` at
-`75d7949d`, not merged).** The outside check of GEN-26 runs 1.30.1; this job moves on its own.
+**2026-11-21, last: pnpm 11.28.13, the one `packageManager` line (#1989), built as #1994.** Times
+are UTC.
+
+- **pnpm 11.28.13, from 11.28.12.** npm dates it 2026-11-17 at 20:01:02 and names it `latest-11`
+  (read on 2026-11-21 at about 07:55; `latest` is 12.21.0, a major and the owner's call, as the pin
+  watch's issue says). It passed the three-day floor at 20:01:02 on 2026-11-20, and its pull
+  request was pushed after that. Read for it: the 11.28.13 entry of the package's own
+  `CHANGELOG.md`, from the tarball whose sha512 is the `dist.integrity` npm lists for it. It names
+  a security fix: after the default or a scoped registry changed, `pnpm install` reused what it
+  had resolved against the old registry and skipped the `minimumReleaseAge` and `trustPolicy`
+  checks against the new one; `pnpm dlx` likewise reused a cache made under looser settings. This
+  repository names no registry (no `.npmrc`, none in `pnpm-workspace.yaml`) and runs no `pnpm dlx`,
+  so neither changes anything here. One fix does: `pnpm audit` dropped every advisory whose `id`
+  is a string and reported no vulnerabilities for it. The advisory gate reads `pnpm audit`
+  (`security-scan.yml`, `scripts/audit-advisories.mjs`, which takes the advisories by value, not
+  by key), so from this move it reads those advisories too. 11.28.13 also fixes an offline
+  install failing the `minimumReleaseAge` check, and peer, override and injected-package
+  resolution. npm signed it with the key that signed 11.28.12 (`SHA256:DhQ8wR5A…`, both
+  versions' `dist.signatures`), which corepack 0.36.0 checks in the images. CI takes it from the
+  same field through `pnpm/action-setup`, and every CI install is `--frozen-lockfile`. On a
+  host, the pnpm the deploy runs switches itself to it in the checkout, so live's first deploy of
+  a tag with it fetches 11.28.13 there. CI on its pull request, and the image builds on `main`
+  after the merge; no E2E, as for 11.28.12. On the pull request, under 11.28.13, the advisory
+  gate passed and listed what it lists on `main` and nothing else: GHSA-g3hv-75wg-m249, moderate,
+  on minimatch 10.2.6, a dev dependency.
+
+**2026-11-21, later: the workflow audit runs zizmor 1.32.0, moved on purpose from 1.30.1, built as
+#1995, merged on 2026-11-21 (`02e88d52`; *was:* a draft pull request, not merged).** On
+`claude/ownpace-public-readiness-y7orc6-zizmor-1-32`, from `main` at `75d7949d`. The outside check
+of GEN-26 runs 1.30.1; this job moves on its own.
 - **What moved.** `ZIZMOR_IMAGE` in `zizmor.yml` is `ghcr.io/zizmorcore/zizmor:1.32.0` by index
   digest `3014cc8f68f6…`, which holds linux/amd64 `bb5d47cd…`, linux/arm64 `4cb7e091…` and two
   attestation manifests. It was read on 2026-11-21 as the Docker-Content-Digest of the tag's
