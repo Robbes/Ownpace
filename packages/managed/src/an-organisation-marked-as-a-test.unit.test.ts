@@ -285,6 +285,34 @@ describe('what an organisation holds', () => {
   });
 });
 
+describe('an answer that is not one is never read as none (hard rule 9)', () => {
+  // Stand-ins for a database that answered nothing the doors could act on:
+  // "no migrations" and "no marker" are answers a door writes on.
+  const answering = (rows: unknown, executed: unknown) =>
+    ({
+      select: () => ({ from: () => ({ where: async () => rows }) }),
+      execute: async () => executed,
+    }) as unknown as PgDatabase;
+
+  it('throws on a count that is no count, rather than read it as no migrations', async () => {
+    for (const rows of [[], [{ held: '3' }], [{ held: 1 }, { held: 2 }], [{}]]) {
+      await expect(migrationsHeldBy(answering(rows, { rows: [] }), TENANT_A), JSON.stringify(rows)).rejects.toThrow(
+        /not one count/,
+      );
+    }
+    expect(await migrationsHeldBy(answering([{ held: 2 }], { rows: [] }), TENANT_A)).toBe(2);
+  });
+
+  it('throws on an answer with no rows, or a marker that is not text, rather than read it as no marker', async () => {
+    await expect(testMarkerOfOrganisation(answering([], {}), TENANT_A)).rejects.toThrow(/answered no rows/);
+    await expect(testMarkerOfOrganisation(answering([], { rows: [{ marker: null }] }), TENANT_A)).rejects.toThrow(
+      /not text/,
+    );
+    await expect(unmarkTestOrganisation(answering([], null), TENANT_A)).rejects.toThrow(/answered no rows/);
+    expect(await testMarkerOfOrganisation(answering([], { rows: [] }), TENANT_A)).toBeUndefined();
+  });
+});
+
 describe('the operator’s support views', () => {
   it('serve the organisation’s marker and each migration’s own, to an operator', async () => {
     await asOperatorIn(TENANT_A, (db) => markTestOrganisation(db, TENANT_A, '[Ownpace-test]', OPERATOR));
