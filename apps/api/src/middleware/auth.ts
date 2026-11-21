@@ -924,6 +924,13 @@ export const TENANT_HEADER = 'x-ownpace-tenant';
  * guessed. Picking the first would silently serve somebody the wrong
  * organisation's mail; so it refuses, and the refusal NAMES the choices, because
  * a client that has to ask which tenant needs to know what the options are.
+ *
+ * An id the caller named, in the header or the claim, is answered in lower
+ * case, the one spelling the database gives a uuid. The database reads either
+ * case as the same organisation, but an id is also a key outside it: the
+ * organisation's migrations lock (`holdTheOrganisationsMigrations`) and the
+ * grant links' are keyed on it, and `ABC…` and `abc…` would otherwise take two
+ * locks for one organisation (workplan 0162 T1's review).
  */
 export async function resolveTenant(
   payload: JwtPayload,
@@ -933,8 +940,8 @@ export async function resolveTenant(
   | { refusal: { status: number; body: Record<string, unknown> } }
 > {
   const asked = requested?.trim();
-  if (asked) return { tenantId: asked };
-  if (payload.tenantId) return { tenantId: payload.tenantId };
+  if (asked) return { tenantId: asked.toLowerCase() };
+  if (payload.tenantId) return { tenantId: payload.tenantId.toLowerCase() };
 
   const memberships = await membershipsLookup(payload.sub);
   if (memberships.length === 1) return { tenantId: memberships[0]!.tenantId };
@@ -1542,7 +1549,10 @@ export function requireTenantMatch(paramName: string = 'tenantId') {
       return;
     }
 
-    if (authenticatedReq.tenantId !== pathTenantId) {
+    // `resolveTenant` answers the id in lower case; the path is read the same
+    // way, so an id typed in capitals names the same organisation it does in
+    // the database.
+    if (typeof pathTenantId !== 'string' || authenticatedReq.tenantId !== pathTenantId.toLowerCase()) {
       res.status(403).json({
         error: 'Forbidden',
         message: 'Access denied to this tenant',

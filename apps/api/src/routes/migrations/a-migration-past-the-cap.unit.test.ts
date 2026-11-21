@@ -35,6 +35,7 @@ import express from 'express';
 import request from 'supertest';
 import { pgliteDriver, runMigrations } from '@openmig/ledger';
 import type { LedgerDriver } from '@openmig/ledger';
+import { runManagedMigrations } from '@openmig/managed';
 import {
   DEFAULT_MAX_MIGRATIONS_PER_ORGANISATION,
   maxMigrationsPerOrganisationFromEnv,
@@ -115,6 +116,9 @@ function create() {
 beforeAll(async () => {
   driver = pgliteDriver({ role: 'app_user' });
   await runMigrations({ driver, logger: () => {} });
+  // Both chains, as a managed API runs on: the create reads the organisation's
+  // test marker under the lock the cap takes (managed 0062, workplan 0162 T1).
+  await runManagedMigrations({ driver, logger: () => {} });
   for (const [tenant, conn, box] of [
     [TENANT, CONN, BOX],
     [OTHER, OTHER_CONN, OTHER_BOX],
