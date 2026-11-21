@@ -4,6 +4,34 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, later: the workflow audit runs zizmor 1.32.0, moved on purpose from 1.30.1 (a draft
+pull request, #1995, branch `claude/ownpace-public-readiness-y7orc6-zizmor-1-32`, from `main` at
+`75d7949d`, not merged).** The outside check of GEN-26 runs 1.30.1; this job moves on its own.
+- **What moved.** `ZIZMOR_IMAGE` in `zizmor.yml` is `ghcr.io/zizmorcore/zizmor:1.32.0` by index
+  digest `3014cc8f68f6…`, which holds linux/amd64 `bb5d47cd…`, linux/arm64 `4cb7e091…` and two
+  attestation manifests. It was read on 2026-11-21 as the Docker-Content-Digest of the tag's
+  manifest on ghcr.io, whose body hashes to it; the same reading of 1.30.1 gives the digest it
+  replaces, `a2eb396d…`. PyPI lists 1.32.0's upload at 2026-11-02 23:30 UTC and 1.31.0's at
+  2026-10-15, past the three-day floor. The image's config blob was not read, its host being
+  refused where this was done, so nothing here says what its entrypoint or build date is.
+- **What 1.31.0 and 1.32.0 change** (zizmor's release notes and `docs/audits.md` at v1.32.0): no
+  new audit. cache-poisoning skips a job whose `cache-mode:` is `none`, flags an explicit
+  `cache-mode: write` under a dangerous trigger, and knows `pnpm/setup`; dangerous-triggers counts
+  `issue_comment`; template-injection finds a context inside `fromJSON(...)` or `case(...)`. From
+  a Git root, 1.32.0 collects workflows only from `.github/workflows/` and Dependabot only from
+  `.github/`; no workflow here sets `cache-mode:` or has a nested `.github/`.
+- **The guard's mirrors, read again** in zizmor's source at v1.32.0 against v1.30.1:
+  `KNOWN_PUBLISHER_ACTIONS` has the same nineteen entries; the release triggers come out the same
+  for every shape of `on:`, now read from one normalized set of events; `docs/configuration.md`
+  names the same four config files. The cache-aware actions gained `pnpm/setup`, which
+  `a-workflow-zizmor-would-flag` now names, with a case. `ZIZMOR` there, the pin watch's note,
+  `docs/testing.md` and 0163's §5 step 2 say 1.32.0.
+- **Its run** (run 44883545988, on the pull request's first head, `4027d064`): the image pulled by
+  its digest, zizmor printed `zizmor v1.32.0`, audited the same eighteen files as 1.30.1 on
+  `main` (run 44856257104, at `fbd73f93`, whose `.github/` is the same), and reported `No
+  findings to report. Good job! (33 suppressed)`, where 1.30.1 had 35 suppressed. No workflow
+  needed a change.
+
 **2026-11-21: what alpha.13 moves.** The fold for `v0.2.0-alpha.13` (0146's entry of the same
 day) carries what `main` merged after alpha.12's tag, #1963 to #1986 (0146's entry lists them).
 For live:

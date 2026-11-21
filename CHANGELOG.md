@@ -20,6 +20,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   marker is taken out of its title is left as it was last copied, and is neither reported as
   deleted nor moved.
 
+### Changed
+
+- **The workflow audit runs zizmor 1.32.0, moved on purpose from 1.30.1** (workplan 0119).
+  `zizmor.yml` pins it by tag and index digest, read on ghcr.io on 2026-11-21; PyPI lists the
+  release on 2026-11-02, past the three-day floor. The outside check of GEN-26 runs 1.30.1.
+  1.31.0 and 1.32.0 add no audit, and teach existing ones more: cache-poisoning knows GitHub's
+  `cache-mode:` setting and the `pnpm/setup` action, dangerous-triggers counts `issue_comment`,
+  and template-injection finds a value an attacker controls inside `fromJSON(...)` or
+  `case(...)`. On this tree 1.32.0 finds nothing, as 1.30.1 did, in the same eighteen files.
+
 ### Fixed
 
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
