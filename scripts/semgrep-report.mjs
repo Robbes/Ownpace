@@ -39,10 +39,29 @@
  * this exits 0 whatever happened, and warns when the scan did not finish. On
  * a push or a dispatch it exits 1 when it did not: the image not pulled,
  * Semgrep exiting anything but 0, a report it did not write or not in its
- * shape, a Semgrep that does not call itself the pinned release, a named rule
- * it did not run, a rule it ran that is not named, or fewer than `MIN_FILES`
- * files scanned. There the run is the record, and a scan that skipped itself
- * is not green (security-scan.yml's rule).
+ * shape (its timing section included), a Semgrep that does not call itself
+ * the pinned release, a named rule it did not run, a rule it ran that is not
+ * named, fewer than `MIN_FILES` files scanned, or a place it read only in
+ * part where a rule that blocks can have timed out (READ ONLY IN PART,
+ * below). There the run is the record, and a scan that skipped itself is not
+ * green (security-scan.yml's rule).
+ *
+ * READ ONLY IN PART. Semgrep's taint analysis gives each function, and each
+ * file's top level, a time limit of its own. A rule that reaches it there
+ * reads on without that analysis, so a spot it would have reported there is
+ * not reported, and Semgrep still exits 0: a run of this on `main` read one
+ * spot fewer than its pull request's last run on the same tree (0163's
+ * Status, 2026-11-21). Semgrep names such a place only in its timing
+ * section, which `--time` adds to its JSON report as
+ * `time.fixpoint_timeouts`, never among its errors: one entry per function,
+ * with how many rules timed out there and the first of them. So this runs
+ * it with `--time` and lists each place under "Read only in part". A place
+ * where only a rule that never blocks timed out is listed. One where a rule
+ * that may block can have timed out is marked on its line as well, as a spot
+ * of that rule is. One where a rule that blocks can have timed out is a scan
+ * that did not finish, since a spot that rule would fail on can be missing.
+ * No rule blocks yet (`blocks` in `RULES`), so no time-out fails a run
+ * today.
  *
  * HOW IT RUNS SEMGREP. The image by tag and index digest (`SEMGREP_IMAGE`, the
  * workflow's), pulled once, in three attempts 5 and 15 seconds apart, then run
@@ -99,55 +118,66 @@ export const SARIF_REPORT = 'semgrep.sarif';
 /**
  * The rules, by their registry id, in the order the summary lists them, with
  * the outside check's finding each answers (null for the three the measure
- * runs added), what it reports, and whether it may ever block (D3).
+ * runs added), what it reports, whether it may ever block (D3), and whether
+ * it blocks now. None does yet. A rule turns blocking in a pull request of
+ * its own (0163 §5, step 5), which also makes a finding of it fail the job;
+ * until then `blocks` is read only for a time-out (READ ONLY IN PART).
  */
 export const RULES = [
   {
     id: 'javascript.lang.security.audit.detect-non-literal-regexp.detect-non-literal-regexp',
     finding: 5,
     never: true,
+    blocks: false,
     what: 'a regular expression built at run time from a value',
   },
   {
     id: 'javascript.lang.security.audit.detect-redos.detect-redos',
     finding: 5,
     never: true,
+    blocks: false,
     what: 'a regular expression whose own shape can backtrack for a long time',
   },
   {
     id: 'javascript.lang.security.audit.path-traversal.path-join-resolve-traversal.path-join-resolve-traversal',
     finding: 6,
     never: false,
+    blocks: false,
     what: 'a path joined or resolved from a value',
   },
   {
     id: 'javascript.browser.security.open-redirect-from-function.js-open-redirect-from-function',
     finding: 8,
     never: false,
+    blocks: false,
     what: 'the browser sent to an address a function returned',
   },
   {
     id: 'typescript.react.security.audit.react-href-var.react-href-var',
     finding: 9,
     never: false,
+    blocks: false,
     what: 'a React link to an address from a value, which can be a `javascript:` address',
   },
   {
     id: 'javascript.node-crypto.security.gcm-no-tag-length.gcm-no-tag-length',
     finding: null,
     never: false,
+    blocks: false,
     what: 'an AES-GCM decipher that does not name its tag length',
   },
   {
     id: 'yaml.github-actions.security.run-shell-injection.run-shell-injection',
     finding: null,
     never: false,
+    blocks: false,
     what: 'a workflow expression written into a `run:` script',
   },
   {
     id: 'javascript.lang.security.audit.unknown-value-with-script-tag.unknown-value-with-script-tag',
     finding: null,
     never: false,
+    blocks: false,
     what: 'a value written inside a `<script>` tag',
   },
 ];
@@ -210,7 +240,9 @@ export function knownAs(rule, file, known = KNOWN_FINDINGS) {
 /**
  * The `docker run` that scans the checkout (HOW IT RUNS SEMGREP, above).
  * Semgrep scans its working directory, the checkout, so its findings name
- * each file by its path from the repository's root.
+ * each file by its path from the repository's root. `--time` adds the timing
+ * section to its JSON report, where the places it read only in part are
+ * (READ ONLY IN PART, above).
  */
 export function scanArgs(image, { root, out }, rules = RULES) {
   return [
@@ -219,7 +251,7 @@ export function scanArgs(image, { root, out }, rules = RULES) {
     '--user', SEMGREP_USER,
     '--volume', `${root}:/src:ro`, '--volume', `${out}:/out`, '--workdir', '/src',
     image,
-    'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet',
+    'semgrep', 'scan', '--metrics=off', '--disable-version-check', '--quiet', '--time',
     ...rules.flatMap((r) => ['--config', `r/${r.id}`]),
     `--json-output=/out/${JSON_REPORT}`,
     `--sarif-output=/out/${SARIF_REPORT}`,
@@ -240,8 +272,10 @@ function readJson(path, what) {
  * What one run of Semgrep left: the scan's reading, or why there is none
  * (`stopped`). Semgrep without `--error` exits 0 whatever it found; any other
  * exit is a scan that did not finish. Its JSON report gives the findings, the
- * files it scanned and its notes; its SARIF report, the rules it ran, which
- * it lists whether or not they matched.
+ * files it scanned and its notes, and in its timing section the places it
+ * read only in part (`timeouts`, null when the report has no such section);
+ * its SARIF report, the rules it ran, which it lists whether or not they
+ * matched.
  */
 export function readScan(ran, out) {
   const { status, stderr, error, signal } = ran;
@@ -276,14 +310,49 @@ export function readScan(ran, out) {
     path: typeof e?.path === 'string' ? e.path : '',
     message: firstLine(e?.message),
   }));
+  const timing = report.time?.fixpoint_timeouts;
   return {
     version: typeof report.version === 'string' ? report.version : '',
     scanned: report.paths.scanned.length,
     findings,
     notes,
+    timeouts: Array.isArray(timing) ? timing.map(readTimeout) : null,
     ran: listed.map((r) => r.id),
     sarif: join(out, SARIF_REPORT),
   };
+}
+
+/**
+ * The message Semgrep gives a place it read only in part (`Taint_rule_inst`'s
+ * `check_timeouts_and_warn`): the file, line and column of the function, or
+ * of the file's top level, how many rules timed out there, and the first.
+ */
+const TIMED_OUT = /^Fixpoint timeout while performing (?:inter-file )?taint analysis at (.+):(\d+):(\d+) \[rules: (\d+), first: ([^\]]+)\]$/;
+
+/**
+ * One entry of `time.fixpoint_timeouts`: its file and line, from its location
+ * or else its message, and from its message how many rules timed out there
+ * and the first. What it does not say is null (rules, first), empty (the
+ * file) or 0 (the line); such an entry is still a place, and any rule can
+ * have timed out there (`timedOut`).
+ */
+function readTimeout(entry) {
+  const said = TIMED_OUT.exec(String(entry?.message ?? '').trim());
+  const path = typeof entry?.location?.path === 'string' && entry.location.path ? entry.location.path : (said?.[1] ?? '');
+  const line = Number.isInteger(entry?.location?.start?.line) ? entry.location.start.line : Number(said?.[2] ?? 0);
+  const rules = said ? Number(said[4]) : 0;
+  return { path, line, rules: rules >= 1 ? rules : null, first: said ? said[5].trim() : null };
+}
+
+/**
+ * The rules that can have timed out at a place: the first alone, when
+ * Semgrep counts one rule there and names it as one of `rules`; any of
+ * `rules` otherwise, since Semgrep names only the first of several, and an
+ * entry that does not say names none.
+ */
+export function timedOut(timeout, rules = RULES) {
+  const first = timeout.first === null ? null : ruleOf(timeout.first, rules);
+  return timeout.rules === 1 && first ? [first] : [...rules];
 }
 
 /** A table cell: one line, its bars escaped, nothing a renderer reads as HTML or as code. */
@@ -300,14 +369,38 @@ const ruleLink = (rule) => `[\`${nameOf(rule.id)}\`](https://semgrep.dev/r/${rul
 /** What the summary says the outside check called a rule's class. */
 const findingOf = (rule) => (rule.finding === null ? 'none (found by the measure runs)' : `${rule.finding}${rule.never ? ', never blocks' : ''}`);
 
+/** Text Semgrep gave, a path or a rule's id, on one line: no line break in it starts a workflow command. */
+const oneLine = (text) => String(text).replace(/[\r\n]+/g, ' ');
+
+/** Rules by their own names, joined as a sentence says them. */
+const namesOf = (list) => {
+  const names = list.map((r) => nameOf(r.id));
+  return names.length < 3 ? names.join(' and ') : `${names.slice(0, -1).join(', ')} and ${names.at(-1)}`;
+};
+
 /**
  * The report of one run: the job summary's Markdown, the log's lines, the exit
  * code (REPORT ONLY, above), and the SARIF report's path when the scan
- * finished. `stopped` says why there is no reading at all.
+ * finished. `stopped` says why there is no reading at all; `timeouts` is null
+ * when Semgrep's report has no timing section (READ ONLY IN PART, above).
  */
-export function report({ image, event, stopped = null, version = '', scanned = 0, findings = [], notes = [], ran = [], sarif = '', rules = RULES, known = KNOWN_FINDINGS }) {
+export function report({ image, event, stopped = null, version = '', scanned = 0, findings = [], notes = [], timeouts = [], ran = [], sarif = '', rules = RULES, known = KNOWN_FINDINGS }) {
   const pr = event === 'pull_request';
   const tag = IMAGE.exec(image)?.[1] ?? '';
+  // Each place read only in part, with the rules that can have timed out there.
+  const places = (timeouts ?? []).map((t) => {
+    const first = t.first === null ? null : ruleOf(t.first, rules);
+    const can = timedOut(t, rules);
+    return {
+      ...t,
+      where: t.path ? `${oneLine(t.path)}:${t.line}` : 'a place Semgrep did not name',
+      firstName: first ? nameOf(first.id) : oneLine(t.first ?? ''),
+      blocking: can.filter((r) => r.blocks === true),
+      mayBlock: can.some((r) => !r.never),
+    };
+  });
+  /** For which rules a place timed out, in words. */
+  const forRules = (t) => (t.rules === null ? 'for rules its report does not name' : `for ${plural(t.rules, 'rule')}, the first ${t.firstName}`);
   const problems = [];
   if (stopped) {
     problems.push(stopped);
@@ -318,6 +411,12 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
     const strays = [...new Set(findings.filter((f) => !ruleOf(f.rule, rules)).map((f) => f.rule))];
     for (const id of strays) problems.push(`Semgrep reported ${id}, which RULES does not name`);
     if (scanned < MIN_FILES) problems.push(`Semgrep scanned ${plural(scanned, 'file')}, fewer than the ${plural(MIN_FILES, 'file')} a scan of this tree reads`);
+    if (timeouts === null) problems.push("Semgrep's JSON report has no time.fixpoint_timeouts, which --time writes, so what it read only in part is not known");
+    for (const t of places) {
+      if (t.blocking.length === 0) continue;
+      const one = t.blocking.length === 1;
+      problems.push(`Semgrep read ${t.where} only in part: its taint analysis timed out there ${forRules(t)}, and ${namesOf(t.blocking)} ${one ? 'blocks' : 'block'}, so a spot ${one ? 'it' : 'they'} would fail on can be missing there`);
+    }
   }
   const failed = problems.length > 0;
   const code = failed && !pr ? 1 : 0;
@@ -352,10 +451,12 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       ...byRule.map((r) => `| ${ruleLink(r.rule)} | ${findingOf(r.rule)} | ${r.spots.length} | ${r.tests} | ${r.known} | ${r.rule.never ? 'never blocks' : r.toRead} |`),
       `| **${plural(rules.length, 'rule')}** | | **${total}** | **${byRule.reduce((n, r) => n + r.tests, 0)}** | **${knownTotal}** | **${toRead}** |`,
       '',
-      `Semgrep ${cell(version || '(no version)')} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} (below)` : ''}.`,
+      `Semgrep ${cell(version || '(no version)')} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} (below)` : ''}${places.length ? `${notes.length ? ',' : ''} and read ${plural(places.length, 'place')} in them only in part (below)` : ''}.`,
       '',
     );
-    lines.push(`Semgrep ${version || '(no version)'} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} on what it could not read in full` : ''}.`);
+    lines.push(
+      `Semgrep ${version || '(no version)'} scanned ${plural(scanned, 'file')}${notes.length ? `, with ${plural(notes.length, 'note')} on what it could not read in full` : ''}${places.length ? `${notes.length ? ',' : ''} and read ${plural(places.length, 'place')} in them only in part, where its taint analysis timed out` : ''}.`,
+    );
     for (const r of byRule) {
       for (const s of r.spots) lines.push(`${nameOf(r.rule.id)} ${s.path}:${s.line}${s.known ? ' [known]' : ''}${r.rule.never ? ' [never blocks]' : ''}`);
       if (r.spots.length === 0) continue;
@@ -368,6 +469,29 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       }
       const reasons = [...new Map(r.spots.filter((s) => s.known).map((s) => [s.path, s.known]))];
       if (reasons.length) md.push('', ...reasons.map(([path, why]) => `- **\`${cell(path)}\`**: ${cell(why)}`));
+      md.push('');
+    }
+    if (places.length) {
+      md.push(
+        '### Read only in part',
+        '',
+        "Semgrep's taint analysis reached its own time limit in each place below, a function or a file's top level, and read on without it, so a spot a rule would have reported there can be missing. " +
+          'Semgrep names these places only in its timing section (`--time`), never among its errors. ' +
+          'A place where a rule that may block can have timed out is marked on its line; one where a rule that blocks can have timed out is a scan that did not finish' +
+          (rules.some((r) => r.blocks === true) ? '.' : ', and no rule blocks yet.'),
+        '',
+        '| file | line | rules timed out | the first | a spot missing there can be |',
+        '| --- | ---: | ---: | --- | --- |',
+      );
+      for (const t of places) {
+        const can = t.blocking.length
+          ? `of ${namesOf(t.blocking)}, which ${t.blocking.length === 1 ? 'blocks' : 'block'}: the scan did not finish`
+          : t.mayBlock
+            ? 'of a rule that may block'
+            : 'only of a rule that never blocks';
+        md.push(`| ${t.path ? `\`${cell(t.path)}\`` : 'not named'} | ${t.line || ''} | ${t.rules ?? 'not said'} | ${t.firstName ? `\`${cell(t.firstName)}\`` : 'not said'} | ${cell(can)} |`);
+        lines.push(`read only in part ${t.where}: ${t.rules === null ? 'the rules not said' : `${plural(t.rules, 'rule')} timed out, the first ${t.firstName}`}${t.blocking.length ? ' [a rule that blocks]' : t.mayBlock ? '' : ' [never blocks]'}`);
+      }
       md.push('');
     }
     if (notes.length) {
@@ -392,6 +516,12 @@ export function report({ image, event, stopped = null, version = '', scanned = 0
       for (const s of r.spots.filter((x) => !x.known)) {
         lines.push(`::warning file=${commandProperty(s.path)},line=${s.line},title=${commandProperty(`Semgrep ${nameOf(r.rule.id)} (report only)`)}::${commandData(s.message)}`);
       }
+    }
+    // So is a place where such a rule can have timed out: a spot of it can be missing there.
+    for (const t of places.filter((x) => x.mayBlock)) {
+      const at = t.path ? `file=${commandProperty(t.path)},${t.line ? `line=${t.line},` : ''}` : '';
+      const said = `Semgrep's taint analysis timed out here ${forRules(t)}: a spot of a rule that ${t.blocking.length ? 'blocks' : 'may block'} can be missing.`;
+      lines.push(`::warning ${at}title=${commandProperty('Semgrep read this only in part (report only)')}::${commandData(said)}`);
     }
   }
 
