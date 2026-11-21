@@ -6,7 +6,8 @@
 
 **2026-11-21, latest still: Trigger.dev v4.8.5 → v4.8.8, for alpha.14, before its three-day floor
 on the owner's waiver; built on a branch, not merged (#1935).** On the branch
-`claude/ownpace-public-readiness-y7orc6-trigger-4-8-8`, from `main` at `ad2ffbe7` (#1999). Read from
+`claude/ownpace-public-readiness-y7orc6-trigger-4-8-8`, from `main` at `ad2ffbe7` (#1999), with `main`
+at `9d695106` (#2002) merged in since. Read from
 upstream's tags on raw.githubusercontent.com, file by file (no directory could be listed), npm's
 registry and ghcr's manifests, without a login; nothing read was run. Times are UTC.
 - **The decision, as the owner gave it.** At about 10:00, asked whether v4.8.8 goes into alpha.14:
@@ -112,8 +113,11 @@ registry and ghcr's manifests, without a login; nothing read was run. Times are 
   refusal. `a-binary-the-stack-never-runs` was red on the pin first (7 of 94), until the builds and
   its rows moved: 89, all green, the cross-spawn tests gone with their removal. The unit tests of
   `apps/worker` and `packages/scheduler` on SDK 4.8.8: 47 files, 518 tests, all green. ESLint on the
-  changed guards, `tsc --noEmit` over the root project, and the six docs checks pass. No image was
-  built here: that is the pull request's `build (trigger, amd64|arm64)`.
+  changed guards, `tsc --noEmit` over the root project, and the six docs checks pass. With `main` at
+  `9d695106` merged in, the unit project over `scripts/`, `apps/worker` and `packages/scheduler`
+  again: 352 files, 7972 passed, 37 skipped, and the same 3 failed in the same 2 files, on the
+  refusal; the six docs checks pass again. No image was built here: that is the pull request's
+  `build (trigger, amd64|arm64)`.
 - **Then, in this order.** (1) `build (trigger, amd64)` and `build (trigger, arm64)` green on the pull
   request. (2) The owner's steps on the OTA stack, with no E2E (managed) queued or running: the hold
   and the drain; `trigger-version.sh backup before-v4.8.8`; `trigger-supervisor` and `trigger-api`
