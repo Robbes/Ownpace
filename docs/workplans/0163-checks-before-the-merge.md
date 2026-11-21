@@ -32,9 +32,20 @@ first half, the two jobs naming their environments, is #2001.
     (`crates/zizmor/src/registry.rs`).
 - **Guards.** The new `a-secret-no-environment-holds` (18 tests) holds the report and the step.
   `a-workflow-zizmor-would-flag` tells the report from the audit by its name, and refuses a
-  second audit, a second report and the report renamed; the audit is held as before.
-- **What this branch's own run should show:** one finding, at
-  `.github/workflows/exposure-probe.yml`, until #2001 merges, and none after.
+  second audit, a second report and the report renamed; the audit is held as before. Each of
+  14 hand-made breaks of the report fails its guard.
+- **What the real zizmor showed.**
+  - #2007's own zizmor job (run 44909520962): the audit passed, and the report listed one
+    `secrets-outside-env` finding, in `.github/workflows/exposure-probe.yml`, the read #2001
+    moves into an environment. The persona's other findings were counted, not listed, and the
+    exit matched the report.
+  - On the measuring branch (run 44910211278), each tree run as the step runs it: one finding
+    on this branch, on the line zizmor's own plain output gives; the same report handed exit 0
+    failed; none on #2001's branch; in a made-up workflow, only the secret read by a job with no
+    environment, not `GITHUB_TOKEN` nor a secret read in a job that names one; and a tree with
+    no workflow, where zizmor exits 3, failed the step.
+  - Once #2001 merges, the report lists none.
+- **CI:** green on `d7e23038`, with `main` at `8fd68a35` merged in (CI run 44909520986).
 
 **2026-11-21, at the end: the Dutch sentence for a payment Mollie gives no checkout says
 *om via te betalen* (a T4 follow-up).** On `claude/ownpace-public-readiness-y7orc6-pay-sentence`,
@@ -348,7 +359,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised); ⏳ **Owner** (D7) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
+| T0 The decisions | owner | ✅ **Decided 2026-11-20** (D1 to D6, as advised; D7, *"yes"*, built as T9) | §6. The owner's answers are quoted in the Status entry of 2026-11-20, later. |
 | T1 Secrets into environments | builder | 🔨 **Built** in two drafts, not merged: #2001, the two jobs name their environments, and the secrets move in Settings, by the owner; and #2007, the report, zizmor's `secrets-outside-env` (Status, 2026-11-21) (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
