@@ -4,7 +4,17 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21: read and planned. Docs only; nothing is built until the owner answers §4.** On
+**2026-11-21, later: the owner's answers, all as advised.** Asked D1 to D5 (§4), the owner
+answered at about 16:52 UTC: *"D1 yes, D2 yes, D3 pin, D4 yes, D5 keep it"*. So:
+- **D1, yes:** the four `libpam*` packages are purged in the Redis and Trigger.dev webapp builds
+  (T4).
+- **D2, yes:** v4.8.8's lockfile is read first, and effect is swapped only if it still resolves
+  3.21.2 (T5).
+- **D3, the pin:** an exact `apk add` of `libxml2` 2.13.9-r3 in both Postgres builds (T3).
+- **D4, yes:** the owner dismisses the five alerts of §3 D in the UI (T7).
+- **D5, keep it:** 0119 §3 item 10 stands; no hardened bases for this.
+
+**2026-11-21: read and planned. Docs only; nothing was built until the owner answered §4.** On
 `claude/ownpace-public-readiness-y7orc6-code-scanning-plan`, from `main` at `2448f0a8`.
 - **How the list was read.** The code scanning REST API answers 403 to the integration this
   session uses, so the list was rebuilt from the three steps that upload SARIF (§1.1) and the
@@ -26,14 +36,14 @@
 
 | Task | Owner | Status | Notes |
 |---|---|---|---|
-| T0 The decisions | owner | ⏳ **Owner** | §4, D1 to D5. |
+| T0 The decisions | owner | ✅ **Decided 2026-11-21** (D1 to D5, as advised) | §4. The owner's answer is quoted in the Status entry of 2026-11-21, later. |
 | T1 Read the list after Semgrep's upload | owner | ⏳ **Owner** | Security, Code scanning, open alerts: about 49 expected (45 Trivy, 4 Semgrep). A number far from 49 means a category this plan does not know of: name it and it is added to §1. |
 | T2 The Cirrux test fake's decipher | builder | 📋 **Planned** (0163 T4) | `authTagLength` on `createDecipheriv` in `packages/connectors/src/__testing__/cirrux-fake.ts:135`, as #1985 did for `secrets.ts`. Closes Semgrep's `gcm-no-tag-length` at the next push to `main`. |
-| T3 libxml2 in both Postgres builds | builder | 📋 **Planned** (D3) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
-| T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 📋 **Planned** (D1) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
-| T5 effect in the Trigger.dev webapp | builder | 📋 **Planned** (D2) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
+| T3 libxml2 in both Postgres builds | builder | 📋 **Decided 2026-11-21** (D3: the pin) | CVE-2026-86144, 2.13.9-r2 → -r3, in `trivy-image-postgres-managed` and `trivy-image-postgres-selfhost`. |
+| T4 PAM out of the Redis and Trigger.dev webapp builds | builder | 📋 **Decided 2026-11-21** (D1: yes) | The four `libpam*` packages, 8 alerts. Read first which installed packages depend on them. |
+| T5 effect in the Trigger.dev webapp | builder | 📋 **Decided 2026-11-21** (D2: yes) | CVE-2026-121707 in effect 3.21.2, fixed in 3.22.1. Read v4.8.8's lockfile and Monday's scan first, and whether anything passes request input to `deepmerge-ts` (§3 C). |
 | T6 Monday's scan, read into §1 | builder | 📋 **Planned** | The weekly run of 2026-11-23 is the first image scan of the v4.8.8 builds (`trigger.dev`, `supervisor`). Update §1's counts, and §3 if a row moves. |
-| T7 The owner's dismissals | owner | ⏳ **Owner** (D4) | The 5 alerts of §3 D, each with its reason. |
+| T7 The owner's dismissals | owner | ⏳ **Owner** (D4: yes, decided 2026-11-21) | The 5 alerts of §3 D, each with its reason. |
 | T8 What waits on upstream | builder | 📋 **Planned** | §3 B: each trigger is a row of the pin watch or a release to read. Nothing to build until one fires. |
 
 ## 1. The inventory
@@ -225,23 +235,23 @@ packages.
 
 ## 4. Decisions for the owner
 
-- **D1. PAM out of Redis and the Trigger.dev webapp, for alpha.14?** The four `libpam*` packages
+- **D1** (✅ **decided 2026-11-21: yes**, as advised). **PAM out of Redis and the Trigger.dev webapp, for alpha.14?** The four `libpam*` packages
   are new findings with no fix, 8 alerts. Nothing in either container logs anyone in or changes a
   password. Purging them takes the same two force flags the builds already use, and whatever
   depends on them in the base (to read: expected `login` and `passwd`) goes too, or the build
   stops on dpkg's refusal. **Advice: yes**, with the same proof as the purge of 2026-11-08: the
   build's own checks, the branch's image scan and E2E (managed); if it is not green before
   alpha.14's fold, alpha.15.
-- **D2. effect in the webapp.** **Advice:** read v4.8.8's lockfile first (T5); if it still resolves
+- **D2** (✅ **decided 2026-11-21: yes**, as advised). **effect in the webapp.** **Advice:** read v4.8.8's lockfile first (T5); if it still resolves
   3.21.2, swap it for 3.22.x by its sha512 in the build, for alpha.14, as was done until v4.8.5,
   with the guard's row and its way out when upstream's override moves.
-- **D3. libxml2 in both Postgres builds: an exact `apk add` now, or wait for Docker Hub's
+- **D3** (✅ **decided 2026-11-21: the exact `apk add`**, as advised). **libxml2 in both Postgres builds: an exact `apk add` now, or wait for Docker Hub's
   rebuild?** Either one changes the builds' names, so each stack rebuilds and restarts its
   databases at its next bring-up. **Advice: the `apk add` for alpha.14**, the guard already
   admits it at an exact version, and it goes when the base carries -r3.
-- **D4. The 5 dismissals of §3 D.** **Advice: yes, all five**, with the reasons given. What C
+- **D4** (✅ **decided 2026-11-21: yes**, as advised). **The 5 dismissals of §3 D.** **Advice: yes, all five**, with the reasons given. What C
   accepts stays open.
-- **D5. No hardened bases for this.** DHI for Caddy, the registry and Redis would clear most of B,
+- **D5** (✅ **decided 2026-11-21: keep it**, as advised). **No hardened bases for this.** DHI for Caddy, the registry and Redis would clear most of B,
   and 0119 §3 item 10 said not now, with its revisit after the Alpha. **Advice: keep that
   decision**; this list does not change it.
 
