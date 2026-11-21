@@ -8,6 +8,10 @@
  * attendee carried `SCHEDULE-AGENT=CLIENT`. `withoutGuests` is what a writer
  * for such a target sends instead: no ATTENDEE, no ORGANIZER, and a COMMENT
  * where each stood, so the copy still says who was there.
+ *
+ * No kind is on the list since 2026-11-20, when Cirrux left it (ADR-0043).
+ * `withoutGuests`, `namesGuests` and the list's reader are kept for the next
+ * kind seen mailing guests, and these cases keep them to their word.
  */
 
 import { describe, it, expect } from 'vitest';
@@ -201,11 +205,34 @@ describe('namesGuests: does the copy a target holds still list a guest?', () => 
 });
 
 describe('mailsGuestsItself', () => {
-  it('names Cirrux, which mailed guests, and no target it has no evidence against', () => {
-    expect(mailsGuestsItself('cirrux')).toBe(true);
-    for (const kind of ['nextcloud', 'caldav', 'soverin', 'infomaniak', undefined]) {
+  it('names no kind since 2026-11-20, so every target is written with its guests marked (ADR-0043)', () => {
+    expect([...TARGETS_THAT_MAIL_GUESTS]).toEqual([]);
+    for (const kind of ['cirrux', 'nextcloud', 'caldav', 'soverin', 'infomaniak', '', undefined]) {
       expect(mailsGuestsItself(kind), String(kind)).toBe(false);
     }
+  });
+
+  it('leaves Cirrux off since 2026-11-20, so its copies keep their guests, as Nextcloud’s do (0160, ADR-0043)', () => {
+    // It was on the list from 2026-11-19, on the evidence of the invitations
+    // it mailed. Cirrux said on 2026-11-20 that its server now keeps to
+    // SCHEDULE-AGENT=CLIENT, and ADR-0043's amendment of that day took it off,
+    // on that word and on the owner's test of it (0160 §4). Mail seen at
+    // Cirrux puts it back on the list.
+    expect(mailsGuestsItself('cirrux')).toBe(false);
+    // Nor is it said anywhere to be kept without guests as untested.
+    expect(guestsUntestedAt('cirrux')).toBe(false);
+  });
+
+  it('answers yes for a kind on a list it is handed, so what such a kind gets stays proven while the list is empty', () => {
+    // The deps builders and the scheduling verdict ask this reader, and the
+    // writers get its answer. A kind put on the list is answered as this one.
+    const kindsThatMailGuests = new Set(['a-kind-that-mails']);
+    expect(mailsGuestsItself('a-kind-that-mails', kindsThatMailGuests)).toBe(true);
+    for (const kind of ['cirrux', 'nextcloud', 'A-KIND-THAT-MAILS', '', undefined]) {
+      expect(mailsGuestsItself(kind, kindsThatMailGuests), String(kind)).toBe(false);
+    }
+    // And without a list handed to it, it reads the real one.
+    expect(mailsGuestsItself('a-kind-that-mails')).toBe(false);
   });
 
   it('leaves Infomaniak off since 2026-11-20, so its copies keep their guests, as Nextcloud’s do (0161, ADR-0043)', () => {

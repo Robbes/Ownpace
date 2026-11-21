@@ -39,6 +39,10 @@
 //      target is most dangerous without, and one a `created` return would
 //      hide. Checked BY COUNT on the server, because a writer can report
 //      `adopted` and have appended anyway.
+//   5. The server keeps the time the message arrived at the source as its
+//      INTERNALDATE, not the moment of copying, read with the same independent
+//      client. Until 2026-11-20 the APPEND named no date, so every copied
+//      message showed the moment it was copied (workplan 0002).
 
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { ImapFlow } from 'imapflow';
@@ -94,13 +98,15 @@ if (!STALWART_IMAP_HOST) {
   const MESSAGE_ID = `<imap-dav-${Date.now()}-${process.pid}@dev.local>`;
 
   const FOLDER: MailFolder = { path: MAILBOX, name: MAILBOX, specialUse: 'normal' };
+  /** When the message arrived at the source: months before any run of this file. */
+  const RECEIVED_AT = '2026-08-24T12:00:00.000Z';
 
   const MESSAGE: RawMessage = {
     item: {
       messageId: MESSAGE_ID,
       folder: FOLDER,
       keywords: [],
-      receivedAt: '2026-08-24T12:00:00.000Z',
+      receivedAt: RECEIVED_AT,
       sourceRef: `${MAILBOX}:1`,
     },
     rfc822: Buffer.from(
@@ -192,6 +198,26 @@ if (!STALWART_IMAP_HOST) {
     }
   }
 
+  /**
+   * The INTERNALDATE the server keeps for each copy of `MESSAGE_ID`, read the
+   * way `countOnServer` reads, through its own connection. It is the time a
+   * mail app sorts "received" by; an APPEND that names no date gets the
+   * moment of copying instead.
+   */
+  async function arrivalTimesOnServer(): Promise<string[]> {
+    return withClient(async (client) => {
+      const lock = await client.getMailboxLock(MAILBOX);
+      try {
+        const messages = await client.fetchAll('1:*', { uid: true, envelope: true, internalDate: true }, { uid: true });
+        return messages
+          .filter((m) => bareId(m.envelope?.messageId) === bareId(MESSAGE_ID))
+          .map((m) => (m.internalDate === undefined ? 'no INTERNALDATE' : new Date(m.internalDate).toISOString()));
+      } finally {
+        lock.release();
+      }
+    });
+  }
+
   function mappingJson(): string {
     return JSON.stringify({
       mappingId: '00000000-0000-4000-8000-00000000da01',
@@ -260,6 +286,10 @@ if (!STALWART_IMAP_HOST) {
       await deps!.target.upsertEmail(mailboxId, MESSAGE, []);
 
       expect(await countOnServer()).toBe(1);
+      expect(
+        await arrivalTimesOnServer(),
+        'the server keeps the moment of copying, not the time the message arrived',
+      ).toEqual([RECEIVED_AT]);
     });
 
     it('a second write adopts it rather than duplicating it', async () => {

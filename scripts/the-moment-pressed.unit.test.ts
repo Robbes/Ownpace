@@ -407,3 +407,123 @@ describe('the press that ran out of shares (E2E (managed) #277, 2026-10-25)', ()
     }
   });
 });
+
+/**
+ * A FOLDER PRESS THAT FELL SHORT OF ITS FILE (E2E (managed) run 44731893238,
+ * attempt 1, 2026-11-20).
+ *
+ * The press applied the folder, and the target refused the file inside it
+ * with 404; attempt 2 of the same run passed. Either the file was not on the
+ * target yet when the press asked, or it was and the share API answered 404
+ * all the same, and the log could not say which: the evidence file cannot be
+ * downloaded where a failure is read, and the job log can. So the branch now
+ * prints, before it fails, the four readings that tell the two apart.
+ *
+ * Pinned here: the branch calls it after the refused rows and before it
+ * fails; each reading reads what it names, inside the APPLY tenant and
+ * mapping; the target is asked as its own account and only the status is
+ * printed; the source's share, an address and a URL are never printed; and
+ * it decides nothing, so what passes and what fails is as it was.
+ */
+describe('a folder press that fell short of its file (E2E (managed) run 44731893238, 2026-11-20)', () => {
+  const smoke = strip('smoke-managed.sh');
+  const fn = (name: string): string => {
+    const at = smoke.indexOf(`\n  ${name}() {`);
+    return at === -1 ? '' : smoke.slice(at, smoke.indexOf('\n  }\n', at + 1));
+  };
+  const evidence = fn('folder_press_evidence');
+  const rows = fn('evidence_rows');
+  const scope = "tenant_id='$APPLY_TENANT' AND mapping_id='$APPLY_MAPPING'";
+  const query = (table: string): string =>
+    new RegExp(`evidence_rows "(SELECT [^"\\n]* FROM ${table} WHERE [^"\\n]*)"`).exec(evidence)?.[1] ?? '';
+
+  it('prints them after the refused rows and before the branch fails', () => {
+    const at = smoke.indexOf('expected the folder AND');
+    const branch = at === -1 ? '' : smoke.slice(at, smoke.indexOf('fail_at', at));
+    expect(evidence, 'folder_press_evidence is gone').not.toEqual('');
+    expect(
+      branch,
+      'the folder branch no longer prints what was there, or prints it after it has failed:\n' +
+        'a 404 on the file reads the same whether the file was missing or the share API was wrong',
+    ).toMatch(
+      /refused_rows "\$\{fpress_out%[^\n]*\n\s*folder_press_evidence "\$folder_parent" "\$\{folder_parent\}\/openmig-demo-folder-file-\$\{BALANCE_TAG\}\.txt"\n\s*$/,
+    );
+  });
+
+  it("reads the file's ledger rows for this run's tag: status, target path, first seen and updated", () => {
+    const q = query('item');
+    expect(q, "the file's ledger rows are no longer read").not.toEqual('');
+    expect(q, 'the ledger rows must stay inside the APPLY tenant and mapping').toContain(scope);
+    expect(q).toContain("domain='file'");
+    expect(q, 'the rows must be the file of THIS run, by its own tagged name').toMatch(/LIKE '%\$\{name\}%'/);
+    expect(evidence).toMatch(/local name="\$\{2##\*\/\}"/);
+    for (const column of ['status', "target_ref->>'id'", 'first_seen_at', 'updated_at']) {
+      expect(q, `the ledger row no longer says ${column}`).toContain(column);
+    }
+  });
+
+  it('reads the passes on the mapping since the seed, oldest first, with what each processed', () => {
+    const q = query('run');
+    expect(q, "the mapping's passes are no longer read").not.toEqual('');
+    expect(q, 'the passes must stay inside the APPLY tenant and mapping').toContain(scope);
+    for (const column of ['orchestrator_ref', 'status', 'started_at', 'finished_at', "stats->>'itemsProcessed'"]) {
+      expect(q, `a pass no longer says ${column}`).toContain(column);
+    }
+    expect(q, 'the passes must be bounded by the seed, or every pass the stack ever ran is printed').toMatch(
+      />= timestamptz '\$\{seeded\}'/,
+    );
+    expect(q, 'oldest first').toMatch(/ORDER BY coalesce\(started_at, created_at\)/);
+    expect(evidence, "the seed's time is the tag's own, as prepare mints it").toMatch(
+      /\[\[ "\$BALANCE_TAG" =~ \^smoke-/,
+    );
+  });
+
+  it("reads the folder's share rows, their state and what the press recorded, never the source's share", () => {
+    const q = query('share_grant');
+    expect(q, "the folder's share rows are no longer read").not.toEqual('');
+    expect(q, 'the share rows must stay inside the APPLY tenant and mapping').toContain(scope);
+    expect(q, 'the rows must be the ones under the folder the press was given').toMatch(/parent_key='\$\{1\}'/);
+    expect(q).toContain('state');
+    expect(q, 'what the press recorded on a row it applied').toContain('decided_at');
+    expect(q, '`raw` is the source share verbatim, token included, and the job log is public').not.toMatch(
+      /\braw\b/,
+    );
+    expect(q, 'a grantee is an address, and the job log is public').not.toMatch(/\bgrantee\b/);
+  });
+
+  it('asks the target for the folder and the file, Depth 0, as its own account, and prints the status alone', () => {
+    expect(evidence).toMatch(/for p in "\$1" "\$2"; do/);
+    expect(evidence).toMatch(/curl -s -o \/dev\/null -w '%\{http_code\}' -X PROPFIND -H 'Depth: 0' \\/);
+    expect(evidence, 'the target is asked as its own account, with the credentials the smoke already has').toContain(
+      '-u "${TARGET_DAV_USER}:${TARGET_DAV_PASSWORD}"',
+    );
+    expect(evidence, "through the same door as the smoke's other reads, curl's own words kept out").toContain(
+      '"${NC}/remote.php/dav/files/${TARGET_DAV_USER}/${p}" 2>/dev/null)"',
+    );
+    for (const line of evidence.split('\n').filter((l) => /^\s*echo /.test(l))) {
+      expect(line, 'a printed line names the address or the password').not.toMatch(/\$\{?NC\b|PASSWORD/);
+    }
+  });
+
+  it('decides nothing: no fail_at, no retry, no wait, and the branch still fails below two rows', () => {
+    for (const [name, body] of [
+      ['folder_press_evidence', evidence],
+      ['evidence_rows', rows],
+      ['utc_sql', fn('utc_sql')],
+    ] as const) {
+      expect(body, `${name} is gone`).not.toEqual('');
+      expect(body, `${name} must print, never decide, retry or wait`).not.toMatch(
+        /fail_at|\bfail=|\bsleep\b|\bwhile\b|\buntil\b|sharing\//,
+      );
+    }
+    expect(smoke).toMatch(/fpress_applied:-0\}" -lt 2/);
+  });
+
+  it('prints each row indented, and says when the database did not answer apart from no row', () => {
+    expect(rows).toMatch(/printf '%s\\n' "\$rows" \| sed 's\/\^\/ {4}\/'/);
+    expect(
+      rows,
+      '"I could not look" and "there is nothing" must never read the same (hard rule 9)',
+    ).toMatch(/if ! rows="\$\(q "\$1"\)"; then\n[^\n]*did not answer[^\n]*\n\s*elif \[ -z "\$rows" \]; then/);
+  });
+});
