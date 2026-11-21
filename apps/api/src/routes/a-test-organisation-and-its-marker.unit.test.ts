@@ -13,7 +13,8 @@
  * - **The marker's form.** Required, trimmed, 3 to 64 printable characters:
  *   400 `bad_marker` otherwise, before anything is read.
  * - **Only while it is open.** 409 `not_open` for a closed organisation, and
- *   nothing written; the same marker again changes and records nothing.
+ *   nothing written, asked in the door's own transaction; the same marker
+ *   again changes and records nothing.
  * - **Only while it holds no migration.** 409 `holds_a_migration` with the
  *   sentence the screen shows, for a draft and a finished migration alike,
  *   and for a clear as for a set.
@@ -229,6 +230,38 @@ describe('only while the organisation is open, as the close and the reopen ask',
     } finally {
       await q(`UPDATE tenant SET status = 'active' WHERE id = $1`, [TEST_ORG]);
     }
+  });
+
+  // IN THE DOOR'S OWN TRANSACTION (0162 T1's re-review). The route read the
+  // status of the operator's view before the door's transaction began, and a
+  // close that committed in between let a mark land on a closed organisation.
+  // The doors now read it themselves, held until they commit: the race is on
+  // Postgres, in `a-test-organisation-and-its-marker.integration.test.ts`.
+  it.each(['closed', 'deleting'])(
+    'beneath the route, the doors refuse an organisation that is %s, and write nothing',
+    async (status) => {
+      await mark(TEST_ORG, { marker: '[Ownpace-test]' });
+      await q(`UPDATE tenant SET status = $2 WHERE id = $1`, [TEST_ORG, status]);
+      try {
+        expect(
+          await markAsTestAsOperator(driver, { tenantId: TEST_ORG, by: OPERATOR, marker: '[Other-test]' }),
+        ).toEqual({ notOpen: status });
+        expect(await unmarkTestAsOperator(driver, { tenantId: TEST_ORG, by: OPERATOR })).toEqual({ notOpen: status });
+      } finally {
+        await q(`UPDATE tenant SET status = 'active' WHERE id = $1`, [TEST_ORG]);
+      }
+      expect(await markerOf(TEST_ORG)).toBe('[Ownpace-test]');
+      expect((await audit(TEST_ORG)).map((a) => a.action)).toEqual(['tenant.test_marker_set']);
+    },
+  );
+
+  it('beneath the route, an organisation no longer there is answered as one that never was', async () => {
+    expect(await markAsTestAsOperator(driver, { tenantId: ABSENT, by: OPERATOR, marker: '[Ownpace-test]' })).toEqual({
+      notOpen: null,
+    });
+    expect(await unmarkTestAsOperator(driver, { tenantId: ABSENT, by: OPERATOR })).toEqual({ notOpen: null });
+    expect(await q(`SELECT 1 FROM test_organisation`)).toEqual([]);
+    expect(await audit(ABSENT)).toEqual([]);
   });
 });
 

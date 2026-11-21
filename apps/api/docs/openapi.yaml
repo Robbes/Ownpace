@@ -6314,6 +6314,15 @@ paths:
           content:
             text/markdown:
               schema: { type: string }
+        '400':
+          description: |
+            `Bad Request`: no mailbox to inventory. Neither `mailbox` nor
+            `mappingId` names one: both absent, or blank once trimmed. Refused
+            before anything is read, and not counted against the member's
+            test limit.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '404':
           description: |

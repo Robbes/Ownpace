@@ -4,6 +4,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **A close and a test mark are decided one after the other** (workplan 0162 T1's re-review).
+  Support's *Test organisation* section marks an organisation, or clears its marker, only while it
+  is open, and the two doors read that status before their own transaction began. A close that
+  committed in between let a mark land on a closed organisation. Each door now reads the status in
+  its own transaction and holds it until it commits (`FOR SHARE`): a close made first is read, and
+  the door answers 409 `not_open` and writes nothing; a close that arrives while a door is open
+  waits for it. Support's Close and Reopen keep their own reading: the close's update refuses an
+  organisation being erased, and the reopen asks its whole condition in its own transaction.
+- **`GET /api/me` names the organisation an id in capitals asks for** (workplan 0162 T1's
+  re-review). Every other route reads the `X-Ownpace-Tenant` header in lower case, the spelling the
+  database gives an id, so an id sent in capitals acts on its organisation there; `/api/me` compared
+  the header as sent, found none of its ids, and named no current organisation. It now reads it the
+  same way.
+- **A close made from Support's page stays on that organisation's page** (workplan 0162 T1's
+  re-review). The page stays mounted from one organisation to the next, and the close section kept
+  what the last close answered: going back to an organisation read before showed the other
+  organisation's close, its dates and what to tell them, on its page. The close section and the
+  *Test organisation* section are now keyed by the organisation together.
+
 ## [0.2.0-alpha.14] - 2026-11-21
 
 An appointed operator can mark an organisation as a test from Support, and every migration made

@@ -13,11 +13,18 @@
  * Through the real route, the real inventory pass and the real renderer, with
  * an organisation that has no stored connection: every section is then a
  * stated blind spot, which is enough to read the document's language.
+ *
+ * And the one request it refuses whatever the language: one that names no
+ * mailbox, neither by address nor by migration. A 400, which the spec
+ * documents with the body the route sends (0162 T1's re-review: it was
+ * missing from `openapi.yaml`).
  */
 
 import { describe, it, expect, vi } from 'vitest';
+import { join } from 'node:path';
 import express from 'express';
 import request from 'supertest';
+import { specChecker } from '../__tests__/doors-that-start-work.ts';
 
 vi.mock('../closed-organisation.ts', () => ({
   refusedAsClosed: async () => false,
@@ -92,4 +99,31 @@ describe('GET /api/permissions/report?lang=', () => {
     expect(res.status).toBe(200);
     expect(res.text).toContain('# Who can see what, and what happens to it');
   });
+});
+
+describe('GET /api/permissions/report that names no mailbox', () => {
+  const CHECKER = specChecker(join(import.meta.dirname, '..', '..', 'docs', 'openapi.yaml'));
+  const REPORT = {
+    name: 'the permission report',
+    method: 'get',
+    path: '/api/permissions/report',
+    spec: '/api/permissions/report',
+    accepted: 200,
+  } as const;
+
+  it.each(['', '?mailbox=', '?mailbox=%20%20', '?mappingId=', '?mailbox=&mappingId=%20&lang=nl'])(
+    '%s: 400, with the body the spec documents',
+    async (query) => {
+      const res = await request(app).get(`/api/permissions/report${query}`);
+      expect(res.status).toBe(400);
+      expect(res.body).toEqual({
+        error: 'Bad Request',
+        message:
+          'a mailbox is required: GET /api/permissions/report?mailbox=someone@example.com ' +
+          '(or ?mappingId=… to resolve it from a migration)',
+      });
+      const { schema } = CHECKER.responseSchema(REPORT, '400');
+      expect(CHECKER.satisfies(schema, res.body)).toBe(true);
+    },
+  );
 });

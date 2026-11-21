@@ -19,10 +19,14 @@
  *  4. **That the answer can be passed on**: both dates, and the sentences in
  *     English and in Dutch, the Dutch marked as Dutch.
  *  5. **That a reopen is offered only while it can happen**, and needs a reason.
+ *  6. **That a close stays on its organisation's page** (0162 T1's re-review):
+ *     the route keeps the page mounted from one organisation to the next, and
+ *     the section is keyed by the organisation, so one's answer never shows
+ *     on another's.
  */
 
 import { render, screen, fireEvent, within } from '@testing-library/react';
-import { MemoryRouter, Routes, Route } from 'react-router';
+import { MemoryRouter, Routes, Route, useNavigate } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { SupportTenants, SupportTenantDetail } from './Support.tsx';
@@ -341,5 +345,79 @@ describe('closing an organisation from its page', () => {
     const section = await closeSection();
     expect(within(section).getByText(S['support.closed.erasing'])).toBeInTheDocument();
     expect(within(section).queryByRole('button')).not.toBeInTheDocument();
+  });
+});
+
+describe('a close stays on its own organisation’s page', () => {
+  it('never shows one organisation’s close on another’s page, back from the cache too', async () => {
+    // The page is kept mounted from one organisation to the next. An
+    // organisation read for the first time is loaded afresh, but one already
+    // read comes back from the cache at once, into the same page: that is
+    // where a section that kept its state would show the last one's answer.
+    const closed = new Set<string>();
+    vi.mocked(getSupportTenant).mockImplementation(async (id: string) =>
+      detail(
+        id !== NOTHING.tenant_id
+          ? NOBODY
+          : closed.has(id)
+            ? { ...NOTHING, tenant_status: 'closed', closed_at: '2026-11-17T10:00:00.000Z', purge_after: ANSWER.purgeAfter }
+            : NOTHING,
+      ),
+    );
+    vi.mocked(closeSupportTenant).mockImplementation(async (id: string) => {
+      closed.add(id);
+      return ANSWER;
+    });
+    const Go: React.FC = () => {
+      const navigate = useNavigate();
+      return (
+        <>
+          <button type="button" onClick={() => navigate(`/support/tenants/${NOTHING.tenant_id}`)}>
+            to Nothing
+          </button>
+          <button type="button" onClick={() => navigate(`/support/tenants/${NOBODY.tenant_id}`)}>
+            to Nobody
+          </button>
+        </>
+      );
+    };
+    const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(
+      <QueryClientProvider client={client}>
+        <MemoryRouter initialEntries={[`/support/tenants/${NOBODY.tenant_id}`]}>
+          <Go />
+          <Routes>
+            <Route path="/support/tenants/:tenantId" element={<SupportTenantDetail />} />
+          </Routes>
+        </MemoryRouter>
+      </QueryClientProvider>,
+    );
+    await screen.findByRole('heading', { name: /Nobody BV/ });
+
+    // Closed on the next organisation's page, its answer shown there.
+    fireEvent.click(screen.getByRole('button', { name: 'to Nothing' }));
+    await screen.findByRole('heading', { name: /Nothing BV/ });
+    const there = within(await closeSection());
+    fireEvent.click(there.getByLabelText(fill(S['support.close.window.n'], { days: 30 })));
+    fireEvent.change(there.getByRole('textbox'), { target: { value: 'their mail of 17 November' } });
+    fireEvent.click(there.getByRole('button', { name: S['support.close.arm'] }));
+    fireEvent.click(there.getByRole('button', { name: S['support.close.yes'] }));
+    expect(await there.findByText(S['support.close.done'])).toBeInTheDocument();
+    expect(vi.mocked(closeSupportTenant)).toHaveBeenCalledWith(NOTHING.tenant_id, {
+      windowDays: 30,
+      reference: 'their mail of 17 November',
+    });
+
+    // Back to the first, which comes from the cache into the same page: open,
+    // never closed, and nothing of the other's close on it.
+    fireEvent.click(screen.getByRole('button', { name: 'to Nobody' }));
+    await screen.findByRole('heading', { name: /Nobody BV/ });
+    const back = within(await closeSection());
+    expect(back.queryByText(S['support.close.done'])).toBeNull();
+    expect(back.queryByRole('status')).toBeNull();
+    expect(back.queryByText(ANSWER.erasureCompletesText.en)).toBeNull();
+    expect(back.getByRole('button', { name: S['support.close.arm'] })).toBeDisabled();
+    expect(back.getByRole('textbox')).toHaveValue('');
+    expect(vi.mocked(closeSupportTenant)).toHaveBeenCalledTimes(1);
   });
 });
