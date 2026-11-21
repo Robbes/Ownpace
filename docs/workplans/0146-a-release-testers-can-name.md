@@ -7,8 +7,8 @@
 **2026-11-21, latest: the fold for `v0.2.0-alpha.14` (T2).** `package.json` and the API contract
 say `0.2.0-alpha.14`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves
 to its section, dated 2026-11-21, under a summary; [Unreleased] stays, empty. alpha.14 carries what
-`main` merged after alpha.13's tag, `v0.2.0-alpha.13` on `45dfead1`: 29 pull requests, merged on
-2026-11-21 from 07:29 to 19:58 UTC. The npm group (#2004) and react-router (#2012) came from
+`main` merged after alpha.13's tag, `v0.2.0-alpha.13` on `45dfead1`: 31 pull requests, merged on
+2026-11-21 from 07:29 to 20:51 UTC. The npm group (#2004) and react-router (#2012) came from
 Dependabot, so their entries are added at the end of alpha.14's Changed.
 
 - a migration with a test marker copying only its marked items, with ledger migration 0070
@@ -19,7 +19,8 @@ Dependabot, so their entries are added at the end of alpha.14's Changed.
   two buttons going only to Google's own page (#1996);
 - a migration file waiting at most five seconds for a table lock (#2002);
 - the read-only measurement of what Google answers to `sync-collection` (#2008), after workplan
-  0164's decision (#1983);
+  0164's decision (#1983), and the CalDAV source reading that answer, so that an event deleted in a
+  Google calendar reaches *Deleted on the old system* (#2019);
 - Trigger.dev v4.8.8 (#2009), the webapp's build replacing effect 3.21.2 by 3.22.4 (#2018), and
   the Redis and webapp builds without linux-pam (#2016);
 - both Postgres builds on libxml2 2.13.9-r3 (#2015);
@@ -30,7 +31,8 @@ Dependabot, so their entries are added at the end of alpha.14's Changed.
 - in CI alone: Semgrep's report naming where it read only in part (#1993), zizmor 1.32.0 (#1995),
   Dependabot's three days (#1999), squawk, report only (#2000), code scanning's six Semgrep rules
   (#2006), gitleaks, blocking (#1992), the two secrets each read by one job in its environment
-  (#2001), and zizmor's secrets-outside-env report (#2007);
+  (#2001), zizmor's secrets-outside-env report (#2007), and the outside probe's TLS hello to each
+  port the front answers by itself (#2020);
 - the records of alpha.13's release and alpha.14's nights waiver (#1991) and of the evening of
   2026-11-21 (#2017), and workplan 0166 (#2010).
 
@@ -49,7 +51,9 @@ Dependabot, so their entries are added at the end of alpha.14's Changed.
   uid 99 with the socket's group, `DOCKER_SOCKET_GID`, that the bring-up writes into `.env`, and
   the dashboard's TLS front (`2.11.9-alpine-9c1f752119a3`); from alpha.14, both databases
   (`18.7-alpine-6adabb723757`), which restart once, Redis (`7.4.12-bookworm-65e47a4df92f`), the
-  supervisor (`v4.8.8-f21dbbd335dd`) and the webapp (`v4.8.8-c8ebb4044c16`).
+  supervisor (`v4.8.8-f21dbbd335dd`) and the webapp (`v4.8.8-c8ebb4044c16`). From the first pass
+  after the deploy, the CalDAV source reads a Google calendar by its `sync-collection` answer
+  (#2019), which brings no migration, variable or file in `deploy/` of its own.
 - **What the deploy's sheet must hold, read from the tree:**
   - the hold and the drain, then `TRIGGER_IMAGE_TAG=v4.8.8` in live's persisted `.env` with
     `env-upsert.sh`: it said `v4.8.5` when it was read on 2026-11-20 (0132's Status), and left

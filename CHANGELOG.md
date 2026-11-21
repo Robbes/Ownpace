@@ -10,14 +10,16 @@ A migration can carry a test marker, and then copies only the items whose own ti
 nothing sets one yet. Such a test migration is never finished or switched over, its sharing lists
 only its marked items, and a Dropbox file renamed out of its marker is not read as deleted. *Pay*
 opens Mollie's checkout, the app follows a checkout, consent or grant address only to its provider's
-own host, and a migration waits at most five seconds for a table lock. An operator can measure, read
-only, what Google answers to `sync-collection`. Underneath, Trigger.dev moves to v4.8.8, its
+own host, and a migration waits at most five seconds for a table lock. An event deleted in a Google
+calendar now reaches *Deleted on the old system*: the CalDAV source reads Google's `sync-collection`
+answer, which an operator can also measure, read only. Underneath, Trigger.dev moves to v4.8.8, its
 webapp's image runs effect 3.22.4 and, like Redis's, carries no PAM, both Postgres builds take
 Alpine's fixed libxml2, and pnpm moves to 11.28.13. In CI, a pull request that adds a secret fails,
 squawk reports the locks each migration takes, the two secrets left are each read by one job in its
-own GitHub environment, Dependabot waits three days, and zizmor moves to 1.32.0 and lists each
-secret a job reads outside an environment. Live's deploy from alpha.12 is one-way: ledger migration
-0070 moves, and so does the Trigger.dev pin.
+own GitHub environment, Dependabot waits three days, zizmor moves to 1.32.0 and lists each secret a
+job reads outside an environment, and the outside probe fails when a port the front answers by
+itself presents the Trigger.dev dashboard's certificate. Live's deploy from alpha.12 is one-way:
+ledger migration 0070 moves, and so does the Trigger.dev pin.
 
 ### Added
 
@@ -261,8 +263,8 @@ secret a job reads outside an environment. Live's deploy from alpha.12 is one-wa
   encoder and the credential store do, so Node refuses a shorter tag itself. Nothing shipped
   changes: the fake runs in tests only. Semgrep's `gcm-no-tag-length` reports nothing after it.
 - **The outside probe knows the Trigger.dev dashboard on a port the front answers by itself**
-  (workplan 0132 T3 (c), the owner's choice of 2026-11-21). Five more ports answered on both of
-  live's front addresses that day: NetBird's shared proxy holds them for someone else, and a
+  (workplan 0132 T3 (c)). Five more ports answered on both of live's front addresses on
+  2026-11-21: NetBird's shared proxy holds them for someone else, and a
   capture on the machine across a probe run saw nothing arrive. The owner listed them in
   `EXPOSURE_PROBE_FRONT_PORTS` beside 5432, where a port that answers is a note behind
   PostgreSQL's handshake. Of this repository's services, the one a forward from the front could

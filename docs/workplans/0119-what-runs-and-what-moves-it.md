@@ -6,7 +6,7 @@
 
 **2026-11-21, last: what alpha.14 moves, and what moves for live from alpha.12.** The fold for
 `v0.2.0-alpha.14` (0146's entry of the same day) carries what `main` merged after alpha.13's tag,
-29 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
+31 pull requests (0146's entry lists them). Live runs alpha.12 (0132's Status, 2026-11-20), and no
 deploy of alpha.13 is recorded, so live's deploy of alpha.14 takes alpha.13's moves too. For live,
 from alpha.12:
 
@@ -28,16 +28,21 @@ from alpha.12:
 - the API, web and task images carry what the npm groups move at run time (#1971, #2004), the web
   react-router 8.5.2 (#2012) and the tasks the Trigger.dev SDK 4.8.8 (#2009); the images that
   install take pnpm 11.28.13 from `packageManager` (#1994); GoAccess's image is built from the same
-  commit as before (#1998).
+  commit as before (#1998);
+- the CalDAV source, in the API and task images, reads a Google calendar's `sync-collection` answer
+  from the first pass after the deploy, so that an event deleted at Google reaches the deletions
+  queue, and asks every CalDAV server, Nextcloud's included, with `sync-level` 1 (#2019); it moves
+  nothing in either migration chain or in `deploy/`.
 
 So live's deploy from alpha.12 is one-way by the deploy's own rule, by 0070 and the pin; alpha.13
 alone moved neither. CI alone: Semgrep's report naming where it read only in part (#1993), zizmor
 1.32.0 (#1995), Dependabot's three days (#1999), squawk, report only (#2000), code scanning's six
 Semgrep rules (#2006), gitleaks, blocking (#1992), the two secrets each read by one job in its
-environment (#2001), zizmor's secrets-outside-env report (#2007), and the Cirrux test server's tag
-length (#2014), which runs in tests only. The test stack alone: nothing; it took v4.8.8 before
-#2009 merged (the entry below). The five `minimumReleaseAgeExclude` entries ship in alpha.14 and
-come out after 2026-11-23 12:08 (the entry below).
+environment (#2001), zizmor's secrets-outside-env report (#2007), the outside probe's TLS hello to
+each port the front answers by itself (#2020), and the Cirrux test server's tag length (#2014),
+which runs in tests only. The test stack alone: nothing; it took v4.8.8 before #2009 merged (the
+entry below). The five `minimumReleaseAgeExclude` entries ship in alpha.14 and come out after
+2026-11-23 12:08 (the entry below).
 
 **2026-11-21, after #2009 merged: Trigger.dev v4.8.8 is on `main` and on the test environment.**
 The entry below's four steps were taken in order (times UTC):
