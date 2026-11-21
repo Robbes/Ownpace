@@ -2,11 +2,31 @@
 
 > **In one line:** Audit and upgrade policy for container images, npm packages and GitHub Actions: Dependabot over Dockerfiles and compose files, `trigger-version.sh` for Trigger.dev, owner decisions on Zitadel, Redis, MinIO and pnpm `minimumReleaseAge`, and vitest 5.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21: what alpha.13 moves.** The fold for `v0.2.0-alpha.13` (0146's entry of the same
+day) carries what `main` merged after alpha.12's tag, #1963 to #1986 (0146's entry lists them).
+For live:
+
+- no file in either migration chain is added, changed or removed, and none of the Trigger.dev
+  (v4.8.5), identity-provider (Zitadel v4.20.4) and ClickHouse pins moves;
+- three images each machine builds move: the Docker socket proxy, from docker-socket-proxy v0.6.0
+  and as HAProxy's uid 99 with the socket's group (#1967, #1979;
+  `localhost/docker-socket-proxy:3.4.7-alpine-98dbd75c6730`), the dashboard's TLS front, on Caddy
+  2.11.9-alpine's index of 2026-11-13 (#1982; `localhost/caddy:2.11.9-alpine-9c1f752119a3`), and
+  the Trigger.dev webapp, whose connect-node loads the image's undici 6.29.1 (#1963;
+  `localhost/trigger.dev:v4.8.5-f7b52b1d2670`);
+- the bring-up writes the socket's group into `.env` as `DOCKER_SOCKET_GID` (#1979);
+- the API, web and task images carry the npm minor-and-patch group (#1971).
+
+So live's deploy from alpha.12 is reversible by the deploy's own rule. CI alone: zizmor, and no
+cache restored in a run a tag starts (#1977); the O365 lane deleted (#1980); osv-scanner (#1984);
+and Semgrep, report only (#1986). The test stack alone: Stalwart v1.1.1 (#1964), and what the
+managed gate prints when a folder press falls short (#1966).
 
 **2026-11-20, late: GEN-26's three setup-node lines are fixed, and zizmor 1.30.1 runs in CI,
-blocking (draft pull request #1977, branch `claude/ownpace-public-readiness-y7orc6-workflow-audit`,
-from `main` at `bf9ede75`; not merged).** An outside, read-only check named
+blocking; merged as #1977 on 2026-11-21 (`5cac662b`; *was:* a draft pull request, branch
+`claude/ownpace-public-readiness-y7orc6-workflow-audit`, from `main` at `bf9ede75`, not merged).** An outside, read-only check named
 `images.yml:107`, `security-scan.yml:151` and `windows-payload.yml:65` at `b4d11ee7`, each
 `actions/setup-node@949feb24… # v7.1.0`, all still there on `main`. The pin was right. What fired
 is zizmor's `cache-poisoning` audit, read in its source at v1.30.1
@@ -46,10 +66,11 @@ and two actions/cache steps, and the four tag workflows thirteen setup-node step
   first run (`release-verify.mjs` checks the release, its body and both assets).
 
 **2026-11-20, late: the dashboard's TLS front takes Caddy 2.11.9-alpine's index of 2026-11-13,
-whose linux/amd64 and linux/arm64 images are the ones it ran, for alpha.13.** On the branch
+whose linux/amd64 and linux/arm64 images are the ones it ran, for alpha.13; merged as #1982 on
+2026-11-21 (`bb999c13`).** On the branch
 `claude/ownpace-public-readiness-y7orc6-caddy-003a978`, from Dependabot's #1970 (`abb30ae6`), which
-moves `deploy/compose/caddy/Dockerfile`'s FROM from the index `0bbb055b…` to `003a9780…`; not
-merged.
+moves `deploy/compose/caddy/Dockerfile`'s FROM from the index `0bbb055b…` to `003a9780…`
+(*was:* not merged).
 - **What moved: riscv64 alone.** Both indexes were read from `registry-1.docker.io` on 2026-11-20,
   each body hashing to its digest. `0bbb055b…` lists linux/amd64 `fc9cbc10…`, arm v6, arm v7,
   linux/arm64 `9ee99810…`, ppc64le and s390x, each with its attestation. `003a9780…` lists the same
@@ -68,7 +89,9 @@ merged.
 
 **2026-11-20, late: the proxy as uid 99. The Docker socket proxy no longer runs as root: it runs as
 HAProxy's uid 99 and reaches the socket through the socket's group, which the bring-up reads from
-the socket. The exception of 2026-11-19 ends.** The owner asked to work on the outside check's
+the socket. The exception of 2026-11-19 ends. Merged as #1979 on 2026-11-21 (`7cbb1093`), after
+E2E (managed) run 44843427354 on its head recreated the proxy from
+`localhost/docker-socket-proxy:3.4.7-alpine-98dbd75c6730`.** The owner asked to work on the outside check's
 GEN-21 for `deploy/compose/docker-socket-proxy/Dockerfile` (`USER root`, upstream's). Built on the
 branch `claude/ownpace-public-readiness-y7orc6-socket-proxy-nonroot`.
 - **What was read first.** Every path that starts the container: `managed.yml`, live's
@@ -260,9 +283,10 @@ The answer, at about 18:36 UTC: *"3. Yes"*. ADR-0022's update of 2026-11-20 reco
     and shellcheck pass on it. The script itself never ran against a stack.
 
 **2026-11-20, last: the Docker socket proxy moves to Tecnativa's docker-socket-proxy v0.6.0, for
-alpha.13, past its three-day floor.** On the branch
-`claude/ownpace-public-readiness-y7orc6-socket-proxy-0-6-0`, from `main` at `71144ed2` (#1963);
-not merged. Upstream's tag `v0.6.0` names its merge commit `1d296629` of 2026-11-17 09:25 UTC, so
+alpha.13, past its three-day floor; merged as #1967 on 2026-11-20 (`5fe1c9ea`; *was:* not
+merged).** On the branch
+`claude/ownpace-public-readiness-y7orc6-socket-proxy-0-6-0`, from `main` at `71144ed2` (#1963).
+Upstream's tag `v0.6.0` names its merge commit `1d296629` of 2026-11-17 09:25 UTC, so
 the floor ended on 2026-11-20 at 09:25 UTC. The entry of 2026-11-18 below left v0.6.0 behind as a
 release that changes nothing the proxy does. That is still so, and the pin watch's row is current
 with it.
@@ -319,7 +343,8 @@ with it.
   (`b9fe316f…`), both Dependabot's.
 
 **2026-11-20: the Trigger.dev webapp's connect-node loads the store's undici 6.29.1, and undici
-5.29.0 and `@fastify/busboy` 2.1.1 leave the image; built on a branch, a draft pull request.** On
+5.29.0 and `@fastify/busboy` 2.1.1 leave the image; merged as #1963 on 2026-11-20 (`71144ed2`;
+*was:* built on a branch, a draft pull request).** On
 the branch `claude/ownpace-public-readiness-y7orc6-trigger-undici-6`, from `main` at `3ec5670d`
 (#1961). The entry of 2026-11-19 below (*Which of the four a layer here could take*) proposed it
 as a change to decide first, since it moves a dependency that loads across a major; the owner
@@ -1117,8 +1142,8 @@ digest; nothing read was run. Times are UTC.
   saw. Then the floor, to 2026-11-20 at 15:20, and the owner's merge after it.
 
 **2026-11-18, in the evening: the identity provider's pin moves to Zitadel v4.20.4 on a branch, on
-the owner's yes and after their dump of the OTA instance, for after its three-day floor: built, not
-merged (0135 T7).** On the branch
+the owner's yes and after their dump of the OTA instance, for after its three-day floor; merged as
+#1938 on 2026-11-20 (`068182c6`; *was:* built, not merged) (0135 T7).** On the branch
 `claude/ownpace-public-readiness-y7orc6-zitadel-4-20-4`, from `main` at `f928f021` (#1933); 0135's
 Status of the same day reads its six commits. Read from upstream's public git (`git ls-remote`, a
 blobless fetch of three tags) and GHCR's manifests, without a login; nothing read was run. Times
