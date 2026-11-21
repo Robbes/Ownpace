@@ -70,7 +70,7 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
-- **`GET /version` no longer reads a file on every request** (workplan 0006 K). On both editions
+- **`GET /version` no longer reads a file on every request** (workplan 0006 L). On both editions
   the build's version came from the root `package.json`, read again for every answer, every
   problem report and every unreadable-answer line, and each read held up the requests behind it.
   It is now read once per process; a version stamped in the environment still wins on every call.

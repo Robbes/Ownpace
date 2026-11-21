@@ -32,7 +32,7 @@ describe('buildIdentity', () => {
     expect(id.commit).toBe('unknown');
   });
 
-  // PERF-1 (workplan 0006 K): `GET /version` answers from here on every
+  // PERF-1 (workplan 0006 L): `GET /version` answers from here on every
   // request, so the file is read once per process, not once per answer.
   it('reads package.json once, however often it is asked, and the env still wins on each call', async () => {
     delete process.env.OPENMIG_VERSION;

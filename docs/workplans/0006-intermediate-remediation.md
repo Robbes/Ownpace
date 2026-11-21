@@ -2,7 +2,7 @@
 
 > **In one line:** Repo-integrity fixes outside the feature plans: vitest test-file suffixes and a guard, the `DEPLOYMENT.md` case collision, workplan 0003-0005 status blocks, root deps, CI runner and action pinning, compose consolidation, `no-unused-vars`, worker `--config`, swallowed errors, blocking calls.
 
-## Status — 2026-11-21: A to I done (rows corrected 2026-08-01, the work having landed long before); J built on a branch, not merged; K built on a branch, not merged
+## Status — 2026-11-21: A to I done (rows corrected 2026-08-01, the work having landed long before); J built on a branch, not merged; L built on a branch, not merged
 
 | Item | Status | Owner decision |
 |---|---|---|
@@ -15,7 +15,7 @@
 | H — Re-enable `no-unused-vars` lint rule | ✅ Done — `eslint.config.js` enables `@typescript-eslint/no-unused-vars` | approved |
 | I — Worker CLI config-path bug | ✅ Done — `--config` resolves against `process.cwd()` (`apps/worker/src/index.ts`) | approved |
 | J — Errors caught and dropped: 25 sites a read-only check for swallowed errors (ERR-1) named on `646b9de2` | 🔨 Built 2026-11-19 on branch `claude/ownpace-public-readiness-y7orc6-bl-errors`, not pushed: 23 sites changed, 2 left as they were (nothing swallowed); the unit and web tests, both type checks and lint green; the three JMAP integration files changed are CI's to prove. See §J | asked for, 2026-11-19 |
-| K — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | 🔨 Built 2026-11-21 (21:20 UTC) on branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`, not merged: none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left, for the owner (D2). See §K | asked for, 2026-11-21 |
+| L — Blocking calls in async code: 25 spots a read-only check (PERF-1) named on `75d7949d` | 🔨 Built 2026-11-21 (21:20 UTC) on branch `claude/ownpace-public-readiness-y7orc6-perf1-nov21`, not merged: none of the 25 sits on a request or a pass; one the check did not name did (`buildIdentity`, `GET /version`), and its file is now read once per process. One more on a pass is left, for the owner (D2). See §L | asked for, 2026-11-21 |
 
 > This workplan was produced by an assessment session on 2026-07-09 (clean clone of `main`,
 > `f1acd4a`). It collects **verified findings that fall outside the architecture/feature plans**.
@@ -247,7 +247,7 @@ clean-up (its `.catch(` and `() => undefined` stand on two lines), the poll's ca
 
 ---
 
-## K — Blocking calls in async code (an outside, read-only check, 2026-11-21)
+## L — Blocking calls in async code (an outside, read-only check, 2026-11-21)
 
 **Evidence.** An outside, read-only check (PERF-1, "Blocking calls in async code", status
 "Needs attention") read the code on `75d7949d` for calls that make everything else wait inside

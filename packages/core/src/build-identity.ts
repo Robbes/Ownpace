@@ -19,7 +19,7 @@ export interface BuildIdentity {
 
 /**
  * The root package.json's version, read once per process (PERF-1, workplan
- * 0006 K). `GET /version` answers from here on every request, on both
+ * 0006 L). `GET /version` answers from here on every request, on both
  * editions, and a synchronous file read there holds up every other request
  * for its duration. The file does not change under a running process, so the
  * first answer is the answer; a file that cannot be read answers `0.0.0`, as
