@@ -50,6 +50,8 @@ import {
   readPathPhases,
 } from '@openmig/ledger';
 import {
+  A_TEST_IS_NOT_FINISHED,
+  A_TEST_IS_NOT_SWITCHED_OVER,
   ARCHIVE_PROVIDERS,
   ARCHIVE_PROVIDER_ORIGINS,
   ARCHIVE_WHERE,
@@ -3895,6 +3897,19 @@ router.post(
         return;
       }
 
+      // A test migration is never switched over (workplan 0162 T3). The job
+      // refuses to prepare one, so this door refuses it first, by the rule
+      // below, and nothing is enqueued.
+      if (mappings[0]!.testMarker !== null) {
+        res.status(409).json({
+          error: 'cutover_refused',
+          message: A_TEST_IS_NOT_SWITCHED_OVER.en,
+          hint: 'Nothing was changed.',
+          code: 'test_migration',
+        });
+        return;
+      }
+
       // Ask the ledger BEFORE anything is enqueued: the same decision the job
       // follows, so the door never refuses what the job would accept, and
       // never accepts what the job would refuse. For one data type, its own
@@ -4649,6 +4664,19 @@ function endOrKeepRoute(ending: PathEnding) {
       if ('refused' in outcome) {
         if (outcome.refused === 'not_found') {
           return void res.status(404).json({ error: 'Not found', message: 'Mapping not found' });
+        }
+        // A test migration is neither ended nor kept (workplan 0162 T3). The
+        // Finish page shows this refusal, so it is answered in both halves
+        // and the page says the one in its reader's language.
+        if (outcome.refused === 'test_migration') {
+          return void res.status(409).json({
+            error: `${ending}_refused`,
+            refused: outcome.refused,
+            message: A_TEST_IS_NOT_FINISHED.en,
+            messageNl: A_TEST_IS_NOT_FINISHED.nl,
+            reason: A_TEST_IS_NOT_FINISHED.en,
+            reasonNl: A_TEST_IS_NOT_FINISHED.nl,
+          });
         }
         const reason = pathEndingRefusalReason(outcome, domain);
         return void res.status(409).json({

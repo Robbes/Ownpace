@@ -33,7 +33,9 @@ import {
 import {
   createLedgerVerificationReader,
   organisationStillOpen,
+  readPathPhases,
   tenantScopedDb,
+  withTenant,
   type DisposableLedgerVerificationReader,
 } from '@openmig/ledger';
 import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-domains';
@@ -52,11 +54,14 @@ const CUTOVER_THRESHOLDS = {
 /**
  * The gate's configuration for a migration with this selection: its data
  * types, and no others. Those its owner stopped are skipped, *stopped by you*
- * (0128 T4, D6): they no longer follow the source.
+ * (0128 T4, D6): they no longer follow the source. A test migration's marker
+ * goes with it (workplan 0162 T3): measured as any other, and never cleared
+ * for its cutover.
  */
 export function verificationConfigFor(
   selected: ReadonlySet<DiscoveryDomain>,
   stopped: ReadonlySet<DiscoveryDomain> = new Set(),
+  testMarker?: string,
 ): VerificationConfig {
   return {
     ...CUTOVER_THRESHOLDS,
@@ -66,7 +71,20 @@ export function verificationConfigFor(
     verifyFiles: selected.has('file'),
     verifyTasks: selected.has('task'),
     stoppedByOwner: [...stopped].map((domain) => GATE_NAME[domain]),
+    ...(testMarker !== undefined ? { testMarker } : {}),
   };
+}
+
+/**
+ * The migration's test marker (workplan 0162), when it is a test; undefined
+ * for every other migration, and for one that is gone. Read as every gate
+ * reads the migration (`readPathPhases`), in the tenant's scope, on the pool
+ * the caller was handed. The cutover's doors refuse a test (T3): the gate
+ * holds it, the preparation does not begin, and approve, execute and
+ * complete refuse it.
+ */
+export async function testMarkerOf(pool: Pool, tenantId: string, mappingId: string): Promise<string | undefined> {
+  return (await withTenant(pool, tenantId, (db) => readPathPhases(db, tenantId, mappingId)))?.testMarker;
 }
 
 /**
@@ -98,6 +116,7 @@ export async function runCutoverGate(
 ): Promise<VerificationResult> {
   const selected = gateScope(await enabledDomains(pool, tenantId, mappingId), only);
   const stopped = await stoppedDomains(pool, tenantId, mappingId);
+  const testMarker = await testMarkerOf(pool, tenantId, mappingId);
   const targets = await buildTargetReindexers(pool, tenantId, mappingId);
   // On the pool this gate was handed (0138 T1). It used to open a pool of its
   // own from a connection string.
@@ -107,7 +126,7 @@ export async function runCutoverGate(
       createRealVerificationDeps({
         tenantId: asTenantId(tenantId),
         mappingId: asMappingId(mappingId),
-        config: verificationConfigFor(selected, stopped),
+        config: verificationConfigFor(selected, stopped, testMarker),
         verificationReader,
         // One reindexer per data type, each reading its own target. A data
         // type with none is reported NOT_VERIFIABLE rather than measured

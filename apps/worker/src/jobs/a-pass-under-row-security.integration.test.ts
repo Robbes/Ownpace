@@ -101,6 +101,7 @@ import {
 import { PgBytesMovedStore } from '@openmig/managed';
 import {
   ACCOUNT_CLOSED,
+  A_TEST_IS_NOT_SWITCHED_OVER,
   asMappingId,
   asTenantId,
   isCredentialRefusal,
@@ -116,7 +117,7 @@ import {
 } from '@openmig/orchestration/build-deps-from-mapping';
 import { enabledDomains, stoppedDomains } from '@openmig/orchestration/enabled-domains';
 import { targetProviderKey } from '@openmig/orchestration/build-confirmation-readers';
-import { runCutoverGate } from './cutover-gate.ts';
+import { runCutoverGate, testMarkerOf } from './cutover-gate.ts';
 import { mappingNameOf } from './run-rollback.ts';
 import { passStepBefore, whyThePassStops } from './stopping-a-pass.ts';
 import { openTaskPools, type TaskPools } from './task-pools.ts';
@@ -166,6 +167,9 @@ const A_CALENDARS_NAME = 'Calendars to the new place';
 const A_CALENDAR_ITEMS = 3;
 /** A's fourth migration, cut over, which a rollback puts back to active: it records an audit event. */
 const A_RETURNING = `${P}34`;
+/** A's fifth, a test migration of the same calendars (workplan 0162 T3): its marker is read in A's scope. */
+const A_TEST = `${P}35`;
+const A_TEST_MARKER = '[Ownpace-test]';
 const B_SOURCE = `${P}41`;
 const B_TARGET = `${P}42`;
 const B_SOURCE_BOX = `${P}51`;
@@ -246,6 +250,11 @@ beforeAll(async () => {
     INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, target_folder_prefix, mode, status)
     VALUES (${A_RETURNING}, ${A}, ${A_MAIL_BOX}, ${A_TARGET_BOX}, 'returning', 'mirror', 'cutover')
     ON CONFLICT (id) DO UPDATE SET status = 'cutover'`);
+  // Written once, at its creation: no update may change it (ledger migration 0070).
+  await owner.execute(sql`
+    INSERT INTO mailbox_mapping (id, tenant_id, source_mailbox_id, target_mailbox_id, target_folder_prefix, mode, status, test_marker)
+    VALUES (${A_TEST}, ${A}, ${A_ACCOUNT_BOX}, ${A_TARGET_BOX}, 'test-calendars', 'mirror', 'active', ${A_TEST_MARKER})
+    ON CONFLICT (id) DO NOTHING`);
   await owner.execute(sql`DELETE FROM scope_selection WHERE tenant_id IN (${A}, ${B})`);
   await owner.execute(sql`
     INSERT INTO scope_selection (tenant_id, mapping_id, domain, included) VALUES
@@ -254,6 +263,7 @@ beforeAll(async () => {
       (${A}, ${A_ACCOUNT}, 'task', true),
       (${A}, ${A_CALENDARS}, 'calendar', true),
       (${A}, ${A_RETURNING}, 'email', true),
+      (${A}, ${A_TEST}, 'calendar', true),
       (${B}, ${B_MAPPING}, 'email', true)`);
   // A's tasks stopped by their owner; B's rows are there to be not seen.
   await owner.execute(sql`DELETE FROM path_lifecycle WHERE tenant_id IN (${A}, ${B})`);
@@ -358,6 +368,19 @@ describe('first: what a pass writes and reads for its organisation is there', ()
     expect(verdict.calendar.issues[0]?.message).toMatch(
       new RegExp(`^${A_CALENDAR_ITEMS} calendar item\\(s\\) were copied`),
     );
+    expect(verdict.canProceedToCutover).toBe(false);
+  });
+
+  it("reads a test migration's marker in its organisation's scope, and the gate holds it (workplan 0162 T3)", async () => {
+    // Read outside the scope on `app_user` it would find no row, and a test
+    // migration would read as any other: its cutover's doors would let it by.
+    expect(await testMarkerOf(appPool, A, A_TEST)).toBe(A_TEST_MARKER);
+    expect(await testMarkerOf(appPool, A, A_CALENDARS)).toBeUndefined();
+    expect(await testMarkerOf(appPool, B, A_TEST)).toBeUndefined();
+
+    const verdict = await runCutoverGate(appPool, A, A_TEST);
+    expect(verdict.testMarker).toBe(A_TEST_MARKER);
+    expect(verdict.recommendations[0]).toBe(A_TEST_IS_NOT_SWITCHED_OVER.en);
     expect(verdict.canProceedToCutover).toBe(false);
   });
 

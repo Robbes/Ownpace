@@ -40,6 +40,7 @@ import {
   PgPathLifecycleStore,
   endOrKeepPath,
   movePathsWithMapping as movePaths,
+  readPathPhases,
   stopOrResumePath,
   type PathEndingChange,
   type PathEndingOutcome,
@@ -180,16 +181,34 @@ export async function stopOrResumeDataType(
 }
 
 /**
+ * A data type of a test migration, neither ended nor kept (workplan 0162 §2
+ * (e), T3): the migration is never finished or switched over, and ends by
+ * being deleted. The route answers it with `A_TEST_IS_NOT_FINISHED`, in both
+ * languages. Nothing was written.
+ */
+export interface TestMigrationRefusal {
+  readonly refused: 'test_migration';
+}
+
+/**
  * End or keep one data type (0128 T3, T5 slice 7), through the ledger's own
  * door, and raise the month's peak when a data type kept in the lane took a
  * slot it did not hold: same transaction, as every other door that takes
  * slots.
+ *
+ * A test migration is refused first (workplan 0162 T3). Its marker is read as
+ * every gate reads it (`readPathPhases`), in this transaction; it never
+ * changes once the migration exists. A migration that is gone falls through
+ * to the ledger's door, which answers `not_found`.
  */
 export async function endOrKeepDataType(
   db: ConstructorParameters<typeof PgPathLifecycleStore>[0],
   tenantId: string,
   change: PathEndingChange,
-): Promise<PathEndingOutcome> {
+): Promise<PathEndingOutcome | TestMigrationRefusal> {
+  if ((await readPathPhases(db, tenantId, change.mappingId))?.testMarker !== undefined) {
+    return { refused: 'test_migration' };
+  }
   const before = await slotsHeld(db, tenantId);
   const outcome = await endOrKeepPath(db, tenantId, change);
   if ('slotsTaken' in outcome && outcome.slotsTaken) {
