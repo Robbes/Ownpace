@@ -110,6 +110,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   with 7.0.6, and the esbuild binary removed is 0.28.2's. The deploy CLI takes no minimatch any
   more, so its override went, and minimatch 10.2.6 with its moderate advisory left the tree.
 
+- **GoAccess's pinned commit is the build argument `UPSTREAM_COMMIT`** (workplan 0163 D8), in
+  `deploy/compose/goaccess/Dockerfile`, where it was `GOACCESS_COMMIT`. gitleaks' generic-api-key
+  rule reads the `access` in that name as a key's and the commit id as its value. With gitleaks
+  failing a pull request on what it adds (0163 T6), the next GoAccess bump would have failed on its
+  own line. The image is built from the same commit as before.
+
 ### Fixed
 
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
@@ -130,6 +136,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **CI's two secrets are each kept for the one job that reads them** (workplan 0163 T1, the owner's
+  decision D2 of 2026-11-20). The Trigger.dev token the managed E2E gate deploys with and the
+  machine's address the exposure probe asks from outside were repository secrets, which every job
+  of every workflow can read, one added on a branch included. Each job now names a GitHub
+  environment, `e2e-managed` and `exposure-probe`, and the token is read in its job, not in the
+  workflow's shared settings. Once the owner moves each secret into its environment, only that job
+  reads it, on the branches the environment allows. Until then nothing changes: the jobs still
+  read the repository's secrets.
 - **The workflow audit lists each secret a job reads outside a GitHub environment, report only**
   (workplan 0163 T1, the owner's D2). A secret kept for the repository reaches every job of every
   workflow, one added on a branch included; one kept in an environment reaches only a job that
