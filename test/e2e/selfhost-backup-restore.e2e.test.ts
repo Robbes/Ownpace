@@ -207,11 +207,12 @@ async function waitForHealth(maxAttempts = 60, delayMs = 2000): Promise<void> {
     await setTimeout(delayMs);
   }
   // Rule 9: say what was actually observed, not just that we gave up.
-  let logs = '(no logs)';
+  // A log that could not be read says why, not that there was none.
+  let logs: string;
   try {
     logs = sh(`docker compose ${COMPOSE_FILES} logs app --no-color --tail 80`, { quiet: true });
-  } catch {
-    // best effort
+  } catch (err) {
+    logs = `(the app's logs could not be read: ${err instanceof Error ? err.message : String(err)})`;
   }
   throw new Error(`Appliance never became healthy after restore at ${BASE_URL}.\n${logs}`);
 }
