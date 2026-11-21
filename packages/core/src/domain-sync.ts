@@ -1363,7 +1363,8 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
    * and only a pass that reached every collection resolves them. The server
    * hands a removal out once: a cursor advanced before the removal was
    * resolved would retire it for good, whether the pass then stopped early or
-   * failed while writing it down.
+   * failed while writing it down. Only removals that can become a deletion
+   * hold it (`aRemovalCanBeReported`, workplan 0164 T2).
    */
   const cursorsHeldForRemovals: Array<{
     readonly collectionPath: string;
@@ -2710,7 +2711,23 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
       // Held, not advanced, while this collection's removals are unresolved:
       // they are resolved at the end of the pass, or on a later pass if this
       // one stops before reaching every collection (below).
-      if (sourceIsAuthorityOnExistence && (removed?.length ?? 0) > 0) {
+      //
+      // And only while one of them CAN be resolved into a deletion (workplan
+      // 0164 T2, review of #2019): a removal for an href this migration never
+      // copied, for a copy not on the target, or for a recorded move comes to
+      // nothing (`aRemovalCanBeReported`), and a cursor held for it waits for
+      // nothing. Held all the same, it was dropped by every pass that did not
+      // reach every collection, so while one calendar stayed unreadable a
+      // calendar whose reading named such removals was read again from the
+      // same place on every pass: whole, at Google, when it held no token,
+      // since Google names the removals it remembers in that answer.
+      if (
+        sourceIsAuthorityOnExistence &&
+        (removed?.length ?? 0) > 0 &&
+        (await timed(phases, 'ledgerReadMs', () =>
+          someRemovalCanBeReported(ledger, tenantId, mappingId, domain, removed ?? []),
+        ))
+      ) {
         cursorsHeldForRemovals.push({ collectionPath, cursor: nextCursor });
       } else {
         await cursors.set(tenantId, mappingId, collectionPath, nextCursor);
@@ -3133,6 +3150,36 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
 }
 
 /**
+ * WHETHER A REMOVAL THE SOURCE REPORTED CAN BECOME A DELETION ON THE QUEUE
+ * (workplan 0164 T2, review of #2019): its href names a copy this tool made
+ * that is still on the target (refusals 1 and 2 of `resolveReportedRemovals`),
+ * and not an item whose move under the same key is on record (refusal 5).
+ *
+ * One rule read in two places, so they cannot drift: `resolveReportedRemovals`
+ * refuses every other row, and a collection's cursor is held for its removals
+ * only while one of them passes it (`someRemovalCanBeReported`).
+ */
+export function aRemovalCanBeReported(row: LedgerRecord | undefined): row is LedgerRecord {
+  if (row === undefined) return false;
+  if (!isOnTarget(row.status)) return false;
+  return !(row.movedToCollection !== undefined && row.movedToNaturalKeyHash === undefined);
+}
+
+/** Whether any of a collection's reported removals passes `aRemovalCanBeReported`, asked until one does. */
+async function someRemovalCanBeReported(
+  ledger: Ledger,
+  tenantId: TenantId,
+  mappingId: MappingId,
+  domain: DiscoveryDomain,
+  removed: ReadonlyArray<string>,
+): Promise<boolean> {
+  for (const href of new Set(removed)) {
+    if (aRemovalCanBeReported(await ledger.findBySourceRef(tenantId, mappingId, domain, href))) return true;
+  }
+  return false;
+}
+
+/**
  * Turn the server's own removal reports into deletions on the ledger.
  *
  * The only place in this product where a deletion is KNOWN rather than suspected.
@@ -3165,6 +3212,22 @@ export async function runDomainSync<Source, Target, Item, Folder extends FolderL
  *    workplan 0162 §2 (f)).
  * 4. **An item the owner has already decided about.** Recorded, not re-reported:
  *    a queue that cannot be emptied stops being read.
+ * 5. **An item whose move to another collection is on record** (workplan 0164
+ *    T2, review of #2019). A UID that moved is a 404 at its old href, and refusal
+ *    3 catches that only on a pass that sees the UID somewhere. A pass that reads
+ *    the old collection with no token, whose answer at Google names every removal
+ *    it remembers, while the new collection's reading has a token and names only
+ *    what changed after it, sees the UID nowhere: the move an earlier pass
+ *    recorded was reported as the source removing the item, which a person may
+ *    apply, and applying it removed the only copy of a live event. The recorded
+ *    move is the source's own earlier word that the item lives elsewhere, and
+ *    the old href's 404 is its echo. Only a move under the same key, where the
+ *    row IS the item that moved (calendar, contacts, mail): a file moved by path
+ *    leaves its old row beside a new one (`movedToNaturalKeyHash`), both holding
+ *    the source's own id, and a removal reported by that id is a removal. The
+ *    limit stated plainly: an item that moved and was then deleted where it went
+ *    is not reported either, since its new href is on no row; its copy stays
+ *    where it was copied, the safe direction, as for any server.
  */
 async function resolveReportedRemovals(args: {
   tenantId: TenantId;
@@ -3192,8 +3255,8 @@ async function resolveReportedRemovals(args: {
 
   for (const href of new Set(removals)) {
     const row = await ledger.findBySourceRef(tenantId, mappingId, domain, href);
-    if (!row) continue;
-    if (!isOnTarget(row.status)) continue;
+    // Refusals 1, 2 and 5, in the one rule the cursor hold reads too.
+    if (!aRemovalCanBeReported(row)) continue;
     if (seenAnywhere.has(row.naturalKeyHash)) continue;
     if (done.has(row.naturalKeyHash)) continue;
     done.add(row.naturalKeyHash);
