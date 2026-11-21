@@ -103,8 +103,8 @@ concurrency:
   cancel-in-progress: false
 
 # Read-only (workplan 0119, 2026-11-19): the checkout is the one step here
-# that uses the token; the Trigger.dev token below is a repository secret,
-# which this does not touch. Until then this file named no permissions, so
+# that uses the token; the Trigger.dev token below is a secret of the job's
+# environment, `e2e-managed`, which this does not touch. Until then this file named no permissions, so
 # the job ran on whatever the repository's settings give the default token.
 # Held by scripts/a-token-the-job-never-asked-for.unit.test.ts.
 permissions:
@@ -119,24 +119,35 @@ env:
   # (Settings -> Secrets and variables -> Actions -> Variables) named
   # MANAGED_ENV_PERSIST_DIR if this default does not suit the runner.
   MANAGED_ENV_PERSIST_DIR: ${{ vars.MANAGED_ENV_PERSIST_DIR }}
-  # THE CLI's OWN DOCUMENTED ANSWER FOR CI (0084 T6, run #5's follow-up,
-  # 2026-08-18) — a Personal Access Token, not a restored session file.
-  # `deploy` reads this directly, before ever touching a profile file (see
-  # trigger-cli-lib.sh's comment for the exact source). Mint one at the
-  # self-hosted instance's own dashboard, Account -> Personal Access Tokens
-  # (or reuse an existing `tr_pat_…`), then add it as a repository secret:
-  # Settings -> Secrets and variables -> Actions -> New repository secret,
-  # named TRIGGER_ACCESS_TOKEN. Empty here is fine — everything still falls
-  # back to the restored-session-file path below when it is unset.
-  TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
-  # Required alongside it: unset, the CLI's env-var login path defaults to
-  # the SAAS cloud (api.trigger.dev), not this self-hosted instance.
-  TRIGGER_API_URL: http://localhost:3090
 
 jobs:
   e2e-managed:
     runs-on: [self-hosted, linux, arm64]
+    # THE TOKEN IS THIS ENVIRONMENT'S SECRET (workplan 0163 T1, the owner's
+    # decision D2 of 2026-11-20). A secret kept in an environment reaches only
+    # a job that names it, and the environment's own rules in Settings say
+    # which branches may run such a job. Until the owner moves the secret, the
+    # job still reads the repository's, and GitHub makes the environment the
+    # first time a job names it. Held by
+    # scripts/a-secret-kept-where-its-job-is.unit.test.ts.
+    environment: e2e-managed
     timeout-minutes: 60
+    env:
+      # THE CLI's OWN DOCUMENTED ANSWER FOR CI (0084 T6, run #5's follow-up,
+      # 2026-08-18) — a Personal Access Token, not a restored session file.
+      # `deploy` reads this directly, before ever touching a profile file (see
+      # trigger-cli-lib.sh's comment for the exact source). Mint one at the
+      # self-hosted instance's own dashboard, Account -> Personal Access Tokens
+      # (or reuse an existing `tr_pat_…`), then add it as a secret of this
+      # job's environment: Settings -> Environments -> e2e-managed ->
+      # Environment secrets, named TRIGGER_ACCESS_TOKEN. It is read here, in
+      # the job, not in the workflow's env above, which no environment
+      # reaches. Empty here is fine — everything still falls back to the
+      # restored-session-file path below when it is unset.
+      TRIGGER_ACCESS_TOKEN: ${{ secrets.TRIGGER_ACCESS_TOKEN }}
+      # Required alongside it: unset, the CLI's env-var login path defaults to
+      # the SAAS cloud (api.trigger.dev), not this self-hosted instance.
+      TRIGGER_API_URL: http://localhost:3090
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

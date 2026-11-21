@@ -57,6 +57,8 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [a-release-that-names-itself](../scripts/a-release-that-names-itself.unit.test.ts) — A RELEASE THAT NAMES ITSELF: nothing checked that a tag, the root `package.json` and `CHANGELOG.md` name the same release before the tag published images and a release (workplan 0146 T2).
 - [a-run-that-was-cancelled-and-called-green](../scripts/a-run-that-was-cancelled-and-called-green.unit.test.ts) — A RUN THAT WAS CANCELLED, AND A GREEN TICK OVER THE TREE IT WAS TESTING.
+- [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [a-tag-cut-only-on-green](../scripts/a-tag-cut-only-on-green.unit.test.ts) — A TAG CUT ONLY ON GREEN: `v0.2.0-alpha.1` published signed images and a Windows zip while its own Security Scan was red, because nothing a tag fires waits for anything else (workplan 0146, Status of 2026-10-23).
 - [a-tag-that-already-pointed-elsewhere](../scripts/a-tag-that-already-pointed-elsewhere.unit.test.ts) — A TAG THAT ALREADY POINTED ELSEWHERE: a release tag is what `deploy-live.sh` trusts, and the workflow that cuts it has to know, at the moment it cuts it, that the name is free or already its own at the same commit, and that what it prove…
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
@@ -90,6 +92,7 @@ reading a file drops off its entry by itself.
 - [a-pool-that-had-not-happened-yet](../scripts/a-pool-that-had-not-happened-yet.unit.test.ts) — A POOL THAT HAD NOT HAPPENED YET.
 - [a-pooler-file-another-workflow-deleted](../scripts/a-pooler-file-another-workflow-deleted.unit.test.ts) — A POOLER FILE ANOTHER WORKFLOW DELETED (2026-11-03, workplan 0132).
 - [a-public-log-that-named-the-machine-it-ran-on](../scripts/a-public-log-that-named-the-machine-it-ran-on.unit.test.ts) — A PUBLIC LOG THAT NAMED THE MACHINE IT RAN ON.
+- [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts) — A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-token-the-job-never-asked-for](../scripts/a-token-the-job-never-asked-for.unit.test.ts) — A TOKEN THE JOB NEVER ASKED FOR: six workflows ran on whatever token the repository's settings hand out, images.yml's `build` held `packages: write` and `id-token: write` only because the workflow gave them to every job, and eighteen che…
 - [a-token-without-an-address](../scripts/a-token-without-an-address.unit.test.ts) — `TRIGGER_ACCESS_TOKEN` never travels without `TRIGGER_API_URL`.
@@ -120,6 +123,8 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/exposure-probe.yml`
 
 - [a-probe-that-knows-every-port](../scripts/a-probe-that-knows-every-port.unit.test.ts) — A PROBE THAT KNOWS EVERY PORT (workplan 0132 T3 (c)).
+- [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts) — A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [exposure-probe](../scripts/exposure-probe.unit.test.ts) — WHAT THE OUTSIDE PROBE PRINTS, AND WHEN IT PASSES (workplan 0132 T3 (c)).
 
 ### `.github/workflows/hadolint.yml`
@@ -210,6 +215,7 @@ reading a file drops off its entry by itself.
 ### `.github/workflows/zizmor.yml`
 
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 - [a-workflow-zizmor-would-flag](../scripts/a-workflow-zizmor-would-flag.unit.test.ts) — A WORKFLOW ZIZMOR WOULD FLAG (a read-only check of the repository, 2026-11-20: GEN-26, by zizmor 1.30.1's rules; workplan 0119).
 
 ### `.github/zizmor.yml`
@@ -312,6 +318,7 @@ reading a file drops off its entry by itself.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
 - [a-route-that-opened-the-owners-pool](../scripts/a-route-that-opened-the-owners-pool.unit.test.ts) — A ROUTE THAT OPENED THE OWNER'S POOL (workplan 0138 T6).
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
+- [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
 - [an-api-image-with-nothing-to-exec](../scripts/an-api-image-with-nothing-to-exec.unit.test.ts) — AN API IMAGE WITH NOTHING TO EXEC (workplan 0146 T13a, the readers first, and T13, the switch).
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
@@ -360,6 +367,10 @@ reading a file drops off its entry by itself.
 ### `apps/api/src/routes/billing/billing-party.unit.test.ts`
 
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
+
+### `apps/api/src/routes/billing/billing.integration.test.ts`
+
+- [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
 
 ### `apps/api/src/routes/billing/index.ts`
 
@@ -1304,6 +1315,7 @@ reading a file drops off its entry by itself.
 - [a-rule-nothing-switched-on](../scripts/a-rule-nothing-switched-on.unit.test.ts) — A RULE THAT NOTHING SWITCHED ON REFUSED NOTHING (workplan 0136 T1 (a), third slice, with T2).
 - [a-scope-class-the-product-does-not-decide](../scripts/a-scope-class-the-product-does-not-decide.unit.test.ts) — A SETTING THE OPERATOR CANNOT FIND, OR THE API NEVER RECEIVES.
 - [a-second-door-with-the-linking-decided](../scripts/a-second-door-with-the-linking-decided.unit.test.ts) — A SECOND DOOR, WITH THE LINKING DECIDED FIRST (workplan 0102 T2).
+- [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
 - [a-sign-in-button-added-by-hand](../scripts/a-sign-in-button-added-by-hand.unit.test.ts) — A SIGN-IN BUTTON ADDED BY HAND (workplan 0140 T10, the follow-up its Status of 2026-10-21 left open).
 - [a-stack-that-names-its-mode](../scripts/a-stack-that-names-its-mode.unit.test.ts) — A STACK THAT NAMES ITS MODE (workplan 0132 T4; the owner, 2026-10-04: the OTA stack runs *"Development, said explicitly"*).
 - [a-superuser-the-bring-up-would-have-uploaded](../scripts/a-superuser-the-bring-up-would-have-uploaded.unit.test.ts) — A SUPERUSER THE BRING-UP WOULD HAVE UPLOADED (workplan 0138 T3 step 2).
@@ -2113,6 +2125,7 @@ reading a file drops off its entry by itself.
 ### `docs/o365-setup.md`
 
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
+- [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
 
 ### `docs/operator-runbook.md`
 
@@ -3217,6 +3230,10 @@ reading a file drops off its entry by itself.
 
 - [connector-coverage](../scripts/connector-coverage.unit.test.ts) — Which connectors any gate has ever actually driven.
 
+### `scripts/gitleaks-report.mjs`
+
+- [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
+
 ### `scripts/hadolint-report.mjs`
 
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
@@ -3309,6 +3326,10 @@ reading a file drops off its entry by itself.
 ### `scripts/pasteable-hints.unit.test.ts`
 
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
+
+### `scripts/redact-evidence.unit.test.ts`
+
+- [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts) — A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
 
 ### `scripts/release-cut-tag.mjs`
 
@@ -3412,6 +3433,10 @@ reading a file drops off its entry by itself.
 ### `scripts/workspace-deps.unit.test.ts`
 
 - [an-image-that-shipped-what-it-never-runs](../scripts/an-image-that-shipped-what-it-never-runs.unit.test.ts) — The API image carried the whole development tree, and ran none of it.
+
+### `scripts/zizmor-secrets-report.mjs`
+
+- [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts) — A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
 
 ### `site/app-screen/screen.json`
 
@@ -5735,6 +5760,40 @@ Reads:
 
 - `deploy/compose/managed.yml`
 - `deploy/compose/setup-zitadel.sh`
+
+### [a-secret-a-pull-request-could-add](../scripts/a-secret-a-pull-request-could-add.unit.test.ts)
+
+A SECRET A PULL REQUEST COULD ADD (workplan 0163 T6; the owner's decision D4 of 2026-11-20: gitleaks may ignore test-file paths and the one placeholder doc, with no inline ignore comments, and fails the build).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `apps/api/src/index.ts`
+- `apps/api/src/routes/billing/billing.integration.test.ts`
+- `deploy/compose/managed.env.example`
+- `docs/o365-setup.md`
+- `scripts/gitleaks-report.mjs`
+- `scripts/redact-evidence.unit.test.ts`
+
+### [a-secret-kept-where-its-job-is](../scripts/a-secret-kept-where-its-job-is.unit.test.ts)
+
+A SECRET KEPT WHERE ITS JOB IS (workplan 0163 T1; the owner's decision D2 of 2026-11-20: move the secrets into GitHub environments, and D7, which took the O365 lane and its seven secrets out).
+
+Reads:
+
+- `.github/workflows/e2e-managed.yml`
+- `.github/workflows/exposure-probe.yml`
+
+### [a-secret-no-environment-holds](../scripts/a-secret-no-environment-holds.unit.test.ts)
+
+A SECRET NO ENVIRONMENT HOLDS (workplan 0163 T1, the second half of its step 2; the owner's D2 of 2026-11-20).
+
+Reads:
+
+- `.github/workflows/ci.yml`
+- `.github/workflows/exposure-probe.yml`
+- `.github/workflows/zizmor.yml`
+- `scripts/zizmor-secrets-report.mjs`
 
 ### [a-sentence-the-screen-and-the-api-word-apart](../scripts/a-sentence-the-screen-and-the-api-word-apart.unit.test.ts)
 

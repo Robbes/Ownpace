@@ -35,7 +35,8 @@
 # derives the port list from managed.yml, www.yml and setup-managed-demo.sh:
 # no port is written in this file.
 #
-# WHAT THE OWNER SETS (Settings, Secrets and variables, Actions):
+# WHAT THE OWNER SETS (Settings, Secrets and variables, Actions; the secret in
+# Settings, Environments, exposure-probe, the job's environment):
 #   variable EXPOSURE_PROBE_LIVE_PORTS  live's own *_PORT values from its .env
 #                                       (0132 T1b), WWW_PORT among them once
 #                                       live serves the site, separated by spaces or
@@ -104,6 +105,13 @@ jobs:
   probe:
     name: Probe from outside
     runs-on: ubuntu-24.04
+    # EXPOSURE_PROBE_HOST IS THIS ENVIRONMENT'S SECRET (workplan 0163 T1, the
+    # owner's decision D2 of 2026-11-20): it reaches only a job that names the
+    # environment, on the branches the environment's rules allow. Until the
+    # owner moves it, the job still reads the repository's, and GitHub makes
+    # the environment the first time a job names it. Held by
+    # scripts/a-secret-kept-where-its-job-is.unit.test.ts.
+    environment: exposure-probe
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

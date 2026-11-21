@@ -384,7 +384,19 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   Conventional Commits prefix CONTRIBUTING.md and the pull-request template mandate. It runs on
   `pull_request` only and never re-judges history, so older prose subjects on `main` stay as
   they are and no branch is rewritten to go green; merge commits are exempt by parent count,
-  because merging the base branch in is how a conflict is resolved here.
+  because merging the base branch in is how a conflict is resolved here;
+  **`gitleaks`** reads every line the commits of a pull request add (`base..head`) with gitleaks
+  8.30.1, pinned by the SHA-256 of both architectures' archives, its default rules and
+  `.gitleaks.toml`, whose one allowlist holds unit and integration test files and
+  `docs/o365-setup.md` (workplan 0163 T6, the owner's decision D4 of 2026-11-20). A finding fails
+  the pull request, its file, line, rule and commit named and its value never printed; a value a
+  later commit removes is still found, since the history keeps it. A merge is read as git's
+  remerge diff, so what a merge wrote itself, a conflict's resolution or a file added beside it,
+  is judged, and the lines it brings from `main` are not judged again. No line excuses itself:
+  `gitleaks:allow` comments are ignored, and the report refuses to run while a `.gitleaksignore`
+  exists. Like `commit-convention` it runs on `pull_request` only and never judges `main`'s
+  history. Held by `scripts/a-secret-a-pull-request-could-add.unit.test.ts`, which runs the report
+  against a stubbed gitleaks and git.
 - `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
   and on main) — `pnpm test:ui`, after `lint`, running while `unit-tests` does.
 - `security-scan.yml` — pnpm audit + osv-scanner (fails on a package OSV records as malicious, lists
@@ -461,7 +473,7 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
   busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy and the osv-scanner the scan
-  runs, the Atlas
+  runs, the gitleaks `ci.yml`'s `gitleaks` job runs (against upstream's git tags), the Atlas
   release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
   image's tags on Docker Hub, since upstream's git tags miss most releases), the stalwart-cli
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
@@ -578,7 +590,13 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `zizmor` is BLOCKING: any finding fails it, and it writes zizmor's report to its summary. Held
   by `scripts/a-workflow-zizmor-would-flag.unit.test.ts`, which also holds every cache-aware step
   in a workflow a tag starts to turning its cache off the way zizmor's `cache-poisoning` audit
-  reads it.
+  reads it. After the audit, and after a red one too, the same zizmor runs once more with
+  `--persona auditor` and `--format json-v1`, REPORT ONLY (workplan 0163 T1, the owner's D2):
+  `scripts/zizmor-secrets-report.mjs` lists each secret a job reads while it names no GitHub
+  environment (`secrets-outside-env`, shown only under that persona since zizmor 1.24.0) in the
+  summary and as a warning on its line. The persona's other findings are counted, not listed, and
+  the step fails only when zizmor did not finish. Held by
+  `scripts/a-secret-no-environment-holds.unit.test.ts`.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
