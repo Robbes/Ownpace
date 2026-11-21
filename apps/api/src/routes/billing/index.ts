@@ -1695,7 +1695,7 @@ router.get('/invoices/:invoiceId/pdf', authenticate, requireBillingRead, async (
  */
 const NO_CHECKOUT: Bilingual = {
   en: 'Mollie gave no checkout page to pay on. Try again in a minute.',
-  nl: 'Mollie gaf geen betaalpagina om op te betalen. Probeer het over een minuut opnieuw.',
+  nl: 'Mollie gaf geen betaalpagina om via te betalen. Probeer het over een minuut opnieuw.',
 };
 
 /**
