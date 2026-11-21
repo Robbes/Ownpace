@@ -879,25 +879,37 @@ services:
   # 2026-10-29, all 6 fixed in newer Alpine packages). The environment below
   # is upstream's interface, unchanged, and v0.6.0 allows and refuses under
   # it what v0.5.0 did. deploy/compose/docker-socket-proxy/Dockerfile says
-  # what changed (the base only, which upstream's v0.6.0 upgrades while it
-  # builds and this one does not), why the name carries the hash of its
+  # what changed (the base, which upstream's v0.6.0 upgrades while it builds
+  # and this one does not, and since 2026-11-20 the user it ends as: HAProxy's
+  # uid 99 in place of upstream's root), why the name carries the hash of its
   # instructions, and how it moves.
   # `never`, as for the databases: no registry serves this name.
   trigger-docker-proxy:
-    image: localhost/docker-socket-proxy:3.4.7-alpine-44b66605b139
+    image: localhost/docker-socket-proxy:3.4.7-alpine-98dbd75c6730
     build: ./docker-socket-proxy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-docker-proxy
     restart: unless-stopped
     logging: *logging
-    # HOW IT RUNS (see the header): root, as upstream's image is, and needs no
-    # capability: the socket is root's, and root is its owner. Read-only; the
-    # entrypoint writes haproxy.cfg to /tmp and HAProxy its pidfile to /run.
+    # HOW IT RUNS (see the header): as the image's user, HAProxy's own uid 99,
+    # not root (since 2026-11-20, workplan 0119), with no capability. The
+    # socket is root's and a group's at mode 0660, and the container reaches
+    # it through that group, added below: its id is the host's own, read from
+    # the socket by seed_docker_socket_gid (env-read.sh), which
+    # ensure-env-secrets.sh and every bootstrap-managed.sh run write into .env,
+    # never typed. Unset, Compose refuses: there is no fallback to root or to
+    # no group. Read-only; the entrypoint writes haproxy.cfg to /tmp and
+    # HAProxy its pidfile to /run, both tmpfs. /run is mounted as uid 99's:
+    # a tmpfs over a directory of the image takes that directory's owner,
+    # root's for /run, and HAProxy as 99 then stops with `Cannot create
+    # pidfile /run/haproxy.pid` (images.yml's first run as 99, 2026-11-20).
     security_opt: ["no-new-privileges:true"]
     cap_drop: [ALL]
     cap_add: []
+    group_add:
+      - "${DOCKER_SOCKET_GID:?the group id of /var/run/docker.sock; deploy/compose/ensure-env-secrets.sh or bootstrap-managed.sh writes it from the socket}"
     read_only: true
-    tmpfs: [/tmp, /run]
+    tmpfs: [/tmp, "/run:uid=99,gid=99,mode=0755"]
     environment:
       CONTAINERS: 1
       IMAGES: 1
@@ -1203,7 +1215,7 @@ services:
   # and why it runs as uid 65532. `never`, as for the databases: no registry
   # serves this name.
   trigger-tls:
-    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
+    image: localhost/caddy:2.11.9-alpine-9c1f752119a3
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls
@@ -1260,7 +1272,7 @@ services:
   # root needs the two given back to root first (docs/managed-bring-up.md, "The
   # dashboard's TLS front is a build here too").
   trigger-tls-init:
-    image: localhost/caddy:2.11.9-alpine-f4b403e49a96
+    image: localhost/caddy:2.11.9-alpine-9c1f752119a3
     build: ./caddy
     pull_policy: never
     container_name: ${COMPOSE_PROJECT_NAME}-trigger-tls-init

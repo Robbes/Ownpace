@@ -67,6 +67,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy/compose');
@@ -200,7 +201,7 @@ function runFill(dotEnv: string): { status: number | null; out: string; env: str
   writeFileSync(join(bin, 'docker'), '#!/usr/bin/env bash\nexit 0\n', { mode: 0o755 });
   const r = spawnSync('bash', ['--noprofile', '--norc', '-eo', 'pipefail', '-c', fill?.run ?? 'exit 99'], {
     cwd: checkout,
-    env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: home, MANAGED_ENV_PERSIST_DIR: persist },
+    env: { PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: home, MANAGED_ENV_PERSIST_DIR: persist },
     encoding: 'utf8',
     timeout: 60_000,
   });
@@ -307,6 +308,8 @@ describe('the bring-up names the fix for a .env without NODE_ENV, not the secret
       'refuse_shipped_passwords',
       // env-read.sh's; scripts/idp-wiring.unit.test.ts runs the real one here.
       'seed_pat_expiry',
+      // env-read.sh's too; scripts/a-tag-upstream-never-rebuilds.unit.test.ts runs the real one.
+      'seed_docker_socket_gid',
     ].map((f) => `${f}() { :; }`);
     const script = [
       'die() { echo "!!! $*" >&2; exit 1; }',
@@ -317,7 +320,7 @@ describe('the bring-up names the fix for a .env without NODE_ENV, not the secret
       'load_env',
     ].join('\n');
     const r = spawnSync('bash', ['--noprofile', '--norc', '-c', script], {
-      env: { PATH: `${bin}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir },
+      env: { PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}`, HOME: dir },
       encoding: 'utf8',
       timeout: 30_000,
     });

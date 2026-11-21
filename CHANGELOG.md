@@ -66,6 +66,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   finished, it removes the demo's Stalwart and its data volume and clears the demo mail
   migration's own records, nothing else; without `--yes` it only shows what it would do. It
   refuses live. Nothing runs it by itself.
+- **The managed gate says what was there when its folder press falls short** (workplan 0104).
+  E2E (managed) run 44731893238 failed once on 2026-11-20: the demo target refused the file inside
+  the shared folder with 404, and the second attempt passed. Whether the file was not on the target
+  yet or the share API refused a file it held, the job log could not say, and the cause is not yet
+  known. When the folder press applies fewer than two rows, `smoke-managed.sh` now prints, before it
+  fails, the file's ledger rows, the mapping's passes since the seed, the folder's share rows, and
+  whether the target holds the folder and the file now. Nothing passes or fails differently.
 - **The Docker socket proxy is built from Tecnativa's docker-socket-proxy v0.6.0, which allows
   and refuses what v0.5.0 did** (workplan 0119). v0.6.0 keeps v0.5.0's configuration and
   entrypoint byte for byte, moved into a `system_files/` directory that one COPY takes, and the
@@ -92,6 +99,19 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **The Docker socket proxy no longer runs as root: it runs as HAProxy's own uid 99, and reaches
+  the Docker socket through the socket's group, which the bring-up reads from the socket**
+  (workplan 0119). An outside, read-only check of the repository reported the image's
+  `USER root` (GEN-21). The image now ends as `USER 99:99`, the base's haproxy user, and
+  `managed.yml` adds the host socket's group to the container, from `DOCKER_SOCKET_GID` in
+  `.env`. Nobody sets that value: `ensure-env-secrets.sh` and every `bootstrap-managed.sh` run
+  read it from `/var/run/docker.sock` and write it, so live's deploy script and the OTA gate
+  both write it before their first `docker compose` call. Without it, Compose refuses to run;
+  there is no fallback to root or to no group. The proxy keeps no capability, no-new-privileges,
+  a read-only root filesystem and its one internal network. On every pull request that touches
+  `deploy/`, CI starts the image on the runner's socket with managed.yml's settings and fails
+  unless the image's user is 99:99 and every process in the container runs as uid 99. The image
+  has a new name, which each machine builds at its next deploy.
 - **The Trigger.dev webapp's image no longer carries undici 5.29.0 or its `@fastify/busboy`
   2.1.1: the one package that loaded them now loads the undici 6.29.1 the image already had**
   (workplan 0119). The image scan read six highs in the two, each fixed only in their next
@@ -107,6 +127,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **A copied message keeps the time it arrived** (workplan 0002, 0001). The IMAP writer gave
+  each message it copied no arrival time, so the target recorded the moment of copying: the time
+  a mail app sorts "received" by, and the one a webmail shows when a message's `Date:` line is
+  missing or unreadable. On 2026-11-20 four old messages copied from Gmail into Cirrux on the
+  test environment showed the evening they were copied. The writer now sends the source's own
+  arrival time (IMAP's INTERNALDATE, or Microsoft Graph's `receivedDateTime`), then the `Date:`
+  line when the source gave none, and otherwise leaves the time to the target, as before. The
+  JMAP writer read only the `Date:` line, and now takes the same order. Messages copied before
+  this keep the time they were given: a later pass finds them by their Message-ID and leaves
+  them as they are.
 - **Files reach a Stalwart v1 server over JMAP** (workplan 0031, 0119). From v1.0 Stalwart names
   a file node's kind `@type` and requires it when a node is made, and calls its media type
   `mediaType`. The JMAP file target sent v0.16's names, so on a v1 server it could neither tell a
@@ -114,6 +144,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   says, and sends a v0.16 server exactly what it sent before, so the copies it already made there
   are still recognised as its own. To v1 it gives a media type without its parameters
   (`text/plain`, not `text/plain; charset=utf-8`), since v1 refuses the whole file otherwise.
+- **A sign-in no longer binds anybody to a closed organisation** (workplan 0139 T7 (b)). An
+  organisation a granted access request had made, closed before anybody signed in to it, was still
+  taken up at the first sign-in with its address: the person became the active owner of an
+  organisation that starts nothing (409 `account_closed`), and was never sent to ask for another.
+  An invitation into a closed organisation was offered, and could be accepted, the same way. Now an
+  organisation that is closed, or whose erasure is running, takes nobody in: its row stays as it
+  was, `GET /api/me` lists neither it nor its invitation, and accepting that invitation answers
+  404. A reopen before the erasure gives the row back at the next sign-in. A suspended
+  organisation, which nothing writes, is unchanged. Somebody already bound to a closed
+  organisation stays in it until it is reopened or erased.
 
 ## [0.2.0-alpha.12] - 2026-11-20
 

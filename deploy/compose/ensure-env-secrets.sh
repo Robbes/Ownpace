@@ -435,6 +435,14 @@ fi
 # line as what supplies the key.
 seed_pat_expiry "$ENV_FILE"
 
+# THE GROUP OF THE HOST'S DOCKER SOCKET (workplan 0119, 2026-11-20). Not a
+# secret either, and here for the same reason: managed.yml requires it
+# (`${DOCKER_SOCKET_GID:?…}`, trigger-docker-proxy's group_add), so every
+# compose command needs it. Read from the socket on every run, never typed:
+# see seed_docker_socket_gid in env-read.sh. managed-env-contract.unit.test.ts
+# counts this line as what supplies the key.
+seed_docker_socket_gid "$ENV_FILE"
+
 # PgBouncer's own credential file (workplan 0082 T4).
 #
 # It holds ONE entry — the powerless lookup role. Every other credential is

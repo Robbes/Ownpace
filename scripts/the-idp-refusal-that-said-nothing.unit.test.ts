@@ -43,6 +43,7 @@ import { mkdtempSync, mkdirSync, rmSync, writeFileSync, chmodSync, cpSync, readF
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const REPO = join(dirname(fileURLToPath(import.meta.url)), '..');
 const SETUP_SRC = join(REPO, 'deploy/compose');
@@ -149,7 +150,7 @@ function stubs(
   );
   chmodSync(join(binDir, 'docker'), 0o755);
 
-  return { PATH: `${binDir}:${process.env.PATH ?? ''}` };
+  return { PATH: `${binDir}:${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? ''}` };
 }
 
 function run(env: NodeJS.ProcessEnv): { status: number; stdout: string; stderr: string } {

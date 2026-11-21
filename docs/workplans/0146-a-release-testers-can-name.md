@@ -4,6 +4,17 @@
 
 ## Status — 2026-11-20 (update this block at the end of every session)
 
+**2026-11-20, late: alpha.13's counted nights are waived, in the owner's words, before its fold.**
+The owner, on 2026-11-20: *"Continue, I waive the waiting/nights, just work autonomously and
+efficient on the upcoming alpha."* So `v0.2.0-alpha.13` joins `WAIVER_VERSIONS` in
+`scripts/release-nights.mjs`, beside alpha.3 to alpha.12, with those words, which Release's
+`waive_nights` must carry. The two guards that read the list name it, with `v0.2.0-alpha.14` now
+the version a waiver is refused for, and `docs/release.md` lists it. It lands before alpha.13's
+fold, so C, the fold's squash, carries the list: Release reads `WAIVER_VERSIONS` from `main`'s own
+scripts. Owed before the tag: the pull requests queued for alpha.13, each through E2E (managed)
+on the test environment where it changes what runs; the fold; C green on CI, the scans and E2E;
+and the owner's dispatch of Release.
+
 **2026-11-20, evening: live runs `v0.2.0-alpha.12`, one-way, on a copy of alpha.11's databases
 (T2).** The owner deployed it from the tag on 2026-11-20: one run of alpha.11's `deploy-live.sh`,
 from about 17:20 UTC, which took at 17:22:57, one-way over alpha.11 by ledger migrations 0068 and

@@ -94,6 +94,12 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
      * `invited` row — somebody else adding an address to THEIR organisation —
      * is untouched by this and still asks (workplan 0099).
      *
+     * NOT ONE CLOSED BEFORE THEY CAME (workplan 0139 T7 (b), 2026-11-20). An
+     * organisation closed, or being erased, takes nobody in: its row stays
+     * `invited`, this answer lists no organisation, and the client sends them
+     * to ask for access. A reopen before the erasure binds it at the next
+     * sign-in.
+     *
      * BEFORE the memberships are read, so the answer already includes it and
      * the client lands where it should rather than on a screen about a state
      * that ended a moment ago.

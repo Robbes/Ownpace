@@ -50,6 +50,7 @@ import {
 import { tmpdir } from 'node:os';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const UPSERT = join(REPO_ROOT, 'deploy/compose/env-upsert.sh');
@@ -313,7 +314,7 @@ describe('ensure-env-secrets.sh, run for real, does not de-link the .env', () =>
     writeFileSync(persisted, '');
     symlinkSync(persisted, join(work, '.env'));
 
-    const r = spawnSync('bash', [join(work, 'ensure-env-secrets.sh')], { encoding: 'utf8' });
+    const r = spawnSync('bash', [join(work, 'ensure-env-secrets.sh')], { encoding: 'utf8', env: { ...process.env, PATH: `${DOCKER_SOCKET_STAT_DIR}:${process.env.PATH ?? '/usr/bin:/bin'}` } });
     expect(r.status, `the script failed:\n${r.stderr}`).toBe(0);
 
     expect(
