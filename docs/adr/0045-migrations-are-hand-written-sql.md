@@ -13,9 +13,18 @@
 
 - Migrations are **hand-written numbered SQL files**, one per change: `packages/ledger/migrations` for the shared chain, `packages/managed/migrations` for the managed-only one (ADR-0036).
 - **`runMigrations`** applies them at startup, linearly, under a Postgres advisory lock, recording each filename in `schema_migrations`; the appliance and the worker both call it. Nothing applies a migration by hand.
+- Each file is **one transaction**, so `CONCURRENTLY` cannot be used, and it **waits at most `MIGRATION_LOCK_TIMEOUT` (5 s) for a table lock** (`SET LOCAL lock_timeout`, workplan 0165 D3): past that the file rolls back with nothing applied and the next start tries again. No migration file sets `lock_timeout` but the baseline; there is no `statement_timeout`.
 - **Drizzle Kit authors and applies nothing here.** `pnpm db:generate` and `pnpm db:migrate` refuse (`scripts/how-migrations-are-authored.mjs`), and `drizzle.config.ts` points its `out` at a throwaway directory so the tool cannot write into a chain. Drizzle the ORM is untouched, and `schema-matches-migrations.unit.test.ts` compares it against the chain on every run.
 - **Pre-release ended with `v0.2.0-alpha.1`** (tagged 2026-10-06; `scripts/release-line.json`'s `preReleaseEndedAt`): both chains only grow. A migration a release shipped is never edited, renamed, squashed or deleted; a change is a new file. `scripts/a-chain-that-only-grows.unit.test.ts` holds it, and `scripts/squash-migrations.sh`, which made `0001_baseline.sql` by dumping an applied database, refuses.
 - Nothing may sort below a chain's baseline; `scripts/a-command-the-docs-told-you-to-run.unit.test.ts` enforces it, because the runner applies files in sorted order.
+
+> **Update 2026-11-21 (workplan 0165, the owner's D3).** An outside, read-only check counted
+> migrations that lock a table. Each file already ran in one transaction, and no file or the
+> runner set a lock timeout, so a migration asking for a strong lock behind a long query waited,
+> and every query on that table queued behind it. `applyOne` now sets `SET LOCAL lock_timeout`
+> to `MIGRATION_LOCK_TIMEOUT` (5 s, the builder's choice) before each file. It ends with the
+> file's transaction, so the advisory lock taken before any file still waits for another
+> migrator. The owner also answered, with D4, that no file runs outside a transaction.
 
 ## Context
 

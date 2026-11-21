@@ -9,7 +9,10 @@
  * touch the shared Testcontainers schema. Requires TEST_DATABASE_URL (Docker).
  */
 
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, afterAll } from 'vitest';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { Pool } from 'pg';
 import { sql } from 'drizzle-orm';
 import { runMigrations, listMigrationVersions } from './migrate.ts';
@@ -131,6 +134,91 @@ describe('runMigrations', () => {
         const tenant = '0128e000-e29b-41d4-a716-446655440001';
         const seen = await withTenant(driver, tenant, (db) => db.execute(sql`SELECT count(*)::int AS n FROM mailbox_mapping`));
         expect(seen.rows).toEqual([{ n: 0 }]);
+      } finally {
+        await pool.end();
+      }
+    });
+  });
+});
+
+/**
+ * A FILE THAT WAITS FOR A LOCK GIVES UP (workplan 0165, the owner's D3 of
+ * 2026-11-21). Another connection holds a lock on a table, in an open
+ * transaction, as a long query would; a migration that alters that table must
+ * fail within its lock timeout, apply nothing, record nothing, and apply on the
+ * next run once the lock is gone. The timeout is shortened here so the test
+ * does not wait the five seconds the runner uses.
+ */
+describe('a migration that waits for a lock', () => {
+  const dirs: string[] = [];
+  afterAll(() => {
+    for (const dir of dirs) rmSync(dir, { recursive: true, force: true });
+  });
+  /** A chain of two files: one makes a table, the next adds a CHECK to it. */
+  function chain(): string {
+    const dir = mkdtempSync(join(tmpdir(), 'ownpace-lock-wait-'));
+    dirs.push(dir);
+    writeFileSync(join(dir, '0001_a_table.sql'), 'CREATE TABLE waited_on (n int NOT NULL);\nINSERT INTO waited_on VALUES (1);\n');
+    writeFileSync(join(dir, '0002_a_check.sql'), 'ALTER TABLE waited_on ADD CONSTRAINT waited_on_n_check CHECK (n > 0);\n');
+    return dir;
+  }
+
+  it('fails within its lock timeout, applies and records nothing, and applies on the next run', async () => {
+    await withFreshDb(async (url) => {
+      const migrationsDir = chain();
+      const first = await runMigrations({ connectionString: url, migrationsDir, logger: () => {}, lockTimeout: '300ms' });
+      expect(first.applied).toEqual(['0001_a_table.sql', '0002_a_check.sql']);
+      // A third file, written after the first run, that needs the same lock.
+      writeFileSync(join(migrationsDir, '0003_another_check.sql'), 'ALTER TABLE waited_on ADD CONSTRAINT waited_on_n_small CHECK (n < 100);\n');
+
+      const holder = new Pool({ connectionString: url, max: 1 });
+      const held = await holder.connect();
+      try {
+        // A reader in an open transaction: ACCESS SHARE, which every ALTER TABLE has to wait for.
+        await held.query('BEGIN');
+        await held.query('SELECT count(*) FROM waited_on');
+
+        const started = Date.now();
+        await expect(runMigrations({ connectionString: url, migrationsDir, logger: () => {}, lockTimeout: '300ms' })).rejects.toThrow(
+          /^Migration 0003_another_check\.sql failed: canceling statement due to lock timeout It waited more than 300ms for a lock/,
+        );
+        const waited = Date.now() - started;
+        expect(waited, 'it gave up well before a wait with no timeout would end').toBeLessThan(5_000);
+        expect(await appliedVersions(url)).toEqual(['0001_a_table.sql', '0002_a_check.sql']);
+        // The reader was never blocked or cancelled: its transaction still answers.
+        expect((await held.query<{ n: number }>('SELECT count(*)::int AS n FROM waited_on')).rows).toEqual([{ n: 1 }]);
+      } finally {
+        await held.query('ROLLBACK');
+        held.release();
+        await holder.end();
+      }
+
+      const next = await runMigrations({ connectionString: url, migrationsDir, logger: () => {}, lockTimeout: '300ms' });
+      expect(next.applied).toEqual(['0003_another_check.sql']);
+      const pool = new Pool({ connectionString: url });
+      try {
+        const checks = await pool.query<{ conname: string }>(
+          "SELECT conname FROM pg_constraint WHERE conrelid = 'waited_on'::regclass AND contype = 'c' ORDER BY conname",
+        );
+        expect(checks.rows.map((r) => r.conname)).toEqual(['waited_on_n_check', 'waited_on_n_small']);
+      } finally {
+        await pool.end();
+      }
+    });
+  });
+
+  it('leaves no lock timeout on the connection it hands back', async () => {
+    await withFreshDb(async (url) => {
+      const pool = new Pool({ connectionString: url, max: 1 });
+      const driver = pgDriver(pool);
+      try {
+        await runMigrations({ driver, migrationsDir: chain(), logger: () => {}, lockTimeout: '300ms' });
+        const conn = await driver.acquire();
+        try {
+          expect((await conn.query<{ lock_timeout: string }>('SHOW lock_timeout')).rows[0]?.lock_timeout).toBe('0');
+        } finally {
+          conn.release();
+        }
       } finally {
         await pool.end();
       }

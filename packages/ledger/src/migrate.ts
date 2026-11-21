@@ -54,6 +54,28 @@ const MIGRATION_ADVISORY_LOCK_KEY = 727_0010;
  */
 const DEFAULT_BOOKKEEPING_TABLE = 'schema_migrations';
 
+/**
+ * How long a migration file may WAIT for a table lock before it gives up
+ * (workplan 0165, the owner's D3 of 2026-11-21).
+ *
+ * Each file runs in one transaction, so every lock it takes is held to its
+ * COMMIT. Asking for a strong lock (an `ALTER TABLE`, a `CREATE INDEX`) while a
+ * long query holds a weaker one makes the migration wait, and every later
+ * query on that table queues behind the migration: one slow report can stop a
+ * table for as long as it runs. With a lock timeout the file fails instead,
+ * its transaction rolls back with nothing applied, and the next start tries
+ * again (on the managed stack the API exits and compose restarts it).
+ *
+ * `SET LOCAL`, so it ends with the file's transaction: the advisory lock the
+ * runner takes BEFORE any file, which is meant to wait for another migrator,
+ * is never cut short. It bounds the wait for a lock, not the work: there is
+ * deliberately no `statement_timeout`, since a migration that holds its lock
+ * and is working, such as an index build, should finish rather than be cut off
+ * halfway. Five seconds is the builder's choice; D3 named no value. Moving it
+ * is this one line.
+ */
+export const MIGRATION_LOCK_TIMEOUT = '5s';
+
 export interface RunMigrationsOptions {
   /**
    * Owner/superuser connection string (migrations create roles + RLS).
@@ -83,6 +105,11 @@ export interface RunMigrationsOptions {
    */
   bookkeepingTable?: string;
   advisoryLockKey?: number;
+  /**
+   * How long one file may wait for a lock; defaults to MIGRATION_LOCK_TIMEOUT.
+   * A Postgres duration (`'5s'`, `'200ms'`). For tests, which shorten it.
+   */
+  lockTimeout?: string;
 }
 
 export interface RunMigrationsResult {
@@ -124,6 +151,11 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
   // fact that quietly stops being true.
   if (!/^[a-z][a-z0-9_]*$/.test(bookkeeping)) {
     throw new Error(`Not a usable bookkeeping table name: ${bookkeeping}`);
+  }
+  // Interpolated as well: `SET` takes no parameter.
+  const lockTimeout = options.lockTimeout ?? MIGRATION_LOCK_TIMEOUT;
+  if (!/^[1-9][0-9]*(?:ms|s)$/.test(lockTimeout)) {
+    throw new Error(`Not a usable lock timeout: ${lockTimeout} (a whole number of ms or s)`);
   }
 
   const versions = listMigrationVersions(migrationsDir);
@@ -181,7 +213,7 @@ export async function runMigrations(options: RunMigrationsOptions): Promise<RunM
       const applied: string[] = [];
       for (const version of versions) {
         if (alreadyApplied.has(version)) continue;
-        await applyOne(client, migrationsDir, version, bookkeeping, log);
+        await applyOne(client, migrationsDir, version, bookkeeping, lockTimeout, log);
         applied.push(version);
       }
 
@@ -220,12 +252,15 @@ async function applyOne(
   migrationsDir: string,
   version: string,
   bookkeeping: string,
+  lockTimeout: string,
   log: (m: string) => void,
 ): Promise<void> {
   const sql = readFileSync(join(migrationsDir, version), 'utf-8');
   log(`[migrate] applying ${version}`);
   await client.query('BEGIN');
   try {
+    // For this file's transaction only (MIGRATION_LOCK_TIMEOUT says why).
+    await client.query(`SET LOCAL lock_timeout = '${lockTimeout}'`);
     // exec, not query: a migration file is many statements, and the extended
     // protocol accepts one. See `LedgerConnection.exec`.
     await client.exec(sql);
@@ -233,8 +268,17 @@ async function applyOne(
     await client.query('COMMIT');
   } catch (err) {
     await client.query('ROLLBACK');
+    // 55P03 is lock_not_available, what Postgres raises when lock_timeout
+    // runs out. Said plainly, because "canceling statement due to lock
+    // timeout" alone reads like the migration is wrong, and it is not.
+    const waited =
+      (err as { code?: unknown } | null)?.code === '55P03'
+        ? ` It waited more than ${lockTimeout} for a lock another connection holds on a table it changes. ` +
+          'Nothing of it was applied; it is tried again at the next start. If it keeps failing, ' +
+          'find the long-running query that holds the lock (pg_stat_activity) and let it finish first.'
+        : '';
     throw new Error(
-      `Migration ${version} failed: ${err instanceof Error ? err.message : String(err)}`,
+      `Migration ${version} failed: ${err instanceof Error ? err.message : String(err)}${waited}`,
       { cause: err },
     );
   }
