@@ -30,7 +30,9 @@
  *     exits 0 on every finding, and on a pull request whatever happened, and
  *     1 on a push or a dispatch only when the scan did not finish;
  *  4. ITS SARIF GOES TO CODE SCANNING FROM A PUSH TO MAIN, NEVER FROM A PULL
- *     REQUEST, where code scanning's own check could fail on a new alert;
+ *     REQUEST, where code scanning's own check could fail on a new alert; and
+ *     what goes is the spots of the six rules that may block: the two that
+ *     never block stay in the job's summary only;
  *  5. THE WORKFLOW SAYS WHEN IT BECOMES BLOCKING, rule by rule, and names the
  *     two rules that never do;
  *  6. THE REPORT RUNS SEMGREP ONCE, after one pull, sandboxed, as the image's
@@ -64,6 +66,8 @@ import {
   PULL_DELAYS,
   RULES,
   SARIF_REPORT,
+  CODE_SCANNING_REPORT,
+  forCodeScanning,
   SEMGREP_USER,
   knownAs,
   nameOf,
@@ -385,7 +389,16 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
     },
     sarif: {
       version: '2.1.0',
-      runs: [{ tool: { driver: { name: 'Semgrep OSS', semanticVersion: o.version ?? version, rules: (o.ran ?? RULES.map((r) => r.id)).map((id) => ({ id, name: id })) } }, results: [] }],
+      runs: [
+        {
+          tool: { driver: { name: 'Semgrep OSS', semanticVersion: o.version ?? version, rules: (o.ran ?? RULES.map((r) => r.id)).map((id) => ({ id, name: id })) } },
+          results: spots.map((s) => ({
+            ruleId: s.rule,
+            message: { text: s.message ?? `${nameOf(s.rule)} says so` },
+            locations: [{ physicalLocation: { artifactLocation: { uri: s.path }, region: { startLine: s.line } } }],
+          })),
+        },
+      ],
     },
   });
 
@@ -458,11 +471,28 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
     expect(out.code).toBe(0);
   });
 
+  it('gives code scanning the spots of the six rules that may block, and keeps Semgrep\'s own report whole', async () => {
+    const out = await at('push', stub(reports(everyRule)));
+    expect(out.code).toBe(0);
+    expect(out.sarif).toBe(join(out.out, CODE_SCANNING_REPORT));
+    const uploaded = JSON.parse(readFileSync(out.sarif, 'utf8'));
+    const sent = uploaded.runs[0].results.map((r: { ruleId: string }) => r.ruleId);
+    expect(sent).toEqual(RULES.filter((r) => !r.never).map((r) => r.id));
+    expect(sent).toHaveLength(6);
+    // The rules Semgrep ran stay listed, all eight.
+    expect(uploaded.runs[0].tool.driver.rules.map((r: { id: string }) => r.id)).toEqual(RULES.map((r) => r.id));
+    // Semgrep's own SARIF is not changed.
+    expect(JSON.parse(readFileSync(join(out.out, SARIF_REPORT), 'utf8')).runs[0].results).toHaveLength(8);
+    const said = 'Code scanning, from a push to main: 6 spots of the rules that may block. 2 spots of the two that never block are in this summary only.';
+    expect(out.markdown).toContain(said);
+    expect(out.lines).toContain(said);
+  });
+
   it('exits 0 on a pull request, a push and a dispatch when every rule found a spot: none fails the job', async () => {
     for (const event of ['pull_request', 'push', 'workflow_dispatch']) {
       const out = await at(event, stub(reports(everyRule)));
       expect(out.code, event).toBe(0);
-      expect(out.sarif, event).toBe(join(out.out, SARIF_REPORT));
+      expect(out.sarif, event).toBe(join(out.out, CODE_SCANNING_REPORT));
       expect(out.markdown).toContain('| **8 rules** | | **8** | **0** | **2** | **4** |');
       expect(out.markdown).toContain('**8 spots from 8 rules: 2 under the two rules that never block, 2 known, 4 to read.**');
       expect(out.markdown).toContain(`Semgrep ${version} scanned 2,400 files.`);
@@ -602,7 +632,7 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
     const note = { code: 3, level: 'warn', type: ['PartialParsing', [{ path: 'apps/web/src/a.tsx' }]], path: 'apps/web/src/a.tsx', message: 'Syntax error at line apps/web/src/a.tsx:3:\n `<` was unexpected' };
     const out = await at('push', stub(reports(everyRule, { notes: [note] })));
     expect(out.code).toBe(0);
-    expect(out.sarif).toBe(join(out.out, SARIF_REPORT));
+    expect(out.sarif).toBe(join(out.out, CODE_SCANNING_REPORT));
     expect(out.markdown).toContain(`Semgrep ${version} scanned 2,400 files, with 1 note (below).`);
     expect(out.lines).toContain(`Semgrep ${version} scanned 2,400 files, with 1 note on what it could not read in full.`);
     expect(out.markdown).toContain('| warn | PartialParsing | `apps/web/src/a.tsx` | Syntax error at line apps/web/src/a.tsx:3: |');
@@ -619,7 +649,7 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
     for (const event of ['pull_request', 'push']) {
       const out = await at(event, stub(reports(everyRule, { timeouts })));
       expect(out.code, event).toBe(0);
-      expect(out.sarif, event).toBe(join(out.out, SARIF_REPORT));
+      expect(out.sarif, event).toBe(join(out.out, CODE_SCANNING_REPORT));
       expect(out.markdown).toContain(`Semgrep ${version} scanned 2,400 files and read 3 places in them only in part (below).`);
       expect(out.lines).toContain(`Semgrep ${version} scanned 2,400 files and read 3 places in them only in part, where its taint analysis timed out.`);
       const section = out.markdown.split('### Read only in part')[1]?.split('\n###')[0] ?? '';
@@ -732,5 +762,41 @@ describe('the Semgrep report, run against a stubbed docker (6, and 3’s exit)',
     );
     expect(out.lines.some((l) => l.includes('\n'))).toBe(false);
     expect(out.lines.some((l) => l.startsWith('::error'))).toBe(false);
+  });
+});
+
+describe('what code scanning receives: the spots of the six rules that may block (forCodeScanning)', () => {
+  const at = (ruleId: string, line = 1) => ({ ruleId, message: { text: 'says so' }, locations: [{ physicalLocation: { artifactLocation: { uri: 'apps/x.ts' }, region: { startLine: line } } }] });
+  const never = RULES.filter((r) => r.never);
+  const may = RULES.filter((r) => !r.never);
+
+  it('the two that never block are the ReDoS rules, and every other named rule may block', () => {
+    expect(never.map((r) => nameOf(r.id))).toEqual(['detect-non-literal-regexp', 'detect-redos']);
+    expect(may).toHaveLength(6);
+  });
+
+  it('takes out a spot of a rule that never blocks, by its id, a prefixed id or its own name, and keeps every other', () => {
+    const sarif = {
+      version: '2.1.0',
+      runs: [
+        {
+          tool: { driver: { name: 'Semgrep OSS', rules: RULES.map((r) => ({ id: r.id })) } },
+          results: [at(never[0]!.id, 1), at(`tmp.${never[1]!.id}`, 2), at(nameOf(never[0]!.id), 3), ...may.map((r, i) => at(r.id, 10 + i)), at('a.rule.no.one.named', 99)],
+        },
+      ],
+    };
+    const before = JSON.stringify(sarif);
+    const { sarif: sent, kept, dropped } = forCodeScanning(sarif);
+    expect(dropped).toBe(3);
+    expect(kept).toBe(7);
+    expect(sent.runs[0]!.results.map((r) => r.ruleId)).toEqual([...may.map((r) => r.id), 'a.rule.no.one.named']);
+    expect(sent.runs[0]!.tool).toEqual(sarif.runs[0]!.tool);
+    // The report it was given is not changed.
+    expect(JSON.stringify(sarif)).toBe(before);
+  });
+
+  it('keeps a report with no results, or no runs, in its shape', () => {
+    expect(forCodeScanning({ version: '2.1.0', runs: [{ tool: {}, results: [] }] })).toEqual({ sarif: { version: '2.1.0', runs: [{ tool: {}, results: [] }] }, kept: 0, dropped: 0 });
+    expect(forCodeScanning({ version: '2.1.0', runs: [] })).toEqual({ sarif: { version: '2.1.0', runs: [] }, kept: 0, dropped: 0 });
   });
 });

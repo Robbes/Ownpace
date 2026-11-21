@@ -75,6 +75,13 @@ export declare const OSV_SCANNER_ARCHES: string[];
 export declare const OSV_SCANNER_NOTE: string;
 /** The osv-scanner the Security Scan installs, read from its one install step; throws for a step not of the shape it must have. */
 export declare function osvScannerPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
+export declare const GITLEAKS_WORKFLOW: string;
+export declare const GITLEAKS_HOST: string;
+export declare const GITLEAKS_UPSTREAM: string;
+export declare const GITLEAKS_ARCHES: string[];
+export declare const GITLEAKS_NOTE: string;
+/** The gitleaks ci.yml's gitleaks job installs, read from its one install step; throws for a step not of the shape it must have. */
+export declare function gitleaksPin(workflow: string): { version: string; sha256: Record<'x64' | 'arm64', string>; line: number };
 export declare const SQUAWK_WORKFLOW: string;
 export declare const SQUAWK_HOST: string;
 export declare const SQUAWK_UPSTREAM: string;

@@ -78,9 +78,12 @@
  *                      Scan installs from its GitHub release and checks by
  *                      its sha256 (2026-11-04), both copies together, the
  *                      osv-scanner it installs the same way, beside it, to
- *                      read the lockfile (2026-11-20), the squawk the
- *                      Migration locks workflow installs the same way, to
- *                      read the migrations (2026-11-21), the
+ *                      read the lockfile (2026-11-20), the gitleaks
+ *                      ci.yml's `gitleaks` job installs the same way, from
+ *                      an archive, to read a pull request's commits
+ *                      (2026-11-21), the squawk the Migration locks
+ *                      workflow installs the same way, to read the
+ *                      migrations (2026-11-21), the
  *                      cosign the workflows name, every
  *                      copy together, and the Atlas release ci.yml's
  *                      migration-lint downloads and checks by its sha256
@@ -460,6 +463,24 @@ export const OSV_SCANNER_ARCHES = ['amd64', 'arm64'];
 /** Said beside the osv-scanner row when it is behind: the three values move together. */
 export const OSV_SCANNER_NOTE =
   "move OSV_SCANNER_VERSION and both OSV_SCANNER_SHA256_* in security-scan.yml's install step together, each sum from the release's osv-scanner_SHA256SUMS, once the release is three days old";
+
+/**
+ * The gitleaks ci.yml's `gitleaks` job reads a pull request's commits with
+ * (workplan 0163 T6, 2026-11-21): a named release from its GitHub release
+ * page, an archive for each architecture a runner here has, with a SHA-256
+ * for each set in the `env:` of its one install step, in the shape of the
+ * stalwart-cli step. It FAILS the pull request on a finding
+ * (scripts/gitleaks-report.mjs). Upstream tags every release in git, and its
+ * archives name the version without the `v`. Dependabot cannot see a URL in a
+ * `run:`.
+ */
+export const GITLEAKS_WORKFLOW = '.github/workflows/ci.yml';
+export const GITLEAKS_HOST = 'https://github.com/gitleaks/gitleaks/releases/download/';
+export const GITLEAKS_UPSTREAM = 'https://github.com/gitleaks/gitleaks';
+export const GITLEAKS_ARCHES = ['x64', 'arm64'];
+/** Said beside the gitleaks row when it is behind: the three values move together. */
+export const GITLEAKS_NOTE =
+  "move GITLEAKS_VERSION and both GITLEAKS_SHA256_* in ci.yml's gitleaks install step together, each sum from the release's checksums file, once the release is three days old; a newer gitleaks can bring new rules, so read that pull request's own gitleaks run";
 
 /**
  * The squawk the Migration locks workflow reads every migration with (workplan
@@ -1251,6 +1272,86 @@ export function osvScannerPin(workflow) {
   }
   if (!code.some((text) => text.includes('"osv-scanner version: ${OSV_SCANNER_VERSION#v}"'))) {
     throw new Error('the osv-scanner step never checks that what it installed calls itself the release named');
+  }
+  return { version, sha256, line: start + 1 };
+}
+
+/**
+ * The gitleaks GITLEAKS_WORKFLOW installs, read from its one step that
+ * downloads from GITLEAKS_HOST: `{ version, sha256: { x64, arm64 }, line }`
+ * (workplan 0163 T6, 2026-11-21). Throws for a step not of the shape it must
+ * have, as `stalwartCliPin` does: a fetch from anywhere but GITLEAKS_HOST, of
+ * a name not under `${GITLEAKS_VERSION}/`, or into anything but the archive it
+ * hashes; anything piped to a shell; a version that is not a release
+ * (`v8.30.1`); an architecture with no 64-digit sum, or one sum for both; a
+ * sum compared with anything but the pinned one in `env:`; an archive
+ * unpacked that is not the native one hashed, or anything unpacked before a
+ * `sha256sum` has read the downloads with an `exit 1` between; anything made
+ * executable by the step itself; or no check that the binary calls itself the
+ * release named. Under names of its own (`archive`, `got`, `pin`), not the
+ * Atlas and stalwart-cli steps' `download`, `seen` and `pinned` in the same
+ * file. Text only: the guard also runs the step's `run:` under bash. The
+ * gitleaks row reads its version with this.
+ */
+export function gitleaksPin(workflow) {
+  const { start, code, logical, env } = downloadStep(workflow, GITLEAKS_HOST, 'GITLEAKS_', 'gitleaks');
+  const version = env.GITLEAKS_VERSION;
+  if (!/^v\d+\.\d+\.\d+$/.test(version ?? '')) {
+    throw new Error(`the gitleaks step names no release in GITLEAKS_VERSION (${version ?? 'unset'}); a release is v<major>.<minor>.<patch>`);
+  }
+  const sha256 = {};
+  for (const arch of GITLEAKS_ARCHES) {
+    const sum = env[`GITLEAKS_SHA256_${arch.toUpperCase()}`];
+    if (!/^[0-9a-f]{64}$/.test(sum ?? '')) throw new Error(`the gitleaks step pins no sha256 for linux/${arch} (GITLEAKS_SHA256_${arch.toUpperCase()})`);
+    sha256[arch] = sum;
+  }
+  if (sha256.x64 === sha256.arm64) throw new Error('the gitleaks step pins one sha256 for two architectures');
+  for (const text of logical) {
+    if (/\|\s*(?:sudo\s+)?(?:ba|da|z)?sh\b/.test(text)) throw new Error(`the gitleaks step pipes something to a shell: ${text}`);
+    for (const [url] of text.matchAll(/\b[a-z][a-z0-9+.-]*:\/\/[^\s"'`]+/gi)) {
+      if (!url.startsWith(GITLEAKS_HOST)) throw new Error(`the gitleaks step fetches from somewhere other than ${GITLEAKS_HOST}: ${url}`);
+      if (/latest/i.test(url) || !url.startsWith(`${GITLEAKS_HOST}\${GITLEAKS_VERSION}/`)) {
+        throw new Error(`the gitleaks step downloads a name with no version: ${url} (it must be under ${GITLEAKS_HOST}\${GITLEAKS_VERSION}/)`);
+      }
+    }
+  }
+  const archive = (arch) => `"$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-$${arch}.tar.gz"`;
+  const has = (statement) => logical.some((text) => text === statement || text.startsWith(`${statement};`));
+  if (!has(`archive=${archive('arch')}`)) throw new Error(`the gitleaks step does not download each architecture to archive=${archive('arch')}`);
+  for (const text of logical.filter((t) => /\b(?:curl|wget)\b/.test(t))) {
+    if (!text.includes(GITLEAKS_HOST) || !/\s-o "\$archive"\s/.test(text)) {
+      throw new Error(`the gitleaks step fetches something that is not the release into "$archive": ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bsha256sum\b/.test(t))) {
+    if (text !== 'got="$(sha256sum "$archive")"') throw new Error(`the gitleaks step hashes something other than "$archive": ${text}`);
+  }
+  const pins = [...code.join('\n').matchAll(/\bpin=([^\s;]*)/g)].map((m) => m[1]);
+  const fromEnv = GITLEAKS_ARCHES.map((arch) => `"$GITLEAKS_SHA256_${arch.toUpperCase()}"`);
+  if (pins.some((value) => !fromEnv.includes(value)) || !fromEnv.every((value) => pins.includes(value))) {
+    throw new Error(`the gitleaks step's pinned sum is not only ${fromEnv.join(' or ')}: pin=${pins.join(', pin=') || 'nothing'}`);
+  }
+  if (!has('if [ "$got" = "$pin" ]; then')) throw new Error('the gitleaks step never compares the sum it read ("$got") with the pinned one ("$pin")');
+  // `tar` as a command: the archive's own name ends in `.tar.gz`.
+  const TAR = /(?:^|[;&|(]\s*)tar\s/;
+  for (const text of logical.filter((t) => TAR.test(t.trim()))) {
+    if (!text.startsWith(`tar -xzf ${archive('wanted')} `)) {
+      throw new Error(`the gitleaks step unpacks something other than the archive it hashed, ${archive('wanted')}: ${text}`);
+    }
+  }
+  for (const text of logical.filter((t) => /\bchmod\b|\binstall\s+-m\b/.test(t))) {
+    throw new Error(`the gitleaks step makes something executable itself, where the archive's own gitleaks already is: ${text}`);
+  }
+  const first = (re) => code.findIndex((text) => re.test(text));
+  const read = first(/\bsha256sum\b/);
+  const unpacked = code.findIndex((text) => TAR.test(text.trim()));
+  if (read < 0) throw new Error('the gitleaks step never reads a sha256 of what it downloads');
+  if (unpacked < 0) throw new Error('the gitleaks step unpacks nothing, so it cannot be what installs gitleaks');
+  if (!(read < unpacked && code.slice(read, unpacked).some((text) => /\bexit 1\b/.test(text)))) {
+    throw new Error('the gitleaks step unpacks its download before its sha256 is read and a mismatch has stopped it');
+  }
+  if (!code.some((text) => text.includes('if [ "$answer" != "${GITLEAKS_VERSION#v}" ]; then'))) {
+    throw new Error('the gitleaks step never checks that what it installed calls itself the release named');
   }
   return { version, sha256, line: start + 1 };
 }
@@ -2065,6 +2166,16 @@ export async function routineRows(repo, net) {
     const newest = newestLike(version, tagsOf(await net.lsRemote(OSV_SCANNER_UPSTREAM)));
     const state = stateOf(version, newest);
     return { pin: version, newest, state, ...(state === 'behind' ? { notes: [OSV_SCANNER_NOTE] } : {}) };
+  }]);
+
+  // gitleaks (0163 T6, 2026-11-21): the binary ci.yml's gitleaks job reads a
+  // pull request's commits with, from its GitHub release by its archive's
+  // sha256, against upstream's git tags of the same major.
+  jobs.push(['gitleaks', GITLEAKS_WORKFLOW, async () => {
+    const { version } = gitleaksPin(need(repo, GITLEAKS_WORKFLOW));
+    const newest = newestLike(version, tagsOf(await net.lsRemote(GITLEAKS_UPSTREAM)));
+    const state = stateOf(version, newest);
+    return { pin: version, newest, state, ...(state === 'behind' ? { notes: [GITLEAKS_NOTE] } : {}) };
   }]);
 
   // squawk (0165, 2026-11-21): the binary the Migration locks workflow reads
