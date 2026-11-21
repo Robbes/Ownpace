@@ -246,6 +246,14 @@ load_env() {
   # provider. A date still ahead is kept (seed_pat_expiry, env-read.sh).
   seed_pat_expiry "$ENV_FILE" ||
     die "the provisioning token's first date could not be written into ${ENV_FILE} (above)."
+  # THE GROUP OF THE HOST'S DOCKER SOCKET, for the same reason and at the same
+  # place (workplan 0119, 2026-11-20): managed.yml requires DOCKER_SOCKET_GID,
+  # trigger-docker-proxy's group_add, and a `--from` run skips the env phase.
+  # Read from the socket on every run (seed_docker_socket_gid, env-read.sh), so
+  # live's first deploy of a checkout that carries it writes it with no step of
+  # the owner's.
+  seed_docker_socket_gid "$ENV_FILE" ||
+    die "the Docker socket's group could not be written into ${ENV_FILE} (above)."
   # Before the file is sourced, so a value exported by another stack's shell
   # is still told apart from this .env's (pgbouncer_userlist, env-read.sh).
   refuse_a_userlist_docker_would_make_a_directory

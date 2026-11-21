@@ -574,6 +574,11 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
     '(its command)': NONE('the API as its image starts it (or a command a document breaks over a line)'),
   },
   'trigger-supervisor': { node: NONE('the image\'s node, as node') },
+  // images.yml's build (docker-socket-proxy) reads, as uid 99, the uids and groups of the proxy's own processes (workplan 0119, 2026-11-20).
+  'trigger-docker-proxy': {
+    grep: NONE("reads the uids in /proc/[0-9]*/status, under `sh -c` for the glob, as uid 99, which reads its own processes' status"),
+    sed: NONE("prints pid 1's groups from /proc/1/status, as uid 99, which owns pid 1"),
+  },
   web: { wget: NONE("asks its own nginx over 127.0.0.1, as nginx (uid 101), and writes nothing") },
   // Distroless since 2026-11-06 (workplan 0119 §3 item 12): Node by its path is
   // all there is to run, as uid 10001. Until then the drill ran `sh -c ls`,
@@ -590,6 +595,8 @@ export const REVIEWED: Readonly<Record<string, Readonly<Record<string, Review>>>
  * each reaches, or null for a container that is no service of the three files.
  */
 export const TARGETS: Readonly<Record<string, string | null>> = {
+  // images.yml's build (docker-socket-proxy) starts the proxy as `socket-proxy`, with managed.yml's settings.
+  '.github/workflows/images.yml|socket-proxy': 'trigger-docker-proxy',
   // psql_in <container>: box-checks.sh finds postgres's and trigger-db's containers by label.
   'deploy/compose/box-checks.sh|$1': 'postgres',
   // live's database by its name, as the runbooks write it for live.
