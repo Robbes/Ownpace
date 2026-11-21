@@ -15,13 +15,16 @@
  *   - the report: a finding in a file the change adds or changes is listed in
  *     full and annotated on its line; every other file is history and only
  *     counted; a rule no migration can meet while each file is one transaction
- *     is marked; a file squawk could not read is listed and warned about, never
- *     dropped;
+ *     is marked; a rule the runner meets for every file (its lock timeout) is
+ *     marked as met and warned about nowhere; a file squawk could not read is
+ *     listed and warned about, never dropped;
  *   - REPORT ONLY: the script exits 0 whatever squawk says, run end to end
  *     against a stand-in squawk;
  *   - squawk reads each file as `runMigrations` applies it: one transaction per
  *     file. If the runner stops wrapping a file in BEGIN/COMMIT, this fails, so
- *     the report's options and its "cannot be met" rules move with it;
+ *     the report's options and its "cannot be met" rules move with it; and if it
+ *     stops setting a lock timeout per file, this fails, so the "met by the
+ *     runner" rule moves with it;
  *   - the wiring: the workflow runs the script after the install step, on the
  *     paths of both chains, and it is not in ci.yml.
  *
@@ -35,7 +38,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
-import { CANNOT_BE_MET, CHAINS, SQUAWK_ARGS, migrationFiles, parseGcc, readRun, report } from './migration-locks-report.mjs';
+import { CANNOT_BE_MET, CHAINS, MET_BY_THE_RUNNER, SQUAWK_ARGS, migrationFiles, parseGcc, readRun, report } from './migration-locks-report.mjs';
 import type { Run } from './migration-locks-report.mjs';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -127,6 +130,17 @@ describe('the summary', () => {
     expect(warnings).toEqual(['squawk could not read 1 of 3 migration files; the summary lists them.']);
   });
 
+  it('marks a rule the runner meets as met, counts it, and puts no warning on its line', () => {
+    const met = new Map<string, Run>([
+      [A, { findings: [F(1, 'require-lock-timeout'), F(10, 'constraint-missing-not-valid')] }],
+      [B, { findings: [F(1, 'require-lock-timeout')] }],
+    ]);
+    const { markdown, annotations } = report({ version: 'squawk 2.73.0', files: [B, A], changed: new Set([A]), results: met });
+    expect(markdown).toContain(`| \`${A}:1\` | \`require-lock-timeout\` (met by the runner) |`);
+    expect(markdown).toMatch(/\| `require-lock-timeout` \| 1 \| 1 \| met by the runner: runMigrations sets lock_timeout/);
+    expect(annotations).toEqual([`::warning file=${A},line=10,title=squawk constraint-missing-not-valid::constraint-missing-not-valid says so`]);
+  });
+
   it('warns when there was nothing to read', () => {
     expect(report({ version: 'squawk 2.73.0', files: [], changed: new Set(), results: new Map() }).warnings).toEqual(['No migration file was found to read.']);
   });
@@ -143,6 +157,14 @@ describe('squawk reads each file as runMigrations applies it', () => {
       const code = read(file).replace(/--.*$/gm, '');
       expect(code, `${file} opens or ends a transaction itself`).not.toMatch(/^\s*(?:BEGIN|COMMIT|ROLLBACK|START TRANSACTION)\b\s*;/im);
     }
+  });
+
+  it('and the rule marked as met by the runner is the lock timeout, which applyOne sets in each file\'s transaction', () => {
+    expect([...MET_BY_THE_RUNNER.keys()]).toEqual(['require-lock-timeout']);
+    const runner = read('packages/ledger/src/migrate.ts');
+    expect(runner).toMatch(/export const MIGRATION_LOCK_TIMEOUT = '[1-9][0-9]*(?:ms|s)';/);
+    const applyOne = runner.slice(runner.indexOf('async function applyOne'));
+    expect(applyOne).toMatch(/client\.query\('BEGIN'\)[\s\S]*SET LOCAL lock_timeout[\s\S]*client\.exec\(sql\)/);
   });
 
   it('and the rules marked as unmeetable are the CONCURRENTLY ones, which a transaction refuses', () => {
