@@ -71,11 +71,31 @@
  * address (`EXPOSURE_PROBE_HOST`), and an address only the OTA names resolve
  * to, get no such list: there every answer still fails. An address the OTA
  * names share with a production name is a production name's. A listed port
- * that no longer answers is said, so the list can shrink. Only PostgreSQL
- * trips the wire: anything else answering on a listed port is a note, which
- * is why a port goes on the list only after the machine has shown that
- * nothing arrives (docs/managed-bring-up.md). The variable is optional;
- * unset, every answer fails, as before.
+ * that no longer answers is said, so the list can shrink. The variable is
+ * optional; unset, every answer fails, as before.
+ *
+ * THE DASHBOARD'S CERTIFICATE, A SECOND TRIPWIRE (the owner, 2026-11-21).
+ * That day five more ports answered on both front addresses, and a capture
+ * on the machine's mesh interface across a probe run saw nothing arrive: the
+ * front is NetBird's shared proxy, and holds them for someone else. The owner
+ * listed them. Of this repository's services, the one a forward from the
+ * front could reach and that is not public otherwise is the OTA stack's
+ * Trigger.dev dashboard, through its TLS front (`trigger-tls`,
+ * `deploy/compose/trigger-tls.Caddyfile`, with `TRIGGER_TLS_BIND`). That
+ * front presents a certificate from Caddy's own local CA (`tls internal`),
+ * for whatever address or name `TRIGGER_TLS_HOST` gives it. So the probe also
+ * sends each listed port a TLS hello with no server name, as a browser does
+ * to an address, and FAILS on a certificate whose issuer is Caddy's local CA
+ * (`CADDY_LOCAL_CA`), and on a hello it could not send. The issuer is read
+ * and never printed; a certificate from any other issuer, and a port that
+ * finishes no TLS handshake, are notes. The hello names no server, so it
+ * meets the dashboard behind a service that relays the port as it is; a
+ * service that routes by a server name answers only the name it was given,
+ * which the probe does not know, and NetBird's dashboard is where such a
+ * service shows. Only PostgreSQL and Caddy's local CA trip the wires:
+ * anything else answering on a listed port is a note, which is why a port
+ * goes on the list only after the machine has shown that nothing arrives
+ * (docs/managed-bring-up.md).
  *
  * ITS LOG NEVER NAMES AN ADDRESS. The run's log is public. Every address, and
  * the secret, is masked with `::add-mask::` before anything else is printed,
@@ -197,6 +217,25 @@ export const NETBIRD_ASSETS = '/__netbird__/';
  * before anything else; nothing is sent after it, and no credential ever.
  */
 export const SSL_REQUEST = Buffer.from([0x00, 0x00, 0x00, 0x08, 0x04, 0xd2, 0x16, 0x2f]);
+
+/**
+ * The name Caddy's own local CA gives itself (`tls internal`): its root is
+ * "Caddy Local Authority - <year> ECC Root", and the intermediate that signs a
+ * site's certificate "Caddy Local Authority - ECC Intermediate" (caddy
+ * v2.11.9, modules/caddypki/ca.go, the default names). The Trigger.dev
+ * dashboard's TLS front presents such a certificate, read on 2026-11-21 from
+ * main's own build and Caddyfile, for an address and for a name alike.
+ */
+export const CADDY_LOCAL_CA = 'Caddy Local Authority';
+
+/**
+ * Whether a certificate's issuer, by the common names it carries, is Caddy's
+ * own local CA: on a port the front answers by itself, the dashboard's front
+ * reached through a forward (2026-11-21). The names are read, never printed.
+ */
+export function fromCaddyLocalCa(issuer) {
+  return issuer.some((name) => name.startsWith(CADDY_LOCAL_CA));
+}
 
 /** How the machine's own address is named in the log: by the secret that holds it. */
 const HOST_LABEL = "the machine's own address (EXPOSURE_PROBE_HOST)";
@@ -503,10 +542,12 @@ export async function runProbe(config, io) {
     const which = ports.length === config.ports.length ? `any of the ${ports.length} ports` : `ports ${ports.join(' ')}`;
     note(`${label}: not tried from this runner (${why}), on ${which}; nothing is known about it`);
   }
-  // ---- The front's own ports: answering is the front's, PostgreSQL is not ----
+  // ---- The front's own ports: answering is the front's; PostgreSQL and the dashboard are not ----
   const spoke = await inPool(held, 8, ({ address, port }) => io.postgres(address, port));
+  const hello = await inPool(held, 8, ({ address, port }) => io.certificate(address, port));
   held.forEach(({ label, port }, i) => {
     const answer = spoke[i];
+    const tls = hello[i];
     if (answer?.kind === 'postgres') {
       open++;
       fail(
@@ -520,6 +561,20 @@ export async function runProbe(config, io) {
         `${label}: port ${port} answers, and could not be asked in PostgreSQL's protocol ` +
           `(${answer?.untried ?? 'no reason'}), so it is counted`,
       );
+    } else if (tls?.kind === 'tls' && fromCaddyLocalCa(tls.issuer)) {
+      open++;
+      fail(
+        `${label}: port ${port} presents a certificate from Caddy's own local CA, as the Trigger.dev dashboard's ` +
+          'TLS front does. EXPOSURE_PROBE_FRONT_PORTS lists it as one the front answers by itself, and the ' +
+          'dashboard answering there is not the front',
+      );
+    } else if (!['tls', 'not-tls'].includes(tls?.kind)) {
+      // Fail closed, as for PostgreSQL's: a hello that could not be sent asked nothing.
+      open++;
+      fail(
+        `${label}: port ${port} answers, and could not be asked over TLS ` +
+          `(${tls?.untried ?? 'no reason'}), so it is counted`,
+      );
     } else {
       const words =
         answer.kind === 'other'
@@ -527,9 +582,11 @@ export async function runProbe(config, io) {
           : answer.kind === 'silent'
             ? 'said nothing'
             : 'closed the connection';
+      const overTls =
+        tls.kind === 'tls' ? "presented a certificate from an issuer that is not Caddy's local CA" : 'finished no TLS handshake';
       note(
         `${label}: port ${port} answers, the front's own (EXPOSURE_PROBE_FRONT_PORTS); asked in PostgreSQL's ` +
-          `protocol it ${words}, so not counted`,
+          `protocol it ${words}, and over TLS it ${overTls}, so not counted`,
       );
     }
   });
@@ -687,8 +744,12 @@ const COMMIT = /^[0-9a-f]{40}$/;
 /** Error codes that say the runner could not try, not that the port is closed. */
 const CANNOT_TRY = new Set(['ENETUNREACH', 'EADDRNOTAVAIL', 'EAFNOSUPPORT', 'EPERM', 'EACCES']);
 
-/** The real network, with its timeouts. Nothing here reads an error's message. */
-export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000, gitMs = 60000 } = {}) {
+/**
+ * The real network, with its timeouts. Nothing here reads an error's message.
+ * `connectTls` is `tls.connect`, replaceable for the guard, as clock-watch's
+ * is: the hello on a front port goes through it.
+ */
+export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000, gitMs = 60000, connectTls = tlsConnect } = {}) {
   return {
     async resolve(name) {
       const [v4, v6] = await Promise.allSettled([dns.resolve4(name), dns.resolve6(name)]);
@@ -753,6 +814,43 @@ export function realNetwork({ connectMs = 5000, tlsMs = 10000, fetchMs = 15000, 
         socket.once('error', (e) => {
           const code = e?.code ?? 'error';
           finish(!asked || CANNOT_TRY.has(code) ? { untried: code } : { kind: 'closed' });
+        });
+      });
+    },
+
+    /**
+     * A TLS hello with no server name, as a browser sends one to an address,
+     * and the common names of the certificate's issuer: read whether or not it
+     * verifies (`rejectUnauthorized: false`, since an internal CA never does),
+     * and never printed. Nothing else of the certificate is kept. `tls` with
+     * them; `not-tls` when the port took the connection and no handshake
+     * finished (not TLS, a reset, or nothing within the timeout); `untried`
+     * when no connection formed, so nothing was asked: the probe fails that,
+     * as it does PostgreSQL's (2026-11-21).
+     */
+    certificate(address, port) {
+      return new Promise((done) => {
+        let tcp = false;
+        let settled = false;
+        const socket = connectTls({ host: address, port, rejectUnauthorized: false });
+        const finish = (answer) => {
+          if (settled) return;
+          settled = true;
+          socket.destroy();
+          done(answer);
+        };
+        socket.setTimeout(tlsMs, () => finish(tcp ? { kind: 'not-tls' } : { untried: 'timeout' }));
+        socket.once('connect', () => {
+          tcp = true;
+        });
+        socket.once('secureConnect', () => {
+          const names = socket.getPeerCertificate()?.issuer?.CN;
+          const issuer = Array.isArray(names) ? names.map(String) : names === undefined ? [] : [String(names)];
+          finish({ kind: 'tls', issuer });
+        });
+        socket.once('error', (e) => {
+          const code = e?.code ?? 'error';
+          finish(!tcp || CANNOT_TRY.has(code) ? { untried: code } : { kind: 'not-tls' });
         });
       });
     },

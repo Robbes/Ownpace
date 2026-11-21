@@ -41,6 +41,7 @@
 
 import { describe, it, expect, afterEach } from 'vitest';
 import { spawnSync } from 'node:child_process';
+import { EventEmitter } from 'node:events';
 import { readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:net';
 import { createServer as createHttpServer } from 'node:http';
@@ -50,15 +51,18 @@ import { APP_TEMPLATE, expectedAppHeaders } from './app-headers.mjs';
 import {
   APP_PAGE,
   APP_VERSION,
+  CADDY_LOCAL_CA,
   ISSUER,
   ORG_REGISTRATION,
   OTA_NAMES,
   PRODUCTION_NAMES,
   SITE_NAME,
   SSL_REQUEST,
+  fromCaddyLocalCa,
   probeConfig,
   realNetwork,
   runProbe,
+  type CertificateAnswer,
   type HeadersAnswer,
   type PageAnswer,
   type PostgresAnswer,
@@ -98,6 +102,8 @@ interface Fake {
   issuer?: { issuer?: string; why?: string };
   /** What PostgreSQL's SSLRequest meets, by `address#port`; said nothing otherwise. */
   postgres?: Record<string, PostgresAnswer>;
+  /** What a TLS hello with no server name meets, by `address#port`; no handshake otherwise. */
+  certificates?: Record<string, CertificateAnswer>;
   /** What a page answers, by URL; otherwise 404 for the form that founds an organisation, 200 for the rest. */
   pages?: Record<string, PageAnswer>;
   /** What live's version.json names (default: LIVE_COMMIT). */
@@ -127,6 +133,7 @@ function fakeIo(fake: Fake): {
   tried: string[];
   tlsAsked: string[];
   pgAsked: string[];
+  certAsked: string[];
   pagesAsked: string[];
   templatesAsked: string[];
 } {
@@ -134,6 +141,7 @@ function fakeIo(fake: Fake): {
   const tried: string[] = [];
   const tlsAsked: string[] = [];
   const pgAsked: string[] = [];
+  const certAsked: string[] = [];
   const pagesAsked: string[] = [];
   const templatesAsked: string[] = [];
   const io: ProbeIo = {
@@ -150,6 +158,10 @@ function fakeIo(fake: Fake): {
     postgres: async (address, port) => {
       pgAsked.push(`${address}#${port}`);
       return fake.postgres?.[`${address}#${port}`] ?? { kind: 'silent' };
+    },
+    certificate: async (address, port) => {
+      certAsked.push(`${address}#${port}`);
+      return fake.certificates?.[`${address}#${port}`] ?? { kind: 'not-tls' };
     },
     tls: async (name) => {
       tlsAsked.push(name);
@@ -175,7 +187,7 @@ function fakeIo(fake: Fake): {
     headers: async () => fake.appPage ?? { status: 200, headers: stated() },
     print: (line) => lines.push(line),
   };
-  return { io, lines, tried, tlsAsked, pgAsked, pagesAsked, templatesAsked };
+  return { io, lines, tried, tlsAsked, pgAsked, certAsked, pagesAsked, templatesAsked };
 }
 
 const CONFIG: ProbeConfig = { ports: [3001, 3123, 5432], host: MACHINE, otaMode: 'report', siteMode: 'report' };
@@ -665,12 +677,23 @@ describe('the OTA names, on the mesh only from the owner\'s step (open question 
  * on a production name's address only, such a port answering is a note, and
  * the tripwire behind it, PostgreSQL's SSLRequest, fails on a PostgreSQL
  * answer. Everywhere else every answer still fails.
+ *
+ * THE DASHBOARD'S CERTIFICATE (the owner, 2026-11-21). Five more ports were
+ * listed that day; of this repository's services, the one a forward from the
+ * front could reach and that is not public otherwise is the Trigger.dev
+ * dashboard's TLS front, published on the mesh address with
+ * `TRIGGER_TLS_BIND`. A second tripwire sends each listed port a TLS
+ * hello with no server name and fails on a certificate from Caddy's own local
+ * CA, which that front presents, and on a hello it could not send. The
+ * issuer is read and never printed.
  */
 describe('ports the front answers by itself (EXPOSURE_PROBE_FRONT_PORTS)', () => {
   const HELD: ProbeConfig = { ...CONFIG, frontPorts: [5432] };
+  /** What the dashboard's front presents: main's own Caddy build and Caddyfile, read on 2026-11-21. */
+  const DASHBOARD: CertificateAnswer = { kind: 'tls', issuer: [`${CADDY_LOCAL_CA} - ECC Intermediate`] };
 
-  it('a listed port answering on the production names\' addresses is a note, after it does not answer as PostgreSQL', async () => {
-    const { io, lines, pgAsked } = fakeIo({
+  it('a listed port answering on the production names\' addresses is a note, after it does not answer as PostgreSQL or present the dashboard\'s certificate', async () => {
+    const { io, lines, pgAsked, certAsked } = fakeIo({
       open: [
         [FRONT, 5432],
         [FRONT_2, 5432],
@@ -679,13 +702,91 @@ describe('ports the front answers by itself (EXPOSURE_PROBE_FRONT_PORTS)', () =>
     });
     expect(await runProbe(HELD, io)).toBe(0);
     expect(pgAsked.sort()).toEqual([`${FRONT}#5432`, `${FRONT_2}#5432`].sort());
+    expect(certAsked.sort()).toEqual([`${FRONT}#5432`, `${FRONT_2}#5432`].sort());
     expect(lines.filter((l) => l.startsWith('FAIL'))).toEqual([]);
     const held = lines.filter((l) => l.startsWith('note') && l.includes("port 5432 answers, the front's own"));
     expect(held).toHaveLength(2);
     expect(held.join('\n')).toContain("answered 7 byte(s) that are not PostgreSQL's");
     expect(held.join('\n')).toContain('said nothing');
+    for (const l of held) expect(l).toMatch(/, and over TLS it finished no TLS handshake, so not counted$/);
     expect(lines).toContain('pass  no tried port answers on 5 address(es), beside 2 the front answers by itself');
     expectNoAddress(lines);
+  });
+
+  it('FAILS when a listed port presents a certificate from Caddy\'s own local CA: the dashboard\'s front, reached there', async () => {
+    const { io, lines } = fakeIo({
+      open: [
+        [FRONT, 5432],
+        [FRONT_2, 5432],
+      ],
+      certificates: { [`${FRONT_2}#5432`]: DASHBOARD },
+    });
+    expect(await runProbe(HELD, io)).toBe(1);
+    const fails = lines.filter((l) => l.startsWith('FAIL'));
+    expect(fails).toHaveLength(1);
+    expect(fails[0]).toBe(
+      "FAIL  app.ownpace.eu (IPv4): port 5432 presents a certificate from Caddy's own local CA, as the Trigger.dev " +
+        "dashboard's TLS front does. EXPOSURE_PROBE_FRONT_PORTS lists it as one the front answers by itself, and the " +
+        'dashboard answering there is not the front',
+    );
+    expect(lines.some((l) => l.startsWith('pass  no tried port'))).toBe(false);
+    expect(lines.filter((l) => l.startsWith('note') && l.includes("the front's own"))).toHaveLength(1);
+    expectNoAddress(lines);
+  });
+
+  it("FAILS on the root's name too, and on an issuer that carries more than one common name", async () => {
+    const { io, lines } = fakeIo({
+      open: [[FRONT, 5432]],
+      certificates: { [`${FRONT}#5432`]: { kind: 'tls', issuer: ['A Proxy CA', `${CADDY_LOCAL_CA} - 2026 ECC Root`] } },
+    });
+    expect(await runProbe(HELD, io)).toBe(1);
+    expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/port 5432 presents a certificate from Caddy's own local CA/);
+  });
+
+  it('a certificate from any other issuer is a note, and nothing of it is printed', async () => {
+    const { io, lines } = fakeIo({
+      open: [[FRONT, 5432]],
+      certificates: { [`${FRONT}#5432`]: { kind: 'tls', issuer: ['Some Other Issuer R11'] } },
+    });
+    expect(await runProbe(HELD, io)).toBe(0);
+    const held = lines.find((l) => l.startsWith('note') && l.includes("the front's own"));
+    expect(held).toMatch(/over TLS it presented a certificate from an issuer that is not Caddy's local CA, so not counted$/);
+    expect(lines.join('\n')).not.toContain('R11');
+    expectNoAddress(lines);
+  });
+
+  it('FAILS when the TLS hello could not be sent: a port nobody could ask over TLS is a port nobody knows', async () => {
+    for (const untried of ['EPERM', 'timeout']) {
+      const { io, lines } = fakeIo({
+        open: [[FRONT, 5432]],
+        certificates: { [`${FRONT}#5432`]: { untried } },
+      });
+      expect(await runProbe(HELD, io)).toBe(1);
+      expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(
+        new RegExp(`^FAIL  app\\.ownpace\\.eu, .*\\(IPv4\\): port 5432 answers, and could not be asked over TLS \\(${untried}\\), so it is counted$`),
+      );
+    }
+  });
+
+  it('a PostgreSQL answer is the one finding, whatever the hello met', async () => {
+    const { io, lines } = fakeIo({
+      open: [[FRONT, 5432]],
+      postgres: { [`${FRONT}#5432`]: { kind: 'postgres' } },
+      certificates: { [`${FRONT}#5432`]: DASHBOARD },
+    });
+    expect(await runProbe(HELD, io)).toBe(1);
+    const fails = lines.filter((l) => l.startsWith('FAIL'));
+    expect(fails).toHaveLength(1);
+    expect(fails[0]).toMatch(/port 5432 answers as PostgreSQL/);
+  });
+
+  it('asks no hello on the machine\'s own address, or on one only the OTA names resolve to: there the answer already fails', async () => {
+    const machine = fakeIo({ open: [[MACHINE, 5432]], certificates: { [`${MACHINE}#5432`]: DASHBOARD } });
+    expect(await runProbe(HELD, machine.io)).toBe(1);
+    expect(machine.certAsked).toEqual([]);
+    const ota = fakeIo({ open: [[OTA_FRONT, 5432]] });
+    expect(await runProbe(HELD, ota.io)).toBe(1);
+    expect(ota.certAsked).toEqual([]);
   });
 
   it('FAILS when the listed port answers as PostgreSQL: a database there is not the front', async () => {
@@ -776,6 +877,22 @@ describe('ports the front answers by itself (EXPOSURE_PROBE_FRONT_PORTS)', () =>
     expect(await runProbe(CONFIG, io)).toBe(1);
     expect(lines.find((l) => l.startsWith('FAIL'))).toMatch(/port 5432 answers$/);
     expect(pgAsked).toEqual([]);
+  });
+});
+
+describe("Caddy's own local CA, by the issuer's common names (2026-11-21)", () => {
+  it("knows the intermediate that signs the dashboard front's certificate, and the root above it", () => {
+    expect(CADDY_LOCAL_CA).toBe('Caddy Local Authority');
+    expect(fromCaddyLocalCa(['Caddy Local Authority - ECC Intermediate'])).toBe(true);
+    expect(fromCaddyLocalCa(['Caddy Local Authority - 2026 ECC Root'])).toBe(true);
+    expect(fromCaddyLocalCa(['Another CA', 'Caddy Local Authority - ECC Intermediate'])).toBe(true);
+  });
+
+  it('knows no other issuer, and a name that only contains it, or writes it otherwise, is another', () => {
+    expect(fromCaddyLocalCa([])).toBe(false);
+    expect(fromCaddyLocalCa(['R11'])).toBe(false);
+    expect(fromCaddyLocalCa(['Not the Caddy Local Authority'])).toBe(false);
+    expect(fromCaddyLocalCa(['caddy local authority - ECC Intermediate'])).toBe(false);
   });
 });
 
@@ -908,5 +1025,118 @@ describe('the real network, against a port on this machine', () => {
     await new Promise<void>((done) => server!.close(() => done()));
     const closing = await serve(() => null, 'end');
     expect(await realNetwork({ connectMs: 2000 }).postgres('127.0.0.1', closing.port)).toEqual({ kind: 'closed' });
+  });
+
+  it('a TLS hello that a port resets finished no handshake, as the front\'s listed ports answered it on 2026-11-21', async () => {
+    server = createServer((s) => s.on('data', () => s.resetAndDestroy()));
+    await new Promise<void>((done) => server!.listen(0, '127.0.0.1', done));
+    const address = server.address();
+    const port = typeof address === 'object' && address ? address.port : 0;
+    expect(await realNetwork({ tlsMs: 2000 }).certificate('127.0.0.1', port)).toEqual({ kind: 'not-tls' });
+  });
+
+  it('a port that takes the hello and says nothing finished no handshake within the timeout', async () => {
+    const { port } = await serve(() => null);
+    expect(await realNetwork({ tlsMs: 500 }).certificate('127.0.0.1', port)).toEqual({ kind: 'not-tls' });
+  });
+
+  it('a hello whose connection never formed is untried, never an answer: nothing was asked', async () => {
+    const { port } = await serve(() => null);
+    await new Promise<void>((done) => server!.close(() => done()));
+    server = undefined;
+    expect(await realNetwork({ tlsMs: 2000 }).certificate('127.0.0.1', port)).toEqual({ untried: 'ECONNREFUSED' });
+  });
+});
+
+/** Enough of a TLS socket for the hello: its events, its timeout, and the certificate it is handed. */
+class FakeTlsSocket extends EventEmitter {
+  cert: Record<string, unknown> = {};
+  destroyed = false;
+  setTimeout(_ms: number, onTimeout: () => void) {
+    this.once('timeout', onTimeout);
+    return this;
+  }
+  getPeerCertificate() {
+    return this.cert;
+  }
+  destroy() {
+    this.destroyed = true;
+    return this;
+  }
+}
+
+describe('the hello on a front port, through a TLS socket handed to it', () => {
+  function network(tlsMs = 10000) {
+    const sockets: FakeTlsSocket[] = [];
+    const options: Array<Record<string, unknown>> = [];
+    const net = realNetwork({
+      tlsMs,
+      connectTls: (o) => {
+        options.push(o);
+        const socket = new FakeTlsSocket();
+        sockets.push(socket);
+        return socket;
+      },
+    });
+    return { net, sockets, options };
+  }
+
+  it("names no server, verifies nothing, and keeps only the issuer's common names", async () => {
+    const { net, sockets, options } = network();
+    const pending = net.certificate('192.0.2.10', 3443);
+    const socket = sockets[0]!;
+    socket.cert = {
+      issuer: { CN: `${CADDY_LOCAL_CA} - ECC Intermediate`, O: 'Caddy' },
+      subject: {},
+      subjectaltname: 'IP Address:192.0.2.99',
+    };
+    socket.emit('connect');
+    socket.emit('secureConnect');
+    expect(await pending).toEqual({ kind: 'tls', issuer: [`${CADDY_LOCAL_CA} - ECC Intermediate`] });
+    expect(options).toEqual([{ host: '192.0.2.10', port: 3443, rejectUnauthorized: false }]);
+    expect(socket.destroyed).toBe(true);
+  });
+
+  it('reads an issuer that carries its common name twice as both, and one that carries none as none', async () => {
+    const twice = network();
+    const pendingTwice = twice.net.certificate('192.0.2.10', 3443);
+    twice.sockets[0]!.cert = { issuer: { CN: ['One CA', 'Two CA'] } };
+    twice.sockets[0]!.emit('connect');
+    twice.sockets[0]!.emit('secureConnect');
+    expect(await pendingTwice).toEqual({ kind: 'tls', issuer: ['One CA', 'Two CA'] });
+    const none = network();
+    const pendingNone = none.net.certificate('192.0.2.10', 3443);
+    none.sockets[0]!.emit('connect');
+    none.sockets[0]!.emit('secureConnect');
+    expect(await pendingNone).toEqual({ kind: 'tls', issuer: [] });
+  });
+
+  it('an error after the connection formed is no handshake; before it, or one that says the runner cannot try, is untried', async () => {
+    const reset = network();
+    const pendingReset = reset.net.certificate('192.0.2.10', 3443);
+    reset.sockets[0]!.emit('connect');
+    reset.sockets[0]!.emit('error', Object.assign(new Error('reset'), { code: 'ECONNRESET' }));
+    expect(await pendingReset).toEqual({ kind: 'not-tls' });
+    const refused = network();
+    const pendingRefused = refused.net.certificate('192.0.2.10', 3443);
+    refused.sockets[0]!.emit('error', Object.assign(new Error('refused'), { code: 'ECONNREFUSED' }));
+    expect(await pendingRefused).toEqual({ untried: 'ECONNREFUSED' });
+    const denied = network();
+    const pendingDenied = denied.net.certificate('192.0.2.10', 3443);
+    denied.sockets[0]!.emit('connect');
+    denied.sockets[0]!.emit('error', Object.assign(new Error('denied'), { code: 'EPERM' }));
+    expect(await pendingDenied).toEqual({ untried: 'EPERM' });
+  });
+
+  it('a timeout after the connection formed is no handshake, and before it untried', async () => {
+    const after = network(10);
+    const pendingAfter = after.net.certificate('192.0.2.10', 3443);
+    after.sockets[0]!.emit('connect');
+    after.sockets[0]!.emit('timeout');
+    expect(await pendingAfter).toEqual({ kind: 'not-tls' });
+    const before = network(10);
+    const pendingBefore = before.net.certificate('192.0.2.10', 3443);
+    before.sockets[0]!.emit('timeout');
+    expect(await pendingBefore).toEqual({ untried: 'timeout' });
   });
 });
