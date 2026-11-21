@@ -7,7 +7,9 @@
  * 
  * Features:
  * - Calendar home set discovery via PROPFIND
- * - Incremental sync using sync-collection REPORT (RFC 6578)
+ * - Incremental sync using sync-collection REPORT (RFC 6578), followed
+ *   through its pages (§3.6), with the members a server lists without their
+ *   data read by calendar-multiget (RFC 4791 §7.9) (workplan 0164 T2)
  * - CTag fallback when sync-token not supported
  * - Case-insensitive UID handling (UIDs are lowercased for comparison)
  */
@@ -39,6 +41,86 @@ import {
 } from './dav-http.types.ts';
 import { parseRemovedHrefs } from './dav-removals.ts';
 import { asksToSlowDown, rateLimitWaitMs } from './rate-limit-once.ts';
+
+/**
+ * How many members one `calendar-multiget` asks for (RFC 4791 §7.9).
+ *
+ * Small enough that one request stays small, and that a batch that fails
+ * names few members; large enough that a first reading of a calendar of
+ * 3,624 events, the largest T1 measured at Google (workplan 0164), is 73
+ * requests rather than hundreds.
+ */
+export const MULTIGET_HREFS_PER_REQUEST = 50;
+
+/**
+ * The most pages of one `sync-collection` reading this follows (RFC 6578
+ * §3.6). Google answered a calendar of 3,627 members in 15 pages (workplan
+ * 0164 T1), about 250 a page, so this is room for about 25,000, far past a
+ * family's or a small business's calendar. A reading still truncated past it
+ * is read whole instead (`syncCollection`). The cost it bounds: a server
+ * whose pages never end is asked this many times a pass before that.
+ */
+export const MOST_SYNC_PAGES = 100;
+
+/**
+ * One `sync-collection` reading, every page of it.
+ *
+ * `answered`: the pages ended, and this is what they said. `refused`: the
+ * first page was not a 207, and `response` is what came instead. `cut-short`:
+ * a later page was not a 207, or the pages did not end; `why` says which, and
+ * what the pages before it said is kept.
+ */
+type SyncReading =
+  | {
+      readonly kind: 'answered';
+      readonly objects: CalDAVCalendarObject[];
+      /** Members listed without their calendar data: what is left to read. */
+      readonly toRead: string[];
+      readonly removed: string[];
+      readonly syncToken?: string;
+      readonly ctag?: string;
+      readonly pages: number;
+      readonly bytes: number;
+    }
+  | { readonly kind: 'refused'; readonly response: HttpResponse }
+  | {
+      readonly kind: 'cut-short';
+      readonly why: string;
+      readonly removed: string[];
+      /** The last token a page gave, from which the rest of the changes follow. */
+      readonly syncToken?: string;
+    };
+
+/**
+ * RFC 6578 §3.2: a token the server will no longer take is refused with the
+ * `DAV:valid-sync-token` precondition, as a 403 or a 409.
+ */
+function refusesTheSyncToken(response: HttpResponse): boolean {
+  return (
+    (response.status === 403 || response.status === 409) &&
+    /<(?:[A-Za-z][\w-]*:)?valid-sync-token\b/i.test(response.body)
+  );
+}
+
+/** A `<response>`'s own status, with its propstats taken out: about the resource, not a property. */
+function responseLevelStatus(responseXml: string): number | undefined {
+  const own = responseXml.replace(
+    /<[A-Za-z][\w-]*:propstat[^>]*>[\s\S]*?<\/[A-Za-z][\w-]*:propstat>/gi,
+    '',
+  );
+  const text = own.match(/<[A-Za-z][\w-]*:status[^>]*>([^<]*)<\/[A-Za-z][\w-]*:status>/i)?.[1];
+  const code = text?.match(/\b(\d{3})\b/)?.[1];
+  return code === undefined ? undefined : Number(code);
+}
+
+/** Whether a `<response>`'s resourcetype names a collection (RFC 4918 §15.9): not a calendar object. */
+function isCollectionResource(responseXml: string): boolean {
+  const type =
+    responseXml.match(
+      /<[A-Za-z][\w-]*:resourcetype[^>]*>([\s\S]*?)<\/[A-Za-z][\w-]*:resourcetype>/i,
+    )?.[1] ?? '';
+  return /<(?:[A-Za-z][\w-]*:)?collection\b/i.test(type);
+}
 
 /**
  * CalDAV source connector implementation.
@@ -134,6 +216,40 @@ export class CalDAVSource implements CalendarSource {
     // Omitted rather than sent as `[]` when there are none, so "the server
     // reported no removals" and "this poll could not report removals" are not
     // spelled the same way.
+    //
+    // ## A 404 IN AN ANSWER TO NO TOKEN (workplan 0164 T2)
+    //
+    // RFC 6578 §3.4 says a first reading, one with an empty token, lists the
+    // members there are and no removed ones: with no earlier state, a client
+    // would have nothing to hold a removal against. Google lists them anyway:
+    // 3, 5 and 7 members with 404 in three calendars' first readings (0164
+    // T1), removals it still remembers. They are carried up here as `removed`,
+    // exactly as a 404 in an answer to a token is, and the reasoning is this:
+    //
+    //  - A 404 at the response's own level is the server's word that the
+    //    resource at that href is gone (RFC 4918 §14.24, RFC 6578 §3.5.2),
+    //    whatever token was sent. §3.4 is about what a server sends, and does
+    //    not make it untrue.
+    //  - What the RFC protects against cannot happen here. A 404 is matched to
+    //    the ledger by its href (`findBySourceRef`), and a 404 for something
+    //    this migration never copied matches no row and is passed over. Only
+    //    a copy the ledger holds becomes a `reported` removal.
+    //  - And it is the only way to learn of one. An existing Google migration
+    //    holds no token, because `calendar-query` never gave one, so its first
+    //    pass on this reader sends none; the events deleted at Google while it
+    //    listed whole are in that answer and in no later one, since an answer
+    //    to a token lists only what changed after it.
+    //  - The gates are the same as for any reported removal: resolved only by
+    //    a pass that reached every collection, never for an item seen
+    //    anywhere in that pass (a move between calendars, a 404 in one and a
+    //    200 in the other, is a move), never for an item whose move an
+    //    earlier pass recorded (its old href's 404 is that move's echo, which
+    //    a reading with no token repeats while the calendar it moved to, read
+    //    with a token, names it no more: `resolveReportedRemovals`), and
+    //    nothing applied: a person applies it, behind every gate of ADR-0024.
+    //
+    // The same rule held already for a server that sends its data: a 404 in
+    // any answer has been carried up since `parseRemovedHrefs`, token or none.
     return {
       items,
       nextCursor,
@@ -345,17 +461,30 @@ export class CalDAVSource implements CalendarSource {
       }
     }
 
-    const report = this.buildSyncCollectionReport(collectionPath, syncToken, ctag);
+    let reading = await this.readSyncCollection(collectionPath, syncToken, ctag);
 
-    const response = await this.send({
-      method: 'REPORT',
-      url: this.resolveHref(collectionPath),
-      body: report,
-      headers: {
-        'Content-Type': 'application/xml',
-        Authorization: await this.authorizationHeader(),
-      },
-    });
+    /**
+     * A TOKEN THE SERVER REFUSED IS DROPPED, AND THE CALENDAR READ WHOLE
+     * AGAIN, ONCE (workplan 0164 T2).
+     *
+     * RFC 6578 §3.2: a token a server no longer takes, expired or never its
+     * own, is refused with the `DAV:valid-sync-token` precondition. Nothing it
+     * stood for can be asked about any more, so the calendar is read the way a
+     * first reading is, with no token, in this pass rather than the next. Once:
+     * an answer to no token cannot refuse a token, and whatever else it says is
+     * handled below as any first reading's is. Before this, a refused token
+     * went to `calendar-query` like any other non-207, and was dropped there,
+     * a pass later.
+     */
+    if (reading.kind === 'refused' && syncToken !== undefined && refusesTheSyncToken(reading.response)) {
+      log.warn(
+        `[caldav] a calendar's server refused this read's sync token ` +
+          `(${reading.response.status}, DAV:valid-sync-token, RFC 6578 §3.2), so the token is dropped ` +
+          'and the calendar is read whole again, once.',
+      );
+      syncToken = undefined;
+      reading = await this.readSyncCollection(collectionPath, undefined, ctag);
+    }
 
     /**
      * WHEN `sync-collection` DOES NOT ANSWER, ASK THE QUESTION EVERY CALDAV
@@ -403,26 +532,61 @@ export class CalDAVSource implements CalendarSource {
      * untouched — and no future delta ever going to mention it again. The
      * existing suite tested every one of those reads alone and never fed the
      * first one's cursor into the second, which is the only place it breaks.
+     *
+     * ## Google's 207 was not nothing (workplan 0164 T2)
+     *
+     * What Google sent, measured on 2026-11-21 (0164 T1), was a list: every
+     * member by its href, the removed ones with a 404, in pages, and no
+     * calendar data at all. The parse below kept only members that carried
+     * data, so the list read as nothing and the calendar was listed whole on
+     * every pass (6,212 events skipped a pass, 0164 §1), and no removal was
+     * ever reported. A member listed without its data is now a member to
+     * read (`toRead`, read by `calendar-multiget` in `withEveryMemberRead`),
+     * so "nothing" means no member and no removal on any page. A server that
+     * sends its data with each member, as Nextcloud does, is still read from
+     * that one answer, with no multiget.
      */
-    const parsed =
-      response.status === 207 ? this.parseSyncCollectionResponse(response.body) : undefined;
-    const answeredNothing =
-      parsed !== undefined && parsed.objects.length === 0 && parsed.removed.length === 0;
-
-    if (parsed !== undefined && !(answeredNothing && syncToken === undefined)) {
-      return parsed;
+    if (reading.kind === 'cut-short') {
+      // The pages did not end, so this reading names only part of what
+      // changed. The calendar is listed whole instead, which leaves nothing
+      // out, and what the pages did say is kept: the removals the server
+      // reported, and the last token a page gave, from which the rest of the
+      // changes follow (RFC 6578 §3.6). The listing was taken after that
+      // token, so a change the next pass is told of again, which this
+      // listing already copied, is skipped there by the ledger.
+      log.warn(
+        `[caldav] a calendar's sync-collection answered in pages (RFC 6578 §3.6) and ${reading.why}, ` +
+          `so this pass lists the calendar whole with calendar-query (RFC 4791 §7.8), and keeps the ` +
+          `${reading.removed.length} removal(s) the pages reported` +
+          `${reading.syncToken !== undefined ? ' and the last token they gave' : ''}.`,
+      );
+      const { objects } = await this.calendarQueryAll(collectionPath);
+      return {
+        objects,
+        ...(reading.syncToken !== undefined ? { syncToken: reading.syncToken } : {}),
+        removed: reading.removed,
+      };
     }
 
-    if (parsed === undefined) {
+    if (reading.kind === 'refused') {
       log.warn(
-        `[caldav] '${collectionPath}': sync-collection answered ${response.status}, not 207 — ` +
+        `[caldav] a calendar's sync-collection answered ${reading.response.status}, not 207 — ` +
           `falling back to a calendar-query listing (RFC 4791 §7.8). ` +
-          davRefusalBody(response.body),
+          davRefusalBody(reading.response.body),
       );
     } else {
+      // What is left to read, counted once the calendar's own href and any
+      // collection are out of it: a server that lists nothing but the
+      // calendar itself has answered nothing.
+      const toRead = this.membersToRead(collectionPath, reading);
+      const answeredNothing =
+        reading.objects.length === 0 && toRead.length === 0 && reading.removed.length === 0;
+      if (!(answeredNothing && syncToken === undefined)) {
+        return this.withEveryMemberRead(collectionPath, reading, toRead);
+      }
       log.warn(
-        `[caldav] '${collectionPath}': a sync-collection read that sent no sync token came back with ` +
-          `no objects and no removals, from a ${response.body.length}-byte 207. That is a claim ` +
+        `[caldav] a calendar's sync-collection read that sent no sync token came back with ` +
+          `no objects and no removals, from a ${reading.bytes}-byte 207. That is a claim ` +
           `the whole calendar is empty, which this does not take on trust — falling back to a ` +
           `calendar-query listing (RFC 4791 §7.8).`,
       );
@@ -431,17 +595,322 @@ export class CalDAVSource implements CalendarSource {
     const { objects } = await this.calendarQueryAll(collectionPath);
     if (objects.length === 0) {
       log.warn(
-        `[caldav] '${collectionPath}': the calendar-query listing found nothing either, so this ` +
+        `[caldav] the calendar-query listing found nothing either, so this ` +
           `collection really is empty for ${this.component}.`,
       );
     }
-    // No incremental cursor from this path: `calendar-query` answers
-    // "everything that matches", so every pass re-lists. Correctness holds —
-    // ADR-0020 makes cursors non-authoritative and the ledger's natural-key
-    // fast-path keeps the re-scan idempotent. And no removal reports either:
-    // a deleted event is simply absent from the answer, which is the
-    // absence-counting path's business, not this one. `[]` says exactly that.
-    return { objects, syncToken: undefined, ctag: undefined, removed: [] };
+    // No removal reports from this path: a deleted event is simply absent
+    // from a `calendar-query` answer, which is the absence-counting path's
+    // business, not this one. `[]` says exactly that. And no token of its
+    // own: `calendar-query` answers "everything that matches", and ADR-0020
+    // makes cursors non-authoritative, so a re-scan stays idempotent.
+    //
+    // THE TOKEN IT WAS SENT IS KEPT when the server refused something other
+    // than the token (workplan 0164 T2, review of #2019): a 500 or a report
+    // it would not answer this once. The listing is newer than that token,
+    // so nothing it stands for is left out, and the next pass asks from it
+    // again rather than reading the calendar whole with no token, whose
+    // answer at Google names every removal it remembers. A token the server
+    // refused as a token was dropped above, and a read that sent none has
+    // none to keep. Should a server refuse a token without naming
+    // `DAV:valid-sync-token`, each pass lists the calendar whole, as every
+    // Google pass did before this reader, and this line names the status.
+    return { objects, ...(syncToken !== undefined ? { syncToken } : {}), removed: [] };
+  }
+
+  /**
+   * One `sync-collection` reading, followed through every page (RFC 6578
+   * §3.6, workplan 0164 T2).
+   *
+   * A server may answer in part: a 207 whose `<response>` for the collection
+   * itself says 507, with a token from which the rest follows. Google does,
+   * in pages of about 250 (0164 T1: 15 pages for a calendar of 3,627
+   * members). Only the last page's token stands for the whole reading, so
+   * the pages are asked for in turn, each with the token the one before it
+   * gave, until one is not truncated. Each page is the same REPORT; only its
+   * token differs.
+   *
+   * The first page's non-207 is returned as `refused`, for `syncCollection`
+   * to read as a refused token or a report the server does not answer. A
+   * later page's non-207, a truncated page with no token to go on with or
+   * with the token it was sent, and more than `MOST_SYNC_PAGES` pages are
+   * `cut-short`: the reading names only part of what changed, and is never
+   * returned as though it were whole.
+   */
+  private async readSyncCollection(
+    collectionPath: string,
+    syncToken: string | undefined,
+    ctag: string | undefined,
+  ): Promise<SyncReading> {
+    const objects: CalDAVCalendarObject[] = [];
+    const toRead: string[] = [];
+    const removed: string[] = [];
+    let next = syncToken;
+    let bytes = 0;
+    let level = true;
+    const ask = async (token: string | undefined, withLevel: boolean): Promise<HttpResponse> =>
+      this.send({
+        method: 'REPORT',
+        url: this.resolveHref(collectionPath),
+        body: this.buildSyncCollectionReport(collectionPath, token, ctag, withLevel),
+        headers: {
+          'Content-Type': 'application/xml',
+          Authorization: await this.authorizationHeader(),
+        },
+      });
+    for (let pages = 0; ; ) {
+      let response = await ask(next, level);
+      if (response.status === 400 && level && pages === 0) {
+        // A server that will not take `sync-level` (RFC 6578 §6.1 has it in
+        // every request) is asked once more without it, as this source asked
+        // before, and every page of this reading goes without it.
+        const without = await ask(next, false);
+        if (without.status === 207) {
+          log.warn(
+            '[caldav] a calendar\'s server answered sync-level 1 with 400 and the same report without it ' +
+              'with 207, so this reading goes without sync-level.',
+          );
+          level = false;
+          response = without;
+        }
+      }
+      if (response.status !== 207) {
+        if (pages === 0) return { kind: 'refused', response };
+        return {
+          kind: 'cut-short',
+          why: `page ${pages + 1} answered ${response.status}`,
+          removed,
+          ...(next !== undefined ? { syncToken: next } : {}),
+        };
+      }
+      pages += 1;
+      bytes += response.body.length;
+      const page = this.parseSyncCollectionResponse(response.body);
+      objects.push(...page.objects);
+      toRead.push(...page.toRead);
+      removed.push(...page.removed);
+      if (!page.truncated) {
+        return {
+          kind: 'answered',
+          objects,
+          toRead,
+          removed,
+          ...(page.syncToken !== undefined ? { syncToken: page.syncToken } : {}),
+          ...(page.ctag !== undefined ? { ctag: page.ctag } : {}),
+          pages,
+          bytes,
+        };
+      }
+      const stuck =
+        page.syncToken === undefined
+          ? `page ${pages} was truncated and gave no token to go on with`
+          : page.syncToken === next
+            ? `page ${pages} was truncated and gave back the token it was sent`
+            : pages >= MOST_SYNC_PAGES
+              ? `it was still truncated after ${MOST_SYNC_PAGES} pages`
+              : undefined;
+      if (stuck !== undefined) {
+        return {
+          kind: 'cut-short',
+          why: stuck,
+          removed,
+          ...(page.syncToken !== undefined ? { syncToken: page.syncToken } : {}),
+        };
+      }
+      next = page.syncToken;
+    }
+  }
+
+  /**
+   * THE MEMBERS A READING NAMED WITHOUT THEIR DATA, READ (workplan 0164 T2).
+   *
+   * RFC 6578 lets a `sync-collection` answer name a changed member by its
+   * href and ETag without the data asked for; Google's carries none (0164
+   * T1). Those members are read with `calendar-multiget` (RFC 4791 §7.9),
+   * `MULTIGET_HREFS_PER_REQUEST` at a time, and each is handed on under the
+   * href the reading named it by: that is the href a later 404 names, and
+   * `findBySourceRef` matches the two as plain strings.
+   *
+   * A multiget that falls short (a batch not answered with 207, a member it
+   * answers without its data, a 404 included, or leaves out) would leave
+   * members unread, and the token past them would retire them for good. So the
+   * calendar is listed whole with `calendar-query` instead, as it was before
+   * this reader, and nothing is left out: the removals the reading reported
+   * and its token are kept, since a whole listing taken after the token is
+   * complete for everything the token stands for. A failing batch thus loses
+   * none of the members of the batches around it, and costs that one pass
+   * what every pass cost before. If the listing fails too, that is thrown,
+   * and the pass skips the collection with its token unmoved.
+   */
+  private async withEveryMemberRead(
+    collectionPath: string,
+    reading: Extract<SyncReading, { kind: 'answered' }>,
+    toRead: readonly string[],
+  ): Promise<{ objects: CalDAVCalendarObject[]; syncToken?: string; ctag?: string; removed: string[] }> {
+    const kept = {
+      ...(reading.syncToken !== undefined ? { syncToken: reading.syncToken } : {}),
+      ...(reading.ctag !== undefined ? { ctag: reading.ctag } : {}),
+      removed: reading.removed,
+    };
+    if (toRead.length === 0) return { objects: reading.objects, ...kept };
+
+    const read = await this.readMembers(collectionPath, toRead);
+    if (read.short === undefined) {
+      log.info(
+        `[caldav] sync-collection named ${toRead.length} member(s) of a calendar without their data ` +
+          `over ${reading.pages} page(s); read with ` +
+          `${Math.ceil(toRead.length / MULTIGET_HREFS_PER_REQUEST)} calendar-multiget request(s) (RFC 4791 §7.9).`,
+      );
+      return { objects: [...reading.objects, ...read.objects], ...kept };
+    }
+    log.warn(
+      `[caldav] ${read.short}, so not every one of the ${toRead.length} member(s) a calendar's ` +
+        `sync-collection named without their data was read. This pass lists the calendar whole with ` +
+        `calendar-query (RFC 4791 §7.8), as it did before, and keeps the ${reading.removed.length} ` +
+        `removal(s) the server reported and its sync token.`,
+    );
+    const { objects } = await this.calendarQueryAll(collectionPath);
+    return { objects, ...kept };
+  }
+
+  /**
+   * The hrefs left to read: each once, none that came with its data on
+   * another page, and not the collection's own href, which a server may list
+   * among its members.
+   */
+  private membersToRead(
+    collectionPath: string,
+    reading: Extract<SyncReading, { kind: 'answered' }>,
+  ): string[] {
+    const withData = new Set(reading.objects.map((o) => this.sameResource(o.href)));
+    const itself = this.sameResource(collectionPath).replace(/\/+$/, '');
+    const seen = new Set<string>();
+    const toRead: string[] = [];
+    for (const href of reading.toRead) {
+      const key = this.sameResource(href);
+      if (seen.has(key) || withData.has(key) || key.replace(/\/+$/, '') === itself) continue;
+      seen.add(key);
+      toRead.push(href);
+    }
+    return toRead;
+  }
+
+  /**
+   * `calendar-multiget` (RFC 4791 §7.9), `MULTIGET_HREFS_PER_REQUEST` hrefs a
+   * request, in turn. Returns what it read, and in `short` why it stopped
+   * before reading every member: counts and a status, and the server's own
+   * words where it refused, as every other DAV refusal here carries them.
+   * No member's href or data is put in it.
+   *
+   * A MEMBER THE MULTIGET ANSWERS 404 FOR IS NOT TAKEN AS GONE (review of
+   * #2019). It may have gone since the reading listed it; it may as well be
+   * there, and a multiget that cannot find what `sync-collection` just named
+   * (an href it spells another way, a server's own fault) is the likelier
+   * reading of a batch of them. Passed over, a member that is there was never
+   * copied, and the token handed on retired it for good. Counted short, the
+   * calendar is listed whole for that pass: a member that went is absent from
+   * the listing, and the next reading, with the token, reports its removal
+   * (RFC 6578 §3.5.2); a member that is there is copied.
+   */
+  private async readMembers(
+    collectionPath: string,
+    hrefs: readonly string[],
+  ): Promise<{ objects: CalDAVCalendarObject[]; short?: string }> {
+    const objects: CalDAVCalendarObject[] = [];
+    for (let at = 0; at < hrefs.length; at += MULTIGET_HREFS_PER_REQUEST) {
+      const batch = hrefs.slice(at, at + MULTIGET_HREFS_PER_REQUEST);
+      const authorization = await this.authorizationHeader();
+      let response: HttpResponse;
+      try {
+        response = await this.send({
+          method: 'REPORT',
+          url: this.resolveHref(collectionPath),
+          body: this.buildMultigetReport(batch),
+          headers: {
+            'Content-Type': 'application/xml',
+            // RFC 4791 §7.9: a server MUST ignore Depth on a multiget, whose
+            // hrefs name what it reads. Sent as `calendar-query` sends it, so
+            // a server that reads it all the same reads the collection's
+            // members, which is where these hrefs are.
+            Depth: '1',
+            Authorization: authorization,
+          },
+        });
+      } catch (err) {
+        return {
+          objects,
+          short: `a calendar-multiget of ${batch.length} member(s) got no answer (${(err as Error)?.message ?? String(err)})`,
+        };
+      }
+      if (response.status !== 207) {
+        return {
+          objects,
+          short:
+            `a calendar-multiget of ${batch.length} member(s) answered ${response.status}: ` +
+            davRefusalBody(response.body),
+        };
+      }
+      const answer = this.parseSyncCollectionResponse(response.body);
+      const found = new Map(answer.objects.map((o) => [this.sameResource(o.href), o]));
+      let left = 0;
+      for (const href of batch) {
+        const object = found.get(this.sameResource(href));
+        if (object !== undefined) {
+          objects.push({ href, icalendar: object.icalendar, ...(object.etag ? { etag: object.etag } : {}) });
+        } else {
+          left += 1;
+        }
+      }
+      if (left > 0) {
+        return {
+          objects,
+          short: `a calendar-multiget of ${batch.length} member(s) answered ${left} of them without their data`,
+        };
+      }
+    }
+    return { objects };
+  }
+
+  /**
+   * The `calendar-multiget` REPORT (RFC 4791 §9.10) for these hrefs. Each is
+   * the text of an href from a multistatus, entities and all, so it is
+   * decoded and escaped again: a `&amp;` in a member's href goes out as one.
+   */
+  private buildMultigetReport(hrefs: readonly string[]): string {
+    const named = hrefs
+      .map((href) => `<D:href>${this.escapeXml(this.decodeXmlEntities(href).trim())}</D:href>`)
+      .join('\n        ');
+    return `<?xml version="1.0" encoding="utf-8"?>
+      <C:calendar-multiget xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        <D:prop>
+          <D:getetag/>
+          <C:calendar-data/>
+        </D:prop>
+        ${named}
+      </C:calendar-multiget>`;
+  }
+
+  /**
+   * One resource as two answers may spell its href: the entities decoded,
+   * an origin dropped, the percent-escapes undone. Used only to MATCH a
+   * multiget's answers to the hrefs it asked for; what is handed on is the
+   * href as the reading gave it, never this.
+   */
+  private sameResource(href: string): string {
+    let path = this.decodeXmlEntities(href).trim();
+    if (/^https?:\/\//i.test(path)) {
+      try {
+        path = new URL(path).pathname;
+      } catch {
+        // Not a URL after all: compared as it came.
+      }
+    }
+    try {
+      path = decodeURIComponent(path);
+    } catch {
+      // A stray `%`: compared as it came.
+    }
+    return path;
   }
 
   /**
@@ -496,6 +965,7 @@ export class CalDAVSource implements CalendarSource {
     collectionPath: string,
     syncToken?: string,
     ctag?: string,
+    level = true,
   ): string {
     // Nextcloud requires sync-token element even for full syncs
     // Use empty string for full sync, actual token for incremental sync
@@ -503,23 +973,28 @@ export class CalDAVSource implements CalendarSource {
       ? `<D:sync-token>${this.escapeXml(syncToken)}</D:sync-token>`
       : '<D:sync-token/>';
 
-    const ctagElement = ctag
-      ? `<C:expand xmlns:C="urn:ietf:params:xml:ns:caldav" start="19700101T000000Z" end="20991231235959Z"/>`
-      : '';
+    const calendarData = ctag
+      ? `<C:calendar-data><C:expand start="19700101T000000Z" end="20991231235959Z"/></C:calendar-data>`
+      : '<C:calendar-data/>';
 
+    // THE REPORT T1 MEASURED AT GOOGLE (workplan 0164 T1; review of #2019):
+    // sync-token, `sync-level` 1, then prop, the order and the elements RFC
+    // 6578 §6.1 gives every `sync-collection`. This source used to send prop
+    // first and no `sync-level`, and Google's answer to that was measured
+    // only as "no calendar data". A server that refuses `sync-level` with a
+    // 400 is asked once more without it (`readSyncCollection`), as T1 did.
     return `<?xml version="1.0" encoding="utf-8"?>
       <D:sync-collection xmlns:D="DAV:" xmlns:C="urn:ietf:params:xml:ns:caldav">
+        ${syncTokenElement}
+        ${level ? '<D:sync-level>1</D:sync-level>' : ''}
         <D:prop>
           <D:resourcetype/>
           <!-- Per-object ETag: the shadow-sync change signal. Without asking
                for it here the response carries none and every event looks
                unchanged forever. -->
           <D:getetag/>
-          <C:calendar-data>
-            ${ctagElement}
-          </C:calendar-data>
+          ${calendarData}
         </D:prop>
-        ${syncTokenElement}
       </D:sync-collection>`;
   }
 
@@ -699,15 +1174,28 @@ export class CalDAVSource implements CalendarSource {
     ctag?: string;
     /** Hrefs the server reported as gone (RFC 6578). See `dav-removals.ts`. */
     removed: string[];
+    /**
+     * Hrefs of members listed WITHOUT their calendar data: there, and left
+     * to read (workplan 0164 T2). Not a removal, not a collection, and not
+     * the 507 that says the answer was cut short.
+     */
+    toRead: string[];
+    /** A 507 for the collection: this is one page, and the token carries on (RFC 6578 §3.6). */
+    truncated: boolean;
   } {
     const objects: CalDAVCalendarObject[] = [];
+    const toRead: string[] = [];
+    let truncated = false;
     let syncToken: string | undefined;
     let ctag: string | undefined;
 
-    // Extract sync-token if present - namespace-agnostic
+    // Extract sync-token if present - namespace-agnostic. Decoded, as the
+    // text inside XML it is: it is escaped again when it is sent, and a token
+    // carrying an `&` (often a URL) would otherwise go back changed (review of
+    // #2019).
     const syncTokenMatch = body.match(/<[A-Za-z]+:sync-token>([^<]+)<\/[A-Za-z]+:sync-token>/i);
     if (syncTokenMatch && syncTokenMatch[1]) {
-      syncToken = syncTokenMatch[1].trim();
+      syncToken = this.decodeXmlEntities(syncTokenMatch[1]).trim();
     }
 
     // Extract CTag if present (in Content-Mod-Time or other headers) - namespace-agnostic
@@ -732,7 +1220,24 @@ export class CalDAVSource implements CalendarSource {
 
       // Extract calendar data - namespace-agnostic
       const calendarDataMatch = responseXml.match(/<[A-Za-z]+:calendar-data[^>]*>([\s\S]*?)<\/[A-Za-z]+:calendar-data>/i);
-      if (!calendarDataMatch || !calendarDataMatch[1]) continue;
+      if (!calendarDataMatch || !calendarDataMatch[1]) {
+        // NOT NOTHING (workplan 0164 T2). A member listed without its data
+        // used to be passed over here, which is how Google's whole list read
+        // as an empty one. Its own status, with its propstats taken out,
+        // says what it is: none, or a 2xx, is a member that is there, so it
+        // is read (unless it is a collection, which holds no event); a 404
+        // is a removal, which `parseRemovedHrefs` below reports; a 507 is
+        // the collection itself, saying this is one page of the answer. A
+        // 404 INSIDE a propstat, which is what a server says of
+        // `calendar-data` it will not send, is about that property, and the
+        // member is still there.
+        const own = responseLevelStatus(responseXml);
+        if (own === 507) truncated = true;
+        else if ((own === undefined || (own >= 200 && own < 300)) && !isCollectionResource(responseXml)) {
+          toRead.push(href);
+        }
+        continue;
+      }
 
       const icalendar = this.parseCalendarData(calendarDataMatch[1]);
 
@@ -754,7 +1259,7 @@ export class CalDAVSource implements CalendarSource {
     // `sync-collection` REPORT and dropping these on the floor, which meant the
     // strongest deletion signal available anywhere in the product arrived on
     // every incremental pass and was discarded.
-    return { objects, syncToken, ctag, removed: parseRemovedHrefs(body) };
+    return { objects, syncToken, ctag, removed: parseRemovedHrefs(body), toRead, truncated };
   }
 
   /**

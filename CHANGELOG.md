@@ -156,6 +156,28 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Fixed
 
+- **An event deleted in a Google calendar reaches *Deleted on the old system*** (workplan 0164
+  T2). Measured on 2026-11-21 (T1), Google answered a `sync-collection` REPORT with every changed
+  event by its address and version, the deleted ones as a 404, in pages, and no calendar data, and
+  the CalDAV source read that as nothing: it listed every Google calendar whole on every pass
+  (6,212 events skipped a pass on the owner's test) and reported no deletion. It now sends the
+  REPORT T1 measured (with `sync-level` 1), follows the pages to the last one, reads the events
+  they name with `calendar-multiget`, 50 at a time, and keeps the calendar's sync token, so a pass
+  whose multiget answers reads what changed. An event deleted at Google is reported as removed by
+  the source: it reaches the deletions queue, and its copy is removed only when the owner applies
+  it, as for every reported removal. A deletion Google names in a reading with no token, as on an
+  existing migration's first pass, is reported when this migration copied the event and passed
+  over when it did not. An event moved between two calendars is a move, and stays one when the
+  calendar it left is later read with no token. When the multiget does not return every event
+  with its data (a 404 included), the calendar is listed whole for that pass, as before, keeping
+  the deletions and the token. What changed for every CalDAV server, Nextcloud's included: the
+  REPORT now carries `sync-level` 1, and a server that refuses it with a 400 is asked once more
+  without it; a refused token (a 403 or 409 naming `valid-sync-token`) is dropped and the calendar
+  read again with no token in the same pass, where it went to `calendar-query` before; any other
+  refusal keeps the token it was sent; a sync token holding an `&` is sent back as it came; and an
+  event a server lists without its data is read rather than passed over. The sync loop holds a
+  calendar's token for its deletions only while one of them could become a deletion, and does not
+  report a removal at the old address of an item whose move it recorded.
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
   billing page and never reached Mollie: the API answered the page Mollie sends the customer back
   to after paying, the app's own billing page, as the address to pay at. It now answers the
