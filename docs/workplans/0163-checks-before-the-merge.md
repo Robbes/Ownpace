@@ -30,8 +30,14 @@ from `main` at `02e88d52`; the first half of step 2 of §5, as D2 decided.
      - With no branch rule, it runs as today. The token is then out of reach of every job that
        does not name the environment, and a job on a branch that names it can still read it.
   3. Then delete the two repository secrets (Settings → Secrets and variables → Actions).
+- **zizmor's own audit, as the outside check reads finding 1** (the measure branch, run
+  44888863792): zizmor 1.32.0 as `zizmor.yml` pins it, offline and read-only, with the auditor
+  persona, the only one that shows `secrets-outside-env` since zizmor 1.24.0. On `main` it finds
+  one, at `.github/workflows/exposure-probe.yml:120`, the probe's step that reads
+  `EXPOSURE_PROBE_HOST`; on the T1 branch, none. It does not read a workflow's top-level `env:`,
+  where the token sat on `main`, so it never flagged `e2e-managed.yml`; the guard does.
 - **Not in this:** zizmor's `secrets-outside-env` report, a second zizmor run in `zizmor.yml`
-  (step 2's second half).
+  (step 2's second half). Since it does not read a top-level `env:`, the guard stays beside it.
 - **Tests:** the new guard (4 tests, its mutations among them). With the 21 guards that read the
   two workflows, the guards that read every workflow and the doc guards: 55 files, 1,641 tests.
   `pnpm typecheck` and ESLint pass.
