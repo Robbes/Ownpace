@@ -160,7 +160,12 @@ router.get('/', authenticateSubject, async (req: AuthenticatedRequest, res: Resp
     // tenant-scoped route and wrong for the one route whose entire job is to
     // report where somebody may go. Two organisations and no choice made is an
     // answer here ("these two, currently neither"), not a 400.
-    const named = req.requestedTenantId?.trim();
+    //
+    // The header is read as `resolveTenant` reads it: trimmed, and in lower
+    // case, the one spelling the database gives an id. An id sent in capitals
+    // acts on its organisation on every other route, so here it is that
+    // organisation too, not none (0162 T1's re-review).
+    const named = req.requestedTenantId?.trim().toLowerCase();
     const current =
       tenants.find((t) => t.tenantId === named) ??
       (tenants.length === 1 ? tenants[0] : undefined);

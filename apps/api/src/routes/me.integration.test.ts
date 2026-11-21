@@ -146,6 +146,22 @@ describe('GET /api/me', () => {
     expect(res.body.tenants).toHaveLength(2);
   });
 
+  it('serves the one the caller named in capitals, as every other route reads it', async () => {
+    // `resolveTenant` reads the header in lower case, so an id sent in
+    // capitals acts on its organisation everywhere else. Compared as sent,
+    // it matched none of the ids the database gives, and this answer named
+    // no current organisation (0162 T1's re-review).
+    const res = await request
+      .get('/api/me')
+      .set('Authorization', `Bearer ${token(BOTH)}`)
+      .set('x-ownpace-tenant', TENANT_TWO.toUpperCase());
+
+    expect(res.status).toBe(200);
+    expect(res.body.tenantId).toBe(TENANT_TWO);
+    expect(res.body.role).toBe('viewer');
+    expect(res.body.tenants).toHaveLength(2);
+  });
+
   it('treats the header as a REQUEST for a tenant, not a grant of one', async () => {
     // Naming a tenant you are not in gets you nothing. This route reports
     // rather than refuses, so "nothing" is an empty list and no current

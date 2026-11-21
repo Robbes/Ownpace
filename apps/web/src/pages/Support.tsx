@@ -1112,11 +1112,15 @@ export const SupportTenantDetail: React.FC = () => {
         </table>
       </Section>
 
-      {/* Keyed by the organisation, so what was typed for one is never offered
-          on the next: the route keeps this page mounted from one organisation
-          to another. */}
-      <TestOrganisation key={tenant.tenant_id} tenant={tenant} />
-      <Closure tenant={tenant} />
+      {/* Keyed by the organisation, so what was typed for one, or what its
+          close answered, is never shown on the next: the route keeps this page
+          mounted from one organisation to another. One key over both sections:
+          two siblings given the same key are one child to React, which then
+          keeps the old one of them on the page beside the new. */}
+      <React.Fragment key={tenant.tenant_id}>
+        <TestOrganisation tenant={tenant} />
+        <Closure tenant={tenant} />
+      </React.Fragment>
     </div>
   );
 };

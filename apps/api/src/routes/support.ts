@@ -550,7 +550,10 @@ router.post(
  * `[Ownpace-test]` is what the screen offers, never what is assumed. 409
  * `not_open` for an organisation that is not open, as the close and the
  * reopen ask: one closed, or being erased, is neither marked nor unmarked.
- * 409 `holds_a_migration` while the organisation holds any migration,
+ * The door asks it in its own transaction, and holds the answer there until
+ * it commits, so a close cannot commit between the answer and the mark
+ * (0162 T1's re-review); the view's answer, read before, only decides the
+ * 404. 409 `holds_a_migration` while the organisation holds any migration,
  * whatever its status (§2 (b)), with the sentence the screen shows. 200 with
  * the marker set, or cleared; for the marker it already had, 200 with
  * `unchanged`, and nothing written or recorded.
@@ -567,6 +570,19 @@ function notOpenForATest(status: string): { error: 'not_open'; message: string }
           ? 'Its erasure has begun, so it is neither marked as a test nor unmarked'
           : `It is ${status}: ${only}`,
   };
+}
+
+/**
+ * A door's own transaction found the organisation not open: 409 `not_open`;
+ * or, for one no longer there, the 404 every route here gives for an id that
+ * names nobody.
+ */
+function refusedAsNotOpen(res: Response, status: string | null): void {
+  if (status === null) {
+    res.status(404).json({ error: 'Not found', message: 'No such organisation' });
+    return;
+  }
+  res.status(409).json(notOpenForATest(status));
 }
 
 router.post(
@@ -589,12 +605,14 @@ router.post(
         return void res.status(400).json({ error: 'bad_marker', message: read.refused });
       }
 
-      const status = await statusAsServed(operator, tenantId);
-      if (status === null) {
+      // The operator's view says whether this subject may see the
+      // organisation at all. Whether it is open is the door's own question,
+      // asked and held in its transaction.
+      if ((await statusAsServed(operator, tenantId)) === null) {
         return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
       }
-      if (status !== 'active') return void res.status(409).json(notOpenForATest(status));
       const marked = await markAsTestAsOperator(pool(), { tenantId, by: operator, marker: read.marker });
+      if ('notOpen' in marked) return void refusedAsNotOpen(res, marked.notOpen);
       if ('held' in marked) {
         return void res.status(409).json({
           error: 'holds_a_migration',
@@ -629,12 +647,12 @@ router.delete(
         return void res.status(400).json({ error: 'Bad request', message: 'tenantId must be one uuid' });
       }
 
-      const status = await statusAsServed(operator, tenantId);
-      if (status === null) {
+      // As the mark: the view decides the 404, the door whether it is open.
+      if ((await statusAsServed(operator, tenantId)) === null) {
         return void res.status(404).json({ error: 'Not found', message: 'No such organisation' });
       }
-      if (status !== 'active') return void res.status(409).json(notOpenForATest(status));
       const unmarked = await unmarkTestAsOperator(pool(), { tenantId, by: operator });
+      if ('notOpen' in unmarked) return void refusedAsNotOpen(res, unmarked.notOpen);
       if ('held' in unmarked) {
         return void res.status(409).json({
           error: 'holds_a_migration',
