@@ -4,6 +4,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Fixed
+
+- **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
+  billing page and never reached Mollie: the API answered the page Mollie sends the customer back
+  to after paying, the app's own billing page, as the address to pay at. It now answers the
+  checkout address Mollie gives the payment, and refuses a payment Mollie gave none, which the
+  invoice's row then says in the reader's language. The app follows the address only when it is
+  `https:` on Mollie's checkout host, `www.mollie.com`; any other address opens nothing, and the
+  row says so. A consent's window and its link are held the same way: they go only to the
+  provider's own sign-in host, Google's, Dropbox's, Microsoft's or Cirrux's, and any other address
+  closes the window and is said in the consent's note.
+
 ## [0.2.0-alpha.13] - 2026-11-21
 
 Cirrux and Infomaniak keep the guests on copied calendar events, each guest and the organiser

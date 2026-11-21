@@ -73,7 +73,14 @@ import { run as runTable, tenant as tenantTable } from '@openmig/ledger/schema-p
 // The live slot count, through the ONE authority on which states hold a slot
 // (`holdsASlot`, wrapped by `slotsHeld`) rather than a second list here.
 import { PgPathLifecycleStore, type PgDatabase } from '@openmig/ledger';
-import { log, readTenantNotificationPrefs, termsUrl, type NotificationLocale, type TenantId } from '@openmig/shared';
+import {
+  log,
+  readTenantNotificationPrefs,
+  termsUrl,
+  type Bilingual,
+  type NotificationLocale,
+  type TenantId,
+} from '@openmig/shared';
 import { readPathsForecast } from './paths-at-start.ts';
 import {
   billingPartyColumns,
@@ -1683,8 +1690,17 @@ router.get('/invoices/:invoiceId/pdf', authenticate, requireBillingRead, async (
 });
 
 /**
+ * A payment Mollie made without a checkout to pay it on (workplan 0163 T4),
+ * said at the invoice's row in the reader's language (`messageNl`).
+ */
+const NO_CHECKOUT: Bilingual = {
+  en: 'Mollie gave no checkout page to pay on. Try again in a minute.',
+  nl: 'Mollie gaf geen betaalpagina om op te betalen. Probeer het over een minuut opnieuw.',
+};
+
+/**
  * POST /api/billing/invoices/:invoiceId/pay
- * 
+ *
  * Create payment for invoice using Mollie
  */
 router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async (req: AuthenticatedRequest, res: Response) => {
@@ -1804,6 +1820,23 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
       metadata: { invoiceId },
     });
 
+    // The customer pays on Mollie's checkout (`checkoutUrl`), never at
+    // `redirectUrl`: that is the page above, which Mollie sends them BACK to.
+    // Answering it as the address to pay at sent every press of Pay to our
+    // own billing page and never to Mollie (workplan 0163 T4). A payment with
+    // no checkout has nowhere to be paid, so it is refused here, before the
+    // invoice records it: the webhook matches only the payment recorded,
+    // which stays the one the customer was last sent to.
+    if (payment.checkoutUrl === null) {
+      log.warn('[billing] pay: Mollie gave no checkout address', {
+        invoiceId,
+        paymentId: payment.id,
+        status: payment.status,
+      });
+      res.status(502).json({ error: 'no_checkout', message: NO_CHECKOUT.en, messageNl: NO_CHECKOUT.nl });
+      return;
+    }
+
     // Record the payment on the invoice. Its status stays what it is (sent
     // or overdue): the webhook moves it to paid. The metadata is added to,
     // never replaced: whatever else it holds stays.
@@ -1823,7 +1856,7 @@ router.post('/invoices/:invoiceId/pay', authenticate, requireBillingWrite, async
     });
 
     res.json({
-      paymentUrl: payment.redirectUrl,
+      paymentUrl: payment.checkoutUrl,
       paymentId: payment.id,
       status: payment.status,
     });

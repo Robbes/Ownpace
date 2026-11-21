@@ -960,15 +960,19 @@ describe('the number the books gave it (0111 slice 5)', () => {
 describe('the pay loop is reachable and role-gated (0039 T1/T4)', () => {
   it('an admin can pay an overdue invoice — createPayment is called and the checkout URL followed', async () => {
     invoicesMock.mockResolvedValue({ invoices: [invoiceFixture({ status: 'overdue' })] });
+    // Mollie's checkout, on its own host: any other is not followed (0163 T4,
+    // `an-address-followed-on-the-apis-word.unit.test.tsx`).
     payMock.mockResolvedValue({
-      paymentUrl: 'https://checkout.mollie.test/pay-123',
+      paymentUrl: 'https://www.mollie.com/checkout/tr_123',
       paymentId: 'tr_123',
       status: 'open',
     });
+    const followed: string[] = [];
     const hrefSpy = vi.spyOn(window, 'location', 'get').mockReturnValue({
       ...window.location,
-      set href(_v: string) {
-        /* navigation swallowed in jsdom */
+      // jsdom has no navigation: the address is caught instead.
+      set href(to: string) {
+        followed.push(to);
       },
     } as unknown as Location);
 
@@ -976,6 +980,7 @@ describe('the pay loop is reachable and role-gated (0039 T1/T4)', () => {
 
     fireEvent.click(await screen.findByRole('button', { name: 'Pay' }));
     await waitFor(() => expect(payMock).toHaveBeenCalledWith('inv-0001-abcdef'));
+    await waitFor(() => expect(followed).toEqual(['https://www.mollie.com/checkout/tr_123']));
     hrefSpy.mockRestore();
   });
 
