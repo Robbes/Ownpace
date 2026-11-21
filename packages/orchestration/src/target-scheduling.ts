@@ -55,10 +55,15 @@ const SCHEDULING_SENTENCES: Record<CaldavSchedulingCapability, string> = {
 /**
  * The sentence for a target kind that mails guests whatever the marker says
  * (`TARGETS_THAT_MAIL_GUESTS`, workplan 0160). For such a target what it
- * advertises does not decide anything: Cirrux mailed invitations on
- * 2026-11-19 for events whose every attendee was marked, so the writer gives
- * it no guests at all, and the sentence says that instead of promising what
- * the marker would do.
+ * advertises does not decide anything: the writer gives it no guests at all,
+ * and the sentence says that instead of promising what the marker would do.
+ *
+ * No kind is given it since 2026-11-20. Cirrux, the one kind that was, from
+ * the invitations it mailed on 2026-11-19 for events whose every attendee was
+ * marked, left the list that day (ADR-0043), and its Test and audit row say
+ * what its server earns, as Nextcloud's do. Kept for the next kind seen
+ * mailing guests, and proven meanwhile through the list a test hands
+ * `measureTargetScheduling`.
  */
 const MAILS_GUESTS_SENTENCE =
   'This target emails every guest an event lists, whatever the event says about ' +
@@ -100,6 +105,10 @@ const optionsHttpClient: HttpClient = {
  * `TARGETS_THAT_MAIL_GUESTS` gets the sentence that says what the writer does
  * for it, whatever the server advertised. The capability is still measured
  * and kept as measured.
+ *
+ * `kindsThatMailGuests` is that list everywhere but in a test, which hands
+ * its own, so the sentence for a kind on it stays proven while the list is
+ * empty (since 2026-11-20). No caller in the product passes it.
  */
 export async function measureTargetScheduling(
   url: string,
@@ -107,6 +116,7 @@ export async function measureTargetScheduling(
   password: string,
   httpClient: HttpClient = optionsHttpClient,
   kind?: string,
+  kindsThatMailGuests?: ReadonlySet<string>,
 ): Promise<SchedulingVerdict> {
   const capability = await detectCaldavScheduling(
     url,
@@ -115,7 +125,7 @@ export async function measureTargetScheduling(
   );
   return {
     capability,
-    sentence: mailsGuestsItself(kind)
+    sentence: mailsGuestsItself(kind, kindsThatMailGuests)
       ? guestsUntestedAt(kind)
         ? UNTESTED_GUESTS_SENTENCE
         : MAILS_GUESTS_SENTENCE
@@ -151,6 +161,8 @@ export function schedulingRecorder(
   },
   /** The target's kind, so a target that mails guests is recorded as one (0160). */
   kind?: string,
+  /** `TARGETS_THAT_MAIL_GUESTS` but in a test, as for `measureTargetScheduling`. */
+  kindsThatMailGuests?: ReadonlySet<string>,
 ): () => Promise<void> {
   return async () => {
     try {
@@ -165,6 +177,7 @@ export function schedulingRecorder(
         endpoint.password,
         undefined,
         kind,
+        kindsThatMailGuests,
       );
       await deps.ledger.recordAuditEvent(deps.tenantId, {
         actor: 'system',

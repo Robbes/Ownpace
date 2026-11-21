@@ -11,6 +11,24 @@
 **PR:** https://github.com/Robbes/open-migrate/pull/21  
 **Branch:** feat/imap-dav-target-implementation (merged & deleted)
 
+**2026-11-20: the arrival time was not kept, and now is.** The evidence below lists INTERNALDATE
+preservation as verified. No IMAP writer here ever sent one. The `imap-simple` writer this plan
+built gave its APPEND the mailbox and the flags only; its `extractReceivedAt` read the `Date:`
+line and was never called. The `imapflow` writer that replaced it on 2026-08-06 (0032) passed
+the same. So every copied message arrived on the target at the moment it was copied. Most still
+looked right, because a webmail shows the `Date:` line first. On 2026-11-20 four old messages
+copied from Gmail into Cirrux on the test environment did not: they showed the evening they
+were copied. The writer now gives each APPEND the message's own arrival time, in this order:
+the source's (IMAP's INTERNALDATE, Microsoft Graph's `receivedDateTime`), then the `Date:` line,
+then none, which leaves it to the server as before (`arrivalTimeOf`,
+`packages/shared/src/mail-arrival.ts`). A time before 1971 counts as none, because Graph's
+source writes the epoch when it has no time. The JMAP writer (0001) read the `Date:` line only,
+and now takes the same order. Unit tests cover the order, the placeholders and both writers;
+seven mutations were each caught. `imap-dav-target.integration.test.ts`, against a real
+Stalwart on every pull request, now also reads the copied message's INTERNALDATE back through
+its own connection and expects the source's arrival time. Messages already copied keep the time
+they were given.
+
 **Gates:**
 - ✅ Lint: `pnpm lint` passes
 - ✅ Typecheck: `pnpm typecheck` passes  
@@ -22,7 +40,7 @@
 - Idempotency verified: re-run creates 0 messages
 - Delta handling verified: adding 1 message creates exactly 1
 - Flag preservation verified (`\Seen`, `\Answered`, etc.)
-- INTERNALDATE preservation verified
+- INTERNALDATE preservation verified (it was not: see 2026-11-20 above)
 - `buildTargetWriter` now supports both `jmap` and `imap-dav` target types
 - Comprehensive provider documentation created (`docs/target-providers.md`)
 

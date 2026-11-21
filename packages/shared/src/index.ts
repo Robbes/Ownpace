@@ -20,6 +20,7 @@ export * from './caldav-query.ts';
 export * from './generated-message-id.ts';
 export * from './mail-headers.ts';
 export * from './mail-subject.ts';
+export * from './mail-arrival.ts';
 export * from './ports.ts';
 export * from './operating-contract.ts';
 // The queues' guidance in the reader's words, English and Dutch, beside the

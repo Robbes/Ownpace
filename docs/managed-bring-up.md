@@ -646,7 +646,10 @@ new volumes with a list of its own, the same five.
   public https addresses. `API_URL` is where **Mollie's servers** deliver
   payment webhooks: with `MOLLIE_API_KEY` set, the API refuses to boot in
   production on a localhost `API_URL`, because the alternative is payments
-  that complete while invoices never leave `sent`.
+  that complete while invoices never leave `sent`. Every consent's redirect
+  is built from it too, without Mollie (§8e, step 4). On `ownpace-live`,
+  `deploy-live.sh` refuses any of the three that is not live's own https
+  address (*`ownpace-live`: a release tag, with `deploy-live.sh`*).
 - `PRICING_*` — integer **cents**, never euros. They are a template for *new*
   tenants; each tenant's agreed prices are pinned in the `tenant_pricing` table
   the first time their money is computed and never follow this file again. That
@@ -1618,7 +1621,12 @@ began, and marks an open one nobody signed in to or nothing is connected to;
 *Not in use* shows only those. Each organisation's page ends with *Close this
 organisation*, the close `operator.sh close` makes, audited under your name with
 the request you name (workplan 0139 T7 (b)). It is how to end an organisation a
-granted request made, which `clean empty-tenant` refuses.
+granted request made, which `clean empty-tenant` refuses. From the close on, the
+organisation takes nobody in: its unanswered invitation is neither taken up at a
+sign-in nor offered, so somebody who signs up with that address afterwards is
+told they belong to no organisation and is offered *Ask for access*. A Reopen
+before the erasure gives it back, and it binds at their next sign-in. Somebody
+already in it when you close it stays in it.
 
 **How many grant links an organisation may hold at once.** As many live grant
 links as its tier runs migrations at the same time:
@@ -3283,7 +3291,7 @@ whose program needs a capability its service does not keep.
 | `trigger-api` | root | Docker's default | no | read: its entrypoint chowns the shared volume, copies files into directories `node` owns and writes the worker token there; its image cannot be pulled where this was measured |
 | `clickhouse` | root, then uid 101 | CHOWN, DAC_READ_SEARCH, SETGID, SETUID | no | measured: a new volume needs CHOWN, a data directory root owns (a copy restored by root) needs DAC_READ_SEARCH as well, `clickhouse su` needs SETUID and SETGID. The server runs with no capability either way, so SYS_NICE, IPC_LOCK and NET_ADMIN are not added |
 | `trigger-registry` | root | none | yes, `/tmp` in memory | measured: a push, a pull and a restart |
-| `trigger-docker-proxy` | root | none | yes, `/tmp` and `/run` in memory | measured: create, start and delete a container through it; without either directory it does not start |
+| `trigger-docker-proxy` | uid 99 (haproxy), with the socket's group | none | yes, `/tmp` and `/run` in memory, `/run` as uid 99's | measured (2026-11-20, CI): a plain `/run` tmpfs is root's, as the image's `/run` is, and HAProxy as 99 stops with `Cannot create pidfile /run/haproxy.pid`, so it is mounted `uid=99,gid=99,mode=0755`. Its image ends as `USER 99:99` (`deploy/compose/docker-socket-proxy`), and the container gets the group of `/var/run/docker.sock` from `DOCKER_SOCKET_GID`, which the bring-up reads from the socket and writes into `.env` (*The Docker socket's group*, below); images.yml's `build (docker-socket-proxy)` starts it so on the runner's socket and fails unless every process runs as uid 99. E2E (managed) is the proof. Until then root, measured: create, start and delete a container through it; without either directory it does not start |
 | `trigger-supervisor` | node | none | no | read: its image's user from the first process, and its base carries no setuid binary and no file capability |
 | `minio` | uid 65532 | none | no | measured |
 | `minio-init` | uid 65532 | none | yes, `/tmp` in memory | measured: without `/tmp` mc cannot write its config |
@@ -4210,6 +4218,7 @@ No script can do these. The script checks each one before it changes anything.
      WEB_BIND=<front-address> ZITADEL_BIND=<front-address> STATUS_BIND=<front-address> \
      EXPOSURE_ALLOW=<address,address> EXPOSURE_NOT_OURS=<name,name> \
      WEB_URL=https://app.ownpace.eu CORS_ORIGIN=https://app.ownpace.eu \
+     API_URL=https://app.ownpace.eu \
      ZITADEL_EXTERNALDOMAIN=id.ownpace.eu ZITADEL_EXTERNALPORT=443 \
      ZITADEL_EXTERNALSECURE=true ZITADEL_TLS_MODE=external \
      NODE_ENV=production OWNPACE_STAGE=alpha BACKUP_RETENTION_DAYS=7 TRUST_PROXY=2 \
@@ -4241,7 +4250,14 @@ No script can do these. The script checks each one before it changes anything.
    every line `KEY=value` at its start: Compose also reads a key indented, with
    a space before `=`, or with `:`, the script's checks do not, and it refuses
    such a line. `NODE_ENV=production` is live's mode: `managed.yml` takes no
-   default, and the script refuses anything else.
+   default, and the script refuses anything else. `API_URL` is the app's
+   address too: from outside, live's API is reached at the app's origin
+   alone, and it builds every consent's redirect from it (§8e, step 4). Left
+   at the example's localhost, Google answers live's first connect with
+   `redirect_uri_mismatch`, as it did on 2026-11-20, so the script refuses
+   anything but `https://app.ownpace.eu` for it, as for `WEB_URL` and
+   `CORS_ORIGIN`, and `deploy-live.sh` refuses, at every deploy after, any of
+   the three that is not live's own https address.
    `ALERT_ENABLED=true` turns on the mail a red status row sends you, and the
    script refuses live without it, since testers are on live. With it on, a row
    that stays red for three minutes during the bring-up
@@ -4912,6 +4928,22 @@ A rollback to a checkout without it puts the proxy back on
 place: Compose removes no network its file does not declare. It is harmless, is
 reused by the next move forward, and can be removed by hand once empty with
 `docker network rm <project>_trigger-docker-socket`.
+
+**The Docker socket's group, with no step of yours either (2026-11-20).**
+`trigger-docker-proxy` runs as uid 99, not root, and reaches
+`/var/run/docker.sock` through the socket's group, whose id is each machine's
+own. `managed.yml` requires it as `DOCKER_SOCKET_GID`, and nobody types it:
+`ensure-env-secrets.sh` and every run of `bootstrap-managed.sh`, `--from`
+included, read it from the socket (`stat -L -c %g /var/run/docker.sock`) and
+write it into `.env`, again whenever the group moves. So live's deploy and the
+nightly gate write it before their first `docker compose` call. Compose
+interpolates the whole file for every command, so after a pull that brings it
+in, and before one of those has run, a `docker compose` command by hand stops
+with `required variable DOCKER_SOCKET_GID is missing a value`: run
+`./deploy/compose/ensure-env-secrets.sh` from the checkout once. It writes the
+group and fills only what is missing. The first `up` after it builds the proxy's
+new image and recreates the proxy. Like the network move above, the supervisor
+cannot reach Docker for the seconds between the two.
 
 **The stores' and the fronts' images move with the checkout, never with a
 `docker pull`.** Both databases, Trigger.dev's Redis, the dashboard's TLS
@@ -5717,7 +5749,15 @@ tag, older ones included.
 
 What `deploy-live.sh` does, in order. It refuses, before the checkout or the
 stack changes, each with its own message: `--with-demo`; a `.env` without live's
-marker (`STACK_KIND=production`, `stack-kind.sh`) or without `WEB_URL`; a
+marker (`STACK_KIND=production`, `stack-kind.sh`); a `.env` whose `WEB_URL`,
+`API_URL` or `CORS_ORIGIN` is not set, not `https://`, or localhost or a
+loopback address, or whose `API_URL` or `CORS_ORIGIN` is not the origin in
+`WEB_URL` with nothing after it (from outside, live's API is reached at the
+app's origin alone, and it builds every consent's redirect from `API_URL`:
+§8e, step 4), named with the line that sets them, `app.example.eu` standing
+for live's name (first asked by the deploy after the one that moves live onto
+a release that carries it, since a deploy runs the script the checkout had
+before it moved); a
 `.env` whose `NODE_ENV` is not `production` or whose `ALERT_ENABLED` is not
 exactly `true` (testers are on live, so nobody deploys it without alerts), or
 that sets a sign-in provider's `IDP_*` key (live's sign-in page offers email and

@@ -28,9 +28,12 @@
  *   tree that is not clean; a deploy log that already has a line; live's
  *   database volume already there without `--resume`; and each setting of
  *   live's `.env` that is wrong for live, named by its key and never by its
- *   value, `NODE_ENV` not `production` (0132 T4) and `ALERT_ENABLED` not
+ *   value, `NODE_ENV` not `production` (0132 T4), `ALERT_ENABLED` not
  *   exactly `true` (0142 T0; the owner, 2026-10-04: testers are on live, so
- *   it is not stood up without alerts) among them, and any sign-in
+ *   it is not stood up without alerts), and `API_URL`, beside `WEB_URL` and
+ *   `CORS_ORIGIN`, not live's production name (a stand-up left
+ *   `managed.env.example`'s localhost there, and Google refused live's first
+ *   connect: workplan 0140, Status, 2026-11-20) among them, and any sign-in
  *   provider's `IDP_*` key that holds a value, read from
  *   `managed.env.example` (live's sign-in page offers email and password
  *   only: privacy §4.4, §7 and §8; the owner, ops-social-signin (a)). None of
@@ -176,6 +179,9 @@ const LIVE_ENV: Record<string, string> = {
   EXPOSURE_ALLOW: `${FRONT},${OTA_FRONT}`,
   CORS_ORIGIN: 'https://app.ownpace.eu',
   WEB_URL: 'https://app.ownpace.eu',
+  // Every consent's redirect is built from it (workplan 0140, Status,
+  // 2026-11-20): the app's origin, where live's api is reached from outside.
+  API_URL: 'https://app.ownpace.eu',
   NODE_ENV: 'production',
   // Testers are on live, so it is not stood up without alerts (0142 T0; the
   // owner, 2026-10-04).
@@ -1265,6 +1271,11 @@ describe("refused before anything changes: live's .env, key by key, never a valu
     ["EXPOSURE_ALLOW without the OTA stack's", { EXPOSURE_ALLOW: FRONT }, 'EXPOSURE_ALLOW'],
     ['WEB_URL not the production name', { WEB_URL: 'http://localhost:3123' }, 'WEB_URL'],
     ['CORS_ORIGIN not the production name', { CORS_ORIGIN: 'https://app.ota.example.test' }, 'CORS_ORIGIN'],
+    // managed.env.example's, which a stand-up left in live's .env, and Google
+    // refused live's first connect (workplan 0140, Status, 2026-11-20).
+    ["API_URL the example's localhost", { API_URL: 'http://localhost:3001' }, 'API_URL'],
+    ['API_URL absent', { API_URL: undefined }, 'API_URL'],
+    ["API_URL the OTA stack's app", { API_URL: 'https://app.ota.example.test' }, 'API_URL'],
     ['ZITADEL_EXTERNALDOMAIN not id.ownpace.eu', { ZITADEL_EXTERNALDOMAIN: 'ownpace-idp' }, 'ZITADEL_EXTERNALDOMAIN'],
     ['ZITADEL_EXTERNALPORT not 443', { ZITADEL_EXTERNALPORT: '3126' }, 'ZITADEL_EXTERNALPORT'],
     ['ZITADEL_EXTERNALSECURE not true', { ZITADEL_EXTERNALSECURE: 'false' }, 'ZITADEL_EXTERNALSECURE'],
@@ -1306,6 +1317,24 @@ describe("refused before anything changes: live's .env, key by key, never a valu
       const r = run(s);
       expectRefused(s, r, `- ${key}`, 'reads', before);
       if (secretValue) expect(shown(r.out)).not.toContain(secretValue);
+      expectNothingLeaked(s, r.out);
+    },
+    CASE_MS,
+  );
+
+  it(
+    "API_URL the example's localhost: named with why it matters and the line that sets it, beside WEB_URL and CORS_ORIGIN, which pass",
+    () => {
+      const s = stage({ env: { API_URL: 'http://localhost:3001' } });
+      const before = envNow(s);
+      const r = run(s);
+      expectRefused(s, r, '- API_URL: not https://app.ownpace.eu, live\'s production name', 'reads', before);
+      expect(r.out).toContain('The api builds every consent\'s redirect from it');
+      expect(r.out).toContain('workplan 0140, Status, 2026-11-20');
+      expect(r.out).toContain('\n      ./deploy/compose/env-upsert.sh deploy/compose/.env API_URL=https://app.ownpace.eu\n');
+      expect(r.out).not.toContain('- WEB_URL');
+      expect(r.out).not.toContain('- CORS_ORIGIN');
+      expect(shown(r.out)).not.toContain('localhost:3001');
       expectNothingLeaked(s, r.out);
     },
     CASE_MS,

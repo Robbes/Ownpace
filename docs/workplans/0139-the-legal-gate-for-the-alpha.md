@@ -2,7 +2,32 @@
 
 > **In one line:** Legal gate for the alpha: `site/legal` placeholders filled and published, a lawyer's pass, alpha conditions, acceptance recorded at first sign-in, notices where data is collected, sub-processors, retention, account closure, breach procedure, `SECURITY.md`.
 
-## Status — 2026-11-17 (update this block at the end of every session)
+## Status — 2026-11-20 (update this block at the end of every session)
+
+**2026-11-20: a closed organisation takes nobody in (T7 (b)).** Found on live that day. An
+organisation a granted request had made, which nobody had signed in to, was closed from the support
+page; two days later somebody signed up with that address, and their first sign-in bound them to it
+as its active owner, because `claimRequestedMembership` never read `tenant.status`. A closed
+organisation starts nothing (409 `account_closed`), so they landed in one they could not use and
+were never sent to ask for another. `pendingInvitations` and `acceptInvitation` had the same gap for
+an invitation. All three now take nobody into an organisation that is `closed` or `deleting`, the
+two states the erasure acts on, by a subquery on `tenant` in the statement's own WHERE
+(`itsOrganisationTakesMembers` in `apps/api/src/middleware/auth.ts`). The row stays `invited`, so a
+reopen before the erasure binds it at the next sign-in, and the purge takes it with the
+organisation. `suspended` still binds, as before: nothing writes it and no erasure picks it.
+**Row security.** The subquery reads `tenant` under the invitee's own policies with no tenant
+scope; `see_tenant_you_were_invited_to` (managed 0008, in any case since 0059) is the policy that
+admits the organisation, for every row these statements touch. Asked of PostgreSQL 16 through
+`scripts/local-pg.sh`, as `app_user` with the invitee's settings: the claim as it was bound a closed
+and an erasing organisation; with the check, the open and the suspended one only; with that policy
+dropped, nothing at all. Guard:
+`apps/api/src/routes/a-closed-organisation-takes-nobody-in.integration.test.ts` (4 cases, on that
+cluster): with the status condition removed, 3 fail; with only `active` allowed, 1 fails, the
+`suspended` case; with the policy dropped, all 4; on the code before this change, 3. Somebody
+already bound to a closed organisation is not moved: they stay its active owner, with every start
+refused, until a reopen makes it work or the purge erases it and their membership with it. The
+invitations' answers are 0099's; this is recorded here because the close is T7 (b)'s, and the list
+it added marks exactly these organisations for closing.
 
 **2026-11-17: the support page closes and reopens an organisation, and the list says which ones
 nobody uses (T7 (b)).** Each organisation's support page ends with *Close this organisation*: a

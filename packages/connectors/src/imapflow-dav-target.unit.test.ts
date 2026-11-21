@@ -44,6 +44,8 @@ let calls: string[];
 let nextUid: number;
 /** APPENDUID support: when false, `append` returns no uid. */
 let appendReturnsUid: boolean;
+/** The arrival time each `append` was given (its fourth argument), in order. */
+let appendDates: Array<Date | string | undefined>;
 /** Make messageMove / messageDelete report refusal by return value. */
 let moveSucceeds: boolean;
 let deleteSucceeds: boolean;
@@ -142,8 +144,9 @@ vi.mock('imapflow', () => {
       if (!m) return false;
       return { uid: m.uid, ...(query.source ? { source: m.source } : {}) };
     }
-    async append(path: string, content: Buffer, flags?: string[]) {
+    async append(path: string, content: Buffer, flags?: string[], idate?: Date | string) {
       calls.push(`append(${path},[${(flags ?? []).join(',')}])`);
+      appendDates.push(idate);
       const uid = nextUid++;
       const text = content.toString('utf8');
       const messageId = /Message-ID:\s*([^\r\n]+)/i.exec(text)?.[1]?.trim().replace(/[<>]/g, '');
@@ -232,6 +235,7 @@ beforeEach(() => {
   calls = [];
   nextUid = 1;
   appendReturnsUid = true;
+  appendDates = [];
   moveSucceeds = true;
   deleteSucceeds = true;
   removalIsALie = false;
@@ -473,6 +477,31 @@ describe('upsertEmail', () => {
     expect(result.created).toBe(true);
     expect(result.targetId).toBe('1');
     expect(calls).toContain('append(INBOX,[\\Seen,\\Flagged])');
+  });
+
+  it("writes the message with the source's arrival time, not the moment of copying", async () => {
+    // Its Date: line disagrees, so this also shows which of the two wins.
+    const bytes = new TextEncoder().encode(
+      ['Message-ID: <dated@dev.local>', 'Date: Mon, 1 Jun 2026 10:00:00 +0000', 'From: a@dev.local', '', 'x'].join('\r\n'),
+    );
+    const raw = { item: { receivedAt: '2009-09-18T19:35:00.000Z' }, rfc822: bytes } as unknown as RawMessage;
+    await target().upsertEmail('INBOX', raw, ['$seen']);
+    expect(appendDates).toHaveLength(1);
+    expect(appendDates[0]).toBeInstanceOf(Date);
+    expect((appendDates[0] as Date).toISOString()).toBe('2009-09-18T19:35:00.000Z');
+  });
+
+  it("falls back to the message's Date: line when the source gave no time", async () => {
+    const bytes = new TextEncoder().encode(
+      ['Message-ID: <undated@dev.local>', 'Date: Fri, 18 Sep 2009 21:35:00 +0200', 'From: a@dev.local', '', 'x'].join('\r\n'),
+    );
+    await target().upsertEmail('INBOX', { rfc822: bytes } as unknown as RawMessage, []);
+    expect((appendDates[0] as Date).toISOString()).toBe('2009-09-18T19:35:00.000Z');
+  });
+
+  it("leaves the time to the server when there is none to give", async () => {
+    await target().upsertEmail('INBOX', rawMessage('timeless@dev.local'), []);
+    expect(appendDates).toEqual([undefined]);
   });
 
   it('adopts on a second pass instead of appending a duplicate', async () => {
