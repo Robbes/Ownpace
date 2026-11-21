@@ -27,6 +27,19 @@ draft, not merged).** On `claude/ownpace-public-readiness-y7orc6-gitleaks`, from
 - **8.30.1 is both the outside check's version and gitleaks' newest release**, its assets of
   2026-03-21, so there was no version to choose. The pin watch has a `gitleaks` row against
   upstream's git tags.
+- **Proved with the real gitleaks and this config**, on the measure branch (run 44880864945).
+  Throwaway repositories on the runner each held the branch's `.gitleaks.toml` and report, and one
+  made-up commit with a value shaped like a GitHub token, made for the run and committed nowhere
+  else. Every case ended as it must:
+  - a clean change passes;
+  - the token in a source file fails, and so does the token in another document;
+  - the same token in a unit test file, an integration test file and `docs/o365-setup.md` passes;
+  - a `gitleaks:allow` comment excuses nothing, and neither does a later commit that removes the
+    token;
+  - a `.gitleaksignore` that lists the finding is refused.
+  - No log line printed the value.
+- **The pull request's own run** read its one commit (about 76 KB of added lines) and found
+  nothing: both sums as pinned, the binary calling itself 8.30.1.
 - **Tests:**
   - the new guard `a-secret-a-pull-request-could-add` (17 tests): the config line for line, the
     allowlist against every tracked file, the job's shape and `ci-complete`'s account of it, and
