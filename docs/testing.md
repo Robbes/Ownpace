@@ -469,7 +469,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), the hadolint
   image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), the Semgrep image
   `semgrep.yml` runs (the same way), the zizmor image `zizmor.yml` runs (against ghcr.io's tags of
-  its shape and major), and the tasks'
+  its shape and major), the squawk release `migration-locks.yml` installs (against upstream's git
+  tags), and the tasks'
   prebuilt base `trigger.config.ts` pins (against main's `edge` by each platform's layers, since
   its digest moves on every merge while its layers do not: behind when they differ, or when the
   pinned index or its signature is gone) share one summary issue; another image a script there
@@ -554,15 +555,29 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `detect-non-literal-regexp` and `detect-redos`, never do. Held by
   `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`, which runs the report against a
   stubbed docker.
+- `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,
+  the workflow or its script, and on dispatch, on a GitHub-hosted runner, never a required check
+  (workplan 0165): squawk 2.73.0, the static musl build from its GitHub release, checked by its
+  sha256 for both architectures before it runs, over every file of both chains, one run per file,
+  each read as one transaction (`--assume-in-transaction`, as `runMigrations` applies it) on
+  Postgres 18. `squawk (report only)` lists in its summary every finding in a migration file the
+  change adds or changes, with a warning on its line, and counts the rest per rule as history,
+  since an applied migration never changes. The two CONCURRENTLY rules are marked as rules no
+  migration here can meet. No finding fails it, nor a file squawk could not read, which is listed
+  and warned about. Held by `scripts/a-lock-a-migration-takes.unit.test.ts`, which runs the report
+  against a stand-in squawk, and `scripts/a-pin-that-knows-it-is-behind.unit.test.ts`, which runs
+  the install step.
 - `zizmor.yml` — on a pull request and a push to `main` that touch `.github/` or an action file,
-  and on dispatch, on a GitHub-hosted runner, never a required check: zizmor 1.30.1, the version
-  the outside check of GEN-26 runs, by the tag and index digest `ZIZMOR_IMAGE` names, over the
-  whole checkout (every workflow, any action file, `dependabot.yml`), offline (`--offline`, no
-  network, no token) and read-only, with `--no-config` and `--no-ignores`, so nothing in the tree
-  can turn a rule or a location off. `zizmor` is BLOCKING: any finding fails it, and it writes
-  zizmor's report to its summary. Held by `scripts/a-workflow-zizmor-would-flag.unit.test.ts`,
-  which also holds every cache-aware step in a workflow a tag starts to turning its cache off the
-  way zizmor's `cache-poisoning` audit reads it.
+  and on dispatch, on a GitHub-hosted runner, never a required check: zizmor 1.32.0 since
+  2026-11-21, moved on purpose from 1.30.1, the version the outside check of GEN-26 runs, by the
+  tag and index digest `ZIZMOR_IMAGE` names, over the whole checkout (every workflow, any action
+  file, `dependabot.yml`), offline (`--offline`, no network, no token) and read-only, with
+  `--config .github/zizmor.yml`, whose one setting holds `dependabot-cooldown` to Dependabot's
+  three days, and `--no-ignores`, so nothing in the tree can turn a rule or a location off.
+  `zizmor` is BLOCKING: any finding fails it, and it writes zizmor's report to its summary. Held
+  by `scripts/a-workflow-zizmor-would-flag.unit.test.ts`, which also holds every cache-aware step
+  in a workflow a tag starts to turning its cache off the way zizmor's `cache-poisoning` audit
+  reads it.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order

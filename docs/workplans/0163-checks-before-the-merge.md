@@ -4,9 +4,29 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
+**2026-11-21, after T5's first part: the grant page's two buttons go to Google's own page only,
+built as #1996 (a T4 follow-up).** On `claude/ownpace-public-readiness-y7orc6-grant-consent-host`,
+from `main` at `45a758af`.
+- **What #1990 found and left.** `apps/web/src/pages/Grant.tsx` sends the whole page to the
+  consent address the API answers, with `location.assign`: *Continue with Google* on a migration's
+  link, and one button per account on a person's link. Both followed whatever came back. No rule
+  reports the two lines, and neither finding names them.
+- **What it does.** Both go through `consentToFollow('google', …)`, the check *Pay* and the
+  consent window use (`apps/web/src/services/address-to-follow.ts`): `https:` on
+  `accounts.google.com` exactly, and the address followed is the one parsed. Anything else opens
+  nothing. The page then says the address is not Google's own page, in the reader's language, with
+  the consent's own sentence (`account.consent.notTheProvider`), and gives the button back.
+- **Tests.** The new guard `apps/web/src/pages/a-grant-button-that-goes-only-to-google.unit.test.tsx`
+  has 22 tests over both buttons. Google's page is followed as parsed. Refused, each for its own
+  reason: `http:` on Google's host, another host, Google's name inside another host, credentials in
+  front of another host, another port, `javascript:` (also one naming Google's host), no address,
+  and a path of our own. The refusal in Dutch. Four mutations each fail it: either button left
+  unchecked (10 tests each), the refusal shown as an unreadable answer (20), and the button left
+  disabled (9).
+
 **2026-11-21, latest: before any rule blocks, a place Semgrep read only in part is no longer
-silent (T5, its first part).** On `claude/ownpace-public-readiness-y7orc6-semgrep-timeouts`, from
-`main` at `75d7949d`.
+silent (T5, its first part), built as #1993, merged on 2026-11-21 (`87663d70`).** On
+`claude/ownpace-public-readiness-y7orc6-semgrep-timeouts`, from `main` at `75d7949d`.
 - **Why.** `main`'s first Semgrep run, on #1986's squash (`fbd73f93`, run 44856257160), read 207
   spots, 202 of them under the two ReDoS rules. #1986's last run read 208 on the same tree, 203 of
   them there.
@@ -29,7 +49,7 @@ silent (T5, its first part).** On `claude/ownpace-public-readiness-y7orc6-semgre
   - `RULES` now says per rule whether it blocks (`blocks`). None does yet, so no time-out fails a
     run today. A guard test fails once one does, so the pull request that turns a rule blocking
     names it there, and makes that rule's findings fail the job too (§5, step 5).
-- **What CI read.** This pull request's Semgrep run on GitHub's runner (44881446419) read 207
+- **What CI read.** #1993's first Semgrep run on GitHub's runner (44881446419) read 207
   spots and listed 7 places, each with 2 to 4 rules timed out: 5 naming
   `js-open-redirect-from-function` first and 2 naming `path-join-resolve-traversal`. So in CI a
   time-out can hide a spot of a rule that may block.
@@ -290,8 +310,8 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
-| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); 🔨 **the time-outs first**, on `claude/ownpace-public-readiness-y7orc6-semgrep-timeouts` | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, last). |
+| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); 🔨 **the grant page's two buttons, built** as #1996 (Status, 2026-11-21, after T5's first part) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
@@ -528,7 +548,7 @@ an exact apk or apt pin, and hadolint stays report only.
 | Step | Add | Finding | Fail or report | Tool and pin | Trigger | CI time | Noise today | Kept current by |
 |---|---|---|---|---|---|---|---|---|
 | 1 | osv-scanner over `pnpm-lock.yaml`, in the Security Scan's repository job | 3; malicious packages | **Fail the build** on a malicious-package record (`MAL-…`). **Report only** for vulnerabilities, because pnpm audit stays the vulnerability gate with the owner's `--fail-at=high` | osv-scanner 2.6.0 (the outside check's version), `osv-scanner_linux_amd64` and `_arm64` from its GitHub release, sha256 per architecture (amd64 `ca69b3d3…`). Built with v2.7.1, the newest release past the three-day floor (Status, 2026-11-20, at the end) | pull request, push to `main`, tag, Monday (the job's triggers) | under 10 s (2 s measured, plus the download) | 1 known moderate, listed and passing; 0 malicious | a pin-watch row against osv-scanner's GitHub releases; the guard family that holds Trivy's sha256 form |
-| 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as GEN-26 pins it (1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
+| 2 | Finding 1 fixed (T1), then zizmor's `secrets-outside-env` | 1 | **Report only** | zizmor as `zizmor.yml` pins it (1.32.0 since 2026-11-21; GEN-26 pinned 1.30.1). A second invocation with `--persona auditor`, reading only this audit's results; the auditor persona's other findings are not proposed | as GEN-26's zizmor job | seconds | 0 once T1 is done; 9 before, or 2 once D7 deletes the O365 lane | GEN-26's pin-watch row |
 | 3 | Semgrep with a short list of named rules (§4.3), not whole packs: `path-join-resolve-traversal`, `js-open-redirect-from-function`, `react-href-var`, `gcm-no-tag-length`, `run-shell-injection`, `unknown-value-with-script-tag`, and `detect-non-literal-regexp` and `detect-redos` (both report only for good). The rules are fetched by id, so a rule in no pack is as easy to name as one in a pack | 5, 6, 8, 9 | **Report only**, to the job summary and code scanning (SARIF) | `semgrep/semgrep:1.178.0@sha256:32e45996…` (the outside check's version). The rules are a file in the repository that names the chosen rule ids, fetched from the registry by id, or written in the repository where a rule is short. Built with 1.186.0, the newest release past the three-day floor, and the ids in `RULES` in `scripts/semgrep-report.mjs` (Status, 2026-11-21) | pull request, push to `main` | 1 to 2 minutes for a named list (measured: 37 s to 102 s per whole pack; the image pull is one more) | §4.3 | a pin-watch row against Docker Hub's tags of the same shape, as hadolint's; the guard that holds the whole reference (as `HADOLINT`) |
 | 4 | gitleaks over a pull request's own commits (`base..head`) | the "no secrets" pass, kept passing | **Report only** until D4 is answered; then fail the build | gitleaks 8.30.1 (the outside check's version), `gitleaks_8.30.1_linux_x64.tar.gz` and `_arm64` from its GitHub release, sha256 (x64 `551f6fc8…`) | pull request | under 15 s | today's 67 do not appear unless a pull request touches those lines | a pin-watch row against gitleaks' releases |
 | 5 | Semgrep moves to failing the build, one rule at a time, except `detect-non-literal-regexp` | 6 and the extras | **Fail the build**, per rule, once that rule reports nothing on `main` | as step 3 | as step 3 | as step 3 | 0 by construction | as step 3 |
