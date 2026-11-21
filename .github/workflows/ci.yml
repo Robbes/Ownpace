@@ -415,6 +415,109 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: node scripts/commit-convention.mjs "$BASE_SHA" "$HEAD_SHA"
 
+  gitleaks:
+    name: gitleaks
+    # A SECRET IN A COMMIT IS IN THE HISTORY FOR GOOD (workplan 0163 T6; the
+    # owner's decision D4 of 2026-11-20). gitleaks reads every line the commits
+    # of a pull request add (`base..head`, its git mode over `git log -p`, and a
+    # merge as git's remerge diff: what the merge itself wrote, not what it
+    # brings from main), with its default rules and .gitleaks.toml's one
+    # allowlist: unit and integration test files, and docs/o365-setup.md's
+    # placeholders. A finding fails the pull request, the file, line, rule and
+    # commit named and the value never printed (--redact). A secret added in
+    # one commit and removed in a later one is still found: the history keeps
+    # it, and a merge would bring it to main. No line excuses itself:
+    # --ignore-gitleaks-allow, and no .gitleaksignore
+    # (scripts/a-secret-a-pull-request-could-add.unit.test.ts).
+    #
+    # PULL REQUESTS ONLY, like commit-convention above, and for the same reason:
+    # it judges what a branch adds, never main's history, whose 77 hits of
+    # 2026-11-20 are fake tokens and placeholders, none a credential (0163
+    # §4.2). `ci-complete` requires it where this `if:` says it runs;
+    # change this line and the matching line in ci-complete's SHOULD_RUN
+    # together.
+    if: github.event_name == 'pull_request'
+    # Hosted unconditionally: it only ever runs on a pull request, which by the
+    # policy in the header never touches the machine.
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          # Both ends of the range must be reachable, as for commit-convention:
+          # the default shallow fetch has neither the base tip nor the branch's
+          # own commits, and git log would read nothing at all.
+          fetch-depth: 0
+          persist-credentials: false
+      # The Node the images run, like every job that runs Node
+      # (a-gate-on-a-version-nothing-ships).
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
+      - name: Install gitleaks from its GitHub release, checked by its sha256
+        # Both architectures' archives are fetched and checked against the sums
+        # below, read on 2026-11-21 from the release's own
+        # gitleaks_8.30.1_checksums.txt and from the archives themselves; then
+        # the native one is unpacked, and the binary must call itself the
+        # release named. v8.30.1 is the outside check's version and gitleaks'
+        # newest release that day (its assets of 2026-03-21). Under shell names
+        # of its own (`archive`, `got`, `pin`, `bad`, `answer`): the Atlas and
+        # stalwart-cli steps in this file use `download`, `seen`, `pinned`,
+        # `refused` and `said`, and their guards' mutations read each one's
+        # first copy.
+        #
+        # TO MOVE IT: a newer release three days old, when the pin watch's
+        # summary issue lists it (`scripts/idp-pin-watch.mjs`, its gitleaks
+        # row); its two sums from that release's checksums file; all three
+        # values in one pull request, whose own run of this job proves them.
+        # A newer gitleaks can bring new rules, so read that run's findings.
+        env:
+          GITLEAKS_VERSION: v8.30.1
+          GITLEAKS_SHA256_X64: 551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb
+          GITLEAKS_SHA256_ARM64: e4a487ee7ccd7d3a7f7ec08657610aa3606637dab924210b3aee62570fb4b080
+        run: |
+          set -euo pipefail
+          platform="$(uname -m)"
+          case "$platform" in
+            x86_64) wanted=x64 ;;
+            aarch64) wanted=arm64 ;;
+            *) echo "::error::No gitleaks is pinned for $platform: only x64 and arm64."; exit 1 ;;
+          esac
+          bad=0
+          for arch in x64 arm64; do
+            if [ "$arch" = x64 ]; then pin="$GITLEAKS_SHA256_X64"; else pin="$GITLEAKS_SHA256_ARM64"; fi
+            archive="$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-$arch.tar.gz"
+            rm -f "$archive"
+            curl --proto '=https' --tlsv1.2 -sSfL --retry 4 -o "$archive" \
+              "https://github.com/gitleaks/gitleaks/releases/download/${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION#v}_linux_${arch}.tar.gz"
+            got="$(sha256sum "$archive")"
+            got="${got%% *}"
+            if [ "$got" = "$pin" ]; then
+              echo "gitleaks $GITLEAKS_VERSION linux/$arch: sha256 $got, as pinned."
+            else
+              echo "::error::gitleaks $GITLEAKS_VERSION linux/$arch is not the build this workflow pins: its sha256 is $got, and the pin is $pin. Nothing was run."
+              bad=1
+            fi
+          done
+          [ "$bad" = 0 ] || exit 1
+          rm -rf "$RUNNER_TEMP/gitleaks-bin"
+          mkdir -p "$RUNNER_TEMP/gitleaks-bin"
+          tar -xzf "$RUNNER_TEMP/gitleaks-$GITLEAKS_VERSION-linux-$wanted.tar.gz" -C "$RUNNER_TEMP/gitleaks-bin" --no-same-owner gitleaks
+          answer="$("$RUNNER_TEMP/gitleaks-bin/gitleaks" version)"
+          echo "gitleaks version: $answer"
+          if [ "$answer" != "${GITLEAKS_VERSION#v}" ]; then
+            echo "::error::The gitleaks this step installed calls itself $answer, not ${GITLEAKS_VERSION#v}."
+            exit 1
+          fi
+      - name: gitleaks over the commits this pull request adds
+        # THROUGH `env:`, not interpolated into the script, as commit-convention
+        # does (zizmor's template-injection).
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/gitleaks-report.mjs "$BASE_SHA" "$HEAD_SHA"
+
   docs-hygiene:
     name: docs-hygiene
     runs-on: ${{ github.event_name == 'push' && vars.CI_PUSH_ON_SELF_HOSTED == 'true' && 'self-hosted' || github.event_name != 'pull_request' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
@@ -1327,6 +1430,7 @@ jobs:
     needs:
       - detect-changes
       - commit-convention
+      - gitleaks
       - docs-hygiene
       - fixture-uuid-check
       - migration-lint
@@ -1344,6 +1448,7 @@ jobs:
         {
           "detect-changes": true,
           "commit-convention": ${{ github.event_name == 'pull_request' }},
+          "gitleaks": ${{ github.event_name == 'pull_request' }},
           "docs-hygiene": true,
           "fixture-uuid-check": true,
           "migration-lint": ${{ needs.detect-changes.outputs.migrations_changed == 'true' }},

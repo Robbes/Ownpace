@@ -10,7 +10,7 @@
 # WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
 # line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
 # its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy and the osv-scanner the scan runs, the
-# cosign images.yml and release.yml name, the Atlas release ci.yml's migration-lint downloads
+# gitleaks ci.yml's gitleaks job runs (2026-11-21), the cosign images.yml and release.yml name, the Atlas release ci.yml's migration-lint downloads
 # by URL and checks by its sha256 (2026-11-01), the stalwart-cli release ci.yml, e2e.yml and
 # e2e-managed.yml install the same way, the binfmt and BuildKit images images.yml's build job
 # names in the inputs of setup-qemu-action and setup-buildx-action (the `github-actions` entry
