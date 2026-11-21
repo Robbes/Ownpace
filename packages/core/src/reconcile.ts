@@ -74,6 +74,9 @@ export const runShadowPass: RunShadowPass = async (deps) => {
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
+    // A test migration's marked listing (workplan 0162): the source says so
+    // about itself, and the loop makes a mailbox at its first marked message.
+    ...(source.markedOnly ? { markedOnly: true } : {}),
     // FOLDERS THE OWNER ASKED US TO LEAVE BEHIND never reach the loop.
     //
     // Filtered here rather than inside the loop because a skipped folder is not

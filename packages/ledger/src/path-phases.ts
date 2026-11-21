@@ -93,6 +93,15 @@ export interface MigrationPhases {
   readonly grantWithdrawnAt: Date | null;
   /** Each data type's phase. */
   readonly phaseOf: PathPhaseOf;
+  /**
+   * The marker a test migration copies by (`mailbox_mapping.test_marker`,
+   * migration 0070, workplan 0162), when it is one; absent for every other
+   * migration. Read here, beside the status and the grant, because a pass
+   * already reads this before each data type: the appliance's pass builds
+   * each data type's source with it (`runAllDomains`), so its sources are
+   * wrapped as the managed builders wrap theirs.
+   */
+  readonly testMarker?: string;
 }
 
 /**
@@ -108,6 +117,7 @@ export async function readPathPhases(
     .select({
       status: schemaPg.mailboxMapping.status,
       grantWithdrawnAt: schemaPg.mailboxMapping.grantWithdrawnAt,
+      testMarker: schemaPg.mailboxMapping.testMarker,
     })
     .from(schemaPg.mailboxMapping)
     .where(eq(schemaPg.mailboxMapping.id, mappingId));
@@ -150,6 +160,7 @@ export async function readPathPhases(
     grantWithdrawnAt: row.grantWithdrawnAt,
     phaseOf: phasesOfThePaths(row.status, windows.of, paths),
     anyRuns,
+    ...(row.testMarker !== null ? { testMarker: row.testMarker } : {}),
   };
 }
 

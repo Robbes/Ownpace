@@ -67,6 +67,18 @@ function setClausesFor(source: string): string[] {
   return clauses;
 }
 
+/**
+ * Every trigger the ledger chain creates, each read for whether it stamps
+ * `updated_at` on `mailbox_mapping`, and what it does instead. A trigger
+ * missing from here fails the sweep below.
+ */
+const TRIGGERS_READ: Readonly<Record<string, string>> = {
+  trg_mailbox_mapping_test_marker_written_once:
+    'ledger 0070 (workplan 0162, §2 (c)): BEFORE UPDATE on mailbox_mapping, it raises when ' +
+    'test_marker changes and otherwise returns the row as it came. It sets no column; the ' +
+    'case below reads its body to hold that.',
+};
+
 describe('every write to mailbox_mapping stamps updated_at', () => {
   const files = CANDIDATES.map((f) => ({
     name: f,
@@ -104,18 +116,49 @@ describe('every write to mailbox_mapping stamps updated_at', () => {
   });
 
   it('no ledger migration installs a trigger that would make this moot', () => {
-    // If somebody later adds a BEFORE UPDATE trigger, this guard is redundant
-    // and should be deleted rather than kept as folklore. Until then, the
-    // absence is the reason the guard exists, so the absence is asserted.
+    // If somebody later adds a BEFORE UPDATE trigger that stamps the column,
+    // this guard is redundant and should be deleted rather than kept as
+    // folklore. Until then, the absence is the reason the guard exists, so the
+    // absence is asserted: every trigger in the ledger chain is one this file
+    // has read and names below, and any other fails here until it is read.
+    // `OR REPLACE` and `CONSTRAINT` are matched too, which the first form of
+    // this check (`CREATE TRIGGER` alone) let through.
     const dir = join(REPO_ROOT, 'packages/ledger/migrations');
     const sql = readdirSync(dir)
       .filter((f) => f.endsWith('.sql'))
       .map((f) => readFileSync(join(dir, f), 'utf-8'))
       .join('\n');
+    const triggers = [...sql.matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?(?:CONSTRAINT\s+)?TRIGGER\s+"?(\w+)/gi)].map(
+      (m) => m[1]!,
+    );
     expect(
-      /CREATE\s+TRIGGER/i.test(sql),
+      triggers.filter((name) => !(name in TRIGGERS_READ)),
       'a trigger now exists in the ledger chain — check whether it stamps updated_at on ' +
-        'mailbox_mapping, and if it does, delete this guard rather than leaving it as folklore',
-    ).toBe(false);
+        'mailbox_mapping, and if it does, delete this guard rather than leaving it as folklore; ' +
+        'if it does not, name it in TRIGGERS_READ with what it does instead',
+    ).toEqual([]);
+    expect(
+      Object.keys(TRIGGERS_READ).filter((name) => !triggers.includes(name)),
+      'named in TRIGGERS_READ but no longer created by the ledger chain: remove the entry',
+    ).toEqual([]);
+  });
+
+  it('the one trigger the chain has, ledger 0070’s, sets no column: it refuses a changed test marker and returns the row as it came', () => {
+    // Read here, not taken on trust from its name: the body of the function it
+    // runs assigns nothing to NEW and never names updated_at, so a writer that
+    // omits the stamp is still the only thing that decides the column.
+    const migration = readFileSync(
+      join(REPO_ROOT, 'packages/ledger/migrations/0070_the_marker_a_test_copies_by.sql'),
+      'utf-8',
+    );
+    const body = /AS \$\$([\s\S]*?)\$\$/.exec(migration)?.[1];
+    expect(body, 'the trigger function of ledger 0070 is not where this reads it').toBeDefined();
+    expect(body).toContain('RAISE EXCEPTION');
+    expect(body).toMatch(/RETURN NEW;/);
+    expect(body).not.toMatch(/NEW\.\w+\s*:=/);
+    expect(body).not.toMatch(/updated_at/i);
+    expect(migration).toMatch(
+      /CREATE TRIGGER trg_mailbox_mapping_test_marker_written_once\s+BEFORE UPDATE ON public\.mailbox_mapping\s+FOR EACH ROW\s+EXECUTE FUNCTION public\.mailbox_mapping_test_marker_written_once\(\);/,
+    );
   });
 });

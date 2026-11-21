@@ -419,6 +419,11 @@ export class ImapFlowSource implements SourceConnector {
           receivedAt: toIsoDate(msg.internalDate),
           size: msg.size as number,
           sourceRef: `${folder.path}:${uid}`,
+          // The Subject from the envelope this listing already fetches, as
+          // imapflow decodes it (RFC 2047), for a test migration's marker
+          // (workplan 0162): a message is kept or set aside before its body
+          // is read. No extra request, and nothing stores it.
+          ...(typeof msg.envelope?.subject === 'string' ? { subject: msg.envelope.subject } : {}),
         });
 
         if (uid > maxUidNext) {

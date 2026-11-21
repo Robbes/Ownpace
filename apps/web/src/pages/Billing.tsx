@@ -26,6 +26,7 @@ import {
   type UsageResponse,
 } from '../services/billing-service.ts';
 import { serverMessage } from '../services/api.ts';
+import { checkoutToFollow } from '../services/address-to-follow.ts';
 import { useAuthStore } from '../stores/auth-store.ts';
 import { useT, useFormatters, useLocale, type StringKey } from '../i18n/index.tsx';
 import StateChip from '../components/StateChip.tsx';
@@ -753,11 +754,20 @@ const Billing: React.FC = () => {
 
   // The Mollie pay loop, finally reachable (0039 T4): create the payment,
   // follow the checkout URL. Failures render at the row, verbatim.
+  // Followed only when it is Mollie's checkout, `https:` on its host (0163
+  // T4, finding 8): the browser goes wherever it is sent, and a `javascript:`
+  // address would run in this page. Until 0163 the API answered our own
+  // /billing here, so Pay reloaded this page and never reached Mollie.
   const [payError, setPayError] = React.useState<{ invoiceId: string; text: string } | null>(null);
   const payMutation = useMutation({
     mutationFn: (invoiceId: string) => billingApi.createPayment(invoiceId),
-    onSuccess: (result) => {
-      window.location.href = result.paymentUrl;
+    onSuccess: (result, invoiceId) => {
+      const checkout = checkoutToFollow(result.paymentUrl);
+      if (checkout === null) {
+        setPayError({ invoiceId, text: t('billing.payNotMollie') });
+        return;
+      }
+      window.location.href = checkout;
     },
     onError: (error, invoiceId) => {
       setPayError({ invoiceId, text: serverMessage(error) });

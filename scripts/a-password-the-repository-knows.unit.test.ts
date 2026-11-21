@@ -104,6 +104,7 @@ import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse as parseYaml } from 'yaml';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -546,7 +547,7 @@ function aStack(dotEnv: string, state: Partial<StubState> = {}): Stack {
     logPath,
     upsertLog,
     env: {
-      PATH: `${bin}:${dirname(process.execPath)}:/usr/bin:/bin`,
+      PATH: `${bin}:${DOCKER_SOCKET_STAT_DIR}:${dirname(process.execPath)}:/usr/bin:/bin`,
       HOME: home,
       LANG: 'C',
       STUB_STATE: statePath,

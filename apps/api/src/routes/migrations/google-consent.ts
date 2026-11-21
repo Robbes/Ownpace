@@ -41,6 +41,9 @@ import {
 import {
   CONSENT_STATE_TTL_MS,
   EXCHANGE_FOR_THE_LINK_HOLDER,
+  // In the shared package since 0163 T4: the web app follows the consent
+  // address only on this endpoint's host, so both read the one constant.
+  GOOGLE_AUTH_ENDPOINT,
   localeOf,
   type Bilingual,
   type RefusalLocale,
@@ -48,7 +51,6 @@ import {
 import type { ProgressPageUrl } from './progress-page-url.ts';
 import { SIGNED_IN_ACCOUNT_SCOPES, accountInIdToken } from './signed-in-account.ts';
 
-export const GOOGLE_AUTH_ENDPOINT = 'https://accounts.google.com/o/oauth2/v2/auth';
 export const GOOGLE_TOKEN_ENDPOINT = 'https://oauth2.googleapis.com/token';
 
 export type GoogleConsentSourceType =

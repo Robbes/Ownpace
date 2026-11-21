@@ -27,6 +27,7 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileS
 import { tmpdir } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { DOCKER_SOCKET_STAT_DIR } from './docker-socket-stub.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 const COMPOSE_DIR = join(REPO_ROOT, 'deploy', 'compose');
@@ -60,7 +61,7 @@ function ensure(lines: string): { status: number; out: string; env: string } {
   const r = spawnSync(join(compose, 'ensure-env-secrets.sh'), [], {
     encoding: 'utf8',
     cwd: root,
-    env: { PATH: `${dirname(process.execPath)}:/usr/bin:/bin`, HOME: home, LANG: 'C' },
+    env: { PATH: `${DOCKER_SOCKET_STAT_DIR}:${dirname(process.execPath)}:/usr/bin:/bin`, HOME: home, LANG: 'C' },
   });
   return { status: r.status ?? -1, out: `${r.stdout ?? ''}${r.stderr ?? ''}`, env: readFileSync(envFile, 'utf8') };
 }

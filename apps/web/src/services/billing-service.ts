@@ -431,8 +431,9 @@ export const billingApi = {
     }
   },
 
-  /** Create a Mollie payment for an invoice; the caller follows `paymentUrl`.
-   *  Owner/admin only server-side (0039 T1). */
+  /** Create a Mollie payment for an invoice. `paymentUrl` is Mollie's
+   *  checkout, which the caller follows only once `checkoutToFollow` passes
+   *  it (0163 T4). Owner/admin only server-side (0039 T1). */
   createPayment: async (invoiceId: string) => {
     const response = await apiClient.post(`/billing/invoices/${invoiceId}/pay`);
     return PayResponseSchema.parse(response.data);

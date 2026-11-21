@@ -2,7 +2,7 @@
 
 > **In one line:** Announcing shares at cutover: `createNextcloudShare` with share-by-mail fallback, one-press `sharing/apply-all` of held share grants so the target platform mails, a Mailpit arrival gate, and a fallback digest via `sharing/announce`.
 
-## Status — 2026-10-28 (update this block at the end of every session)
+## Status — 2026-11-20 (update this block at the end of every session)
 
 | Task | Status | Evidence |
 |---|---|---|
@@ -13,6 +13,25 @@
 | T3 The fallback digest | ✅ **Done 2026-08-26** | `share-announcement.ts` (shared) + `POST /:mappingId/sharing/announce` on BOTH editions, through 0030's channel (`tellMessage` / the appliance's own notifier). Audience: `done_manual` rows only — applied rows the platform announced, skipped rows carry no access, links have no address and are COUNTED, never dropped. One digest per grantee, their items only (§17). Note required (the "where" comes from the person who carried the shares); Template 6 EN/NL in the templates doc, subjects pinned to the code; a prior press makes the next an explicit `confirmResend`, gated on the audit log (`latestAuditEventAt` widened: actor optional, mappingId filter). |
 | T4 Flags restated | ⬜ proposed | The four cloud silence flags recorded beside `applyShareGrant` (0103 T6) are for any **pre-moment** technical write a future needs — at the chosen moment the apply notifies on purpose. Same flags, opposite press, one policy: mail happens exactly once, when a person chose. |
 | T5 The press meets the target's limit on new shares | ✅ **Merged** 2026-10-28 as #1704 (`3fb0dc29`), after E2E (managed) run 40646321229; in alpha.3 | The product half owed by the 2026-10-25 entry below. A 429 from the target is `ShareLimit` (shared) and its own sentence, in English and Dutch, with when to apply again; `applyAllOpenShareGrants` and `applyShareGrantsInFolder` stop at the first one and answer the rows from there as `waitingForLimit`, open and untried, apart from `refused`; both editions and the Sharing page. The order of the two calls is unchanged, on purpose: see the entry *the product half, built*. E2E (managed) run 40646321229 on its pull request, after the tag (a first try, run 40640465619, was cancelled). |
+
+**2026-11-20: the folder press fell short of its file once, and the cause is not yet known.** E2E
+(managed) run 44731893238, scheduled, on `main` at `b4d11ee7`, failed on attempt 1 (12:00 to 12:07
+UTC) at *the moment, pressed*: the folder press applied 1 row, and the file inside the folder came
+back `target_refused` with status 404. Attempt 2 of the same run (12:13 to 12:20) passed, as did
+every other recent run. Attempt 1 differed before the press: prepare saw an eligible item after 2s
+and the task lane landed one VTODO row (green runs: 6s and two), and the sync before the verify
+took 26s with itemsProcessed=4 (green runs: 12s and 0). Yet the ledger at the balance held what a
+green run's holds (copied 10, tombstoned 1), so the file had reached the ledger by then. Passes of
+one mapping do not overlap (`run-delta-sync`'s queue has concurrencyLimit 1, and every pass is
+enqueued with the mapping as its concurrencyKey), and the WebDAV writer creates missing parent
+collections before a PUT. So either the file was not on the target yet when the press asked, or it
+was and the share API still answered 404; the run does not say which. Its evidence file cannot be
+downloaded where the failure is read, and its job log can be, so `smoke-managed.sh` now prints
+there, when the folder press applies fewer than two rows and before it fails: the file's ledger
+rows for the run's tag, the APPLY mapping's passes since the seed or running over it, the folder's
+share rows, and a PROPFIND Depth 0 of the folder and of the file as the target's own account, its
+status alone. Nothing retries or waits, and nothing passes or fails differently
+(`scripts/the-moment-pressed.unit.test.ts`). The next such failure says which it was.
 
 **2026-10-25: the gate's press met Nextcloud's limit on new shares.** E2E (managed) #277, attempt
 2, on the branch of #1680, failed at *the moment, pressed*: apply-all applied none of the run's

@@ -109,6 +109,7 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # No token left in .git/config for the steps after this one (workplan
@@ -379,13 +380,17 @@ jobs:
         # `cosign verify` — which deploy/selfhost/README.md tells operators to
         # run — fails against it until this step succeeds. Red means "re-run
         # this job", not "nothing shipped".
+        # The digest reaches the shell through `env:`, never pasted into the
+        # script (zizmor's template-injection, 2026-11-20).
+        env:
+          BUILT_DIGEST: ${{ steps.build_retry.outputs.digest || steps.build_attempt.outputs.digest }}
         run: |
           # Whichever attempt actually published — the retry step's output is
           # empty when it was skipped, and `||` takes the first non-empty. An
           # empty digest would make `ref` end in a bare `@` and cosign would
           # fail on a malformed reference, so refuse here with the reason
           # rather than there with a parse error.
-          digest="${{ steps.build_retry.outputs.digest || steps.build_attempt.outputs.digest }}"
+          digest="$BUILT_DIGEST"
           if [ -z "$digest" ]; then
             echo "::error::No image digest from either build attempt — nothing was published, so there is nothing to sign."
             exit 1
@@ -706,6 +711,7 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
 
       - name: Build both Trigger.dev images as managed.yml names them, and keep upstream's configuration
         env:
@@ -776,8 +782,15 @@ jobs:
   # (managed).
   #
   # It builds the directory under the name managed.yml gives it, checks the
-  # image's user, entrypoint and command are upstream's, and starts it on this
-  # runner's Docker socket, read-only, with the environment managed.yml sets.
+  # image's entrypoint and command are upstream's and its user is 99:99, the
+  # base's haproxy, not root (since 2026-11-20, workplan 0119), and starts it
+  # on this runner's Docker socket, read-only, with the settings and the
+  # environment managed.yml gives it: a read-only root filesystem with /tmp
+  # and /run on tmpfs, no capability, no-new-privileges, and the socket's
+  # group, which seed_docker_socket_gid (deploy/compose/env-read.sh) reads
+  # from the socket as the stack's bring-up does. Once it answers, every
+  # process in the container must run as uid 99 and HAProxy must hold that
+  # group: a process as uid 0 fails the job.
   # Then it asks it, as the supervisor would over DOCKER_HOST, for what the
   # supervisor uses (containers, images, networks, volumes, a POST to a
   # container that does not exist): Docker must answer each, whatever it
@@ -818,13 +831,26 @@ jobs:
           fi
           docker build --pull --progress=plain --tag "$ref" deploy/compose/docker-socket-proxy
           have="$(docker image inspect --format '{{json .Config.User}} {{json .Config.Entrypoint}} {{json .Config.Cmd}}' "$ref")"
-          want='"root" ["docker-entrypoint.sh"] ["haproxy","-f","/tmp/haproxy.cfg"]'
+          want='"99:99" ["docker-entrypoint.sh"] ["haproxy","-f","/tmp/haproxy.cfg"]'
           if [ "$have" != "$want" ]; then
-            echo "::error::${ref} runs ${have} (user, entrypoint, command), and upstream's v0.6.0 runs ${want}"
+            echo "::error::${ref} runs ${have} (user, entrypoint, command), and it must run ${want}: upstream's v0.6.0 entrypoint and command, as uid 99, not root"
             exit 1
           fi
-          # managed.yml's environment and socket for trigger-docker-proxy, as they are there.
+          # uid 99 is the base's haproxy, which owns the server-state file the Dockerfile's RUN made.
+          who="$(docker run --rm --entrypoint id "$ref")"
+          if ! [[ "$who" =~ ^uid=99\(haproxy\)\ gid=99\(haproxy\) ]]; then
+            echo "::error::${ref}'s user is ${who}, not uid 99 and gid 99, the base's haproxy"
+            exit 1
+          fi
+          # The socket's group, as the stack's .env gets it: seed_docker_socket_gid reads it from the runner's socket.
+          . deploy/compose/env-read.sh
+          envfile="$(mktemp)"
+          seed_docker_socket_gid "$envfile"
+          gid="$(env_value "$envfile" DOCKER_SOCKET_GID)"
+          # managed.yml's settings, environment, group and socket for trigger-docker-proxy, as they are there.
           docker run -d --name socket-proxy \
+            --read-only --tmpfs /tmp --tmpfs /run:uid=99,gid=99,mode=0755 --cap-drop ALL --security-opt no-new-privileges:true \
+            --group-add "$gid" \
             -e CONTAINERS=1 -e IMAGES=1 -e NETWORKS=1 -e VOLUMES=1 -e POST=1 \
             -v /var/run/docker.sock:/var/run/docker.sock:ro \
             -p 127.0.0.1:2375:2375 "$ref"
@@ -838,6 +864,26 @@ jobs:
             fi
             sleep 1
           done
+          # Not root: every process in the container, HAProxy's master (pid 1) among them, runs as uid 99,
+          # real, effective, saved and filesystem, and HAProxy holds the socket's group.
+          uids="$(docker exec socket-proxy sh -c "grep -s '^Uid:' /proc/[0-9]*/status" || true)"
+          if ! [[ "$uids" == *"/proc/1/status:Uid:"* ]]; then
+            echo "::error::read no uid for pid 1 in the proxy's container: ${uids}"
+            exit 1
+          fi
+          while IFS= read -r line; do
+            read -r _ real effective saved fs <<<"${line#*status:}"
+            if [ "${real} ${effective} ${saved} ${fs}" != '99 99 99 99' ]; then
+              echo "::error::${line%%:Uid:*} runs as uid ${real} ${effective} ${saved} ${fs} (real, effective, saved, filesystem), not 99"
+              exit 1
+            fi
+          done <<<"$uids"
+          groups="$(docker exec socket-proxy sed -n 's/^Groups:[[:space:]]*//p' /proc/1/status)"
+          if ! [[ " ${groups} " == *" ${gid} "* ]]; then
+            echo "::error::HAProxy (pid 1) holds the groups ${groups}, not the socket's ${gid}"
+            exit 1
+          fi
+          echo "not root: every process runs as uid 99, and HAProxy holds the socket's group ${gid} (groups ${groups})"
           # Who answered a request, and how: its HTTP status, then the Api-Version
           # header, which Docker sets on every response it writes, its errors
           # among them. HAProxy's own answers carry none: its 403, and the 400,
@@ -883,7 +929,11 @@ jobs:
 
       - name: The proxy's log, when it did not answer as it should
         if: failure()
-        run: docker logs socket-proxy || true
+        run: |
+          docker logs socket-proxy || true
+          # Who owns the two directories it writes, as managed.yml mounts them.
+          ref="$(sed -n 's/^[[:space:]]*image:[[:space:]]*\(localhost\/docker-socket-proxy:[^[:space:]]*\)[[:space:]]*$/\1/p' deploy/compose/managed.yml)"
+          docker run --rm --read-only --tmpfs /tmp --tmpfs /run:uid=99,gid=99,mode=0755 --entrypoint stat "$ref" -c '%n %a %u:%g' /tmp /run || true
 
       - name: Remove the proxy
         if: always()

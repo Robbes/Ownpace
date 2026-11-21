@@ -35,9 +35,10 @@
  *    `{"error": "invalid_grant", …}` and `token_access_type=offline` there.
  */
 
-import type { Bilingual } from '@openmig/shared';
+// The authorize endpoint is in the shared package since 0163 T4: the web app
+// follows the consent address only on its host, so both read the one constant.
+import { DROPBOX_AUTH_ENDPOINT, type Bilingual } from '@openmig/shared';
 
-export const DROPBOX_AUTH_ENDPOINT = 'https://www.dropbox.com/oauth2/authorize';
 export const DROPBOX_TOKEN_ENDPOINT = 'https://api.dropboxapi.com/oauth2/token';
 
 /** What a migration reads; a token without both cannot list or fetch. */

@@ -9,7 +9,7 @@
 #
 # WHAT THIS FILE DOES NOT SEE is scripts/idp-pin-watch.mjs's (workplan 0146 T8): every image
 # line of deploy/compose's managed.yml, dev.yml and www.yml, the busybox and GoAccess copies in
-# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy the scan runs, the
+# its scripts, Trigger.dev, the tasks' Node, `packageManager`, the Trivy and the osv-scanner the scan runs, the
 # cosign images.yml and release.yml name, the Atlas release ci.yml's migration-lint downloads
 # by URL and checks by its sha256 (2026-11-01), the stalwart-cli release ci.yml, e2e.yml and
 # e2e-managed.yml install the same way, the binfmt and BuildKit images images.yml's build job
@@ -27,10 +27,19 @@
 # too since 0146 T15b, and its pin, the FROM of deploy/selfhost/postgres/Dockerfile, is this
 # file's alone (its entry below): the pin watch reads neither deploy/selfhost/compose.yml nor
 # that Dockerfile (in deploy/selfhost it reads only setup-stalwart.sh's Stalwart pin).
+#
+# A THREE-DAY COOLDOWN ON EVERY ENTRY (workplan 0119; seven days from 2026-11-20, three since
+# 2026-11-21): a version update is proposed only for a release at least three days old, the three
+# days CONTRIBUTING.md asks of every dependency and pnpm's minimumReleaseAge enforces. zizmor's
+# dependabot-cooldown audit asks for seven unless told otherwise, and CI runs zizmor blocking
+# (zizmor.yml), so .github/zizmor.yml holds that audit to three days, its one setting. A cooldown
+# does not apply to security updates: those still come as soon as GitHub has them.
 version: 2
 updates:
   # npm/pnpm workspace (root manifest + all packages/* and apps/* via the workspace).
   - package-ecosystem: npm
+    cooldown:
+      default-days: 3
     directory: "/"
     schedule:
       interval: weekly
@@ -76,6 +85,8 @@ updates:
 
   # GitHub Actions used across .github/workflows (several are pinned by SHA / tagged).
   - package-ecosystem: github-actions
+    cooldown:
+      default-days: 3
     directory: "/"
     schedule:
       interval: weekly
@@ -111,6 +122,8 @@ updates:
   # scripts/a-task-base-the-cli-builds-nothing-into.unit.test.ts holds them
   # equal, so it is in this group and moves in the same pull request.
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directories:
       - "/apps/api"
       - "/apps/web"
@@ -154,6 +167,8 @@ updates:
   # Alpine line (3.24 to 3.25) is a minor and comes here too: read Alpine's
   # release notes for it before merging.
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directory: "/deploy/compose/goaccess"
     schedule:
       interval: weekly
@@ -177,6 +192,8 @@ updates:
   # request holds no other image back. Its E2E (managed) is dispatched as for
   # any pin of managed.yml. A major is pg_upgrade, and the owner's (0119 §2.1).
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directory: "/deploy/compose/postgres"
     schedule:
       interval: weekly
@@ -203,6 +220,8 @@ updates:
   # entry of its own, so that pull request holds no other image back. A major
   # is pg_upgrade on somebody's machine, and the owner's (0119 §2.1).
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directory: "/deploy/selfhost/postgres"
     schedule:
       interval: weekly
@@ -229,6 +248,8 @@ updates:
   # through this proxy. Patches and digests only: another HAProxy line is the
   # owner's call, taken with a release of docker-socket-proxy (its header).
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directory: "/deploy/compose/docker-socket-proxy"
     schedule:
       interval: weekly
@@ -258,6 +279,8 @@ updates:
   # fixes ship in the newest release, and the pin watch compares within 2 too.
   # A major is the owner's.
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directory: "/deploy/compose/caddy"
     schedule:
       interval: weekly
@@ -285,6 +308,8 @@ updates:
   # `sed`. Push both to the pull request's branch, and dispatch E2E (managed) on
   # it: Trigger.dev's queues are in it. A major is the owner's (0119 §3 item 3).
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directory: "/deploy/compose/redis"
     schedule:
       interval: weekly
@@ -323,6 +348,8 @@ updates:
   # to the pull request's branch, and dispatch E2E (managed) on it: every
   # query of the app goes through this pooler. A major is the owner's.
   - package-ecosystem: docker
+    cooldown:
+      default-days: 3
     directory: "/deploy/compose/pgbouncer"
     schedule:
       interval: weekly
@@ -349,6 +376,8 @@ updates:
   # entry is the app's line, Ownpace's own `edge`; it stays, so that an image
   # the appliance pulls is read the Monday it is added.
   - package-ecosystem: docker-compose
+    cooldown:
+      default-days: 3
     directories:
       - "/deploy/selfhost"
     schedule:

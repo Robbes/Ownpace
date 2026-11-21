@@ -95,6 +95,8 @@ function jmapServer(
    * fire is the same defect as the tests this sweep exists to find.
    */
   let refusalsIssued = 0;
+  /** What each `Email/import` was asked to create, in order. */
+  const imported: Array<{ receivedAt: unknown }> = [];
 
   vi.stubGlobal(
     'fetch',
@@ -172,11 +174,12 @@ function jmapServer(
       }
 
       if (method === 'Email/import') {
-        const emails = args.emails as Record<string, unknown>;
+        const emails = args.emails as Record<string, { receivedAt?: unknown }>;
         const id = `E${nextId++}`;
         // The blob is opaque here, so key the import off what the test asked
-        // for: one created email per call.
-        void emails;
+        // for: one created email per call. The arrival time it was given is
+        // kept, for the tests that ask what a copy arrives with.
+        imported.push({ receivedAt: emails['0']?.receivedAt });
         if (lastImported !== undefined && refuse.has(lastImported)) {
           const existingId = refuse.get(lastImported);
           refusalsIssued += 1;
@@ -212,7 +215,7 @@ function jmapServer(
     }),
   );
 
-  return { methods, present, refusals: () => refusalsIssued };
+  return { methods, present, imported, refusals: () => refusalsIssued };
 }
 
 afterEach(() => {
@@ -442,5 +445,57 @@ describe('the server refuses a duplicate', () => {
     await expect(
       writer.upsertEmail('m1', message('nid') as never, []),
     ).rejects.toThrow(/missing the server-assigned id/);
+  });
+});
+
+describe('JMAP arrival time', () => {
+  // A copy is a new arrival unless the import says otherwise: `receivedAt` is
+  // what a mail app sorts by and what a webmail shows when the `Date:` line is
+  // missing or unreadable. `arrivalTimeOf` (shared) holds the order; these
+  // prove the writer sends what it gives.
+  const withArrival = (id: string, receivedAt: string, dateLine: string | undefined) => {
+    const text =
+      `Message-ID: <${id}@dev.local>\r\nFrom: a@dev.local\r\nTo: b@dev.local\r\n` +
+      `Subject: ${id}\r\n${dateLine === undefined ? '' : `Date: ${dateLine}\r\n`}\r\nbody ${id}\r\n`;
+    return { item: { receivedAt }, rfc822: new TextEncoder().encode(text) };
+  };
+
+  it("imports with the source's own arrival time, over the Date: line", async () => {
+    const { imported } = jmapServer([]);
+    const writer = new JmapTargetWriter(CONFIG as never);
+
+    await writer.upsertEmail(
+      'm1',
+      withArrival('old', '2009-09-18T19:35:00.000Z', 'Mon, 1 Jun 2026 10:00:00 +0000') as never,
+      [],
+    );
+
+    expect(imported).toHaveLength(1);
+    expect(imported[0]!.receivedAt).toBe('2009-09-18T19:35:00.000Z');
+  });
+
+  it('imports with the Date: line when the source gave only a placeholder', async () => {
+    const { imported } = jmapServer([]);
+    const writer = new JmapTargetWriter(CONFIG as never);
+
+    await writer.upsertEmail(
+      'm1',
+      withArrival('epoch', new Date(0).toISOString(), 'Fri, 18 Sep 2009 21:35:00 +0200') as never,
+      [],
+    );
+
+    expect(imported[0]!.receivedAt).toBe('2009-09-18T19:35:00.000Z');
+  });
+
+  it('imports with its own clock when neither holds a usable time', async () => {
+    const { imported } = jmapServer([]);
+    const writer = new JmapTargetWriter(CONFIG as never);
+    const before = Date.now();
+
+    await writer.upsertEmail('m1', withArrival('none', 'not a time', undefined) as never, []);
+
+    const sent = Date.parse(String(imported[0]!.receivedAt));
+    expect(sent).toBeGreaterThanOrEqual(before);
+    expect(sent).toBeLessThanOrEqual(Date.now());
   });
 });

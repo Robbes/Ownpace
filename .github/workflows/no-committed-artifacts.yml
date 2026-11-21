@@ -38,8 +38,13 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Check added files
+        # The base branch's name is the pull request's to choose: it reaches
+        # the shell through `env:`, never pasted into the script (zizmor's
+        # template-injection, 2026-11-20).
+        env:
+          BASE_REF: ${{ github.base_ref }}
         run: |
-          ADDED_FILES=$(git diff --name-only --diff-filter=A origin/${{ github.base_ref }}...HEAD)
+          ADDED_FILES=$(git diff --name-only --diff-filter=A "origin/${BASE_REF}...HEAD")
           # These should never be committed (build outputs, deps, local DBs, secrets, tsbuild info)
           BAD_PATTERN='(^|/)(node_modules|dist|build|coverage|\.next|\.turbo)/|\.tsbuildinfo$|\.sqlite3?$|(^|/)\.env(\.local|\.development|\.production)?$'
           violations=0

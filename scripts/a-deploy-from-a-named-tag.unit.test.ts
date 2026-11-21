@@ -660,6 +660,18 @@ const SITE_ENV = `${LIVE_ENV}WWW_LIVE=true\nWWW_PORT=${SITE_PORT}\nWWW_BIND=${SI
 /** A WWW_PORT of five digits that is no port: one past 65535. Never to be printed either. */
 const PORT_PAST_THE_LAST = '65536';
 
+/**
+ * The output with every git object id taken out, for the checks that a value is never printed.
+ * The fixture's commits are made afresh each run, so their ids differ every time, and a value of
+ * five digits can turn up inside one by chance. On 2026-11-21 main's CI printed the tag's commit
+ * `14c871106ed766553629…`, which holds `65536`, and failed a refusal that printed no port at all.
+ * A port has at most five digits and an address has dots, so taking out runs of 7 to 40 hex
+ * digits takes out no value these checks look for.
+ */
+function withoutObjectIds(out: string): string {
+  return out.replace(/\b[0-9a-f]{7,40}\b/g, '<object id>');
+}
+
 /** www.yml as #1275 makes it: the container named after its project. Idempotent once #1275 is on main. */
 function wwwYml(fixed = false): string {
   const real = readFileSync(join(COMPOSE_DIR, 'www.yml'), 'utf8');
@@ -3331,14 +3343,27 @@ describe("the site, www.ownpace.eu: built from the tag and served as ownpace-liv
       expectNothingChanged(s, r.out, 'reads');
       expect(buildsInCheckout(s), 'the site was built in the checkout').toEqual([]);
       expect(broughtUp(s), 'the site was brought up').toEqual([]);
-      // A refusal names the key, never the value.
-      expect(r.out).not.toContain(SITE_BIND);
-      expect(r.out).not.toContain(SITE_PORT);
-      expect(r.out).not.toContain('20x25');
-      expect(r.out).not.toContain(PORT_PAST_THE_LAST);
+      // A refusal names the key, never the value. The commit ids it prints are taken out first,
+      // since a fresh one can hold a value's digits (withoutObjectIds).
+      const printed = withoutObjectIds(r.out);
+      expect(printed).not.toContain(SITE_BIND);
+      expect(printed).not.toContain(SITE_PORT);
+      expect(printed).not.toContain('20x25');
+      expect(printed).not.toContain(PORT_PAST_THE_LAST);
     },
     CASE_MS,
   );
+
+  it('a commit id that holds the digits of a value never to be printed is not that value printed; the value itself still is', () => {
+    // The tag's commit main's CI printed on 2026-11-21.
+    const id = '14c871106ed766553629fba425afb20fec17a71d';
+    expect(id).toContain(PORT_PAST_THE_LAST);
+    expect(withoutObjectIds(`v0.2.0-alpha.2 is an annotated release tag on origin, at ${id}, version 0.2.0-alpha.2`)).not.toContain(PORT_PAST_THE_LAST);
+    // A short id is seven hex digits or more, and goes too.
+    expect(withoutObjectIds('its short id 7665536')).not.toContain(PORT_PAST_THE_LAST);
+    expect(withoutObjectIds(`WWW_PORT=${PORT_PAST_THE_LAST} is not one port number`)).toContain(PORT_PAST_THE_LAST);
+    expect(withoutObjectIds(`bound to ${SITE_BIND}:${SITE_PORT}`)).toContain(`${SITE_BIND}:${SITE_PORT}`);
+  });
 
   it(
     "the real site at this commit: a tag that carries it is refused with the count the site's own --check gives, or else with what its own --public build refuses, or passes when that build does",

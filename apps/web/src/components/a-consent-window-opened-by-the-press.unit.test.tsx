@@ -128,8 +128,11 @@ const EXPIRED: Readonly<Record<Locale, string>> = {
   nl: 'De link naar de pagina van Google is verlopen. Druk opnieuw op Verbinden met Google.',
 };
 
-/** Where the server sends the window: the provider's consent screen. */
-const CONSENT_URL = 'https://accounts.google.example/o/oauth2/v2/auth?client_id=x&state=s';
+/**
+ * Where the server sends the window: the provider's consent screen, on
+ * Google's own host. The door sends or links no other (workplan 0163 T4).
+ */
+const CONSENT_URL = 'https://accounts.google.com/o/oauth2/v2/auth?client_id=x&state=s';
 const WINDOW_NAME = 'ownpace-google-consent';
 
 /** An axios-shaped refusal, the way the real apiClient delivers one. */

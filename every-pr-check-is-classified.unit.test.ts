@@ -71,6 +71,15 @@ const NOT_REQUIRABLE = new Map([
       'itself, the integration setup, the suite finder), so on any other PR it is never reported; ' +
       'a red run is a finding about the other major, for the owner, not a merge gate.',
   ],
+  // zizmor.yml (workplan 0119, 2026-11-20): zizmor over the workflows (1.32.0
+  // since 2026-11-21), blocking, on a pull request that touches .github/ or an
+  // action file.
+  [
+    'zizmor',
+    'zizmor.yml carries a `paths:` filter on its pull_request trigger (.github/** and action files), ' +
+      'so on a PR touching none of them the workflow never runs and the context is never reported. ' +
+      'A PR that changes a workflow does run it, and any finding fails it.',
+  ],
   // script-images.yml (#1675): builds an image a script builds for itself, on a
   // pull request that changes its directory, and on no other.
   [
@@ -147,6 +156,15 @@ const NOT_REQUIRABLE = new Map([
     'hadolint.yml reports on every pull request and fails none of them, whatever hadolint finds: it is ' +
       'report only until the two Trigger.dev Dockerfiles have had their pass (workplan 0119), so requiring it ' +
       'would gate nothing. When it turns blocking it is required, under the name it takes then.',
+  ],
+  // semgrep.yml (workplan 0163 T3, the owner's decision D3 of 2026-11-20):
+  // eight named Semgrep rules over the tree, report only until each rule in
+  // turn reports nothing on main.
+  [
+    'Semgrep (report only)',
+    'semgrep.yml reports on every pull request and fails none of them, whatever Semgrep finds: it is report ' +
+      'only until a rule reports nothing on main and turns blocking, one rule at a time (workplan 0163, step 5), so ' +
+      'requiring it would gate nothing. Once a rule blocks, its check is required, under the name it takes then.',
   ],
   // security-scan.yml's image jobs (0146 T8, scan half). Their `if:` runs them on
   // schedule and workflow_dispatch only, so a pull request reports them skipped,

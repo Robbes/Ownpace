@@ -117,6 +117,11 @@ export function openConsentWindow(name: string): ConsentWindow | null {
  * Send the window the press opened to the provider. `false` when there is no
  * window to send: the browser opened none, or the blank one was closed while
  * the server was answering. The door then offers the link.
+ *
+ * `url` is the address `consentToFollow` passed (`address-to-follow.ts`,
+ * workplan 0163 T4): `https:` on the provider's own host. Each door checks
+ * the server's answer before it calls this, and closes the window on any
+ * other address, so a window is never sent where the provider is not.
  */
 export function sendConsentWindow(w: ConsentWindow | null, url: string): boolean {
   if (w === null || w.closed) return false;

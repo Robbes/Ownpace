@@ -53,6 +53,14 @@ export declare const HADOLINT_WORKFLOW: string;
 export declare const HADOLINT_NOTE: string;
 /** The one image hadolint.yml names, hadolint/hadolint by a release tag and its index digest; throws for any other line. */
 export declare function hadolintPin(workflow: string): Omit<Image, 'line'>;
+export declare const SEMGREP_WORKFLOW: string;
+export declare const SEMGREP_NOTE: string;
+/** The one image semgrep.yml names, semgrep/semgrep by a release tag and its index digest; throws for any other line. */
+export declare function semgrepPin(workflow: string): Omit<Image, 'line'>;
+export declare const ZIZMOR_WORKFLOW: string;
+export declare const ZIZMOR_NOTE: string;
+/** The one image zizmor.yml names, ghcr.io/zizmorcore/zizmor by a release tag and its index digest; throws for any other line. */
+export declare function zizmorPin(workflow: string): Omit<Image, 'line'>;
 export declare const TRIVY_WORKFLOW: string;
 export declare const TRIVY_JOBS: string[];
 export declare const TRIVY_HOST: string;
@@ -60,6 +68,13 @@ export declare const TRIVY_UPSTREAM: string;
 export declare const TRIVY_ARCHES: Record<'AMD64' | 'ARM64', string>;
 export declare const TRIVY_NOTE: string;
 export declare function trivyPin(workflow: string, job: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
+export declare const OSV_SCANNER_WORKFLOW: string;
+export declare const OSV_SCANNER_HOST: string;
+export declare const OSV_SCANNER_UPSTREAM: string;
+export declare const OSV_SCANNER_ARCHES: string[];
+export declare const OSV_SCANNER_NOTE: string;
+/** The osv-scanner the Security Scan installs, read from its one install step; throws for a step not of the shape it must have. */
+export declare function osvScannerPin(workflow: string): { version: string; sha256: Record<'amd64' | 'arm64', string>; line: number };
 export interface ActionImageSpec {
   action: string;
   input: string;

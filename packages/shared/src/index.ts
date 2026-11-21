@@ -20,6 +20,7 @@ export * from './caldav-query.ts';
 export * from './generated-message-id.ts';
 export * from './mail-headers.ts';
 export * from './mail-subject.ts';
+export * from './mail-arrival.ts';
 export * from './ports.ts';
 export * from './operating-contract.ts';
 // The queues' guidance in the reader's words, English and Dutch, beside the
@@ -102,6 +103,8 @@ export * from './microsoft-deployment-client.ts';
 export * from './microsoft-scopes.ts';
 export * from './provider-clients.ts';
 export * from './consent-state.ts';
+// Where each consent sends the browser, read by the API and the web app alike (0163 T4).
+export * from './consent-endpoints.ts';
 export * from './redirect-uris.ts';
 export * from './standing-grants.ts';
 export * from './erasure-timeline.ts';
