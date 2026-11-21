@@ -41,7 +41,7 @@ import {
 interface FakeMessage {
   uid: number;
   flags?: Set<string>;
-  envelope?: { messageId?: string };
+  envelope?: { messageId?: string; subject?: string };
   internalDate?: Date;
   size?: number;
   source?: Buffer;
@@ -329,6 +329,22 @@ describe('the natural key', () => {
     expect([...item!.keywords].sort()).toEqual(['$flagged', '$seen']);
     expect(item!.receivedAt).toBe('2026-08-06T10:00:00.000Z');
     expect(item!.size).toBe(512);
+  });
+
+  it('carries the subject from the envelope it already fetched, and nothing when it has none (workplan 0162)', async () => {
+    // imapflow hands the envelope's Subject over decoded (RFC 2047): what a
+    // test migration's marker is matched against, before any body is read.
+    messages = [
+      { uid: 1, envelope: { messageId: '<a@example.test>', subject: 'Re: [Ownpace-test] Plan' }, size: 1, internalDate: new Date(0) },
+      { uid: 2, envelope: { messageId: '<b@example.test>' }, size: 1, internalDate: new Date(0) },
+    ];
+    boxState = { ...boxState, exists: 2 };
+    const listed = await source().listSince(INBOX);
+    expect(listed.items[0]!.subject).toBe('Re: [Ownpace-test] Plan');
+    expect(listed.items[1]).not.toHaveProperty('subject');
+    // The listing asked for what it always asked for, and read no body.
+    expect(calls).toContain('fetchAll(1:*,envelope+flags+internalDate+size+uid)');
+    expect(calls.some((c) => c.startsWith('fetchOne'))).toBe(false);
   });
 });
 

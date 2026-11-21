@@ -43,6 +43,9 @@ export const en = {
   // server has forgotten it, and a tap would end on its English "expired"
   // refusal. So the link goes, and this asks for the press that starts anew.
   'account.consent.windowExpired': 'The link to {provider}’s page has expired. Press {button} again.',
+  // The consent address that came back is not on {provider}'s own host
+  // (0163 T4): the window is closed, and nothing is opened or linked.
+  'account.consent.notTheProvider': 'The address that came back is not {provider}’s own page, so it was not opened.',
   // Beside every Connect button, on the managed service (0139 T4;
   // docs/google-oauth-verification.md §5: "Links to the privacy policy and
   // terms sit beside the button, not in a footer."). The two links follow,
@@ -792,6 +795,8 @@ export const nl: Record<keyof typeof en, string> = {
   'account.consent.windowBlocked':
     'Uw browser heeft de pagina van {provider} niet geopend. Open die met deze link:',
   'account.consent.windowExpired': 'De link naar de pagina van {provider} is verlopen. Druk opnieuw op {button}.',
+  'account.consent.notTheProvider':
+    'Het adres dat terugkwam is niet de eigen pagina van {provider}, dus het is niet geopend.',
   'account.consent.legal': 'Wat we met uw gegevens doen, en onder welke voorwaarden:',
   'account.consent.pasteToken':
     'De knop vult hieronder het refreshtoken in; een token plakken dat u al heeft, blijft gewoon werken.',

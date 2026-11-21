@@ -16,7 +16,16 @@ export interface MolliePayment {
     currency: string;
   };
   description: string;
+  /** The page Mollie sends the customer BACK to once they have paid: ours. */
   redirectUrl?: string;
+  /**
+   * Where the customer pays: Mollie's hosted checkout (`_links.checkout`, read
+   * with the client's `getCheckoutUrl()`). Null when Mollie gives none, as for
+   * a recurring payment. Not `redirectUrl`: the pay route answered that one as
+   * the address to pay at, so *Pay* opened our own billing page and never
+   * Mollie (workplan 0163 T4).
+   */
+  checkoutUrl: string | null;
   webhookUrl?: string;
   createdAt: string;
   paidAt?: string;
@@ -121,6 +130,7 @@ class MollieService {
     canceledAt?: string | null;
     failedAt?: string | null;
     metadata?: unknown;
+    getCheckoutUrl(): string | null;
   }): MolliePayment {
     return {
       id: payment.id,
@@ -131,6 +141,7 @@ class MollieService {
       },
       description: payment.description,
       redirectUrl: payment.redirectUrl ?? undefined,
+      checkoutUrl: payment.getCheckoutUrl(),
       webhookUrl: payment.webhookUrl ?? undefined,
       createdAt: payment.createdAt,
       paidAt: payment.paidAt ?? undefined,

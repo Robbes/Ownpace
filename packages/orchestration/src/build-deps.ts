@@ -29,6 +29,7 @@ import {
   InProcessByteBudget,
   imapDownloadPlan,
   type SourceAuthority,
+  type PassPhases,
   mailsGuestsItself,
 } from '@openmig/shared';
 import {
@@ -82,6 +83,7 @@ import {
   withGraphFallback,
 } from './mail-source-factory.ts';
 import { buildJmapTargetFrom, buildImapDavTargetFrom } from './mail-target-factory.ts';
+import { markedOnlyCalendar, markedOnlyContacts, markedOnlyFiles, markedOnlyMail } from './marked-only.ts';
 
 /**
  * Items in flight per collection when the config does not say.
@@ -124,6 +126,30 @@ export { DEFAULT_CONCURRENCY };
 export interface LedgerOptions {
   /** A drizzle handle bound to the caller's database. Not closed by the builder. */
   readonly ledgerDb: PgDatabase;
+  /**
+   * The mapping's test marker as its ledger holds it (`mailbox_mapping.
+   * test_marker`, migration 0070, workplan 0162), read by the caller through
+   * the reader it already asks for the migration's phases (`readPathPhases`).
+   * Set, and every source these builders make is wrapped in `MarkedOnly`, as
+   * the managed builders wrap theirs. Only the managed edition sets the
+   * column, so on the appliance this is absent and nothing changes; it is
+   * honoured here so that a marker in the ledger reaches every path.
+   *
+   * Handed in rather than read here: the builders are synchronous where the
+   * appliance calls them, and a builder that read the database would be one
+   * more reader of it beside the one every pass already makes.
+   */
+  readonly testMarker?: string;
+}
+
+/**
+ * The ledger handle with the mapping's test marker beside it, from a reading
+ * of the migration's phases (`readPathPhases`, which carries
+ * `mailbox_mapping.test_marker` as `testMarker`; workplan 0162). A reading
+ * with no marker, or no migration, hands the handle back as it was.
+ */
+export function withTheLedgersMarker(ledger: LedgerOptions, phases: PassPhases): LedgerOptions {
+  return phases?.testMarker === undefined ? ledger : { ...ledger, testMarker: phases.testMarker };
 }
 
 /**
@@ -215,8 +241,9 @@ export async function buildDeps(
       }
     : undefined;
 
-  // Build source connector from config
-  const source = buildSourceConnector(mailSource, throttleLimiter, byteMeter);
+  // Build source connector from config, wrapped last when the ledger says this
+  // is a test migration (`MarkedOnly`, workplan 0162).
+  const source = markedOnlyMail(buildSourceConnector(mailSource, throttleLimiter, byteMeter), options.testMarker);
 
   // Build target writer from config
   const target = buildTargetWriter(mailTarget);
@@ -601,13 +628,15 @@ export function buildDomainDeps(
   // with no OAuth values. Each one used to leak the pool the fallback had just
   // opened. There is no fallback now (workplan 0138 T1 part 2), so there is
   // nothing of the builder's to release on the way out.
-  return buildDomainDepsWithLedger(config, domain, openLedger(options));
+  return buildDomainDepsWithLedger(config, domain, openLedger(options), options.testMarker);
 }
 
 function buildDomainDepsWithLedger(
   config: MappingConfig,
   domain: 'calendar' | 'contact' | 'file' | 'task',
   opened: { ledger: PgLedger; cursors: PgCursorStore; closable: { close: () => Promise<void> } },
+  /** A test migration's marker, from the ledger (`LedgerOptions.testMarker`). */
+  testMarker: string | undefined,
 ): WithClose<{
   tenantId: TenantId;
   mappingId: MappingId;
@@ -695,6 +724,8 @@ function buildDomainDepsWithLedger(
               ENV_GOOGLE_CALENDAR_CREDENTIAL_NAMES,
             )
           : buildCalendarSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
+      // A test migration's marker, from the ledger (workplan 0162).
+      source = markedOnlyCalendar(source, testMarker);
       const calendarTargetEndpoint = davEndpoint(targetConfig, 'caldav', 'target');
       // No guests for a target that mails them whatever SCHEDULE-AGENT says
       // (workplan 0160, `TARGETS_THAT_MAIL_GUESTS`).
@@ -725,6 +756,7 @@ function buildDomainDepsWithLedger(
               ENV_GOOGLE_CONTACTS_CREDENTIAL_NAMES,
             )
           : buildContactSource(davEndpoint(sourceConfig, 'carddav', 'source'), domainThrottleLimiter);
+      source = markedOnlyContacts(source, testMarker);
       // Contacts can go over JMAP where the target speaks it (0031 T2). The
       // config already expresses it: `TargetConfig` is a union that includes
       // `JmapTarget`, so a contacts domain naming `type: 'jmap'` needs no new
@@ -814,6 +846,7 @@ function buildDomainDepsWithLedger(
                 ),
             })
           : buildFileSource(davEndpoint(sourceConfig, 'webdav', 'source'), domainThrottleLimiter);
+      source = markedOnlyFiles(source, testMarker);
       target = buildFileTargetFor(
         protocol,
         davEndpoint(targetConfig, targetService, 'target'),
@@ -842,6 +875,7 @@ function buildDomainDepsWithLedger(
         sourceConfig.type === 'graph-todo'
           ? buildGraphTodoSourceFrom(sourceConfig, graphEntraCredsFromEnv(), domainThrottleLimiter)
           : buildTaskSource(davEndpoint(sourceConfig, 'caldav', 'source'), domainThrottleLimiter);
+      source = markedOnlyCalendar(source, testMarker);
       target = buildTaskTarget(davEndpoint(targetConfig, 'caldav', 'target'), targetDeps, {
         mailsGuests: mailsGuestsItself(targetConfig.type),
       });

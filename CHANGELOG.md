@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A migration can carry a test marker, and then copies only the items whose own title carries
+  it** (workplan 0162 T2). Nothing sets one yet, so no migration copies differently: the step that
+  marks a test organisation, and records its marker on each migration made there, is next (0162
+  T1). The marker is a new column of the ledger (migration 0070), empty for a migration that is
+  not a test, 3 to 64 characters with no control character, and never changed once written: the
+  database refuses any change to it. With a marker, the pass, the preflight count and the applies
+  of a deletion or a relocation, in both editions, see only the items whose own title carries it,
+  in any case: a message's subject, an event's or a task's title (a recurring event by its
+  series), a contact's full name, a file's own name. Nothing else is copied, written to the ledger
+  or made on the target: a folder, calendar or address book is made there when its first marked
+  item is copied. A marked item deleted at the source still reaches the deletion queue; one whose
+  marker is taken out of its title is left as it was last copied, and is neither reported as
+  deleted nor moved.
+
 ### Changed
 
 - **Semgrep's report says where Semgrep read the tree only in part** (workplan 0163 T5). Semgrep's
@@ -15,6 +31,18 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   them, and marks a place on its line where a rule that may block can have timed out. Once a rule
   blocks, a place where that rule can have timed out is a scan that did not finish, which fails the
   run on `main`. No rule blocks yet, so nothing fails today.
+
+### Fixed
+
+- **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the
+  billing page and never reached Mollie: the API answered the page Mollie sends the customer back
+  to after paying, the app's own billing page, as the address to pay at. It now answers the
+  checkout address Mollie gives the payment, and refuses a payment Mollie gave none, which the
+  invoice's row then says in the reader's language. The app follows the address only when it is
+  `https:` on Mollie's checkout host, `www.mollie.com`; any other address opens nothing, and the
+  row says so. A consent's window and its link are held the same way: they go only to the
+  provider's own sign-in host, Google's, Dropbox's, Microsoft's or Cirrux's, and any other address
+  closes the window and is said in the consent's note.
 
 ## [0.2.0-alpha.13] - 2026-11-21
 

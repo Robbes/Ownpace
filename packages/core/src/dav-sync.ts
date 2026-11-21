@@ -144,6 +144,9 @@ export async function runCalendarSync(deps: CalendarSyncDeps): Promise<DomainSyn
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
+    // A test migration's marked listing (workplan 0162): the source says so
+    // about itself, and the loop makes a collection at its first marked item.
+    ...(source.markedOnly ? { markedOnly: true } : {}),
   });
 }
 
@@ -245,6 +248,9 @@ export async function runTaskSync(deps: TaskSyncDeps): Promise<DomainSyncResult>
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
+    // A test migration's marked listing (workplan 0162): the source says so
+    // about itself, and the loop makes a collection at its first marked item.
+    ...(source.markedOnly ? { markedOnly: true } : {}),
   });
 }
 
@@ -323,6 +329,9 @@ export async function runContactSync(deps: ContactSyncDeps): Promise<DomainSyncR
     // And how to ask it again before the pass concludes anything (2026-10-05).
     stillTheAuthority: deps.stillTheAuthority,
     ...passClock(deps),
+    // A test migration's marked listing (workplan 0162): the source says so
+    // about itself, and the loop makes a collection at its first marked item.
+    ...(source.markedOnly ? { markedOnly: true } : {}),
   });
 }
 
@@ -546,5 +555,9 @@ export async function runFileSync(deps: FileSyncDeps): Promise<DomainSyncResult>
     // A snapshot's absences are evidence of nothing (0116 §5) — the source
     // says so about itself, and the loop turns its absence-counting off.
     ...(source.snapshot ? { snapshot: true } : {}),
+    // So are a test migration's unexplained ones (workplan 0162, §2 (f)), and
+    // its collections are made at their first marked file. A move between two
+    // marked names is still reported, which a snapshot's is not.
+    ...(source.markedOnly ? { markedOnly: true } : {}),
   });
 }

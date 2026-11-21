@@ -38,7 +38,7 @@ import {
   type ApplyDeletionOutcome,
   failureSideOf,
 } from '@openmig/core';
-import { createLedgerVerificationReader } from '@openmig/ledger';
+import { createLedgerVerificationReader, readPathPhases } from '@openmig/ledger';
 import {
   naturalKeyHash,
   calendarNaturalKeyHash,
@@ -53,7 +53,7 @@ import {
   type UnreadCollection,
 } from '@openmig/shared';
 import type { TargetReindexer } from '@openmig/shared';
-import { buildDeps, buildDomainDeps, type LedgerOptions } from './build-deps.ts';
+import { buildDeps, buildDomainDeps, withTheLedgersMarker, type LedgerOptions } from './build-deps.ts';
 import {
   GATE_NAME,
   asReindexer,
@@ -572,11 +572,17 @@ export async function runAllDomains(
 
       // This data type's phase as it starts, and its question for later.
       const startsAs = await authority(domain);
+      // And whether this is a test migration (workplan 0162): its marker, as
+      // the same reader carries it, handed to the builders below, so every
+      // source this data type builds is wrapped as the managed builders wrap
+      // theirs. The database keeps the marker as it was written, so whenever
+      // it is read, it is the same answer. Absent, the handle is as it was.
+      const builtWith = withTheLedgersMarker(ledger, await phasesNow());
 
       // Each builder opens a Postgres pool; always release it after the pass
       // (finally) so a long-running scheduler never leaks a pool per domain.
       if (domain === 'email') {
-        const deps = { ...(await buildDeps(config, ledger)), ...startsAs, ...askedWhy(domain) };
+        const deps = { ...(await buildDeps(config, builtWith)), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runShadowPass(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -604,7 +610,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'calendar') {
-        const deps = { ...buildDomainDeps(config, 'calendar', ledger), ...startsAs, ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'calendar', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runCalendarSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -635,7 +641,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'contact') {
-        const deps = { ...buildDomainDeps(config, 'contact', ledger), ...startsAs, ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'contact', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runContactSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -681,7 +687,7 @@ export async function runAllDomains(
         // `else` is never a compile error either. It is the meaner of the two,
         // because an absent branch omits work while a catch-all does the wrong
         // work and says it went fine.
-        const deps = { ...buildDomainDeps(config, 'task', ledger), ...startsAs, ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'task', builtWith), ...startsAs, ...askedWhy(domain) };
         try {
           const result = await runTaskSync(deps);
           // The day's ceiling, carried out of the branch (see budgetPause above).
@@ -711,7 +717,7 @@ export async function runAllDomains(
           await deps.close();
         }
       } else if (domain === 'file') {
-        const deps = { ...buildDomainDeps(config, 'file', ledger), ...startsAs, ...askedWhy(domain) };
+        const deps = { ...buildDomainDeps(config, 'file', builtWith), ...startsAs, ...askedWhy(domain) };
         // Captured BEFORE the pass: ADR-0031's survived-a-pass gate compares
         // each relocation's recording date against this, so a move this very
         // pass records is never auto-applied by the same pass that made it.
@@ -1025,22 +1031,31 @@ export async function discoverAllDomains(
   const hasDomainConfig = config.domains && Object.values(config.domains).some((d) => d?.enabled);
   const runMailOnly = !hasDomainConfig && isTopLevelMailSource(config.source.type);
 
+  // Whether this is a test migration (workplan 0162): its marker, from the
+  // reader every gate asks (`readPathPhases`), read once and only when a data
+  // type is counted, so a count lists the marked set as a pass does.
+  let marked: Promise<LedgerOptions> | undefined;
+  const builtWith = (): Promise<LedgerOptions> =>
+    (marked ??= readPathPhases(ledger.ledgerDb, tenantId, mappingId).then((phases) =>
+      withTheLedgersMarker(ledger, phases),
+    ));
+
   type Opened = { source: unknown; target: unknown; close: () => Promise<void> };
   const enabled: Array<{ domain: DiscoveryDomain; open: () => Promise<Opened> }> = [];
   if (config.domains?.mail?.enabled || runMailOnly) {
-    enabled.push({ domain: 'email', open: async () => { const d = await buildDeps(config, ledger); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'email', open: async () => { const d = await buildDeps(config, await builtWith()); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.calendar?.enabled) {
-    enabled.push({ domain: 'calendar', open: async () => { const d = buildDomainDeps(config, 'calendar', ledger); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'calendar', open: async () => { const d = buildDomainDeps(config, 'calendar', await builtWith()); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.contacts?.enabled) {
-    enabled.push({ domain: 'contact', open: async () => { const d = buildDomainDeps(config, 'contact', ledger); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'contact', open: async () => { const d = buildDomainDeps(config, 'contact', await builtWith()); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.files?.enabled) {
-    enabled.push({ domain: 'file', open: async () => { const d = buildDomainDeps(config, 'file', ledger); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'file', open: async () => { const d = buildDomainDeps(config, 'file', await builtWith()); return { source: d.source, target: d.target, close: d.close }; } });
   }
   if (config.domains?.tasks?.enabled) {
-    enabled.push({ domain: 'task', open: async () => { const d = buildDomainDeps(config, 'task', ledger); return { source: d.source, target: d.target, close: d.close }; } });
+    enabled.push({ domain: 'task', open: async () => { const d = buildDomainDeps(config, 'task', await builtWith()); return { source: d.source, target: d.target, close: d.close }; } });
   }
 
   const tasks: DomainDiscoveryTask[] = enabled.map(({ domain, open }) => ({
@@ -1335,32 +1350,40 @@ async function openSyncDomainDeps(
   domain: DiscoveryDomain,
   ledgerOptions: LedgerOptions,
 ): Promise<{ target: unknown; ledger: Ledger; close: () => Promise<void> }> {
+  // Whether this is a test migration (workplan 0162), from the reader every
+  // gate asks: these callers open a target and never list the source, but
+  // the source each builder makes here is the marked one all the same, so
+  // there is no path on which a mapping with a marker builds it bare.
+  const builtWith = withTheLedgersMarker(
+    ledgerOptions,
+    await readPathPhases(ledgerOptions.ledgerDb, config.tenantId, config.mappingId),
+  );
   // Branched explicitly rather than passing `domain` straight through: each
   // overload of `buildDomainDeps` accepts exactly one literal, and the union
   // this function narrows down to is not itself one of those literals as far
   // as the overload resolution is concerned.
   switch (domain) {
     case 'email': {
-      const d = await buildDeps(config, ledgerOptions);
+      const d = await buildDeps(config, builtWith);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'calendar': {
-      const d = buildDomainDeps(config, 'calendar', ledgerOptions);
+      const d = buildDomainDeps(config, 'calendar', builtWith);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'contact': {
-      const d = buildDomainDeps(config, 'contact', ledgerOptions);
+      const d = buildDomainDeps(config, 'contact', builtWith);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'task': {
       // The CalDAV writer, exactly as calendar uses it: on the wire a task is
       // a calendar object, and the writer follows the component it is given
       // (0113 T4).
-      const d = buildDomainDeps(config, 'task', ledgerOptions);
+      const d = buildDomainDeps(config, 'task', builtWith);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
     case 'file': {
-      const d = buildDomainDeps(config, 'file', ledgerOptions);
+      const d = buildDomainDeps(config, 'file', builtWith);
       return { target: d.target, ledger: d.ledger, close: d.close };
     }
   }

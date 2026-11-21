@@ -4,7 +4,7 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21, last: before any rule blocks, a place Semgrep read only in part is no longer
+**2026-11-21, latest: before any rule blocks, a place Semgrep read only in part is no longer
 silent (T5, its first part).** On `claude/ownpace-public-readiness-y7orc6-semgrep-timeouts`, from
 `main` at `75d7949d`.
 - **Why.** `main`'s first Semgrep run, on #1986's squash (`fbd73f93`, run 44856257160), read 207
@@ -40,6 +40,67 @@ silent (T5, its first part).** On `claude/ownpace-public-readiness-y7orc6-semgre
     not finish. So step 5 first chooses how that rule's time-outs are read.
 - **Tests:** the guard `a-finding-only-an-outside-check-saw` has 22 tests (18 before). Twelve
   mutations of the report each fail it.
+
+**2026-11-21, last: T4's fix for findings 8 and 9, with the Pay button, built as #1990, merged
+on 2026-11-21 (`5d5c5f55`; *was:* a draft held for alpha.14).** On
+`claude/ownpace-public-readiness-y7orc6-t4-pay-checkout`, from `main` at `45dfead1`. `main` was
+frozen until the alpha.13 tag, so it merged after that tag.
+- **The Pay button reaches Mollie.** `MollieService` keeps the checkout address Mollie gives a
+  payment (`checkoutUrl`, from the client's `getCheckoutUrl()`), and `POST
+  /api/billing/invoices/:id/pay` answers it as `paymentUrl`, not the `redirectUrl` Mollie sends
+  the customer back to. A payment Mollie gives no checkout is refused with 502 (`no_checkout`),
+  in English and Dutch, before the invoice records it, so the payment the webhook matches stays
+  the one the customer was last sent to.
+- **One check where the web app follows or links an address from the API**
+  (`apps/web/src/services/address-to-follow.ts`): `https:` on the one host of its flow, the host
+  compared whole, and what is followed is the address as parsed.
+  - *Pay* follows only `www.mollie.com` (finding 8, `Billing.tsx:760`).
+  - A consent's link (finding 9, `ProviderConsent.tsx:593`) and its window
+    (`consent-window.ts:123`, which no rule reports) go only to the provider's consent host:
+    `accounts.google.com`, `www.dropbox.com`, `login.microsoftonline.com` or `api.cirrux.co`.
+    These are read from the endpoints the API builds the addresses on, so Google's and Dropbox's
+    authorize endpoints moved to `packages/shared/src/consent-endpoints.ts`.
+  - Anything else is refused, and the screen says so: at the invoice's row, or in the consent's
+    note, with the blank window closed.
+- **Mollie's checkout host, `www.mollie.com`, is read from Mollie's API reference.**
+  `@mollie/api-client` 4.6.0 says to send the customer to `_links.checkout`, but gives no example
+  address. Mollie's API reference for creating and getting a payment (docs.mollie.com, read on
+  2026-11-21, which the client's types cite) gives every `_links.checkout.href` on
+  `www.mollie.com`, under `/checkout/`, test mode's `/checkout/test-mode` included, and no
+  checkout on any other host; its API is `api.mollie.com`. The billing rehearsal's step 4
+  (`docs/billing-rehearsal-on-ota.md`) shows it again with a real test payment. On any other host,
+  the row says the address is not Mollie's checkout.
+- **Tests.**
+  - The new guard `apps/web/src/an-address-followed-on-the-apis-word.unit.test.tsx` (78 tests,
+    English and Dutch) holds each refusal by the check that makes it: `http:`, another host, a
+    lookalike host (`www.mollie.com.evil.example`, credentials before another host, another
+    port, no `www.`), `javascript:` (including one whose host is Mollie's), and no checkout link
+    (empty, a path, and our own billing page). It also holds the Pay row, the consent link and
+    both consent doors.
+  - `apps/api/src/services/mollie/a-checkout-address-read-nowhere.unit.test.ts` (2 tests): the
+    service's payment carries the checkout, with the return page apart from it.
+  - `a-draft-is-not-paid.unit.test.ts`: its stand-in for Mollie gave the pay address as its
+    `redirectUrl`, so it passed with the mistake in. It now answers as Mollie does, and two new
+    cases hold the checkout answered and the 502.
+  - Two consent tests now name Google's real host, since `accounts.google.example` is refused.
+  - **Thirteen mutations**, each a check broken by hand, all fail a test, and each file was put
+    back `cmp`-equal: the scheme, the host, the host without its port, the host by its start, the
+    parse refusal; the Pay row, the consent door, the link, the Cirrux door and the provider's own
+    host each left unchecked; the route answering `redirectUrl` again; the route's 502 removed;
+    the service keeping `redirectUrl` as the checkout.
+- **What Semgrep read on the pull request** (run 44868411020, on `0b6ec4d7` merged into
+  `45dfead1`): 206 spots, one fewer than `main`'s 207 (run 44861980857). Of those, 202 are under
+  the two rules that never block, 2 are known and 2 are to read.
+  - `react-href-var` no longer reports `ProviderConsent.tsx`.
+  - `js-open-redirect-from-function` still reports `Billing.tsx:770`, the
+    `window.location.href = checkout` line. The rule follows `result` through
+    `checkoutToFollow` and does not take that for a check, so the spot is reported though it is
+    safe now. It stays to read: no known-finding entry is added without the owner.
+  - The other spot to read is still the Cirrux test fake's decipher.
+- **Found, not done:** `apps/web/src/pages/Grant.tsx:180` and `:360` send the page to Google's
+  consent address from the API with `location.assign`, which no rule reports and neither finding
+  names. `consentToFollow('google', …)` is ready for them.
+- **Still open in T4:** the Cirrux test fake's decipher (`cirrux-fake.ts:135`).
 
 **2026-11-21, later: T2, T3, T9 and T4's first fix are on `main`, for alpha.13.** They merged in
 this order, each with `main` merged in and CI green on its last head: #1985, the tag length
@@ -229,7 +290,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T1 Secrets into environments | builder | 📋 **Planned** (D2) | Finding 1. Two GitHub environments if D7 deletes the O365 lane (`e2e-managed`, `exposure-probe`), three if it does not. The secrets move in Settings, by the owner; the pull request adds `environment:` to those jobs. Then zizmor's `secrets-outside-env`, report only (§5, step 2). |
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
-| T4 Fix or answer each spot | builder | 📋 **Planned**; ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
+| T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
 | T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); 🔨 **the time-outs first**, on `claude/ownpace-public-readiness-y7orc6-semgrep-timeouts` | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, last). |
 | T6 gitleaks on a pull request's own commits | builder | 📋 **Planned** (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |

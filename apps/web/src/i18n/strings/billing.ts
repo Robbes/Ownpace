@@ -187,6 +187,9 @@ export const en = {
   'billing.detailsFirst': 'Your invoice details come first: the name and address an invoice is made out to.',
   'billing.detailsFirst.link': 'Add your invoice details',
   'billing.payFailed': 'The payment could not be started.',
+  // After payFailed, at the row, when the address to pay at that came back is
+  // not Mollie's checkout (0163 T4): it is not followed.
+  'billing.payNotMollie': 'The address to pay at is not Mollie’s checkout page, so it was not opened.',
   'billing.usagePeriod': 'Usage for',
   'billing.asOf': 'as of',
   'billing.noPaymentMethods': 'No payment methods stored.',
@@ -408,6 +411,7 @@ export const nl: Record<keyof typeof en, string> = {
   'billing.detailsFirst': 'Eerst uw factuurgegevens: de naam en het adres waarop een factuur komt te staan.',
   'billing.detailsFirst.link': 'Vul uw factuurgegevens in',
   'billing.payFailed': 'De betaling kon niet worden gestart.',
+  'billing.payNotMollie': 'Het adres om te betalen is niet de betaalpagina van Mollie, dus het is niet geopend.',
   'billing.usagePeriod': 'Verbruik voor',
   'billing.asOf': 'per',
   'billing.noPaymentMethods': 'Geen betaalmethoden opgeslagen.',

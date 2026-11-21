@@ -50,6 +50,19 @@ export interface MailItem {
   readonly size?: number;
   /** Opaque source handle the connector uses to fetch raw bytes (e.g. "INBOX:42"). */
   readonly sourceRef: string;
+  /**
+   * The Subject as the LISTING read it, decoded (RFC 2047), when the source
+   * lists it: the IMAP source takes it from the envelope it already fetches
+   * for every message. Absent where a listing carries none (Graph's delta
+   * asks for no subject).
+   *
+   * Read by a test migration's marker and by nothing else (`MarkedOnly`,
+   * workplan 0162 §2 (a)): whether a message is in scope is decided before
+   * any body is fetched. The name a screen shows is still read from the bytes
+   * the pass copied (`displayNameForMessage`), so nothing here reaches the
+   * ledger.
+   */
+  readonly subject?: string;
 }
 
 /** RFC822 bytes plus the item they belong to. */
