@@ -32,6 +32,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   blocks, a place where that rule can have timed out is a scan that did not finish, which fails the
   run on `main`. No rule blocks yet, so nothing fails today.
 
+- **GoAccess's pinned commit is the build argument `UPSTREAM_COMMIT`** (workplan 0163 D8), in
+  `deploy/compose/goaccess/Dockerfile`, where it was `GOACCESS_COMMIT`. gitleaks' generic-api-key
+  rule reads the `access` in that name as a key's and the commit id as its value. With gitleaks
+  failing a pull request on what it adds (0163 T6), the next GoAccess bump would have failed on its
+  own line. The image is built from the same commit as before.
+
 ### Fixed
 
 - **Pay opens Mollie's checkout** (workplan 0163 T4). Pressing *Pay* on an invoice reloaded the

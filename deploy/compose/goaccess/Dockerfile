@@ -64,12 +64,16 @@ RUN apk add --no-cache \
     tzdata
 
 # GoAccess v1.12
-ARG GOACCESS_COMMIT=ef3c4f3c3e42b378e705fb3a1a5ef1c2e72e6348
+# The commit is named UPSTREAM_COMMIT, not after GoAccess: gitleaks'
+# generic-api-key rule takes the `access` in that name for a key's, and the
+# commit id for its value, so a bump of this line would fail its pull request
+# (workplan 0163 D8).
+ARG UPSTREAM_COMMIT=ef3c4f3c3e42b378e705fb3a1a5ef1c2e72e6348
 WORKDIR /goaccess
 RUN git init -q . \
-    && git fetch -q --depth 1 https://github.com/allinurl/goaccess.git "$GOACCESS_COMMIT" \
+    && git fetch -q --depth 1 https://github.com/allinurl/goaccess.git "$UPSTREAM_COMMIT" \
     && git checkout -q FETCH_HEAD \
-    && test "$(git rev-parse HEAD)" = "$GOACCESS_COMMIT" \
+    && test "$(git rev-parse HEAD)" = "$UPSTREAM_COMMIT" \
     && rm -rf .git
 RUN autoreconf -fiv && rm -rf autom4te.cache
 RUN CC="clang" CFLAGS="-O3" LIBS="$(pkg-config --libs openssl)" ./configure --prefix=/usr --enable-utf8 --with-openssl --enable-geoip=mmdb
