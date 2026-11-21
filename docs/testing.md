@@ -39,9 +39,9 @@ Two exceptions, both because the subject is not a single file:
 - **E2E** (on the self-hosted arm64 runner): nightly black-box gates against a
   running self-host appliance (`e2e.yml`, both persistence backends) and the managed stack
   (`e2e-managed.yml`), a nightly soft lane against a target we do not host
-  (`e2e-live-target.yml`), and a dispatch-only shadow read of the real SMB O365 source
-  (`e2e-o365.yml`): read-only, least-privilege, a dry run that lists what Graph returns and
-  writes to no target. See "CI mapping" below.
+  (`e2e-live-target.yml`). The real SMB O365 source is read by hand only, never in CI
+  (`test/e2e/o365-scenario.e2e.test.ts`): read-only, least-privilege, a dry run that lists what
+  Graph returns and writes to no target; `docs/test-tenant.md` says how. See "CI mapping" below.
 
 ## Running tests locally
 
@@ -83,7 +83,8 @@ than the whole unit suite — but it is the only tier that sees what a user sees
 
 ### E2E tests (manual, requires Docker and real O365 credentials)
 ```bash
-# See docs/test-tenant.md for the tenant and the secrets e2e-o365.yml needs
+# The tenant's rules and every variable the suite reads: docs/test-tenant.md
+pnpm test:e2e test/e2e/o365-scenario.e2e.test.ts
 ```
 
 ### Self-host restart-resume e2e (`.github/workflows/e2e.yml`, nightly and on dispatch, self-hosted runner only)
@@ -386,7 +387,8 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   because merging the base branch in is how a conflict is resolved here.
 - `ui-tests` (ci.yml job; real Chromium over the built bundle; every code-changing pull request
   and on main) — `pnpm test:ui`, after `lint`, running while `unit-tests` does.
-- `security-scan.yml` — pnpm audit + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
+- `security-scan.yml` — pnpm audit + osv-scanner (fails on a package OSV records as malicious, lists
+  the rest) + Trivy (SARIF) + CycloneDX SBOM; weekly + PR + push + manual;
   SBOM attached to release tags. On the weekly run (Mondays 06:00 UTC) and on dispatch only, and on
   GitHub-hosted runners, it also scans every container image the stacks run:
   the `image:` lines of `managed.yml`, `dev.yml`, `www.yml` and the appliance's compose file, the
@@ -432,8 +434,6 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `e2e-live-target.yml` — nightly (04:30 UTC) and on dispatch, on the machine: the soft lane against
   a target we do not host. Red means investigate; it never runs on a pull request, so it blocks
   nothing.
-- `e2e-o365.yml` — dispatch only, on the machine: the secret-gated real-tenant O365 e2e; the
-  tenant and its secrets are in `docs/test-tenant.md`.
 - `clock-watch.yml` — daily (06:41 UTC) and on dispatch, on a GitHub-hosted runner: the clocks
   nothing else warns about. It reads the certificates `app.`, `id.` and `status.ownpace.eu`
   serve; `www.ownpace.eu`'s and its `security.txt` `Expires` once the repository variable
@@ -460,14 +460,16 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   major; and the TypeScript split's exit. Each of those keeps one issue open while it is behind, says a newer
   release in a comment, and closes the issue when the pin catches up. Every other image line of
   `managed.yml`, `dev.yml` and `www.yml` (Dependabot reads no file in `deploy/compose`), the
-  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy the scan runs, the Atlas
+  busybox copies in its scripts, Stalwart's copies, GoAccess, the Trivy and the osv-scanner the scan
+  runs, the Atlas
   release `ci.yml`'s migration-lint downloads by URL and checks by its SHA-256 (against the community
   image's tags on Docker Hub, since upstream's git tags miss most releases), the stalwart-cli
   release `ci.yml`, `e2e.yml` and `e2e-managed.yml` install the same way (against upstream's git
   tags), the binfmt and BuildKit images `images.yml` names in its actions' inputs (against the
   digest of the channel each action ran before, `latest` and `buildx-stable-1`), the hadolint
   image `hadolint.yml` runs (against Docker Hub's tags of its shape and major), the Semgrep image
-  `semgrep.yml` runs (the same way), and the tasks'
+  `semgrep.yml` runs (the same way), the zizmor image `zizmor.yml` runs (against ghcr.io's tags of
+  its shape and major), and the tasks'
   prebuilt base `trigger.config.ts` pins (against main's `edge` by each platform's layers, since
   its digest moves on every merge while its layers do not: behind when they differ, or when the
   pinned index or its signature is gone) share one summary issue; another image a script there
@@ -549,6 +551,15 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   `detect-non-literal-regexp` and `detect-redos`, never do. Held by
   `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`, which runs the report against a
   stubbed docker.
+- `zizmor.yml` — on a pull request and a push to `main` that touch `.github/` or an action file,
+  and on dispatch, on a GitHub-hosted runner, never a required check: zizmor 1.30.1, the version
+  the outside check of GEN-26 runs, by the tag and index digest `ZIZMOR_IMAGE` names, over the
+  whole checkout (every workflow, any action file, `dependabot.yml`), offline (`--offline`, no
+  network, no token) and read-only, with `--no-config` and `--no-ignores`, so nothing in the tree
+  can turn a rule or a location off. `zizmor` is BLOCKING: any finding fails it, and it writes
+  zizmor's report to its summary. Held by `scripts/a-workflow-zizmor-would-flag.unit.test.ts`,
+  which also holds every cache-aware step in a workflow a tag starts to turning its cache off the
+  way zizmor's `cache-poisoning` audit reads it.
 - `windows-payload.yml` (dispatch, and on v* tags; builds the Windows appliance payload).
 - `release.yml` — dispatch only, from `main`, on GitHub-hosted runners only; never a required
   check, since it has no pull-request trigger. It cuts a release tag and publishes it in order
@@ -588,10 +599,11 @@ red when the two disagree.
 Do **not** require `integration-tests (ubuntu-24.04)` / `(ubuntu-24.04-arm)`, nor
 `build (api|web|selfhost|task-base)`, `build (postgres)`, `build (trigger, amd64|arm64)` or
 `task-base pin` from `images.yml`, nor `DAV suites on the second Nextcloud major` from `nextcloud-second-major.yml`,
-nor `Build (deploy/compose/goaccess)` from `script-images.yml`. None is reported at all on some
+nor `Build (deploy/compose/goaccess)` from `script-images.yml`, nor `zizmor` from `zizmor.yml`.
+None is reported at all on some
 pull requests —
 a skipped matrix job reports once under the literal `integration-tests (${{ matrix.runner }})`,
-and the other three workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
+and the other four workflows have a `paths:` filter — so a docs-only PR blocks forever on "Expected — waiting
 for status to be reported", with nothing queued in Actions to explain it. Full rationale is the
 `SCOPE:` comment above `ci-complete` in `ci.yml`. Nor `hadolint (report only)` from
 `hadolint.yml`, for another reason: it reports on every pull request, but it is report only and

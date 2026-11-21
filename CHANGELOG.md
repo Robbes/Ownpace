@@ -20,6 +20,29 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Changed
 
+- **No workflow reads the real Microsoft 365 tenant; its harness runs by hand** (workplan 0141).
+  The O365 lane, `.github/workflows/e2e-o365.yml`, never ran a test: its secrets were never set.
+  It is deleted, so the tenant's credentials stay out of CI. The harness,
+  `test/e2e/o365-scenario.e2e.test.ts`, runs as before on a machine that holds them;
+  `docs/test-tenant.md` says how and lists every variable it reads, and a unit test holds that list
+  to the suite.
+- **No cache is restored in a run a tag starts, and every workflow change is audited before it
+  merges** (workplan 0119). An outside, read-only check (GEN-26) named three `actions/setup-node`
+  lines by zizmor 1.30.1's `cache-poisoning` audit: setup-node caches by default since v5, and the
+  workflows they sit in run on a `v*` tag. Every setup-node in the four workflows a tag starts
+  (`ci.yml`, `images.yml`, `security-scan.yml`, `windows-payload.yml`) now says
+  `package-manager-cache: false`. `ci.yml`'s pnpm store, which setup-node's `cache: pnpm`
+  restored, is an `actions/cache` step of its own, and every cache there restores on a pull request
+  and on `main` as before but only looks on a tag; the Chromium install runs on a tag whatever the
+  cache says. A new workflow, `zizmor.yml`, runs zizmor 1.30.1 by tag and index digest, offline
+  and with no config or ignore comments, on every pull request and push to `main` that touches
+  `.github/`, and fails on any finding. The pin watch lists a newer zizmor in its summary issue.
+  Its first run found 24 more findings already on `main`, now fixed: values a run cannot choose
+  but zizmor cannot tell apart (a matrix leg, a step's output, the base branch's name) reach
+  six steps' scripts through `env:` instead of being pasted in; the release attaches in Security
+  Scan and the Windows payload use the runner's own `gh` instead of `softprops/action-gh-release`,
+  doing what it did; and Dependabot proposes a version update only for a release at least seven
+  days old (security updates are not delayed).
 - **Cirrux keeps the guests on copied calendar events again** (workplan 0160; ADR-0043, amended
   2026-11-20). Events and tasks written to Cirrux carry their guests and organiser again, each
   marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as for Nextcloud.
@@ -96,6 +119,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Security
 
+- **A package OSV records as malicious fails the Security Scan** (workplan 0163). The scan's
+  repository job reads `pnpm-lock.yaml` with osv-scanner v2.7.1, downloaded from its GitHub release
+  and checked by its SHA-256, on every pull request, push to `main`, tag and Monday. A package an
+  OSV malicious-package record (`MAL-…`) names fails the job, with the package and the record
+  named. Every other advisory is listed in the job summary and passes, because `pnpm audit` stays
+  the vulnerability gate. A scan that did not finish, or read almost none of the lockfile, fails
+  too. The weekly pin watch says when a newer osv-scanner is out.
 - **The Docker socket proxy no longer runs as root: it runs as HAProxy's own uid 99, and reaches
   the Docker socket through the socket's group, which the bring-up reads from the socket**
   (workplan 0119). An outside, read-only check of the repository reported the image's
@@ -121,6 +151,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   proves from where the webapp loads them that connect-node and Depot's SDK load with 6.29.1.
   Nothing is downloaded for it. The image has a new name, which each machine builds at its next
   deploy.
+
+- **A stored credential is decrypted only with its full authentication tag** (workplan 0163).
+  The credential store's AES-GCM cipher and decipher now both name the tag's length, 16 bytes, so
+  Node itself refuses a shorter tag. Until now only a length check before decryption did.
 
 ### Fixed
 

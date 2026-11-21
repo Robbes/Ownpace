@@ -1,0 +1,104 @@
+# zizmor over the workflows, BLOCKING (workplan 0119, 2026-11-20).
+#
+# An outside, read-only check (GEN-26: build automation set up cleanly) reads
+# this repository's GitHub Actions with zizmor 1.30.1, fixed rules and no AI.
+# On 2026-11-20 it named three `actions/setup-node` lines, in images.yml,
+# security-scan.yml and windows-payload.yml: zizmor's cache-poisoning audit,
+# which calls a cache-aware step a risk in any workflow a tag push, a release
+# or a release branch starts, and setup-node caches by default since v5
+# (`package-manager-cache`). Nothing here ran zizmor, so nothing said so
+# before merge. This job runs the same zizmor on every pull request and push
+# that touches a workflow, so a change it would flag fails before it lands.
+#
+# BLOCKING. Its first run, on the branch that added it, found 24 findings
+# already on main; that branch fixed each, and its second run found none. So
+# a finding fails this job, and nothing is silenced: zizmor
+# runs with --no-config, so no zizmor.yml can turn a rule or a location off,
+# and --no-ignores, so no ignore comment in a workflow can either. A finding
+# is fixed in the workflow, or the pull request says why it cannot be.
+# It is not in ci.yml and not a required check (its `paths:` would leave a
+# pull request that touches no workflow waiting for it forever, the shape
+# every-pr-check-is-classified.unit.test.ts describes for images.yml).
+#
+# OFFLINE, with no token and no network: --offline, and the container runs
+# with `--network none`. The audits zizmor runs online (impostor-commit,
+# ref-version-mismatch, known-vulnerable-actions, stale-action-refs) call
+# GitHub's API, so with a token the job would fail on an API error or a rate
+# limit as well as on a finding, and the first two are held already:
+# a-tag-the-publisher-can-move reads each pin's commit against the tag its
+# comment names. Every audit that fired on the outside check's reading is an
+# offline one.
+#
+# WHICH ZIZMOR. ZIZMOR_IMAGE below, by tag and index digest, which
+# scripts/a-workflow-zizmor-would-flag.unit.test.ts holds to the reference it
+# records as read (`ZIZMOR`), and moved by hand: Dependabot reads no workflow
+# env, so the pin watch's row `ghcr.io/zizmorcore/zizmor`
+# (scripts/idp-pin-watch.mjs) reads that line and lists a newer release in its
+# summary issue. 1.30.1 is the version the outside check runs, so a newer one
+# is moved to when that check moves, or on purpose, in a pull request of its
+# own: a newer zizmor brings new audits, and this job is where they land.
+#
+# WHERE. A GitHub-hosted runner: it has a pull_request trigger, and ci.yml's
+# header says why that never reaches the self-hosted runner.
+name: Workflow audit
+
+on:
+  pull_request:
+    paths:
+      - '.github/**'
+      - '**/action.yml'
+      - '**/action.yaml'
+  push:
+    branches: [main]
+    paths:
+      - '.github/**'
+      - '**/action.yml'
+      - '**/action.yaml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zizmor-${{ github.ref }}
+  # As in ci.yml: a superseded pull request run is cancelled, a run on main is not.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  zizmor:
+    name: zizmor
+    # GitHub-hosted, like every other pull_request job: see ci.yml's "Which
+    # machine runs untrusted code" header for the policy.
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    env:
+      # zizmor 1.30.1 by its index digest, `a2eb396d886c…`, with linux/amd64
+      # (`f8451d87…`) and linux/arm64 (`6c439cfa…`) in it, read on 2026-11-20
+      # as the Docker-Content-Digest of the tag's manifest on ghcr.io. Its git
+      # tag v1.30.1 is commit 99a054ed, of 2026-09-09, past the three-day
+      # floor (CONTRIBUTING.md). The image's entrypoint is /usr/bin/zizmor.
+      ZIZMOR_IMAGE: ghcr.io/zizmorcore/zizmor:1.30.1@sha256:a2eb396d886c053073405c7a980f2139ba2248ec172243cfa3841e57196e8101
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Audit every workflow, action and the Dependabot config with zizmor
+        run: |
+          docker pull --quiet "$ZIZMOR_IMAGE"
+          status=0
+          docker run --rm --pull never \
+            --network none --read-only --cap-drop ALL --security-opt no-new-privileges \
+            --user "$(id -u):$(id -g)" \
+            --volume "$GITHUB_WORKSPACE:/repo:ro" --workdir /repo \
+            "$ZIZMOR_IMAGE" \
+            --offline --no-config --no-ignores --no-progress --color never \
+            . > "$RUNNER_TEMP/zizmor.txt" 2>&1 || status=$?
+          cat "$RUNNER_TEMP/zizmor.txt"
+          {
+            echo "## zizmor 1.30.1 (exit $status)"
+            echo
+            echo '```'
+            cat "$RUNNER_TEMP/zizmor.txt"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+          exit "$status"

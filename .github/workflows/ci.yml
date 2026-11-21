@@ -14,8 +14,8 @@
 # an attacker needs. Every workflow with a `pull_request` trigger follows this:
 # ci.yml and security-scan.yml by the conditional below, and
 # no-committed-artifacts.yml since 2026-08-11, when it was found to be the one
-# exception. e2e.yml and e2e-o365.yml are schedule/dispatch only — no PR path
-# to abuse — which is why they can name the runner unconditionally.
+# exception. e2e.yml is schedule/dispatch only — no PR path to abuse — which
+# is why it can name the runner unconditionally.
 #
 # WHAT THE SPLIT COSTS, stated so it is a known limitation and not a surprise:
 # GitHub's hosted Linux runners are amd64, the machine is arm64, so **a PR is
@@ -403,6 +403,7 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
       - name: Judge the commit subjects this branch adds
         # THROUGH `env:`, not interpolated into the script. These two are
         # GitHub-generated SHAs today and therefore safe, and the moment
@@ -469,6 +470,7 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
+          package-manager-cache: false # a tag runs this workflow: no cache restored (zizmor cache-poisoning)
       - name: Generated docs match the tree that generates them
         # HERE rather than only in `unit-tests`, and the distinction cost a red
         # main on 2026-09-10.
@@ -741,7 +743,19 @@ jobs:
           # worst one to be missing: everything downstream `needs: lint`, so a
           # cold `pnpm install` here delayed the entire workflow, not just this
           # job. Cached it is ~6s; cold it is tens of seconds, every PR.
-          cache: pnpm
+          # Its own cache is off: the pnpm store is the step below's, which a
+          # tag's run looks up and does not restore (zizmor's cache-poisoning,
+          # scripts/a-workflow-zizmor-would-flag.unit.test.ts).
+          package-manager-cache: false
+      - name: Where pnpm keeps its store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Restore pnpm's store, except on a tag
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
       - run: pnpm install --frozen-lockfile
       # ESLint's incremental cache. `--cache-strategy content` (set in the lint
       # script) hashes file CONTENT rather than mtime, which is the only
@@ -761,6 +775,8 @@ jobs:
           key: eslint-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'pnpm-lock.yaml') }}-${{ github.sha }}
           restore-keys: |
             eslint-${{ runner.os }}-${{ hashFiles('eslint.config.js', 'pnpm-lock.yaml') }}-
+          # A tag's lint lints every file itself (zizmor's cache-poisoning).
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
       - name: Lint & typecheck
         # A heap named, not the runner's default (2026-10-31, the move to Node
         # 26, workplan 0119 §2.4). The lint is type-aware, and ESLint keys each
@@ -836,7 +852,19 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
-          cache: pnpm
+          # Its own cache is off: the pnpm store is the step below's, which a
+          # tag's run looks up and does not restore (zizmor's cache-poisoning,
+          # scripts/a-workflow-zizmor-would-flag.unit.test.ts).
+          package-manager-cache: false
+      - name: Where pnpm keeps its store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Restore pnpm's store, except on a tag
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
       - run: pnpm install --frozen-lockfile
       # What the box had when the unit tests began, so a worker killed
       # mid-file can be read against it (the cap below). It cannot fail.
@@ -863,6 +891,7 @@ jobs:
           # keyed on the machine since 2026-11-08, when a push started running
           # on GitHub's arm64 runner during the alpha (the header).
           VITEST_MAX_WORKERS: ${{ runner.environment == 'self-hosted' && '4' || '' }}
+          SHARD: ${{ matrix.shard }}
         # No `--`: pnpm forwards it literally, and vitest's CLI parser discards
         # everything after it. `pnpm test -- --coverage` therefore ran
         # `vitest run --project unit --project unit-browser -- --coverage`,
@@ -871,8 +900,15 @@ jobs:
         # e2e.yml.
         #
         # `--shard=N/4` only on a pull request's legs; the `all` leg runs
-        # every file.
-        run: pnpm test --coverage ${{ matrix.shard != 'all' && format('--shard={0}/4', matrix.shard) || '' }}
+        # every file. The leg's name reaches the shell through `env:`, never
+        # pasted into the script (zizmor's template-injection, 2026-11-20):
+        # SHARD, in the step's env above.
+        run: |
+          if [ "$SHARD" = all ]; then
+            pnpm test --coverage
+          else
+            pnpm test --coverage "--shard=${SHARD}/4"
+          fi
       - name: Upload coverage
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
@@ -906,7 +942,19 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
-          cache: pnpm
+          # Its own cache is off: the pnpm store is the step below's, which a
+          # tag's run looks up and does not restore (zizmor's cache-poisoning,
+          # scripts/a-workflow-zizmor-would-flag.unit.test.ts).
+          package-manager-cache: false
+      - name: Where pnpm keeps its store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Restore pnpm's store, except on a tag
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
       - run: pnpm install --frozen-lockfile
       # playwright-core ships no browsers (that is why it is the dependency —
       # see test/e2e/selfhost-ui.e2e.test.ts), so Chromium is installed
@@ -954,8 +1002,11 @@ jobs:
         with:
           path: ~/.cache/ms-playwright
           key: ms-playwright-${{ runner.os }}-${{ runner.arch }}-${{ runner.environment }}-${{ steps.pw.outputs.version }}
+          # A tag's run installs Chromium itself (zizmor's cache-poisoning).
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
       - name: Install Chromium
-        if: steps.pw-cache.outputs.cache-hit != 'true'
+        # On a tag the cache above only looks: a hit there downloads nothing.
+        if: steps.pw-cache.outputs.cache-hit != 'true' || startsWith(github.ref, 'refs/tags/')
         run: node node_modules/playwright-core/cli.js install chromium
       - name: Managed UI smoke (real browser)
         # VITE_API_URL is deliberately NOT set: the suite builds the bundle
@@ -1010,7 +1061,19 @@ jobs:
         with:
           node-version: '26'
           check-latest: true # the newest 26.x, not the first one in the runner's tool cache
-          cache: pnpm
+          # Its own cache is off: the pnpm store is the step below's, which a
+          # tag's run looks up and does not restore (zizmor's cache-poisoning,
+          # scripts/a-workflow-zizmor-would-flag.unit.test.ts).
+          package-manager-cache: false
+      - name: Where pnpm keeps its store
+        id: pnpm-store
+        run: echo "path=$(pnpm store path --silent)" >> "$GITHUB_OUTPUT"
+      - name: Restore pnpm's store, except on a tag
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.pnpm-store.outputs.path }}
+          key: pnpm-store-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('pnpm-lock.yaml') }}
+          lookup-only: ${{ startsWith(github.ref, 'refs/tags/') }}
       - run: pnpm install --frozen-lockfile
       - name: Verify Docker is available
         run: |
