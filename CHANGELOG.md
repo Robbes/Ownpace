@@ -4,6 +4,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.13] - 2026-11-21
+
+Cirrux and Infomaniak keep the guests on copied calendar events, each guest and the organiser
+marked `SCHEDULE-AGENT=CLIENT`, which tells the server to send no invitation, as at Nextcloud. A
+copied message keeps the time it arrived, a closed organisation takes nobody in, and files reach a
+Stalwart v1 server over JMAP. Live's deploy refuses an `API_URL`, `WEB_URL` or `CORS_ORIGIN` that
+is not live's own. Underneath, the Docker socket proxy is built from docker-socket-proxy v0.6.0
+and runs as HAProxy's own user instead of root, the Trigger.dev dashboard's TLS front takes
+Caddy's newest index, the Trigger.dev webapp's image no longer carries undici 5.29.0, and a stored
+credential is decrypted only with its full authentication tag. In CI, a run that a tag starts
+restores no cache and zizmor audits every workflow change, osv-scanner fails the Security Scan on a
+package OSV records as malicious, Semgrep reports what eight named rules find, and the O365 lane,
+which never ran a test, is gone. Live's deploy from alpha.12 is reversible: no migration moves, and
+neither do the Trigger.dev, identity-provider and ClickHouse pins.
+
 ### Added
 
 - **Semgrep reads the tree on every pull request with eight named rules, and reports what they
@@ -116,6 +131,20 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   beside `WEB_URL` and `CORS_ORIGIN`, and the guide's step 6 for live sets it. The refusal first
   applies at the deploy after the one that moves live onto this release: `deploy-live.sh` runs
   its copy from before the checkout moves.
+- **The Trigger.dev dashboard's TLS front is built from Caddy 2.11.9-alpine's index of 2026-11-13**
+  (workplan 0119; Dependabot, #1982). That index is the one of 2026-11-06 with a linux/riscv64
+  image and its attestation added: the amd64 and arm64 images are the ones the front already ran,
+  each read from the registry and hashed to its digest. The front's image name carries the hash of
+  its Dockerfile's instructions, so `trigger-tls` and `trigger-tls-init` move to
+  `localhost/caddy:2.11.9-alpine-9c1f752119a3`, built at the next bring-up.
+- **The npm minor-and-patch group, 14 updates** (workplan 0119; Dependabot, #1971): at run time
+  imapflow 2.12.1 and nodemailer 10.6.0 for the connectors, and croner 11.0.1 for the scheduler
+  and the worker; in the web bundle `@tanstack/react-query` 5.108.0 and lucide-react 1.74.0; and
+  build and test tools (eslint 10.15.0, typescript-eslint 8.73.0 with its plugin and parser, jsdom
+  31.0.1, playwright-core 1.65.1, `@cyclonedx/cyclonedx-npm` 7.0.1, `@testing-library/user-event`
+  14.6.12 and `@tanstack/react-query-devtools` 5.108.0). Taken after E2E (managed) was green on its
+  head, and with the mail integration test reading each copy's arrival time back from a real
+  Stalwart on imapflow 2.12.1.
 
 ### Security
 

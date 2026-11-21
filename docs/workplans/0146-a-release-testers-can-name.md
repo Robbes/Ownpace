@@ -2,7 +2,47 @@
 
 > **In one line:** Cutting an alpha release after `v0.1.0-rc.1`: tag, version and changelog checks, the build in problem reports, `ownpace-live` deploying only tags, Trigger.dev tasks on Node 24, ending pre-release squashing, upgrade drills and the frozen MinIO image.
 
-## Status — 2026-11-20 (update this block at the end of every session)
+## Status — 2026-11-21 (update this block at the end of every session)
+
+**2026-11-21: the fold for `v0.2.0-alpha.13` (T2).** `package.json` and the API contract say
+`0.2.0-alpha.13`, `scripts/release-line.json` lists it, and everything under [Unreleased] moves to
+its section, dated 2026-11-21, under a summary; [Unreleased] stays, empty. alpha.13 carries what
+`main` merged after alpha.12's tag:
+
+- Infomaniak keeping the guests on copied calendar events, each marked `SCHEDULE-AGENT=CLIENT`
+  (#1965), and Cirrux again, once a test sent no mail (#1968);
+- the Trigger.dev webapp's image without undici 5.29.0 and its busboy (#1963);
+- the test mail server on Stalwart v1.1.1, with the JMAP file target on v1's names (#1964);
+- the Docker socket proxy from docker-socket-proxy v0.6.0 (#1967), then as HAProxy's uid 99,
+  reaching the socket through its group (#1979);
+- live's deploy refusing an address that is not live's own (#1973);
+- a copied message keeping the time it arrived (#1976);
+- what the managed gate prints when a folder press falls short (#1966);
+- a closed organisation taking nobody in (#1972);
+- the dashboard's TLS front on Caddy 2.11.9-alpine's index of 2026-11-13 (#1982);
+- the npm minor-and-patch group, 14 updates (#1971);
+- the credential store naming GCM's tag length (#1985);
+- in CI alone: no cache restored in a run a tag starts, and zizmor over every workflow change
+  (#1977), the O365 lane deleted (#1980), osv-scanner over the lockfile (#1984) and Semgrep,
+  report only (#1986), with workplan 0163 (#1978);
+- the records of alpha.12's release and live deploy (#1969), workplan 0162 (#1974) and the nights
+  waiver (#1981).
+
+- **C and the freeze.** C is this fold's squash. From C until the tag nothing merges to `main`.
+- **In the nights' place,** waived for alpha.13 (*"Continue, I waive the waiting/nights, just work
+  autonomously and efficient on the upcoming alpha."*): E2E (managed) and E2E (self-hosted) on
+  Postgres and on PGlite, dispatched on `main` at C, one at a time, beside C's push runs and its
+  Windows smoke.
+- **Owed before the tag:** the Release run from the owner's account, with `commit` set to C and
+  `waive_nights` set to those words, and the approval in the `release` environment. Its first tag
+  runs the two release attaches on the runner's own `gh` (#1977), which `release-verify.mjs`
+  checks.
+- **Live's deploy** from alpha.12 is reversible by the deploy's own rule: no file in either
+  migration chain is added, changed or removed, and none of the Trigger.dev (v4.8.5), identity
+  provider (Zitadel v4.20.4) and ClickHouse pins moves. The images each machine builds change: the
+  Docker socket proxy (`3.4.7-alpine-98dbd75c6730`), which runs as uid 99 with the socket's group,
+  `DOCKER_SOCKET_GID`, that the bring-up writes into `.env`; the dashboard's TLS front
+  (`2.11.9-alpine-9c1f752119a3`); and the Trigger.dev webapp (`v4.8.5-f7b52b1d2670`).
 
 **2026-11-20, late: alpha.13's counted nights are waived, in the owner's words, before its fold.**
 The owner, on 2026-11-20: *"Continue, I waive the waiting/nights, just work autonomously and
