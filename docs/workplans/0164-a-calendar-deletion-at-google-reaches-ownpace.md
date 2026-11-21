@@ -4,7 +4,54 @@
 
 ## Status — 2026-11-21 (update this block at the end of every session)
 
-**2026-11-21, latest: T2 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader`, as
+**2026-11-21, 23:55 UTC, latest: T3 is built, on
+`claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply`, as §4.2, and not yet on the test
+environment.** *Delete all of these here too* on *Deleted on the old system*
+(`apps/web/src/components/queues/DeleteAllPanel.tsx`), on T2 as merged in #2019:
+- **The loop lives in the page** (the brief's option 1). It presses each row's own *Delete it here
+  too* in turn, through the same call, and reads each answer to its end before the next press: the
+  appliance's answer, or a managed receipt polled to `applied`, `refused` or `failed`
+  (`applyEachInTurn`, `packages/shared/src/apply-each-in-turn.ts`). No route was added. Why:
+  - every gate, the operator's hold and a closed organisation stay where a single press meets
+    them, and on managed each row keeps its own receipt, its own `apply_deletion.ordered` audit
+    row with the person who pressed, and its own job, which runs every gate again;
+  - reading each answer to its end is what lets the breaker's rule hold for a refusal on a
+    receipt too, which a route that queued every row at once could not see in time;
+  - one removal at a time reaches the new system, as a person pressing would;
+  - a page closed mid-run presses nothing more, and what was pressed finishes where it runs;
+  - a second press orders only what is still waiting, and the route joins a press already queued.
+- **Offered only where a single delete is:** deleting by hand on (read as the panel above reads it,
+  and not offered while that cannot be read), rows `mayOfferApply` offers, two at least, none
+  pressed on the page yet. One confirmation, which names the count; the list is read again first,
+  and a list that changed orders nothing.
+- **The breaker:** gate 6 refuses every apply for a data type while it trips, because no item in
+  that queue is trustworthy then. So a `mass_deletion_suspected` refusal, on the request or on a
+  receipt, stops every later row of that data type in the run, even if the share has dropped by
+  then; another data type goes on behind its own breaker. Every other refusal is that row's
+  answer, and the next row is pressed.
+- **Afterwards** the page lists what was deleted and what was not: a sentence per refusal code in
+  English and Dutch, the server's words and code verbatim under *Technical details*. *Stop*
+  presses nothing more, and the rows never reached get their buttons back.
+- **Records:** ADR-0024 (operative rules in place, *Amendment, 2026-11-21*), the arch doc §11.1, the
+  operator runbook, the queues' guidance, the glossary, the CHANGELOG.
+- **Tests:** the loop over the real `applyDeletion` and `MemoryLedger`, one row refused by each
+  gate and the rest removed, and a breaker that trips mid-run
+  (`packages/core/src/a-delete-all-through-every-gate.unit.test.ts`); the loop by itself
+  (`packages/shared/src/apply-each-in-turn.unit.test.ts`); the page
+  (`apps/web/src/pages/a-delete-all-each-decided-by-itself.unit.test.tsx`). Eight mutants, each
+  undone byte for byte: a gate skipped for a run (an assumed row taken by the page, and ownership
+  taken out of `applyDeletion`), the run going on past the breaker, the press with no
+  confirmation, the button after cutover, the button with deleting by hand off, the refusals not
+  shown, and the report gone once the list is empty. Each made a test fail.
+- **Found, not changed:** a deletion somebody chose to keep can still be applied. Neither
+  `applyDeletion` nor the ledger's conditional UPDATE reads `deletion_acknowledged_at`, where a
+  relocation has `already_kept`; a kept row pressed through the API is removed. The page offers
+  no button on a kept row, and a run reads the list again before it presses anything, but a *Keep*
+  pressed in another tab during a run is not seen. Left for a decision, as it changes the single
+  press too.
+- **Next:** E2E (managed) on the pull request, then T5 (§6) after the merge.
+
+**2026-11-21, earlier: T2 is built, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader`, as
 §3.1 A, reviewed twice and fixed, and not yet on the test environment.** The CalDAV source reads a
 `sync-collection` answer whose members carry no calendar data as a list of members to read, keyed
 on what the server answers and not on its host (`packages/connectors/src/caldav-source.ts`):
@@ -134,7 +181,7 @@ Read for this plan, on `main` at `8b8fac07`:
 | T0 The decisions | owner | ✅ **Decided 2026-11-21**, each as advised | §5: reader A, measured first; bulk apply yes; nothing removed by itself in the first build; T1 yes |
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
-| T3 Apply in bulk | builder | 📋 **Decided** (T0 (b)), after T2 | §4.2. ADR-0024 amended |
+| T3 Apply in bulk | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t3-bulk-apply` | §4.2: *Delete all of these here too*, each row's own press in turn through every gate, the breaker stopping its data type. ADR-0024 amended |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 

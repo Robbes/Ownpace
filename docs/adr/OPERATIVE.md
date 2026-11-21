@@ -183,8 +183,9 @@ live in [README.md](./README.md), the register.
 
 ## [ADR-0024: `apply` — an explicit, gated exception to non-destructiveness](./0024-explicit-owner-deletion-apply.md)
 
-- `apply` is the **only destructive code path**: per item, owner-called, never automatic.
-  Relocations remove through `applyRelocation` beside it (ADR-0030/0031): the same gates, gate 3
+- `apply` is the **only destructive code path**: per item, each item decided by itself,
+  owner-called, never automatic. Relocations remove through `applyRelocation` beside it
+  (ADR-0030/0031): the same gates, gate 3
   taking a recorded relocation as evidence and gate 6 counting relocations too.
   `packages/core/src/apply-deletion.ts` holds the only calls to `removeItem`.
 - **Seven gates**, enforced by `applyDeletion`; evidence and ownership re-checked in the ledger's
@@ -201,6 +202,10 @@ live in [README.md](./README.md), the register.
   ask the item's data type's phase afresh (`stillTheAuthority`, required) and refuse
   `after_cutover`; the queues carry `afterCutover`, and no Apply is offered. A rollback re-admits
   it (ADR-0047). Guard: `packages/core/src/an-apply-pressed-after-cutover.unit.test.ts`.
+- **One owner action may apply many** (2026-11-21, workplan 0164 T0 (b)): *Delete all of these
+  here too* presses each row's own apply in turn, through the same call and all seven gates,
+  each answered before the next; a breaker refusal stops the rest of that data type in the run.
+  Guard: `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.

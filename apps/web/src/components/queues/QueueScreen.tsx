@@ -36,6 +36,12 @@ import { serverMessage } from '../../services/api.ts';
  * its reader's language, also after a language switch (`ServedEffect`).
  */
 export type ItemOutcome =
+  /**
+   * In a *Delete all of these here too* run (workplan 0164 T3), not yet its
+   * turn: its buttons give way to a word saying so, so nothing is pressed on
+   * a row the run is about to order.
+   */
+  | { readonly state: 'waiting' }
   | { readonly state: 'pending' }
   | { readonly state: 'done'; readonly served: Partial<DecisionEffectFields> }
   | { readonly state: 'refused'; readonly text: string }
@@ -53,8 +59,12 @@ export interface QueueScreenProps<T extends QueueEnvelope> {
     queue: T,
     act: (hash: string, run: () => Promise<Partial<DecisionEffectFields>>) => void,
     outcomes: Readonly<Record<string, ItemOutcome>>,
-    /** Direct outcome control, for flows `act` cannot model (the apply receipt). */
-    setOutcome: (hash: string, outcome: ItemOutcome) => void,
+    /**
+     * Direct outcome control, for flows `act` cannot model (the apply receipt,
+     * a run over many rows). `undefined` gives a row back its buttons: a row
+     * a run never reached had nothing happen to it.
+     */
+    setOutcome: (hash: string, outcome: ItemOutcome | undefined) => void,
     /** Re-read the queue from the server (never patch the cache by hand). */
     refresh: () => void,
   ) => React.ReactNode;
@@ -82,8 +92,12 @@ export function QueueScreen<T extends QueueEnvelope>({
     staleTime: 30_000,
   });
 
-  const setOutcome = React.useCallback((hash: string, outcome: ItemOutcome) => {
-    setOutcomes((o) => ({ ...o, [hash]: outcome }));
+  const setOutcome = React.useCallback((hash: string, outcome: ItemOutcome | undefined) => {
+    setOutcomes((o) => {
+      if (outcome !== undefined) return { ...o, [hash]: outcome };
+      const { [hash]: _cleared, ...rest } = o;
+      return rest;
+    });
   }, []);
 
   const refresh = React.useCallback(() => {

@@ -2127,7 +2127,13 @@ So it is never counted as one, and never deleted for you: Deletions lists it as
 Everything documented above it — failures, moves, the deletions queue itself —
 only ever reports. `apply` takes the target's copy away, on an explicit,
 per-item decision an operator makes by calling the endpoint. Nothing about it is
-automatic, batched, or triggered by a schedule.
+automatic or triggered by a schedule. The Deletions page's *Delete all of these
+here too* (workplan 0164 T3) is one press for every row that has its own delete
+button: it calls the same endpoint for each row in turn, each answered (on
+managed, its receipt read to the end) before the next is called, so every row
+passes everything below by itself. A `mass_deletion_suspected` refusal stops the
+rest of that domain in the run; any other refusal is that row's answer, and the
+next row is called.
 
 It has to be turned on per mapping first:
 

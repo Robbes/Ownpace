@@ -4,6 +4,22 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **One press to delete the copies on *Deleted on the old system*** (workplan 0164 T3; ADR-0024,
+  amended 2026-11-21: "per item" reads as "each item decided by itself"). *Delete all of these
+  here too* is offered beside the rows that have their own delete button, while deleting by hand
+  is on, and never for an assumed row or one past its data type's cutover. Its confirmation names
+  how many it will delete, and the list is read again first: a list that changed since it was
+  shown deletes nothing. It then presses each row's own *Delete it here too* in turn, through the
+  same request and every check a single press passes, each answered before the next is pressed
+  (on managed, each with its own receipt, audit row and job). A refusal of one is said and the
+  rest go on, except that once the safeguard against mass deletion refuses one, no later row of
+  that data type is pressed in that run. *Stop* presses nothing more. Afterwards the page lists
+  what was deleted and what was not, with each reason, in English and Dutch, the server's own
+  words beside it. Nothing is deleted by itself: no route was added, and the server cannot tell a
+  row of a run from one pressed by hand.
+
 ## [0.2.0-alpha.14] - 2026-11-21
 
 An appointed operator can mark an organisation as a test from Support, and every migration made

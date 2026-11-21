@@ -25,7 +25,7 @@ type Key = keyof (typeof STRINGS)['en'];
  * own (*Do nothing*).
  */
 const LABELS: Record<GuidedQueue, ReadonlyArray<Key | null>> = {
-  deletions: ['deletions.keep', 'deletions.apply', null],
+  deletions: ['deletions.keep', 'deletions.apply', 'deletions.all', null],
   moves: ['moves.keep', 'moves.apply'],
   failures: ['failures.retry', 'failures.accept', 'failures.stillTrying'],
 };

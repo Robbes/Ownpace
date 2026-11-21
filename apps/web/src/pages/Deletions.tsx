@@ -22,6 +22,10 @@
  * state, a missed poll keeps polling — and renders each terminal state in its
  * own character (`refused` is never softened into an error, `failed` never
  * into silence).
+ *
+ * AND ONE PRESS FOR ALL OF THEM (workplan 0164 T3): *Delete all of these here
+ * too* presses each row's own button in turn, through the same call, and says
+ * afterwards what was deleted and what was not, and why (`DeleteAllPanel`).
  */
 
 import React from 'react';
@@ -30,6 +34,7 @@ import type { ApplyReceipt, DeletionsQueue, EarlierExport, ItemDeletion } from '
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
 import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel.tsx';
+import { DeleteAllPanel } from '../components/queues/DeleteAllPanel.tsx';
 import {
   ActionButton,
   AfterCutoverNote,
@@ -143,6 +148,8 @@ const Row: React.FC<{
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
         <ReceiptStatus receipt={outcome.receipt} />
+      ) : outcome?.state === 'waiting' ? (
+        <WaitingItsTurn />
       ) : d.decided ? (
         <Decided decided={d.decided} />
       ) : (
@@ -151,6 +158,19 @@ const Row: React.FC<{
     </div>
   </ItemRow>
 );
+
+/** A row a *Delete all of these here too* run will reach: no button to press meanwhile. */
+const WaitingItsTurn: React.FC = () => {
+  const t = useT();
+  return <span className="text-xs text-gray-600">{t('deletions.all.waiting')}</span>;
+};
+
+/** What a row is called, for the list a run leaves: as `WhichItem` says it, in one line. */
+const nameOf = (d: ItemDeletion): React.ReactNode => {
+  if (d.displayName === undefined) return <PathText path={d.collection} />;
+  if (d.domain === 'file') return <PathText path={fileAt(d.collection, d.displayName)} />;
+  return d.displayName;
+};
 
 /**
  * A copy an earlier export policy left (workplan 0042 T8 (b), second half).
@@ -196,6 +216,19 @@ const EarlierRow: React.FC<{
 const isTerminal = (r: ApplyReceipt): boolean =>
   r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
 
+/**
+ * The rows *Delete all of these here too* would order: waiting on you, each
+ * offered a delete button of its own by `mayOfferApply` (positive evidence,
+ * not past its data type's cutover), and none pressed on this page yet.
+ */
+const offeredAll = (
+  queue: DeletionsQueue,
+  outcomes: Readonly<Record<string, ItemOutcome>>,
+): ItemDeletion[] =>
+  queue.confirmed.filter(
+    (d) => mayOfferApply(d, queue.afterCutover) && outcomes[d.naturalKeyHash] === undefined,
+  );
+
 const Deletions: React.FC<{
   /** Test seam: the receipt poll interval. Production uses the default. */
   receiptPollMs?: number;
@@ -204,6 +237,7 @@ const Deletions: React.FC<{
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
   const { mappingId } = useParams<{ mappingId: string }>();
+  const routeMappingId = mappingId;
   const t = useT();
 
   // One timer per in-flight receipt; all cleared on unmount so an abandoned
@@ -297,6 +331,24 @@ const Deletions: React.FC<{
         {/* Only the rows whose button the cutover took away (2026-10-05). */}
         <AfterCutoverNote
           withheld={queue.confirmed.filter((d) => mayOfferApply(d, []) && !mayOfferApply(d, queue.afterCutover))}
+        />
+        {/* One press for every row with a delete button of its own, and for
+            no other row (0164 T3): the same gate the buttons below are
+            offered by, and none already pressed on this page; the list is
+            read again at the press, by the same rule. Above the section, not
+            in its `lead` prop: a section with no rows draws none, and a run
+            that deleted every row still has to say so. */}
+        <DeleteAllPanel
+          mappingId={mappingId}
+          rows={offeredAll(queue, outcomes)}
+          readAgain={async () => {
+            const fresh = (await fetchDeletions(routeMappingId))[mappingId];
+            return fresh ? offeredAll(fresh, outcomes) : [];
+          }}
+          setOutcome={setOutcome}
+          refresh={refresh}
+          receiptPollMs={receiptPollMs}
+          nameOf={nameOf}
         />
         {/* What the chips mean is said here, where a phone can read it, not
             only in a hover title, and only for the chips the rows carry: an
