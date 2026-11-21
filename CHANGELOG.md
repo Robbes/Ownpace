@@ -4,6 +4,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.14] - 2026-11-21
+
+A migration can carry a test marker, and then copies only the items whose own title carries it;
+nothing sets one yet. Such a test migration is never finished or switched over, its sharing lists
+only its marked items, and a Dropbox file renamed out of its marker is not read as deleted. *Pay*
+opens Mollie's checkout, the app follows a checkout, consent or grant address only to its provider's
+own host, and a migration waits at most five seconds for a table lock. An operator can measure, read
+only, what Google answers to `sync-collection`. Underneath, Trigger.dev moves to v4.8.8, its
+webapp's image runs effect 3.22.4 and, like Redis's, carries no PAM, both Postgres builds take
+Alpine's fixed libxml2, and pnpm moves to 11.28.13. In CI, a pull request that adds a secret fails,
+squawk reports the locks each migration takes, the two secrets left are each read by one job in its
+own GitHub environment, Dependabot waits three days, and zizmor moves to 1.32.0 and lists each
+secret a job reads outside an environment. Live's deploy from alpha.12 is one-way: ledger migration
+0070 moves, and so does the Trigger.dev pin.
+
 ### Added
 
 - **A read-only measurement of what Google answers to `sync-collection`** (workplan 0164 T1):
@@ -139,7 +154,6 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   at v4.8.8: cross-spawn 5.1.0 is no longer removed, since upstream's own override replaces it
   with 7.0.6, and the esbuild binary removed is 0.28.2's. The deploy CLI takes no minimatch any
   more, so its override went, and minimatch 10.2.6 with its moderate advisory left the tree.
-
 - **GoAccess's pinned commit is the build argument `UPSTREAM_COMMIT`** (workplan 0163 D8), in
   `deploy/compose/goaccess/Dockerfile`, where it was `GOACCESS_COMMIT`. gitleaks' generic-api-key
   rule reads the `access` in that name as a key's and the commit id as its value. With gitleaks
@@ -153,6 +167,12 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   purge takes the same two dpkg flags as before, and the build still fails if a file of a removed
   library is left, or any ELF file needs or names one. Both images have a new name, which the
   managed stack builds at its next `up`, restarting Redis and the webapp once.
+- **The npm minor-and-patch group, 3 updates** (workplan 0119; Dependabot, #2004): lucide-react
+  1.75.0 in the web bundle, and vitest 5.1.1 with its V8 coverage plugin for the tests. All three
+  are past the three-day floor; taken after CI and E2E (managed) were green on its head.
+- **react-router 8.5.2, from 8.5.1, in the web bundle** (workplan 0119; Dependabot, #2012).
+  Published on 2026-11-18, it was past the three-day floor when taken, after CI, the UI tests over
+  the built bundle included, and E2E (managed) were green on its head.
 
 ### Fixed
 
