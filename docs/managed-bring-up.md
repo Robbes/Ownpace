@@ -385,7 +385,8 @@ duties*, below). The same question from outside is the dispatch-only workflow *E
 (`.github/workflows/exposure-probe.yml`), on a GitHub-hosted runner. It needs
 the repository variable `EXPOSURE_PROBE_LIVE_PORTS`, live's `*_PORT` values, and
 takes the machine's own public address from the optional secret
-`EXPOSURE_PROBE_HOST`. It also asks `app.`, `id.`, `status.` and
+`EXPOSURE_PROBE_HOST`, kept in the job's environment, `exposure-probe`
+(workplan 0163 T1). It also asks `app.`, `id.`, `status.` and
 `www.ownpace.eu` for the page a visitor asks first, and fails while NetBird's
 sign-in answers one of them instead of the service (*After the script: the
 owner's steps*, step 5). And it asks live's form that founds an organisation,
@@ -967,7 +968,7 @@ token the CLI just minted into `.env` as `TRIGGER_ACCESS_TOKEN`. From then on
 the CLI's `deploy` reads that variable before it looks at any profile file and
 validates it against the server itself — no browser, no profile, and nothing
 left on the host to go stale. It is the CLI's own documented path for CI, and
-the E2E workflow uses it as a repository secret.
+the E2E workflow uses it as a secret of its job's environment, `e2e-managed`.
 
 Run it by hand any time (`./deploy/compose/trigger-remember-token.sh`); it
 declines to overwrite a token `.env` already holds unless you pass `--force`,
@@ -4069,8 +4070,11 @@ interactive flow, it throws
 **Preferred**, one-time, in the GitHub UI: mint a token at the self-hosted
 instance's own dashboard — *Account → Personal Access Tokens* — or reuse an
 existing `tr_pat_…` from `${XDG_CONFIG_HOME:-$HOME/.config}/trigger/config.json`
-if you already have one. Then, in the repository: **Settings → Secrets and
-variables → Actions → New repository secret**, named `TRIGGER_ACCESS_TOKEN`.
+if you already have one. Then, in the repository: **Settings → Environments →
+`e2e-managed` → Environment secrets → Add environment secret**, named
+`TRIGGER_ACCESS_TOKEN`. Kept there, it reaches only the job that names that
+environment (workplan 0163 T1); a repository secret of the same name, from
+before, can then be deleted.
 `e2e-managed.yml` also sets `TRIGGER_API_URL` alongside it — required,
 because unset, the CLI's env-var login path defaults to the SAAS cloud
 (`api.trigger.dev`), not this instance.

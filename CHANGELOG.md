@@ -51,6 +51,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   provider's own sign-in host, Google's, Dropbox's, Microsoft's or Cirrux's, and any other address
   closes the window and is said in the consent's note.
 
+### Security
+
+- **CI's two secrets are each kept for the one job that reads them** (workplan 0163 T1, the owner's
+  decision D2 of 2026-11-20). The Trigger.dev token the managed E2E gate deploys with and the
+  machine's address the exposure probe asks from outside were repository secrets, which every job
+  of every workflow can read, one added on a branch included. Each job now names a GitHub
+  environment, `e2e-managed` and `exposure-probe`, and the token is read in its job, not in the
+  workflow's shared settings. Once the owner moves each secret into its environment, only that job
+  reads it, on the branches the environment allows. Until then nothing changes: the jobs still
+  read the repository's secrets.
+
 ## [0.2.0-alpha.13] - 2026-11-21
 
 Cirrux and Infomaniak keep the guests on copied calendar events, each guest and the organiser
