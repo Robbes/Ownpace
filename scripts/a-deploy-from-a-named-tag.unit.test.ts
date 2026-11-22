@@ -3298,7 +3298,7 @@ describe('the hold and the drain, read from a database with both chains applied'
         const quiet = stage({ releases: [NEXT] });
         const took = run(quiet, [NEXT.tag], { STUB_PGLITE: dataDir });
         expect(took.status, took.out).toBe(0);
-        expect(took.out).toMatch(/the hold is on and nothing is in flight\n\[deploy-live\]   in the ledger, and in pg-boss's queues outside the schedule queues/);
+        expect(took.out).toMatch(/the hold is on and nothing is in flight\n\[deploy-live\] {3}in the ledger, and in pg-boss's queues outside the schedule queues/);
         await withDb(async (db) => {
           await db.exec(`INSERT INTO pgboss.job (name, state) VALUES ('run-delta-sync', 'retry'), ('purge-closed', 'created');`);
         });
@@ -3327,7 +3327,7 @@ describe('the hold and the drain, read from a database with both chains applied'
         const s = stage({ releases: [NEXT] });
         const r = run(s, [NEXT.tag], { STUB_PGLITE: dataDir });
         expect(r.status, r.out).toBe(0);
-        expect(r.out).toMatch(/nothing is in flight\n\[deploy-live\]   \(the schema pgboss holds no pg-boss queue yet\)/);
+        expect(r.out).toMatch(/nothing is in flight\n\[deploy-live\] {3}\(the schema pgboss holds no pg-boss queue yet\)/);
       } finally {
         await withDb(async (db) => {
           await db.exec('DROP SCHEMA pgboss CASCADE');
