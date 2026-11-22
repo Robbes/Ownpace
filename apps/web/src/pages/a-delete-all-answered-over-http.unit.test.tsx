@@ -81,7 +81,7 @@ vi.mock('axios', async (importOriginal) => {
 });
 
 vi.mock('../services/edition', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('../services/edition')>();
+  const actual = await importOriginal<typeof import('../services/edition.ts')>();
   return {
     ...actual,
     edition: () => editionFlag.ed,
