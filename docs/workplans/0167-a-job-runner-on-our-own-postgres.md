@@ -65,7 +65,35 @@ Trigger.dev, ClickHouse and identity-provider lines in `managed.yml` changed.
   `the-state-that-lived-in-a-nameless-volume`, `a-base-image-that-carried-what-nothing-runs`,
   `an-image-nobody-scanned`, `a-release-page-with-no-sbom` and `a-task-base-the-cli-builds-nothing-into`.
   `a-stack-that-names-its-mode` now also accepts a service fixed to `production`.
-- **Evidence.** In the pull request; the counts follow here once the full run has finished.
+- **Evidence.**
+  - **A local build of the image.** Docker 29.10.0, linux/amd64. CI builds the real file: this
+    run added one layer to its base stage so the build could trust this machine's proxy.
+    - Node `v26.13.1`, uid and gid 65532, `NODE_ENV=production`, no shell under any of five names.
+    - Under `--read-only --tmpfs /tmp --cap-drop ALL`, all 26 job modules and
+      `@openmig/scheduler/pg-boss` load.
+    - Its own CMD stops on the missing `main.ts`.
+    - hadolint v2.15.1 says nothing about it, or about the API's.
+  - **The workflow's new step**, run as written against the image: it passes. With
+    `apps/api/Dockerfile`'s Node changed to 26.13.0 it fails, `Node is v26.13.1, and
+    apps/api/Dockerfile names v26.13.0`.
+  - **A new commit is a new image, for both.** The API and the worker were built at two commits,
+    then at the first again after editing the tree. Each build gave each image a new ID, and
+    `OPENMIG_COMMIT` held the commit it was built from.
+  - **Compose, with the example's `.env` filled with dummies.** Without the profile, `config
+    --services` lists 19 services and no worker; with `--profile jobs`, 20.
+  - **Every unit file under `scripts/` and `deploy/`:** 315 files, 7,720 passed, 36 skipped. The
+    ten guards touched after that run passed again: 646 tests.
+  - **The worker's and scheduler's units:** 51 files, 613 tests.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+  - **Broken once each, then restored byte for byte** (`cmp`):
+    - an owner URL in the worker: 2 failed;
+    - a digest of the worker's own: 3 failed;
+    - a glued note back in the example: 1 failed;
+    - `LOG_LEVEL` out of the worker: 1 failed;
+    - the worker at `development`: 1 failed;
+    - the profile removed: 2 failed;
+    - `read_only` removed: 1 failed;
+    - the worker's first release moved to alpha.1: 2 failed.
 
 **2026-11-22, later still, after review: the fit question no longer refuses every real stack.**
 The coordinator's review of #2041 found the question refused every stack that has

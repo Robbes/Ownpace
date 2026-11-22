@@ -118,7 +118,7 @@ export function dockerfileProblems(worker: string, api: string): string[] {
   if (!apiRuntime.some((i) => i.op === 'ENV' && i.args === 'OPENMIG_COMMIT=$GIT_SHA')) problems.push(`${API}'s runtime stage no longer takes GIT_SHA into OPENMIG_COMMIT: read this rule again`);
   const health = ops('HEALTHCHECK').at(-1) ?? '';
   const cmd = /\bCMD\s+(\[.*\])\s*$/.exec(health)?.[1];
-  let argv: unknown = null;
+  let argv: unknown;
   try {
     argv = cmd ? JSON.parse(cmd) : null;
   } catch {
