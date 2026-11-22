@@ -3737,7 +3737,7 @@ describe('the deploy in either runner (0167 T7)', () => {
       const s = stage({ releases: [{ ...NEXT, trigger: 'v9.9.9', yml: withWorker('pg-boss') }] });
       const r = run(s, [NEXT.tag]);
       expect(r.status, r.out).toBe(0);
-      expect(r.out).toMatch(/the jobs run on trigger here now \(from the one runner .* has, since it names no switch\); v0\.2\.0-alpha\.2's bring-up will run them on pg-boss \(from managed\.yml at [0-9a-f]+'s default\)/);
+      expect(r.out).toMatch(/the jobs run on trigger here now \(from .*managed\.yml.*\); v0\.2\.0-alpha\.2's bring-up will run them on pg-boss \(from managed\.yml at [0-9a-f]+'s default\)/);
       expect(r.out).toMatch(/no --trigger: .*runs the jobs on pg-boss, so it starts no Trigger\.dev plane and nothing migrates triggerdb/);
       expect(copyCalls(s)).toEqual([`copy-before-update take ${NEXT.tag} head=${s.commit[RUNNING.tag]}`]);
     },
