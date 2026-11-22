@@ -4,6 +4,53 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, morning: `v0.2.0-alpha.14` is released, its nights waived (T2, T4).** Read from
+GitHub on 2026-11-22. Times are UTC.
+
+- **C is `9456f618`**, the squash of #2028, merged on 2026-11-22 at 01:38:21 on `c867e9cc` (#2027).
+  Its tree is that of #2028's head, `21771b26`. On C, all green: CI run 44972389522 (01:38:24 to
+  02:09:02, `ci-complete` included), Security Scan run 44972389461, Images run 44972389467, Semgrep
+  run 44972389536 and Dockerfile lint run 44972389507. Nextcloud's second major did not run on C,
+  whose change touches none of its paths; it ran green on C's parent, `c867e9cc`, run 44970909702.
+  C moved twice before it, each time for pull requests merged after the fold (the fold's entry,
+  below).
+- **In the counted nights' place**, waived for alpha.14 (*"I also waive waitings for alpha 14."*,
+  #1991), dispatched on `main` at C, all green: E2E (managed) run 44972398472 (01:38:31 to
+  01:46:25), then E2E (self-hosted) on Postgres, run 44973147285 (01:48:12 to 01:53:41), and on
+  PGlite, run 44973633346 (01:54:45 to 01:59:29), one at a time, each once the run before it had
+  ended green; beside them Security Scan with the image scans, run 44972393995 (29 jobs), and
+  `windows-payload.yml` run 44972396091 (win-x64). E2E (self-hosted)'s scheduled run on C,
+  44980230646 (03:21:10 to 03:26:41), was green too.
+- **Release.** The owner ran it from their own account, first as a preflight alone: run
+  44999265423 (`mode` `preflight`, 07:40:06 to 07:40:50), which refused nothing. Then Release run
+  44999515030 (`mode` `release`), with `waive_nights` set to *"waived by me"*, in one attempt: its
+  preflight passed (07:43:28 to 07:44:08), and it waited at its approve job until the owner
+  approved in the `release` environment (07:44:26); then the gate scan of C (run 44999608397, on
+  `release-gate/v0.2.0-alpha.14`, 07:44:42 to 07:45:36) and the tag (07:46:01) succeeded. The
+  publish job's Security Scan on the tag, run 44999737209 (07:46:19 to 07:47:27), made the release
+  with its body and SBOM; the images, run 44999866783 (07:48:07 to 07:49:18), and the Windows zip,
+  run 44999874006 (07:48:12 to 07:49:53), both on the tag, were green; and verify passed (07:50:20
+  to 07:51:08).
+- **The two attaches, through the runner's own `gh`** (#1977): `bom.json` (2,064,513 bytes,
+  07:47:20) and `ownpace-appliance-win-x64-v0.2.0-alpha.14.zip` (50,037,257 bytes, 07:49:46), both
+  uploaded by `github-actions[bot]`. Verify, which reads both, passed.
+- **The tag.** `v0.2.0-alpha.14` is tag object `5caf7eb6…` on `9456f618`, made by
+  `github-actions[bot]` at 07:46:01. Its message has the lines *Release run:
+  https://github.com/Robbes/Ownpace/actions/runs/44999515030*, *Proved by: CI run #5985, Security
+  Scan run #6117 on main, windows-payload run #55; gate scan
+  https://github.com/Robbes/Ownpace/actions/runs/44999608397* and *Nights waived by Robbes, in
+  their words: "waived by me"*.
+- **The image scan after the tag**, Security Scan run 45000148061 (`image_scans`, on `main` at C,
+  07:51:54 to 07:55:44, 29 jobs), was green: 26 images listed and scanned, none past its end of
+  life. Against C's own scan, run 44972393995, the three production tiers are as they were (the 7
+  images the internet reaches: 0 critical, 8 high; the 13 internal ones: 2 critical, 27 high; the
+  appliance's 3: 0 critical, 2 high), and two things moved: the three release images it reads are
+  now alpha.14's (`0.2.0-alpha.14`), each with alpha.13's counts, and the Nextcloud test image, not
+  in production and the same image, lists 4 high findings fewer (255 to 251): four ImageMagick
+  packages are no longer in its list of findings without a fix, a change in the scanner's data.
+- **Owed after the tag:** live's deploy from alpha.12, one-way: ledger migration 0070, managed
+  migration 0062 and the Trigger.dev pin's move to v4.8.8 (the fold's entry, below).
+
 **2026-11-22: the fold for `v0.2.0-alpha.14` (T2), made again after #2022, #2023 and #2025, and once
 more after #2027.** `package.json` and the API contract say `0.2.0-alpha.14`,
 `scripts/release-line.json` lists it, and everything under [Unreleased] moves to its section, dated
