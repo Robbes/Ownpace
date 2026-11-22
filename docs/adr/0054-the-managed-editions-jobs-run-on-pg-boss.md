@@ -98,6 +98,13 @@ proved in 0167, behind `@openmig/scheduler/pg-boss`.
 | `runs.retrieve`, `runs.cancel` | `status`, `cancel`: the handler's `signal` aborts within a heartbeat (3) |
 | tags | `tags`, carried in the job's data |
 | the dashboard | `overview()` and `recentFailures()` (9) |
+| `MAX_DURATION_EXCEEDED`, not retried (`shouldRetryError`) | `RunTimedOut`, not retried: the worker stops the run's process a margin before the row's `expireInSeconds` itself (0167 T5a, E5) |
+| an out-of-memory run, not retried unless a task asks (none does) | `RunOutOfMemory`, not retried: the retry would meet the same heap (T5a) |
+| a run whose machine was lost, retried | a run's process killed from outside, or a claim lost to a worker that died, retried: the passes converge (point 2) |
+| `runs.retrieve(id)`, `runs.cancel(id)`, by the id alone | `status(runId)`, `cancel(runId)`, on every queue of the schema; the API's client is `PgBossProducer`, which never migrates, supervises, schedules or works (T5a) |
+
+The last four rows were added on 2026-11-22 by the coordinator's decision on #2040's review: a
+run settles on pg-boss as Trigger.dev 4.8.8 settles it today, so moving changes no retry.
 
 A run whose worker dies is picked up again by pg-boss's heartbeat sweep, which the runner runs
 every 15 seconds rather than pg-boss's default 60 (point 2).
@@ -164,6 +171,9 @@ force: nothing runs on the runner yet. From workplan 0167 T7 these are rules:
   for its final sync** with `enqueueAndWait`.
 - **An operator sees queued, running and failed work through `overview()` and
   `recentFailures()`**; there is no dashboard.
+- **A run settles as Trigger.dev 4.8.8 settles it** (§2's table): `RunNotRetried`,
+  `AbortTaskRunError`, `ZodError`, `RunTimedOut` and `RunOutOfMemory` are not retried, decided by
+  the error's name; a run's process killed from outside, or a lost claim, is.
 - **Trigger.dev's services stop at T8, their volumes kept as the way back**; its code, images,
   scripts, pins and volumes go at T9, on the owner's word only.
 
@@ -229,3 +239,11 @@ force: nothing runs on the runner yet. From workplan 0167 T7 these are rules:
   whoever provisions the role makes it, and pg-boss migrates inside it.
 - **pg-boss's migration at start, trusted alone.** Rejected: it migrates an older schema up and
   runs on a newer one without a word, which is the state a rollback leaves (Decision 3).
+
+## Amendment log
+
+- **2026-11-22 (workplan 0167 T5a, #2040):** §2's table gains four rows: the time limit and out of
+  memory not retried, a lost process retried, status and cancel by id through `PgBossProducer`.
+  The *Pending* rules gain the bullet that says so. §3's refusal also reads the schema's version
+  before pg-boss starts, so a newer schema is refused before pg-boss registers on it or runs a
+  cron pass; the reading after start stays.
