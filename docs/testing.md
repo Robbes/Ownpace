@@ -552,25 +552,34 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
   Held by `scripts/a-dockerfile-that-ends-as-root.unit.test.ts`, which runs the report against a
   stubbed docker.
 - `semgrep.yml` — on every pull request, on a push to `main` and on dispatch, on a GitHub-hosted
-  runner, never a required check (workplan 0163 T3, the owner's decision D3 of 2026-11-20):
+  runner, to be a required check by its job's name, `Semgrep`, once the owner adds it to branch
+  protection (workplan 0163 T3 and T5, the owner's decision D3 of 2026-11-20):
   Semgrep 1.186.0, by the tag and index digest `SEMGREP_IMAGE` names, over the checkout, mounted
   read-only, with eight rules fetched from Semgrep's registry by id (`RULES` in
   `scripts/semgrep-report.mjs`; no copy of a rule is kept here) for the classes an outside,
   read-only check of 2026-11-20 listed: a regular expression built at run time, a path joined from
   a value, the browser sent to an address a function returned, a React link to an address from a
-  value, and three more that found a spot each when workplan 0163 measured Semgrep on this tree. `Semgrep (report only)` writes each rule's spots
-  to its summary, a spot `KNOWN_FINDINGS` explains marked known with its reason, and marks on its
-  line a spot of a rule that may block. It runs Semgrep with `--time` and lists each place
-  Semgrep's taint analysis timed out in, where a spot can be missing, marked on its line where a
-  rule that may block can have timed out. No finding fails it. A scan that did not finish is a
-  warning on a pull request and fails the run on a push or a dispatch, where the run is the
-  record; so is a place where a rule that blocks can have timed out, and a report without the
-  timing section. On a push to `main` the spots of the six rules that may block go to code scanning,
-  and the two ReDoS rules' spots stay in the summary only; never from a pull request. A rule
-  becomes blocking, one at a time, once it reports nothing on `main`; the two ReDoS rules,
-  `detect-non-literal-regexp` and `detect-redos`, never do. Held by
-  `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`, which runs the report against a
-  stubbed docker.
+  value, and three more that found a spot each when workplan 0163 measured Semgrep on this tree.
+  `Semgrep` writes each rule's spots to its summary, a spot `KNOWN_FINDINGS` explains marked known
+  with its reason. **One rule blocks** (T5): a spot of `run-shell-injection`, which reports nothing
+  on `main` and, a YAML rule without taint mode, cannot time out, fails it on every event, marked
+  as an error on its line, and no `KNOWN_FINDINGS` entry can excuse one. The other rules report
+  only: a spot of one that may block, which no entry explains, is a warning on its line and fails
+  nothing. `react-href-var` reports nothing on `main` either and does not block yet: it is a taint
+  rule over JavaScript and TypeScript, and `main`'s runs read places only in part where it timed
+  out. It runs Semgrep with `--time` and lists each place Semgrep's taint analysis timed out in,
+  where a spot can be missing, marked on its line where a rule that may block can have timed out;
+  a place counts against the rule Semgrep names when it names one alone, and otherwise against each
+  rule whose languages include the file there. A scan that did not finish fails it on every event,
+  since on a pull request it vouches for the rule that blocks: so does a place where a rule that
+  blocks can have timed out, a report without the timing section, and a registry that does not
+  answer when the rules are fetched, which fails a pull request until a re-run. On a push to `main`
+  the spots of the six rules that may block go to code scanning, also when the rule that blocks
+  failed the job, and the two ReDoS rules' spots stay in the summary only; never from a pull
+  request. Each other rule becomes blocking, one at a time, once it reports nothing on `main` and
+  its time-outs leave `main`'s runs finished; the two ReDoS rules, `detect-non-literal-regexp` and
+  `detect-redos`, never do. Held by `scripts/a-finding-only-an-outside-check-saw.unit.test.ts`,
+  which runs the report against a stubbed docker.
 - `migration-locks.yml` — on a pull request and a push to `main` that touch either migration chain,
   the workflow or its script, and on dispatch, on a GitHub-hosted runner, never a required check
   (workplan 0165): squawk 2.73.0, the static musl build from its GitHub release, checked by its
@@ -610,11 +619,14 @@ Generally, **mailbox cleanup is preferred** unless you have a specific need for 
 - `no-committed-artifacts.yml` — PR guard against committed `node_modules/`, build outputs, local
   DBs, and `.env`.
 
-**Required status checks** on `main` are four: `ci-complete`, `security-scan`, `Trivy`, and
-`Check for committed artifacts`. `ci-complete` aggregates every job in `ci.yml`, so require it
-rather than the individual jobs — but it can only `needs:` jobs in its own file, which is why the
-other three (from `security-scan.yml` and `no-committed-artifacts.yml`) have to be required
-separately. Requiring `ci-complete` alone silently un-gates them.
+**Required status checks** on `main`, as this repository intends them, are five: `ci-complete`,
+`security-scan`, `Trivy`, `Check for committed artifacts`, and `Semgrep`. Branch protection holds
+the first four today. `Semgrep` joins them when the owner adds it there (workplan 0163 T5); until
+then a red `Semgrep` shows on a pull request and does not stop its merge. `ci-complete` aggregates
+every job in `ci.yml`, so require it rather than the individual jobs — but it can only `needs:`
+jobs in its own file, which is why the other four (from `security-scan.yml`,
+`no-committed-artifacts.yml` and `semgrep.yml`) have to be required separately. Requiring
+`ci-complete` alone silently un-gates them.
 
 **What `ci-complete` requires: every gate that should have run, run and passed.** For each job in
 its `needs`, `SHOULD_RUN` in `ci.yml` states whether that job should have run for this event and
@@ -648,9 +660,9 @@ for status to be reported", with nothing queued in Actions to explain it. Full r
 `SCOPE:` comment above `ci-complete` in `ci.yml`. Nor `hadolint (report only)` from
 `hadolint.yml`, for another reason: it reports on every pull request, but it is report only and
 passes whatever hadolint finds, so requiring it would gate nothing. It turns blocking, and is
-required then, after the two Trigger.dev Dockerfiles have had their pass. Nor `Semgrep (report
-only)` from `semgrep.yml`, for the same reason: it passes whatever Semgrep finds. Once a rule turns
-blocking, its check is required.
+required then, after the two Trigger.dev Dockerfiles have had their pass. `Semgrep` from
+`semgrep.yml` is to be required, by the same rule turned round: it reports on every pull request,
+with no `paths:` filter, and since workplan 0163 T5 one of its rules blocks.
 
 **No `pull_request` trigger filters by base branch**, and a guard holds that —
 `every-pr-gets-checked.unit.test.ts`. A `branches: [main]` filter gives a pull request opened

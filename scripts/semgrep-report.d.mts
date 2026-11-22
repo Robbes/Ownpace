@@ -53,10 +53,12 @@ export interface Rule {
   /** True for the two ReDoS rules, which never block (D3). */
   readonly never: boolean;
   /**
-   * True once the rule blocks (0163 §5, step 5); none does yet. Read only for
-   * a time-out so far: one this rule can have makes the scan unfinished.
+   * True for a rule that blocks (0163 T5): a spot of it fails the job, no
+   * entry excuses it, and a time-out it can have makes the scan unfinished.
    */
   readonly blocks: boolean;
+  /** The languages its own `languages:` names: the files it reads, and so where it can time out. */
+  readonly languages: ReadonlyArray<Language>;
   /** What it reports, in a few words. */
   readonly what: string;
 }
@@ -126,7 +128,20 @@ export interface Timeout {
   readonly first: string | null;
 }
 
-/** The rules that can have timed out at a place: the first alone when it was the only one, else any. */
+/** A language a rule names, by the name Semgrep gives it. */
+export type Language = 'javascript' | 'typescript' | 'yaml';
+
+/** Each language's file extensions, as Semgrep reads them. */
+export declare const EXTENSIONS: Readonly<Record<Language, ReadonlyArray<string>>>;
+
+/** A file's language by its extension, or null. */
+export declare function languageOf(path: string): Language | null;
+
+/**
+ * The rules that can have timed out at a place: the first alone when it was
+ * the only one, else every rule whose languages include the file there, and
+ * any rule when the file has no language or the first does not read it.
+ */
 export declare function timedOut(timeout: Timeout, rules?: ReadonlyArray<Rule>): Rule[];
 
 /** One run's reading, or why there is none. */
@@ -153,7 +168,7 @@ export interface Report {
   readonly markdown: string;
   /** What the log prints, the annotations among them. */
   readonly lines: ReadonlyArray<string>;
-  /** 0, or 1 outside a pull request when the scan did not finish. */
+  /** 0, or 1 when a rule that blocks found a spot or the scan did not finish, on every event. */
   readonly code: 0 | 1;
   /** CODE_SCANNING_REPORT's path when the scan finished, else empty: the file the upload sends. */
   readonly sarif: string;

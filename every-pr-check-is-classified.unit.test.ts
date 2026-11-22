@@ -46,7 +46,18 @@ const DOC_PATH = fileURLToPath(new URL('./docs/testing.md', import.meta.url));
  * because branch protection sees a context called `Trivy` regardless of which
  * job produced it, and requiring it is what makes a Trivy finding block a merge.
  */
-const REQUIRED_OUTSIDE_CI = new Set(['security-scan', 'Trivy', 'Check for committed artifacts']);
+const REQUIRED_OUTSIDE_CI = new Set([
+  'security-scan',
+  'Trivy',
+  'Check for committed artifacts',
+  // semgrep.yml (workplan 0163 T5): one of its rules, run-shell-injection,
+  // blocks, and the workflow has no `paths:` filter, so it reports on every
+  // pull request. This set is the INTENT (WHAT THIS CANNOT DO, above): the
+  // owner adds `Semgrep` to branch protection, and until then a red Semgrep
+  // shows on a pull request without stopping its merge. docs/testing.md's
+  // required-checks paragraph says so.
+  'Semgrep',
+]);
 
 /**
  * Must NOT be required, each with the reason.
@@ -156,15 +167,6 @@ const NOT_REQUIRABLE = new Map([
     'hadolint.yml reports on every pull request and fails none of them, whatever hadolint finds: it is ' +
       'report only until the two Trigger.dev Dockerfiles have had their pass (workplan 0119), so requiring it ' +
       'would gate nothing. When it turns blocking it is required, under the name it takes then.',
-  ],
-  // semgrep.yml (workplan 0163 T3, the owner's decision D3 of 2026-11-20):
-  // eight named Semgrep rules over the tree, report only until each rule in
-  // turn reports nothing on main.
-  [
-    'Semgrep (report only)',
-    'semgrep.yml reports on every pull request and fails none of them, whatever Semgrep finds: it is report ' +
-      'only until a rule reports nothing on main and turns blocking, one rule at a time (workplan 0163, step 5), so ' +
-      'requiring it would gate nothing. Once a rule blocks, its check is required, under the name it takes then.',
   ],
   // migration-locks.yml (workplan 0165): squawk over every migration, report
   // only, on the paths of the two chains.
