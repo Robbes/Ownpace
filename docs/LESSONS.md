@@ -1369,6 +1369,7 @@ reading a file drops off its entry by itself.
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-login-that-outlived-its-instance](../scripts/a-login-that-outlived-its-instance.unit.test.ts) — A LOGIN THAT OUTLIVED ITS INSTANCE, AND THE DANCE IT COST.
 - [a-plane-kept-and-stopped](../scripts/a-plane-kept-and-stopped.unit.test.ts) — A PLANE KEPT INSTALLED AND STOPPED (workplan 0167 T7; ADR-0054).
+- [a-recipe-the-env-file-could-not-answer](../scripts/a-recipe-the-env-file-could-not-answer.unit.test.ts) — A documented command must be runnable, and a wrapper must compose what a host-run script cannot inherit.
 - [a-rehearsal-that-cleans-up](../scripts/a-rehearsal-that-cleans-up.unit.test.ts) — A REHEARSAL THAT CLEANS UP, AND NEVER REACHES THE STACK TESTERS USE (workplan 0143 T9, the script half).
 - [a-run-that-carries-no-superuser](../scripts/a-run-that-carries-no-superuser.unit.test.ts) — A RUN THAT CARRIES THE OWNER'S CONNECTION STRING (workplan 0138 T3).
 - [a-switch-the-operator-read-otherwise](../scripts/a-switch-the-operator-read-otherwise.unit.test.ts) — A SWITCH THE OPERATOR READ OTHERWISE (workplan 0167 T7; ADR-0054).
@@ -5615,6 +5616,7 @@ Reads:
 
 - `apps/api/src/scripts/operator.ts`
 - `deploy/compose/env-read.sh`
+- `deploy/compose/job-runner.sh`
 - `deploy/compose/managed.env.example`
 - `deploy/compose/managed.yml`
 - `deploy/compose/operator.sh`
