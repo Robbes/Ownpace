@@ -1834,6 +1834,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
         '    [ "$n" -ge "${RUNNER_POLLS:-0}" ] || echo runner-abc123',
         '    echo ownpace-managed-api-1 ;;',
         '  "info --format {{.NCPU}}") echo "${NCPU:-4}" ;;',
+        '  "info --format {{.MemTotal}}") echo "${MEMTOTAL:-17179869184}" ;;',
         // The api's container id: another after the `up` when API_REPLACED says so.
         '  *" ps -q api")',
         '    if [ -f "$STATE.api" ] && [ -n "${API_REPLACED:-}" ]; then echo api-new; else echo api-old; fi',
@@ -1868,7 +1869,8 @@ describe('the bring-up in either runner (0167 T7)', () => {
       "JOB_RUNNER_MODE=''",
       ...['say', 'note', 'die', 'env_get', 'env_or', 'runner_mode', 'worker_stop_and_remove', 'plane_runners'].map(definition),
       "WORKER_CPUS_RULE=''; WORKER_MEMORY_RULE=''",
-      ...['plane_stop_in_order', 'worker_sized', 'worker_cpus_fit', 'worker_env_fit', 'worker_ready_to_start'].map(definition),
+      ...['plane_stop_in_order', 'worker_sized', 'worker_cpus_fit', 'worker_memory_bytes', 'worker_memory_fit'].map(definition),
+      ...['worker_env_fit', 'worker_ready_to_start'].map(definition),
       ...['worker_up', 'up_wait', 'phase_trigger', 'phase_account'].map(definition),
       ...['phase_login', 'phase_app', 'phase_tasks'].map(definition),
       // set -a, as load_env sources the file: the shell then holds what it says.
@@ -1916,6 +1918,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.calls).toEqual([
         // The worker's readiness first, before anything stops.
         'docker info --format {{.NCPU}}',
+        'docker info --format {{.MemTotal}}',
         `${C} ps --status running --status restarting --format {{.Service}}`,
         `${C} stop trigger-supervisor`,
         'docker ps --filter network=ownpace-managed_ownpace-network --format {{.Names}}',
@@ -1934,6 +1937,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
       expect(r.out).toMatch(/none of the plane's services runs: nothing to stop/);
       expect(r.calls).toEqual([
         'docker info --format {{.NCPU}}',
+        'docker info --format {{.MemTotal}}',
         'docker compose -f managed.yml --profile trigger ps --status running --status restarting --format {{.Service}}',
       ]);
     });
@@ -1961,15 +1965,35 @@ describe('the bring-up in either runner (0167 T7)', () => {
       const r = phase(['app'], { env, answers: { NCPU: '8' } });
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/WORKER_CPUS 4: 0\.5 x \(MAX_PASSES_IN_FLIGHT 6 \+ 2\), for this run's compose calls \(not written to \.env\)/);
-      expect(r.out).toMatch(/WORKER_MEMORY 4864m: \(MAX_PASSES_IN_FLIGHT 6 \+ 3\) x 512 MB \+ 256 MB/);
+      expect(r.out).toMatch(/WORKER_MEMORY 6400m: \(MAX_PASSES_IN_FLIGHT 6 \+ 1\) x 512 MB \+ 2816 MB/);
       expect(r.out).toMatch(/the worker's CPU cap: 4 of this host's 8/);
     });
 
-    it('app: the default cap of 3 gives managed.yml\'s own 2.5 CPUs and 3328m', () => {
+    it('app: the default cap of 3 gives 2.5 CPUs and 4864m, the measured peak\'s sizing (#2048)', () => {
       const r = phase(['app'], { env: PG });
       expect(r.status, r.out).toBe(0);
       expect(r.out).toMatch(/WORKER_CPUS 2\.5: /);
-      expect(r.out).toMatch(/WORKER_MEMORY 3328m: /);
+      expect(r.out).toMatch(/WORKER_MEMORY 4864m: /);
+      expect(r.out).toMatch(/the worker's memory limit: 4864m of this host's 16384 MB/);
+    });
+
+    it.each([
+      ['the rule\'s limit above a 4 GB host', `${'OWNPACE_JOB_RUNNER=pg-boss\n'}`, String(4 * 1024 ** 3), /WORKER_MEMORY is 4864m, above this host's 4096 MB of memory\./],
+      ['a .env limit above the host', 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=20g\n', String(16 * 1024 ** 3), /WORKER_MEMORY is 20g, above this host's 16384 MB of memory\./],
+      ['a limit Compose does not read', 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=lots\n', String(16 * 1024 ** 3), /WORKER_MEMORY is 'lots', not an amount of memory Compose reads/],
+    ])('%s: refused in one sentence, before the plane stops and before the worker starts', (_l, env, memtotal, why) => {
+      for (const p of ['trigger', 'app']) {
+        const r = phase([p], { env, answers: { MEMTOTAL: memtotal, PLANE_RUNNING: ALL_PLANE } });
+        expect(r.status, `${p}: ${r.out}`).not.toBe(0);
+        expect(r.out).toMatch(why);
+        expect(r.calls.filter((c) => / stop | up -d --wait( --force-recreate)? worker/.test(c))).toEqual([]);
+      }
+    });
+
+    it('a limit in g or bytes is read as Compose reads it: 4g on a 4 GiB host fits', () => {
+      const r = phase(['app'], { env: 'OWNPACE_JOB_RUNNER=pg-boss\nWORKER_MEMORY=4g\n', answers: { MEMTOTAL: String(4 * 1024 ** 3) } });
+      expect(r.status, r.out).toBe(0);
+      expect(r.out).toMatch(/the worker's memory limit: 4g of this host's 4096 MB/);
     });
 
     it('app: a size .env sets is the one used and checked', () => {
@@ -2035,6 +2059,7 @@ describe('the bring-up in either runner (0167 T7)', () => {
         'docker compose -f managed.yml ps -q api',
         'system_role_ready',
         'docker info --format {{.NCPU}}',
+        'docker info --format {{.MemTotal}}',
         'docker compose -f managed.yml --profile jobs up -d --wait worker',
       ]);
       expect(r.out).toMatch(/the worker's CPU cap: 2\.5 of this host's 4 \(the rule: 0\.5 x \(MAX_PASSES_IN_FLIGHT \+ 2\) = 2\.5\)/);
