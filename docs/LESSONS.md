@@ -32,6 +32,7 @@ reading a file drops off its entry by itself.
 - [a-binary-the-stack-never-runs](../scripts/a-binary-the-stack-never-runs.unit.test.ts) — A BINARY THE STACK NEVER RUNS (workplan 0146 T16): Trivy skips a hard link, so a scan that reads 0 is no proof a binary is gone, and which copy of pnpm runs follows compose's `user:`, not the image's.
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dependabot-directory-with-nothing-to-read](../scripts/a-dependabot-directory-with-nothing-to-read.unit.test.ts) — A DEPENDABOT DIRECTORY WITH NOTHING TO READ: `.github/dependabot.yml` listed `/deploy/compose` for its `docker-compose` updater from 2026-09-06, and in seven weeks of Mondays it never moved one image there (workplan 0146 T8).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-package-the-front-never-runs](../scripts/a-package-the-front-never-runs.unit.test.ts) — A PACKAGE THE FRONT NEVER RUNS (workplan 0119, 2026-10-31): the dashboard's TLS front carried curl, which nothing here runs, and curl carried the image's one critical finding.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -48,7 +49,7 @@ reading a file drops off its entry by itself.
 - [a-doc-a-test-reads-that-ci-skipped](../scripts/a-doc-a-test-reads-that-ci-skipped.unit.test.ts) — A DOC A TEST READS, ON A PATH CI SKIPS THE TESTS FOR.
 - [a-doc-an-assistant-is-sent-to](../scripts/a-doc-an-assistant-is-sent-to.unit.test.ts) — A DOC AN ASSISTANT IS SENT TO (ADR-0029; workplan 0152 T5 (c)).
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-lock-a-migration-takes](../scripts/a-lock-a-migration-takes.unit.test.ts) — A lock a migration takes, read before the merge, and reported only (workplan 0165).
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
@@ -198,7 +199,7 @@ reading a file drops off its entry by itself.
 
 ### `.github/workflows/semgrep.yml`
 
-- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 
 ### `.github/workflows/windows-payload.yml`
@@ -599,6 +600,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/selfhost/src/index.ts`
 
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pause-a-dispatcher-called-a-finish](../scripts/a-pause-a-dispatcher-called-a-finish.unit.test.ts) — Both dispatchers must tell a stop from a finish, and neither may bill a negative hour for it.
 - [a-policy-link-that-answers](../scripts/a-policy-link-that-answers.unit.test.ts) — A POLICY LINK THAT ANSWERS (workplan 0139 T10 (a)).
@@ -744,6 +746,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/web/src/pages/Docs.tsx`
 
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-refusal-that-links-its-guide](../scripts/a-refusal-that-links-its-guide.unit.test.ts) — A REFUSAL THAT LINKS ITS GUIDE (workplan 0148 T7, the second half).
 - [a-word-the-owner-retired](../scripts/a-word-the-owner-retired.unit.test.ts) — A WORD THE OWNER RETIRED: NO FORM OF *VERHUIZEN* WHERE THE PRODUCT SPEAKS DUTCH (workplan 0152 D6, 0153 T6 (b)), AND NO *DRAAGT* FOR WHAT AN ACCOUNT HOLDS (the owner, 2026-10-05).
 
@@ -882,7 +885,7 @@ reading a file drops off its entry by itself.
 
 ### `apps/worker/src/index.ts`
 
-- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-lane-one-edition-runs-and-the-other-does-not](../scripts/a-lane-one-edition-runs-and-the-other-does-not.unit.test.ts) — A LANE ONE EDITION RUNS AND THE OTHER DOES NOT (workplan 0117 T1 slice 2; owner decisions D6 and D4).
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 - [every-audit-field-is-classified](../scripts/every-audit-field-is-classified.unit.test.ts) — EVERY AUDIT FIELD IS CLASSIFIED (workplan 0129 T4; the owner's D4: "Email addresses and file names replaced by pseudonyms in the export by default").
@@ -1382,6 +1385,7 @@ reading a file drops off its entry by itself.
 - [a-deploy-the-owner-waited-hours-to-prove](../scripts/a-deploy-the-owner-waited-hours-to-prove.unit.test.ts) — A DEPLOY THE OWNER WAITED HOURS TO PROVE (workplan 0132 T9; the owner, 2026-10-28).
 - [a-disk-that-says-it-is-filling](../scripts/a-disk-that-says-it-is-filling.unit.test.ts) — A DISK THAT SAYS IT IS FILLING, AND DUTIES THAT SAY THEY FAILED (workplan 0142 T3).
 - [a-duty-the-gate-used-to-do](../scripts/a-duty-the-gate-used-to-do.unit.test.ts) — A DUTY THE GATE USED TO DO (workplan 0132 T7).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts) — A FIRST BRING-UP OF LIVE (workplan 0132 T1b to T1e, with T2's check and T5).
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
@@ -1526,6 +1530,7 @@ reading a file drops off its entry by itself.
 
 - [a-database-started-as-root](../scripts/a-database-started-as-root.unit.test.ts) — A DATABASE CONTAINER STARTED AS ROOT, FOR ONE CHOWN, AND THE BINARY THAT DROPPED IT (workplan 0146 T15; the image scan of 2026-10-26).
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-float-nothing-ever-pulled](../scripts/a-float-nothing-ever-pulled.unit.test.ts) — A TAG THAT FLOATS, AND THAT NOTHING EVER PULLS AGAIN, RUNS WHATEVER COPY THE MACHINE PULLED FIRST (workplan 0119 §4; the lifecycle survey of 2026-10-21).
 - [a-gate-on-a-version-nothing-ships](../scripts/a-gate-on-a-version-nothing-ships.unit.test.ts) — A GATE ON A VERSION NOTHING SHIPS.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
@@ -2231,7 +2236,7 @@ reading a file drops off its entry by itself.
 
 - [a-clock-that-knows-it-is-running-out](../scripts/a-clock-that-knows-it-is-running-out.unit.test.ts) — A CLOCK THAT KNOWS IT IS RUNNING OUT: nothing warned before a production certificate, the site's `security.txt` or the Microsoft Entra client secret reached its end date.
 - [a-dockerfile-that-ends-as-root](../scripts/a-dockerfile-that-ends-as-root.unit.test.ts) — A DOCKERFILE THAT ENDS AS ROOT, AND THE OTHER RULES A READING OF ONE HOLDS IT TO (a read-only check of the repository, 2026-11-19: GEN-21 and GEN-20, the latter by hadolint 2.15.1's rules; workplan 0119).
-- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-name-every-file-had-to-agree-on](../scripts/a-name-every-file-had-to-agree-on.unit.test.ts) — The self-host dev stack's docker identifiers, and the ten files that have to agree on them.
 
 ### `docs/windows-appliance-runbook.md`
@@ -3047,6 +3052,7 @@ reading a file drops off its entry by itself.
 ### `pnpm-lock.yaml`
 
 - [a-conflict-left-in-a-file](../scripts/a-conflict-left-in-a-file.unit.test.ts) — A MERGE CONFLICT LEFT IN A FILE, AND ONE QUOTED ON PURPOSE.
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 - [a-gate-that-was-never-switched-on](../scripts/a-gate-that-was-never-switched-on.unit.test.ts) — A supply-chain gate with an exclude list, an escape hatch, and no gate.
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
 - [a-machine-called-by-its-product-name](../scripts/a-machine-called-by-its-product-name.unit.test.ts) — A MACHINE CALLED BY ITS PRODUCT NAME.
@@ -3448,7 +3454,7 @@ reading a file drops off its entry by itself.
 
 ### `scripts/semgrep-report.mjs`
 
-- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+- [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts) — A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 
 ### `scripts/shoot-the-app-screen.mjs`
 
@@ -4526,14 +4532,20 @@ Reads:
 
 ### [a-finding-only-an-outside-check-saw](../scripts/a-finding-only-an-outside-check-saw.unit.test.ts)
 
-A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now).
+A FINDING ONLY AN OUTSIDE CHECK SAW (workplan 0163 T3 and T5; the owner's decision D3 of 2026-11-20: Semgrep with a named list of rules, report only first, the two ReDoS rules never blocking, CodeQL not now; then a rule blocks once it re…
 
 Reads:
 
+- `.github/dependabot.yml`
 - `.github/workflows/ci.yml`
 - `.github/workflows/semgrep.yml`
+- `apps/selfhost/src/index.ts`
+- `apps/web/src/pages/Docs.tsx`
 - `apps/worker/src/index.ts`
+- `deploy/compose/managed.yml`
+- `deploy/compose/postgres/Dockerfile`
 - `docs/testing.md`
+- `pnpm-lock.yaml`
 - `scripts/semgrep-report.mjs`
 
 ### [a-first-bring-up-of-live](../scripts/a-first-bring-up-of-live.unit.test.ts)

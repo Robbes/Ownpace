@@ -561,7 +561,7 @@ describe('hadolint in CI, report only (workplan 0119, the owner’s decision of 
     const job = '  hadolint:\n    runs-on: ubuntu-24.04\n    steps:\n      - run: node scripts/hadolint-report.mjs\n';
     expect(ci.endsWith('\n'), 'ci.yml does not end in a newline, so the job below would not be one of its jobs').toBe(true);
     expect(gateProblems(`${ci}${job}`, testing)).toEqual([expect.stringMatching(/^ci\.yml runs hadolint in hadolint: ci-complete waits/)]);
-    const required = '**Required status checks** on `main` are four: ';
+    const required = '**Required status checks** on `main`, as this repository intends them, are five: ';
     expect(testing, `docs/testing.md does not open its required checks with "${required}"`).toContain(required);
     expect(gateProblems(ci, testing.replace(required, `${required}\`hadolint (report only)\`, `))).toEqual([
       expect.stringMatching(/required checks name hadolint/),
