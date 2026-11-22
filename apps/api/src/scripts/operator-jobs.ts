@@ -210,9 +210,22 @@ export function parseJobsCommand(args: readonly string[]): JobsCommand | { reado
       if (entry.kind === 'schedule' && Object.keys(object).length > 0) {
         return { error: `${task} is a schedule, and a schedule's run takes {} and nothing else.` };
       }
-      if (entry.kind === 'on-demand' && entry.serializedBy !== undefined && typeof object.mappingId !== 'string') {
+      if (entry.kind === 'on-demand' && entry.serializedBy !== undefined) {
+        // The migration's id is the run's key, so it is checked here and not
+        // left to the job: an upper-case id passes the job's own `uuid()`, and
+        // would key the run apart from the tick's and the API's, which write
+        // it in lower case, so two passes could run on one migration.
+        const { mappingId } = object;
+        if (typeof mappingId !== 'string' || !RUN_ID.test(mappingId)) {
+          return {
+            error: `${task} runs one at a time per migration, so its payload must name the migration by its id, a UUID, as "mappingId".`,
+          };
+        }
         return {
-          error: `${task} runs one at a time per migration, so its payload must name the migration as "mappingId".`,
+          kind: 'run',
+          task: entry.name as JobName,
+          payload: { ...object, mappingId: mappingId.toLowerCase() },
+          despiteHold,
         };
       }
       return { kind: 'run', task: entry.name as JobName, payload: object, despiteHold };
@@ -282,18 +295,27 @@ export function utc(at: Date | null): string {
 }
 
 /**
- * An error as stored, reduced to its name and message: the runner stores
- * `{ name, message }`; pg-boss's own (a run that expired) has a message alone.
- * On one line, and cut at 300 characters.
+ * An error as stored, reduced to its name and message, on one line and cut at
+ * 300 characters. The runner stores `{ name, message }`. pg-boss 12.38.2 writes
+ * its own under `value`, and only its own fixed sentences, never a payload:
+ * `{ value: { message: 'job heartbeat timeout' } }` and `{ value: { message:
+ * 'job timed out' } }` from its supervisor, and `{ value: 'pg-boss shut down
+ * while active' }` for a run a stopping worker still held.
  */
 export function errorLine(error: unknown): string {
   if (typeof error !== 'object' || error === null) return '(no error recorded)';
-  const { name, message } = error as { name?: unknown; message?: unknown };
-  const said = [typeof name === 'string' ? name : null, typeof message === 'string' ? message : null]
+  const { name, message, value } = error as { name?: unknown; message?: unknown; value?: unknown };
+  let said = [typeof name === 'string' ? name : null, typeof message === 'string' ? message : null]
     .filter((s): s is string => s !== null && s !== '')
-    .join(': ')
-    .replace(/\s+/g, ' ')
-    .trim();
+    .join(': ');
+  if (said === '') {
+    if (typeof value === 'string') said = value;
+    else if (typeof value === 'object' && value !== null) {
+      const inner = (value as { message?: unknown }).message;
+      if (typeof inner === 'string') said = inner;
+    }
+  }
+  said = said.replace(/\s+/g, ' ').trim();
   if (said === '') return '(no error recorded)';
   return said.length > 300 ? `${said.slice(0, 299)}…` : said;
 }
@@ -312,15 +334,17 @@ function overviewLines(found: readonly QueueOverview[]): string[] {
       lines.push(`${job.name.padEnd(width)}  not made yet`);
       continue;
     }
+    // A stately queue's active run has no key, and pg-boss's `array_agg(singleton_key)` hands it back as null.
+    const keys = (q.activeKeys as readonly unknown[]).filter((k): k is string => typeof k === 'string' && k !== '');
     lines.push(
       `${job.name.padEnd(width)}  ${String(q.queued).padStart(6)}  ${String(q.active).padStart(6)}  ` +
-        `${String(q.failed).padStart(6)}  ${q.activeKeys.length === 0 ? '-' : q.activeKeys.join(', ')}`,
+        `${String(q.failed).padStart(6)}  ${keys.length === 0 ? '-' : keys.join(', ')}`,
     );
   }
   lines.push('');
   lines.push(
     missing === 0
-      ? "Counts are the worker's monitor's, refreshed every 15 s; failed counts the runs pg-boss still keeps."
+      ? "Counts are as the worker last counted them, every 15 s while it runs; failed counts the runs pg-boss still keeps."
       : `${missing} queue(s) not made yet: the worker makes every queue when it starts, so it has not started on this schema.`,
   );
   return lines;
@@ -412,18 +436,19 @@ export async function runJobsCommand(command: JobsCommand, deps: JobsDeps): Prom
       const entry = catalogEntry(command.task)!;
       const serializeBy =
         entry.kind === 'on-demand' && entry.serializedBy !== undefined
-          ? entry.serializedBy.replace('<mappingId>', command.payload.mappingId as string)
+          ? // A function, so that nothing in the id is read as a replacement pattern (`$&`, `$'`).
+            entry.serializedBy.replace('<mappingId>', () => command.payload.mappingId as string)
           : undefined;
       const { runId } = await jobs.enqueue(command.task, command.payload, {
         ...(serializeBy !== undefined ? { serializeBy } : {}),
         tags: tagsOf(command.payload),
       });
-      const lines: string[] = [];
-      if (hold) lines.push('The operator\'s hold is open; started anyway, as --despite-hold asked.');
       if (runId === null) {
-        lines.push(`${command.task} already has a run waiting, so no other was queued: it runs next.`);
-        return { lines, exitCode: 0 };
+        // Nothing was started, hold or no hold: say that, and only that.
+        return { lines: [`${command.task} already has a run waiting, so no other was queued: it runs next.`], exitCode: 0 };
       }
+      const lines: string[] = [];
+      if (hold) lines.push("The operator's hold is open; started anyway, as --despite-hold asked.");
       lines.push(`Queued ${command.task} as run ${runId}. Follow it with \`jobs show ${runId}\`.`);
       return { lines, exitCode: 0 };
     }
