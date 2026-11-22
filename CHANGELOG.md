@@ -4,6 +4,35 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **One press to delete the copies on *Deleted on the old system*** (workplan 0164 T3; ADR-0024,
+  amended 2026-11-21: "per item" reads as "each item decided by itself"). *Delete all of these here
+  too* is offered beside the rows that have their own delete button, while deleting by hand is on,
+  and never for an assumed row or one past its data type's cutover. It takes the rows the old system
+  reported deleted and those found in its bin, as a single delete does. It opens a confirmation of
+  its own over the rows as they were then, which names how many and which a double click cannot
+  pass. When some came from the bin, it names how many apart, and when one of them is mail it says
+  why that matters: a message can be in the bin and in a live folder at once, so a copy here may be
+  one still in use, and once deleted it is never copied again. One confirmation can remove every row
+  offered: when a data type has 20 items or more that Ownpace placed on the new system, those
+  removed since and those it found already there counted, at most a fifth of them, and every listed
+  item of a smaller one, which the safeguard against mass deletion does not weigh; the safeguard is
+  asked again at every press and caps no total. Nothing is deleted unless the rows, on the page and
+  in the list read again from the server, are still the ones counted, each with the evidence it was
+  counted with, and from that press on no row of the run has a button of its own. It then presses
+  each row's own *Delete it here too*, through the same request and every check a single press
+  passes, the next only once the one before has answered (on managed, each with its own receipt,
+  audit row and job), one at a time for its migration. A refusal of one row is said and the next is
+  pressed: a row somebody kept in another tab before its turn is not deleted, and the run goes on.
+  The safeguard against mass deletion, deleting by hand turned off, a removal Ownpace could not
+  record, a row the old system stopped saying was deleted during the run, a delete the server
+  started nothing for (a hold, a closed account, a removal that could not be queued) or one that did
+  not answer stops the rest. *Stop*, offered from the first read on, presses nothing more.
+  Afterwards the page lists what was deleted, what was not and what is not known, with each reason,
+  in English and Dutch, the server's own words beside it. Nothing is deleted by itself: no route was
+  added, and the server cannot tell a row of a run from one pressed by hand.
+
 ### Changed
 
 - **The Docker socket proxy is built on HAProxy 3.4.8** (workplan 0119): `haproxy:3.4.8-alpine`
@@ -20,6 +49,17 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   frontend of its own; the others pull theirs. Neither v0.35.0 nor v0.35.1 lists a breaking
   change, and nothing the build asks of it changes. Taken inside its three-day floor, on the
   owner's waiver.
+
+### Fixed
+
+- **A queue that could not be read again keeps its rows on screen** (workplan 0164 T3), under a
+  line that says so. A failed refresh on Deletions, Moves or Failures used to replace the whole
+  page with the error, a *Delete all of these here too* under way and its report included.
+- **An answer on Deletions, Moves or Failures stays with its own migration's row** (workplan 0164
+  T3). The screens kept a row's answer under its item's hash alone, and one item can be an item
+  of two migrations: a mail item's hash comes from its Message-ID. So a delete or a keep in one
+  migration showed on the same message in another, which then read *Deleted on the new system
+  too* and lost its buttons. Each migration's rows now show only their own answers.
 
 ## [0.2.0-alpha.14] - 2026-11-22
 

@@ -22,14 +22,20 @@
  * state, a missed poll keeps polling — and renders each terminal state in its
  * own character (`refused` is never softened into an error, `failed` never
  * into silence).
+ *
+ * AND ONE PRESS FOR ALL OF THEM (workplan 0164 T3): *Delete all of these here
+ * too* presses each row's own button in turn, through the same call, and says
+ * afterwards what was deleted and what was not, and why (`DeleteAllPanel`).
  */
 
 import React from 'react';
+import { AlertCircle } from 'lucide-react';
 import { useParams } from 'react-router';
 import type { ApplyReceipt, DeletionsQueue, EarlierExport, ItemDeletion } from '@openmig/shared';
 import { mayOfferApply } from '@openmig/shared';
 import { QueueScreen, type ItemOutcome } from '../components/queues/QueueScreen.tsx';
 import { ApplyDeletionsPanel } from '../components/queues/ApplyDeletionsPanel.tsx';
+import { DeleteAllPanel } from '../components/queues/DeleteAllPanel.tsx';
 import {
   ActionButton,
   AfterCutoverNote,
@@ -143,6 +149,10 @@ const Row: React.FC<{
         <Refused text={outcome.text} />
       ) : outcome?.state === 'receipt' ? (
         <ReceiptStatus receipt={outcome.receipt} />
+      ) : outcome?.state === 'waiting' ? (
+        <WaitingItsTurn />
+      ) : outcome?.state === 'unknown' ? (
+        <NotKnown text={outcome.text} />
       ) : d.decided ? (
         <Decided decided={d.decided} />
       ) : (
@@ -151,6 +161,35 @@ const Row: React.FC<{
     </div>
   </ItemRow>
 );
+
+/** A row a *Delete all of these here too* run will reach: no button to press meanwhile. */
+const WaitingItsTurn: React.FC = () => {
+  const t = useT();
+  return <span className="text-xs text-gray-600">{t('deletions.all.waiting')}</span>;
+};
+
+/**
+ * A row whose press did not answer, in a run: a fault, a time-out, a receipt
+ * that never landed. Red, like a failed receipt, and never a refusal's amber:
+ * whether the copy is gone is not known. What the press said follows, as
+ * served.
+ */
+const NotKnown: React.FC<{ text: string }> = ({ text }) => {
+  const t = useT();
+  return (
+    <span className="inline-flex items-start gap-1 text-xs text-red-700">
+      <AlertCircle className="w-3.5 h-3.5 mt-0.5 flex-shrink-0" />
+      {t('deletions.all.unknownRow')} {text}
+    </span>
+  );
+};
+
+/** What a row is called, for the list a run leaves: as `WhichItem` says it, in one line. */
+const nameOf = (d: ItemDeletion): React.ReactNode => {
+  if (d.displayName === undefined) return <PathText path={d.collection} />;
+  if (d.domain === 'file') return <PathText path={fileAt(d.collection, d.displayName)} />;
+  return d.displayName;
+};
 
 /**
  * A copy an earlier export policy left (workplan 0042 T8 (b), second half).
@@ -196,19 +235,41 @@ const EarlierRow: React.FC<{
 const isTerminal = (r: ApplyReceipt): boolean =>
   r.state === 'applied' || r.state === 'refused' || r.state === 'failed';
 
+/** A receipt timer's key: the migration and the item, as an outcome's. */
+const pollKey = (mapping: string, hash: string): string => `${mapping}\u0000${hash}`;
+
+/**
+ * The rows *Delete all of these here too* would order: waiting on you, each
+ * offered a delete button of its own by `mayOfferApply` (positive evidence,
+ * not past its data type's cutover), and none pressed on this page yet.
+ */
+const offeredAll = (
+  queue: DeletionsQueue,
+  outcomes: Readonly<Record<string, ItemOutcome>>,
+): ItemDeletion[] =>
+  queue.confirmed.filter(
+    (d) => mayOfferApply(d, queue.afterCutover) && outcomes[d.naturalKeyHash] === undefined,
+  );
+
 const Deletions: React.FC<{
   /** Test seam: the receipt poll interval. Production uses the default. */
   receiptPollMs?: number;
-}> = ({ receiptPollMs = 2000 }) => {
+  /** Test seam: how long a run waits for one receipt (`RECEIPT_DEADLINE_MS`). */
+  receiptDeadlineMs?: number;
+  /** Test seam: the run's confirmation guard (`CONFIRM_GUARD_MS`). */
+  confirmGuardMs?: number;
+}> = ({ receiptPollMs = 2000, receiptDeadlineMs, confirmGuardMs }) => {
   // Undefined on the appliance, which answers for every configured mapping;
   // required by the managed edition, which scopes each queue to one. See
   // `queuePath()` — the shapes are shared, the URLs are not.
   const { mappingId } = useParams<{ mappingId: string }>();
+  const routeMappingId = mappingId;
   const t = useT();
 
   // One timer per in-flight receipt; all cleared on unmount so an abandoned
   // page never keeps polling. (Server-side nothing is lost — the receipt is a
-  // row, and reopening the page re-reads the queue.)
+  // row, and reopening the page re-reads the queue.) Keyed by migration and
+  // item, as the outcomes are: one hash can be an item of two migrations.
   const pollers = React.useRef(new Map<string, ReturnType<typeof setTimeout>>());
   React.useEffect(() => {
     const timers = pollers.current;
@@ -228,7 +289,7 @@ const Deletions: React.FC<{
     ) => {
       setOutcome(hash, { state: 'receipt', receipt });
       if (isTerminal(receipt)) {
-        pollers.current.delete(hash);
+        pollers.current.delete(pollKey(mapping, hash));
         // An applied removal changes the queue itself; re-read rather than
         // guess what the server did to it.
         if (receipt.state === 'applied') refresh();
@@ -242,7 +303,7 @@ const Deletions: React.FC<{
           .then((next) => trackReceipt(mapping, hash, next, setOutcome, refresh))
           .catch(() => trackReceipt(mapping, hash, receipt, setOutcome, refresh));
       }, receiptPollMs);
-      pollers.current.set(hash, t);
+      pollers.current.set(pollKey(mapping, hash), t);
     },
     [receiptPollMs],
   );
@@ -297,6 +358,26 @@ const Deletions: React.FC<{
         {/* Only the rows whose button the cutover took away (2026-10-05). */}
         <AfterCutoverNote
           withheld={queue.confirmed.filter((d) => mayOfferApply(d, []) && !mayOfferApply(d, queue.afterCutover))}
+        />
+        {/* One press for every row with a delete button of its own, and for
+            no other row (0164 T3): the same gate the buttons below are
+            offered by, and none already pressed on this page; the list is
+            read again at the press, by the same rule. Above the section, not
+            in its `lead` prop: a section with no rows draws none, and a run
+            that deleted every row still has to say so. */}
+        <DeleteAllPanel
+          mappingId={mappingId}
+          rows={offeredAll(queue, outcomes)}
+          readAgain={async () => {
+            const fresh = (await fetchDeletions(routeMappingId))[mappingId];
+            return fresh ? offeredAll(fresh, outcomes) : [];
+          }}
+          setOutcome={setOutcome}
+          refresh={refresh}
+          receiptPollMs={receiptPollMs}
+          {...(receiptDeadlineMs !== undefined ? { receiptDeadlineMs } : {})}
+          {...(confirmGuardMs !== undefined ? { confirmGuardMs } : {})}
+          nameOf={nameOf}
         />
         {/* What the chips mean is said here, where a phone can read it, not
             only in a hover title, and only for the chips the rows carry: an

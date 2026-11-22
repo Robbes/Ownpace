@@ -302,6 +302,11 @@ describe('the gates it shares with a deletion are still in front of it', () => {
     // their copy is still there.
     expect(outcome).toMatchObject({ ok: false, code: 'removed_not_recorded' });
     expect(String((outcome as { reason: string }).reason)).toMatch(/WAS removed/);
+    // True of both causes: missing only unless another removal recorded it first.
+    expect(String((outcome as { reason: string }).reason)).toMatch(
+      /the row changed while it ran, for example because another removal recorded it first/,
+    );
+    expect(String((outcome as { reason: string }).reason)).toMatch(/Unless another removal recorded it, Verification/);
   });
 });
 

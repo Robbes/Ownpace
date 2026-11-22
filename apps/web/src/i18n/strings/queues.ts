@@ -107,6 +107,105 @@ export const en = {
   'deletions.keep': 'Keep our copy',
   'deletions.apply': 'Delete it here too',
   'deletions.applyArmed': 'Confirm delete',
+  // ONE PRESS FOR THE ROWS WITH A DELETE BUTTON (workplan 0164 T3; ADR-0024,
+  // amended 2026-11-21). Each row is still decided by itself, by the same
+  // checks as its own button, the next only once the one before has
+  // answered. Offered only while deleting by hand is on, and never for a row
+  // without a delete button of its own. Its confirmation is a control of its
+  // own, which names how many, over the rows as they were when it opened.
+  'deletions.all': 'Delete all of these here too',
+  'deletions.all.lead':
+    'Deletes the copy of each of these {count} on the new system, one after another. Each is checked by itself first, as a single delete is, and the next is pressed only once it has answered. One that is refused stays here, with the reason. A refusal that speaks for all of them, or a delete that did not answer, stops the rest.',
+  'deletions.all.confirm.question': 'Delete these {count} on the new system?',
+  'deletions.all.confirm.yes': 'Delete {count}',
+  'deletions.all.confirm.no': 'Cancel',
+  // Only when some of them came from the bin, counted from the rows the
+  // press acts on, in the words of the rows' own chips.
+  'deletions.all.confirm.split': "Reported by the source: {reported}. In the source's bin: {bin}.",
+  'deletions.all.confirm.bin':
+    'A message can be in the bin and in a live folder at once, so a copy here may be one still in use, and once deleted it is never copied again.',
+  'deletions.all.waiting': 'Waiting its turn',
+  'deletions.all.reading': 'Reading the list again before anything is deleted…',
+  // Said when the list moved while the confirmation was open, and when the
+  // list read again at the press was not the one confirmed.
+  'deletions.all.changed':
+    'The list has changed: {count} can be deleted now. Nothing was deleted. Look at the list again, then confirm once more.',
+  // A list with one row or none offers no press for all of them.
+  'deletions.all.changed.few': 'The list has changed. Nothing was deleted. Look at the list again.',
+  'deletions.all.unreadable': 'The list could not be read again, so nothing was deleted:',
+  'deletions.all.running': 'Deleting on the new system, one at a time: {done} of {count} done.',
+  'deletions.all.pollTrouble': 'Its answer could not be read, {count} times in a row: {error}. Still asking.',
+  'deletions.all.stop': 'Stop',
+  'deletions.all.stopping': 'Stopping: nothing more is deleted after the one under way.',
+  'deletions.all.stoppingBeforeStart': 'Stopping: nothing will be deleted.',
+  'deletions.all.done': 'Done: {deleted} deleted on the new system, {notDeleted} not deleted, {unknown} not known.',
+  'deletions.all.stoppedBy.breaker':
+    'Stopped: the safeguard against mass deletion refused one, so nothing after it was asked.',
+  'deletions.all.stoppedBy.notEnabled': 'Stopped: deleting by hand was turned off, so nothing after it was asked.',
+  'deletions.all.stoppedBy.failure': 'Stopped: one did not answer, so nothing after it was asked.',
+  'deletions.all.stoppedBy.notRecorded':
+    'Stopped: one was deleted, but Ownpace could not record it, because the list changed while it was being deleted. So nothing after it was asked.',
+  'deletions.all.stoppedBy.notStarted': 'Stopped: nothing could be started for one, so nothing after it was asked.',
+  'deletions.all.stoppedBy.evidenceWithdrawn':
+    'Stopped: the old system no longer says one of them was deleted, so the list changed during the run. Nothing after it was asked.',
+  'deletions.all.stoppedBy.stop': 'Stopped: you pressed Stop.',
+  'deletions.all.removed': 'Deleted on the new system',
+  'deletions.all.notRemoved': 'Not deleted',
+  'deletions.all.unknown': 'Not known',
+  // The server's own words and code, verbatim, folded under each line that
+  // says it in the reader's language (docs/i18n-prose-boundary.md, class 2).
+  'deletions.all.technical': 'Technical details',
+  'deletions.all.notTried.breaker': 'Not tried: the safeguard against mass deletion refused an earlier one in this run.',
+  'deletions.all.notTried.notEnabled': 'Not tried: deleting by hand was turned off earlier in this run.',
+  'deletions.all.notTried.failure': 'Not tried: an earlier one did not answer.',
+  'deletions.all.notTried.notRecorded': 'Not tried: the list changed while an earlier one was being deleted.',
+  'deletions.all.notTried.notStarted': 'Not tried: nothing could be started for an earlier one.',
+  'deletions.all.notTried.evidenceWithdrawn':
+    'Not tried: the old system stopped saying an earlier one was deleted, so the list changed during the run.',
+  'deletions.all.notTried.stop': 'Not tried: you pressed Stop before its turn.',
+  'deletions.all.failed':
+    'This did not answer, so whether it was deleted is not known. Look at it on the new system before you press again.',
+  'deletions.all.late':
+    'No answer came within {minutes} minutes. It may still be deleted: look at it on the new system before you press again.',
+  'deletions.all.unknownRow': 'Not known whether it was deleted:',
+  // Why one was not deleted, keyed on the refusal's stable code: the
+  // server's sentence stays beside it, under Technical details.
+  'deletions.refused.notEnabled': 'Deleting by hand is off for this migration, so it was not deleted.',
+  'deletions.refused.targetCannotRemove': 'The new system did not delete it for Ownpace, so nothing changed there.',
+  // Also said when none of the kinds this migration copies holds the item.
+  'deletions.refused.notFound':
+    'Ownpace found no record of this item among the kinds this migration copies, so it did not delete anything.',
+  'deletions.refused.notConfirmed':
+    'Nothing says any more that it was deleted on the old system, so it was not deleted.',
+  'deletions.refused.weakEvidence':
+    'It is only assumed to be deleted: the old system never said so. Ownpace does not delete it on the new system.',
+  // Also said when there is no copy on the new system at all.
+  'deletions.refused.notOurs': 'Ownpace did not delete it: there is no copy on the new system that Ownpace made.',
+  // Also the answer after a move removed the old copy (`applyRelocation`):
+  // never *deleted*, which would say the item is gone.
+  'deletions.refused.alreadyApplied': 'It had already been removed on the new system.',
+  'deletions.refused.alreadyKept':
+    'Somebody chose to keep this copy, so it was not deleted. If that was a mistake, delete it on the new system yourself.',
+  'deletions.refused.afterCutover':
+    'Past the cutover of this kind, the old system no longer decides what exists, so it was not deleted.',
+  'deletions.refused.editedOnTarget':
+    'Somebody changed it on the new system after Ownpace copied it, so it is theirs now and was not deleted.',
+  'deletions.refused.versionUnknown':
+    'Ownpace kept no version of this copy, so it cannot tell whether somebody changed it, and did not delete it.',
+  'deletions.refused.keptForGuests':
+    'The event still lists guests, and the new system would email each of them a cancellation, so it was not deleted.',
+  'deletions.refused.massDeletionSuspected':
+    'So much of this kind is waiting to be deleted at once that it looks like a problem at the old system. The safeguard against mass deletion refuses every deletion of this kind in this migration while that many are waiting.',
+  // Two causes: a pass saw the item back while it was deleted, or another
+  // delete recorded it first, in which case nothing is missing.
+  'deletions.refused.removedNotRecorded':
+    'It was deleted on the new system, but this delete could not be recorded: the item changed while it ran. If another delete recorded it first, nothing more is needed; if not, Check reports it as missing until that is put right by hand.',
+  'deletions.refused.other': 'It was refused, for the reason under Technical details.',
+  // A press the server started nothing for (a hold, a closed account, a
+  // removal that could not be queued): not deleted, and the run stops.
+  'deletions.refused.held': 'Ownpace has paused copying for an update, so nothing was started for it and it was not deleted.',
+  'deletions.refused.accountClosed': 'This account is closed, so nothing was started for it and it was not deleted.',
+  'deletions.refused.notQueued': 'The removal could not be queued, so nothing was started for it and it was not deleted.',
   // What a row under *Already decided* says was decided (0159 §6 item 6), as
   // the moves' pair above. *Moved* is a renamed item's old copy, removed from
   // the new system: never *deleted*, as the item is still there.
@@ -202,6 +301,90 @@ export const nl: Record<keyof typeof en, string> = {
   'deletions.keep': 'Behoud de kopie',
   'deletions.apply': 'Verwijder het hier ook',
   'deletions.applyArmed': 'Bevestig verwijderen',
+  'deletions.all': 'Verwijder deze allemaal hier ook',
+  'deletions.all.lead':
+    'Verwijdert de kopie van elk van deze {count} op het nieuwe systeem, de een na de ander. Elk wordt eerst afzonderlijk gecontroleerd, net als bij één verwijdering, en op de knop van de volgende wordt pas gedrukt als de vorige antwoord heeft gegeven. Wat wordt geweigerd, blijft hier staan, met de reden. Een weigering die voor allemaal geldt, of een verwijdering die geen antwoord gaf, stopt de rest.',
+  'deletions.all.confirm.question': 'Deze {count} verwijderen op het nieuwe systeem?',
+  'deletions.all.confirm.yes': 'Verwijder {count}',
+  'deletions.all.confirm.no': 'Annuleren',
+  'deletions.all.confirm.split': 'Gemeld door de bron: {reported}. In de prullenbak van de bron: {bin}.',
+  'deletions.all.confirm.bin':
+    'Een bericht kan tegelijk in de prullenbak en in een gewone map staan, dus een kopie hier kan er een zijn die nog in gebruik is, en eenmaal verwijderd wordt die nooit meer gekopieerd.',
+  'deletions.all.waiting': 'Wacht op zijn beurt',
+  'deletions.all.reading': 'De lijst wordt opnieuw gelezen voordat er iets wordt verwijderd…',
+  'deletions.all.changed':
+    'De lijst is veranderd: nu kunnen er {count} worden verwijderd. Er is niets verwijderd. Bekijk de lijst opnieuw en bevestig dan nog een keer.',
+  'deletions.all.changed.few': 'De lijst is veranderd. Er is niets verwijderd. Bekijk de lijst opnieuw.',
+  'deletions.all.unreadable': 'De lijst kon niet opnieuw worden gelezen, dus er is niets verwijderd:',
+  'deletions.all.running': 'Verwijderen op het nieuwe systeem, één voor één: {done} van {count} klaar.',
+  'deletions.all.pollTrouble': 'Het antwoord kon {count} keer achter elkaar niet worden gelezen: {error}. Er wordt nog gevraagd.',
+  'deletions.all.stop': 'Stoppen',
+  'deletions.all.stopping': 'Bezig met stoppen: na de lopende verwijdering wordt er niets meer verwijderd.',
+  'deletions.all.stoppingBeforeStart': 'Bezig met stoppen: er wordt niets verwijderd.',
+  'deletions.all.done':
+    'Klaar: {deleted} verwijderd op het nieuwe systeem, {notDeleted} niet verwijderd, {unknown} onbekend.',
+  'deletions.all.stoppedBy.breaker':
+    'Gestopt: de beveiliging tegen massaal verwijderen weigerde er een, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.notEnabled':
+    'Gestopt: handmatig verwijderen werd uitgeschakeld, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.failure': 'Gestopt: er gaf er een geen antwoord, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.notRecorded':
+    'Gestopt: er is er een verwijderd, maar Ownpace kon dat niet vastleggen, omdat de lijst veranderde terwijl die werd verwijderd. Daarom is er daarna niets meer gevraagd.',
+  'deletions.all.stoppedBy.notStarted':
+    'Gestopt: voor een ervan kon niets in gang worden gezet, dus daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.evidenceWithdrawn':
+    'Gestopt: het oude systeem meldt niet meer dat er een is verwijderd, dus de lijst veranderde tijdens de reeks. Daarna is er niets meer gevraagd.',
+  'deletions.all.stoppedBy.stop': 'Gestopt: u drukte op Stoppen.',
+  'deletions.all.removed': 'Verwijderd op het nieuwe systeem',
+  'deletions.all.notRemoved': 'Niet verwijderd',
+  'deletions.all.unknown': 'Onbekend',
+  'deletions.all.technical': 'Technische details',
+  'deletions.all.notTried.breaker':
+    'Niet geprobeerd: eerder in deze reeks weigerde de beveiliging tegen massaal verwijderen er een.',
+  'deletions.all.notTried.notEnabled': 'Niet geprobeerd: handmatig verwijderen werd eerder in deze reeks uitgeschakeld.',
+  'deletions.all.notTried.failure': 'Niet geprobeerd: een eerdere gaf geen antwoord.',
+  'deletions.all.notTried.notRecorded': 'Niet geprobeerd: de lijst veranderde terwijl een eerdere werd verwijderd.',
+  'deletions.all.notTried.notStarted': 'Niet geprobeerd: voor een eerdere kon niets in gang worden gezet.',
+  'deletions.all.notTried.evidenceWithdrawn':
+    'Niet geprobeerd: het oude systeem meldde niet meer dat een eerdere was verwijderd, dus de lijst veranderde tijdens de reeks.',
+  'deletions.all.notTried.stop': 'Niet geprobeerd: u drukte op Stoppen voordat het aan de beurt was.',
+  'deletions.all.failed':
+    'Dit gaf geen antwoord, dus of het is verwijderd, is niet bekend. Kijk op het nieuwe systeem voordat u nog een keer drukt.',
+  'deletions.all.late':
+    'Er kwam binnen {minutes} minuten geen antwoord. Het kan alsnog worden verwijderd: kijk op het nieuwe systeem voordat u nog een keer drukt.',
+  'deletions.all.unknownRow': 'Niet bekend of het is verwijderd:',
+  'deletions.refused.notEnabled': 'Handmatig verwijderen staat uit voor deze migratie, dus het is niet verwijderd.',
+  'deletions.refused.targetCannotRemove':
+    'Het nieuwe systeem heeft het niet voor Ownpace verwijderd, dus daar is niets veranderd.',
+  'deletions.refused.notFound':
+    'Ownpace vond geen gegevens over dit item bij de soorten die deze migratie kopieert, dus het heeft niets verwijderd.',
+  'deletions.refused.notConfirmed':
+    'Niets meldt nog dat het op het oude systeem is verwijderd, dus het is niet verwijderd.',
+  'deletions.refused.weakEvidence':
+    'Het is alleen een vermoeden: het oude systeem heeft niet gemeld dat het verwijderd is. Ownpace verwijdert het niet op het nieuwe systeem.',
+  'deletions.refused.notOurs':
+    'Ownpace heeft het niet verwijderd: op het nieuwe systeem staat geen kopie die Ownpace heeft gemaakt.',
+  'deletions.refused.alreadyApplied': 'Het stond al niet meer op het nieuwe systeem.',
+  'deletions.refused.alreadyKept':
+    'Iemand heeft ervoor gekozen deze kopie te behouden, dus die is niet verwijderd. Was dat een vergissing, verwijder die dan zelf op het nieuwe systeem.',
+  'deletions.refused.afterCutover':
+    'Na de overstap van deze soort bepaalt het oude systeem niet meer wat er bestaat, dus het is niet verwijderd.',
+  'deletions.refused.editedOnTarget':
+    'Iemand heeft het op het nieuwe systeem gewijzigd nadat Ownpace het migreerde, dus het is nu van hen en is niet verwijderd.',
+  'deletions.refused.versionUnknown':
+    'Ownpace bewaarde geen versie van deze kopie en kan dus niet zien of iemand die heeft gewijzigd; daarom is die niet verwijderd.',
+  'deletions.refused.keptForGuests':
+    'De afspraak heeft nog gasten, en het nieuwe systeem zou elk van hen een annulering mailen, dus die is niet verwijderd.',
+  'deletions.refused.massDeletionSuspected':
+    'Er wacht zoveel van deze soort tegelijk op verwijderen dat het op een probleem bij het oude systeem lijkt. De beveiliging tegen massaal verwijderen weigert elke verwijdering van deze soort in deze migratie zolang er zoveel wachten.',
+  'deletions.refused.removedNotRecorded':
+    'Het is op het nieuwe systeem verwijderd, maar deze verwijdering kon niet worden vastgelegd: het item veranderde terwijl die liep. Heeft een andere verwijdering het al vastgelegd, dan hoeft er niets meer; zo niet, dan meldt de verificatie het als ontbrekend totdat dat met de hand is rechtgezet.',
+  'deletions.refused.other': 'Het is geweigerd, om de reden onder Technische details.',
+  'deletions.refused.held':
+    'Ownpace heeft het migreren gepauzeerd voor een update, dus er is niets in gang gezet en het is niet verwijderd.',
+  'deletions.refused.accountClosed': 'Dit account is gesloten, dus er is niets in gang gezet en het is niet verwijderd.',
+  'deletions.refused.notQueued':
+    'De verwijdering kon niet in de wachtrij worden gezet, dus er is niets in gang gezet en het is niet verwijderd.',
   'deletions.decided.kept': 'Behouden op het nieuwe systeem',
   'deletions.decided.applied': 'Ook verwijderd op het nieuwe systeem',
   'deletions.decided.relocated': 'Verplaatst: de oude kopie is verwijderd op het nieuwe systeem',
