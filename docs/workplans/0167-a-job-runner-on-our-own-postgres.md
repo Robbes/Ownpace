@@ -133,17 +133,38 @@ The coordinator's review found the image and the service right, and five things 
   - Broken once each, then restored byte for byte (`cmp`): `required: false` dropped (2 failed),
     minio out of the profile (2), the worker back in profile `jobs` (4); `operator.sh` without the
     hand-on (2 of 5); the end of the alpha's `pgboss` lines taken out (3 of 18).
-- **Merged again, later the same day**, with `main` (#2040 merged as `c9654774`) and every newer
-  head: the reviews of #2048, #2045, #2044, #2046 (the worker's memory from its realistic peak,
-  `(MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB`, 4,864 MB at 3), #2049 (its shared fixtures,
-  `scripts/job-runner-fixtures.ts`, replace this branch's fix of the deploy test's running release)
-  and #2047, and the privacy row's Dutch approval. The deploy test's stage now defaults to trigger
-  with those fixtures, since the file's default is pg-boss (290 of 290; 10 fail without it).
-- **Open, for the pull requests that own the files:** #2049's bring-up works the worker's memory out
-  from the old rule, `(MAX_PASSES_IN_FLIGHT + 3) x 512 MB + 256 MB`, and exports it wherever `.env`
-  sets none, so on a default stack it hands the worker 3,328 MB over #2046's `managed.yml` default
-  of 4,864 MB, and `docs/managed-bring-up.md` (*The worker's size*) says the same old numbers. Not
-  changed here.
+- **Merged again, later the same day**, with `main` (#2040 merged as `c9654774`, and #2039) and the
+  newest heads the coordinator named: #2048 `d9901b8d`, #2045 `c6bd8fea`, #2044 `4a09ac43`, #2046
+  `71c8d9d7`, #2049 `916c7915`, #2047 `0d21c510` and #2042 `fcf4f9c9`. #2049's shared fixtures
+  (`scripts/job-runner-fixtures.ts`) replace this branch's fix of the deploy test's running release;
+  that stage now defaults to trigger with them (290 of 290; 10 fail without it).
+- **How it lands:** the seven open alpha.16 pull requests land together in this one, in one squash,
+  once E2E (managed) on this branch is green in both modes; each then closes as landed here.
+- **Glue that exists only with two of them on one tree**, each in a commit of its own:
+  - #2044 + #2045: the hold's sweep and the runner's loaders allow `scripts/operator-jobs.ts` as the
+    operator's own producer, loaded by a dynamic import and reading the hold itself; the owners-pool
+    pin drops `JOBS_DATABASE_URL`, which #2045 made not the owner's.
+  - #2044 + #2045: the operator's close cancels on pg-boss (`cancelEnvForTheClose` composes the jobs
+    role's URL on the host); one parser of the switch (`jobRunner()`) and one `JOBS_SCHEMA` in
+    `apps/api`.
+  - #2044 + #2049: `operator.sh` hands every verb `job-runner.sh`'s answer, so an empty `.env` is
+    pg-boss for `jobs` and `close` as for the containers.
+  - #2046 + #2047: the worker's two `docker exec` reviews in `a-privilege-no-service-uses`.
+  - #2047 + #2049: the smoke and the workflow read the mode through `job-runner.sh`.
+  - #2046 + #2048: the image guard holds each worker package once.
+  - `live-pass-check.sh` already takes a UUID run id beside a `run_…` one (its tests: 371 of 371).
+- **The worker's memory, decided.** The owner asked whether 4,864 MB for the worker is a lot, and was
+  told: one worker per stack, the limit a ceiling and not a reservation (about 120 MB idle), the
+  measured peak at 3 passes 3,378 MB, a run killed for memory not retried; Trigger.dev gives each run
+  512 MB (`small-1x`) and admits at most `MAX_PASSES_IN_FLIGHT` + 2 runs at once, and its containers
+  stop in pg-boss mode. The owner, 2026-11-22 at about 18:55 UTC: *"Ok, makes sense, go ahead."* So:
+  1. alpha.16 keeps the worker's limit at `(MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB` (4,864
+     MB at 3, 6,400 MB at 6);
+  2. the two E2E (managed) runs on this branch print each container's highest memory use in both
+     runners, through the smoke's sampler (#2047);
+  3. alpha.17 adds a worker-wide limit of `MAX_PASSES_IN_FLIGHT` + 2 runs at once, as Trigger.dev
+     admits today, and then lowers the memory limit from what the runs measured (the T9 row; this
+     plan has no §8 list to put it in).
 - **Not proved here:** a real stack in either mode. That is E2E (managed) on this branch, in pg-boss
   mode and with `job_runner=trigger`.
 - **Next:** E2E (managed) in both modes; then alpha.16's release; then T9 in its own release.
@@ -1129,9 +1150,9 @@ so CI's Testcontainers run is the one to trust for the version):
 | T5 This runner, merged | builder | ✅ **Merged 2026-11-22**, as #2038 (`98e9bc34`) | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T5a The runner's production gaps | builder | ✅ **Merged 2026-11-22**, as #2040 (`c9654774`) | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, merged as #2043 (`2f86401c`); the worker built on `claude/ownpace-pgboss-worker-process`; the API's doors, cancels and readiness on the switch built on `claude/ownpace-pgboss-api-doors`; the operator's commands built on `claude/ownpace-pgboss-operator-jobs` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. The API's step (the Status entry "the API's doors on the switch") reads `OWNPACE_JOB_RUNNER` in `apps/api/src/job-runner.ts`: on `pg-boss` every door enqueues through one producer on `JOBS_DATABASE_URL`, a close cancels by the pg-boss id, and readiness reads the shared beat; on `trigger`, unset or empty, nothing changes and no pg-boss module loads. Its second step, the worker (the Status entry "the worker on pg-boss, inert until started"), built on `claude/ownpace-pgboss-worker-process`: `apps/worker/src/runner/`, the seventeen jobs worked one process per run, the pg-boss half of the run context and of the tick's interlock; nothing starts it yet. The operator's commands, `operator.sh jobs` (overview, failures, show, cancel, run, refused while the hold is open unless `--despite-hold`), built on `claude/ownpace-pgboss-operator-jobs` (the Status entry of 2026-11-22, later still, T6's operator commands). |
-| T7 The worker service, and the switch on | builder, owner | 🟡 **Built 2026-11-22**: the role and schema (#2041); the worker's image and service, the bring-up and the deploy, the smoke and the gate on their branches; the switch on, built on `claude/ownpace-pgboss-flip`. Done when that pull request merges and E2E (managed) passes in both modes | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. The gate's part (the Status entry of 2026-11-22, the smoke and the gate): `smoke-managed.sh` and `e2e-managed.yml` read `OWNPACE_JOB_RUNNER` as the bring-up does; on `pg-boss` each Trigger.dev section is skipped with one line, and the jobs in `pgboss.job`, the worker, its log and `ownpace_jobs` are checked in their place; a dispatch's `job_runner` input sets one run's mode without persisting it. Trigger mode unchanged. |
+| T7 The worker service, and the switch on | builder, owner | 🟡 **Built 2026-11-22**: the role and schema (#2041); the worker's image and service, the bring-up and the deploy, the smoke and the gate on their branches; the switch on, built on `claude/ownpace-pgboss-flip`. Done when that pull request merges and E2E (managed) passes in both modes | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. The gate's part (the Status entry of 2026-11-22, the smoke and the gate): `smoke-managed.sh` and `e2e-managed.yml` read `OWNPACE_JOB_RUNNER` as the bring-up does; on `pg-boss` each Trigger.dev section is skipped with one line, and the jobs in `pgboss.job`, the worker, its log and `ownpace_jobs` are checked in their place; a dispatch's `job_runner` input sets one run's mode without persisting it. Trigger mode unchanged. The worker's memory limit stays `(MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB` for alpha.16 (the owner, 2026-11-22 at about 18:55 UTC: *"Ok, makes sense, go ahead."*). |
 | T8 Trigger.dev's services stopped | builder, owner | 🟡 **Built 2026-11-22**, with the switch on `claude/ownpace-pgboss-flip` | In pg-boss mode the bring-up stops the plane in order, in profile `trigger`, its volumes kept as the way back (`OWNPACE_JOB_RUNNER=trigger`). Stopped on a stack when it is deployed at alpha.16. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: alpha.16 keeps the plane installed and stopped. |
-| T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: not in alpha.16; its pull requests start once the switch's has merged. |
+| T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. The owner, 2026-11-22 16:32 UTC: *"Ok, keep 16 and 17 seperate"*: not in alpha.16; its pull requests start once the switch's has merged. The owner, 2026-11-22 at about 18:55 UTC, on the worker's memory: *"Ok, makes sense, go ahead."*: alpha.17 also adds a worker-wide limit of `MAX_PASSES_IN_FLIGHT` + 2 runs at once, as Trigger.dev admits today, then lowers the worker's memory limit from what the runs measured. |
 
 ## 1. Why, and what was asked
 

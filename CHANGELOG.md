@@ -69,6 +69,10 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   E2E (managed) runs pg-boss when its `job_runner` input is empty, its default now, and Trigger.dev
   with `trigger`. No migration; the Trigger.dev, ClickHouse and identity-provider pins are as
   they were.
+- **`operator.sh` reads the switch as the containers are told it** (workplan 0167 T7), so on a
+  stack whose `.env` leaves `OWNPACE_JOB_RUNNER` empty, the default, `operator.sh jobs` works the
+  pg-boss jobs and `operator.sh close` cancels a pass on pg-boss, composing the jobs role's URL on
+  the host; the API and the operator share one parser of the switch.
 - **The managed edition's jobs call Trigger.dev through a context that names their runner**
   (workplan 0167 T6; ADR-0054). Each job's run takes a context that names the runner it is on, and
   the Trigger.dev calls three of them make (the tick enqueueing a pass, a cutover waiting for one,
