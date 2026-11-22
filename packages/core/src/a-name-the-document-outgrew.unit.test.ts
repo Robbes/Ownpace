@@ -31,6 +31,7 @@ import {
 } from '@openmig/shared';
 import { runFileSync } from './dav-sync.ts';
 import { classifyKnownItem } from './domain-sync.ts';
+import { applyDeletion } from './apply-deletion.ts';
 import { MemoryCursorStore, MemoryLedger } from './__testing__/memory.ts';
 
 const TENANT = asTenantId('0e1d0000-e29b-41d4-a716-446655443001');
@@ -356,6 +357,45 @@ describe('the copy the old name left on the target', () => {
       status: 'copied',
       supersededByNaturalKeyHash: key('Report.docx'),
     });
+  });
+
+  it('drops a keep given to it as an earlier export once it is a current copy again (workplan 0164)', async () => {
+    // The keep answered "leave this earlier export on the new system". Once
+    // the policy gives its name again, it is the current copy and an earlier
+    // export of nothing, so that question is gone. A later deletion of the
+    // document is a new question, offered afresh, as `clearAbsent` does for
+    // an item that came back.
+    const w = world([reportUnder.office]);
+    await w.pass();
+    w.state.listed = [reportUnder.odf];
+    await w.pass();
+    const docx = key('Report.docx');
+    expect(await w.ledger.resolveDeletion(TENANT, MAPPING, docx, 'keep'), 'kept as an earlier export').toBe(true);
+
+    w.state.listed = [reportUnder.office];
+    await w.pass();
+    expect((await w.ledger.find(TENANT, MAPPING, 'file', docx))?.deletionAcknowledgedAt).toBeUndefined();
+
+    // Then the document is deleted, and the old system says so.
+    await w.ledger.recordReportedDeletion(TENANT, MAPPING, 'file', docx);
+    const row = (await w.ledger.listDeletions(TENANT, MAPPING)).find((d) => d.naturalKeyHash === docx);
+    expect(row, 'offered, not filed as decided').toMatchObject({ evidence: 'reported' });
+    expect(row?.acknowledgedAt).toBeUndefined();
+    const removed: string[] = [];
+    const outcome = await applyDeletion(
+      {
+        tenantId: TENANT,
+        mappingId: MAPPING,
+        domain: 'file',
+        ledger: w.ledger,
+        target: { removeItem: async (id: string) => (removed.push(id), { kind: 'deleted' as const }) },
+        allowApplyDeletions: true,
+        stillTheAuthority: async () => true,
+      },
+      docx,
+    );
+    expect(outcome).toEqual({ ok: true, kind: 'deleted' });
+    expect(removed).toEqual(['t/root:Report.docx']);
   });
 
   it('leaves alone a copy that says it belongs to another document', async () => {

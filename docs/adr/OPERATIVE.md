@@ -202,14 +202,13 @@ live in [README.md](./README.md), the register.
   confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
   through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
-- Gate 6 bounds one confirmation: every row of a data type with under 20 `placedItems` (removed
-  and adopted counted; failed, left-behind, superseded and collection-less rows not), otherwise
-  at most a fifth. The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an
+- Gate 6 bounds one confirmation: every row of a data type under 20 `placedItems` (removed and
+  adopted counted; failed, left-behind, superseded, collection-less not), else at most a fifth. The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an
   unanswered or unstarted press **stops the whole run**; *Stop* or a closed page orders nothing
   more.
-- **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
-  `already_kept` before anything is sent to the target. A keep cannot stop a removal already
-  under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
+- **A kept deletion is never applied** (2026-11-22): `already_kept` first. A keep cannot stop a
+  removal under way, and ends with its cause (seen again, earlier export current again). A
+  removal closes its relocation. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.

@@ -29,14 +29,13 @@
   confirmation over a frozen set naming the count, the bin's apart, then each row's own apply
   through the same call and all seven gates, the next only after an answer. Guard:
   `packages/core/src/a-delete-all-through-every-gate.unit.test.ts`.
-- Gate 6 bounds one confirmation: every row of a data type with under 20 `placedItems` (removed
-  and adopted counted; failed, left-behind, superseded and collection-less rows not), otherwise
-  at most a fifth. The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an
+- Gate 6 bounds one confirmation: every row of a data type under 20 `placedItems` (removed and
+  adopted counted; failed, left-behind, superseded, collection-less not), else at most a fifth. The breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or an
   unanswered or unstarted press **stops the whole run**; *Stop* or a closed page orders nothing
   more.
-- **A deletion the owner kept is never applied** (2026-11-22): both deletion functions refuse
-  `already_kept` before anything is sent to the target. A keep cannot stop a removal already
-  under way. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
+- **A kept deletion is never applied** (2026-11-22): `already_kept` first. A keep cannot stop a
+  removal under way, and ends with its cause (seen again, earlier export current again). A
+  removal closes its relocation. Guard: `packages/core/src/a-deletion-the-owner-kept.unit.test.ts`.
 - Order is **remove-then-record**; rows are tombstoned, never deleted; a deleted item's
   reappearance is **never re-copied** (a relocated one's is: ADR-0030) (`packages/core/src/tombstone-not-restored.unit.test.ts`); outcomes state
   `kind: binned|deleted`, understating recoverability.
@@ -263,7 +262,50 @@ for a move on 2026-08-15 (*`keep` was enforced by a button*), made for a deletio
 No route changed: both editions answer the refusal as they answer the others (403, the code and
 the reason), and the screens show the reason as served.
 
+## Amendment, 2026-11-22, later: what a carried-out removal closes, and when a keep ends
+
+Two follow-ups of workplan 0164 T3, both found in its reviews and recorded in the amendment above
+and in the workplan's Status block.
+
+- **A removal closes the relocation it carried out.** `applyRelocation` has always closed a
+  deletion entry the same row carried, because one left open goes on counting toward the
+  mass-deletion breaker "on the strength of decisions already carried out". `applyDeletion` did
+  not do the same for a move. So once *Deleted on the old system* removed the old copy of a renamed
+  file, by one press or by *Delete all of these here too*, its relocation stayed open on Moves,
+  offering a press that could only answer `already_applied`, and counted toward
+  `mass_relocation_suspected` until somebody pressed *keep*. Enough of them refused every move still
+  waiting in that data type. The move is now **closed, not listed apart**. A relocation exists to
+  remove that old copy, so once it is gone the move is decided. `ItemMove.decided` already reads
+  `applied` for "a deletion carried out on the same row", and the pass already skips a row with
+  `deletion_applied_at` as decided (`domain-sync.ts`). Moves already says *Old copy removed on the
+  new system*, which is true. `PgLedger.listMoves` (and `MemoryLedger`) reads such a relocation as
+  decided at the removal's time; `resolveMove` answers a keep on it with *no open move*. It is
+  read, not written by `applyDeletion`, for two reasons. `listDeletions` tells a relocation's
+  removal from a deletion's by the move's time equal to the removal's, so a write in the same
+  statement would call the deletion a move there. And rows removed before this change close the
+  same way, with no migration. The breaker's meaning holds for every other case: a relocation
+  whose old copy is still there (its deletion open, reported or kept) still counts. A move that
+  kept its key (mail, calendar) is not changed: its old copy is its only copy, which is 0159 §6
+  item 6's follow-up. Guards: `packages/core/src/apply-relocation.unit.test.ts` (gate 6),
+  `a-row-that-says-what-was-decided` (core, PGlite and Postgres).
+- **A keep given to an earlier export ends when its name is current again.** A keep pressed in
+  the earlier-exports queue (workplan 0042 T8 (b)) answered *leave this earlier export on the new
+  system*. When the format is switched back, `clearEarlierExport` makes the copy the current one
+  again, an earlier export of nothing, so that question is gone. It kept the keep, and a later
+  deletion of the document arrived already decided and was never offered. That was the opposite
+  of `clearAbsent`'s rule for an item seen again: "there is no longer anything to have agreed to,
+  and a stale acknowledgement would silently suppress the report the next time". So
+  `clearEarlierExport` now clears it too, only on a row that is an earlier export, and only when
+  the pass sees the item on the old system. A later deletion is offered afresh and goes through
+  every gate. Nothing is removed by this change. Guards: `packages/core/src/a-name-the-document-outgrew.unit.test.ts`,
+  `packages/ledger/src/a-deletion-the-owner-kept` (PGlite and Postgres).
+
 ## Amendment log
+
+- **2026-11-22, later** — A removal closes the relocation it carried out, so it leaves Moves'
+  open rows and `mass_relocation_suspected`'s count; a keep given to an earlier export ends when
+  its name is current again (workplan 0164, T3's two follow-ups). Record: *Amendment, 2026-11-22,
+  later: what a carried-out removal closes, and when a keep ends*.
 
 - **2026-11-22** — A deletion the owner kept is never applied: `already_kept` in
   `evaluateApplyDeletion` and `applyDeletion`, and the `after_cutover` reason no longer says a

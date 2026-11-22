@@ -4,7 +4,39 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
-**2026-11-22, 12:05 UTC, latest: T3 is merged (#2024, `15fc504f`) and held for alpha.15; the
+**2026-11-22, 14:30 UTC, latest: T3's two follow-ups are built (T3a, T3b), on
+`claude/ownpace-0164-followups-moves-and-earlier-exports`.** F13 is not touched: it needs a
+migration and a decision.
+- **A removed old copy closes its move** (T3a). Once *Deleted on the old system* removes the old
+  copy of a renamed file, by one press or by *Delete all of these here too*, its relocation reads
+  decided on Moves (*Old copy removed on the new system*, the words it already had). It stops
+  counting toward `mass_relocation_suspected`, and a keep on it is answered *no open move*.
+  - **Closed, not listed apart.** A relocation exists to remove that old copy. `ItemMove.decided`
+    already reads `applied` for a deletion carried out on the same row, and the pass already
+    skips such a row as decided.
+  - **Read, not written.** `listMoves` reads such a relocation as decided at the removal's time,
+    and `resolveMove` refuses it, in `PgLedger` and `MemoryLedger`. A write in `applyDeletion`
+    would make `listDeletions` call the deletion a move (equal times), and reading it closes the
+    rows removed before this change too, with no migration.
+  - **What still counts:** a relocation whose old copy is still there, its deletion open,
+    reported or kept. A move that kept its key (mail, calendar) is unchanged.
+- **A keep ends when its earlier export is current again** (T3b). `clearEarlierExport` now
+  clears the keep with the mark. The keep answered *leave this earlier export*. Once the format
+  is switched back, the copy is the current one and that question is gone, as `clearAbsent`
+  clears a keep for an item seen again. So a later deletion is offered and goes through every
+  gate. This is decided from the code's own rule, and is not a question for the owner.
+- **Records:** ADR-0024 (*Amendment, 2026-11-22, later*, and its operative rule), `ports.ts`, the
+  404 hint for a keep on a move in both editions, the CHANGELOG. No words on a page changed.
+- **Tests:**
+  - core: gate 6 over the real `applyDeletion`, `applyRelocation` and `MemoryLedger`, both
+    directions, and the earlier-export case through the real `runFileSync`;
+  - the ledger: `a-row-that-says-what-was-decided` and `a-deletion-the-owner-kept`, each on
+    PGlite and on Postgres.
+
+  Seven mutants, each undone byte for byte, are killed: five for T3a, two for T3b.
+- **Next:** CI, then E2E (managed).
+
+**2026-11-22, 12:05 UTC, earlier: T3 is merged (#2024, `15fc504f`) and held for alpha.15; the
 four nits of a fresh check are fixed.** A fresh check of the merged head said *merge as is* and
 named four nits. On `claude/ownpace-public-readiness-y7orc6-0164-t3-nits`:
 - **The press's own check compares evidence too, and a test says so.** The check of the frozen
@@ -431,6 +463,8 @@ Read for this plan, on `main` at `8b8fac07`:
 | T1 What Google answers | builder | ✅ **Done 2026-11-21**: built as #2008, run by the owner; A is the reader | §3.1 and *How to run T1*: `./deploy/compose/operator.sh measure-google-sync`. Read-only, on the owner's test migration on the test environment. Counts and status codes only |
 | T2 The reader that reports removals | builder | 🟡 **Built 2026-11-21**, on `claude/ownpace-public-readiness-y7orc6-0164-t2-reader` | §3.1 A: `sync-collection` followed through its pages, with the token kept; removed members as `reported`, changed ones read by `calendar-multiget` |
 | T3 Apply in bulk | builder | ✅ **Merged 2026-11-22** as #2024 (`15fc504f`), held for alpha.15: built 2026-11-21, three reviews' findings fixed, the keep fix (#2027) taken and F-B built; a fresh check's four nits on `claude/ownpace-public-readiness-y7orc6-0164-t3-nits` | §4.2: *Delete all of these here too*, each row's own press through every gate, after one confirmation over a frozen set; the breaker, `not_enabled`, `removed_not_recorded`, withdrawn evidence, or a press not answered or not started stops the run. ADR-0024 amended |
+| T3a A removed old copy closes its move | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-0164-followups-moves-and-earlier-exports` | T3's open follow-up: a relocation whose old copy a deletion removed reads decided (`applied`) on Moves, leaves `mass_relocation_suspected`'s count, and takes no keep. Closed, not listed apart. ADR-0024 amended |
+| T3b A keep ends when its earlier export is current again | builder | 🟡 **Built 2026-11-22**, on the same branch | The keep fix's follow-up: `clearEarlierExport` clears the keep with the mark, so a later deletion is offered afresh. Decided from `clearAbsent`'s rule, not left to the owner |
 | T4 Removal by itself | builder | 🅿️ **Parked** | §4.3. Only if the owner changes hard rule 2 and ADR-0024 |
 | T5 The owner's test | owner | 📋 **Proposed** | §6. An event with the owner's second address as its only guest, deleted at Google, applied, no mail |
 

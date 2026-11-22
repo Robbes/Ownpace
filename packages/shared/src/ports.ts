@@ -1807,9 +1807,10 @@ export interface Ledger {
   /**
    * Apply an owner decision to one moved item.
    *
-   * Returns false when there is no OPEN move under that key — it moved back, or
-   * someone already decided. Saying "not found" beats reporting a decision that
-   * did not happen.
+   * Returns false when there is no OPEN move under that key — it moved back,
+   * someone already decided, or, for a relocation, a deletion already removed
+   * its old copy (workplan 0164). Saying "not found" beats reporting a decision
+   * that did not happen.
    */
   resolveMove(
     tenantId: TenantId,
@@ -1888,7 +1889,9 @@ export interface Ledger {
   /**
    * The name an earlier export had is a current name again (the policy was
    * switched back), so the copy is no longer an earlier export of anything.
-   * A no-op on a row that is not one.
+   * A keep given to it as an earlier export goes with the mark (workplan
+   * 0164): a later deletion of the document is a new question, offered
+   * afresh. A no-op on a row that is not one.
    */
   clearEarlierExport(
     tenantId: TenantId,
@@ -2309,6 +2312,12 @@ export interface ItemMove {
    * acknowledging one genuinely quiets it — and a queue nobody can quiet is one
    * people stop reading, which is how a real divergence goes unnoticed among
    * ones somebody already decided about.
+   *
+   * A RELOCATION whose old copy a deletion removed (on Deletions, by one press
+   * or by *Delete all of these here too*) is decided as well, at that
+   * removal's time, with `decided: 'applied'` (workplan 0164): there is
+   * nothing left for it to remove, so it no longer waits on Moves or counts
+   * toward `mass_relocation_suspected`, and a keep on it answers nothing.
    */
   readonly acknowledgedAt?: string;
   /**

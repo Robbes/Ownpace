@@ -826,13 +826,12 @@ function notEnabled(): Extract<ApplyDeletionOutcome, { ok: false }> {
  * late for it, and the removal is recorded as what it was (ledger.ts
  * `applyDeletion`: tombstoned and applied, with the keep's time kept).
  *
- * NOT FOREVER, for the rows `clearAbsent` clears. It clears the
+ * NOT FOREVER: a keep ends with its cause. `clearAbsent` clears the
  * acknowledgement when an item with a recorded absence or deletion is seen
  * on the source again, so such an item that comes back and is deleted again
- * is a new question, asked afresh. Known and older than this: a keep given to
- * an earlier export (0042 T8 (b)) is not cleared by `clearEarlierExport`, so
- * a later deletion of that item arrives already kept; that queue already
- * files it as decided and never offers it (workplan 0164 has the follow-up).
+ * is a new question, asked afresh. `clearEarlierExport` does the same for a
+ * keep given to an earlier export (0042 T8 (b)) once its name is a current
+ * name again (workplan 0164): a later deletion of it is offered afresh.
  */
 function keptCheck(row: {
   readonly deletionAcknowledgedAt?: string;
@@ -1212,6 +1211,8 @@ async function massRelocationCheck(
   // RELOCATIONS only — a move that changed the natural key. A move recorded
   // with a collection alone cannot be applied at all, so counting it would let
   // a mail folder reorganisation refuse a file rename in the same mapping.
+  // OPEN only: one whose old copy a deletion already removed is listed as
+  // decided (`listMoves`, workplan 0164), since nothing is left to remove.
   const pending = (await ledger.listMoves(tenantId, mappingId, domain)).filter(
     (m) => m.toNaturalKeyHash !== undefined && m.acknowledgedAt === undefined,
   );

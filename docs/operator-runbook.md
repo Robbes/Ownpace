@@ -2119,7 +2119,8 @@ So it is never counted as one, and never deleted for you: Deletions lists it as
   of an old copy, delete it on the target yourself, then keep. `apply` does
   not remove an earlier export: nothing was deleted at the source.
 - If the format is switched back, the old name is given again: that copy is
-  a current one again, and the other becomes the earlier export.
+  a current one again, and the other becomes the earlier export. A keep given
+  to it as an earlier export ends there, so a later deletion of it is offered.
 
 ### Removing it on the target too — `apply`
 
@@ -2226,9 +2227,9 @@ before anything is removed:
    way cannot stop it: that removal goes through and is recorded as a
    removal. If a keep was the wrong call, delete the copy in the new system
    yourself. A kept item that is seen on the old system again, and is then
-   deleted there again, is a new entry, asked afresh. One kind is not: an
-   earlier export kept in its own queue stays kept when its format is switched
-   back, so a later deletion of it arrives already decided.
+   deleted there again, is a new entry, asked afresh. So is an earlier export
+   kept in its own queue once its format is switched back: the keep goes with
+   the mark, and a later deletion of it is offered (workplan 0164).
 
 A call that is refused always says why, in a `reason` you can read as-is —
 `not_enabled`, `target_cannot_remove`, `not_found`, `not_confirmed`,
@@ -2410,7 +2411,9 @@ Two answers for every move, and a third that exists only for one kind:
   that decision holds, and is not re-opened here; **`mass_relocation_suspected`**
   means more than a fifth of the domain's items have open relocations at once,
   which is what a connector mis-deriving every path looks like, so every apply
-  is refused while it is true. If the reorganisation is real (you moved a big
+  is refused while it is true. A relocation whose old copy was already removed
+  through Deletions is not open: it reads *Old copy removed* under *Already
+  decided*, and is not counted (workplan 0164). If the reorganisation is real (you moved a big
   folder), close the entries with `keep` and tidy the old copies in the target
   system yourself.
 
