@@ -4,6 +4,21 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+## [0.2.0-alpha.15] - 2026-11-22
+
+One press can now delete, on the new system, the copies listed on *Deleted on the old system*: while
+deleting by hand is on, *Delete all of these here too* asks for one confirmation, which names how
+many, and then presses each row's own *Delete it here too* in turn, through every check a single
+press passes. A row that is refused is said and the next is pressed; the safeguard against mass
+deletion, a row the old system stopped saying was deleted, or a delete that started nothing or did
+not answer stops the rest, as *Stop* does. Afterwards the page lists what was deleted, whose copy
+had already been removed, what was not and what is not known, each with its reason, in English and
+Dutch. A queue that could not be read again keeps its rows on screen, and an answer on Deletions,
+Moves or Failures stays with its own migration's row. Underneath, the Docker socket proxy is built
+on HAProxy 3.4.8, and in CI the published images are built with BuildKit v0.35.1. Live's deploy from
+alpha.14 is reversible: no migration moves, and neither do the Trigger.dev, identity-provider and
+ClickHouse pins.
+
 ### Added
 
 - **One press to delete the copies on *Deleted on the old system*** (workplan 0164 T3; ADR-0024,
