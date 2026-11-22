@@ -50,6 +50,9 @@ import {
   sourceCardIsExperimental,
   sourceFaceIsExperimental,
   wizardTypeForConnectionKind,
+  addressKey,
+  isAddress,
+  mailLoginOf,
   type ArchiveProvider,
   type DiscoveryDomain,
   type DropboxPaperPolicy,
@@ -58,6 +61,18 @@ import {
   type WizardTargetType,
 } from '@openmig/shared';
 import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
+import {
+  createAddressChange,
+  deleteAddressChange,
+  fetchAddressChanges,
+  updateAddressChange,
+} from '../services/address-change-service.ts';
+import {
+  AddressStep,
+  addressProposals,
+  type AddressAnswer,
+  type OtherChange,
+} from '../components/AddressStep.tsx';
 import {
   connectionsApi,
   mappingApi,
@@ -123,7 +138,12 @@ import { useLocale, useFormatters, type StringKey } from '../i18n/index.tsx';
 
 /** The six screens, in the drawing's order. */
 const STEPS = ['who', 'from', 'what', 'connect', 'to', 'check'] as const;
-type Step = (typeof STEPS)[number];
+/**
+ * And a seventh, `address`, between `to` and `check`, where an address
+ * changes or the person says it does (workplan 0168 §6.2, D9).
+ */
+const WITH_ADDRESS = ['who', 'from', 'what', 'connect', 'to', 'address', 'check'] as const;
+type Step = (typeof WITH_ADDRESS)[number];
 
 const HEADING: Readonly<Record<Step, StringKey>> = {
   who: 'start.who.heading',
@@ -131,6 +151,7 @@ const HEADING: Readonly<Record<Step, StringKey>> = {
   what: 'start.what.heading',
   connect: 'start.connect.heading',
   to: 'start.to.heading',
+  address: 'start.address.heading',
   check: 'start.check.heading',
 };
 
@@ -163,6 +184,12 @@ export interface Signed {
   /** Whose data it is: the address a create names (`sourceConfig.username`). */
   readonly username: string;
   /**
+   * The login its mail signs in with (`mailLoginOf`): the username, or, at a
+   * kind whose sync login is a short username (Infomaniak, 0161), the
+   * mailbox's own address. What the address step reads as the new address.
+   */
+  readonly mailLogin?: string;
+  /**
    * What a reused account must say again for each migration, as the account
    * holds it: Box's `userId`, a root folder or path (ADR-0033: one subject
    * per migration).
@@ -187,6 +214,7 @@ const signedFrom = (c: ConnectionSummary): Signed => ({
   card: wizardTypeForConnectionKind(c.kind),
   ready: c.status === 'connected',
   username: c.knownValues?.username ?? '',
+  mailLogin: mailLoginOf(c.kind, c.knownValues ?? {}).username,
   perMapping: pickPerMapping(c.knownValues),
 });
 
@@ -493,6 +521,107 @@ const StartMigration: React.FC = () => {
         )),
   ];
 
+  // A NEW ADDRESS FOR ONE YOU CANNOT TAKE ALONG (workplan 0168 §6.1, §6.2).
+  // The old address is each account being left (`sourceUsername`); the new
+  // one is the account the mail goes to, else the contacts' or the
+  // calendar's, read as its mail signs in (`mailLoginOf`). The step shows
+  // where an old address is on the list, where the organisation's table
+  // already holds a row for this person, or where the person says so on `to`.
+  const [alsoChanging, setAlsoChanging] = React.useState(false);
+  const addressTable = useQuery({ queryKey: ['address-changes'], queryFn: fetchAddressChanges, retry: false });
+  const newAccount = (['email', 'contact', 'calendar', 'file'] as const)
+    .filter((type) => types.includes(type))
+    .map((type) => accounts.signed(destinationOf(type)))
+    .find((signed) => signed !== undefined);
+  const newLogin = newAccount === undefined ? '' : (newAccount.mailLogin || newAccount.username).trim();
+  const proposals = addressProposals({
+    sources: routes.map((r) => r.sourceUsername),
+    newLogin,
+    declared: alsoChanging,
+    table: addressTable.data?.rows ?? [],
+    personId: who.personId,
+  });
+  const showAddress = proposals.asked.length > 0 || proposals.existing.length > 0 || alsoChanging;
+  const steps: ReadonlyArray<Step> = showAddress ? WITH_ADDRESS : STEPS;
+  const [answers, setAnswers] = React.useState<Readonly<Record<string, AddressAnswer>>>({});
+  const [others, setOthers] = React.useState<ReadonlyArray<OtherChange>>([]);
+  const [savingAddresses, setSavingAddresses] = React.useState(false);
+  const [addressFailures, setAddressFailures] = React.useState<ReadonlyArray<{ old: string; why: string }>>([]);
+  // What this flow wrote, by old key, so going back and answering again
+  // changes the row rather than adding a second one or leaving one behind.
+  const [writtenHere, setWrittenHere] = React.useState<Readonly<Record<string, string>>>({});
+  /** The changes this flow will write, or has: each one's old and new address. */
+  const addressChanges = [
+    ...proposals.asked.flatMap((p) => {
+      const a = answers[addressKey(p.old)];
+      if (a === undefined || a.choice === 'no') return [];
+      const next = a.choice === 'yes' ? proposals.newAddress : a.typed.trim();
+      return next === undefined || next === '' ? [] : [{ old: p.old, new: next, own: true }];
+    }),
+    ...others
+      .filter((o) => o.old.trim() !== '' || o.new.trim() !== '')
+      .map((o) => ({ old: o.old.trim(), new: o.new.trim(), own: false })),
+  ];
+  /** What *Check, then start* says: every change written here, and this person's rows already in the table. */
+  const addressLines = [
+    ...proposals.existing.map((r) => ({ old: r.oldAddress, new: r.newAddress })),
+    ...addressChanges.map((c) => ({ old: c.old, new: c.new })),
+  ];
+
+  /**
+   * LEAVING THE STEP WRITES THE ROWS (0168 §6.2): the person's own as
+   * confirmed by whoever pressed, unless they connect by a link and confirm
+   * on their own page (§4.4); somebody else's as proposed. A row written
+   * here before is changed, never added again; one answered *No* since is
+   * deleted. A refusal is said, in the server's words, and the screen stays.
+   */
+  const saveAddresses = async (): Promise<boolean> => {
+    setSavingAddresses(true);
+    const failures: Array<{ old: string; why: string }> = [];
+    const written: Record<string, string> = { ...writtenHere };
+    const personId = made.personId ?? who.personId ?? undefined;
+    try {
+      const wanted = new Set(addressChanges.map((c) => addressKey(c.old)));
+      for (const [key, old] of Object.entries(writtenHere)) {
+        if (wanted.has(key)) continue;
+        try {
+          await deleteAddressChange(key);
+          delete written[key];
+        } catch (error) {
+          failures.push({ old, why: serverMessage(error) });
+        }
+      }
+      for (const c of addressChanges) {
+        const key = addressKey(c.old);
+        const confirm = c.own && !who.someoneElse;
+        try {
+          if (written[key] !== undefined) {
+            await updateAddressChange(key, {
+              newAddress: c.new,
+              ...(confirm ? { state: 'confirmed' as const } : {}),
+            });
+          } else {
+            await createAddressChange({
+              oldAddress: c.old,
+              newAddress: c.new,
+              ...(confirm ? { confirm: true } : {}),
+              ...(c.own && personId !== undefined ? { personId } : {}),
+            });
+          }
+          written[key] = c.old;
+        } catch (error) {
+          failures.push({ old: c.old, why: serverMessage(error) });
+        }
+      }
+    } finally {
+      setWrittenHere(written);
+      setAddressFailures(failures);
+      setSavingAddresses(false);
+      void queryClient.invalidateQueries({ queryKey: ['address-changes'] });
+    }
+    return failures.length === 0;
+  };
+
   // THE WORDS FOR A MIGRATION: *"{person} — {provider} to {destination}"*
   // (T4, *Underneath*), and on the check screen its data types, from and to.
   // Another mail provider is named by its address's domain, which says more
@@ -651,7 +780,7 @@ const StartMigration: React.FC = () => {
       setMade({ personId, migrations });
       void queryClient.invalidateQueries({ queryKey: ['people'] });
       void queryClient.invalidateQueries({ queryKey: ['mappings'] });
-      if (planned.every((m) => migrations[pairKey(m)]?.id !== undefined)) setStep('check');
+      if (planned.every((m) => migrations[pairKey(m)]?.id !== undefined)) setStep(showAddress ? 'address' : 'check');
     } finally {
       setSettingUp(false);
     }
@@ -672,9 +801,9 @@ const StartMigration: React.FC = () => {
     window.scrollTo({ top: 0, left: 0, behavior: motionWelcome() ? 'smooth' : 'instant' });
   }, [step]);
 
-  const index = STEPS.indexOf(step);
-  const next = STEPS[index + 1];
-  const back = STEPS[index - 1];
+  const index = steps.indexOf(step);
+  const next = steps[index + 1];
+  const back = steps[index - 1];
 
   /** Why Next cannot be pressed yet, in words under it (T7 (a)); undefined when it can. */
   const notYet = ((): string | undefined => {
@@ -712,6 +841,11 @@ const StartMigration: React.FC = () => {
           ? undefined
           : t('start.to.cannotTakeChosen', { type: t(DOMAIN_STRING_KEY[refused]).toLocaleLowerCase(locale) });
       }
+      case 'address': {
+        if (proposals.asked.some((p) => answers[addressKey(p.old)] === undefined)) return t('start.address.needAnswer');
+        const typedWrong = addressChanges.some((c) => !isAddress(c.old) || !isAddress(c.new));
+        return typedWrong ? t('start.address.needAddress') : undefined;
+      }
       default:
         return undefined;
     }
@@ -725,7 +859,7 @@ const StartMigration: React.FC = () => {
       <div>
         <h1 className="text-2xl font-bold text-gray-900">{t('mappings.new')}</h1>
         <p className="mt-1 text-sm font-medium text-gray-600">
-          {t('start.step', { n: index + 1, total: STEPS.length })}
+          {t('start.step', { n: index + 1, total: steps.length })}
         </p>
       </div>
 
@@ -770,8 +904,20 @@ const StartMigration: React.FC = () => {
               companyAnswer={companyAnswer}
             />
           )}
+          {step === 'address' && (
+            <AddressStep
+              proposals={proposals}
+              newLogin={newLogin}
+              answers={answers}
+              onAnswer={(key, answer) => setAnswers((prev) => ({ ...prev, [key]: answer }))}
+              others={others}
+              onOthers={setOthers}
+              failures={addressFailures}
+            />
+          )}
           {step === 'check' && (
             <CheckStep
+              addressLines={addressLines}
               planned={planned}
               made={made}
               titles={titles}
@@ -818,6 +964,7 @@ const StartMigration: React.FC = () => {
                     }
                   : undefined
               }
+              alsoChanging={{ on: alsoChanging, onChange: setAlsoChanging }}
               lands={{
                 planned,
                 titles,
@@ -831,7 +978,9 @@ const StartMigration: React.FC = () => {
       </section>
 
       <div className="flex flex-wrap items-start justify-between gap-3">
-        {back !== undefined && !madeAny ? (
+        {/* Once anything is made the way back closes, except from the check
+            to the address step: going there writes nothing twice. */}
+        {back !== undefined && (!madeAny || back === 'address') ? (
           <button
             type="button"
             onClick={() => setStep(back)}
@@ -852,6 +1001,12 @@ const StartMigration: React.FC = () => {
               // is no way back (the UX sweep, 2026-10-17).
               onClick={() => {
                 if (step === 'to') return void setUp();
+                if (step === 'address') {
+                  void saveAddresses().then((saved) => {
+                    if (saved) setStep('check');
+                  });
+                  return;
+                }
                 // Leaving *Who is it for?* settles its answer, the member's
                 // own person too: the people read again on a later screen
                 // (a window refocused) cannot change whom this is for.
@@ -861,11 +1016,17 @@ const StartMigration: React.FC = () => {
                 }
                 setStep(next);
               }}
-              disabled={notYet !== undefined || settingUp}
+              disabled={notYet !== undefined || settingUp || savingAddresses}
               aria-describedby={notYet !== undefined ? reasonId : step === 'to' ? setUpLineId : undefined}
               className="min-h-[44px] px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {settingUp ? t('start.to.settingUp') : step === 'to' ? t('start.to.setUp') : t('account.next')}
+              {settingUp
+                ? t('start.to.settingUp')
+                : savingAddresses
+                  ? t('start.address.saving')
+                  : step === 'to'
+                    ? t('start.to.setUp')
+                    : t('account.next')}
             </button>
             {notYet !== undefined && (
               <p id={reasonId} className="mt-2 text-sm text-gray-600">
@@ -1617,6 +1778,7 @@ function useAccounts(personName: string): Accounts {
           card: key.slice(key.indexOf(':') + 1),
           ready: true,
           username: values.username?.trim() ?? '',
+          mailLogin: mailLoginOf(key.slice(key.indexOf(':') + 1), values).username.trim(),
           perMapping: pickPerMapping(values),
         },
       }));
@@ -2158,7 +2320,12 @@ export const ToStep: React.FC<{
    * found it does not take it; absent where nothing else would move.
    */
   onLeaveOut?: ((type: DiscoveryDomain) => void) | undefined;
-}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands, onLeaveOut }) => {
+  /**
+   * *I am also changing my address* (0168 §6.2): the own domain being given
+   * up, which no list can detect. Ticked, the address step follows.
+   */
+  alsoChanging?: { readonly on: boolean; readonly onChange: (on: boolean) => void };
+}> = ({ types, accounts, destinationOf, onDestination, onAddedFor, exportRow, lands, onLeaveOut, alsoChanging }) => {
   const { t, locale } = useLocale();
   const accountLabel = useAccountLabel();
   if (accounts.loading) return <p className="text-sm text-gray-500">{t('common.loading')}</p>;
@@ -2322,6 +2489,16 @@ export const ToStep: React.FC<{
         <NewDestination key={card} card={card} accounts={accounts} onAdded={(id) => onAddedFor(card, id)} />
       ))}
       {lands && lands.planned.length > 0 && <WhereTheCopiesLand {...lands} />}
+      {alsoChanging && (
+        <label className="flex min-h-[44px] items-center gap-2 text-sm text-gray-800">
+          <input
+            type="checkbox"
+            checked={alsoChanging.on}
+            onChange={(e) => alsoChanging.onChange(e.target.checked)}
+          />
+          {t('start.to.alsoChanging')}
+        </label>
+      )}
     </div>
   );
 };
@@ -2450,7 +2627,9 @@ export const CheckStep: React.FC<{
   personName?: string;
   /** A migration whose account its person connects by a link, and has not yet. */
   awaitsGrant?: (m: PlannedMigration) => boolean;
-}> = ({ planned, made, titles, onStarted, personName = '', awaitsGrant = () => false }) => {
+  /** One line per changed address (0168 §6.2): the rule, never a count discovery could not have. */
+  addressLines?: ReadonlyArray<{ readonly old: string; readonly new: string }>;
+}> = ({ planned, made, titles, onStarted, personName = '', awaitsGrant = () => false, addressLines = [] }) => {
   const { t, locale } = useLocale();
   const queryClient = useQueryClient();
   const waitsId = React.useId();
@@ -2537,6 +2716,13 @@ export const CheckStep: React.FC<{
   return (
     <div className="space-y-6">
       <p className="text-sm text-gray-700">{t('start.check.intro')}</p>
+      {addressLines.length > 0 && (
+        <ul className="space-y-1 text-sm text-gray-700 break-words" data-address-lines>
+          {addressLines.map((line) => (
+            <li key={line.old}>{t('start.check.address', { old: line.old, new: line.new })}</li>
+          ))}
+        </ul>
+      )}
       {anyByLink && made.personId !== undefined && (
         <PersonAwaitingGrant personId={made.personId} personName={personName} onGranted={setGranted} />
       )}

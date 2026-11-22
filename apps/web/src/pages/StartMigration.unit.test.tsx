@@ -21,6 +21,12 @@ import { STRINGS } from '../i18n/strings.ts';
 import { personLinkApi } from '../services/grant-link-service.ts';
 import { addMigrationToPerson, createPerson, fetchPeople } from '../services/operating-service.ts';
 import {
+  createAddressChange,
+  deleteAddressChange,
+  fetchAddressChanges,
+  updateAddressChange,
+} from '../services/address-change-service.ts';
+import {
   connectionsApi,
   mappingApi,
   providerAccountsApi,
@@ -40,6 +46,14 @@ vi.mock('../services/operating-service', () => ({
   createPerson: vi.fn(),
   addMigrationToPerson: vi.fn(),
 }));
+// The table of address changes is empty: an account at Google, being left,
+// is asked about on the address step (0168 §6.2), and these tests answer No.
+vi.mock('../services/address-change-service', () => ({
+  fetchAddressChanges: vi.fn(async () => ({ rows: [], door: 'api', file: null })),
+  createAddressChange: vi.fn(),
+  updateAddressChange: vi.fn(),
+  deleteAddressChange: vi.fn(),
+}));
 vi.mock('../services/mapping-service', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../services/mapping-service.ts')>()),
   providerAccountsApi: { get: vi.fn() },
@@ -50,6 +64,18 @@ vi.mock('../services/mapping-service', async (importOriginal) => ({
 }));
 
 const peopleMock = vi.mocked(fetchPeople);
+
+/**
+ * A Google address is one nobody can take along (0168 §6.1), so after *Set
+ * up* the address step asks first; *No, keep it as it is* goes on to the
+ * check with nothing written.
+ */
+async function pastTheAddressStep(user: ReturnType<typeof userEvent.setup>): Promise<void> {
+  await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+  await user.click(screen.getByRole('radio', { name: 'No, keep it as it is' }));
+  await user.click(screen.getByRole('button', { name: 'Next' }));
+  await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+}
 const factsMock = vi.mocked(providerAccountsApi.get);
 const clientsMock = vi.mocked(providerClientsApi.get);
 const listMock = vi.mocked(connectionsApi.list);
@@ -993,7 +1019,7 @@ describe('someone else connects their own accounts, by a link where one reaches 
     await screen.findByText('By link: anna@gmail.com');
     await onTo(user, 'Where does it go?');
     await user.click(setUp());
-    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    await pastTheAddressStep(user);
   }
 
   it('offers the link to send in place of the count, and Start waits for their grant', async () => {
@@ -1587,7 +1613,7 @@ describe('a saved Google Calendar or Contacts account, on the Google tile (0153 
     expect(await screen.findByRole('radio', { name: 'Anna Calendar (anna@gmail.com)' })).toBeChecked();
     await onTo(user, 'Where does it go?');
     await user.click(setUp());
-    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    await pastTheAddressStep(user);
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({
         sourceType: 'google-calendar',
@@ -1652,7 +1678,7 @@ describe('where the copies land (0153 open question 5, item 4)', () => {
     await user.clear(gmail);
     await user.type(gmail, 'Gmail');
     await user.click(setUp());
-    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    await pastTheAddressStep(user);
     expect(createMock).toHaveBeenCalledWith(
       expect.objectContaining({ sourceConnectionId: 'c-gmail', targetFolderPrefix: 'Gmail' }),
     );
@@ -1788,5 +1814,205 @@ describe('Only one folder (0153 open question 5, item 4)', () => {
     await onTo(user, 'Connect your accounts');
     expect(screen.queryByText('More options')).toBeNull();
     expect(screen.queryByLabelText('Root folder path')).toBeNull();
+  });
+});
+
+describe('Your new address (workplan 0168 §6.2)', () => {
+  const createMock = vi.mocked(mappingApi.create);
+  const addMock = vi.mocked(createAddressChange);
+  const updateMock = vi.mocked(updateAddressChange);
+  const deleteMock = vi.mocked(deleteAddressChange);
+  const tableMock = vi.mocked(fetchAddressChanges);
+  const ROW = {
+    oldAddress: 'name@gmail.com',
+    oldKey: 'name@gmail.com',
+    newAddress: 'first@example.org',
+    state: 'confirmed' as const,
+    setBy: 'admin@example.org',
+    setByYou: false,
+    confirmedBy: 'admin@example.org',
+    confirmedByYou: false,
+    createdAt: '2026-11-22T10:00:00.000Z',
+    confirmedAt: '2026-11-22T10:00:00.000Z',
+    person: null,
+  };
+
+  /** A Google calendar being left at `from`, to a Soverin account signed in as `to`. */
+  function accounts(from: string, target: Partial<ConnectionSummary> = {}) {
+    listMock.mockResolvedValue([
+      account({ id: 'c-gcal', kind: 'google_calendar', displayName: 'Old calendar', knownValues: { username: from } }),
+      account({
+        id: 'c-new',
+        role: 'target',
+        kind: 'soverin',
+        displayName: 'New account',
+        knownValues: { username: 'first@example.org' },
+        ...target,
+      }),
+    ]);
+  }
+
+  beforeEach(() => {
+    tableMock.mockResolvedValue({ rows: [], door: 'api', file: null });
+    vi.mocked(createPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    vi.mocked(addMigrationToPerson).mockResolvedValue({ ...ANNA, id: 'p-new' });
+    createMock.mockResolvedValue({ id: 'm-cal' } as never);
+    addMock.mockResolvedValue(ROW);
+    updateMock.mockResolvedValue(ROW);
+    deleteMock.mockResolvedValue(ROW);
+    vi.mocked(mappingApi.discover).mockResolvedValue({} as never);
+    vi.mocked(scopeManifestApi.get).mockResolvedValue({ version: 'v1', migrates: [], partial: [], doesNotMigrate: [] });
+  });
+
+  /** Walk to *Where does it go?* with Google's calendar alone ticked. */
+  async function toWhere(user: ReturnType<typeof userEvent.setup>) {
+    await toWhatMoves(user, ['Google']);
+    const google = screen.getByRole('group', { name: 'From Google' });
+    for (const type of ['Email', 'Contacts', 'Files', 'Tasks Experimental']) {
+      await user.click(within(google).getByRole('checkbox', { name: type }));
+    }
+    await onTo(user, 'Connect your accounts');
+    await screen.findByRole('radio', { name: /Old calendar/ });
+    await onTo(user, 'Where does it go?');
+    await vi.waitFor(() => expect(setUp()).toBeEnabled());
+  }
+
+  it('asks about an address Google keeps, says where it goes and where not, and writes the Yes confirmed', async () => {
+    accounts('name@gmail.com');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
+    await user.click(setUp());
+    expect(await screen.findByRole('heading', { level: 2, name: 'Your new address' })).toHaveFocus();
+    expect(screen.getByText('Step 6 of 7')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "You are leaving name@gmail.com. Google keeps that address, so it cannot come with you. Your new account's address is first@example.org.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole('group', { name: 'Use first@example.org in place of name@gmail.com?' })).toBeInTheDocument();
+    expect(screen.getByText(/the Sharing checklist suggests first@example\.org for you/)).toBeInTheDocument();
+    expect(screen.getByText(/every message stays exactly as it was sent/)).toBeInTheDocument();
+    expect(next()).toHaveAccessibleDescription('Answer the question first.');
+
+    await user.click(screen.getByRole('radio', { name: 'Yes' }));
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(addMock).toHaveBeenCalledWith({
+      oldAddress: 'name@gmail.com',
+      newAddress: 'first@example.org',
+      confirm: true,
+      personId: 'p-new',
+    });
+    expect(screen.getByText('name@gmail.com becomes first@example.org in contacts, calendars and shares')).toBeInTheDocument();
+  });
+
+  it('is not there where the address can move, and the flow keeps its six steps', async () => {
+    accounts('name@example.org');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    expect(screen.getByText('Step 5 of 6')).toBeInTheDocument();
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(screen.queryByText(/becomes .* in contacts/)).not.toBeInTheDocument();
+    expect(addMock).not.toHaveBeenCalled();
+  });
+
+  it('is there for an own domain given up, once the person says so', async () => {
+    accounts('name@old.example.org');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    await user.click(screen.getByRole('checkbox', { name: 'I am also changing my address' }));
+    expect(screen.getByText('Step 5 of 7')).toBeInTheDocument();
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    expect(screen.getByText("You are leaving name@old.example.org. Your new account's address is first@example.org.")).toBeInTheDocument();
+  });
+
+  it('takes another address, and writes nothing on No', async () => {
+    accounts('name@gmail.com');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    await user.click(screen.getByRole('radio', { name: 'Another address…' }));
+    await user.type(screen.getByLabelText('New address'), 'not an address');
+    expect(next()).toHaveAccessibleDescription('Type each new address as an address, like name@example.org.');
+    await user.clear(screen.getByLabelText('New address'));
+    await user.type(screen.getByLabelText('New address'), 'name@example.org');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(addMock).toHaveBeenCalledWith(expect.objectContaining({ newAddress: 'name@example.org' }));
+
+    // Back from the check to the step, which writes nothing twice: No now
+    // deletes the row this flow wrote.
+    await user.click(screen.getByRole('button', { name: 'Back' }));
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    await user.click(screen.getByRole('radio', { name: 'No, keep it as it is' }));
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(deleteMock).toHaveBeenCalledWith('name@gmail.com');
+    expect(addMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('adds the changes of others moving along as proposed, for them to confirm', async () => {
+    accounts('name@gmail.com');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    await user.click(screen.getByRole('radio', { name: 'No, keep it as it is' }));
+    await user.click(screen.getByRole('button', { name: 'Add an address change' }));
+    await user.type(screen.getByLabelText('Old address'), 'child@gmail.com');
+    await user.type(screen.getByLabelText('New address'), 'child@example.org');
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(addMock).toHaveBeenCalledWith({ oldAddress: 'child@gmail.com', newAddress: 'child@example.org' });
+    expect(screen.getByText('child@gmail.com becomes child@example.org in contacts, calendars and shares')).toBeInTheDocument();
+  });
+
+  it('reads the mail login at a provider whose sync login is a short username', async () => {
+    accounts('name@gmail.com', {
+      kind: 'infomaniak',
+      knownValues: { username: 'first', mailUsername: 'first@example.org' },
+    });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    expect(screen.getByRole('group', { name: 'Use first@example.org in place of name@gmail.com?' })).toBeInTheDocument();
+  });
+
+  it('proposes nothing and asks where the new login is not an address', async () => {
+    accounts('name@gmail.com', { kind: 'infomaniak', knownValues: { username: 'first' } });
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    expect(screen.getByText(/Your new account signs in as first, which is not an address/)).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Yes' })).not.toBeInTheDocument();
+  });
+
+  it('is there where the table already holds this address, and asks nothing again', async () => {
+    tableMock.mockResolvedValue({ rows: [ROW], door: 'api', file: null });
+    accounts('name@gmail.com');
+    const user = userEvent.setup();
+    renderAt();
+    await toWhere(user);
+    await user.click(setUp());
+    await screen.findByRole('heading', { level: 2, name: 'Your new address' });
+    expect(screen.getByText('Already in your organisation’s address changes')).toBeInTheDocument();
+    expect(screen.queryByRole('radio', { name: 'Yes' })).not.toBeInTheDocument();
+    await user.click(next());
+    await screen.findByRole('heading', { level: 2, name: 'Check, then start' });
+    expect(addMock).not.toHaveBeenCalled();
+    expect(screen.getByText('name@gmail.com becomes first@example.org in contacts, calendars and shares')).toBeInTheDocument();
   });
 });
