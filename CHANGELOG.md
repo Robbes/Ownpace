@@ -96,6 +96,13 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   says a background task's log goes when its run ends: on the job runner, runs are processes in one
   long-lived worker container. Edited in place in both languages, dated 2026-11-22, because no
   tester had accepted any version; the words apply from publication.
+- **The managed bring-up and its gate wait about a minute, not 14 seconds, for a read of the
+  identity provider that got no answer** (workplan 0132). `setup-zitadel.sh` and
+  `smoke-managed.sh` ask it six times, waiting 2, 4, 8, 16 and 32 seconds (`IDP_READ_ATTEMPTS`,
+  6 unless set; it was 4). The front before the provider refused the TLS handshake for longer than
+  14 seconds on 2026-10-28, 2026-11-15 and 2026-11-22, while every container was up. A status the
+  provider gave is still taken at once, a write is still sent once, and the last failure still
+  stops the run with the message it always printed.
 
 ### Security
 

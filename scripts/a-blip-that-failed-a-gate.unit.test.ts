@@ -76,15 +76,26 @@ function helperSource(): string {
   return source.slice(start, end + 3);
 }
 
+/** The knob, as the script sets it — for the cases that run with it unset. */
+function knob(): string {
+  const m = /^IDP_READ_ATTEMPTS=.*$/m.exec(source);
+  expect(m, 'setup-zitadel.sh sets no IDP_READ_ATTEMPTS').not.toBeNull();
+  return m![0];
+}
+
 /**
  * Runs the helper with a `curl` that fails `failures` times before succeeding
  * (or forever, when `failures` is Infinity), and `sleep` replaced so the test
- * does not actually wait fourteen seconds.
+ * does not actually wait out the backoff. `attempts: null` runs with
+ * IDP_READ_ATTEMPTS unset and the script's own default line.
  *
  * Returns what the helper set, plus how many times `curl` was really called —
  * which is the number the rules are about.
  */
-function run(failures: number, attempts = 4): { rc: number; calls: number; slept: number[] } {
+function run(
+  failures: number,
+  attempts: number | null = 4,
+): { rc: number; calls: number; slept: number[] } {
   const fails = failures === Infinity ? 999 : failures;
   // `set -euo pipefail`, exactly as the script runs — the retry has to survive
   // it, and an earlier draft of the helper did not.
@@ -100,7 +111,7 @@ say() { :; }
 COUNT="$(mktemp)"
 SLEPT=""
 sleep() { SLEPT="$SLEPT $1"; }
-IDP_READ_ATTEMPTS=${attempts}
+${attempts === null ? knob() : `IDP_READ_ATTEMPTS=${attempts}`}
 curl() {
   local n
   n=$(( $(cat "$COUNT" 2>/dev/null || echo 0) + 1 ))
@@ -114,7 +125,9 @@ curl_read_retrying "probe" -sS https://example.invalid
 echo "rc=$CURL_RC calls=$(cat "$COUNT") attempts=$CURL_ATTEMPTS slept=$SLEPT"
 rm -f "$COUNT"
 `;
-  const out = execFileSync('bash', ['-c', script], { encoding: 'utf8' }).trim();
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  delete env.IDP_READ_ATTEMPTS;
+  const out = execFileSync('bash', ['-c', script], { encoding: 'utf8', env }).trim();
   const m = /rc=(\d+) calls=(\d+) attempts=(\d+) slept=(.*)$/.exec(out);
   expect(m, `unexpected harness output: ${out}`).not.toBeNull();
   return {
@@ -178,6 +191,23 @@ describe('and it is bounded', () => {
 
   it('honours a different budget rather than a hard-coded four', () => {
     expect(run(Infinity, 2).calls).toBe(2);
+  });
+
+  // Six since 2026-11-22. Four asks were 14 seconds of waits, and the front
+  // outlasted them three times with `tlsv1 alert internal error` while every
+  // container was up: #1725's E2E (managed), #1907's, and run 497.
+  it('asks six times when nobody set the knob, waiting 2s, 4s, 8s, 16s and 32s', () => {
+    const r = run(Infinity, null);
+    expect(r.calls).toBe(6);
+    expect(r.slept).toEqual([2, 4, 8, 16, 32]);
+    expect(r.rc).toBe(35);
+  });
+
+  it('rides out a front that refuses for five asks, about a minute, when nobody set the knob', () => {
+    const r = run(5, null);
+    expect(r.rc).toBe(0);
+    expect(r.calls).toBe(6);
+    expect(r.slept).toEqual([2, 4, 8, 16, 32]);
   });
 });
 
