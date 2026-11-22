@@ -55,8 +55,10 @@
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
-import { schedules, runs } from '@trigger.dev/sdk';
+import { z } from 'zod';
+import { schedules } from '@trigger.dev/sdk';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type JobRunnerPort, type RunContext } from './run-context.ts';
 import { Pool } from 'pg';
 import { drizzle } from 'drizzle-orm/node-postgres';
 import { sql } from 'drizzle-orm';
@@ -118,13 +120,15 @@ interface LiveRunRow {
 }
 
 /**
- * Ask the orchestrator what it actually thinks about each live row.
+ * Ask the orchestrator what it actually thinks about each live row: the
+ * runner this run is on (`run-context.ts`), which says `live`, `finished` or
+ * `unknown`, each identified positively.
  *
  * Never throws: an orchestrator we cannot reach is a `unknown` verdict, which
  * `quiescePlan` treats as "do not purge" rather than as "nothing is running".
  * Getting that backwards would turn an outage into a data incident.
  */
-async function verdictsFor(rows: readonly LiveRunRow[]): Promise<QuiescingRun[]> {
+async function verdictsFor(rows: readonly LiveRunRow[], runner: JobRunnerPort): Promise<QuiescingRun[]> {
   return Promise.all(
     rows.map(async (r): Promise<QuiescingRun> => {
       const base = {
@@ -135,20 +139,7 @@ async function verdictsFor(rows: readonly LiveRunRow[]): Promise<QuiescingRun[]>
       };
       if (!r.orchestrator_ref) return { ...base, verdict: 'unknown' };
       try {
-        const remote = await runs.retrieve(r.orchestrator_ref);
-        // Both directions identified POSITIVELY, with anything unrecognised
-        // falling through to `unknown` — which blocks. `isCompleted` looks like
-        // the umbrella flag and reading it alone would be a guess; if it turned
-        // out to mean "succeeded", a failed run would read as live and block
-        // the erasure for ever, which is the exact bug being fixed here. A
-        // status this code has never heard of should make it wait for a person,
-        // not decide.
-        const stillGoing = remote.isExecuting || remote.isQueued || remote.isWaiting;
-        const terminal = remote.isCompleted || remote.isFailed || remote.isCancelled;
-        return {
-          ...base,
-          verdict: stillGoing ? 'live' : terminal ? 'finished' : 'unknown',
-        };
+        return { ...base, verdict: await runner.verdict(r.orchestrator_ref) };
       } catch (error) {
         log.warn(
           `[purge] could not ask the orchestrator about run ${r.id} (${r.orchestrator_ref}): ` +
@@ -161,13 +152,21 @@ async function verdictsFor(rows: readonly LiveRunRow[]): Promise<QuiescingRun[]>
   );
 }
 
-export const managedPurgeClosed = schedules.task({
-  id: 'managed-purge-closed',
-  // Hourly, not per-minute: nothing is waiting on this, and an immediate close
-  // promises "as soon as the purge next runs" rather than "instantly" for
-  // exactly this reason. Off the hour, away from the retention pass.
-  cron: '23 * * * *',
-  run: leavesAReference('managed-purge-closed', async () => {
+/**
+ * What a run of this schedule reads of its payload: nothing (ADR-0054;
+ * workplan 0167 T6). Trigger.dev hands a schedule's run its
+ * `ScheduledTaskPayload`, which this run never reads.
+ */
+export const PurgeClosedJobSchema = z.strictObject({});
+
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const managedPurgeClosedRun = leavesAReference(
+  'managed-purge-closed',
+  async (_payload: unknown, context: RunContext) => {
     const db = drizzle(pool, { schema: schemaPg }) as unknown as PgDatabase;
     const now = new Date();
 
@@ -204,7 +203,7 @@ export const managedPurgeClosed = schedules.task({
         [row.id],
       );
 
-      const plan = quiescePlan(await verdictsFor(live.rows), now);
+      const plan = quiescePlan(await verdictsFor(live.rows, context.runner), now);
 
       // Ask the live ones to stop. This is the "active" in active quiescing —
       // waiting was all this job did before, and a pass nobody has asked to
@@ -213,7 +212,7 @@ export const managedPurgeClosed = schedules.task({
         const ref = live.rows.find((r) => r.id === runId)?.orchestrator_ref;
         if (!ref) continue;
         try {
-          await runs.cancel(ref);
+          await context.runner.cancel(ref);
           log.info(`[purge] asked the orchestrator to cancel run ${runId} (${ref}) for ${row.id}.`);
         } catch (error) {
           log.warn(
@@ -307,5 +306,14 @@ export const managedPurgeClosed = schedules.task({
     };
     log.info('[purge]', summary);
     return summary;
-  }),
+  },
+);
+
+export const managedPurgeClosed = schedules.task({
+  id: 'managed-purge-closed',
+  // Hourly, not per-minute: nothing is waiting on this, and an immediate close
+  // promises "as soon as the purge next runs" rather than "instantly" for
+  // exactly this reason. Off the hour, away from the retention pass.
+  cron: '23 * * * *',
+  run: onTriggerDev(managedPurgeClosedRun),
 });

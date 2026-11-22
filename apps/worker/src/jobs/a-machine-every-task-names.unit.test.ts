@@ -13,15 +13,23 @@
  * The SDK's types refuse a preset that does not exist, so what is held here
  * is that each is named, and named as chosen. Changing it changes what the
  * caps must be counted in, and this is where that is noticed.
+ *
+ * On the pg-boss runner (workplan 0167 T6) a run is a process of the worker's,
+ * with V8's heap capped at what the machine gave it, which is the catalog's
+ * `maxOldSpaceMb` on every queue. Its CPU is the worker container's to cap.
  */
 
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { JOB_CATALOG } from '@openmig/scheduler/pg-boss';
 
 /** The preset the owner chose, and the caps are counted in (0143, open question 7). */
 const CHOSEN = 'small-1x';
+
+/** What V8 gets of the chosen machine's 512 MB, as the task that copies says where it names it. */
+const ITS_HEAP_MB = 410;
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -49,5 +57,11 @@ describe('the machine every task runs on', () => {
 
   it('is named again by the task that lists everything a migration holds', () => {
     expect(optionsOf('run-discovery.ts', 'run-discovery')).toContain(`machine: '${CHOSEN}',`);
+  });
+
+  it('caps every queue of the pg-boss runner at the heap the machine gives a run (workplan 0167 T6)', () => {
+    expect(optionsOf('run-delta-sync.ts', 'run-delta-sync')).toContain(`512 MB, of which V8 gets ${ITS_HEAP_MB}.`);
+    expect(JOB_CATALOG).toHaveLength(17);
+    expect(JOB_CATALOG.filter((queue) => queue.maxOldSpaceMb !== ITS_HEAP_MB).map((queue) => queue.name)).toEqual([]);
   });
 });

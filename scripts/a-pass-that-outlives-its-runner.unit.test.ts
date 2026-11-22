@@ -19,6 +19,15 @@
  * Two numbers that must agree, in two files, with no compiler between them, is
  * exactly the shape a guard is for. This one reads both as text.
  *
+ * ## The other runner's kill (workplan 0167 T6)
+ *
+ * On the pg-boss runner the kill is each queue's time limit in the job
+ * catalog (`packages/scheduler/src/pg-boss/catalog.ts`, `maxDurationSeconds`,
+ * pg-boss's `expireInSeconds`), in seconds again. So the pass's queue says
+ * `PASS_HARD_LIMIT_MS` too, and every queue says the config's `maxDuration`,
+ * which every task takes, none naming its own: a run is given an hour on
+ * either runner. The catalog is data with no import, so it is imported here.
+ *
  * ## What it does NOT check
  *
  * That the margin is big enough for the slowest single item on the slowest
@@ -31,6 +40,7 @@ import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { JOB_CATALOG } from '../packages/scheduler/src/pg-boss/catalog.ts';
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -91,6 +101,19 @@ describe('the pass deadline and the runner ceiling', () => {
     // ordering above and still be killed mid-close.
     const margin = constantMs('PASS_HARD_LIMIT_MS') - constantMs('PASS_SOFT_DEADLINE_MS');
     expect(margin).toBeGreaterThanOrEqual(5 * 60 * 1000);
+  });
+
+  it('states the same ceiling on the pass’s queue of the pg-boss runner, in seconds there too', () => {
+    const pass = JOB_CATALOG.find((queue) => queue.name === 'run-delta-sync');
+    expect(pass, 'the job catalog has no queue for run-delta-sync').toBeDefined();
+    expect(pass!.maxDurationSeconds * 1000).toBe(constantMs('PASS_HARD_LIMIT_MS'));
+  });
+
+  it('gives every queue of the pg-boss runner the hour the config gives every task', () => {
+    expect(JOB_CATALOG.length).toBeGreaterThan(0);
+    expect(JOB_CATALOG.filter((queue) => queue.maxDurationSeconds !== maxDurationSeconds()).map((queue) => queue.name)).toEqual(
+      [],
+    );
   });
 
   it('reads a real number from the config rather than passing on absence', () => {

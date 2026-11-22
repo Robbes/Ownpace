@@ -74,6 +74,7 @@
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
+import { z } from 'zod';
 import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
@@ -117,6 +118,7 @@ import {
   type SlowDown,
 } from '@openmig/managed';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 
 /** The most drafts one run takes to Moneybird. */
@@ -504,11 +506,21 @@ function notIssued(
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
-export const managedInvoicePush = schedules.task({
-  id: 'managed-invoice-push',
-  // Every hour at :41 UTC, eighteen minutes after the month task's :23.
-  cron: '41 * * * *',
-  run: leavesAReference('managed-invoice-push', async (_payload: unknown, _context: unknown, afterwards) => {
+/**
+ * What a run of this schedule reads of its payload: nothing (ADR-0054;
+ * workplan 0167 T6). Trigger.dev hands a schedule's run its
+ * `ScheduledTaskPayload`, which this run never reads.
+ */
+export const InvoicePushJobSchema = z.strictObject({});
+
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const managedInvoicePushRun = leavesAReference(
+  'managed-invoice-push',
+  async (_payload: unknown, _context: RunContext, afterwards) => {
     // This run's pools (0138 T1, T2), opened first, so even a refusal below
     // reaches the log page, and ended once the run is over.
     const pools = openTaskPools();
@@ -599,5 +611,12 @@ export const managedInvoicePush = schedules.task({
     const result = { pushing: true, tenants: organisations.length, ...counts, failed, left: budget.left, readBack };
     log.info('[invoice-push]', result);
     return result;
-  }),
+  },
+);
+
+export const managedInvoicePush = schedules.task({
+  id: 'managed-invoice-push',
+  // Every hour at :41 UTC, eighteen minutes after the month task's :23.
+  cron: '41 * * * *',
+  run: onTriggerDev(managedInvoicePushRun),
 });
