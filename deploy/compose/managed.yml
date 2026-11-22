@@ -2243,15 +2243,19 @@ services:
     #   cpus      = 0.5 x (MAX_PASSES_IN_FLIGHT + 2), and never more than the
     #               host's CPU count, since Docker refuses a container more
     #               CPUs than the machine has;
-    #   mem_limit = (MAX_PASSES_IN_FLIGHT + 3) x 512 MB + 256 MB.
-    # The defaults are the OTA stack's, at 3: 2.5 CPUs and 3,328 MB. Live, at
-    # 6, sets WORKER_CPUS=4 and WORKER_MEMORY=4864m in its .env. Compose cannot
+    #   mem_limit = (MAX_PASSES_IN_FLIGHT + 1) x 512 MB + 2,816 MB: the passes
+    #               at their peak (one more than the cap, 307 MB measured each),
+    #               the three :23 schedules and one of each other on-demand
+    #               kind (203 MB each) and the parent (120 MB), with room, since
+    #               a run the kernel kills for memory is not retried.
+    # The defaults are the OTA stack's, at 3: 2.5 CPUs and 4,864 MB. Live, at
+    # 6, sets WORKER_CPUS=4 and WORKER_MEMORY=6400m in its .env. Compose cannot
     # compare a value with the host's CPUs, so the bring-up checks
     # WORKER_CPUS against them before it starts this service. Each run's child
     # raises its own /proc/self/oom_score_adj, so at the limit the kernel takes
     # a run, not the worker that settles it.
     cpus: ${WORKER_CPUS:-2.5}
-    mem_limit: ${WORKER_MEMORY:-3328m}
+    mem_limit: ${WORKER_MEMORY:-4864m}
     # A stop gives the running passes a minute to settle (the runner stops its
     # workers and lets pg-boss mark what was active) before Docker kills it; a
     # run cut off is picked up again by its heartbeat and converges.

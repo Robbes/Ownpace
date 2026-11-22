@@ -4,6 +4,19 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, later still: the worker's memory limit from the realistic peak (T7, its second part).**
+The worker's pull request (#2048) measured the peak a worker can reach:
+- one pass more than the cap, at 307 MB each;
+- the three schedules due at :23, and one of each of the seven other on-demand kinds, at 203 MB each;
+- the parent, at 120 MB.
+
+That is 3,378 MB at a cap of 3, 50 MB above the 3,328 MB limit. A run the kernel kills for
+memory is not retried (`RunPossiblyOutOfMemory`), so a neighbour's peak would fail it for good.
+So the rule is now `(MAX_PASSES_IN_FLIGHT + 1) × 512 MB + 2,816 MB`: 4,864 MB at 3, which is
+`managed.yml`'s default, and 6,400 MB at 6. The CPU rule is unchanged. Changed in `managed.yml`,
+`managed.env.example` and `a-worker-image-on-the-apis-base`. The guard fails with the old
+default (`${WORKER_MEMORY:-3328m}`), and with the old formula in either file.
+
 **2026-11-22, later still, after review: the worker's image (T7, its second part), the review of #2046 fixed.**
 The coordinator's review found the image and the service right, and five things to fix.
 
@@ -55,7 +68,7 @@ Trigger.dev, ClickHouse and identity-provider lines in `managed.yml` changed.
 - **The service.** `worker` in `managed.yml`:
   - built from that Dockerfile, named after its project, `restart: unless-stopped`, logging capped;
   - no capability, no new privileges, a read-only root with `/tmp` in memory;
-  - `cpus: ${WORKER_CPUS:-2.5}` and `mem_limit: ${WORKER_MEMORY:-3328m}`, the owner's rule at 3;
+  - `cpus: ${WORKER_CPUS:-2.5}` and `mem_limit: ${WORKER_MEMORY:-4864m}`, the rules at 3 (the memory rule as the review of #2046 changed it, below);
   - `stop_grace_period: 60s`, and it waits for postgres, the pooler and the api to be healthy;
   - the image's healthcheck, `ownpace-network` only, no port, and profile `jobs`.
 
