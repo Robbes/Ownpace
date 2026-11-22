@@ -68,7 +68,7 @@
 import { PgBoss } from 'pg-boss';
 import type { ConstructorOptions, Db, JobWithMetadata, QueueResult, SendOptions } from 'pg-boss';
 import pg from 'pg';
-import { ChildRunDied, runInChild } from './run-in-child.ts';
+import { runInChild } from './run-in-child.ts';
 
 /**
  * The schema version of the pg-boss release `packages/scheduler/package.json`
@@ -100,9 +100,14 @@ export class RunTimedOut extends Error {
  *    `apps/worker/src/jobs/what-a-run-leaves.ts`);
  *  - a payload that failed its schema, which no retry can mend;
  *  - a run that reached its time limit (`MAX_DURATION_EXCEEDED`);
- *  - a run whose process ran out of its heap, which the retry would meet again.
- * A run's process killed from outside, or a claim lost to a worker that died,
- * is retried: the passes converge (0167 point 2).
+ *  - a run whose process ran out of its heap (`RunOutOfMemory`, V8's line or
+ *    SIGABRT), which the retry would meet again;
+ *  - a run whose process a SIGKILL from outside ended (`RunPossiblyOutOfMemory`):
+ *    in a container with a memory limit, the kernel's out-of-memory killer,
+ *    which Trigger.dev reads as `TASK_PROCESS_MAYBE_OOM_KILLED` and does not retry.
+ * A run the runner itself stopped keeps its own settlement (`RunTimedOut`, a
+ * cancel). A claim lost because the worker died or restarted is retried, by
+ * pg-boss's own sweep: the passes converge (0167 point 2).
  */
 export const NOT_RETRIED_ERROR_NAMES: ReadonlySet<string> = new Set([
   'RunNotRetried',
@@ -110,6 +115,7 @@ export const NOT_RETRIED_ERROR_NAMES: ReadonlySet<string> = new Set([
   'ZodError',
   'RunTimedOut',
   'RunOutOfMemory',
+  'RunPossiblyOutOfMemory',
 ]);
 
 /** How pg-boss is to settle a run that threw `err`. */
@@ -600,8 +606,9 @@ abstract class PgBossClient {
    * The most recent failed runs on `queue`, newest first, with their errors as
    * stored. Returns at most `limit` (1,000 at most), read in the order of
    * pg-boss's own `(name, completed_on)` index and stopped there; the read
-   * passes the completed runs newer than the oldest failure it returns, which
-   * pg-boss's retention bounds (7 days by default), never the whole queue.
+   * passes the completed runs newer than the oldest failure it returns. When
+   * the queue holds fewer failures than `limit`, that is every completed run
+   * it keeps, which pg-boss's retention bounds (7 days by default).
    */
   async recentFailures(queue: string, limit = 20): Promise<FailedRun[]> {
     this.spec(queue);
@@ -756,9 +763,10 @@ export class PgBossJobRunner extends PgBossClient {
             });
             results.push({ id: job.id, status: 'completed' as const, output: { value: output ?? null } });
           } catch (err) {
-            // A run's process killed at its limit is failed as having reached it. An answer the run
-            // gave before it was killed (a RunNotRetried, say) stands as it was given.
-            const stoppedAtLimit = deadline.signal.aborted && !job.signal.aborted && err instanceof ChildRunDied;
+            // A run stopped at its limit is failed as having reached it, whatever the stop made it
+            // throw (a killed process, a pass's own "stopped", an AbortError). An answer that is
+            // itself not retried (a RunNotRetried the run gave first, say) stands as it was given.
+            const stoppedAtLimit = deadline.signal.aborted && !job.signal.aborted && settlementFor(err) === 'failed';
             const said: unknown = stoppedAtLimit ? deadline.signal.reason : err;
             results.push({ id: job.id, status: settlementFor(said), output: errorRecord(said) });
           } finally {

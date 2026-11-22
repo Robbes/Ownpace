@@ -4,6 +4,59 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, latest: the second review of #2040, fixed (T5a).** On the same branch, after `main`
+(#2043, the job catalog) was merged in. The coordinator's second review, at `5fe0d0b6`, confirmed
+the first round's fixes 3, 4, 5, 7 and 8. It found two blocking bugs and three more fixes, and
+decided one retry question:
+
+- **Blocking: a run's last words were lost.** In a forked run the pipes to the parent do not
+  block. `serveRuns` exited right after its answer, and what was still waiting in the pipe was
+  dropped: of 5,000 lines of 100 bytes, the old code forwarded a part. It now waits for stdout and
+  stderr to drain before it exits, and all 5,000 arrive.
+- **Blocking: the heap test was flaky** for the same reason. Its fixture now drains stderr before
+  it runs away, and the test asks that all 400 warnings arrive.
+- **Decided: a run's process ended by a SIGKILL the runner did not send, or by SIGABRT, is not
+  retried.** This is Trigger.dev 4.8.8's `TASK_PROCESS_MAYBE_OOM_KILLED`, which `shouldRetryError`
+  does not retry. In a container with a memory limit, the usual sender is the kernel's
+  out-of-memory killer.
+  - A SIGKILL from outside is `RunPossiblyOutOfMemory`.
+  - SIGABRT, or V8's line, is `RunOutOfMemory`. V8's line can be lost when the worker has not
+    drained the pipe, which is why SIGABRT alone counts too.
+  - A run the runner stopped itself keeps its own settlement: `RunTimedOut` at its limit, and a
+    cancel stays a cancel.
+  - A claim lost because the worker died or restarted is retried, by pg-boss's sweep.
+  - This reverses the first round's "a process killed from outside is retried". ADR-0054 §2's
+    table, its sentence, the *Pending* bullet and the amendment log say so.
+- **The fixes:**
+  - a run in the worker's own process that stops at its limit with its own error (a pass's
+    "stopped", an `AbortError`) is `RunTimedOut`, not retried. The limit now overrides any error
+    that would be retried, not only a `ChildRunDied`;
+  - a line over 16 KiB is forwarded in prefixed pieces, instead of being held whole by `readline`;
+  - the records: the lines of the entries below that the reviews changed, §3 point 8, and the
+    wording of the `recentFailures` bound when a queue holds fewer failures than the limit.
+- **For the other sessions, unchanged:** on a fresh stack a producer is refused with "pg-boss is
+  not installed" until the worker has started once.
+
+**The evidence**, on `scripts/local-pg.sh`'s cluster (PostgreSQL 16):
+
+- `job-runner.integration.test.ts`: `Tests 29 passed (29)`. The second review added 4 tests and
+  replaced 1:
+  - an outside SIGKILL and an outside SIGABRT each failed the run on attempt 1, with no second
+    attempt;
+  - a worker killed outright took its run's process with it, and another worker ran attempt 2,
+    starting after the first one's last write;
+  - a run in the worker's own process, stopped with its own error and with an `AbortError`, was
+    `RunTimedOut` on attempt 1.
+- `run-in-child.unit.test.ts`: 23 passed, 3 runs in a row; 5 tests are new.
+- **Mutations**, each restored byte for byte. Each of these failed its test:
+  - the drain before exit removed;
+  - the 16 KiB split removed;
+  - every SIGKILL read as from outside;
+  - SIGABRT not read as out of memory;
+  - `RunPossiblyOutOfMemory` taken out of the names (unit and integration);
+  - the limit overriding only a `ChildRunDied`;
+  - the `disconnect` exit removed (the worker-death test).
+
 **2026-11-22, last: the review of #2040, fixed (T5a).** On the same branch, after `main`
 (#2036) was merged in. The coordinator's review found one blocking bug and seven fixes, and
 decided two retry questions:
@@ -19,7 +72,8 @@ decided two retry questions:
   new amendment log record it.
   - `RunTimedOut` is not retried, as Trigger.dev does not retry `MAX_DURATION_EXCEEDED`.
   - `RunOutOfMemory` is not retried either.
-  - A process killed from outside is retried, as point 2 proved: the passes converge.
+  - A process killed from outside is retried, as point 2 proved: the passes converge. *The second
+    review reversed this for a SIGKILL or SIGABRT the runner did not send (the entry above).*
 - **The fixes:**
   - status and cancel by id look at every queue in the schema, so a live run on a queue the
     asking client does not declare is never read as finished;
@@ -76,17 +130,19 @@ against T5's code, and closed:
   worker has not installed, or one at another version. Enqueueing to a queue the worker has not
   made fails, naming the queue and the reason, and creates nothing.
 - **E3, status and cancel by the run id alone.** `status(runId)` and `cancel(runId)` look the id up
-  on the declared queues' `(name, id)` key. That is one statement per job table, and every queue
+  on every queue's `(name, id)` key (the declared queues' only, until the first review). That is one statement per job table, and every queue
   shares `job_common` unless it is partitioned. An id that is not a UUID (`run_…`) is refused
   before pg-boss is asked. One that no queue holds reads `null`. The `(queue, runId)` forms stay.
 - **E4, the run's lines.** The child's stdout and stderr reach the worker's own, line by line,
   prefixed `[<queue> <run id>] `. A death is told by a fixed sentence and a `verdict`
-  (`out-of-memory`, `killed`, `exited`), read from the first 16 kB of stderr and never quoted.
+  (`out-of-memory`, `killed`, `exited`), read from stderr and never quoted: from its first 16 kB
+  here, and from every line since the first review.
   T5's `ChildRunDied` had put stderr's first line into the stored error.
 - **E5, the time limit and the claim.** `work` aborts the run's signal itself,
-  `killMarginSeconds` before the queue's `expireInSeconds` and fails it as `RunTimedOut` (retried
-  here; not retried since the review, below). The margin is 30 s, a tenth of a test's short limit, and at least 1 s, and the code
-  says why. A lost claim (a cancel, another supervisor) aborts the same signal. `workInChild`
+  `killMarginSeconds` before the queue's `expireInSeconds` and fails it as `RunTimedOut`. That
+  was retried here, and is not retried since the first review, as on Trigger.dev (the entries
+  above). The margin is 30 s, a tenth of a test's short limit, and at least 1 s, and the code says
+  why. A lost claim (a cancel, another supervisor) aborts the same signal. `workInChild`
   kills the run's process on it and settles only after the process has exited. A run's process
   exits when its IPC channel closes, so a worker killed outright leaves no run writing behind it.
 - **E6, the names.** `work` decided "not retried" with `instanceof RunNotRetried`, which an error
@@ -97,14 +153,15 @@ against T5's code, and closed:
 - **E8.** `overview` already read only pg-boss's queue table, whose counters the monitor keeps.
   `recentFailures` read up to 100,000 rows and sorted them in memory. It now returns at most its
   limit (1,000 at most), read backwards on pg-boss's `<table>_i16` index, `(name, completed_on)`,
-  and stopped there. The read passes the completed runs newer than the oldest failure it returns,
-  which pg-boss's retention bounds (7 days by default), never the whole queue.
+  and stopped there. The read passes the completed runs newer than the oldest failure it returns;
+  when the queue holds fewer failures than the limit, that is every completed run it keeps, which
+  pg-boss's retention bounds (7 days by default).
 
 **The evidence**, on a throwaway cluster from `scripts/local-pg.sh` (PostgreSQL 16 here; CI's
 Testcontainers run is the one to trust for 18):
 
-- `job-runner.integration.test.ts`: `Tests 20 passed (20)`, 131.9 s. That is T5's 11 and 9 new
-  tests.
+- `job-runner.integration.test.ts`: `Tests 20 passed (20)`, 131.9 s, at this entry's head. That
+  is T5's 11 and 9 new tests; 29 since the two reviews (the entries above).
   - E5: with an 8 s limit, both attempts of one singleton key were killed under 8 s, with
     `RunTimedOut`, in different processes, both dead. The retry's process started after the
     first one's last write.
@@ -114,11 +171,14 @@ Testcontainers run is the one to trust for 18):
     plan was taken with `enable_seqscan` and `enable_sort` off, because on a handful of rows the
     planner scans; it shows the index can serve the order, not what the planner picks on a small
     table.
-- `run-in-child.unit.test.ts`: 15 passed, 11 of them new: forwarding, the death in its own words,
-  six error names across the IPC, and the child that dies with its parent.
+- `run-in-child.unit.test.ts`: 15 passed, 11 of them new, at this entry's head: forwarding, the
+  death in its own words, six error names across the IPC, and the child that dies with its parent.
+  23 since the two reviews.
 - **Mutations**, each restored byte for byte. Each of these failed its test:
   - the margin made negative;
-  - the producer with `schedule` on, or with `migrate` on;
+  - the producer with `migrate` on;
+  - the producer with `schedule` on, as listed then. It proved nothing: that run timed out on its
+    control (the first review's entry says why);
   - the by-id lookup finding nothing;
   - the names set cut to `RunNotRetried`;
   - the failures read oldest first;
@@ -373,7 +433,7 @@ a fresh schema. The schema is created for it, because the role may not create on
 | 5 | Cutover waits for its final sync without an await primitive | ✅ passed | `point 5`: `enqueueAndWait` polls the child's row. The child waited behind the pass already running on its mapping and carried the cutover's tags. A `RunNotRetried` came back verbatim after 1 attempt of the 3 allowed, and a failure that cleared on its third attempt came back `ok`. |
 | 6 | The every-minute tick never overlaps itself | ✅ passed | `point 6`: a `stately` queue. 6 ticks offered in a burst were let in at most 2 (one running, one waiting). The `* * * * *` schedule fired, and at most 1 tick ever ran at a time. |
 | 7 | Through PgBouncer in transaction mode, as a non-superuser role, RLS intact | ✅ passed | Run B. `point 7a`: the role is not a superuser and may not create a schema. It owns nothing outside its schema (and `pg_toast`), can read no `public` table, and added no extension. `7b`: every `public` table's `relrowsecurity` and `relforcerowsecurity` are as they were before the run. |
-| 8 | Per-worker limits stop a runaway pass the way `small-1x` does | 🟡 passed in part | Memory: `point 8` and `run-in-child.unit.test.ts`. A pass that runs away dies alone at its heap cap with V8's `FATAL ERROR … heap limit` in the run's error, is failed after its attempts, and the same worker then completes the next run. CPU: no process can cap its own CPU. That stays the worker container's `cpus:` or Kubernetes `resources.limits`, the same cgroup mechanism Trigger.dev's runner containers use. On this machine a cgroup with a quota of 50000/100000 throttled a busy child in 31 of 33 periods, which shows the mechanism, not this code. |
+| 8 | Per-worker limits stop a runaway pass the way `small-1x` does | 🟡 passed in part | Memory: `point 8` and `run-in-child.unit.test.ts`. A pass that runs away dies alone at its heap cap, and the same worker then completes the next run. In the spike V8's `FATAL ERROR … heap limit` was in the run's error and the run was failed after its attempts; since T5a (#2040) V8's words go to the worker's output only, and the run fails once as `RunOutOfMemory`, not retried, as on Trigger.dev. CPU: no process can cap its own CPU. That stays the worker container's `cpus:` or Kubernetes `resources.limits`, the same cgroup mechanism Trigger.dev's runner containers use. On this machine a cgroup with a quota of 50000/100000 throttled a busy child in 31 of 33 periods, which shows the mechanism, not this code. |
 | 9 | An operator can see queued, running and failed work | ✅ passed | `point 9`: `overview()` showed 1 active, 1 queued and 1 failed, with the active key. `recentFailures()` gave the failed run's error verbatim, with its attempt and tags. There is no dashboard; pg-boss's own (`@pg-boss/dashboard`, MIT) was not tried. |
 
 ## 4. What the spike found that the research did not say

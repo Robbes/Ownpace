@@ -781,22 +781,68 @@ describe("E5: a run's process is killed at its time limit and on a lost claim, b
     await after.stop();
   }, 60_000);
 
-  it('tries again a run whose process was killed from outside, as a worker restart would (review 2)', async () => {
-    const queue = 'e5-killed';
+  // A run's process killed by a signal the runner did not send: in a container with a memory limit,
+  // the kernel's out-of-memory killer. Trigger.dev 4.8.8 reads it as TASK_PROCESS_MAYBE_OOM_KILLED
+  // and does not retry it, and neither does the runner (second review 3).
+  for (const [signal, name] of [
+    ['SIGKILL', 'RunPossiblyOutOfMemory'],
+    ['SIGABRT', 'RunOutOfMemory'],
+  ] as const) {
+    it(`does not try again a run whose process a ${signal} from outside ended, while its worker lives`, async () => {
+      const queue = `e5-outside-${signal.toLowerCase()}`;
+      const r = newRunner();
+      await r.start([{ name: queue, policy: 'singleton', heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 1 }]);
+      await r.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64 });
+      const { runId } = await r.enqueue(queue, payload, { serializeBy: `mapping-e5-${signal}` });
+      const [h] = await until('the run to be holding its key', async () => {
+        const rows = await held(runId!);
+        return rows.length ? rows : null;
+      }, 20_000);
+      process.kill(h!.pid, signal);
+      const done = await settled(r, queue, runId!, 30_000);
+      expect({ state: done.state, attempt: done.attempt, name: (done.output as { name: string }).name }).toEqual({
+        state: 'failed',
+        attempt: 1,
+        name,
+      });
+      await sleep(2_000); // past the retry delay: no second attempt came
+      expect(await held(runId!)).toHaveLength(1);
+      await r.stop();
+    }, 60_000);
+  }
+
+  it('tries again a run whose worker died, from another worker, with no process of the first left', async () => {
+    const queue = 'e5-worker-died';
+    const spec: QueueSpec = { name: queue, policy: 'singleton', heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 1 };
+    const worker: ChildProcess = fork(
+      fileURLToPath(new URL('./__testing__/worker-to-kill.ts', import.meta.url)),
+      [JOBS_URL, SCHEMA, queue, 'in-child'],
+      { stdio: ['ignore', 'inherit', 'inherit', 'ipc'] },
+    );
+    await new Promise<void>((resolve, reject) => {
+      worker.once('message', () => resolve());
+      worker.once('exit', (code) => reject(new Error(`The worker exited early with code ${String(code)}.`)));
+    });
     const r = newRunner();
-    await r.start([{ name: queue, policy: 'singleton', heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 1 }]);
-    await r.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64 });
-    const { runId } = await r.enqueue(queue, payload, { serializeBy: 'mapping-e5d' });
-    const [h] = await until('the run to be holding its key', async () => {
+    await r.start([spec]);
+    const { runId } = await r.enqueue(queue, payload, { serializeBy: 'mapping-e5-died' });
+    const [first] = await until('the run to be holding its key', async () => {
       const rows = await held(runId!);
       return rows.length ? rows : null;
     }, 20_000);
-    process.kill(h!.pid, 'SIGKILL');
-    await until('the second attempt to be holding the key', async () => (await held(runId!)).length === 2, 30_000);
+    worker.kill('SIGKILL');
+    await new Promise((resolve) => worker.once('exit', resolve));
+    // The run's process went with its worker.
+    await until('the first run process to be gone', async () => !alive(first!.pid), 5_000);
+    // pg-boss's sweep hands the run back once the heartbeat lapses; another worker takes it.
+    await r.workInChild(queue, KEY_HOLDER, { maxOldSpaceMb: 64 });
+    await until('the second attempt to be holding the key', async () => (await held(runId!)).length === 2, 60_000);
     expect((await r.status(runId!))?.attempt).toBe(2);
+    const [, second] = await held(runId!);
+    expect(second!.started_at.getTime()).toBeGreaterThan(first!.last_beat.getTime());
     await r.cancel(runId!);
     await r.stop();
-  }, 60_000);
+  }, 90_000);
 
   it('kills the run when its claim is lost to a cancel from the producer', async () => {
     const queue = 'e5-claim';
@@ -941,6 +987,30 @@ describe('the review of #2040: what a client asks of pg-boss, and what it never 
       attempt: 1,
       output: { name: 'RunNotRetried', message: 'The cutover was refused: the mapping is not caught up.' },
     });
+    await r.stop();
+  }, 60_000);
+
+  it('fails at its limit, not retried, a run in this process that stops with its own error (second review 4)', async () => {
+    const queue = 'r6-own-stop';
+    const r = newRunner();
+    await r.start([{ name: queue, policy: 'standard', maxDurationSeconds: 4, heartbeatSeconds: 10, attempts: 2, retryDelaySeconds: 1 }]);
+    await r.work<{ how: string }, never>(queue, async (p, ctx) => {
+      await new Promise<void>((resolve) => ctx.signal.addEventListener('abort', () => resolve(), { once: true }));
+      if (p.how === 'own') throw new Error('The pass was stopped.');
+      const aborted = new Error('The operation was aborted');
+      aborted.name = 'AbortError';
+      throw aborted;
+    }, { concurrency: 2 });
+    const sentence = `The run reached its time limit of 4 s on "${queue}" and was stopped.`;
+    for (const how of ['own', 'abort']) {
+      const { runId } = await r.enqueue(queue, { how });
+      const done = await settled(r, queue, runId!, 30_000);
+      expect({ how, attempt: done.attempt, output: done.output }).toEqual({
+        how,
+        attempt: 1,
+        output: { name: 'RunTimedOut', message: sentence },
+      });
+    }
     await r.stop();
   }, 60_000);
 
