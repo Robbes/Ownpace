@@ -19,8 +19,10 @@
  *    limit, so a run's process is killed, and reaped, before pg-boss could
  *    start its retry. What the run threw settles it by name: a deliberate stop
  *    (`AbortTaskRunError`, `RunNotRetried`), a payload its schema refused
- *    (`ZodError`), the time limit and the heap are not retried; anything else,
- *    a process killed from outside among them, is (`settlementFor`).
+ *    (`ZodError`), the time limit, the heap and a SIGKILL or SIGABRT the worker
+ *    did not send (Trigger.dev's `TASK_PROCESS_MAYBE_OOM_KILLED`) are not
+ *    retried; anything else is, and so is a run whose claim lapsed because its
+ *    worker died (`settlementFor`).
  * 4. **Register the nine schedules**, in UTC, each sent `{}`: a schedule's
  *    schema is `z.strictObject({})`. A minute missed while no worker ran is
  *    skipped, pg-boss's default, as Trigger.dev skips one.

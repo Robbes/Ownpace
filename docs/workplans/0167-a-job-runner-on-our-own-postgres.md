@@ -23,11 +23,16 @@ and Trigger.dev runs every job. No migration in either chain.
   and `drizzle-orm`.
 - **Proved, on a throwaway cluster from `scripts/local-pg.sh`** (PostgreSQL 16; CI's
   Testcontainers run is the one for 18, on amd64 and arm64): `worker.integration.test.ts`
-  **16 passed, 1 skipped** (the harness's Nextcloud case; no Nextcloud here), 59 s. The tick's
+  **19 passed, 1 skipped** (the harness's Nextcloud case; no Nextcloud here), 86 s, on #2040's
+  head `61394c96`. The tick's
   schedule fired on the minute and enqueued `run-delta-sync` keyed by the migration with its tags;
   a refused payload failed once as `ZodError`; a real `run-discovery` completed and wrote its row
   as `app_user`; a cutover's wait ran behind a pass already running on its migration; the purge's
-  verdicts (live, finished, gone, `run_…`); SIGKILL retried and converged; a run past its limit
+  verdicts (live, finished, gone, `run_…`); a SIGKILL the worker did not send failed the run on
+  its first attempt, not retried, as Trigger.dev 4.8.8 reads it (`TASK_PROCESS_MAYBE_OOM_KILLED`,
+  the coordinator's correction of the contract's point 8); a worker killed mid-run (a test-only
+  worker in its own process) took its run's process with it, and the next worker ran attempt 2,
+  never two on one key; a run past its limit
   killed before the next on its key started (`RunTimedOut`, not retried); a cancel killed within a
   heartbeat; a stop killed at its grace and retried; the interlock's two rules, its own beat, and
   two runners left running; `main.ts` healthy and exiting 0 on SIGTERM.

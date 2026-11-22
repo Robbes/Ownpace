@@ -24,6 +24,7 @@ import {
   NOT_RETRIED_ERROR_NAMES,
   RunNotRetried,
   RunOutOfMemory,
+  RunPossiblyOutOfMemory,
   RunTimedOut,
   settlementFor,
   type RunOutcome,
@@ -123,8 +124,8 @@ describe("a run's error settles it by name, as Trigger.dev 4.8.8 settles it", ()
     ['ZodError, a payload its schema refused (TaskPayloadParsedError, skipped)', zodError, 'deadletter'],
     ['RunTimedOut, the time limit (MAX_DURATION_EXCEEDED)', new RunTimedOut('late'), 'deadletter'],
     ['RunOutOfMemory, the heap', new RunOutOfMemory(null, 'SIGABRT', 410), 'deadletter'],
+    ['RunPossiblyOutOfMemory, a SIGKILL the runner did not send (TASK_PROCESS_MAYBE_OOM_KILLED)', new RunPossiblyOutOfMemory(null, 'SIGKILL', 410), 'deadletter'],
     ['a thrown error', new Error('a provider 500'), 'failed'],
-    ['a process killed from outside', new ChildRunDied(null, 'SIGKILL', 'killed', 410), 'failed'],
     ['a process that exited before it answered', new ChildRunDied(1, null, 'exited', 410), 'failed'],
   ] as const)('%s: %s', (_what, err, settlement) => {
     expect(settlementFor(err)).toBe(settlement);
@@ -139,9 +140,9 @@ describe("a run's error settles it by name, as Trigger.dev 4.8.8 settles it", ()
     expect((zodError as Error).name).toBe('ZodError');
   });
 
-  it('is one list, the runner’s: what a deliberate stop, a refused payload, the limit and the heap are named', () => {
+  it('is one list, the runner’s: a deliberate stop, a refused payload, the limit, the heap, an outside kill', () => {
     expect([...NOT_RETRIED_ERROR_NAMES].sort()).toEqual(
-      ['AbortTaskRunError', 'RunNotRetried', 'RunOutOfMemory', 'RunTimedOut', 'ZodError'].sort(),
+      ['AbortTaskRunError', 'RunNotRetried', 'RunOutOfMemory', 'RunPossiblyOutOfMemory', 'RunTimedOut', 'ZodError'].sort(),
     );
   });
 });

@@ -108,8 +108,10 @@ switch is turned on.
   reads `finished`, said in a line) and cancel one, all through a producer the
   run opens only when it asks, on `JOBS_DATABASE_URL`, and closes when it ends.
 - **Retries** as Trigger.dev 4.8.8's: three attempts, 5 s doubling to 60 s; a
-  deliberate stop, a refused payload, the time limit and the heap are not
-  retried; a process killed from outside or a lost claim is.
+  deliberate stop, a refused payload, the time limit, the heap and a SIGKILL
+  or SIGABRT the worker did not send (the OOM killer's, as Trigger.dev reads
+  it) are not retried; a thrown error, a run killed at a stop and a claim lost
+  with its worker are.
 - **Logs**: stdout and stderr only; every line a run writes is forwarded with
   its queue and run id in front.
 - The parent process loads no job module and opens one pool, the jobs
