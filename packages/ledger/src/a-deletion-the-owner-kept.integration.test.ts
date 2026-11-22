@@ -193,4 +193,40 @@ describe('a deletion the owner kept is never applied (PgLedger, integration)', (
     expect(keptAt).toBeDefined();
     expect(row?.deletionAcknowledgedAt).toBe(keptAt);
   });
+
+  describe('a keep given to an earlier export ends when the copy is current again (workplan 0164)', () => {
+    const file = (key: string): LedgerRecord => ({ ...copied(key), itemType: 'file', collection: 'Docs' });
+    const fileDeps = (target: unknown) => ({ ...deps(target), domain: 'file' as const });
+
+    it('a later deletion of it is offered, and a press removes it', async () => {
+      await ledger.recordIfAbsent(file('report-docx'));
+      await ledger.markEarlierExports(TENANT, MAPPING, 'file', [
+        { formerNaturalKeyHash: 'report-docx', naturalKeyHash: 'report-odt' },
+      ]);
+      expect(await keep('report-docx'), 'kept as an earlier export').toBe(true);
+
+      // The format is switched back: its name is a current name again.
+      await ledger.clearEarlierExport(TENANT, MAPPING, 'file', 'report-docx');
+      expect((await ledger.find(TENANT, MAPPING, 'file', 'report-docx'))?.deletionAcknowledgedAt).toBeUndefined();
+
+      // Then deleted at the old system.
+      await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'report-docx');
+      const row = await deletionOf('report-docx');
+      expect(row).toMatchObject({ evidence: 'reported' });
+      expect(row?.acknowledgedAt).toBeUndefined();
+      const target = remover();
+      expect(await applyDeletion(fileDeps(target), 'report-docx')).toEqual({ ok: true, kind: 'deleted' });
+      expect(target.removeItem).toHaveBeenCalledTimes(1);
+    });
+
+    it('a keep on a row that is not an earlier export stays', async () => {
+      await ledger.recordIfAbsent(file('kept-docx'));
+      await ledger.recordReportedDeletion(TENANT, MAPPING, 'file', 'kept-docx');
+      expect(await keep('kept-docx')).toBe(true);
+
+      await ledger.clearEarlierExport(TENANT, MAPPING, 'file', 'kept-docx');
+
+      expect(await deletionOf('kept-docx')).toMatchObject({ decided: 'kept' });
+    });
+  });
 });
