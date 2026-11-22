@@ -829,9 +829,9 @@ function beforeTheSwitch(yml: string): string {
   const at = lines.indexOf('  worker:');
   if (at >= 0) {
     let start = at;
-    while (start > 0 && lines[start - 1].startsWith('  #')) start--;
+    while (start > 0 && (lines[start - 1] ?? '').startsWith('  #')) start--;
     let end = at + 1;
-    while (end < lines.length && !/^ {2}\S/.test(lines[end]) && !/^\S/.test(lines[end])) end++;
+    while (end < lines.length && !/^ {2}\S/.test(lines[end] ?? '') && !/^\S/.test(lines[end] ?? '')) end++;
     lines.splice(start, end - start);
   }
   return lines.filter((l) => !/^\s*(OWNPACE_JOB_RUNNER|JOBS_DATABASE_URL):/.test(l)).join('\n');

@@ -201,6 +201,21 @@ if [ "$1" = "measure-google-sync" ]; then
     exec node "$REPO_ROOT/apps/worker/src/cli/index.ts" "$@"
 fi
 
+# `jobs` asks which runner the jobs run on as the containers are told it
+# (job-runner.sh, the one reader; workplan 0167 T7): an empty or absent
+# OWNPACE_JOB_RUNNER in .env is managed.yml's default, `pg-boss`, for the api
+# and the worker, while operator-jobs.ts, like every reader in code, takes an
+# empty value for `trigger`. So the answer is handed to it, not the .env's line.
+if [ "$1" = "jobs" ]; then
+  # shellcheck source=deploy/compose/job-runner.sh
+  . "${SCRIPT_DIR}/job-runner.sh"
+  if ! job_runner_mode "$SCRIPT_DIR" "$ENV_FILE"; then
+    echo "FATAL: ${JOB_RUNNER_WHY}" >&2
+    exit 1
+  fi
+  export OWNPACE_JOB_RUNNER="$JOB_RUNNER"
+fi
+
 echo "[operator] ${POSTGRES_DB:-openmigrate} via localhost:${PGPORT_HOST} (the port compose reports)"
 
 DATABASE_URL="postgresql://${POSTGRES_USER:-openmigrate}:${POSTGRES_PASSWORD}@localhost:${PGPORT_HOST}/${POSTGRES_DB:-openmigrate}" \
