@@ -4,6 +4,10 @@
 
 ## Status — 2026-11-22 (update this block at the end of every session)
 
+**2026-11-22, after alpha.15's release:** alpha.15, released on 2026-11-22, will not run on live, on
+the owner's word that day (*"Ok, I go with 16."*), so alpha.16's deploy, from alpha.14, will take
+its changes too.
+
 **2026-11-22: live runs `v0.2.0-alpha.14`, one-way over alpha.12 by ledger migration 0070, managed
 migration 0062 and the Trigger.dev pin, on a copy of alpha.12's databases and the task runner's (T6,
 T9).** The owner deployed it on 2026-11-22, before any tester, pasting the sheet's checked blocks
