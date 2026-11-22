@@ -2,7 +2,65 @@
 
 > **In one line:** Which scanners and checks CI should add so that what an outside, read-only check finds is caught before a merge: what runs today, what each finding is, and in what order to add Semgrep, osv-scanner, zizmor's secrets audit, gitleaks and the rest, each failing the build or only reporting.
 
-## Status — 2026-11-21 (update this block at the end of every session)
+## Status — 2026-11-22 (update this block at the end of every session)
+
+**2026-11-22: T5's first rule that blocks, `run-shell-injection`, built; `react-href-var` waits on
+its time-outs.** On `claude/ownpace-alpha16-semgrep-blocking`, from `main` at `0683eb04`. It
+takes over #1997, a draft from `45a758af`, which stopped on the two problems below; its blocking
+logic is carried over onto #1993's and #2006's report.
+- **What blocks.** A spot of `run-shell-injection` fails the `Semgrep` check on a pull request, a
+  push and a dispatch, as an error on its line. No `KNOWN_FINDINGS` entry excuses it, no inline
+  `nosemgrep` hides it (`--disable-nosem`), and a `.semgrepignore` the checkout tracks, at any
+  depth, is a scan that did not finish. So is a workflow or action file the checkout tracks that
+  Semgrep did not scan (`paths.scanned`), said by name: Semgrep's built-in ignore list leaves
+  `build/`, `vendor/`, `test/` and more out at any depth, and it skips a file over its size limit,
+  a link and an upper-case extension, all without a word. A note on other YAML (`pnpm-lock.yaml`,
+  `openapi.yaml`, compose files) is a note. The other
+  seven rules report only. A scan that did not finish now fails a pull request too (it was a
+  warning there), since the check vouches for the rule that blocks. The job is renamed from
+  `Semgrep (report only)` to `Semgrep`. Code scanning still gets the upload from `main` when the
+  rule that blocks failed the job (`!cancelled()`).
+- **The time-out reading, narrower.** `RULES` names each rule's languages, read from each rule's
+  `languages:` in Semgrep's rules repository on 2026-11-22 (at `a5ad1714`, 2026-11-10; the
+  registry itself refused this session's network): `run-shell-injection` reads YAML, the other
+  seven JavaScript and TypeScript. A place where more than one rule timed out now counts only
+  against the rules whose languages include its file (`timedOut`, by `languageOf` its
+  extension); a place with no file, a file of no language here, or a first rule that does not
+  read the file still counts against every rule. The extensions are Semgrep 1.186.0's own
+  `lang.json` (`a5844e7c`): `.cjs .js .jsx .mjs` less `.min.js`, `.ts .tsx` less `.d.ts`, `.yml
+  .yaml`. `run-shell-injection` has no `mode: taint`, so it never reaches the taint analysis's time
+  limit. Semgrep's per-file time limit (`--timeout`, 5 s) and a file it could not parse still apply
+  to it: they land in its errors, and a note on a workflow or action file, or on no file naming
+  the rule that blocks, is now a scan
+  that did not finish (none on `main`'s YAML files today).
+- **Why `react-href-var` does not block yet.** It does use taint mode (`mode: taint`, over
+  TypeScript and JavaScript), so it can time out, and it did: `main`'s Semgrep run 45025731298
+  at `0683eb04` read 13 places only in part, and names `react-href-var` first at
+  `scripts/a-deploy-from-a-named-tag.unit.test.ts:1` (3 rules). Ten of the 13 are a JavaScript or
+  TypeScript file where more than one rule timed out, each of which can hide a spot of it.
+  Blocking it would make such a run a scan that did not finish, so it waits
+  for a reading of its own time-outs: for example a scan of it alone, whose time-outs Semgrep
+  would name exactly.
+- **The check's class.** `every-pr-check-is-classified` lists `Semgrep` among the checks required
+  outside `ci.yml`, and `docs/testing.md`'s required-checks paragraph names it as the fifth
+  intended one, saying that a repository ruleset on `main` holds four today (classic branch
+  protection has required checks off). Both state the intent; neither can read the ruleset.
+  **The owner's step,** once this pull request has merged and not before (until then every other
+  pull request runs `main`'s `semgrep.yml`, whose job is `Semgrep (report only)`, so a required
+  `Semgrep` would never report there): add `Semgrep` to that ruleset's required status checks,
+  with GitHub Actions as its source. From then on a Semgrep registry outage, or anything else that leaves the
+  scan unfinished, fails a pull request until a re-run. The rules are fetched by id and not
+  pinned, so a rule renamed or withdrawn upstream fails every pull request and a re-run does not
+  help, and an upstream edit to `run-shell-injection` changes what blocks with no change here.
+- **Tests:** `a-finding-only-an-outside-check-saw` has 37 tests (26 before), among them `main`'s
+  own 13 places, read as a scan that finished with `run-shell-injection` blocking, and as one that
+  did not, in 10 places, with `react-href-var` blocking, and one that runs the script as the
+  workflow does, a `docker` on `PATH`, for its exit; `every-pr-check-is-classified` has 6 (5
+  before). Twenty-seven mutations each fail one of them: the old reading (any rule where several
+  timed out) with 6 tests, each of the first review's fixes, and each of the second's (a tracked
+  workflow or action file not scanned, a note on any YAML, a note on no file, the note's rule id,
+  extensions read in any case, a workflow known in one case only, `run()` holding no files, a
+  leading `./`, and a trigger filter in either guard).
 
 **2026-11-21, after #2007 merged: T1 and T6 are on `main`, D8 and the six rules' upload too, and
 the secrets are in their environments.** In merge order (times UTC):
@@ -514,7 +572,7 @@ other work and are only listed here: GEN-21 (the Docker socket proxy runs as roo
 | T2 osv-scanner | builder | ✅ **Merged** as #1984 on 2026-11-21 (`6265a94c`) (D1) | Finding 3 and "no malicious packages". Fail the build on a malicious package; report the rest (§5, step 1). |
 | T3 Semgrep, report only | builder | ✅ **Merged** as #1986 on 2026-11-21 (`fbd73f93`) (D3) | Findings 5, 6, 8 and 9, plus `gcm-no-tag-length`, the template injection and the script tag. A short named list of rules, not whole packs. Finding 7 has no community rule (§4.3; §5, step 3). |
 | T4 Fix or answer each spot | builder | 📋 **Planned** (the Cirrux test fake's decipher); ✅ **the tag length merged** as #1985 on 2026-11-21 (`032bae95`); ✅ **findings 8 and 9, with the Pay button, merged** as #1990 on 2026-11-21 (`5d5c5f55`; Status, 2026-11-21, last); ✅ **the grant page's two buttons, merged** as #1996 on 2026-11-21 (`40bb3476`; Status, 2026-11-21, after T5's first part); ✅ **the no-checkout sentence in Dutch, merged** as #2005 on 2026-11-21 (`55eab78b`; Status, 2026-11-21, at the end) | §4.3. Fix `secrets.ts`'s `authTagLength`, and the Cirrux test fake's decipher (`cirrux-fake.ts:135`), which #1986's run found; the `base_ref` line goes with GEN-26. Findings 8 and 9 (`Billing.tsx:760`, `ProviderConsent.tsx:593`): one `https:`-and-host check where the web app follows or links an address from the API, with a guard. Findings 7 and 4 are parked (T10, T11). |
-| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
+| T5 Semgrep fails the build, rule by rule | builder | 📋 **Planned** (D3); ✅ **the time-outs first, merged** as #1993 on 2026-11-21 (`87663d70`); 🔨 **`run-shell-injection` blocks, built** to supersede #1997, with the time-out reading by language; `react-href-var` waits on its time-outs (Status, 2026-11-22) | A rule moves to blocking once it reports nothing on `main` (§5, step 5). `detect-non-literal-regexp` never blocks. Before any rule blocks, the report lists each place Semgrep's taint analysis read only in part, and one where a rule that blocks can have timed out is a scan that did not finish. In CI those time-outs fall on `js-open-redirect-from-function` and `path-join-resolve-traversal`, so this step first chooses how a blocking rule's time-outs are read (Status, 2026-11-21, latest). |
 | T6 gitleaks on a pull request's own commits | builder | ✅ **Merged** as #1992 on 2026-11-21 (`17a9a460`) (D4) | Fails the build, with an allowlist of test-file paths (`*.unit.test.ts`, `*.integration.test.ts`) and `docs/o365-setup.md`, and no inline ignore comments (§5, step 4). |
 | T7 Image findings: keep, do not add | — | 📋 **Proposed** | Findings 2, 11 and 12 are covered today, report only. §3 says why nothing is added. |
 | T8 Not worth a check | — | 📋 **Proposed** | Findings 4 and 10, and Trivy's misconfiguration scan: §3 and §5 say why. D3 (no CodeQL now) and D5 (the SBOM as it is) answer two parts of it. |
