@@ -289,8 +289,8 @@ export function hadolintPin(text) {
 }
 
 /**
- * The Semgrep `semgrep.yml` scans the tree with, report only (workplan 0163
- * T3, the owner's decision D3 of 2026-11-20): its job's one `SEMGREP_IMAGE:`
+ * The Semgrep `semgrep.yml` scans the tree with, one rule blocking (workplan
+ * 0163 T3 and T5, the owner's decision D3 of 2026-11-20): its job's one `SEMGREP_IMAGE:`
  * line. Dependabot reads no workflow env, so this row is what says a newer
  * release is tagged.
  */

@@ -53,10 +53,12 @@ export interface Rule {
   /** True for the two ReDoS rules, which never block (D3). */
   readonly never: boolean;
   /**
-   * True once the rule blocks (0163 §5, step 5); none does yet. Read only for
-   * a time-out so far: one this rule can have makes the scan unfinished.
+   * True for a rule that blocks (0163 T5): a spot of it fails the job, no
+   * entry excuses it, and a time-out it can have makes the scan unfinished.
    */
   readonly blocks: boolean;
+  /** The languages its own `languages:` names: the files it reads, and so where it can time out. */
+  readonly languages: ReadonlyArray<Language>;
   /** What it reports, in a few words. */
   readonly what: string;
 }
@@ -111,6 +113,8 @@ export interface Note {
   readonly level: string;
   readonly type: string;
   readonly path: string;
+  /** The rule the note names, or empty. */
+  readonly rule?: string;
   readonly message: string;
 }
 
@@ -126,7 +130,35 @@ export interface Timeout {
   readonly first: string | null;
 }
 
-/** The rules that can have timed out at a place: the first alone when it was the only one, else any. */
+/** A language a rule names, by the name Semgrep gives it. */
+export type Language = 'javascript' | 'typescript' | 'yaml';
+
+/** Each language's file extensions, as Semgrep reads them. */
+export declare const EXTENSIONS: Readonly<Record<Language, ReadonlyArray<string>>>;
+
+/** Each language's file endings Semgrep leaves out of it (`.d.ts`, `.min.js`). */
+export declare const EXCLUDED: Readonly<Record<Language, ReadonlyArray<string>>>;
+
+/** `git`, as the report runs it: its status, its output and its error, never a throw. */
+export type Git = (args: string[]) => Ran;
+
+/** Each `.semgrepignore` the checkout tracks, at any depth, or why git could not say. */
+export declare function trackedIgnores(root: string, git?: Git): { tracked: string[]; ignores: string[]; error?: undefined } | { error: string; tracked?: undefined; ignores?: undefined };
+
+/** A workflow GitHub runs or a composite action's file, in any case: what `run-shell-injection` is there for. */
+export declare function isWorkflowFile(path: string): boolean;
+
+/** The files a rule that blocks is there for: a YAML rule's workflow and action files, else its languages' files. */
+export declare function isHome(rule: Rule, path: string): boolean;
+
+/** A file's language by its extension, or null. */
+export declare function languageOf(path: string): Language | null;
+
+/**
+ * The rules that can have timed out at a place: the first alone when it was
+ * the only one, else every rule whose languages include the file there, and
+ * any rule when the file has no language or the first does not read it.
+ */
 export declare function timedOut(timeout: Timeout, rules?: ReadonlyArray<Rule>): Rule[];
 
 /** One run's reading, or why there is none. */
@@ -134,6 +166,10 @@ export interface Scan {
   readonly stopped?: string;
   readonly version?: string;
   readonly scanned?: number;
+  /** Each file Semgrep scanned, by its path from the checkout's root. */
+  readonly scannedPaths?: ReadonlyArray<string> | null;
+  /** The workflow and action files the checkout tracks, each of which a finished scan scanned. */
+  readonly mustScan?: ReadonlyArray<string>;
   readonly findings?: ReadonlyArray<Finding>;
   readonly notes?: ReadonlyArray<Note>;
   /** The places read only in part, or null when the report has no timing section. */
@@ -153,7 +189,7 @@ export interface Report {
   readonly markdown: string;
   /** What the log prints, the annotations among them. */
   readonly lines: ReadonlyArray<string>;
-  /** 0, or 1 outside a pull request when the scan did not finish. */
+  /** 0, or 1 when a rule that blocks found a spot or the scan did not finish, on every event. */
   readonly code: 0 | 1;
   /** CODE_SCANNING_REPORT's path when the scan finished, else empty: the file the upload sends. */
   readonly sarif: string;
@@ -168,11 +204,12 @@ export declare function report(
   },
 ): Report;
 
-/** One run, with `docker` and `wait` the guard's to stub. */
+/** One run, with `docker`, `wait` and `git` the guard's to stub. */
 export declare function run(options?: {
   root?: string;
   env?: Readonly<Record<string, string | undefined>>;
   docker?: Docker;
   wait?: (ms: number) => Promise<unknown>;
+  git?: Git;
   out?: string;
 }): Promise<Report>;

@@ -102,6 +102,27 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   document then arrived already decided, and was never offered. The keep now goes with the mark,
   whether or not the document was edited in between, so that deletion is offered and goes
   through every check.
+- **A second Security Scan on a release tag no longer replaces the release's SBOM or repeats its
+  body** (workplan 0146). alpha.15's image scan after the tag ran on the tag, replaced the
+  `bom.json` verify had read and appended the release body a second time. The attach now leaves a
+  `bom.json` already there (one verify would refuse is replaced) and a body that already holds the
+  generated block, and says so. A dispatch with the image scans on a tag is refused at once, saying
+  to dispatch it on `main` at the release commit, or on the tag with the image scans off to make or
+  finish the release; Release re-runs only Security Scan runs it dispatched itself.
+
+### Security
+
+- **A Semgrep rule now fails a pull request** (workplan 0163 T5). `run-shell-injection`, a workflow
+  expression written into a `run:` script, reports nothing on `main`, so a spot of it now fails the
+  *Semgrep* check, marked as an error on its line. No recorded spot, inline `nosemgrep` comment or
+  committed `.semgrepignore` can excuse or hide one, and a workflow or action file Semgrep did not
+  scan, or a time-out or parse note on one, now fails the check too. The other
+  seven rules still report only. `react-href-var` reports nothing on `main` either, but Semgrep's
+  taint analysis times out where it reads, so it waits. A place Semgrep read only in part now
+  counts only against the rules whose languages include the file there, so a time-out in a
+  TypeScript function never stops the workflow rule. A Semgrep scan that did not finish now fails a
+  pull request too, since the check vouches for the rule that blocks. The check is renamed from
+  *Semgrep (report only)* to *Semgrep*, the name it is to be required under.
 
 ## [0.2.0-alpha.15] - 2026-11-22
 

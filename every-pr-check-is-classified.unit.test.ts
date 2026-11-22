@@ -7,7 +7,7 @@
  * a job there and forget `ci-complete.needs`, and it fails. It cannot see one
  * step further out. `ci-complete` is a job IN ci.yml, so it can only `needs:`
  * jobs in that same file — a check produced by a DIFFERENT workflow is outside
- * its reach by construction, and has to be required in branch protection on its
+ * its reach by construction, and has to be required in the repository ruleset on its
  * own.
  *
  * That gap has already cost this repo once. On 2026-08-14 branch protection was
@@ -23,7 +23,12 @@
  * what CI reports forces a decision about gating, in the same commit, rather
  * than leaving it to be noticed.
  *
- * WHAT THIS CANNOT DO. Branch protection lives in GitHub's settings, not the
+ * WHERE THE REQUIRED SET LIVES. A repository ruleset on `main` holds the
+ * required checks, not classic branch protection, whose required checks are
+ * off (workplan 0163, 2026-11-22). The 2026-08-14 story above happened under
+ * branch protection; the same gap holds under a ruleset.
+ *
+ * WHAT THIS CANNOT DO. The ruleset lives in GitHub's settings, not the
  * repo, so nothing here reads the actually-required set. This asserts that every
  * producible check has a documented intent; it cannot assert that the intent was
  * applied. `docs/testing.md` records the set for a human to check against.
@@ -38,15 +43,27 @@ const WORKFLOW_DIR = fileURLToPath(new URL('./.github/workflows/', import.meta.u
 const DOC_PATH = fileURLToPath(new URL('./docs/testing.md', import.meta.url));
 
 /**
- * Required in branch protection ALONGSIDE `ci-complete`, because `ci-complete`
+ * Required in the ruleset ALONGSIDE `ci-complete`, because `ci-complete`
  * cannot reach across workflow files to `needs:` them.
  *
  * `Trivy` is not a job name: `trivy-action`, inside security-scan.yml's
  * `security-scan` job, posts its own check run under that name. It is listed
- * because branch protection sees a context called `Trivy` regardless of which
+ * because the ruleset sees a context called `Trivy` regardless of which
  * job produced it, and requiring it is what makes a Trivy finding block a merge.
  */
-const REQUIRED_OUTSIDE_CI = new Set(['security-scan', 'Trivy', 'Check for committed artifacts']);
+const REQUIRED_OUTSIDE_CI = new Set([
+  'security-scan',
+  'Trivy',
+  'Check for committed artifacts',
+  // semgrep.yml (workplan 0163 T5): one of its rules, run-shell-injection,
+  // blocks, and the workflow has no `paths:` filter, so it reports on every
+  // pull request. This set is the INTENT (WHAT THIS CANNOT DO, above): the
+  // owner adds `Semgrep` to the repository ruleset that holds main's required
+  // checks (GitHub Actions as its source), and until then a red Semgrep
+  // shows on a pull request without stopping its merge. docs/testing.md's
+  // required-checks paragraph says so.
+  'Semgrep',
+]);
 
 /**
  * Must NOT be required, each with the reason.
@@ -157,15 +174,6 @@ const NOT_REQUIRABLE = new Map([
       'report only until the two Trigger.dev Dockerfiles have had their pass (workplan 0119), so requiring it ' +
       'would gate nothing. When it turns blocking it is required, under the name it takes then.',
   ],
-  // semgrep.yml (workplan 0163 T3, the owner's decision D3 of 2026-11-20):
-  // eight named Semgrep rules over the tree, report only until each rule in
-  // turn reports nothing on main.
-  [
-    'Semgrep (report only)',
-    'semgrep.yml reports on every pull request and fails none of them, whatever Semgrep finds: it is report ' +
-      'only until a rule reports nothing on main and turns blocking, one rule at a time (workplan 0163, step 5), so ' +
-      'requiring it would gate nothing. Once a rule blocks, its check is required, under the name it takes then.',
-  ],
   // migration-locks.yml (workplan 0165): squawk over every migration, report
   // only, on the paths of the two chains.
   [
@@ -219,14 +227,26 @@ interface ProducedCheck {
   readonly pathsFiltered: boolean;
 }
 
+/**
+ * The keys of a pull_request trigger that keep its workflow from running on
+ * some pull requests: `paths:` and `paths-ignore:` by the files a change
+ * touches, `types:` by the event's activity (a list without `synchronize`
+ * misses every push to the branch). Any one of them can leave a required
+ * check unreported. `branches:` has a guard of its own
+ * (every-pr-gets-checked.unit.test.ts).
+ */
+export function silencedBy(pr: unknown): string[] {
+  if (!pr || typeof pr !== 'object') return [];
+  return ['paths', 'paths-ignore', 'types'].filter((key) => Object.hasOwn(pr, key));
+}
+
 const produced: ProducedCheck[] = [];
 for (const file of files) {
   const wf = parse(readFileSync(WORKFLOW_DIR + file, 'utf8')) as Workflow;
   const triggers = triggersOf(wf);
   if (!('pull_request' in triggers)) continue;
 
-  const pr = triggers.pull_request as { paths?: unknown } | null;
-  const pathsFiltered = Boolean(pr && typeof pr === 'object' && 'paths' in pr);
+  const pathsFiltered = silencedBy(triggers.pull_request).length > 0;
 
   for (const [key, job] of Object.entries(wf.jobs ?? {})) {
     produced.push({ workflow: file, checkName: job?.name ?? key, pathsFiltered });
@@ -263,12 +283,21 @@ describe('every check a pull request can produce is classified', () => {
       'these checks report on pull requests but are in neither list, so nobody has ' +
         'decided whether a failure should block a merge:\n' +
         unclassified.map((p) => `  - ${p.checkName}  from ${p.workflow}`).join('\n') +
-        '\nAdd each to REQUIRED_OUTSIDE_CI (and to branch protection, and to the ' +
+        '\nAdd each to REQUIRED_OUTSIDE_CI (and to the ruleset\'s required checks, and to the ' +
         'required-checks list in docs/testing.md) or to NOT_REQUIRABLE with a reason.',
     ).toEqual([]);
   });
 
-  it('never requires a check that a `paths:` filter can silence', () => {
+  it('reads `paths:`, `paths-ignore:` and `types:` on a pull_request trigger as filters that can silence a check, and nothing else', () => {
+    expect(silencedBy({ paths: ['docs/**'] })).toEqual(['paths']);
+    expect(silencedBy({ 'paths-ignore': ['docs/**'] })).toEqual(['paths-ignore']);
+    expect(silencedBy({ types: ['opened'] })).toEqual(['types']);
+    expect(silencedBy({})).toEqual([]);
+    expect(silencedBy(null)).toEqual([]);
+    expect(silencedBy({ branches: ['main'] }), 'branches: has its own guard').toEqual([]);
+  });
+
+  it('never requires a check that a `paths:`, `paths-ignore:` or `types:` filter can silence', () => {
     // The mechanical rule behind NOT_REQUIRABLE, asserted rather than trusted:
     // a paths-filtered pull_request trigger means the workflow does not run at
     // all on some PRs, so its contexts are absent rather than red. Requiring one
@@ -281,7 +310,7 @@ describe('every check a pull request can produce is classified', () => {
       silenceable.map((p) => `${p.checkName} (${p.workflow})`),
       'these are required but their workflow is paths-filtered, so they are ' +
         'unreported — not green — on a PR that touches none of those paths, and ' +
-        'branch protection would block it forever:\n' +
+        'the ruleset would block it forever:\n' +
         silenceable.map((p) => `  - ${p.checkName}  from ${p.workflow}`).join('\n'),
     ).toEqual([]);
   });
@@ -295,7 +324,7 @@ describe('every check a pull request can produce is classified', () => {
   });
 
   it('keeps the required-checks list in docs/testing.md in step', () => {
-    // The doc is where a human configuring branch protection actually looks. If
+    // The doc is where a human configuring the ruleset actually looks. If
     // it and this file disagree, one of them is lying and there is no way to
     // tell which from the outside.
     //

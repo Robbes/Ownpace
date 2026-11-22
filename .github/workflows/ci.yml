@@ -1356,6 +1356,9 @@ jobs:
   #                                   separate workflow; this comment used to
   #                                   list it as one)
   #   Check for committed artifacts  (no-committed-artifacts.yml)
+  #   Semgrep                        (semgrep.yml, workplan 0163 T5: required
+  #                                   once the owner adds it to the ruleset
+  #                                   that holds the other three and this one)
   #
   # DO NOT REQUIRE `build (api|web|selfhost)` from images.yml, nor its
   # `build (postgres)` (0146 T15) and `build (trigger, amd64|arm64)` (0146
