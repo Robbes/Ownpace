@@ -949,6 +949,10 @@ reading a file drops off its entry by itself.
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
 
+### `apps/worker/src/jobs/run-context.ts`
+
+- [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
+
 ### `apps/worker/src/jobs/run-cutover.ts`
 
 - [a-pass-that-opened-the-owners-pool](../scripts/a-pass-that-opened-the-owners-pool.unit.test.ts) — A PASS THAT OPENED THE OWNER'S POOL (workplan 0138 T4, landed as a ratchet under T0's option (b); the ratchet emptied and deleted by T1 step 2).
@@ -1812,6 +1816,7 @@ reading a file drops off its entry by itself.
 - [a-pin-that-knows-it-is-behind](../scripts/a-pin-that-knows-it-is-behind.unit.test.ts) — A PIN THAT KNOWS IT IS BEHIND: nothing said when upstream fixed a hole the pinned identity provider still had (workplan 0135 T7 (b)).
 - [one-copy-before-each-update](../scripts/one-copy-before-each-update.unit.test.ts) — ONE COPY BEFORE EACH UPDATE, AND IT GOES ONCE THE UPDATE IS PROVEN (workplan 0139, *the copy before an update*; the owner's answers rec-copies (a) and rec-drill (a), 2026-09-28; 0132 T6 step 4 and T7).
 - [one-stack-one-env](../scripts/one-stack-one-env.unit.test.ts) — ONE STACK, ONE `.env` — AND A WRITE THAT DOES NOT QUIETLY FORK IT.
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 - [trigger-version](../scripts/trigger-version.unit.test.ts) — The Trigger.dev control plane's backup, and the version it is a backup FOR.
 
 ### `deploy/compose/trigger.dev/Dockerfile`
@@ -2794,6 +2799,11 @@ reading a file drops off its entry by itself.
 ### `packages/scheduler/package.json`
 
 - [a-job-schema-the-runner-was-not-proved-on](../scripts/a-job-schema-the-runner-was-not-proved-on.unit.test.ts) — A JOB SCHEMA THE RUNNER WAS NOT PROVED ON (ADR-0054; workplan 0167 §5).
+
+### `packages/scheduler/src/pg-boss/catalog.ts`
+
+- [a-pass-that-outlives-its-runner](../scripts/a-pass-that-outlives-its-runner.unit.test.ts) — A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
+- [smoke-managed-verdict](../scripts/smoke-managed-verdict.unit.test.ts) — What `smoke-managed.sh` is allowed to call a pass.
 
 ### `packages/scheduler/src/pg-boss/job-runner.integration.test.ts`
 
@@ -5095,6 +5105,7 @@ Reads:
 - `apps/worker/src/jobs/run-apply-deletion.ts`
 - `apps/worker/src/jobs/run-apply-relocation.ts`
 - `apps/worker/src/jobs/run-confirmation.ts`
+- `apps/worker/src/jobs/run-context.ts`
 - `apps/worker/src/jobs/run-cutover.ts`
 - `apps/worker/src/jobs/run-delta-sync.ts`
 - `apps/worker/src/jobs/run-discovery.ts`
@@ -5116,6 +5127,7 @@ A PASS MUST STOP ITSELF BEFORE ITS RUNNER STOPS IT (2026-09-08).
 Reads:
 
 - `apps/worker/trigger.config.ts`
+- `packages/scheduler/src/pg-boss/catalog.ts`
 - `packages/shared/src/pass-deadline.ts`
 
 ### [a-password-the-repository-knows](../scripts/a-password-the-repository-knows.unit.test.ts)
@@ -7235,7 +7247,9 @@ Reads:
 - `deploy/compose/redact-evidence.sh`
 - `deploy/compose/seed-demo-dav-content.sh`
 - `deploy/compose/smoke-managed.sh`
+- `deploy/compose/trigger-version.sh`
 - `packages/core/src/apply-deletion.ts`
+- `packages/scheduler/src/pg-boss/catalog.ts`
 - `test/e2e/no-workspace-imports.unit.test.ts`
 - `test/e2e/seed-imap-source.mjs`
 - `test/e2e/selfhost-verification.e2e.test.ts`

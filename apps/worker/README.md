@@ -38,9 +38,18 @@ TRIGGER_SECRET_KEY=tr_prod_...
 ```
 
 - **In-runner gotcha (0022 T3, learned live):** the platform injects the
-  host-perspective `TRIGGER_API_URL` into runners, so any task that calls
-  `.trigger()` from inside a runner (the tick does) must
-  `configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' })`.
+  host-perspective `TRIGGER_API_URL` into runners, so a call of the platform's
+  API from inside a runner (the tick's passes, a cutover's final sync) must
+  first `configure({ baseURL: process.env.TRIGGER_API_URL_IN_NETWORK ?? 'http://trigger-api:3000' })`.
+- **No task calls the SDK in its run (workplan 0167 T6).** Each task file
+  exports its run, wrapped in `leavesAReference`, which takes a run context
+  (`src/jobs/run-context.ts`): the run's id, its attempt and the runner it is
+  on. What a run asks of its runner (enqueue a pass, wait for one, ask after
+  or cancel a run) goes through the context, and the Trigger.dev runner there
+  makes the SDK calls the jobs made, `configure` before each enqueue. The
+  task definitions call the run through `onTriggerDev`, under the same ids,
+  queues and machines. The pg-boss runner's queues for the same jobs are
+  `@openmig/scheduler/pg-boss`'s job catalog; nothing runs on it yet.
 - Task-runtime env (`SYSTEM_DATABASE_URL`, `APP_DATABASE_URL`,
   `SECRET_ENCRYPTION_KEY`) is uploaded once per environment with
   `deploy/compose/set-task-env.sh` — runners do not read the compose `.env`.

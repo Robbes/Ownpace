@@ -14,6 +14,16 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   place the run fails unless every job it saw completed in pg-boss and no Trigger.dev runner
   started. The worker's log is redacted into the evidence. Trigger.dev runs are checked as before.
 
+### Changed
+
+- **The managed edition's jobs no longer call Trigger.dev from their runs** (workplan 0167 T6;
+  ADR-0054). Each job's run takes a context that names the runner it is on, and the Trigger.dev
+  calls it made (enqueueing a pass, waiting for one, asking after a run and cancelling it) are made
+  there, as they were. Trigger.dev still runs every job under the same names, queues, machines and
+  retries; a catalog of the same seventeen jobs for the pg-boss runner is added, which nothing reads
+  yet. The sync tick also writes a beat of its own runner each minute, and starts no pass while
+  another runner's tick has beaten within the last 90 seconds; no migration.
+
 ### Fixed
 
 - **A move whose old copy was deleted is decided on Moves** (workplan 0164 T3a; ADR-0024, amended

@@ -30,12 +30,14 @@
 
 // The rule for a host a tenant gives us, on before this run connects anywhere (0136 T1).
 import './refuse-internal-addresses.ts';
+import { z } from 'zod';
 import { schedules } from '@trigger.dev/sdk';
 import type { Pool } from 'pg';
 import { withTenant } from '@openmig/ledger';
 import { createNotifier, log, renderEvent, type NotificationLocale, type NotificationMessage } from '@openmig/shared';
 import { notifierFromEnv, smtpTransport } from '@openmig/connectors';
 import { leavesAReference } from './what-a-run-leaves.ts';
+import { onTriggerDev, type RunContext } from './run-context.ts';
 import { activeOrganisations, openTaskPools } from './task-pools.ts';
 import { claimSlowerSteps, whomToTell } from './the-slower-cadence-email.ts';
 
@@ -77,13 +79,21 @@ export async function cadenceOfOrganisation(
   return 'sent';
 }
 
-export const managedCadenceEmail = schedules.task({
-  id: 'managed-cadence-email',
-  // 07:30 UTC: after the drift detector, before the digest. A morning's mail,
-  // rather than one at the minute a step happened, which is as often as not
-  // in the night.
-  cron: '30 7 * * *',
-  run: leavesAReference('managed-cadence-email', async (_payload: unknown, _context: unknown, afterwards) => {
+/**
+ * What a run of this schedule reads of its payload: nothing (ADR-0054;
+ * workplan 0167 T6). Trigger.dev hands a schedule's run its
+ * `ScheduledTaskPayload`, which this run never reads.
+ */
+export const CadenceEmailJobSchema = z.strictObject({});
+
+/**
+ * This task's run, on either runner (ADR-0054; workplan 0167 T6): the
+ * Trigger.dev task below calls it, and so will the pg-boss worker, each with
+ * a context of its own (`run-context.ts`).
+ */
+export const managedCadenceEmailRun = leavesAReference(
+  'managed-cadence-email',
+  async (_payload: unknown, _context: RunContext, afterwards) => {
     // This run's pools (0138 T1, T2): the tenant pool on APP_DATABASE_URL,
     // app_user, under row security, and the audit key's pool of one. Opened
     // first, so even the list's refusal reaches the log page, and ended once
@@ -133,5 +143,14 @@ export const managedCadenceEmail = schedules.task({
     const result = { tenants: organisations.length, ...counts };
     log.info('[cadence-email]', result);
     return result;
-  }),
+  },
+);
+
+export const managedCadenceEmail = schedules.task({
+  id: 'managed-cadence-email',
+  // 07:30 UTC: after the drift detector, before the digest. A morning's mail,
+  // rather than one at the minute a step happened, which is as often as not
+  // in the night.
+  cron: '30 7 * * *',
+  run: onTriggerDev(managedCadenceEmailRun),
 });

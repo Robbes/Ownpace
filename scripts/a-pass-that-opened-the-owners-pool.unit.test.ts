@@ -126,6 +126,14 @@
  *      no `process.env` handed on whole. Review put the owner back behind a
  *      new `direct-url.ts` export and behind `process.env[`${p}DATABASE_URL`]`,
  *      each with every guard green (0138 T3 step 2).
+ *   9. The run's context, `run-context.ts`, does nothing when it is imported
+ *      and loads no value but the two SDK calls it holds (workplan 0167 T6).
+ *      Every task file imports it, so a pool it built, a sink it pointed or a
+ *      job module it loaded would be in every run's process, whatever that
+ *      run's own kind: a per-tenant job's sinks pointed back at a pool it
+ *      never opened, or the tick's taken from its system pool. A pass's task
+ *      reaches it from the job that enqueues one, which loads the pass's
+ *      module when it always did.
  *
  * Until T1's second step there was a second list, KNOWN_REMOVED_BY_T1, of the
  * per-tenant readers the ratchet let stand: eleven when it landed, the three
@@ -2007,5 +2015,54 @@ describe("what reaches a job from the owner's connection is ids, closed at both 
     expect(
       activeOrganisationsAnswers('shape.ts', 'export async function activeOrganisations(): Promise<unknown[]> { return rows; }'),
     ).toEqual({ declared: 'Promise<unknown[]>', returns: ['rows'] });
+  });
+});
+
+/** The run's context (rule 9), which every task file imports. */
+const RUN_CONTEXT = 'apps/worker/src/jobs/run-context.ts';
+
+/** What run-context.ts may import as a value, as `<module>: <name>`, closed (rule 9). Types are free. */
+const RUN_CONTEXT_IMPORTS: Record<string, string> = {
+  '@trigger.dev/sdk: configure': "the SDK pointed at the stack's own API, before a pass is enqueued",
+  '@trigger.dev/sdk: runs': 'a run asked after, and cancelled, by its id: the purge of closed organisations',
+};
+
+describe("the run's context, which every task imports, loads the SDK and nothing else, and does nothing when imported", () => {
+  it('is imported by every task file, so what it does at import it does in every run', () => {
+    const taskFiles = files.filter((f) => f.startsWith(`${JOBS_DIR}/`) && definesATask(f, texts.get(f)!));
+    expect(taskFiles.length).toBeGreaterThanOrEqual(17);
+    for (const file of taskFiles) {
+      expect(valueImports(file, texts.get(file)!), `${file} does not run through onTriggerDev`).toContain(
+        './run-context.ts: onTriggerDev',
+      );
+    }
+  });
+
+  it('imports no value but the SDK calls it holds: no job module, no pool, no sink', () => {
+    expect(texts.has(RUN_CONTEXT), `${RUN_CONTEXT} is not a source file here`).toBe(true);
+    expect(
+      valueImports(RUN_CONTEXT, texts.get(RUN_CONTEXT)!),
+      `${RUN_CONTEXT} loads something into every run's process. A pass's task comes from the job that\n` +
+        'enqueues one, which decides when the pass\'s module, and its pools and sinks, are loaded (0167 T6).',
+    ).toEqual(Object.keys(RUN_CONTEXT_IMPORTS).sort());
+  });
+
+  it('does nothing when it is imported, reads no database URL and builds no pool', () => {
+    const text = texts.get(RUN_CONTEXT)!;
+    expect(importTimeEffects(RUN_CONTEXT, text)).toEqual([]);
+    expect(databaseUrlReads(RUN_CONTEXT, text)).toEqual([]);
+    expect(buildsAPool(RUN_CONTEXT, text)).toBe(false);
+  });
+
+  it('sees a job module loaded, by import or import(), and a value imported beside the SDK', () => {
+    const shape = "import { configure, runs } from '@trigger.dev/sdk';\nimport type { X } from './run-delta-sync.ts';\n";
+    expect(valueImports('shape.ts', shape)).toEqual(Object.keys(RUN_CONTEXT_IMPORTS).sort());
+    expect(valueImports('shape.ts', `${shape}import { runDeltaSync } from './run-delta-sync.ts';`)).toContain(
+      './run-delta-sync.ts: runDeltaSync',
+    );
+    expect(valueImports('shape.ts', `${shape}export async function f() { return import('./run-delta-sync.ts'); }`)).toContain(
+      './run-delta-sync.ts: import(…)',
+    );
+    expect(valueImports('shape.ts', `${shape}import './task-pools.ts';`)).toContain('./task-pools.ts: (loaded)');
   });
 });
