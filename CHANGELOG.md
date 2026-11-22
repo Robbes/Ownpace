@@ -6,6 +6,14 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ### Added
 
+- **The forms an address takes, and the change of an old address to a new one, as pure functions
+  nothing calls yet** (workplan 0168 T1 and T3; ADR-0055). `addressKey` (moved from
+  `googleAccountKey`, the sign-in's behaviour unchanged), `NOT_TAKEN_ALONG` and `cannotTakeAlong`
+  in `packages/shared/src/address-forms.ts`; the list holds Google's two domains only, the only
+  ones whose sources could be read. `applyAddressChanges` and `addressTableDigest` in
+  `packages/shared/src/address-changes.ts` change a vCard's `EMAIL` and an event's `ORGANIZER` and
+  family `ATTENDEE`s, never free text, display names, UIDs or an outside invitation; a guard keeps
+  them off the mail path.
 - **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
   (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
 - **The jobs' own database role and schema, made by the managed bring-up; nothing connects as it

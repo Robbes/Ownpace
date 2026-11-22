@@ -138,3 +138,5 @@ export * from './calendar-scheduling.ts';
 
 // The forms an address takes, and the domains nobody can take along (workplan 0168 T1).
 export * from './address-forms.ts';
+// A new address as a declared change to cards and events, never to mail (workplan 0168 T3, ADR-0055).
+export * from './address-changes.ts';
