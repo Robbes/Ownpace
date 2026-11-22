@@ -4,6 +4,11 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
 
 ## [Unreleased]
 
+### Added
+
+- **A job runner for the managed edition on pg-boss 12.38.2, pinned exactly; nothing runs it yet**
+  (workplan 0167 T5; ADR-0054). The API's image carries it; the appliance cannot load it.
+
 ### Fixed
 
 - **A move whose old copy was deleted is decided on Moves** (workplan 0164 T3a; ADR-0024, amended
