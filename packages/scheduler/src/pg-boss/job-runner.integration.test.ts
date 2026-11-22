@@ -654,25 +654,33 @@ describe('E2: a producer enqueues, and never migrates, supervises, schedules or 
 
   it('fires no schedule, even one that is due every second, while the worker is stopped', async () => {
     const queue = 'e2-cron';
-    const spec: QueueSpec = { name: queue, policy: 'stately' };
+    const fresh = 'e2-cron-fresh';
+    const specs: QueueSpec[] = [{ name: queue, policy: 'stately' }, { name: fresh, policy: 'stately' }];
     const worker = newRunner();
-    await worker.start([spec]);
+    await worker.start(specs);
     await worker.schedule(queue, '* * * * * *', {});
     // The control: a worker fires it.
     await until('the worker to fire the schedule', async () => (await jobCount(queue)) > 0, 20_000);
     await worker.stop();
-    await jobsPool.query(`DELETE FROM ${SCHEMA}.job WHERE name = $1`, [queue]);
+    // A schedule no pass has sent yet, made while no worker runs: due at once for any instance that
+    // schedules. (pg-boss does not send the first one again within its window once it has sent it.)
+    await jobsPool.query(
+      `INSERT INTO ${SCHEMA}.schedule (name, key, kind, cron, timezone, data, options)
+       SELECT $2, key, kind, cron, timezone, data, options FROM ${SCHEMA}.schedule WHERE name = $1`,
+      [queue, fresh],
+    );
     // As if no cron pass had run for a long time: an instance that schedules claims one the moment it starts.
     await jobsPool.query(`UPDATE ${SCHEMA}.version SET cron_on = NULL`);
-    const p = newProducer([spec]);
+    const p = newProducer(specs);
     await p.start();
     await sleep(8_000); // more than the cron worker's interval, many times over the schedule's
-    expect(await jobCount(queue)).toBe(0);
+    expect(await jobCount(fresh)).toBe(0);
     await p.stop();
     // Left as it found it, for any later run of this file against the same schema.
     const w2 = newRunner();
-    await w2.start([spec]);
+    await w2.start(specs);
     await w2.unschedule(queue);
+    await w2.unschedule(fresh);
     await w2.stop();
   }, 60_000);
 });
