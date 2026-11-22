@@ -176,6 +176,7 @@ import { basename, dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { COMPOSE_FILES, TASK_BASE_LINE, cliBaseImage, keepIssue, parseRef, readImages, realNet, repoReader, tagsOf, taskBasePin } from './idp-pin-watch.mjs';
 import { compareSemVer, parseSemVer } from './release-names-agree.mjs';
+import { publishedAt } from './release-verify.mjs';
 
 /** The compose files whose `image:` lines are scanned: the pin watch's, and the appliance's. */
 export const SCAN_FILES = [...COMPOSE_FILES, 'deploy/selfhost/compose.yml'];
@@ -185,7 +186,7 @@ export const SCRIPT_DIRS = ['deploy/compose', 'deploy/selfhost'];
 
 /** Where Ownpace's own images are published, and which: images.yml's matrix. */
 export const OWNPACE_REGISTRY = 'ghcr.io/robbes';
-export const OWNPACE_IMAGES = ['api', 'web', 'selfhost'];
+export const OWNPACE_IMAGES = ['api', 'web', 'selfhost', 'worker'];
 
 /**
  * The tasks' image: its name (and so its SARIF category, `trivy-image-trigger-task-base`,
@@ -262,6 +263,11 @@ export const IMAGE_TIERS = {
   'ownpace-web-release': 'production-public',
   'ownpace-api-edge': 'production-public',
   'ownpace-api-release': 'production-public',
+  // The job worker (ADR-0054, workplan 0167 T7): managed.yml's `worker`, on
+  // the stack's own network only, with no port. Its release is scanned from
+  // the first release that publishes it (release-verify.mjs's FIRST_RELEASE).
+  'ownpace-worker-edge': 'production-internal',
+  'ownpace-worker-release': 'production-internal',
   // managed.yml's services that bootstrap-managed.sh's phase_app starts by name
   // on live, published on loopback or not at all: the ledger's and Trigger.dev's
   // databases (POSTGRES_BIND empty), the pooler, Trigger.dev's plane, its
@@ -465,6 +471,8 @@ export async function imagesToScan(repo, net, { upstream = 'origin' } = {}) {
     const edge = `ownpace-${image}-edge`;
     const tagged = `ownpace-${image}-release`;
     entries.push({ name: edge, tier: tierOf(edge), ref: `${ownpace}${image}:edge`, where: 'main (images.yml)', floating: true });
+    // An image newer than the newest release has no image at it to scan yet.
+    if (!publishedAt(image, release)) continue;
     entries.push({ name: tagged, tier: tierOf(tagged), ref: `${ownpace}${image}:${release}`, where: `v${release}, the newest release tag (images.yml)`, floating: false });
   }
 

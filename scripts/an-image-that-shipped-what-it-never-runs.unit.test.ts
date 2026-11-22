@@ -85,7 +85,16 @@ import { join, dirname, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..');
-const DOCKERFILE = 'apps/api/Dockerfile';
+/**
+ * The images that install the workspace this way, each with the package its
+ * filter starts from: the API's, and since workplan 0167 T7 the job worker's,
+ * which runs the same packages on the same two images. Both are held to every
+ * rule below, by the closure their own filter selects.
+ */
+const IMAGES = [
+  { dockerfile: 'apps/api/Dockerfile', root: '@openmig/api' },
+  { dockerfile: 'apps/worker/Dockerfile', root: '@openmig/worker' },
+] as const;
 
 // ---------------------------------------------------------------- 1. stages
 
@@ -212,7 +221,7 @@ function devDependencyRefusals(text: string): string[] {
   return refusals;
 }
 
-describe('the API image carries production dependencies only', () => {
+describe.each(IMAGES)('$dockerfile carries production dependencies only', ({ dockerfile: DOCKERFILE }) => {
   const dockerfile = readFileSync(join(ROOT, DOCKERFILE), 'utf8');
 
   it('reads the stages it is about', () => {
@@ -291,16 +300,11 @@ function workspace(): Map<string, { dir: string; manifest: Manifest }> {
 }
 
 /**
- * The API and every workspace package it reaches along production edges: what
- * `--filter-prod @openmig/api...` selects. pnpm's graph for it has each
- * package's `dependencies`, `optionalDependencies` and `peerDependencies`, and
- * leaves out `devDependencies`.
+ * `root` and every workspace package it reaches along production edges, as
+ * `--filter-prod <root>...` selects. pnpm's graph for it has each package's
+ * `dependencies`, `optionalDependencies` and `peerDependencies`, and leaves out
+ * `devDependencies`.
  */
-function apiClosure(): Array<{ dir: string; manifest: Manifest }> {
-  return closureOf('@openmig/api');
-}
-
-/** `root` and every workspace package it reaches along production edges, as `--filter-prod <root>...` selects. */
 function closureOf(root: string): Array<{ dir: string; manifest: Manifest }> {
   const all = workspace();
   const seen = new Map<string, { dir: string; manifest: Manifest }>();
@@ -377,19 +381,20 @@ function undeclaredLoads(dir: string, manifest: Manifest): string[] {
   return [...new Set(missing)];
 }
 
-describe('what the API image loads is declared where it is loaded', () => {
-  const closure = apiClosure();
+describe.each(IMAGES)('what $dockerfile loads is declared where it is loaded', ({ dockerfile: DOCKERFILE, root }) => {
+  const closure = closureOf(root);
 
   it('walks the packages the image installs', () => {
     // Named, so a closure that stops following `workspace:` fails here.
     expect(closure.map((p) => p.manifest.name).sort()).toEqual(
-      expect.arrayContaining(['@openmig/api', '@openmig/core', '@openmig/ledger', '@openmig/managed', '@openmig/orchestration']),
+      expect.arrayContaining([root, '@openmig/core', '@openmig/ledger', '@openmig/managed', '@openmig/orchestration']),
     );
     // And it starts where the Dockerfile's filter starts, along the edges that filter follows.
     const commands = installsBehind(readStages(readFileSync(join(ROOT, DOCKERFILE), 'utf8')), 'runtime').map((i) => i.command);
+    const filter = new RegExp(`--filter-prod[ =]${root.replace('/', '\\/')}\\.\\.\\.(\\s|$)`);
     expect(
-      commands.some((command) => /--filter-prod[ =]@openmig\/api\.\.\.(\s|$)/.test(command)),
-      `${DOCKERFILE}: this walks what --filter-prod @openmig/api... selects, and the image installs ${commands.join(' | ')}`,
+      commands.some((command) => filter.test(command)),
+      `${DOCKERFILE}: this walks what --filter-prod ${root}... selects, and the image installs ${commands.join(' | ')}`,
     ).toBe(true);
   });
 

@@ -41,6 +41,10 @@ on:
       - 'apps/api/Dockerfile'
       - 'apps/web/Dockerfile'
       - 'apps/selfhost/Dockerfile'
+      # The job worker (workplan 0167 T7): its Dockerfile, and the source its
+      # step below loads in the image.
+      - 'apps/worker/Dockerfile'
+      - 'apps/worker/src/**'
       - 'apps/worker/task-image/**'
       # The pin of that base the tasks run on (the `task-base-pin` job).
       - 'apps/worker/trigger.config.ts'
@@ -76,7 +80,11 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        image: [api, web, selfhost]
+        # `worker` is the managed edition's job worker (ADR-0054, workplan 0167
+        # T7), built on apps/api/Dockerfile's two images: published, signed,
+        # scanned and verified at the tag as the api is, so that the release
+        # that turns the job runner's switch on has an image to start.
+        image: [api, web, selfhost, worker]
         # THE TASKS' PREBUILT BASE (workplan 0119 §3 item 13; the owner's
         # decision of 2026-11-03, for alpha.5): apps/worker/task-image/Dockerfile,
         # distroless with what the Trigger.dev CLI's runtime stage needs from a
@@ -222,9 +230,9 @@ jobs:
           # PRs prove the Dockerfile builds; the publish path proves multi-arch.
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
-          # The tasks' base on a pull request, into this runner's Docker, for
-          # the step that runs it below.
-          load: ${{ github.event_name == 'pull_request' && matrix.image == 'task-base' }}
+          # The tasks' base and the worker on a pull request, into this
+          # runner's Docker, for the steps that run them below.
+          load: ${{ github.event_name == 'pull_request' && (matrix.image == 'task-base' || matrix.image == 'worker') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Registry-backed layer cache: the second multi-arch build reuses the
@@ -261,9 +269,9 @@ jobs:
           # PRs prove the Dockerfile builds; the publish path proves multi-arch.
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           push: ${{ github.event_name != 'pull_request' }}
-          # The tasks' base on a pull request, into this runner's Docker, for
-          # the step that runs it below.
-          load: ${{ github.event_name == 'pull_request' && matrix.image == 'task-base' }}
+          # The tasks' base and the worker on a pull request, into this
+          # runner's Docker, for the steps that run them below.
+          load: ${{ github.event_name == 'pull_request' && (matrix.image == 'task-base' || matrix.image == 'worker') }}
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           # Registry-backed layer cache: the second multi-arch build reuses the
@@ -338,6 +346,72 @@ jobs:
           for shell in sh /bin/sh bash /bin/bash /busybox/sh; do
             if said="$(docker run --rm --entrypoint "$shell" "$IMAGE" -c true 2>&1)"; then
               echo "::error::${shell} started in the tasks' base, which must have no shell"
+              exit 1
+            fi
+            if [[ ! "$said" =~ $absent ]]; then
+              echo "::error::${shell} did not start, for another reason than its absence: ${said}"
+              exit 1
+            fi
+            echo "no ${shell}: ${BASH_REMATCH[1]}"
+          done
+
+      # THE JOB WORKER, RUN AS ITS SERVICE RUNS IT (workplan 0167 T7). On a
+      # pull request, linux/amd64: the image's own entrypoint and user, Node
+      # at apps/api/Dockerfile's FROM node line, uid and gid 65532, started as
+      # the service starts it (a read-only root, /tmp in memory, no
+      # capability, no new privileges), and
+      # every workspace module it ships loading: each job under
+      # apps/worker/src/jobs and the runner's `@openmig/scheduler/pg-boss`, so
+      # an install that leaves out a package a job loads fails here rather
+      # than at the worker's first start. The jobs refuse to load without the
+      # role URLs the service gives them, so the probe gives them URLs to a
+      # host that does not exist; nothing connects. Then each shell name as the
+      # entrypoint, which must not start: the image has none. Not its CMD,
+      # apps/worker/src/runner/main.ts, until that file is in the tree; the
+      # managed smoke asks the running worker's /health once the service runs.
+      - name: The worker runs Node as 65532 on a read-only root, loads every job, and has no shell
+        if: matrix.image == 'worker' && github.event_name == 'pull_request'
+        env:
+          IMAGE: ${{ steps.build_attempt.outputs.imageid }}
+        run: |
+          set -euo pipefail
+          if [ -z "$IMAGE" ]; then
+            echo "::error::the build loaded no image to run"
+            exit 1
+          fi
+          want="v$(sed -n 's/^FROM node:\([0-9]*\.[0-9]*\.[0-9]*\)-.*/\1/p' apps/api/Dockerfile)"
+          probe="$(cat <<'JS'
+          const fs = require('node:fs');
+          const dir = '/app/apps/worker/src/jobs';
+          const jobs = fs.readdirSync(dir).filter((f) => f.endsWith('.ts') && !/\.test\.ts$/.test(f));
+          (async () => {
+            const wrong = [];
+            if (process.version !== process.env.WANT_NODE) wrong.push(`Node is ${process.version}, and apps/api/Dockerfile names ${process.env.WANT_NODE}`);
+            const user = `${process.getuid()}:${process.getgid()}`;
+            if (user !== '65532:65532') wrong.push(`it runs as ${user}, not 65532:65532`);
+            if (process.env.NODE_ENV !== 'production') wrong.push(`NODE_ENV is ${process.env.NODE_ENV}, not production`);
+            let loaded = 0;
+            for (const job of jobs) {
+              try { await import(`${dir}/${job}`); loaded += 1; } catch (e) { wrong.push(`${job}: ${String(e && e.message).split('\n')[0]}`); }
+            }
+            try { await import('@openmig/scheduler/pg-boss'); } catch (e) { wrong.push(`@openmig/scheduler/pg-boss: ${String(e && e.message).split('\n')[0]}`); }
+            if (jobs.length === 0) wrong.push(`no job found under ${dir}`);
+            console.log(JSON.stringify({ node: process.version, user, jobs: jobs.length, loaded }));
+            for (const line of wrong) console.error(line);
+            process.exit(wrong.length === 0 ? 0 : 1);
+          })();
+          JS
+          )"
+          nowhere='postgresql://nobody:nothing@nowhere.invalid:6432/none'
+          docker run --rm --read-only=true --tmpfs=/tmp --cap-drop=ALL --security-opt=no-new-privileges:true \
+            -w /app/apps/worker -e "WANT_NODE=${want}" \
+            -e "APP_DATABASE_URL=${nowhere}" -e "SYSTEM_DATABASE_URL=${nowhere}" -e "JOBS_DATABASE_URL=${nowhere}" \
+            -e "SECRET_ENCRYPTION_KEY=$(printf '0%.0s' $(seq 64))" \
+            "$IMAGE" -e "$probe"
+          absent='(executable file not found|no such file or directory)'
+          for shell in sh /bin/sh bash /bin/bash /busybox/sh; do
+            if said="$(docker run --rm --entrypoint "$shell" "$IMAGE" -c true 2>&1)"; then
+              echo "::error::${shell} started in the worker image, which must have no shell"
               exit 1
             fi
             if [[ ! "$said" =~ $absent ]]; then

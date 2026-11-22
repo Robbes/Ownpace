@@ -119,6 +119,7 @@ export const KNOWN = [
   'apps/api/Dockerfile',
   'apps/selfhost/Dockerfile',
   'apps/web/Dockerfile',
+  'apps/worker/Dockerfile',
   'apps/worker/task-image/Dockerfile',
   'deploy/compose/caddy/Dockerfile',
   'deploy/compose/docker-socket-proxy/Dockerfile',

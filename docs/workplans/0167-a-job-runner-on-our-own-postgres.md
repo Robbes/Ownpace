@@ -445,6 +445,97 @@ Testcontainers run is the one to trust for 18):
 - Found on the way: a test that imported an entry module (one ending in `serveRuns`) served runs
   inside vitest's own forked worker, and so did `process.exit` there. The key-holder fixture's
   table helper is now a module of its own, `key-holder-table.ts`.
+**2026-11-22, later still: the worker's image and its service, defined and not started (T7, its second part).**
+On branch `claude/ownpace-pgboss-worker-image`, from the jobs role's branch. Nothing starts the
+service: it is in profile `jobs`, nothing depends on it, and `OWNPACE_JOB_RUNNER` is `trigger`
+unless set, so Trigger.dev still runs every job. No file in either migration chain and none of the
+Trigger.dev, ClickHouse and identity-provider lines in `managed.yml` changed.
+
+- **The image.** `apps/worker/Dockerfile`: the API's two FROM lines, tag and digest, in the same
+  order; `pnpm install --frozen-lockfile --prod --filter-prod @openmig/worker...`; distroless,
+  `USER 65532:65532`, `ENTRYPOINT ["/nodejs/bin/node"]`, `CMD ["apps/worker/src/runner/main.ts"]`,
+  and a HEALTHCHECK of Node by its path asking `127.0.0.1:3002/health`. No EXPOSE.
+- **What the first build found.** The jobs import `pg` and `drizzle-orm`, and `apps/worker`
+  declared neither in `dependencies`: Trigger.dev's bundle had hidden it. In the first image, the
+  jobs failed to load with `Cannot find package 'pg' imported from
+  /app/apps/worker/src/jobs/task-pools.ts`. `an-image-that-shipped-what-it-never-runs`, run over
+  the worker's closure, listed 20 such imports. `apps/worker/package.json` now declares both
+  (`catalog:`), and the lockfile moved by those two entries.
+- **The service.** `worker` in `managed.yml`:
+  - built from that Dockerfile, named after its project, `restart: unless-stopped`, logging capped;
+  - no capability, no new privileges, a read-only root with `/tmp` in memory;
+  - `cpus: ${WORKER_CPUS:-2.5}` and `mem_limit: ${WORKER_MEMORY:-3328m}`, the owner's rule at 3;
+  - `stop_grace_period: 60s`, and it waits for postgres, the pooler and the api to be healthy;
+  - the image's healthcheck, `ownpace-network` only, no port, and profile `jobs`.
+
+  Its environment is every name `set-task-env.sh` uploads, composed the same way. It adds
+  `JOBS_DATABASE_URL` (`ownpace_jobs`, through the pooler), the switch and `NODE_ENV: production`,
+  and has no owner URL. The api gets the same `JOBS_DATABASE_URL` and the switch.
+- **Two passwords are empty, not `:?`.** `JOBS_DB_PASSWORD` and `SYSTEM_DB_PASSWORD` are
+  `${…:-}` in the URLs. Compose interpolates the inactive service too, so a required key would
+  stop every Compose call on a stack whose `.env` lacks it, a `ps` or an `exec postgres` among
+  them. `load_env` seeds the jobs key before its first Compose call. A password a URL cannot
+  carry is refused by the data phase, and a generated one is hex, so the URLs are not encoded, as
+  the others are not.
+- **A note read as a value.** Compose reads `KEY=  # note` as the value `# note`; bash reads it
+  as empty. Six keys of `managed.env.example` that the worker reads were written that way:
+  `SMTP_SECURE`, `NOTIFY_LOCALE`, `LEDGER_RETENTION_DAYS`, `LEDGER_RUN_RETENTION_DAYS`,
+  `LOG_LEVEL` and `TRIGGER_API_URL_IN_NETWORK`. In the worker a retention of `# run LOGS` would
+  stop the retention job. Their notes are on a line of their own now, and `managed-env-contract`
+  refuses that shape for every key the worker reads. A `.env` copied from an older example still
+  has those lines.
+- **The release.** `images.yml` builds `worker` in its matrix. On a pull request it loads the
+  image and runs it as the service does: Node is the API's line, uid 65532, all 26 jobs and
+  `@openmig/scheduler/pg-boss` load, and no shell starts. It cannot run `main.ts`, which is not in
+  the tree yet. The worker is also in:
+  - `scripts/image-scan.mjs`, `production-internal`;
+  - `scripts/release-verify.mjs`, from 0.2.0-alpha.16 on (`FIRST_RELEASE`): an older tag gets a
+    note, and the scan reads no release before it;
+  - Security Scan's release body, `docs/release.md`, and Dependabot's docker group with
+    `/apps/api`.
+- **Guards.** Two are new:
+  - `a-worker-that-carries-no-superuser`: no owner name and no value built from `POSTGRES_USER`
+    or `POSTGRES_PASSWORD`, at any depth. Also no `env_file`, no merge, the three role URLs exactly,
+    and the api's `JOBS_DATABASE_URL` the worker's.
+  - `a-worker-image-on-the-apis-base`: the FROM lines, the runtime stage, Dependabot, the
+    service's shape and the sizing rule.
+
+  Extended: `an-image-that-shipped-what-it-never-runs` (both images), `a-privilege-no-service-uses`
+  and the guide's table, `a-service-that-phones-home`, `a-knob-the-tasks-can-never-see` (the worker
+  names every uploaded variable), `managed-env-contract`, `a-dockerfile-that-ends-as-root`,
+  `the-state-that-lived-in-a-nameless-volume`, `a-base-image-that-carried-what-nothing-runs`,
+  `an-image-nobody-scanned`, `a-release-page-with-no-sbom` and `a-task-base-the-cli-builds-nothing-into`.
+  `a-stack-that-names-its-mode` now also accepts a service fixed to `production`.
+- **Evidence.**
+  - **A local build of the image.** Docker 29.10.0, linux/amd64. CI builds the real file: this
+    run added one layer to its base stage so the build could trust this machine's proxy.
+    - Node `v26.13.1`, uid and gid 65532, `NODE_ENV=production`, no shell under any of five names.
+    - Under `--read-only --tmpfs /tmp --cap-drop ALL`, all 26 job modules and
+      `@openmig/scheduler/pg-boss` load.
+    - Its own CMD stops on the missing `main.ts`.
+    - hadolint v2.15.1 says nothing about it, or about the API's.
+  - **The workflow's new step**, run as written against the image: it passes. With
+    `apps/api/Dockerfile`'s Node changed to 26.13.0 it fails, `Node is v26.13.1, and
+    apps/api/Dockerfile names v26.13.0`.
+  - **A new commit is a new image, for both.** The API and the worker were built at two commits,
+    then at the first again after editing the tree. Each build gave each image a new ID, and
+    `OPENMIG_COMMIT` held the commit it was built from.
+  - **Compose, with the example's `.env` filled with dummies.** Without the profile, `config
+    --services` lists 19 services and no worker; with `--profile jobs`, 20.
+  - **Every unit file under `scripts/` and `deploy/`:** 315 files, 7,720 passed, 36 skipped. The
+    ten guards touched after that run passed again: 646 tests.
+  - **The worker's and scheduler's units:** 51 files, 613 tests.
+  - **Gates:** `pnpm typecheck` 0 and `pnpm lint` 0.
+  - **Broken once each, then restored byte for byte** (`cmp`):
+    - an owner URL in the worker: 2 failed;
+    - a digest of the worker's own: 3 failed;
+    - a glued note back in the example: 1 failed;
+    - `LOG_LEVEL` out of the worker: 1 failed;
+    - the worker at `development`: 1 failed;
+    - the profile removed: 2 failed;
+    - `read_only` removed: 1 failed;
+    - the worker's first release moved to alpha.1: 2 failed.
+
 **2026-11-22, later still, after the second review: a NOLOGIN jobs role is not "not made yet", and four smaller holes.**
 The coordinator's second review of #2041 confirmed the first five fixes, and E2E (managed) run
 45044295985 passed at `3fc7556b`, with the role made, fit, set and proven on the OTA stack. `main`
@@ -687,7 +778,7 @@ so CI's Testcontainers run is the one to trust for the version):
 | T5 This runner, merged | builder | ✅ **Merged 2026-11-22**, as #2038 (`98e9bc34`) | The spike as production code, imported by nothing at run time; ADR-0054; the pin guard and the schema refusal (the Status entry of 2026-11-22, later). |
 | T5a The runner's production gaps | builder | 🟡 **Built 2026-11-22**, on `claude/ownpace-pgboss-runner-gaps` | E2–E8 from the coordinator's plan: `PgBossProducer`, status and cancel by id, the child's lines forwarded and never stored, the worker's own time limit and kill on a lost claim, "not retried" by name, a bounded `recentFailures` (the Status entry "later still"). Done when its pull request merges. |
 | T6 The jobs on the runner, behind a switch | builder | 🟡 **Started 2026-11-22**: its first step, the job catalog and the jobs made runner-neutral, merged as #2043 (`2f86401c`); the worker built on `claude/ownpace-pgboss-worker-process`; the API's doors, cancels and readiness on the switch built on `claude/ownpace-pgboss-api-doors`; the operator's commands built on `claude/ownpace-pgboss-operator-jobs` | §5: the tasks under `apps/worker/src/jobs` and the API's enqueue paths (`enqueue-unless-held.ts`, `job-resolution.ts`) on the runner, one at a time, from `managed-sync-tick` and `run-delta-sync`; `orchestrator_ref` the job id. The switch is off, so Trigger.dev stays the path that runs. The first step (the Status entry of 2026-11-22, later still) changes nothing that runs: the catalog of the seventeen queues, each job's run behind a run context with the Trigger.dev calls moved into it, and the Trigger.dev half of the tick's interlock across runners. The API's step (the Status entry "the API's doors on the switch") reads `OWNPACE_JOB_RUNNER` in `apps/api/src/job-runner.ts`: on `pg-boss` every door enqueues through one producer on `JOBS_DATABASE_URL`, a close cancels by the pg-boss id, and readiness reads the shared beat; on `trigger`, unset or empty, nothing changes and no pg-boss module loads. Its second step, the worker (the Status entry "the worker on pg-boss, inert until started"), built on `claude/ownpace-pgboss-worker-process`: `apps/worker/src/runner/`, the seventeen jobs worked one process per run, the pg-boss half of the run context and of the tick's interlock; nothing starts it yet. The operator's commands, `operator.sh jobs` (overview, failures, show, cancel, run, refused while the hold is open unless `--despite-hold`), built on `claude/ownpace-pgboss-operator-jobs` (the Status entry of 2026-11-22, later still, T6's operator commands). |
-| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role` | A worker service in `managed.yml`, with `cpus: 0.5` and a memory limit, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
+| T7 The worker service, and the switch on | builder, owner | 🟡 **Started 2026-11-22**: the role and schema, built on `claude/ownpace-public-readiness-y7orc6-jobs-role` and merged (#2041); the worker's image and its service, defined and not started, built on `claude/ownpace-pgboss-worker-image` | A worker service in `managed.yml`, its CPUs and memory from `MAX_PASSES_IN_FLIGHT` by the owner's rule, and the jobs' schema and role made by the bring-up; the switch on; the deploy and the managed E2E moved to it. The image (`apps/worker/Dockerfile`, on the API's two images) and the service in profile `jobs`, with the api's `JOBS_DATABASE_URL` and `OWNPACE_JOB_RUNNER`, are built (the Status entry of 2026-11-22, the worker's image). ADR-0054 comes into force here (its *Pending*), and ADR-0004's first rule then names pg-boss. |
 | T8 Trigger.dev's services stopped | builder, owner | ⬜ **Not started** | Stopped on the stacks, their volumes kept as the way back. |
 | T9 Trigger.dev removed | owner | ⬜ **Not started** | Later, and only on the owner's word: Trigger.dev's code, images, scripts, pins and volumes removed. |
 

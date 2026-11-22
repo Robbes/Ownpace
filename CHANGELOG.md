@@ -28,6 +28,15 @@ All notable changes are documented here (Keep a Changelog format; SemVer once re
   messages; one run shown or cancelled by its id; and a run queued by hand, `run-rollback` or a
   schedule's run now, refused while the operator's hold is open unless `--despite-hold`. As the
   jobs role, never the owner. On Trigger.dev, still the default, each says so and exits 1.
+- **The job worker's image, `ownpace-worker`, and its service in `managed.yml`, defined and not
+  started** (workplan 0167 T7; ADR-0054). Built on the API's two images, distroless, as uid 65532,
+  with no shell; published, signed, scanned and verified with each release from 0.2.0-alpha.16 on.
+  The service is in profile `jobs`, so no command starts it, and Trigger.dev still runs every job.
+  It gets the variables the tasks are uploaded today, never the database owner's URL, and the jobs'
+  role URL; the api gets that URL and `OWNPACE_JOB_RUNNER` (`trigger` unless set). Its CPUs and
+  memory follow `MAX_PASSES_IN_FLIGHT` (`WORKER_CPUS`, `WORKER_MEMORY`; `managed.env.example` has
+  the rule). Six keys of `managed.env.example` that the worker reads now keep their notes on a line
+  of their own, since Compose reads `KEY=  # note` as the note.
 
 ### Changed
 

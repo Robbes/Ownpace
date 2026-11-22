@@ -915,6 +915,12 @@ export const NO_SWITCH: Readonly<Record<string, Row>> = {
     },
   },
   'deploy/compose/managed.yml:api': { readAt: 'build', why: "Ownpace's own API: what it sends, and to whom, is privacy §7's list" },
+  'deploy/compose/managed.yml:worker': {
+    readAt: 'build',
+    why:
+      "Ownpace's own job worker (workplan 0167 T7), the jobs Trigger.dev's task runs run today, on the API's images: what " +
+      "they send, and to whom, is privacy §7's list, as the API's is",
+  },
   'deploy/compose/managed.yml:web': { readAt: 'build', why: "Ownpace's own web app, served by nginx: no third-party script, font or tracker" },
   'deploy/compose/managed.yml:gatus': {
     readAt: 'ghcr.io/twin/gatus',
